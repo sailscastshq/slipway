@@ -1,0 +1,23 @@
+{
+  "name": "slipway",
+  "version": "0.1.0",
+  "description": "CLI for Slipway - the Sails-native deployment platform",
+  "type": "module",
+  "keywords": ["sails", "deployment", "cli", "paas"],
+  "bin": {
+    "slipway": "./bin/slipway.js"
+  },
+  "exports": "./src/index.js",
+  "scripts": {
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/sailscastshq/slipway.git",
+    "directory": "packages/cli"
+  }
+}
