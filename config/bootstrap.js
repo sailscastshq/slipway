@@ -19,7 +19,7 @@ module.exports.bootstrap = async function () {
   if (genesisUser) {
     sails.log.info('Slipway is configured. Genesis user:', genesisUser.email)
   } else {
-    sails.log.info('Slipway needs initial setup. Visit /setup or /register to configure.')
+    sails.log.info('Slipway needs initial setup. Visit /setup to configure.')
   }
 
   // Ensure Docker network exists (will be implemented in helper)

@@ -1,7 +1,7 @@
 /**
  * is-setup-allowed
  *
- * Prevents access to /setup and /register routes when Slipway is already configured.
+ * Prevents access to /setup when Slipway is already configured.
  * Only allows access when no genesis user exists (initial setup needed).
  */
 module.exports = async function (req, res, proceed) {

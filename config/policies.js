@@ -16,10 +16,8 @@ module.exports.policies = {
    *                                                                          *
    ***************************************************************************/
 
-  // Setup/register only allowed when no genesis user exists
+  // Setup only allowed when no genesis user exists
   'setup/*': 'is-setup-allowed',
-  'auth/view-signup': 'is-setup-allowed',
-  'auth/signup': 'is-setup-allowed',
 
   // Auth routes for guests only (except when setup is needed)
   'auth/*': 'is-guest',
