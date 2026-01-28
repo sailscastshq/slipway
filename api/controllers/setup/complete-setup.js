@@ -4,12 +4,6 @@ module.exports = {
   description: 'Create the genesis user and default team to complete Slipway setup.',
 
   inputs: {
-    fullName: {
-      type: 'string',
-      maxLength: 120,
-      required: true,
-      description: 'Full name of the genesis user'
-    },
     email: {
       type: 'string',
       isEmail: true,
@@ -21,12 +15,6 @@ module.exports = {
       required: true,
       minLength: 8,
       description: 'Password for the genesis user'
-    },
-    teamName: {
-      type: 'string',
-      required: true,
-      maxLength: 120,
-      description: 'Name for the default team'
     }
   },
 
@@ -40,8 +28,14 @@ module.exports = {
     }
   },
 
-  fn: async function ({ fullName, email: userEmail, password, teamName }) {
+  fn: async function ({ email: userEmail, password }) {
     const email = userEmail.toLowerCase()
+
+    // Derive display name from email (part before @)
+    const fullName = email.split('@')[0].replace(/[._-]/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+
+    // Auto-generate team name
+    const teamName = `${fullName}'s Team`
 
     // Double-check that setup hasn't already been completed
     const existingGenesisUser = await User.findOne({ isGenesisUser: true })
@@ -85,6 +79,8 @@ module.exports = {
       if (defaultTeam) {
         await Team.destroyOne({ id: defaultTeam.id })
       }
+
+      sails.log.error('Setup error:', error)
 
       if (error.code === 'E_UNIQUE') {
         throw {

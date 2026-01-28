@@ -10,6 +10,22 @@ module.exports = {
   },
 
   fn: async function () {
-    return { page: 'dashboard/index' }
+    // Get the logged-in user with their team
+    const user = await User.findOne({ id: this.req.session.userId }).populate(
+      'team'
+    )
+
+    // Fetch projects for the user's team
+    let projects = []
+    if (user && user.team) {
+      projects = await Project.find({ team: user.team.id }).sort('createdAt DESC')
+    }
+
+    return {
+      page: 'dashboard/index',
+      props: {
+        projects
+      }
+    }
   }
 }

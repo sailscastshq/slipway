@@ -50,6 +50,10 @@ module.exports.routes = {
 
   'DELETE /logout': 'user/logout',
 
+  // Projects (web UI)
+  'GET /projects/new': 'projects/view-new-project',
+  'POST /projects': 'projects/create-project',
+
   /***************************************************************************
    *                                                                          *
    * API v1 routes                                                            *

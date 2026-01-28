@@ -30,12 +30,9 @@ module.exports = function defineCustomHook(sails) {
                 sails.inertia.once(async () => {
                   const user = await User.findOne({
                     id: req.session.userId
-                  }).select([
-                    'email',
-                    'fullName',
-                    'googleAvatarUrl',
-                    'initials'
-                  ])
+                  })
+                    .select(['email', 'fullName', 'initials', 'team'])
+                    .populate('team')
 
                   if (!user) {
                     sails.log.warn(
