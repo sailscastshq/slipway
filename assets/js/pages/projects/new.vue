@@ -1,5 +1,6 @@
 <script setup>
 import { useForm, Head, Link } from '@inertiajs/vue3'
+import { inject } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
 
 defineOptions({
@@ -14,22 +15,37 @@ const form = useForm({
 const submit = () => {
   form.post('/projects')
 }
+
+const toggleMobileMenu = inject('toggleMobileMenu')
 </script>
 <template>
   <Head title="Create Project | Slipway"></Head>
   <div class="flex h-full flex-col">
     <!-- Header -->
-    <div class="flex items-center justify-between border-b border-gray-200 px-8 py-4 dark:border-gray-800">
-      <nav class="flex items-center space-x-2 text-sm">
-        <Link
-          href="/"
-          class="text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
+    <div class="flex items-center justify-between border-b border-gray-200 px-4 py-4 dark:border-gray-800 sm:px-8">
+      <div class="flex items-center space-x-3">
+        <button
+          @click="toggleMobileMenu"
+          class="rounded-md p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white md:hidden"
         >
-          Projects
-        </Link>
-        <span class="text-gray-400 dark:text-gray-600">/</span>
-        <span class="font-medium text-gray-900 dark:text-white">Create Project</span>
-      </nav>
+          <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+          </svg>
+        </button>
+        <nav class="flex items-center space-x-2 text-sm">
+          <Link
+            href="/"
+            class="text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
+          >
+            Projects
+          </Link>
+          <span class="text-gray-400 dark:text-gray-600">/</span>
+          <span class="font-medium text-gray-900 dark:text-white">
+            <span class="hidden sm:inline">Create Project</span>
+            <span class="sm:hidden">New</span>
+          </span>
+        </nav>
+      </div>
       <a
         href="https://docs.sailscasts.com/slipway"
         target="_blank"
@@ -40,7 +56,7 @@ const submit = () => {
     </div>
 
     <!-- Content -->
-    <div class="mx-auto w-full max-w-5xl flex-1 px-8 pt-16 pb-8">
+    <div class="mx-auto w-full max-w-5xl flex-1 px-4 pt-8 pb-8 sm:px-8 sm:pt-16">
       <div class="flex justify-center">
         <div class="w-full max-w-md">
           <!-- Error message -->

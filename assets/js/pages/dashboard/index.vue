@@ -1,5 +1,6 @@
 <script setup>
 import { Link, Head } from '@inertiajs/vue3'
+import { inject } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
 
 defineOptions({
@@ -12,15 +13,27 @@ defineProps({
     default: () => []
   }
 })
+
+const toggleMobileMenu = inject('toggleMobileMenu')
 </script>
 <template>
   <Head title="Projects | Slipway"></Head>
   <div class="flex h-full flex-col">
     <!-- Header -->
-    <div class="flex items-center justify-between border-b border-gray-200 px-8 py-4 dark:border-gray-800">
-      <nav class="flex items-center text-sm">
-        <span class="font-medium text-gray-900 dark:text-white">Projects</span>
-      </nav>
+    <div class="flex items-center justify-between border-b border-gray-200 px-4 py-4 dark:border-gray-800 sm:px-8">
+      <div class="flex items-center space-x-3">
+        <button
+          @click="toggleMobileMenu"
+          class="rounded-md p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white md:hidden"
+        >
+          <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+          </svg>
+        </button>
+        <nav class="flex items-center text-sm">
+          <span class="font-medium text-gray-900 dark:text-white">Projects</span>
+        </nav>
+      </div>
       <div class="flex items-center space-x-4">
         <Link
           v-if="projects.length > 0"
@@ -28,7 +41,8 @@ defineProps({
           class="flex items-center space-x-1 rounded-md bg-gray-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-gray-800 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
         >
           <span>+</span>
-          <span>Create Project</span>
+          <span class="hidden sm:inline">Create Project</span>
+          <span class="sm:hidden">New</span>
         </Link>
         <a
           href="https://docs.sailscasts.com/slipway"
@@ -41,7 +55,7 @@ defineProps({
     </div>
 
     <!-- Content -->
-    <div class="mx-auto w-full max-w-5xl flex-1 px-8 py-8">
+    <div class="mx-auto w-full max-w-5xl flex-1 px-4 py-6 sm:px-8 sm:py-8">
       <!-- Projects Table -->
       <div v-if="projects.length > 0" class="border border-gray-200 dark:border-gray-800">
         <!-- Table Header -->
