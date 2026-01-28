@@ -105,7 +105,6 @@ module.exports = {
   session: {
     adapter: '@sailscastshq/connect-sqlite',
     url: 'sqlite:./db/production.db',
-    table: 'sessions',
     cookie: {
       secure: true,
       maxAge: 24 * 60 * 60 * 1000 // 24 hours
@@ -194,7 +193,7 @@ module.exports = {
      * (http://sailsjs.com/config/http)                                         *
      *                                                                          *
      ***************************************************************************/
-    trustProxy: true,
+    trustProxy: true
   },
 
   /**************************************************************************

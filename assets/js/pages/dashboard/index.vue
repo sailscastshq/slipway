@@ -16,37 +16,32 @@ defineProps({
 <template>
   <Head title="Projects | Slipway"></Head>
   <div class="flex h-full flex-col">
-    <!-- Top Bar -->
-    <div class="flex items-center justify-end border-b border-gray-200 px-8 py-3 dark:border-gray-800">
-      <div class="flex items-center space-x-4 text-sm">
+    <!-- Header -->
+    <div class="flex items-center justify-between border-b border-gray-200 px-8 py-4 dark:border-gray-800">
+      <nav class="flex items-center text-sm">
+        <span class="font-medium text-gray-900 dark:text-white">Projects</span>
+      </nav>
+      <div class="flex items-center space-x-4">
+        <Link
+          v-if="projects.length > 0"
+          href="/projects/new"
+          class="flex items-center space-x-1 rounded-md bg-gray-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-gray-800 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
+        >
+          <span>+</span>
+          <span>Create Project</span>
+        </Link>
         <a
           href="https://docs.sailscasts.com/slipway"
           target="_blank"
-          class="text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
+          class="text-sm text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
         >
           Docs
         </a>
       </div>
     </div>
 
-    <!-- Page Header -->
-    <div class="mx-auto w-full max-w-5xl px-8 py-8">
-      <div class="flex items-center justify-between">
-        <h1 class="text-2xl font-semibold text-gray-900 dark:text-white">Projects</h1>
-        <div v-if="projects.length > 0" class="flex items-center space-x-2">
-          <Link
-            href="/projects/new"
-            class="flex items-center space-x-1 rounded-md bg-gray-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-gray-800 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
-          >
-            <span>+</span>
-            <span>Create Project</span>
-          </Link>
-        </div>
-      </div>
-    </div>
-
     <!-- Content -->
-    <div class="mx-auto w-full max-w-5xl flex-1 px-8">
+    <div class="mx-auto w-full max-w-5xl flex-1 px-8 py-8">
       <!-- Projects Table -->
       <div v-if="projects.length > 0" class="border border-gray-200 dark:border-gray-800">
         <!-- Table Header -->

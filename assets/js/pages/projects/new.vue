@@ -18,36 +18,29 @@ const submit = () => {
 <template>
   <Head title="Create Project | Slipway"></Head>
   <div class="flex h-full flex-col">
-    <!-- Top Bar -->
-    <div class="flex items-center justify-end border-b border-gray-200 px-8 py-3 dark:border-gray-800">
-      <div class="flex items-center space-x-4 text-sm">
-        <a
-          href="https://docs.sailscasts.com/slipway"
-          target="_blank"
-          class="text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
-        >
-          Docs
-        </a>
-      </div>
-    </div>
-
-    <!-- Page Header -->
-    <div class="mx-auto w-full max-w-5xl px-8 py-8">
-      <div class="flex items-center space-x-4">
+    <!-- Header -->
+    <div class="flex items-center justify-between border-b border-gray-200 px-8 py-4 dark:border-gray-800">
+      <nav class="flex items-center space-x-2 text-sm">
         <Link
           href="/"
           class="text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
         >
-          <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-          </svg>
+          Projects
         </Link>
-        <h1 class="text-2xl font-semibold text-gray-900 dark:text-white">Create Project</h1>
-      </div>
+        <span class="text-gray-400 dark:text-gray-600">/</span>
+        <span class="font-medium text-gray-900 dark:text-white">Create Project</span>
+      </nav>
+      <a
+        href="https://docs.sailscasts.com/slipway"
+        target="_blank"
+        class="text-sm text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
+      >
+        Docs
+      </a>
     </div>
 
     <!-- Content -->
-    <div class="mx-auto w-full max-w-5xl flex-1 px-8">
+    <div class="mx-auto w-full max-w-5xl flex-1 px-8 pt-16 pb-8">
       <div class="flex justify-center">
         <div class="w-full max-w-md">
           <!-- Error message -->
@@ -71,7 +64,7 @@ const submit = () => {
               id="description"
               v-model="form.description"
               rows="3"
-              placeholder="Description (optional)"
+              placeholder="A brief description about your project"
               class="w-full resize-none rounded-md border border-gray-200 bg-white px-4 py-3 text-gray-900 placeholder-gray-400 focus:border-brand focus:outline-none dark:border-gray-800 dark:bg-black dark:text-white dark:placeholder-gray-500"
             ></textarea>
 
