@@ -10,6 +10,9 @@
  */
 
 module.exports.bootstrap = async function () {
+  // Initialize CLI tokens map for Bearer token authentication
+  sails.cliTokens = new Map()
+
   // Check if Slipway has been set up (genesis user exists)
   const genesisUser = await User.findOne({ isGenesisUser: true })
 

@@ -79,5 +79,15 @@ module.exports.routes = {
   'GET /api/v1/projects/:projectId/environments/:environmentId/services': 'api/v1/services/list-services',
   'POST /api/v1/projects/:projectId/environments/:environmentId/services': 'api/v1/services/create-service',
   'GET /api/v1/services/:id': 'api/v1/services/get-service',
-  'DELETE /api/v1/services/:id': 'api/v1/services/destroy-service'
+  'DELETE /api/v1/services/:id': 'api/v1/services/destroy-service',
+
+  // CLI Authentication (browser-based login flow)
+  'POST /api/v1/cli/auth/init': 'api/v1/cli/init-cli-auth',
+  'POST /api/v1/cli/auth/check': 'api/v1/cli/check-cli-auth',
+  'POST /api/v1/cli/auth/confirm': 'api/v1/cli/confirm-cli-auth',
+  'GET /api/v1/cli/auth/stream': 'api/v1/cli/stream-cli-auth',
+  'GET /cli-login': 'cli/view-cli-login',
+
+  // SSE Streams
+  'GET /api/v1/deployments/:id/stream': 'api/v1/deploy/stream-deployment'
 }
