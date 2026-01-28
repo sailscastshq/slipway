@@ -21,8 +21,9 @@ module.exports.routes = {
   'GET /health': 'health/check',
   'GET /': 'home/view-home',
 
-  'GET /signup': 'auth/view-signup',
-  'POST /signup': 'auth/signup',
+  // Setup (only accessible when no genesis user exists)
+  'GET /setup': 'setup/view-setup',
+  'POST /setup': 'setup/complete-setup',
 
   'GET /check-email': 'auth/view-check-email',
   'GET /verify-email': 'auth/verify-email',
@@ -49,7 +50,34 @@ module.exports.routes = {
 
   'DELETE /logout': 'user/logout',
 
-  'GET /auth/:provider/redirect': 'auth/redirect',
+  /***************************************************************************
+   *                                                                          *
+   * API v1 routes                                                            *
+   *                                                                          *
+   ***************************************************************************/
 
-  'GET /auth/:provider/callback': 'auth/callback'
+  // Projects
+  'GET /api/v1/projects': 'api/v1/projects/list-projects',
+  'POST /api/v1/projects': 'api/v1/projects/create-project',
+  'GET /api/v1/projects/:id': 'api/v1/projects/get-project',
+  'PATCH /api/v1/projects/:id': 'api/v1/projects/update-project',
+  'DELETE /api/v1/projects/:id': 'api/v1/projects/destroy-project',
+
+  // Environments (nested under projects)
+  'GET /api/v1/projects/:projectId/environments': 'api/v1/environments/list-environments',
+  'POST /api/v1/projects/:projectId/environments': 'api/v1/environments/create-environment',
+  'GET /api/v1/projects/:projectId/environments/:id': 'api/v1/environments/get-environment',
+  'PATCH /api/v1/projects/:projectId/environments/:id': 'api/v1/environments/update-environment',
+  'DELETE /api/v1/projects/:projectId/environments/:id': 'api/v1/environments/destroy-environment',
+
+  // Deploy
+  'POST /api/v1/projects/:projectId/environments/:environmentId/deploy': 'api/v1/deploy/trigger-deployment',
+  'GET /api/v1/deployments/:id': 'api/v1/deploy/get-deployment-status',
+  'GET /api/v1/deployments/:id/logs': 'api/v1/deploy/get-deployment-logs',
+
+  // Services (databases, redis, etc.)
+  'GET /api/v1/projects/:projectId/environments/:environmentId/services': 'api/v1/services/list-services',
+  'POST /api/v1/projects/:projectId/environments/:environmentId/services': 'api/v1/services/create-service',
+  'GET /api/v1/services/:id': 'api/v1/services/get-service',
+  'DELETE /api/v1/services/:id': 'api/v1/services/destroy-service'
 }

@@ -25,5 +25,8 @@ module.exports.policies = {
 
   // Authenticated routes
   'user/*': 'is-authenticated',
-  'dashboard/*': 'is-authenticated'
+  'dashboard/*': 'is-authenticated',
+
+  // API v1 routes require authentication
+  'api/v1/*': 'is-authenticated'
 }
