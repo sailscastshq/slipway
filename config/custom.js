@@ -40,7 +40,28 @@ module.exports.custom = {
   rememberMeCookieMaxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
 
   // Email address for receiving support messages & other correspondences.
-  internalEmail: 'support+development@example.com'
+  internalEmail: 'support+development@example.com',
+
+  /**************************************************************************
+   *                                                                         *
+   * Slipway configuration                                                   *
+   *                                                                         *
+   **************************************************************************/
+
+  // Base domain for deployed apps (e.g., myapp-production.slipway.local)
+  slipwayDomain: 'slipway.local',
+
+  // Docker network name for app containers
+  slipwayNetwork: 'slipway',
+
+  // Directory where app source code is stored
+  slipwayAppsDir: '/var/slipway/apps',
+
+  // Port range for app containers (Slipway allocates from this range)
+  slipwayPortRange: {
+    start: 3001,
+    end: 4000
+  }
 
   /***************************************************************************
    *                                                                          *

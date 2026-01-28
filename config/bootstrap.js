@@ -10,19 +10,18 @@
  */
 
 module.exports.bootstrap = async function () {
-  // By convention, this is a good place to set up fake data during development.
-  //
-  // For example:
-  // ```
-  // // Set up fake development data (or if we already have some, avast)
-  // if (await User.count() > 0) {
-  //   return;
-  // }
-  //
-  // await User.createEach([
-  //   { email: 'ry@example.com', fullName: 'Ryan Dahl', },
-  //   { email: 'rachael@example.com', fullName: 'Rachael Shaw', },
-  //   // etc.
-  // ]);
-  // ```
+  // Check if Slipway has been set up (genesis user exists)
+  const genesisUser = await User.findOne({ isGenesisUser: true })
+
+  // Store setup status in config for middleware/policies to use
+  sails.config.custom.slipwayIsSetup = !!genesisUser
+
+  if (genesisUser) {
+    sails.log.info('Slipway is configured. Genesis user:', genesisUser.email)
+  } else {
+    sails.log.info('Slipway needs initial setup. Visit /setup or /register to configure.')
+  }
+
+  // Ensure Docker network exists (will be implemented in helper)
+  // await sails.helpers.docker.ensureNetwork()
 }
