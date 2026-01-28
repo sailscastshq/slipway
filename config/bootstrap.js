@@ -22,6 +22,11 @@ module.exports.bootstrap = async function () {
     sails.log.info('Slipway needs initial setup. Visit /setup to configure.')
   }
 
-  // Ensure Docker network exists (will be implemented in helper)
-  // await sails.helpers.docker.ensureNetwork()
+  // Ensure Docker network exists
+  try {
+    await sails.helpers.docker.ensureNetwork()
+  } catch (error) {
+    sails.log.warn('Could not ensure Docker network. Docker may not be available.')
+    sails.log.verbose(error)
+  }
 }
