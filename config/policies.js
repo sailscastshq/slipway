@@ -28,5 +28,14 @@ module.exports.policies = {
   'dashboard/*': 'is-authenticated',
 
   // API v1 routes require authentication
-  'api/v1/*': 'is-authenticated'
+  'api/v1/*': 'is-authenticated',
+
+  // CLI auth endpoints are public (user not logged in yet)
+  'api/v1/cli/init-auth': true,
+  'api/v1/cli/check-auth': true,
+  'api/v1/cli/stream-auth': true,
+  // confirm-auth requires auth (user confirms in browser while logged in)
+
+  // CLI authorization page (handles its own auth state display)
+  'cli/view-authorize': true
 }

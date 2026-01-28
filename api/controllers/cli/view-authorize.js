@@ -1,7 +1,7 @@
 module.exports = {
-  friendlyName: 'View CLI login',
+  friendlyName: 'View CLI authorize',
 
-  description: 'Display the CLI login confirmation page.',
+  description: 'Display the CLI authorization page.',
 
   inputs: {
     code: {
@@ -40,7 +40,7 @@ module.exports = {
     }
 
     return {
-      page: 'cli/login',
+      page: 'cli/authorize',
       code,
       isLoggedIn,
       user: user ? { email: user.email, fullName: user.fullName } : null

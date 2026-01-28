@@ -6,10 +6,16 @@ import InputPassword from '@/components/InputPassword.vue'
 import InputButton from '@/components/InputButton.vue'
 import GoogleButton from '@/components/GoogleButton.vue'
 
+const props = defineProps({
+  redirect: String,
+  error: String
+})
+
 const form = useForm({
   email: null,
   password: null,
-  rememberMe: false
+  rememberMe: false,
+  redirect: props.redirect || null
 })
 
 const disableLoginButton = computed(() => {
@@ -23,7 +29,7 @@ const disableLoginButton = computed(() => {
 <template>
   <Head title="Login | Mellow"></Head>
   <section
-    class="flex min-h-screen flex-col justify-center bg-gradient-to-b from-brand-50/10 to-[#F9FAFB] text-black sm:items-center"
+    class="bg-linear-to-b from-brand-50/10 flex min-h-screen flex-col justify-center to-[#F9FAFB] text-black sm:items-center"
   >
     <main
       class="mt-10 bg-white px-4 py-10 text-black sm:w-7/12 sm:rounded-lg sm:px-8 sm:shadow-lg md:w-6/12 lg:w-5/12 xl:w-4/12"
@@ -51,12 +57,12 @@ const disableLoginButton = computed(() => {
           </svg>
         </Link>
         <h1 class="text-2xl">Log into your account</h1>
-        <p class="text-lg text-gray">Welcome back, please enter your details</p>
+        <p class="text-gray text-lg">Welcome back, please enter your details</p>
         <p
           class="my-4 w-full rounded-sm border-red-400 bg-red-100 p-4 text-red-500"
-          v-if="form.errors.email || form.errors.login"
+          v-if="form.errors.email || form.errors.login || props.error"
         >
-          {{ form.errors.login || form.errors.email }}
+          {{ form.errors.login || form.errors.email || props.error }}
         </p>
       </section>
       <form
@@ -65,8 +71,8 @@ const disableLoginButton = computed(() => {
       >
         <InputEmail v-model="form.email" />
         <InputPassword v-model="form.password" />
-        <section class="flex justify-between text-sm accent-brand">
-          <label for="rememberMe" class="flex items-center space-x-2 text-gray">
+        <section class="accent-brand flex justify-between text-sm">
+          <label for="rememberMe" class="text-gray flex items-center space-x-2">
             <input id="rememberMe" type="checkbox" v-model="form.rememberMe" />
             <span>Remember me</span>
           </label>
@@ -83,7 +89,7 @@ const disableLoginButton = computed(() => {
       </form>
       <GoogleButton />
     </main>
-    <footer class="my-8 text-center text-gray">
+    <footer class="text-gray my-8 text-center">
       <p>
         Don't have an account yet?
         <Link href="/signup" class="text-brand hover:underline">Sign up</Link>

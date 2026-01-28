@@ -43,7 +43,7 @@ async function confirmLogin() {
 <template>
   <Head title="Authorize CLI | Slipway" />
   <section
-    class="flex min-h-screen flex-col justify-center bg-gradient-to-b from-brand-50/10 to-[#F9FAFB] text-black sm:items-center"
+    class="bg-linear-to-b from-brand-50/10 flex min-h-screen flex-col justify-center to-[#F9FAFB] text-black sm:items-center"
   >
     <main
       class="mt-10 bg-white px-4 py-10 text-black sm:w-7/12 sm:rounded-lg sm:px-8 sm:shadow-lg md:w-6/12 lg:w-5/12 xl:w-4/12"
@@ -111,9 +111,7 @@ async function confirmLogin() {
       <!-- Not logged in - redirect to login -->
       <section v-else class="text-center">
         <h1 class="mb-4 text-2xl font-semibold">Authorize Slipway CLI</h1>
-        <p class="mb-6 text-gray-600">
-          Please log in to authorize the CLI.
-        </p>
+        <p class="mb-6 text-gray-600">Please log in to authorize the CLI.</p>
 
         <div class="mb-6 rounded-lg bg-gray-50 p-4">
           <p class="text-sm text-gray-500">Confirmation Code</p>
@@ -121,8 +119,8 @@ async function confirmLogin() {
         </div>
 
         <Link
-          :href="`/login?redirect=/cli-login?code=${code}`"
-          class="inline-block w-full rounded-md bg-brand px-4 py-3 text-center font-medium text-white hover:bg-brand-600"
+          :href="`/login?redirect=${encodeURIComponent('/cli/authorize?code=' + code)}`"
+          class="bg-brand hover:bg-brand-600 inline-block w-full rounded-md px-4 py-3 text-center font-medium text-white"
         >
           Log in to continue
         </Link>

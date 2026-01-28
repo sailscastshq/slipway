@@ -64,7 +64,10 @@ module.exports.custom = {
   },
 
   // Caddy admin API URL (for dynamic route configuration)
-  caddyAdminUrl: 'http://localhost:2019'
+  caddyAdminUrl: 'http://localhost:2019',
+
+  // API version (used for building API URLs)
+  apiVersion: 'v1'
 
   /***************************************************************************
    *                                                                          *
