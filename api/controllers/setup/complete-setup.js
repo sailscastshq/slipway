@@ -109,6 +109,6 @@ module.exports = {
 
     sails.log.info(`Slipway setup complete. Genesis user: ${genesisUser.email}, Team: ${defaultTeam.name}`)
 
-    return '/dashboard'
+    return '/'
   }
 }

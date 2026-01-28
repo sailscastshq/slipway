@@ -88,6 +88,6 @@ and exposed as a shared data via loggedInUser prop.)`,
       return redirect
     }
 
-    return '/dashboard'
+    return '/'
   }
 }

@@ -43,7 +43,7 @@ const loggedInUser = usePage().props.loggedInUser
           </li>
         </ul>
         <section class="flex items-center space-x-6" v-else>
-          <Link href="/dashboard" class="text-brand md:text-lg">Dashboard</Link>
+          <Link href="/" class="text-brand md:text-lg">Dashboard</Link>
           <Link href="/profile">
             <p
               class="rounded-full bg-green p-2 text-white"

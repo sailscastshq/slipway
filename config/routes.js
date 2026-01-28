@@ -19,7 +19,9 @@ module.exports.routes = {
    *                                                                          *
    **********************************************/
   'GET /health': 'health/check',
-  'GET /': 'home/view-home',
+
+  // Dashboard (root route - redirects to /setup if not configured)
+  'GET /': 'dashboard/view-dashboard',
 
   // Setup (only accessible when no genesis user exists)
   'GET /setup': 'setup/view-setup',
@@ -41,8 +43,6 @@ module.exports.routes = {
 
   'GET /reset-password': 'auth/view-reset-password',
   'POST /reset-password': 'auth/reset-password',
-
-  'GET /dashboard': 'dashboard/view-dashboard',
 
   'GET /profile': 'user/view-profile',
   'PATCH /profile': 'user/update-profile',
