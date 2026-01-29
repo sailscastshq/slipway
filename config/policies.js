@@ -29,6 +29,9 @@ module.exports.policies = {
   // Dashboard uses special policy that checks setup status first
   'dashboard/*': 'is-authenticated-or-setup',
 
+  // Project pages require authentication
+  'projects/*': 'is-authenticated-or-setup',
+
   // API v1 routes require authentication
   'api/v1/*': 'is-authenticated',
 

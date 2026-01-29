@@ -77,25 +77,130 @@ module.exports = {
       startedAt: Date.now()
     }).fetch()
 
-    // TODO: Trigger actual deployment process (Docker build & run)
-    // This will be implemented with helpers:
-    // - sails.helpers.docker.buildImage()
-    // - sails.helpers.docker.runContainer()
-    // - sails.helpers.caddy.updateConfig()
-
-    // For now, just update status to show it's queued
-    await Deployment.updateOne({ id: deployment.id }).set({
-      status: 'building'
-    })
-
     sails.log.info(`Deployment ${deployment.id} triggered for ${project.slug}/${environment.slug}`)
+
+    // Kick off the async deployment pipeline after returning the response
+    process.nextTick(() => {
+      executeDeployment(deployment.id, project, environment)
+    })
 
     return {
       deployment: {
         id: deployment.id,
-        status: 'building',
+        status: 'pending',
         message: 'Deployment started'
       }
+    }
+  }
+}
+
+/**
+ * Async deployment pipeline. Runs after the HTTP response is sent.
+ * Steps: ensure network → build image → allocate port → run container → update Caddy route
+ */
+async function executeDeployment(deploymentId, project, environment) {
+  try {
+    // 1. Set status to building
+    await Deployment.updateOne({ id: deploymentId }).set({ status: 'building' })
+
+    // 2. Ensure Docker network exists
+    await sails.helpers.docker.ensureNetwork()
+
+    // 3. Generate image name and container name
+    const imageName = await App.generateImageName(environment.id, deploymentId)
+    const containerName = await App.generateContainerName(environment.id)
+    const contextPath = `${sails.config.custom.slipwayAppsDir}/${project.slug}`
+
+    // 4. Build the Docker image
+    await sails.helpers.docker.buildImage.with({
+      contextPath,
+      imageName,
+      dockerfilePath: project.dockerfilePath || 'Dockerfile',
+      deploymentId
+    })
+
+    // Update deployment with image info
+    await Deployment.updateOne({ id: deploymentId }).set({
+      imageName,
+      status: 'deploying'
+    })
+
+    // 5. Allocate a host port
+    const hostPort = await sails.helpers.docker.allocatePort()
+
+    // 6. Get env vars from existing App record (if any)
+    const existingApp = await App.findOne({ environment: environment.id })
+    const envVars = existingApp ? existingApp.envVars || {} : {}
+
+    // 7. Run the container
+    const containerResult = await sails.helpers.docker.runContainer.with({
+      imageName,
+      containerName,
+      port: 1337,
+      hostPort,
+      envVars,
+      deploymentId
+    })
+
+    // 8. Create or update the App record
+    if (existingApp) {
+      await App.updateOne({ id: existingApp.id }).set({
+        status: 'running',
+        containerId: containerResult.containerId,
+        containerName: containerResult.containerName,
+        imageId: null,
+        imageName,
+        port: 1337,
+        hostPort: containerResult.hostPort,
+        lastDeployedAt: Date.now(),
+        currentDeployment: deploymentId
+      })
+    } else {
+      await App.create({
+        status: 'running',
+        containerId: containerResult.containerId,
+        containerName: containerResult.containerName,
+        imageName,
+        port: 1337,
+        hostPort: containerResult.hostPort,
+        envVars,
+        lastDeployedAt: Date.now(),
+        environment: environment.id,
+        currentDeployment: deploymentId
+      })
+    }
+
+    // 9. Update Caddy reverse proxy route
+    try {
+      await sails.helpers.caddy.updateRoute(environment.id)
+    } catch (caddyErr) {
+      sails.log.warn(`Caddy route update failed (non-fatal): ${caddyErr.message}`)
+      await Deployment.appendDeployLog(deploymentId, `Warning: Caddy route update failed: ${caddyErr.message}\n`)
+    }
+
+    // 10. Mark deployment as running
+    await Deployment.updateOne({ id: deploymentId }).set({
+      status: 'running',
+      finishedAt: Date.now()
+    })
+
+    const domain = await Environment.getFullDomain(environment.id)
+    await Deployment.appendDeployLog(deploymentId, `Deployment complete.\n`)
+    await Deployment.appendDeployLog(deploymentId, `  Domain:    ${domain}\n`)
+    await Deployment.appendDeployLog(deploymentId, `  Direct:    http://localhost:${containerResult.hostPort}\n`)
+
+    sails.log.info(`Deployment ${deploymentId} completed successfully — http://localhost:${containerResult.hostPort}`)
+  } catch (err) {
+    sails.log.error(`Deployment ${deploymentId} failed: ${err.message}`)
+
+    // Only update if not already marked as failed by a helper
+    const current = await Deployment.findOne({ id: deploymentId })
+    if (current && current.status !== 'failed') {
+      await Deployment.updateOne({ id: deploymentId }).set({
+        status: 'failed',
+        errorMessage: err.message,
+        finishedAt: Date.now()
+      })
     }
   }
 }

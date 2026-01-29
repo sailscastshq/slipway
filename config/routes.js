@@ -53,6 +53,12 @@ module.exports.routes = {
   // Projects (web UI)
   'GET /projects/new': 'projects/view-new-project',
   'POST /projects': 'projects/create-project',
+  'GET /projects/:slug': 'projects/view-project',
+  'GET /projects/:slug/settings': 'projects/view-project-settings',
+  'PATCH /projects/:slug': 'projects/update-project',
+  'DELETE /projects/:slug': 'projects/destroy-project',
+  'GET /projects/:slug/environments/:envSlug': 'projects/view-environment',
+  'GET /projects/:slug/deployments/:deploymentId': 'projects/view-deployment',
 
   /***************************************************************************
    *                                                                          *
