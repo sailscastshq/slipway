@@ -48,6 +48,17 @@ module.exports = {
     // Get full domain
     const fullDomain = await Environment.getFullDomain(environment.id)
 
+    // Build list of all available domains (for the domain dropdown)
+    const subdomain = `${project.slug}-${environment.slug}`
+    const wildcardDomain = await sails.helpers.setting.get('wildcardDomain')
+    let generatedDomain
+    if (wildcardDomain) {
+      generatedDomain = `${subdomain}.${wildcardDomain}`
+    } else {
+      const serverIp = await sails.helpers.getServerIp()
+      generatedDomain = `${subdomain}.${serverIp}.sslip.io`
+    }
+
     // Sort deployments by most recent
     const deployments = await Deployment.find({ environment: environment.id })
       .sort('createdAt DESC')
@@ -60,7 +71,8 @@ module.exports = {
         project,
         environment: {
           ...environment,
-          fullDomain
+          fullDomain,
+          generatedDomain
         },
         app: app || null,
         envVars: environment.envVars || {},

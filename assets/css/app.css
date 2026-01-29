@@ -1,6 +1,8 @@
 @import 'tailwindcss';
 
 @theme {
+  --animate-nudge-right: nudge-right 2s ease-in-out infinite;
+
   /* Brand Colors - Ocean Blue (Sails-inspired) */
   --color-brand: #0284c7;
   --color-brand-50: #f0f9ff;
@@ -70,6 +72,11 @@
   --color-amber-800: #92400e;
   --color-amber-900: #78350f;
   --color-amber-950: #451a03;
+}
+
+@keyframes nudge-right {
+  0%, 100% { transform: translateX(0); }
+  50% { transform: translateX(4px); }
 }
 
 /* Restore cursor pointer for interactive elements (Tailwind v4 removed this) */

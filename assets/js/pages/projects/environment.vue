@@ -1,6 +1,6 @@
 <script setup>
 import { Link, Head, router } from '@inertiajs/vue3'
-import { inject, ref, reactive } from 'vue'
+import { inject, ref, reactive, computed, watch } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
 import SlideToDeploy from '@/components/SlideToDeploy.vue'
 
@@ -26,6 +26,72 @@ const newValue = ref('')
 const saving = ref(false)
 const deploying = ref(false)
 const slideRef = ref(null)
+const envVarsOpen = ref(new URLSearchParams(window.location.search).has('env'))
+const bulkMode = ref(false)
+const bulkText = ref('')
+
+function enterBulkMode() {
+  bulkText.value = sortedVarKeys.map(k => `${k}=${props.envVars[k]}`).join('\n')
+  bulkMode.value = true
+}
+
+function exitBulkMode() {
+  bulkMode.value = false
+}
+
+function saveBulk() {
+  const vars = {}
+  for (const line of bulkText.value.split('\n')) {
+    const trimmed = line.trim()
+    if (!trimmed || trimmed.startsWith('#')) continue
+    const eqIdx = trimmed.indexOf('=')
+    if (eqIdx === -1) continue
+    const key = trimmed.slice(0, eqIdx).trim()
+    const value = trimmed.slice(eqIdx + 1).trim()
+    if (key) vars[key] = value
+  }
+  Object.keys(localVars).forEach(k => delete localVars[k])
+  Object.assign(localVars, vars)
+  saveEnvVars(localVars)
+  bulkMode.value = false
+}
+
+watch(envVarsOpen, (open) => {
+  const url = new URL(window.location)
+  if (open) {
+    url.searchParams.set('env', '1')
+  } else {
+    url.searchParams.delete('env')
+  }
+  window.history.replaceState({}, '', url)
+})
+
+// Domain display
+const domainDropdownOpen = ref(false)
+const copiedDomain = ref(null)
+
+const domains = computed(() => {
+  const list = []
+  if (props.environment.domain) {
+    list.push({ label: 'Custom', value: props.environment.domain })
+  }
+  if (props.environment.generatedDomain && props.environment.generatedDomain !== props.environment.domain) {
+    list.push({ label: 'Generated', value: props.environment.generatedDomain })
+  }
+  return list
+})
+
+const hasMultipleDomains = computed(() => domains.value.length > 1)
+
+function copyDomain(domain) {
+  navigator.clipboard.writeText(domain)
+  copiedDomain.value = domain
+  setTimeout(() => { copiedDomain.value = null }, 2000)
+}
+
+function closeDomainDropdown() {
+  domainDropdownOpen.value = false
+}
 
 const sensitivePatterns = ['PASSWORD', 'SECRET', 'KEY', 'TOKEN', 'PRIVATE', 'CREDENTIAL', 'AUTH', 'API_KEY', 'APIKEY']
 
@@ -124,7 +190,7 @@ const sortedVarKeys = Object.keys(props.envVars).sort()
 </script>
 <template>
   <Head :title="`${environment.name} - ${project.name} | Slipway`"></Head>
-  <div class="flex h-full flex-col">
+  <div class="flex h-full flex-col" @click="closeDomainDropdown">
     <!-- Header -->
     <div class="flex items-center justify-between border-b border-gray-200 px-4 py-4 dark:border-gray-800 sm:px-8">
       <div class="flex items-center space-x-3">
@@ -155,7 +221,7 @@ const sortedVarKeys = Object.keys(props.envVars).sort()
 
     <!-- Content -->
     <div class="flex-1 overflow-y-auto px-4 py-6 sm:px-8 sm:py-8">
-      <div class="mx-auto max-w-4xl">
+      <div class="mx-auto max-w-6xl">
         <!-- Environment Info -->
         <div class="mb-8 flex items-start justify-between">
           <div>
@@ -168,7 +234,79 @@ const sortedVarKeys = Object.keys(props.envVars).sort()
                 Production
               </span>
             </div>
-            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ environment.fullDomain }}</p>
+            <!-- Domain display -->
+            <div class="relative mt-1 inline-flex items-center">
+              <div class="group flex items-center gap-2">
+                <a
+                  :href="`http://${environment.fullDomain}`"
+                  target="_blank"
+                  class="text-sm text-gray-500 underline decoration-dashed decoration-gray-300 underline-offset-2 hover:text-gray-900 dark:text-gray-400 dark:decoration-gray-600 dark:hover:text-white"
+                >
+                  {{ environment.fullDomain }}
+                </a>
+                <!-- Copy button (visible on hover) -->
+                <button
+                  @click.prevent="copyDomain(environment.fullDomain)"
+                  class="rounded p-0.5 text-gray-300 opacity-0 transition-opacity hover:text-gray-500 group-hover:opacity-100 dark:text-gray-600 dark:hover:text-gray-400"
+                >
+                  <svg v-if="copiedDomain === environment.fullDomain" class="h-3.5 w-3.5 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                  </svg>
+                  <svg v-else class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                  </svg>
+                </button>
+                <!-- Domain dropdown toggle -->
+                <button
+                  v-if="hasMultipleDomains"
+                  @click.stop="domainDropdownOpen = !domainDropdownOpen"
+                  class="rounded p-0.5 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
+                >
+                  <svg
+                    :class="['h-3.5 w-3.5 transition-transform duration-200', domainDropdownOpen ? 'rotate-180' : '']"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+              </div>
+
+              <!-- Domain dropdown -->
+              <div
+                v-if="domainDropdownOpen && hasMultipleDomains"
+                @click.stop
+                class="absolute left-0 top-full z-20 mt-1.5 w-max rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-900"
+              >
+                <div
+                  v-for="d in domains"
+                  :key="d.value"
+                  class="group/item flex items-center gap-2 px-3 py-2"
+                >
+                  <span class="text-[10px] font-medium uppercase tracking-wider text-gray-400 dark:text-gray-500 w-16">{{ d.label }}</span>
+                  <a
+                    :href="`http://${d.value}`"
+                    target="_blank"
+                    class="text-sm text-gray-700 underline decoration-dashed decoration-gray-300 underline-offset-2 hover:text-gray-900 dark:text-gray-300 dark:decoration-gray-600 dark:hover:text-white"
+                  >
+                    {{ d.value }}
+                  </a>
+                  <button
+                    @click="copyDomain(d.value)"
+                    class="rounded p-0.5 text-gray-300 opacity-0 transition-opacity hover:text-gray-500 group-hover/item:opacity-100 dark:text-gray-600 dark:hover:text-gray-400"
+                  >
+                    <svg v-if="copiedDomain === d.value" class="h-3.5 w-3.5 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                    <svg v-else class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+
             <div v-if="app && app.hostPort && app.status === 'running'" class="mt-2 flex items-center space-x-2">
               <span class="inline-flex items-center rounded-md bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 ring-1 ring-inset ring-emerald-600/20 dark:bg-emerald-900/20 dark:text-emerald-400 dark:ring-emerald-500/30">
                 Local
@@ -193,91 +331,164 @@ const sortedVarKeys = Object.keys(props.envVars).sort()
         </div>
 
         <!-- Slide to Deploy -->
-        <div class="mb-10">
-          <SlideToDeploy
-            ref="slideRef"
-            :is-production="environment.isProduction"
-            :disabled="deploying"
-            @deploy="triggerDeploy"
-          />
+        <div class="mb-10 sm:flex sm:justify-end">
+          <div class="w-full sm:max-w-xs">
+            <SlideToDeploy
+              ref="slideRef"
+              :is-production="environment.isProduction"
+              :environment-name="environment.name"
+              :disabled="deploying"
+              @deploy="triggerDeploy"
+            />
+          </div>
         </div>
 
         <!-- Environment Variables -->
         <div class="mb-10">
-          <h2 class="mb-4 text-sm font-medium text-gray-900 dark:text-white">Environment variables</h2>
-
           <div class="rounded-lg border border-gray-200 dark:border-gray-800">
-            <!-- Existing vars -->
-            <div v-if="sortedVarKeys.length > 0" class="divide-y divide-gray-200 dark:divide-gray-800">
-              <div
-                v-for="key in sortedVarKeys"
-                :key="key"
-                class="flex items-center justify-between px-4 py-3"
+            <!-- Collapsible header -->
+            <div class="flex items-center justify-between px-4 py-3">
+              <button
+                @click="envVarsOpen = !envVarsOpen"
+                class="flex flex-1 items-center space-x-3 text-left hover:opacity-80"
               >
-                <div class="flex min-w-0 flex-1 items-center space-x-3">
-                  <span class="font-mono text-sm font-medium text-gray-900 dark:text-white">{{ key }}</span>
-                  <span class="text-gray-400 dark:text-gray-600">=</span>
-                  <span class="min-w-0 truncate font-mono text-sm text-gray-500 dark:text-gray-400">
-                    {{ isSensitive(key) && !revealedKeys.has(key) ? '••••••••' : envVars[key] }}
-                  </span>
-                </div>
-                <div class="flex items-center space-x-2">
-                  <button
-                    v-if="isSensitive(key)"
-                    @click="toggleReveal(key)"
-                    class="rounded p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-                  >
-                    <svg v-if="revealedKeys.has(key)" class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L6.5 6.5m7.378 7.378L17.5 17.5M3 3l18 18" />
-                    </svg>
-                    <svg v-else class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                    </svg>
-                  </button>
-                  <button
-                    @click="removeVar(key)"
-                    class="rounded p-1 text-gray-400 hover:text-red-600 dark:hover:text-red-400"
-                  >
-                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                    </svg>
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            <!-- Empty state -->
-            <div v-else class="px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
-              No environment variables set.
-            </div>
-
-            <!-- Add new var -->
-            <div class="border-t border-gray-200 px-4 py-3 dark:border-gray-800">
-              <div class="flex items-center space-x-2">
-                <input
-                  v-model="newKey"
-                  type="text"
-                  placeholder="KEY"
-                  class="w-40 rounded-md border border-gray-200 bg-white px-3 py-1.5 font-mono text-sm text-gray-900 placeholder-gray-400 focus:border-brand focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-white dark:placeholder-gray-500"
-                  @keydown.enter="addVar"
-                />
-                <span class="text-gray-400">=</span>
-                <input
-                  v-model="newValue"
-                  type="text"
-                  placeholder="value"
-                  class="flex-1 rounded-md border border-gray-200 bg-white px-3 py-1.5 font-mono text-sm text-gray-900 placeholder-gray-400 focus:border-brand focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-white dark:placeholder-gray-500"
-                  @keydown.enter="addVar"
-                />
+                <h2 class="text-sm font-medium text-gray-900 dark:text-white">Environment variables</h2>
+                <span class="inline-flex rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-500 dark:bg-gray-800 dark:text-gray-400">
+                  {{ sortedVarKeys.length }}
+                </span>
+              </button>
+              <div class="flex items-center gap-2">
+                <!-- Bulk/single toggle (only when expanded) -->
                 <button
-                  @click="addVar"
-                  :disabled="!newKey.trim() || saving"
-                  class="rounded-md bg-gray-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
+                  v-if="envVarsOpen"
+                  @click="bulkMode ? exitBulkMode() : enterBulkMode()"
+                  class="rounded p-0.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-800 dark:hover:text-gray-200"
+                  :title="bulkMode ? 'Switch to single edit' : 'Switch to bulk edit'"
                 >
-                  Add
+                  <svg v-if="bulkMode" class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+                  </svg>
+                  <svg v-else class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+                  </svg>
+                </button>
+                <button
+                  @click="envVarsOpen = !envVarsOpen"
+                  class="rounded p-0.5 hover:bg-gray-100 dark:hover:bg-gray-800"
+                >
+                  <svg
+                    :class="['h-4 w-4 text-gray-400 transition-transform duration-200', envVarsOpen ? 'rotate-90' : '']"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                  </svg>
                 </button>
               </div>
+            </div>
+
+            <!-- Expanded content -->
+            <div v-show="envVarsOpen">
+              <!-- Bulk edit mode -->
+              <template v-if="bulkMode">
+                <div class="border-t border-gray-200 dark:border-gray-800">
+                  <textarea
+                    v-model="bulkText"
+                    rows="3"
+                    placeholder="KEY=value&#10;DATABASE_URL=postgres://localhost:5432/db&#10;# Comments are ignored"
+                    class="block w-full resize-none bg-gray-50 px-4 py-3 font-mono text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:bg-gray-900 dark:text-white dark:placeholder-gray-500"
+                    style="field-sizing: content"
+                    spellcheck="false"
+                  />
+                  <div class="flex items-center justify-between border-t border-gray-200 px-4 py-3 dark:border-gray-800">
+                    <p class="text-xs text-gray-400 dark:text-gray-500">
+                      One KEY=value per line. Lines starting with # are ignored.
+                    </p>
+                    <button
+                      @click="saveBulk"
+                      :disabled="saving"
+                      class="rounded-md bg-gray-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
+                    >
+                      Save
+                    </button>
+                  </div>
+                </div>
+              </template>
+
+              <!-- Single mode -->
+              <template v-else>
+                <!-- Existing vars -->
+                <div v-if="sortedVarKeys.length > 0" class="divide-y divide-gray-200 border-t border-gray-200 dark:divide-gray-800 dark:border-gray-800">
+                  <div
+                    v-for="key in sortedVarKeys"
+                    :key="key"
+                    class="px-4 py-3"
+                  >
+                    <div class="flex items-center justify-between">
+                      <span class="font-mono text-sm font-medium text-gray-900 dark:text-white">{{ key }}</span>
+                      <div class="flex items-center space-x-1">
+                        <button
+                          v-if="isSensitive(key)"
+                          @click="toggleReveal(key)"
+                          class="rounded p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                        >
+                          <svg v-if="revealedKeys.has(key)" class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L6.5 6.5m7.378 7.378L17.5 17.5M3 3l18 18" />
+                          </svg>
+                          <svg v-else class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                          </svg>
+                        </button>
+                        <button
+                          @click="removeVar(key)"
+                          class="rounded p-1 text-gray-400 hover:text-red-600 dark:hover:text-red-400"
+                        >
+                          <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                        </button>
+                      </div>
+                    </div>
+                    <p class="mt-1 truncate font-mono text-sm text-gray-500 dark:text-gray-400">
+                      {{ isSensitive(key) && !revealedKeys.has(key) ? '••••••••' : envVars[key] }}
+                    </p>
+                  </div>
+                </div>
+
+                <!-- Empty state -->
+                <div v-else class="border-t border-gray-200 px-4 py-6 text-center text-sm text-gray-500 dark:border-gray-800 dark:text-gray-400">
+                  No environment variables set.
+                </div>
+
+                <!-- Add new var -->
+                <div class="border-t border-gray-200 px-4 py-3 dark:border-gray-800">
+                  <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
+                    <input
+                      v-model="newKey"
+                      type="text"
+                      placeholder="KEY"
+                      class="w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 font-mono text-sm text-gray-900 placeholder-gray-400 focus:border-brand focus:outline-none sm:flex-1 dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
+                      @keydown.enter="addVar"
+                    />
+                    <input
+                      v-model="newValue"
+                      type="text"
+                      placeholder="value"
+                      class="w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 font-mono text-sm text-gray-900 placeholder-gray-400 focus:border-brand focus:outline-none sm:flex-1 dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
+                      @keydown.enter="addVar"
+                    />
+                    <button
+                      @click="addVar"
+                      :disabled="!newKey.trim() || saving"
+                      class="w-full rounded-md bg-gray-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50 sm:w-auto dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
+                    >
+                      Add
+                    </button>
+                  </div>
+                </div>
+              </template>
             </div>
           </div>
         </div>

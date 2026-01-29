@@ -302,7 +302,7 @@ useFlashToast(toast)
     </aside>
 
     <!-- Main Content -->
-    <main class="flex-1 bg-white dark:bg-gray-950">
+    <main class="min-w-0 flex-1 bg-white dark:bg-gray-950">
       <slot></slot>
     </main>
 

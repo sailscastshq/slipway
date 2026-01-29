@@ -6,6 +6,10 @@ const props = defineProps({
     type: Boolean,
     default: false
   },
+  environmentName: {
+    type: String,
+    default: ''
+  },
   disabled: {
     type: Boolean,
     default: false
@@ -46,11 +50,15 @@ const fillColor = computed(() => {
   return props.isProduction ? 'bg-amber-500' : 'bg-emerald-500'
 })
 
+const envLabel = computed(() => {
+  return props.environmentName || (props.isProduction ? 'production' : 'staging')
+})
+
 const label = computed(() => {
   if (state.value === 'deploying') {
-    return props.isProduction ? 'Sliding into production...' : 'Deploying...'
+    return `Deploying to ${envLabel.value}...`
   }
-  return props.isProduction ? 'Slide to deploy to production' : 'Slide to deploy'
+  return `Slide to deploy to ${envLabel.value}`
 })
 
 let startX = 0
@@ -114,28 +122,10 @@ defineExpose({ reset })
         }"
       />
 
-      <!-- Center text -->
-      <div
-        class="pointer-events-none absolute inset-0 flex items-center justify-center"
-        :style="{
-          opacity: state === 'deploying' ? 1 : Math.max(1 - progress * 2.5, 0),
-          transition: animating ? 'opacity 200ms ease' : 'none'
-        }"
-      >
-        <span
-          :class="[
-            'text-sm font-medium',
-            state === 'deploying' ? 'text-white' : 'text-gray-400 dark:text-gray-500'
-          ]"
-        >
-          {{ label }}
-        </span>
-      </div>
-
       <!-- Right chevrons (directional hint) -->
       <div
         v-if="state !== 'deploying'"
-        class="pointer-events-none absolute inset-y-0 right-5 flex items-center"
+        class="pointer-events-none absolute inset-y-0 right-5 flex items-center animate-nudge-right"
         :style="{
           opacity: Math.max(0.3 - progress * 0.5, 0),
           transition: animating ? 'opacity 200ms ease' : 'none'
@@ -183,5 +173,10 @@ defineExpose({ reset })
         </template>
       </div>
     </div>
+
+    <!-- Support text -->
+    <p class="mt-2 text-right text-xs text-gray-400 dark:text-gray-500">
+      {{ label }}
+    </p>
   </div>
 </template>
