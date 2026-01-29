@@ -26,7 +26,7 @@ module.exports = {
   fn: async function ({ id }) {
     const user = await User.findOne({ id: this.req.session.userId })
 
-    const deployment = await Deployment.findOne({ id })
+    const deployment = await Deployment.findOne(id)
       .populate('environment')
       .populate('triggeredBy')
 

@@ -29,7 +29,7 @@ module.exports = {
     const user = await User.findOne({ id: this.req.session.userId })
 
     // Try to find by ID first, then by slug
-    let project = await Project.findOne({ id })
+    let project = await Project.findOne(id)
       .populate('environments')
       .populate('createdBy')
       .populate('team')

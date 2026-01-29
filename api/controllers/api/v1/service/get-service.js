@@ -26,7 +26,7 @@ module.exports = {
   fn: async function ({ id }) {
     const user = await User.findOne({ id: this.req.session.userId })
 
-    const service = await Service.findOne({ id })
+    const service = await Service.findOne(id)
       .populate('environment')
 
     if (!service) {

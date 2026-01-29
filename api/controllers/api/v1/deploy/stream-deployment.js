@@ -33,7 +33,7 @@ module.exports = {
     const res = this.res
 
     // Check if deployment exists
-    const deployment = await Deployment.findOne({ id })
+    const deployment = await Deployment.findOne(id)
 
     if (!deployment) {
       throw 'notFound'
@@ -61,7 +61,7 @@ module.exports = {
     // Poll for status changes
     const checkInterval = setInterval(async () => {
       try {
-        const current = await Deployment.findOne({ id })
+        const current = await Deployment.findOne(id)
 
         if (!current) {
           sendEvent(res, { status: 'failed', error: 'Deployment not found' })
