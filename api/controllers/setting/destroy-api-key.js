@@ -31,6 +31,7 @@ module.exports = {
 
     await CliToken.destroyOne({ id })
 
+    sails.inertia.flash('success', 'CLI token revoked.')
     return '/settings/api-keys'
   }
 }

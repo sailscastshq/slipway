@@ -21,7 +21,7 @@ export function createToast() {
 
   provide(TOAST_KEY, toast)
 
-  return { toasts, dismiss }
+  return { toasts, toast, dismiss }
 }
 
 export function useToast() {

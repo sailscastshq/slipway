@@ -27,10 +27,10 @@ module.exports = {
 
   exits: {
     success: {
-      responseType: 'redirect'
+      responseType: 'inertiaRedirect'
     },
     notFound: {
-      responseType: 'redirect'
+      responseType: 'inertiaRedirect'
     }
   },
 
@@ -50,6 +50,7 @@ module.exports = {
 
     await Project.updateOne({ id: project.id }).set(updates)
 
+    sails.inertia.flash('success', 'Project updated.')
     return `/projects/${project.slug}/settings`
   }
 }

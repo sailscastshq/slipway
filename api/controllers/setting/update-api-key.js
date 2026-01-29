@@ -36,6 +36,7 @@ module.exports = {
 
     await CliToken.updateOne({ id }).set({ name })
 
+    sails.inertia.flash('success', 'Token renamed.')
     return '/settings/api-keys'
   }
 }

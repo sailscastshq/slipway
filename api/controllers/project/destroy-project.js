@@ -13,10 +13,10 @@ module.exports = {
 
   exits: {
     success: {
-      responseType: 'redirect'
+      responseType: 'inertiaRedirect'
     },
     notFound: {
-      responseType: 'redirect'
+      responseType: 'inertiaRedirect'
     }
   },
 
@@ -58,6 +58,7 @@ module.exports = {
 
     await Project.destroyOne({ id: project.id })
 
+    sails.inertia.flash('success', `Project "${project.name}" deleted.`)
     return '/'
   }
 }

@@ -2,7 +2,8 @@
 import { Link, usePage } from '@inertiajs/vue3'
 import { computed, ref, provide } from 'vue'
 import ToastContainer from '@/components/ToastContainer.vue'
-import { createToast } from '@/composables/useToast'
+import { createToast } from '@/composables/toast'
+import { useFlashToast } from '@/composables/flash-toast'
 
 const page = usePage()
 const loggedInUser = page.props.loggedInUser
@@ -28,7 +29,8 @@ const closeMobileMenu = () => {
 provide('toggleMobileMenu', toggleMobileMenu)
 
 // Toast system
-const { toasts, dismiss } = createToast()
+const { toasts, toast, dismiss } = createToast()
+useFlashToast(toast)
 </script>
 
 <template>
