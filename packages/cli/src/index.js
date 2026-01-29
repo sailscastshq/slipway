@@ -54,6 +54,29 @@ const commands = {
     options: {}
   },
 
+  // Environment commands
+  environments: {
+    description: 'List environments for the current project',
+    options: {}
+  },
+  'environment:create': {
+    description: 'Create a new environment',
+    args: '<name>',
+    options: {
+      production: { type: 'boolean', short: 'p' },
+      domain: { type: 'string', short: 'd' }
+    }
+  },
+  'environment:update': {
+    description: 'Update an environment',
+    args: '<slug>',
+    options: {
+      name: { type: 'string', short: 'n' },
+      domain: { type: 'string', short: 'd' },
+      production: { type: 'boolean', short: 'p' }
+    }
+  },
+
   // Deployment commands
   slide: {
     description: 'Deploy the current project',
@@ -158,10 +181,11 @@ function showHelp() {
   const groups = {
     'Authentication': ['login', 'logout', 'whoami'],
     'Project': ['projects', 'project:update', 'init', 'link'],
+    'Environments': ['environments', 'environment:create', 'environment:update'],
     'Deployment': ['slide', 'deployments', 'logs'],
     'Database': ['db:create', 'db:url'],
     'Services': ['services'],
-    'Environment': ['env', 'env:set', 'env:unset'],
+    'Env Variables': ['env', 'env:set', 'env:unset'],
     'Container': ['terminal', 'run']
   }
 
