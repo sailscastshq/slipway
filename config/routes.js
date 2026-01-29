@@ -74,25 +74,25 @@ module.exports.routes = {
   // Projects
   'GET /api/v1/projects': 'api/v1/project/list-projects',
   'POST /api/v1/projects': 'api/v1/project/create-project',
-  'GET /api/v1/projects/:id': 'api/v1/project/get-project',
-  'PATCH /api/v1/projects/:id': 'api/v1/project/update-project',
-  'DELETE /api/v1/projects/:id': 'api/v1/project/destroy-project',
+  'GET /api/v1/projects/:slug': 'api/v1/project/get-project',
+  'PATCH /api/v1/projects/:slug': 'api/v1/project/update-project',
+  'DELETE /api/v1/projects/:slug': 'api/v1/project/destroy-project',
 
   // Environments (nested under projects)
-  'GET /api/v1/projects/:projectIdOrSlug/environments': 'api/v1/environment/list-environments',
-  'POST /api/v1/projects/:projectIdOrSlug/environments': 'api/v1/environment/create-environment',
-  'GET /api/v1/projects/:projectIdOrSlug/environments/:id': 'api/v1/environment/get-environment',
-  'PATCH /api/v1/projects/:projectIdOrSlug/environments/:id': 'api/v1/environment/update-environment',
-  'DELETE /api/v1/projects/:projectIdOrSlug/environments/:id': 'api/v1/environment/destroy-environment',
+  'GET /api/v1/projects/:projectSlug/environments': 'api/v1/environment/list-environments',
+  'POST /api/v1/projects/:projectSlug/environments': 'api/v1/environment/create-environment',
+  'GET /api/v1/projects/:projectSlug/environments/:slug': 'api/v1/environment/get-environment',
+  'PATCH /api/v1/projects/:projectSlug/environments/:slug': 'api/v1/environment/update-environment',
+  'DELETE /api/v1/projects/:projectSlug/environments/:slug': 'api/v1/environment/destroy-environment',
 
   // Deploy
-  'POST /api/v1/projects/:projectIdOrSlug/environments/:environmentIdOrSlug/deploy': 'api/v1/deploy/trigger-deployment',
+  'POST /api/v1/projects/:projectSlug/environments/:environmentSlug/deploy': 'api/v1/deploy/trigger-deployment',
   'GET /api/v1/deployments/:id': 'api/v1/deploy/get-deployment-status',
   'GET /api/v1/deployments/:id/logs': 'api/v1/deploy/get-deployment-logs',
 
   // Services (databases, redis, etc.)
-  'GET /api/v1/projects/:projectIdOrSlug/environments/:environmentIdOrSlug/services': 'api/v1/service/list-services',
-  'POST /api/v1/projects/:projectIdOrSlug/environments/:environmentIdOrSlug/services': 'api/v1/service/create-service',
+  'GET /api/v1/projects/:projectSlug/environments/:environmentSlug/services': 'api/v1/service/list-services',
+  'POST /api/v1/projects/:projectSlug/environments/:environmentSlug/services': 'api/v1/service/create-service',
   'GET /api/v1/services/:id': 'api/v1/service/get-service',
   'DELETE /api/v1/services/:id': 'api/v1/service/destroy-service',
 

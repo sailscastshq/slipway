@@ -4,10 +4,10 @@ module.exports = {
   description: 'Create a new environment within a project.',
 
   inputs: {
-    projectIdOrSlug: {
+    projectSlug: {
       type: 'string',
       required: true,
-      description: 'Project ID or slug'
+      description: 'Project slug'
     },
     name: {
       type: 'string',
@@ -41,13 +41,10 @@ module.exports = {
     }
   },
 
-  fn: async function ({ projectIdOrSlug, name, isProduction, domain }) {
+  fn: async function ({ projectSlug, name, isProduction, domain }) {
     const user = await User.findOne({ id: this.req.session.userId })
 
-    // Find project by ID or slug
-    const project = await Project.findOne({
-      or: [{ id: projectIdOrSlug }, { slug: projectIdOrSlug }]
-    }).populate('team')
+    const project = await Project.findOne({ slug: projectSlug }).populate('team')
 
     if (!project) {
       throw 'notFound'

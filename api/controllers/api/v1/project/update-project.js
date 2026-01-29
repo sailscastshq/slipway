@@ -4,10 +4,10 @@ module.exports = {
   description: 'Update a project\'s details.',
 
   inputs: {
-    id: {
+    slug: {
       type: 'string',
       required: true,
-      description: 'Project ID or slug'
+      description: 'Project slug'
     },
     name: {
       type: 'string',
@@ -46,14 +46,10 @@ module.exports = {
     }
   },
 
-  fn: async function ({ id, name, description, repositoryUrl, dockerfilePath }) {
+  fn: async function ({ slug, name, description, repositoryUrl, dockerfilePath }) {
     const user = await User.findOne({ id: this.req.session.userId })
 
-    // Find the project
-    let project = await Project.findOne(id).populate('team')
-    if (!project) {
-      project = await Project.findOne({ slug: id }).populate('team')
-    }
+    const project = await Project.findOne({ slug }).populate('team')
 
     if (!project) {
       throw 'notFound'

@@ -4,15 +4,15 @@ module.exports = {
   description: 'Trigger a new deployment for an environment.',
 
   inputs: {
-    projectIdOrSlug: {
+    projectSlug: {
       type: 'string',
       required: true,
-      description: 'Project ID or slug'
+      description: 'Project slug'
     },
-    environmentIdOrSlug: {
+    environmentSlug: {
       type: 'string',
       required: true,
-      description: 'Environment ID or slug'
+      description: 'Environment slug'
     },
     gitCommit: {
       type: 'string',
@@ -39,13 +39,10 @@ module.exports = {
     }
   },
 
-  fn: async function ({ projectIdOrSlug, environmentIdOrSlug, gitCommit, gitBranch }) {
+  fn: async function ({ projectSlug, environmentSlug, gitCommit, gitBranch }) {
     const user = await User.findOne({ id: this.req.session.userId })
 
-    // Find project by ID or slug
-    const project = await Project.findOne({
-      or: [{ id: projectIdOrSlug }, { slug: projectIdOrSlug }]
-    }).populate('team')
+    const project = await Project.findOne({ slug: projectSlug }).populate('team')
 
     if (!project) {
       throw 'notFound'
@@ -55,11 +52,7 @@ module.exports = {
       throw 'forbidden'
     }
 
-    // Find environment by ID or slug
-    const environment = await Environment.findOne({
-      project: project.id,
-      or: [{ id: environmentIdOrSlug }, { slug: environmentIdOrSlug }]
-    })
+    const environment = await Environment.findOne({ project: project.id, slug: environmentSlug })
 
     if (!environment) {
       throw 'notFound'

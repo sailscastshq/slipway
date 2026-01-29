@@ -4,10 +4,10 @@ module.exports = {
   description: 'Delete a project and all its environments.',
 
   inputs: {
-    id: {
+    slug: {
       type: 'string',
       required: true,
-      description: 'Project ID or slug'
+      description: 'Project slug'
     }
   },
 
@@ -25,14 +25,10 @@ module.exports = {
     }
   },
 
-  fn: async function ({ id }) {
+  fn: async function ({ slug }) {
     const user = await User.findOne({ id: this.req.session.userId })
 
-    // Find the project
-    let project = await Project.findOne(id).populate('team').populate('environments')
-    if (!project) {
-      project = await Project.findOne({ slug: id }).populate('team').populate('environments')
-    }
+    const project = await Project.findOne({ slug }).populate('team').populate('environments')
 
     if (!project) {
       throw 'notFound'

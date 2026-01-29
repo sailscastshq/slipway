@@ -1,13 +1,13 @@
 module.exports = {
   friendlyName: 'Get project',
 
-  description: 'Get a single project by ID or slug.',
+  description: 'Get a single project by slug.',
 
   inputs: {
-    id: {
+    slug: {
       type: 'string',
       required: true,
-      description: 'Project ID or slug'
+      description: 'Project slug'
     }
   },
 
@@ -25,21 +25,13 @@ module.exports = {
     }
   },
 
-  fn: async function ({ id }) {
+  fn: async function ({ slug }) {
     const user = await User.findOne({ id: this.req.session.userId })
 
-    // Try to find by ID first, then by slug
-    let project = await Project.findOne(id)
+    const project = await Project.findOne({ slug })
       .populate('environments')
       .populate('createdBy')
       .populate('team')
-
-    if (!project) {
-      project = await Project.findOne({ slug: id })
-        .populate('environments')
-        .populate('createdBy')
-        .populate('team')
-    }
 
     if (!project) {
       throw 'notFound'
