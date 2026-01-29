@@ -139,11 +139,11 @@ useFlashToast(toast)
             <ul class="mt-2 space-y-1">
               <li>
                 <Link
-                  href="/settings/api-keys"
+                  href="/settings/cli-tokens"
                   @click="closeMobileMenu"
                   :class="[
                     'flex items-center space-x-3 rounded-md px-3 py-2.5 text-sm transition-colors',
-                    isActive('/settings/api-keys')
+                    isActive('/settings/cli-tokens')
                       ? 'bg-gray-200 text-gray-900 dark:bg-gray-800 dark:text-white'
                       : 'text-gray-600 hover:bg-gray-200/50 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800/50 dark:hover:text-gray-200'
                   ]"
@@ -257,10 +257,10 @@ useFlashToast(toast)
           <ul class="mt-2 space-y-1">
             <li>
               <Link
-                href="/settings/api-keys"
+                href="/settings/cli-tokens"
                 :class="[
                   'flex items-center space-x-3 rounded-md px-2 py-2 text-sm transition-colors',
-                  isActive('/settings/api-keys')
+                  isActive('/settings/cli-tokens')
                     ? 'bg-gray-200 text-gray-900 dark:bg-gray-800 dark:text-white'
                     : 'text-gray-500 hover:bg-gray-200/50 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800/50 dark:hover:text-gray-200'
                 ]"

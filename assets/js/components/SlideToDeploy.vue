@@ -122,23 +122,6 @@ defineExpose({ reset })
         }"
       />
 
-      <!-- Right chevrons (directional hint) -->
-      <div
-        v-if="state !== 'deploying'"
-        class="pointer-events-none absolute inset-y-0 right-5 flex items-center animate-nudge-right"
-        :style="{
-          opacity: Math.max(0.3 - progress * 0.5, 0),
-          transition: animating ? 'opacity 200ms ease' : 'none'
-        }"
-      >
-        <svg class="h-5 w-5 text-gray-300 dark:text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-        </svg>
-        <svg class="-ml-3 h-5 w-5 text-gray-300 dark:text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-        </svg>
-      </div>
-
       <!-- Drag handle -->
       <div
         ref="handleRef"
@@ -166,17 +149,17 @@ defineExpose({ reset })
           </svg>
         </template>
         <template v-else>
-          <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M14 5l7 7m0 0l-7 7m7-7H3" />
-          </svg>
           <span class="text-sm font-semibold">Deploy</span>
+          <div class="flex items-center animate-nudge-right">
+            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7" />
+            </svg>
+            <svg class="-ml-2.5 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7" />
+            </svg>
+          </div>
         </template>
       </div>
     </div>
-
-    <!-- Support text -->
-    <p class="mt-2 text-right text-xs text-gray-400 dark:text-gray-500">
-      {{ label }}
-    </p>
   </div>
 </template>
