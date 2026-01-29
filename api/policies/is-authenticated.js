@@ -15,7 +15,12 @@ module.exports = async function (req, res, proceed) {
   // Check for Bearer token (CLI)
   const authHeader = req.headers.authorization
   if (authHeader && authHeader.startsWith('Bearer ')) {
-    const token = authHeader.slice(7)
+    let token = authHeader.slice(7)
+
+    // Strip sl_ prefix if present
+    if (token.startsWith('sl_')) {
+      token = token.slice(3)
+    }
 
     // Hash the token to compare with stored hashes
     const crypto = require('crypto')

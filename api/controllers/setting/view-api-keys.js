@@ -23,6 +23,8 @@ module.exports = {
         tokens: tokens.map(t => ({
           id: t.id,
           name: t.name,
+          token: `sl_${t.token.slice(0, 8)}`,
+
           lastUsedAt: t.lastUsedAt,
           createdAt: t.createdAt
         }))

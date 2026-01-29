@@ -55,9 +55,9 @@ module.exports = {
     }
 
     // Generate a session token for the CLI
-    // We'll use the same session ID format as Sails
     const crypto = require('crypto')
-    const sessionToken = crypto.randomBytes(32).toString('hex')
+    const rawToken = crypto.randomBytes(32).toString('hex')
+    const sessionToken = `sl_${rawToken}`
 
     // Confirm the session with user and team info
     const confirmed = authSessions.confirm(code, {
@@ -72,8 +72,8 @@ module.exports = {
     }, sessionToken)
 
     // Store this token in the database for persistence
-    // Hash the token before storing (we'll compare hashes on lookup)
-    const hashedToken = crypto.createHash('sha256').update(sessionToken).digest('hex')
+    // Hash only the random part (without sl_ prefix) for lookup
+    const hashedToken = crypto.createHash('sha256').update(rawToken).digest('hex')
 
     await CliToken.create({
       token: hashedToken,

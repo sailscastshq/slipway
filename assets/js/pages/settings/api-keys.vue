@@ -87,7 +87,7 @@ function timeAgo(date) {
 }
 </script>
 <template>
-  <Head title="CLI Keys | Slipway"></Head>
+  <Head title="CLI Tokens | Slipway"></Head>
   <div class="flex h-full flex-col" @click="closeMenu">
     <!-- Header -->
     <div class="flex items-center justify-between border-b border-gray-200 px-4 py-4 dark:border-gray-800 sm:px-8">
@@ -101,7 +101,7 @@ function timeAgo(date) {
           </svg>
         </button>
         <nav class="flex items-center text-sm">
-          <span class="font-medium text-gray-900 dark:text-white">CLI Keys</span>
+          <span class="font-medium text-gray-900 dark:text-white">CLI Tokens</span>
         </nav>
       </div>
       <div class="flex items-center space-x-4">
@@ -121,8 +121,9 @@ function timeAgo(date) {
         <div v-if="tokens.length > 0" class="rounded-lg border border-gray-200 dark:border-gray-800">
           <!-- Table Header -->
           <div class="grid grid-cols-12 gap-4 rounded-t-lg border-b border-gray-200 bg-gray-50/50 px-6 py-2 text-xs font-medium text-gray-500 dark:border-gray-800 dark:bg-gray-900/50">
-            <div class="col-span-5">Name</div>
-            <div class="col-span-3">Last used</div>
+            <div class="col-span-3">Name</div>
+            <div class="col-span-3">Token</div>
+            <div class="col-span-2">Last used</div>
             <div class="col-span-3">Created</div>
             <div class="col-span-1"></div>
           </div>
@@ -135,7 +136,7 @@ function timeAgo(date) {
               class="grid grid-cols-12 items-center gap-4 px-6 py-4"
             >
               <!-- Name -->
-              <div class="col-span-5">
+              <div class="col-span-3">
                 <template v-if="renamingId === token.id">
                   <div class="flex items-center space-x-2">
                     <input
@@ -174,8 +175,13 @@ function timeAgo(date) {
                 </template>
               </div>
 
-              <!-- Last Used -->
+              <!-- Token -->
               <div class="col-span-3">
+                <code class="text-sm text-gray-500 dark:text-gray-400">{{ token.token }}••••••••</code>
+              </div>
+
+              <!-- Last Used -->
+              <div class="col-span-2">
                 <span class="text-sm text-gray-500 dark:text-gray-400">
                   {{ timeAgo(token.lastUsedAt) }}
                 </span>
