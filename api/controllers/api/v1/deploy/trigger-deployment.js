@@ -120,11 +120,14 @@ async function executeDeployment(deploymentId, project, environment) {
     // 5. Allocate a host port
     const hostPort = await sails.helpers.docker.allocatePort()
 
-    // 6. Get env vars from existing App record (if any)
-    const existingApp = await App.findOne({ environment: environment.id })
-    const envVars = existingApp ? existingApp.envVars || {} : {}
+    // 6. Get env vars from the environment record
+    const envRecord = await Environment.findOne({ id: environment.id })
+    const envVars = envRecord.envVars || {}
 
-    // 7. Run the container
+    // 7. Check for existing app (to decide create vs update in step 8)
+    const existingApp = await App.findOne({ environment: environment.id })
+
+    // 8. Run the container
     const containerResult = await sails.helpers.docker.runContainer.with({
       imageName,
       containerName,
@@ -134,7 +137,7 @@ async function executeDeployment(deploymentId, project, environment) {
       deploymentId
     })
 
-    // 8. Create or update the App record
+    // 9. Create or update the App record
     if (existingApp) {
       await App.updateOne({ id: existingApp.id }).set({
         status: 'running',
@@ -155,14 +158,13 @@ async function executeDeployment(deploymentId, project, environment) {
         imageName,
         port: 1337,
         hostPort: containerResult.hostPort,
-        envVars,
         lastDeployedAt: Date.now(),
         environment: environment.id,
         currentDeployment: deploymentId
       })
     }
 
-    // 9. Update Caddy reverse proxy route
+    // 10. Update Caddy reverse proxy route
     try {
       await sails.helpers.caddy.updateRoute(environment.id)
     } catch (caddyErr) {
@@ -170,7 +172,7 @@ async function executeDeployment(deploymentId, project, environment) {
       await Deployment.appendDeployLog(deploymentId, `Warning: Caddy route update failed: ${caddyErr.message}\n`)
     }
 
-    // 10. Mark deployment as running
+    // 11. Mark deployment as running
     await Deployment.updateOne({ id: deploymentId }).set({
       status: 'running',
       finishedAt: Date.now()

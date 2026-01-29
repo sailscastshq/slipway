@@ -48,7 +48,7 @@ async function saveEnvVars(vars) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ envVars: vars })
     })
-    router.reload({ only: ['envVars', 'app'] })
+    router.reload({ only: ['envVars', 'environment'] })
   } finally {
     saving.value = false
   }

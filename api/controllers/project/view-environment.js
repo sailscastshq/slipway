@@ -42,7 +42,7 @@ module.exports = {
       throw { notFound: `/projects/${slug}` }
     }
 
-    // Get the app record (holds env vars and container state)
+    // Get the app record (container state)
     const app = await App.findOne({ environment: environment.id })
 
     // Get full domain
@@ -63,7 +63,7 @@ module.exports = {
           fullDomain
         },
         app: app || null,
-        envVars: app ? app.envVars || {} : {},
+        envVars: environment.envVars || {},
         deployments
       }
     }

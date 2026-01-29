@@ -26,6 +26,10 @@ module.exports = {
     domain: {
       type: 'string',
       description: 'Custom domain for this environment'
+    },
+    envVars: {
+      type: 'json',
+      description: 'Environment variables (key-value object)'
     }
   },
 
@@ -44,7 +48,7 @@ module.exports = {
     }
   },
 
-  fn: async function ({ projectSlug, slug, name, isProduction, domain }) {
+  fn: async function ({ projectSlug, slug, name, isProduction, domain, envVars }) {
     const user = await User.findOne({ id: this.req.session.userId })
 
     const project = await Project.findOne({ slug: projectSlug }).populate('team')
@@ -68,6 +72,7 @@ module.exports = {
     if (name !== undefined) updates.name = name
     if (isProduction !== undefined) updates.isProduction = isProduction
     if (domain !== undefined) updates.domain = domain
+    if (envVars !== undefined) updates.envVars = envVars
 
     await Environment.updateOne({ id: environment.id }).set(updates)
 

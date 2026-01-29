@@ -57,13 +57,6 @@ module.exports = {
       columnName: 'host_port'
     },
 
-    envVars: {
-      type: 'json',
-      defaultsTo: {},
-      description: 'Environment variables passed to the container',
-      columnName: 'env_vars'
-    },
-
     lastDeployedAt: {
       type: 'number',
       allowNull: true,

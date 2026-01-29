@@ -37,6 +37,13 @@ module.exports = {
       example: 'myapp.example.com'
     },
 
+    envVars: {
+      type: 'json',
+      defaultsTo: {},
+      description: 'Environment variables passed to containers at deploy time',
+      columnName: 'env_vars'
+    },
+
     // Associations
     project: {
       model: 'project',
