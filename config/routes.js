@@ -85,14 +85,14 @@ module.exports.routes = {
   'PATCH /api/v1/projects/:projectSlug/environments/:slug': 'api/v1/environment/update-environment',
   'DELETE /api/v1/projects/:projectSlug/environments/:slug': 'api/v1/environment/destroy-environment',
 
-  // Deploy
-  'POST /api/v1/projects/:projectSlug/environments/:environmentSlug/deploy': 'api/v1/deploy/trigger-deployment',
+  // Deploy (environment defaults to production when omitted)
+  'POST /api/v1/projects/:projectSlug/environments/:environmentSlug?/deploy': 'api/v1/deploy/trigger-deployment',
   'GET /api/v1/deployments/:id': 'api/v1/deploy/get-deployment-status',
   'GET /api/v1/deployments/:id/logs': 'api/v1/deploy/get-deployment-logs',
 
-  // Services (databases, redis, etc.)
-  'GET /api/v1/projects/:projectSlug/environments/:environmentSlug/services': 'api/v1/service/list-services',
-  'POST /api/v1/projects/:projectSlug/environments/:environmentSlug/services': 'api/v1/service/create-service',
+  // Services (environment defaults to production when omitted)
+  'GET /api/v1/projects/:projectSlug/environments/:environmentSlug?/services': 'api/v1/service/list-services',
+  'POST /api/v1/projects/:projectSlug/environments/:environmentSlug?/services': 'api/v1/service/create-service',
   'GET /api/v1/services/:id': 'api/v1/service/get-service',
   'DELETE /api/v1/services/:id': 'api/v1/service/destroy-service',
 

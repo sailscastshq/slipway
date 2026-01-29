@@ -11,8 +11,8 @@ module.exports = {
     },
     environmentSlug: {
       type: 'string',
-      required: true,
-      description: 'Environment slug'
+      defaultsTo: 'production',
+      description: 'Environment slug (defaults to production)'
     }
   },
 
