@@ -2,6 +2,7 @@
 import { Link, Head, router } from '@inertiajs/vue3'
 import { inject, ref, reactive } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
+import SlideToDeploy from '@/components/SlideToDeploy.vue'
 
 defineOptions({
   layout: AppLayout
@@ -24,6 +25,7 @@ const newKey = ref('')
 const newValue = ref('')
 const saving = ref(false)
 const deploying = ref(false)
+const slideRef = ref(null)
 
 const sensitivePatterns = ['PASSWORD', 'SECRET', 'KEY', 'TOKEN', 'PRIVATE', 'CREDENTIAL', 'AUTH', 'API_KEY', 'APIKEY']
 
@@ -108,8 +110,12 @@ async function triggerDeploy() {
     const data = await res.json()
     if (data.deployment) {
       router.visit(`/projects/${props.project.slug}/deployments/${data.deployment.id}`)
+    } else {
+      slideRef.value?.reset()
+      deploying.value = false
     }
   } catch {
+    slideRef.value?.reset()
     deploying.value = false
   }
 }
@@ -144,15 +150,6 @@ const sortedVarKeys = Object.keys(props.envVars).sort()
           <span class="text-gray-400 dark:text-gray-600">/</span>
           <span class="font-medium text-gray-900 dark:text-white">{{ environment.name }}</span>
         </nav>
-      </div>
-      <div class="flex items-center space-x-3">
-        <button
-          @click="triggerDeploy"
-          :disabled="deploying"
-          class="rounded-md bg-gray-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
-        >
-          {{ deploying ? 'Deploying...' : 'Deploy' }}
-        </button>
       </div>
     </div>
 
@@ -193,6 +190,16 @@ const sortedVarKeys = Object.keys(props.envVars).sort()
               {{ statusBadge(app.status).label }}
             </span>
           </div>
+        </div>
+
+        <!-- Slide to Deploy -->
+        <div class="mb-10">
+          <SlideToDeploy
+            ref="slideRef"
+            :is-production="environment.isProduction"
+            :disabled="deploying"
+            @deploy="triggerDeploy"
+          />
         </div>
 
         <!-- Environment Variables -->
@@ -342,7 +349,7 @@ const sortedVarKeys = Object.keys(props.envVars).sort()
           <div v-else class="rounded-lg border border-dashed border-gray-300 px-6 py-8 text-center dark:border-gray-700">
             <p class="text-sm text-gray-500 dark:text-gray-400">No deployments yet.</p>
             <p class="mt-1 text-sm text-gray-400 dark:text-gray-500">
-              Click "Deploy" to trigger your first deployment.
+              Slide to deploy your first version.
             </p>
           </div>
         </div>

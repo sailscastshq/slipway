@@ -1,6 +1,6 @@
 {
   "name": "sails-hook-slipway",
-  "version": "0.1.0",
+  "version": "0.0.0",
   "description": "Sails hook for Slipway - admin panel, console, and telemetry",
   "keywords": ["sails", "hook", "admin", "slipway"],
   "main": "index.js",

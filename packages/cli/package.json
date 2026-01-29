@@ -1,6 +1,6 @@
 {
   "name": "slipway",
-  "version": "0.0.1",
+  "version": "0.0.0",
   "description": "CLI for Slipway - Deploy Sails apps with ease",
   "type": "module",
   "bin": {
