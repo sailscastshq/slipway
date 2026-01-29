@@ -91,10 +91,10 @@ async function triggerDeploy(env) {
         </button>
         <nav class="flex items-center space-x-2 text-sm">
           <Link href="/" class="text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white">
-            Projects
+            projects
           </Link>
           <span class="text-gray-400 dark:text-gray-600">/</span>
-          <span class="font-medium text-gray-900 dark:text-white">{{ project.name }}</span>
+          <span class="font-medium text-gray-900 dark:text-white">{{ project.name.toLowerCase() }}</span>
         </nav>
       </div>
       <div class="flex items-center space-x-3">

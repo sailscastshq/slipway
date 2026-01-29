@@ -45,17 +45,17 @@ function deleteProject() {
         </button>
         <nav class="flex items-center space-x-2 text-sm">
           <Link href="/" class="text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white">
-            Projects
+            projects
           </Link>
           <span class="text-gray-400 dark:text-gray-600">/</span>
           <Link
             :href="`/projects/${project.slug}`"
             class="text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
           >
-            {{ project.name }}
+            {{ project.name.toLowerCase() }}
           </Link>
           <span class="text-gray-400 dark:text-gray-600">/</span>
-          <span class="font-medium text-gray-900 dark:text-white">Settings</span>
+          <span class="font-medium text-gray-900 dark:text-white">settings</span>
         </nav>
       </div>
       <a

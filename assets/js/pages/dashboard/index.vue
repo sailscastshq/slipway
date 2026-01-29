@@ -121,7 +121,7 @@ onUnmounted(() => {
           </svg>
         </button>
         <nav class="flex items-center text-sm">
-          <span class="font-medium text-gray-900 dark:text-white">Projects</span>
+          <span class="font-medium text-gray-900 dark:text-white">projects</span>
         </nav>
       </div>
       <div class="flex items-center space-x-4">
