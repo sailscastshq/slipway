@@ -104,9 +104,11 @@ module.exports = {
    ***************************************************************************/
   session: {
     adapter: '@sailscastshq/connect-sqlite',
-    url: 'sqlite:./db/production.db',
+    url: './db/production.db',
     cookie: {
-      secure: true,
+      // Only require secure cookies if SSL is configured (SLIPWAY_SSL=true)
+      // This allows initial setup via http://<IP>:1337 before domain/SSL is configured
+      secure: process.env.SLIPWAY_SSL === 'true',
       maxAge: 24 * 60 * 60 * 1000 // 24 hours
     }
   },
@@ -124,17 +126,13 @@ module.exports = {
   sockets: {
     /***************************************************************************
      *                                                                          *
-     * Uncomment the `onlyAllowOrigins` whitelist below to configure which      *
-     * "origins" are allowed to open socket connections to your Sails app.      *
-     *                                                                          *
-     * > Replace "https://example.com" with the URL of your production server.  *
-     * > Be sure to use the right protocol!  ("http://" vs. "https://")         *
+     * Socket origins whitelist - uses SLIPWAY_URL env var if set               *
+     * Example: SLIPWAY_URL=http://123.45.67.89:1337                            *
      *                                                                          *
      ***************************************************************************/
-    onlyAllowOrigins: [
-      'http://localhost:1337'
-      //   'https://example.com',
-    ]
+    onlyAllowOrigins: process.env.SLIPWAY_URL
+      ? [process.env.SLIPWAY_URL]
+      : ['http://localhost:1337']
 
     /***************************************************************************
      *                                                                          *

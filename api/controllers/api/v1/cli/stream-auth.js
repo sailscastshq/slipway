@@ -45,6 +45,9 @@ module.exports = {
     res.setHeader('Connection', 'keep-alive')
     res.setHeader('X-Accel-Buffering', 'no') // Disable nginx buffering
 
+    // Flush headers immediately to establish the connection
+    res.flushHeaders()
+
     // Send initial status
     sendEvent(res, { status: 'pending' })
 

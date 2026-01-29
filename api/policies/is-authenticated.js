@@ -17,12 +17,19 @@ module.exports = async function (req, res, proceed) {
   if (authHeader && authHeader.startsWith('Bearer ')) {
     const token = authHeader.slice(7)
 
-    // Check if this token exists in our CLI tokens map
-    if (sails.cliTokens && sails.cliTokens.has(token)) {
-      const userId = sails.cliTokens.get(token)
+    // Hash the token to compare with stored hashes
+    const crypto = require('crypto')
+    const hashedToken = crypto.createHash('sha256').update(token).digest('hex')
+
+    // Look up the token in the database
+    const cliToken = await CliToken.findOne({ token: hashedToken })
+
+    if (cliToken) {
+      // Update last used timestamp (fire and forget, but must call fetch to execute)
+      CliToken.updateOne({ id: cliToken.id }).set({ lastUsedAt: new Date() }).fetch().catch(() => {})
 
       // Attach user ID to request for downstream use
-      req.session.userId = userId
+      req.session.userId = cliToken.user
 
       return proceed()
     }

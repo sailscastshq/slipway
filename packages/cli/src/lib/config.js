@@ -18,12 +18,12 @@ function ensureConfigDir() {
 function readConfig() {
   ensureConfigDir()
   if (!existsSync(CONFIG_FILE)) {
-    return { server: '', token: '', user: null }
+    return { server: '', token: '', user: null, team: null }
   }
   try {
     return JSON.parse(readFileSync(CONFIG_FILE, 'utf8'))
   } catch {
-    return { server: '', token: '', user: null }
+    return { server: '', token: '', user: null, team: null }
   }
 }
 
@@ -58,14 +58,15 @@ export function getCredentials() {
   return readConfig()
 }
 
-export function setCredentials({ server, token, user }) {
+export function setCredentials({ server, token, user, team }) {
   const config = readConfig()
   if (server) config.server = server
   if (token) config.token = token
   if (user) config.user = user
+  if (team) config.team = team
   writeConfig(config)
 }
 
 export function clearCredentials() {
-  writeConfig({ server: '', token: '', user: null })
+  writeConfig({ server: '', token: '', user: null, team: null })
 }

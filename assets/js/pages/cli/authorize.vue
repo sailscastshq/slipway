@@ -5,11 +5,12 @@ import { ref } from 'vue'
 const props = defineProps({
   code: String,
   isLoggedIn: Boolean,
-  user: Object
+  user: Object,
+  status: String
 })
 
 const confirming = ref(false)
-const confirmed = ref(false)
+const confirmed = ref(props.status === 'success')
 const error = ref(null)
 
 async function confirmLogin() {
@@ -27,6 +28,10 @@ async function confirmLogin() {
 
     if (response.ok) {
       confirmed.value = true
+      // Update URL to preserve success state on refresh
+      const url = new URL(window.location.href)
+      url.searchParams.set('status', 'success')
+      window.history.replaceState({}, '', url.toString())
     } else {
       const data = await response.json()
       error.value = data.message || 'Failed to authorize CLI'

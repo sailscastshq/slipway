@@ -23,9 +23,9 @@ module.exports = {
 
     const { code, expiresAt } = authSessions.create()
 
-    // Build the authorization URL
-    const baseUrl = sails.config.custom.baseUrl || `http://localhost:${sails.config.port || 1337}`
-    const loginUrl = `${baseUrl}/cli/authorize?code=${code}`
+    // Build the authorization URL using instance URL (from DB, env, or config)
+    const instanceUrl = await sails.helpers.getInstanceUrl()
+    const loginUrl = `${instanceUrl}/cli/authorize?code=${code}`
 
     return {
       code,

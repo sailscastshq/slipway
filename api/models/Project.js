@@ -7,7 +7,6 @@
 
 module.exports = {
   tableName: 'projects',
-
   attributes: {
     name: {
       type: 'string',
@@ -19,41 +18,36 @@ module.exports = {
     slug: {
       type: 'string',
       unique: true,
-      description: 'URL-safe identifier for the project (auto-generated from name)',
+      description:
+        'URL-safe identifier for the project (auto-generated from name)',
       example: 'my-saas-app',
       regex: /^[a-z0-9-]+$/
     },
-
     description: {
       type: 'string',
       description: 'Optional description of the project'
     },
-
     repositoryUrl: {
       type: 'string',
       description: 'Git repository URL (optional)',
       columnName: 'repository_url'
     },
-
     dockerfilePath: {
       type: 'string',
       defaultsTo: 'Dockerfile',
       description: 'Path to Dockerfile relative to repo root',
       columnName: 'dockerfile_path'
     },
-
     // Associations
     team: {
       model: 'team',
       required: true
     },
-
     // User who created the project
     createdBy: {
       model: 'user',
       columnName: 'created_by'
     },
-
     environments: {
       collection: 'environment',
       via: 'project'

@@ -86,3 +86,17 @@ export function confirm(question, defaultValue = true) {
     })
   })
 }
+
+export function waitForEnter(message = 'Press ENTER to continue...') {
+  const rl = createInterface({
+    input: process.stdin,
+    output: process.stdout
+  })
+
+  return new Promise((resolve) => {
+    rl.question(message, () => {
+      rl.close()
+      resolve()
+    })
+  })
+}

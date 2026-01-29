@@ -34,10 +34,20 @@ echo "🌐 Creating Docker network..."
 docker network create slipway 2>/dev/null || true
 echo -e "${GREEN}✓ Network ready${NC}"
 
-# 3. Generate secret
+# 3. Detect server's public IP
+echo "🔍 Detecting server IP..."
+IP=$(curl -s ifconfig.me 2>/dev/null || curl -s icanhazip.com 2>/dev/null || echo "")
+if [ -z "$IP" ]; then
+    echo -e "${YELLOW}Could not detect public IP. Using localhost.${NC}"
+    IP="localhost"
+fi
+SLIPWAY_URL="http://$IP:1337"
+echo -e "${GREEN}✓ Server URL: $SLIPWAY_URL${NC}"
+
+# 4. Generate secret
 SLIPWAY_SECRET=$(openssl rand -hex 32)
 
-# 4. Start Caddy (reverse proxy with automatic HTTPS)
+# 6. Start Caddy (reverse proxy with automatic HTTPS)
 echo "🔒 Starting Caddy proxy..."
 docker rm -f slipway-proxy 2>/dev/null || true
 docker run -d \
@@ -46,13 +56,14 @@ docker run -d \
     --restart unless-stopped \
     -p 80:80 \
     -p 443:443 \
+    -p 1337:1337 \
     -v /var/run/docker.sock:/var/run/docker.sock:ro \
     -v slipway-certs:/data \
     -e CADDY_INGRESS_NETWORKS=slipway \
     lucaslorentz/caddy-docker-proxy:latest
 echo -e "${GREEN}✓ Caddy proxy running${NC}"
 
-# 5. Start Slipway dashboard
+# 7. Start Slipway dashboard
 echo "🚀 Starting Slipway dashboard..."
 docker rm -f slipway 2>/dev/null || true
 docker run -d \
@@ -61,34 +72,34 @@ docker run -d \
     --restart unless-stopped \
     -v /var/run/docker.sock:/var/run/docker.sock \
     -v slipway-data:/app/data \
+    -e NODE_ENV=production \
+    -e PORT=1337 \
+    -e SLIPWAY_URL="$SLIPWAY_URL" \
     -e SLIPWAY_SECRET="$SLIPWAY_SECRET" \
     -l "caddy=:1337" \
     ghcr.io/sailscastshq/slipway:latest
 echo -e "${GREEN}✓ Slipway dashboard running${NC}"
 
-# 6. Wait for startup
+# 9. Wait for startup
 echo ""
 echo "⏳ Waiting for Slipway to start..."
 sleep 5
 
-# 7. Get IP address
-IP=$(curl -s ifconfig.me 2>/dev/null || echo "your-server-ip")
-
-# 8. Show access info
+# 10. Show access info
 echo ""
 echo -e "${GREEN}════════════════════════════════════════════════════════════${NC}"
 echo -e "${GREEN}  ✅ Slipway installed successfully!${NC}"
 echo -e "${GREEN}════════════════════════════════════════════════════════════${NC}"
 echo ""
-echo "  Dashboard: http://$IP:1337"
+echo "  Dashboard: $SLIPWAY_URL"
 echo ""
 echo "  Next steps:"
-echo "  1. Point a domain to this server (e.g., slipway.yourdomain.com)"
-echo "  2. Access the dashboard to complete setup"
+echo "  1. Open the dashboard URL above to complete setup"
+echo "  2. Point a domain to this server (e.g., slipway.yourdomain.com)"
 echo "  3. SSL will be configured automatically when you add a domain"
 echo ""
 echo "  To deploy apps, install the CLI:"
 echo "    npm install -g slipway"
-echo "    slipway login"
+echo "    slipway login --server $SLIPWAY_URL"
 echo ""
 echo -e "${GREEN}════════════════════════════════════════════════════════════${NC}"

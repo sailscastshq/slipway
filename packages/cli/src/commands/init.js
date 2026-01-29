@@ -76,7 +76,7 @@ export default async function init(options) {
     console.log(`  ${c.dim('Slug:')} ${project.slug}`)
     console.log(`  ${c.dim('Environment:')} production`)
     console.log()
-    console.log(`  ${c.dim('Run')} ${c.highlight('slipway deploy')} ${c.dim('to deploy your app.')}`)
+    console.log(`  ${c.dim('Run')} ${c.highlight('slipway slide')} ${c.dim('to deploy your app.')}`)
     console.log()
 
     // Add .slipway.json to .gitignore if it exists

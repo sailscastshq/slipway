@@ -8,6 +8,11 @@ module.exports = {
       type: 'string',
       required: true,
       description: 'The CLI auth session code.'
+    },
+    status: {
+      type: 'string',
+      isIn: ['success'],
+      description: 'Authorization status (for preserving state on refresh)'
     }
   },
 
@@ -16,19 +21,31 @@ module.exports = {
       responseType: 'inertia'
     },
     invalidCode: {
-      responseType: 'redirect',
-      description: 'Invalid or expired code.'
+      responseType: 'redirect'
     }
   },
 
-  fn: async function ({ code }) {
+  fn: async function ({ code, status }) {
+    // If status=success, show success screen (session may already be consumed)
+    if (status === 'success') {
+      return {
+        page: 'cli/authorize',
+        props: {
+          code,
+          isLoggedIn: true,
+          user: null,
+          status: 'success'
+        }
+      }
+    }
+
     // Verify the code exists and is valid
     const authSessions = sails.helpers.cli.authSessions()
     const session = authSessions.get(code)
 
     if (!session) {
-      // Invalid or expired code
-      return this.res.redirect('/login?error=invalid_cli_code')
+      // Invalid or expired code - redirect to an error page
+      throw { invalidCode: '/login?error=invalid_cli_code' }
     }
 
     // Check if user is logged in
@@ -41,9 +58,12 @@ module.exports = {
 
     return {
       page: 'cli/authorize',
-      code,
-      isLoggedIn,
-      user: user ? { email: user.email, fullName: user.fullName } : null
+      props: {
+        code,
+        isLoggedIn,
+        user: user ? { email: user.email, fullName: user.fullName } : null,
+        status: null
+      }
     }
   }
 }

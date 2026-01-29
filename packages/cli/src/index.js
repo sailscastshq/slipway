@@ -31,6 +31,19 @@ const commands = {
   },
 
   // Project commands
+  projects: {
+    description: 'List all projects',
+    options: {}
+  },
+  'project:update': {
+    description: 'Update a project',
+    args: '<slug>',
+    options: {
+      name: { type: 'string', short: 'n' },
+      description: { type: 'string', short: 'd' },
+      repo: { type: 'string', short: 'r' }
+    }
+  },
   init: {
     description: 'Initialize a new Slipway project',
     options: { name: { type: 'string', short: 'n' } }
@@ -144,7 +157,7 @@ function showHelp() {
   // Group commands
   const groups = {
     'Authentication': ['login', 'logout', 'whoami'],
-    'Project': ['init', 'link'],
+    'Project': ['projects', 'project:update', 'init', 'link'],
     'Deployment': ['slide', 'deployments', 'logs'],
     'Database': ['db:create', 'db:url'],
     'Services': ['services'],

@@ -47,8 +47,8 @@ module.exports = {
       throw 'notFound'
     }
 
-    // Get the logged-in user
-    const user = await User.findOne({ id: this.req.session.userId })
+    // Get the logged-in user with their team
+    const user = await User.findOne({ id: this.req.session.userId }).populate('team')
 
     if (!user) {
       throw 'unauthorized'
@@ -59,19 +59,28 @@ module.exports = {
     const crypto = require('crypto')
     const sessionToken = crypto.randomBytes(32).toString('hex')
 
-    // Confirm the session
-    authSessions.confirm(code, {
+    // Confirm the session with user and team info
+    const confirmed = authSessions.confirm(code, {
       id: user.id,
       email: user.email,
-      fullName: user.fullName
+      fullName: user.fullName,
+      team: user.team ? {
+        id: user.team.id,
+        name: user.team.name,
+        slug: user.team.slug
+      } : null
     }, sessionToken)
 
-    // Store this token as a valid CLI session
-    // We'll create a simple token-to-user mapping
-    if (!sails.cliTokens) {
-      sails.cliTokens = new Map()
-    }
-    sails.cliTokens.set(sessionToken, user.id)
+    // Store this token in the database for persistence
+    // Hash the token before storing (we'll compare hashes on lookup)
+    const hashedToken = crypto.createHash('sha256').update(sessionToken).digest('hex')
+
+    await CliToken.create({
+      token: hashedToken,
+      user: user.id,
+      name: 'CLI',
+      lastUsedAt: new Date()
+    })
 
     return {
       success: true,
