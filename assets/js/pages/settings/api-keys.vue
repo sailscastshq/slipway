@@ -1,6 +1,6 @@
 <script setup>
 import { Link, Head, router } from '@inertiajs/vue3'
-import { inject, ref } from 'vue'
+import { inject, ref, computed } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
 import ConfirmModal from '@/components/ConfirmModal.vue'
 
@@ -13,6 +13,16 @@ const props = defineProps({
 })
 
 const toggleMobileMenu = inject('toggleMobileMenu')
+
+const search = ref('')
+
+const filtered = computed(() => {
+  const q = search.value.toLowerCase().trim()
+  if (!q) return props.tokens
+  return props.tokens.filter(t =>
+    t.name.toLowerCase().includes(q) || t.token.toLowerCase().includes(q)
+  )
+})
 
 // Actions menu
 const openMenu = ref(null)
@@ -37,7 +47,7 @@ function startRename(token) {
 
 function submitRename(tokenId) {
   if (!renameValue.value.trim()) return
-  router.patch(`/settings/api-keys/${tokenId}`, {
+  router.patch(`/settings/cli-tokens/${tokenId}`, {
     name: renameValue.value.trim()
   }, {
     preserveScroll: true,
@@ -58,7 +68,7 @@ function confirmDelete(token) {
 }
 
 function executeDelete() {
-  router.delete(`/settings/api-keys/${deletingId.value}`, {
+  router.delete(`/settings/cli-tokens/${deletingId.value}`, {
     preserveScroll: true,
     onSuccess: () => { deletingId.value = null }
   })
@@ -100,8 +110,12 @@ function timeAgo(date) {
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
           </svg>
         </button>
-        <nav class="flex items-center text-sm">
-          <span class="font-medium text-gray-900 dark:text-white">CLI Tokens</span>
+        <nav class="flex items-center space-x-2 text-sm">
+          <Link href="/settings" class="text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white">
+            settings
+          </Link>
+          <span class="text-gray-400 dark:text-gray-600">/</span>
+          <span class="font-medium text-gray-900 dark:text-white">cli tokens</span>
         </nav>
       </div>
       <div class="flex items-center space-x-4">
@@ -118,7 +132,17 @@ function timeAgo(date) {
     <!-- Content -->
     <div class="flex-1 overflow-y-auto px-4 py-6 sm:px-8 sm:py-8">
       <div class="mx-auto max-w-6xl">
-        <div v-if="tokens.length > 0" class="rounded-lg border border-gray-200 dark:border-gray-800">
+        <!-- Search -->
+        <div v-if="tokens.length > 0" class="mb-6">
+          <input
+            v-model="search"
+            type="text"
+            placeholder="Search tokens..."
+            class="w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:border-brand focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500 sm:w-64"
+          />
+        </div>
+
+        <div v-if="filtered.length > 0" class="rounded-lg border border-gray-200 dark:border-gray-800">
           <!-- Table Header -->
           <div class="grid grid-cols-12 gap-4 rounded-t-lg border-b border-gray-200 bg-gray-50/50 px-6 py-2 text-xs font-medium text-gray-500 dark:border-gray-800 dark:bg-gray-900/50">
             <div class="col-span-3">Name</div>
@@ -131,7 +155,7 @@ function timeAgo(date) {
           <!-- Table Body -->
           <div class="divide-y divide-gray-200 rounded-b-lg bg-white dark:divide-gray-800 dark:bg-gray-950">
             <div
-              v-for="token in tokens"
+              v-for="token in filtered"
               :key="token.id"
               class="grid grid-cols-12 items-center gap-4 px-6 py-4"
             >
@@ -234,6 +258,11 @@ function timeAgo(date) {
               </div>
             </div>
           </div>
+        </div>
+
+        <!-- No search results -->
+        <div v-else-if="tokens.length > 0" class="py-8 text-center text-sm text-gray-500 dark:text-gray-400">
+          No tokens matching "{{ search }}"
         </div>
 
         <!-- Empty state -->

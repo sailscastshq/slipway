@@ -61,6 +61,7 @@ module.exports.routes = {
   'GET /projects/:slug/deployments/:deploymentId': 'project/view-deployment',
 
   // Settings (web UI)
+  'GET /settings': 'setting/view-settings',
   'GET /settings/cli-tokens': 'setting/view-api-keys',
   'PATCH /settings/cli-tokens/:id': 'setting/update-api-key',
   'DELETE /settings/cli-tokens/:id': 'setting/destroy-api-key',

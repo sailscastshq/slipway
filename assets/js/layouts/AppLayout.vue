@@ -11,7 +11,8 @@ const loggedInUser = page.props.loggedInUser
 const currentPath = computed(() => page.url)
 
 const isActive = (path) => {
-  return currentPath.value === path
+  if (path === '/') return currentPath.value === '/'
+  return currentPath.value.startsWith(path)
 }
 
 // Mobile menu state
@@ -111,8 +112,8 @@ useFlashToast(toast)
                 :class="[
                   'flex items-center space-x-3 rounded-md px-3 py-2.5 text-sm transition-colors',
                   isActive('/')
-                    ? 'bg-gray-200 text-gray-900 dark:bg-gray-800 dark:text-white'
-                    : 'text-gray-600 hover:bg-gray-200/50 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800/50 dark:hover:text-gray-200'
+                    ? 'text-gray-900 dark:text-white'
+                    : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200'
                 ]"
               >
                 <svg
@@ -131,41 +132,34 @@ useFlashToast(toast)
                 <span>Projects</span>
               </Link>
             </li>
-          </ul>
-
-          <!-- Settings category -->
-          <div class="mt-6">
-            <span class="px-3 text-xs font-medium uppercase tracking-wider text-gray-400 dark:text-gray-500">Settings</span>
-            <ul class="mt-2 space-y-1">
-              <li>
-                <Link
-                  href="/settings/cli-tokens"
-                  @click="closeMobileMenu"
-                  :class="[
-                    'flex items-center space-x-3 rounded-md px-3 py-2.5 text-sm transition-colors',
-                    isActive('/settings/cli-tokens')
-                      ? 'bg-gray-200 text-gray-900 dark:bg-gray-800 dark:text-white'
-                      : 'text-gray-600 hover:bg-gray-200/50 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800/50 dark:hover:text-gray-200'
-                  ]"
+            <li>
+              <Link
+                href="/settings"
+                @click="closeMobileMenu"
+                :class="[
+                  'flex items-center space-x-3 rounded-md px-3 py-2.5 text-sm transition-colors',
+                  isActive('/settings')
+                    ? 'text-gray-900 dark:text-white'
+                    : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200'
+                ]"
+              >
+                <svg
+                  class="h-5 w-5"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
                 >
-                  <svg
-                    class="h-5 w-5"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="1.5"
-                      d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"
-                    />
-                  </svg>
-                  <span>CLI Tokens</span>
-                </Link>
-              </li>
-            </ul>
-          </div>
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="1.5"
+                    d="M10.5 6h9.75M10.5 6a1.5 1.5 0 11-3 0m3 0a1.5 1.5 0 10-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-9.75 0h9.75"
+                  />
+                </svg>
+                <span>Settings</span>
+              </Link>
+            </li>
+          </ul>
         </nav>
 
         <!-- User Profile -->
@@ -229,8 +223,8 @@ useFlashToast(toast)
               :class="[
                 'flex items-center space-x-3 rounded-md px-2 py-2 text-sm transition-colors',
                 isActive('/')
-                  ? 'bg-gray-200 text-gray-900 dark:bg-gray-800 dark:text-white'
-                  : 'text-gray-500 hover:bg-gray-200/50 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800/50 dark:hover:text-gray-200'
+                  ? 'text-gray-900 dark:text-white'
+                  : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
               ]"
             >
               <svg
@@ -249,40 +243,33 @@ useFlashToast(toast)
               <span>Projects</span>
             </Link>
           </li>
-        </ul>
-
-        <!-- Settings category -->
-        <div class="mt-6">
-          <span class="px-2 text-xs font-medium uppercase tracking-wider text-gray-400 dark:text-gray-500">Settings</span>
-          <ul class="mt-2 space-y-1">
-            <li>
-              <Link
-                href="/settings/cli-tokens"
-                :class="[
-                  'flex items-center space-x-3 rounded-md px-2 py-2 text-sm transition-colors',
-                  isActive('/settings/cli-tokens')
-                    ? 'bg-gray-200 text-gray-900 dark:bg-gray-800 dark:text-white'
-                    : 'text-gray-500 hover:bg-gray-200/50 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800/50 dark:hover:text-gray-200'
-                ]"
+          <li>
+            <Link
+              href="/settings"
+              :class="[
+                'flex items-center space-x-3 rounded-md px-2 py-2 text-sm transition-colors',
+                isActive('/settings')
+                  ? 'text-gray-900 dark:text-white'
+                  : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
+              ]"
+            >
+              <svg
+                class="h-4 w-4"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
               >
-                <svg
-                  class="h-4 w-4"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="1.5"
-                    d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"
-                  />
-                </svg>
-                <span>CLI Tokens</span>
-              </Link>
-            </li>
-          </ul>
-        </div>
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="1.5"
+                  d="M10.5 6h9.75M10.5 6a1.5 1.5 0 11-3 0m3 0a1.5 1.5 0 10-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-9.75 0h9.75"
+                />
+              </svg>
+              <span>Settings</span>
+            </Link>
+          </li>
+        </ul>
       </nav>
 
       <!-- User Profile -->
