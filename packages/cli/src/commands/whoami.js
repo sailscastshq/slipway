@@ -7,12 +7,15 @@ export default async function whoami() {
     error('Not logged in. Run `slipway login` first.')
   }
 
-  const { server, user } = getCredentials()
+  const { server, user, team } = getCredentials()
 
   console.log()
   if (user) {
     console.log(`  ${c.dim('Email:')} ${user.email}`)
     console.log(`  ${c.dim('Name:')} ${user.fullName}`)
+    if (team) {
+      console.log(`  ${c.dim('Team:')} ${team.name}`)
+    }
     if (user.teamRole) {
       console.log(`  ${c.dim('Role:')} ${user.teamRole}`)
     }
