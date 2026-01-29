@@ -4,12 +4,12 @@ module.exports = {
   description: 'Create a new backing service (database, redis, etc.) for an environment.',
 
   inputs: {
-    projectId: {
+    projectIdOrSlug: {
       type: 'string',
       required: true,
       description: 'Project ID or slug'
     },
-    environmentId: {
+    environmentIdOrSlug: {
       type: 'string',
       required: true,
       description: 'Environment ID or slug'
@@ -49,14 +49,13 @@ module.exports = {
     }
   },
 
-  fn: async function ({ projectId, environmentId, name, type, version }) {
+  fn: async function ({ projectIdOrSlug, environmentIdOrSlug, name, type, version }) {
     const user = await User.findOne({ id: this.req.session.userId })
 
-    // Find project
-    let project = await Project.findOne({ id: projectId }).populate('team')
-    if (!project) {
-      project = await Project.findOne({ slug: projectId }).populate('team')
-    }
+    // Find project by ID or slug
+    const project = await Project.findOne({
+      or: [{ id: projectIdOrSlug }, { slug: projectIdOrSlug }]
+    }).populate('team')
 
     if (!project) {
       throw 'notFound'
@@ -66,11 +65,11 @@ module.exports = {
       throw 'forbidden'
     }
 
-    // Find environment
-    let environment = await Environment.findOne({ id: environmentId, project: project.id })
-    if (!environment) {
-      environment = await Environment.findOne({ slug: environmentId, project: project.id })
-    }
+    // Find environment by ID or slug
+    const environment = await Environment.findOne({
+      project: project.id,
+      or: [{ id: environmentIdOrSlug }, { slug: environmentIdOrSlug }]
+    })
 
     if (!environment) {
       throw 'notFound'

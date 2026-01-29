@@ -4,7 +4,7 @@ module.exports = {
   description: 'List all environments for a project.',
 
   inputs: {
-    projectId: {
+    projectIdOrSlug: {
       type: 'string',
       required: true,
       description: 'Project ID or slug'
@@ -23,14 +23,13 @@ module.exports = {
     }
   },
 
-  fn: async function ({ projectId }) {
+  fn: async function ({ projectIdOrSlug }) {
     const user = await User.findOne({ id: this.req.session.userId })
 
-    // Find project
-    let project = await Project.findOne({ id: projectId }).populate('team')
-    if (!project) {
-      project = await Project.findOne({ slug: projectId }).populate('team')
-    }
+    // Find project by ID or slug
+    const project = await Project.findOne({
+      or: [{ id: projectIdOrSlug }, { slug: projectIdOrSlug }]
+    }).populate('team')
 
     if (!project) {
       throw 'notFound'

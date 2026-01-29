@@ -79,20 +79,20 @@ module.exports.routes = {
   'DELETE /api/v1/projects/:id': 'api/v1/project/destroy-project',
 
   // Environments (nested under projects)
-  'GET /api/v1/projects/:projectId/environments': 'api/v1/environment/list-environments',
-  'POST /api/v1/projects/:projectId/environments': 'api/v1/environment/create-environment',
-  'GET /api/v1/projects/:projectId/environments/:id': 'api/v1/environment/get-environment',
-  'PATCH /api/v1/projects/:projectId/environments/:id': 'api/v1/environment/update-environment',
-  'DELETE /api/v1/projects/:projectId/environments/:id': 'api/v1/environment/destroy-environment',
+  'GET /api/v1/projects/:projectIdOrSlug/environments': 'api/v1/environment/list-environments',
+  'POST /api/v1/projects/:projectIdOrSlug/environments': 'api/v1/environment/create-environment',
+  'GET /api/v1/projects/:projectIdOrSlug/environments/:id': 'api/v1/environment/get-environment',
+  'PATCH /api/v1/projects/:projectIdOrSlug/environments/:id': 'api/v1/environment/update-environment',
+  'DELETE /api/v1/projects/:projectIdOrSlug/environments/:id': 'api/v1/environment/destroy-environment',
 
   // Deploy
-  'POST /api/v1/projects/:projectId/environments/:environmentId/deploy': 'api/v1/deploy/trigger-deployment',
+  'POST /api/v1/projects/:projectIdOrSlug/environments/:environmentIdOrSlug/deploy': 'api/v1/deploy/trigger-deployment',
   'GET /api/v1/deployments/:id': 'api/v1/deploy/get-deployment-status',
   'GET /api/v1/deployments/:id/logs': 'api/v1/deploy/get-deployment-logs',
 
   // Services (databases, redis, etc.)
-  'GET /api/v1/projects/:projectId/environments/:environmentId/services': 'api/v1/service/list-services',
-  'POST /api/v1/projects/:projectId/environments/:environmentId/services': 'api/v1/service/create-service',
+  'GET /api/v1/projects/:projectIdOrSlug/environments/:environmentIdOrSlug/services': 'api/v1/service/list-services',
+  'POST /api/v1/projects/:projectIdOrSlug/environments/:environmentIdOrSlug/services': 'api/v1/service/create-service',
   'GET /api/v1/services/:id': 'api/v1/service/get-service',
   'DELETE /api/v1/services/:id': 'api/v1/service/destroy-service',
 
