@@ -51,14 +51,19 @@ module.exports.routes = {
   'DELETE /logout': 'user/logout',
 
   // Projects (web UI)
-  'GET /projects/new': 'projects/view-new-project',
-  'POST /projects': 'projects/create-project',
-  'GET /projects/:slug': 'projects/view-project',
-  'GET /projects/:slug/settings': 'projects/view-project-settings',
-  'PATCH /projects/:slug': 'projects/update-project',
-  'DELETE /projects/:slug': 'projects/destroy-project',
-  'GET /projects/:slug/environments/:envSlug': 'projects/view-environment',
-  'GET /projects/:slug/deployments/:deploymentId': 'projects/view-deployment',
+  'GET /projects/new': 'project/view-new-project',
+  'POST /projects': 'project/create-project',
+  'GET /projects/:slug': 'project/view-project',
+  'GET /projects/:slug/settings': 'project/view-project-settings',
+  'PATCH /projects/:slug': 'project/update-project',
+  'DELETE /projects/:slug': 'project/destroy-project',
+  'GET /projects/:slug/environments/:envSlug': 'project/view-environment',
+  'GET /projects/:slug/deployments/:deploymentId': 'project/view-deployment',
+
+  // Settings (web UI)
+  'GET /settings/api-keys': 'setting/view-api-keys',
+  'PATCH /settings/api-keys/:id': 'setting/update-api-key',
+  'DELETE /settings/api-keys/:id': 'setting/destroy-api-key',
 
   /***************************************************************************
    *                                                                          *
@@ -67,18 +72,18 @@ module.exports.routes = {
    ***************************************************************************/
 
   // Projects
-  'GET /api/v1/projects': 'api/v1/projects/list-projects',
-  'POST /api/v1/projects': 'api/v1/projects/create-project',
-  'GET /api/v1/projects/:id': 'api/v1/projects/get-project',
-  'PATCH /api/v1/projects/:id': 'api/v1/projects/update-project',
-  'DELETE /api/v1/projects/:id': 'api/v1/projects/destroy-project',
+  'GET /api/v1/projects': 'api/v1/project/list-projects',
+  'POST /api/v1/projects': 'api/v1/project/create-project',
+  'GET /api/v1/projects/:id': 'api/v1/project/get-project',
+  'PATCH /api/v1/projects/:id': 'api/v1/project/update-project',
+  'DELETE /api/v1/projects/:id': 'api/v1/project/destroy-project',
 
   // Environments (nested under projects)
-  'GET /api/v1/projects/:projectId/environments': 'api/v1/environments/list-environments',
-  'POST /api/v1/projects/:projectId/environments': 'api/v1/environments/create-environment',
-  'GET /api/v1/projects/:projectId/environments/:id': 'api/v1/environments/get-environment',
-  'PATCH /api/v1/projects/:projectId/environments/:id': 'api/v1/environments/update-environment',
-  'DELETE /api/v1/projects/:projectId/environments/:id': 'api/v1/environments/destroy-environment',
+  'GET /api/v1/projects/:projectId/environments': 'api/v1/environment/list-environments',
+  'POST /api/v1/projects/:projectId/environments': 'api/v1/environment/create-environment',
+  'GET /api/v1/projects/:projectId/environments/:id': 'api/v1/environment/get-environment',
+  'PATCH /api/v1/projects/:projectId/environments/:id': 'api/v1/environment/update-environment',
+  'DELETE /api/v1/projects/:projectId/environments/:id': 'api/v1/environment/destroy-environment',
 
   // Deploy
   'POST /api/v1/projects/:projectId/environments/:environmentId/deploy': 'api/v1/deploy/trigger-deployment',
@@ -86,10 +91,10 @@ module.exports.routes = {
   'GET /api/v1/deployments/:id/logs': 'api/v1/deploy/get-deployment-logs',
 
   // Services (databases, redis, etc.)
-  'GET /api/v1/projects/:projectId/environments/:environmentId/services': 'api/v1/services/list-services',
-  'POST /api/v1/projects/:projectId/environments/:environmentId/services': 'api/v1/services/create-service',
-  'GET /api/v1/services/:id': 'api/v1/services/get-service',
-  'DELETE /api/v1/services/:id': 'api/v1/services/destroy-service',
+  'GET /api/v1/projects/:projectId/environments/:environmentId/services': 'api/v1/service/list-services',
+  'POST /api/v1/projects/:projectId/environments/:environmentId/services': 'api/v1/service/create-service',
+  'GET /api/v1/services/:id': 'api/v1/service/get-service',
+  'DELETE /api/v1/services/:id': 'api/v1/service/destroy-service',
 
   // CLI Authentication (browser-based login flow)
   'POST /api/v1/cli/auth/init': 'api/v1/cli/init-auth',

@@ -1,10 +1,12 @@
 <script setup>
 import { Link, Head, usePage, useForm, router } from '@inertiajs/vue3'
+import { ref } from 'vue'
 
 import InputText from '@/components/InputText.vue'
 import InputPassword from '@/components/InputPassword.vue'
 import InputEmail from '@/components/InputEmail.vue'
 import InputButton from '@/components/InputButton.vue'
+import ConfirmModal from '@/components/ConfirmModal.vue'
 
 import AppLayout from '@/layouts/AppLayout.vue'
 
@@ -36,14 +38,19 @@ function updateProfile() {
   })
 }
 
+const showDeleteModal = ref(false)
+
 function deleteAccount() {
-  if (
-    confirm(
-      'Are you sure you want to delete your account? This action cannot be undone.'
-    )
-  ) {
-    deleteAccountForm.delete('/profile')
-  }
+  showDeleteModal.value = true
+}
+
+function executeDeleteAccount() {
+  deleteAccountForm.delete('/profile')
+  showDeleteModal.value = false
+}
+
+function cancelDeleteAccount() {
+  showDeleteModal.value = false
 }
 </script>
 
@@ -52,7 +59,7 @@ function deleteAccount() {
 
   <div class="mx-auto space-y-8 px-4 md:w-8/12 xl:w-4/12">
     <section
-      class="rounded-lg bg-gradient-to-b from-brand-50/10 to-white p-6 shadow-md transition-all duration-300 hover:shadow-lg"
+      class="bg-linear-to-b from-brand-50/10 rounded-lg to-white p-6 shadow-md transition-all duration-300 hover:shadow-lg"
     >
       <header class="mb-6">
         <h1 class="text-2xl">Profile Information</h1>
@@ -79,7 +86,7 @@ function deleteAccount() {
     </section>
 
     <section
-      class="rounded-lg bg-gradient-to-b from-brand-50/10 to-white p-6 shadow-md transition-all duration-300 hover:shadow-lg"
+      class="bg-linear-to-b from-brand-50/10 rounded-lg to-white p-6 shadow-md transition-all duration-300 hover:shadow-lg"
     >
       <header class="mb-6">
         <h2 class="text-2xl">Change Password</h2>
@@ -127,7 +134,7 @@ function deleteAccount() {
     </section>
 
     <section
-      class="rounded-lg bg-gradient-to-b from-brand-50/10 to-white p-6 shadow-md transition-all duration-300 hover:shadow-lg"
+      class="bg-linear-to-b from-brand-50/10 rounded-lg to-white p-6 shadow-md transition-all duration-300 hover:shadow-lg"
     >
       <header class="mb-6">
         <h2 class="text-2xl">Delete Account</h2>
@@ -158,5 +165,15 @@ function deleteAccount() {
     >
       Logout
     </InputButton>
+
+    <ConfirmModal
+      :show="showDeleteModal"
+      title="Delete account"
+      message="Are you sure you want to delete your account? All of your data will be permanently removed. This action cannot be undone."
+      confirm-label="Delete account"
+      :destructive="true"
+      @confirm="executeDeleteAccount"
+      @cancel="cancelDeleteAccount"
+    />
   </div>
 </template>

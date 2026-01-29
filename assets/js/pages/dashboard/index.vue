@@ -2,6 +2,7 @@
 import { Link, Head, router } from '@inertiajs/vue3'
 import { inject, ref, computed, onMounted, onUnmounted } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
+import ConfirmModal from '@/components/ConfirmModal.vue'
 
 defineOptions({
   layout: AppLayout
@@ -71,13 +72,23 @@ function copySlug(e, slug) {
   closeMenu()
 }
 
+const deletingProject = ref(null)
+
 function deleteProject(e, project) {
   e.preventDefault()
   e.stopPropagation()
-  if (confirm(`Are you sure you want to delete "${project.name}"? This action cannot be undone.`)) {
-    router.delete(`/projects/${project.slug}`)
-  }
+  deletingProject.value = project
   closeMenu()
+}
+
+function executeDeleteProject() {
+  if (!deletingProject.value) return
+  router.delete(`/projects/${deletingProject.value.slug}`)
+  deletingProject.value = null
+}
+
+function cancelDeleteProject() {
+  deletingProject.value = null
 }
 
 // Close menu when clicking outside
@@ -349,5 +360,15 @@ onUnmounted(() => {
         </Link>
       </div>
     </div>
+
+    <ConfirmModal
+      :show="!!deletingProject"
+      title="Delete project"
+      :message="`Are you sure you want to delete &quot;${deletingProject?.name}&quot;? This action cannot be undone.`"
+      confirm-label="Delete"
+      :destructive="true"
+      @confirm="executeDeleteProject"
+      @cancel="cancelDeleteProject"
+    />
   </div>
 </template>

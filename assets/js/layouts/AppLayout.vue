@@ -1,6 +1,8 @@
 <script setup>
 import { Link, usePage } from '@inertiajs/vue3'
 import { computed, ref, provide } from 'vue'
+import ToastContainer from '@/components/ToastContainer.vue'
+import { createToast } from '@/composables/useToast'
 
 const page = usePage()
 const loggedInUser = page.props.loggedInUser
@@ -8,8 +10,7 @@ const loggedInUser = page.props.loggedInUser
 const currentPath = computed(() => page.url)
 
 const isActive = (path) => {
-  if (path === '/') return currentPath.value === '/'
-  return currentPath.value.startsWith(path)
+  return currentPath.value === path
 }
 
 // Mobile menu state
@@ -25,6 +26,9 @@ const closeMobileMenu = () => {
 
 // Provide toggle function to child components
 provide('toggleMobileMenu', toggleMobileMenu)
+
+// Toast system
+const { toasts, dismiss } = createToast()
 </script>
 
 <template>
@@ -123,6 +127,33 @@ provide('toggleMobileMenu', toggleMobileMenu)
                   />
                 </svg>
                 <span>Projects</span>
+              </Link>
+            </li>
+            <li>
+              <Link
+                href="/settings/api-keys"
+                @click="closeMobileMenu"
+                :class="[
+                  'flex items-center space-x-3 rounded-md px-3 py-2.5 text-sm transition-colors',
+                  isActive('/settings/api-keys')
+                    ? 'bg-gray-200 text-gray-900 dark:bg-gray-800 dark:text-white'
+                    : 'text-gray-600 hover:bg-gray-200/50 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800/50 dark:hover:text-gray-200'
+                ]"
+              >
+                <svg
+                  class="h-5 w-5"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="1.5"
+                    d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"
+                  />
+                </svg>
+                <span>CLI Keys</span>
               </Link>
             </li>
             <li>
@@ -244,6 +275,32 @@ provide('toggleMobileMenu', toggleMobileMenu)
           </li>
           <li>
             <Link
+              href="/settings/api-keys"
+              :class="[
+                'flex items-center space-x-3 rounded-md px-2 py-2 text-sm transition-colors',
+                isActive('/settings/api-keys')
+                  ? 'bg-gray-200 text-gray-900 dark:bg-gray-800 dark:text-white'
+                  : 'text-gray-500 hover:bg-gray-200/50 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800/50 dark:hover:text-gray-200'
+              ]"
+            >
+              <svg
+                class="h-4 w-4"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="1.5"
+                  d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"
+                />
+              </svg>
+              <span>CLI Keys</span>
+            </Link>
+          </li>
+          <li>
+            <Link
               href="/settings"
               :class="[
                 'flex items-center space-x-3 rounded-md px-2 py-2 text-sm transition-colors',
@@ -297,5 +354,8 @@ provide('toggleMobileMenu', toggleMobileMenu)
     <main class="flex-1 bg-white dark:bg-gray-950">
       <slot></slot>
     </main>
+
+    <!-- Toasts -->
+    <ToastContainer :toasts="toasts" @dismiss="dismiss" />
   </div>
 </template>

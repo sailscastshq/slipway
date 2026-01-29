@@ -82,17 +82,31 @@ module.exports = {
 
   /**
    * Get the full domain for this environment
-   * Format: <project-slug>-<env-slug>.slipway.local
+   *
+   * Domain resolution tiers:
+   * 1. Custom domain (env.domain) — e.g. myapp.example.com
+   * 2. Wildcard subdomain (wildcardDomain setting) — e.g. myapp-prod.example.com
+   * 3. sslip.io fallback — e.g. myapp-prod.203.0.113.5.sslip.io
    */
   getFullDomain: async function (environmentId) {
     const env = await Environment.findOne({ id: environmentId }).populate('project')
     if (!env) return null
 
+    // 1. Custom domain set on this environment
     if (env.domain) {
       return env.domain
     }
 
-    const baseDomain = sails.config.custom.slipwayDomain || 'slipway.local'
-    return `${env.project.slug}-${env.slug}.${baseDomain}`
+    const subdomain = `${env.project.slug}-${env.slug}`
+
+    // 2. Wildcard domain configured (e.g. example.com → myapp-prod.example.com)
+    const wildcardDomain = await sails.helpers.setting.get('wildcardDomain')
+    if (wildcardDomain) {
+      return `${subdomain}.${wildcardDomain}`
+    }
+
+    // 3. sslip.io fallback using server IP
+    const serverIp = await sails.helpers.getServerIp()
+    return `${subdomain}.${serverIp}.sslip.io`
   }
 }

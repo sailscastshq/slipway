@@ -30,7 +30,10 @@ module.exports.policies = {
   'dashboard/*': 'is-authenticated-or-setup',
 
   // Project pages require authentication
-  'projects/*': 'is-authenticated-or-setup',
+  'project/*': 'is-authenticated-or-setup',
+
+  // Settings pages require authentication
+  'setting/*': 'is-authenticated',
 
   // API v1 routes require authentication
   'api/v1/*': 'is-authenticated',
