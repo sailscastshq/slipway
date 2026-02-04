@@ -16,7 +16,7 @@ export default async function terminal(options) {
     const { environment: env } = await api.environments.get(project.project, environment)
 
     if (!env.app || env.app.length === 0) {
-      error('No app deployed in this environment. Run `slipway deploy` first.')
+      error('No app deployed in this environment. Run `slipway slide` first.')
     }
 
     const app = env.app[0]

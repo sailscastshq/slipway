@@ -54,7 +54,7 @@ export default async function envSet(options, positionals) {
     }
 
     console.log()
-    console.log(`  ${c.dim('Run')} ${c.highlight('slipway deploy')} ${c.dim('to apply changes.')}`)
+    console.log(`  ${c.dim('Run')} ${c.highlight('slipway slide')} ${c.dim('to apply changes.')}`)
     console.log()
   } catch (err) {
     spin.fail('Failed to set environment variables')

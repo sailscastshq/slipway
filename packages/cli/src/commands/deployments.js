@@ -47,7 +47,7 @@ export default async function deployments(options) {
     const limited = allDeployments.slice(0, parseInt(options.limit) || 10)
 
     if (limited.length === 0) {
-      console.log(`  ${c.dim('No deployments yet. Run `slipway deploy` to create one.')}`)
+      console.log(`  ${c.dim('No deployments yet. Run `slipway slide` to create one.')}`)
       return
     }
 

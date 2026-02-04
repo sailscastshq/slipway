@@ -31,7 +31,7 @@ export default async function link(options, positionals) {
     console.log(`  ${c.dim('Project:')} ${project.name}`)
     console.log(`  ${c.dim('Slug:')} ${project.slug}`)
     console.log()
-    console.log(`  ${c.dim('Run')} ${c.highlight('slipway deploy')} ${c.dim('to deploy your app.')}`)
+    console.log(`  ${c.dim('Run')} ${c.highlight('slipway slide')} ${c.dim('to deploy your app.')}`)
     console.log()
   } catch (err) {
     spin.fail('Failed to link project')
