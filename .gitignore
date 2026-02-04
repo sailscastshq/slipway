@@ -153,3 +153,4 @@ db/*.db-shm
 # Slipway
 .slipway.json
 .claude
+data/
