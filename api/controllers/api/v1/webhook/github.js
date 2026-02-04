@@ -205,6 +205,10 @@ module.exports = {
           sails.log.warn(`Caddy route update failed: ${caddyErr.message}`)
         }
 
+        // Mark previous running deployments as stopped
+        await Deployment.update({ environment: environment.id, status: 'running', id: { '!=': deployment.id } })
+          .set({ status: 'stopped' })
+
         await Deployment.updateOne({ id: deployment.id }).set({
           status: 'running',
           finishedAt: Date.now()

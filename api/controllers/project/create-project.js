@@ -43,7 +43,14 @@ module.exports = {
       createdBy: userId
     }).fetch()
 
-    // Redirect to dashboard (or project page later)
-    return '/'
+    // Auto-create a production environment
+    await Environment.create({
+      name: 'Production',
+      slug: 'production',
+      isProduction: true,
+      project: project.id
+    })
+
+    return `/projects/${project.slug}`
   }
 }

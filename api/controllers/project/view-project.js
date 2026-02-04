@@ -34,10 +34,27 @@ module.exports = {
     const environments = await Promise.all(
       project.environments.map(async (env) => {
         const app = await App.findOne({ environment: env.id })
+
+        // Fix stale running deployments
+        if (app && app.currentDeployment) {
+          await Deployment.update({
+            environment: env.id,
+            status: 'running',
+            id: { '!=': app.currentDeployment }
+          }).set({ status: 'stopped' })
+        }
+
         const deployments = await Deployment.find({ environment: env.id })
-          .sort('createdAt DESC')
+          .sort('id DESC')
           .limit(5)
           .populate('triggeredBy')
+
+        // Running deployment always first
+        deployments.sort((a, b) => {
+          if (a.status === 'running' && b.status !== 'running') return -1
+          if (a.status !== 'running' && b.status === 'running') return 1
+          return 0
+        })
 
         const fullDomain = await Environment.getFullDomain(env.id)
 

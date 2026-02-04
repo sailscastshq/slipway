@@ -55,7 +55,7 @@ export default async function slide(options) {
 
     deploySpin.succeed('Deployment started')
     console.log()
-    console.log(`  ${c.dim('Deployment ID:')} ${deployment.id.substring(0, 8)}`)
+    console.log(`  ${c.dim('Deployment ID:')} ${deployment.id}`)
     console.log()
 
     // 4. Watch deployment status via SSE (with polling fallback)
@@ -78,7 +78,7 @@ export default async function slide(options) {
     } else if (result.status === 'failed') {
       console.log(`  ${c.error('✗')} Deployment failed`)
       console.log()
-      console.log(`  ${c.dim('Run')} ${c.highlight(`slipway logs -d ${deployment.id.substring(0, 8)}`)} ${c.dim('to view logs.')}`)
+      console.log(`  ${c.dim('Run')} ${c.highlight(`slipway logs -d ${deployment.id}`)} ${c.dim('to view logs.')}`)
       console.log()
       process.exit(1)
     } else {
@@ -253,6 +253,15 @@ function watchDeploymentSSE(deploymentId) {
               }
             }
           }
+        }
+
+        // Stream ended — resolve with last known status or fall back to polling
+        clearTimeout(timeout)
+        if (currentSpin) currentSpin.stop()
+        if (lastStatus && ['running', 'failed', 'cancelled'].includes(lastStatus)) {
+          resolve({ status: lastStatus })
+        } else {
+          reject(new Error('Stream ended before deployment completed'))
         }
       })
       .catch((err) => {

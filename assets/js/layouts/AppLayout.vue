@@ -35,7 +35,7 @@ useFlashToast(toast)
 </script>
 
 <template>
-  <div class="flex min-h-screen bg-white dark:bg-gray-950">
+  <div class="flex h-screen overflow-hidden bg-white dark:bg-gray-950">
     <!-- Mobile Menu Backdrop -->
     <Transition
       enter-active-class="transition-opacity duration-300"
@@ -289,7 +289,7 @@ useFlashToast(toast)
     </aside>
 
     <!-- Main Content -->
-    <main class="min-w-0 flex-1 bg-white dark:bg-gray-950">
+    <main class="min-w-0 flex-1 overflow-y-auto bg-white dark:bg-gray-950">
       <slot></slot>
     </main>
 

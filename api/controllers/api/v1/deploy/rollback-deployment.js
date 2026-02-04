@@ -71,14 +71,14 @@ module.exports = {
       status: 'pending',
       gitCommit: targetDeployment.gitCommit,
       gitBranch: targetDeployment.gitBranch,
-      gitMessage: `Rollback to ${targetDeployment.id.substring(0, 8)}`,
+      gitMessage: `Rollback to deployment ${targetDeployment.id}`,
       triggeredBy: user.id,
       triggerType: 'api',
       environment: environment.id,
       startedAt: Date.now()
     }).fetch()
 
-    sails.log.info(`Rollback ${rollback.id} triggered for ${project.slug}/${environment.slug} → deployment ${deploymentId.substring(0, 8)}`)
+    sails.log.info(`Rollback ${rollback.id} triggered for ${project.slug}/${environment.slug} → deployment ${deploymentId}`)
 
     // Kick off the async rollback pipeline
     process.nextTick(() => {
@@ -106,7 +106,7 @@ async function executeRollback(rollbackId, targetDeployment, project, environmen
       imageName: targetDeployment.imageName
     })
 
-    await Deployment.appendBuildLog(rollbackId, `Rolling back to deployment ${targetDeployment.id.substring(0, 8)}\n`)
+    await Deployment.appendBuildLog(rollbackId, `Rolling back to deployment ${targetDeployment.id}\n`)
     await Deployment.appendBuildLog(rollbackId, `Reusing image: ${targetDeployment.imageName}\n`)
 
     // 2. Ensure Docker network exists
@@ -170,7 +170,11 @@ async function executeRollback(rollbackId, targetDeployment, project, environmen
       await Deployment.appendDeployLog(rollbackId, `Warning: Caddy route update failed: ${caddyErr.message}\n`)
     }
 
-    // 10. Mark deployment as running
+    // 10. Mark previous running deployments as stopped
+    await Deployment.update({ environment: environment.id, status: 'running', id: { '!=': rollbackId } })
+      .set({ status: 'stopped' })
+
+    // 11. Mark deployment as running
     await Deployment.updateOne({ id: rollbackId }).set({
       status: 'running',
       finishedAt: Date.now()

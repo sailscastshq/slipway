@@ -39,72 +39,75 @@ module.exports = {
       throw 'notFound'
     }
 
-    // Set up SSE headers
-    res.setHeader('Content-Type', 'text/event-stream')
-    res.setHeader('Cache-Control', 'no-cache')
-    res.setHeader('Connection', 'keep-alive')
-    res.setHeader('X-Accel-Buffering', 'no') // Disable nginx buffering
+    // Commit SSE headers immediately so Sails cannot override them
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Connection': 'keep-alive',
+      'X-Accel-Buffering': 'no'
+    })
 
     // Send initial status
     sendEvent(res, { status: deployment.status })
 
     // If deployment is already complete, end immediately
     if (['running', 'failed', 'cancelled'].includes(deployment.status)) {
-      sendEvent(res, { status: deployment.status })
       res.end()
       return
     }
 
-    let lastStatus = deployment.status
-    let lastLogLength = 0
+    // Return a promise that only resolves when the stream ends.
+    // This prevents Sails from calling res.end() prematurely.
+    return new Promise((resolve) => {
+      let lastStatus = deployment.status
+      let lastLogLength = 0
 
-    // Poll for status changes
-    const checkInterval = setInterval(async () => {
-      try {
-        const current = await Deployment.findOne(id)
+      const checkInterval = setInterval(async () => {
+        try {
+          const current = await Deployment.findOne(id)
 
-        if (!current) {
-          sendEvent(res, { status: 'failed', error: 'Deployment not found' })
-          clearInterval(checkInterval)
-          res.end()
-          return
-        }
-
-        // Send status update if changed
-        if (current.status !== lastStatus) {
-          lastStatus = current.status
-          sendEvent(res, { status: current.status })
-        }
-
-        // Stream new build log output if available
-        if (current.buildLogs && current.buildLogs.length > lastLogLength) {
-          const newOutput = current.buildLogs.slice(lastLogLength)
-          lastLogLength = current.buildLogs.length
-
-          // Send output line by line
-          const lines = newOutput.split('\n').filter(l => l.trim())
-          for (const line of lines) {
-            sendEvent(res, { output: line })
+          if (!current) {
+            sendEvent(res, { status: 'failed', error: 'Deployment not found' })
+            clearInterval(checkInterval)
+            res.end()
+            resolve()
+            return
           }
-        }
 
-        // End stream when deployment is complete
-        if (['running', 'failed', 'cancelled'].includes(current.status)) {
-          clearInterval(checkInterval)
-          res.end()
-        }
-      } catch (err) {
-        sails.log.error('SSE stream error:', err)
-      }
-    }, 500)
+          // Send status update if changed
+          if (current.status !== lastStatus) {
+            lastStatus = current.status
+            sendEvent(res, { status: current.status })
+          }
 
-    // Clean up on client disconnect
-    req.on('close', () => {
-      clearInterval(checkInterval)
+          // Stream new build log output if available
+          if (current.buildLogs && current.buildLogs.length > lastLogLength) {
+            const newOutput = current.buildLogs.slice(lastLogLength)
+            lastLogLength = current.buildLogs.length
+
+            const lines = newOutput.split('\n').filter(l => l.trim())
+            for (const line of lines) {
+              sendEvent(res, { output: line })
+            }
+          }
+
+          // End stream when deployment is complete
+          if (['running', 'failed', 'cancelled'].includes(current.status)) {
+            clearInterval(checkInterval)
+            res.end()
+            resolve()
+          }
+        } catch (err) {
+          sails.log.error('SSE stream error:', err)
+        }
+      }, 500)
+
+      // Clean up on client disconnect
+      req.on('close', () => {
+        clearInterval(checkInterval)
+        resolve()
+      })
     })
-
-    // Keep the connection open
-    return
   }
 }
 

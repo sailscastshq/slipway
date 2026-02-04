@@ -18,8 +18,7 @@ module.exports = {
 
     slug: {
       type: 'string',
-      required: true,
-      description: 'URL-safe identifier',
+      description: 'URL-safe identifier, auto-generated from name if not provided',
       example: 'production',
       regex: /^[a-z0-9-]+$/
     },

@@ -177,7 +177,11 @@ async function executeDeployment(deploymentId, project, environment) {
       await Deployment.appendDeployLog(deploymentId, `Warning: Caddy route update failed: ${caddyErr.message}\n`)
     }
 
-    // 11. Mark deployment as running
+    // 11. Mark previous running deployments as stopped
+    await Deployment.update({ environment: environment.id, status: 'running', id: { '!=': deploymentId } })
+      .set({ status: 'stopped' })
+
+    // 12. Mark deployment as running
     await Deployment.updateOne({ id: deploymentId }).set({
       status: 'running',
       finishedAt: Date.now()

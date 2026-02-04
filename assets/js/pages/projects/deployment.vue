@@ -1,8 +1,7 @@
 <script setup>
 import { Link, Head, usePoll, router } from '@inertiajs/vue3'
-import { inject, ref, computed, watch, nextTick } from 'vue'
+import { inject, ref, computed, watch, nextTick, onBeforeUnmount } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
-import ConfirmModal from '@/components/ConfirmModal.vue'
 
 defineOptions({
   layout: AppLayout
@@ -26,6 +25,51 @@ const allLogs = computed(() => {
   const deploy = props.deployment.deployLogs || ''
   return (build + deploy).trim()
 })
+
+const highlightedLogs = computed(() => {
+  if (!allLogs.value) return ''
+  return allLogs.value.split('\n').map(highlightLine).join('\n')
+})
+
+function highlightLine(line) {
+  // Escape HTML entities first
+  let s = line.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+
+  // Step number at start of line (#0, #1, etc.)
+  s = s.replace(/^(#\d+)/, '<span class="text-cyan-600 dark:text-cyan-500">$1</span>')
+
+  // DONE marker with timing
+  s = s.replace(/\bDONE (\d+\.\d+s)/, '<span class="text-green-600 dark:text-green-400 font-semibold">DONE</span> <span class="text-gray-400 dark:text-gray-500">$1</span>')
+
+  // ERROR marker
+  s = s.replace(/\bERROR\b/g, '<span class="text-red-600 dark:text-red-400 font-semibold">ERROR</span>')
+
+  // CANCELED marker
+  s = s.replace(/\bCANCELED\b/g, '<span class="text-yellow-600 dark:text-yellow-400 font-semibold">CANCELED</span>')
+
+  // Build stage steps [1/6], [2/6], etc.
+  s = s.replace(/\[(\d+\/\d+)\]/, '<span class="text-yellow-600 dark:text-yellow-400">[$1]</span>')
+
+  // [internal] tag
+  s = s.replace(/\[internal\]/, '<span class="text-gray-400 dark:text-gray-500">[internal]</span>')
+
+  // [auth] tag
+  s = s.replace(/\[auth\]/, '<span class="text-gray-400 dark:text-gray-500">[auth]</span>')
+
+  // Dockerfile instructions
+  s = s.replace(/\b(FROM|RUN|COPY|WORKDIR|EXPOSE|CMD|ENTRYPOINT|ENV|ARG|ADD|LABEL|USER|VOLUME)\b/, '<span class="text-purple-600 dark:text-purple-400">$1</span>')
+
+  // "done" at end of line
+  s = s.replace(/\bdone$/, '<span class="text-green-600 dark:text-green-500">done</span>')
+
+  // sha256 hashes — dim them
+  s = s.replace(/(sha256:)([a-f0-9]+)/g, '<span class="text-gray-400 dark:text-gray-600">$1$2</span>')
+
+  // Docker image references (e.g. docker.io/library/node:22-slim)
+  s = s.replace(/(docker\.io\/[^\s@]+)/g, '<span class="text-blue-600 dark:text-blue-400">$1</span>')
+
+  return s
+}
 
 // Poll for updates while deployment is in progress
 const { stop } = usePoll(2000, {
@@ -53,6 +97,7 @@ function statusBadge(status) {
     deploying: { label: 'Deploying', classes: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' },
     pending: { label: 'Pending', classes: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400' },
     failed: { label: 'Failed', classes: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' },
+    stopped: { label: 'Stopped', classes: 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400' },
     cancelled: { label: 'Cancelled', classes: 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400' }
   }
   return map[status] || { label: status, classes: 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400' }
@@ -78,8 +123,67 @@ const canRollback = computed(() =>
   props.deployment.imageName
 )
 
-const showRollback = ref(false)
 const rollingBack = ref(false)
+
+// Slide-to-rollback
+const slideTrack = ref(null)
+const slideProgress = ref(0)
+const isSliding = ref(false)
+
+const thumbColor = computed(() => {
+  if (slideProgress.value < 0.33) return 'bg-gray-900 text-white dark:bg-white dark:text-gray-900'
+  if (slideProgress.value < 0.66) return 'bg-yellow-500 text-white'
+  return 'bg-red-500 text-white'
+})
+
+const trackFill = computed(() => {
+  if (slideProgress.value < 0.33) return 'bg-transparent'
+  if (slideProgress.value < 0.66) return 'bg-yellow-500/10'
+  return 'bg-red-500/10'
+})
+
+let cleanupSlide = null
+
+function startSlide(e) {
+  if (rollingBack.value) return
+  isSliding.value = true
+  const startX = e.type === 'touchstart' ? e.touches[0].clientX : e.clientX
+  const track = slideTrack.value
+  const maxSlide = track.offsetWidth - 40
+
+  const onMove = (moveEvent) => {
+    const currentX = moveEvent.type === 'touchmove' ? moveEvent.touches[0].clientX : moveEvent.clientX
+    const delta = startX - currentX
+    slideProgress.value = Math.max(0, Math.min(1, delta / maxSlide))
+  }
+
+  const onEnd = () => {
+    isSliding.value = false
+    if (slideProgress.value > 0.85) {
+      slideProgress.value = 1
+      executeRollback()
+    } else {
+      slideProgress.value = 0
+    }
+    cleanup()
+  }
+
+  const cleanup = () => {
+    document.removeEventListener('mousemove', onMove)
+    document.removeEventListener('mouseup', onEnd)
+    document.removeEventListener('touchmove', onMove)
+    document.removeEventListener('touchend', onEnd)
+    cleanupSlide = null
+  }
+
+  document.addEventListener('mousemove', onMove)
+  document.addEventListener('mouseup', onEnd)
+  document.addEventListener('touchmove', onMove)
+  document.addEventListener('touchend', onEnd)
+  cleanupSlide = cleanup
+}
+
+onBeforeUnmount(() => { if (cleanupSlide) cleanupSlide() })
 
 function executeRollback() {
   rollingBack.value = true
@@ -88,21 +192,21 @@ function executeRollback() {
     { deploymentId: props.deployment.id },
     {
       onSuccess: (page) => {
-        showRollback.value = false
-        // Navigate to the new rollback deployment
         const newDeployment = page.props?.deployment
         if (newDeployment?.id) {
           router.visit(`/projects/${props.project.slug}/deployments/${newDeployment.id}`)
         }
       },
-      onError: () => { showRollback.value = false },
-      onFinish: () => { rollingBack.value = false }
+      onFinish: () => {
+        rollingBack.value = false
+        slideProgress.value = 0
+      }
     }
   )
 }
 </script>
 <template>
-  <Head :title="`Deployment ${deployment.id.slice(0, 8)} | Slipway`"></Head>
+  <Head :title="`Deployment ${deployment.id} | Slipway`"></Head>
   <div class="flex h-full flex-col">
     <!-- Header -->
     <div class="flex items-center justify-between border-b border-gray-200 px-4 py-4 dark:border-gray-800 sm:px-8">
@@ -135,7 +239,7 @@ function executeRollback() {
           </Link>
           <span class="text-gray-400 dark:text-gray-600">/</span>
           <span class="font-medium text-gray-900 dark:text-white">
-            {{ deployment.id.slice(0, 8) }}
+            {{ deployment.id }}
           </span>
         </nav>
       </div>
@@ -170,13 +274,43 @@ function executeRollback() {
               </span>
             </div>
           </div>
-          <div v-if="canRollback">
-            <button
-              @click="showRollback = true"
-              class="rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800"
+          <!-- Slide to Rollback -->
+          <div
+            v-if="canRollback"
+            ref="slideTrack"
+            class="relative h-10 w-56 select-none overflow-hidden rounded-full border border-gray-200 bg-gray-100 dark:border-gray-800 dark:bg-gray-900"
+          >
+            <!-- Track fill -->
+            <div
+              class="absolute inset-y-0 left-0"
+              :class="[trackFill, { 'transition-[width] duration-300': !isSliding }]"
+              :style="{ width: `${slideProgress * 100}%` }"
+            ></div>
+
+            <!-- Label -->
+            <span class="pointer-events-none absolute inset-0 flex items-center justify-center text-xs font-medium text-gray-400 dark:text-gray-500">
+              {{ rollingBack ? 'Rolling back...' : slideProgress > 0.85 ? 'Release to confirm' : 'Slide to rollback' }}
+            </span>
+
+            <!-- Thumb -->
+            <div
+              class="absolute bottom-0.5 top-0.5 flex w-10 items-center justify-center rounded-full shadow-lg"
+              :class="[
+                rollingBack ? 'bg-red-500 text-white cursor-not-allowed' : thumbColor + ' cursor-grab active:cursor-grabbing',
+                { 'transition-all duration-300 ease-out': !isSliding }
+              ]"
+              :style="{ left: `calc(${(1 - slideProgress) * 100}% - ${(1 - slideProgress) * 2.5}rem)` }"
+              @mousedown.prevent="startSlide"
+              @touchstart.prevent="startSlide"
             >
-              Rollback to this
-            </button>
+              <svg v-if="!rollingBack" class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+              </svg>
+              <svg v-else class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+            </div>
           </div>
         </div>
 
@@ -226,9 +360,9 @@ function executeRollback() {
           </div>
           <div
             ref="logContainer"
-            class="flex-1 overflow-y-auto bg-gray-950 p-4 font-mono text-xs leading-5 text-gray-300"
+            class="flex-1 overflow-y-auto bg-gray-50 p-4 font-mono text-xs leading-5 text-gray-700 dark:bg-gray-950 dark:text-gray-300"
           >
-            <pre v-if="allLogs" class="whitespace-pre-wrap break-all">{{ allLogs }}</pre>
+            <pre v-if="allLogs" class="whitespace-pre-wrap break-all" v-html="highlightedLogs"></pre>
             <div v-else-if="isInProgress" class="flex items-center space-x-2 text-gray-500">
               <svg class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
@@ -242,13 +376,5 @@ function executeRollback() {
       </div>
     </div>
 
-    <ConfirmModal
-      :show="showRollback"
-      title="Rollback deployment"
-      :message="`This will redeploy the image from deployment ${deployment.id.slice(0, 8)}. The current running container will be replaced.`"
-      confirm-label="Rollback"
-      @confirm="executeRollback"
-      @cancel="showRollback = false"
-    />
   </div>
 </template>

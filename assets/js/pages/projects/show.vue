@@ -121,6 +121,12 @@ function timeAgo(date) {
         <!-- Environments -->
         <div class="mb-6 flex items-center justify-between">
           <h2 class="text-sm font-medium text-gray-900 dark:text-white">Environments</h2>
+          <Link
+            :href="`/projects/${project.slug}/environments/new`"
+            class="flex items-center space-x-1 rounded-md bg-gray-900 px-3 py-2 text-sm font-medium text-white hover:bg-gray-800 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
+          >
+            Create environment
+          </Link>
         </div>
 
         <div v-if="environments.length > 0" class="divide-y divide-gray-200 rounded-lg border border-gray-200 bg-white dark:divide-gray-800 dark:border-gray-800 dark:bg-gray-950">
@@ -159,7 +165,7 @@ function timeAgo(date) {
         <div v-else class="rounded-lg border border-dashed border-gray-300 px-6 py-12 text-center dark:border-gray-700">
           <p class="text-sm text-gray-500 dark:text-gray-400">No environments yet.</p>
           <p class="mt-1 text-sm text-gray-400 dark:text-gray-500">
-            Create one via the CLI: <code class="rounded bg-gray-100 px-1.5 py-0.5 text-xs dark:bg-gray-800">slipway env:create</code>
+            Create one from the dashboard or run <code class="rounded bg-gray-100 px-1.5 py-0.5 text-xs dark:bg-gray-800">slipway env:create</code>
           </p>
         </div>
 

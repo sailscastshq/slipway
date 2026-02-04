@@ -57,6 +57,8 @@ module.exports.routes = {
   'GET /projects/:slug/settings': 'project/view-project-settings',
   'PATCH /projects/:slug': 'project/update-project',
   'DELETE /projects/:slug': 'project/destroy-project',
+  'GET /projects/:slug/environments/new': 'project/view-new-environment',
+  'POST /projects/:slug/environments': 'project/create-environment',
   'GET /projects/:slug/environments/:envSlug': 'project/view-environment',
   'GET /projects/:slug/environments/:envSlug/helm': 'project/view-helm',
   'GET /projects/:slug/deployments/:deploymentId': 'project/view-deployment',
@@ -94,15 +96,19 @@ module.exports.routes = {
   'PATCH /api/v1/projects/:projectSlug/environments/:slug': 'api/v1/environment/update-environment',
   'DELETE /api/v1/projects/:projectSlug/environments/:slug': 'api/v1/environment/destroy-environment',
 
-  // Deploy (environment defaults to production when omitted)
-  'POST /api/v1/projects/:projectSlug/environments/:environmentSlug?/deploy': 'api/v1/deploy/trigger-deployment',
-  'POST /api/v1/projects/:projectSlug/environments/:environmentSlug?/rollback': 'api/v1/deploy/rollback-deployment',
+  // Deploy
+  'POST /api/v1/projects/:projectSlug/deploy': 'api/v1/deploy/trigger-deployment',
+  'POST /api/v1/projects/:projectSlug/environments/:environmentSlug/deploy': 'api/v1/deploy/trigger-deployment',
+  'POST /api/v1/projects/:projectSlug/rollback': 'api/v1/deploy/rollback-deployment',
+  'POST /api/v1/projects/:projectSlug/environments/:environmentSlug/rollback': 'api/v1/deploy/rollback-deployment',
   'GET /api/v1/deployments/:id': 'api/v1/deploy/get-deployment-status',
   'GET /api/v1/deployments/:id/logs': 'api/v1/deploy/get-deployment-logs',
 
-  // Services (environment defaults to production when omitted)
-  'GET /api/v1/projects/:projectSlug/environments/:environmentSlug?/services': 'api/v1/service/list-services',
-  'POST /api/v1/projects/:projectSlug/environments/:environmentSlug?/services': 'api/v1/service/create-service',
+  // Services
+  'GET /api/v1/projects/:projectSlug/services': 'api/v1/service/list-services',
+  'GET /api/v1/projects/:projectSlug/environments/:environmentSlug/services': 'api/v1/service/list-services',
+  'POST /api/v1/projects/:projectSlug/services': 'api/v1/service/create-service',
+  'POST /api/v1/projects/:projectSlug/environments/:environmentSlug/services': 'api/v1/service/create-service',
   'GET /api/v1/services/:id': 'api/v1/service/get-service',
   'DELETE /api/v1/services/:id': 'api/v1/service/destroy-service',
 

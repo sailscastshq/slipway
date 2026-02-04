@@ -494,8 +494,8 @@ const services = computed(() => props.environment.services || [])
         </div>
 
         <!-- Slide to Deploy -->
-        <div class="mb-10 sm:flex sm:justify-end">
-          <div class="w-full sm:max-w-xs">
+        <div class="mb-10 flex justify-end">
+          <div class="w-56">
             <SlideToDeploy
               ref="slideRef"
               :is-production="environment.isProduction"

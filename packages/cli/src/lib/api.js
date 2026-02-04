@@ -33,7 +33,17 @@ async function apiRequest(method, path, options = {}) {
 
   try {
     const response = await fetch(url, fetchOptions)
-    const body = await response.json()
+    const text = await response.text()
+
+    let body
+    try {
+      body = JSON.parse(text)
+    } catch {
+      if (!response.ok) {
+        throw new APIError(text || `Request failed with status ${response.status}`, response.status)
+      }
+      throw new APIError(`Unexpected response from server: ${text}`, response.status)
+    }
 
     if (!response.ok) {
       const message = body.message || body.error || `Request failed with status ${response.status}`
@@ -73,7 +83,17 @@ async function apiUpload(path, fieldName, buffer, filename) {
       body: formData
     })
 
-    const body = await response.json()
+    const text = await response.text()
+
+    let body
+    try {
+      body = JSON.parse(text)
+    } catch {
+      if (!response.ok) {
+        throw new APIError(text || `Upload failed with status ${response.status}`, response.status)
+      }
+      throw new APIError(`Unexpected response from server: ${text}`, response.status)
+    }
 
     if (!response.ok) {
       const message = body.message || body.error || `Upload failed with status ${response.status}`
