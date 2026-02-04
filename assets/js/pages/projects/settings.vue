@@ -8,7 +8,8 @@ defineOptions({
 })
 
 const props = defineProps({
-  project: Object
+  project: Object,
+  webhookUrl: String
 })
 
 const toggleMobileMenu = inject('toggleMobileMenu')
@@ -19,10 +20,42 @@ const form = useForm({
   repositoryUrl: props.project.repositoryUrl || ''
 })
 
+const deployForm = useForm({
+  autoDeploy: props.project.autoDeploy || false,
+  autoDeployBranch: props.project.autoDeployBranch || 'main',
+  generateWebhookSecret: false
+})
+
 const showDeleteConfirm = ref(false)
+const copiedWebhook = ref(false)
+const copiedSecret = ref(false)
 
 function save() {
   form.patch(`/projects/${props.project.slug}`)
+}
+
+function saveDeploySettings() {
+  deployForm.patch(`/projects/${props.project.slug}`, {
+    onSuccess: () => {
+      deployForm.generateWebhookSecret = false
+    }
+  })
+}
+
+function generateSecret() {
+  deployForm.generateWebhookSecret = true
+  saveDeploySettings()
+}
+
+function copyText(text, field) {
+  navigator.clipboard.writeText(text)
+  if (field === 'webhook') {
+    copiedWebhook.value = true
+    setTimeout(() => { copiedWebhook.value = false }, 2000)
+  } else {
+    copiedSecret.value = true
+    setTimeout(() => { copiedSecret.value = false }, 2000)
+  }
 }
 
 function deleteProject() {
@@ -124,8 +157,105 @@ function deleteProject() {
           </div>
         </form>
 
+        <!-- Auto-Deploy -->
+        <div class="mt-12 rounded-lg border border-gray-200 p-6 dark:border-gray-800">
+          <h3 class="text-sm font-semibold text-gray-900 dark:text-white">Auto-deploy</h3>
+          <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+            Automatically deploy when you push to GitHub.
+          </p>
+
+          <div class="mt-6 space-y-4">
+            <!-- Enable toggle -->
+            <label class="flex items-center space-x-3">
+              <input
+                type="checkbox"
+                v-model="deployForm.autoDeploy"
+                @change="saveDeploySettings"
+                class="h-4 w-4 rounded border-gray-300 text-brand focus:ring-brand dark:border-gray-600 dark:bg-gray-900"
+              />
+              <span class="text-sm text-gray-700 dark:text-gray-300">Enable auto-deploy on push</span>
+            </label>
+
+            <!-- Branch -->
+            <div v-if="deployForm.autoDeploy">
+              <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                Deploy branch
+              </label>
+              <div class="flex items-center space-x-2">
+                <input
+                  v-model="deployForm.autoDeployBranch"
+                  type="text"
+                  placeholder="main"
+                  class="w-40 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-brand focus:outline-none dark:border-gray-800 dark:bg-black dark:text-white"
+                />
+                <button
+                  @click="saveDeploySettings"
+                  :disabled="deployForm.processing"
+                  class="rounded-md bg-gray-900 px-3 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
+                >
+                  Save
+                </button>
+              </div>
+            </div>
+
+            <!-- Webhook URL -->
+            <div v-if="deployForm.autoDeploy">
+              <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                Webhook URL
+              </label>
+              <div class="flex items-center space-x-2">
+                <code class="flex-1 truncate rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-700 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300">
+                  {{ webhookUrl }}
+                </code>
+                <button
+                  @click="copyText(webhookUrl, 'webhook')"
+                  class="shrink-0 rounded-md border border-gray-200 px-3 py-2 text-xs text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-gray-800"
+                >
+                  {{ copiedWebhook ? 'Copied!' : 'Copy' }}
+                </button>
+              </div>
+            </div>
+
+            <!-- Webhook Secret -->
+            <div v-if="deployForm.autoDeploy">
+              <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                Webhook secret
+              </label>
+              <div v-if="project.webhookSecret" class="flex items-center space-x-2">
+                <code class="flex-1 truncate rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-700 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300">
+                  {{ project.webhookSecret.slice(0, 12) }}••••••••
+                </code>
+                <button
+                  @click="copyText(project.webhookSecret, 'secret')"
+                  class="shrink-0 rounded-md border border-gray-200 px-3 py-2 text-xs text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-gray-800"
+                >
+                  {{ copiedSecret ? 'Copied!' : 'Copy' }}
+                </button>
+                <button
+                  @click="generateSecret"
+                  :disabled="deployForm.processing"
+                  class="shrink-0 rounded-md border border-gray-200 px-3 py-2 text-xs text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-gray-800"
+                >
+                  Regenerate
+                </button>
+              </div>
+              <button
+                v-else
+                @click="generateSecret"
+                :disabled="deployForm.processing"
+                class="rounded-md bg-gray-900 px-3 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
+              >
+                Generate secret
+              </button>
+              <p class="mt-1 text-xs text-gray-400 dark:text-gray-500">
+                Add this as the webhook secret in your GitHub repo settings.
+              </p>
+            </div>
+          </div>
+        </div>
+
         <!-- Danger Zone -->
-        <div class="mt-16 rounded-lg border border-red-200 p-6 dark:border-red-900/50">
+        <div class="mt-12 rounded-lg border border-red-200 p-6 dark:border-red-900/50">
           <h3 class="text-sm font-medium text-red-600 dark:text-red-400">Danger zone</h3>
           <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">
             Permanently delete this project and all of its environments, deployments, and services. This action cannot be undone.

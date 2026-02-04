@@ -1,7 +1,8 @@
 <script setup>
-import { Link, Head, usePoll } from '@inertiajs/vue3'
+import { Link, Head, usePoll, router } from '@inertiajs/vue3'
 import { inject, ref, computed, watch, nextTick } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
+import ConfirmModal from '@/components/ConfirmModal.vue'
 
 defineOptions({
   layout: AppLayout
@@ -69,6 +70,36 @@ function formatDate(timestamp) {
   if (!timestamp) return '—'
   return new Date(timestamp).toLocaleString()
 }
+
+// Rollback
+const canRollback = computed(() =>
+  props.deployment.status === 'running' &&
+  !props.deployment.isCurrentDeployment &&
+  props.deployment.imageName
+)
+
+const showRollback = ref(false)
+const rollingBack = ref(false)
+
+function executeRollback() {
+  rollingBack.value = true
+  router.post(
+    `/api/v1/projects/${props.project.slug}/environments/${props.environment.slug}/rollback`,
+    { deploymentId: props.deployment.id },
+    {
+      onSuccess: (page) => {
+        showRollback.value = false
+        // Navigate to the new rollback deployment
+        const newDeployment = page.props?.deployment
+        if (newDeployment?.id) {
+          router.visit(`/projects/${props.project.slug}/deployments/${newDeployment.id}`)
+        }
+      },
+      onError: () => { showRollback.value = false },
+      onFinish: () => { rollingBack.value = false }
+    }
+  )
+}
 </script>
 <template>
   <Head :title="`Deployment ${deployment.id.slice(0, 8)} | Slipway`"></Head>
@@ -122,6 +153,12 @@ function formatDate(timestamp) {
                 {{ statusBadge(deployment.status).label }}
               </span>
               <span
+                v-if="deployment.isCurrentDeployment"
+                class="inline-flex items-center rounded-md bg-brand/10 px-2 py-0.5 text-xs font-medium text-brand"
+              >
+                current
+              </span>
+              <span
                 v-if="isInProgress"
                 class="inline-flex items-center space-x-1 text-xs text-blue-600 dark:text-blue-400"
               >
@@ -132,6 +169,14 @@ function formatDate(timestamp) {
                 <span>In progress</span>
               </span>
             </div>
+          </div>
+          <div v-if="canRollback">
+            <button
+              @click="showRollback = true"
+              class="rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800"
+            >
+              Rollback to this
+            </button>
           </div>
         </div>
 
@@ -196,5 +241,14 @@ function formatDate(timestamp) {
         </div>
       </div>
     </div>
+
+    <ConfirmModal
+      :show="showRollback"
+      title="Rollback deployment"
+      :message="`This will redeploy the image from deployment ${deployment.id.slice(0, 8)}. The current running container will be replaced.`"
+      confirm-label="Rollback"
+      @confirm="executeRollback"
+      @cancel="showRollback = false"
+    />
   </div>
 </template>

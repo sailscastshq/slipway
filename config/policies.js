@@ -35,6 +35,9 @@ module.exports.policies = {
   // Settings pages require authentication
   'setting/*': 'is-authenticated',
 
+  // Team management requires authentication
+  'team/*': 'is-authenticated',
+
   // API v1 routes require authentication
   'api/v1/*': 'is-authenticated',
 
@@ -43,6 +46,9 @@ module.exports.policies = {
   'api/v1/cli/check-auth': true,
   'api/v1/cli/stream-auth': true,
   // confirm-auth requires auth (user confirms in browser while logged in)
+
+  // Webhooks are public (signature-verified in controller)
+  'api/v1/webhook/github': true,
 
   // CLI authorization page (handles its own auth state display)
   'cli/view-authorize': true

@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process'
 import { c } from '../lib/colors.js'
 import { api } from '../lib/api.js'
 import { isLoggedIn, getCredentials } from '../lib/config.js'
@@ -15,24 +16,49 @@ export default async function slide(options) {
   console.log(`  ${c.bold(c.highlight('Sliding'))} ${project.project} ${c.dim('into')} ${environment}`)
   console.log()
 
-  const spin = createSpinner('Starting deployment...').start()
+  // 1. Package source code
+  const spin = createSpinner('Packaging source...').start()
+
+  let tarballBuffer
+  try {
+    tarballBuffer = createTarball()
+    const sizeMB = (tarballBuffer.length / 1024 / 1024).toFixed(1)
+    spin.succeed(`Source packaged (${sizeMB} MB)`)
+  } catch (err) {
+    spin.fail('Failed to package source')
+    error(err.message)
+  }
+
+  // 2. Upload source to server
+  const pushSpin = createSpinner('Pushing source...').start()
 
   try {
-    // Trigger deployment
+    await api.projects.push(project.project, tarballBuffer)
+    pushSpin.succeed('Source pushed')
+  } catch (err) {
+    pushSpin.fail('Failed to push source')
+    error(err.message)
+  }
+
+  // 3. Trigger deployment
+  const deploySpin = createSpinner('Starting deployment...').start()
+
+  try {
     const { deployment } = await api.deployments.trigger(
       project.project,
       environment,
       {
-        message: options.message
+        message: options.message,
+        ...getGitInfo()
       }
     )
 
-    spin.succeed('Deployment started')
+    deploySpin.succeed('Deployment started')
     console.log()
     console.log(`  ${c.dim('Deployment ID:')} ${deployment.id.substring(0, 8)}`)
     console.log()
 
-    // Watch deployment status via SSE (with polling fallback)
+    // 4. Watch deployment status via SSE (with polling fallback)
     const result = await watchDeployment(deployment.id)
 
     if (result.status === 'running') {
@@ -60,8 +86,76 @@ export default async function slide(options) {
       console.log()
     }
   } catch (err) {
-    spin.fail('Deployment failed')
+    deploySpin.fail('Deployment failed')
     error(err.message)
+  }
+}
+
+/**
+ * Create a tarball of the current directory.
+ * Uses `git archive` if in a git repo (respects .gitignore automatically),
+ * otherwise falls back to `tar` with sensible exclusions.
+ */
+function createTarball() {
+  const cwd = process.cwd()
+
+  // Check if we're in a git repo
+  if (isGitRepo(cwd)) {
+    // git archive creates a clean tar from the current HEAD,
+    // excluding .git/ and respecting .gitignore
+    return execFileSync('git', ['archive', '--format=tar.gz', 'HEAD'], {
+      cwd,
+      maxBuffer: 500 * 1024 * 1024 // 500MB
+    })
+  }
+
+  // Fallback: tar with exclusions
+  const excludes = [
+    'node_modules',
+    '.git',
+    '.env',
+    '.DS_Store',
+    '*.log'
+  ]
+
+  const args = ['czf', '-', ...excludes.flatMap(e => ['--exclude', e]), '.']
+
+  return execFileSync('tar', args, {
+    cwd,
+    maxBuffer: 500 * 1024 * 1024
+  })
+}
+
+/**
+ * Check if a directory is inside a git repository.
+ */
+function isGitRepo(dir) {
+  try {
+    execFileSync('git', ['rev-parse', '--is-inside-work-tree'], {
+      cwd: dir,
+      stdio: 'pipe'
+    })
+    return true
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Extract git metadata (commit, branch, message) if available.
+ */
+function getGitInfo() {
+  try {
+    const cwd = process.cwd()
+    const gitCommit = execFileSync('git', ['rev-parse', 'HEAD'], { cwd, stdio: 'pipe' })
+      .toString().trim()
+    const gitBranch = execFileSync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], { cwd, stdio: 'pipe' })
+      .toString().trim()
+    const gitMessage = execFileSync('git', ['log', '-1', '--pretty=%s'], { cwd, stdio: 'pipe' })
+      .toString().trim()
+    return { gitCommit, gitBranch, gitMessage }
+  } catch {
+    return {}
   }
 }
 

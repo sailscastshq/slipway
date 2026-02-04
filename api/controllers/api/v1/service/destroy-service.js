@@ -49,8 +49,12 @@ module.exports = {
       throw 'forbidden'
     }
 
-    // TODO: Stop and remove Docker container
-    // await sails.helpers.docker.destroyService(service.id)
+    // Stop and remove Docker container
+    try {
+      await sails.helpers.docker.destroyService(service.id)
+    } catch (err) {
+      sails.log.warn(`Failed to destroy service container: ${err.message}`)
+    }
 
     sails.log.info(`Service ${service.name} deleted from ${project.slug}/${environment.slug}`)
 

@@ -1,6 +1,6 @@
 <script setup>
-import { Link, Head, router } from '@inertiajs/vue3'
-import { inject, ref } from 'vue'
+import { Link, Head } from '@inertiajs/vue3'
+import { inject } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
 
 defineOptions({
@@ -13,7 +13,6 @@ const props = defineProps({
 })
 
 const toggleMobileMenu = inject('toggleMobileMenu')
-const deploying = ref(null)
 
 function statusBadge(env) {
   if (!env.app) return { label: 'Not deployed', color: 'gray' }
@@ -57,23 +56,7 @@ function timeAgo(date) {
   return 'just now'
 }
 
-async function triggerDeploy(env) {
-  if (deploying.value) return
-  deploying.value = env.id
 
-  try {
-    const res = await fetch(`/api/v1/projects/${props.project.slug}/environments/${env.slug}/deploy`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' }
-    })
-    const data = await res.json()
-    if (data.deployment) {
-      router.visit(`/projects/${props.project.slug}/deployments/${data.deployment.id}`)
-    }
-  } catch {
-    deploying.value = null
-  }
-}
 </script>
 <template>
   <Head :title="`${project.name} | Slipway`"></Head>
@@ -140,74 +123,36 @@ async function triggerDeploy(env) {
           <h2 class="text-sm font-medium text-gray-900 dark:text-white">Environments</h2>
         </div>
 
-        <div v-if="environments.length > 0" class="rounded-lg border border-gray-200 dark:border-gray-800">
-          <!-- Table Header -->
-          <div class="grid grid-cols-12 gap-4 rounded-t-lg border-b border-gray-200 bg-gray-50/50 px-6 py-2 text-xs font-medium text-gray-500 dark:border-gray-800 dark:bg-gray-900/50">
-            <div class="col-span-3">Environment</div>
-            <div class="col-span-2">Status</div>
-            <div class="col-span-3">Domain</div>
-            <div class="col-span-2">Last deployed</div>
-            <div class="col-span-2 text-right">Actions</div>
-          </div>
-
-          <!-- Table Body -->
-          <div class="divide-y divide-gray-200 rounded-b-lg bg-white dark:divide-gray-800 dark:bg-gray-950">
-            <div
-              v-for="env in environments"
-              :key="env.id"
-              class="grid grid-cols-12 items-center gap-4 px-6 py-4"
-            >
-              <div class="col-span-3">
-                <Link
-                  :href="`/projects/${project.slug}/environments/${env.slug}`"
-                  class="font-medium text-gray-900 underline decoration-dashed decoration-gray-300 underline-offset-2 hover:text-gray-700 dark:text-white dark:decoration-gray-600 dark:hover:text-gray-300"
-                >
-                  {{ env.name }}
-                </Link>
-                <span
-                  v-if="env.isProduction"
-                  class="ml-2 inline-flex rounded px-1.5 py-0.5 text-[10px] font-medium bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
-                >
-                  Production
-                </span>
-              </div>
-              <div class="col-span-2">
-                <span
-                  :class="['inline-flex items-center rounded-md px-2.5 py-1 text-xs font-medium', badgeClasses(statusBadge(env).color)]"
-                >
-                  {{ statusBadge(env).label }}
-                </span>
-              </div>
-              <div class="col-span-3">
-                <span class="text-sm text-gray-500 dark:text-gray-400">{{ env.fullDomain }}</span>
-                <a
-                  v-if="env.app && env.app.hostPort && env.app.status === 'running'"
-                  :href="`http://localhost:${env.app.hostPort}`"
-                  target="_blank"
-                  class="mt-0.5 flex items-center space-x-1 font-mono text-xs text-emerald-600 hover:text-emerald-800 dark:text-emerald-400 dark:hover:text-emerald-300"
-                >
-                  <span>localhost:{{ env.app.hostPort }}</span>
-                  <svg class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                  </svg>
-                </a>
-              </div>
-              <div class="col-span-2">
-                <span class="text-sm text-gray-500 dark:text-gray-400">
-                  {{ env.app?.lastDeployedAt ? timeAgo(env.app.lastDeployedAt) : 'Never' }}
-                </span>
-              </div>
-              <div class="col-span-2 flex justify-end">
-                <button
-                  @click="triggerDeploy(env)"
-                  :disabled="deploying === env.id"
-                  class="rounded-md bg-gray-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-gray-800 disabled:opacity-50 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
-                >
-                  {{ deploying === env.id ? 'Deploying...' : 'Deploy' }}
-                </button>
-              </div>
+        <div v-if="environments.length > 0" class="divide-y divide-gray-200 rounded-lg border border-gray-200 bg-white dark:divide-gray-800 dark:border-gray-800 dark:bg-gray-950">
+          <Link
+            v-for="env in environments"
+            :key="env.id"
+            :href="`/projects/${project.slug}/environments/${env.slug}`"
+            class="flex items-center justify-between px-6 py-4 hover:bg-gray-50 dark:hover:bg-gray-900/50"
+          >
+            <div class="flex items-center space-x-3">
+              <span class="font-medium text-gray-900 dark:text-white">{{ env.name }}</span>
+              <span
+                v-if="env.isProduction"
+                class="inline-flex rounded px-1.5 py-0.5 text-[10px] font-medium bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
+              >
+                Production
+              </span>
+              <span
+                :class="['inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium', badgeClasses(statusBadge(env).color)]"
+              >
+                {{ statusBadge(env).label }}
+              </span>
             </div>
-          </div>
+            <div class="flex items-center space-x-4">
+              <span class="text-sm text-gray-500 dark:text-gray-400">
+                {{ env.app?.lastDeployedAt ? timeAgo(env.app.lastDeployedAt) : 'Never deployed' }}
+              </span>
+              <svg class="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+              </svg>
+            </div>
+          </Link>
         </div>
 
         <!-- Empty state -->

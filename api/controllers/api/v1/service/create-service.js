@@ -106,13 +106,8 @@ module.exports = {
       environment: environment.id
     }).fetch()
 
-    // TODO: Actually create the Docker container
-    // await sails.helpers.docker.createService(service.id)
-
-    // For now, just mark as running (will be implemented properly)
-    await Service.updateOne({ id: service.id }).set({
-      status: 'running'
-    })
+    // Create the Docker container
+    await sails.helpers.docker.createService(service.id)
 
     // Get connection URL
     const connectionUrl = await Service.getConnectionUrl(service.id)

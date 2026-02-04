@@ -49,12 +49,53 @@ async function apiRequest(method, path, options = {}) {
   }
 }
 
+/**
+ * Upload a file as multipart form data.
+ * Used by `slipway slide` to push source tarballs.
+ */
+async function apiUpload(path, fieldName, buffer, filename) {
+  if (!isLoggedIn()) {
+    throw new Error('Not logged in. Run `slipway login` first.')
+  }
+
+  const { server, token } = getCredentials()
+  const url = `${server}/api/v1${path}`
+
+  const formData = new FormData()
+  formData.append(fieldName, new Blob([buffer]), filename)
+
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`
+      },
+      body: formData
+    })
+
+    const body = await response.json()
+
+    if (!response.ok) {
+      const message = body.message || body.error || `Upload failed with status ${response.status}`
+      throw new APIError(message, response.status, body)
+    }
+
+    return body
+  } catch (error) {
+    if (error instanceof APIError) {
+      throw error
+    }
+    throw new Error(`Failed to upload to Slipway server: ${error.message}`)
+  }
+}
+
 // Convenience methods
 export const api = {
   get: (path) => apiRequest('GET', path),
   post: (path, body) => apiRequest('POST', path, { body }),
   patch: (path, body) => apiRequest('PATCH', path, { body }),
-  delete: (path) => apiRequest('DELETE', path)
+  delete: (path) => apiRequest('DELETE', path),
+  upload: apiUpload
 }
 
 // Project endpoints
@@ -63,7 +104,8 @@ api.projects = {
   create: (data) => api.post('/projects', data),
   get: (id) => api.get(`/projects/${id}`),
   update: (id, data) => api.patch(`/projects/${id}`, data),
-  delete: (id) => api.delete(`/projects/${id}`)
+  delete: (id) => api.delete(`/projects/${id}`),
+  push: (id, tarballBuffer) => api.upload(`/projects/${id}/push`, 'source', tarballBuffer, 'source.tar.gz')
 }
 
 // Environment endpoints

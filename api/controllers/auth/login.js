@@ -27,10 +27,10 @@ password attempt.`,
       description: "Whether to extend the lifetime of the user's session.",
       type: 'boolean'
     },
-
     redirect: {
       description: 'URL to redirect to after successful login.',
-      type: 'string'
+      type: 'string',
+      allowNull: true
     }
   },
 

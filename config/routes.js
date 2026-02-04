@@ -58,6 +58,7 @@ module.exports.routes = {
   'PATCH /projects/:slug': 'project/update-project',
   'DELETE /projects/:slug': 'project/destroy-project',
   'GET /projects/:slug/environments/:envSlug': 'project/view-environment',
+  'GET /projects/:slug/environments/:envSlug/helm': 'project/view-helm',
   'GET /projects/:slug/deployments/:deploymentId': 'project/view-deployment',
 
   // Settings (web UI)
@@ -66,6 +67,12 @@ module.exports.routes = {
   'PATCH /settings/cli-tokens/:id': 'setting/update-api-key',
   'DELETE /settings/cli-tokens/:id': 'setting/destroy-api-key',
 
+  // Team management
+  'GET /settings/team': 'team/view-members',
+  'POST /settings/team/invite': 'team/invite-member',
+  'PATCH /settings/team/:userId/role': 'team/update-member-role',
+  'DELETE /settings/team/:userId': 'team/remove-member',
+
   /***************************************************************************
    *                                                                          *
    * API v1 routes                                                            *
@@ -73,6 +80,7 @@ module.exports.routes = {
    ***************************************************************************/
 
   // Projects
+  'POST /api/v1/projects/:projectSlug/push': 'api/v1/project/push-source',
   'GET /api/v1/projects': 'api/v1/project/list-projects',
   'POST /api/v1/projects': 'api/v1/project/create-project',
   'GET /api/v1/projects/:slug': 'api/v1/project/get-project',
@@ -88,6 +96,7 @@ module.exports.routes = {
 
   // Deploy (environment defaults to production when omitted)
   'POST /api/v1/projects/:projectSlug/environments/:environmentSlug?/deploy': 'api/v1/deploy/trigger-deployment',
+  'POST /api/v1/projects/:projectSlug/environments/:environmentSlug?/rollback': 'api/v1/deploy/rollback-deployment',
   'GET /api/v1/deployments/:id': 'api/v1/deploy/get-deployment-status',
   'GET /api/v1/deployments/:id/logs': 'api/v1/deploy/get-deployment-logs',
 
@@ -103,6 +112,14 @@ module.exports.routes = {
   'POST /api/v1/cli/auth/confirm': 'api/v1/cli/confirm-auth',
   'GET /api/v1/cli/auth/stream': 'api/v1/cli/stream-auth',
   'GET /cli/authorize': 'cli/view-authorize',
+
+  // App lifecycle
+  'POST /api/v1/projects/:projectSlug/environments/:environmentSlug/restart': 'api/v1/app/restart-app',
+  'POST /api/v1/projects/:projectSlug/environments/:environmentSlug/stop': 'api/v1/app/stop-app',
+  'POST /api/v1/projects/:projectSlug/environments/:environmentSlug/execute': 'api/v1/app/execute-code',
+
+  // Webhooks (public — signature-verified in controller)
+  'POST /api/v1/webhooks/github/:projectSlug': 'api/v1/webhook/github',
 
   // SSE Streams
   'GET /api/v1/deployments/:id/stream': 'api/v1/deploy/stream-deployment'

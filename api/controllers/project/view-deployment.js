@@ -50,6 +50,10 @@ module.exports = {
 
     const duration = Deployment.getDuration(deployment)
 
+    // Check if this is the currently active deployment
+    const app = await App.findOne({ environment: environment.id })
+    const isCurrentDeployment = app ? app.currentDeployment === deployment.id : false
+
     return {
       page: 'projects/deployment',
       props: {
@@ -58,6 +62,7 @@ module.exports = {
         deployment: {
           ...deployment,
           duration,
+          isCurrentDeployment,
           triggeredBy: deployment.triggeredBy ? {
             id: deployment.triggeredBy.id,
             fullName: deployment.triggeredBy.fullName

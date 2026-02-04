@@ -56,9 +56,9 @@ const envLabel = computed(() => {
 
 const label = computed(() => {
   if (state.value === 'deploying') {
-    return `Deploying to ${envLabel.value}...`
+    return `Sliding to ${envLabel.value}...`
   }
-  return `Slide to deploy to ${envLabel.value}`
+  return `Slide to ${envLabel.value}`
 })
 
 let startX = 0
@@ -149,7 +149,7 @@ defineExpose({ reset })
           </svg>
         </template>
         <template v-else>
-          <span class="text-sm font-semibold">Deploy</span>
+          <span class="text-sm font-semibold">Slide</span>
           <div class="flex items-center animate-nudge-right">
             <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7" />

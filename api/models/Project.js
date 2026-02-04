@@ -38,6 +38,24 @@ module.exports = {
       description: 'Path to Dockerfile relative to repo root',
       columnName: 'dockerfile_path'
     },
+    webhookSecret: {
+      type: 'string',
+      allowNull: true,
+      description: 'Secret for verifying GitHub webhook signatures',
+      columnName: 'webhook_secret'
+    },
+    autoDeploy: {
+      type: 'boolean',
+      defaultsTo: false,
+      description: 'Automatically deploy on webhook push events',
+      columnName: 'auto_deploy'
+    },
+    autoDeployBranch: {
+      type: 'string',
+      defaultsTo: 'main',
+      description: 'Branch that triggers auto-deploy',
+      columnName: 'auto_deploy_branch'
+    },
     // Associations
     team: {
       model: 'team',

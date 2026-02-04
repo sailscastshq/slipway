@@ -59,6 +59,17 @@ module.exports = {
       generatedDomain = `${subdomain}.${serverIp}.sslip.io`
     }
 
+    // Enrich services with connection URLs
+    const services = await Promise.all(
+      (environment.services || []).map(async (service) => {
+        const connectionUrl = await Service.getConnectionUrl(service.id)
+        return {
+          ...service,
+          connectionUrl
+        }
+      })
+    )
+
     // Sort deployments by most recent
     const deployments = await Deployment.find({ environment: environment.id })
       .sort('createdAt DESC')
@@ -72,7 +83,8 @@ module.exports = {
         environment: {
           ...environment,
           fullDomain,
-          generatedDomain
+          generatedDomain,
+          services
         },
         app: app || null,
         envVars: environment.envVars || {},

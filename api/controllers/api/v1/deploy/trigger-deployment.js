@@ -21,6 +21,10 @@ module.exports = {
     gitBranch: {
       type: 'string',
       description: 'Git branch to deploy'
+    },
+    gitMessage: {
+      type: 'string',
+      description: 'Git commit message'
     }
   },
 
@@ -39,7 +43,7 @@ module.exports = {
     }
   },
 
-  fn: async function ({ projectSlug, environmentSlug, gitCommit, gitBranch }) {
+  fn: async function ({ projectSlug, environmentSlug, gitCommit, gitBranch, gitMessage }) {
     const user = await User.findOne({ id: this.req.session.userId })
 
     const project = await Project.findOne({ slug: projectSlug }).populate('team')
@@ -63,6 +67,7 @@ module.exports = {
       status: 'pending',
       gitCommit,
       gitBranch,
+      gitMessage,
       triggeredBy: user.id,
       triggerType: 'api',
       environment: environment.id,
