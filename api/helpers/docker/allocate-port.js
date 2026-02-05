@@ -16,7 +16,7 @@ module.exports = {
   },
 
   fn: async function () {
-    const portRange = sails.config.custom.slipwayPortRange || { start: 1338, end: 1500 }
+    const portRange = sails.config.custom.slipwayPortRange
 
     // Get all currently used ports
     const apps = await App.find({
