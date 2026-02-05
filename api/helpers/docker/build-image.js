@@ -44,7 +44,7 @@ module.exports = {
 
   fn: async function ({ contextPath, imageName, dockerfilePath, deploymentId, buildArgs }) {
     return new Promise((resolve, reject) => {
-      const args = ['build', '-t', imageName, '-f', dockerfilePath]
+      const args = ['build', '--no-cache', '-t', imageName, '-f', dockerfilePath]
 
       // Add build args
       for (const [key, value] of Object.entries(buildArgs)) {
