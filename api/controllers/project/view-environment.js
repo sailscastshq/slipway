@@ -1,3 +1,7 @@
+const { exec } = require('child_process')
+const util = require('util')
+const execAsync = util.promisify(exec)
+
 module.exports = {
   friendlyName: 'View environment',
 
@@ -43,7 +47,7 @@ module.exports = {
     }
 
     // Get the app record (container state)
-    const app = await App.findOne({ environment: environment.id })
+    let app = await App.findOne({ environment: environment.id })
 
     // Get full domain
     const fullDomain = await Environment.getFullDomain(environment.id)
@@ -70,18 +74,28 @@ module.exports = {
       })
     )
 
+    // Check if container actually exists (not just what DB says)
+    let containerExists = false
+    if (app && app.containerName) {
+      try {
+        await execAsync(`docker inspect ${app.containerName}`)
+        containerExists = true
+      } catch {
+        // Container doesn't exist - update app status
+        await App.updateOne({ id: app.id }).set({ status: 'stopped' })
+        app = await App.findOne({ id: app.id })
+      }
+    }
+
     // Fix stale running deployments
-    // Mark as stopped if: no app, no currentDeployment, or app status is not 'running'
-    const hasRunningApp = app && app.currentDeployment && app.status === 'running'
+    const hasRunningApp = containerExists && app && app.currentDeployment
     
     if (!hasRunningApp) {
-      // No running app, mark all "running" deployments as "stopped"
       await Deployment.update({
         environment: environment.id,
         status: 'running'
       }).set({ status: 'stopped' })
     } else {
-      // Only the current deployment should be "running"
       await Deployment.update({
         environment: environment.id,
         status: 'running',
