@@ -71,8 +71,11 @@ module.exports = {
     )
 
     // Fix stale running deployments
-    // If no app exists or no current deployment, mark all "running" as "stopped"
-    if (!app || !app.currentDeployment) {
+    // Mark as stopped if: no app, no currentDeployment, or app status is not 'running'
+    const hasRunningApp = app && app.currentDeployment && app.status === 'running'
+    
+    if (!hasRunningApp) {
+      // No running app, mark all "running" deployments as "stopped"
       await Deployment.update({
         environment: environment.id,
         status: 'running'
@@ -86,9 +89,9 @@ module.exports = {
       }).set({ status: 'stopped' })
     }
 
-    // Get deployments sorted by most recent first (no secondary sort)
+    // Get deployments sorted by most recent first
     const deployments = await Deployment.find({ environment: environment.id })
-      .sort('id DESC')
+      .sort('createdAt DESC')
       .limit(20)
       .populate('triggeredBy')
 
