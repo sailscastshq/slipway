@@ -1,6 +1,6 @@
 <script setup>
 import { Link, Head, router, usePoll } from '@inertiajs/vue3'
-import { inject, ref, reactive, computed, watch } from 'vue'
+import { inject, ref, reactive, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
 import SlideToDeploy from '@/components/SlideToDeploy.vue'
 import ConfirmModal from '@/components/ConfirmModal.vue'
@@ -315,6 +315,133 @@ async function triggerDeploy() {
 
 const sortedVarKeys = Object.keys(props.envVars).sort()
 const services = computed(() => props.environment.services || [])
+
+// --- Container logs ---
+const logsOpen = ref(new URLSearchParams(window.location.search).has('logs'))
+const logLines = ref([])
+const logsConnected = ref(false)
+const logsError = ref(null)
+let logsEventSource = null
+const logContainer = ref(null)
+const autoScroll = ref(true)
+
+function highlightLogLine(line) {
+  let s = line.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+
+  // Status codes FIRST - use color names without conflicting numbers
+  s = s.replace(/\b(2\d{2})\b/g, '<span class="text-emerald-500">$1</span>')  // 2xx success
+  s = s.replace(/\b(3\d{2})\b/g, '<span class="text-sky-500">$1</span>')      // 3xx redirect
+  s = s.replace(/\b(4\d{2})\b/g, '<span class="text-amber-500">$1</span>')    // 4xx client error
+  s = s.replace(/\b(5\d{2})\b/g, '<span class="text-rose-500">$1</span>')     // 5xx server error
+
+  // ISO timestamps from docker logs --timestamps
+  s = s.replace(/(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z?)/, '<span class="text-zinc-500">$1</span>')
+
+  // Log levels
+  s = s.replace(/\b(error|Error|ERROR|ERR)\b/g, '<span class="text-rose-500 font-semibold">$1</span>')
+  s = s.replace(/\b(warn|Warn|WARN|warning|Warning|WARNING)\b/g, '<span class="text-amber-500 font-semibold">$1</span>')
+  s = s.replace(/\b(info|Info|INFO)\b/g, '<span class="text-sky-500">$1</span>')
+  s = s.replace(/\b(debug|Debug|DEBUG|verbose|silly)\b/g, '<span class="text-zinc-500">$1</span>')
+
+  // HTTP methods
+  s = s.replace(/\b(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS)\b/g, '<span class="text-cyan-500 font-medium">$1</span>')
+
+  // URLs and paths
+  s = s.replace(/(\/api\/[^\s"'<>]+)/g, '<span class="text-violet-500">$1</span>')
+  s = s.replace(/(https?:\/\/[^\s"'<>]+)/g, '<span class="text-sky-500 underline">$1</span>')
+
+  // Stack trace "at" lines
+  s = s.replace(/(\s+at\s+)/g, '<span class="text-zinc-600">$1</span>')
+
+  // Port numbers
+  s = s.replace(/(\bport\s*)(\d+)/gi, '$1<span class="text-emerald-500">$2</span>')
+
+  // Sails hook names in brackets
+  s = s.replace(/\[([^\]]+)\]/g, '<span class="text-zinc-600">[$1]</span>')
+
+  return s
+}
+
+function connectLogs() {
+  if (logsEventSource) return
+  if (!props.app?.containerName) {
+    logsError.value = 'No container running'
+    return
+  }
+
+  logsError.value = null
+  logLines.value = []
+
+  const url = `/api/v1/projects/${props.project.slug}/environments/${props.environment.slug}/logs/stream?tail=200`
+  logsEventSource = new EventSource(url)
+  logsConnected.value = true
+
+  logsEventSource.onmessage = (event) => {
+    try {
+      const data = JSON.parse(event.data)
+      if (data.log) {
+        logLines.value.push(data.log)
+        // Cap at 2000 lines to prevent memory issues
+        if (logLines.value.length > 2000) {
+          logLines.value = logLines.value.slice(-1500)
+        }
+        if (autoScroll.value) {
+          nextTick(() => {
+            if (logContainer.value) {
+              logContainer.value.scrollTop = logContainer.value.scrollHeight
+            }
+          })
+        }
+      }
+      if (data.error) {
+        logsError.value = data.error
+      }
+      if (data.closed) {
+        logsConnected.value = false
+      }
+    } catch { /* ignore parse errors */ }
+  }
+
+  logsEventSource.onerror = () => {
+    logsConnected.value = false
+    disconnectLogs()
+  }
+}
+
+function disconnectLogs() {
+  if (logsEventSource) {
+    logsEventSource.close()
+    logsEventSource = null
+  }
+  logsConnected.value = false
+}
+
+watch(logsOpen, (open) => {
+  // Update URL query param
+  const url = new URL(window.location)
+  if (open) {
+    url.searchParams.set('logs', '1')
+  } else {
+    url.searchParams.delete('logs')
+  }
+  window.history.replaceState({}, '', url)
+
+  // Connect/disconnect SSE stream
+  if (open) {
+    connectLogs()
+  } else {
+    disconnectLogs()
+  }
+})
+
+onMounted(() => {
+  // Connect if ?logs=1 was in URL on page load
+  if (logsOpen.value) connectLogs()
+})
+
+onBeforeUnmount(() => {
+  disconnectLogs()
+})
 </script>
 <template>
   <Head :title="`${environment.name} - ${project.name} | Slipway`"></Head>
@@ -503,6 +630,63 @@ const services = computed(() => props.environment.services || [])
               :disabled="deploying"
               @deploy="triggerDeploy"
             />
+          </div>
+        </div>
+
+        <!-- Container Logs -->
+        <div v-if="app" class="mb-10">
+          <div class="rounded-lg border border-gray-200 dark:border-gray-800">
+            <!-- Collapsible header -->
+            <div class="flex items-center justify-between px-4 py-3">
+              <button
+                @click="logsOpen = !logsOpen"
+                class="flex flex-1 items-center space-x-3 text-left hover:opacity-80"
+              >
+                <h2 class="text-sm font-medium text-gray-900 dark:text-white">Logs</h2>
+                <span
+                  v-if="logsConnected"
+                  class="inline-flex items-center space-x-1 rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700 dark:bg-green-900/30 dark:text-green-400"
+                >
+                  <span class="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse"></span>
+                  <span>Live</span>
+                </span>
+              </button>
+              <button
+                @click="logsOpen = !logsOpen"
+                class="rounded p-0.5 hover:bg-gray-100 dark:hover:bg-gray-800"
+              >
+                <svg
+                  :class="['h-4 w-4 text-gray-400 transition-transform duration-200', logsOpen ? 'rotate-90' : '']"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                </svg>
+              </button>
+            </div>
+
+            <!-- Expanded log viewer -->
+            <div v-show="logsOpen">
+              <div
+                v-if="logsError"
+                class="border-t border-gray-200 px-4 py-6 text-center text-sm text-gray-500 dark:border-gray-800 dark:text-gray-400"
+              >
+                {{ logsError }}
+              </div>
+              <div v-else class="border-t border-gray-200 dark:border-gray-800">
+                <div
+                  ref="logContainer"
+                  class="h-80 overflow-y-auto bg-gray-950 p-4 font-mono text-xs leading-5 text-gray-300"
+                  @scroll="autoScroll = logContainer && (logContainer.scrollHeight - logContainer.scrollTop - logContainer.clientHeight < 40)"
+                >
+                  <div v-if="logLines.length === 0 && logsConnected" class="text-gray-500">
+                    Waiting for output...
+                  </div>
+                  <div v-for="(line, i) in logLines" :key="i" class="whitespace-pre-wrap break-all hover:bg-gray-900/50" v-html="highlightLogLine(line)"></div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -822,7 +1006,7 @@ const services = computed(() => props.environment.services || [])
                       dep.status === 'running' ? 'bg-green-500' :
                       dep.status === 'failed' ? 'bg-red-500' :
                       dep.status === 'building' || dep.status === 'deploying' ? 'bg-blue-500' :
-                      dep.status === 'cancelled' ? 'bg-gray-400' :
+                      dep.status === 'cancelled' || dep.status === 'stopped' ? 'bg-gray-400' :
                       'bg-yellow-500'
                     ]"
                   ></span>

@@ -128,5 +128,6 @@ module.exports.routes = {
   'POST /api/v1/webhooks/github/:projectSlug': 'api/v1/webhook/github',
 
   // SSE Streams
-  'GET /api/v1/deployments/:id/stream': 'api/v1/deploy/stream-deployment'
+  'GET /api/v1/deployments/:id/stream': 'api/v1/deploy/stream-deployment',
+  'GET /api/v1/projects/:projectSlug/environments/:environmentSlug/logs/stream': 'api/v1/app/stream-container-logs'
 }
