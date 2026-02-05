@@ -2,6 +2,10 @@ const { exec } = require('child_process')
 const util = require('util')
 const execAsync = util.promisify(exec)
 
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms))
+}
+
 module.exports = {
   friendlyName: 'Run container',
 
@@ -99,6 +103,43 @@ module.exports = {
         await Deployment.appendDeployLog(deploymentId, `Container started: ${containerId.substring(0, 12)}\n`)
       }
 
+      // Wait and verify container stays running (health check)
+      await sleep(5000)
+      
+      try {
+        const { stdout: inspectOut } = await execAsync(
+          `docker inspect --format='{{.State.Status}}' ${containerName}`
+        )
+        const status = inspectOut.trim()
+        
+        if (status !== 'running') {
+          // Container crashed - get logs
+          const { stdout: logs } = await execAsync(`docker logs --tail 50 ${containerName}`)
+          const errorMsg = `Container exited with status: ${status}`
+          
+          sails.log.error(`${errorMsg}\nLogs:\n${logs}`)
+          
+          if (deploymentId) {
+            await Deployment.appendDeployLog(deploymentId, `\nError: ${errorMsg}\n\nContainer logs:\n${logs}\n`)
+            await Deployment.updateOne({ id: deploymentId }).set({
+              status: 'failed',
+              errorMessage: errorMsg,
+              finishedAt: Date.now()
+            })
+          }
+          
+          throw 'runFailed'
+        }
+        
+        if (deploymentId) {
+          await Deployment.appendDeployLog(deploymentId, `Health check passed - container is running\n`)
+        }
+        
+      } catch (inspectErr) {
+        if (inspectErr === 'runFailed') throw inspectErr
+        sails.log.warn(`Health check inspect failed: ${inspectErr.message}`)
+      }
+
       return {
         containerId,
         containerName,
@@ -106,6 +147,8 @@ module.exports = {
         network: networkName
       }
     } catch (error) {
+      if (error === 'runFailed') throw error
+      
       sails.log.error(`Failed to run container: ${error.message}`)
 
       if (deploymentId) {
