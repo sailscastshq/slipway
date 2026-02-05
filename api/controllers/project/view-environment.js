@@ -70,8 +70,15 @@ module.exports = {
       })
     )
 
-    // Fix stale running deployments — only the current deployment should be "running"
-    if (app && app.currentDeployment) {
+    // Fix stale running deployments
+    // If no app exists or no current deployment, mark all "running" as "stopped"
+    if (!app || !app.currentDeployment) {
+      await Deployment.update({
+        environment: environment.id,
+        status: 'running'
+      }).set({ status: 'stopped' })
+    } else {
+      // Only the current deployment should be "running"
       await Deployment.update({
         environment: environment.id,
         status: 'running',
@@ -79,17 +86,11 @@ module.exports = {
       }).set({ status: 'stopped' })
     }
 
-    // Sort deployments: running first, then most recent
+    // Get deployments sorted by most recent first (no secondary sort)
     const deployments = await Deployment.find({ environment: environment.id })
       .sort('id DESC')
       .limit(20)
       .populate('triggeredBy')
-
-    deployments.sort((a, b) => {
-      if (a.status === 'running' && b.status !== 'running') return -1
-      if (a.status !== 'running' && b.status === 'running') return 1
-      return 0
-    })
 
     return {
       page: 'projects/environment',
