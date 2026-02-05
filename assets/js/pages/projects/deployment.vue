@@ -345,14 +345,6 @@ function executeRollback() {
           </div>
         </div>
 
-        <!-- Error Message -->
-        <div
-          v-if="deployment.errorMessage"
-          class="mb-6 rounded-md border border-red-200 bg-red-50 p-4 dark:border-red-900/50 dark:bg-red-900/10"
-        >
-          <p class="text-sm text-red-600 dark:text-red-400">{{ deployment.errorMessage }}</p>
-        </div>
-
         <!-- Log Viewer -->
         <div class="flex flex-1 flex-col overflow-hidden rounded-lg border border-gray-200 dark:border-gray-800">
           <div class="flex items-center justify-between border-b border-gray-200 bg-gray-50 px-4 py-2 dark:border-gray-800 dark:bg-gray-900">
