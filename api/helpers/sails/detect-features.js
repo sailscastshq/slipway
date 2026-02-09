@@ -52,10 +52,12 @@ module.exports = {
 
     // Detect sails-quest (job queues)
     if (deps['sails-quest'] || deps['sails-hook-quest']) {
+      const scripts = listScripts(appPath)
       features['sails-quest'] = {
-        version: deps['sails-quest'] || deps['sails-hook-quest']
+        version: deps['sails-quest'] || deps['sails-hook-quest'],
+        scripts
       }
-      sails.log.info(`[sails/detect-features] Detected sails-quest`)
+      sails.log.info(`[sails/detect-features] Detected sails-quest (${scripts.length} scripts)`)
     }
 
     // Detect sails-hook-uploads
@@ -131,6 +133,34 @@ function detectContentDir(appPath) {
   }
 
   return null
+}
+
+/**
+ * List scripts in the scripts directory
+ */
+function listScripts(appPath) {
+  const scriptsPath = path.join(appPath, 'scripts')
+  const scripts = []
+
+  if (!fs.existsSync(scriptsPath)) {
+    return scripts
+  }
+
+  try {
+    const entries = fs.readdirSync(scriptsPath, { withFileTypes: true })
+    for (const entry of entries) {
+      if (entry.isFile() && entry.name.endsWith('.js')) {
+        scripts.push({
+          name: entry.name.replace('.js', ''),
+          filename: entry.name
+        })
+      }
+    }
+  } catch (err) {
+    sails.log.warn(`[sails/detect-features] Could not list scripts: ${err.message}`)
+  }
+
+  return scripts
 }
 
 /**

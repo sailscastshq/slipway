@@ -161,12 +161,7 @@ fetchCollections()
       <div class="mx-auto max-w-4xl">
         <!-- Header -->
         <div class="mb-8">
-          <div class="flex items-center space-x-3">
-            <h1 class="text-xl font-semibold text-gray-900 dark:text-white">Content</h1>
-            <span class="inline-flex rounded-full bg-violet-100 px-2 py-0.5 text-xs font-medium text-violet-700 dark:bg-violet-900/30 dark:text-violet-400">
-              sails-content
-            </span>
-          </div>
+          <h1 class="text-xl font-semibold text-gray-900 dark:text-white">Content</h1>
           <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
             Edit markdown content files. Changes require a redeploy to take effect.
           </p>

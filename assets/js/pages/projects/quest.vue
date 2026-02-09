@@ -193,12 +193,7 @@ fetchJobs()
       <div class="mx-auto max-w-4xl">
         <!-- Header -->
         <div class="mb-8">
-          <div class="flex items-center space-x-3">
-            <h1 class="text-xl font-semibold text-gray-900 dark:text-white">Quest</h1>
-            <span class="inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
-              sails-hook-quest
-            </span>
-          </div>
+          <h1 class="text-xl font-semibold text-gray-900 dark:text-white">Quest</h1>
           <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
             Manage scheduled jobs running in your application.
           </p>
