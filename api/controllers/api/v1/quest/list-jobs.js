@@ -53,14 +53,29 @@ module.exports = {
     }
 
     // Check if sails-quest is detected
-    if (!environment.features || !environment.features['sails-quest']) {
+    const questFeature = environment.features && environment.features['sails-quest']
+    if (!questFeature) {
       throw { badRequest: 'sails-hook-quest not detected in this app.' }
     }
 
     const app = await App.findOne({ environment: environment.id })
 
     if (!app || app.status !== 'running' || !app.containerName) {
-      throw { badRequest: 'App is not running.' }
+      // App not running - return scripts from detection as manual-only jobs
+      const scripts = questFeature.scripts || []
+      return {
+        jobs: scripts.map(s => ({
+          name: s.name,
+          friendlyName: s.name,
+          description: '',
+          schedule: null,
+          scheduleType: 'manual',
+          paused: false,
+          withoutOverlapping: false,
+          isRunning: false
+        })),
+        appRunning: false
+      }
     }
 
     // Execute sails.quest.list() in the container
@@ -68,20 +83,53 @@ module.exports = {
     const result = await executeInContainer(app.containerName, code)
 
     if (!result.success) {
+      // Fallback to scripts from detection
+      const scripts = questFeature.scripts || []
       return {
-        jobs: [],
-        error: result.error
+        jobs: scripts.map(s => ({
+          name: s.name,
+          friendlyName: s.name,
+          description: '',
+          schedule: null,
+          scheduleType: 'manual',
+          paused: false,
+          withoutOverlapping: false,
+          isRunning: false
+        })),
+        error: result.error,
+        appRunning: true
       }
     }
 
     try {
-      const jobs = JSON.parse(result.output)
-      return { jobs }
+      const scheduledJobs = JSON.parse(result.output)
+      const scheduledNames = new Set(scheduledJobs.map(j => j.name))
+
+      // Add scripts that aren't scheduled as manual jobs
+      const scripts = questFeature.scripts || []
+      const manualJobs = scripts
+        .filter(s => !scheduledNames.has(s.name))
+        .map(s => ({
+          name: s.name,
+          friendlyName: s.name,
+          description: '',
+          schedule: null,
+          scheduleType: 'manual',
+          paused: false,
+          withoutOverlapping: false,
+          isRunning: false
+        }))
+
+      return {
+        jobs: [...scheduledJobs, ...manualJobs],
+        appRunning: true
+      }
     } catch (e) {
       return {
         jobs: [],
         error: 'Failed to parse job list',
-        raw: result.output
+        raw: result.output,
+        appRunning: true
       }
     }
   }
