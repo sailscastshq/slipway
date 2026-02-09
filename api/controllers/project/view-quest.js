@@ -48,7 +48,7 @@ module.exports = {
     }
 
     // Check if sails-quest is available
-    const hasQuestFeature = environment.features && environment.features['sails-quest']
+    const hasQuestFeature = !!(environment.features && environment.features['sails-quest'])
 
     // Get app status
     const app = await App.findOne({ environment: environment.id })
