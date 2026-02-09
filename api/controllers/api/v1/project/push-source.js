@@ -86,6 +86,17 @@ module.exports = {
     // Clean up the uploaded temp file
     try { fs.unlinkSync(tarballPath) } catch { /* ignore */ }
 
+    // Detect features from the pushed source and store on all environments
+    try {
+      const detectedFeatures = await sails.helpers.sails.detectFeatures(targetDir)
+      if (Object.keys(detectedFeatures).length > 0) {
+        await Environment.update({ project: project.id }).set({ features: detectedFeatures })
+        sails.log.info(`Features detected for ${projectSlug}: ${Object.keys(detectedFeatures).join(', ')}`)
+      }
+    } catch (err) {
+      sails.log.warn(`Feature detection after push failed (non-fatal): ${err.message}`)
+    }
+
     sails.log.info(`Source pushed for ${projectSlug} → ${targetDir}`)
 
     return {

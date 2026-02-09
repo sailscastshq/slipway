@@ -116,6 +116,15 @@ async function executeDeployment(deploymentId, project, environment) {
       deploymentId
     })
 
+    // 4b. Detect Sails features (sails-content, sails-quest, etc.)
+    const detectedFeatures = await sails.helpers.sails.detectFeatures(contextPath)
+    if (Object.keys(detectedFeatures).length > 0) {
+      await Environment.updateOne({ id: environment.id }).set({
+        features: detectedFeatures
+      })
+      await Deployment.appendBuildLog(deploymentId, `Detected features: ${Object.keys(detectedFeatures).join(', ')}\n`)
+    }
+
     // Update deployment with image info
     await Deployment.updateOne({ id: deploymentId }).set({
       imageName,
@@ -125,9 +134,15 @@ async function executeDeployment(deploymentId, project, environment) {
     // 5. Allocate a host port
     const hostPort = await sails.helpers.docker.allocatePort()
 
-    // 6. Get env vars from the environment record
+    // 6. Merge global env vars with environment-specific vars (env overrides global)
+    let globalEnvVars = {}
+    try {
+      const globalJson = await sails.helpers.setting.get('globalEnvVars', '{}')
+      globalEnvVars = JSON.parse(globalJson)
+    } catch { /* ignore parse errors */ }
+
     const envRecord = await Environment.findOne({ id: environment.id })
-    const envVars = envRecord.envVars || {}
+    const envVars = { ...globalEnvVars, ...(envRecord.envVars || {}) }
 
     // 7. Check for existing app (to decide create vs update in step 8)
     const existingApp = await App.findOne({ environment: environment.id })

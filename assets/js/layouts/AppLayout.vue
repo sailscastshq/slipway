@@ -2,6 +2,7 @@
 import { Link, usePage } from '@inertiajs/vue3'
 import { computed, ref, provide } from 'vue'
 import ToastContainer from '@/components/ToastContainer.vue'
+import UpdateBanner from '@/components/UpdateBanner.vue'
 import { createToast } from '@/composables/toast'
 import { useFlashToast } from '@/composables/flash-toast'
 
@@ -290,6 +291,8 @@ useFlashToast(toast)
 
     <!-- Main Content -->
     <main class="min-w-0 flex-1 overflow-y-auto bg-white dark:bg-gray-950">
+      <!-- Update Banner (only for logged in users) -->
+      <UpdateBanner v-if="loggedInUser" />
       <slot></slot>
     </main>
 

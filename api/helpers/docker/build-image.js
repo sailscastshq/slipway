@@ -1,4 +1,5 @@
 const { spawn } = require('child_process')
+const path = require('path')
 
 module.exports = {
   friendlyName: 'Build image',
@@ -44,7 +45,8 @@ module.exports = {
 
   fn: async function ({ contextPath, imageName, dockerfilePath, deploymentId, buildArgs }) {
     return new Promise((resolve, reject) => {
-      const args = ['build', '--no-cache', '-t', imageName, '-f', dockerfilePath]
+      const fullDockerfilePath = path.resolve(contextPath, dockerfilePath)
+      const args = ['build', '--no-cache', '-t', imageName, '-f', fullDockerfilePath]
 
       // Add build args
       for (const [key, value] of Object.entries(buildArgs)) {

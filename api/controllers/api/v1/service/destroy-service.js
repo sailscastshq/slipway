@@ -49,6 +49,13 @@ module.exports = {
       throw 'forbidden'
     }
 
+    // Remove auto-managed env var
+    if (service.envVarKey) {
+      const currentVars = environment.envVars || {}
+      const { [service.envVarKey]: _, ...remainingVars } = currentVars
+      await Environment.updateOne({ id: environment.id }).set({ envVars: remainingVars })
+    }
+
     // Stop and remove Docker container
     try {
       await sails.helpers.docker.destroyService(service.id)

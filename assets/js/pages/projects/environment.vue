@@ -4,6 +4,8 @@ import { inject, ref, reactive, computed, watch, nextTick, onMounted, onBeforeUn
 import AppLayout from '@/layouts/AppLayout.vue'
 import SlideToDeploy from '@/components/SlideToDeploy.vue'
 import ConfirmModal from '@/components/ConfirmModal.vue'
+import Tooltip from '@/components/Tooltip.vue'
+import { useToast } from '@/composables/toast'
 
 defineOptions({
   layout: AppLayout
@@ -14,10 +16,13 @@ const props = defineProps({
   environment: Object,
   app: Object,
   envVars: Object,
-  deployments: Array
+  deployments: Array,
+  checklist: Array,
+  backupConfigured: Boolean
 })
 
 const toggleMobileMenu = inject('toggleMobileMenu')
+const toast = useToast()
 
 // --- Polling for real-time updates ---
 const isDeploymentActive = computed(() => {
@@ -44,18 +49,38 @@ watch(shouldPoll, (active) => {
 
 // --- Env vars management ---
 const localVars = reactive({ ...props.envVars })
+watch(() => props.envVars, (newVars) => {
+  Object.keys(localVars).forEach(k => delete localVars[k])
+  Object.assign(localVars, newVars)
+})
 const revealedKeys = ref(new Set())
 const newKey = ref('')
 const newValue = ref('')
 const saving = ref(false)
 const deploying = ref(false)
 const slideRef = ref(null)
-const envVarsOpen = ref(new URLSearchParams(window.location.search).has('env'))
-const bulkMode = ref(false)
+const _params = new URLSearchParams(window.location.search)
+const envVarsOpen = ref(_params.has('env') || _params.has('bulk'))
+const bulkMode = ref(_params.has('bulk'))
 const bulkText = ref('')
 
+const bulkHighlighted = computed(() => {
+  const text = bulkText.value || ''
+  return text.split('\n').map(line => {
+    const escaped = line.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    if (escaped.trimStart().startsWith('#')) {
+      return `<span class="text-gray-500 dark:text-gray-600">${escaped}</span>`
+    }
+    const eqIdx = escaped.indexOf('=')
+    if (eqIdx === -1) return escaped
+    const key = escaped.slice(0, eqIdx)
+    const value = escaped.slice(eqIdx + 1)
+    return `<span class="text-amber-600 dark:text-amber-400">${key}</span><span class="text-gray-400 dark:text-gray-600">=</span><span class="text-gray-800 dark:text-gray-300">${value}</span>`
+  }).join('\n') + '\n'
+})
+
 function enterBulkMode() {
-  bulkText.value = sortedVarKeys.map(k => `${k}=${props.envVars[k]}`).join('\n')
+  bulkText.value = sortedVarKeys.value.map(k => `${k}=${localVars[k]}`).join('\n')
   bulkMode.value = true
 }
 
@@ -86,6 +111,17 @@ watch(envVarsOpen, (open) => {
     url.searchParams.set('env', '1')
   } else {
     url.searchParams.delete('env')
+    url.searchParams.delete('bulk')
+  }
+  window.history.replaceState({}, '', url)
+})
+
+watch(bulkMode, (open) => {
+  const url = new URL(window.location)
+  if (open) {
+    url.searchParams.set('bulk', '1')
+  } else {
+    url.searchParams.delete('bulk')
   }
   window.history.replaceState({}, '', url)
 })
@@ -118,11 +154,8 @@ function closeDomainDropdown() {
 }
 
 // --- Env vars helpers ---
-const sensitivePatterns = ['PASSWORD', 'SECRET', 'KEY', 'TOKEN', 'PRIVATE', 'CREDENTIAL', 'AUTH', 'API_KEY', 'APIKEY']
-
-function isSensitive(key) {
-  const upper = key.toUpperCase()
-  return sensitivePatterns.some(p => upper.includes(p))
+function isSensitive() {
+  return true
 }
 
 function toggleReveal(key) {
@@ -133,6 +166,17 @@ function toggleReveal(key) {
   }
 }
 
+function shouldShowGenerate(key) {
+  const upper = key.toUpperCase()
+  return upper.includes('SECRET') || upper.includes('KEY')
+}
+
+function generateSecret() {
+  const bytes = new Uint8Array(32)
+  crypto.getRandomValues(bytes)
+  newValue.value = Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('')
+}
+
 async function saveEnvVars(vars) {
   saving.value = true
   try {
@@ -141,7 +185,7 @@ async function saveEnvVars(vars) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ envVars: vars })
     })
-    router.reload({ only: ['envVars', 'environment'] })
+    router.reload({ only: ['envVars', 'environment', 'checklist'] })
   } finally {
     saving.value = false
   }
@@ -191,7 +235,17 @@ async function stopApp() {
 }
 
 // --- Services ---
-const servicesOpen = ref(false)
+const servicesOpen = ref(new URLSearchParams(window.location.search).has('services'))
+
+watch(servicesOpen, (open) => {
+  const url = new URL(window.location)
+  if (open) {
+    url.searchParams.set('services', '1')
+  } else {
+    url.searchParams.delete('services')
+  }
+  window.history.replaceState({}, '', url)
+})
 const addServiceOpen = ref(false)
 const newServiceName = ref('')
 const newServiceType = ref('postgresql')
@@ -224,19 +278,27 @@ async function createService() {
   if (!newServiceName.value.trim() || creatingService.value) return
   creatingService.value = true
   try {
-    await fetch(`/api/v1/projects/${props.project.slug}/environments/${props.environment.slug}/services`, {
+    const serviceName = newServiceName.value.trim().toLowerCase().replace(/\s+/g, '-')
+    const serviceType = newServiceType.value
+    const res = await fetch(`/api/v1/projects/${props.project.slug}/environments/${props.environment.slug}/services`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        name: newServiceName.value.trim().toLowerCase().replace(/\s+/g, '-'),
-        type: newServiceType.value,
+        name: serviceName,
+        type: serviceType,
         version: newServiceVersion.value || 'latest'
       })
     })
+    if (res.ok) {
+      toast({ message: `${serviceType} service "${serviceName}" created`, type: 'success' })
+    } else {
+      const err = await res.json().catch(() => null)
+      toast({ message: err?.message || 'Failed to create service', type: 'error' })
+    }
     newServiceName.value = ''
     newServiceVersion.value = 'latest'
     addServiceOpen.value = false
-    router.reload({ only: ['environment'] })
+    router.reload({ only: ['environment', 'envVars', 'checklist'] })
   } finally {
     creatingService.value = false
   }
@@ -247,19 +309,103 @@ function confirmDeleteService(service) {
 }
 
 async function executeDeleteService() {
-  await fetch(`/api/v1/services/${deletingServiceId.value}`, {
+  const res = await fetch(`/api/v1/services/${deletingServiceId.value}`, {
     method: 'DELETE',
     headers: { 'Content-Type': 'application/json' }
   })
   deletingServiceId.value = null
-  router.reload({ only: ['environment'] })
+  if (res.ok) {
+    toast({ message: 'Service deleted', type: 'success' })
+  } else {
+    toast({ message: 'Failed to delete service', type: 'error' })
+  }
+  router.reload({ only: ['environment', 'envVars', 'checklist'] })
 }
 
 function cancelDeleteService() {
   deletingServiceId.value = null
 }
 
+// --- Backups ---
+const backingUpServiceId = ref(null)
+
+async function triggerBackup(service) {
+  if (backingUpServiceId.value) return
+  backingUpServiceId.value = service.id
+  try {
+    await fetch(`/api/v1/services/${service.id}/backups`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' }
+    })
+    router.reload({ only: ['environment'] })
+  } finally {
+    backingUpServiceId.value = null
+  }
+}
+
+function formatBytes(bytes) {
+  if (!bytes) return '—'
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
+
 // --- Status badges ---
+const statusStyles = {
+  green: {
+    bg: 'bg-green-50 dark:bg-green-950/40',
+    dot: 'bg-green-500',
+    text: 'text-green-700 dark:text-green-400'
+  },
+  blue: {
+    bg: 'bg-blue-50 dark:bg-blue-950/40',
+    dot: 'bg-blue-500 animate-pulse',
+    text: 'text-blue-700 dark:text-blue-400'
+  },
+  yellow: {
+    bg: 'bg-yellow-50 dark:bg-yellow-950/40',
+    dot: 'bg-yellow-500 animate-pulse',
+    text: 'text-yellow-700 dark:text-yellow-400'
+  },
+  red: {
+    bg: 'bg-red-50 dark:bg-red-950/40',
+    dot: 'bg-red-500',
+    text: 'text-red-700 dark:text-red-400'
+  },
+  gray: {
+    bg: 'bg-gray-100 dark:bg-gray-800/60',
+    dot: 'bg-gray-400',
+    text: 'text-gray-600 dark:text-gray-400'
+  }
+}
+
+function appStatusClasses(app) {
+  // When running, use health status to determine color
+  if (app.status === 'running') {
+    if (app.containerHealth === 'healthy') return statusStyles.green
+    if (app.containerHealth === 'unhealthy') return statusStyles.red
+    if (app.containerHealth === 'starting') return statusStyles.yellow
+    return statusStyles.green
+  }
+  if (['building', 'deploying', 'creating'].includes(app.status)) return statusStyles.blue
+  if (app.status === 'pending') return statusStyles.yellow
+  if (app.status === 'failed') return statusStyles.red
+  return statusStyles.gray
+}
+
+function appStatusLabel(app) {
+  if (app.status === 'running') {
+    if (app.containerHealth === 'unhealthy') return 'Unhealthy'
+    if (app.containerHealth === 'starting') return 'Starting'
+    return 'Running'
+  }
+  const labels = {
+    building: 'Building', deploying: 'Deploying', pending: 'Pending',
+    failed: 'Failed', stopped: 'Stopped', cancelled: 'Cancelled', creating: 'Creating'
+  }
+  return labels[app.status] || app.status
+}
+
 function statusBadge(status) {
   const map = {
     running: { label: 'Running', classes: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' },
@@ -313,8 +459,46 @@ async function triggerDeploy() {
   }
 }
 
-const sortedVarKeys = Object.keys(props.envVars).sort()
+const sortedVarKeys = computed(() => Object.keys(localVars).sort())
 const services = computed(() => props.environment.services || [])
+
+const hasDatabaseService = computed(() => {
+  return services.value.some(s => ['postgresql', 'mysql'].includes(s.type) && s.status === 'running')
+})
+
+const checklistWarnings = computed(() => {
+  return (props.checklist || []).filter(c => c.severity === 'warning' || c.severity === 'info')
+})
+
+const checklistAllGood = computed(() => {
+  return (props.checklist || []).length === 1 && props.checklist[0].severity === 'success'
+})
+
+// --- Checklist actions ---
+function handleChecklistAction(action) {
+  if (!action) return
+  switch (action.type) {
+    case 'generate-session-secret': {
+      const bytes = new Uint8Array(32)
+      crypto.getRandomValues(bytes)
+      const secret = Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('')
+      localVars['SESSION_SECRET'] = secret
+      saveEnvVars(localVars)
+      toast({ message: 'SESSION_SECRET generated and saved', type: 'success' })
+      break
+    }
+    case 'add-service':
+      servicesOpen.value = true
+      addServiceOpen.value = true
+      if (action.serviceType) {
+        newServiceType.value = action.serviceType
+      }
+      break
+    case 'open-env-vars':
+      envVarsOpen.value = true
+      break
+  }
+}
 
 // --- Container logs ---
 const logsOpen = ref(new URLSearchParams(window.location.search).has('logs'))
@@ -435,7 +619,9 @@ watch(logsOpen, (open) => {
 })
 
 onMounted(() => {
-  // Connect if ?logs=1 was in URL on page load
+  if (bulkMode.value) {
+    bulkText.value = sortedVarKeys.value.map(k => `${k}=${localVars[k]}`).join('\n')
+  }
   if (logsOpen.value) connectLogs()
 })
 
@@ -577,46 +763,128 @@ onBeforeUnmount(() => {
             </div>
           </div>
           <div class="flex items-center space-x-2">
+            <!-- Content (if sails-content detected) -->
+            <Tooltip v-if="environment.features && environment.features['sails-content']" text="Content">
+              <Link
+                :href="`/projects/${project.slug}/environments/${environment.slug}/content`"
+                class="rounded-md p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-800 dark:hover:text-gray-200"
+              >
+                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+              </Link>
+            </Tooltip>
+            <!-- Quest (if sails-quest detected) -->
+            <Tooltip v-if="environment.features && environment.features['sails-quest']" text="Quest">
+              <Link
+                :href="`/projects/${project.slug}/environments/${environment.slug}/quest`"
+                class="rounded-md p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-800 dark:hover:text-gray-200"
+              >
+                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </Link>
+            </Tooltip>
+            <!-- Dock (if database service exists) -->
+            <Tooltip v-if="hasDatabaseService" text="Dock">
+              <Link
+                :href="`/projects/${project.slug}/environments/${environment.slug}/dock`"
+                class="rounded-md p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-800 dark:hover:text-gray-200"
+              >
+                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4" />
+                </svg>
+              </Link>
+            </Tooltip>
             <!-- Helm REPL -->
-            <Link
-              :href="`/projects/${project.slug}/environments/${environment.slug}/helm`"
-              class="rounded-md p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-800 dark:hover:text-gray-200"
-              title="Helm REPL"
-            >
-              <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-              </svg>
-            </Link>
+            <Tooltip text="Helm REPL">
+              <Link
+                :href="`/projects/${project.slug}/environments/${environment.slug}/helm`"
+                class="rounded-md p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-800 dark:hover:text-gray-200"
+              >
+                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+              </Link>
+            </Tooltip>
             <!-- Container lifecycle controls -->
             <template v-if="app && app.status === 'running'">
-              <button
-                @click="restartApp"
-                :disabled="restarting"
-                class="rounded-md p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-800 dark:hover:text-gray-200"
-                title="Restart"
-              >
-                <svg v-if="restarting" class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
-                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                </svg>
-                <svg v-else class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                </svg>
-              </button>
-              <button
-                @click="stopApp"
-                :disabled="stopping"
-                class="rounded-md p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400"
-                title="Stop"
-              >
-                <svg class="h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
-                  <rect x="6" y="6" width="12" height="12" rx="1" />
-                </svg>
-              </button>
+              <Tooltip text="Restart">
+                <button
+                  @click="restartApp"
+                  :disabled="restarting"
+                  class="rounded-md p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-800 dark:hover:text-gray-200"
+                >
+                  <svg v-if="restarting" class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                  </svg>
+                  <svg v-else class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                </button>
+              </Tooltip>
+              <Tooltip text="Stop">
+                <button
+                  @click="stopApp"
+                  :disabled="stopping"
+                  class="rounded-md p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400"
+                >
+                  <svg class="h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
+                    <rect x="6" y="6" width="12" height="12" rx="1" />
+                  </svg>
+                </button>
+              </Tooltip>
             </template>
-            <span v-if="app" :class="['inline-flex items-center rounded-md px-2.5 py-1 text-xs font-medium', statusBadge(app.status).classes]">
-              {{ statusBadge(app.status).label }}
+            <span v-if="app" :class="['inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium', appStatusClasses(app).bg]">
+              <span :class="['h-1.5 w-1.5 rounded-full', appStatusClasses(app).dot]"></span>
+              <span :class="appStatusClasses(app).text">{{ appStatusLabel(app) }}</span>
             </span>
+          </div>
+        </div>
+
+        <!-- Deployment Checklist -->
+        <div v-if="checklist && checklist.length > 0 && !checklistAllGood" class="mb-10">
+          <div class="rounded-lg border border-amber-200 bg-amber-50/50 dark:border-amber-900/50 dark:bg-amber-950/20">
+            <div class="flex items-center gap-2 px-4 py-3">
+              <svg class="h-4 w-4 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+              </svg>
+              <h2 class="text-sm font-medium text-amber-800 dark:text-amber-300">Deployment checklist</h2>
+              <span class="inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-700 dark:bg-amber-900/40 dark:text-amber-400">
+                {{ checklistWarnings.length }}
+              </span>
+            </div>
+            <div class="divide-y divide-amber-200/50 border-t border-amber-200/50 dark:divide-amber-900/30 dark:border-amber-900/30">
+              <div
+                v-for="item in checklist"
+                :key="item.key"
+                class="flex items-start justify-between gap-3 px-4 py-2.5"
+              >
+                <div class="flex items-start gap-3">
+                  <svg v-if="item.severity === 'warning'" class="mt-0.5 h-4 w-4 shrink-0 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                  </svg>
+                  <svg v-else-if="item.severity === 'info'" class="mt-0.5 h-4 w-4 shrink-0 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <svg v-else class="mt-0.5 h-4 w-4 shrink-0 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                  </svg>
+                  <div>
+                    <p class="text-sm text-gray-800 dark:text-gray-200">{{ item.label }}</p>
+                    <p v-if="item.suggestion" class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{{ item.suggestion }}</p>
+                  </div>
+                </div>
+                <button
+                  v-if="item.action"
+                  @click="handleChecklistAction(item.action)"
+                  class="shrink-0 rounded-md border border-amber-300 bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700 hover:bg-amber-100 dark:border-amber-800 dark:bg-amber-900/30 dark:text-amber-400 dark:hover:bg-amber-900/50"
+                >
+                  {{ item.action.label }}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -627,7 +895,7 @@ onBeforeUnmount(() => {
               ref="slideRef"
               :is-production="environment.isProduction"
               :environment-name="environment.name"
-              :disabled="deploying"
+              :disabled="deploying || !checklistAllGood"
               @deploy="triggerDeploy"
             />
           </div>
@@ -705,19 +973,19 @@ onBeforeUnmount(() => {
                 </span>
               </button>
               <div class="flex items-center gap-2">
-                <button
-                  v-if="envVarsOpen"
-                  @click="bulkMode ? exitBulkMode() : enterBulkMode()"
-                  class="rounded p-0.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-800 dark:hover:text-gray-200"
-                  :title="bulkMode ? 'Switch to single edit' : 'Switch to bulk edit'"
-                >
-                  <svg v-if="bulkMode" class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
-                  </svg>
-                  <svg v-else class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
-                  </svg>
-                </button>
+                <Tooltip v-if="envVarsOpen" :text="bulkMode ? 'Single edit' : 'Bulk edit'">
+                  <button
+                    @click="bulkMode ? exitBulkMode() : enterBulkMode()"
+                    class="rounded p-0.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-800 dark:hover:text-gray-200"
+                  >
+                    <svg v-if="bulkMode" class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+                    </svg>
+                    <svg v-else class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+                    </svg>
+                  </button>
+                </Tooltip>
                 <button
                   @click="envVarsOpen = !envVarsOpen"
                   class="rounded p-0.5 hover:bg-gray-100 dark:hover:bg-gray-800"
@@ -739,14 +1007,21 @@ onBeforeUnmount(() => {
               <!-- Bulk edit mode -->
               <template v-if="bulkMode">
                 <div class="border-t border-gray-200 dark:border-gray-800">
-                  <textarea
-                    v-model="bulkText"
-                    rows="3"
-                    placeholder="KEY=value&#10;DATABASE_URL=postgres://localhost:5432/db&#10;# Comments are ignored"
-                    class="block w-full resize-none bg-gray-50 px-4 py-3 font-mono text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:bg-gray-900 dark:text-white dark:placeholder-gray-500"
-                    style="field-sizing: content"
-                    spellcheck="false"
-                  />
+                  <div class="relative">
+                    <pre
+                      class="pointer-events-none absolute inset-0 overflow-hidden whitespace-pre-wrap break-all bg-gray-50 px-4 py-3 font-mono text-sm leading-relaxed dark:bg-gray-900"
+                      aria-hidden="true"
+                      v-html="bulkHighlighted"
+                    ></pre>
+                    <textarea
+                      v-model="bulkText"
+                      rows="3"
+                      placeholder="KEY=value&#10;DATABASE_URL=postgres://localhost:5432/db&#10;# Comments are ignored"
+                      class="relative block w-full resize-none bg-transparent px-4 py-3 font-mono text-sm text-transparent caret-gray-900 placeholder-gray-400 focus:outline-none dark:caret-white dark:placeholder-gray-500"
+                      style="field-sizing: content"
+                      spellcheck="false"
+                    />
+                  </div>
                   <div class="flex items-center justify-between border-t border-gray-200 px-4 py-3 dark:border-gray-800">
                     <p class="text-xs text-gray-400 dark:text-gray-500">
                       One KEY=value per line. Lines starting with # are ignored.
@@ -824,6 +1099,14 @@ onBeforeUnmount(() => {
                       @keydown.enter="addVar"
                     />
                     <button
+                      v-if="shouldShowGenerate(newKey)"
+                      @click="generateSecret"
+                      type="button"
+                      class="w-full rounded-md border border-gray-200 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 sm:w-auto dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
+                    >
+                      Generate
+                    </button>
+                    <button
                       @click="addVar"
                       :disabled="!newKey.trim() || saving"
                       class="w-full rounded-md bg-gray-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50 sm:w-auto dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
@@ -889,6 +1172,26 @@ onBeforeUnmount(() => {
                       <span :class="['inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-medium', statusBadge(service.status).classes]">
                         {{ statusBadge(service.status).label }}
                       </span>
+                      <Tooltip v-if="['postgresql', 'mysql'].includes(service.type) && service.status === 'running'" text="Dock">
+                        <Link
+                          :href="`/projects/${project.slug}/environments/${environment.slug}/dock`"
+                          class="rounded p-1 text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+                        >
+                          <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4" />
+                          </svg>
+                        </Link>
+                      </Tooltip>
+                      <Tooltip v-if="service.type === 'redis' && service.status === 'running'" text="Redis Console">
+                        <Link
+                          :href="`/projects/${project.slug}/environments/${environment.slug}/redis/${service.id}`"
+                          class="rounded p-1 text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+                        >
+                          <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                          </svg>
+                        </Link>
+                      </Tooltip>
                       <button
                         @click="confirmDeleteService(service)"
                         class="rounded p-1 text-gray-400 hover:text-red-600 dark:hover:text-red-400"
@@ -927,6 +1230,46 @@ onBeforeUnmount(() => {
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
                       </svg>
                     </button>
+                  </div>
+                  <!-- Backup row -->
+                  <div v-if="service.backupSupported" class="mt-2 flex items-center justify-between">
+                    <div class="flex items-center gap-2 text-xs text-gray-400 dark:text-gray-500">
+                      <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                      </svg>
+                      <template v-if="service.lastBackup">
+                        <span v-if="service.lastBackup.status === 'completed'">
+                          Last backup {{ timeAgo(service.lastBackup.completedAt) }} ({{ formatBytes(service.lastBackup.sizeBytes) }})
+                        </span>
+                        <span v-else-if="service.lastBackup.status === 'running'" class="text-blue-500">
+                          Backup in progress...
+                        </span>
+                        <span v-else-if="service.lastBackup.status === 'failed'" class="text-red-500">
+                          Last backup failed
+                        </span>
+                        <span v-else>
+                          Backup pending...
+                        </span>
+                      </template>
+                      <template v-else>
+                        No backups yet
+                      </template>
+                    </div>
+                    <button
+                      v-if="backupConfigured && service.status === 'running'"
+                      @click="triggerBackup(service)"
+                      :disabled="backingUpServiceId === service.id"
+                      class="rounded px-2 py-0.5 text-xs font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-700 disabled:opacity-50 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200"
+                    >
+                      {{ backingUpServiceId === service.id ? 'Starting...' : 'Backup now' }}
+                    </button>
+                    <Link
+                      v-else-if="!backupConfigured"
+                      href="/settings/global-env"
+                      class="rounded px-2 py-0.5 text-xs font-medium text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                    >
+                      Configure storage
+                    </Link>
                   </div>
                 </div>
               </div>

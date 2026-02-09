@@ -1,7 +1,3 @@
-const { exec } = require('child_process')
-const util = require('util')
-const execAsync = util.promisify(exec)
-
 module.exports = {
   friendlyName: 'View environment',
 
@@ -63,27 +59,52 @@ module.exports = {
       generatedDomain = `${subdomain}.${serverIp}.sslip.io`
     }
 
-    // Enrich services with connection URLs
+    // Enrich services with connection URLs and last backup
     const services = await Promise.all(
       (environment.services || []).map(async (service) => {
         const connectionUrl = await Service.getConnectionUrl(service.id)
+        let lastBackup = null
+        if (Service.isBackupSupported(service.type)) {
+          const backups = await Backup.find({ service: service.id })
+            .sort('createdAt DESC')
+            .limit(1)
+          lastBackup = backups[0] || null
+        }
         return {
           ...service,
-          connectionUrl
+          connectionUrl,
+          lastBackup,
+          backupSupported: Service.isBackupSupported(service.type)
         }
       })
     )
 
-    // Check if container actually exists (not just what DB says)
+    // Check if backup storage is configured
+    let backupConfigured = false
+    try {
+      const globalJson = await sails.helpers.setting.get('globalEnvVars', '{}')
+      const globalVars = JSON.parse(globalJson)
+      backupConfigured = !!(
+        (globalVars.R2_ACCESS_KEY || globalVars.S3_ACCESS_KEY || globalVars.SPACES_ACCESS_KEY) &&
+        (globalVars.R2_SECRET_KEY || globalVars.S3_SECRET_KEY || globalVars.SPACES_SECRET_KEY) &&
+        (globalVars.R2_BUCKET || globalVars.S3_BUCKET || globalVars.SPACES_BUCKET)
+      )
+    } catch { /* ignore */ }
+
+    // Check if container actually exists and get its health status
     let containerExists = false
+    let containerHealth = null
     if (app && app.containerName) {
       try {
-        await execAsync(`docker inspect ${app.containerName}`)
+        const containerStatus = await sails.helpers.docker.getContainerStatus(app.containerName)
         containerExists = true
-      } catch {
-        // Container doesn't exist - update app status
-        await App.updateOne({ id: app.id }).set({ status: 'stopped' })
-        app = await App.findOne({ id: app.id })
+        containerHealth = containerStatus.health
+      } catch (err) {
+        if (err.code === 'notFound' || err === 'notFound') {
+          // Container doesn't exist - update app status
+          await App.updateOne({ id: app.id }).set({ status: 'stopped' })
+          app = await App.findOne({ id: app.id })
+        }
       }
     }
 
@@ -109,6 +130,9 @@ module.exports = {
       .limit(20)
       .populate('triggeredBy')
 
+    // Generate deployment checklist
+    const checklist = await sails.helpers.environment.generateChecklist(environment.id)
+
     return {
       page: 'projects/environment',
       props: {
@@ -119,9 +143,11 @@ module.exports = {
           generatedDomain,
           services
         },
-        app: app || null,
+        app: app ? { ...app, containerHealth } : null,
         envVars: environment.envVars || {},
-        deployments
+        deployments,
+        checklist,
+        backupConfigured
       }
     }
   }

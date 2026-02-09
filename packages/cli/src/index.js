@@ -78,8 +78,12 @@ const commands = {
   },
 
   // Deployment commands
+  push: {
+    description: 'Push source code without deploying',
+    options: {}
+  },
   slide: {
-    description: 'Deploy the current project',
+    description: 'Push and deploy the current project',
     aliases: ['deploy', 'launch'],
     options: {
       env: { type: 'string', short: 'e', default: 'production' },
@@ -182,7 +186,7 @@ function showHelp() {
     'Authentication': ['login', 'logout', 'whoami'],
     'Project': ['projects', 'project:update', 'init', 'link'],
     'Environments': ['environments', 'environment:create', 'environment:update'],
-    'Deployment': ['slide', 'deployments', 'logs'],
+    'Deployment': ['push', 'slide', 'deployments', 'logs'],
     'Database': ['db:create', 'db:url'],
     'Services': ['services'],
     'Env Variables': ['env', 'env:set', 'env:unset'],

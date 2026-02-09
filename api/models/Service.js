@@ -85,11 +85,43 @@ module.exports = {
       description: 'Database password'
     },
 
+    envVarKey: {
+      type: 'string',
+      allowNull: true,
+      description: 'The env var key this service auto-manages (e.g. DATABASE_URL)',
+      columnName: 'env_var_key'
+    },
+
     // Associations
     environment: {
       model: 'environment',
       required: true
+    },
+
+    backups: {
+      collection: 'backup',
+      via: 'service'
     }
+  },
+
+  /**
+   * Whether this service type supports backups
+   */
+  isBackupSupported: function (type) {
+    return ['postgresql', 'mysql', 'mongodb'].includes(type)
+  },
+
+  /**
+   * Get default env var key for a service type
+   */
+  getDefaultEnvVarKey: function (type) {
+    const keys = {
+      postgresql: 'DATABASE_URL',
+      mysql: 'DATABASE_URL',
+      redis: 'REDIS_URL',
+      mongodb: 'DATABASE_URL'
+    }
+    return keys[type] || null
   },
 
   /**

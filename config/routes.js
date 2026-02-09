@@ -61,6 +61,7 @@ module.exports.routes = {
   'POST /projects/:slug/environments': 'project/create-environment',
   'GET /projects/:slug/environments/:envSlug': 'project/view-environment',
   'GET /projects/:slug/environments/:envSlug/helm': 'project/view-helm',
+  'GET /projects/:slug/environments/:envSlug/redis/:serviceId': 'project/view-redis-console',
   'GET /projects/:slug/deployments/:deploymentId': 'project/view-deployment',
 
   // Settings (web UI)
@@ -74,6 +75,14 @@ module.exports.routes = {
   'POST /settings/team/invite': 'team/invite-member',
   'PATCH /settings/team/:userId/role': 'team/update-member-role',
   'DELETE /settings/team/:userId': 'team/remove-member',
+
+  // Global environment variables
+  'GET /settings/global-env': 'setting/view-global-env',
+  'PATCH /settings/global-env': 'setting/update-global-env',
+
+  // System updates
+  'GET /settings/update': 'system/view-update',
+  'GET /api/v1/system/check-update': 'system/check-update',
 
   /***************************************************************************
    *                                                                          *
@@ -111,6 +120,11 @@ module.exports.routes = {
   'POST /api/v1/projects/:projectSlug/environments/:environmentSlug/services': 'api/v1/service/create-service',
   'GET /api/v1/services/:id': 'api/v1/service/get-service',
   'DELETE /api/v1/services/:id': 'api/v1/service/destroy-service',
+  'POST /api/v1/services/:serviceId/redis': 'api/v1/service/execute-redis-command',
+
+  // Backups
+  'POST /api/v1/services/:serviceId/backups': 'api/v1/backup/create-backup',
+  'GET /api/v1/services/:serviceId/backups': 'api/v1/backup/list-backups',
 
   // CLI Authentication (browser-based login flow)
   'POST /api/v1/cli/auth/init': 'api/v1/cli/init-auth',
@@ -129,5 +143,57 @@ module.exports.routes = {
 
   // SSE Streams
   'GET /api/v1/deployments/:id/stream': 'api/v1/deploy/stream-deployment',
-  'GET /api/v1/projects/:projectSlug/environments/:environmentSlug/logs/stream': 'api/v1/app/stream-container-logs'
+  'GET /api/v1/projects/:projectSlug/environments/:environmentSlug/logs/stream': 'api/v1/app/stream-container-logs',
+
+  // Content Management (sails-content CMS)
+  'GET /api/v1/projects/:projectSlug/content/collections': 'api/v1/content/list-collections',
+  'GET /api/v1/projects/:projectSlug/environments/:environmentSlug/content/collections': 'api/v1/content/list-collections',
+  'GET /api/v1/projects/:projectSlug/content/:collection/:file': 'api/v1/content/get-content',
+  'GET /api/v1/projects/:projectSlug/environments/:environmentSlug/content/:collection/:file': 'api/v1/content/get-content',
+  'POST /api/v1/projects/:projectSlug/content/:collection': 'api/v1/content/create-content',
+  'POST /api/v1/projects/:projectSlug/environments/:environmentSlug/content/:collection': 'api/v1/content/create-content',
+  'PUT /api/v1/projects/:projectSlug/content/:collection/:file': 'api/v1/content/update-content',
+  'PUT /api/v1/projects/:projectSlug/environments/:environmentSlug/content/:collection/:file': 'api/v1/content/update-content',
+  'DELETE /api/v1/projects/:projectSlug/content/:collection/:file': 'api/v1/content/delete-content',
+  'DELETE /api/v1/projects/:projectSlug/environments/:environmentSlug/content/:collection/:file': 'api/v1/content/delete-content',
+
+  // Content Manager UI
+  'GET /projects/:slug/content': 'project/view-content-manager',
+  'GET /projects/:slug/environments/:envSlug/content': 'project/view-content-manager',
+  'GET /projects/:slug/content/:collection/:file': 'project/view-content-editor',
+  'GET /projects/:slug/environments/:envSlug/content/:collection/:file': 'project/view-content-editor',
+
+  // Quest Job Scheduler API (sails-hook-quest)
+  'GET /api/v1/projects/:projectSlug/quest/jobs': 'api/v1/quest/list-jobs',
+  'GET /api/v1/projects/:projectSlug/environments/:environmentSlug/quest/jobs': 'api/v1/quest/list-jobs',
+  'POST /api/v1/projects/:projectSlug/quest/jobs/:name/run': 'api/v1/quest/run-job',
+  'POST /api/v1/projects/:projectSlug/environments/:environmentSlug/quest/jobs/:name/run': 'api/v1/quest/run-job',
+  'POST /api/v1/projects/:projectSlug/quest/jobs/:name/pause': 'api/v1/quest/pause-job',
+  'POST /api/v1/projects/:projectSlug/environments/:environmentSlug/quest/jobs/:name/pause': 'api/v1/quest/pause-job',
+  'POST /api/v1/projects/:projectSlug/quest/jobs/:name/resume': 'api/v1/quest/resume-job',
+  'POST /api/v1/projects/:projectSlug/environments/:environmentSlug/quest/jobs/:name/resume': 'api/v1/quest/resume-job',
+
+  // Quest UI
+  'GET /projects/:slug/quest': 'project/view-quest',
+  'GET /projects/:slug/environments/:envSlug/quest': 'project/view-quest',
+
+  // Dock Database Management API
+  'POST /api/v1/projects/:projectSlug/dock/sql': 'api/v1/dock/execute-sql',
+  'POST /api/v1/projects/:projectSlug/environments/:environmentSlug/dock/sql': 'api/v1/dock/execute-sql',
+  'GET /api/v1/projects/:projectSlug/dock/schema': 'api/v1/dock/get-schema',
+  'GET /api/v1/projects/:projectSlug/environments/:environmentSlug/dock/schema': 'api/v1/dock/get-schema',
+  'GET /api/v1/projects/:projectSlug/dock/models': 'api/v1/dock/get-models',
+  'GET /api/v1/projects/:projectSlug/environments/:environmentSlug/dock/models': 'api/v1/dock/get-models',
+  'GET /api/v1/projects/:projectSlug/dock/diff': 'api/v1/dock/get-diff',
+  'GET /api/v1/projects/:projectSlug/environments/:environmentSlug/dock/diff': 'api/v1/dock/get-diff',
+  'POST /api/v1/projects/:projectSlug/dock/migrate': 'api/v1/dock/apply-migration',
+  'POST /api/v1/projects/:projectSlug/environments/:environmentSlug/dock/migrate': 'api/v1/dock/apply-migration',
+  'GET /api/v1/projects/:projectSlug/dock/tables': 'api/v1/dock/list-tables',
+  'GET /api/v1/projects/:projectSlug/environments/:environmentSlug/dock/tables': 'api/v1/dock/list-tables',
+  'GET /api/v1/projects/:projectSlug/dock/tables/:table/data': 'api/v1/dock/get-table-data',
+  'GET /api/v1/projects/:projectSlug/environments/:environmentSlug/dock/tables/:table/data': 'api/v1/dock/get-table-data',
+
+  // Dock UI
+  'GET /projects/:slug/dock': 'project/view-dock',
+  'GET /projects/:slug/environments/:envSlug/dock': 'project/view-dock'
 }

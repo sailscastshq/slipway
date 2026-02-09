@@ -43,6 +43,20 @@ module.exports = {
       columnName: 'env_vars'
     },
 
+    /**
+     * Detected Sails features in the deployed app.
+     * Populated during deployment by analyzing package.json.
+     */
+    features: {
+      type: 'json',
+      defaultsTo: {},
+      description: 'Detected Sails features (e.g., sails-content, sails-quest)',
+      example: {
+        'sails-content': { version: '^1.0.0', contentDir: 'content' },
+        'sails-quest': { version: '^1.0.0' }
+      }
+    },
+
     // Associations
     project: {
       model: 'project',

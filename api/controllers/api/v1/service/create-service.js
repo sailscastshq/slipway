@@ -112,6 +112,19 @@ module.exports = {
     // Get connection URL
     const connectionUrl = await Service.getConnectionUrl(service.id)
 
+    // Auto-inject connection URL into environment variables
+    let envVarKey = Service.getDefaultEnvVarKey(type)
+    if (envVarKey) {
+      const currentVars = environment.envVars || {}
+      // If the canonical key is already taken by another service, use SERVICE_NAME_URL
+      if (currentVars[envVarKey] !== undefined) {
+        envVarKey = `${name.replace(/-/g, '_').toUpperCase()}_URL`
+      }
+      const updatedVars = { ...currentVars, [envVarKey]: connectionUrl }
+      await Environment.updateOne({ id: environment.id }).set({ envVars: updatedVars })
+      await Service.updateOne({ id: service.id }).set({ envVarKey })
+    }
+
     sails.log.info(`Service ${service.name} (${type}) created for ${project.slug}/${environment.slug}`)
 
     return {
