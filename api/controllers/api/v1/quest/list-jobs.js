@@ -125,10 +125,20 @@ module.exports = {
         appRunning: true
       }
     } catch (e) {
+      // Fallback to scripts from detection when parsing fails
+      const scripts = questFeature.scripts || []
       return {
-        jobs: [],
-        error: 'Failed to parse job list',
-        raw: result.output,
+        jobs: scripts.map(s => ({
+          name: s.name,
+          friendlyName: s.name,
+          description: '',
+          schedule: null,
+          scheduleType: 'manual',
+          paused: false,
+          withoutOverlapping: false,
+          isRunning: false
+        })),
+        error: result.output ? `Parse error: ${result.output.substring(0, 200)}` : 'Failed to parse job list',
         appRunning: true
       }
     }
