@@ -72,6 +72,24 @@ module.exports = {
 }
 
 function buildWrapper(userCode) {
+  // Auto-return last expression if no explicit return (REPL-style)
+  const trimmed = userCode.trim()
+  const hasReturn = /\breturn\b/.test(trimmed)
+
+  let code = trimmed
+  if (!hasReturn) {
+    // Find the last non-empty, non-comment line and prepend return
+    const lines = trimmed.split('\n')
+    for (let i = lines.length - 1; i >= 0; i--) {
+      const line = lines[i].trim()
+      if (line && !line.startsWith('//')) {
+        lines[i] = 'return ' + lines[i]
+        break
+      }
+    }
+    code = lines.join('\n')
+  }
+
   // The wrapper loads Sails ORM context (models, helpers, config)
   // then evaluates the user's code in an async function
   return `
@@ -82,8 +100,9 @@ function buildWrapper(userCode) {
     sailsApp = require('sails');
     await new Promise((resolve, reject) => {
       sailsApp.load({
-        hooks: { http: false, views: false, sockets: false, pubsub: false, grunt: false },
-        log: { level: 'warn' }
+        environment: 'console',
+        hooks: { http: false, views: false, sockets: false, pubsub: false, grunt: false, flash: false, session: false },
+        log: { level: 'silent' }
       }, (err) => {
         if (err) reject(err);
         else resolve();
@@ -95,7 +114,7 @@ function buildWrapper(userCode) {
 
   try {
     const __result = await (async function() {
-      ${userCode}
+      ${code}
     })();
 
     if (__result !== undefined) {
@@ -121,7 +140,8 @@ function buildWrapper(userCode) {
 
 function executeInContainer(containerName, code) {
   return new Promise((resolve) => {
-    const proc = spawn('docker', ['exec', '-i', containerName, 'node'], {
+    const dockerPath = sails.config.docker?.binaryPath || 'docker'
+    const proc = spawn(dockerPath, ['exec', '-i', containerName, 'node'], {
       timeout: 30000 // 30 second timeout
     })
 

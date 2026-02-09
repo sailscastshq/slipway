@@ -1,6 +1,6 @@
 <script setup>
-import { Link, Head, router } from '@inertiajs/vue3'
-import { inject, ref, computed } from 'vue'
+import { Link, Head } from '@inertiajs/vue3'
+import { inject, ref } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
 import Tooltip from '@/components/Tooltip.vue'
 
@@ -24,8 +24,7 @@ const loading = ref(true)
 const error = ref(null)
 const runningJob = ref(null)
 const pausingJob = ref(null)
-const jobOutput = ref(null)
-const showOutput = ref(false)
+const jobOutputs = ref({}) // Per-job output tracking
 
 // Fetch jobs on mount
 async function fetchJobs() {
@@ -61,8 +60,8 @@ async function fetchJobs() {
 // Run a job
 async function runJob(jobName) {
   runningJob.value = jobName
-  jobOutput.value = null
-  showOutput.value = true
+  // Initialize inline output for this job
+  jobOutputs.value[jobName] = { running: true, output: null }
   error.value = null
 
   try {
@@ -75,28 +74,36 @@ async function runJob(jobName) {
     })
     const data = await res.json()
 
-    jobOutput.value = {
-      job: jobName,
-      success: data.success,
-      output: data.output || '',
-      error: data.error || '',
-      exitCode: data.exitCode,
-      triggeredAt: data.triggeredAt
+    jobOutputs.value[jobName] = {
+      running: false,
+      output: {
+        success: data.success,
+        stdout: data.output || '',
+        stderr: data.error || '',
+        exitCode: data.exitCode
+      }
     }
 
     // Refresh job list
     await fetchJobs()
   } catch (e) {
-    jobOutput.value = {
-      job: jobName,
-      success: false,
-      output: '',
-      error: e.message,
-      exitCode: 1
+    jobOutputs.value[jobName] = {
+      running: false,
+      output: {
+        success: false,
+        stdout: '',
+        stderr: e.message,
+        exitCode: 1
+      }
     }
   } finally {
     runningJob.value = null
   }
+}
+
+// Dismiss job output
+function dismissOutput(jobName) {
+  delete jobOutputs.value[jobName]
 }
 
 // Pause a job
@@ -138,26 +145,10 @@ async function resumeJob(jobName) {
 }
 
 function formatSchedule(job) {
-  if (job.scheduleType === 'cron') {
-    return `cron: ${job.schedule}`
-  } else if (job.scheduleType === 'interval') {
-    return `every ${job.schedule}`
-  } else if (job.scheduleType === 'timeout') {
-    return `once after ${job.schedule}`
-  } else if (job.scheduleType === 'manual') {
-    return 'Manual only'
-  }
-  return 'No schedule'
-}
-
-function getStatusBadge(job) {
-  if (job.isRunning) {
-    return { label: 'Running', classes: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' }
-  }
-  if (job.paused) {
-    return { label: 'Paused', classes: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400' }
-  }
-  return { label: 'Active', classes: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' }
+  if (job.scheduleType === 'cron') return job.schedule
+  if (job.scheduleType === 'interval') return job.schedule
+  if (job.scheduleType === 'timeout') return job.schedule
+  return 'manual'
 }
 
 // Initialize
@@ -298,8 +289,11 @@ fetchJobs()
                 <div class="flex-1">
                   <div class="flex items-center space-x-3">
                     <h3 class="text-sm font-medium text-gray-900 dark:text-white">{{ job.friendlyName }}</h3>
-                    <span :class="['inline-flex rounded-md px-2 py-0.5 text-xs font-medium', getStatusBadge(job).classes]">
-                      {{ getStatusBadge(job).label }}
+                    <span v-if="job.isRunning" class="inline-flex rounded-md px-2 py-0.5 text-xs font-medium bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
+                      Running
+                    </span>
+                    <span v-else-if="job.paused" class="inline-flex rounded-md px-2 py-0.5 text-xs font-medium bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400">
+                      Paused
                     </span>
                     <span v-if="job.withoutOverlapping" class="inline-flex rounded px-1.5 py-0.5 text-[10px] font-medium bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400">
                       no overlap
@@ -316,58 +310,87 @@ fetchJobs()
                   </div>
                 </div>
 
-                <div class="flex items-center space-x-2">
-                  <!-- Run button -->
-                  <button
-                    @click="runJob(job.name)"
-                    :disabled="runningJob === job.name || job.isRunning"
-                    class="rounded-md px-2.5 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-100 disabled:opacity-50 dark:text-gray-300 dark:hover:bg-gray-800"
-                  >
-                    <span v-if="runningJob === job.name" class="flex items-center space-x-1">
-                      <svg class="h-3 w-3 animate-spin" fill="none" viewBox="0 0 24 24">
+                <div class="flex items-center space-x-1">
+                  <!-- Run button (icon only) -->
+                  <Tooltip text="Run now">
+                    <button
+                      @click="runJob(job.name)"
+                      :disabled="runningJob === job.name || job.isRunning"
+                      class="rounded-md p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-700 disabled:opacity-50 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200"
+                    >
+                      <svg v-if="runningJob === job.name" class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
                         <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
                         <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                       </svg>
-                      <span>Running...</span>
-                    </span>
-                    <span v-else class="flex items-center space-x-1">
-                      <svg class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg v-else class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                       </svg>
-                      <span>Run now</span>
-                    </span>
-                  </button>
+                    </button>
+                  </Tooltip>
 
-                  <!-- Pause/Resume button (only for scheduled jobs) -->
+                  <!-- Pause/Resume button (icon only, only for scheduled jobs) -->
                   <template v-if="job.scheduleType !== 'manual'">
-                    <button
-                      v-if="job.paused"
-                      @click="resumeJob(job.name)"
-                      :disabled="pausingJob === job.name"
-                      class="rounded-md px-2.5 py-1.5 text-xs font-medium text-green-700 hover:bg-green-50 disabled:opacity-50 dark:text-green-400 dark:hover:bg-green-900/20"
-                    >
-                      <span class="flex items-center space-x-1">
-                        <svg class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <Tooltip :text="job.paused ? 'Resume' : 'Pause'">
+                      <button
+                        @click="job.paused ? resumeJob(job.name) : pauseJob(job.name)"
+                        :disabled="pausingJob === job.name"
+                        class="rounded-md p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-700 disabled:opacity-50 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200"
+                      >
+                        <!-- Resume icon -->
+                        <svg v-if="job.paused" class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
                         </svg>
-                        <span>Resume</span>
-                      </span>
-                    </button>
-                    <button
-                      v-else
-                      @click="pauseJob(job.name)"
-                      :disabled="pausingJob === job.name"
-                      class="rounded-md px-2.5 py-1.5 text-xs font-medium text-yellow-700 hover:bg-yellow-50 disabled:opacity-50 dark:text-yellow-400 dark:hover:bg-yellow-900/20"
-                    >
-                      <span class="flex items-center space-x-1">
-                        <svg class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <!-- Pause icon -->
+                        <svg v-else class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                         </svg>
-                        <span>Pause</span>
-                      </span>
-                    </button>
+                      </button>
+                    </Tooltip>
                   </template>
+                </div>
+              </div>
+
+              <!-- Inline output -->
+              <div v-if="jobOutputs[job.name]" class="mt-4">
+                <div class="rounded-lg border border-gray-200 dark:border-gray-800 overflow-hidden">
+                  <div class="flex items-center justify-between bg-gray-50 px-3 py-2 dark:bg-gray-900">
+                    <div class="flex items-center space-x-2">
+                      <span v-if="jobOutputs[job.name].running" class="flex items-center space-x-1 text-xs text-gray-500 dark:text-gray-400">
+                        <svg class="h-3 w-3 animate-spin" fill="none" viewBox="0 0 24 24">
+                          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
+                          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                        </svg>
+                        <span>Running...</span>
+                      </span>
+                      <span v-else-if="jobOutputs[job.name].output?.success" class="text-xs text-green-600 dark:text-green-400">Completed</span>
+                      <span v-else class="text-xs text-red-600 dark:text-red-400">Failed (exit {{ jobOutputs[job.name].output?.exitCode }})</span>
+                    </div>
+                    <button
+                      @click="dismissOutput(job.name)"
+                      class="rounded p-1 text-gray-400 hover:bg-gray-200 hover:text-gray-600 dark:hover:bg-gray-800 dark:hover:text-gray-300"
+                    >
+                      <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                  <div class="bg-gray-950 p-4 font-mono text-sm text-gray-300 max-h-60 overflow-y-auto">
+                    <template v-if="jobOutputs[job.name].running">
+                      <div class="flex items-center space-x-2 text-gray-500">
+                        <svg class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
+                          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                        </svg>
+                        <span>Executing script...</span>
+                      </div>
+                    </template>
+                    <template v-else-if="jobOutputs[job.name].output">
+                      <pre v-if="jobOutputs[job.name].output.stdout" class="whitespace-pre-wrap text-gray-300">{{ jobOutputs[job.name].output.stdout }}</pre>
+                      <pre v-if="jobOutputs[job.name].output.stderr" class="whitespace-pre-wrap text-red-400" :class="{ 'mt-2': jobOutputs[job.name].output.stdout }">{{ jobOutputs[job.name].output.stderr }}</pre>
+                      <div v-if="!jobOutputs[job.name].output.stdout && !jobOutputs[job.name].output.stderr" class="text-gray-500">No output</div>
+                    </template>
+                  </div>
                 </div>
               </div>
             </div>
@@ -385,51 +408,6 @@ fetchJobs()
           </p>
         </div>
 
-        <!-- Job Output Panel -->
-        <div v-if="showOutput" class="mt-6">
-          <div class="rounded-lg border border-gray-200 dark:border-gray-800 overflow-hidden">
-            <div class="flex items-center justify-between bg-gray-50 px-4 py-2 dark:bg-gray-900">
-              <div class="flex items-center space-x-2">
-                <span class="text-sm font-medium text-gray-700 dark:text-gray-300">
-                  {{ runningJob ? `Running: ${runningJob}` : jobOutput?.job ? `Output: ${jobOutput.job}` : 'Output' }}
-                </span>
-                <span v-if="runningJob" class="flex items-center space-x-1 text-xs text-blue-600 dark:text-blue-400">
-                  <svg class="h-3 w-3 animate-spin" fill="none" viewBox="0 0 24 24">
-                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
-                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                  </svg>
-                  <span>Running...</span>
-                </span>
-                <span v-else-if="jobOutput?.success" class="text-xs text-green-600 dark:text-green-400">Completed</span>
-                <span v-else-if="jobOutput" class="text-xs text-red-600 dark:text-red-400">Failed (exit {{ jobOutput.exitCode }})</span>
-              </div>
-              <button
-                @click="showOutput = false; jobOutput = null"
-                class="rounded p-1 text-gray-400 hover:bg-gray-200 hover:text-gray-600 dark:hover:bg-gray-800 dark:hover:text-gray-300"
-              >
-                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-            <div class="bg-gray-950 p-4 font-mono text-sm text-gray-300 max-h-80 overflow-y-auto">
-              <template v-if="runningJob && !jobOutput">
-                <div class="flex items-center space-x-2 text-gray-500">
-                  <svg class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
-                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                  </svg>
-                  <span>Executing script...</span>
-                </div>
-              </template>
-              <template v-else-if="jobOutput">
-                <pre v-if="jobOutput.output" class="whitespace-pre-wrap text-gray-300">{{ jobOutput.output }}</pre>
-                <pre v-if="jobOutput.error" class="whitespace-pre-wrap text-red-400 mt-2">{{ jobOutput.error }}</pre>
-                <div v-if="!jobOutput.output && !jobOutput.error" class="text-gray-500">No output</div>
-              </template>
-            </div>
-          </div>
-        </div>
       </div>
     </div>
   </div>
