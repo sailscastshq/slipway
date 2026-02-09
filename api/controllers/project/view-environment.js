@@ -126,9 +126,11 @@ module.exports = {
 
     // Get deployments sorted by most recent first
     const deployments = await Deployment.find({ environment: environment.id })
-      .sort('createdAt DESC')
       .limit(20)
       .populate('triggeredBy')
+
+    // Sort by id descending (newest first) - explicit JS sort for reliability
+    deployments.sort((a, b) => b.id - a.id)
 
     // Generate deployment checklist
     const checklist = await sails.helpers.environment.generateChecklist(environment.id)
