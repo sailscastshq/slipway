@@ -1,6 +1,6 @@
 <script setup>
 import { Link, Head, router } from '@inertiajs/vue3'
-import { inject, ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import { inject, ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
 import ConfirmModal from '@/components/ConfirmModal.vue'
 import Tooltip from '@/components/Tooltip.vue'
@@ -96,6 +96,8 @@ async function fetchContent() {
     body.value = data.body || ''
     raw.value = data.raw || ''
     updatedAt.value = data.updatedAt
+    // Reset after watchers fire
+    await nextTick()
     hasChanges.value = false
   } catch (e) {
     error.value = e.message
