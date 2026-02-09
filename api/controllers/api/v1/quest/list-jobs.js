@@ -148,8 +148,45 @@ module.exports = {
 function buildListJobsCode() {
   return `
 (async () => {
+  const fs = require('fs');
+  const path = require('path');
   let sailsApp;
+
   try {
+    // First, get all scripts from scripts/ directory
+    const scriptsDir = path.join(process.cwd(), 'scripts');
+    let allScripts = [];
+
+    if (fs.existsSync(scriptsDir)) {
+      const files = fs.readdirSync(scriptsDir);
+      for (const file of files) {
+        if (file.endsWith('.js')) {
+          const scriptName = file.replace('.js', '');
+          try {
+            const scriptPath = path.join(scriptsDir, file);
+            const script = require(scriptPath);
+            allScripts.push({
+              name: scriptName,
+              friendlyName: script.friendlyName || scriptName,
+              description: script.description || '',
+              hasQuest: !!script.quest,
+              quest: script.quest || null
+            });
+          } catch (e) {
+            // Script failed to load, add as basic entry
+            allScripts.push({
+              name: scriptName,
+              friendlyName: scriptName,
+              description: '',
+              hasQuest: false,
+              quest: null
+            });
+          }
+        }
+      }
+    }
+
+    // Now load sails to get runtime job status
     sailsApp = require('sails');
     await new Promise((resolve, reject) => {
       sailsApp.load({
@@ -162,23 +199,22 @@ function buildListJobsCode() {
       });
     });
 
-    if (!sails.quest) {
-      process.stdout.write(JSON.stringify([]));
-      if (sailsApp.lower) sailsApp.lower(() => process.exit());
-      else process.exit();
-      return;
-    }
+    // Build final job list
+    const jobs = allScripts.map(script => {
+      const questJob = sails.quest ? sails.quest.get(script.name) : null;
+      const quest = script.quest || {};
 
-    const jobs = sails.quest.list().map(job => ({
-      name: job.name,
-      friendlyName: job.friendlyName || job.name,
-      description: job.description || '',
-      schedule: job.cron || job.interval || job.timeout || null,
-      scheduleType: job.cron ? 'cron' : (job.interval ? 'interval' : (job.timeout ? 'timeout' : 'unknown')),
-      paused: !!job.paused,
-      withoutOverlapping: !!job.withoutOverlapping,
-      isRunning: sails.quest.isRunning ? sails.quest.isRunning(job.name) : false
-    }));
+      return {
+        name: script.name,
+        friendlyName: script.friendlyName,
+        description: script.description,
+        schedule: quest.cron || quest.interval || quest.timeout || null,
+        scheduleType: quest.cron ? 'cron' : (quest.interval ? 'interval' : (quest.timeout ? 'timeout' : 'manual')),
+        paused: questJob ? !!questJob.paused : false,
+        withoutOverlapping: quest.withoutOverlapping || false,
+        isRunning: sails.quest && sails.quest.isRunning ? sails.quest.isRunning(script.name) : false
+      };
+    });
 
     process.stdout.write(JSON.stringify(jobs));
   } catch (err) {
