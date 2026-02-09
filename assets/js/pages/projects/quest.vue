@@ -47,6 +47,10 @@ async function fetchJobs() {
     }
     const data = await res.json()
     jobs.value = data.jobs || []
+    // Show API error if returned (e.g., hook loading issues)
+    if (data.error) {
+      error.value = data.error
+    }
   } catch (e) {
     error.value = e.message
   } finally {

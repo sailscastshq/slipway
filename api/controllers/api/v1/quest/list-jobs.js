@@ -143,7 +143,7 @@ function buildListJobsCode() {
     sailsApp = require('sails');
     await new Promise((resolve, reject) => {
       sailsApp.load({
-        hooks: { http: false, views: false, sockets: false, pubsub: false, grunt: false },
+        hooks: { http: false, views: false, sockets: false, pubsub: false, grunt: false, flash: false, session: false },
         log: { level: 'warn' }
       }, (err) => {
         if (err) reject(err);
