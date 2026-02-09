@@ -62,12 +62,30 @@ module.exports = {
       throw 'notFound'
     }
 
+    // If git info not provided, get from most recent deployment
+    let finalGitCommit = gitCommit
+    let finalGitBranch = gitBranch
+    let finalGitMessage = gitMessage
+
+    if (!gitCommit || !gitBranch) {
+      const lastDeployment = await Deployment.findOne({
+        environment: environment.id,
+        gitCommit: { '!=': null }
+      }).sort('id DESC')
+
+      if (lastDeployment) {
+        finalGitCommit = gitCommit || lastDeployment.gitCommit
+        finalGitBranch = gitBranch || lastDeployment.gitBranch
+        finalGitMessage = gitMessage || lastDeployment.gitMessage
+      }
+    }
+
     // Create deployment record
     const deployment = await Deployment.create({
       status: 'pending',
-      gitCommit,
-      gitBranch,
-      gitMessage,
+      gitCommit: finalGitCommit,
+      gitBranch: finalGitBranch,
+      gitMessage: finalGitMessage,
       triggeredBy: user.id,
       triggerType: 'api',
       environment: environment.id,
