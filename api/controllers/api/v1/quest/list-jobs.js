@@ -153,8 +153,9 @@ function buildListJobsCode() {
     sailsApp = require('sails');
     await new Promise((resolve, reject) => {
       sailsApp.load({
+        environment: 'console',
         hooks: { http: false, views: false, sockets: false, pubsub: false, grunt: false, flash: false, session: false },
-        log: { level: 'warn' }
+        log: { level: 'silent' }
       }, (err) => {
         if (err) reject(err);
         else resolve();
