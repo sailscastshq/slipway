@@ -124,6 +124,7 @@ module.exports.routes = {
   'POST /api/v1/projects/:projectSlug/environments/:environmentSlug/deploy': 'api/v1/deploy/trigger-deployment',
   'POST /api/v1/projects/:projectSlug/rollback': 'api/v1/deploy/rollback-deployment',
   'POST /api/v1/projects/:projectSlug/environments/:environmentSlug/rollback': 'api/v1/deploy/rollback-deployment',
+  'GET /api/v1/deployments/active': 'api/v1/deploy/get-active-deployments',
   'GET /api/v1/deployments/:id': 'api/v1/deploy/get-deployment-status',
   'GET /api/v1/deployments/:id/logs': 'api/v1/deploy/get-deployment-logs',
 
@@ -137,6 +138,7 @@ module.exports.routes = {
   'POST /api/v1/services/:serviceId/redis': 'api/v1/service/execute-redis-command',
   'GET /api/v1/services/:serviceId/logs/stream': 'api/v1/service/stream-logs',
   'POST /api/v1/services/:serviceId/stop': 'api/v1/service/stop-service',
+  'POST /api/v1/services/:serviceId/start': 'api/v1/service/restart-service',
   'POST /api/v1/services/:serviceId/restart': 'api/v1/service/restart-service',
   'PATCH /api/v1/services/:serviceId': 'api/v1/service/update-service',
 

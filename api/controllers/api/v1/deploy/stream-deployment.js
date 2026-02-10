@@ -42,9 +42,10 @@ module.exports = {
     // Commit SSE headers immediately so Sails cannot override them
     res.writeHead(200, {
       'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache',
+      'Cache-Control': 'no-cache, no-transform',
       'Connection': 'keep-alive',
-      'X-Accel-Buffering': 'no'
+      'X-Accel-Buffering': 'no',
+      'Content-Encoding': 'identity'
     })
 
     // Send initial status

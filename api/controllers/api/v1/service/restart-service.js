@@ -41,21 +41,21 @@ module.exports = {
     try {
       const dockerPath = sails.config.docker?.binaryPath || 'docker'
 
-      // Try restart first (works for running containers)
-      // If that fails, try start (works for stopped containers)
-      try {
-        await execFileAsync(dockerPath, ['restart', service.containerName])
-      } catch {
+      // Use different commands based on container state
+      // For stopped containers, use 'start'. For running ones, use 'restart'.
+      if (service.status === 'stopped' || service.status === 'failed') {
         await execFileAsync(dockerPath, ['start', service.containerName])
+        sails.log.info(`Started service ${service.name} (${service.containerName})`)
+      } else {
+        await execFileAsync(dockerPath, ['restart', service.containerName])
+        sails.log.info(`Restarted service ${service.name} (${service.containerName})`)
       }
 
       await Service.updateOne({ id: service.id }).set({ status: 'running' })
 
-      sails.log.info(`Restarted service ${service.name} (${service.containerName})`)
-
-      return { message: 'Service restarted', status: 'running' }
+      return { message: 'Service started', status: 'running' }
     } catch (err) {
-      sails.log.error(`Failed to restart service: ${err.message}`)
+      sails.log.error(`Failed to start/restart service: ${err.message}`)
       throw 'notFound'
     }
   }

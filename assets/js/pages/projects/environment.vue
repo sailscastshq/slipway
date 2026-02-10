@@ -6,6 +6,7 @@ import SlideToDeploy from '@/components/SlideToDeploy.vue'
 import ConfirmModal from '@/components/ConfirmModal.vue'
 import Tooltip from '@/components/Tooltip.vue'
 import { useToast } from '@/composables/toast'
+import { useServiceActions } from '@/composables/service-actions'
 
 defineOptions({
   layout: AppLayout
@@ -25,6 +26,7 @@ const toggleMobileMenu = inject('toggleMobileMenu')
 const toggleSidebar = inject('toggleSidebar')
 const sidebarCollapsed = inject('sidebarCollapsed')
 const toast = useToast()
+const { startAction, completeAction } = useServiceActions()
 
 // --- Polling for real-time updates ---
 const isDeploymentActive = computed(() => {
@@ -40,14 +42,19 @@ const hasActiveDeployment = computed(() => {
 
 const shouldPoll = computed(() => isDeploymentActive.value || hasActiveDeployment.value)
 
-const { stop: stopPoll } = usePoll(2000, {
+const { stop: stopPoll, start: startPoll } = usePoll(2000, {
   keepAlive: true,
-  autoStart: shouldPoll.value
+  autoStart: false // Don't auto-start, we'll control it manually
 })
 
+// Start/stop polling based on deployment status
 watch(shouldPoll, (active) => {
-  if (!active) stopPoll()
-})
+  if (active) {
+    startPoll()
+  } else {
+    stopPoll()
+  }
+}, { immediate: true })
 
 // --- Env vars management ---
 const localVars = reactive({ ...props.envVars })
@@ -325,16 +332,21 @@ function confirmDeleteService(service) {
 async function stopService(service) {
   serviceMenuOpen.value = null
   stoppingServiceId.value = service.id
+
+  const actionId = startAction({
+    serviceName: service.name,
+    serviceType: service.type,
+    action: 'stopping',
+    projectName: props.project.name,
+    environmentName: props.environment.name
+  })
+
   try {
     const res = await fetch(`/api/v1/services/${service.id}/stop`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' }
     })
-    if (res.ok) {
-      toast({ message: `Service "${service.name}" stopped`, type: 'success' })
-    } else {
-      toast({ message: 'Failed to stop service', type: 'error' })
-    }
+    completeAction(actionId, res.ok)
     router.reload({ only: ['environment'] })
   } finally {
     stoppingServiceId.value = null
@@ -344,16 +356,21 @@ async function stopService(service) {
 async function startService(service) {
   serviceMenuOpen.value = null
   startingServiceId.value = service.id
+
+  const actionId = startAction({
+    serviceName: service.name,
+    serviceType: service.type,
+    action: 'starting',
+    projectName: props.project.name,
+    environmentName: props.environment.name
+  })
+
   try {
     const res = await fetch(`/api/v1/services/${service.id}/start`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' }
     })
-    if (res.ok) {
-      toast({ message: `Service "${service.name}" started`, type: 'success' })
-    } else {
-      toast({ message: 'Failed to start service', type: 'error' })
-    }
+    completeAction(actionId, res.ok)
     router.reload({ only: ['environment'] })
   } finally {
     startingServiceId.value = null
@@ -648,7 +665,9 @@ function connectLogs() {
 
   const url = `/api/v1/projects/${props.project.slug}/environments/${props.environment.slug}/logs/stream?tail=200`
   logsEventSource = new EventSource(url)
-  logsConnected.value = true
+  logsEventSource.onopen = () => {
+    logsConnected.value = true
+  }
 
   logsEventSource.onmessage = (event) => {
     try {
@@ -673,7 +692,9 @@ function connectLogs() {
       if (data.closed) {
         logsConnected.value = false
       }
-    } catch { /* ignore parse errors */ }
+    } catch (e) {
+      console.error('Failed to parse log event:', e, event.data)
+    }
   }
 
   logsEventSource.onerror = () => {
@@ -1111,13 +1132,22 @@ onBeforeUnmount(() => {
               <div v-else class="border-t border-gray-200 dark:border-gray-800">
                 <div
                   ref="logContainer"
-                  class="h-80 overflow-y-auto bg-gray-950 p-4 font-mono text-xs leading-5 text-gray-300"
+                  class="h-80 overflow-y-auto bg-gray-100 p-4 font-mono text-xs leading-5 text-gray-700 dark:bg-gray-950 dark:text-gray-300"
                   @scroll="autoScroll = logContainer && (logContainer.scrollHeight - logContainer.scrollTop - logContainer.clientHeight < 40)"
                 >
-                  <div v-if="logLines.length === 0 && logsConnected" class="text-gray-500">
+                  <div v-if="!logsConnected && logLines.length === 0" class="flex h-full items-center justify-center text-gray-500">
+                    <svg class="mr-2 h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                      <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                      <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Connecting to logs...
+                  </div>
+                  <div v-else-if="logLines.length === 0 && logsConnected" class="text-gray-500">
                     Waiting for output...
                   </div>
-                  <div v-for="(line, i) in logLines" :key="i" class="whitespace-pre-wrap break-all hover:bg-gray-900/50" v-html="highlightLogLine(line)"></div>
+                  <template v-else>
+                    <div v-for="(line, i) in logLines" :key="i" class="whitespace-pre-wrap break-all hover:bg-gray-200/50 dark:hover:bg-gray-900/50" v-html="highlightLogLine(line)"></div>
+                  </template>
                 </div>
               </div>
             </div>
@@ -1377,9 +1407,10 @@ onBeforeUnmount(() => {
                             class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:text-gray-300 dark:hover:bg-gray-800"
                           >
                             <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                             </svg>
-                            {{ startingServiceId === service.id ? 'Restarting...' : 'Restart' }}
+                            {{ startingServiceId === service.id ? 'Starting...' : 'Start' }}
                           </button>
                           <button
                             @click.stop="confirmDeleteService(service)"
@@ -1394,13 +1425,13 @@ onBeforeUnmount(() => {
                       </div>
                     </div>
                   </div>
-                  <div v-if="service.connectionUrl" class="mt-2 flex items-center gap-2">
+                  <div v-if="service.connectionUrl" class="group mt-2 flex items-center gap-2">
                     <p class="truncate font-mono text-xs text-gray-500 dark:text-gray-400">
                       {{ revealedServiceUrls.has(service.id) ? service.connectionUrl : service.connectionUrl.replace(/\/\/.*@/, '//***:***@') }}
                     </p>
                     <button
                       @click="toggleServiceUrlReveal(service.id)"
-                      class="shrink-0 rounded p-0.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                      class="shrink-0 rounded p-0.5 text-gray-400 opacity-0 transition-opacity hover:text-gray-600 group-hover:opacity-100 dark:hover:text-gray-300"
                     >
                       <svg v-if="revealedServiceUrls.has(service.id)" class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L6.5 6.5m7.378 7.378L17.5 17.5M3 3l18 18" />
@@ -1412,7 +1443,7 @@ onBeforeUnmount(() => {
                     </button>
                     <button
                       @click="copyToClipboard(service.connectionUrl)"
-                      class="shrink-0 rounded p-0.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                      class="shrink-0 rounded p-0.5 text-gray-400 opacity-0 transition-opacity hover:text-gray-600 group-hover:opacity-100 dark:hover:text-gray-300"
                     >
                       <svg v-if="copiedDomain === service.connectionUrl" class="h-3.5 w-3.5 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />

@@ -1,10 +1,13 @@
 <script setup>
 import { Link, usePage, router } from '@inertiajs/vue3'
-import { computed, ref, provide, onMounted } from 'vue'
+import { computed, ref, provide, onMounted, onUnmounted } from 'vue'
 import ToastContainer from '@/components/ToastContainer.vue'
 import UpdateBanner from '@/components/UpdateBanner.vue'
+import DeploymentToast from '@/components/DeploymentToast.vue'
+import ServiceActionToast from '@/components/ServiceActionToast.vue'
 import { createToast } from '@/composables/toast'
 import { useFlashToast } from '@/composables/flash-toast'
+import { createServiceActions, provideServiceActions } from '@/composables/service-actions'
 
 const page = usePage()
 const loggedInUser = page.props.loggedInUser
@@ -33,12 +36,6 @@ const closeMobileMenu = () => {
 // Desktop sidebar collapsed state (persisted in localStorage)
 const sidebarCollapsed = ref(false)
 
-onMounted(() => {
-  const saved = localStorage.getItem('sidebarCollapsed')
-  if (saved !== null) {
-    sidebarCollapsed.value = saved === 'true'
-  }
-})
 
 const toggleSidebar = () => {
   sidebarCollapsed.value = !sidebarCollapsed.value
@@ -106,6 +103,59 @@ function closeAllDropdowns() {
 // Toast system
 const { toasts, toast, dismiss } = createToast()
 useFlashToast(toast)
+
+// Service actions (global tracking for service start/stop/restart)
+const { actions: serviceActions, startAction, completeAction, dismissAction } = createServiceActions()
+provideServiceActions({ startAction, completeAction, dismissAction })
+
+// Active deployments tracking
+const activeDeployments = ref([])
+let deploymentPollInterval = null
+
+async function checkActiveDeployments() {
+  if (!loggedInUser) return
+
+  try {
+    const response = await fetch('/api/v1/deployments/active')
+    if (response.ok) {
+      const data = await response.json()
+      // Only add new deployments, don't remove ones we're tracking
+      for (const dep of data.deployments) {
+        if (!activeDeployments.value.find(d => d.id === dep.id)) {
+          activeDeployments.value.push(dep)
+        }
+      }
+    }
+  } catch (err) {
+    // Silently fail
+  }
+}
+
+function dismissDeployment(deploymentId) {
+  activeDeployments.value = activeDeployments.value.filter(d => d.id !== deploymentId)
+}
+
+// Initialize on mount
+onMounted(() => {
+  // Restore sidebar state
+  const saved = localStorage.getItem('sidebarCollapsed')
+  if (saved !== null) {
+    sidebarCollapsed.value = saved === 'true'
+  }
+
+  // Check for active deployments
+  checkActiveDeployments()
+
+  // Re-check every 30 seconds
+  deploymentPollInterval = setInterval(checkActiveDeployments, 30000)
+
+  // Also check after each navigation
+  router.on('finish', checkActiveDeployments)
+})
+
+onUnmounted(() => {
+  if (deploymentPollInterval) clearInterval(deploymentPollInterval)
+})
 </script>
 
 <template>
@@ -323,18 +373,13 @@ useFlashToast(toast)
     </Transition>
 
     <!-- Desktop Sidebar -->
-    <Transition
-      enter-active-class="transition-all duration-200 ease-out"
-      enter-from-class="-translate-x-full opacity-0"
-      enter-to-class="translate-x-0 opacity-100"
-      leave-active-class="transition-all duration-200 ease-in"
-      leave-from-class="translate-x-0 opacity-100"
-      leave-to-class="-translate-x-full opacity-0"
+    <aside
+      v-if="loggedInUser"
+      :class="[
+        'hidden flex-col border-r border-gray-200 bg-gray-50 transition-all duration-200 ease-out dark:border-gray-800 dark:bg-gray-950 md:flex',
+        sidebarCollapsed ? 'w-0 overflow-hidden border-r-0' : 'w-56'
+      ]"
     >
-      <aside
-        v-if="loggedInUser && !sidebarCollapsed"
-        class="hidden w-56 flex-col border-r border-gray-200 bg-gray-50 dark:border-gray-800 dark:bg-gray-950 md:flex"
-      >
         <!-- Team Selector + Collapse -->
         <div class="flex items-center justify-between px-3 py-4">
           <div class="relative flex-1">
@@ -502,7 +547,6 @@ useFlashToast(toast)
           </Transition>
         </div>
       </aside>
-    </Transition>
 
     <!-- Main Content -->
     <main class="min-w-0 flex-1 overflow-y-auto bg-white dark:bg-gray-950">
@@ -514,5 +558,21 @@ useFlashToast(toast)
 
     <!-- Toasts -->
     <ToastContainer :toasts="toasts" @dismiss="dismiss" />
+
+    <!-- Persistent Deployment & Service Action Toasts -->
+    <div class="pointer-events-none fixed bottom-4 right-4 z-50 flex flex-col gap-3">
+      <ServiceActionToast
+        v-for="action in serviceActions"
+        :key="'service-' + action.id"
+        :action="action"
+        @dismiss="dismissAction"
+      />
+      <DeploymentToast
+        v-for="deployment in activeDeployments"
+        :key="'deploy-' + deployment.id"
+        :deployment="deployment"
+        @dismiss="dismissDeployment"
+      />
+    </div>
   </div>
 </template>

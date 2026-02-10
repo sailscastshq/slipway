@@ -201,21 +201,22 @@ const quickCommands = [
     <div class="flex flex-1 flex-col overflow-hidden">
       <!-- Quick actions bar -->
       <div class="flex items-center gap-2 border-b border-gray-200 bg-gray-50 px-4 py-2 dark:border-gray-800 dark:bg-gray-900">
-        <span class="text-xs font-medium text-gray-500 dark:text-gray-400">Quick:</span>
-        <button
-          v-for="qc in quickCommands"
-          :key="qc.cmd"
-          @click="runQuickCommand(qc.cmd)"
-          :disabled="!isRunning || running"
-          class="rounded-md border border-gray-200 bg-white px-2 py-0.5 text-xs text-gray-600 hover:bg-gray-100 disabled:opacity-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700"
-        >
-          {{ qc.label }}
-        </button>
-        <div class="flex-1"></div>
+        <span class="hidden shrink-0 text-xs font-medium text-gray-500 dark:text-gray-400 sm:block">Quick:</span>
+        <div class="flex flex-1 items-center gap-2 overflow-x-auto">
+          <button
+            v-for="qc in quickCommands"
+            :key="qc.cmd"
+            @click="runQuickCommand(qc.cmd)"
+            :disabled="!isRunning || running"
+            class="shrink-0 rounded-md border border-gray-200 bg-white px-2 py-0.5 text-xs text-gray-600 hover:bg-gray-100 disabled:opacity-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700"
+          >
+            {{ qc.label }}
+          </button>
+        </div>
         <button
           v-if="history.length > 0"
           @click="clearHistory"
-          class="text-xs text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
+          class="shrink-0 text-xs text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
         >
           Clear
         </button>
@@ -224,25 +225,25 @@ const quickCommands = [
       <!-- Output area -->
       <div
         ref="outputContainer"
-        class="flex-1 overflow-y-auto bg-gray-950 p-4 font-mono text-sm leading-6"
+        class="flex-1 overflow-y-auto bg-gray-100 p-4 font-mono text-sm leading-6 dark:bg-gray-950"
       >
         <!-- Empty state -->
-        <div v-if="history.length === 0 && !running" class="text-gray-600">
-          <p>Redis CLI console for <span class="text-gray-400">{{ service.name }}</span></p>
+        <div v-if="history.length === 0 && !running" class="text-gray-500 dark:text-gray-600">
+          <p>Redis CLI console for <span class="font-medium text-gray-700 dark:text-gray-400">{{ service.name }}</span></p>
           <p class="mt-2">Type a command below or use the quick actions above.</p>
-          <p class="mt-1 text-gray-700">Use <kbd class="rounded bg-gray-800 px-1.5 py-0.5 text-xs text-gray-400">Up</kbd>/<kbd class="rounded bg-gray-800 px-1.5 py-0.5 text-xs text-gray-400">Down</kbd> arrows to navigate history.</p>
+          <p class="mt-1 text-gray-400 dark:text-gray-700">Use <kbd class="rounded bg-gray-200 px-1.5 py-0.5 text-xs text-gray-600 dark:bg-gray-800 dark:text-gray-400">Up</kbd>/<kbd class="rounded bg-gray-200 px-1.5 py-0.5 text-xs text-gray-600 dark:bg-gray-800 dark:text-gray-400">Down</kbd> arrows to navigate history.</p>
         </div>
 
         <!-- Command history output -->
         <div v-for="(entry, i) in history" :key="i" class="mb-3">
           <div class="flex items-center gap-2">
-            <span class="text-red-400">redis&gt;</span>
-            <span class="text-gray-200">{{ entry.command }}</span>
-            <span class="text-gray-700 text-xs">{{ entry.duration }}ms</span>
+            <span class="text-red-500 dark:text-red-400">redis&gt;</span>
+            <span class="text-gray-900 dark:text-gray-200">{{ entry.command }}</span>
+            <span class="text-xs text-gray-400 dark:text-gray-700">{{ entry.duration }}ms</span>
           </div>
-          <pre v-if="entry.success && entry.output" class="mt-0.5 whitespace-pre-wrap text-green-400">{{ entry.output }}</pre>
-          <pre v-if="entry.error" class="mt-0.5 whitespace-pre-wrap text-red-400">{{ entry.error }}</pre>
-          <div v-if="entry.success && !entry.output && !entry.error" class="mt-0.5 text-gray-600">(empty)</div>
+          <pre v-if="entry.success && entry.output" class="mt-0.5 whitespace-pre-wrap text-green-600 dark:text-green-400">{{ entry.output }}</pre>
+          <pre v-if="entry.error" class="mt-0.5 whitespace-pre-wrap text-red-500 dark:text-red-400">{{ entry.error }}</pre>
+          <div v-if="entry.success && !entry.output && !entry.error" class="mt-0.5 text-gray-400 dark:text-gray-600">(empty)</div>
         </div>
 
         <!-- Running indicator -->
@@ -256,9 +257,9 @@ const quickCommands = [
       </div>
 
       <!-- Command input -->
-      <div class="border-t border-gray-800 bg-gray-950">
+      <div class="border-t border-gray-200 bg-gray-100 dark:border-gray-800 dark:bg-gray-950">
         <div class="flex items-center px-4 py-3">
-          <span class="mr-2 font-mono text-sm text-red-400">redis&gt;</span>
+          <span class="mr-2 font-mono text-sm text-red-500 dark:text-red-400">redis&gt;</span>
           <input
             ref="commandInput"
             v-model="command"
@@ -268,12 +269,12 @@ const quickCommands = [
             placeholder="Enter Redis command..."
             spellcheck="false"
             autocomplete="off"
-            class="flex-1 border-0 bg-transparent font-mono text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:ring-0"
+            class="flex-1 border-0 bg-transparent font-mono text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-0 dark:text-gray-200 dark:placeholder-gray-600"
           />
           <button
             @click="execute"
             :disabled="!command.trim() || !isRunning || running"
-            class="ml-2 flex items-center space-x-1.5 rounded-md bg-gray-800 px-3 py-1.5 text-xs font-medium text-gray-300 hover:bg-gray-700 disabled:opacity-50"
+            class="ml-2 flex items-center space-x-1.5 rounded-md bg-gray-200 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-300 disabled:opacity-50 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
           >
             <svg v-if="running" class="h-3 w-3 animate-spin" fill="none" viewBox="0 0 24 24">
               <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>

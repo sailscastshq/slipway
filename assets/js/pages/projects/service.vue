@@ -3,6 +3,7 @@ import { Link, Head, usePage } from '@inertiajs/vue3'
 import { inject, ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
 import { useToast } from '@/composables/toast'
+import { useServiceActions } from '@/composables/service-actions'
 
 defineOptions({
   layout: AppLayout
@@ -16,6 +17,7 @@ const props = defineProps({
 
 const page = usePage()
 const toast = useToast()
+const { startAction, completeAction } = useServiceActions()
 const toggleMobileMenu = inject('toggleMobileMenu')
 const toggleSidebar = inject('toggleSidebar')
 const sidebarCollapsed = inject('sidebarCollapsed')
@@ -140,7 +142,9 @@ function connectToLogs() {
       }
       if (data.error) logsError.value = data.error
       if (data.closed) logsConnected.value = false
-    } catch (e) { /* ignore */ }
+    } catch (e) {
+      console.error('Failed to parse log event:', e, event.data)
+    }
   }
 
   eventSource.onerror = () => {
@@ -156,6 +160,15 @@ async function stopService() {
   if (stopping.value) return
   stopping.value = true
   menuOpen.value = false
+
+  const actionId = startAction({
+    serviceName: serviceName.value,
+    serviceType: props.service.type,
+    action: 'stopping',
+    projectName: props.project.name,
+    environmentName: props.environment.name
+  })
+
   try {
     const response = await fetch(`/api/v1/services/${props.service.id}/stop`, {
       method: 'POST',
@@ -164,13 +177,13 @@ async function stopService() {
     if (response.ok) {
       serviceStatus.value = 'stopped'
       if (eventSource) { eventSource.close(); logsConnected.value = false }
-      toast({ message: `Service "${serviceName.value}" stopped`, type: 'success' })
+      completeAction(actionId, true)
     } else {
-      toast({ message: 'Failed to stop service', type: 'error' })
+      completeAction(actionId, false)
     }
   } catch (err) {
     console.error('Failed to stop service:', err)
-    toast({ message: 'Failed to stop service', type: 'error' })
+    completeAction(actionId, false)
   } finally { stopping.value = false }
 }
 
@@ -178,6 +191,18 @@ async function restartService() {
   if (restarting.value) return
   restarting.value = true
   menuOpen.value = false
+
+  // Use 'starting' if stopped, 'restarting' if running
+  const actionType = serviceStatus.value === 'stopped' || serviceStatus.value === 'failed' ? 'starting' : 'restarting'
+
+  const actionId = startAction({
+    serviceName: serviceName.value,
+    serviceType: props.service.type,
+    action: actionType,
+    projectName: props.project.name,
+    environmentName: props.environment.name
+  })
+
   try {
     const response = await fetch(`/api/v1/services/${props.service.id}/restart`, {
       method: 'POST',
@@ -186,13 +211,13 @@ async function restartService() {
     if (response.ok) {
       serviceStatus.value = 'running'
       setTimeout(() => connectToLogs(), 2000)
-      toast({ message: `Service "${serviceName.value}" started`, type: 'success' })
+      completeAction(actionId, true)
     } else {
-      toast({ message: 'Failed to start service', type: 'error' })
+      completeAction(actionId, false)
     }
   } catch (err) {
     console.error('Failed to restart service:', err)
-    toast({ message: 'Failed to start service', type: 'error' })
+    completeAction(actionId, false)
   } finally { restarting.value = false }
 }
 
@@ -295,16 +320,24 @@ onUnmounted(() => {
         >
           <svg class="h-5 w-5" viewBox="-0.5 -0.5 16 16" fill="none" stroke="currentColor">
             <path d="M12.777 14.285H2.223c-.833 0-1.508-.675-1.508-1.508V2.223c0-.833.675-1.508 1.508-1.508h10.554c.833 0 1.508.675 1.508 1.508v10.554c0 .833-.675 1.508-1.508 1.508Z" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
-            <path d="M5.238.715v13.57" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
+            <path d="M5.615 14.285V.715" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
+            <path d="M2.6 5.992 3.919 7.5 2.6 9.008" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
           </svg>
         </button>
+        <!-- Desktop sidebar toggle -->
         <button
           @click="toggleSidebar"
-          class="hidden rounded-md p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white md:block"
+          class="hidden text-gray-400 dark:text-gray-500 md:block"
         >
-          <svg class="h-5 w-5" viewBox="-0.5 -0.5 16 16" fill="none" stroke="currentColor">
+          <svg v-if="sidebarCollapsed" class="h-5 w-5" viewBox="-0.5 -0.5 16 16" fill="none" stroke="currentColor">
             <path d="M12.777 14.285H2.223c-.833 0-1.508-.675-1.508-1.508V2.223c0-.833.675-1.508 1.508-1.508h10.554c.833 0 1.508.675 1.508 1.508v10.554c0 .833-.675 1.508-1.508 1.508Z" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
-            <path d="M5.238.715v13.57" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
+            <path d="M5.615 14.285V.715" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
+            <path d="M2.6 5.992 3.919 7.5 2.6 9.008" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
+          </svg>
+          <svg v-else class="h-5 w-5" viewBox="-0.5 -0.5 16 16" fill="none" stroke="currentColor">
+            <path d="M12.777 14.285H2.223c-.833 0-1.508-.675-1.508-1.508V2.223c0-.833.675-1.508 1.508-1.508h10.554c.833 0 1.508.675 1.508 1.508v10.554c0 .833-.675 1.508-1.508 1.508Z" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
+            <path d="M5.615 14.285V.715" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
+            <path d="M3.919 5.992 2.6 7.5l1.319 1.508" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
           </svg>
         </button>
         <nav class="text-sm">
@@ -548,13 +581,30 @@ onUnmounted(() => {
               >
                 <div
                   ref="logContainer"
-                  class="h-96 overflow-y-auto bg-gray-950 p-4 font-mono text-xs leading-5 text-gray-300"
+                  class="h-96 overflow-y-auto bg-gray-100 p-4 font-mono text-xs leading-5 text-gray-700 dark:bg-gray-950 dark:text-gray-300"
                   @scroll="autoScroll = logContainer && (logContainer.scrollHeight - logContainer.scrollTop - logContainer.clientHeight < 40)"
                 >
-                  <div v-if="logLines.length === 0 && logsConnected" class="text-gray-500">
+                  <div v-if="serviceStatus !== 'running'" class="flex h-full flex-col items-center justify-center text-gray-500">
+                    <svg class="mb-2 h-8 w-8 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z" />
+                    </svg>
+                    <p>Service is not running</p>
+                    <p class="mt-1 text-xs text-gray-400 dark:text-gray-600">Start the service to view logs</p>
+                  </div>
+                  <div v-else-if="!logsConnected && logLines.length === 0" class="flex h-full items-center justify-center text-gray-500">
+                    <svg class="mr-2 h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                      <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                      <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Connecting to logs...
+                  </div>
+                  <div v-else-if="logLines.length === 0 && logsConnected" class="text-gray-500">
                     Waiting for output...
                   </div>
-                  <div v-for="(line, i) in logLines" :key="i" class="whitespace-pre-wrap break-all hover:bg-gray-900/50" v-html="highlightLogLine(line)"></div>
+                  <template v-else>
+                    <div v-for="(line, i) in logLines" :key="i" class="whitespace-pre-wrap break-all hover:bg-gray-200/50 dark:hover:bg-gray-900/50" v-html="highlightLogLine(line)"></div>
+                  </template>
                 </div>
               </div>
             </div>
