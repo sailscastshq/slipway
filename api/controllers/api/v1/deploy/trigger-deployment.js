@@ -226,6 +226,16 @@ async function executeDeployment(deploymentId, project, environment) {
     await Deployment.appendDeployLog(deploymentId, `  Direct:    http://localhost:${containerResult.hostPort}\n`)
 
     sails.log.info(`Deployment ${deploymentId} completed successfully — http://localhost:${containerResult.hostPort}`)
+
+    // Send success notification (fire and forget)
+    const finalDeployment = await Deployment.findOne({ id: deploymentId })
+    sails.helpers.notification.sendDeploymentNotification({
+      deployment: finalDeployment,
+      project,
+      environment
+    }).catch(err => {
+      sails.log.debug('Deployment notification failed:', err.message || err)
+    })
   } catch (err) {
     sails.log.error(`Deployment ${deploymentId} failed: ${err.message}`)
 
@@ -238,5 +248,15 @@ async function executeDeployment(deploymentId, project, environment) {
         finishedAt: Date.now()
       })
     }
+
+    // Send failure notification (fire and forget)
+    const failedDeployment = await Deployment.findOne({ id: deploymentId })
+    sails.helpers.notification.sendDeploymentNotification({
+      deployment: failedDeployment,
+      project,
+      environment
+    }).catch(notifyErr => {
+      sails.log.debug('Deployment notification failed:', notifyErr.message || notifyErr)
+    })
   }
 }

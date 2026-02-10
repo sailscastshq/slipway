@@ -60,6 +60,7 @@ module.exports.routes = {
   'GET /projects/:slug/environments/new': 'project/view-new-environment',
   'POST /projects/:slug/environments': 'project/create-environment',
   'GET /projects/:slug/environments/:envSlug': 'project/view-environment',
+  'GET /projects/:slug/environments/:envSlug/settings': 'project/view-environment-settings',
   'GET /projects/:slug/environments/:envSlug/helm': 'project/view-helm',
   'GET /projects/:slug/environments/:envSlug/redis/:serviceId': 'project/view-redis-console',
   'GET /projects/:slug/deployments/:deploymentId': 'project/view-deployment',
@@ -75,10 +76,22 @@ module.exports.routes = {
   'POST /settings/team/invite': 'team/invite-member',
   'PATCH /settings/team/:userId/role': 'team/update-member-role',
   'DELETE /settings/team/:userId': 'team/remove-member',
+  'POST /switch-team': 'team/switch-team',
+  'GET /teams/create': 'team/view-create-team',
+  'POST /teams': 'team/create-team',
 
   // Global environment variables
   'GET /settings/global-env': 'setting/view-global-env',
   'PATCH /settings/global-env': 'setting/update-global-env',
+
+  // Instance settings
+  'GET /settings/instance': 'setting/view-instance',
+  'PATCH /settings/instance': 'setting/update-instance',
+
+  // Notifications settings
+  'GET /settings/notifications': 'setting/view-notifications',
+  'PATCH /settings/notifications': 'setting/update-notifications',
+  'POST /settings/notifications/test': 'setting/test-notification',
 
   // System updates
   'GET /settings/update': 'system/view-update',

@@ -15,8 +15,11 @@ const props = defineProps({
 })
 
 const toggleMobileMenu = inject('toggleMobileMenu')
+const toggleSidebar = inject('toggleSidebar')
+const sidebarCollapsed = inject('sidebarCollapsed')
 const checking = ref(false)
 const localUpdateInfo = ref(props.updateInfo)
+const lastChecked = ref(new Date())
 
 async function checkAgain() {
   checking.value = true
@@ -24,12 +27,21 @@ async function checkAgain() {
     const response = await fetch('/api/v1/system/check-update')
     if (response.ok) {
       localUpdateInfo.value = await response.json()
+      lastChecked.value = new Date()
     }
   } catch (err) {
     console.error('Failed to check for updates:', err)
   } finally {
     checking.value = false
   }
+}
+
+function formatTime(date) {
+  return date.toLocaleTimeString('en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true
+  })
 }
 
 function formatDate(dateString) {
@@ -46,14 +58,32 @@ function formatDate(dateString) {
   <Head :title="localUpdateInfo.updateAvailable ? 'Update Available | Slipway' : 'Updates | Slipway'"></Head>
   <div class="flex h-full flex-col">
     <!-- Header -->
-    <div class="flex items-center justify-between border-b border-gray-200 px-4 py-4 dark:border-gray-800 sm:px-8">
+    <div class="flex items-center justify-between border-b border-gray-200 py-4 pl-4 pr-4 dark:border-gray-800 sm:pl-4 sm:pr-8">
       <div class="flex items-center space-x-3">
         <button
           @click="toggleMobileMenu"
           class="rounded-md p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white md:hidden"
         >
-          <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+          <svg class="h-5 w-5" viewBox="-0.5 -0.5 16 16" fill="none" stroke="currentColor">
+            <path d="M12.777 14.285H2.223c-.833 0-1.508-.675-1.508-1.508V2.223c0-.833.675-1.508 1.508-1.508h10.554c.833 0 1.508.675 1.508 1.508v10.554c0 .833-.675 1.508-1.508 1.508Z" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
+            <path d="M5.615 14.285V.715" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
+            <path d="M2.6 5.992 3.919 7.5 2.6 9.008" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
+          </svg>
+        </button>
+        <!-- Desktop sidebar toggle -->
+        <button
+          @click="toggleSidebar"
+          class="hidden text-gray-400 dark:text-gray-500 md:block"
+        >
+          <svg v-if="sidebarCollapsed" class="h-5 w-5" viewBox="-0.5 -0.5 16 16" fill="none" stroke="currentColor">
+            <path d="M12.777 14.285H2.223c-.833 0-1.508-.675-1.508-1.508V2.223c0-.833.675-1.508 1.508-1.508h10.554c.833 0 1.508.675 1.508 1.508v10.554c0 .833-.675 1.508-1.508 1.508Z" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
+            <path d="M5.615 14.285V.715" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
+            <path d="M2.6 5.992 3.919 7.5 2.6 9.008" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
+          </svg>
+          <svg v-else class="h-5 w-5" viewBox="-0.5 -0.5 16 16" fill="none" stroke="currentColor">
+            <path d="M12.777 14.285H2.223c-.833 0-1.508-.675-1.508-1.508V2.223c0-.833.675-1.508 1.508-1.508h10.554c.833 0 1.508.675 1.508 1.508v10.554c0 .833-.675 1.508-1.508 1.508Z" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
+            <path d="M5.615 14.285V.715" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
+            <path d="M3.919 5.992 2.6 7.5l1.319 1.508" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
           </svg>
         </button>
         <nav class="flex items-center text-sm">
@@ -64,14 +94,27 @@ function formatDate(dateString) {
           <span class="font-medium text-gray-900 dark:text-white">update</span>
         </nav>
       </div>
+      <div class="flex items-center space-x-4">
+        <a
+          href="https://docs.sailscasts.com/slipway"
+          target="_blank"
+          class="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
+        >
+          Docs
+          <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+          </svg>
+        </a>
+      </div>
     </div>
 
     <!-- Content -->
     <div class="flex-1 overflow-y-auto px-4 py-6 sm:px-8 sm:py-8">
       <div class="mx-auto max-w-2xl">
         <!-- Up to Date Card -->
-        <div v-if="!localUpdateInfo.updateAvailable" class="rounded-lg border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-gray-900">
-          <div class="flex flex-col items-center py-8 text-center">
+        <div v-if="!localUpdateInfo.updateAvailable" class="rounded-lg border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
+          <!-- Header section -->
+          <div class="flex flex-col items-center border-b border-gray-200 px-6 py-8 text-center dark:border-gray-800">
             <div class="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-900/50">
               <svg
                 class="h-8 w-8 text-emerald-600 dark:text-emerald-400"
@@ -84,28 +127,76 @@ function formatDate(dateString) {
             </div>
             <h1 class="text-xl font-semibold text-gray-900 dark:text-white">You're up to date!</h1>
             <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">
-              Slipway {{ localUpdateInfo.currentVersion }} is the latest version.
+              Your Slipway instance is running the latest version.
             </p>
-            <button
-              @click="checkAgain"
-              :disabled="checking"
-              class="mt-6 inline-flex items-center space-x-2 rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
-            >
-              <svg
-                :class="['h-4 w-4', checking ? 'animate-spin' : '']"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
+          </div>
+
+          <!-- Version info section -->
+          <div class="px-6 py-5">
+            <div class="flex items-center justify-between">
+              <div>
+                <p class="text-sm font-medium text-gray-900 dark:text-white">Current Version</p>
+                <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                  Last checked {{ formatTime(lastChecked) }}
+                </p>
+              </div>
+              <div class="flex items-center space-x-3">
+                <span class="inline-flex items-center rounded-md bg-emerald-50 px-2.5 py-1 text-sm font-mono font-medium text-emerald-700 ring-1 ring-inset ring-emerald-600/20 dark:bg-emerald-900/30 dark:text-emerald-400 dark:ring-emerald-500/30">
+                  v{{ localUpdateInfo.currentVersion }}
+                </span>
+                <button
+                  @click="checkAgain"
+                  :disabled="checking"
+                  class="inline-flex items-center rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+                >
+                  <svg
+                    :class="['h-4 w-4', checking ? 'animate-spin' : '']"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                    />
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Links section -->
+          <div class="border-t border-gray-200 px-6 py-4 dark:border-gray-800">
+            <div class="flex flex-wrap gap-4">
+              <a
+                href="https://github.com/sailscastshq/slipway/releases"
+                target="_blank"
+                class="inline-flex items-center space-x-2 text-sm text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200"
               >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                />
-              </svg>
-              <span>{{ checking ? 'Checking...' : 'Check again' }}</span>
-            </button>
+                <svg class="h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+                </svg>
+                <span>View changelog</span>
+                <svg class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                </svg>
+              </a>
+              <a
+                href="https://docs.sailscasts.com/slipway"
+                target="_blank"
+                class="inline-flex items-center space-x-2 text-sm text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200"
+              >
+                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                </svg>
+                <span>Documentation</span>
+                <svg class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                </svg>
+              </a>
+            </div>
           </div>
         </div>
 

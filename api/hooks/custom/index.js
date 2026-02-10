@@ -44,7 +44,10 @@ module.exports = function defineCustomHook(sails) {
                     return null
                   }
 
-                  return user
+                  // Also fetch teams owned by this user (for team switching)
+                  const ownedTeams = await Team.find({ owner: user.id }).select(['id', 'name', 'slug'])
+
+                  return { ...user, ownedTeams }
                 })
               )
 

@@ -7,7 +7,7 @@ module.exports = {
 
   exits: {
     success: {
-      viewTemplatePath: 'pages/system/update'
+      responseType: 'inertia'
     }
   },
 

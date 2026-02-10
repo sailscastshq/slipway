@@ -67,11 +67,53 @@ module.exports = {
       })
     )
 
+    // Get recent deployments across all environments
+    // First get any running/building/deploying deployments to ensure they're included
+    const activeDeployments = await Deployment.find({
+      environment: project.environments.map(e => e.id),
+      status: ['running', 'building', 'deploying']
+    })
+      .populate('triggeredBy')
+      .populate('environment')
+
+    // Then get recent deployments by date
+    const latestDeployments = await Deployment.find({
+      environment: project.environments.map(e => e.id)
+    })
+      .sort('createdAt DESC')
+      .limit(10)
+      .populate('triggeredBy')
+      .populate('environment')
+
+    // Merge and dedupe, prioritizing active deployments
+    const seenIds = new Set()
+    const recentDeployments = []
+
+    // Add active deployments first
+    for (const dep of activeDeployments) {
+      if (!seenIds.has(dep.id)) {
+        seenIds.add(dep.id)
+        recentDeployments.push(dep)
+      }
+    }
+
+    // Add latest deployments (sorted by date, newest first)
+    for (const dep of latestDeployments) {
+      if (!seenIds.has(dep.id)) {
+        seenIds.add(dep.id)
+        recentDeployments.push(dep)
+      }
+    }
+
+    // Keep only top 5
+    recentDeployments.splice(5)
+
     return {
       page: 'projects/show',
       props: {
         project,
-        environments
+        environments,
+        recentDeployments
       }
     }
   }

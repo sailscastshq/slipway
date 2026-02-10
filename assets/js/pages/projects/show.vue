@@ -9,7 +9,8 @@ defineOptions({
 
 const props = defineProps({
   project: Object,
-  environments: Array
+  environments: Array,
+  recentDeployments: Array
 })
 
 const toggleMobileMenu = inject('toggleMobileMenu')
@@ -64,25 +65,32 @@ function timeAgo(date) {
   <Head :title="`${project.name} | Slipway`"></Head>
   <div class="flex h-full flex-col">
     <!-- Header -->
-    <div class="flex items-center justify-between border-b border-gray-200 px-4 py-4 dark:border-gray-800 sm:px-8">
+    <div class="flex items-center justify-between border-b border-gray-200 py-4 pl-4 pr-4 dark:border-gray-800 sm:pl-4 sm:pr-8">
       <div class="flex items-center space-x-3">
         <button
           @click="toggleMobileMenu"
           class="rounded-md p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white md:hidden"
         >
-          <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+          <svg class="h-5 w-5" viewBox="-0.5 -0.5 16 16" fill="none" stroke="currentColor">
+            <path d="M12.777 14.285H2.223c-.833 0-1.508-.675-1.508-1.508V2.223c0-.833.675-1.508 1.508-1.508h10.554c.833 0 1.508.675 1.508 1.508v10.554c0 .833-.675 1.508-1.508 1.508Z" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
+            <path d="M5.615 14.285V.715" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
+            <path d="M2.6 5.992 3.919 7.5 2.6 9.008" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
           </svg>
         </button>
-        <!-- Desktop sidebar toggle (when collapsed) -->
+        <!-- Desktop sidebar toggle -->
         <button
-          v-if="sidebarCollapsed"
           @click="toggleSidebar"
-          class="hidden rounded-md p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white md:block"
-          title="Show sidebar"
+          class="hidden text-gray-400 dark:text-gray-500 md:block"
         >
-          <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+          <svg v-if="sidebarCollapsed" class="h-5 w-5" viewBox="-0.5 -0.5 16 16" fill="none" stroke="currentColor">
+            <path d="M12.777 14.285H2.223c-.833 0-1.508-.675-1.508-1.508V2.223c0-.833.675-1.508 1.508-1.508h10.554c.833 0 1.508.675 1.508 1.508v10.554c0 .833-.675 1.508-1.508 1.508Z" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
+            <path d="M5.615 14.285V.715" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
+            <path d="M2.6 5.992 3.919 7.5 2.6 9.008" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
+          </svg>
+          <svg v-else class="h-5 w-5" viewBox="-0.5 -0.5 16 16" fill="none" stroke="currentColor">
+            <path d="M12.777 14.285H2.223c-.833 0-1.508-.675-1.508-1.508V2.223c0-.833.675-1.508 1.508-1.508h10.554c.833 0 1.508.675 1.508 1.508v10.554c0 .833-.675 1.508-1.508 1.508Z" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
+            <path d="M5.615 14.285V.715" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
+            <path d="M3.919 5.992 2.6 7.5l1.319 1.508" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
           </svg>
         </button>
         <nav class="flex items-center space-x-2 text-sm">
@@ -93,19 +101,16 @@ function timeAgo(date) {
           <span class="font-medium text-gray-900 dark:text-white">{{ project.name.toLowerCase() }}</span>
         </nav>
       </div>
-      <div class="flex items-center space-x-3">
-        <Link
-          :href="`/projects/${project.slug}/settings`"
-          class="text-sm text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
-        >
-          Settings
-        </Link>
+      <div class="flex items-center space-x-4">
         <a
           href="https://docs.sailscasts.com/slipway"
           target="_blank"
-          class="text-sm text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
+          class="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
         >
           Docs
+          <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+          </svg>
         </a>
       </div>
     </div>
@@ -183,42 +188,40 @@ function timeAgo(date) {
         </div>
 
         <!-- Recent Deployments -->
-        <div v-if="environments.some(e => e.deployments.length > 0)" class="mt-10">
+        <div v-if="recentDeployments.length > 0" class="mt-10">
           <h2 class="mb-4 text-sm font-medium text-gray-900 dark:text-white">Recent deployments</h2>
           <div class="rounded-lg border border-gray-200 dark:border-gray-800">
             <div class="divide-y divide-gray-200 bg-white dark:divide-gray-800 dark:bg-gray-950 rounded-lg">
-              <template v-for="env in environments" :key="'deploys-' + env.id">
-                <Link
-                  v-for="dep in env.deployments.slice(0, 3)"
-                  :key="dep.id"
-                  :href="`/projects/${project.slug}/deployments/${dep.id}`"
-                  class="flex items-center justify-between px-6 py-3 hover:bg-gray-50 dark:hover:bg-gray-900/50"
-                >
-                  <div class="flex items-center space-x-3">
-                    <span
-                      :class="[
-                        'h-2 w-2 rounded-full',
-                        dep.status === 'running' ? 'bg-green-500' :
-                        dep.status === 'failed' ? 'bg-red-500' :
-                        dep.status === 'building' || dep.status === 'deploying' ? 'bg-blue-500' :
-                        'bg-gray-400'
-                      ]"
-                    ></span>
-                    <span class="text-sm text-gray-900 dark:text-white">{{ env.name }}</span>
-                    <span v-if="dep.gitBranch" class="text-xs text-gray-500 dark:text-gray-400">
-                      {{ dep.gitBranch }}
-                    </span>
-                  </div>
-                  <div class="flex items-center space-x-4">
-                    <span class="text-xs text-gray-500 dark:text-gray-400">
-                      {{ dep.triggeredBy?.fullName || 'System' }}
-                    </span>
-                    <span class="text-xs text-gray-400 dark:text-gray-500">
-                      {{ timeAgo(dep.createdAt) }}
-                    </span>
-                  </div>
-                </Link>
-              </template>
+              <Link
+                v-for="dep in recentDeployments"
+                :key="dep.id"
+                :href="`/projects/${project.slug}/deployments/${dep.id}`"
+                class="flex items-center justify-between px-6 py-3 hover:bg-gray-50 dark:hover:bg-gray-900/50"
+              >
+                <div class="flex items-center space-x-3">
+                  <span
+                    :class="[
+                      'h-2 w-2 rounded-full',
+                      dep.status === 'running' ? 'bg-green-500' :
+                      dep.status === 'failed' ? 'bg-red-500' :
+                      dep.status === 'building' || dep.status === 'deploying' ? 'bg-blue-500' :
+                      'bg-gray-400'
+                    ]"
+                  ></span>
+                  <span class="text-sm text-gray-900 dark:text-white">{{ dep.environment?.name || 'Unknown' }}</span>
+                  <span v-if="dep.gitBranch" class="text-xs text-gray-500 dark:text-gray-400">
+                    {{ dep.gitBranch }}
+                  </span>
+                </div>
+                <div class="flex items-center space-x-4">
+                  <span class="text-xs text-gray-500 dark:text-gray-400">
+                    {{ dep.triggeredBy?.fullName || 'System' }}
+                  </span>
+                  <span class="text-xs text-gray-400 dark:text-gray-500">
+                    {{ timeAgo(dep.createdAt) }}
+                  </span>
+                </div>
+              </Link>
             </div>
           </div>
         </div>

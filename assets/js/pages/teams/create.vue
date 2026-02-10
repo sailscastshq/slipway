@@ -7,16 +7,12 @@ defineOptions({
   layout: AppLayout
 })
 
-const props = defineProps({
-  project: Object
-})
-
 const form = useForm({
   name: ''
 })
 
 const submit = () => {
-  form.post(`/projects/${props.project.slug}/environments`)
+  form.post('/teams')
 }
 
 const toggleMobileMenu = inject('toggleMobileMenu')
@@ -24,7 +20,7 @@ const toggleSidebar = inject('toggleSidebar')
 const sidebarCollapsed = inject('sidebarCollapsed')
 </script>
 <template>
-  <Head :title="`Create Environment | ${project.name} | Slipway`"></Head>
+  <Head title="Create Team | Slipway"></Head>
   <div class="flex h-full flex-col">
     <!-- Header -->
     <div class="flex items-center justify-between border-b border-gray-200 py-4 pl-4 pr-4 dark:border-gray-800 sm:pl-4 sm:pr-8">
@@ -55,22 +51,8 @@ const sidebarCollapsed = inject('sidebarCollapsed')
             <path d="M3.919 5.992 2.6 7.5l1.319 1.508" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
           </svg>
         </button>
-        <nav class="flex items-center space-x-2 text-sm">
-          <Link href="/" class="text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white">
-            projects
-          </Link>
-          <span class="text-gray-400 dark:text-gray-600">/</span>
-          <Link
-            :href="`/projects/${project.slug}`"
-            class="text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
-          >
-            {{ project.name.toLowerCase() }}
-          </Link>
-          <span class="text-gray-400 dark:text-gray-600">/</span>
-          <span class="font-medium text-gray-900 dark:text-white">
-            <span class="hidden sm:inline">create environment</span>
-            <span class="sm:hidden">new</span>
-          </span>
+        <nav class="flex items-center text-sm">
+          <span class="font-medium text-gray-900 dark:text-white">create team</span>
         </nav>
       </div>
       <div class="flex items-center space-x-4">
@@ -91,6 +73,10 @@ const sidebarCollapsed = inject('sidebarCollapsed')
     <div class="mx-auto w-full max-w-5xl flex-1 px-4 pt-8 pb-8 sm:px-8 sm:pt-16">
       <div class="flex justify-center">
         <div class="w-full max-w-md">
+          <p class="mb-8 text-center text-sm text-gray-500 dark:text-gray-400">
+            Teams let you organize projects and collaborate with others.
+          </p>
+
           <!-- Error message -->
           <div
             v-if="form.errors.name"
@@ -104,14 +90,14 @@ const sidebarCollapsed = inject('sidebarCollapsed')
               id="name"
               v-model="form.name"
               type="text"
-              placeholder="Environment name"
+              placeholder="Team name"
               autofocus
               class="h-12 w-full rounded-md border border-gray-200 bg-white px-4 text-gray-900 placeholder-gray-400 focus:border-brand focus:outline-none dark:border-gray-800 dark:bg-black dark:text-white dark:placeholder-gray-500"
             />
 
             <div class="flex items-center justify-end space-x-3 pt-4">
               <Link
-                :href="`/projects/${project.slug}`"
+                href="/"
                 class="rounded-md px-3 py-1.5 text-sm text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
               >
                 Cancel
@@ -121,7 +107,7 @@ const sidebarCollapsed = inject('sidebarCollapsed')
                 :disabled="form.processing || !form.name"
                 class="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
               >
-                {{ form.processing ? 'Creating...' : 'Create' }}
+                {{ form.processing ? 'Creating...' : 'Create team' }}
               </button>
             </div>
           </form>
