@@ -93,7 +93,7 @@ function cancelRemove() {
 }
 
 function roleBadgeClass(role) {
-  if (role === 'owner') return 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400'
+  if (role === 'owner') return 'bg-brand-100 text-brand-700 dark:bg-brand-900/30 dark:text-brand-400'
   if (role === 'admin') return 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
   return 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'
 }
@@ -234,37 +234,45 @@ function timeAgo(date) {
           </div>
         </Transition>
 
+        <!-- Page Header -->
+        <div class="mb-6">
+          <h1 class="text-xl font-semibold text-gray-900 dark:text-white">Team Members</h1>
+          <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+            Manage who has access to {{ team.name }}'s projects and resources.
+          </p>
+        </div>
+
         <!-- Search -->
-        <div v-if="members.length > 1" class="mb-6">
+        <div class="mb-6">
           <input
             v-model="search"
             type="text"
             placeholder="Search members..."
-            class="w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:border-brand focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500 sm:w-64"
+            class="w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:border-brand focus:outline-none sm:max-w-xs dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
           />
         </div>
 
         <!-- Members table -->
-        <div v-if="filtered.length > 0" class="rounded-lg border border-gray-200 dark:border-gray-800">
+        <div v-if="members.length > 0" class="overflow-hidden rounded-lg border border-gray-200 dark:border-gray-800">
           <!-- Table Header (hidden on mobile) -->
-          <div class="hidden grid-cols-12 gap-4 border-b border-gray-200 bg-gray-50/50 px-6 py-2 text-xs font-medium text-gray-500 dark:border-gray-800 dark:bg-gray-900/50 sm:grid">
-            <div class="col-span-4">Member</div>
-            <div class="col-span-3">Role</div>
+          <div class="hidden grid-cols-12 gap-4 border-b border-gray-200 bg-gray-50/30 px-6 py-2 text-xs font-medium uppercase tracking-wide text-gray-500 dark:border-gray-800 dark:bg-gray-900/30 sm:grid">
+            <div class="col-span-5">Member</div>
+            <div class="col-span-2">Role</div>
             <div class="col-span-3">Joined</div>
             <div class="col-span-2"></div>
           </div>
 
           <!-- Table Body -->
-          <div class="divide-y divide-gray-200 bg-white dark:divide-gray-800 dark:bg-gray-950">
+          <div v-if="filtered.length > 0" class="divide-y divide-gray-200 bg-white dark:divide-gray-800 dark:bg-gray-950">
             <div
               v-for="member in filtered"
               :key="member.id"
               class="flex flex-col gap-3 px-6 py-4 sm:grid sm:grid-cols-12 sm:items-center sm:gap-4"
             >
               <!-- Member info -->
-              <div class="col-span-4 flex items-center space-x-3">
+              <div class="col-span-5 flex items-center space-x-3">
                 <span
-                  class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-xs font-medium text-white"
+                  class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand text-sm font-medium text-white"
                 >
                   {{ member.initials }}
                 </span>
@@ -275,8 +283,8 @@ function timeAgo(date) {
               </div>
 
               <!-- Role -->
-              <div class="col-span-3">
-                <span :class="['inline-flex rounded-full px-2 py-0.5 text-xs font-medium', roleBadgeClass(member.teamRole)]">
+              <div class="col-span-2">
+                <span :class="['inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium', roleBadgeClass(member.teamRole)]">
                   {{ member.teamRole }}
                 </span>
                 <span
@@ -338,11 +346,21 @@ function timeAgo(date) {
               </div>
             </div>
           </div>
+
+          <!-- No search results -->
+          <div v-else class="px-6 py-12 text-center">
+            <svg class="mx-auto h-8 w-8 text-gray-300 dark:text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+            <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">
+              No members matching "{{ search }}"
+            </p>
+          </div>
         </div>
 
-        <!-- No search results -->
-        <div v-else-if="members.length > 0" class="py-8 text-center text-sm text-gray-500 dark:text-gray-400">
-          No members matching "{{ search }}"
+        <!-- No members at all (shouldn't happen but just in case) -->
+        <div v-else class="rounded-lg border border-gray-200 px-6 py-12 text-center dark:border-gray-800">
+          <p class="text-sm text-gray-500 dark:text-gray-400">No team members yet.</p>
         </div>
       </div>
     </div>

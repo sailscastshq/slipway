@@ -264,7 +264,7 @@ useFlashToast(toast)
             @click.stop="userDropdownOpen = !userDropdownOpen"
             class="flex w-full items-center space-x-3 rounded-md px-3 py-2.5 text-sm text-gray-600 transition-colors hover:bg-gray-200/50 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800/50 dark:hover:text-gray-200"
           >
-            <span class="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-600 text-xs font-medium text-white">
+            <span class="flex h-8 w-8 items-center justify-center rounded-full bg-brand text-xs font-medium text-white">
               {{ loggedInUser.initials }}
             </span>
             <span class="flex-1 truncate text-left">{{ loggedInUser.email }}</span>
@@ -446,7 +446,7 @@ useFlashToast(toast)
             @click.stop="userDropdownOpen = !userDropdownOpen"
             class="flex w-full items-center space-x-3 rounded-md px-2 py-2 text-sm text-gray-500 transition-colors hover:bg-gray-200/50 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800/50 dark:hover:text-gray-200"
           >
-            <span class="flex h-7 w-7 items-center justify-center rounded-full bg-emerald-600 text-xs font-medium text-white">
+            <span class="flex h-7 w-7 items-center justify-center rounded-full bg-brand text-xs font-medium text-white">
               {{ loggedInUser.initials }}
             </span>
             <span class="flex-1 truncate text-left">{{ loggedInUser.email }}</span>
