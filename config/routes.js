@@ -63,6 +63,7 @@ module.exports.routes = {
   'GET /projects/:slug/environments/:envSlug/settings': 'project/view-environment-settings',
   'GET /projects/:slug/environments/:envSlug/helm': 'project/view-helm',
   'GET /projects/:slug/environments/:envSlug/redis/:serviceId': 'project/view-redis-console',
+  'GET /projects/:slug/environments/:envSlug/services/:serviceId': 'project/view-service',
   'GET /projects/:slug/deployments/:deploymentId': 'project/view-deployment',
 
   // Settings (web UI)
@@ -134,6 +135,10 @@ module.exports.routes = {
   'GET /api/v1/services/:id': 'api/v1/service/get-service',
   'DELETE /api/v1/services/:id': 'api/v1/service/destroy-service',
   'POST /api/v1/services/:serviceId/redis': 'api/v1/service/execute-redis-command',
+  'GET /api/v1/services/:serviceId/logs/stream': 'api/v1/service/stream-logs',
+  'POST /api/v1/services/:serviceId/stop': 'api/v1/service/stop-service',
+  'POST /api/v1/services/:serviceId/restart': 'api/v1/service/restart-service',
+  'PATCH /api/v1/services/:serviceId': 'api/v1/service/update-service',
 
   // Backups
   'POST /api/v1/services/:serviceId/backups': 'api/v1/backup/create-backup',

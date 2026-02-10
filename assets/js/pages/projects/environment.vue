@@ -1169,7 +1169,7 @@ onBeforeUnmount(() => {
                 <div class="border-t border-gray-200 dark:border-gray-800">
                   <div class="relative">
                     <pre
-                      class="pointer-events-none absolute inset-0 overflow-hidden whitespace-pre-wrap break-all bg-gray-50 px-4 py-3 font-mono text-sm leading-relaxed dark:bg-gray-900"
+                      class="pointer-events-none absolute inset-0 overflow-hidden whitespace-pre-wrap break-all bg-gray-50 px-4 py-4 font-mono text-sm leading-relaxed dark:bg-gray-950"
                       aria-hidden="true"
                       v-html="bulkHighlighted"
                     ></pre>
@@ -1177,7 +1177,7 @@ onBeforeUnmount(() => {
                       v-model="bulkText"
                       rows="3"
                       placeholder="KEY=value&#10;DATABASE_URL=postgres://localhost:5432/db&#10;# Comments are ignored"
-                      class="relative block w-full resize-none bg-transparent px-4 py-3 font-mono text-sm text-transparent caret-gray-900 placeholder-gray-400 focus:outline-none dark:caret-white dark:placeholder-gray-500"
+                      class="relative block w-full resize-none bg-transparent px-4 py-4 font-mono text-sm text-transparent caret-gray-900 placeholder-gray-400 focus:outline-none dark:caret-white dark:placeholder-gray-500"
                       style="field-sizing: content"
                       spellcheck="false"
                     />
@@ -1313,7 +1313,10 @@ onBeforeUnmount(() => {
                         {{ serviceIcon(service.type) }}
                       </span>
                       <div>
-                        <span class="text-sm font-medium text-gray-900 dark:text-white">{{ service.name }}</span>
+                        <Link
+                          :href="`/projects/${project.slug}/environments/${environment.slug}/services/${service.id}`"
+                          class="text-sm font-medium text-gray-900 underline decoration-dashed decoration-gray-300 underline-offset-2 hover:text-gray-700 dark:text-white dark:decoration-gray-600 dark:hover:text-gray-300"
+                        >{{ service.name }}</Link>
                         <span class="ml-2 text-xs text-gray-400 dark:text-gray-500">{{ service.type }}{{ service.version !== 'latest' ? ` ${service.version}` : '' }}</span>
                       </div>
                     </div>
@@ -1355,16 +1358,6 @@ onBeforeUnmount(() => {
                           v-if="serviceMenuOpen === service.id"
                           class="absolute right-0 z-20 mt-1 w-36 rounded-md border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-900"
                         >
-                          <Link
-                            :href="`/projects/${project.slug}/environments/${environment.slug}/services/${service.id}/logs`"
-                            class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-800"
-                            @click="serviceMenuOpen = null"
-                          >
-                            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                            </svg>
-                            View Logs
-                          </Link>
                           <button
                             v-if="service.status === 'running'"
                             @click.stop="stopService(service)"
