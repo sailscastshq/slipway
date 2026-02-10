@@ -15,6 +15,8 @@ const props = defineProps({
 
 const page = usePage()
 const toggleMobileMenu = inject('toggleMobileMenu')
+const toggleSidebar = inject('toggleSidebar')
+const sidebarCollapsed = inject('sidebarCollapsed')
 
 const code = ref('// Access your Sails models, helpers, and config\n')
 const output = ref('')
@@ -331,8 +333,9 @@ function highlightJSON(str) {
   <Head :title="`Helm - ${project.name} / ${environment.name} | Slipway`"></Head>
   <div class="flex h-full flex-col">
     <!-- Header -->
-    <div class="flex items-center justify-between border-b border-gray-200 px-4 py-4 dark:border-gray-800 sm:px-8">
+    <div class="flex items-center justify-between border-b border-gray-200 px-4 py-3 dark:border-gray-800 sm:px-8 sm:py-4">
       <div class="flex items-center space-x-3">
+        <!-- Mobile menu toggle -->
         <button
           @click="toggleMobileMenu"
           class="rounded-md p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white md:hidden"
@@ -341,7 +344,30 @@ function highlightJSON(str) {
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
           </svg>
         </button>
-        <nav class="flex items-center space-x-2 text-sm">
+        <!-- Desktop sidebar toggle (when collapsed) -->
+        <button
+          v-if="sidebarCollapsed"
+          @click="toggleSidebar"
+          class="hidden rounded-md p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white md:block"
+          title="Show sidebar"
+        >
+          <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+          </svg>
+        </button>
+        <!-- Mobile: simplified breadcrumb -->
+        <nav class="flex items-center space-x-2 text-sm sm:hidden">
+          <Link
+            :href="`/projects/${project.slug}/environments/${environment.slug}`"
+            class="text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
+          >
+            {{ project.name.toLowerCase() }}
+          </Link>
+          <span class="text-gray-400 dark:text-gray-600">/</span>
+          <span class="font-medium text-gray-900 dark:text-white">helm</span>
+        </nav>
+        <!-- Desktop: full breadcrumb -->
+        <nav class="hidden items-center space-x-2 text-sm sm:flex">
           <Link href="/" class="text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white">
             projects
           </Link>
@@ -363,21 +389,22 @@ function highlightJSON(str) {
           <span class="font-medium text-gray-900 dark:text-white">helm</span>
         </nav>
       </div>
-      <div class="flex items-center space-x-3">
+      <div class="flex items-center space-x-2 sm:space-x-3">
+        <!-- Status indicator -->
         <span v-if="isRunning" class="flex items-center space-x-1.5 text-xs text-green-600 dark:text-green-400">
           <span class="h-1.5 w-1.5 rounded-full bg-green-500"></span>
-          <span>connected</span>
+          <span class="hidden sm:inline">connected</span>
         </span>
         <span v-else class="flex items-center space-x-1.5 text-xs text-gray-400">
           <span class="h-1.5 w-1.5 rounded-full bg-gray-400"></span>
-          <span>app not running</span>
+          <span class="hidden sm:inline">not running</span>
         </span>
 
         <!-- Run button -->
         <button
           @click="execute"
           :disabled="running || !isRunning"
-          class="flex items-center space-x-1.5 rounded-md bg-gray-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-gray-800 disabled:opacity-50 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
+          class="flex items-center space-x-1.5 rounded-md bg-gray-900 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-gray-800 disabled:opacity-50 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100 sm:px-3"
           :title="(navigator?.platform?.includes('Mac') ? '⌘' : 'Ctrl') + '+Enter'"
         >
           <svg v-if="running" class="h-3 w-3 animate-spin" fill="none" viewBox="0 0 24 24">
@@ -387,14 +414,14 @@ function highlightJSON(str) {
           <svg v-else class="h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
             <path d="M6.3 2.841A1.5 1.5 0 004 4.11V15.89a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z" />
           </svg>
-          <span>{{ running ? 'Running' : 'Run' }}</span>
+          <span class="hidden sm:inline">{{ running ? 'Running' : 'Run' }}</span>
         </button>
 
         <!-- Docs link -->
         <a
           href="https://docs.sailscasts.com/slipway/helm"
           target="_blank"
-          class="flex items-center space-x-1 text-sm text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
+          class="hidden items-center space-x-1 text-sm text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white sm:flex"
         >
           <span>Docs</span>
           <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

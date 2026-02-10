@@ -19,6 +19,8 @@ const props = defineProps({
 })
 
 const toggleMobileMenu = inject('toggleMobileMenu')
+const toggleSidebar = inject('toggleSidebar')
+const sidebarCollapsed = inject('sidebarCollapsed')
 
 // Active tab - initialize from URL query param
 const validTabs = ['console', 'tables', 'schema', 'migrate']
@@ -447,6 +449,7 @@ onUnmounted(() => {
     <!-- Header -->
     <div class="flex items-center justify-between border-b border-gray-200 px-4 py-3 dark:border-gray-800 sm:px-6">
       <div class="flex items-center space-x-3">
+        <!-- Mobile menu toggle -->
         <button
           @click="toggleMobileMenu"
           class="rounded-md p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white md:hidden"
@@ -455,7 +458,27 @@ onUnmounted(() => {
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
           </svg>
         </button>
-        <nav class="flex items-center space-x-2 text-sm">
+        <!-- Desktop sidebar toggle (when collapsed) -->
+        <button
+          v-if="sidebarCollapsed"
+          @click="toggleSidebar"
+          class="hidden rounded-md p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white md:block"
+          title="Show sidebar"
+        >
+          <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+          </svg>
+        </button>
+        <!-- Mobile: simplified breadcrumb -->
+        <nav class="flex items-center space-x-2 text-sm sm:hidden">
+          <Link :href="`/projects/${project.slug}/environments/${environment.slug}`" class="text-gray-500 dark:text-gray-400">
+            {{ project.name.toLowerCase() }}
+          </Link>
+          <span class="text-gray-400 dark:text-gray-600">/</span>
+          <span class="font-medium text-gray-900 dark:text-white">dock</span>
+        </nav>
+        <!-- Desktop: full breadcrumb -->
+        <nav class="hidden items-center space-x-2 text-sm sm:flex">
           <Link href="/" class="text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white">projects</Link>
           <span class="text-gray-400 dark:text-gray-600">/</span>
           <Link :href="`/projects/${project.slug}`" class="text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white">
@@ -469,16 +492,19 @@ onUnmounted(() => {
           <span class="font-medium text-gray-900 dark:text-white">dock</span>
         </nav>
       </div>
-      <div class="flex items-center space-x-2">
-        <span v-if="databaseService" class="rounded bg-gray-100 px-2 py-1 text-xs font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-400">
+      <div class="flex items-center space-x-2 sm:space-x-3">
+        <span v-if="databaseService" class="hidden rounded bg-gray-100 px-2 py-1 text-xs font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-400 sm:inline-block">
           {{ databaseService.type }}
         </span>
         <a
           href="https://docs.sailscasts.com/slipway/dock"
           target="_blank"
-          class="text-sm text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
+          class="flex items-center space-x-1 text-sm text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
         >
-          Docs
+          <span>Docs</span>
+          <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+          </svg>
         </a>
       </div>
     </div>
@@ -508,22 +534,20 @@ onUnmounted(() => {
     <!-- Database management UI -->
     <div v-else class="flex flex-1 flex-col overflow-hidden">
       <!-- Tabs -->
-      <div class="border-b border-gray-200 px-4 dark:border-gray-800 sm:px-6">
-        <nav class="flex space-x-6">
-          <button
-            v-for="tab in ['console', 'tables', 'schema', 'migrate']"
-            :key="tab"
-            @click="switchTab(tab)"
-            :class="[
-              'border-b-2 py-3 text-sm font-medium capitalize transition-colors',
-              activeTab === tab
-                ? 'border-gray-900 text-gray-900 dark:border-white dark:text-white'
-                : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
-            ]"
-          >
-            {{ tab === 'console' ? 'SQL Console' : tab }}
-          </button>
-        </nav>
+      <div class="flex items-center space-x-1 px-4 py-2 sm:px-6">
+        <button
+          v-for="tab in ['console', 'tables', 'schema', 'migrate']"
+          :key="tab"
+          @click="switchTab(tab)"
+          :class="[
+            'rounded-md px-3 py-1.5 text-sm font-medium capitalize transition-colors',
+            activeTab === tab
+              ? 'bg-gray-900 text-white dark:bg-white dark:text-gray-900'
+              : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-300'
+          ]"
+        >
+          {{ tab === 'console' ? 'SQL' : tab }}
+        </button>
       </div>
 
       <!-- SQL Console Tab -->
