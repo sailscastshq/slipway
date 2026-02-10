@@ -7,7 +7,7 @@ module.exports = {
     channel: {
       type: 'string',
       required: true,
-      isIn: ['telegram', 'email']
+      isIn: ['telegram', 'discord', 'email']
     }
   },
 
@@ -59,12 +59,56 @@ module.exports = {
         return { success: true, message: 'Test message sent to Telegram' }
       }
 
+      if (channel === 'discord') {
+        const webhookUrl = await sails.helpers.setting.get('discordWebhookUrl', '')
+
+        if (!webhookUrl) {
+          return this.res.status(400).json({
+            success: false,
+            message: 'Discord webhook URL is required'
+          })
+        }
+
+        const response = await fetch(webhookUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            embeds: [{
+              title: 'Slipway Test Notification',
+              description: 'This is a test message from your Slipway instance. If you receive this, Discord notifications are working correctly.',
+              color: 0x10b981,
+              footer: {
+                text: 'Slipway'
+              },
+              timestamp: new Date().toISOString()
+            }]
+          })
+        })
+
+        if (!response.ok) {
+          const text = await response.text()
+          return this.res.status(400).json({
+            success: false,
+            message: text || 'Failed to send Discord message'
+          })
+        }
+
+        return { success: true, message: 'Test message sent to Discord' }
+      }
+
       if (channel === 'email') {
-        const smtpHost = await sails.helpers.setting.get('smtpHost', '')
-        const smtpPort = await sails.helpers.setting.get('smtpPort', '587')
-        const smtpUser = await sails.helpers.setting.get('smtpUser', '')
-        const smtpPassword = await sails.helpers.setting.get('smtpPassword', '')
-        const smtpFrom = await sails.helpers.setting.get('smtpFrom', '')
+        // Get global env vars first
+        let globalEnvVars = {}
+        try {
+          const globalJson = await sails.helpers.setting.get('globalEnvVars', '{}')
+          globalEnvVars = JSON.parse(globalJson)
+        } catch { /* ignore */ }
+
+        const smtpHost = globalEnvVars.MAIL_HOST || await sails.helpers.setting.get('smtpHost', '')
+        const smtpPort = globalEnvVars.MAIL_PORT || await sails.helpers.setting.get('smtpPort', '587')
+        const smtpUser = globalEnvVars.MAIL_USER || await sails.helpers.setting.get('smtpUser', '')
+        const smtpPassword = globalEnvVars.MAIL_PASSWORD || await sails.helpers.setting.get('smtpPassword', '')
+        const smtpFrom = globalEnvVars.MAIL_FROM || await sails.helpers.setting.get('smtpFrom', '')
         const notificationEmails = await sails.helpers.setting.get('notificationEmails', '')
 
         if (!smtpHost || !notificationEmails) {

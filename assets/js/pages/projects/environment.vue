@@ -254,6 +254,9 @@ const newServiceType = ref('postgresql')
 const newServiceVersion = ref('latest')
 const creatingService = ref(false)
 const deletingServiceId = ref(null)
+const serviceMenuOpen = ref(null)
+const stoppingServiceId = ref(null)
+const startingServiceId = ref(null)
 const revealedServiceUrls = ref(new Set())
 
 const serviceTypes = [
@@ -306,8 +309,55 @@ async function createService() {
   }
 }
 
+function toggleServiceMenu(serviceId) {
+  serviceMenuOpen.value = serviceMenuOpen.value === serviceId ? null : serviceId
+}
+
+function closeServiceMenu() {
+  serviceMenuOpen.value = null
+}
+
 function confirmDeleteService(service) {
+  serviceMenuOpen.value = null
   deletingServiceId.value = service.id
+}
+
+async function stopService(service) {
+  serviceMenuOpen.value = null
+  stoppingServiceId.value = service.id
+  try {
+    const res = await fetch(`/api/v1/services/${service.id}/stop`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' }
+    })
+    if (res.ok) {
+      toast({ message: `Service "${service.name}" stopped`, type: 'success' })
+    } else {
+      toast({ message: 'Failed to stop service', type: 'error' })
+    }
+    router.reload({ only: ['environment'] })
+  } finally {
+    stoppingServiceId.value = null
+  }
+}
+
+async function startService(service) {
+  serviceMenuOpen.value = null
+  startingServiceId.value = service.id
+  try {
+    const res = await fetch(`/api/v1/services/${service.id}/start`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' }
+    })
+    if (res.ok) {
+      toast({ message: `Service "${service.name}" started`, type: 'success' })
+    } else {
+      toast({ message: 'Failed to start service', type: 'error' })
+    }
+    router.reload({ only: ['environment'] })
+  } finally {
+    startingServiceId.value = null
+  }
 }
 
 async function executeDeleteService() {
@@ -1250,7 +1300,7 @@ onBeforeUnmount(() => {
                 </svg>
               </button>
             </div>
-            <div v-show="servicesOpen">
+            <div v-show="servicesOpen" @click="closeServiceMenu">
               <div v-if="services.length > 0" class="divide-y divide-gray-200 border-t border-gray-200 dark:divide-gray-800 dark:border-gray-800">
                 <div
                   v-for="service in services"
@@ -1291,14 +1341,55 @@ onBeforeUnmount(() => {
                           </svg>
                         </Link>
                       </Tooltip>
-                      <button
-                        @click="confirmDeleteService(service)"
-                        class="rounded p-1 text-gray-400 hover:text-red-600 dark:hover:text-red-400"
-                      >
-                        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                        </svg>
-                      </button>
+                      <!-- Service actions menu -->
+                      <div class="relative">
+                        <button
+                          @click.stop="toggleServiceMenu(service.id)"
+                          class="rounded p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                        >
+                          <svg class="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+                            <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
+                          </svg>
+                        </button>
+                        <div
+                          v-if="serviceMenuOpen === service.id"
+                          class="absolute right-0 z-20 mt-1 w-36 rounded-md border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-900"
+                        >
+                          <button
+                            v-if="service.status === 'running'"
+                            @click.stop="stopService(service)"
+                            :disabled="stoppingServiceId === service.id"
+                            class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:text-gray-300 dark:hover:bg-gray-800"
+                          >
+                            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z" />
+                            </svg>
+                            {{ stoppingServiceId === service.id ? 'Stopping...' : 'Stop' }}
+                          </button>
+                          <button
+                            v-else-if="service.status === 'stopped'"
+                            @click.stop="startService(service)"
+                            :disabled="startingServiceId === service.id"
+                            class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:text-gray-300 dark:hover:bg-gray-800"
+                          >
+                            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            {{ startingServiceId === service.id ? 'Starting...' : 'Start' }}
+                          </button>
+                          <button
+                            @click.stop="confirmDeleteService(service)"
+                            class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20"
+                          >
+                            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                            Delete
+                          </button>
+                        </div>
+                      </div>
                     </div>
                   </div>
                   <div v-if="service.connectionUrl" class="mt-2 flex items-center gap-2">

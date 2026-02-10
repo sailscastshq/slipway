@@ -15,6 +15,14 @@ module.exports = {
       type: 'boolean'
     },
 
+    // Discord
+    discordWebhookUrl: {
+      type: 'string'
+    },
+    discordEnabled: {
+      type: 'boolean'
+    },
+
     // SMTP
     smtpHost: {
       type: 'string'
@@ -40,11 +48,27 @@ module.exports = {
       type: 'string'
     },
 
-    // Preferences
+    // Preferences - Deployment
     notifyOnDeploySuccess: {
       type: 'boolean'
     },
     notifyOnDeployFailure: {
+      type: 'boolean'
+    },
+
+    // Preferences - Backup
+    notifyOnBackupSuccess: {
+      type: 'boolean'
+    },
+    notifyOnBackupFailure: {
+      type: 'boolean'
+    },
+
+    // Preferences - System
+    notifyOnContainerRestart: {
+      type: 'boolean'
+    },
+    notifyOnHighResourceUsage: {
       type: 'boolean'
     }
   },
@@ -65,6 +89,14 @@ module.exports = {
     }
     if (inputs.telegramEnabled !== undefined) {
       await sails.helpers.setting.set('telegramEnabled', String(inputs.telegramEnabled))
+    }
+
+    // Discord settings
+    if (inputs.discordWebhookUrl !== undefined) {
+      await sails.helpers.setting.set('discordWebhookUrl', inputs.discordWebhookUrl.trim())
+    }
+    if (inputs.discordEnabled !== undefined) {
+      await sails.helpers.setting.set('discordEnabled', String(inputs.discordEnabled))
     }
 
     // SMTP settings
@@ -93,12 +125,28 @@ module.exports = {
       await sails.helpers.setting.set('notificationEmails', inputs.notificationEmails.trim())
     }
 
-    // Preferences
+    // Preferences - Deployment
     if (inputs.notifyOnDeploySuccess !== undefined) {
       await sails.helpers.setting.set('notifyOnDeploySuccess', String(inputs.notifyOnDeploySuccess))
     }
     if (inputs.notifyOnDeployFailure !== undefined) {
       await sails.helpers.setting.set('notifyOnDeployFailure', String(inputs.notifyOnDeployFailure))
+    }
+
+    // Preferences - Backup
+    if (inputs.notifyOnBackupSuccess !== undefined) {
+      await sails.helpers.setting.set('notifyOnBackupSuccess', String(inputs.notifyOnBackupSuccess))
+    }
+    if (inputs.notifyOnBackupFailure !== undefined) {
+      await sails.helpers.setting.set('notifyOnBackupFailure', String(inputs.notifyOnBackupFailure))
+    }
+
+    // Preferences - System
+    if (inputs.notifyOnContainerRestart !== undefined) {
+      await sails.helpers.setting.set('notifyOnContainerRestart', String(inputs.notifyOnContainerRestart))
+    }
+    if (inputs.notifyOnHighResourceUsage !== undefined) {
+      await sails.helpers.setting.set('notifyOnHighResourceUsage', String(inputs.notifyOnHighResourceUsage))
     }
 
     this.req._sails.inertia.flash('success', 'Notification settings updated')
