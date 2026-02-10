@@ -231,9 +231,9 @@ const categoryIcons = {
           <!-- Notification Channels -->
           <div v-if="filteredChannels.length > 0">
             <h2 class="mb-4 text-sm font-medium text-gray-900 dark:text-white">Notification Channels</h2>
-            <div class="space-y-4">
+            <div class="overflow-hidden rounded-lg border border-gray-200 dark:border-gray-800">
               <!-- Discord Section -->
-              <div v-if="filteredChannels.some(c => c.id === 'discord')" class="rounded-lg border border-gray-200 dark:border-gray-800">
+              <div v-if="filteredChannels.some(c => c.id === 'discord')">
                 <div class="flex items-center justify-between px-4 py-3">
                   <div class="flex items-center gap-3">
                     <svg class="h-5 w-5 text-[#5865F2]" viewBox="0 0 24 24" fill="currentColor">
@@ -279,7 +279,7 @@ const categoryIcons = {
               </div>
 
               <!-- Telegram Section -->
-              <div v-if="filteredChannels.some(c => c.id === 'telegram')" class="rounded-lg border border-gray-200 dark:border-gray-800">
+              <div v-if="filteredChannels.some(c => c.id === 'telegram')" class="border-t border-gray-200 dark:border-gray-800">
                 <div class="flex items-center justify-between px-4 py-3">
                   <div class="flex items-center gap-3">
                     <svg class="h-5 w-5 text-[#0088cc]" viewBox="0 0 24 24" fill="currentColor">
@@ -352,7 +352,7 @@ const categoryIcons = {
               </div>
 
               <!-- Email Section -->
-              <div v-if="filteredChannels.some(c => c.id === 'email')" class="rounded-lg border border-gray-200 dark:border-gray-800">
+              <div v-if="filteredChannels.some(c => c.id === 'email')" class="border-t border-gray-200 dark:border-gray-800">
                 <div class="flex items-center justify-between px-4 py-3">
                   <div class="flex items-center gap-3">
                     <svg class="h-5 w-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
