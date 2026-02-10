@@ -214,19 +214,17 @@ useFlashToast(toast)
         v-if="loggedInUser && !sidebarCollapsed"
         class="hidden w-56 flex-col border-r border-gray-200 bg-gray-50 dark:border-gray-800 dark:bg-gray-950 md:flex"
       >
-        <!-- Team Selector -->
-        <div class="px-3 py-4">
+        <!-- Team Selector + Collapse -->
+        <div class="flex items-center justify-between px-3 py-4">
           <button
-            class="flex w-full items-center justify-between rounded-md px-2 py-1.5 text-sm text-gray-700 hover:bg-gray-200 dark:text-gray-200 dark:hover:bg-gray-800"
+            class="flex flex-1 items-center space-x-2 rounded-md px-2 py-1.5 text-sm text-gray-700 hover:bg-gray-200 dark:text-gray-200 dark:hover:bg-gray-800"
           >
-            <div class="flex items-center space-x-2">
-              <span
-                class="flex h-6 w-6 items-center justify-center rounded bg-brand text-xs font-medium text-white"
-              >
-                {{ loggedInUser.team?.name?.charAt(0)?.toUpperCase() || 'T' }}
-              </span>
-              <span class="truncate font-medium">{{ loggedInUser.team?.name || 'Team' }}</span>
-            </div>
+            <span
+              class="flex h-6 w-6 items-center justify-center rounded bg-brand text-xs font-medium text-white"
+            >
+              {{ loggedInUser.team?.name?.charAt(0)?.toUpperCase() || 'T' }}
+            </span>
+            <span class="truncate font-medium">{{ loggedInUser.team?.name || 'Team' }}</span>
             <svg
               class="h-4 w-4 shrink-0 text-gray-400 dark:text-gray-500"
               fill="none"
@@ -239,6 +237,15 @@ useFlashToast(toast)
                 stroke-width="2"
                 d="M8 9l4-4 4 4m0 6l-4 4-4-4"
               />
+            </svg>
+          </button>
+          <button
+            @click="toggleSidebar"
+            class="ml-1 rounded-md p-1.5 text-gray-400 hover:bg-gray-200 hover:text-gray-600 dark:text-gray-500 dark:hover:bg-gray-800 dark:hover:text-gray-300"
+            title="Hide sidebar"
+          >
+            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
             </svg>
           </button>
         </div>
@@ -300,20 +307,6 @@ useFlashToast(toast)
             </li>
           </ul>
         </nav>
-
-        <!-- Collapse Button -->
-        <div class="px-3 py-2">
-          <button
-            @click="toggleSidebar"
-            class="flex w-full items-center space-x-3 rounded-md px-2 py-2 text-sm text-gray-400 transition-colors hover:bg-gray-200/50 hover:text-gray-600 dark:text-gray-500 dark:hover:bg-gray-800/50 dark:hover:text-gray-300"
-            title="Hide sidebar"
-          >
-            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
-            </svg>
-            <span>Collapse</span>
-          </button>
-        </div>
 
         <!-- User Profile -->
         <div class="px-3 py-3">
