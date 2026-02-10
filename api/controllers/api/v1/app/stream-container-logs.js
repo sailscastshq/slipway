@@ -61,13 +61,32 @@ module.exports = {
       'X-Accel-Buffering': 'no'
     })
 
+    // Track cleanup state to prevent double-cleanup race conditions
+    let cleanedUp = false
+
+    function cleanup() {
+      if (cleanedUp) return
+      cleanedUp = true
+    }
+
+    function safeWrite(data) {
+      if (cleanedUp || res.writableEnded || res.destroyed) return false
+      try {
+        res.write(data)
+        return true
+      } catch (err) {
+        cleanup()
+        return false
+      }
+    }
+
     // Spawn `docker logs --follow` as a child process
+    const dockerPath = sails.config.docker?.binaryPath || 'docker'
     const args = ['logs', '--follow', '--tail', String(tail), '--timestamps', app.containerName]
-    const docker = spawn('docker', args)
+    const docker = spawn(dockerPath, args)
 
     function sendLine(line) {
-      if (res.writableEnded) return
-      res.write(`data: ${JSON.stringify({ log: line })}\n\n`)
+      safeWrite(`data: ${JSON.stringify({ log: line })}\n\n`)
     }
 
     function onData(data) {
@@ -82,22 +101,29 @@ module.exports = {
     docker.stderr.on('data', onData)
 
     docker.on('error', (err) => {
-      if (!res.writableEnded) {
-        res.write(`data: ${JSON.stringify({ error: err.message })}\n\n`)
-        res.end()
+      if (safeWrite(`data: ${JSON.stringify({ error: err.message })}\n\n`)) {
+        try { res.end() } catch (e) { /* ignore */ }
       }
+      cleanup()
     })
 
     docker.on('close', () => {
-      if (!res.writableEnded) {
-        res.write(`data: ${JSON.stringify({ closed: true })}\n\n`)
-        res.end()
+      if (safeWrite(`data: ${JSON.stringify({ closed: true })}\n\n`)) {
+        try { res.end() } catch (e) { /* ignore */ }
       }
+      cleanup()
+    })
+
+    // Handle response errors (e.g., client disconnect during gzip)
+    res.on('error', () => {
+      cleanup()
+      docker.kill()
     })
 
     // Return a promise that prevents Sails from calling res.end() prematurely
     return new Promise((resolve) => {
       req.on('close', () => {
+        cleanup()
         docker.kill()
         resolve()
       })

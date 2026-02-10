@@ -76,6 +76,16 @@ module.exports = {
 
     await Environment.updateOne({ id: environment.id }).set(updates)
 
+    // If domain changed, update Caddy route
+    if (domain !== undefined) {
+      try {
+        await sails.helpers.caddy.updateRoute(environment.id)
+      } catch (err) {
+        // Log but don't fail - Caddy update is best-effort
+        sails.log.warn('Failed to update Caddy route after domain change:', err.message)
+      }
+    }
+
     const updatedEnv = await Environment.findOne({ id: environment.id })
       .populate('app')
       .populate('services')

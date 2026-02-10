@@ -51,11 +51,11 @@ module.exports = {
     // Build list of all available domains (for the domain dropdown)
     const subdomain = `${project.slug}-${environment.slug}`
     const wildcardDomain = await sails.helpers.setting.get('wildcardDomain')
+    const serverIp = await sails.helpers.getServerIp()
     let generatedDomain
     if (wildcardDomain) {
       generatedDomain = `${subdomain}.${wildcardDomain}`
     } else {
-      const serverIp = await sails.helpers.getServerIp()
       generatedDomain = `${subdomain}.${serverIp}.sslip.io`
     }
 
@@ -143,6 +143,7 @@ module.exports = {
           ...environment,
           fullDomain,
           generatedDomain,
+          serverIp,
           services
         },
         app: app ? { ...app, containerHealth } : null,

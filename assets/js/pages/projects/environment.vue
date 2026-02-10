@@ -502,6 +502,44 @@ function handleChecklistAction(action) {
   }
 }
 
+// --- Custom domains ---
+const newDomain = ref(props.environment.domain || '')
+const savingDomain = ref(false)
+const domainModalOpen = ref(false)
+const moreMenuOpen = ref(false)
+
+function openDomainModal() {
+  newDomain.value = props.environment.domain || ''
+  domainModalOpen.value = true
+  moreMenuOpen.value = false
+}
+
+function closeDomainModal() {
+  domainModalOpen.value = false
+}
+
+async function saveCustomDomain() {
+  if (savingDomain.value) return
+  savingDomain.value = true
+  try {
+    const res = await fetch(`/api/v1/projects/${props.project.slug}/environments/${props.environment.slug}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ domain: newDomain.value.trim() })
+    })
+    if (res.ok) {
+      toast({ message: newDomain.value.trim() ? 'Custom domain saved' : 'Custom domain removed', type: 'success' })
+      domainModalOpen.value = false
+      router.reload({ only: ['environment'] })
+    } else {
+      const err = await res.json().catch(() => null)
+      toast({ message: err?.message || 'Failed to save domain', type: 'error' })
+    }
+  } finally {
+    savingDomain.value = false
+  }
+}
+
 // --- Container logs ---
 const logsOpen = ref(new URLSearchParams(window.location.search).has('logs'))
 const logLines = ref([])
@@ -633,7 +671,7 @@ onBeforeUnmount(() => {
 </script>
 <template>
   <Head :title="`${environment.name} - ${project.name} | Slipway`"></Head>
-  <div class="flex h-full flex-col" @click="closeDomainDropdown">
+  <div class="flex h-full flex-col" @click="closeDomainDropdown; moreMenuOpen = false">
     <!-- Header -->
     <div class="flex items-center justify-between border-b border-gray-200 px-4 py-4 dark:border-gray-800 sm:px-8">
       <div class="flex items-center space-x-3">
@@ -776,79 +814,117 @@ onBeforeUnmount(() => {
             </div>
           </div>
           <div class="flex items-center space-x-2">
-            <!-- Content (if sails-content detected) -->
-            <Tooltip v-if="environment.features && environment.features['sails-content']" text="Content">
-              <Link
-                :href="`/projects/${project.slug}/environments/${environment.slug}/content`"
+            <!-- More menu with tools -->
+            <div class="relative">
+              <button
+                @click.stop="moreMenuOpen = !moreMenuOpen"
                 class="rounded-md p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-800 dark:hover:text-gray-200"
               >
-                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                <svg class="h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
+                  <circle cx="12" cy="6" r="1.5" />
+                  <circle cx="12" cy="12" r="1.5" />
+                  <circle cx="12" cy="18" r="1.5" />
                 </svg>
-              </Link>
-            </Tooltip>
-            <!-- Quest (if sails-quest detected) -->
-            <Tooltip v-if="environment.features && environment.features['sails-quest']" text="Quest">
-              <Link
-                :href="`/projects/${project.slug}/environments/${environment.slug}/quest`"
-                class="rounded-md p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-800 dark:hover:text-gray-200"
+              </button>
+              <!-- Dropdown -->
+              <Transition
+                enter-active-class="transition ease-out duration-100"
+                enter-from-class="transform opacity-0 scale-95"
+                enter-to-class="transform opacity-100 scale-100"
+                leave-active-class="transition ease-in duration-75"
+                leave-from-class="transform opacity-100 scale-100"
+                leave-to-class="transform opacity-0 scale-95"
               >
-                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-              </Link>
-            </Tooltip>
-            <!-- Dock (if database service exists) -->
-            <Tooltip v-if="hasDatabaseService" text="Dock">
-              <Link
-                :href="`/projects/${project.slug}/environments/${environment.slug}/dock`"
-                class="rounded-md p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-800 dark:hover:text-gray-200"
-              >
-                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4" />
-                </svg>
-              </Link>
-            </Tooltip>
-            <!-- Helm REPL -->
-            <Tooltip text="Helm REPL">
-              <Link
-                :href="`/projects/${project.slug}/environments/${environment.slug}/helm`"
-                class="rounded-md p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-800 dark:hover:text-gray-200"
-              >
-                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                </svg>
-              </Link>
-            </Tooltip>
-            <!-- Container lifecycle controls -->
-            <template v-if="app && app.status === 'running'">
-              <Tooltip text="Restart">
-                <button
-                  @click="restartApp"
-                  :disabled="restarting"
-                  class="rounded-md p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-800 dark:hover:text-gray-200"
+                <div
+                  v-if="moreMenuOpen"
+                  @click.stop
+                  class="absolute right-0 top-full z-20 mt-1 w-48 rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-900"
                 >
-                  <svg v-if="restarting" class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
-                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                  </svg>
-                  <svg v-else class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                  </svg>
-                </button>
-              </Tooltip>
-              <Tooltip text="Stop">
-                <button
-                  @click="stopApp"
-                  :disabled="stopping"
-                  class="rounded-md p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400"
-                >
-                  <svg class="h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
-                    <rect x="6" y="6" width="12" height="12" rx="1" />
-                  </svg>
-                </button>
-              </Tooltip>
-            </template>
+                  <!-- Tools section -->
+                  <div class="border-b border-gray-100 pb-1 dark:border-gray-800">
+                    <Link
+                      v-if="environment.features && environment.features['sails-content']"
+                      :href="`/projects/${project.slug}/environments/${environment.slug}/content`"
+                      class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+                    >
+                      <svg class="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                      Content
+                    </Link>
+                    <Link
+                      v-if="environment.features && environment.features['sails-quest']"
+                      :href="`/projects/${project.slug}/environments/${environment.slug}/quest`"
+                      class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+                    >
+                      <svg class="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      Quest
+                    </Link>
+                    <Link
+                      v-if="hasDatabaseService"
+                      :href="`/projects/${project.slug}/environments/${environment.slug}/dock`"
+                      class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+                    >
+                      <svg class="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4" />
+                      </svg>
+                      Dock
+                    </Link>
+                    <Link
+                      :href="`/projects/${project.slug}/environments/${environment.slug}/helm`"
+                      class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+                    >
+                      <svg class="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                      </svg>
+                      Helm
+                    </Link>
+                  </div>
+                  <!-- Container controls -->
+                  <div v-if="app && app.status === 'running'" class="border-b border-gray-100 py-1 dark:border-gray-800">
+                    <button
+                      @click="restartApp; moreMenuOpen = false"
+                      :disabled="restarting"
+                      class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+                    >
+                      <svg v-if="restarting" class="h-4 w-4 animate-spin text-gray-400" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                      </svg>
+                      <svg v-else class="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                      </svg>
+                      Restart
+                    </button>
+                    <button
+                      @click="stopApp; moreMenuOpen = false"
+                      :disabled="stopping"
+                      class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20"
+                    >
+                      <svg class="h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
+                        <rect x="6" y="6" width="12" height="12" rx="1" />
+                      </svg>
+                      Stop
+                    </button>
+                  </div>
+                  <!-- Settings -->
+                  <div class="pt-1">
+                    <button
+                      @click="openDomainModal"
+                      class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+                    >
+                      <svg class="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
+                      </svg>
+                      Custom domain
+                      <span v-if="environment.domain" class="ml-auto h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
+                    </button>
+                  </div>
+                </div>
+              </Transition>
+            </div>
             <span v-if="app" :class="['inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium', appStatusClasses(app).bg]">
               <span :class="['h-1.5 w-1.5 rounded-full', appStatusClasses(app).dot]"></span>
               <span :class="appStatusClasses(app).text">{{ appStatusLabel(app) }}</span>
@@ -914,10 +990,10 @@ onBeforeUnmount(() => {
           </div>
         </div>
 
-        <!-- Container Logs -->
-        <div v-if="app" class="mb-10">
-          <div class="rounded-lg border border-gray-200 dark:border-gray-800">
-            <!-- Collapsible header -->
+        <!-- Accordion: Logs, Env Vars, Services -->
+        <div class="mb-10 divide-y divide-gray-200 rounded-lg border border-gray-200 dark:divide-gray-800 dark:border-gray-800">
+          <!-- Logs -->
+          <div v-if="app">
             <div class="flex items-center justify-between px-4 py-3">
               <button
                 @click="logsOpen = !logsOpen"
@@ -946,8 +1022,6 @@ onBeforeUnmount(() => {
                 </svg>
               </button>
             </div>
-
-            <!-- Expanded log viewer -->
             <div v-show="logsOpen">
               <div
                 v-if="logsError"
@@ -969,12 +1043,9 @@ onBeforeUnmount(() => {
               </div>
             </div>
           </div>
-        </div>
 
-        <!-- Environment Variables -->
-        <div class="mb-10">
-          <div class="rounded-lg border border-gray-200 dark:border-gray-800">
-            <!-- Collapsible header -->
+          <!-- Environment Variables -->
+          <div>
             <div class="flex items-center justify-between px-4 py-3">
               <button
                 @click="envVarsOpen = !envVarsOpen"
@@ -1014,10 +1085,7 @@ onBeforeUnmount(() => {
                 </button>
               </div>
             </div>
-
-            <!-- Expanded content -->
             <div v-show="envVarsOpen">
-              <!-- Bulk edit mode -->
               <template v-if="bulkMode">
                 <div class="border-t border-gray-200 dark:border-gray-800">
                   <div class="relative">
@@ -1049,8 +1117,6 @@ onBeforeUnmount(() => {
                   </div>
                 </div>
               </template>
-
-              <!-- Single mode -->
               <template v-else>
                 <div v-if="sortedVarKeys.length > 0" class="divide-y divide-gray-200 border-t border-gray-200 dark:divide-gray-800 dark:border-gray-800">
                   <div
@@ -1089,12 +1155,9 @@ onBeforeUnmount(() => {
                     </p>
                   </div>
                 </div>
-
                 <div v-else class="border-t border-gray-200 px-4 py-6 text-center text-sm text-gray-500 dark:border-gray-800 dark:text-gray-400">
                   No environment variables set.
                 </div>
-
-                <!-- Add new var -->
                 <div class="border-t border-gray-200 px-4 py-3 dark:border-gray-800">
                   <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
                     <input
@@ -1131,12 +1194,9 @@ onBeforeUnmount(() => {
               </template>
             </div>
           </div>
-        </div>
 
-        <!-- Services -->
-        <div class="mb-10">
-          <div class="rounded-lg border border-gray-200 dark:border-gray-800">
-            <!-- Collapsible header -->
+          <!-- Services -->
+          <div>
             <div class="flex items-center justify-between px-4 py-3">
               <button
                 @click="servicesOpen = !servicesOpen"
@@ -1161,10 +1221,7 @@ onBeforeUnmount(() => {
                 </svg>
               </button>
             </div>
-
-            <!-- Expanded content -->
             <div v-show="servicesOpen">
-              <!-- Existing services -->
               <div v-if="services.length > 0" class="divide-y divide-gray-200 border-t border-gray-200 dark:divide-gray-800 dark:border-gray-800">
                 <div
                   v-for="service in services"
@@ -1215,7 +1272,6 @@ onBeforeUnmount(() => {
                       </button>
                     </div>
                   </div>
-                  <!-- Connection URL -->
                   <div v-if="service.connectionUrl" class="mt-2 flex items-center gap-2">
                     <p class="truncate font-mono text-xs text-gray-500 dark:text-gray-400">
                       {{ revealedServiceUrls.has(service.id) ? service.connectionUrl : service.connectionUrl.replace(/\/\/.*@/, '//***:***@') }}
@@ -1244,7 +1300,6 @@ onBeforeUnmount(() => {
                       </svg>
                     </button>
                   </div>
-                  <!-- Backup row -->
                   <div v-if="service.backupSupported" class="mt-2 flex items-center justify-between">
                     <div class="flex items-center gap-2 text-xs text-gray-400 dark:text-gray-500">
                       <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1286,12 +1341,9 @@ onBeforeUnmount(() => {
                   </div>
                 </div>
               </div>
-
               <div v-else class="border-t border-gray-200 px-4 py-6 text-center text-sm text-gray-500 dark:border-gray-800 dark:text-gray-400">
                 No services attached.
               </div>
-
-              <!-- Add service form -->
               <div class="border-t border-gray-200 px-4 py-3 dark:border-gray-800">
                 <div v-if="addServiceOpen" class="space-y-3">
                   <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
@@ -1408,5 +1460,63 @@ onBeforeUnmount(() => {
       @confirm="executeDeleteService"
       @cancel="cancelDeleteService"
     />
+
+    <!-- Custom Domain Modal -->
+    <Teleport to="body">
+      <Transition
+        enter-active-class="transition duration-200 ease-out"
+        enter-from-class="opacity-0"
+        enter-to-class="opacity-100"
+        leave-active-class="transition duration-150 ease-in"
+        leave-from-class="opacity-100"
+        leave-to-class="opacity-0"
+      >
+        <div v-if="domainModalOpen" class="fixed inset-0 z-50 flex items-center justify-center">
+          <div class="fixed inset-0 bg-black/50" @click="closeDomainModal" />
+          <Transition
+            enter-active-class="transition duration-200 ease-out"
+            enter-from-class="scale-95 opacity-0"
+            enter-to-class="scale-100 opacity-100"
+            leave-active-class="transition duration-150 ease-in"
+            leave-from-class="scale-100 opacity-100"
+            leave-to-class="scale-95 opacity-0"
+          >
+            <div
+              v-if="domainModalOpen"
+              class="relative w-full max-w-sm rounded-lg border border-gray-200 bg-white p-6 shadow-xl dark:border-gray-700 dark:bg-gray-900"
+            >
+              <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Custom domain</h3>
+              <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">
+                Point your domain to <code class="rounded bg-gray-100 px-1 py-0.5 font-mono text-xs dark:bg-gray-800">{{ environment.serverIp }}</code> with an A record. SSL is provisioned automatically.
+              </p>
+              <div class="mt-4">
+                <input
+                  v-model="newDomain"
+                  type="text"
+                  placeholder="app.example.com"
+                  class="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-brand focus:outline-none dark:border-gray-600 dark:bg-gray-800 dark:text-white dark:placeholder-gray-500"
+                  @keydown.enter="saveCustomDomain"
+                />
+              </div>
+              <div class="mt-4 flex justify-end space-x-3">
+                <button
+                  @click="closeDomainModal"
+                  class="rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800"
+                >
+                  Cancel
+                </button>
+                <button
+                  @click="saveCustomDomain"
+                  :disabled="savingDomain"
+                  class="rounded-md bg-gray-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
+                >
+                  {{ savingDomain ? 'Saving...' : 'Save' }}
+                </button>
+              </div>
+            </div>
+          </Transition>
+        </div>
+      </Transition>
+    </Teleport>
   </div>
 </template>
