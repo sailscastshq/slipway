@@ -51,6 +51,22 @@ const showExportMenu = ref(false)
 const schema = ref(null)
 const schemaLoading = ref(false)
 const schemaError = ref(null)
+const schemaFilter = ref('')
+
+// Filtered schema tables
+const filteredSchemaTables = computed(() => {
+  if (!schema.value?.tables) return {}
+  if (!schemaFilter.value.trim()) return schema.value.tables
+
+  const filter = schemaFilter.value.toLowerCase().trim()
+  const filtered = {}
+  for (const [tableName, table] of Object.entries(schema.value.tables)) {
+    if (tableName.toLowerCase().includes(filter)) {
+      filtered[tableName] = table
+    }
+  }
+  return filtered
+})
 
 // Diff state
 const diff = ref(null)
@@ -860,8 +876,20 @@ onUnmounted(() => {
           <p class="text-sm text-red-600 dark:text-red-400">{{ schemaError }}</p>
         </div>
 
-        <div v-else-if="schema" class="space-y-6">
-          <div v-for="(table, tableName) in schema.tables" :key="tableName" class="rounded-lg border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900/30">
+        <div v-else-if="schema" class="space-y-4">
+          <!-- Filter input -->
+          <div class="sticky top-0 z-10 bg-white pb-2 dark:bg-gray-950">
+            <input
+              v-model="schemaFilter"
+              type="text"
+              placeholder="Filter tables..."
+              class="w-full max-w-xs rounded-md border border-gray-200 bg-white px-3 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:border-gray-400 focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-white dark:placeholder-gray-500 dark:focus:border-gray-600"
+            />
+          </div>
+
+          <!-- Tables -->
+          <div class="space-y-6">
+            <div v-for="(table, tableName) in filteredSchemaTables" :key="tableName" class="rounded-lg border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900/30">
             <div class="border-b border-gray-200 px-4 py-2 dark:border-gray-800">
               <span class="font-mono text-sm font-medium text-gray-900 dark:text-white">{{ tableName }}</span>
             </div>
@@ -886,6 +914,12 @@ onUnmounted(() => {
                 </tr>
               </tbody>
             </table>
+          </div>
+          </div>
+
+          <!-- Empty state when filter has no matches -->
+          <div v-if="Object.keys(filteredSchemaTables).length === 0 && schemaFilter" class="py-8 text-center text-sm text-gray-500 dark:text-gray-400">
+            No tables matching "{{ schemaFilter }}"
           </div>
         </div>
       </div>
