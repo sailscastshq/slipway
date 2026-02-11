@@ -923,7 +923,7 @@ onUnmounted(() => {
 
         <div v-else-if="schema" class="space-y-4">
           <!-- Filter dropdown -->
-          <div class="sticky top-0 z-10 bg-white pb-2 dark:bg-gray-950">
+          <div class="pb-2">
             <div class="relative inline-block" data-schema-filter>
               <button
                 @click.stop="schemaFilterOpen = !schemaFilterOpen"
