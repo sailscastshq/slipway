@@ -96,6 +96,35 @@ module.exports = {
       if (tables && tables.length > 0) {
         args.push(...tables)
       }
+    } else if (service.type === 'mongodb') {
+      // MongoDB: use mongodump with JSON output
+      // Note: schemaOnly doesn't apply to MongoDB (schemaless)
+      const mongoUri = `mongodb://${service.username}:${service.password}@localhost:27017/${service.database}?authSource=admin`
+
+      args = [
+        'exec', '-i', service.containerName,
+        'mongoexport',
+        '--uri', mongoUri,
+        '--jsonArray'
+      ]
+
+      // For MongoDB, we export one collection at a time
+      // If specific tables (collections) provided, export first one
+      // If no tables specified, we'll use mongodump for full database
+      if (tables && tables.length > 0) {
+        args.push('--collection', tables[0])
+        // Note: mongoexport only exports one collection
+        // For multiple collections, caller should make multiple requests
+      } else {
+        // Full database export - use mongodump instead
+        args = [
+          'exec', '-i', service.containerName,
+          'mongodump',
+          '--uri', mongoUri,
+          '--archive',
+          '--gzip'
+        ]
+      }
     } else {
       throw new Error(`Unsupported database type: ${service.type}`)
     }

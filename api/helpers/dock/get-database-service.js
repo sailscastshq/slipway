@@ -1,7 +1,7 @@
 module.exports = {
   friendlyName: 'Get database service',
 
-  description: 'Find the primary database service (PostgreSQL or MySQL) for an environment.',
+  description: 'Find the primary database service (PostgreSQL, MySQL, or MongoDB) for an environment.',
 
   inputs: {
     environmentId: {
@@ -22,10 +22,10 @@ module.exports = {
   },
 
   fn: async function ({ environmentId }) {
-    // Find PostgreSQL or MySQL service attached to this environment
+    // Find PostgreSQL, MySQL, or MongoDB service attached to this environment
     const service = await Service.findOne({
       environment: environmentId,
-      type: ['postgresql', 'mysql'],
+      type: ['postgresql', 'mysql', 'mongodb'],
       status: 'running'
     })
 

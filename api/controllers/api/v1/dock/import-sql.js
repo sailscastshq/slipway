@@ -67,26 +67,29 @@ module.exports = {
 
     // Basic validation
     if (!sql || !sql.trim()) {
-      throw { badRequest: 'SQL cannot be empty.' }
+      throw { badRequest: 'Data cannot be empty.' }
     }
 
-    // Security: Block dangerous operations
-    const dangerousPatterns = [
-      /DROP\s+DATABASE/i,
-      /DROP\s+SCHEMA\s+public/i,
-      /TRUNCATE\s+.*pg_/i
-    ]
+    // Security: Block dangerous SQL operations (only for SQL databases)
+    if (service.type === 'postgresql' || service.type === 'mysql') {
+      const dangerousPatterns = [
+        /DROP\s+DATABASE/i,
+        /DROP\s+SCHEMA\s+public/i,
+        /TRUNCATE\s+.*pg_/i
+      ]
 
-    for (const pattern of dangerousPatterns) {
-      if (pattern.test(sql)) {
-        throw { badRequest: 'This SQL contains operations that are not allowed for security reasons.' }
+      for (const pattern of dangerousPatterns) {
+        if (pattern.test(sql)) {
+          throw { badRequest: 'This SQL contains operations that are not allowed for security reasons.' }
+        }
       }
     }
 
     try {
       const result = await sails.helpers.dock.importSql(service, sql)
 
-      sails.log.info(`[dock] SQL imported into ${project.slug}/${environmentSlug} by ${user.fullName} (${result.statementCount} statements)`)
+      const logType = service.type === 'mongodb' ? 'data' : 'SQL'
+      sails.log.info(`[dock] ${logType} imported into ${project.slug}/${environmentSlug} by ${user.fullName} (${result.statementCount} statements)`)
 
       return result
     } catch (error) {

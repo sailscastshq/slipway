@@ -58,6 +58,39 @@ module.exports = {
         `-p${service.password}`,
         service.database
       ]
+    } else if (service.type === 'mongodb') {
+      // MongoDB: use mongoimport for JSON or mongorestore for archive
+      const mongoUri = `mongodb://${service.username}:${service.password}@localhost:27017/${service.database}?authSource=admin`
+
+      // Detect if input is JSON array (mongoexport format) or binary (mongodump archive)
+      const trimmedSql = sql.trim()
+      const isJsonArray = trimmedSql.startsWith('[') || trimmedSql.startsWith('{')
+
+      if (isJsonArray) {
+        // JSON import - need collection name from input or default
+        // Look for collection hint in first line comment: // collection: users
+        const collectionMatch = sql.match(/\/\/\s*collection:\s*(\w+)/)
+        const collection = collectionMatch ? collectionMatch[1] : 'imported'
+
+        args = [
+          'exec', '-i', service.containerName,
+          'mongoimport',
+          '--uri', mongoUri,
+          '--collection', collection,
+          '--jsonArray',
+          '--drop' // Replace existing collection
+        ]
+      } else {
+        // Assume mongodump archive format
+        args = [
+          'exec', '-i', service.containerName,
+          'mongorestore',
+          '--uri', mongoUri,
+          '--archive',
+          '--gzip',
+          '--drop'
+        ]
+      }
     } else {
       throw new Error(`Unsupported database type: ${service.type}`)
     }
