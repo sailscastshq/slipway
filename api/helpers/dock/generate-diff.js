@@ -313,7 +313,9 @@ function typesMatch(existing, expected, dbType) {
     'int8': 'bigint',
     'float8': 'double precision',
     'serial': 'integer', // SERIAL is essentially INTEGER with auto-increment
-    'bigserial': 'bigint'
+    'bigserial': 'bigint',
+    'timestamp with time zone': 'timestamptz',
+    'timestamp without time zone': 'timestamp'
   }
 
   // MySQL type aliases
