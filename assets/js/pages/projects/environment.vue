@@ -1234,11 +1234,11 @@ onBeforeUnmount(() => {
                   <div
                     v-for="key in sortedVarKeys"
                     :key="key"
-                    class="py-2"
+                    class="group py-2"
                   >
                     <div class="flex items-center justify-between">
                       <span class="font-mono text-sm font-medium text-gray-900 dark:text-white">{{ key }}</span>
-                      <div class="flex items-center space-x-1">
+                      <div class="flex items-center space-x-1 opacity-0 transition-opacity group-hover:opacity-100">
                         <button
                           v-if="isSensitive(key)"
                           @click="toggleReveal(key)"
