@@ -117,6 +117,17 @@ const migrateLoading = ref(false)
 const selectedModels = ref(new Set())
 const showMigrateConfirm = ref(false)
 
+// Export/Import state
+const exportLoading = ref(false)
+const exportDropdownOpen = ref(false)
+const selectedExportTables = ref(new Set())
+const exportMode = ref('full') // 'full', 'schema', 'data'
+const importMode = ref('paste') // 'paste' or 'upload'
+const importSql = ref('')
+const importLoading = ref(false)
+const showImportModal = ref(false)
+const showImportConfirm = ref(false)
+
 // Toast state
 const toasts = ref([])
 let toastId = 0
@@ -349,6 +360,130 @@ async function applyMigration() {
   }
 }
 
+// Export database
+async function exportDatabase(mode = 'full') {
+  exportLoading.value = true
+  exportDropdownOpen.value = false
+
+  try {
+    const tablesToExport = selectedExportTables.value.size > 0
+      ? Array.from(selectedExportTables.value)
+      : null
+
+    const res = await fetch(`${apiBasePath.value}/export`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        tables: tablesToExport,
+        dataOnly: mode === 'data',
+        schemaOnly: mode === 'schema'
+      })
+    })
+
+    const data = await res.json()
+
+    if (!res.ok || !data.success) {
+      showToast(data.error || 'Export failed', 'error')
+      return
+    }
+
+    // Download the SQL file
+    const filename = `${props.project.slug}-${props.environment.slug}-${mode === 'schema' ? 'schema' : mode === 'data' ? 'data' : 'backup'}.sql`
+    downloadFile(data.sql, filename, 'application/sql')
+    showToast(`Exported ${data.lines} lines (${formatBytes(data.size)})`, 'success')
+  } catch (e) {
+    showToast(e.message, 'error')
+  } finally {
+    exportLoading.value = false
+  }
+}
+
+function toggleExportTable(tableName) {
+  if (selectedExportTables.value.has(tableName)) {
+    selectedExportTables.value.delete(tableName)
+  } else {
+    selectedExportTables.value.add(tableName)
+  }
+  selectedExportTables.value = new Set(selectedExportTables.value)
+}
+
+function selectAllExportTables() {
+  selectedExportTables.value = new Set(tables.value.map(t => t.name))
+}
+
+function clearExportTableSelection() {
+  selectedExportTables.value = new Set()
+}
+
+// Import SQL
+function openImportModal() {
+  importSql.value = ''
+  importMode.value = 'paste'
+  showImportModal.value = true
+}
+
+function closeImportModal() {
+  showImportModal.value = false
+  importSql.value = ''
+}
+
+async function handleFileUpload(event) {
+  const file = event.target.files[0]
+  if (!file) return
+
+  try {
+    const text = await file.text()
+    importSql.value = text
+    showToast(`Loaded ${file.name} (${formatBytes(file.size)})`, 'success')
+  } catch (e) {
+    showToast('Failed to read file', 'error')
+  }
+}
+
+function confirmImport() {
+  if (!importSql.value.trim()) {
+    showToast('No SQL to import', 'error')
+    return
+  }
+  showImportConfirm.value = true
+}
+
+async function executeImport() {
+  showImportConfirm.value = false
+  importLoading.value = true
+
+  try {
+    const res = await fetch(`${apiBasePath.value}/import`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sql: importSql.value })
+    })
+
+    const data = await res.json()
+
+    if (!res.ok || !data.success) {
+      showToast(data.error || 'Import failed', 'error')
+    } else {
+      showToast(`Import completed: ${data.statementCount} statement(s) in ${data.duration}ms`, 'success')
+      closeImportModal()
+      // Refresh tables and schema
+      fetchTables()
+      if (schema.value) fetchSchema()
+      if (diff.value) fetchDiff()
+    }
+  } catch (e) {
+    showToast(e.message, 'error')
+  } finally {
+    importLoading.value = false
+  }
+}
+
+function formatBytes(bytes) {
+  if (bytes < 1024) return bytes + ' B'
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB'
+  return (bytes / (1024 * 1024)).toFixed(1) + ' MB'
+}
+
 // Fetch tables
 async function fetchTables() {
   tablesLoading.value = true
@@ -478,6 +613,9 @@ const handleClickOutside = (e) => {
   if (schemaFilterOpen.value && !e.target.closest('[data-schema-filter]')) {
     schemaFilterOpen.value = false
   }
+  if (exportDropdownOpen.value && !e.target.closest('[data-export-dropdown]')) {
+    exportDropdownOpen.value = false
+  }
 }
 
 // Handle escape key to close menus
@@ -485,6 +623,10 @@ function handleEscapeKey(e) {
   if (e.key === 'Escape') {
     showExportMenu.value = false
     schemaFilterOpen.value = false
+    exportDropdownOpen.value = false
+    if (showImportModal.value && !importLoading.value) {
+      closeImportModal()
+    }
   }
 }
 
@@ -1136,9 +1278,208 @@ onUnmounted(() => {
               @cancel="showMigrateConfirm = false"
             />
           </div>
+
+          <!-- Backup & Restore section -->
+          <div class="mt-8 border-t border-gray-200 pt-6 dark:border-gray-800">
+            <div class="flex items-center justify-between">
+              <div>
+                <h3 class="text-sm font-medium text-gray-900 dark:text-white">Backup & Restore</h3>
+                <p class="text-xs text-gray-500 dark:text-gray-400">Export your database or import SQL</p>
+              </div>
+            </div>
+
+            <div class="mt-4 flex flex-wrap items-start gap-3">
+              <!-- Export dropdown -->
+              <div class="relative" data-export-dropdown>
+                <button
+                  @click.stop="exportDropdownOpen = !exportDropdownOpen"
+                  :disabled="exportLoading"
+                  class="flex items-center gap-2 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+                >
+                  <svg v-if="exportLoading" class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                  <svg v-else class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                  </svg>
+                  <span>Export</span>
+                  <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+                <div
+                  v-if="exportDropdownOpen"
+                  class="absolute left-0 top-full z-20 mt-1 w-64 rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-900"
+                >
+                  <!-- Table selection -->
+                  <div class="border-b border-gray-100 px-3 py-2 dark:border-gray-800">
+                    <div class="flex items-center justify-between">
+                      <span class="text-xs font-medium text-gray-500 dark:text-gray-400">Tables</span>
+                      <div class="flex gap-2">
+                        <button @click="selectAllExportTables" class="text-xs text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white">All</button>
+                        <button @click="clearExportTableSelection" class="text-xs text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white">None</button>
+                      </div>
+                    </div>
+                    <div class="mt-2 max-h-32 overflow-y-auto">
+                      <label
+                        v-for="table in tables"
+                        :key="table.name"
+                        class="flex cursor-pointer items-center gap-2 py-0.5 hover:bg-gray-50 dark:hover:bg-gray-800"
+                      >
+                        <input
+                          type="checkbox"
+                          :checked="selectedExportTables.has(table.name)"
+                          @change="toggleExportTable(table.name)"
+                          class="h-3 w-3 rounded border-gray-300 text-gray-900 focus:ring-0 dark:border-gray-600 dark:bg-gray-800"
+                        />
+                        <span class="font-mono text-xs text-gray-600 dark:text-gray-400">{{ table.name }}</span>
+                      </label>
+                    </div>
+                    <p class="mt-1 text-[10px] text-gray-400 dark:text-gray-500">
+                      {{ selectedExportTables.size === 0 ? 'All tables' : `${selectedExportTables.size} selected` }}
+                    </p>
+                  </div>
+                  <!-- Export options -->
+                  <button @click="exportDatabase('full')" class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-800">
+                    <svg class="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4" />
+                    </svg>
+                    Full backup (schema + data)
+                  </button>
+                  <button @click="exportDatabase('schema')" class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-800">
+                    <svg class="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7" />
+                    </svg>
+                    Schema only
+                  </button>
+                  <button @click="exportDatabase('data')" class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-800">
+                    <svg class="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7" />
+                    </svg>
+                    Data only
+                  </button>
+                </div>
+              </div>
+
+              <!-- Import button -->
+              <button
+                @click="openImportModal"
+                class="flex items-center gap-2 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+              >
+                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                </svg>
+                <span>Import SQL</span>
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </div>
+
+    <!-- Import SQL Modal -->
+    <div v-if="showImportModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50" @click.self="closeImportModal">
+      <div class="w-full max-w-2xl rounded-lg border border-gray-200 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-900">
+        <div class="flex items-center justify-between border-b border-gray-200 px-4 py-3 dark:border-gray-700">
+          <h3 class="text-sm font-medium text-gray-900 dark:text-white">Import SQL</h3>
+          <button @click="closeImportModal" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+            <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+        <div class="p-4">
+          <!-- Mode toggle -->
+          <div class="mb-4 flex gap-2">
+            <button
+              @click="importMode = 'paste'"
+              :class="[
+                'rounded-md px-3 py-1.5 text-sm font-medium',
+                importMode === 'paste'
+                  ? 'bg-gray-900 text-white dark:bg-white dark:text-gray-900'
+                  : 'text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800'
+              ]"
+            >
+              Paste SQL
+            </button>
+            <button
+              @click="importMode = 'upload'"
+              :class="[
+                'rounded-md px-3 py-1.5 text-sm font-medium',
+                importMode === 'upload'
+                  ? 'bg-gray-900 text-white dark:bg-white dark:text-gray-900'
+                  : 'text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800'
+              ]"
+            >
+              Upload File
+            </button>
+          </div>
+
+          <!-- Paste mode -->
+          <div v-if="importMode === 'paste'">
+            <textarea
+              v-model="importSql"
+              rows="12"
+              class="w-full rounded-md border border-gray-200 bg-gray-50 p-3 font-mono text-sm text-gray-900 placeholder-gray-400 focus:border-gray-400 focus:outline-none dark:border-gray-700 dark:bg-gray-800 dark:text-white dark:placeholder-gray-500"
+              placeholder="Paste your SQL statements here..."
+            ></textarea>
+          </div>
+
+          <!-- Upload mode -->
+          <div v-else>
+            <div class="flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-gray-200 bg-gray-50 px-6 py-10 dark:border-gray-700 dark:bg-gray-800">
+              <svg class="h-10 w-10 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">Upload a .sql file</p>
+              <input
+                type="file"
+                accept=".sql,.txt"
+                @change="handleFileUpload"
+                class="mt-3 text-sm text-gray-500 file:mr-3 file:rounded-md file:border-0 file:bg-gray-900 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-white hover:file:bg-gray-800 dark:file:bg-white dark:file:text-gray-900"
+              />
+            </div>
+            <div v-if="importSql" class="mt-4">
+              <p class="mb-2 text-xs font-medium text-gray-500 dark:text-gray-400">Preview:</p>
+              <pre class="max-h-48 overflow-auto rounded-md bg-gray-50 p-3 font-mono text-xs text-gray-700 dark:bg-gray-800 dark:text-gray-300">{{ importSql.slice(0, 2000) }}{{ importSql.length > 2000 ? '...' : '' }}</pre>
+            </div>
+          </div>
+
+          <!-- Info -->
+          <p class="mt-3 text-xs text-gray-500 dark:text-gray-400">
+            {{ importSql ? `${importSql.length.toLocaleString()} characters` : 'No SQL loaded' }}
+          </p>
+        </div>
+        <div class="flex justify-end gap-2 border-t border-gray-200 px-4 py-3 dark:border-gray-700">
+          <button
+            @click="closeImportModal"
+            class="rounded-md px-3 py-1.5 text-sm font-medium text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
+          >
+            Cancel
+          </button>
+          <button
+            @click="confirmImport"
+            :disabled="!importSql.trim() || importLoading"
+            class="rounded-md bg-gray-900 px-4 py-1.5 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
+          >
+            <span v-if="importLoading">Importing...</span>
+            <span v-else>Import</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Import confirmation modal -->
+    <ConfirmModal
+      :show="showImportConfirm"
+      title="Confirm Import"
+      message="This will execute the SQL statements on your database. Make sure you have a backup if needed."
+      confirmLabel="Import"
+      :loading="importLoading"
+      @confirm="executeImport"
+      @cancel="showImportConfirm = false"
+    />
 
     <!-- Toasts -->
     <ToastContainer :toasts="toasts" @dismiss="dismissToast" />

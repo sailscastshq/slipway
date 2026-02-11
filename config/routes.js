@@ -222,6 +222,10 @@ module.exports.routes = {
   'GET /api/v1/projects/:projectSlug/environments/:environmentSlug/dock/tables': 'api/v1/dock/list-tables',
   'GET /api/v1/projects/:projectSlug/dock/tables/:table/data': 'api/v1/dock/get-table-data',
   'GET /api/v1/projects/:projectSlug/environments/:environmentSlug/dock/tables/:table/data': 'api/v1/dock/get-table-data',
+  'POST /api/v1/projects/:projectSlug/dock/export': 'api/v1/dock/export-database',
+  'POST /api/v1/projects/:projectSlug/environments/:environmentSlug/dock/export': 'api/v1/dock/export-database',
+  'POST /api/v1/projects/:projectSlug/dock/import': 'api/v1/dock/import-sql',
+  'POST /api/v1/projects/:projectSlug/environments/:environmentSlug/dock/import': 'api/v1/dock/import-sql',
 
   // Dock UI
   'GET /projects/:slug/dock': 'project/view-dock',
