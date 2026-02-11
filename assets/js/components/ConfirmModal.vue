@@ -1,4 +1,6 @@
 <script setup>
+import { watch, onUnmounted } from 'vue'
+
 const props = defineProps({
   show: {
     type: Boolean,
@@ -23,10 +25,33 @@ const props = defineProps({
   destructive: {
     type: Boolean,
     default: false
+  },
+  loading: {
+    type: Boolean,
+    default: false
   }
 })
 
 const emit = defineEmits(['confirm', 'cancel'])
+
+// Handle escape key to close modal
+function handleKeydown(e) {
+  if (e.key === 'Escape' && !props.loading) {
+    emit('cancel')
+  }
+}
+
+watch(() => props.show, (isShown) => {
+  if (isShown) {
+    document.addEventListener('keydown', handleKeydown)
+  } else {
+    document.removeEventListener('keydown', handleKeydown)
+  }
+}, { immediate: true })
+
+onUnmounted(() => {
+  document.removeEventListener('keydown', handleKeydown)
+})
 </script>
 
 <template>

@@ -1,6 +1,6 @@
 <script setup>
 import { Link, Head, router } from '@inertiajs/vue3'
-import { inject, ref, computed } from 'vue'
+import { inject, ref, computed, watch, onUnmounted } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
 
 defineOptions({
@@ -94,9 +94,30 @@ async function createContent() {
 }
 
 function closeCreateModal() {
-  createModalOpen.value = false
-  selectedCollection.value = null
+  if (!creating.value) {
+    createModalOpen.value = false
+    selectedCollection.value = null
+  }
 }
+
+// Handle escape key for create modal
+function handleCreateModalKeydown(e) {
+  if (e.key === 'Escape') {
+    closeCreateModal()
+  }
+}
+
+watch(createModalOpen, (isOpen) => {
+  if (isOpen) {
+    document.addEventListener('keydown', handleCreateModalKeydown)
+  } else {
+    document.removeEventListener('keydown', handleCreateModalKeydown)
+  }
+})
+
+onUnmounted(() => {
+  document.removeEventListener('keydown', handleCreateModalKeydown)
+})
 
 function getEditorPath(collection, file) {
   const basePath = props.environment.slug !== 'production'
@@ -293,8 +314,9 @@ fetchCollections()
     </div>
 
     <!-- Create Modal -->
-    <div v-if="createModalOpen" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
-      <div class="w-full max-w-md rounded-lg bg-white p-6 shadow-xl dark:bg-gray-900">
+    <div v-if="createModalOpen" class="fixed inset-0 z-50 flex items-center justify-center px-4">
+      <div class="fixed inset-0 bg-black/50" @click="closeCreateModal" />
+      <div class="relative w-full max-w-md rounded-lg bg-white p-6 shadow-xl dark:bg-gray-900">
         <h3 class="text-lg font-semibold text-gray-900 dark:text-white">
           Create new content in {{ selectedCollection?.name }}
         </h3>

@@ -588,8 +588,25 @@ function openDomainModal() {
 }
 
 function closeDomainModal() {
-  domainModalOpen.value = false
+  if (!savingDomain.value) {
+    domainModalOpen.value = false
+  }
 }
+
+// Handle escape key for domain modal
+function handleDomainModalKeydown(e) {
+  if (e.key === 'Escape') {
+    closeDomainModal()
+  }
+}
+
+watch(domainModalOpen, (isOpen) => {
+  if (isOpen) {
+    document.addEventListener('keydown', handleDomainModalKeydown)
+  } else {
+    document.removeEventListener('keydown', handleDomainModalKeydown)
+  }
+})
 
 async function saveCustomDomain() {
   if (savingDomain.value) return
@@ -744,6 +761,7 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   disconnectLogs()
+  document.removeEventListener('keydown', handleDomainModalKeydown)
 })
 </script>
 <template>
