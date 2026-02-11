@@ -1284,52 +1284,60 @@ onUnmounted(() => {
     </div>
 
     <!-- Bottom-right toolbar -->
-    <div v-if="hasDatabaseService" class="fixed bottom-3 right-3 z-40 flex items-center" data-export-dropdown>
-      <!-- Export button -->
-      <div class="relative">
-        <Tooltip :text="exportLoading ? 'Exporting...' : 'Export'" position="top">
-          <button
-            @click.stop="exportDropdownOpen = !exportDropdownOpen"
-            :disabled="exportLoading"
-            class="p-1.5 text-gray-400 hover:text-gray-600 disabled:opacity-50 dark:text-gray-500 dark:hover:text-gray-300"
+    <div v-if="hasDatabaseService" class="fixed bottom-4 right-4 z-40" data-export-dropdown>
+      <div class="flex items-center gap-0.5 rounded-full border border-gray-200/60 bg-white/90 px-1 py-1 shadow-sm backdrop-blur-sm dark:border-gray-700/60 dark:bg-gray-800/90">
+        <!-- Export button -->
+        <div class="relative">
+          <Tooltip :text="exportLoading ? 'Exporting...' : 'Export'" position="top">
+            <button
+              @click.stop="exportDropdownOpen = !exportDropdownOpen"
+              :disabled="exportLoading"
+              :class="[
+                'flex h-7 w-7 items-center justify-center rounded-full transition-colors',
+                exportDropdownOpen
+                  ? 'bg-gray-900 text-white dark:bg-white dark:text-gray-900'
+                  : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-200',
+                exportLoading ? 'opacity-50' : ''
+              ]"
+            >
+              <svg v-if="exportLoading" class="h-3.5 w-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+              </svg>
+              <svg v-else class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+              </svg>
+            </button>
+          </Tooltip>
+          <!-- Export dropdown -->
+          <div
+            v-if="exportDropdownOpen"
+            class="absolute bottom-full right-0 z-50 mb-2 w-32 overflow-hidden rounded-lg border border-gray-200/60 bg-white/95 shadow-lg backdrop-blur-sm dark:border-gray-700/60 dark:bg-gray-800/95"
           >
-            <svg v-if="exportLoading" class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
-              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
-              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-            </svg>
-            <svg v-else class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+            <button @click="exportDatabase('full')" class="block w-full px-3 py-2 text-left text-xs font-medium text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700">
+              Full backup
+            </button>
+            <button @click="exportDatabase('schema')" class="block w-full px-3 py-2 text-left text-xs font-medium text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700">
+              Schema only
+            </button>
+            <button @click="exportDatabase('data')" class="block w-full px-3 py-2 text-left text-xs font-medium text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700">
+              Data only
+            </button>
+          </div>
+        </div>
+
+        <!-- Import button -->
+        <Tooltip text="Import" position="top">
+          <button
+            @click="openImportModal"
+            class="flex h-7 w-7 items-center justify-center rounded-full text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-200"
+          >
+            <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
             </svg>
           </button>
         </Tooltip>
-        <!-- Export dropdown -->
-        <div
-          v-if="exportDropdownOpen"
-          class="absolute bottom-full right-0 z-50 mb-1 w-36 rounded-md border border-gray-200 bg-white py-1 shadow-md dark:border-gray-700 dark:bg-gray-900"
-        >
-          <button @click="exportDatabase('full')" class="block w-full px-3 py-1.5 text-left text-xs text-gray-600 hover:bg-gray-50 dark:text-gray-400 dark:hover:bg-gray-800">
-            Full backup
-          </button>
-          <button @click="exportDatabase('schema')" class="block w-full px-3 py-1.5 text-left text-xs text-gray-600 hover:bg-gray-50 dark:text-gray-400 dark:hover:bg-gray-800">
-            Schema only
-          </button>
-          <button @click="exportDatabase('data')" class="block w-full px-3 py-1.5 text-left text-xs text-gray-600 hover:bg-gray-50 dark:text-gray-400 dark:hover:bg-gray-800">
-            Data only
-          </button>
-        </div>
       </div>
-
-      <!-- Import button -->
-      <Tooltip text="Import" position="top">
-        <button
-          @click="openImportModal"
-          class="p-1.5 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
-        >
-          <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-          </svg>
-        </button>
-      </Tooltip>
     </div>
 
     <!-- Import SQL Modal -->
