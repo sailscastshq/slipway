@@ -1334,11 +1334,11 @@ onBeforeUnmount(() => {
               </button>
             </div>
             <div v-show="servicesOpen" @click="closeServiceMenu">
-              <div v-if="services.length > 0" class="divide-y divide-gray-200 border-t border-gray-200 dark:divide-gray-800 dark:border-gray-800">
+              <div v-if="services.length > 0" class="space-y-1 px-4 pb-3">
                 <div
                   v-for="service in services"
                   :key="service.id"
-                  class="px-4 py-3"
+                  class="rounded-md py-2"
                 >
                   <div class="flex items-center justify-between">
                     <div class="flex items-center space-x-3">
@@ -1498,10 +1498,10 @@ onBeforeUnmount(() => {
                   </div>
                 </div>
               </div>
-              <div v-else class="border-t border-gray-200 px-4 py-6 text-center text-sm text-gray-500 dark:border-gray-800 dark:text-gray-400">
+              <div v-else class="px-4 py-6 text-center text-sm text-gray-500 dark:text-gray-400">
                 No services attached.
               </div>
-              <div class="border-t border-gray-200 px-4 py-3 dark:border-gray-800">
+              <div class="px-4 pb-3">
                 <div v-if="addServiceOpen" class="space-y-3">
                   <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
                     <input
