@@ -51,22 +51,63 @@ const showExportMenu = ref(false)
 const schema = ref(null)
 const schemaLoading = ref(false)
 const schemaError = ref(null)
-const schemaFilter = ref('')
+const schemaFilterOpen = ref(false)
 
-// Filtered schema tables
+// Initialize selected schema tables from URL
+const initialSchemaTables = new URLSearchParams(window.location.search).get('schemaTables')
+const selectedSchemaTables = ref(new Set(initialSchemaTables ? initialSchemaTables.split(',') : []))
+
+// All available table names for the dropdown
+const allSchemaTableNames = computed(() => {
+  if (!schema.value?.tables) return []
+  return Object.keys(schema.value.tables).sort()
+})
+
+// Filtered schema tables based on selection
 const filteredSchemaTables = computed(() => {
   if (!schema.value?.tables) return {}
-  if (!schemaFilter.value.trim()) return schema.value.tables
+  // If no tables selected, show all
+  if (selectedSchemaTables.value.size === 0) return schema.value.tables
 
-  const filter = schemaFilter.value.toLowerCase().trim()
   const filtered = {}
-  for (const [tableName, table] of Object.entries(schema.value.tables)) {
-    if (tableName.toLowerCase().includes(filter)) {
-      filtered[tableName] = table
+  for (const tableName of selectedSchemaTables.value) {
+    if (schema.value.tables[tableName]) {
+      filtered[tableName] = schema.value.tables[tableName]
     }
   }
   return filtered
 })
+
+// Toggle table selection
+function toggleSchemaTable(tableName) {
+  if (selectedSchemaTables.value.has(tableName)) {
+    selectedSchemaTables.value.delete(tableName)
+  } else {
+    selectedSchemaTables.value.add(tableName)
+  }
+  selectedSchemaTables.value = new Set(selectedSchemaTables.value) // Trigger reactivity
+  syncSchemaFilterToUrl()
+}
+
+function selectAllSchemaTables() {
+  selectedSchemaTables.value = new Set(allSchemaTableNames.value)
+  syncSchemaFilterToUrl()
+}
+
+function clearSchemaTableSelection() {
+  selectedSchemaTables.value = new Set()
+  syncSchemaFilterToUrl()
+}
+
+function syncSchemaFilterToUrl() {
+  const url = new URL(window.location)
+  if (selectedSchemaTables.value.size === 0) {
+    url.searchParams.delete('schemaTables')
+  } else {
+    url.searchParams.set('schemaTables', Array.from(selectedSchemaTables.value).join(','))
+  }
+  window.history.replaceState({}, '', url)
+}
 
 // Diff state
 const diff = ref(null)
@@ -429,10 +470,13 @@ function downloadFile(content, filename, mimeType) {
   URL.revokeObjectURL(url)
 }
 
-// Close export menu on click outside
+// Close all dropdowns on click outside
 const handleClickOutside = (e) => {
   if (showExportMenu.value && !e.target.closest('[ref="exportDropdown"]')) {
     showExportMenu.value = false
+  }
+  if (schemaFilterOpen.value && !e.target.closest('[data-schema-filter]')) {
+    schemaFilterOpen.value = false
   }
 }
 
@@ -440,6 +484,7 @@ const handleClickOutside = (e) => {
 function handleEscapeKey(e) {
   if (e.key === 'Escape') {
     showExportMenu.value = false
+    schemaFilterOpen.value = false
   }
 }
 
@@ -877,14 +922,52 @@ onUnmounted(() => {
         </div>
 
         <div v-else-if="schema" class="space-y-4">
-          <!-- Filter input -->
+          <!-- Filter dropdown -->
           <div class="sticky top-0 z-10 bg-white pb-2 dark:bg-gray-950">
-            <input
-              v-model="schemaFilter"
-              type="text"
-              placeholder="Filter tables..."
-              class="w-full max-w-xs rounded-md border border-gray-200 bg-white px-3 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:border-gray-400 focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-white dark:placeholder-gray-500 dark:focus:border-gray-600"
-            />
+            <div class="relative inline-block" data-schema-filter>
+              <button
+                @click.stop="schemaFilterOpen = !schemaFilterOpen"
+                class="flex items-center gap-2 border-b border-dashed border-gray-300 bg-transparent px-1 py-1.5 text-sm text-gray-900 focus:border-gray-500 focus:outline-none dark:border-gray-600 dark:text-white dark:focus:border-gray-400"
+              >
+                <span v-if="selectedSchemaTables.size === 0" class="text-gray-400 dark:text-gray-500">All tables</span>
+                <span v-else>{{ selectedSchemaTables.size }} table{{ selectedSchemaTables.size > 1 ? 's' : '' }} selected</span>
+                <svg
+                  :class="['h-4 w-4 text-gray-400 transition-transform', schemaFilterOpen ? 'rotate-180' : '']"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+              <!-- Dropdown -->
+              <div
+                v-if="schemaFilterOpen"
+                @click.stop
+                class="absolute left-0 top-full z-20 mt-1 max-h-64 w-56 overflow-y-auto rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-900"
+              >
+                <div class="flex items-center justify-between border-b border-gray-100 px-3 py-1.5 dark:border-gray-800">
+                  <span class="text-xs font-medium text-gray-500 dark:text-gray-400">Tables</span>
+                  <div class="flex gap-2">
+                    <button @click="selectAllSchemaTables" class="text-xs text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white">All</button>
+                    <button @click="clearSchemaTableSelection" class="text-xs text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white">None</button>
+                  </div>
+                </div>
+                <label
+                  v-for="tableName in allSchemaTableNames"
+                  :key="tableName"
+                  class="flex cursor-pointer items-center gap-2 px-3 py-1.5 hover:bg-gray-50 dark:hover:bg-gray-800"
+                >
+                  <input
+                    type="checkbox"
+                    :checked="selectedSchemaTables.has(tableName)"
+                    @change="toggleSchemaTable(tableName)"
+                    class="h-3.5 w-3.5 rounded border-gray-300 text-gray-900 focus:ring-0 focus:ring-offset-0 dark:border-gray-600 dark:bg-gray-800"
+                  />
+                  <span class="font-mono text-sm text-gray-700 dark:text-gray-300">{{ tableName }}</span>
+                </label>
+              </div>
+            </div>
           </div>
 
           <!-- Tables -->
@@ -918,8 +1001,8 @@ onUnmounted(() => {
           </div>
 
           <!-- Empty state when filter has no matches -->
-          <div v-if="Object.keys(filteredSchemaTables).length === 0 && schemaFilter" class="py-8 text-center text-sm text-gray-500 dark:text-gray-400">
-            No tables matching "{{ schemaFilter }}"
+          <div v-if="Object.keys(filteredSchemaTables).length === 0 && selectedSchemaTables.size > 0" class="py-8 text-center text-sm text-gray-500 dark:text-gray-400">
+            Selected tables not found in schema
           </div>
         </div>
       </div>
