@@ -100,6 +100,13 @@ function closeAllDropdowns() {
   userDropdownOpen.value = false
 }
 
+// Handle escape key to close dropdowns
+function handleEscapeKey(e) {
+  if (e.key === 'Escape') {
+    closeAllDropdowns()
+  }
+}
+
 // Toast system
 const { toasts, toast, dismiss } = createToast()
 useFlashToast(toast)
@@ -151,10 +158,14 @@ onMounted(() => {
 
   // Also check after each navigation
   router.on('finish', checkActiveDeployments)
+
+  // Listen for escape key to close dropdowns
+  document.addEventListener('keydown', handleEscapeKey)
 })
 
 onUnmounted(() => {
   if (deploymentPollInterval) clearInterval(deploymentPollInterval)
+  document.removeEventListener('keydown', handleEscapeKey)
 })
 </script>
 

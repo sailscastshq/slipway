@@ -593,20 +593,13 @@ function closeDomainModal() {
   }
 }
 
-// Handle escape key for domain modal
-function handleDomainModalKeydown(e) {
+// Handle escape key to close dropdowns and modals
+function handleEscapeKey(e) {
   if (e.key === 'Escape') {
+    closeAllDropdowns()
     closeDomainModal()
   }
 }
-
-watch(domainModalOpen, (isOpen) => {
-  if (isOpen) {
-    document.addEventListener('keydown', handleDomainModalKeydown)
-  } else {
-    document.removeEventListener('keydown', handleDomainModalKeydown)
-  }
-})
 
 async function saveCustomDomain() {
   if (savingDomain.value) return
@@ -757,11 +750,12 @@ onMounted(() => {
     bulkText.value = sortedVarKeys.value.map(k => `${k}=${localVars[k]}`).join('\n')
   }
   if (logsOpen.value) connectLogs()
+  document.addEventListener('keydown', handleEscapeKey)
 })
 
 onBeforeUnmount(() => {
   disconnectLogs()
-  document.removeEventListener('keydown', handleDomainModalKeydown)
+  document.removeEventListener('keydown', handleEscapeKey)
 })
 </script>
 <template>

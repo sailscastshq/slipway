@@ -216,6 +216,9 @@ function handleKeydown(e) {
     e.preventDefault()
     saveContent(false)
   }
+  if (e.key === 'Escape') {
+    showSaveMenu.value = false
+  }
 }
 </script>
 <template>

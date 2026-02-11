@@ -420,8 +420,16 @@ const handleClickOutside = (e) => {
   }
 }
 
+// Handle escape key to close menus
+function handleEscapeKey(e) {
+  if (e.key === 'Escape') {
+    showExportMenu.value = false
+  }
+}
+
 onMounted(() => {
   document.addEventListener('click', handleClickOutside)
+  document.addEventListener('keydown', handleEscapeKey)
   if (props.hasDatabaseService) {
     // Always fetch tables for the sidebar
     fetchTables()
@@ -440,6 +448,7 @@ onMounted(() => {
 
 onUnmounted(() => {
   document.removeEventListener('click', handleClickOutside)
+  document.removeEventListener('keydown', handleEscapeKey)
 })
 </script>
 

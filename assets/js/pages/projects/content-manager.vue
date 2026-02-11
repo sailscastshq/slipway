@@ -1,6 +1,6 @@
 <script setup>
 import { Link, Head, router } from '@inertiajs/vue3'
-import { inject, ref, computed, watch, onUnmounted } from 'vue'
+import { inject, ref, computed, onMounted, onUnmounted } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
 
 defineOptions({
@@ -100,23 +100,19 @@ function closeCreateModal() {
   }
 }
 
-// Handle escape key for create modal
-function handleCreateModalKeydown(e) {
+// Handle escape key to close modal
+function handleEscapeKey(e) {
   if (e.key === 'Escape') {
     closeCreateModal()
   }
 }
 
-watch(createModalOpen, (isOpen) => {
-  if (isOpen) {
-    document.addEventListener('keydown', handleCreateModalKeydown)
-  } else {
-    document.removeEventListener('keydown', handleCreateModalKeydown)
-  }
+onMounted(() => {
+  document.addEventListener('keydown', handleEscapeKey)
 })
 
 onUnmounted(() => {
-  document.removeEventListener('keydown', handleCreateModalKeydown)
+  document.removeEventListener('keydown', handleEscapeKey)
 })
 
 function getEditorPath(collection, file) {
