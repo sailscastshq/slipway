@@ -13,51 +13,89 @@ const sidebarCollapsed = inject('sidebarCollapsed')
 
 const search = ref('')
 
-const settings = [
+const categories = [
   {
-    title: 'Instance',
-    description: 'Configure your Slipway instance domain and branding.',
-    href: '/settings/instance',
-    icon: 'server'
+    name: 'Instance',
+    items: [
+      {
+        title: 'Instance',
+        description: 'Configure your Slipway instance domain and branding.',
+        href: '/settings/instance',
+        icon: 'server'
+      },
+      {
+        title: 'File Storage',
+        description: 'S3-compatible storage for team logos and database backups.',
+        href: '/settings/uploads',
+        icon: 'cloud'
+      },
+      {
+        title: 'Notifications',
+        description: 'Deployment alerts via Telegram and email.',
+        href: '/settings/notifications',
+        icon: 'bell'
+      },
+      {
+        title: 'Global Environment',
+        description: 'Instance-wide variables injected into all deployed applications.',
+        href: '/settings/global-env',
+        icon: 'globe'
+      }
+    ]
   },
   {
-    title: 'Notifications',
-    description: 'Deployment alerts via Telegram and email.',
-    href: '/settings/notifications',
-    icon: 'bell'
+    name: 'Team',
+    items: [
+      {
+        title: 'Team Profile',
+        description: 'Customize your team name and logo.',
+        href: '/settings/team-profile',
+        icon: 'building'
+      },
+      {
+        title: 'Team Members',
+        description: 'Invite and manage who has access to your team.',
+        href: '/settings/team',
+        icon: 'users'
+      }
+    ]
   },
   {
-    title: 'Global Environment',
-    description: 'Instance-wide variables injected into all deployed applications.',
-    href: '/settings/global-env',
-    icon: 'globe'
+    name: 'Developer',
+    items: [
+      {
+        title: 'CLI Tokens',
+        description: 'Manage tokens used to authenticate the Slipway CLI.',
+        href: '/settings/cli-tokens',
+        icon: 'key'
+      }
+    ]
   },
   {
-    title: 'Team Members',
-    description: 'Invite and manage who has access to your team.',
-    href: '/settings/team',
-    icon: 'users'
-  },
-  {
-    title: 'CLI Tokens',
-    description: 'Manage tokens used to authenticate the Slipway CLI.',
-    href: '/settings/cli-tokens',
-    icon: 'key'
-  },
-  {
-    title: 'Updates',
-    description: 'Check for Slipway updates and view installation instructions.',
-    href: '/settings/update',
-    icon: 'update'
+    name: 'System',
+    items: [
+      {
+        title: 'Updates',
+        description: 'Check for Slipway updates and view installation instructions.',
+        href: '/settings/update',
+        icon: 'update'
+      }
+    ]
   }
 ]
 
-const filtered = computed(() => {
+const filteredCategories = computed(() => {
   const q = search.value.toLowerCase().trim()
-  if (!q) return settings
-  return settings.filter(s =>
-    s.title.toLowerCase().includes(q) || s.description.toLowerCase().includes(q)
-  )
+  if (!q) return categories
+
+  return categories
+    .map(cat => ({
+      ...cat,
+      items: cat.items.filter(s =>
+        s.title.toLowerCase().includes(q) || s.description.toLowerCase().includes(q)
+      )
+    }))
+    .filter(cat => cat.items.length > 0)
 })
 </script>
 <template>
@@ -124,17 +162,22 @@ const filtered = computed(() => {
           />
         </div>
 
-        <!-- Settings list -->
-        <div v-if="filtered.length > 0" class="rounded-lg border border-gray-200 dark:border-gray-800">
-          <Link
-            v-for="(item, i) in filtered"
-            :key="item.href"
-            :href="item.href"
-            :class="[
-              'flex items-center justify-between px-4 py-4 transition-colors hover:bg-gray-50 dark:hover:bg-gray-900/50',
-              i > 0 ? 'border-t border-gray-200 dark:border-gray-800' : ''
-            ]"
-          >
+        <!-- Settings list by category -->
+        <div v-if="filteredCategories.length > 0" class="space-y-6">
+          <div v-for="category in filteredCategories" :key="category.name">
+            <h2 class="mb-2 text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+              {{ category.name }}
+            </h2>
+            <div class="rounded-lg border border-gray-200 dark:border-gray-800">
+              <Link
+                v-for="(item, i) in category.items"
+                :key="item.href"
+                :href="item.href"
+                :class="[
+                  'flex items-center justify-between px-4 py-4 transition-colors hover:bg-gray-50 dark:hover:bg-gray-900/50',
+                  i > 0 ? 'border-t border-gray-200 dark:border-gray-800' : ''
+                ]"
+              >
             <div class="flex items-center space-x-3">
               <!-- Server icon -->
               <svg
@@ -149,6 +192,21 @@ const filtered = computed(() => {
                   stroke-linejoin="round"
                   stroke-width="1.5"
                   d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01"
+                />
+              </svg>
+              <!-- Cloud icon -->
+              <svg
+                v-if="item.icon === 'cloud'"
+                class="h-4 w-4 text-gray-400 dark:text-gray-500"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="1.5"
+                  d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
                 />
               </svg>
               <!-- Bell icon -->
@@ -179,6 +237,21 @@ const filtered = computed(() => {
                   stroke-linejoin="round"
                   stroke-width="1.5"
                   d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                />
+              </svg>
+              <!-- Building icon -->
+              <svg
+                v-if="item.icon === 'building'"
+                class="h-4 w-4 text-gray-400 dark:text-gray-500"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="1.5"
+                  d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
                 />
               </svg>
               <!-- Users icon -->
@@ -231,10 +304,12 @@ const filtered = computed(() => {
                 <p class="text-sm text-gray-500 dark:text-gray-400">{{ item.description }}</p>
               </div>
             </div>
-            <svg class="h-4 w-4 text-gray-300 dark:text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-            </svg>
-          </Link>
+              <svg class="h-4 w-4 text-gray-300 dark:text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+              </svg>
+              </Link>
+            </div>
+          </div>
         </div>
 
         <!-- No results -->

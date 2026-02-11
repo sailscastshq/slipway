@@ -1,0 +1,297 @@
+<script setup>
+import { Link, Head, useForm, router } from '@inertiajs/vue3'
+import { inject, ref, computed } from 'vue'
+import AppLayout from '@/layouts/AppLayout.vue'
+import { useToast } from '@/composables/toast'
+
+defineOptions({
+  layout: AppLayout
+})
+
+const props = defineProps({
+  team: Object,
+  uploadsConfigured: Boolean
+})
+
+const toggleMobileMenu = inject('toggleMobileMenu')
+const toggleSidebar = inject('toggleSidebar')
+const sidebarCollapsed = inject('sidebarCollapsed')
+const toast = useToast()
+
+const form = useForm({
+  name: props.team.name
+})
+
+const uploading = ref(false)
+const uploadError = ref('')
+const logoPreview = ref(props.team.logoUrl)
+
+function save() {
+  form.patch('/settings/team-profile', {
+    preserveScroll: true
+  })
+}
+
+async function handleLogoUpload(event) {
+  const file = event.target.files?.[0]
+  if (!file) return
+
+  // Validate file type
+  if (!file.type.startsWith('image/')) {
+    uploadError.value = 'Please select an image file'
+    return
+  }
+
+  // Validate file size (5MB max)
+  if (file.size > 5 * 1024 * 1024) {
+    uploadError.value = 'Image must be smaller than 5MB'
+    return
+  }
+
+  uploadError.value = ''
+  uploading.value = true
+
+  // Preview immediately
+  const reader = new FileReader()
+  reader.onload = (e) => {
+    logoPreview.value = e.target.result
+  }
+  reader.readAsDataURL(file)
+
+  // Upload
+  const formData = new FormData()
+  formData.append('logo', file)
+
+  try {
+    const res = await fetch('/settings/team-profile/logo', {
+      method: 'POST',
+      body: formData
+    })
+
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}))
+      throw new Error(data.message || 'Upload failed')
+    }
+
+    const data = await res.json()
+    logoPreview.value = data.logoUrl
+    router.reload({ only: ['team'] })
+    toast({ message: 'Team logo updated', type: 'success' })
+  } catch (err) {
+    uploadError.value = err.message || 'Failed to upload logo'
+    logoPreview.value = props.team.logoUrl
+    toast({ message: err.message || 'Failed to upload logo', type: 'error' })
+  } finally {
+    uploading.value = false
+  }
+}
+
+async function removeLogo() {
+  uploading.value = true
+  try {
+    await fetch('/settings/team-profile/logo', {
+      method: 'DELETE'
+    })
+    logoPreview.value = null
+    router.reload({ only: ['team'] })
+    toast({ message: 'Team logo removed', type: 'success' })
+  } catch (err) {
+    uploadError.value = 'Failed to remove logo'
+    toast({ message: 'Failed to remove logo', type: 'error' })
+  } finally {
+    uploading.value = false
+  }
+}
+
+const initials = computed(() => {
+  return props.team.name
+    .split(' ')
+    .map(w => w[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase()
+})
+</script>
+<template>
+  <Head title="Team Profile | Slipway"></Head>
+  <div class="flex h-full flex-col">
+    <!-- Header -->
+    <div class="flex items-center justify-between border-b border-gray-200 py-4 pl-4 pr-4 dark:border-gray-800 sm:pl-4 sm:pr-8">
+      <div class="flex items-center space-x-3">
+        <button
+          @click="toggleMobileMenu"
+          class="rounded-md p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white md:hidden"
+        >
+          <svg class="h-5 w-5" viewBox="-0.5 -0.5 16 16" fill="none" stroke="currentColor">
+            <path d="M12.777 14.285H2.223c-.833 0-1.508-.675-1.508-1.508V2.223c0-.833.675-1.508 1.508-1.508h10.554c.833 0 1.508.675 1.508 1.508v10.554c0 .833-.675 1.508-1.508 1.508Z" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
+            <path d="M5.615 14.285V.715" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
+            <path d="M2.6 5.992 3.919 7.5 2.6 9.008" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
+          </svg>
+        </button>
+        <!-- Desktop sidebar toggle -->
+        <button
+          @click="toggleSidebar"
+          class="hidden text-gray-400 dark:text-gray-500 md:block"
+        >
+          <svg v-if="sidebarCollapsed" class="h-5 w-5" viewBox="-0.5 -0.5 16 16" fill="none" stroke="currentColor">
+            <path d="M12.777 14.285H2.223c-.833 0-1.508-.675-1.508-1.508V2.223c0-.833.675-1.508 1.508-1.508h10.554c.833 0 1.508.675 1.508 1.508v10.554c0 .833-.675 1.508-1.508 1.508Z" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
+            <path d="M5.615 14.285V.715" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
+            <path d="M2.6 5.992 3.919 7.5 2.6 9.008" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
+          </svg>
+          <svg v-else class="h-5 w-5" viewBox="-0.5 -0.5 16 16" fill="none" stroke="currentColor">
+            <path d="M12.777 14.285H2.223c-.833 0-1.508-.675-1.508-1.508V2.223c0-.833.675-1.508 1.508-1.508h10.554c.833 0 1.508.675 1.508 1.508v10.554c0 .833-.675 1.508-1.508 1.508Z" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
+            <path d="M5.615 14.285V.715" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
+            <path d="M3.919 5.992 2.6 7.5l1.319 1.508" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
+          </svg>
+        </button>
+        <nav class="flex items-center space-x-2 text-sm">
+          <Link href="/settings" class="text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white">
+            settings
+          </Link>
+          <span class="text-gray-400 dark:text-gray-600">/</span>
+          <span class="font-medium text-gray-900 dark:text-white">team profile</span>
+        </nav>
+      </div>
+      <div class="flex items-center space-x-4">
+        <a
+          href="https://docs.sailscasts.com/slipway"
+          target="_blank"
+          class="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
+        >
+          Docs
+          <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+          </svg>
+        </a>
+      </div>
+    </div>
+
+    <!-- Content -->
+    <div class="flex-1 overflow-y-auto px-4 py-6 sm:px-8 sm:py-8">
+      <div class="mx-auto max-w-6xl">
+        <!-- Description -->
+        <div class="mb-6">
+          <h1 class="text-xl font-semibold text-gray-900 dark:text-white">Team Profile</h1>
+          <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+            Customize your team's name and logo.
+          </p>
+        </div>
+
+        <!-- Logo section -->
+        <div class="mb-6 rounded-lg border border-gray-200 dark:border-gray-800">
+          <div class="px-4 py-3">
+            <h2 class="text-sm font-medium text-gray-900 dark:text-white">Team Logo</h2>
+            <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+              Displayed in the sidebar and team switcher. Recommended size: 128x128px.
+            </p>
+          </div>
+          <div class="border-t border-gray-200 px-4 py-4 dark:border-gray-800">
+            <div class="flex items-center gap-4">
+              <!-- Logo preview -->
+              <div class="relative">
+                <div
+                  v-if="logoPreview"
+                  class="h-16 w-16 overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700"
+                >
+                  <img :src="logoPreview" alt="Team logo" class="h-full w-full object-cover" />
+                </div>
+                <div
+                  v-else
+                  class="flex h-16 w-16 items-center justify-center rounded-lg bg-brand text-xl font-semibold text-white"
+                >
+                  {{ initials }}
+                </div>
+                <!-- Uploading overlay -->
+                <div
+                  v-if="uploading"
+                  class="absolute inset-0 flex items-center justify-center rounded-lg bg-black/50"
+                >
+                  <svg class="h-5 w-5 animate-spin text-white" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                  </svg>
+                </div>
+              </div>
+
+              <!-- Upload controls -->
+              <div class="flex flex-col gap-2">
+                <template v-if="uploadsConfigured">
+                  <div class="flex items-center gap-2">
+                    <label class="cursor-pointer rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800">
+                      <span>{{ logoPreview ? 'Change' : 'Upload' }}</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        class="hidden"
+                        @change="handleLogoUpload"
+                        :disabled="uploading"
+                      />
+                    </label>
+                    <button
+                      v-if="logoPreview"
+                      @click="removeLogo"
+                      :disabled="uploading"
+                      class="rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium text-red-600 hover:bg-red-50 dark:border-gray-600 dark:text-red-400 dark:hover:bg-red-900/20"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                  <p v-if="uploadError" class="text-xs text-red-600 dark:text-red-400">
+                    {{ uploadError }}
+                  </p>
+                </template>
+                <template v-else>
+                  <div class="flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50/50 px-3 py-2 dark:border-amber-900/50 dark:bg-amber-950/20">
+                    <svg class="h-4 w-4 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <span class="text-sm text-amber-700 dark:text-amber-400">
+                      <Link href="/settings/uploads" class="underline hover:no-underline">Configure file storage</Link>
+                      {{ ' ' }}to enable logo uploads.
+                    </span>
+                  </div>
+                </template>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Team name form -->
+        <form @submit.prevent="save" class="space-y-6">
+          <div class="rounded-lg border border-gray-200 dark:border-gray-800">
+            <div class="px-4 py-3">
+              <label for="teamName" class="text-sm font-medium text-gray-900 dark:text-white">Team Name</label>
+              <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                The name of your team. This will also update the team slug.
+              </p>
+            </div>
+            <div class="border-t border-gray-200 px-4 py-3 dark:border-gray-800">
+              <input
+                id="teamName"
+                v-model="form.name"
+                type="text"
+                required
+                placeholder="My Team"
+                class="w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:border-brand focus:outline-none sm:max-w-md dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
+              />
+              <p class="mt-2 text-xs text-gray-400 dark:text-gray-500">
+                Slug: <span class="font-mono">{{ form.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'my-team' }}</span>
+              </p>
+            </div>
+          </div>
+
+          <!-- Save button -->
+          <div class="flex justify-end">
+            <button
+              type="submit"
+              :disabled="form.processing || !form.isDirty || !form.name.trim()"
+              class="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
+            >
+              {{ form.processing ? 'Saving...' : 'Save changes' }}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</template>

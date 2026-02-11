@@ -1,0 +1,26 @@
+<svg viewBox="0 0 140 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Logo mark -->
+  <path
+    d="M4 24L12 16H20"
+    stroke="#0284c7"
+    stroke-width="3"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+  <path
+    d="M12 16L20 8H28"
+    stroke="#0284c7"
+    stroke-width="3"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+  <!-- Wordmark: "slipway" -->
+  <text
+    x="36"
+    y="22"
+    font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif"
+    font-size="18"
+    font-weight="600"
+    fill="#0f172a"
+  >slipway</text>
+</svg>

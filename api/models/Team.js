@@ -40,6 +40,12 @@ module.exports = {
     projects: {
       collection: 'project',
       via: 'team'
+    },
+
+    // Team logo (stored in S3-compatible storage)
+    logoUrl: {
+      type: 'string',
+      description: 'URL to team logo image'
     }
   },
 

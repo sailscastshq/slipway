@@ -197,7 +197,14 @@ onUnmounted(() => {
               class="flex w-full items-center justify-between rounded-md px-2 py-1.5 text-sm text-gray-700 hover:bg-gray-200 dark:text-gray-200 dark:hover:bg-gray-800"
             >
               <div class="flex items-center space-x-2">
+                <img
+                  v-if="loggedInUser.team?.logoUrl"
+                  :src="loggedInUser.team.logoUrl"
+                  alt=""
+                  class="h-6 w-6 rounded object-cover"
+                />
                 <span
+                  v-else
                   class="flex h-6 w-6 items-center justify-center rounded bg-brand text-xs font-medium text-white"
                 >
                   {{ loggedInUser.team?.name?.charAt(0)?.toUpperCase() || 'T' }}
@@ -237,7 +244,13 @@ onUnmounted(() => {
                     team.id === loggedInUser.team?.id ? 'text-gray-900 dark:text-white' : 'text-gray-600 dark:text-gray-400'
                   ]"
                 >
-                  <span class="flex h-5 w-5 items-center justify-center rounded bg-brand text-[10px] font-medium text-white">
+                  <img
+                    v-if="team.logoUrl"
+                    :src="team.logoUrl"
+                    alt=""
+                    class="h-5 w-5 rounded object-cover"
+                  />
+                  <span v-else class="flex h-5 w-5 items-center justify-center rounded bg-brand text-[10px] font-medium text-white">
                     {{ team.name?.charAt(0)?.toUpperCase() }}
                   </span>
                   <span class="flex-1 truncate">{{ team.name }}</span>
@@ -387,7 +400,13 @@ onUnmounted(() => {
               @click.stop="teamDropdownOpen = !teamDropdownOpen"
               class="flex w-full items-center space-x-2 rounded-md px-2 py-1.5 text-sm text-gray-700 hover:bg-gray-200 dark:text-gray-200 dark:hover:bg-gray-800"
             >
-              <span class="flex h-6 w-6 items-center justify-center rounded bg-brand text-xs font-medium text-white">
+              <img
+                v-if="loggedInUser.team?.logoUrl"
+                :src="loggedInUser.team.logoUrl"
+                alt=""
+                class="h-6 w-6 rounded object-cover"
+              />
+              <span v-else class="flex h-6 w-6 items-center justify-center rounded bg-brand text-xs font-medium text-white">
                 {{ loggedInUser.team?.name?.charAt(0)?.toUpperCase() || 'T' }}
               </span>
               <span class="flex-1 truncate text-left font-medium">{{ loggedInUser.team?.name || 'Team' }}</span>
@@ -424,7 +443,13 @@ onUnmounted(() => {
                     team.id === loggedInUser.team?.id ? 'text-gray-900 dark:text-white' : 'text-gray-600 dark:text-gray-400'
                   ]"
                 >
-                  <span class="flex h-5 w-5 items-center justify-center rounded bg-brand text-[10px] font-medium text-white">
+                  <img
+                    v-if="team.logoUrl"
+                    :src="team.logoUrl"
+                    alt=""
+                    class="h-5 w-5 rounded object-cover"
+                  />
+                  <span v-else class="flex h-5 w-5 items-center justify-center rounded bg-brand text-[10px] font-medium text-white">
                     {{ team.name?.charAt(0)?.toUpperCase() }}
                   </span>
                   <span class="flex-1 truncate">{{ team.name }}</span>

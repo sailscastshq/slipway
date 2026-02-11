@@ -89,6 +89,16 @@ module.exports.routes = {
   'GET /settings/instance': 'setting/view-instance',
   'PATCH /settings/instance': 'setting/update-instance',
 
+  // File storage settings
+  'GET /settings/uploads': 'setting/view-uploads',
+  'PATCH /settings/uploads': 'setting/update-uploads',
+
+  // Team profile settings
+  'GET /settings/team-profile': 'team/view-team-profile',
+  'PATCH /settings/team-profile': 'team/update-team-profile',
+  'POST /settings/team-profile/logo': 'team/upload-team-logo',
+  'DELETE /settings/team-profile/logo': 'team/delete-team-logo',
+
   // Notifications settings
   'GET /settings/notifications': 'setting/view-notifications',
   'PATCH /settings/notifications': 'setting/update-notifications',
