@@ -162,6 +162,12 @@ function closeDomainDropdown() {
   domainDropdownOpen.value = false
 }
 
+function closeAllDropdowns() {
+  domainDropdownOpen.value = false
+  moreMenuOpen.value = false
+  serviceMenuOpen.value = null
+}
+
 // --- Env vars helpers ---
 function isSensitive() {
   return true
@@ -742,7 +748,7 @@ onBeforeUnmount(() => {
 </script>
 <template>
   <Head :title="`${environment.name} - ${project.name} | Slipway`"></Head>
-  <div class="flex h-full flex-col" @click="closeDomainDropdown; moreMenuOpen = false">
+  <div class="flex h-full flex-col" @click="closeAllDropdowns">
     <!-- Header -->
     <div class="flex items-center justify-between border-b border-gray-200 py-4 pl-4 pr-4 dark:border-gray-800 sm:pl-4 sm:pr-8">
       <div class="flex items-center space-x-3">
@@ -887,21 +893,6 @@ onBeforeUnmount(() => {
               </div>
             </div>
 
-            <div v-if="app && app.hostPort && app.status === 'running'" class="mt-2 flex items-center space-x-2">
-              <span class="inline-flex items-center rounded-md bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 ring-1 ring-inset ring-emerald-600/20 dark:bg-emerald-900/20 dark:text-emerald-400 dark:ring-emerald-500/30">
-                Local
-              </span>
-              <a
-                :href="`http://localhost:${app.hostPort}`"
-                target="_blank"
-                class="inline-flex items-center space-x-1 font-mono text-sm text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
-              >
-                <span>http://localhost:{{ app.hostPort }}</span>
-                <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                </svg>
-              </a>
-            </div>
           </div>
           <div class="flex items-center space-x-2">
             <!-- More menu with tools -->
@@ -1386,6 +1377,7 @@ onBeforeUnmount(() => {
                         </button>
                         <div
                           v-if="serviceMenuOpen === service.id"
+                          @click.stop
                           class="absolute right-0 z-20 mt-1 w-36 rounded-md border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-900"
                         >
                           <button
