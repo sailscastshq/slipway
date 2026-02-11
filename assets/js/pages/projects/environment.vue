@@ -1230,11 +1230,11 @@ onBeforeUnmount(() => {
                 </div>
               </template>
               <template v-else>
-                <div v-if="sortedVarKeys.length > 0" class="divide-y divide-gray-200 border-t border-gray-200 dark:divide-gray-800 dark:border-gray-800">
+                <div v-if="sortedVarKeys.length > 0" class="space-y-1 px-4 pb-2">
                   <div
                     v-for="key in sortedVarKeys"
                     :key="key"
-                    class="px-4 py-3"
+                    class="py-2"
                   >
                     <div class="flex items-center justify-between">
                       <span class="font-mono text-sm font-medium text-gray-900 dark:text-white">{{ key }}</span>
@@ -1267,10 +1267,10 @@ onBeforeUnmount(() => {
                     </p>
                   </div>
                 </div>
-                <div v-else class="border-t border-gray-200 px-4 py-6 text-center text-sm text-gray-500 dark:border-gray-800 dark:text-gray-400">
+                <div v-else class="px-4 py-6 text-center text-sm text-gray-500 dark:text-gray-400">
                   No environment variables set.
                 </div>
-                <div class="border-t border-gray-200 px-4 py-3 dark:border-gray-800">
+                <div class="px-4 pb-3">
                   <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
                     <input
                       v-model="newKey"
