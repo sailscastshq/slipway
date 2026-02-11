@@ -1280,98 +1280,82 @@ onUnmounted(() => {
           </div>
 
           <!-- Backup & Restore section -->
-          <div class="mt-8 border-t border-gray-200 pt-6 dark:border-gray-800">
-            <div class="flex items-center justify-between">
-              <div>
-                <h3 class="text-sm font-medium text-gray-900 dark:text-white">Backup & Restore</h3>
-                <p class="text-xs text-gray-500 dark:text-gray-400">Export your database or import SQL</p>
-              </div>
-            </div>
-
-            <div class="mt-4 flex flex-wrap items-start gap-3">
-              <!-- Export dropdown -->
-              <div class="relative" data-export-dropdown>
-                <button
-                  @click.stop="exportDropdownOpen = !exportDropdownOpen"
-                  :disabled="exportLoading"
-                  class="flex items-center gap-2 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
-                >
-                  <svg v-if="exportLoading" class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+          <div class="grid gap-4 sm:grid-cols-2">
+            <!-- Export card -->
+            <div class="relative rounded-lg border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900/30" data-export-dropdown>
+              <div class="p-4">
+                <div class="flex items-start gap-3">
+                  <div class="rounded-lg bg-gray-100 p-2 dark:bg-gray-800">
+                    <svg class="h-5 w-5 text-gray-600 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                    </svg>
+                  </div>
+                  <div class="flex-1">
+                    <h4 class="text-sm font-medium text-gray-900 dark:text-white">Export</h4>
+                    <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">Download database as SQL</p>
+                  </div>
+                </div>
+                <div class="mt-4 space-y-2">
+                  <button
+                    @click="exportDatabase('full')"
+                    :disabled="exportLoading"
+                    class="flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:text-gray-300 dark:hover:bg-gray-800"
+                  >
+                    <span>Full backup</span>
+                    <span class="text-xs text-gray-400">schema + data</span>
+                  </button>
+                  <button
+                    @click="exportDatabase('schema')"
+                    :disabled="exportLoading"
+                    class="flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:text-gray-300 dark:hover:bg-gray-800"
+                  >
+                    <span>Schema only</span>
+                    <span class="text-xs text-gray-400">no data</span>
+                  </button>
+                  <button
+                    @click="exportDatabase('data')"
+                    :disabled="exportLoading"
+                    class="flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:text-gray-300 dark:hover:bg-gray-800"
+                  >
+                    <span>Data only</span>
+                    <span class="text-xs text-gray-400">INSERT statements</span>
+                  </button>
+                </div>
+                <div v-if="exportLoading" class="absolute inset-0 flex items-center justify-center rounded-lg bg-white/80 dark:bg-gray-900/80">
+                  <svg class="h-5 w-5 animate-spin text-gray-500" fill="none" viewBox="0 0 24 24">
                     <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
                     <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                   </svg>
-                  <svg v-else class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                  </svg>
-                  <span>Export</span>
-                  <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-                  </svg>
-                </button>
-                <div
-                  v-if="exportDropdownOpen"
-                  class="absolute left-0 top-full z-20 mt-1 w-64 rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-900"
-                >
-                  <!-- Table selection -->
-                  <div class="border-b border-gray-100 px-3 py-2 dark:border-gray-800">
-                    <div class="flex items-center justify-between">
-                      <span class="text-xs font-medium text-gray-500 dark:text-gray-400">Tables</span>
-                      <div class="flex gap-2">
-                        <button @click="selectAllExportTables" class="text-xs text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white">All</button>
-                        <button @click="clearExportTableSelection" class="text-xs text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white">None</button>
-                      </div>
-                    </div>
-                    <div class="mt-2 max-h-32 overflow-y-auto">
-                      <label
-                        v-for="table in tables"
-                        :key="table.name"
-                        class="flex cursor-pointer items-center gap-2 py-0.5 hover:bg-gray-50 dark:hover:bg-gray-800"
-                      >
-                        <input
-                          type="checkbox"
-                          :checked="selectedExportTables.has(table.name)"
-                          @change="toggleExportTable(table.name)"
-                          class="h-3 w-3 rounded border-gray-300 text-gray-900 focus:ring-0 dark:border-gray-600 dark:bg-gray-800"
-                        />
-                        <span class="font-mono text-xs text-gray-600 dark:text-gray-400">{{ table.name }}</span>
-                      </label>
-                    </div>
-                    <p class="mt-1 text-[10px] text-gray-400 dark:text-gray-500">
-                      {{ selectedExportTables.size === 0 ? 'All tables' : `${selectedExportTables.size} selected` }}
-                    </p>
+                </div>
+              </div>
+            </div>
+
+            <!-- Import card -->
+            <div class="rounded-lg border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900/30">
+              <div class="p-4">
+                <div class="flex items-start gap-3">
+                  <div class="rounded-lg bg-gray-100 p-2 dark:bg-gray-800">
+                    <svg class="h-5 w-5 text-gray-600 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                    </svg>
                   </div>
-                  <!-- Export options -->
-                  <button @click="exportDatabase('full')" class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-800">
-                    <svg class="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4" />
+                  <div class="flex-1">
+                    <h4 class="text-sm font-medium text-gray-900 dark:text-white">Import</h4>
+                    <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">Run SQL from file or paste</p>
+                  </div>
+                </div>
+                <div class="mt-4">
+                  <button
+                    @click="openImportModal"
+                    class="flex w-full items-center justify-center gap-2 rounded-md border border-dashed border-gray-300 px-3 py-6 text-sm text-gray-500 hover:border-gray-400 hover:text-gray-700 dark:border-gray-700 dark:text-gray-400 dark:hover:border-gray-600 dark:hover:text-gray-300"
+                  >
+                    <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                     </svg>
-                    Full backup (schema + data)
-                  </button>
-                  <button @click="exportDatabase('schema')" class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-800">
-                    <svg class="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7" />
-                    </svg>
-                    Schema only
-                  </button>
-                  <button @click="exportDatabase('data')" class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-800">
-                    <svg class="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7" />
-                    </svg>
-                    Data only
+                    <span>Upload or paste SQL</span>
                   </button>
                 </div>
               </div>
-
-              <!-- Import button -->
-              <button
-                @click="openImportModal"
-                class="flex items-center gap-2 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
-              >
-                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-                </svg>
-                <span>Import SQL</span>
-              </button>
             </div>
           </div>
         </div>
