@@ -1338,7 +1338,7 @@ onUnmounted(() => {
         <!-- Import button -->
         <Tooltip text="Import" position="top">
           <button
-            @click="openImportModal"
+            @click="exportDropdownOpen = false; openImportModal()"
             class="flex h-8 w-8 items-center justify-center rounded-md text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white"
           >
             <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
