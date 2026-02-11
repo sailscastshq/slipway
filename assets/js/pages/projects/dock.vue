@@ -1402,12 +1402,21 @@ onUnmounted(() => {
 
           <!-- Paste mode -->
           <div v-if="importMode === 'paste'">
-            <textarea
-              v-model="importSql"
-              rows="12"
-              class="w-full rounded-md border border-gray-200 bg-gray-50 p-3 font-mono text-sm text-gray-900 placeholder-gray-400 focus:border-gray-400 focus:outline-none dark:border-gray-700 dark:bg-gray-800 dark:text-white dark:placeholder-gray-500"
-              placeholder="Paste your SQL statements here..."
-            ></textarea>
+            <div class="relative min-h-[200px] max-h-[400px] overflow-auto rounded-md border border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-800">
+              <!-- Highlighted layer -->
+              <pre
+                class="pointer-events-none absolute inset-0 overflow-hidden whitespace-pre-wrap break-words p-3 font-mono text-sm leading-6 text-gray-900 dark:text-gray-100"
+                aria-hidden="true"
+                v-html="highlightSQL(importSql) || '<span class=\'text-gray-400 dark:text-gray-500\'>Paste your SQL statements here...</span>'"
+              ></pre>
+              <!-- Textarea -->
+              <textarea
+                v-model="importSql"
+                class="relative min-h-[200px] w-full resize-none bg-transparent p-3 font-mono text-sm leading-6 text-transparent caret-gray-900 placeholder-transparent field-sizing-content focus:outline-none dark:caret-white"
+                placeholder="Paste your SQL statements here..."
+                spellcheck="false"
+              ></textarea>
+            </div>
           </div>
 
           <!-- Upload mode -->
@@ -1426,7 +1435,10 @@ onUnmounted(() => {
             </div>
             <div v-if="importSql" class="mt-4">
               <p class="mb-2 text-xs font-medium text-gray-500 dark:text-gray-400">Preview:</p>
-              <pre class="max-h-48 overflow-auto rounded-md bg-gray-50 p-3 font-mono text-xs text-gray-700 dark:bg-gray-800 dark:text-gray-300">{{ importSql.slice(0, 2000) }}{{ importSql.length > 2000 ? '...' : '' }}</pre>
+              <pre
+                class="max-h-48 overflow-auto rounded-md bg-gray-50 p-3 font-mono text-xs leading-5 dark:bg-gray-800"
+                v-html="highlightSQL(importSql.slice(0, 2000)) + (importSql.length > 2000 ? '<span class=\'text-gray-400\'>...</span>' : '')"
+              ></pre>
             </div>
           </div>
 
