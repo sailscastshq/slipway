@@ -85,7 +85,7 @@ module.exports = {
 
     const { service } = dbResult
 
-    // Validate table name (prevent SQL injection)
+    // Validate table/collection name (prevent injection)
     if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(table)) {
       throw { badRequest: 'Invalid table name.' }
     }
@@ -93,6 +93,39 @@ module.exports = {
     // Validate orderBy column name
     if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(orderBy)) {
       throw { badRequest: 'Invalid order by column.' }
+    }
+
+    if (service.type === 'mongodb') {
+      // MongoDB: browse collection data
+      const sortDir = order === 'desc' ? -1 : 1
+      const countQuery = `db.getCollection('${table}').countDocuments()`
+      const countResult = await sails.helpers.dock.executeSql(service, countQuery)
+
+      if (!countResult.success) {
+        throw { badRequest: countResult.error }
+      }
+
+      const total = parseInt(countResult.message || '0')
+
+      const dataQuery = `db.getCollection('${table}').find().sort({${orderBy}:${sortDir}}).skip(${offset}).limit(${limit}).toArray()`
+      const dataResult = await sails.helpers.dock.executeSql(service, dataQuery)
+
+      if (!dataResult.success) {
+        throw { badRequest: dataResult.error }
+      }
+
+      const columns = dataResult.columns || []
+      return {
+        table,
+        columns,
+        rows: dataResult.rows,
+        pagination: {
+          total,
+          limit,
+          offset,
+          hasMore: offset + dataResult.rows.length < total
+        }
+      }
     }
 
     const quote = service.type === 'mysql' ? '`' : '"'

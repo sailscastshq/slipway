@@ -22,10 +22,18 @@ const toggleMobileMenu = inject('toggleMobileMenu')
 const toggleSidebar = inject('toggleSidebar')
 const sidebarCollapsed = inject('sidebarCollapsed')
 
+// Database type helpers
+const isMongoDB = computed(() => props.databaseService?.type === 'mongodb')
+const isSQL = computed(() => ['postgresql', 'mysql'].includes(props.databaseService?.type))
+
 // Active tab - initialize from URL query param
-const validTabs = ['console', 'tables', 'schema', 'migrate']
+// MongoDB doesn't have schema/migrate tabs
+const validTabs = computed(() => isMongoDB.value
+  ? ['console', 'collections']
+  : ['console', 'tables', 'schema', 'migrate']
+)
 const initialTab = new URLSearchParams(window.location.search).get('tab')
-const activeTab = ref(validTabs.includes(initialTab) ? initialTab : 'console')
+const activeTab = ref(validTabs.value.includes(initialTab) ? initialTab : 'console')
 
 // Sync tab to URL
 watch(activeTab, (tab) => {
@@ -38,8 +46,14 @@ watch(activeTab, (tab) => {
   window.history.replaceState({}, '', url)
 })
 
-// SQL Console state
-const query = ref('SELECT * FROM users LIMIT 10;')
+// Default query based on database type
+const defaultQuery = computed(() => isMongoDB.value
+  ? 'db.users.find().limit(10)'
+  : 'SELECT * FROM users LIMIT 10;'
+)
+
+// Console state
+const query = ref('')
 const queryResult = ref(null)
 const queryError = ref(null)
 const queryLoading = ref(false)
@@ -387,9 +401,11 @@ async function exportDatabase(mode = 'full') {
       return
     }
 
-    // Download the SQL file
-    const filename = `${props.project.slug}-${props.environment.slug}-${mode === 'schema' ? 'schema' : mode === 'data' ? 'data' : 'backup'}.sql`
-    downloadFile(data.sql, filename, 'application/sql')
+    // Download the export file
+    const ext = isMongoDB.value ? 'json' : 'sql'
+    const mimeType = isMongoDB.value ? 'application/json' : 'application/sql'
+    const filename = `${props.project.slug}-${props.environment.slug}-${mode === 'schema' ? 'schema' : mode === 'data' ? 'data' : 'backup'}.${ext}`
+    downloadFile(data.sql, filename, mimeType)
     showToast(`Exported ${data.lines} lines (${formatBytes(data.size)})`, 'success')
   } catch (e) {
     showToast(e.message, 'error')
@@ -509,7 +525,8 @@ async function browseTable(tableName) {
   tableData.value = null
 
   try {
-    const res = await fetch(`${apiBasePath.value}/tables/${tableName}/data?limit=50`)
+    const orderBy = isMongoDB.value ? '_id' : 'id'
+    const res = await fetch(`${apiBasePath.value}/tables/${tableName}/data?limit=50&orderBy=${orderBy}`)
     const data = await res.json()
 
     if (res.ok) {
@@ -530,7 +547,7 @@ function switchTab(tab) {
   if (tab === 'migrate' && !diff.value && !diffLoading.value) {
     fetchDiff()
   }
-  if (tab === 'tables' && tables.value.length === 0 && !tablesLoading.value) {
+  if ((tab === 'tables' || tab === 'collections') && tables.value.length === 0 && !tablesLoading.value) {
     fetchTables()
   }
 }
@@ -633,13 +650,17 @@ function handleEscapeKey(e) {
 onMounted(() => {
   document.addEventListener('click', handleClickOutside)
   document.addEventListener('keydown', handleEscapeKey)
+  // Set default query based on database type
+  if (!query.value) {
+    query.value = defaultQuery.value
+  }
   if (props.hasDatabaseService) {
-    // Always fetch tables for the sidebar
+    // Always fetch tables/collections for the sidebar
     fetchTables()
-    // Fetch data for initial tab if needed
-    if (activeTab.value === 'schema') {
+    // Fetch data for initial tab if needed (SQL databases only)
+    if (activeTab.value === 'schema' && isSQL.value) {
       fetchSchema()
-    } else if (activeTab.value === 'migrate') {
+    } else if (activeTab.value === 'migrate' && isSQL.value) {
       fetchDiff()
     }
     // Load table data if specified in URL
@@ -736,7 +757,7 @@ onUnmounted(() => {
         </svg>
         <h3 class="mt-4 text-sm font-medium text-gray-900 dark:text-white">No database service</h3>
         <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">
-          Add a PostgreSQL or MySQL service to enable Dock.
+          Add a PostgreSQL, MySQL, or MongoDB service to enable Dock.
         </p>
         <Link
           :href="`/projects/${project.slug}/environments/${environment.slug}`"
@@ -755,7 +776,7 @@ onUnmounted(() => {
       <!-- Tabs -->
       <div class="sticky top-0 z-10 flex items-center space-x-1 border-b border-gray-200/50 bg-white/80 px-4 py-2 backdrop-blur-md dark:border-gray-800/50 dark:bg-gray-950/80 sm:px-6">
         <button
-          v-for="tab in ['console', 'tables', 'schema', 'migrate']"
+          v-for="tab in validTabs"
           :key="tab"
           @click="switchTab(tab)"
           :class="[
@@ -765,7 +786,7 @@ onUnmounted(() => {
               : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-300'
           ]"
         >
-          {{ tab === 'console' ? 'SQL' : tab }}
+          {{ tab === 'console' ? (isMongoDB ? 'Shell' : 'SQL') : tab }}
         </button>
       </div>
 
@@ -784,7 +805,7 @@ onUnmounted(() => {
             <textarea
               v-model="query"
               class="absolute inset-0 h-full w-full resize-none bg-transparent p-4 font-mono text-sm leading-6 text-transparent caret-gray-900 placeholder-gray-400 focus:outline-none dark:caret-white dark:placeholder-gray-600"
-              placeholder="SELECT * FROM users LIMIT 10;"
+              :placeholder="defaultQuery"
               spellcheck="false"
               @keydown.ctrl.enter="executeQuery"
               @keydown.meta.enter="executeQuery"
@@ -965,12 +986,12 @@ onUnmounted(() => {
         </div>
       </div>
 
-      <!-- Tables Tab -->
-      <div v-if="activeTab === 'tables'" class="flex flex-1 overflow-hidden">
+      <!-- Tables / Collections Tab -->
+      <div v-if="activeTab === 'tables' || activeTab === 'collections'" class="flex flex-1 overflow-hidden">
         <!-- Table list sidebar -->
         <div class="w-64 flex-shrink-0 overflow-y-auto border-r border-gray-200 dark:border-gray-800">
           <div class="p-3 text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
-            Tables ({{ tables.length }})
+            {{ isMongoDB ? 'Collections' : 'Tables' }} ({{ tables.length }})
           </div>
           <div v-if="tablesLoading" class="flex items-center justify-center py-8">
             <svg class="h-5 w-5 animate-spin text-gray-400 dark:text-gray-600" fill="none" viewBox="0 0 24 24">
@@ -1002,7 +1023,7 @@ onUnmounted(() => {
         <!-- Table data -->
         <div class="flex-1 overflow-auto">
           <div v-if="!selectedTable" class="flex h-full items-center justify-center text-sm text-gray-500 dark:text-gray-400">
-            Select a table to browse data
+            Select a {{ isMongoDB ? 'collection' : 'table' }} to browse data
           </div>
           <div v-else-if="tableDataLoading" class="flex h-full items-center justify-center">
             <svg class="h-6 w-6 animate-spin text-gray-400 dark:text-gray-600" fill="none" viewBox="0 0 24 24">
@@ -1013,7 +1034,7 @@ onUnmounted(() => {
           <div v-else-if="tableData" class="flex flex-col h-full">
             <div class="sticky top-0 z-10 border-b border-gray-200 bg-white px-4 py-2 dark:border-gray-800 dark:bg-gray-900">
               <span class="font-mono text-sm text-gray-900 dark:text-white">{{ selectedTable }}</span>
-              <span class="ml-2 text-xs text-gray-500 dark:text-gray-400">{{ tableData.pagination.total }} rows</span>
+              <span class="ml-2 text-xs text-gray-500 dark:text-gray-400">{{ tableData.pagination.total }} {{ isMongoDB ? 'documents' : 'rows' }}</span>
             </div>
             <div class="flex-1 overflow-x-auto">
             <table class="min-w-full">

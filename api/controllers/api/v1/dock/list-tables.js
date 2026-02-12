@@ -89,6 +89,28 @@ module.exports = {
           AND TABLE_TYPE = 'BASE TABLE'
         ORDER BY TABLE_NAME
       `
+    } else if (service.type === 'mongodb') {
+      // List collections with document counts via mongosh
+      query = `db.getCollectionNames().sort().map(name => ({ table_name: name, schema_name: '${service.database}', row_count: db.getCollection(name).estimatedDocumentCount() }))`
+
+      const result = await sails.helpers.dock.executeSql(service, query)
+
+      if (!result.success) {
+        throw { badRequest: result.error }
+      }
+
+      const tables = result.rows.map(row => ({
+        name: row.table_name,
+        schema: row.schema_name,
+        rowCount: parseInt(row.row_count) || 0
+      }))
+
+      return {
+        databaseType: service.type,
+        database: service.database,
+        tables,
+        tableCount: tables.length
+      }
     }
 
     const result = await sails.helpers.dock.executeSql(service, query)

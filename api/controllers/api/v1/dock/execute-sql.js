@@ -66,12 +66,18 @@ module.exports = {
     const { service } = dbResult
 
     // Security: Basic query validation
-    const trimmedQuery = query.trim().toUpperCase()
-    const dangerousPatterns = [
-      /^DROP\s+DATABASE/i,
-      /^DROP\s+SCHEMA/i,
-      /^TRUNCATE\s+TABLE\s+pg_/i
-    ]
+    const dangerousPatterns = service.type === 'mongodb'
+      ? [
+        /db\.dropDatabase\s*\(/i,
+        /\.drop\s*\(\s*\)/i,
+        /db\.runCommand\s*\(\s*\{\s*["']?dropDatabase/i,
+        /db\.runCommand\s*\(\s*\{\s*["']?shutdown/i
+      ]
+      : [
+        /^DROP\s+DATABASE/i,
+        /^DROP\s+SCHEMA/i,
+        /^TRUNCATE\s+TABLE\s+pg_/i
+      ]
 
     for (const pattern of dangerousPatterns) {
       if (pattern.test(query)) {
@@ -82,7 +88,7 @@ module.exports = {
     // Execute the query
     const result = await sails.helpers.dock.executeSql(service, query)
 
-    sails.log.info(`[dock] SQL executed in ${project.slug}/${environmentSlug} by ${user.fullName}`)
+    sails.log.info(`[dock] Query executed in ${project.slug}/${environmentSlug} by ${user.fullName}`)
 
     return result
   }

@@ -66,6 +66,46 @@ module.exports = {
           AND t.TABLE_TYPE = 'BASE TABLE'
         ORDER BY t.TABLE_NAME, c.ORDINAL_POSITION
       `
+    } else if (service.type === 'mongodb') {
+      // MongoDB: sample one document per collection to infer field types
+      const schemaQuery = `db.getCollectionNames().sort().map(name => {
+        const doc = db.getCollection(name).findOne();
+        const fields = doc ? Object.entries(doc).map(([k, v]) => ({
+          name: k,
+          type: v === null ? 'null' : Array.isArray(v) ? 'array' : typeof v === 'object' && v.constructor && v.constructor.name === 'ObjectId' ? 'ObjectId' : typeof v
+        })) : [];
+        return { collection: name, fields: fields };
+      })`
+
+      const result = await sails.helpers.dock.executeSql(service, schemaQuery)
+
+      if (!result.success) {
+        return { tables: {}, error: result.error }
+      }
+
+      // Parse the array of collection schemas from the result
+      const tables = {}
+      const collections = result.rows
+      for (const col of collections) {
+        const collName = col.collection
+        let fields = col.fields
+        if (typeof fields === 'string') {
+          try { fields = JSON.parse(fields) } catch (e) { fields = [] }
+        }
+        tables[collName] = {
+          name: collName,
+          columns: (fields || []).map(f => ({
+            name: f.name,
+            type: f.type,
+            maxLength: null,
+            nullable: true,
+            defaultValue: null,
+            primaryKey: f.name === '_id'
+          }))
+        }
+      }
+
+      return { tables }
     } else {
       throw new Error(`Unsupported database type: ${service.type}`)
     }
