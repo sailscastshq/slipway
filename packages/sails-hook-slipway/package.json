@@ -1,0 +1,30 @@
+{
+  "name": "sails-hook-slipway",
+  "version": "0.1.0",
+  "description": "Auto-instrumentation hook for Sails.js apps deployed on Slipway. Sends request traces, exceptions, and database query metrics to your Slipway Lookout dashboard.",
+  "main": "index.js",
+  "keywords": [
+    "sails",
+    "sailsjs",
+    "sails-hook",
+    "slipway",
+    "observability",
+    "telemetry",
+    "monitoring",
+    "apm"
+  ],
+  "author": "Sailscasts <hello@sailscasts.com>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/sailscastshq/slipway",
+    "directory": "packages/sails-hook-slipway"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "sails": {
+    "isHook": true,
+    "hookName": "slipway"
+  }
+}

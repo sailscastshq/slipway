@@ -57,6 +57,17 @@ module.exports = {
       }
     },
 
+    /**
+     * Telemetry token for authenticating data from sails-hook-slipway.
+     * Auto-generated on environment creation. Used as Bearer token
+     * for the POST /api/v1/telemetry/ingest endpoint.
+     */
+    telemetryToken: {
+      type: 'string',
+      description: 'Token for authenticating telemetry data from deployed apps',
+      columnName: 'telemetry_token'
+    },
+
     // Associations
     project: {
       model: 'project',
@@ -86,6 +97,12 @@ module.exports = {
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, '-')
         .replace(/^-|-$/g, '')
+    }
+
+    // Auto-generate telemetry token
+    if (!values.telemetryToken) {
+      const crypto = require('crypto')
+      values.telemetryToken = 'stk_' + crypto.randomBytes(24).toString('hex')
     }
 
     // Check uniqueness within project

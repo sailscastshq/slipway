@@ -107,9 +107,15 @@ module.exports = function defineLookoutHook(sails) {
         await ContainerMetric.createEach(records)
       }
 
-      // Prune metrics older than 24 hours
+      // Prune container metrics older than 24 hours
       const cutoff = now - (24 * 60 * 60 * 1000)
       await ContainerMetric.destroy({ recordedAt: { '<': cutoff } })
+
+      // Prune telemetry data older than 7 days (runs alongside metric collection)
+      const telemetryCutoff = now - (7 * 24 * 60 * 60 * 1000)
+      await TelemetrySpan.destroy({ startedAt: { '<': telemetryCutoff } }).tolerate('error')
+      await TelemetryException.destroy({ occurredAt: { '<': telemetryCutoff } }).tolerate('error')
+      await TelemetryMetric.destroy({ recordedAt: { '<': telemetryCutoff } }).tolerate('error')
     } catch (err) {
       sails.log.warn('Lookout: Error collecting metrics:', err.message)
     }

@@ -284,6 +284,15 @@ module.exports.routes = {
   'GET /api/v1/projects/:projectSlug/lookout': 'api/v1/lookout/get-environment-metrics',
   'GET /api/v1/projects/:projectSlug/environments/:environmentSlug/lookout': 'api/v1/lookout/get-environment-metrics',
 
+  // Telemetry API (app observability)
+  'POST /api/v1/telemetry/ingest': 'api/v1/telemetry/ingest',
+  'GET /api/v1/projects/:projectSlug/telemetry/spans': 'api/v1/telemetry/get-spans',
+  'GET /api/v1/projects/:projectSlug/environments/:environmentSlug/telemetry/spans': 'api/v1/telemetry/get-spans',
+  'GET /api/v1/projects/:projectSlug/telemetry/exceptions': 'api/v1/telemetry/get-exceptions',
+  'GET /api/v1/projects/:projectSlug/environments/:environmentSlug/telemetry/exceptions': 'api/v1/telemetry/get-exceptions',
+  'GET /api/v1/projects/:projectSlug/telemetry/metrics': 'api/v1/telemetry/get-metrics',
+  'GET /api/v1/projects/:projectSlug/environments/:environmentSlug/telemetry/metrics': 'api/v1/telemetry/get-metrics',
+
   // Webhooks (public endpoints - signature verified in controller)
   'POST /webhook/github': 'webhook/github'
 }

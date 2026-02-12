@@ -47,6 +47,9 @@ module.exports.policies = {
   'api/v1/cli/stream-auth': true,
   // confirm-auth requires auth (user confirms in browser while logged in)
 
+  // Telemetry ingest is public (token-verified in controller)
+  'api/v1/telemetry/ingest': true,
+
   // Webhooks are public (signature-verified in controller)
   'api/v1/webhook/github': true,
 

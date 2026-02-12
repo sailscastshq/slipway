@@ -123,9 +123,23 @@ module.exports = {
       })
     }
 
+    // Global telemetry summary per environment (last 1 hour)
+    const telemetryCutoff = Date.now() - (60 * 60 * 1000)
+    const telemetrySummary = {}
+
+    for (const env of environments) {
+      const [spanCount, exceptionCount] = await Promise.all([
+        TelemetrySpan.count({ environment: env.id, startedAt: { '>=': telemetryCutoff } }),
+        TelemetryException.count({ environment: env.id, occurredAt: { '>=': telemetryCutoff } })
+      ])
+      if (spanCount > 0 || exceptionCount > 0) {
+        telemetrySummary[env.id] = { requests: spanCount, exceptions: exceptionCount }
+      }
+    }
+
     return {
       page: 'lookout/index',
-      props: { containers }
+      props: { containers, telemetrySummary }
     }
   }
 }

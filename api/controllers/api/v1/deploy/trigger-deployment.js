@@ -163,6 +163,12 @@ async function executeDeployment(deploymentId, project, environment) {
     const envRecord = await Environment.findOne({ id: environment.id })
     const envVars = { ...globalEnvVars, ...(envRecord.envVars || {}) }
 
+    // 6b. Auto-inject Slipway telemetry env vars for sails-hook-slipway
+    if (envRecord.telemetryToken) {
+      envVars.SLIPWAY_TELEMETRY_URL = `${sails.config.custom.baseUrl}/api/v1/telemetry/ingest`
+      envVars.SLIPWAY_TELEMETRY_TOKEN = envRecord.telemetryToken
+    }
+
     // 7. Check for existing app (to decide create vs update in step 8)
     const existingApp = await App.findOne({ environment: environment.id })
 

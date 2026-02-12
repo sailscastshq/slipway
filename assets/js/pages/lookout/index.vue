@@ -11,6 +11,10 @@ const props = defineProps({
   containers: {
     type: Array,
     default: () => []
+  },
+  telemetrySummary: {
+    type: Object,
+    default: () => ({})
   }
 })
 
@@ -125,6 +129,11 @@ function timeAgo(timestamp) {
 function serviceIcon(type) {
   const icons = { postgresql: 'PG', mysql: 'My', redis: 'Rd', mongodb: 'Mg' }
   return icons[type] || 'Sv'
+}
+
+// Get telemetry summary for a container's environment
+function envTelemetry(container) {
+  return props.telemetrySummary[container.environment?.id] || null
 }
 </script>
 
@@ -304,6 +313,16 @@ function serviceIcon(type) {
 
               <!-- Status dot -->
               <span class="h-2 w-2 shrink-0 rounded-full bg-emerald-500"></span>
+
+              <!-- Telemetry badges (if app has telemetry data) -->
+              <div v-if="container.type === 'app' && envTelemetry(container)" class="hidden items-center space-x-1.5 lg:flex">
+                <span class="rounded bg-blue-50 px-1.5 py-0.5 text-[10px] font-medium text-blue-600 dark:bg-blue-900/20 dark:text-blue-400">
+                  {{ envTelemetry(container).requests }} req
+                </span>
+                <span v-if="envTelemetry(container).exceptions > 0" class="rounded bg-red-50 px-1.5 py-0.5 text-[10px] font-medium text-red-600 dark:bg-red-900/20 dark:text-red-400">
+                  {{ envTelemetry(container).exceptions }} err
+                </span>
+              </div>
 
               <!-- CPU -->
               <div class="hidden w-16 shrink-0 text-right sm:block">

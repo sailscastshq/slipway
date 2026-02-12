@@ -139,6 +139,85 @@ module.exports = {
       })
     }
 
+    // Telemetry summary (last 1 hour)
+    const telemetryCutoff = Date.now() - (60 * 60 * 1000)
+    const [recentSpans, recentExceptions, slowQueries] = await Promise.all([
+      TelemetrySpan.find({
+        environment: environment.id,
+        startedAt: { '>=': telemetryCutoff }
+      }).sort('startedAt DESC').limit(500),
+      TelemetryException.find({
+        environment: environment.id,
+        occurredAt: { '>=': telemetryCutoff }
+      }).sort('occurredAt DESC').limit(200),
+      TelemetryMetric.find({
+        environment: environment.id,
+        name: 'db.query',
+        recordedAt: { '>=': telemetryCutoff }
+      }).sort('value DESC').limit(50)
+    ])
+
+    // Compute telemetry stats
+    const totalRequests = recentSpans.length
+    const errorRequests = recentSpans.filter(s => s.statusCode >= 500).length
+    const durations = recentSpans.map(s => s.duration).sort((a, b) => a - b)
+    const p95Duration = durations.length > 0
+      ? durations[Math.ceil(durations.length * 0.95) - 1]
+      : 0
+    const avgDuration = durations.length > 0
+      ? durations.reduce((a, b) => a + b, 0) / durations.length
+      : 0
+
+    // Group exceptions by type+message
+    const exceptionGroups = {}
+    for (const ex of recentExceptions) {
+      const key = `${ex.exceptionType}::${ex.message}`
+      if (!exceptionGroups[key]) {
+        exceptionGroups[key] = {
+          exceptionType: ex.exceptionType,
+          message: ex.message,
+          count: 0,
+          lastSeen: ex.occurredAt,
+          lastStackTrace: ex.stackTrace,
+          lastUrl: ex.url,
+          lastMethod: ex.method
+        }
+      }
+      exceptionGroups[key].count++
+    }
+
+    const telemetry = {
+      requests: {
+        total: totalRequests,
+        errors: errorRequests,
+        errorRate: totalRequests > 0 ? ((errorRequests / totalRequests) * 100).toFixed(1) : '0',
+        p95: Math.round(p95Duration),
+        avg: Math.round(avgDuration),
+        recent: recentSpans.slice(0, 20).map(s => ({
+          name: s.name,
+          method: s.method,
+          url: s.url,
+          statusCode: s.statusCode,
+          duration: s.duration,
+          startedAt: s.startedAt
+        }))
+      },
+      exceptions: {
+        total: recentExceptions.length,
+        groups: Object.values(exceptionGroups).sort((a, b) => b.count - a.count).slice(0, 20)
+      },
+      queries: {
+        slow: slowQueries.slice(0, 20).map(q => ({
+          value: q.value,
+          attributes: q.attributes,
+          recordedAt: q.recordedAt
+        })),
+        total: slowQueries.length
+      },
+      hasTelemetry: recentSpans.length > 0 || recentExceptions.length > 0,
+      telemetryToken: environment.telemetryToken
+    }
+
     return {
       page: 'projects/lookout',
       props: {
@@ -152,7 +231,8 @@ module.exports = {
           name: environment.name,
           slug: environment.slug
         },
-        containers
+        containers,
+        telemetry
       }
     }
   }
