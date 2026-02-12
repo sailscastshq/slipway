@@ -107,6 +107,11 @@ module.exports.routes = {
   'GET /settings/update': 'system/view-update',
   'GET /api/v1/system/check-update': 'system/check-update',
 
+  // Lookout (infrastructure observability)
+  'GET /lookout': 'lookout/view-lookout',
+  'GET /projects/:slug/lookout': 'project/view-lookout',
+  'GET /projects/:slug/environments/:envSlug/lookout': 'project/view-lookout',
+
   /***************************************************************************
    *                                                                          *
    * API v1 routes                                                            *
@@ -133,6 +138,7 @@ module.exports.routes = {
   'POST /api/v1/projects/:projectSlug/environments/:environmentSlug/deploy': 'api/v1/deploy/trigger-deployment',
   'POST /api/v1/projects/:projectSlug/rollback': 'api/v1/deploy/rollback-deployment',
   'POST /api/v1/projects/:projectSlug/environments/:environmentSlug/rollback': 'api/v1/deploy/rollback-deployment',
+  'POST /api/v1/deployments/:deploymentId/cancel': 'api/v1/deploy/cancel-deployment',
   'GET /api/v1/deployments/active': 'api/v1/deploy/get-active-deployments',
   'GET /api/v1/deployments/:id': 'api/v1/deploy/get-deployment-status',
   'GET /api/v1/deployments/:id/logs': 'api/v1/deploy/get-deployment-logs',
@@ -174,37 +180,33 @@ module.exports.routes = {
   'GET /api/v1/deployments/:id/stream': 'api/v1/deploy/stream-deployment',
   'GET /api/v1/projects/:projectSlug/environments/:environmentSlug/logs/stream': 'api/v1/app/stream-container-logs',
 
-  // Content Management (sails-content CMS)
-  'GET /api/v1/projects/:projectSlug/content/collections': 'api/v1/content/list-collections',
-  'GET /api/v1/projects/:projectSlug/environments/:environmentSlug/content/collections': 'api/v1/content/list-collections',
-  'GET /api/v1/projects/:projectSlug/content/:collection/:file': 'api/v1/content/get-content',
-  'GET /api/v1/projects/:projectSlug/environments/:environmentSlug/content/:collection/:file': 'api/v1/content/get-content',
-  'POST /api/v1/projects/:projectSlug/content/:collection': 'api/v1/content/create-content',
-  'POST /api/v1/projects/:projectSlug/environments/:environmentSlug/content/:collection': 'api/v1/content/create-content',
-  'PUT /api/v1/projects/:projectSlug/content/:collection/:file': 'api/v1/content/update-content',
-  'PUT /api/v1/projects/:projectSlug/environments/:environmentSlug/content/:collection/:file': 'api/v1/content/update-content',
-  'DELETE /api/v1/projects/:projectSlug/content/:collection/:file': 'api/v1/content/delete-content',
-  'DELETE /api/v1/projects/:projectSlug/environments/:environmentSlug/content/:collection/:file': 'api/v1/content/delete-content',
-
   // Content Manager UI
   'GET /projects/:slug/content': 'project/view-content-manager',
   'GET /projects/:slug/environments/:envSlug/content': 'project/view-content-manager',
   'GET /projects/:slug/content/:collection/:file': 'project/view-content-editor',
   'GET /projects/:slug/environments/:envSlug/content/:collection/:file': 'project/view-content-editor',
 
-  // Quest Job Scheduler API (sails-hook-quest)
-  'GET /api/v1/projects/:projectSlug/quest/jobs': 'api/v1/quest/list-jobs',
-  'GET /api/v1/projects/:projectSlug/environments/:environmentSlug/quest/jobs': 'api/v1/quest/list-jobs',
+  // Content Actions (Inertia form submissions)
+  'POST /projects/:slug/content/:collection/create': 'project/content-create',
+  'POST /projects/:slug/environments/:envSlug/content/:collection/create': 'project/content-create',
+  'POST /projects/:slug/content/:collection/:file/update': 'project/content-update',
+  'POST /projects/:slug/environments/:envSlug/content/:collection/:file/update': 'project/content-update',
+  'POST /projects/:slug/content/:collection/:file/delete': 'project/content-delete',
+  'POST /projects/:slug/environments/:envSlug/content/:collection/:file/delete': 'project/content-delete',
+
+  // Quest Job Scheduler API (run-job needed for inline output)
   'POST /api/v1/projects/:projectSlug/quest/jobs/:name/run': 'api/v1/quest/run-job',
   'POST /api/v1/projects/:projectSlug/environments/:environmentSlug/quest/jobs/:name/run': 'api/v1/quest/run-job',
-  'POST /api/v1/projects/:projectSlug/quest/jobs/:name/pause': 'api/v1/quest/pause-job',
-  'POST /api/v1/projects/:projectSlug/environments/:environmentSlug/quest/jobs/:name/pause': 'api/v1/quest/pause-job',
-  'POST /api/v1/projects/:projectSlug/quest/jobs/:name/resume': 'api/v1/quest/resume-job',
-  'POST /api/v1/projects/:projectSlug/environments/:environmentSlug/quest/jobs/:name/resume': 'api/v1/quest/resume-job',
 
   // Quest UI
   'GET /projects/:slug/quest': 'project/view-quest',
   'GET /projects/:slug/environments/:envSlug/quest': 'project/view-quest',
+
+  // Quest Actions (Inertia form submissions)
+  'POST /projects/:slug/quest/:jobName/pause': 'project/quest-pause-job',
+  'POST /projects/:slug/environments/:envSlug/quest/:jobName/pause': 'project/quest-pause-job',
+  'POST /projects/:slug/quest/:jobName/resume': 'project/quest-resume-job',
+  'POST /projects/:slug/environments/:envSlug/quest/:jobName/resume': 'project/quest-resume-job',
 
   // Dock Database Management API
   'POST /api/v1/projects/:projectSlug/dock/sql': 'api/v1/dock/execute-sql',
@@ -230,22 +232,6 @@ module.exports.routes = {
   'GET /projects/:slug/dock/:serviceId?': 'project/view-dock',
   'GET /projects/:slug/environments/:envSlug/dock/:serviceId?': 'project/view-dock',
 
-  // Bridge Data Management API
-  'GET /api/v1/projects/:projectSlug/bridge/models': 'api/v1/bridge/list-models',
-  'GET /api/v1/projects/:projectSlug/environments/:environmentSlug/bridge/models': 'api/v1/bridge/list-models',
-  'GET /api/v1/projects/:projectSlug/bridge/records': 'api/v1/bridge/list-records',
-  'GET /api/v1/projects/:projectSlug/environments/:environmentSlug/bridge/records': 'api/v1/bridge/list-records',
-  'GET /api/v1/projects/:projectSlug/bridge/record': 'api/v1/bridge/get-record',
-  'GET /api/v1/projects/:projectSlug/environments/:environmentSlug/bridge/record': 'api/v1/bridge/get-record',
-  'POST /api/v1/projects/:projectSlug/bridge/record': 'api/v1/bridge/create-record',
-  'POST /api/v1/projects/:projectSlug/environments/:environmentSlug/bridge/record': 'api/v1/bridge/create-record',
-  'PATCH /api/v1/projects/:projectSlug/bridge/record': 'api/v1/bridge/update-record',
-  'PATCH /api/v1/projects/:projectSlug/environments/:environmentSlug/bridge/record': 'api/v1/bridge/update-record',
-  'DELETE /api/v1/projects/:projectSlug/bridge/record': 'api/v1/bridge/destroy-record',
-  'DELETE /api/v1/projects/:projectSlug/environments/:environmentSlug/bridge/record': 'api/v1/bridge/destroy-record',
-  'POST /api/v1/projects/:projectSlug/bridge/records/bulk-destroy': 'api/v1/bridge/bulk-destroy-records',
-  'POST /api/v1/projects/:projectSlug/environments/:environmentSlug/bridge/records/bulk-destroy': 'api/v1/bridge/bulk-destroy-records',
-
   // Bridge UI
   'GET /projects/:slug/bridge': 'project/view-bridge',
   'GET /projects/:slug/environments/:envSlug/bridge': 'project/view-bridge',
@@ -257,6 +243,16 @@ module.exports.routes = {
   'GET /projects/:slug/environments/:envSlug/bridge/:modelIdentity/:recordId': 'project/view-bridge-record',
   'GET /projects/:slug/bridge/:modelIdentity/:recordId/edit': 'project/view-bridge-edit',
   'GET /projects/:slug/environments/:envSlug/bridge/:modelIdentity/:recordId/edit': 'project/view-bridge-edit',
+
+  // Bridge Actions (Inertia form submissions)
+  'POST /projects/:slug/bridge/:modelIdentity/create': 'project/bridge-create-record',
+  'POST /projects/:slug/environments/:envSlug/bridge/:modelIdentity/create': 'project/bridge-create-record',
+  'POST /projects/:slug/bridge/:modelIdentity/:recordId/update': 'project/bridge-update-record',
+  'POST /projects/:slug/environments/:envSlug/bridge/:modelIdentity/:recordId/update': 'project/bridge-update-record',
+  'POST /projects/:slug/bridge/:modelIdentity/:recordId/delete': 'project/bridge-delete-record',
+  'POST /projects/:slug/environments/:envSlug/bridge/:modelIdentity/:recordId/delete': 'project/bridge-delete-record',
+  'POST /projects/:slug/bridge/:modelIdentity/bulk-delete': 'project/bridge-bulk-delete',
+  'POST /projects/:slug/environments/:envSlug/bridge/:modelIdentity/bulk-delete': 'project/bridge-bulk-delete',
 
   /***************************************************************************
    *                                                                          *
@@ -281,6 +277,12 @@ module.exports.routes = {
   'GET /api/v1/deploy-tokens': 'api/v1/deploy-token/list',
   'POST /api/v1/deploy-tokens': 'api/v1/deploy-token/create',
   'DELETE /api/v1/deploy-tokens/:id': 'api/v1/deploy-token/revoke',
+
+  // Lookout API (infrastructure metrics)
+  'GET /api/v1/lookout/overview': 'api/v1/lookout/get-overview',
+  'GET /api/v1/lookout/metrics/:containerName': 'api/v1/lookout/get-container-metrics',
+  'GET /api/v1/projects/:projectSlug/lookout': 'api/v1/lookout/get-environment-metrics',
+  'GET /api/v1/projects/:projectSlug/environments/:environmentSlug/lookout': 'api/v1/lookout/get-environment-metrics',
 
   // Webhooks (public endpoints - signature verified in controller)
   'POST /webhook/github': 'webhook/github'

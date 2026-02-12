@@ -74,6 +74,11 @@ module.exports = {
     currentDeployment: {
       model: 'deployment',
       columnName: 'current_deployment_id'
+    },
+
+    metrics: {
+      collection: 'containermetric',
+      via: 'app'
     }
   },
 
