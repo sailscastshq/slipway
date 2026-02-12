@@ -6,7 +6,7 @@
  * 2. SLIPWAY_URL environment variable - extract host/IP from URL
  * 3. Fallback to 127.0.0.1
  *
- * Used for generating sslip.io domains when no wildcard domain is configured.
+ * Used for custom domain A-record instructions and server identification.
  */
 
 module.exports = {

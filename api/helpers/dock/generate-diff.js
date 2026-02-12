@@ -25,7 +25,7 @@ module.exports = {
     dbType: {
       type: 'string',
       required: true,
-      isIn: ['postgresql', 'mysql'],
+      isIn: ['postgresql', 'mysql', 'mongodb'],
       description: 'Database type'
     }
   },
@@ -49,6 +49,28 @@ module.exports = {
     const existingTables = new Set(Object.keys(schema))
     const modelTables = new Set()
 
+    // MongoDB: only check for missing collections (schemaless DB)
+    if (dbType === 'mongodb') {
+      for (const [identity, model] of Object.entries(models)) {
+        const collectionName = model.tableName || identity
+        modelTables.add(collectionName)
+
+        if (!existingTables.has(collectionName)) {
+          // Collection doesn't exist - needs to be created
+          diff.tablesToCreate.push({
+            tableName: collectionName,
+            model: identity,
+            columns: [], // MongoDB is schemaless
+            primaryKey: '_id'
+          })
+        }
+        // MongoDB doesn't have column-level schema enforcement
+        // so we don't check for columns to add/modify
+      }
+      return diff
+    }
+
+    // SQL databases: full column-level diff
     // Check each model
     for (const [identity, model] of Object.entries(models)) {
       const tableName = model.tableName || identity

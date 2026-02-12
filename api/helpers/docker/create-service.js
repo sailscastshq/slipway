@@ -1,6 +1,6 @@
-const { exec } = require('child_process')
+const { execFile } = require('child_process')
 const util = require('util')
-const execAsync = util.promisify(exec)
+const execFileAsync = util.promisify(execFile)
 
 module.exports = {
   friendlyName: 'Create service',
@@ -31,65 +31,55 @@ module.exports = {
       throw new Error('Service not found')
     }
 
+    const dockerPath = sails.config.docker?.binaryPath || 'docker'
     const networkName = sails.config.custom.slipwayNetwork || 'slipway'
     const image = Service.getDockerImage(service.type, service.version)
 
-    // Build docker run command based on service type
-    let cmd = `docker run -d --name ${service.containerName} --network ${networkName}`
-    cmd += ' --restart unless-stopped'
+    // Build docker run args based on service type
+    const args = ['run', '-d', '--name', service.containerName, '--network', networkName, '--restart', 'unless-stopped']
 
     // Add service-specific environment variables
     switch (service.type) {
       case 'postgresql':
-        cmd += ` -e POSTGRES_USER=${service.username}`
-        cmd += ` -e POSTGRES_PASSWORD=${service.password}`
-        cmd += ` -e POSTGRES_DB=${service.database}`
+        args.push('-e', `POSTGRES_USER=${service.username}`)
+        args.push('-e', `POSTGRES_PASSWORD=${service.password}`)
+        args.push('-e', `POSTGRES_DB=${service.database}`)
         break
 
       case 'mysql':
-        cmd += ` -e MYSQL_ROOT_PASSWORD=${service.password}`
-        cmd += ` -e MYSQL_USER=${service.username}`
-        cmd += ` -e MYSQL_PASSWORD=${service.password}`
-        cmd += ` -e MYSQL_DATABASE=${service.database}`
+        args.push('-e', `MYSQL_ROOT_PASSWORD=${service.password}`)
+        args.push('-e', `MYSQL_USER=${service.username}`)
+        args.push('-e', `MYSQL_PASSWORD=${service.password}`)
+        args.push('-e', `MYSQL_DATABASE=${service.database}`)
         break
 
       case 'redis':
+        // Redis needs the image first, then the command
+        args.push(image)
         if (service.password) {
-          cmd += ` ${image} redis-server --requirepass ${service.password}`
-          // Return early to avoid adding image twice
-          sails.log.info(`Creating Redis service: ${service.containerName}`)
-          try {
-            const { stdout } = await execAsync(cmd)
-            const containerId = stdout.trim()
-
-            await Service.updateOne({ id: serviceId }).set({
-              containerId,
-              status: 'running'
-            })
-
-            sails.log.info(`Redis service started: ${service.containerName}`)
-            return { containerId, containerName: service.containerName }
-          } catch (error) {
-            await Service.updateOne({ id: serviceId }).set({ status: 'failed' })
-            throw 'createFailed'
-          }
+          args.push('redis-server', '--requirepass', service.password)
         }
         break
 
       case 'mongodb':
-        cmd += ` -e MONGO_INITDB_ROOT_USERNAME=${service.username}`
-        cmd += ` -e MONGO_INITDB_ROOT_PASSWORD=${service.password}`
-        cmd += ` -e MONGO_INITDB_DATABASE=${service.database}`
+        args.push('-e', `MONGO_INITDB_ROOT_USERNAME=${service.username}`)
+        args.push('-e', `MONGO_INITDB_ROOT_PASSWORD=${service.password}`)
+        args.push('-e', `MONGO_INITDB_DATABASE=${service.database}`)
         break
     }
 
-    cmd += ` ${image}`
+    // Add image at the end (unless redis already added it)
+    if (service.type !== 'redis') {
+      args.push(image)
+    }
 
     sails.log.info(`Creating ${service.type} service: ${service.containerName}`)
-    sails.log.verbose(`Command: ${cmd}`)
+    sails.log.verbose(`Command: docker ${args.join(' ')}`)
 
     try {
-      const { stdout } = await execAsync(cmd)
+      const { stdout } = await execFileAsync(dockerPath, args, {
+        timeout: 300000 // 5 minute timeout for image pulls
+      })
       const containerId = stdout.trim()
 
       await Service.updateOne({ id: serviceId }).set({
@@ -106,6 +96,9 @@ module.exports = {
       }
     } catch (error) {
       sails.log.error(`Failed to create service: ${error.message}`)
+      if (error.stderr) {
+        sails.log.error(`stderr: ${error.stderr}`)
+      }
       await Service.updateOne({ id: serviceId }).set({ status: 'failed' })
       throw 'createFailed'
     }

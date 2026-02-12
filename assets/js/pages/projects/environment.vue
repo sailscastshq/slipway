@@ -295,9 +295,19 @@ function toggleServiceUrlReveal(id) {
 async function createService() {
   if (!newServiceName.value.trim() || creatingService.value) return
   creatingService.value = true
+
+  const serviceName = newServiceName.value.trim().toLowerCase().replace(/\s+/g, '-')
+  const serviceType = newServiceType.value
+
+  const actionId = startAction({
+    serviceName,
+    serviceType,
+    action: 'creating',
+    projectName: props.project.name,
+    environmentName: props.environment.name
+  })
+
   try {
-    const serviceName = newServiceName.value.trim().toLowerCase().replace(/\s+/g, '-')
-    const serviceType = newServiceType.value
     const res = await fetch(`/api/v1/projects/${props.project.slug}/environments/${props.environment.slug}/services`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -307,16 +317,13 @@ async function createService() {
         version: newServiceVersion.value || 'latest'
       })
     })
-    if (res.ok) {
-      toast({ message: `${serviceType} service "${serviceName}" created`, type: 'success' })
-    } else {
-      const err = await res.json().catch(() => null)
-      toast({ message: err?.message || 'Failed to create service', type: 'error' })
-    }
+    completeAction(actionId, res.ok)
     newServiceName.value = ''
     newServiceVersion.value = 'latest'
     addServiceOpen.value = false
     router.reload({ only: ['environment', 'envVars', 'checklist'] })
+  } catch (err) {
+    completeAction(actionId, false)
   } finally {
     creatingService.value = false
   }
@@ -538,7 +545,7 @@ const sortedVarKeys = computed(() => Object.keys(localVars).sort())
 const services = computed(() => props.environment.services || [])
 
 const hasDatabaseService = computed(() => {
-  return services.value.some(s => ['postgresql', 'mysql'].includes(s.type) && s.status === 'running')
+  return services.value.some(s => ['postgresql', 'mysql', 'mongodb', 'redis'].includes(s.type) && s.status === 'running')
 })
 
 const checklistWarnings = computed(() => {
@@ -838,7 +845,7 @@ onBeforeUnmount(() => {
             <div class="relative mt-1 inline-flex items-center">
               <div class="group flex items-center gap-2">
                 <a
-                  :href="`http://${environment.fullDomain}`"
+                  :href="`https://${environment.fullDomain}`"
                   target="_blank"
                   class="text-sm text-gray-500 underline decoration-dashed decoration-gray-300 underline-offset-2 hover:text-gray-900 dark:text-gray-400 dark:decoration-gray-600 dark:hover:text-white"
                 >
@@ -884,7 +891,7 @@ onBeforeUnmount(() => {
                 >
                   <span class="text-[10px] font-medium uppercase tracking-wider text-gray-400 dark:text-gray-500 w-16">{{ d.label }}</span>
                   <a
-                    :href="`http://${d.value}`"
+                    :href="`https://${d.value}`"
                     target="_blank"
                     class="text-sm text-gray-700 underline decoration-dashed decoration-gray-300 underline-offset-2 hover:text-gray-900 dark:text-gray-300 dark:decoration-gray-600 dark:hover:text-white"
                   >
@@ -964,6 +971,16 @@ onBeforeUnmount(() => {
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4" />
                       </svg>
                       Dock
+                    </Link>
+                    <Link
+                      v-if="app && app.status === 'running'"
+                      :href="`/projects/${project.slug}/environments/${environment.slug}/bridge`"
+                      class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+                    >
+                      <svg class="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                      </svg>
+                      Bridge
                     </Link>
                     <Link
                       :href="`/projects/${project.slug}/environments/${environment.slug}/helm`"
@@ -1357,23 +1374,13 @@ onBeforeUnmount(() => {
                       <span :class="['inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-medium', statusBadge(service.status).classes]">
                         {{ statusBadge(service.status).label }}
                       </span>
-                      <Tooltip v-if="['postgresql', 'mysql'].includes(service.type) && service.status === 'running'" text="Dock">
+                      <Tooltip v-if="['postgresql', 'mysql', 'mongodb', 'redis'].includes(service.type) && service.status === 'running'" text="Dock">
                         <Link
-                          :href="`/projects/${project.slug}/environments/${environment.slug}/dock`"
+                          :href="`/projects/${project.slug}/environments/${environment.slug}/dock/${service.id}`"
                           class="rounded p-1 text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
                         >
                           <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4" />
-                          </svg>
-                        </Link>
-                      </Tooltip>
-                      <Tooltip v-if="service.type === 'redis' && service.status === 'running'" text="Redis Console">
-                        <Link
-                          :href="`/projects/${project.slug}/environments/${environment.slug}/redis/${service.id}`"
-                          class="rounded p-1 text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
-                        >
-                          <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                           </svg>
                         </Link>
                       </Tooltip>

@@ -60,10 +60,11 @@ module.exports = {
       throw 'notFound'
     }
 
-    // Get database service
+    // Get database service - use serviceId from query params if available
+    const serviceId = this.req.query.service
     let dbResult
     try {
-      dbResult = await sails.helpers.dock.getDatabaseService(environment.id)
+      dbResult = await sails.helpers.dock.getDatabaseService(environment.id, serviceId)
     } catch (err) {
       throw { badRequest: 'No database service found for this environment.' }
     }

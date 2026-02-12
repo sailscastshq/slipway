@@ -1,6 +1,6 @@
-const { exec } = require('child_process')
+const { execFile } = require('child_process')
 const util = require('util')
-const execAsync = util.promisify(exec)
+const execFileAsync = util.promisify(execFile)
 
 module.exports = {
   friendlyName: 'Destroy service',
@@ -30,12 +30,13 @@ module.exports = {
       throw new Error('Service not found')
     }
 
+    const dockerPath = sails.config.docker?.binaryPath || 'docker'
     const containerName = service.containerName
 
     try {
       // Stop the container
       try {
-        await execAsync(`docker stop ${containerName}`)
+        await execFileAsync(dockerPath, ['stop', containerName])
         sails.log.info(`Stopped service container: ${containerName}`)
       } catch {
         // Container might already be stopped
@@ -44,7 +45,7 @@ module.exports = {
 
       // Remove the container
       try {
-        await execAsync(`docker rm ${containerName}`)
+        await execFileAsync(dockerPath, ['rm', containerName])
         sails.log.info(`Removed service container: ${containerName}`)
       } catch {
         // Container might already be removed

@@ -55,8 +55,8 @@ module.exports = {
     let generatedDomain
     if (wildcardDomain) {
       generatedDomain = `${subdomain}.${wildcardDomain}`
-    } else {
-      generatedDomain = `${subdomain}.${serverIp}.sslip.io`
+    } else if (sails.config.custom.slipwayDomain) {
+      generatedDomain = `${subdomain}.${sails.config.custom.slipwayDomain}`
     }
 
     // Enrich services with connection URLs and last backup

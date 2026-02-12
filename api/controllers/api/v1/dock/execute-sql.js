@@ -16,6 +16,10 @@ module.exports = {
       type: 'string',
       required: true,
       description: 'SQL query to execute'
+    },
+    serviceId: {
+      type: 'string',
+      description: 'Specific service ID to query'
     }
   },
 
@@ -34,7 +38,7 @@ module.exports = {
     }
   },
 
-  fn: async function ({ projectSlug, environmentSlug, query }) {
+  fn: async function ({ projectSlug, environmentSlug, query, serviceId }) {
     const user = await User.findOne({ id: this.req.session.userId })
     const project = await Project.findOne({ slug: projectSlug }).populate('team')
 
@@ -55,10 +59,11 @@ module.exports = {
       throw 'notFound'
     }
 
-    // Get database service
+    // Get database service - use serviceId from query params if available
+    const reqServiceId = serviceId || this.req.query.service
     let dbResult
     try {
-      dbResult = await sails.helpers.dock.getDatabaseService(environment.id)
+      dbResult = await sails.helpers.dock.getDatabaseService(environment.id, reqServiceId)
     } catch (err) {
       throw { badRequest: 'No database service found for this environment.' }
     }

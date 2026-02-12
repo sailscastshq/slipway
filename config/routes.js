@@ -62,7 +62,6 @@ module.exports.routes = {
   'GET /projects/:slug/environments/:envSlug': 'project/view-environment',
   'GET /projects/:slug/environments/:envSlug/settings': 'project/view-environment-settings',
   'GET /projects/:slug/environments/:envSlug/helm': 'project/view-helm',
-  'GET /projects/:slug/environments/:envSlug/redis/:serviceId': 'project/view-redis-console',
   'GET /projects/:slug/environments/:envSlug/services/:serviceId': 'project/view-service',
   'GET /projects/:slug/deployments/:deploymentId': 'project/view-deployment',
 
@@ -227,7 +226,62 @@ module.exports.routes = {
   'POST /api/v1/projects/:projectSlug/dock/import': 'api/v1/dock/import-sql',
   'POST /api/v1/projects/:projectSlug/environments/:environmentSlug/dock/import': 'api/v1/dock/import-sql',
 
-  // Dock UI
-  'GET /projects/:slug/dock': 'project/view-dock',
-  'GET /projects/:slug/environments/:envSlug/dock': 'project/view-dock'
+  // Dock UI (serviceId is optional - without it shows service picker)
+  'GET /projects/:slug/dock/:serviceId?': 'project/view-dock',
+  'GET /projects/:slug/environments/:envSlug/dock/:serviceId?': 'project/view-dock',
+
+  // Bridge Data Management API
+  'GET /api/v1/projects/:projectSlug/bridge/models': 'api/v1/bridge/list-models',
+  'GET /api/v1/projects/:projectSlug/environments/:environmentSlug/bridge/models': 'api/v1/bridge/list-models',
+  'GET /api/v1/projects/:projectSlug/bridge/records': 'api/v1/bridge/list-records',
+  'GET /api/v1/projects/:projectSlug/environments/:environmentSlug/bridge/records': 'api/v1/bridge/list-records',
+  'GET /api/v1/projects/:projectSlug/bridge/record': 'api/v1/bridge/get-record',
+  'GET /api/v1/projects/:projectSlug/environments/:environmentSlug/bridge/record': 'api/v1/bridge/get-record',
+  'POST /api/v1/projects/:projectSlug/bridge/record': 'api/v1/bridge/create-record',
+  'POST /api/v1/projects/:projectSlug/environments/:environmentSlug/bridge/record': 'api/v1/bridge/create-record',
+  'PATCH /api/v1/projects/:projectSlug/bridge/record': 'api/v1/bridge/update-record',
+  'PATCH /api/v1/projects/:projectSlug/environments/:environmentSlug/bridge/record': 'api/v1/bridge/update-record',
+  'DELETE /api/v1/projects/:projectSlug/bridge/record': 'api/v1/bridge/destroy-record',
+  'DELETE /api/v1/projects/:projectSlug/environments/:environmentSlug/bridge/record': 'api/v1/bridge/destroy-record',
+  'POST /api/v1/projects/:projectSlug/bridge/records/bulk-destroy': 'api/v1/bridge/bulk-destroy-records',
+  'POST /api/v1/projects/:projectSlug/environments/:environmentSlug/bridge/records/bulk-destroy': 'api/v1/bridge/bulk-destroy-records',
+
+  // Bridge UI
+  'GET /projects/:slug/bridge': 'project/view-bridge',
+  'GET /projects/:slug/environments/:envSlug/bridge': 'project/view-bridge',
+  'GET /projects/:slug/bridge/:modelIdentity': 'project/view-bridge-model',
+  'GET /projects/:slug/environments/:envSlug/bridge/:modelIdentity': 'project/view-bridge-model',
+  'GET /projects/:slug/bridge/:modelIdentity/new': 'project/view-bridge-create',
+  'GET /projects/:slug/environments/:envSlug/bridge/:modelIdentity/new': 'project/view-bridge-create',
+  'GET /projects/:slug/bridge/:modelIdentity/:recordId': 'project/view-bridge-record',
+  'GET /projects/:slug/environments/:envSlug/bridge/:modelIdentity/:recordId': 'project/view-bridge-record',
+  'GET /projects/:slug/bridge/:modelIdentity/:recordId/edit': 'project/view-bridge-edit',
+  'GET /projects/:slug/environments/:envSlug/bridge/:modelIdentity/:recordId/edit': 'project/view-bridge-edit',
+
+  /***************************************************************************
+   *                                                                          *
+   * Git Integration & Push-to-Deploy                                         *
+   *                                                                          *
+   ***************************************************************************/
+
+  // GitHub OAuth
+  'GET /auth/github': 'auth/github',
+  'GET /auth/github/callback': 'auth/github-callback',
+
+  // Git Settings UI
+  'GET /settings/git': 'setting/view-git',
+
+  // Git API
+  'GET /api/v1/git/repos': 'api/v1/git/list-repos',
+  'POST /api/v1/git/repos/connect': 'api/v1/git/connect-repo',
+  'GET /api/v1/git/status': 'api/v1/git/get-status',
+  'PATCH /api/v1/git/config': 'api/v1/git/update-config',
+
+  // Deploy Tokens
+  'GET /api/v1/deploy-tokens': 'api/v1/deploy-token/list',
+  'POST /api/v1/deploy-tokens': 'api/v1/deploy-token/create',
+  'DELETE /api/v1/deploy-tokens/:id': 'api/v1/deploy-token/revoke',
+
+  // Webhooks (public endpoints - signature verified in controller)
+  'POST /webhook/github': 'webhook/github'
 }

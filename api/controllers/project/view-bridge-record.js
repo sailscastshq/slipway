@@ -1,7 +1,7 @@
 module.exports = {
-  friendlyName: 'View Redis console',
+  friendlyName: 'View Bridge record',
 
-  description: 'Display the Redis CLI console page for a service.',
+  description: 'Display the detail view for a single record.',
 
   inputs: {
     slug: {
@@ -10,10 +10,14 @@ module.exports = {
     },
     envSlug: {
       type: 'string',
+      defaultsTo: 'production'
+    },
+    modelIdentity: {
+      type: 'string',
       required: true
     },
-    serviceId: {
-      type: 'number',
+    recordId: {
+      type: 'string',
       required: true
     }
   },
@@ -27,7 +31,7 @@ module.exports = {
     }
   },
 
-  fn: async function ({ slug, envSlug, serviceId }) {
+  fn: async function ({ slug, envSlug, modelIdentity, recordId }) {
     const user = await User.findOne({ id: this.req.session.userId }).populate('team')
 
     if (!user) {
@@ -49,18 +53,10 @@ module.exports = {
       throw { notFound: `/projects/${slug}` }
     }
 
-    const service = await Service.findOne({
-      id: serviceId,
-      environment: environment.id,
-      type: 'redis'
-    })
-
-    if (!service) {
-      throw { notFound: `/projects/${slug}/environments/${envSlug}?services=1` }
-    }
+    const app = await App.findOne({ environment: environment.id })
 
     return {
-      page: 'projects/redis-console',
+      page: 'projects/bridge-record',
       props: {
         project: {
           id: project.id,
@@ -72,11 +68,9 @@ module.exports = {
           name: environment.name,
           slug: environment.slug
         },
-        service: {
-          id: service.id,
-          name: service.name,
-          status: service.status
-        }
+        modelIdentity,
+        recordId,
+        appRunning: app && app.status === 'running'
       }
     }
   }

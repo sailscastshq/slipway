@@ -68,25 +68,46 @@ module.exports = {
       `
     } else if (service.type === 'mongodb') {
       // MongoDB: sample one document per collection to infer field types
-      const schemaQuery = `db.getCollectionNames().sort().map(name => {
-        const doc = db.getCollection(name).findOne();
-        const fields = doc ? Object.entries(doc).map(([k, v]) => ({
-          name: k,
-          type: v === null ? 'null' : Array.isArray(v) ? 'array' : typeof v === 'object' && v.constructor && v.constructor.name === 'ObjectId' ? 'ObjectId' : typeof v
-        })) : [];
-        return { collection: name, fields: fields };
-      })`
+      // Wrap in try-catch to handle empty databases gracefully
+      const schemaQuery = `
+        (function() {
+          try {
+            const names = db.getCollectionNames();
+            if (!names || names.length === 0) return [];
+            return names.sort().map(function(name) {
+              try {
+                const doc = db.getCollection(name).findOne();
+                const fields = doc ? Object.entries(doc).map(function(entry) {
+                  var k = entry[0], v = entry[1];
+                  var type = v === null ? 'null' : Array.isArray(v) ? 'array' : (v && typeof v === 'object' && v.constructor && v.constructor.name === 'ObjectId') ? 'ObjectId' : typeof v;
+                  return { name: k, type: type };
+                }) : [];
+                return { collection: name, fields: fields };
+              } catch (e) {
+                return { collection: name, fields: [], error: e.message };
+              }
+            });
+          } catch (e) {
+            return [];
+          }
+        })()
+      `.replace(/\n\s*/g, ' ')
 
       const result = await sails.helpers.dock.executeSql(service, schemaQuery)
 
       if (!result.success) {
+        // For MongoDB, an empty database is not an error
+        if (result.error && result.error.includes('No database')) {
+          return { tables: {} }
+        }
         return { tables: {}, error: result.error }
       }
 
       // Parse the array of collection schemas from the result
       const tables = {}
-      const collections = result.rows
+      const collections = result.rows || []
       for (const col of collections) {
+        if (!col || !col.collection) continue
         const collName = col.collection
         let fields = col.fields
         if (typeof fields === 'string') {

@@ -48,8 +48,8 @@ module.exports.custom = {
    *                                                                         *
    **************************************************************************/
 
-  // Base domain for deployed apps (e.g., myapp-production.slipway.local)
-  slipwayDomain: 'slipway.local',
+  // Base domain for deployed apps (e.g., myapp-production.localhost)
+  slipwayDomain: 'localhost',
 
   // Docker network name for app containers
   slipwayNetwork: 'slipway',

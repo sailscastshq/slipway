@@ -1,6 +1,6 @@
 <script setup>
 import { Link, Head } from '@inertiajs/vue3'
-import { inject, ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import { inject, ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
 import ConfirmModal from '@/components/ConfirmModal.vue'
 import ToastContainer from '@/components/ToastContainer.vue'
@@ -13,8 +13,8 @@ defineOptions({
 const props = defineProps({
   project: Object,
   environment: Object,
-  hasDatabaseService: Boolean,
-  databaseService: Object,
+  databaseService: Object, // null when in picker mode
+  availableServices: Array,
   appRunning: Boolean
 })
 
@@ -22,16 +22,37 @@ const toggleMobileMenu = inject('toggleMobileMenu')
 const toggleSidebar = inject('toggleSidebar')
 const sidebarCollapsed = inject('sidebarCollapsed')
 
+// Service picker mode (no service selected)
+const isPickerMode = computed(() => !props.databaseService)
+
 // Database type helpers
 const isMongoDB = computed(() => props.databaseService?.type === 'mongodb')
 const isSQL = computed(() => ['postgresql', 'mysql'].includes(props.databaseService?.type))
+const isRedis = computed(() => props.databaseService?.type === 'redis')
+const hasMultipleServices = computed(() => (props.availableServices?.length || 0) > 1)
+
+// Build dock URL for a service
+function dockUrl(serviceId) {
+  const envPath = props.environment.slug !== 'production'
+    ? `/environments/${props.environment.slug}`
+    : ''
+  return `/projects/${props.project.slug}${envPath}/dock/${serviceId}`
+}
+
+// Navigate to a different service
+function switchService(serviceId) {
+  window.location.href = dockUrl(serviceId)
+}
 
 // Active tab - initialize from URL query param
-// MongoDB doesn't have schema/migrate tabs
-const validTabs = computed(() => isMongoDB.value
-  ? ['console', 'collections']
-  : ['console', 'tables', 'schema', 'migrate']
-)
+// Redis: only console
+// MongoDB: shell, collections, migrate (for creating collections)
+// SQL: console, tables, schema, migrate
+const validTabs = computed(() => {
+  if (isRedis.value) return ['console']
+  if (isMongoDB.value) return ['console', 'collections', 'migrate']
+  return ['console', 'tables', 'schema', 'migrate']
+})
 const initialTab = new URLSearchParams(window.location.search).get('tab')
 const activeTab = ref(validTabs.value.includes(initialTab) ? initialTab : 'console')
 
@@ -48,7 +69,7 @@ watch(activeTab, (tab) => {
 
 // Default query based on database type
 const defaultQuery = computed(() => isMongoDB.value
-  ? 'db.users.find().limit(10)'
+  ? 'db.users.find().limit(10).toArray()'
   : 'SELECT * FROM users LIMIT 10;'
 )
 
@@ -60,6 +81,22 @@ const queryLoading = ref(false)
 const queryHistory = ref([])
 const resultView = ref('table') // 'table' or 'json'
 const showExportMenu = ref(false)
+
+// Redis console state
+const redisCommand = ref('')
+const redisRunning = ref(false)
+const redisHistory = ref([])
+const redisHistoryIndex = ref(-1)
+const redisOutputContainer = ref(null)
+const redisCommandInput = ref(null)
+
+const redisQuickCommands = [
+  { label: 'PING', cmd: 'PING' },
+  { label: 'INFO', cmd: 'INFO server' },
+  { label: 'DBSIZE', cmd: 'DBSIZE' },
+  { label: 'KEYS *', cmd: 'KEYS *' },
+  { label: 'CONFIG GET maxmemory', cmd: 'CONFIG GET maxmemory' }
+]
 
 // Schema state
 const schema = ref(null)
@@ -182,6 +219,18 @@ const apiBasePath = computed(() => {
   return `/api/v1/projects/${props.project.slug}${envPath}/dock`
 })
 
+// Query string with service ID for all API calls
+const serviceQuery = computed(() => {
+  return props.databaseService?.id ? `?service=${props.databaseService.id}` : ''
+})
+
+// Helper to build API URL with service param
+function apiUrl(endpoint, extraParams = '') {
+  const hasQuery = serviceQuery.value || extraParams
+  const queryPart = serviceQuery.value + (extraParams ? (serviceQuery.value ? '&' : '?') + extraParams.replace(/^\?/, '') : '')
+  return `${apiBasePath.value}${endpoint}${queryPart}`
+}
+
 // SQL syntax highlighting with tokenizer approach to avoid nested span issues
 const highlightedQuery = computed(() => {
   return highlightSQL(query.value)
@@ -232,7 +281,7 @@ async function executeQuery() {
   queryError.value = null
 
   try {
-    const res = await fetch(`${apiBasePath.value}/sql`, {
+    const res = await fetch(apiUrl('/sql'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ query: query.value })
@@ -257,13 +306,102 @@ async function executeQuery() {
   }
 }
 
+// Redis command execution
+async function executeRedisCommand() {
+  if (!redisCommand.value.trim() || redisRunning.value) return
+
+  const cmd = redisCommand.value
+  redisRunning.value = true
+  redisHistoryIndex.value = -1
+
+  try {
+    const res = await fetch(`/api/v1/services/${props.databaseService.id}/redis`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ command: cmd })
+    })
+
+    const result = await res.json()
+
+    redisHistory.value.push({
+      command: cmd,
+      output: result.output || '',
+      error: result.error || null,
+      success: result.success,
+      duration: result.duration,
+      time: new Date()
+    })
+
+    // Cap at 200 entries
+    if (redisHistory.value.length > 200) {
+      redisHistory.value = redisHistory.value.slice(-150)
+    }
+
+    redisCommand.value = ''
+  } catch (err) {
+    redisHistory.value.push({
+      command: cmd,
+      output: '',
+      error: err.message,
+      success: false,
+      duration: 0,
+      time: new Date()
+    })
+  } finally {
+    redisRunning.value = false
+    nextTick(() => {
+      redisCommandInput.value?.focus()
+      if (redisOutputContainer.value) {
+        redisOutputContainer.value.scrollTop = redisOutputContainer.value.scrollHeight
+      }
+    })
+  }
+}
+
+function handleRedisKeydown(e) {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault()
+    executeRedisCommand()
+  }
+  // Up arrow to navigate history
+  if (e.key === 'ArrowUp' && redisHistory.value.length > 0) {
+    e.preventDefault()
+    if (redisHistoryIndex.value < redisHistory.value.length - 1) {
+      redisHistoryIndex.value++
+    }
+    const entry = redisHistory.value[redisHistory.value.length - 1 - redisHistoryIndex.value]
+    if (entry) redisCommand.value = entry.command
+  }
+  // Down arrow to navigate history
+  if (e.key === 'ArrowDown') {
+    e.preventDefault()
+    if (redisHistoryIndex.value > 0) {
+      redisHistoryIndex.value--
+      const entry = redisHistory.value[redisHistory.value.length - 1 - redisHistoryIndex.value]
+      if (entry) redisCommand.value = entry.command
+    } else {
+      redisHistoryIndex.value = -1
+      redisCommand.value = ''
+    }
+  }
+}
+
+function runRedisQuickCommand(cmd) {
+  redisCommand.value = cmd
+  nextTick(() => executeRedisCommand())
+}
+
+function clearRedisHistory() {
+  redisHistory.value = []
+}
+
 // Fetch schema
 async function fetchSchema() {
   schemaLoading.value = true
   schemaError.value = null
 
   try {
-    const res = await fetch(`${apiBasePath.value}/schema`)
+    const res = await fetch(apiUrl('/schema'))
     const data = await res.json()
 
     if (!res.ok) {
@@ -284,7 +422,7 @@ async function fetchDiff() {
   diffError.value = null
 
   try {
-    const res = await fetch(`${apiBasePath.value}/diff`)
+    const res = await fetch(apiUrl('/diff'))
     const data = await res.json()
 
     if (!res.ok) {
@@ -353,7 +491,7 @@ async function applyMigration() {
   migrateLoading.value = true
 
   try {
-    const res = await fetch(`${apiBasePath.value}/migrate`, {
+    const res = await fetch(apiUrl('/migrate'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ statements: filteredStatements.value })
@@ -384,7 +522,7 @@ async function exportDatabase(mode = 'full') {
       ? Array.from(selectedExportTables.value)
       : null
 
-    const res = await fetch(`${apiBasePath.value}/export`, {
+    const res = await fetch(apiUrl('/export'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -469,7 +607,7 @@ async function executeImport() {
   importLoading.value = true
 
   try {
-    const res = await fetch(`${apiBasePath.value}/import`, {
+    const res = await fetch(apiUrl('/import'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ sql: importSql.value })
@@ -505,7 +643,7 @@ async function fetchTables() {
   tablesLoading.value = true
 
   try {
-    const res = await fetch(`${apiBasePath.value}/tables`)
+    const res = await fetch(apiUrl('/tables'))
     const data = await res.json()
 
     if (res.ok) {
@@ -526,7 +664,7 @@ async function browseTable(tableName) {
 
   try {
     const orderBy = isMongoDB.value ? '_id' : 'id'
-    const res = await fetch(`${apiBasePath.value}/tables/${tableName}/data?limit=50&orderBy=${orderBy}`)
+    const res = await fetch(apiUrl(`/tables/${tableName}/data`, `limit=50&orderBy=${orderBy}`))
     const data = await res.json()
 
     if (res.ok) {
@@ -654,8 +792,8 @@ onMounted(() => {
   if (!query.value) {
     query.value = defaultQuery.value
   }
-  if (props.hasDatabaseService) {
-    // Always fetch tables/collections for the sidebar
+  if (props.databaseService && !isRedis.value) {
+    // Fetch tables/collections for non-Redis services
     fetchTables()
     // Fetch data for initial tab if needed (SQL databases only)
     if (activeTab.value === 'schema' && isSQL.value) {
@@ -733,8 +871,32 @@ onUnmounted(() => {
         </nav>
       </div>
       <div class="flex items-center space-x-2 sm:space-x-3">
-        <span v-if="databaseService" class="hidden rounded bg-gray-100 px-2 py-1 text-xs font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-400 sm:inline-block">
+        <!-- Database selector (when multiple DBs available) -->
+        <div v-if="databaseService && hasMultipleServices" class="relative hidden sm:block">
+          <select
+            :value="databaseService.id"
+            @change="switchService($event.target.value)"
+            class="appearance-none border-b border-dashed border-gray-300 bg-transparent py-1 pl-1 pr-6 text-sm text-gray-600 focus:border-brand focus:outline-none dark:border-gray-600 dark:text-gray-400"
+          >
+            <option v-for="svc in availableServices" :key="svc.id" :value="svc.id">
+              {{ svc.name }}
+            </option>
+          </select>
+          <svg class="pointer-events-none absolute right-0 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+          </svg>
+        </div>
+        <!-- Single DB badge -->
+        <span v-else-if="databaseService && isRedis" class="inline-flex h-6 w-6 items-center justify-center rounded bg-red-100 text-[9px] font-bold text-red-600 dark:bg-red-900/30 dark:text-red-400 sm:inline-flex">
+          Rd
+        </span>
+        <span v-else-if="databaseService" class="hidden rounded bg-gray-100 px-2 py-1 text-xs font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-400 sm:inline-block">
           {{ databaseService.type }}
+        </span>
+        <!-- Redis connection status -->
+        <span v-if="isRedis && databaseService?.status === 'running'" class="flex items-center space-x-1.5 text-xs text-green-600 dark:text-green-400">
+          <span class="h-1.5 w-1.5 rounded-full bg-green-500"></span>
+          <span class="hidden sm:inline">connected</span>
         </span>
         <a
           href="https://docs.sailscasts.com/slipway/dock"
@@ -749,15 +911,15 @@ onUnmounted(() => {
       </div>
     </div>
 
-    <!-- No database service -->
-    <div v-if="!hasDatabaseService" class="flex flex-1 items-center justify-center p-8">
+    <!-- No services available -->
+    <div v-if="isPickerMode && availableServices.length === 0" class="flex flex-1 items-center justify-center p-8">
       <div class="max-w-md text-center">
         <svg class="mx-auto h-12 w-12 text-gray-400 dark:text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4" />
         </svg>
-        <h3 class="mt-4 text-sm font-medium text-gray-900 dark:text-white">No database service</h3>
+        <h3 class="mt-4 text-sm font-medium text-gray-900 dark:text-white">No database services</h3>
         <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">
-          Add a PostgreSQL, MySQL, or MongoDB service to enable Dock.
+          Add a PostgreSQL, MySQL, MongoDB, or Redis service to enable Dock.
         </p>
         <Link
           :href="`/projects/${project.slug}/environments/${environment.slug}`"
@@ -771,10 +933,64 @@ onUnmounted(() => {
       </div>
     </div>
 
-    <!-- Database management UI -->
+    <!-- Service Picker (no service selected yet) -->
+    <div v-else-if="isPickerMode" class="flex flex-1 items-center justify-center p-6 sm:p-8">
+      <div class="w-full max-w-md">
+        <!-- Header -->
+        <div class="mb-6 text-center">
+          <div class="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-gray-100 dark:bg-gray-800">
+            <svg class="h-6 w-6 text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4" />
+            </svg>
+          </div>
+          <h2 class="text-lg font-medium text-gray-900 dark:text-white">Dock</h2>
+          <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Select a service to manage</p>
+        </div>
+
+        <!-- Service List -->
+        <div class="overflow-hidden rounded-lg border border-gray-200 dark:border-gray-800">
+          <Link
+            v-for="(service, index) in availableServices"
+            :key="service.id"
+            :href="dockUrl(service.id)"
+            :class="[
+              'group flex items-center justify-between px-4 py-3 transition-colors hover:bg-gray-50 dark:hover:bg-gray-900/50',
+              index !== availableServices.length - 1 ? 'border-b border-gray-200 dark:border-gray-800' : ''
+            ]"
+          >
+            <div class="flex items-center space-x-3">
+              <!-- Service icon -->
+              <div
+                :class="[
+                  'flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-xs font-bold',
+                  service.type === 'redis' ? 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400' :
+                  service.type === 'mongodb' ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400' :
+                  service.type === 'mysql' ? 'bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400' :
+                  'bg-sky-100 text-sky-600 dark:bg-sky-900/30 dark:text-sky-400'
+                ]"
+              >
+                {{ service.type === 'redis' ? 'RD' : service.type === 'mongodb' ? 'MG' : service.type === 'mysql' ? 'MY' : 'PG' }}
+              </div>
+              <div>
+                <p class="text-sm font-medium text-gray-900 dark:text-white">{{ service.name }}</p>
+                <p class="text-xs text-gray-500 dark:text-gray-400">
+                  {{ service.type === 'postgresql' ? 'PostgreSQL' : service.type === 'mysql' ? 'MySQL' : service.type === 'mongodb' ? 'MongoDB' : 'Redis' }}
+                  <span v-if="service.database" class="text-gray-400 dark:text-gray-500">· {{ service.database }}</span>
+                </p>
+              </div>
+            </div>
+            <svg class="h-4 w-4 text-gray-400 transition-transform group-hover:translate-x-0.5 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+            </svg>
+          </Link>
+        </div>
+      </div>
+    </div>
+
+    <!-- Database management UI (service selected) -->
     <div v-else class="flex flex-1 flex-col overflow-hidden">
-      <!-- Tabs -->
-      <div class="sticky top-0 z-10 flex items-center space-x-1 border-b border-gray-200/50 bg-white/80 px-4 py-2 backdrop-blur-md dark:border-gray-800/50 dark:bg-gray-950/80 sm:px-6">
+      <!-- Tabs (hidden for Redis since it only has console) -->
+      <div v-if="validTabs.length > 1" class="sticky top-0 z-10 flex items-center space-x-1 border-b border-gray-200/50 bg-white/80 px-4 py-2 backdrop-blur-md dark:border-gray-800/50 dark:bg-gray-950/80 sm:px-6">
         <button
           v-for="tab in validTabs"
           :key="tab"
@@ -790,8 +1006,97 @@ onUnmounted(() => {
         </button>
       </div>
 
-      <!-- SQL Console Tab -->
-      <div v-if="activeTab === 'console'" class="flex flex-1 flex-col overflow-hidden">
+      <!-- Redis Console Tab -->
+      <div v-if="activeTab === 'console' && isRedis" class="flex flex-1 flex-col overflow-hidden">
+        <!-- Quick actions bar -->
+        <div class="flex items-center gap-2 border-b border-gray-200 bg-gray-50 px-4 py-2 dark:border-gray-800 dark:bg-gray-900">
+          <span class="hidden shrink-0 text-xs font-medium text-gray-500 dark:text-gray-400 sm:block">Quick:</span>
+          <div class="flex flex-1 items-center gap-2 overflow-x-auto">
+            <button
+              v-for="qc in redisQuickCommands"
+              :key="qc.cmd"
+              @click="runRedisQuickCommand(qc.cmd)"
+              :disabled="redisRunning"
+              class="shrink-0 rounded-md border border-gray-200 bg-white px-2 py-0.5 text-xs text-gray-600 hover:bg-gray-100 disabled:opacity-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700"
+            >
+              {{ qc.label }}
+            </button>
+          </div>
+          <button
+            v-if="redisHistory.length > 0"
+            @click="clearRedisHistory"
+            class="shrink-0 text-xs text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
+          >
+            Clear
+          </button>
+        </div>
+
+        <!-- Output area -->
+        <div
+          ref="redisOutputContainer"
+          class="flex-1 overflow-y-auto bg-gray-100 p-4 font-mono text-sm leading-6 dark:bg-gray-950"
+        >
+          <!-- Empty state -->
+          <div v-if="redisHistory.length === 0 && !redisRunning" class="text-gray-500 dark:text-gray-600">
+            <p>Redis CLI console for <span class="font-medium text-gray-700 dark:text-gray-400">{{ databaseService.name }}</span></p>
+            <p class="mt-2">Type a command below or use the quick actions above.</p>
+            <p class="mt-1 text-gray-400 dark:text-gray-700">Use <kbd class="rounded bg-gray-200 px-1.5 py-0.5 text-xs text-gray-600 dark:bg-gray-800 dark:text-gray-400">Up</kbd>/<kbd class="rounded bg-gray-200 px-1.5 py-0.5 text-xs text-gray-600 dark:bg-gray-800 dark:text-gray-400">Down</kbd> arrows to navigate history.</p>
+          </div>
+
+          <!-- Command history output -->
+          <div v-for="(entry, i) in redisHistory" :key="i" class="mb-3">
+            <div class="flex items-center gap-2">
+              <span class="text-red-500 dark:text-red-400">redis&gt;</span>
+              <span class="text-gray-900 dark:text-gray-200">{{ entry.command }}</span>
+              <span class="text-xs text-gray-400 dark:text-gray-700">{{ entry.duration }}ms</span>
+            </div>
+            <pre v-if="entry.success && entry.output" class="mt-0.5 whitespace-pre-wrap text-green-600 dark:text-green-400">{{ entry.output }}</pre>
+            <pre v-if="entry.error" class="mt-0.5 whitespace-pre-wrap text-red-500 dark:text-red-400">{{ entry.error }}</pre>
+            <div v-if="entry.success && !entry.output && !entry.error" class="mt-0.5 text-gray-400 dark:text-gray-600">(empty)</div>
+          </div>
+
+          <!-- Running indicator -->
+          <div v-if="redisRunning" class="flex items-center space-x-2 text-gray-500">
+            <svg class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            <span>Executing...</span>
+          </div>
+        </div>
+
+        <!-- Command input -->
+        <div class="border-t border-gray-200 bg-gray-100 dark:border-gray-800 dark:bg-gray-950">
+          <div class="flex items-center px-4 py-3">
+            <span class="mr-2 font-mono text-sm text-red-500 dark:text-red-400">redis&gt;</span>
+            <input
+              ref="redisCommandInput"
+              v-model="redisCommand"
+              @keydown="handleRedisKeydown"
+              :disabled="redisRunning"
+              type="text"
+              placeholder="Enter Redis command..."
+              spellcheck="false"
+              autocomplete="off"
+              class="flex-1 border-0 bg-transparent font-mono text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-0 dark:text-gray-200 dark:placeholder-gray-600"
+            />
+            <button
+              @click="executeRedisCommand"
+              :disabled="!redisCommand.trim() || redisRunning"
+              class="ml-2 flex items-center space-x-1.5 rounded-md bg-gray-200 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-300 disabled:opacity-50 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+            >
+              <svg v-if="redisRunning" class="h-3 w-3 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              <span>{{ redisRunning ? 'Running...' : 'Run' }}</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- SQL/MongoDB Console Tab -->
+      <div v-if="activeTab === 'console' && !isRedis" class="flex flex-1 flex-col overflow-hidden">
         <!-- Editor -->
         <div class="flex-1 overflow-hidden border-b border-gray-200 dark:border-gray-800">
           <div class="relative h-full">
@@ -1189,9 +1494,9 @@ onUnmounted(() => {
         <div v-else-if="diff" class="space-y-6">
           <div class="flex items-center justify-between">
             <div>
-              <h3 class="text-sm font-medium text-gray-900 dark:text-white">Schema Diff</h3>
+              <h3 class="text-sm font-medium text-gray-900 dark:text-white">{{ isMongoDB ? 'Collection Diff' : 'Schema Diff' }}</h3>
               <p class="text-xs text-gray-500 dark:text-gray-400">
-                Comparing models with database
+                Comparing models with {{ isMongoDB ? 'collections' : 'database' }}
                 <span v-if="diff.modelsSource === 'static'" class="text-gray-400 dark:text-gray-500">(from source files)</span>
                 <span v-else class="text-gray-400 dark:text-gray-500">(from running app)</span>
               </p>
@@ -1204,8 +1509,8 @@ onUnmounted(() => {
             <svg class="mx-auto h-10 w-10 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
-            <h3 class="mt-4 text-sm font-medium text-green-700 dark:text-green-400">Schema is up to date</h3>
-            <p class="mt-1 text-sm text-green-600/70 dark:text-green-500/70">Database matches your Waterline models.</p>
+            <h3 class="mt-4 text-sm font-medium text-green-700 dark:text-green-400">{{ isMongoDB ? 'Collections are up to date' : 'Schema is up to date' }}</h3>
+            <p class="mt-1 text-sm text-green-600/70 dark:text-green-500/70">{{ isMongoDB ? 'All model collections exist.' : 'Database matches your Waterline models.' }}</p>
           </div>
 
           <!-- Has changes -->
@@ -1213,7 +1518,7 @@ onUnmounted(() => {
             <!-- Model selection -->
             <div class="rounded-lg border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900/30">
               <div class="flex items-center justify-between border-b border-gray-200 px-4 py-2 dark:border-gray-800">
-                <span class="text-sm font-medium text-gray-900 dark:text-white">Models to migrate</span>
+                <span class="text-sm font-medium text-gray-900 dark:text-white">{{ isMongoDB ? 'Collections to create' : 'Models to migrate' }}</span>
                 <div class="flex items-center space-x-2">
                   <button
                     @click="selectAllModels"
@@ -1262,10 +1567,10 @@ onUnmounted(() => {
               </p>
             </div>
 
-            <!-- Migration SQL with syntax highlighting -->
+            <!-- Migration SQL/Commands with syntax highlighting -->
             <div v-if="filteredStatements.length > 0" class="rounded-lg border border-gray-200 bg-gray-50 overflow-hidden dark:border-gray-800 dark:bg-gray-900/50">
               <div class="border-b border-gray-200 px-4 py-2 dark:border-gray-800">
-                <span class="text-sm font-medium text-gray-900 dark:text-white">Migration SQL</span>
+                <span class="text-sm font-medium text-gray-900 dark:text-white">{{ isMongoDB ? 'Migration Commands' : 'Migration SQL' }}</span>
               </div>
               <div class="divide-y divide-gray-200 dark:divide-gray-800">
                 <pre
@@ -1293,7 +1598,7 @@ onUnmounted(() => {
             <ConfirmModal
               :show="showMigrateConfirm"
               title="Apply Migration"
-              :message="`This will execute ${filteredStatements.length} SQL statement(s) on your database.`"
+              :message="isMongoDB ? `This will create ${filteredStatements.length} collection(s) in your database.` : `This will execute ${filteredStatements.length} SQL statement(s) on your database.`"
               confirmLabel="Apply"
               @confirm="applyMigration"
               @cancel="showMigrateConfirm = false"
@@ -1304,8 +1609,8 @@ onUnmounted(() => {
       </div>
     </div>
 
-    <!-- Bottom-right toolbar -->
-    <div v-if="hasDatabaseService" class="fixed bottom-4 right-4 z-40" data-export-dropdown>
+    <!-- Bottom-right toolbar (not for Redis) -->
+    <div v-if="databaseService && !isRedis" class="fixed bottom-4 right-4 z-40" data-export-dropdown>
       <div class="flex items-center gap-1 rounded-lg border border-gray-200 bg-white p-1 shadow-lg dark:border-gray-700 dark:bg-gray-800">
         <!-- Export button -->
         <div class="relative">

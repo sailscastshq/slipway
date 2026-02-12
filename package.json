@@ -47,6 +47,8 @@
   },
   "scripts": {
     "dev": "node --watch-path=api --watch-path=config app.js",
+    "dev:proxy": "caddy run --config caddy.dev.json",
+    "dev:proxy:trust": "caddy trust",
     "start": "NODE_ENV=production node app.js",
     "lint": "prettier --check .",
     "lint:fix": "prettier --write .",

@@ -72,6 +72,30 @@ module.exports = {
       }
 
       parseOutput = (stdout, stderr) => parseMysqlOutput(stdout, stderr, format)
+    } else if (service.type === 'mongodb') {
+      // MongoDB: use mongosh with JSON output
+      // Connect to localhost inside container, authenticate against admin db
+      const mongoUri = `mongodb://${encodeURIComponent(service.username)}:${encodeURIComponent(service.password)}@localhost:27017/${service.database}?authSource=admin`
+
+      // Wrap query to output JSON, with error handling
+      const wrappedQuery = `
+        try {
+          var result = ${query};
+          print(JSON.stringify(result));
+        } catch (e) {
+          print(JSON.stringify({ __error: true, message: e.message }));
+        }
+      `.replace(/\n\s*/g, ' ')
+
+      args = [
+        'exec', '-i', service.containerName,
+        'mongosh',
+        mongoUri,
+        '--quiet',
+        '--eval', wrappedQuery
+      ]
+
+      parseOutput = (stdout, stderr) => parseMongoOutput(stdout, stderr, format)
     } else {
       throw new Error(`Unsupported database type: ${service.type}`)
     }
@@ -290,5 +314,102 @@ function parseMysqlOutput(stdout, stderr, format) {
     columns,
     rows,
     rowCount: rows.length
+  }
+}
+
+/**
+ * Parse MongoDB mongosh JSON output into structured format
+ */
+function parseMongoOutput(stdout, stderr, format) {
+  const output = stdout.trim()
+
+  if (!output) {
+    return { columns: [], rows: [], rowCount: 0 }
+  }
+
+  // Try to parse as JSON (our query wraps result in JSON.stringify)
+  try {
+    const data = JSON.parse(output)
+
+    // Check for wrapped error
+    if (data && data.__error) {
+      return {
+        message: data.message || 'MongoDB query failed',
+        columns: [],
+        rows: [],
+        rowCount: 0,
+        error: data.message
+      }
+    }
+
+    // Handle array results (find queries)
+    if (Array.isArray(data)) {
+      if (data.length === 0) {
+        return { columns: [], rows: [], rowCount: 0 }
+      }
+
+      // Extract columns from first document
+      const columns = Object.keys(data[0])
+
+      // Convert _id to string for display
+      const rows = data.map(doc => {
+        const row = {}
+        columns.forEach(col => {
+          const val = doc[col]
+          if (col === '_id' && val && typeof val === 'object') {
+            row[col] = val.$oid || JSON.stringify(val)
+          } else if (val && typeof val === 'object') {
+            row[col] = JSON.stringify(val)
+          } else {
+            row[col] = val
+          }
+        })
+        return row
+      })
+
+      return {
+        columns,
+        rows,
+        rowCount: rows.length
+      }
+    }
+
+    // Handle single document result
+    if (typeof data === 'object' && data !== null) {
+      const columns = Object.keys(data)
+      const row = {}
+      columns.forEach(col => {
+        const val = data[col]
+        if (col === '_id' && val && typeof val === 'object') {
+          row[col] = val.$oid || JSON.stringify(val)
+        } else if (val && typeof val === 'object') {
+          row[col] = JSON.stringify(val)
+        } else {
+          row[col] = val
+        }
+      })
+
+      return {
+        columns,
+        rows: [row],
+        rowCount: 1
+      }
+    }
+
+    // Handle primitive results (count, etc)
+    return {
+      message: String(data),
+      columns: [],
+      rows: [],
+      rowCount: 0
+    }
+  } catch (e) {
+    // Not JSON - return as message
+    return {
+      message: output,
+      columns: [],
+      rows: [],
+      rowCount: 0
+    }
   }
 }

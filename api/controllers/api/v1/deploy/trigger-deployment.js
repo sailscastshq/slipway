@@ -68,12 +68,13 @@ module.exports = {
     let finalGitMessage = gitMessage
 
     if (!gitCommit || !gitBranch) {
-      const lastDeployment = await Deployment.findOne({
+      const lastDeployments = await Deployment.find({
         environment: environment.id,
         gitCommit: { '!=': null }
-      }).sort('id DESC')
+      }).sort('id DESC').limit(1)
 
-      if (lastDeployment) {
+      if (lastDeployments.length > 0) {
+        const lastDeployment = lastDeployments[0]
         finalGitCommit = gitCommit || lastDeployment.gitCommit
         finalGitBranch = gitBranch || lastDeployment.gitBranch
         finalGitMessage = gitMessage || lastDeployment.gitMessage
@@ -222,10 +223,13 @@ async function executeDeployment(deploymentId, project, environment) {
 
     const domain = await Environment.getFullDomain(environment.id)
     await Deployment.appendDeployLog(deploymentId, `Deployment complete.\n`)
-    await Deployment.appendDeployLog(deploymentId, `  Domain:    ${domain}\n`)
+    await Deployment.appendDeployLog(deploymentId, `  URL:       https://${domain}\n`)
     await Deployment.appendDeployLog(deploymentId, `  Direct:    http://localhost:${containerResult.hostPort}\n`)
 
     sails.log.info(`Deployment ${deploymentId} completed successfully — http://localhost:${containerResult.hostPort}`)
+
+    // Clear Bridge model cache for this environment (schema may have changed)
+    try { require('../../helpers/bridge/introspect-models').clearCache(environment.id) } catch { /* ignore */ }
 
     // Send success notification (fire and forget)
     const finalDeployment = await Deployment.findOne({ id: deploymentId })

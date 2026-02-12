@@ -1,13 +1,21 @@
 module.exports = {
   friendlyName: 'Get database service',
 
-  description: 'Find the primary database service (PostgreSQL, MySQL, or MongoDB) for an environment.',
+  description: 'Find a database service (PostgreSQL, MySQL, MongoDB, or Redis) for an environment.',
 
   inputs: {
     environmentId: {
       type: 'string',
       required: true,
       description: 'Environment ID'
+    },
+    serviceId: {
+      type: 'string',
+      description: 'Specific service ID (optional - if not provided, returns first available)'
+    },
+    serviceType: {
+      type: 'string',
+      description: 'Specific service type (optional - postgresql, mysql, mongodb, redis)'
     }
   },
 
@@ -21,13 +29,31 @@ module.exports = {
     }
   },
 
-  fn: async function ({ environmentId }) {
-    // Find PostgreSQL, MySQL, or MongoDB service attached to this environment
-    const service = await Service.findOne({
-      environment: environmentId,
-      type: ['postgresql', 'mysql', 'mongodb'],
-      status: 'running'
-    })
+  fn: async function ({ environmentId, serviceId, serviceType }) {
+    let service
+
+    if (serviceId) {
+      // Find specific service by ID
+      service = await Service.findOne({
+        id: serviceId,
+        environment: environmentId,
+        status: 'running'
+      })
+    } else if (serviceType) {
+      // Find by type
+      service = await Service.findOne({
+        environment: environmentId,
+        type: serviceType,
+        status: 'running'
+      })
+    } else {
+      // Find first available database service
+      service = await Service.findOne({
+        environment: environmentId,
+        type: ['postgresql', 'mysql', 'mongodb', 'redis'],
+        status: 'running'
+      })
+    }
 
     if (!service) {
       throw 'notFound'

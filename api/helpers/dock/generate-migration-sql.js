@@ -20,7 +20,7 @@ module.exports = {
     dbType: {
       type: 'string',
       required: true,
-      isIn: ['postgresql', 'mysql'],
+      isIn: ['postgresql', 'mysql', 'mongodb'],
       description: 'Database type'
     }
   },
@@ -34,6 +34,23 @@ module.exports = {
 
   fn: async function ({ diff, dbType }) {
     const statements = []
+
+    // MongoDB: generate createCollection commands
+    if (dbType === 'mongodb') {
+      for (const table of diff.tablesToCreate) {
+        // Use createCollection which is idempotent-ish (throws error if exists, but we can handle that)
+        // We wrap in try-catch so it doesn't fail if collection already exists
+        const cmd = `db.createCollection('${table.tableName}')`
+        statements.push({
+          type: 'create_collection',
+          table: table.tableName,
+          sql: cmd // Using 'sql' key for compatibility with existing code
+        })
+      }
+      return { statements }
+    }
+
+    // SQL databases
     const quote = dbType === 'postgresql' ? '"' : '`'
 
     // Generate CREATE TABLE statements

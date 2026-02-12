@@ -12,11 +12,11 @@ let timerInterval = null
 
 const actionLabel = computed(() => {
   if (props.action.status === 'in_progress') {
-    const labels = { starting: 'Starting', stopping: 'Stopping', restarting: 'Restarting' }
+    const labels = { starting: 'Starting', stopping: 'Stopping', restarting: 'Restarting', creating: 'Creating' }
     return labels[props.action.action] || props.action.action
   }
   if (props.action.status === 'failed') return 'Failed to ' + props.action.action.replace('ing', '').replace('pp', 'p')
-  const labels = { starting: 'Started', stopping: 'Stopped', restarting: 'Restarted' }
+  const labels = { starting: 'Started', stopping: 'Stopped', restarting: 'Restarted', creating: 'Created' }
   return labels[props.action.action] || 'Done'
 })
 
