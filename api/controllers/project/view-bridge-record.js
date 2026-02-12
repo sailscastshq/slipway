@@ -54,6 +54,64 @@ module.exports = {
     }
 
     const app = await App.findOne({ environment: environment.id })
+    const appRunning = app && app.status === 'running'
+
+    let modelMeta = null
+    let record = null
+    let error = null
+
+    if (appRunning) {
+      try {
+        // Get model introspection
+        const introspection = await sails.helpers.bridge.introspectModels(
+          app.containerName,
+          environment.id
+        )
+
+        if (introspection.error) {
+          error = introspection.error
+        } else {
+          modelMeta = introspection.models[modelIdentity]
+
+          if (!modelMeta) {
+            error = `Model "${modelIdentity}" not found.`
+          } else {
+            // Build populate clause for associations
+            const collectionAssocs = (modelMeta.associations || [])
+              .filter(a => a.type === 'collection')
+              .map(a => `'${a.alias}'`)
+
+            const populateChain = collectionAssocs.length > 0
+              ? `.populate([${collectionAssocs.join(', ')}])`
+              : ''
+
+            // Fetch the record
+            const queryCode = `
+              const record = await sails.models['${modelIdentity}'].findOne({ id: ${JSON.stringify(recordId)} })${populateChain};
+              return { record };
+            `
+            const wrappedCode = await sails.helpers.bridge.buildSailsWrapper(queryCode)
+            const result = await sails.helpers.bridge.executeInContainer(app.containerName, wrappedCode)
+
+            if (result.success) {
+              try {
+                const data = JSON.parse(result.output)
+                record = data.record
+                if (!record) {
+                  error = `Record with ID "${recordId}" not found.`
+                }
+              } catch (e) {
+                error = 'Failed to parse record: ' + e.message
+              }
+            } else {
+              error = result.error || 'Failed to fetch record'
+            }
+          }
+        }
+      } catch (err) {
+        error = err.message
+      }
+    }
 
     return {
       page: 'projects/bridge-record',
@@ -70,7 +128,10 @@ module.exports = {
         },
         modelIdentity,
         recordId,
-        appRunning: app && app.status === 'running'
+        appRunning,
+        modelMeta,
+        record,
+        error
       }
     }
   }

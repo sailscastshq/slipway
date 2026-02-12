@@ -1,6 +1,6 @@
 <script setup>
-import { Link, Head, router } from '@inertiajs/vue3'
-import { inject, ref, computed, onMounted, onUnmounted } from 'vue'
+import { Link, Head, router, useForm } from '@inertiajs/vue3'
+import { inject, ref, onMounted, onUnmounted } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
 
 defineOptions({
@@ -11,90 +11,47 @@ const props = defineProps({
   project: Object,
   environment: Object,
   hasContentFeature: Boolean,
-  contentFeature: Object
+  contentFeature: Object,
+  collections: Array,
+  collectionsError: String
 })
 
 const toggleMobileMenu = inject('toggleMobileMenu')
 const toggleSidebar = inject('toggleSidebar')
 const sidebarCollapsed = inject('sidebarCollapsed')
 
-// State
-const collections = ref([])
-const loading = ref(true)
-const error = ref(null)
+// Modal state
 const createModalOpen = ref(false)
 const selectedCollection = ref(null)
 
-// New content form
-const newContentSlug = ref('')
-const newContentTitle = ref('')
-const creating = ref(false)
+// Create form
+const createForm = useForm({
+  contentSlug: '',
+  title: ''
+})
 
-// Fetch collections on mount
-async function fetchCollections() {
-  loading.value = true
-  error.value = null
-  try {
-    const envPath = props.environment.slug !== 'production'
-      ? `/environments/${props.environment.slug}`
-      : ''
-    const res = await fetch(`/api/v1/projects/${props.project.slug}${envPath}/content/collections`)
-    if (!res.ok) {
-      const data = await res.json()
-      throw new Error(data.message || 'Failed to load collections')
-    }
-    const data = await res.json()
-    collections.value = data.collections || []
-  } catch (e) {
-    error.value = e.message
-  } finally {
-    loading.value = false
-  }
-}
-
-// Create new content
 function openCreateModal(collection) {
   selectedCollection.value = collection
-  newContentSlug.value = ''
-  newContentTitle.value = ''
+  createForm.reset()
   createModalOpen.value = true
 }
 
-async function createContent() {
-  if (!newContentSlug.value.trim() || creating.value) return
-  creating.value = true
-  try {
-    const envPath = props.environment.slug !== 'production'
-      ? `/environments/${props.environment.slug}`
-      : ''
-    const res = await fetch(`/api/v1/projects/${props.project.slug}${envPath}/content/${selectedCollection.value.slug}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        slug: newContentSlug.value.trim(),
-        title: newContentTitle.value.trim() || newContentSlug.value.trim()
-      })
-    })
-    if (!res.ok) {
-      const data = await res.json()
-      throw new Error(data.message || 'Failed to create content')
+function createContent() {
+  if (!createForm.contentSlug.trim()) return
+
+  const envPath = props.environment.slug !== 'production'
+    ? `/environments/${props.environment.slug}`
+    : ''
+
+  createForm.post(`/projects/${props.project.slug}${envPath}/content/${selectedCollection.value.slug}/create`, {
+    onSuccess: () => {
+      createModalOpen.value = false
     }
-    const data = await res.json()
-    createModalOpen.value = false
-    // Navigate to the editor
-    const basePath = props.environment.slug !== 'production'
-      ? `/projects/${props.project.slug}/environments/${props.environment.slug}/content`
-      : `/projects/${props.project.slug}/content`
-    router.visit(`${basePath}/${selectedCollection.value.slug}/${data.file}`)
-  } catch (e) {
-    error.value = e.message
-  } finally {
-    creating.value = false
-  }
+  })
 }
 
 function closeCreateModal() {
-  if (!creating.value) {
+  if (!createForm.processing) {
     createModalOpen.value = false
     selectedCollection.value = null
   }
@@ -122,8 +79,9 @@ function getEditorPath(collection, file) {
   return `${basePath}/${collection}/${file}`
 }
 
-// Initialize
-fetchCollections()
+function refresh() {
+  router.reload({ only: ['collections', 'collectionsError'] })
+}
 </script>
 <template>
   <Head :title="`Content - ${project.name} | Slipway`"></Head>
@@ -225,18 +183,10 @@ fetchCollections()
           </a>
         </div>
 
-        <!-- Loading -->
-        <div v-else-if="loading" class="flex items-center justify-center py-12">
-          <svg class="h-6 w-6 animate-spin text-gray-400" fill="none" viewBox="0 0 24 24">
-            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
-            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-          </svg>
-        </div>
-
         <!-- Error -->
-        <div v-else-if="error" class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 dark:border-red-900/50 dark:bg-red-950/20">
-          <p class="text-sm text-red-700 dark:text-red-400">{{ error }}</p>
-          <button @click="fetchCollections" class="mt-2 text-sm text-red-600 underline hover:text-red-500 dark:text-red-400">
+        <div v-else-if="collectionsError" class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 dark:border-red-900/50 dark:bg-red-950/20">
+          <p class="text-sm text-red-700 dark:text-red-400">{{ collectionsError }}</p>
+          <button @click="refresh" class="mt-2 text-sm text-red-600 underline hover:text-red-500 dark:text-red-400">
             Try again
           </button>
         </div>
@@ -316,44 +266,43 @@ fetchCollections()
         <h3 class="text-lg font-semibold text-gray-900 dark:text-white">
           Create new content in {{ selectedCollection?.name }}
         </h3>
-        <div class="mt-4 space-y-4">
+        <form @submit.prevent="createContent" class="mt-4 space-y-4">
           <div>
             <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Slug</label>
             <input
-              v-model="newContentSlug"
+              v-model="createForm.contentSlug"
               type="text"
               placeholder="my-new-post"
               class="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white dark:placeholder-gray-500"
-              @keydown.enter="createContent"
             />
             <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Will be used as the filename</p>
           </div>
           <div>
             <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Title (optional)</label>
             <input
-              v-model="newContentTitle"
+              v-model="createForm.title"
               type="text"
               placeholder="My New Post"
               class="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white dark:placeholder-gray-500"
-              @keydown.enter="createContent"
             />
           </div>
-        </div>
-        <div class="mt-6 flex items-center justify-end space-x-3">
-          <button
-            @click="closeCreateModal"
-            class="rounded-md px-4 py-2 text-sm text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
-          >
-            Cancel
-          </button>
-          <button
-            @click="createContent"
-            :disabled="!newContentSlug.trim() || creating"
-            class="rounded-md bg-violet-600 px-4 py-2 text-sm font-medium text-white hover:bg-violet-500 disabled:opacity-50"
-          >
-            {{ creating ? 'Creating...' : 'Create' }}
-          </button>
-        </div>
+          <div class="flex items-center justify-end space-x-3 pt-2">
+            <button
+              type="button"
+              @click="closeCreateModal"
+              class="rounded-md px-4 py-2 text-sm text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              :disabled="!createForm.contentSlug.trim() || createForm.processing"
+              class="rounded-md bg-violet-600 px-4 py-2 text-sm font-medium text-white hover:bg-violet-500 disabled:opacity-50"
+            >
+              {{ createForm.processing ? 'Creating...' : 'Create' }}
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   </div>

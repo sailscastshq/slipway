@@ -2,86 +2,65 @@ const fs = require('fs')
 const path = require('path')
 
 module.exports = {
-  friendlyName: 'Create content',
+  friendlyName: 'Content create',
 
   description: 'Create a new content file in a collection.',
 
   inputs: {
-    projectSlug: {
+    slug: {
       type: 'string',
-      required: true,
-      description: 'Project slug'
+      required: true
     },
-    environmentSlug: {
+    envSlug: {
       type: 'string',
-      defaultsTo: 'production',
-      description: 'Environment slug'
+      defaultsTo: 'production'
     },
     collection: {
       type: 'string',
-      required: true,
-      description: 'Collection name'
+      required: true
     },
-    slug: {
+    contentSlug: {
       type: 'string',
-      required: true,
-      description: 'File slug (will become filename)'
+      required: true
     },
     title: {
-      type: 'string',
-      description: 'Content title (added to frontmatter)'
-    },
-    layout: {
-      type: 'string',
-      description: 'Layout template path'
-    },
-    body: {
-      type: 'string',
-      defaultsTo: '',
-      description: 'Initial markdown body'
+      type: 'string'
     }
   },
 
   exits: {
     success: {
-      statusCode: 201
+      responseType: 'redirect'
     },
     notFound: {
-      statusCode: 404
+      responseType: 'redirect'
     },
-    forbidden: {
-      statusCode: 403
-    },
-    conflict: {
-      statusCode: 409,
-      description: 'File already exists'
+    badRequest: {
+      responseType: 'badRequest'
     }
   },
 
-  fn: async function ({ projectSlug, environmentSlug, collection, slug, title, layout, body }) {
-    const user = await User.findOne({ id: this.req.session.userId })
-    const project = await Project.findOne({ slug: projectSlug }).populate('team')
-
-    if (!project) {
-      throw 'notFound'
+  fn: async function ({ slug, envSlug, collection, contentSlug, title }) {
+    const user = await User.findOne({ id: this.req.session.userId }).populate('team')
+    if (!user) {
+      throw { notFound: '/login' }
     }
 
-    if (project.team.id !== user.team) {
-      throw 'forbidden'
+    const project = await Project.findOne({ slug, team: user.team.id })
+    if (!project) {
+      throw { notFound: '/' }
     }
 
     const environment = await Environment.findOne({
       project: project.id,
-      slug: environmentSlug
+      slug: envSlug
     })
-
     if (!environment) {
-      throw 'notFound'
+      throw { notFound: `/projects/${slug}` }
     }
 
-    // Check if sails-content is detected
     if (!environment.features || !environment.features['sails-content']) {
-      throw 'notFound'
+      throw { badRequest: { error: 'sails-content not detected' } }
     }
 
     const contentFeature = environment.features['sails-content']
@@ -89,7 +68,7 @@ module.exports = {
     const appPath = `${sails.config.custom.slipwayAppsDir}/${project.slug}`
 
     // Sanitize slug
-    const safeSlug = slug
+    const safeSlug = contentSlug
       .toLowerCase()
       .replace(/[^a-z0-9-]/g, '-')
       .replace(/-+/g, '-')
@@ -100,11 +79,7 @@ module.exports = {
 
     // Check if file already exists
     if (fs.existsSync(filePath)) {
-      throw {
-        conflict: {
-          message: `Content file "${safeSlug}.md" already exists in collection "${collection}"`
-        }
-      }
+      throw { badRequest: { error: `Content file "${safeSlug}.md" already exists` } }
     }
 
     // Ensure collection directory exists
@@ -115,7 +90,6 @@ module.exports = {
     // Build frontmatter
     const frontmatter = {}
     if (title) frontmatter.title = title
-    if (layout) frontmatter.layout = layout
     frontmatter.createdAt = new Date().toISOString()
 
     // Generate content
@@ -128,20 +102,15 @@ module.exports = {
       }
     }
     content += '---\n\n'
-    content += body || `# ${title || safeSlug}\n\nStart writing your content here.\n`
+    content += `# ${title || safeSlug}\n\nStart writing your content here.\n`
 
     // Write file
     fs.writeFileSync(filePath, content, 'utf8')
 
-    sails.log.info(`[content] Created ${collection}/${safeSlug}.md in ${project.slug}`)
+    sails.log.info(`[content] Created ${collection}/${safeSlug}.md in ${slug}`)
 
-    return {
-      success: true,
-      collection,
-      file: safeSlug,
-      path: `${collection}/${safeSlug}.md`,
-      frontmatter,
-      createdAt: new Date().toISOString()
-    }
+    // Redirect to editor
+    const envPath = envSlug !== 'production' ? `/environments/${envSlug}` : ''
+    return `/projects/${slug}${envPath}/content/${collection}/${safeSlug}`
   }
 }

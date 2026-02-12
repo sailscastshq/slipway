@@ -49,9 +49,38 @@ module.exports = {
 
     // Check if sails-quest is available
     const hasQuestFeature = !!(environment.features && environment.features['sails-quest'])
+    const questFeature = hasQuestFeature ? environment.features['sails-quest'] : null
 
     // Get app status
     const app = await App.findOne({ environment: environment.id })
+    const appRunning = app && app.status === 'running'
+
+    // Load jobs if app is running and quest is available
+    let jobs = []
+    let jobsError = null
+
+    if (hasQuestFeature && appRunning && app.containerName) {
+      try {
+        const result = await sails.helpers.quest.listJobs(app.containerName, questFeature)
+        jobs = result.jobs || []
+        jobsError = result.error
+      } catch (err) {
+        jobsError = err.message
+      }
+    } else if (hasQuestFeature && !appRunning) {
+      // Return scripts from detection as manual-only jobs when app not running
+      const scripts = questFeature.scripts || []
+      jobs = scripts.map(s => ({
+        name: s.name,
+        friendlyName: s.name,
+        description: '',
+        schedule: null,
+        scheduleType: 'manual',
+        paused: false,
+        withoutOverlapping: false,
+        isRunning: false
+      }))
+    }
 
     return {
       page: 'projects/quest',
@@ -68,8 +97,10 @@ module.exports = {
           features: environment.features
         },
         hasQuestFeature,
-        questFeature: hasQuestFeature ? environment.features['sails-quest'] : null,
-        appRunning: app && app.status === 'running'
+        questFeature,
+        appRunning,
+        jobs,
+        jobsError
       }
     }
   }

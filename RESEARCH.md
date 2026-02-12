@@ -2405,6 +2405,634 @@ Inspired by Linear and Resend:
 - Subtle animations
 - Clean typography (Inter, JetBrains Mono)
 
+### Command Palette (Raycast-Style)
+
+A power-user feature inspired by Raycast, Linear, and VS Code. Press `Cmd+K` (Mac) or `Ctrl+K` (Windows/Linux) to access any action instantly.
+
+#### User Experience
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│  ⌘K                                                                      │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                          │
+│  ┌────────────────────────────────────────────────────────────────────┐ │
+│  │ 🔍  Deploy to production...                                    ⌘D  │ │
+│  └────────────────────────────────────────────────────────────────────┘ │
+│                                                                          │
+│  Recent                                                                  │
+│  ┌────────────────────────────────────────────────────────────────────┐ │
+│  │ 🚀  chieflevite / production          Deploy          ↵ to select │ │
+│  │ 📊  chieflevite / Dock                Open                        │ │
+│  │ 🔧  Settings / Global Env             Navigate                    │ │
+│  └────────────────────────────────────────────────────────────────────┘ │
+│                                                                          │
+│  Actions                                                                 │
+│  ┌────────────────────────────────────────────────────────────────────┐ │
+│  │ 🚀  Deploy project...                                          ⌘D │ │
+│  │ ↩️   Rollback deployment...                                    ⌘R │ │
+│  │ 🔄  Restart service...                                         ⌘⇧R│ │
+│  │ 📋  Copy connection string...                                     │ │
+│  └────────────────────────────────────────────────────────────────────┘ │
+│                                                                          │
+│  Navigation                                                              │
+│  ┌────────────────────────────────────────────────────────────────────┐ │
+│  │ 📁  Go to project...                                           ⌘P │ │
+│  │ ⚙️   Go to settings...                                         ⌘, │ │
+│  │ 🗄️   Open Dock...                                                 │ │
+│  │ 🌉  Open Bridge...                                                │ │
+│  │ ⎈   Open Helm...                                                  │ │
+│  └────────────────────────────────────────────────────────────────────┘ │
+│                                                                          │
+│  ↑↓ Navigate  ↵ Select  ⎋ Close  ⌘⌫ Clear                              │
+│                                                                          │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+#### Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    COMMAND PALETTE ARCHITECTURE                          │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                          │
+│  ┌─────────────────────────────────────────────────────────────────┐   │
+│  │                     CommandPalette.vue                           │   │
+│  │  • Modal overlay (Teleport to body)                             │   │
+│  │  • Search input with debounce                                   │   │
+│  │  • Keyboard navigation (↑↓↵⎋)                                   │   │
+│  │  • Result grouping & rendering                                  │   │
+│  └────────────────────────────────┬────────────────────────────────┘   │
+│                                   │                                      │
+│                                   ▼                                      │
+│  ┌─────────────────────────────────────────────────────────────────┐   │
+│  │                   useCommandPalette.js (Composable)              │   │
+│  │                                                                  │   │
+│  │  • isOpen: ref<boolean>                                         │   │
+│  │  • query: ref<string>                                           │   │
+│  │  • results: computed (filtered & ranked)                        │   │
+│  │  • selectedIndex: ref<number>                                   │   │
+│  │  • execute(command): void                                       │   │
+│  │  • registerCommand(command): void                               │   │
+│  │  • history: ref<Command[]>                                      │   │
+│  └────────────────────────────────┬────────────────────────────────┘   │
+│                                   │                                      │
+│                                   ▼                                      │
+│  ┌─────────────────────────────────────────────────────────────────┐   │
+│  │                     Command Registry                             │   │
+│  │                                                                  │   │
+│  │  commands: Map<string, Command>                                 │   │
+│  │                                                                  │   │
+│  │  interface Command {                                            │   │
+│  │    id: string                    // 'deploy.project'            │   │
+│  │    title: string                 // 'Deploy project'            │   │
+│  │    icon: string                  // '🚀' or component           │   │
+│  │    keywords: string[]            // ['ship', 'push', 'release'] │   │
+│  │    shortcut?: string             // '⌘D'                        │   │
+│  │    group: string                 // 'actions' | 'navigation'    │   │
+│  │    context?: () => boolean       // When to show this command   │   │
+│  │    action: () => void | Promise  // What to execute             │   │
+│  │    children?: () => Command[]    // Sub-commands (drill-down)   │   │
+│  │  }                                                              │   │
+│  └─────────────────────────────────────────────────────────────────┘   │
+│                                                                          │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+#### Command Types
+
+| Type | Examples | Behavior |
+|------|----------|----------|
+| **Actions** | Deploy, Rollback, Restart | Execute immediately or show sub-menu |
+| **Navigation** | Go to project, Open settings | Router navigation |
+| **Search** | Find project, Find service | Filter results as you type |
+| **Quick Access** | Recent projects, Pinned items | Show personalized results |
+| **Contextual** | Copy DATABASE_URL (on Dock) | Only shown in relevant context |
+
+#### Implementation
+
+##### 1. Command Registry (`assets/js/composables/useCommandRegistry.js`)
+
+```javascript
+// Singleton command registry
+const commands = new Map()
+const history = useLocalStorage('slipway:command-history', [])
+
+export function useCommandRegistry() {
+  function register(command) {
+    commands.set(command.id, {
+      ...command,
+      // Normalize keywords for search
+      _searchText: [
+        command.title,
+        ...(command.keywords || [])
+      ].join(' ').toLowerCase()
+    })
+  }
+
+  function unregister(id) {
+    commands.delete(id)
+  }
+
+  function getAll(context = {}) {
+    return Array.from(commands.values())
+      .filter(cmd => !cmd.context || cmd.context(context))
+  }
+
+  function execute(id, ...args) {
+    const cmd = commands.get(id)
+    if (cmd) {
+      // Track in history
+      history.value = [id, ...history.value.filter(h => h !== id)].slice(0, 10)
+      return cmd.action(...args)
+    }
+  }
+
+  return { register, unregister, getAll, execute, history }
+}
+```
+
+##### 2. Fuzzy Search (`assets/js/lib/fuzzySearch.js`)
+
+```javascript
+/**
+ * Fuzzy search with scoring
+ * Inspired by fzf/Raycast ranking
+ */
+export function fuzzyMatch(query, text) {
+  const queryLower = query.toLowerCase()
+  const textLower = text.toLowerCase()
+
+  let score = 0
+  let queryIndex = 0
+  let consecutiveMatches = 0
+  let lastMatchIndex = -1
+
+  for (let i = 0; i < textLower.length && queryIndex < queryLower.length; i++) {
+    if (textLower[i] === queryLower[queryIndex]) {
+      // Boost for consecutive matches
+      if (lastMatchIndex === i - 1) {
+        consecutiveMatches++
+        score += 2 * consecutiveMatches
+      } else {
+        consecutiveMatches = 0
+        score += 1
+      }
+
+      // Boost for word boundary matches
+      if (i === 0 || text[i - 1] === ' ' || text[i - 1] === '/') {
+        score += 5
+      }
+
+      // Boost for exact case match
+      if (text[i] === query[queryIndex]) {
+        score += 1
+      }
+
+      lastMatchIndex = i
+      queryIndex++
+    }
+  }
+
+  // All query chars must match
+  if (queryIndex < queryLower.length) return null
+
+  // Boost shorter matches (more relevant)
+  score -= text.length * 0.1
+
+  return { score, text }
+}
+
+export function fuzzySearch(query, items, getText) {
+  if (!query) return items
+
+  return items
+    .map(item => {
+      const result = fuzzyMatch(query, getText(item))
+      return result ? { item, score: result.score } : null
+    })
+    .filter(Boolean)
+    .sort((a, b) => b.score - a.score)
+    .map(r => r.item)
+}
+```
+
+##### 3. Command Palette Component (`assets/js/components/CommandPalette.vue`)
+
+```vue
+<script setup>
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import { useRouter } from 'vue-router'
+import { useCommandRegistry } from '@/composables/useCommandRegistry'
+import { fuzzySearch } from '@/lib/fuzzySearch'
+
+const router = useRouter()
+const { getAll, execute, history } = useCommandRegistry()
+
+const isOpen = ref(false)
+const query = ref('')
+const selectedIndex = ref(0)
+const inputRef = ref(null)
+const mode = ref('root') // 'root' | 'submenu'
+const parentCommand = ref(null)
+
+// Get commands based on current context
+const currentContext = computed(() => ({
+  route: router.currentRoute.value,
+  // Add more context as needed
+}))
+
+const allCommands = computed(() => getAll(currentContext.value))
+
+// Filter and group results
+const results = computed(() => {
+  let cmds = mode.value === 'submenu' && parentCommand.value?.children
+    ? parentCommand.value.children()
+    : allCommands.value
+
+  if (query.value) {
+    cmds = fuzzySearch(query.value, cmds, c => c._searchText || c.title)
+  }
+
+  // Group by category
+  const groups = {}
+
+  // Add recent first if no query
+  if (!query.value && mode.value === 'root') {
+    const recent = history.value
+      .map(id => cmds.find(c => c.id === id))
+      .filter(Boolean)
+      .slice(0, 3)
+
+    if (recent.length) {
+      groups['Recent'] = recent
+    }
+  }
+
+  // Group remaining by their group property
+  cmds.forEach(cmd => {
+    if (!query.value && history.value.includes(cmd.id)) return // Skip recent
+    const group = cmd.group || 'Other'
+    if (!groups[group]) groups[group] = []
+    groups[group].push(cmd)
+  })
+
+  return groups
+})
+
+// Flat list for keyboard navigation
+const flatResults = computed(() =>
+  Object.values(results.value).flat()
+)
+
+// Keyboard handling
+function handleKeydown(e) {
+  // Global: Open palette
+  if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+    e.preventDefault()
+    isOpen.value = !isOpen.value
+    return
+  }
+
+  if (!isOpen.value) return
+
+  switch (e.key) {
+    case 'ArrowDown':
+      e.preventDefault()
+      selectedIndex.value = Math.min(
+        selectedIndex.value + 1,
+        flatResults.value.length - 1
+      )
+      break
+
+    case 'ArrowUp':
+      e.preventDefault()
+      selectedIndex.value = Math.max(selectedIndex.value - 1, 0)
+      break
+
+    case 'Enter':
+      e.preventDefault()
+      const cmd = flatResults.value[selectedIndex.value]
+      if (cmd) selectCommand(cmd)
+      break
+
+    case 'Escape':
+      e.preventDefault()
+      if (mode.value === 'submenu') {
+        mode.value = 'root'
+        parentCommand.value = null
+        query.value = ''
+      } else {
+        isOpen.value = false
+      }
+      break
+
+    case 'Backspace':
+      if (!query.value && mode.value === 'submenu') {
+        mode.value = 'root'
+        parentCommand.value = null
+      }
+      break
+  }
+}
+
+function selectCommand(cmd) {
+  if (cmd.children) {
+    // Drill down into submenu
+    mode.value = 'submenu'
+    parentCommand.value = cmd
+    query.value = ''
+    selectedIndex.value = 0
+  } else {
+    // Execute and close
+    isOpen.value = false
+    query.value = ''
+    mode.value = 'root'
+    execute(cmd.id)
+  }
+}
+
+// Reset state when opening
+watch(isOpen, (open) => {
+  if (open) {
+    query.value = ''
+    selectedIndex.value = 0
+    mode.value = 'root'
+    parentCommand.value = null
+    nextTick(() => inputRef.value?.focus())
+  }
+})
+
+// Reset selection when results change
+watch(query, () => {
+  selectedIndex.value = 0
+})
+
+onMounted(() => {
+  document.addEventListener('keydown', handleKeydown)
+})
+
+onUnmounted(() => {
+  document.removeEventListener('keydown', handleKeydown)
+})
+</script>
+
+<template>
+  <Teleport to="body">
+    <Transition name="fade">
+      <div
+        v-if="isOpen"
+        class="fixed inset-0 z-50 flex items-start justify-center pt-[20vh]"
+        @click.self="isOpen = false"
+      >
+        <!-- Backdrop -->
+        <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" />
+
+        <!-- Palette -->
+        <div class="relative w-full max-w-xl rounded-xl border border-gray-200 bg-white shadow-2xl dark:border-gray-700 dark:bg-gray-900">
+          <!-- Search input -->
+          <div class="flex items-center border-b border-gray-200 px-4 dark:border-gray-700">
+            <SearchIcon class="h-5 w-5 text-gray-400" />
+            <input
+              ref="inputRef"
+              v-model="query"
+              type="text"
+              class="w-full bg-transparent px-3 py-4 text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:text-white"
+              :placeholder="mode === 'submenu' ? parentCommand?.title : 'Type a command or search...'"
+            />
+            <kbd class="hidden rounded bg-gray-100 px-2 py-1 text-xs text-gray-500 dark:bg-gray-800 sm:inline">
+              esc
+            </kbd>
+          </div>
+
+          <!-- Results -->
+          <div class="max-h-80 overflow-y-auto p-2">
+            <template v-for="(commands, group) in results" :key="group">
+              <div class="px-2 py-1.5 text-xs font-medium text-gray-500 dark:text-gray-400">
+                {{ group }}
+              </div>
+              <button
+                v-for="(cmd, i) in commands"
+                :key="cmd.id"
+                @click="selectCommand(cmd)"
+                @mouseenter="selectedIndex = flatResults.indexOf(cmd)"
+                :class="[
+                  'flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm',
+                  flatResults.indexOf(cmd) === selectedIndex
+                    ? 'bg-gray-100 dark:bg-gray-800'
+                    : 'hover:bg-gray-50 dark:hover:bg-gray-800/50'
+                ]"
+              >
+                <span class="text-lg">{{ cmd.icon }}</span>
+                <span class="flex-1 text-gray-900 dark:text-white">{{ cmd.title }}</span>
+                <kbd v-if="cmd.shortcut" class="text-xs text-gray-400">{{ cmd.shortcut }}</kbd>
+                <ChevronRightIcon v-if="cmd.children" class="h-4 w-4 text-gray-400" />
+              </button>
+            </template>
+
+            <!-- Empty state -->
+            <div v-if="!flatResults.length" class="py-8 text-center text-sm text-gray-500">
+              No commands found for "{{ query }}"
+            </div>
+          </div>
+
+          <!-- Footer -->
+          <div class="flex items-center justify-between border-t border-gray-200 px-4 py-2 text-xs text-gray-500 dark:border-gray-700">
+            <div class="flex gap-2">
+              <span><kbd>↑↓</kbd> Navigate</span>
+              <span><kbd>↵</kbd> Select</span>
+              <span><kbd>esc</kbd> Close</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </Transition>
+  </Teleport>
+</template>
+```
+
+##### 4. Registering Commands (`assets/js/commands/index.js`)
+
+```javascript
+import { useCommandRegistry } from '@/composables/useCommandRegistry'
+import { router } from '@/router'
+
+export function registerCoreCommands() {
+  const { register } = useCommandRegistry()
+
+  // === Navigation Commands ===
+
+  register({
+    id: 'nav.projects',
+    title: 'Go to Projects',
+    icon: '📁',
+    keywords: ['dashboard', 'home', 'apps'],
+    shortcut: '⌘P',
+    group: 'Navigation',
+    action: () => router.push('/')
+  })
+
+  register({
+    id: 'nav.settings',
+    title: 'Go to Settings',
+    icon: '⚙️',
+    keywords: ['preferences', 'config'],
+    shortcut: '⌘,',
+    group: 'Navigation',
+    action: () => router.push('/settings')
+  })
+
+  register({
+    id: 'nav.settings.git',
+    title: 'Git Settings',
+    icon: '🔗',
+    keywords: ['github', 'gitlab', 'repository'],
+    group: 'Navigation',
+    action: () => router.push('/settings/git')
+  })
+
+  register({
+    id: 'nav.settings.env',
+    title: 'Global Environment Variables',
+    icon: '🌍',
+    keywords: ['env', 'variables', 'secrets'],
+    group: 'Navigation',
+    action: () => router.push('/settings/global-env')
+  })
+
+  // === Action Commands ===
+
+  register({
+    id: 'action.deploy',
+    title: 'Deploy project...',
+    icon: '🚀',
+    keywords: ['ship', 'push', 'release', 'slide'],
+    shortcut: '⌘D',
+    group: 'Actions',
+    // Show submenu of projects/environments
+    children: () => getDeployableEnvironments()
+  })
+
+  register({
+    id: 'action.rollback',
+    title: 'Rollback deployment...',
+    icon: '↩️',
+    keywords: ['revert', 'undo'],
+    shortcut: '⌘R',
+    group: 'Actions',
+    children: () => getRollbackOptions()
+  })
+
+  // === Contextual Commands (shown only in relevant context) ===
+
+  register({
+    id: 'context.copy-db-url',
+    title: 'Copy DATABASE_URL',
+    icon: '📋',
+    keywords: ['connection', 'string', 'postgres'],
+    group: 'Quick Actions',
+    context: (ctx) => ctx.route.path.includes('/dock'),
+    action: () => copyDatabaseUrl()
+  })
+
+  register({
+    id: 'context.open-logs',
+    title: 'View Logs',
+    icon: '📜',
+    keywords: ['output', 'console', 'debug'],
+    group: 'Quick Actions',
+    context: (ctx) => ctx.route.path.includes('/projects/'),
+    action: () => openLogsPanel()
+  })
+}
+
+// Dynamic command generators
+function getDeployableEnvironments() {
+  // Fetch from store or API
+  return projects.value.flatMap(project =>
+    project.environments.map(env => ({
+      id: `deploy.${project.slug}.${env.slug}`,
+      title: `${project.name} / ${env.name}`,
+      icon: env.slug === 'production' ? '🔴' : '🟡',
+      action: () => triggerDeploy(project.slug, env.slug)
+    }))
+  )
+}
+```
+
+#### Keyboard Shortcuts
+
+| Shortcut | Action |
+|----------|--------|
+| `⌘K` / `Ctrl+K` | Open command palette |
+| `⌘D` | Deploy (opens project selector) |
+| `⌘R` | Rollback (opens deployment selector) |
+| `⌘P` | Go to project |
+| `⌘,` | Open settings |
+| `⌘⇧R` | Restart service |
+| `⌘.` | Quick actions menu |
+| `↑↓` | Navigate results |
+| `↵` | Execute selected |
+| `⎋` | Close / Go back |
+| `⌘⌫` | Clear search |
+
+#### Advanced Features
+
+##### 1. Nested Commands (Drill-Down)
+
+```javascript
+register({
+  id: 'action.service',
+  title: 'Service actions...',
+  icon: '🔧',
+  group: 'Actions',
+  children: () => [
+    { id: 'service.restart', title: 'Restart', icon: '🔄', action: restartService },
+    { id: 'service.stop', title: 'Stop', icon: '⏹️', action: stopService },
+    { id: 'service.logs', title: 'View Logs', icon: '📜', action: viewLogs },
+    { id: 'service.shell', title: 'Open Shell', icon: '💻', action: openShell },
+  ]
+})
+```
+
+##### 2. Dynamic Search Results
+
+```javascript
+register({
+  id: 'search.projects',
+  title: 'Search projects...',
+  icon: '🔍',
+  group: 'Search',
+  // Async children - fetched as user types
+  children: async (query) => {
+    const projects = await searchProjects(query)
+    return projects.map(p => ({
+      id: `project.${p.id}`,
+      title: p.name,
+      icon: '📁',
+      action: () => router.push(`/projects/${p.slug}`)
+    }))
+  }
+})
+```
+
+##### 3. Recent & Pinned
+
+```javascript
+// Track command usage
+const commandHistory = useLocalStorage('slipway:cmd-history', [])
+const pinnedCommands = useLocalStorage('slipway:cmd-pinned', [])
+
+// Show at top of results
+const recentCommands = computed(() =>
+  commandHistory.value.slice(0, 5).map(id => commands.get(id))
+)
+```
+
+##### 4. Theme Integration
+
+The command palette follows the app's dark/light mode automatically and uses the same design tokens for consistency.
+
 ---
 
 ## Installation

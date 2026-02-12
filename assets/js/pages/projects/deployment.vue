@@ -118,6 +118,32 @@ function formatDate(timestamp) {
   return new Date(timestamp).toLocaleString()
 }
 
+// Cancel deployment
+const cancelling = ref(false)
+
+async function cancelDeployment() {
+  if (cancelling.value) return
+  cancelling.value = true
+
+  try {
+    const res = await fetch(`/api/v1/deployments/${props.deployment.id}/cancel`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' }
+    })
+
+    if (res.ok) {
+      router.reload()
+    } else {
+      const data = await res.json()
+      alert(data.message || 'Failed to cancel deployment')
+    }
+  } catch (e) {
+    console.error('Failed to cancel:', e)
+  } finally {
+    cancelling.value = false
+  }
+}
+
 // Rollback
 const canRollback = computed(() =>
   props.deployment.status === 'running' &&
@@ -306,6 +332,15 @@ function executeRollback() {
               </span>
             </div>
           </div>
+          <!-- Cancel button (for in-progress deployments) -->
+          <button
+            v-if="isInProgress"
+            @click="cancelDeployment"
+            :disabled="cancelling"
+            class="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+          >
+            {{ cancelling ? 'Cancelling...' : 'Cancel' }}
+          </button>
           <!-- Slide to Rollback -->
           <div
             v-if="canRollback"

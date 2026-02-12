@@ -1,13 +1,9 @@
 const { spawn } = require('child_process')
 
-// Markers used to isolate JSON output from console noise
-const START_MARKER = '___SLIPWAY_BRIDGE_START___'
-const END_MARKER = '___SLIPWAY_BRIDGE_END___'
-
 module.exports = {
   friendlyName: 'Execute in container',
 
-  description: 'Execute JavaScript code inside a running app container and return the result.',
+  description: 'Execute JavaScript code inside a running app container for Quest operations.',
 
   inputs: {
     containerName: {
@@ -22,7 +18,7 @@ module.exports = {
     },
     timeout: {
       type: 'number',
-      defaultsTo: 60000,
+      defaultsTo: 30000,
       description: 'Timeout in milliseconds'
     }
   },
@@ -55,18 +51,9 @@ module.exports = {
       proc.stdin.end()
 
       proc.on('close', (exitCode) => {
-        // Extract JSON between markers to filter out any console noise
-        let output = stdout.trim()
-        const startIdx = output.indexOf(START_MARKER)
-        const endIdx = output.indexOf(END_MARKER)
-
-        if (startIdx !== -1 && endIdx !== -1 && endIdx > startIdx) {
-          output = output.substring(startIdx + START_MARKER.length, endIdx)
-        }
-
         resolve({
           success: exitCode === 0,
-          output,
+          output: stdout.trim(),
           error: stderr.trim() || null,
           exitCode
         })

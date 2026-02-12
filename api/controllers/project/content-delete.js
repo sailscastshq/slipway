@@ -2,69 +2,62 @@ const fs = require('fs')
 const path = require('path')
 
 module.exports = {
-  friendlyName: 'Delete content',
+  friendlyName: 'Content delete',
 
   description: 'Delete a content file from a collection.',
 
   inputs: {
-    projectSlug: {
+    slug: {
       type: 'string',
-      required: true,
-      description: 'Project slug'
+      required: true
     },
-    environmentSlug: {
+    envSlug: {
       type: 'string',
-      defaultsTo: 'production',
-      description: 'Environment slug'
+      defaultsTo: 'production'
     },
     collection: {
       type: 'string',
-      required: true,
-      description: 'Collection name'
+      required: true
     },
     file: {
       type: 'string',
-      required: true,
-      description: 'File slug (without extension)'
+      required: true
     }
   },
 
   exits: {
     success: {
-      statusCode: 200
+      responseType: 'redirect'
     },
     notFound: {
-      statusCode: 404
+      responseType: 'redirect'
     },
-    forbidden: {
-      statusCode: 403
+    badRequest: {
+      responseType: 'badRequest'
     }
   },
 
-  fn: async function ({ projectSlug, environmentSlug, collection, file }) {
-    const user = await User.findOne({ id: this.req.session.userId })
-    const project = await Project.findOne({ slug: projectSlug }).populate('team')
-
-    if (!project) {
-      throw 'notFound'
+  fn: async function ({ slug, envSlug, collection, file }) {
+    const user = await User.findOne({ id: this.req.session.userId }).populate('team')
+    if (!user) {
+      throw { notFound: '/login' }
     }
 
-    if (project.team.id !== user.team) {
-      throw 'forbidden'
+    const project = await Project.findOne({ slug, team: user.team.id })
+    if (!project) {
+      throw { notFound: '/' }
     }
 
     const environment = await Environment.findOne({
       project: project.id,
-      slug: environmentSlug
+      slug: envSlug
     })
-
     if (!environment) {
-      throw 'notFound'
+      throw { notFound: `/projects/${slug}` }
     }
 
-    // Check if sails-content is detected
     if (!environment.features || !environment.features['sails-content']) {
-      throw 'notFound'
+      throw { badRequest: { error: 'sails-content not detected' } }
     }
 
     const contentFeature = environment.features['sails-content']
@@ -79,19 +72,16 @@ module.exports = {
     }
 
     if (!fs.existsSync(filePath)) {
-      throw 'notFound'
+      throw { badRequest: { error: 'Content file not found' } }
     }
 
     // Delete the file
     fs.unlinkSync(filePath)
 
-    sails.log.info(`[content] Deleted ${collection}/${file} in ${project.slug}`)
+    sails.log.info(`[content] Deleted ${collection}/${file} in ${slug}`)
 
-    return {
-      success: true,
-      collection,
-      file,
-      deletedAt: new Date().toISOString()
-    }
+    // Redirect to content manager
+    const envPath = envSlug !== 'production' ? `/environments/${envSlug}` : ''
+    return `/projects/${slug}${envPath}/content`
   }
 }

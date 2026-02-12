@@ -2,30 +2,26 @@ const fs = require('fs')
 const path = require('path')
 
 module.exports = {
-  friendlyName: 'Update content',
+  friendlyName: 'Content update',
 
-  description: 'Update a content file and optionally trigger a deploy.',
+  description: 'Update a content file.',
 
   inputs: {
-    projectSlug: {
+    slug: {
       type: 'string',
-      required: true,
-      description: 'Project slug'
+      required: true
     },
-    environmentSlug: {
+    envSlug: {
       type: 'string',
-      defaultsTo: 'production',
-      description: 'Environment slug'
+      defaultsTo: 'production'
     },
     collection: {
       type: 'string',
-      required: true,
-      description: 'Collection name'
+      required: true
     },
     file: {
       type: 'string',
-      required: true,
-      description: 'File slug (without extension)'
+      required: true
     },
     frontmatter: {
       type: 'ref',
@@ -48,40 +44,37 @@ module.exports = {
 
   exits: {
     success: {
-      statusCode: 200
+      responseType: 'redirect'
     },
     notFound: {
-      statusCode: 404
+      responseType: 'redirect'
     },
-    forbidden: {
-      statusCode: 403
+    badRequest: {
+      responseType: 'badRequest'
     }
   },
 
-  fn: async function ({ projectSlug, environmentSlug, collection, file, frontmatter, body, raw, deploy }) {
-    const user = await User.findOne({ id: this.req.session.userId })
-    const project = await Project.findOne({ slug: projectSlug }).populate('team')
-
-    if (!project) {
-      throw 'notFound'
+  fn: async function ({ slug, envSlug, collection, file, frontmatter, body, raw, deploy }) {
+    const user = await User.findOne({ id: this.req.session.userId }).populate('team')
+    if (!user) {
+      throw { notFound: '/login' }
     }
 
-    if (project.team.id !== user.team) {
-      throw 'forbidden'
+    const project = await Project.findOne({ slug, team: user.team.id })
+    if (!project) {
+      throw { notFound: '/' }
     }
 
     const environment = await Environment.findOne({
       project: project.id,
-      slug: environmentSlug
+      slug: envSlug
     })
-
     if (!environment) {
-      throw 'notFound'
+      throw { notFound: `/projects/${slug}` }
     }
 
-    // Check if sails-content is detected
     if (!environment.features || !environment.features['sails-content']) {
-      throw 'notFound'
+      throw { badRequest: { error: 'sails-content not detected' } }
     }
 
     const contentFeature = environment.features['sails-content']
@@ -122,12 +115,11 @@ module.exports = {
     // Write file
     fs.writeFileSync(filePath, content, 'utf8')
 
-    sails.log.info(`[content] Updated ${collection}/${file} in ${project.slug}`)
+    sails.log.info(`[content] Updated ${collection}/${file} in ${slug}`)
 
     // Trigger deploy if requested
-    let deployment = null
     if (deploy) {
-      deployment = await Deployment.create({
+      const deployment = await Deployment.create({
         status: 'pending',
         gitMessage: `Content update: ${collection}/${file}`,
         triggeredBy: user.id,
@@ -139,27 +131,21 @@ module.exports = {
       sails.log.info(`[content] Deployment ${deployment.id} triggered for content change`)
 
       // Kick off the async deployment pipeline
-      const triggerDeployment = require('../deploy/trigger-deployment')
       process.nextTick(async () => {
         try {
-          // Re-use the deployment logic
-          const { executeDeployment } = require('../deploy/trigger-deployment')
-          // Note: This is a simplified approach - in production you'd want to
-          // properly modularize the deployment pipeline
+          await sails.helpers.deploy.execute(deployment.id)
         } catch (err) {
           sails.log.error(`Content deploy failed: ${err.message}`)
         }
       })
+
+      // Redirect to deployment page
+      return `/projects/${slug}/deployments/${deployment.id}`
     }
 
-    return {
-      success: true,
-      collection,
-      file,
-      fileType,
-      updatedAt: new Date().toISOString(),
-      deployment: deployment ? { id: deployment.id, status: deployment.status } : null
-    }
+    // Stay on the same page (Inertia will reload props)
+    const envPath = envSlug !== 'production' ? `/environments/${envSlug}` : ''
+    return `/projects/${slug}${envPath}/content/${collection}/${file}`
   }
 }
 

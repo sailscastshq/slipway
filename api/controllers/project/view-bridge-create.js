@@ -50,6 +50,60 @@ module.exports = {
     }
 
     const app = await App.findOne({ environment: environment.id })
+    const appRunning = app && app.status === 'running'
+
+    let modelMeta = null
+    let assocOptions = {}
+    let error = null
+
+    if (appRunning) {
+      try {
+        const introspection = await sails.helpers.bridge.introspectModels(
+          app.containerName,
+          environment.id
+        )
+
+        if (introspection.error) {
+          error = introspection.error
+        } else {
+          modelMeta = introspection.models[modelIdentity]
+
+          if (!modelMeta) {
+            error = `Model "${modelIdentity}" not found.`
+          } else {
+            // Load association options for belongsTo relationships
+            const modelAssocs = (modelMeta.associations || []).filter(a => a.type === 'model')
+            for (const assoc of modelAssocs) {
+              try {
+                const queryCode = `
+                  const records = await sails.models['${assoc.model}'].find({ limit: 100 });
+                  return records.map(r => ({
+                    id: r.id,
+                    label: r.name || r.title || r.email || \`#\${r.id}\`
+                  }));
+                `
+                const wrappedCode = await sails.helpers.bridge.buildSailsWrapper(queryCode)
+                const result = await sails.helpers.bridge.executeInContainer(app.containerName, wrappedCode)
+
+                if (result.success) {
+                  try {
+                    assocOptions[assoc.alias] = JSON.parse(result.output)
+                  } catch {
+                    assocOptions[assoc.alias] = []
+                  }
+                } else {
+                  assocOptions[assoc.alias] = []
+                }
+              } catch {
+                assocOptions[assoc.alias] = []
+              }
+            }
+          }
+        }
+      } catch (err) {
+        error = err.message
+      }
+    }
 
     return {
       page: 'projects/bridge-form',
@@ -66,7 +120,12 @@ module.exports = {
         },
         mode: 'create',
         modelIdentity,
-        appRunning: app && app.status === 'running'
+        recordId: null,
+        appRunning,
+        modelMeta,
+        record: null,
+        assocOptions,
+        error
       }
     }
   }

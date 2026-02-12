@@ -1,90 +1,35 @@
-const { spawn } = require('child_process')
-
 module.exports = {
   friendlyName: 'List Quest jobs',
 
   description: 'Get all scheduled jobs from a running app with sails-hook-quest.',
 
   inputs: {
-    projectSlug: {
+    containerName: {
       type: 'string',
-      required: true
+      required: true,
+      description: 'Docker container name'
     },
-    environmentSlug: {
-      type: 'string',
-      defaultsTo: 'production'
+    questFeature: {
+      type: 'ref',
+      required: true,
+      description: 'Quest feature config from environment.features'
     }
   },
 
   exits: {
     success: {
-      statusCode: 200
-    },
-    notFound: {
-      statusCode: 404
-    },
-    forbidden: {
-      statusCode: 403
-    },
-    badRequest: {
-      responseType: 'badRequest'
+      outputType: 'ref'
     }
   },
 
-  fn: async function ({ projectSlug, environmentSlug }) {
-    const user = await User.findOne({ id: this.req.session.userId })
-    const project = await Project.findOne({ slug: projectSlug }).populate('team')
+  fn: async function ({ containerName, questFeature }) {
+    const scripts = questFeature.scripts || []
 
-    if (!project) {
-      throw 'notFound'
-    }
-
-    if (project.team.id !== user.team) {
-      throw 'forbidden'
-    }
-
-    const environment = await Environment.findOne({
-      project: project.id,
-      slug: environmentSlug
-    })
-
-    if (!environment) {
-      throw 'notFound'
-    }
-
-    // Check if sails-quest is detected
-    const questFeature = environment.features && environment.features['sails-quest']
-    if (!questFeature) {
-      throw { badRequest: 'sails-hook-quest not detected in this app.' }
-    }
-
-    const app = await App.findOne({ environment: environment.id })
-
-    if (!app || app.status !== 'running' || !app.containerName) {
-      // App not running - return scripts from detection as manual-only jobs
-      const scripts = questFeature.scripts || []
-      return {
-        jobs: scripts.map(s => ({
-          name: s.name,
-          friendlyName: s.name,
-          description: '',
-          schedule: null,
-          scheduleType: 'manual',
-          paused: false,
-          withoutOverlapping: false,
-          isRunning: false
-        })),
-        appRunning: false
-      }
-    }
-
-    // Execute sails.quest.list() in the container
     const code = buildListJobsCode()
-    const result = await executeInContainer(app.containerName, code)
+    const result = await sails.helpers.quest.executeInContainer(containerName, code)
 
     if (!result.success) {
       // Fallback to scripts from detection
-      const scripts = questFeature.scripts || []
       return {
         jobs: scripts.map(s => ({
           name: s.name,
@@ -96,8 +41,7 @@ module.exports = {
           withoutOverlapping: false,
           isRunning: false
         })),
-        error: result.error,
-        appRunning: true
+        error: result.error
       }
     }
 
@@ -106,7 +50,6 @@ module.exports = {
       const scheduledNames = new Set(scheduledJobs.map(j => j.name))
 
       // Add scripts that aren't scheduled as manual jobs
-      const scripts = questFeature.scripts || []
       const manualJobs = scripts
         .filter(s => !scheduledNames.has(s.name))
         .map(s => ({
@@ -122,11 +65,10 @@ module.exports = {
 
       return {
         jobs: [...scheduledJobs, ...manualJobs],
-        appRunning: true
+        error: null
       }
     } catch (e) {
-      // Fallback to scripts from detection when parsing fails
-      const scripts = questFeature.scripts || []
+      // Fallback when parsing fails
       return {
         jobs: scripts.map(s => ({
           name: s.name,
@@ -138,8 +80,7 @@ module.exports = {
           withoutOverlapping: false,
           isRunning: false
         })),
-        error: result.output ? `Parse error: ${result.output.substring(0, 200)}` : 'Failed to parse job list',
-        appRunning: true
+        error: result.output ? `Parse error: ${result.output.substring(0, 200)}` : 'Failed to parse job list'
       }
     }
   }
@@ -229,45 +170,4 @@ function buildListJobsCode() {
   }
 })();
 `
-}
-
-function executeInContainer(containerName, code) {
-  return new Promise((resolve) => {
-    const dockerPath = sails.config.docker?.binaryPath || 'docker'
-    const proc = spawn(dockerPath, ['exec', '-i', containerName, 'node'], {
-      timeout: 30000
-    })
-
-    let stdout = ''
-    let stderr = ''
-
-    proc.stdout.on('data', (data) => {
-      stdout += data.toString()
-    })
-
-    proc.stderr.on('data', (data) => {
-      stderr += data.toString()
-    })
-
-    proc.stdin.write(code)
-    proc.stdin.end()
-
-    proc.on('close', (exitCode) => {
-      resolve({
-        success: exitCode === 0,
-        output: stdout.trim(),
-        error: stderr.trim() || null,
-        exitCode
-      })
-    })
-
-    proc.on('error', (err) => {
-      resolve({
-        success: false,
-        output: '',
-        error: err.message,
-        exitCode: 1
-      })
-    })
-  })
 }

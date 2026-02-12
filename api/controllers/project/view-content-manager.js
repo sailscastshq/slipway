@@ -1,3 +1,6 @@
+const fs = require('fs')
+const path = require('path')
+
 module.exports = {
   friendlyName: 'View content manager',
 
@@ -48,7 +51,43 @@ module.exports = {
     }
 
     // Check if sails-content is available
-    const hasContentFeature = environment.features && environment.features['sails-content']
+    const hasContentFeature = !!(environment.features && environment.features['sails-content'])
+    const contentFeature = hasContentFeature ? environment.features['sails-content'] : null
+
+    // Load collections if feature is available
+    let collections = []
+    let collectionsError = null
+
+    if (hasContentFeature) {
+      try {
+        const contentDir = contentFeature.contentDir || 'content'
+        const appPath = `${sails.config.custom.slipwayAppsDir}/${project.slug}`
+        const contentPath = path.join(appPath, contentDir)
+
+        if (fs.existsSync(contentPath)) {
+          const entries = fs.readdirSync(contentPath, { withFileTypes: true })
+
+          for (const entry of entries) {
+            if (entry.isDirectory() && !entry.name.startsWith('.')) {
+              const collectionPath = path.join(contentPath, entry.name)
+              const files = fs.readdirSync(collectionPath).filter(f => f.endsWith('.md') || f.endsWith('.json'))
+
+              collections.push({
+                name: entry.name,
+                slug: entry.name,
+                count: files.length,
+                files: files.map(f => ({
+                  name: f,
+                  slug: f.replace(/\.(md|json)$/, '')
+                }))
+              })
+            }
+          }
+        }
+      } catch (err) {
+        collectionsError = err.message
+      }
+    }
 
     return {
       page: 'projects/content-manager',
@@ -65,7 +104,9 @@ module.exports = {
           features: environment.features
         },
         hasContentFeature,
-        contentFeature: hasContentFeature ? environment.features['sails-content'] : null
+        contentFeature,
+        collections,
+        collectionsError
       }
     }
   }

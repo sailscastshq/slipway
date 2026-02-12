@@ -1,6 +1,6 @@
 <script setup>
-import { Link, Head } from '@inertiajs/vue3'
-import { inject, ref } from 'vue'
+import { Link, Head, router, useForm } from '@inertiajs/vue3'
+import { inject, ref, computed } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
 import Tooltip from '@/components/Tooltip.vue'
 
@@ -13,58 +13,28 @@ const props = defineProps({
   environment: Object,
   hasQuestFeature: Boolean,
   questFeature: Object,
-  appRunning: Boolean
+  appRunning: Boolean,
+  jobs: Array,
+  jobsError: String
 })
 
 const toggleMobileMenu = inject('toggleMobileMenu')
 const toggleSidebar = inject('toggleSidebar')
 const sidebarCollapsed = inject('sidebarCollapsed')
 
-// State
-const jobs = ref([])
-const loading = ref(true)
-const error = ref(null)
+// Local state for actions
 const runningJob = ref(null)
-const pausingJob = ref(null)
 const jobOutputs = ref({}) // Per-job output tracking
+const pauseForm = useForm({})
+const resumeForm = useForm({})
 
-// Fetch jobs on mount
-async function fetchJobs() {
-  if (!props.hasQuestFeature || !props.appRunning) {
-    loading.value = false
-    return
-  }
+// Computed for error display
+const error = computed(() => props.jobsError)
 
-  loading.value = true
-  error.value = null
-  try {
-    const envPath = props.environment.slug !== 'production'
-      ? `/environments/${props.environment.slug}`
-      : ''
-    const res = await fetch(`/api/v1/projects/${props.project.slug}${envPath}/quest/jobs`)
-    if (!res.ok) {
-      const data = await res.json()
-      throw new Error(data.message || 'Failed to load jobs')
-    }
-    const data = await res.json()
-    jobs.value = data.jobs || []
-    // Show API error if returned (e.g., hook loading issues)
-    if (data.error) {
-      error.value = data.error
-    }
-  } catch (e) {
-    error.value = e.message
-  } finally {
-    loading.value = false
-  }
-}
-
-// Run a job
+// Run a job (keep as fetch since it returns output to display)
 async function runJob(jobName) {
   runningJob.value = jobName
-  // Initialize inline output for this job
   jobOutputs.value[jobName] = { running: true, output: null }
-  error.value = null
 
   try {
     const envPath = props.environment.slug !== 'production'
@@ -86,8 +56,8 @@ async function runJob(jobName) {
       }
     }
 
-    // Refresh job list
-    await fetchJobs()
+    // Refresh job list via Inertia
+    router.reload({ only: ['jobs', 'jobsError'] })
   } catch (e) {
     jobOutputs.value[jobName] = {
       running: false,
@@ -109,41 +79,23 @@ function dismissOutput(jobName) {
 }
 
 // Pause a job
-async function pauseJob(jobName) {
-  pausingJob.value = jobName
-  try {
-    const envPath = props.environment.slug !== 'production'
-      ? `/environments/${props.environment.slug}`
-      : ''
-    const res = await fetch(`/api/v1/projects/${props.project.slug}${envPath}/quest/jobs/${jobName}/pause`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' }
-    })
-    await fetchJobs()
-  } catch (e) {
-    error.value = e.message
-  } finally {
-    pausingJob.value = null
-  }
+function pauseJob(jobName) {
+  const envPath = props.environment.slug !== 'production'
+    ? `/environments/${props.environment.slug}`
+    : ''
+  pauseForm.post(`/projects/${props.project.slug}${envPath}/quest/${jobName}/pause`, {
+    preserveScroll: true
+  })
 }
 
 // Resume a job
-async function resumeJob(jobName) {
-  pausingJob.value = jobName
-  try {
-    const envPath = props.environment.slug !== 'production'
-      ? `/environments/${props.environment.slug}`
-      : ''
-    const res = await fetch(`/api/v1/projects/${props.project.slug}${envPath}/quest/jobs/${jobName}/resume`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' }
-    })
-    await fetchJobs()
-  } catch (e) {
-    error.value = e.message
-  } finally {
-    pausingJob.value = null
-  }
+function resumeJob(jobName) {
+  const envPath = props.environment.slug !== 'production'
+    ? `/environments/${props.environment.slug}`
+    : ''
+  resumeForm.post(`/projects/${props.project.slug}${envPath}/quest/${jobName}/resume`, {
+    preserveScroll: true
+  })
 }
 
 function formatSchedule(job) {
@@ -153,8 +105,9 @@ function formatSchedule(job) {
   return 'manual'
 }
 
-// Initialize
-fetchJobs()
+function refresh() {
+  router.reload({ only: ['jobs', 'jobsError'] })
+}
 </script>
 <template>
   <Head :title="`Quest - ${project.name} | Slipway`"></Head>
@@ -267,18 +220,10 @@ fetchJobs()
           </p>
         </div>
 
-        <!-- Loading -->
-        <div v-else-if="loading" class="flex items-center justify-center py-12">
-          <svg class="h-6 w-6 animate-spin text-gray-400" fill="none" viewBox="0 0 24 24">
-            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
-            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-          </svg>
-        </div>
-
         <!-- Error -->
         <div v-else-if="error" class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 dark:border-red-900/50 dark:bg-red-950/20">
           <p class="text-sm text-red-700 dark:text-red-400">{{ error }}</p>
-          <button @click="fetchJobs" class="mt-2 text-sm text-red-600 underline hover:text-red-500 dark:text-red-400">
+          <button @click="refresh" class="mt-2 text-sm text-red-600 underline hover:text-red-500 dark:text-red-400">
             Try again
           </button>
         </div>
@@ -289,7 +234,7 @@ fetchJobs()
             <h2 class="text-sm font-medium text-gray-900 dark:text-white">Scripts</h2>
             <Tooltip text="Refresh">
               <button
-                @click="fetchJobs"
+                @click="refresh"
                 class="rounded-md p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-800 dark:hover:text-gray-200"
               >
                 <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -354,7 +299,7 @@ fetchJobs()
                     <Tooltip :text="job.paused ? 'Resume' : 'Pause'">
                       <button
                         @click="job.paused ? resumeJob(job.name) : pauseJob(job.name)"
-                        :disabled="pausingJob === job.name"
+                        :disabled="pauseForm.processing || resumeForm.processing"
                         class="rounded-md p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-700 disabled:opacity-50 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200"
                       >
                         <!-- Resume icon -->

@@ -1,6 +1,6 @@
 <script setup>
-import { Link, Head, router } from '@inertiajs/vue3'
-import { inject, ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
+import { Link, Head, useForm } from '@inertiajs/vue3'
+import { inject, ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
 import ConfirmModal from '@/components/ConfirmModal.vue'
 import Tooltip from '@/components/Tooltip.vue'
@@ -14,7 +14,9 @@ const props = defineProps({
   environment: Object,
   collection: String,
   file: String,
-  contentFeature: Object
+  contentFeature: Object,
+  content: Object,
+  contentError: String
 })
 
 const toggleMobileMenu = inject('toggleMobileMenu')
@@ -22,25 +24,30 @@ const toggleSidebar = inject('toggleSidebar')
 const sidebarCollapsed = inject('sidebarCollapsed')
 
 // State
-const loading = ref(true)
-const saving = ref(false)
-const deploying = ref(false)
-const error = ref(null)
 const deleteModalOpen = ref(false)
-const deleting = ref(false)
 const showSaveMenu = ref(false)
 
-// Content
-const fileType = ref('markdown')
-const frontmatter = ref({})
-const body = ref('')
-const raw = ref('')
-const updatedAt = ref('')
+// Content (initialized from props)
+const fileType = ref(props.content?.fileType || 'markdown')
+const frontmatter = ref(props.content?.frontmatter || {})
+const body = ref(props.content?.body || '')
+const raw = ref(props.content?.raw || '')
+const updatedAt = ref(props.content?.updatedAt || '')
 const hasChanges = ref(false)
 
 // Editor mode
 const editorMode = ref('split') // 'edit', 'preview', 'split'
 const editingRaw = ref(false)
+
+// Forms
+const saveForm = useForm({
+  frontmatter: {},
+  body: '',
+  raw: '',
+  deploy: false
+})
+
+const deleteForm = useForm({})
 
 // Preview
 const previewHtml = computed(() => {
@@ -69,13 +76,12 @@ const previewHtml = computed(() => {
   return `<p>${html}</p>`
 })
 
-// API helpers
-function getApiPath(suffix = '') {
-  const envPath = props.environment.slug !== 'production'
+// Path helpers
+const envPath = computed(() => {
+  return props.environment.slug !== 'production'
     ? `/environments/${props.environment.slug}`
     : ''
-  return `/api/v1/projects/${props.project.slug}${envPath}/content/${props.collection}/${props.file}${suffix}`
-}
+})
 
 function getContentManagerPath() {
   return props.environment.slug !== 'production'
@@ -83,92 +89,44 @@ function getContentManagerPath() {
     : `/projects/${props.project.slug}/content`
 }
 
-// Fetch content
-async function fetchContent() {
-  loading.value = true
-  error.value = null
-  try {
-    const res = await fetch(getApiPath())
-    if (!res.ok) {
-      throw new Error('Failed to load content')
-    }
-    const data = await res.json()
-    fileType.value = data.fileType
-    frontmatter.value = data.frontmatter || {}
-    body.value = data.body || ''
-    raw.value = data.raw || ''
-    updatedAt.value = data.updatedAt
-    // Reset after watchers fire
-    await nextTick()
-    hasChanges.value = false
-  } catch (e) {
-    error.value = e.message
-  } finally {
-    loading.value = false
-  }
+function getActionPath(action) {
+  return `/projects/${props.project.slug}${envPath.value}/content/${props.collection}/${props.file}/${action}`
 }
 
 // Save content
-async function saveContent(triggerDeploy = false) {
-  if (saving.value || deploying.value) return
+function saveContent(triggerDeploy = false) {
+  if (saveForm.processing) return
 
-  if (triggerDeploy) {
-    deploying.value = true
+  if (editingRaw.value) {
+    saveForm.raw = raw.value
+    saveForm.frontmatter = {}
+    saveForm.body = ''
   } else {
-    saving.value = true
+    saveForm.frontmatter = frontmatter.value
+    saveForm.body = body.value
+    saveForm.raw = ''
   }
+  saveForm.deploy = triggerDeploy
 
-  try {
-    const payload = editingRaw.value
-      ? { raw: raw.value, deploy: triggerDeploy }
-      : { frontmatter: frontmatter.value, body: body.value, deploy: triggerDeploy }
-
-    const res = await fetch(getApiPath(), {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    })
-
-    if (!res.ok) {
-      throw new Error('Failed to save content')
+  saveForm.post(getActionPath('update'), {
+    preserveScroll: true,
+    onSuccess: () => {
+      hasChanges.value = false
+      // Update updatedAt from refreshed props
+      if (props.content) {
+        updatedAt.value = props.content.updatedAt
+      }
     }
-
-    const data = await res.json()
-    updatedAt.value = data.updatedAt
-    hasChanges.value = false
-
-    if (data.deployment) {
-      // Navigate to deployment page
-      router.visit(`/projects/${props.project.slug}/deployments/${data.deployment.id}`)
-    }
-  } catch (e) {
-    error.value = e.message
-  } finally {
-    saving.value = false
-    deploying.value = false
-  }
+  })
 }
 
 // Delete content
-async function deleteContent() {
-  deleting.value = true
-  try {
-    const res = await fetch(getApiPath(), {
-      method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' }
-    })
-
-    if (!res.ok) {
-      throw new Error('Failed to delete content')
+function deleteContent() {
+  deleteForm.post(getActionPath('delete'), {
+    onSuccess: () => {
+      deleteModalOpen.value = false
     }
-
-    router.visit(getContentManagerPath())
-  } catch (e) {
-    error.value = e.message
-  } finally {
-    deleting.value = false
-    deleteModalOpen.value = false
-  }
+  })
 }
 
 // Track changes
@@ -202,7 +160,6 @@ function handleClickOutside(e) {
 
 // Initialize
 onMounted(() => {
-  fetchContent()
   document.addEventListener('click', handleClickOutside)
 })
 
@@ -374,14 +331,14 @@ function handleKeydown(e) {
         <div class="relative flex">
           <button
             @click="saveContent(false)"
-            :disabled="saving || deploying || !hasChanges"
+            :disabled="saveForm.processing || !hasChanges"
             class="rounded-l-md bg-gray-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
           >
-            {{ saving ? 'Saving...' : deploying ? 'Deploying...' : 'Save' }}
+            {{ saveForm.processing ? (saveForm.deploy ? 'Deploying...' : 'Saving...') : 'Save' }}
           </button>
           <button
             @click="showSaveMenu = !showSaveMenu"
-            :disabled="saving || deploying"
+            :disabled="saveForm.processing"
             class="rounded-r-md border-l border-gray-700 bg-gray-900 px-2 py-1.5 text-white hover:bg-gray-800 disabled:opacity-50 dark:border-gray-300 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
           >
             <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -414,21 +371,13 @@ function handleKeydown(e) {
 
     <!-- Content -->
     <div class="flex flex-1 overflow-hidden">
-      <!-- Loading -->
-      <div v-if="loading" class="flex flex-1 items-center justify-center">
-        <svg class="h-6 w-6 animate-spin text-gray-400" fill="none" viewBox="0 0 24 24">
-          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
-          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-        </svg>
-      </div>
-
       <!-- Error -->
-      <div v-else-if="error" class="flex flex-1 items-center justify-center">
+      <div v-if="contentError" class="flex flex-1 items-center justify-center">
         <div class="text-center">
-          <p class="text-sm text-red-600 dark:text-red-400">{{ error }}</p>
-          <button @click="fetchContent" class="mt-2 text-sm text-gray-500 underline hover:text-gray-900 dark:text-gray-400 dark:hover:text-white">
-            Try again
-          </button>
+          <p class="text-sm text-red-600 dark:text-red-400">{{ contentError }}</p>
+          <Link :href="getContentManagerPath()" class="mt-2 inline-block text-sm text-gray-500 underline hover:text-gray-900 dark:text-gray-400 dark:hover:text-white">
+            Back to content manager
+          </Link>
         </div>
       </div>
 
@@ -506,11 +455,12 @@ function handleKeydown(e) {
 
     <!-- Delete Confirmation Modal -->
     <ConfirmModal
-      v-if="deleteModalOpen"
+      :show="deleteModalOpen"
       title="Delete content"
       :message="`Are you sure you want to delete '${file}' from ${collection}? This action cannot be undone.`"
       confirm-label="Delete"
       :destructive="true"
+      :loading="deleteForm.processing"
       @confirm="deleteContent"
       @cancel="deleteModalOpen = false"
     />

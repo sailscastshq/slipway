@@ -46,6 +46,53 @@ module.exports = {
     }
 
     const app = await App.findOne({ environment: environment.id })
+    const appRunning = app && app.status === 'running'
+
+    // Load models server-side if app is running
+    let models = {}
+    let modelsError = null
+
+    if (appRunning) {
+      try {
+        const introspection = await sails.helpers.bridge.introspectModels(
+          app.containerName,
+          environment.id
+        )
+
+        if (introspection.error) {
+          modelsError = introspection.error
+        } else {
+          models = introspection.models || {}
+
+          // Get record counts for all models
+          const identities = Object.keys(models)
+          if (identities.length > 0) {
+            const countCode = `
+              const counts = {};
+              ${identities.map(id => `
+                try {
+                  counts['${id}'] = await sails.models['${id}'].count();
+                } catch(e) { counts['${id}'] = 0; }
+              `).join('\n')}
+              return counts;
+            `
+            const wrappedCode = await sails.helpers.bridge.buildSailsWrapper(countCode)
+            const countResult = await sails.helpers.bridge.executeInContainer(app.containerName, wrappedCode)
+
+            if (countResult.success) {
+              try {
+                const counts = JSON.parse(countResult.output)
+                for (const id of identities) {
+                  models[id].count = counts[id] || 0
+                }
+              } catch { /* counts remain undefined */ }
+            }
+          }
+        }
+      } catch (err) {
+        modelsError = err.message
+      }
+    }
 
     return {
       page: 'projects/bridge',
@@ -60,7 +107,9 @@ module.exports = {
           name: environment.name,
           slug: environment.slug
         },
-        appRunning: app && app.status === 'running'
+        appRunning,
+        models,
+        modelsError
       }
     }
   }

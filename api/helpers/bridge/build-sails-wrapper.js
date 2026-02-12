@@ -18,6 +18,10 @@ module.exports = {
   },
 
   fn: async function ({ code }) {
+    // Use unique markers to isolate JSON output from any console noise
+    const startMarker = '___SLIPWAY_BRIDGE_START___'
+    const endMarker = '___SLIPWAY_BRIDGE_END___'
+
     return `
 (async () => {
   let sailsApp;
@@ -38,7 +42,7 @@ module.exports = {
     })();
 
     if (__result !== undefined) {
-      process.stdout.write(JSON.stringify(__result));
+      process.stdout.write('${startMarker}' + JSON.stringify(__result) + '${endMarker}');
     }
   } catch (err) {
     process.stderr.write(err.stack || err.message);

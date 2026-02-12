@@ -30,6 +30,16 @@ module.exports = {
       type: 'ref',
       defaultsTo: {},
       description: 'Build arguments to pass to Docker'
+    },
+    timeout: {
+      type: 'number',
+      defaultsTo: 600000, // 10 minutes default
+      description: 'Build timeout in milliseconds'
+    },
+    noCache: {
+      type: 'boolean',
+      defaultsTo: false,
+      description: 'Disable Docker layer caching (slower but ensures fresh build)'
     }
   },
 
@@ -43,10 +53,15 @@ module.exports = {
     }
   },
 
-  fn: async function ({ contextPath, imageName, dockerfilePath, deploymentId, buildArgs }) {
+  fn: async function ({ contextPath, imageName, dockerfilePath, deploymentId, buildArgs, timeout, noCache }) {
     return new Promise((resolve, reject) => {
       const fullDockerfilePath = path.resolve(contextPath, dockerfilePath)
-      const args = ['build', '--no-cache', '-t', imageName, '-f', fullDockerfilePath]
+      const args = ['build', '-t', imageName, '-f', fullDockerfilePath]
+
+      // Only disable cache if explicitly requested
+      if (noCache) {
+        args.push('--no-cache')
+      }
 
       // Add build args
       for (const [key, value] of Object.entries(buildArgs)) {
@@ -60,6 +75,34 @@ module.exports = {
       const buildProcess = spawn('docker', args)
       let stdout = ''
       let stderr = ''
+      let killed = false
+
+      // Set up timeout
+      const timeoutId = setTimeout(async () => {
+        killed = true
+        buildProcess.kill('SIGTERM')
+
+        // Give it 5 seconds to terminate gracefully, then force kill
+        setTimeout(() => {
+          if (!buildProcess.killed) {
+            buildProcess.kill('SIGKILL')
+          }
+        }, 5000)
+
+        const timeoutMinutes = Math.round(timeout / 60000)
+        const errorMsg = `Build timed out after ${timeoutMinutes} minutes`
+        sails.log.error(errorMsg)
+
+        if (deploymentId) {
+          await Deployment.appendBuildLog(deploymentId, `\n⚠️ ${errorMsg}\n`)
+          await Deployment.updateOne({ id: deploymentId }).set({
+            status: 'failed',
+            errorMessage: errorMsg,
+            finishedAt: Date.now()
+          })
+        }
+        reject(new Error(errorMsg))
+      }, timeout)
 
       buildProcess.stdout.on('data', async (data) => {
         const chunk = data.toString()
@@ -84,6 +127,10 @@ module.exports = {
       })
 
       buildProcess.on('close', async (code) => {
+        clearTimeout(timeoutId)
+
+        if (killed) return // Already handled by timeout
+
         if (code === 0) {
           sails.log.info(`Successfully built image: ${imageName}`)
           resolve({
@@ -105,6 +152,10 @@ module.exports = {
       })
 
       buildProcess.on('error', async (error) => {
+        clearTimeout(timeoutId)
+
+        if (killed) return // Already handled by timeout
+
         sails.log.error(`Docker build error: ${error.message}`)
         if (deploymentId) {
           await Deployment.updateOne({ id: deploymentId }).set({

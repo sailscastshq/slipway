@@ -1,11 +1,10 @@
 <script setup>
-import { Link, Head, usePage } from '@inertiajs/vue3'
-import { inject, ref, computed, watch, onMounted } from 'vue'
+import { Link, Head, router, useForm } from '@inertiajs/vue3'
+import { inject, ref, computed, watch } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
 import ConfirmModal from '@/components/ConfirmModal.vue'
 import ToastContainer from '@/components/ToastContainer.vue'
 import { createToast } from '@/composables/toast'
-import { useBridge } from '@/composables/bridge'
 
 defineOptions({
   layout: AppLayout
@@ -15,74 +14,74 @@ const props = defineProps({
   project: Object,
   environment: Object,
   modelIdentity: String,
-  appRunning: Boolean
+  appRunning: Boolean,
+  modelMeta: Object,
+  records: Array,
+  total: Number,
+  totalPages: Number,
+  currentPage: Number,
+  perPage: Number,
+  sort: String,
+  search: String,
+  error: String
 })
 
 const toggleMobileMenu = inject('toggleMobileMenu')
 const toggleSidebar = inject('toggleSidebar')
 const sidebarCollapsed = inject('sidebarCollapsed')
 const { toasts, toast, dismiss } = createToast()
-const { fetchModels, fetchRecords, destroyRecord, bulkDestroy } = useBridge()
 
-// Model metadata
-const modelMeta = ref(null)
-const metaLoading = ref(true)
-const metaError = ref(null)
-
-// Records state
-const records = ref([])
-const total = ref(0)
-const totalPages = ref(0)
-const recordsLoading = ref(false)
-const recordsError = ref(null)
-
-// URL state
-const params = new URLSearchParams(window.location.search)
-const page = ref(parseInt(params.get('page')) || 1)
-const perPage = ref(20)
-const sort = ref(params.get('sort') || 'createdAt DESC')
-const search = ref(params.get('search') || '')
-
-// Selection
+// Local state for UI
+const page = ref(props.currentPage)
+const sortValue = ref(props.sort)
+const searchInput = ref(props.search)
 const selectedIds = ref(new Set())
 const selectAll = ref(false)
+const deleteModal = ref({ show: false, recordId: null })
+const bulkDeleteModal = ref({ show: false })
 
-// Delete modal
-const deleteModal = ref({ show: false, recordId: null, loading: false })
-const bulkDeleteModal = ref({ show: false, loading: false })
+// Forms for delete actions
+const deleteForm = useForm({})
+const bulkDeleteForm = useForm({ ids: [] })
 
 // Debounced search
 let searchTimeout = null
-const searchInput = ref(search.value)
 watch(searchInput, (val) => {
   clearTimeout(searchTimeout)
   searchTimeout = setTimeout(() => {
-    search.value = val
-    page.value = 1
+    navigateWithParams({ search: val, page: 1 })
   }, 300)
 })
 
-// Sync state to URL
-watch([page, sort, search], () => {
-  const url = new URL(window.location)
-  if (page.value > 1) url.searchParams.set('page', page.value)
-  else url.searchParams.delete('page')
-  if (sort.value !== 'createdAt DESC') url.searchParams.set('sort', sort.value)
-  else url.searchParams.delete('sort')
-  if (search.value) url.searchParams.set('search', search.value)
-  else url.searchParams.delete('search')
-  window.history.replaceState({}, '', url)
-  loadRecords()
-})
+// Navigate with updated params
+function navigateWithParams(updates) {
+  const params = {
+    page: updates.page ?? page.value,
+    sort: updates.sort ?? sortValue.value,
+    search: updates.search ?? searchInput.value
+  }
 
-// Visible columns: primaryKey + up to 5 relevant attributes + createdAt
+  // Clean up defaults
+  if (params.page === 1) delete params.page
+  if (params.sort === 'createdAt DESC') delete params.sort
+  if (!params.search) delete params.search
+
+  const query = new URLSearchParams(params).toString()
+  const basePath = `/projects/${props.project.slug}/environments/${props.environment.slug}/bridge/${props.modelIdentity}`
+
+  router.visit(query ? `${basePath}?${query}` : basePath, {
+    preserveState: true,
+    preserveScroll: true
+  })
+}
+
+// Visible columns
 const visibleColumns = computed(() => {
-  if (!modelMeta.value) return []
-  const attrs = modelMeta.value.attributes
-  const pk = modelMeta.value.primaryKey
+  if (!props.modelMeta) return []
+  const attrs = props.modelMeta.attributes
+  const pk = props.modelMeta.primaryKey
   const cols = [pk]
 
-  // Pick up to 5 non-auto, non-pk attributes
   const candidates = Object.entries(attrs).filter(([name, attr]) => {
     if (name === pk) return false
     if (attr.autoCreatedAt || attr.autoUpdatedAt || attr.autoIncrement) return false
@@ -90,7 +89,6 @@ const visibleColumns = computed(() => {
     return true
   })
 
-  // Prefer string/number attributes first, then booleans
   candidates.sort((a, b) => {
     const order = { string: 0, number: 1, boolean: 2, json: 3, ref: 4 }
     return (order[a[1].type] ?? 5) - (order[b[1].type] ?? 5)
@@ -100,7 +98,6 @@ const visibleColumns = computed(() => {
     cols.push(name)
   }
 
-  // Add createdAt if it exists and not already included
   if (attrs.createdAt && !cols.includes('createdAt')) {
     cols.push('createdAt')
   }
@@ -109,16 +106,18 @@ const visibleColumns = computed(() => {
 })
 
 // Sort handling
-const sortAttr = computed(() => sort.value.split(' ')[0])
-const sortDir = computed(() => sort.value.split(' ')[1] || 'ASC')
+const sortAttr = computed(() => sortValue.value.split(' ')[0])
+const sortDir = computed(() => sortValue.value.split(' ')[1] || 'ASC')
 
 function toggleSort(attr) {
+  let newSort
   if (sortAttr.value === attr) {
-    sort.value = `${attr} ${sortDir.value === 'ASC' ? 'DESC' : 'ASC'}`
+    newSort = `${attr} ${sortDir.value === 'ASC' ? 'DESC' : 'ASC'}`
   } else {
-    sort.value = `${attr} ASC`
+    newSort = `${attr} ASC`
   }
-  page.value = 1
+  sortValue.value = newSort
+  navigateWithParams({ sort: newSort, page: 1 })
 }
 
 // Selection
@@ -127,7 +126,7 @@ function toggleSelectAll() {
     selectedIds.value = new Set()
     selectAll.value = false
   } else {
-    selectedIds.value = new Set(records.value.map(r => r[modelMeta.value.primaryKey]))
+    selectedIds.value = new Set(props.records.map(r => r[props.modelMeta.primaryKey]))
     selectAll.value = true
   }
 }
@@ -137,13 +136,13 @@ function toggleSelect(id) {
   if (s.has(id)) s.delete(id)
   else s.add(id)
   selectedIds.value = s
-  selectAll.value = s.size === records.value.length
+  selectAll.value = s.size === props.records.length
 }
 
 // Cell rendering
 function formatCell(value, attrName) {
   if (value === null || value === undefined) return null
-  const attr = modelMeta.value?.attributes[attrName]
+  const attr = props.modelMeta?.attributes[attrName]
   if (!attr) return String(value)
 
   if (attr.autoCreatedAt || attr.autoUpdatedAt) {
@@ -166,83 +165,57 @@ function formatDate(value) {
 }
 
 function isBooleanAttr(attrName) {
-  return modelMeta.value?.attributes[attrName]?.type === 'boolean'
+  return props.modelMeta?.attributes[attrName]?.type === 'boolean'
 }
 
 function isTimestamp(attrName) {
-  const attr = modelMeta.value?.attributes[attrName]
+  const attr = props.modelMeta?.attributes[attrName]
   return attr?.autoCreatedAt || attr?.autoUpdatedAt
 }
 
-// Fetch model metadata
-async function loadMeta() {
-  metaLoading.value = true
-  metaError.value = null
-  try {
-    const data = await fetchModels()
-    const model = (data.models || {})[props.modelIdentity]
-    if (!model) {
-      metaError.value = `Model "${props.modelIdentity}" not found.`
-      return
-    }
-    modelMeta.value = model
-  } catch (e) {
-    metaError.value = e.message
-  } finally {
-    metaLoading.value = false
-  }
-}
-
-// Fetch records
-async function loadRecords() {
-  recordsLoading.value = true
-  recordsError.value = null
-  selectedIds.value = new Set()
-  selectAll.value = false
-  try {
-    const data = await fetchRecords(props.modelIdentity, {
-      page: page.value,
-      perPage: perPage.value,
-      sort: sort.value,
-      search: search.value
-    })
-    records.value = data.records || []
-    total.value = data.total || 0
-    totalPages.value = data.totalPages || 0
-  } catch (e) {
-    recordsError.value = e.message
-  } finally {
-    recordsLoading.value = false
-  }
-}
-
 // Delete single record
-async function confirmDelete() {
-  deleteModal.value.loading = true
-  try {
-    await destroyRecord(props.modelIdentity, deleteModal.value.recordId)
-    toast({ message: 'Record deleted.', type: 'success' })
-    deleteModal.value = { show: false, recordId: null, loading: false }
-    await loadRecords()
-  } catch (e) {
-    toast({ message: e.message, type: 'error' })
-    deleteModal.value.loading = false
-  }
+function confirmDelete() {
+  deleteForm.post(
+    `/projects/${props.project.slug}/environments/${props.environment.slug}/bridge/${props.modelIdentity}/${deleteModal.value.recordId}/delete`,
+    {
+      preserveScroll: true,
+      onSuccess: () => {
+        toast({ message: 'Record deleted.', type: 'success' })
+        deleteModal.value = { show: false, recordId: null }
+        selectedIds.value = new Set()
+        selectAll.value = false
+      },
+      onError: (errors) => {
+        toast({ message: errors.error || 'Failed to delete record', type: 'error' })
+      }
+    }
+  )
 }
 
 // Bulk delete
-async function confirmBulkDelete() {
-  bulkDeleteModal.value.loading = true
-  try {
-    const ids = Array.from(selectedIds.value)
-    await bulkDestroy(props.modelIdentity, ids)
-    toast({ message: `${ids.length} record(s) deleted.`, type: 'success' })
-    bulkDeleteModal.value = { show: false, loading: false }
-    await loadRecords()
-  } catch (e) {
-    toast({ message: e.message, type: 'error' })
-    bulkDeleteModal.value.loading = false
-  }
+function confirmBulkDelete() {
+  bulkDeleteForm.ids = Array.from(selectedIds.value)
+  bulkDeleteForm.post(
+    `/projects/${props.project.slug}/environments/${props.environment.slug}/bridge/${props.modelIdentity}/bulk-delete`,
+    {
+      preserveScroll: true,
+      onSuccess: () => {
+        toast({ message: `${bulkDeleteForm.ids.length} record(s) deleted.`, type: 'success' })
+        bulkDeleteModal.value = { show: false }
+        selectedIds.value = new Set()
+        selectAll.value = false
+      },
+      onError: (errors) => {
+        toast({ message: errors.error || 'Failed to delete records', type: 'error' })
+      }
+    }
+  )
+}
+
+// Pagination
+function goToPage(newPage) {
+  page.value = newPage
+  navigateWithParams({ page: newPage })
 }
 
 // URL builders
@@ -258,13 +231,6 @@ function editUrl(id) {
 function createUrl() {
   return `/projects/${props.project.slug}/environments/${props.environment.slug}/bridge/${props.modelIdentity}/new`
 }
-
-onMounted(async () => {
-  await loadMeta()
-  if (modelMeta.value) {
-    await loadRecords()
-  }
-})
 </script>
 
 <template>
@@ -321,79 +287,73 @@ onMounted(async () => {
           <span class="font-medium text-gray-900 dark:text-white">{{ modelIdentity }}</span>
         </nav>
       </div>
-      <div class="flex items-center space-x-2">
-        <Link
-          :href="createUrl()"
-          class="inline-flex items-center rounded-md bg-gray-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-gray-800 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
-        >
-          <svg class="mr-1.5 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-          </svg>
-          New
-        </Link>
-      </div>
     </div>
 
-    <!-- Toolbar: search + bulk actions -->
-    <div class="flex items-center justify-between border-b border-gray-200 px-4 py-2 dark:border-gray-800 sm:px-6">
-      <div class="flex items-center space-x-3">
-        <div class="relative">
-          <svg class="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-          </svg>
+    <!-- Toolbar -->
+    <div class="px-4 py-4 sm:px-8">
+      <div class="mx-auto flex max-w-6xl items-center justify-between">
+        <div class="flex items-center space-x-3">
           <input
             v-model="searchInput"
             type="text"
-            placeholder="Search..."
-            class="w-48 rounded-md border border-gray-200 bg-white py-1.5 pl-8 pr-3 text-sm text-gray-900 placeholder-gray-400 focus:border-gray-300 focus:outline-none focus:ring-1 focus:ring-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-white dark:placeholder-gray-500 dark:focus:border-gray-600 dark:focus:ring-gray-600 sm:w-64"
+            placeholder="Search records..."
+            class="w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:border-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500 dark:focus:border-gray-600 sm:w-64"
           />
+          <Transition
+            enter-active-class="transition ease-out duration-150"
+            enter-from-class="opacity-0 -translate-x-2"
+            enter-to-class="opacity-100 translate-x-0"
+            leave-active-class="transition ease-in duration-100"
+            leave-from-class="opacity-100"
+            leave-to-class="opacity-0"
+          >
+            <div v-if="selectedIds.size > 0" class="flex items-center space-x-2">
+              <span class="text-xs text-gray-500 dark:text-gray-400">{{ selectedIds.size }} selected</span>
+              <button
+                @click="bulkDeleteModal.show = true"
+                class="inline-flex items-center rounded-md bg-red-50 px-2 py-1 text-xs font-medium text-red-700 hover:bg-red-100 dark:bg-red-900/20 dark:text-red-400 dark:hover:bg-red-900/30"
+              >
+                <svg class="mr-1 h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+                Delete
+              </button>
+            </div>
+          </Transition>
         </div>
-        <!-- Bulk action bar -->
-        <Transition
-          enter-active-class="transition ease-out duration-150"
-          enter-from-class="opacity-0 -translate-x-2"
-          enter-to-class="opacity-100 translate-x-0"
-          leave-active-class="transition ease-in duration-100"
-          leave-from-class="opacity-100"
-          leave-to-class="opacity-0"
-        >
-          <div v-if="selectedIds.size > 0" class="flex items-center space-x-2">
-            <span class="text-xs text-gray-500 dark:text-gray-400">{{ selectedIds.size }} selected</span>
-            <button
-              @click="bulkDeleteModal.show = true"
-              class="inline-flex items-center rounded-md bg-red-50 px-2 py-1 text-xs font-medium text-red-700 hover:bg-red-100 dark:bg-red-900/20 dark:text-red-400 dark:hover:bg-red-900/30"
-            >
-              <svg class="mr-1 h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-              </svg>
-              Delete
-            </button>
-          </div>
-        </Transition>
-      </div>
-      <div class="text-xs text-gray-500 dark:text-gray-400">
-        <span v-if="total > 0">{{ total.toLocaleString() }} records</span>
+        <div class="flex items-center space-x-4">
+          <span v-if="total > 0" class="text-xs text-gray-500 dark:text-gray-400">{{ total.toLocaleString() }} records</span>
+          <Link
+            :href="createUrl()"
+            prefetch
+            class="inline-flex items-center rounded-md bg-gray-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-gray-800 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
+          >
+            <span class="mr-1">+</span>
+            New
+          </Link>
+        </div>
       </div>
     </div>
 
     <!-- Content -->
-    <div class="flex-1 overflow-auto">
-      <!-- Loading meta -->
-      <div v-if="metaLoading" class="flex h-full items-center justify-center">
-        <svg class="h-6 w-6 animate-spin text-gray-400" fill="none" viewBox="0 0 24 24">
-          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
-          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-        </svg>
-      </div>
-
-      <!-- Meta error -->
-      <div v-else-if="metaError" class="flex h-full items-center justify-center">
-        <p class="text-sm text-red-600 dark:text-red-400">{{ metaError }}</p>
+    <div class="flex-1 overflow-auto px-4 py-4 sm:px-8">
+      <div class="mx-auto max-w-6xl">
+        <!-- Error -->
+        <div v-if="error" class="flex h-full items-center justify-center">
+        <div class="text-center">
+          <div class="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-red-50 dark:bg-red-950/30">
+            <svg class="h-8 w-8 text-red-500 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+          </div>
+          <p class="mt-4 text-sm text-red-600 dark:text-red-400">{{ error }}</p>
+        </div>
       </div>
 
       <!-- Table -->
-      <table v-else class="w-full text-left text-sm">
-        <thead class="sticky top-0 z-10 border-b border-gray-200 bg-gray-50 dark:border-gray-800 dark:bg-gray-900/80">
+      <div v-else-if="modelMeta" class="overflow-hidden rounded-lg border border-gray-200 dark:border-gray-800">
+        <table class="w-full text-left text-sm">
+          <thead class="border-b border-gray-200 bg-gray-50/50 dark:border-gray-800 dark:bg-gray-900/50">
           <tr>
             <th class="w-10 px-4 py-2">
               <input
@@ -420,36 +380,19 @@ onMounted(async () => {
             <th class="w-20 px-4 py-2"></th>
           </tr>
         </thead>
-        <tbody v-if="recordsLoading">
-          <tr>
-            <td :colspan="visibleColumns.length + 2" class="px-4 py-12 text-center">
-              <svg class="mx-auto h-5 w-5 animate-spin text-gray-400" fill="none" viewBox="0 0 24 24">
-                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
-                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-              </svg>
+          <tbody v-if="records.length === 0" class="bg-white dark:bg-gray-950">
+            <tr>
+              <td :colspan="visibleColumns.length + 2" class="px-4 py-12 text-center text-sm text-gray-500 dark:text-gray-400">
+                {{ search ? 'No matching records.' : 'No records yet.' }}
             </td>
           </tr>
-        </tbody>
-        <tbody v-else-if="recordsError">
-          <tr>
-            <td :colspan="visibleColumns.length + 2" class="px-4 py-12 text-center text-sm text-red-600 dark:text-red-400">
-              {{ recordsError }}
-            </td>
-          </tr>
-        </tbody>
-        <tbody v-else-if="records.length === 0">
-          <tr>
-            <td :colspan="visibleColumns.length + 2" class="px-4 py-12 text-center text-sm text-gray-500 dark:text-gray-400">
-              {{ search ? 'No matching records.' : 'No records yet.' }}
-            </td>
-          </tr>
-        </tbody>
-        <tbody v-else class="divide-y divide-gray-100 dark:divide-gray-800">
-          <tr
-            v-for="record in records"
-            :key="record[modelMeta.primaryKey]"
-            class="hover:bg-gray-50 dark:hover:bg-gray-900/30"
-          >
+          </tbody>
+          <tbody v-else class="divide-y divide-gray-200 bg-white dark:divide-gray-800 dark:bg-gray-950">
+            <tr
+              v-for="record in records"
+              :key="record[modelMeta.primaryKey]"
+              class="hover:bg-gray-50 dark:hover:bg-gray-900/30"
+            >
             <td class="px-4 py-2">
               <input
                 type="checkbox"
@@ -463,7 +406,6 @@ onMounted(async () => {
               :key="col"
               class="whitespace-nowrap px-4 py-2"
             >
-              <!-- Boolean: dot -->
               <span v-if="isBooleanAttr(col)" class="flex items-center">
                 <span
                   :class="[
@@ -472,32 +414,28 @@ onMounted(async () => {
                   ]"
                 ></span>
               </span>
-              <!-- Timestamps: formatted -->
               <span v-else-if="isTimestamp(col)" class="text-gray-500 dark:text-gray-400">
                 {{ formatDate(record[col]) }}
               </span>
-              <!-- Null -->
               <span v-else-if="record[col] === null || record[col] === undefined" class="text-gray-300 dark:text-gray-600">
                 null
               </span>
-              <!-- Primary key: link -->
               <Link v-else-if="col === modelMeta.primaryKey" :href="recordUrl(record[col])" class="font-medium text-gray-900 hover:underline dark:text-white">
                 {{ record[col] }}
               </Link>
-              <!-- Default -->
               <span v-else class="text-gray-700 dark:text-gray-300">
                 {{ formatCell(record[col], col) }}
               </span>
             </td>
             <td class="px-4 py-2">
               <div class="flex items-center justify-end space-x-1">
-                <Link :href="recordUrl(record[modelMeta.primaryKey])" class="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-900 dark:hover:bg-gray-800 dark:hover:text-white" title="View">
+                <Link :href="recordUrl(record[modelMeta.primaryKey])" prefetch class="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-900 dark:hover:bg-gray-800 dark:hover:text-white" title="View">
                   <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                   </svg>
                 </Link>
-                <Link :href="editUrl(record[modelMeta.primaryKey])" class="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-900 dark:hover:bg-gray-800 dark:hover:text-white" title="Edit">
+                <Link :href="editUrl(record[modelMeta.primaryKey])" prefetch class="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-900 dark:hover:bg-gray-800 dark:hover:text-white" title="Edit">
                   <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                   </svg>
@@ -515,54 +453,56 @@ onMounted(async () => {
             </td>
           </tr>
         </tbody>
-      </table>
+        </table>
+      </div>
+      </div>
     </div>
 
     <!-- Pagination -->
-    <div v-if="totalPages > 1" class="flex items-center justify-between border-t border-gray-200 px-4 py-3 dark:border-gray-800 sm:px-6">
+    <div v-if="totalPages > 1" class="border-t border-gray-200 px-4 py-3 dark:border-gray-800 sm:px-8">
+      <div class="mx-auto flex max-w-6xl items-center justify-between">
       <div class="text-xs text-gray-500 dark:text-gray-400">
-        Page {{ page }} of {{ totalPages }}
+        Page {{ currentPage }} of {{ totalPages }}
       </div>
       <div class="flex items-center space-x-2">
         <button
-          @click="page = Math.max(1, page - 1)"
-          :disabled="page <= 1"
+          @click="goToPage(Math.max(1, currentPage - 1))"
+          :disabled="currentPage <= 1"
           class="rounded-md border border-gray-200 px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
         >
           Previous
         </button>
         <button
-          @click="page = Math.min(totalPages, page + 1)"
-          :disabled="page >= totalPages"
+          @click="goToPage(Math.min(totalPages, currentPage + 1))"
+          :disabled="currentPage >= totalPages"
           class="rounded-md border border-gray-200 px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
         >
           Next
         </button>
+        </div>
       </div>
     </div>
   </div>
 
-  <!-- Delete confirm modal -->
   <ConfirmModal
     :show="deleteModal.show"
     title="Delete record"
     message="Are you sure? This action cannot be undone."
     confirm-label="Delete"
     :destructive="true"
-    :loading="deleteModal.loading"
+    :loading="deleteForm.processing"
     @confirm="confirmDelete"
-    @cancel="deleteModal = { show: false, recordId: null, loading: false }"
+    @cancel="deleteModal = { show: false, recordId: null }"
   />
 
-  <!-- Bulk delete confirm modal -->
   <ConfirmModal
     :show="bulkDeleteModal.show"
     title="Delete selected records"
     :message="`Are you sure you want to delete ${selectedIds.size} record(s)? This action cannot be undone.`"
     confirm-label="Delete all"
     :destructive="true"
-    :loading="bulkDeleteModal.loading"
+    :loading="bulkDeleteForm.processing"
     @confirm="confirmBulkDelete"
-    @cancel="bulkDeleteModal = { show: false, loading: false }"
+    @cancel="bulkDeleteModal = { show: false }"
   />
 </template>

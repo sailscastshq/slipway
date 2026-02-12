@@ -1,3 +1,6 @@
+const fs = require('fs')
+const path = require('path')
+
 module.exports = {
   friendlyName: 'View content editor',
 
@@ -62,6 +65,60 @@ module.exports = {
       throw { notFound: `/projects/${slug}/environments/${envSlug}` }
     }
 
+    const contentFeature = environment.features['sails-content']
+    const contentDir = contentFeature.contentDir || 'content'
+    const appPath = `${sails.config.custom.slipwayAppsDir}/${project.slug}`
+
+    // Load the content file
+    let content = null
+    let contentError = null
+
+    try {
+      // Try .md first, then .json
+      let filePath = path.join(appPath, contentDir, collection, `${file}.md`)
+      let fileType = 'markdown'
+
+      if (!fs.existsSync(filePath)) {
+        filePath = path.join(appPath, contentDir, collection, `${file}.json`)
+        fileType = 'json'
+      }
+
+      if (!fs.existsSync(filePath)) {
+        throw new Error('Content file not found')
+      }
+
+      const rawContent = fs.readFileSync(filePath, 'utf8')
+      const stats = fs.statSync(filePath)
+
+      // Parse frontmatter for markdown files
+      let frontmatter = {}
+      let body = rawContent
+
+      if (fileType === 'markdown') {
+        const parsed = parseFrontmatter(rawContent)
+        frontmatter = parsed.frontmatter
+        body = parsed.body
+      } else {
+        // For JSON files, the whole content is structured data
+        try {
+          frontmatter = JSON.parse(rawContent)
+          body = ''
+        } catch (e) {
+          // If JSON parsing fails, treat as raw content
+        }
+      }
+
+      content = {
+        fileType,
+        frontmatter,
+        body,
+        raw: rawContent,
+        updatedAt: stats.mtime.toISOString()
+      }
+    } catch (err) {
+      contentError = err.message
+    }
+
     return {
       page: 'projects/content-editor',
       props: {
@@ -78,8 +135,47 @@ module.exports = {
         },
         collection,
         file,
-        contentFeature: environment.features['sails-content']
+        contentFeature,
+        content,
+        contentError
       }
     }
   }
+}
+
+/**
+ * Parse YAML frontmatter from markdown content
+ */
+function parseFrontmatter(content) {
+  const frontmatterRegex = /^---\r?\n([\s\S]*?)\r?\n---\r?\n([\s\S]*)$/
+  const match = content.match(frontmatterRegex)
+
+  if (!match) {
+    return { frontmatter: {}, body: content }
+  }
+
+  const frontmatterStr = match[1]
+  const body = match[2]
+
+  // Simple YAML parsing (key: value pairs)
+  const frontmatter = {}
+  const lines = frontmatterStr.split('\n')
+
+  for (const line of lines) {
+    const colonIndex = line.indexOf(':')
+    if (colonIndex > 0) {
+      const key = line.substring(0, colonIndex).trim()
+      let value = line.substring(colonIndex + 1).trim()
+
+      // Remove quotes
+      if ((value.startsWith("'") && value.endsWith("'")) ||
+          (value.startsWith('"') && value.endsWith('"'))) {
+        value = value.slice(1, -1)
+      }
+
+      frontmatter[key] = value
+    }
+  }
+
+  return { frontmatter, body }
 }

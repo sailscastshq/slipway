@@ -1,11 +1,10 @@
 <script setup>
-import { Link, Head, router } from '@inertiajs/vue3'
-import { inject, ref, computed, onMounted } from 'vue'
+import { Link, Head, useForm } from '@inertiajs/vue3'
+import { inject, ref, computed } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
 import ConfirmModal from '@/components/ConfirmModal.vue'
 import ToastContainer from '@/components/ToastContainer.vue'
 import { createToast } from '@/composables/toast'
-import { useBridge } from '@/composables/bridge'
 
 defineOptions({
   layout: AppLayout
@@ -16,36 +15,34 @@ const props = defineProps({
   environment: Object,
   modelIdentity: String,
   recordId: String,
-  appRunning: Boolean
+  appRunning: Boolean,
+  modelMeta: Object,
+  record: Object,
+  error: String
 })
 
 const toggleMobileMenu = inject('toggleMobileMenu')
 const toggleSidebar = inject('toggleSidebar')
 const sidebarCollapsed = inject('sidebarCollapsed')
 const { toasts, toast, dismiss } = createToast()
-const { fetchRecord, destroyRecord } = useBridge()
 
-const record = ref(null)
-const modelMeta = ref(null)
-const loading = ref(true)
-const error = ref(null)
-
-const deleteModal = ref({ show: false, loading: false })
+const deleteModal = ref({ show: false })
+const deleteForm = useForm({})
 
 // Categorize attributes
 const regularAttrs = computed(() => {
-  if (!modelMeta.value) return []
-  return Object.entries(modelMeta.value.attributes).filter(([, attr]) => !attr.model)
+  if (!props.modelMeta) return []
+  return Object.entries(props.modelMeta.attributes).filter(([, attr]) => !attr.model)
 })
 
 const modelAssociations = computed(() => {
-  if (!modelMeta.value) return []
-  return (modelMeta.value.associations || []).filter(a => a.type === 'model')
+  if (!props.modelMeta) return []
+  return (props.modelMeta.associations || []).filter(a => a.type === 'model')
 })
 
 const collectionAssociations = computed(() => {
-  if (!modelMeta.value) return []
-  return (modelMeta.value.associations || []).filter(a => a.type === 'collection')
+  if (!props.modelMeta) return []
+  return (props.modelMeta.associations || []).filter(a => a.type === 'collection')
 })
 
 function formatValue(value, attr) {
@@ -65,41 +62,29 @@ function formatValue(value, attr) {
 }
 
 function collectionRecords(alias) {
-  if (!record.value || !record.value[alias]) return []
-  const data = record.value[alias]
+  if (!props.record || !props.record[alias]) return []
+  const data = props.record[alias]
   return Array.isArray(data) ? data.slice(0, 5) : []
 }
 
 function collectionCount(alias) {
-  if (!record.value || !record.value[alias]) return 0
-  const data = record.value[alias]
+  if (!props.record || !props.record[alias]) return 0
+  const data = props.record[alias]
   return Array.isArray(data) ? data.length : 0
 }
 
-async function loadRecord() {
-  loading.value = true
-  error.value = null
-  try {
-    const data = await fetchRecord(props.modelIdentity, props.recordId)
-    record.value = data.record
-    modelMeta.value = data.model
-  } catch (e) {
-    error.value = e.message
-  } finally {
-    loading.value = false
-  }
-}
-
-async function confirmDelete() {
-  deleteModal.value.loading = true
-  try {
-    await destroyRecord(props.modelIdentity, props.recordId)
-    toast({ message: 'Record deleted.', type: 'success' })
-    router.visit(modelUrl())
-  } catch (e) {
-    toast({ message: e.message, type: 'error' })
-    deleteModal.value.loading = false
-  }
+function confirmDelete() {
+  deleteForm.post(
+    `/projects/${props.project.slug}/environments/${props.environment.slug}/bridge/${props.modelIdentity}/${props.recordId}/delete`,
+    {
+      onSuccess: () => {
+        toast({ message: 'Record deleted.', type: 'success' })
+      },
+      onError: (errors) => {
+        toast({ message: errors.error || 'Failed to delete record', type: 'error' })
+      }
+    }
+  )
 }
 
 function bridgeUrl() {
@@ -114,8 +99,6 @@ function editUrl() {
 function relatedRecordUrl(model, id) {
   return `/projects/${props.project.slug}/environments/${props.environment.slug}/bridge/${model}/${id}`
 }
-
-onMounted(loadRecord)
 </script>
 
 <template>
@@ -193,18 +176,17 @@ onMounted(loadRecord)
     </div>
 
     <!-- Content -->
-    <div class="flex-1 overflow-y-auto">
-      <!-- Loading -->
-      <div v-if="loading" class="flex h-full items-center justify-center">
-        <svg class="h-6 w-6 animate-spin text-gray-400" fill="none" viewBox="0 0 24 24">
-          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
-          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-        </svg>
-      </div>
-
+    <div class="flex-1 overflow-y-auto bg-gray-50 dark:bg-gray-950">
       <!-- Error -->
-      <div v-else-if="error" class="flex h-full items-center justify-center">
-        <p class="text-sm text-red-600 dark:text-red-400">{{ error }}</p>
+      <div v-if="error" class="flex h-full items-center justify-center">
+        <div class="text-center">
+          <div class="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-red-50 dark:bg-red-950/30">
+            <svg class="h-8 w-8 text-red-500 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+          </div>
+          <p class="mt-4 text-sm text-red-600 dark:text-red-400">{{ error }}</p>
+        </div>
       </div>
 
       <!-- Record detail -->
@@ -212,7 +194,7 @@ onMounted(loadRecord)
         <div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
           <!-- Left: Attributes -->
           <div class="lg:col-span-2">
-            <div class="rounded-lg border border-gray-200 dark:border-gray-800">
+            <div class="overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
               <div class="border-b border-gray-200 px-4 py-3 dark:border-gray-800">
                 <h2 class="text-sm font-semibold text-gray-900 dark:text-white">Attributes</h2>
               </div>
@@ -244,7 +226,7 @@ onMounted(loadRecord)
                       </span>
                     </template>
                     <template v-else-if="formatValue(record[name], attr).isJson">
-                      <pre class="max-h-40 overflow-auto rounded bg-gray-50 p-2 font-mono text-xs dark:bg-gray-900">{{ formatValue(record[name], attr).display }}</pre>
+                      <pre class="max-h-40 overflow-auto rounded-lg bg-gray-50 p-2 font-mono text-xs dark:bg-gray-950">{{ formatValue(record[name], attr).display }}</pre>
                     </template>
                     <template v-else>
                       <span class="break-all">{{ formatValue(record[name], attr).display }}</span>
@@ -276,7 +258,7 @@ onMounted(loadRecord)
             <div
               v-for="assoc in collectionAssociations"
               :key="assoc.alias"
-              class="rounded-lg border border-gray-200 dark:border-gray-800"
+              class="overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900"
             >
               <div class="flex items-center justify-between border-b border-gray-200 px-4 py-3 dark:border-gray-800">
                 <h3 class="text-sm font-semibold text-gray-900 dark:text-white">
@@ -314,7 +296,7 @@ onMounted(loadRecord)
             </div>
 
             <!-- Empty state for no associations -->
-            <div v-if="collectionAssociations.length === 0" class="rounded-lg border border-dashed border-gray-200 px-4 py-8 text-center dark:border-gray-800">
+            <div v-if="collectionAssociations.length === 0" class="rounded-xl border border-dashed border-gray-200 px-4 py-8 text-center dark:border-gray-800">
               <p class="text-xs text-gray-400 dark:text-gray-500">No collection associations</p>
             </div>
           </div>
@@ -329,8 +311,8 @@ onMounted(loadRecord)
     message="Are you sure? This action cannot be undone."
     confirm-label="Delete"
     :destructive="true"
-    :loading="deleteModal.loading"
+    :loading="deleteForm.processing"
     @confirm="confirmDelete"
-    @cancel="deleteModal = { show: false, loading: false }"
+    @cancel="deleteModal = { show: false }"
   />
 </template>
