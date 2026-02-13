@@ -1,6 +1,6 @@
-const { exec } = require('child_process')
+const { execFile } = require('child_process')
 const util = require('util')
-const execAsync = util.promisify(exec)
+const execFileAsync = util.promisify(execFile)
 
 module.exports = {
   friendlyName: 'Stop container',
@@ -37,7 +37,7 @@ module.exports = {
   fn: async function ({ containerName, remove, timeout }) {
     try {
       // Check if container exists
-      await execAsync(`docker inspect ${containerName}`)
+      await execFileAsync('docker', ['inspect', containerName])
     } catch {
       sails.log.verbose(`Container ${containerName} not found`)
       throw 'notFound'
@@ -45,11 +45,11 @@ module.exports = {
 
     try {
       // Stop the container
-      await execAsync(`docker stop -t ${timeout} ${containerName}`)
+      await execFileAsync('docker', ['stop', '-t', String(timeout), containerName])
       sails.log.info(`Stopped container: ${containerName}`)
 
       if (remove) {
-        await execAsync(`docker rm ${containerName}`)
+        await execFileAsync('docker', ['rm', containerName])
         sails.log.info(`Removed container: ${containerName}`)
       }
 

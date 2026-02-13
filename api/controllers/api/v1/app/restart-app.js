@@ -49,12 +49,12 @@ module.exports = {
       throw 'notFound'
     }
 
-    const { exec } = require('child_process')
+    const { execFile } = require('child_process')
     const util = require('util')
-    const execAsync = util.promisify(exec)
+    const execFileAsync = util.promisify(execFile)
 
     try {
-      await execAsync(`docker restart ${app.containerName}`)
+      await execFileAsync('docker', ['restart', app.containerName])
 
       await App.updateOne({ id: app.id }).set({ status: 'running' })
 

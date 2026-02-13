@@ -1,6 +1,6 @@
-const { exec } = require('child_process')
+const { execFile } = require('child_process')
 const util = require('util')
-const execAsync = util.promisify(exec)
+const execFileAsync = util.promisify(execFile)
 
 module.exports = {
   friendlyName: 'Get container logs',
@@ -40,20 +40,20 @@ module.exports = {
   },
 
   fn: async function ({ containerName, tail, since, timestamps }) {
-    let cmd = `docker logs --tail ${tail}`
+    const args = ['logs', '--tail', String(tail)]
 
     if (timestamps) {
-      cmd += ' --timestamps'
+      args.push('--timestamps')
     }
 
     if (since) {
-      cmd += ` --since ${since}`
+      args.push('--since', since)
     }
 
-    cmd += ` ${containerName}`
+    args.push(containerName)
 
     try {
-      const { stdout, stderr } = await execAsync(cmd)
+      const { stdout, stderr } = await execFileAsync('docker', args)
       // Docker logs can output to both stdout and stderr
       return stdout + stderr
     } catch (error) {

@@ -125,92 +125,18 @@ async function handlePush(repo, payload) {
       startedAt: Date.now()
     }).fetch()
 
-    // Queue the actual deployment using the same pipeline as the api/v1 webhook
-    const path = require('path')
     const envRecord = await Environment.findOne({ id: environment.id }).populate('project')
     const project = envRecord.project
 
     process.nextTick(async () => {
       try {
-        await Deployment.updateOne({ id: deployment.id }).set({ status: 'building' })
-        await sails.helpers.docker.ensureNetwork()
-
-        const imageName = await App.generateImageName(environment.id, deployment.id)
-        const containerName = await App.generateContainerName(environment.id)
-        const contextPath = path.join(sails.config.custom.slipwayAppsDir, project.slug)
-
-        await sails.helpers.docker.buildImage.with({
-          contextPath,
-          imageName,
-          dockerfilePath: project.dockerfilePath || 'Dockerfile',
-          deploymentId: deployment.id
+        await sails.helpers.deploy.executePipeline.with({
+          deploymentId: deployment.id,
+          project,
+          environment
         })
-
-        // Detect Sails features
-        const detectedFeatures = await sails.helpers.sails.detectFeatures(contextPath)
-        if (Object.keys(detectedFeatures).length > 0) {
-          await Environment.updateOne({ id: environment.id }).set({ features: detectedFeatures })
-        }
-
-        await Deployment.updateOne({ id: deployment.id }).set({ imageName, status: 'deploying' })
-
-        const hostPort = await sails.helpers.docker.allocatePort()
-
-        // Merge global env vars
-        let globalEnvVars = {}
-        try {
-          const globalJson = await sails.helpers.setting.get('globalEnvVars', '{}')
-          globalEnvVars = JSON.parse(globalJson)
-        } catch { /* ignore */ }
-
-        const freshEnv = await Environment.findOne({ id: environment.id }).decrypt()
-        const envVars = { ...globalEnvVars, ...(freshEnv.envVars || {}) }
-
-        if (freshEnv.telemetryToken) {
-          envVars.SLIPWAY_TELEMETRY_URL = `${sails.config.custom.baseUrl}/api/v1/telemetry/ingest`
-          envVars.SLIPWAY_TELEMETRY_TOKEN = freshEnv.telemetryToken
-        }
-
-        const existingApp = await App.findOne({ environment: environment.id })
-        const resourceLimits = (existingApp && existingApp.resourceLimits) || { cpus: '1', memory: '512m' }
-
-        const containerResult = await sails.helpers.docker.runContainer.with({
-          imageName, containerName, port: 1337, hostPort, envVars,
-          deploymentId: deployment.id, resourceLimits
-        })
-
-        if (existingApp) {
-          await App.updateOne({ id: existingApp.id }).set({
-            status: 'running', containerId: containerResult.containerId,
-            containerName: containerResult.containerName, imageName,
-            port: 1337, hostPort: containerResult.hostPort,
-            lastDeployedAt: Date.now(), currentDeployment: deployment.id
-          })
-        } else {
-          await App.create({
-            status: 'running', containerId: containerResult.containerId,
-            containerName: containerResult.containerName, imageName,
-            port: 1337, hostPort: containerResult.hostPort,
-            lastDeployedAt: Date.now(), environment: environment.id,
-            currentDeployment: deployment.id
-          })
-        }
-
-        try { await sails.helpers.caddy.updateRoute(environment.id) } catch { /* non-fatal */ }
-
-        await Deployment.update({ environment: environment.id, status: 'running', id: { '!=': deployment.id } })
-          .set({ status: 'stopped' })
-
-        await Deployment.updateOne({ id: deployment.id }).set({ status: 'running', finishedAt: Date.now() })
-        sails.log.info(`[webhook] Deploy ${deployment.id} completed`)
       } catch (err) {
-        sails.log.error(`[webhook] Deployment ${deployment.id} failed: ${err.message}`)
-        const current = await Deployment.findOne({ id: deployment.id })
-        if (current && current.status !== 'failed') {
-          await Deployment.updateOne({ id: deployment.id }).set({
-            status: 'failed', errorMessage: err.message, finishedAt: Date.now()
-          })
-        }
+        sails.log.error(`[webhook] Deployment ${deployment.id} failed: ${err.message || err}`)
       }
     })
 
@@ -279,7 +205,30 @@ async function handleDelete(repo, payload) {
 
   sails.log.info(`[webhook] ${refType} "${ref}" deleted on ${repo.fullName}`)
 
-  // TODO: Clean up preview environments for deleted branches
+  // Clean up preview environments associated with deleted branches
+  if (refType === 'branch') {
+    const environment = await Environment.findOne({ id: repo.environment.id || repo.environment }).populate('project')
+    if (environment && environment.project) {
+      const project = await Project.findOne({ id: environment.project.id || environment.project })
+      if (project) {
+        // Find preview environments that match this branch (pr-* slugs)
+        const previewEnvs = await Environment.find({ project: project.id, isPreview: true })
+        for (const preview of previewEnvs) {
+          if (preview.prNumber) {
+            try {
+              await sails.helpers.preview.destroyPreviewEnvironment.with({
+                project,
+                prNumber: preview.prNumber
+              })
+              sails.log.info(`[webhook] Cleaned up preview environment pr-${preview.prNumber} for deleted branch "${ref}"`)
+            } catch (err) {
+              sails.log.warn(`[webhook] Failed to clean up preview pr-${preview.prNumber}: ${err.message}`)
+            }
+          }
+        }
+      }
+    }
+  }
 
-  return { received: true, action: 'cleanup_queued', refType, ref }
+  return { received: true, action: 'cleanup_completed', refType, ref }
 }

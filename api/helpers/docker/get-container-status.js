@@ -1,6 +1,6 @@
-const { exec } = require('child_process')
+const { execFile } = require('child_process')
 const util = require('util')
-const execAsync = util.promisify(exec)
+const execFileAsync = util.promisify(execFile)
 
 module.exports = {
   friendlyName: 'Get container status',
@@ -24,8 +24,8 @@ module.exports = {
   },
   fn: async function ({ containerName }) {
     try {
-      const { stdout } = await execAsync(
-        `docker inspect --format '{{json .State}}' ${containerName}`
+      const { stdout } = await execFileAsync(
+        'docker', ['inspect', '--format', '{{json .State}}', containerName]
       )
 
       const state = JSON.parse(stdout.trim())

@@ -99,6 +99,15 @@ module.exports = {
   },
 
   /**
+   * Generate a deploy-scoped container name (used during blue-green deployment)
+   */
+  generateDeployContainerName: async function (environmentId, deploymentId) {
+    const env = await Environment.findOne({ id: environmentId }).populate('project')
+    if (!env) return null
+    return `slipway-${env.project.slug}-${env.slug}-${deploymentId}`
+  },
+
+  /**
    * Generate image name from environment
    */
   generateImageName: async function (environmentId, tag = 'latest') {

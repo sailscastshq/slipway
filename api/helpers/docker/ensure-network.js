@@ -1,6 +1,6 @@
-const { exec } = require('child_process')
+const { execFile } = require('child_process')
 const util = require('util')
-const execAsync = util.promisify(exec)
+const execFileAsync = util.promisify(execFile)
 
 module.exports = {
   friendlyName: 'Ensure network',
@@ -29,13 +29,13 @@ module.exports = {
 
     try {
       // Check if network exists
-      await execAsync(`docker network inspect ${network}`)
+      await execFileAsync('docker', ['network', 'inspect', network])
       sails.log.verbose(`Docker network '${network}' already exists`)
       return { exists: true, created: false, network }
     } catch {
       // Network doesn't exist, create it
       try {
-        await execAsync(`docker network create ${network}`)
+        await execFileAsync('docker', ['network', 'create', network])
         sails.log.info(`Created Docker network '${network}'`)
         return { exists: true, created: true, network }
       } catch (createError) {

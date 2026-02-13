@@ -143,119 +143,16 @@ module.exports = {
 
     sails.log.info(`Webhook auto-deploy triggered for ${projectSlug}: ${deployment.id}`)
 
-    // Kick off async deployment (same pattern as trigger-deployment)
+    // Kick off async deployment via shared pipeline
     process.nextTick(async () => {
       try {
-        await Deployment.updateOne({ id: deployment.id }).set({ status: 'building' })
-        await sails.helpers.docker.ensureNetwork()
-
-        const imageName = await App.generateImageName(environment.id, deployment.id)
-        const containerName = await App.generateContainerName(environment.id)
-        const contextPath = path.join(sails.config.custom.slipwayAppsDir, projectSlug)
-
-        await sails.helpers.docker.buildImage.with({
-          contextPath,
-          imageName,
-          dockerfilePath: project.dockerfilePath || 'Dockerfile',
-          deploymentId: deployment.id
-        })
-
-        // Detect Sails features (sails-content, sails-quest, etc.)
-        const detectedFeatures = await sails.helpers.sails.detectFeatures(contextPath)
-        if (Object.keys(detectedFeatures).length > 0) {
-          await Environment.updateOne({ id: environment.id }).set({
-            features: detectedFeatures
-          })
-          await Deployment.appendBuildLog(deployment.id, `Detected features: ${Object.keys(detectedFeatures).join(', ')}\n`)
-        }
-
-        await Deployment.updateOne({ id: deployment.id }).set({
-          imageName,
-          status: 'deploying'
-        })
-
-        const hostPort = await sails.helpers.docker.allocatePort()
-
-        // Merge global env vars with environment-specific vars
-        let globalEnvVars = {}
-        try {
-          const globalJson = await sails.helpers.setting.get('globalEnvVars', '{}')
-          globalEnvVars = JSON.parse(globalJson)
-        } catch { /* ignore parse errors */ }
-
-        const envRecord = await Environment.findOne({ id: environment.id }).decrypt()
-        const envVars = { ...globalEnvVars, ...(envRecord.envVars || {}) }
-
-        // Auto-inject Slipway telemetry env vars
-        if (envRecord.telemetryToken) {
-          envVars.SLIPWAY_TELEMETRY_URL = `${sails.config.custom.baseUrl}/api/v1/telemetry/ingest`
-          envVars.SLIPWAY_TELEMETRY_TOKEN = envRecord.telemetryToken
-        }
-
-        const existingApp = await App.findOne({ environment: environment.id })
-        const resourceLimits = (existingApp && existingApp.resourceLimits) || { cpus: '1', memory: '512m' }
-
-        const containerResult = await sails.helpers.docker.runContainer.with({
-          imageName,
-          containerName,
-          port: 1337,
-          hostPort,
-          envVars,
+        await sails.helpers.deploy.executePipeline.with({
           deploymentId: deployment.id,
-          resourceLimits
+          project,
+          environment
         })
-
-        if (existingApp) {
-          await App.updateOne({ id: existingApp.id }).set({
-            status: 'running',
-            containerId: containerResult.containerId,
-            containerName: containerResult.containerName,
-            imageName,
-            port: 1337,
-            hostPort: containerResult.hostPort,
-            lastDeployedAt: Date.now(),
-            currentDeployment: deployment.id
-          })
-        } else {
-          await App.create({
-            status: 'running',
-            containerId: containerResult.containerId,
-            containerName: containerResult.containerName,
-            imageName,
-            port: 1337,
-            hostPort: containerResult.hostPort,
-            lastDeployedAt: Date.now(),
-            environment: environment.id,
-            currentDeployment: deployment.id
-          })
-        }
-
-        try {
-          await sails.helpers.caddy.updateRoute(environment.id)
-        } catch (caddyErr) {
-          sails.log.warn(`Caddy route update failed: ${caddyErr.message}`)
-        }
-
-        // Mark previous running deployments as stopped
-        await Deployment.update({ environment: environment.id, status: 'running', id: { '!=': deployment.id } })
-          .set({ status: 'stopped' })
-
-        await Deployment.updateOne({ id: deployment.id }).set({
-          status: 'running',
-          finishedAt: Date.now()
-        })
-
-        sails.log.info(`Webhook deploy ${deployment.id} completed`)
       } catch (err) {
-        sails.log.error(`Webhook deploy ${deployment.id} failed: ${err.message}`)
-        const current = await Deployment.findOne({ id: deployment.id })
-        if (current && current.status !== 'failed') {
-          await Deployment.updateOne({ id: deployment.id }).set({
-            status: 'failed',
-            errorMessage: err.message,
-            finishedAt: Date.now()
-          })
-        }
+        sails.log.error(`Webhook deploy ${deployment.id} failed: ${err.message || err}`)
       }
     })
 
@@ -332,115 +229,16 @@ async function handlePullRequest(project, body) {
 
     sails.log.info(`Preview deploy triggered for ${project.slug}/pr-${prNumber}: ${deployment.id}`)
 
-    // Kick off async deployment
+    // Kick off async deployment via shared pipeline
     process.nextTick(async () => {
       try {
-        await Deployment.updateOne({ id: deployment.id }).set({ status: 'building' })
-        await sails.helpers.docker.ensureNetwork()
-
-        const imageName = await App.generateImageName(environment.id, deployment.id)
-        const containerName = await App.generateContainerName(environment.id)
-        const contextPath = path.join(sails.config.custom.slipwayAppsDir, project.slug)
-
-        await sails.helpers.docker.buildImage.with({
-          contextPath,
-          imageName,
-          dockerfilePath: project.dockerfilePath || 'Dockerfile',
-          deploymentId: deployment.id
-        })
-
-        // Detect Sails features (sails-content, sails-quest, etc.)
-        const detectedFeatures = await sails.helpers.sails.detectFeatures(contextPath)
-        if (Object.keys(detectedFeatures).length > 0) {
-          await Environment.updateOne({ id: environment.id }).set({
-            features: detectedFeatures
-          })
-          await Deployment.appendBuildLog(deployment.id, `Detected features: ${Object.keys(detectedFeatures).join(', ')}\n`)
-        }
-
-        await Deployment.updateOne({ id: deployment.id }).set({ imageName, status: 'deploying' })
-
-        const hostPort = await sails.helpers.docker.allocatePort()
-
-        // Merge global env vars with environment-specific vars
-        let globalEnvVars = {}
-        try {
-          const globalJson = await sails.helpers.setting.get('globalEnvVars', '{}')
-          globalEnvVars = JSON.parse(globalJson)
-        } catch { /* ignore parse errors */ }
-
-        const envRecord = await Environment.findOne({ id: environment.id }).decrypt()
-        const envVars = { ...globalEnvVars, ...(envRecord.envVars || {}) }
-
-        // Auto-inject Slipway telemetry env vars
-        if (envRecord.telemetryToken) {
-          envVars.SLIPWAY_TELEMETRY_URL = `${sails.config.custom.baseUrl}/api/v1/telemetry/ingest`
-          envVars.SLIPWAY_TELEMETRY_TOKEN = envRecord.telemetryToken
-        }
-
-        const existingApp = await App.findOne({ environment: environment.id })
-        const resourceLimits = (existingApp && existingApp.resourceLimits) || { cpus: '1', memory: '512m' }
-
-        const containerResult = await sails.helpers.docker.runContainer.with({
-          imageName,
-          containerName,
-          port: 1337,
-          hostPort,
-          envVars,
+        await sails.helpers.deploy.executePipeline.with({
           deploymentId: deployment.id,
-          resourceLimits
+          project,
+          environment
         })
-
-        if (existingApp) {
-          await App.updateOne({ id: existingApp.id }).set({
-            status: 'running',
-            containerId: containerResult.containerId,
-            containerName: containerResult.containerName,
-            imageName,
-            port: 1337,
-            hostPort: containerResult.hostPort,
-            lastDeployedAt: Date.now(),
-            currentDeployment: deployment.id
-          })
-        } else {
-          await App.create({
-            status: 'running',
-            containerId: containerResult.containerId,
-            containerName: containerResult.containerName,
-            imageName,
-            port: 1337,
-            hostPort: containerResult.hostPort,
-            lastDeployedAt: Date.now(),
-            environment: environment.id,
-            currentDeployment: deployment.id
-          })
-        }
-
-        try {
-          await sails.helpers.caddy.updateRoute(environment.id)
-        } catch (caddyErr) {
-          sails.log.warn(`Caddy route update failed for preview: ${caddyErr.message}`)
-        }
-
-        await Deployment.update({ environment: environment.id, status: 'running', id: { '!=': deployment.id } })
-          .set({ status: 'stopped' })
-
-        await Deployment.updateOne({ id: deployment.id }).set({
-          status: 'running',
-          finishedAt: Date.now()
-        })
-
-        sails.log.info(`Preview deploy ${deployment.id} completed for PR #${prNumber}`)
       } catch (err) {
-        sails.log.error(`Preview deploy ${deployment.id} failed: ${err.message}`)
-        const current = await Deployment.findOne({ id: deployment.id })
-        if (current && current.status !== 'failed') {
-          await Deployment.updateOne({ id: deployment.id }).set({
-            status: 'failed',
-            errorMessage: err.message,
-            finishedAt: Date.now()
-          })
-        }
+        sails.log.error(`Preview deploy ${deployment.id} failed: ${err.message || err}`)
       }
     })
 
