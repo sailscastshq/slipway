@@ -82,6 +82,27 @@ module.exports = {
       }))
     }
 
+    // Load recent job run history from telemetry (last 24 hours)
+    let jobHistory = []
+    try {
+      const since = Date.now() - (24 * 60 * 60 * 1000)
+      const recentMetrics = await TelemetryMetric.find({
+        environment: environment.id,
+        name: { startsWith: 'quest.job.' },
+        recordedAt: { '>=': since }
+      }).sort('recordedAt DESC').limit(200)
+
+      jobHistory = recentMetrics.map(m => ({
+        event: m.name.replace('quest.job.', ''),
+        jobName: m.attributes.jobName,
+        duration: m.value,
+        error: m.attributes.error || null,
+        recordedAt: m.recordedAt
+      }))
+    } catch {
+      // Telemetry data may not exist yet
+    }
+
     return {
       page: 'projects/quest',
       props: {
@@ -100,7 +121,8 @@ module.exports = {
         questFeature,
         appRunning,
         jobs,
-        jobsError
+        jobsError,
+        jobHistory
       }
     }
   }

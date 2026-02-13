@@ -8,7 +8,6 @@
  * Also:
  * - Health checks: detects containers that should be running but aren't
  * - Log persistence: collects container logs every 5 minutes, prunes after 7 days
- * - Scheduled backups: checks backup schedule every 60 seconds
  */
 
 module.exports = function defineLookoutHook(sails) {
@@ -21,9 +20,6 @@ module.exports = function defineLookoutHook(sails) {
 
   // Track last log collection timestamp per container
   const lastLogCollection = new Map()
-
-  // Tick counter for staggered tasks
-  let tickCount = 0
 
   return {
     initialize: async function () {
@@ -60,11 +56,6 @@ module.exports = function defineLookoutHook(sails) {
       await checkHealth(apps, services, runningContainerNames, now)
 
       if (!stats || stats.length === 0) {
-        // Still increment tick and check backups even with no stats
-        tickCount++
-        if (tickCount % 2 === 0) {
-          await checkScheduledBackups()
-        }
         return
       }
 
@@ -72,10 +63,6 @@ module.exports = function defineLookoutHook(sails) {
       const slipwayStats = stats.filter(s => s.name && s.name.startsWith('slipway-'))
 
       if (slipwayStats.length === 0) {
-        tickCount++
-        if (tickCount % 2 === 0) {
-          await checkScheduledBackups()
-        }
         return
       }
 
@@ -143,11 +130,6 @@ module.exports = function defineLookoutHook(sails) {
       await TelemetryException.destroy({ occurredAt: { '<': telemetryCutoff } }).tolerate('error')
       await TelemetryMetric.destroy({ recordedAt: { '<': telemetryCutoff } }).tolerate('error')
 
-      // Check scheduled backups every other tick (~60s)
-      tickCount++
-      if (tickCount % 2 === 0) {
-        await checkScheduledBackups()
-      }
     } catch (err) {
       sails.log.warn('Lookout: Error collecting metrics:', err.message)
     }
@@ -247,56 +229,6 @@ module.exports = function defineLookoutHook(sails) {
       await AppLog.destroy({ endedAt: { '<': logCutoff } })
     } catch (err) {
       sails.log.verbose('Lookout: Error collecting logs:', err.message)
-    }
-  }
-
-  /**
-   * Check if any scheduled backups are due and run them.
-   */
-  async function checkScheduledBackups() {
-    try {
-      const scheduleJson = await sails.helpers.setting.get('backupSchedule')
-      if (!scheduleJson) return
-
-      let schedule
-      try { schedule = JSON.parse(scheduleJson) } catch { return }
-
-      if (!schedule.enabled || !schedule.intervalHours) return
-
-      const intervalMs = schedule.intervalHours * 60 * 60 * 1000
-      const lastRunAt = schedule.lastRunAt || 0
-      const now = Date.now()
-
-      if ((now - lastRunAt) < intervalMs) return
-
-      sails.log.info('Lookout: Running scheduled backups')
-
-      // Find all services that support backups and are running
-      const services = await Service.find({ status: 'running' })
-      const backupableServices = services.filter(s => Service.isBackupSupported(s.type))
-
-      for (const service of backupableServices) {
-        try {
-          const backup = await Backup.create({
-            status: 'pending',
-            type: 'scheduled',
-            service: service.id
-          }).fetch()
-
-          // Fire-and-forget
-          sails.helpers.backup.runBackup(backup.id)
-            .then(() => {})
-            .catch((err) => sails.log.error('Scheduled backup error:', err.message))
-        } catch (err) {
-          sails.log.warn(`Lookout: Failed to create scheduled backup for ${service.name}:`, err.message)
-        }
-      }
-
-      // Update lastRunAt
-      schedule.lastRunAt = now
-      await sails.helpers.setting.set('backupSchedule', JSON.stringify(schedule))
-    } catch (err) {
-      sails.log.verbose('Lookout: Error checking scheduled backups:', err.message)
     }
   }
 

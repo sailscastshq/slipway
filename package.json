@@ -25,6 +25,7 @@
     "sails-hook-mail": "^0.2.0",
     "sails-hook-organics": "^3.0.0",
     "sails-hook-orm": "^4.0.3",
+    "sails-hook-quest": "^0.0.4",
     "sails-hook-sockets": "^3.0.1",
     "sails-hook-uploads": "^0.4.3",
     "sails-sqlite": "^0.2.6",

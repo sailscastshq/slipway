@@ -47,6 +47,7 @@ module.exports = function defineSlipwayHook(sails) {
           flushInterval: 10000,
           captureQueries: true,
           captureExceptions: true,
+          captureQuestEvents: true,
           slowQueryThreshold: 100
         }
       }
@@ -93,6 +94,11 @@ module.exports = function defineSlipwayHook(sails) {
         sails.after('hook:orm:loaded', () => {
           instrumentQueries()
         })
+      }
+
+      // Instrument Quest job lifecycle events
+      if (config.captureQuestEvents) {
+        instrumentQuest()
       }
 
       return done()
@@ -298,6 +304,65 @@ module.exports = function defineSlipwayHook(sails) {
     if (metricBuffer.length >= config.batchSize) {
       flush()
     }
+  }
+
+  // ─── Quest Job Lifecycle Instrumentation ─────────────────────
+
+  function instrumentQuest() {
+    sails.on('quest:job:start', function (data) {
+      metricBuffer.push({
+        name: 'quest.job.start',
+        value: 0,
+        unit: 'ms',
+        attributes: {
+          jobName: data.name,
+          inputs: data.inputs || {}
+        },
+        recordedAt: data.timestamp || Date.now()
+      })
+    })
+
+    sails.on('quest:job:complete', function (data) {
+      metricBuffer.push({
+        name: 'quest.job.complete',
+        value: typeof data.duration === 'number' ? data.duration : 0,
+        unit: 'ms',
+        attributes: {
+          jobName: data.name,
+          inputs: data.inputs || {}
+        },
+        recordedAt: data.timestamp || Date.now()
+      })
+    })
+
+    sails.on('quest:job:error', function (data) {
+      metricBuffer.push({
+        name: 'quest.job.error',
+        value: typeof data.duration === 'number' ? data.duration : 0,
+        unit: 'ms',
+        attributes: {
+          jobName: data.name,
+          inputs: data.inputs || {},
+          error: data.error ? (data.error.message || String(data.error)) : 'Unknown error'
+        },
+        recordedAt: data.timestamp || Date.now()
+      })
+
+      // Also capture as an exception for the exceptions tab
+      exceptionBuffer.push({
+        exceptionType: 'QuestJobError',
+        message: `Job "${data.name}" failed: ${data.error ? (data.error.message || String(data.error)) : 'Unknown error'}`,
+        stackTrace: data.error ? data.error.stack : null,
+        handled: true,
+        method: null,
+        url: null,
+        traceId: null,
+        occurredAt: data.timestamp || Date.now()
+      })
+
+      // Flush immediately on errors
+      flush()
+    })
   }
 
   // ─── Flush Telemetry Data ─────────────────────────────────────
