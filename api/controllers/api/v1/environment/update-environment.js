@@ -30,6 +30,10 @@ module.exports = {
     envVars: {
       type: 'json',
       description: 'Environment variables (key-value object)'
+    },
+    resourceLimits: {
+      type: 'json',
+      description: 'Docker resource limits for the app (cpus, memory)'
     }
   },
 
@@ -48,7 +52,7 @@ module.exports = {
     }
   },
 
-  fn: async function ({ projectSlug, slug, name, isProduction, domain, envVars }) {
+  fn: async function ({ projectSlug, slug, name, isProduction, domain, envVars, resourceLimits }) {
     const user = await User.findOne({ id: this.req.session.userId })
 
     const project = await Project.findOne({ slug: projectSlug }).populate('team')
@@ -76,6 +80,11 @@ module.exports = {
 
     await Environment.updateOne({ id: environment.id }).set(updates)
 
+    // If resource limits changed, update the App record
+    if (resourceLimits !== undefined) {
+      await App.update({ environment: environment.id }).set({ resourceLimits })
+    }
+
     // If domain changed, update Caddy route
     if (domain !== undefined) {
       try {
@@ -85,6 +94,17 @@ module.exports = {
         sails.log.warn('Failed to update Caddy route after domain change:', err.message)
       }
     }
+
+    // Audit log
+    await sails.helpers.audit.log({
+      action: 'environment.updated',
+      resourceType: 'environment',
+      resourceId: environment.id,
+      details: { projectSlug, environmentSlug: slug, fields: Object.keys(updates) },
+      userId: user.id,
+      teamId: project.team.id,
+      ipAddress: this.req.ip
+    })
 
     const updatedEnv = await Environment.findOne({ id: environment.id })
       .populate('app')

@@ -19,6 +19,13 @@ module.exports = {
       allowNull: true,
       description: 'Setting value (stored as string, parsed as needed)'
     },
+    encryptedValue: {
+      type: 'string',
+      allowNull: true,
+      encrypt: true,
+      description: 'Encrypted setting value for sensitive keys',
+      columnName: 'encrypted_value'
+    },
     description: {
       type: 'string',
       allowNull: true,

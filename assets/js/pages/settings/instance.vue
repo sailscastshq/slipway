@@ -9,7 +9,8 @@ defineOptions({
 
 const props = defineProps({
   instanceDomain: String,
-  instanceName: String
+  instanceName: String,
+  acmeEmail: String
 })
 
 const toggleMobileMenu = inject('toggleMobileMenu')
@@ -18,7 +19,8 @@ const sidebarCollapsed = inject('sidebarCollapsed')
 
 const form = useForm({
   instanceDomain: props.instanceDomain,
-  instanceName: props.instanceName
+  instanceName: props.instanceName,
+  acmeEmail: props.acmeEmail
 })
 
 function save() {
@@ -129,6 +131,25 @@ function save() {
                   class="w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:border-brand focus:outline-none sm:max-w-md dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
                 />
               </div>
+            </div>
+          </div>
+
+          <!-- SSL / Let's Encrypt -->
+          <div class="rounded-lg border border-gray-200 dark:border-gray-800">
+            <div class="px-4 py-3">
+              <label for="acmeEmail" class="text-sm font-medium text-gray-900 dark:text-white">SSL / Let's Encrypt Email</label>
+              <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                Provide an email to enable automatic HTTPS via Let's Encrypt. Caddy will provision and renew TLS certificates for all configured domains.
+              </p>
+            </div>
+            <div class="border-t border-gray-200 px-4 py-3 dark:border-gray-800">
+              <input
+                id="acmeEmail"
+                v-model="form.acmeEmail"
+                type="email"
+                placeholder="admin@example.com"
+                class="w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:border-brand focus:outline-none sm:max-w-md dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
+              />
             </div>
           </div>
 

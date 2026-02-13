@@ -4,31 +4,44 @@
  * Collects Docker container resource metrics on a 30-second interval.
  * Stores snapshots in the ContainerMetric model and prunes data older than 24h.
  * Triggers resource alerts when CPU or memory exceeds 90%.
+ *
+ * Also:
+ * - Health checks: detects containers that should be running but aren't
+ * - Log persistence: collects container logs every 5 minutes, prunes after 7 days
+ * - Scheduled backups: checks backup schedule every 60 seconds
  */
 
 module.exports = function defineLookoutHook(sails) {
   let pollInterval = null
+  let logInterval = null
 
   // Track alert cooldowns: containerName → last alert timestamp
   const alertCooldowns = new Map()
   const ALERT_COOLDOWN_MS = 15 * 60 * 1000 // 15 minutes
+
+  // Track last log collection timestamp per container
+  const lastLogCollection = new Map()
+
+  // Tick counter for staggered tasks
+  let tickCount = 0
 
   return {
     initialize: async function () {
       sails.log.info('Initializing hook (`lookout`)')
 
       sails.after('hook:orm:loaded', () => {
-        // Start polling after ORM is ready so we can query/create records
+        // Main 30-second interval: metrics + health checks + backup schedule check
         pollInterval = setInterval(collectMetrics, 30000)
-        // Immediate first collection
         collectMetrics()
+
+        // Separate 5-minute interval for log collection
+        logInterval = setInterval(collectLogs, 5 * 60 * 1000)
       })
     },
 
     teardown: function (done) {
-      if (pollInterval) {
-        clearInterval(pollInterval)
-      }
+      if (pollInterval) clearInterval(pollInterval)
+      if (logInterval) clearInterval(logInterval)
       done()
     }
   }
@@ -37,7 +50,21 @@ module.exports = function defineLookoutHook(sails) {
     try {
       const stats = await sails.helpers.docker.getContainerStats()
 
+      // Pre-fetch all running apps and services for matching
+      const apps = await App.find({ status: 'running' }).populate('environment')
+      const services = await Service.find({ status: 'running' }).populate('environment')
+      const now = Date.now()
+
+      // Health check: detect containers that are in DB as 'running' but missing from docker stats
+      const runningContainerNames = new Set((stats || []).map(s => s.name))
+      await checkHealth(apps, services, runningContainerNames, now)
+
       if (!stats || stats.length === 0) {
+        // Still increment tick and check backups even with no stats
+        tickCount++
+        if (tickCount % 2 === 0) {
+          await checkScheduledBackups()
+        }
         return
       }
 
@@ -45,14 +72,13 @@ module.exports = function defineLookoutHook(sails) {
       const slipwayStats = stats.filter(s => s.name && s.name.startsWith('slipway-'))
 
       if (slipwayStats.length === 0) {
+        tickCount++
+        if (tickCount % 2 === 0) {
+          await checkScheduledBackups()
+        }
         return
       }
 
-      // Pre-fetch all running apps and services for matching
-      const apps = await App.find({ status: 'running' }).populate('environment')
-      const services = await Service.find({ status: 'running' }).populate('environment')
-
-      const now = Date.now()
       const records = []
 
       for (const stat of slipwayStats) {
@@ -116,8 +142,161 @@ module.exports = function defineLookoutHook(sails) {
       await TelemetrySpan.destroy({ startedAt: { '<': telemetryCutoff } }).tolerate('error')
       await TelemetryException.destroy({ occurredAt: { '<': telemetryCutoff } }).tolerate('error')
       await TelemetryMetric.destroy({ recordedAt: { '<': telemetryCutoff } }).tolerate('error')
+
+      // Check scheduled backups every other tick (~60s)
+      tickCount++
+      if (tickCount % 2 === 0) {
+        await checkScheduledBackups()
+      }
     } catch (err) {
       sails.log.warn('Lookout: Error collecting metrics:', err.message)
+    }
+  }
+
+  /**
+   * Health check: compare DB 'running' state against actual docker stats.
+   * Any app/service marked running but not in docker stats is down.
+   */
+  async function checkHealth(apps, services, runningContainerNames, now) {
+    try {
+      for (const app of apps) {
+        if (!app.containerName || runningContainerNames.has(app.containerName)) continue
+
+        // Container is not in docker stats — it's down
+        sails.log.warn(`Lookout: Container down: ${app.containerName} (app)`)
+        await App.updateOne({ id: app.id }).set({ status: 'stopped' })
+
+        // Check cooldown before alerting
+        const cooldownKey = `down:${app.containerName}`
+        const lastAlert = alertCooldowns.get(cooldownKey)
+        if (lastAlert && (now - lastAlert) < ALERT_COOLDOWN_MS) continue
+        alertCooldowns.set(cooldownKey, now)
+
+        try {
+          await sails.helpers.notification.sendContainerDownAlert({
+            containerName: app.containerName,
+            resourceType: 'app'
+          })
+        } catch (alertErr) {
+          sails.log.verbose('Lookout: Failed to send container down alert:', alertErr.message)
+        }
+      }
+
+      for (const service of services) {
+        if (!service.containerName || runningContainerNames.has(service.containerName)) continue
+
+        sails.log.warn(`Lookout: Container down: ${service.containerName} (service)`)
+        await Service.updateOne({ id: service.id }).set({ status: 'stopped' })
+
+        const cooldownKey = `down:${service.containerName}`
+        const lastAlert = alertCooldowns.get(cooldownKey)
+        if (lastAlert && (now - lastAlert) < ALERT_COOLDOWN_MS) continue
+        alertCooldowns.set(cooldownKey, now)
+
+        try {
+          await sails.helpers.notification.sendContainerDownAlert({
+            containerName: service.containerName,
+            resourceType: 'service'
+          })
+        } catch (alertErr) {
+          sails.log.verbose('Lookout: Failed to send container down alert:', alertErr.message)
+        }
+      }
+    } catch (err) {
+      sails.log.verbose('Lookout: Health check error:', err.message)
+    }
+  }
+
+  /**
+   * Collect container logs for all running apps (every 5 minutes).
+   * Also prunes logs older than 7 days.
+   */
+  async function collectLogs() {
+    try {
+      const apps = await App.find({ status: 'running' }).populate('environment')
+      const now = Date.now()
+
+      for (const app of apps) {
+        if (!app.containerName) continue
+
+        const lastCollected = lastLogCollection.get(app.containerName) || (now - 5 * 60 * 1000)
+        const sinceSeconds = Math.floor((now - lastCollected) / 1000)
+
+        const result = await sails.helpers.docker.collectLogs({
+          containerName: app.containerName,
+          since: `${sinceSeconds}s`
+        })
+
+        if (result.lineCount > 0) {
+          await AppLog.create({
+            containerName: app.containerName,
+            logs: result.logs,
+            startedAt: lastCollected,
+            endedAt: now,
+            lineCount: result.lineCount,
+            app: app.id,
+            environment: app.environment.id
+          })
+        }
+
+        lastLogCollection.set(app.containerName, now)
+      }
+
+      // Prune app logs older than 7 days
+      const logCutoff = now - (7 * 24 * 60 * 60 * 1000)
+      await AppLog.destroy({ endedAt: { '<': logCutoff } })
+    } catch (err) {
+      sails.log.verbose('Lookout: Error collecting logs:', err.message)
+    }
+  }
+
+  /**
+   * Check if any scheduled backups are due and run them.
+   */
+  async function checkScheduledBackups() {
+    try {
+      const scheduleJson = await sails.helpers.setting.get('backupSchedule')
+      if (!scheduleJson) return
+
+      let schedule
+      try { schedule = JSON.parse(scheduleJson) } catch { return }
+
+      if (!schedule.enabled || !schedule.intervalHours) return
+
+      const intervalMs = schedule.intervalHours * 60 * 60 * 1000
+      const lastRunAt = schedule.lastRunAt || 0
+      const now = Date.now()
+
+      if ((now - lastRunAt) < intervalMs) return
+
+      sails.log.info('Lookout: Running scheduled backups')
+
+      // Find all services that support backups and are running
+      const services = await Service.find({ status: 'running' })
+      const backupableServices = services.filter(s => Service.isBackupSupported(s.type))
+
+      for (const service of backupableServices) {
+        try {
+          const backup = await Backup.create({
+            status: 'pending',
+            type: 'scheduled',
+            service: service.id
+          }).fetch()
+
+          // Fire-and-forget
+          sails.helpers.backup.runBackup(backup.id)
+            .then(() => {})
+            .catch((err) => sails.log.error('Scheduled backup error:', err.message))
+        } catch (err) {
+          sails.log.warn(`Lookout: Failed to create scheduled backup for ${service.name}:`, err.message)
+        }
+      }
+
+      // Update lastRunAt
+      schedule.lastRunAt = now
+      await sails.helpers.setting.set('backupSchedule', JSON.stringify(schedule))
+    } catch (err) {
+      sails.log.verbose('Lookout: Error checking scheduled backups:', err.message)
     }
   }
 

@@ -5,6 +5,8 @@
  * Usage: await sails.helpers.setting.get('instanceUrl')
  */
 
+const SENSITIVE_KEYS = ['smtpPassword', 'telegramBotToken', 'discordWebhookUrl', 'globalEnvVars']
+
 module.exports = {
   friendlyName: 'Get setting',
 
@@ -32,8 +34,14 @@ module.exports = {
   fn: async function ({ key, defaultValue }) {
     try {
       const setting = await Setting.findOne({ key })
-      if (setting && setting.value !== null) {
-        return setting.value
+      if (setting) {
+        // Sensitive keys are stored in encryptedValue (auto-decrypted by Waterline)
+        if (SENSITIVE_KEYS.includes(key) && setting.encryptedValue !== null && setting.encryptedValue !== undefined) {
+          return setting.encryptedValue
+        }
+        if (setting.value !== null) {
+          return setting.value
+        }
       }
     } catch (err) {
       sails.log.verbose(`Could not read setting "${key}":`, err.message)

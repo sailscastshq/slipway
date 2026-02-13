@@ -32,4 +32,17 @@ module.exports.bootstrap = async function () {
     sails.log.warn('Could not ensure Docker network. Docker may not be available.')
     sails.log.verbose(error)
   }
+
+  // Configure Caddy TLS if ACME email is set
+  if (genesisUser) {
+    try {
+      const acmeEmail = await sails.helpers.setting.get('acmeEmail')
+      if (acmeEmail) {
+        await sails.helpers.caddy.configureTls({ acmeEmail })
+        sails.log.info('Caddy TLS configured with ACME email:', acmeEmail)
+      }
+    } catch (error) {
+      sails.log.verbose('Could not configure Caddy TLS:', error.message)
+    }
+  }
 }

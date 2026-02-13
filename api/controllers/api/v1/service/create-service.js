@@ -127,6 +127,17 @@ module.exports = {
 
     sails.log.info(`Service ${service.name} (${type}) created for ${project.slug}/${environment.slug}`)
 
+    // Audit log
+    await sails.helpers.audit.log({
+      action: 'service.created',
+      resourceType: 'service',
+      resourceId: service.id,
+      details: { name: service.name, type, projectSlug },
+      userId: user.id,
+      teamId: project.team.id,
+      ipAddress: this.req.ip
+    })
+
     return {
       service: {
         id: service.id,

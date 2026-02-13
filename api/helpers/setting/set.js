@@ -5,6 +5,8 @@
  * Usage: await sails.helpers.setting.set('instanceUrl', 'https://slipway.example.com')
  */
 
+const SENSITIVE_KEYS = ['smtpPassword', 'telegramBotToken', 'discordWebhookUrl', 'globalEnvVars']
+
 module.exports = {
   friendlyName: 'Set setting',
 
@@ -35,19 +37,19 @@ module.exports = {
   },
 
   fn: async function ({ key, value, description }) {
+    const isSensitive = SENSITIVE_KEYS.includes(key)
     const existing = await Setting.findOne({ key })
 
+    const updates = {
+      // Sensitive keys go to encryptedValue (encrypted at rest), plain value is cleared
+      ...(isSensitive ? { encryptedValue: value, value: null } : { value, encryptedValue: null }),
+      ...(description && { description })
+    }
+
     if (existing) {
-      await Setting.updateOne({ key }).set({
-        value,
-        ...(description && { description })
-      })
+      await Setting.updateOne({ key }).set(updates)
     } else {
-      await Setting.create({
-        key,
-        value,
-        description
-      })
+      await Setting.create({ key, ...updates })
     }
 
     return true

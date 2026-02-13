@@ -95,6 +95,17 @@ module.exports = {
 
     sails.log.info(`Deployment ${deployment.id} triggered for ${project.slug}/${environment.slug}`)
 
+    // Audit log
+    sails.helpers.audit.log({
+      action: 'deployment.triggered',
+      resourceType: 'deployment',
+      resourceId: deployment.id,
+      details: { projectSlug, environmentSlug, gitCommit: finalGitCommit },
+      userId: user.id,
+      teamId: project.team.id,
+      ipAddress: this.req.ip
+    }).exec(() => {})
+
     // Kick off the async deployment pipeline after returning the response
     process.nextTick(() => {
       executeDeployment(deployment.id, project, environment)
@@ -171,6 +182,7 @@ async function executeDeployment(deploymentId, project, environment) {
 
     // 7. Check for existing app (to decide create vs update in step 8)
     const existingApp = await App.findOne({ environment: environment.id })
+    const resourceLimits = (existingApp && existingApp.resourceLimits) || { cpus: '1', memory: '512m' }
 
     // 8. Run the container
     const containerResult = await sails.helpers.docker.runContainer.with({
@@ -179,7 +191,8 @@ async function executeDeployment(deploymentId, project, environment) {
       port: 1337,
       hostPort,
       envVars,
-      deploymentId
+      deploymentId,
+      resourceLimits
     })
 
     // 9. Create or update the App record

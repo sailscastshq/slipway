@@ -7,6 +7,7 @@
  */
 
 module.exports = {
+  datastore: 'observability',
   tableName: 'telemetry_spans',
 
   attributes: {
@@ -82,10 +83,10 @@ module.exports = {
       description: 'Additional key-value attributes'
     },
 
-    // Associations
     environment: {
-      model: 'environment',
-      required: true
+      type: 'string',
+      required: true,
+      description: 'Environment ID (references Environment model in default datastore)'
     }
   }
 }

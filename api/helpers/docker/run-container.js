@@ -44,6 +44,11 @@ module.exports = {
     deploymentId: {
       type: 'string',
       description: 'Deployment ID to stream logs to'
+    },
+    resourceLimits: {
+      type: 'ref',
+      defaultsTo: {},
+      description: 'Docker resource limits (cpus, memory)'
     }
   },
 
@@ -57,7 +62,7 @@ module.exports = {
     }
   },
 
-  fn: async function ({ imageName, containerName, port, hostPort, envVars, network, deploymentId }) {
+  fn: async function ({ imageName, containerName, port, hostPort, envVars, network, deploymentId, resourceLimits }) {
     const networkName = network || sails.config.custom.slipwayNetwork || 'slipway'
 
     // Stop and remove existing container if it exists
@@ -78,6 +83,14 @@ module.exports = {
       // Escape values for shell
       const escapedValue = value.toString().replace(/'/g, "'\\''")
       cmd += ` -e '${key}=${escapedValue}'`
+    }
+
+    // Add resource limits
+    if (resourceLimits && resourceLimits.cpus) {
+      cmd += ` --cpus ${resourceLimits.cpus}`
+    }
+    if (resourceLimits && resourceLimits.memory) {
+      cmd += ` --memory ${resourceLimits.memory}`
     }
 
     // Add restart policy

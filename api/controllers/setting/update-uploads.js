@@ -6,20 +6,16 @@ module.exports = {
   inputs: {
     provider: {
       type: 'string',
-      isIn: ['r2', 's3', 'spaces'],
-      required: true
+      isIn: ['r2', 's3', 'spaces']
     },
     accessKey: {
-      type: 'string',
-      required: true
+      type: 'string'
     },
     secretKey: {
-      type: 'string',
-      required: true
+      type: 'string'
     },
     bucket: {
-      type: 'string',
-      required: true
+      type: 'string'
     },
     endpoint: {
       type: 'string',
@@ -28,6 +24,10 @@ module.exports = {
     region: {
       type: 'string',
       allowNull: true
+    },
+    backupSchedule: {
+      type: 'json',
+      description: 'Backup schedule config: { enabled, intervalHours }'
     }
   },
 
@@ -40,7 +40,24 @@ module.exports = {
     }
   },
 
-  fn: async function ({ provider, accessKey, secretKey, bucket, endpoint, region }) {
+  fn: async function ({ provider, accessKey, secretKey, bucket, endpoint, region, backupSchedule }) {
+    // Handle backup schedule update
+    if (backupSchedule !== undefined) {
+      const existing = await sails.helpers.setting.get('backupSchedule')
+      let current = { enabled: false, intervalHours: 24, lastRunAt: null }
+      try { if (existing) current = JSON.parse(existing) } catch { /* ignore */ }
+
+      current.enabled = !!backupSchedule.enabled
+      if (backupSchedule.intervalHours) current.intervalHours = backupSchedule.intervalHours
+
+      await sails.helpers.setting.set('backupSchedule', JSON.stringify(current))
+
+      // If only updating schedule (no storage config), return early
+      if (!provider) {
+        return { success: true }
+      }
+    }
+
     // Get existing global env vars
     let globalEnvVars = {}
     try {

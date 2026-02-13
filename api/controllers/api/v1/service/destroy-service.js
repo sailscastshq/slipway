@@ -65,6 +65,17 @@ module.exports = {
 
     sails.log.info(`Service ${service.name} deleted from ${project.slug}/${environment.slug}`)
 
+    // Audit log
+    await sails.helpers.audit.log({
+      action: 'service.destroyed',
+      resourceType: 'service',
+      resourceId: service.id,
+      details: { name: service.name, type: service.type, projectSlug: project.slug },
+      userId: user.id,
+      teamId: project.team.id,
+      ipAddress: this.req.ip
+    })
+
     await Service.destroyOne({ id: service.id })
 
     return { message: 'Service deleted successfully' }

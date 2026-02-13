@@ -67,6 +67,17 @@ module.exports = {
       triggeredBy: user.id
     }).fetch()
 
+    // Audit log
+    sails.helpers.audit.log({
+      action: 'backup.created',
+      resourceType: 'backup',
+      resourceId: backup.id,
+      details: { serviceName: service.name, serviceType: service.type },
+      userId: user.id,
+      teamId: project.team.id,
+      ipAddress: this.req.ip
+    }).intercept(() => {}) // fire-and-forget
+
     // Run backup asynchronously (fire-and-forget using Sails helper callback)
     // Note: this is sails.helpers.*.exec(), NOT child_process.exec()
     sails.helpers.backup.runBackup(backup.id)

@@ -31,7 +31,11 @@ module.exports = {
   datastores: {
     default: {
       adapter: 'sails-sqlite',
-      url: 'sqlite:./db/production.db'
+      url: './db/app.db'
+    },
+    observability: {
+      adapter: 'sails-sqlite',
+      url: './db/observability.db'
     }
   },
 
@@ -104,7 +108,7 @@ module.exports = {
    ***************************************************************************/
   session: {
     adapter: '@sailscastshq/connect-sqlite',
-    url: './db/production.db',
+    url: './db/app.db',
     cookie: {
       // Only require secure cookies if SSL is configured (SLIPWAY_SSL=true)
       // This allows initial setup via http://<IP>:1337 before domain/SSL is configured
@@ -232,7 +236,7 @@ module.exports = {
    ***************************************************************************/
   custom: {
     // Disable slipwayDomain so production requires wildcardDomain setting or custom domains
-    slipwayDomain: null,
+    slipwayDomain: null
     // mailgunApiKey: 'key-prod_fake_bd32301385130a0bafe030c',
     // stripeSecret: 'sk_prod__fake_Nfgh82401348jaDa3lkZ0d9Hm',
     //--------------------------------------------------------------------------

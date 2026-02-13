@@ -64,6 +64,13 @@ module.exports = {
       columnName: 'last_deployed_at'
     },
 
+    resourceLimits: {
+      type: 'json',
+      defaultsTo: { cpus: '1', memory: '512m' },
+      description: 'Docker resource limits (cpus, memory)',
+      columnName: 'resource_limits'
+    },
+
     // Associations
     environment: {
       model: 'environment',

@@ -66,6 +66,17 @@ module.exports = {
       await Environment.destroyOne({ id: env.id })
     }
 
+    // Audit log
+    await sails.helpers.audit.log({
+      action: 'project.destroyed',
+      resourceType: 'project',
+      resourceId: project.id,
+      details: { name: project.name, slug },
+      userId: user.id,
+      teamId: user.team.id,
+      ipAddress: this.req.ip
+    })
+
     await Project.destroyOne({ id: project.id })
 
     sails.inertia.flash('success', `Project "${project.name}" deleted.`)

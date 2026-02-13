@@ -82,6 +82,7 @@ module.exports = {
       type: 'string',
       allowNull: true,
       protect: true,
+      encrypt: true,
       description: 'Database password'
     },
 
@@ -90,6 +91,13 @@ module.exports = {
       allowNull: true,
       description: 'The env var key this service auto-manages (e.g. DATABASE_URL)',
       columnName: 'env_var_key'
+    },
+
+    resourceLimits: {
+      type: 'json',
+      defaultsTo: { cpus: '0.5', memory: '256m' },
+      description: 'Docker resource limits (cpus, memory)',
+      columnName: 'resource_limits'
     },
 
     // Associations

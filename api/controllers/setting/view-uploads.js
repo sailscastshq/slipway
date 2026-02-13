@@ -59,12 +59,20 @@ module.exports = {
       spacesEndpoint: globalEnvVars.SPACES_ENDPOINT || ''
     }
 
+    // Get backup schedule
+    let backupSchedule = { enabled: false, intervalHours: 24, lastRunAt: null }
+    try {
+      const scheduleJson = await sails.helpers.setting.get('backupSchedule')
+      if (scheduleJson) backupSchedule = JSON.parse(scheduleJson)
+    } catch { /* ignore */ }
+
     return {
       page: 'settings/uploads',
       props: {
         isConfigured,
         provider,
-        config
+        config,
+        backupSchedule
       }
     }
   }

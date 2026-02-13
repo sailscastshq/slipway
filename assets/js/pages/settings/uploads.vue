@@ -11,7 +11,8 @@ defineOptions({
 const props = defineProps({
   isConfigured: Boolean,
   provider: String,
-  config: Object
+  config: Object,
+  backupSchedule: Object
 })
 
 const toggleMobileMenu = inject('toggleMobileMenu')
@@ -83,6 +84,33 @@ async function save() {
     toast({ message: err?.message || 'Failed to save configuration', type: 'error' })
   } finally {
     saving.value = false
+  }
+}
+
+// Backup schedule state
+const scheduleEnabled = ref(props.backupSchedule?.enabled || false)
+const scheduleInterval = ref(props.backupSchedule?.intervalHours || 24)
+const savingSchedule = ref(false)
+
+async function saveSchedule() {
+  savingSchedule.value = true
+  try {
+    const res = await fetch('/settings/uploads', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        backupSchedule: {
+          enabled: scheduleEnabled.value,
+          intervalHours: scheduleInterval.value
+        }
+      })
+    })
+    if (!res.ok) throw new Error('Failed to save')
+    toast({ message: 'Backup schedule updated', type: 'success' })
+  } catch (err) {
+    toast({ message: err?.message || 'Failed to save schedule', type: 'error' })
+  } finally {
+    savingSchedule.value = false
   }
 }
 
@@ -332,6 +360,65 @@ const providers = [
             </button>
           </div>
         </form>
+
+        <!-- Scheduled Backups -->
+        <div v-if="isConfigured" class="mt-8 rounded-lg border border-gray-200 dark:border-gray-800">
+          <div class="px-4 py-3">
+            <h2 class="text-sm font-medium text-gray-900 dark:text-white">Scheduled Backups</h2>
+            <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+              Automatically back up all database services at a regular interval.
+            </p>
+          </div>
+          <div class="space-y-4 border-t border-gray-200 px-4 py-4 dark:border-gray-800">
+            <div class="flex items-center justify-between">
+              <div>
+                <span class="text-sm font-medium text-gray-700 dark:text-gray-300">Enable scheduled backups</span>
+                <p class="text-xs text-gray-500 dark:text-gray-400">
+                  When enabled, all running database services will be backed up automatically.
+                </p>
+              </div>
+              <button
+                type="button"
+                @click="scheduleEnabled = !scheduleEnabled"
+                :class="[
+                  'relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none',
+                  scheduleEnabled ? 'bg-brand' : 'bg-gray-200 dark:bg-gray-700'
+                ]"
+              >
+                <span
+                  :class="[
+                    'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
+                    scheduleEnabled ? 'translate-x-5' : 'translate-x-0'
+                  ]"
+                ></span>
+              </button>
+            </div>
+
+            <div v-if="scheduleEnabled">
+              <label class="mb-1 block text-xs font-medium text-gray-500 dark:text-gray-400">Backup Interval</label>
+              <select
+                v-model="scheduleInterval"
+                class="rounded-md border border-gray-200 bg-transparent px-3 py-1.5 text-sm text-gray-900 focus:border-brand focus:outline-none dark:border-gray-700 dark:text-white"
+              >
+                <option :value="6">Every 6 hours</option>
+                <option :value="12">Every 12 hours</option>
+                <option :value="24">Every 24 hours</option>
+                <option :value="48">Every 48 hours</option>
+                <option :value="168">Weekly</option>
+              </select>
+            </div>
+
+            <div class="flex justify-end">
+              <button
+                @click="saveSchedule"
+                :disabled="savingSchedule"
+                class="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
+              >
+                {{ savingSchedule ? 'Saving...' : 'Save schedule' }}
+              </button>
+            </div>
+          </div>
+        </div>
 
         <!-- Info section -->
         <div class="mt-8 rounded-lg border border-gray-200 dark:border-gray-800">

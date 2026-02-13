@@ -8,6 +8,7 @@
  */
 
 module.exports = {
+  datastore: 'observability',
   tableName: 'telemetry_metrics',
 
   attributes: {
@@ -42,10 +43,10 @@ module.exports = {
       columnName: 'recorded_at'
     },
 
-    // Associations
     environment: {
-      model: 'environment',
-      required: true
+      type: 'string',
+      required: true,
+      description: 'Environment ID (references Environment model in default datastore)'
     }
   }
 }
