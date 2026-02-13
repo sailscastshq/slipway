@@ -98,6 +98,9 @@ module.exports.routes = {
   'POST /settings/team-profile/logo': 'team/upload-team-logo',
   'DELETE /settings/team-profile/logo': 'team/delete-team-logo',
 
+  // Audit log
+  'GET /settings/audit-log': 'setting/view-audit-log',
+
   // Notifications settings
   'GET /settings/notifications': 'setting/view-notifications',
   'PATCH /settings/notifications': 'setting/update-notifications',
@@ -160,6 +163,11 @@ module.exports.routes = {
   // Backups
   'POST /api/v1/services/:serviceId/backups': 'api/v1/backup/create-backup',
   'GET /api/v1/services/:serviceId/backups': 'api/v1/backup/list-backups',
+  'POST /api/v1/backups/:backupId/restore': 'api/v1/backup/restore-backup',
+  'POST /backups/:backupId/restore': 'project/restore-backup',
+
+  // Audit logs
+  'GET /api/v1/audit-logs': 'api/v1/audit-log/list-audit-logs',
 
   // CLI Authentication (browser-based login flow)
   'POST /api/v1/cli/auth/init': 'api/v1/cli/init-auth',
@@ -175,6 +183,9 @@ module.exports.routes = {
 
   // Webhooks (public — signature-verified in controller)
   'POST /api/v1/webhooks/github/:projectSlug': 'api/v1/webhook/github',
+
+  // Historical logs (web-only, fetched inline from dashboard)
+  'GET /projects/:projectSlug/environments/:environmentSlug/logs/history': 'project/get-historical-logs',
 
   // SSE Streams
   'GET /api/v1/deployments/:id/stream': 'api/v1/deploy/stream-deployment',

@@ -154,3 +154,15 @@ api.services = {
   get: (id) => api.get(`/services/${id}`),
   delete: (id) => api.delete(`/services/${id}`)
 }
+
+// Backup endpoints
+api.backups = {
+  create: (serviceId) => api.post(`/services/${serviceId}/backups`),
+  list: (serviceId) => api.get(`/services/${serviceId}/backups`),
+  restore: (backupId) => api.post(`/backups/${backupId}/restore`)
+}
+
+// Audit log endpoints
+api.auditLogs = {
+  list: (page = 1, limit = 20) => api.get(`/audit-logs?page=${page}&limit=${limit}`)
+}

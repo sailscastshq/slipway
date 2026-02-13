@@ -155,6 +155,32 @@ const commands = {
     }
   },
 
+  // Backup commands
+  'backup:create': {
+    description: 'Create a manual database backup',
+    args: '<service-name>',
+    options: { env: { type: 'string', short: 'e', default: 'production' } }
+  },
+  'backup:list': {
+    description: 'List backups for a database service',
+    args: '<service-name>',
+    options: { env: { type: 'string', short: 'e', default: 'production' } }
+  },
+  'backup:restore': {
+    description: 'Restore a database backup',
+    args: '<backup-id>',
+    options: {}
+  },
+
+  // Admin commands
+  'audit-log': {
+    description: 'View audit log entries',
+    options: {
+      page: { type: 'string', short: 'p', default: '1' },
+      limit: { type: 'string', short: 'n', default: '20' }
+    }
+  },
+
   // Container access
   terminal: {
     description: 'Open a terminal session in the running container',
@@ -189,8 +215,10 @@ function showHelp() {
     'Deployment': ['push', 'slide', 'deployments', 'logs'],
     'Database': ['db:create', 'db:url'],
     'Services': ['services'],
+    'Backups': ['backup:create', 'backup:list', 'backup:restore'],
     'Env Variables': ['env', 'env:set', 'env:unset'],
-    'Container': ['terminal', 'run']
+    'Container': ['terminal', 'run'],
+    'Admin': ['audit-log']
   }
 
   for (const [groupName, cmds] of Object.entries(groups)) {
