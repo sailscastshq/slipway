@@ -1,6 +1,7 @@
 <script setup>
 import { Link, Head, useForm } from '@inertiajs/vue3'
 import { computed } from 'vue'
+import SlipwayLogo from '@/components/SlipwayLogo.vue'
 
 const { token } = defineProps({
   token: String
@@ -37,8 +38,9 @@ const isFormValid = computed(() => {
     <div class="w-full max-w-sm">
       <!-- Logo -->
       <div class="text-center mb-8">
-        <Link href="/">
-          <h1 class="text-2xl font-semibold text-gray-900 dark:text-white tracking-tight mb-2">Slipway</h1>
+        <Link href="/" class="inline-flex flex-col items-center gap-3 mb-2">
+          <SlipwayLogo :processing="form.processing" class="h-12 w-12 text-[#0284c7] dark:text-white" />
+          <h1 class="text-2xl font-semibold text-gray-900 dark:text-white tracking-tight">Slipway</h1>
         </Link>
         <p class="text-gray-500 text-sm">Create a new password</p>
       </div>
