@@ -43,7 +43,7 @@ module.exports = {
     // Send Telegram notification
     const telegramEnabled = await sails.helpers.setting.get('telegramEnabled', 'false')
     if (telegramEnabled === 'true') {
-      await sails.helpers.notification.sendTelegram({
+      await sails.helpers.notification.sendTelegram.with({
         message: `⚠️ *High Resource Usage*\n\n*Container:* ${containerName}\n*Issue:* ${issueText}\n\n_${instanceName}_`
       }).tolerate('error')
     }
@@ -51,7 +51,7 @@ module.exports = {
     // Send email notification
     const smtpEnabled = await sails.helpers.setting.get('smtpEnabled', 'false')
     if (smtpEnabled === 'true') {
-      await sails.helpers.notification.sendEmail({
+      await sails.helpers.notification.sendEmail.with({
         subject: `⚠️ High resource usage: ${containerName}`,
         text: `High resource usage detected on ${containerName}\n\n${issueText}\n\nSent from ${instanceName}`,
         html: `

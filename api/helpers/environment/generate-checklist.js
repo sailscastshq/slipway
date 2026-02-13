@@ -23,6 +23,7 @@ module.exports = {
     const environment = await Environment.findOne({ id: environmentId })
       .populate('services')
       .populate('project')
+      .decrypt()
 
     if (!environment) return []
 

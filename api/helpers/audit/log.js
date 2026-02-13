@@ -2,7 +2,7 @@
  * audit/log.js
  *
  * Creates an audit log entry. Designed to be a one-liner from controllers:
- * await sails.helpers.audit.log({ action: 'deployment.triggered', ... })
+ * await sails.helpers.audit.log.with({ action: 'deployment.triggered', ... })
  */
 
 module.exports = {

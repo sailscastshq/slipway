@@ -40,6 +40,7 @@ module.exports = {
       .populate('app')
       .populate('services')
       .sort('createdAt ASC')
+      .decrypt()
 
     return { environments }
   }

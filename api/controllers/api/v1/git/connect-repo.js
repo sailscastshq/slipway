@@ -47,7 +47,7 @@ module.exports = {
       team: user.team,
       type: 'github',
       isActive: true
-    })
+    }).decrypt()
 
     if (!provider) {
       throw { notFound: { message: 'GitHub not connected' } }

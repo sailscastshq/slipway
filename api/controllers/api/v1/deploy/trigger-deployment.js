@@ -96,7 +96,7 @@ module.exports = {
     sails.log.info(`Deployment ${deployment.id} triggered for ${project.slug}/${environment.slug}`)
 
     // Audit log
-    sails.helpers.audit.log({
+    sails.helpers.audit.log.with({
       action: 'deployment.triggered',
       resourceType: 'deployment',
       resourceId: deployment.id,
@@ -171,7 +171,7 @@ async function executeDeployment(deploymentId, project, environment) {
       globalEnvVars = JSON.parse(globalJson)
     } catch { /* ignore parse errors */ }
 
-    const envRecord = await Environment.findOne({ id: environment.id })
+    const envRecord = await Environment.findOne({ id: environment.id }).decrypt()
     const envVars = { ...globalEnvVars, ...(envRecord.envVars || {}) }
 
     // 6b. Auto-inject Slipway telemetry env vars for sails-hook-slipway
@@ -252,7 +252,7 @@ async function executeDeployment(deploymentId, project, environment) {
 
     // Send success notification (fire and forget)
     const finalDeployment = await Deployment.findOne({ id: deploymentId })
-    sails.helpers.notification.sendDeploymentNotification({
+    sails.helpers.notification.sendDeploymentNotification.with({
       deployment: finalDeployment,
       project,
       environment
@@ -274,7 +274,7 @@ async function executeDeployment(deploymentId, project, environment) {
 
     // Send failure notification (fire and forget)
     const failedDeployment = await Deployment.findOne({ id: deploymentId })
-    sails.helpers.notification.sendDeploymentNotification({
+    sails.helpers.notification.sendDeploymentNotification.with({
       deployment: failedDeployment,
       project,
       environment

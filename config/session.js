@@ -34,5 +34,5 @@ module.exports.session = {
   //   return !!req.path.match(req._sails.LOOKS_LIKE_ASSET_RX);
   // },
   adapter: '@sailscastshq/connect-sqlite',
-  url: './db/local.db'
+  url: './db/app-local.db'
 }

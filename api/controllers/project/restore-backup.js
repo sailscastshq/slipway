@@ -55,7 +55,7 @@ module.exports = {
     }
 
     // Audit log
-    await sails.helpers.audit.log({
+    await sails.helpers.audit.log.with({
       action: 'backup.restored',
       resourceType: 'backup',
       resourceId: backup.id,

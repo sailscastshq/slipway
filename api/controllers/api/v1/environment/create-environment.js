@@ -56,10 +56,13 @@ module.exports = {
 
     let environment
     try {
+      const { telemetryToken, telemetryTokenHash } = sails.helpers.environment.generateTelemetryToken()
       environment = await Environment.create({
         name,
         isProduction,
         domain,
+        telemetryToken,
+        telemetryTokenHash,
         project: project.id
       }).fetch()
     } catch (error) {

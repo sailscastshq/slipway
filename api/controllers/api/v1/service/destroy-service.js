@@ -36,6 +36,7 @@ module.exports = {
     // Get project to check access
     const environment = await Environment.findOne({ id: service.environment.id })
       .populate('project')
+      .decrypt()
 
     const project = await Project.findOne({ id: environment.project.id })
       .populate('team')
@@ -66,7 +67,7 @@ module.exports = {
     sails.log.info(`Service ${service.name} deleted from ${project.slug}/${environment.slug}`)
 
     // Audit log
-    await sails.helpers.audit.log({
+    await sails.helpers.audit.log.with({
       action: 'service.destroyed',
       resourceType: 'service',
       resourceId: service.id,

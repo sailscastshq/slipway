@@ -62,7 +62,7 @@ module.exports = {
       throw 'forbidden'
     }
 
-    const environment = await Environment.findOne({ project: project.id, slug: environmentSlug })
+    const environment = await Environment.findOne({ project: project.id, slug: environmentSlug }).decrypt()
 
     if (!environment) {
       throw 'notFound'
@@ -128,7 +128,7 @@ module.exports = {
     sails.log.info(`Service ${service.name} (${type}) created for ${project.slug}/${environment.slug}`)
 
     // Audit log
-    await sails.helpers.audit.log({
+    await sails.helpers.audit.log.with({
       action: 'service.created',
       resourceType: 'service',
       resourceId: service.id,

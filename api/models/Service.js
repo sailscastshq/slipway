@@ -167,7 +167,7 @@ module.exports = {
    * Generate connection URL for the service
    */
   getConnectionUrl: async function (serviceId) {
-    const service = await Service.findOne({ id: serviceId })
+    const service = await Service.findOne({ id: serviceId }).decrypt()
     if (!service) return null
 
     switch (service.type) {

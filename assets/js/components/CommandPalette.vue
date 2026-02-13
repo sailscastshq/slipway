@@ -4,7 +4,7 @@ import { router, usePage } from '@inertiajs/vue3'
 import { useCommandPalette } from '@/composables/useCommandPalette'
 import { fuzzySearch } from '@/lib/fuzzySearch'
 
-const { isOpen, history, register, getAll, execute, close } = useCommandPalette()
+const { isOpen, history, register, unregister, getAll, execute, close } = useCommandPalette()
 
 const query = ref('')
 const selectedIndex = ref(0)
@@ -82,6 +82,15 @@ register({
 })
 
 register({
+  id: 'nav.settings.team-profile',
+  title: 'Team Profile',
+  keywords: ['team', 'name', 'logo', 'organization'],
+  group: 'Navigation',
+  icon: 'users',
+  action: () => router.visit('/settings/team-profile')
+})
+
+register({
   id: 'nav.settings.team',
   title: 'Team Members',
   keywords: ['invite', 'users', 'members', 'roles'],
@@ -134,6 +143,31 @@ register({
   icon: 'book',
   action: () => window.open('https://docs.sailscasts.com/slipway', '_blank')
 })
+
+// ─── Dynamic project commands ───────────────────────────────────────
+
+const navProjects = computed(() => page.props.navProjects || [])
+const registeredProjectIds = ref([])
+
+watch(navProjects, (projects) => {
+  // Remove old project commands
+  registeredProjectIds.value.forEach(id => unregister(id))
+
+  // Register new ones
+  const ids = projects.map(project => {
+    const id = `nav.project.${project.slug}`
+    register({
+      id,
+      title: project.name,
+      keywords: [project.slug],
+      group: 'Projects',
+      icon: 'folder',
+      action: () => router.visit(`/projects/${project.slug}`)
+    })
+    return id
+  })
+  registeredProjectIds.value = ids
+}, { immediate: true })
 
 // ─── Filtering & grouping ────────────────────────────────────────────
 

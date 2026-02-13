@@ -67,7 +67,7 @@ module.exports = {
     }
 
     // Audit log
-    await sails.helpers.audit.log({
+    await sails.helpers.audit.log.with({
       action: 'project.destroyed',
       resourceType: 'project',
       resourceId: project.id,

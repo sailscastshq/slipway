@@ -44,7 +44,7 @@ module.exports = {
     const environment = await Environment.findOne({
       project: project.id,
       slug: envSlug
-    })
+    }).decrypt()
     if (!environment) {
       throw { notFound: `/projects/${slug}` }
     }

@@ -183,7 +183,7 @@ module.exports = {
           globalEnvVars = JSON.parse(globalJson)
         } catch { /* ignore parse errors */ }
 
-        const envRecord = await Environment.findOne({ id: environment.id })
+        const envRecord = await Environment.findOne({ id: environment.id }).decrypt()
         const envVars = { ...globalEnvVars, ...(envRecord.envVars || {}) }
 
         // Auto-inject Slipway telemetry env vars
@@ -281,7 +281,7 @@ async function handlePullRequest(project, body) {
 
   if (action === 'opened' || action === 'synchronize' || action === 'reopened') {
     // Create or get preview environment
-    const environment = await sails.helpers.preview.createPreviewEnvironment({
+    const environment = await sails.helpers.preview.createPreviewEnvironment.with({
       project,
       prNumber,
       branch
@@ -369,7 +369,7 @@ async function handlePullRequest(project, body) {
           globalEnvVars = JSON.parse(globalJson)
         } catch { /* ignore parse errors */ }
 
-        const envRecord = await Environment.findOne({ id: environment.id })
+        const envRecord = await Environment.findOne({ id: environment.id }).decrypt()
         const envVars = { ...globalEnvVars, ...(envRecord.envVars || {}) }
 
         // Auto-inject Slipway telemetry env vars
@@ -450,7 +450,7 @@ async function handlePullRequest(project, body) {
     }
   } else if (action === 'closed') {
     // Destroy preview environment
-    await sails.helpers.preview.destroyPreviewEnvironment({
+    await sails.helpers.preview.destroyPreviewEnvironment.with({
       project,
       prNumber
     })

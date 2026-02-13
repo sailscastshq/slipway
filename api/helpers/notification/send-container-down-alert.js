@@ -26,7 +26,7 @@ module.exports = {
     // Send Telegram notification
     const telegramEnabled = await sails.helpers.setting.get('telegramEnabled', 'false')
     if (telegramEnabled === 'true') {
-      await sails.helpers.notification.sendTelegram({
+      await sails.helpers.notification.sendTelegram.with({
         message: `🔴 *Container Down*\n\n*Container:* ${containerName}\n*Type:* ${resourceType}\n*Status:* Stopped unexpectedly\n\n_${instanceName}_`
       }).tolerate('error')
     }
@@ -34,7 +34,7 @@ module.exports = {
     // Send email notification
     const smtpEnabled = await sails.helpers.setting.get('smtpEnabled', 'false')
     if (smtpEnabled === 'true') {
-      await sails.helpers.notification.sendEmail({
+      await sails.helpers.notification.sendEmail.with({
         subject: `🔴 Container down: ${containerName}`,
         text: `Container ${containerName} (${resourceType}) has stopped unexpectedly.\n\nSent from ${instanceName}`,
         html: `

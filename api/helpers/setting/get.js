@@ -33,9 +33,8 @@ module.exports = {
 
   fn: async function ({ key, defaultValue }) {
     try {
-      const setting = await Setting.findOne({ key })
+      const setting = await Setting.findOne({ key }).decrypt()
       if (setting) {
-        // Sensitive keys are stored in encryptedValue (auto-decrypted by Waterline)
         if (SENSITIVE_KEYS.includes(key) && setting.encryptedValue !== null && setting.encryptedValue !== undefined) {
           return setting.encryptedValue
         }

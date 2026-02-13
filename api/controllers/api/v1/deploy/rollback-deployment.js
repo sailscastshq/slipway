@@ -119,7 +119,7 @@ async function executeRollback(rollbackId, targetDeployment, project, environmen
     const hostPort = await sails.helpers.docker.allocatePort()
 
     // 5. Get env vars
-    const envRecord = await Environment.findOne({ id: environment.id })
+    const envRecord = await Environment.findOne({ id: environment.id }).decrypt()
     const envVars = envRecord.envVars || {}
 
     // 6. Check for existing app

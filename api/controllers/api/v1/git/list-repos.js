@@ -30,7 +30,7 @@ module.exports = {
       team: user.team,
       type: 'github',
       isActive: true
-    })
+    }).decrypt()
 
     if (!provider || !provider.clientSecret) {
       throw { notConnected: { message: 'GitHub not connected' } }

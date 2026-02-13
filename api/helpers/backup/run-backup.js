@@ -22,12 +22,12 @@ module.exports = {
   },
 
   fn: async function ({ backupId }) {
-    const backup = await Backup.findOne({ id: backupId }).populate('service')
+    const backup = await Backup.findOne({ id: backupId })
     if (!backup || !backup.service) {
       throw new Error('Backup or service not found')
     }
 
-    const service = backup.service
+    const service = await Service.findOne({ id: backup.service }).decrypt()
     const startedAt = Date.now()
 
     await Backup.updateOne({ id: backupId }).set({

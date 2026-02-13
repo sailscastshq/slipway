@@ -44,7 +44,7 @@ module.exports = {
       // Configure Caddy TLS if email is provided
       if (cleanEmail) {
         try {
-          await sails.helpers.caddy.configureTls({ acmeEmail: cleanEmail })
+          await sails.helpers.caddy.configureTls.with({ acmeEmail: cleanEmail })
         } catch (err) {
           sails.log.warn('Failed to configure Caddy TLS:', err.message)
         }
@@ -53,7 +53,7 @@ module.exports = {
 
     // Audit log
     const user = await User.findOne({ id: this.req.session.userId })
-    await sails.helpers.audit.log({
+    await sails.helpers.audit.log.with({
       action: 'settings.updated',
       resourceType: 'settings',
       details: { section: 'instance' },

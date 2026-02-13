@@ -58,10 +58,13 @@ module.exports = {
       }).fetch()
 
       // Create default production environment
+      const { telemetryToken, telemetryTokenHash } = sails.helpers.environment.generateTelemetryToken()
       await Environment.create({
         name: 'Production',
         slug: 'production',
         isProduction: true,
+        telemetryToken,
+        telemetryTokenHash,
         project: project.id
       })
     } catch (error) {

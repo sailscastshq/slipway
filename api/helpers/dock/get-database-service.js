@@ -38,21 +38,21 @@ module.exports = {
         id: serviceId,
         environment: environmentId,
         status: 'running'
-      })
+      }).decrypt()
     } else if (serviceType) {
       // Find by type
       service = await Service.findOne({
         environment: environmentId,
         type: serviceType,
         status: 'running'
-      })
+      }).decrypt()
     } else {
       // Find first available database service
       service = await Service.findOne({
         environment: environmentId,
         type: ['postgresql', 'mysql', 'mongodb', 'redis'],
         status: 'running'
-      })
+      }).decrypt()
     }
 
     if (!service) {

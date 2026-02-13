@@ -173,7 +173,7 @@ module.exports = function defineLookoutHook(sails) {
         alertCooldowns.set(cooldownKey, now)
 
         try {
-          await sails.helpers.notification.sendContainerDownAlert({
+          await sails.helpers.notification.sendContainerDownAlert.with({
             containerName: app.containerName,
             resourceType: 'app'
           })
@@ -194,7 +194,7 @@ module.exports = function defineLookoutHook(sails) {
         alertCooldowns.set(cooldownKey, now)
 
         try {
-          await sails.helpers.notification.sendContainerDownAlert({
+          await sails.helpers.notification.sendContainerDownAlert.with({
             containerName: service.containerName,
             resourceType: 'service'
           })
@@ -222,7 +222,7 @@ module.exports = function defineLookoutHook(sails) {
         const lastCollected = lastLogCollection.get(app.containerName) || (now - 5 * 60 * 1000)
         const sinceSeconds = Math.floor((now - lastCollected) / 1000)
 
-        const result = await sails.helpers.docker.collectLogs({
+        const result = await sails.helpers.docker.collectLogs.with({
           containerName: app.containerName,
           since: `${sinceSeconds}s`
         })
@@ -317,7 +317,7 @@ module.exports = function defineLookoutHook(sails) {
     alertCooldowns.set(containerName, now)
 
     try {
-      await sails.helpers.notification.sendResourceAlert({
+      await sails.helpers.notification.sendResourceAlert.with({
         containerName,
         cpuPercent: stat.cpuPercent,
         memoryPercent: stat.memPercent,

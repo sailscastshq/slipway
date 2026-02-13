@@ -52,7 +52,7 @@ module.exports = {
     // Send Telegram notification
     const telegramEnabled = await sails.helpers.setting.get('telegramEnabled', 'false')
     if (telegramEnabled === 'true') {
-      await sails.helpers.notification.sendTelegram({
+      await sails.helpers.notification.sendTelegram.with({
         message: formatTelegramMessage({
           emoji,
           statusText,
@@ -68,7 +68,7 @@ module.exports = {
     // Send email notification
     const smtpEnabled = await sails.helpers.setting.get('smtpEnabled', 'false')
     if (smtpEnabled === 'true') {
-      await sails.helpers.notification.sendEmail({
+      await sails.helpers.notification.sendEmail.with({
         subject: `${emoji} Deployment ${statusText}: ${project.name} (${environment.name})`,
         text: formatEmailText({
           statusText,

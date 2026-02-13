@@ -22,7 +22,7 @@ module.exports = {
   },
 
   fn: async function ({ backupId }) {
-    const backup = await Backup.findOne({ id: backupId }).populate('service')
+    const backup = await Backup.findOne({ id: backupId })
     if (!backup || !backup.service) {
       throw new Error('Backup or service not found')
     }
@@ -31,7 +31,7 @@ module.exports = {
       throw new Error('Backup has no S3 key — cannot restore')
     }
 
-    const service = backup.service
+    const service = await Service.findOne({ id: backup.service }).decrypt()
 
     // Read S3 config (same pattern as run-backup.js)
     let globalEnvVars = {}

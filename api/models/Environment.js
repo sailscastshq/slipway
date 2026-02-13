@@ -83,6 +83,13 @@ module.exports = {
       columnName: 'telemetry_token'
     },
 
+    telemetryTokenHash: {
+      type: 'string',
+      allowNull: true,
+      description: 'SHA-256 hash of telemetryToken for lookups',
+      columnName: 'telemetry_token_hash'
+    },
+
     // Associations
     project: {
       model: 'project',
@@ -112,12 +119,6 @@ module.exports = {
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, '-')
         .replace(/^-|-$/g, '')
-    }
-
-    // Auto-generate telemetry token
-    if (!values.telemetryToken) {
-      const crypto = require('crypto')
-      values.telemetryToken = 'stk_' + crypto.randomBytes(24).toString('hex')
     }
 
     // Check uniqueness within project

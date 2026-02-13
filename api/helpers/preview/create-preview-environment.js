@@ -51,12 +51,13 @@ module.exports = {
     const production = await Environment.findOne({
       project: project.id,
       isProduction: true
-    })
+    }).decrypt()
     if (production) {
       envVars = { ...envVars, ...(production.envVars || {}) }
     }
 
     // Create the preview environment
+    const { telemetryToken, telemetryTokenHash } = sails.helpers.environment.generateTelemetryToken()
     const environment = await Environment.create({
       name: `PR #${prNumber}`,
       slug,
@@ -64,6 +65,8 @@ module.exports = {
       isPreview: true,
       prNumber,
       envVars,
+      telemetryToken,
+      telemetryTokenHash,
       project: project.id
     }).fetch()
 

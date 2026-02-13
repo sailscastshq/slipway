@@ -37,6 +37,7 @@ module.exports = {
     const environment = await Environment.findOne({ slug: envSlug, project: project.id })
       .populate('services')
       .populate('deployments')
+      .decrypt()
 
     if (!environment) {
       throw { notFound: `/projects/${slug}` }

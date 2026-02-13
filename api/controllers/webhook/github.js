@@ -37,7 +37,7 @@ module.exports = {
 
     const repo = await GitRepository.findOne({
       externalId: String(repoId)
-    }).populate('provider').populate('environment')
+    }).populate('provider').populate('environment').decrypt()
 
     if (!repo) {
       sails.log.warn(`[webhook] Unknown repository: ${repoId}`)
@@ -163,7 +163,7 @@ async function handlePush(repo, payload) {
           globalEnvVars = JSON.parse(globalJson)
         } catch { /* ignore */ }
 
-        const freshEnv = await Environment.findOne({ id: environment.id })
+        const freshEnv = await Environment.findOne({ id: environment.id }).decrypt()
         const envVars = { ...globalEnvVars, ...(freshEnv.envVars || {}) }
 
         if (freshEnv.telemetryToken) {
@@ -250,7 +250,7 @@ async function handlePullRequest(repo, payload) {
     case 'opened':
     case 'synchronize':
     case 'reopened': {
-      const previewEnv = await sails.helpers.preview.createPreviewEnvironment({
+      const previewEnv = await sails.helpers.preview.createPreviewEnvironment.with({
         project,
         prNumber,
         branch
@@ -259,7 +259,7 @@ async function handlePullRequest(repo, payload) {
     }
 
     case 'closed':
-      await sails.helpers.preview.destroyPreviewEnvironment({
+      await sails.helpers.preview.destroyPreviewEnvironment.with({
         project,
         prNumber
       })

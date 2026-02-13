@@ -128,12 +128,4 @@ module.exports = {
     }
   },
 
-  // Custom methods
-  beforeCreate: async function (values, proceed) {
-    // Generate webhook secret if not provided
-    if (!values.webhookSecret) {
-      values.webhookSecret = await sails.helpers.strings.random('url-friendly')
-    }
-    return proceed()
-  }
 }

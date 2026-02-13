@@ -35,6 +35,7 @@ module.exports = {
 
     const service = await Service.findOne({ id: serviceId })
       .populate('environment')
+      .decrypt()
 
     if (!service || service.type !== 'redis') {
       throw 'notFound'

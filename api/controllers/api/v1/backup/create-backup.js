@@ -29,7 +29,7 @@ module.exports = {
   fn: async function ({ serviceId }) {
     const user = await User.findOne({ id: this.req.session.userId })
 
-    const service = await Service.findOne({ id: serviceId }).populate('environment')
+    const service = await Service.findOne({ id: serviceId }).populate('environment').decrypt()
     if (!service) {
       throw 'notFound'
     }
@@ -68,7 +68,7 @@ module.exports = {
     }).fetch()
 
     // Audit log
-    sails.helpers.audit.log({
+    sails.helpers.audit.log.with({
       action: 'backup.created',
       resourceType: 'backup',
       resourceId: backup.id,

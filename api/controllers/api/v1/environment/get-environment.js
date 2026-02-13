@@ -45,6 +45,7 @@ module.exports = {
       .populate('app')
       .populate('services')
       .populate('deployments')
+      .decrypt()
 
     if (!environment) {
       throw 'notFound'

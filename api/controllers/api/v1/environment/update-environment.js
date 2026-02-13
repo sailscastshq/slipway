@@ -96,7 +96,7 @@ module.exports = {
     }
 
     // Audit log
-    await sails.helpers.audit.log({
+    await sails.helpers.audit.log.with({
       action: 'environment.updated',
       resourceType: 'environment',
       resourceId: environment.id,

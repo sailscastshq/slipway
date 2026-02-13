@@ -46,8 +46,10 @@ module.exports = {
       throw 'unauthorized'
     }
 
-    // Look up the environment by telemetry token
-    const environment = await Environment.findOne({ telemetryToken: token })
+    // Look up the environment by token hash (can't query encrypted fields directly)
+    const crypto = require('crypto')
+    const tokenHash = crypto.createHash('sha256').update(token).digest('hex')
+    const environment = await Environment.findOne({ telemetryTokenHash: tokenHash })
     if (!environment) {
       throw 'unauthorized'
     }

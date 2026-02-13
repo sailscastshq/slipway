@@ -26,7 +26,7 @@ module.exports = {
   },
 
   fn: async function ({ serviceId }) {
-    const service = await Service.findOne({ id: serviceId })
+    const service = await Service.findOne({ id: serviceId }).decrypt()
     if (!service) {
       throw new Error('Service not found')
     }

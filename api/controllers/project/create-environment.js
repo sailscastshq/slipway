@@ -34,8 +34,11 @@ module.exports = {
       throw { notFound: '/' }
     }
 
+    const { telemetryToken, telemetryTokenHash } = sails.helpers.environment.generateTelemetryToken()
     await Environment.create({
       name,
+      telemetryToken,
+      telemetryTokenHash,
       project: project.id
     })
 
