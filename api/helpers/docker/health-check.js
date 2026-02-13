@@ -83,7 +83,7 @@ module.exports = {
       await Deployment.appendDeployLog(deploymentId, `${errorMsg}\n`)
     }
 
-    throw { exit: 'unhealthy', message: errorMsg }
+    throw new Error(errorMsg)
   }
 }
 
