@@ -1,6 +1,7 @@
 <script setup>
 import { Link, Head, useForm } from '@inertiajs/vue3'
 import { inject, ref, computed } from 'vue'
+import { useToast } from '@/composables/toast'
 import AppLayout from '@/layouts/AppLayout.vue'
 
 defineOptions({
@@ -17,6 +18,7 @@ const props = defineProps({
   preferences: Object
 })
 
+const toast = useToast()
 const toggleMobileMenu = inject('toggleMobileMenu')
 const toggleSidebar = inject('toggleSidebar')
 const sidebarCollapsed = inject('sidebarCollapsed')
@@ -26,6 +28,7 @@ const search = ref('')
 const form = useForm({
   telegramBotToken: props.telegram.botToken,
   telegramChatId: props.telegram.chatId,
+  telegramThreadId: props.telegram.threadId,
   telegramEnabled: props.telegram.enabled,
   discordWebhookUrl: props.discord?.webhookUrl || '',
   discordEnabled: props.discord?.enabled || false,
@@ -46,9 +49,11 @@ const form = useForm({
   // Backup
   notifyOnBackupSuccess: props.preferences.backupSuccess,
   notifyOnBackupFailure: props.preferences.backupFailure,
-  // System
+  // Lookout
   notifyOnContainerRestart: props.preferences.containerRestart,
-  notifyOnHighResourceUsage: props.preferences.highResourceUsage
+  notifyOnHighResourceUsage: props.preferences.highResourceUsage,
+  // Quest
+  notifyOnJobFailure: props.preferences.jobFailure
 })
 
 const testing = ref(null)
@@ -68,6 +73,7 @@ async function testChannel(channel) {
     if (channel === 'telegram') {
       payload.telegramBotToken = form.telegramBotToken
       payload.telegramChatId = form.telegramChatId
+      payload.telegramThreadId = form.telegramThreadId
     } else if (channel === 'discord') {
       payload.discordWebhookUrl = form.discordWebhookUrl
     } else if (channel === 'slack') {
@@ -89,7 +95,12 @@ async function testChannel(channel) {
       body: JSON.stringify(payload)
     })
     const data = await response.json()
-    testResult.value = { channel, success: data.success, message: data.message }
+    if (data.success) {
+      toast({ message: data.message, type: 'success' })
+      testResult.value = null
+    } else {
+      testResult.value = { channel, success: false, message: data.message }
+    }
   } catch (err) {
     testResult.value = { channel, success: false, message: err.message }
   } finally {
@@ -133,15 +144,22 @@ const allEvents = [
     id: 'containerRestart',
     label: 'Container restarts',
     description: 'Notify when a container unexpectedly restarts',
-    category: 'System',
+    category: 'Lookout',
     model: 'notifyOnContainerRestart'
   },
   {
     id: 'highResourceUsage',
     label: 'High resource usage',
     description: 'Notify when CPU or memory usage exceeds thresholds',
-    category: 'System',
+    category: 'Lookout',
     model: 'notifyOnHighResourceUsage'
+  },
+  {
+    id: 'jobFailure',
+    label: 'Failed jobs',
+    description: 'Notify when a Quest background job fails',
+    category: 'Quest',
+    model: 'notifyOnJobFailure'
   }
 ]
 
@@ -207,7 +225,8 @@ const groupedEvents = computed(() => {
 const categoryIcons = {
   Deployments: `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />`,
   Backups: `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4" />`,
-  System: `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01" />`
+  Lookout: `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01" />`,
+  Quest: `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />`
 }
 </script>
 <template>
@@ -412,7 +431,7 @@ const categoryIcons = {
                     <input
                       type="checkbox"
                       v-model="form[event.model]"
-                      class="text-brand focus:ring-brand h-4 w-4 rounded border-gray-300 dark:border-gray-600 dark:bg-gray-900"
+                      class="accent-brand text-brand focus:ring-brand h-4 w-4 rounded border-gray-300 dark:border-gray-600 dark:bg-gray-900"
                     />
                   </label>
                 </div>
@@ -502,12 +521,7 @@ const categoryIcons = {
                     </button>
                     <p
                       v-if="testResult?.channel === 'discord'"
-                      :class="[
-                        'mt-2 text-sm',
-                        testResult.success
-                          ? 'text-green-600 dark:text-green-400'
-                          : 'text-red-600 dark:text-red-400'
-                      ]"
+                      class="mt-2 text-sm text-red-600 dark:text-red-400"
                     >
                       {{ testResult.message }}
                     </p>
@@ -589,12 +603,7 @@ const categoryIcons = {
                     </button>
                     <p
                       v-if="testResult?.channel === 'slack'"
-                      :class="[
-                        'mt-2 text-sm',
-                        testResult.success
-                          ? 'text-green-600 dark:text-green-400'
-                          : 'text-red-600 dark:text-red-400'
-                      ]"
+                      class="mt-2 text-sm text-red-600 dark:text-red-400"
                     >
                       {{ testResult.message }}
                     </p>
@@ -725,6 +734,24 @@ const categoryIcons = {
                     </p>
                   </div>
                   <div class="px-4 py-3">
+                    <label
+                      class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                      >Topic Thread ID
+                      <span class="font-normal text-gray-400 dark:text-gray-500"
+                        >(optional)</span
+                      ></label
+                    >
+                    <input
+                      type="text"
+                      v-model="form.telegramThreadId"
+                      placeholder="12345"
+                      class="focus:border-brand w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 font-mono text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500 sm:max-w-xs"
+                    />
+                    <p class="mt-1 text-xs text-gray-400 dark:text-gray-500">
+                      For groups with Topics enabled, send to a specific topic thread
+                    </p>
+                  </div>
+                  <div class="px-4 py-3">
                     <button
                       type="button"
                       @click="testChannel('telegram')"
@@ -743,12 +770,7 @@ const categoryIcons = {
                     </button>
                     <p
                       v-if="testResult?.channel === 'telegram'"
-                      :class="[
-                        'mt-2 text-sm',
-                        testResult.success
-                          ? 'text-green-600 dark:text-green-400'
-                          : 'text-red-600 dark:text-red-400'
-                      ]"
+                      class="mt-2 text-sm text-red-600 dark:text-red-400"
                     >
                       {{ testResult.message }}
                     </p>
@@ -929,12 +951,7 @@ const categoryIcons = {
                     </button>
                     <p
                       v-if="testResult?.channel === 'email'"
-                      :class="[
-                        'mt-2 text-sm',
-                        testResult.success
-                          ? 'text-green-600 dark:text-green-400'
-                          : 'text-red-600 dark:text-red-400'
-                      ]"
+                      class="mt-2 text-sm text-red-600 dark:text-red-400"
                     >
                       {{ testResult.message }}
                     </p>
@@ -1022,12 +1039,7 @@ const categoryIcons = {
                     </button>
                     <p
                       v-if="testResult?.channel === 'webhook'"
-                      :class="[
-                        'mt-2 text-sm',
-                        testResult.success
-                          ? 'text-green-600 dark:text-green-400'
-                          : 'text-red-600 dark:text-red-400'
-                      ]"
+                      class="mt-2 text-sm text-red-600 dark:text-red-400"
                     >
                       {{ testResult.message }}
                     </p>
@@ -1052,7 +1064,7 @@ const categoryIcons = {
 
           <!-- Save button -->
           <div
-            class="flex justify-end border-t border-gray-200 pt-6 dark:border-gray-800"
+            class="flex justify-end pt-6"
           >
             <button
               type="submit"

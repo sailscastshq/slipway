@@ -20,23 +20,30 @@ module.exports = {
   fn: async function ({ message }) {
     const botToken = await sails.helpers.setting.get('telegramBotToken', '')
     const chatId = await sails.helpers.setting.get('telegramChatId', '')
+    const threadId = await sails.helpers.setting.get('telegramThreadId', '')
 
     if (!botToken || !chatId) {
       throw 'error'
     }
 
     try {
+      const payload = {
+        chat_id: chatId,
+        text: message,
+        parse_mode: 'HTML',
+        disable_web_page_preview: true
+      }
+
+      if (threadId) {
+        payload.message_thread_id = parseInt(threadId, 10)
+      }
+
       const response = await fetch(
         `https://api.telegram.org/bot${botToken}/sendMessage`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            chat_id: chatId,
-            text: message,
-            parse_mode: 'HTML',
-            disable_web_page_preview: true
-          })
+          body: JSON.stringify(payload)
         }
       )
 

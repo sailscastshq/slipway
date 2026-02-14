@@ -28,8 +28,8 @@ module.exports = {
 
   fn: async function ({ containerName, cpuPercent, memoryPercent, cpuHigh, memHigh }) {
     // Check if resource alerts are enabled
-    const notifyOnHighResource = await sails.helpers.setting.get('notifyOnHighResource', 'true')
-    if (notifyOnHighResource !== 'true') {
+    const notifyOnHighResourceUsage = await sails.helpers.setting.get('notifyOnHighResourceUsage', 'true')
+    if (notifyOnHighResourceUsage !== 'true') {
       return
     }
 

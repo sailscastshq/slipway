@@ -11,6 +11,9 @@ module.exports = {
     telegramChatId: {
       type: 'string'
     },
+    telegramThreadId: {
+      type: 'string'
+    },
     telegramEnabled: {
       type: 'boolean'
     },
@@ -80,11 +83,16 @@ module.exports = {
       type: 'boolean'
     },
 
-    // Preferences - System
+    // Preferences - Lookout
     notifyOnContainerRestart: {
       type: 'boolean'
     },
     notifyOnHighResourceUsage: {
+      type: 'boolean'
+    },
+
+    // Preferences - Quest
+    notifyOnJobFailure: {
       type: 'boolean'
     }
   },
@@ -102,6 +110,9 @@ module.exports = {
     }
     if (inputs.telegramChatId !== undefined) {
       await sails.helpers.setting.set('telegramChatId', inputs.telegramChatId.trim())
+    }
+    if (inputs.telegramThreadId !== undefined) {
+      await sails.helpers.setting.set('telegramThreadId', inputs.telegramThreadId.trim())
     }
     if (inputs.telegramEnabled !== undefined) {
       await sails.helpers.setting.set('telegramEnabled', String(inputs.telegramEnabled))
@@ -173,12 +184,17 @@ module.exports = {
       await sails.helpers.setting.set('notifyOnBackupFailure', String(inputs.notifyOnBackupFailure))
     }
 
-    // Preferences - System
+    // Preferences - Lookout
     if (inputs.notifyOnContainerRestart !== undefined) {
       await sails.helpers.setting.set('notifyOnContainerRestart', String(inputs.notifyOnContainerRestart))
     }
     if (inputs.notifyOnHighResourceUsage !== undefined) {
       await sails.helpers.setting.set('notifyOnHighResourceUsage', String(inputs.notifyOnHighResourceUsage))
+    }
+
+    // Preferences - Quest
+    if (inputs.notifyOnJobFailure !== undefined) {
+      await sails.helpers.setting.set('notifyOnJobFailure', String(inputs.notifyOnJobFailure))
     }
 
     this.req._sails.inertia.flash('success', 'Notification settings updated')

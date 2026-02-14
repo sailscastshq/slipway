@@ -368,6 +368,15 @@ module.exports = function defineSlipwayHook(sails) {
         occurredAt: data.timestamp || Date.now()
       })
 
+      // Send job failure notification
+      if (sails.helpers.notification) {
+        sails.helpers.notification.sendJobFailureNotification.with({
+          jobName: data.name,
+          errorMessage: data.error ? (data.error.message || String(data.error)) : 'Unknown error',
+          duration: typeof data.duration === 'number' ? data.duration : undefined
+        }).tolerate('error')
+      }
+
       // Flush immediately on errors
       flush()
     })

@@ -20,6 +20,7 @@ module.exports = {
     // Telegram settings
     const telegramBotToken = await sails.helpers.setting.get('telegramBotToken', '')
     const telegramChatId = await sails.helpers.setting.get('telegramChatId', '')
+    const telegramThreadId = await sails.helpers.setting.get('telegramThreadId', '')
     const telegramEnabled = await sails.helpers.setting.get('telegramEnabled', 'false')
 
     // Discord settings
@@ -55,9 +56,12 @@ module.exports = {
     const notifyOnBackupSuccess = await sails.helpers.setting.get('notifyOnBackupSuccess', 'false')
     const notifyOnBackupFailure = await sails.helpers.setting.get('notifyOnBackupFailure', 'true')
 
-    // Notification preferences - system
+    // Notification preferences - lookout
     const notifyOnContainerRestart = await sails.helpers.setting.get('notifyOnContainerRestart', 'false')
     const notifyOnHighResourceUsage = await sails.helpers.setting.get('notifyOnHighResourceUsage', 'false')
+
+    // Notification preferences - quest
+    const notifyOnJobFailure = await sails.helpers.setting.get('notifyOnJobFailure', 'true')
 
     return {
       page: 'settings/notifications',
@@ -65,6 +69,7 @@ module.exports = {
         telegram: {
           botToken: telegramBotToken,
           chatId: telegramChatId,
+          threadId: telegramThreadId,
           enabled: telegramEnabled === 'true'
         },
         discord: {
@@ -95,7 +100,8 @@ module.exports = {
           backupSuccess: notifyOnBackupSuccess === 'true',
           backupFailure: notifyOnBackupFailure === 'true',
           containerRestart: notifyOnContainerRestart === 'true',
-          highResourceUsage: notifyOnHighResourceUsage === 'true'
+          highResourceUsage: notifyOnHighResourceUsage === 'true',
+          jobFailure: notifyOnJobFailure === 'true'
         }
       }
     }

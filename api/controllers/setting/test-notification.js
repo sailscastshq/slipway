@@ -12,6 +12,7 @@ module.exports = {
     // Form values passed from the client (used as fallback when settings haven't been saved yet)
     telegramBotToken: { type: 'string' },
     telegramChatId: { type: 'string' },
+    telegramThreadId: { type: 'string' },
     discordWebhookUrl: { type: 'string' },
     slackWebhookUrl: { type: 'string' },
     webhookUrl: { type: 'string' },
@@ -47,18 +48,26 @@ module.exports = {
           })
         }
 
+        const threadId = inputs.telegramThreadId || await sails.helpers.setting.get('telegramThreadId', '')
+
         const message = `\u2705 <b>Slipway Test Notification</b>\n\nThis is a test message from your Slipway instance. If you receive this, Telegram notifications are working correctly.\n\n<i>Slipway</i>`
+
+        const payload = {
+          chat_id: chatId,
+          text: message,
+          parse_mode: 'HTML'
+        }
+
+        if (threadId) {
+          payload.message_thread_id = parseInt(threadId, 10)
+        }
 
         const response = await fetch(
           `https://api.telegram.org/bot${botToken}/sendMessage`,
           {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              chat_id: chatId,
-              text: message,
-              parse_mode: 'HTML'
-            })
+            body: JSON.stringify(payload)
           }
         )
 

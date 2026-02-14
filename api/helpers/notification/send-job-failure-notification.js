@@ -1,35 +1,40 @@
 module.exports = {
-  friendlyName: 'Send container down alert',
+  friendlyName: 'Send job failure notification',
 
-  description: 'Send a notification when a container is detected as down.',
+  description: 'Send a notification when a Quest background job fails.',
 
   inputs: {
-    containerName: {
+    jobName: {
       type: 'string',
       required: true
     },
-    resourceType: {
+    errorMessage: {
       type: 'string',
-      required: true,
-      isIn: ['app', 'service']
+      required: true
+    },
+    duration: {
+      type: 'number',
+      description: 'Job duration in milliseconds'
     }
   },
 
-  fn: async function ({ containerName, resourceType }) {
-    const notifyOnContainerRestart = await sails.helpers.setting.get('notifyOnContainerRestart', 'true')
-    if (notifyOnContainerRestart !== 'true') {
+  fn: async function ({ jobName, errorMessage, duration }) {
+    const notifyOnJobFailure = await sails.helpers.setting.get('notifyOnJobFailure', 'true')
+    if (notifyOnJobFailure !== 'true') {
       return
     }
 
     const instanceName = await sails.helpers.setting.get('instanceName', 'Slipway')
 
+    const durationText = typeof duration === 'number' ? `${(duration / 1000).toFixed(1)}s` : 'N/A'
+
     // Send Telegram notification (HTML format)
     const telegramEnabled = await sails.helpers.setting.get('telegramEnabled', 'false')
     if (telegramEnabled === 'true') {
-      let message = `\uD83D\uDD34 <b>Container Down</b>\n\n`
-      message += `<b>Container:</b> ${escapeHtml(containerName)}\n`
-      message += `<b>Type:</b> ${escapeHtml(resourceType)}\n`
-      message += `<b>Status:</b> Stopped unexpectedly\n`
+      let message = `\u274C <b>Job Failed</b>\n\n`
+      message += `<b>Job:</b> ${escapeHtml(jobName)}\n`
+      message += `<b>Duration:</b> ${durationText}\n`
+      message += `<b>Error:</b> ${escapeHtml(errorMessage)}\n`
       message += `\n<i>${escapeHtml(instanceName)}</i>`
 
       await sails.helpers.notification.sendTelegram.with({ message }).tolerate('error')
@@ -38,10 +43,10 @@ module.exports = {
     // Send Slack notification
     const slackEnabled = await sails.helpers.setting.get('slackEnabled', 'false')
     if (slackEnabled === 'true') {
-      let message = `\uD83D\uDD34 *Container Down*\n\n`
-      message += `*Container:* ${containerName}\n`
-      message += `*Type:* ${resourceType}\n`
-      message += `*Status:* Stopped unexpectedly\n`
+      let message = `\u274C *Job Failed*\n\n`
+      message += `*Job:* ${jobName}\n`
+      message += `*Duration:* ${durationText}\n`
+      message += `*Error:* ${errorMessage}\n`
       message += `\n_${instanceName}_`
 
       await sails.helpers.notification.sendSlack.with({ message }).tolerate('error')
@@ -57,18 +62,18 @@ module.exports = {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             embeds: [{
-              title: '\uD83D\uDD34 Container Down',
+              title: '\u274C Job Failed',
               color: 0xef4444,
               fields: [
-                { name: 'Container', value: containerName, inline: true },
-                { name: 'Type', value: resourceType, inline: true },
-                { name: 'Status', value: 'Stopped unexpectedly', inline: true }
+                { name: 'Job', value: jobName, inline: true },
+                { name: 'Duration', value: durationText, inline: true },
+                { name: 'Error', value: errorMessage.substring(0, 1024) }
               ],
               footer: { text: instanceName },
               timestamp: new Date().toISOString()
             }]
           })
-        }).catch(err => sails.log.warn('Discord container-down alert failed:', err.message))
+        }).catch(err => sails.log.warn('Discord job-failure notification failed:', err.message))
       }
     }
 
@@ -76,11 +81,12 @@ module.exports = {
     const smtpEnabled = await sails.helpers.setting.get('smtpEnabled', 'false')
     if (smtpEnabled === 'true') {
       await sails.helpers.notification.sendEmail.with({
-        template: 'email-container-down',
-        subject: `\uD83D\uDD34 Container down: ${containerName}`,
+        template: 'email-job-failure',
+        subject: `\u274C Job failed: ${jobName}`,
         templateData: {
-          containerName,
-          resourceType,
+          jobName,
+          errorMessage,
+          duration,
           instanceName
         }
       }).tolerate('error')
@@ -90,10 +96,11 @@ module.exports = {
     const webhookEnabled = await sails.helpers.setting.get('webhookEnabled', 'false')
     if (webhookEnabled === 'true') {
       await sails.helpers.notification.sendWebhook.with({
-        event: 'container.down',
+        event: 'quest.job_failed',
         data: {
-          containerName,
-          resourceType,
+          jobName,
+          errorMessage,
+          duration,
           instanceName
         }
       }).tolerate('error')
