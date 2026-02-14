@@ -110,7 +110,7 @@ if [ "$NEEDS_MIGRATION" = "yes" ]; then
         -e DATA_ENCRYPTION_KEY="$DATA_ENCRYPTION_KEY" \
         -e SLIPWAY_MIGRATE=alter \
         ghcr.io/sailscastshq/slipway:latest \
-        node -e "require('./app').lift({}, (err) => { if (err) { console.error(err); process.exit(1); } console.log('Migration complete'); process.exit(0); })"
+        node -e "const sails = require('sails'); sails.lift({}, (err) => { if (err) { console.error(err); process.exit(1); } console.log('Migration complete'); sails.lower(() => process.exit(0)); })"
     echo -e "${GREEN}Database migrated${NC}"
 else
     echo -e "${GREEN}Database already initialized${NC}"
