@@ -6,10 +6,15 @@ module.exports = {
   description: 'Poll a container via HTTP until it responds, confirming it is healthy.',
 
   inputs: {
-    hostPort: {
+    containerName: {
+      type: 'string',
+      required: true,
+      description: 'Container name to health-check (used as hostname on the Docker network)'
+    },
+    port: {
       type: 'number',
       required: true,
-      description: 'Host port the container is mapped to'
+      description: 'Internal port the app listens on'
     },
     path: {
       type: 'string',
@@ -41,23 +46,23 @@ module.exports = {
     }
   },
 
-  fn: async function ({ hostPort, path, timeout, interval, deploymentId }) {
+  fn: async function ({ containerName, port, path, timeout, interval, deploymentId }) {
     const startTime = Date.now()
     let lastError = null
     let attempts = 0
 
     if (deploymentId) {
-      await Deployment.appendDeployLog(deploymentId, `Health check: polling http://localhost:${hostPort}${path} (timeout: ${Math.round(timeout / 1000)}s)\n`)
+      await Deployment.appendDeployLog(deploymentId, `Health check: polling http://${containerName}:${port}${path} (timeout: ${Math.round(timeout / 1000)}s)\n`)
     }
 
     while (Date.now() - startTime < timeout) {
       attempts++
 
       try {
-        const statusCode = await httpGet(hostPort, path)
+        const statusCode = await httpGet(containerName, port, path)
 
         if (statusCode < 500) {
-          sails.log.info(`Health check passed on port ${hostPort} (HTTP ${statusCode}, attempt ${attempts})`)
+          sails.log.info(`Health check passed on ${containerName}:${port} (HTTP ${statusCode}, attempt ${attempts})`)
           if (deploymentId) {
             await Deployment.appendDeployLog(deploymentId, `Health check passed (HTTP ${statusCode}, attempt ${attempts})\n`)
           }
@@ -91,9 +96,9 @@ module.exports = {
  * Make an HTTP GET request and return the status code.
  * Resolves with the status code, rejects on connection errors.
  */
-function httpGet(port, path) {
+function httpGet(hostname, port, path) {
   return new Promise((resolve, reject) => {
-    const req = http.get({ hostname: '127.0.0.1', port, path, timeout: 5000 }, (res) => {
+    const req = http.get({ hostname, port, path, timeout: 5000 }, (res) => {
       // Consume response data to free up memory
       res.resume()
       resolve(res.statusCode)
