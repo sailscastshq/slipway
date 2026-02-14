@@ -60,9 +60,6 @@ module.exports.custom = {
   // Port range for app containers (Slipway allocates from this range)
   slipwayPortRange: { start: 1338, end: 1500 },
 
-  // Caddy admin API URL (for dynamic route configuration)
-  caddyAdminUrl: 'http://localhost:2019',
-
   // API version (used for building API URLs)
   apiVersion: 'v1'
 

@@ -1,5 +1,3 @@
-const http = require('http')
-
 module.exports = {
   friendlyName: 'Remove route',
 
@@ -31,39 +29,19 @@ module.exports = {
   },
 
   fn: async function ({ projectSlug, environmentSlug }) {
-    const caddyAdminUrl = sails.config.custom.caddyAdminUrl || 'http://localhost:2019'
     const routeId = `slipway-${projectSlug}-${environmentSlug}`
 
-    return new Promise((resolve, reject) => {
-      const url = new URL(`${caddyAdminUrl}/id/${routeId}`)
-
-      const req = http.request(
-        {
-          hostname: url.hostname,
-          port: url.port,
-          path: url.pathname,
-          method: 'DELETE'
-        },
-        (res) => {
-          if (res.statusCode === 200) {
-            sails.log.info(`Caddy route removed: ${routeId}`)
-            resolve({ removed: true, routeId })
-          } else if (res.statusCode === 404) {
-            sails.log.verbose(`Caddy route not found: ${routeId}`)
-            throw 'notFound'
-          } else {
-            sails.log.error(`Caddy API error: ${res.statusCode}`)
-            reject(new Error(`Caddy API error: ${res.statusCode}`))
-          }
-        }
-      )
-
-      req.on('error', (error) => {
-        sails.log.error(`Caddy request error: ${error.message}`)
-        reject(error)
+    try {
+      await sails.helpers.caddy.caddyRequest.with({
+        method: 'DELETE',
+        path: `/id/${routeId}`
       })
 
-      req.end()
-    })
+      sails.log.info(`Caddy route removed: ${routeId}`)
+      return { removed: true, routeId }
+    } catch (err) {
+      sails.log.warn(`Caddy route removal failed for ${routeId}: ${err.message}`)
+      throw 'notFound'
+    }
   }
 }
