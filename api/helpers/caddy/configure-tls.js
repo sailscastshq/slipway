@@ -1,7 +1,10 @@
 module.exports = {
   friendlyName: 'Configure TLS',
 
-  description: 'Configure Caddy ACME automation for automatic TLS certificates.',
+  description:
+    'Configure TLS for Caddy routes. With caddy-docker-proxy, TLS is automatic ' +
+    'for domain names. This recreates the dashboard route container with the ' +
+    'ACME email label so Caddy uses it for certificate provisioning.',
 
   inputs: {
     acmeEmail: {
@@ -21,33 +24,13 @@ module.exports = {
   },
 
   fn: async function ({ acmeEmail }) {
-    const tlsConfig = {
-      automation: {
-        policies: [
-          {
-            issuers: [
-              {
-                module: 'acme',
-                email: acmeEmail
-              }
-            ]
-          }
-        ]
-      }
+    // Recreate dashboard route container with TLS email if domain is set
+    const instanceDomain = await sails.helpers.setting.get('instanceDomain')
+    if (instanceDomain) {
+      await sails.helpers.caddy.updateDashboardRoute(instanceDomain)
     }
 
-    try {
-      await sails.helpers.caddy.caddyRequest.with({
-        method: 'POST',
-        path: '/config/apps/tls',
-        data: tlsConfig
-      })
-
-      sails.log.info(`Caddy TLS configured with ACME email: ${acmeEmail}`)
-      return { configured: true, email: acmeEmail }
-    } catch (err) {
-      sails.log.error(`Caddy TLS config failed: ${err.message}`)
-      throw 'caddyError'
-    }
+    sails.log.info(`Caddy TLS configured with ACME email: ${acmeEmail}`)
+    return { configured: true, email: acmeEmail }
   }
 }

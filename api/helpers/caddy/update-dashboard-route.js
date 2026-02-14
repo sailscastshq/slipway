@@ -1,7 +1,11 @@
+const { execFile } = require('child_process')
+
 module.exports = {
   friendlyName: 'Update dashboard route',
 
-  description: 'Create or update a Caddy route for the Slipway dashboard domain.',
+  description:
+    'Create or update a Caddy route for the Slipway dashboard domain ' +
+    'using Docker labels picked up by caddy-docker-proxy.',
 
   inputs: {
     domain: {
@@ -21,44 +25,43 @@ module.exports = {
   },
 
   fn: async function ({ domain }) {
-    const routeId = 'slipway-dashboard'
+    const dockerPath = sails.config.docker?.binaryPath || 'docker'
+    const network = sails.config.custom.slipwayNetwork || 'slipway'
+    const containerName = 'slipway-route-dashboard'
     const port = sails.config.port || 1337
 
-    const route = {
-      '@id': routeId,
-      match: [{ host: [domain] }],
-      handle: [
-        {
-          handler: 'reverse_proxy',
-          upstreams: [{ dial: `host.docker.internal:${port}` }]
+    // Remove existing route container
+    await new Promise((resolve) => {
+      execFile(dockerPath, ['rm', '-f', containerName], () => resolve())
+    })
+
+    // Build docker run args with caddy labels
+    const args = [
+      'run', '-d',
+      '--name', containerName,
+      '--network', network,
+      '--restart', 'unless-stopped',
+      '--label', `caddy=${domain}`,
+      '--label', `caddy.reverse_proxy=slipway:${port}`
+    ]
+
+    // Add TLS email if configured
+    const acmeEmail = await sails.helpers.setting.get('acmeEmail')
+    if (acmeEmail) {
+      args.push('--label', `caddy.tls=${acmeEmail}`)
+    }
+
+    args.push('alpine', 'sleep', 'infinity')
+
+    return new Promise((resolve, reject) => {
+      execFile(dockerPath, args, (err) => {
+        if (err) {
+          sails.log.error(`Dashboard route container creation failed: ${err.message}`)
+          throw 'caddyError'
         }
-      ],
-      terminal: true
-    }
-
-    // Delete existing route first (ignore errors — route may not exist yet)
-    try {
-      await sails.helpers.caddy.caddyRequest.with({
-        method: 'DELETE',
-        path: `/id/${routeId}`
+        sails.log.info(`Caddy dashboard route created for ${domain}`)
+        resolve({ domain, action: 'created' })
       })
-    } catch (err) {
-      sails.log.verbose(`Caddy dashboard delete (pre-create) skipped: ${err.message}`)
-    }
-
-    // Create the new route
-    try {
-      await sails.helpers.caddy.caddyRequest.with({
-        method: 'POST',
-        path: '/config/apps/http/servers/srv0/routes',
-        data: route
-      })
-
-      sails.log.info(`Caddy dashboard route created for ${domain}`)
-      return { domain, routeId, action: 'created' }
-    } catch (err) {
-      sails.log.error(`Caddy dashboard route creation failed: ${err.message}`)
-      throw 'caddyError'
-    }
+    })
   }
 }

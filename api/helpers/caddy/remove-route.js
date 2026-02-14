@@ -1,7 +1,9 @@
+const { execFile } = require('child_process')
+
 module.exports = {
   friendlyName: 'Remove route',
 
-  description: 'Remove a route from Caddy via its admin API.',
+  description: 'Remove a Caddy route container for an environment.',
 
   inputs: {
     projectSlug: {
@@ -29,19 +31,16 @@ module.exports = {
   },
 
   fn: async function ({ projectSlug, environmentSlug }) {
-    const routeId = `slipway-${projectSlug}-${environmentSlug}`
+    const dockerPath = sails.config.docker?.binaryPath || 'docker'
+    const routeContainerName = `slipway-route-${projectSlug}-${environmentSlug}`
 
-    try {
-      await sails.helpers.caddy.caddyRequest.with({
-        method: 'DELETE',
-        path: `/id/${routeId}`
+    return new Promise((resolve) => {
+      execFile(dockerPath, ['rm', '-f', routeContainerName], (err) => {
+        if (!err) {
+          sails.log.info(`Caddy route container removed: ${routeContainerName}`)
+        }
+        resolve({ removed: true, routeId: routeContainerName })
       })
-
-      sails.log.info(`Caddy route removed: ${routeId}`)
-      return { removed: true, routeId }
-    } catch (err) {
-      sails.log.warn(`Caddy route removal failed for ${routeId}: ${err.message}`)
-      throw 'notFound'
-    }
+    })
   }
 }

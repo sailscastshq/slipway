@@ -56,7 +56,7 @@ module.exports = {
 
       // Remove Caddy route
       try {
-        await sails.helpers.caddy.removeRoute(`slipway-${project.slug}-${env.slug}`)
+        await sails.helpers.caddy.removeRoute.with({ projectSlug: project.slug, environmentSlug: env.slug })
       } catch (err) {
         sails.log.warn(`Failed to remove Caddy route: ${err.message}`)
       }
