@@ -2,6 +2,7 @@
 import { Link, Head, router, usePoll } from '@inertiajs/vue3'
 import { inject, ref, computed, watch } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
+import { useQueryState } from '@/composables/useQueryState'
 
 defineOptions({
   layout: AppLayout
@@ -34,7 +35,7 @@ const sidebarCollapsed = inject('sidebarCollapsed')
 usePoll(30000)
 
 // Tabs
-const activeTab = ref('infrastructure')
+const activeTab = useQueryState('tab', 'infrastructure')
 const tabs = computed(() => {
   const list = [
     { id: 'infrastructure', label: 'Infrastructure', count: props.containers.length }
