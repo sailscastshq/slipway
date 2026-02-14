@@ -1,3 +1,6 @@
+// In-memory cache so this works without sails-stash
+const _memCache = { result: null, ts: 0 }
+
 module.exports = {
   friendlyName: 'Check for updates',
 
@@ -15,11 +18,19 @@ module.exports = {
     const currentVersion = sails.config.slipway?.version || '0.1.0'
     const githubRepo = sails.config.slipway?.githubRepo || 'sailscastshq/slipway'
 
-    // Cache key for rate limiting - only check once per hour
-    const cacheKey = 'slipway_update_check'
-    const cached = sails.cache?.get?.(cacheKey)
-    if (cached) {
-      return cached
+    // Check in-memory cache first (works without sails-stash)
+    if (_memCache.result && Date.now() - _memCache.ts < 3600000) {
+      return _memCache.result
+    }
+
+    // Also check sails-stash if available
+    if (sails.cache?.get) {
+      const cached = await sails.cache.get('slipway_update_check')
+      if (cached) {
+        _memCache.result = cached
+        _memCache.ts = Date.now()
+        return cached
+      }
     }
 
     try {
@@ -73,9 +84,11 @@ module.exports = {
         error: null
       }
 
-      // Cache for 1 hour (3600000ms)
+      // Cache for 1 hour in memory and sails-stash
+      _memCache.result = result
+      _memCache.ts = Date.now()
       if (sails.cache?.set) {
-        sails.cache.set(cacheKey, result, 3600000)
+        await sails.cache.set('slipway_update_check', result, 3600000)
       }
 
       return result

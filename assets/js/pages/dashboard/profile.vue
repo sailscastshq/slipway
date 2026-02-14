@@ -3,6 +3,7 @@ import { Link, Head, usePage, useForm, router } from '@inertiajs/vue3'
 import { inject, ref } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
 import ConfirmModal from '@/components/ConfirmModal.vue'
+import { useToast } from '@/composables/toast'
 
 defineOptions({
   layout: AppLayout
@@ -12,6 +13,7 @@ const toggleMobileMenu = inject('toggleMobileMenu')
 const toggleSidebar = inject('toggleSidebar')
 const sidebarCollapsed = inject('sidebarCollapsed')
 
+const toast = useToast()
 const loggedInUser = usePage().props.loggedInUser
 
 const form = useForm({
@@ -34,6 +36,7 @@ function updateProfile() {
       form.currentPassword = ''
       form.password = ''
       form.confirmPassword = ''
+      toast({ message: 'Profile updated', type: 'success' })
     }
   })
 }

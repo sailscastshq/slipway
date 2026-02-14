@@ -2,6 +2,7 @@
 import { Link, Head, useForm } from '@inertiajs/vue3'
 import { inject } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
+import { useToast } from '@/composables/toast'
 
 defineOptions({
   layout: AppLayout
@@ -23,8 +24,12 @@ const form = useForm({
   acmeEmail: props.acmeEmail
 })
 
+const toast = useToast()
+
 function save() {
-  form.patch('/settings/instance')
+  form.patch('/settings/instance', {
+    onSuccess: () => toast({ message: 'Instance settings saved', type: 'success' })
+  })
 }
 </script>
 <template>
