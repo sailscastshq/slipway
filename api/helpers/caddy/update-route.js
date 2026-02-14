@@ -1,5 +1,3 @@
-const http = require('http')
-
 module.exports = {
   friendlyName: 'Update route',
 
@@ -26,86 +24,42 @@ module.exports = {
   },
 
   fn: async function ({ environmentId }) {
-    // Generate the route config
     const config = await sails.helpers.caddy.generateRouteConfig(environmentId)
 
     if (!config) {
       throw 'noApp'
     }
 
-    const caddyAdminUrl = sails.config.custom.caddyAdminUrl || 'http://localhost:2019'
     const routeId = config.route['@id']
 
-    // Try to update existing route first, create if it doesn't exist
-    return new Promise((resolve, reject) => {
-      const routeData = JSON.stringify(config.route)
+    // Delete existing route first (ignore errors — route may not exist yet)
+    try {
+      await sails.helpers.caddy.caddyRequest.with({
+        method: 'DELETE',
+        path: `/id/${routeId}`
+      })
+    } catch (err) {
+      sails.log.verbose(`Caddy route delete (pre-create) skipped: ${err.message}`)
+    }
 
-      // First, try to delete existing route (if any), then create new one
-      const createRoute = () => {
-        const url = new URL(`${caddyAdminUrl}/config/apps/http/servers/srv0/routes`)
-
-        const options = {
-          hostname: url.hostname,
-          port: url.port,
-          path: url.pathname,
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Content-Length': Buffer.byteLength(routeData)
-          }
-        }
-
-        const req = http.request(options, (res) => {
-          let body = ''
-          res.on('data', (chunk) => {
-            body += chunk
-          })
-          res.on('end', () => {
-            if (res.statusCode >= 200 && res.statusCode < 300) {
-              sails.log.info(`Caddy route created for ${config.domain}`)
-              resolve({
-                domain: config.domain,
-                routeId,
-                action: 'created'
-              })
-            } else {
-              sails.log.error(`Caddy API error: ${res.statusCode} - ${body}`)
-              reject(new Error(`Caddy API error: ${res.statusCode}`))
-            }
-          })
-        })
-
-        req.on('error', (error) => {
-          sails.log.error(`Caddy request error: ${error.message}`)
-          reject(error)
-        })
-
-        req.write(routeData)
-        req.end()
-      }
-
-      // Try to delete first (will fail if route doesn't exist, which is fine)
-      const deleteUrl = new URL(`${caddyAdminUrl}/id/${routeId}`)
-
-      const deleteReq = http.request(
-        {
-          hostname: deleteUrl.hostname,
-          port: deleteUrl.port,
-          path: deleteUrl.pathname,
-          method: 'DELETE'
-        },
-        () => {
-          // Whether delete succeeded or not, create the new route
-          createRoute()
-        }
-      )
-
-      deleteReq.on('error', () => {
-        // Ignore delete errors and proceed to create
-        createRoute()
+    // Create the new route
+    try {
+      await sails.helpers.caddy.caddyRequest.with({
+        method: 'POST',
+        path: '/config/apps/http/servers/srv0/routes',
+        data: config.route
       })
 
-      deleteReq.end()
-    })
+      sails.log.info(`Caddy route created for ${config.domain}`)
+
+      return {
+        domain: config.domain,
+        routeId,
+        action: 'created'
+      }
+    } catch (err) {
+      sails.log.error(`Caddy route creation failed: ${err.message}`)
+      throw 'caddyError'
+    }
   }
 }
