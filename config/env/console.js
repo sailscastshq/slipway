@@ -1,22 +1,14 @@
-/**
- * Console environment
- *
- * Lightweight configuration for Quest job child processes.
- * Disables hooks that background jobs don't need.
- */
-module.exports = {
+const PRODUCTION_CONFIG = require('./production')
+
+module.exports = Object.assign({}, PRODUCTION_CONFIG, {
   hooks: {
+    shipwright: false,
+    flash: false,
+    content: false,
     views: false,
     sockets: false,
     pubsub: false,
-    shipwright: false
-  },
-
-  models: {
-    migrate: 'safe',
-
-    dataEncryptionKeys: {
-      default: process.env.DATA_ENCRYPTION_KEY
-    }
+    dev: false,
+    sesssion: false
   }
-}
+})
