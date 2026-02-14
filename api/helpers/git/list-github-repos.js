@@ -19,6 +19,15 @@ module.exports = {
   },
 
   fn: async function ({ accessToken, page, perPage }) {
+    // Check cache first
+    const cacheKey = `github:repos:${page}:${perPage}`
+    try {
+      const cached = await sails.cache.get(cacheKey)
+      if (cached) { return cached }
+    } catch (err) {
+      sails.log.verbose('Cache read failed for GitHub repos:', err.message)
+    }
+
     const response = await fetch(
       `https://api.github.com/user/repos?page=${page}&per_page=${perPage}&sort=updated&affiliation=owner,collaborator,organization_member`,
       {
@@ -36,7 +45,7 @@ module.exports = {
 
     const repos = await response.json()
 
-    return repos.map(repo => ({
+    const result = repos.map(repo => ({
       id: String(repo.id),
       name: repo.name,
       fullName: repo.full_name,
@@ -49,5 +58,10 @@ module.exports = {
       language: repo.language,
       updatedAt: repo.updated_at
     }))
+
+    // Cache successful response for 5 minutes
+    try { await sails.cache.set(cacheKey, result, 300_000) } catch (err) { /* best-effort */ }
+
+    return result
   }
 }

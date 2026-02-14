@@ -29,6 +29,7 @@
     "sails-hook-sockets": "^3.0.1",
     "sails-hook-uploads": "^0.4.3",
     "sails-sqlite": "^0.2.6",
+    "sails-stash": "^0.2.0",
     "skipper-s3": "^0.6.0",
     "vue": "^3.5.8"
   },

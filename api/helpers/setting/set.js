@@ -52,6 +52,9 @@ module.exports = {
       await Setting.create({ key, ...updates })
     }
 
+    // Invalidate cache so next read picks up the new value
+    try { await sails.cache.delete(`setting:${key}`) } catch (err) { /* best-effort */ }
+
     return true
   }
 }

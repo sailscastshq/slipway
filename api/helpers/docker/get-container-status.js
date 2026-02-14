@@ -23,6 +23,15 @@ module.exports = {
     }
   },
   fn: async function ({ containerName }) {
+    // Check cache first
+    const cacheKey = `container:status:${containerName}`
+    try {
+      const cached = await sails.cache.get(cacheKey)
+      if (cached) { return cached }
+    } catch (err) {
+      sails.log.verbose('Cache read failed for container status:', err.message)
+    }
+
     try {
       const { stdout } = await execFileAsync(
         'docker', ['inspect', '--format', '{{json .State}}', containerName]
@@ -30,7 +39,7 @@ module.exports = {
 
       const state = JSON.parse(stdout.trim())
 
-      return {
+      const result = {
         running: state.Running,
         status: state.Status,
         startedAt: state.StartedAt,
@@ -39,6 +48,11 @@ module.exports = {
         error: state.Error,
         health: state.Health ? state.Health.Status : null
       }
+
+      // Cache for 30 seconds
+      try { await sails.cache.set(cacheKey, result, 30_000) } catch (err) { /* best-effort */ }
+
+      return result
     } catch (error) {
       if (
         error.message.includes('No such container') ||
