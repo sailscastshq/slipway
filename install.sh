@@ -121,7 +121,6 @@ docker run -d \
     -e SLIPWAY_URL="$SLIPWAY_URL" \
     -e SESSION_SECRET="$SESSION_SECRET" \
     -e DATA_ENCRYPTION_KEY="$DATA_ENCRYPTION_KEY" \
-    -l "caddy=:1337" \
     ghcr.io/sailscastshq/slipway:latest
 echo -e "${GREEN}Slipway dashboard running${NC}"
 
