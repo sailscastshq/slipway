@@ -5,7 +5,7 @@
  * Usage: await sails.helpers.setting.set('instanceUrl', 'https://slipway.example.com')
  */
 
-const SENSITIVE_KEYS = ['smtpPassword', 'telegramBotToken', 'discordWebhookUrl', 'globalEnvVars']
+const SENSITIVE_KEYS = ['smtpPassword', 'telegramBotToken', 'discordWebhookUrl', 'slackWebhookUrl', 'webhookUrl', 'globalEnvVars']
 
 module.exports = {
   friendlyName: 'Set setting',

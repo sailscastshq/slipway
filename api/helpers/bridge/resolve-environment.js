@@ -35,35 +35,11 @@ module.exports = {
   },
 
   fn: async function ({ req, projectSlug, environmentSlug }) {
-    const user = await User.findOne({ id: req.session.userId })
-    if (!user) {
-      throw 'forbidden'
-    }
-
-    const project = await Project.findOne({ slug: projectSlug }).populate('team')
-    if (!project) {
-      throw 'notFound'
-    }
-
-    if (project.team.id !== user.team) {
-      throw 'forbidden'
-    }
-
-    const environment = await Environment.findOne({
-      project: project.id,
-      slug: environmentSlug
+    return await sails.helpers.resolveApp.with({
+      req,
+      projectSlug,
+      environmentSlug,
+      requireRunning: true
     })
-
-    if (!environment) {
-      throw 'notFound'
-    }
-
-    const app = await App.findOne({ environment: environment.id })
-
-    if (!app || app.status !== 'running' || !app.containerName) {
-      throw 'appNotRunning'
-    }
-
-    return { user, project, environment, app }
   }
 }

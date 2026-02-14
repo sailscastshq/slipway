@@ -111,6 +111,11 @@ module.exports = {
     environment: {
       model: 'environment',
       required: true
+    },
+
+    app: {
+      model: 'app',
+      description: 'Target app (null for legacy deployments)'
     }
   },
 

@@ -32,11 +32,23 @@ module.exports.policies = {
   // Project pages require authentication
   'project/*': 'is-authenticated-or-setup',
 
+  // Lookout dashboard requires authentication
+  'lookout/*': 'is-authenticated',
+
+  // System pages require authentication
+  'system/*': 'is-authenticated',
+
   // Settings pages require authentication
   'setting/*': 'is-authenticated',
 
   // Team management requires authentication
   'team/*': 'is-authenticated',
+
+  // Health check is public
+  'health/*': true,
+
+  // Webhooks are public (signature-verified in controller)
+  'webhook/*': true,
 
   // API v1 routes require authentication
   'api/v1/*': 'is-authenticated',

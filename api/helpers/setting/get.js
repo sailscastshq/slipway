@@ -5,7 +5,7 @@
  * Usage: await sails.helpers.setting.get('instanceUrl')
  */
 
-const SENSITIVE_KEYS = ['smtpPassword', 'telegramBotToken', 'discordWebhookUrl', 'globalEnvVars']
+const SENSITIVE_KEYS = ['smtpPassword', 'telegramBotToken', 'discordWebhookUrl', 'slackWebhookUrl', 'webhookUrl', 'globalEnvVars']
 
 module.exports = {
   friendlyName: 'Get setting',

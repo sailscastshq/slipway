@@ -32,11 +32,11 @@ module.exports.datastores = {
 
   default: {
     adapter: 'sails-sqlite',
-    url: './db/app-local.db'
+    url: './db/app.db'
   },
 
   observability: {
     adapter: 'sails-sqlite',
-    url: './db/observability-local.db'
+    url: './db/observability.db'
   }
 }

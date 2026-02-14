@@ -3,6 +3,7 @@ import { Link, usePage, router } from '@inertiajs/vue3'
 import { computed, ref, provide, onMounted, onUnmounted } from 'vue'
 import ToastContainer from '@/components/ToastContainer.vue'
 import UpdateBanner from '@/components/UpdateBanner.vue'
+import UpdateModal from '@/components/UpdateModal.vue'
 import DeploymentToast from '@/components/DeploymentToast.vue'
 import ServiceActionToast from '@/components/ServiceActionToast.vue'
 import CommandPalette from '@/components/CommandPalette.vue'
@@ -13,6 +14,7 @@ import {
   provideServiceActions
 } from '@/composables/service-actions'
 import { createCommandPalette } from '@/composables/useCommandPalette'
+import { useUpdateCheck } from '@/composables/useUpdateCheck'
 
 const page = usePage()
 const loggedInUser = page.props.loggedInUser
@@ -136,6 +138,10 @@ provideServiceActions({ startAction, completeAction, dismissAction })
 
 // Command palette (Cmd+K)
 const { open: openCommandPalette } = createCommandPalette()
+
+// Update check (shared singleton state populated by UpdateBanner)
+const { updateInfo } = useUpdateCheck()
+const showUpdateModal = ref(false)
 
 // Active deployments tracking
 const activeDeployments = ref([])
@@ -540,6 +546,28 @@ onUnmounted(() => {
                 </svg>
                 Settings
               </Link>
+              <!-- Update available (conditional) -->
+              <button
+                v-if="updateInfo?.updateAvailable"
+                @click="userDropdownOpen = false; closeMobileMenu(); showUpdateModal = true"
+                class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-emerald-700 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-900/20"
+              >
+                <svg
+                  class="h-4 w-4"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                  />
+                </svg>
+                <span class="flex-1">Update available</span>
+                <span class="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-medium text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-400">{{ updateInfo.latestVersion }}</span>
+              </button>
               <button
                 @click="userDropdownOpen = false; closeMobileMenu(); openCommandPalette()"
                 class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
@@ -941,6 +969,28 @@ onUnmounted(() => {
               </svg>
               Settings
             </Link>
+            <!-- Update available (conditional) -->
+            <button
+              v-if="updateInfo?.updateAvailable"
+              @click="userDropdownOpen = false; showUpdateModal = true"
+              class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-emerald-700 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-900/20"
+            >
+              <svg
+                class="h-4 w-4"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                />
+              </svg>
+              <span class="flex-1">Update available</span>
+              <span class="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-medium text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-400">{{ updateInfo.latestVersion }}</span>
+            </button>
             <button
               @click="userDropdownOpen = false; openCommandPalette()"
               class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
@@ -1074,5 +1124,12 @@ onUnmounted(() => {
 
     <!-- Command Palette (Cmd+K) -->
     <CommandPalette v-if="loggedInUser" />
+
+    <!-- Update Confirmation Modal -->
+    <UpdateModal
+      v-if="showUpdateModal"
+      :updateInfo="updateInfo"
+      @close="showUpdateModal = false"
+    />
   </div>
 </template>

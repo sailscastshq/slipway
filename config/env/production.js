@@ -21,6 +21,10 @@
 
 module.exports = {
   hookTimeout: 80000,
+
+  custom: {
+    baseUrl: process.env.SLIPWAY_URL
+  },
   /**************************************************************************
    *                                                                         *
    * Tell Sails what database(s) it should use in production.                *
@@ -28,16 +32,7 @@ module.exports = {
    * (http://sailsjs.com/config/datastores)                                  *
    *                                                                         *
    **************************************************************************/
-  datastores: {
-    default: {
-      adapter: 'sails-sqlite',
-      url: './db/app.db'
-    },
-    observability: {
-      adapter: 'sails-sqlite',
-      url: './db/observability.db'
-    }
-  },
+  datastores: {},
 
   models: {
     /**************************************************************************
@@ -50,7 +45,11 @@ module.exports = {
      * http://sailsjs.com/docs/concepts/models-and-orm/model-settings#?migrate *
      *                                                                         *
      ***************************************************************************/
-    migrate: 'safe'
+    migrate: 'safe',
+
+    dataEncryptionKeys: {
+      default: process.env.DATA_ENCRYPTION_KEY
+    }
   },
 
   /**************************************************************************
@@ -107,12 +106,13 @@ module.exports = {
    *                                                                          *
    ***************************************************************************/
   session: {
-    adapter: '@sailscastshq/connect-sqlite',
-    url: './db/app.db',
+    secret: process.env.SESSION_SECRET,
     cookie: {
       // Only require secure cookies if SSL is configured (SLIPWAY_SSL=true)
       // This allows initial setup via http://<IP>:1337 before domain/SSL is configured
       secure: process.env.SLIPWAY_SSL === 'true',
+      httpOnly: true,
+      sameSite: 'lax',
       maxAge: 24 * 60 * 60 * 1000 // 24 hours
     }
   },
@@ -134,9 +134,7 @@ module.exports = {
      * Example: SLIPWAY_URL=http://123.45.67.89:1337                            *
      *                                                                          *
      ***************************************************************************/
-    onlyAllowOrigins: process.env.SLIPWAY_URL
-      ? [process.env.SLIPWAY_URL]
-      : ['http://localhost:1337']
+    onlyAllowOrigins: [process.env.SLIPWAY_URL]
 
     /***************************************************************************
      *                                                                          *
@@ -168,7 +166,7 @@ module.exports = {
    *                                                                         *
    ***************************************************************************/
   log: {
-    level: 'debug'
+    level: 'info'
   },
 
   http: {

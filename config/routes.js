@@ -61,6 +61,7 @@ module.exports.routes = {
   'POST /projects/:slug/environments': 'project/create-environment',
   'GET /projects/:slug/environments/:envSlug': 'project/view-environment',
   'GET /projects/:slug/environments/:envSlug/settings': 'project/view-environment-settings',
+  'GET /projects/:slug/environments/:envSlug/apps/:appSlug/settings': 'project/view-app-settings',
   'GET /projects/:slug/environments/:envSlug/helm': 'project/view-helm',
   'GET /projects/:slug/environments/:envSlug/services/:serviceId': 'project/view-service',
   'GET /projects/:slug/deployments/:deploymentId': 'project/view-deployment',
@@ -109,6 +110,7 @@ module.exports.routes = {
   // System updates
   'GET /settings/update': 'system/view-update',
   'GET /api/v1/system/check-update': 'system/check-update',
+  'POST /api/v1/system/apply-update': 'system/apply-update',
 
   // Lookout (infrastructure observability)
   'GET /lookout': 'lookout/view-lookout',
@@ -176,7 +178,19 @@ module.exports.routes = {
   'GET /api/v1/cli/auth/stream': 'api/v1/cli/stream-auth',
   'GET /cli/authorize': 'cli/view-authorize',
 
-  // App lifecycle
+  // App CRUD (multi-app)
+  'GET /api/v1/projects/:projectSlug/environments/:environmentSlug/apps': 'api/v1/app/list-apps',
+  'POST /api/v1/projects/:projectSlug/environments/:environmentSlug/apps': 'api/v1/app/create-app',
+  'PATCH /api/v1/projects/:projectSlug/environments/:environmentSlug/apps/:appSlug': 'api/v1/app/update-app',
+  'DELETE /api/v1/projects/:projectSlug/environments/:environmentSlug/apps/:appSlug': 'api/v1/app/destroy-app',
+
+  // App-scoped deploy/lifecycle
+  'POST /api/v1/projects/:projectSlug/environments/:environmentSlug/apps/:appSlug/deploy': 'api/v1/deploy/trigger-deployment',
+  'POST /api/v1/projects/:projectSlug/environments/:environmentSlug/apps/:appSlug/restart': 'api/v1/app/restart-app',
+  'POST /api/v1/projects/:projectSlug/environments/:environmentSlug/apps/:appSlug/stop': 'api/v1/app/stop-app',
+  'GET /api/v1/projects/:projectSlug/environments/:environmentSlug/apps/:appSlug/logs/stream': 'api/v1/app/stream-container-logs',
+
+  // App lifecycle (environment-scoped — targets default app)
   'POST /api/v1/projects/:projectSlug/environments/:environmentSlug/restart': 'api/v1/app/restart-app',
   'POST /api/v1/projects/:projectSlug/environments/:environmentSlug/stop': 'api/v1/app/stop-app',
   'POST /api/v1/projects/:projectSlug/environments/:environmentSlug/execute': 'api/v1/app/execute-code',

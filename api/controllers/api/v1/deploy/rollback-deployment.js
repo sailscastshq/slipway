@@ -18,6 +18,10 @@ module.exports = {
       type: 'string',
       required: true,
       description: 'ID of the deployment to roll back to'
+    },
+    appSlug: {
+      type: 'string',
+      description: 'Target app slug (defaults to default app)'
     }
   },
 
@@ -36,7 +40,7 @@ module.exports = {
     }
   },
 
-  fn: async function ({ projectSlug, environmentSlug, deploymentId }) {
+  fn: async function ({ projectSlug, environmentSlug, deploymentId, appSlug }) {
     const user = await User.findOne({ id: this.req.session.userId })
 
     const project = await Project.findOne({ slug: projectSlug }).populate('team')
@@ -53,6 +57,15 @@ module.exports = {
 
     if (!environment) {
       throw 'notFound'
+    }
+
+    // Resolve target app
+    let targetApp
+    if (appSlug) {
+      targetApp = await App.findOne({ environment: environment.id, slug: appSlug })
+    } else {
+      targetApp = await App.findOne({ environment: environment.id, isDefault: true })
+        || await App.findOne({ environment: environment.id })
     }
 
     // Find the target deployment to roll back to
@@ -75,6 +88,7 @@ module.exports = {
       triggeredBy: user.id,
       triggerType: 'api',
       environment: environment.id,
+      app: targetApp ? targetApp.id : undefined,
       startedAt: Date.now()
     }).fetch()
 
@@ -82,7 +96,7 @@ module.exports = {
 
     // Kick off the async rollback pipeline
     process.nextTick(() => {
-      executeRollback(rollback.id, targetDeployment, project, environment)
+      executeRollback(rollback.id, targetDeployment, project, environment, targetApp)
     })
 
     return {
@@ -98,7 +112,7 @@ module.exports = {
 /**
  * Async rollback pipeline. Skips the build step — reuses an existing image.
  */
-async function executeRollback(rollbackId, targetDeployment, project, environment) {
+async function executeRollback(rollbackId, targetDeployment, project, environment, targetApp) {
   try {
     // 1. Set status to deploying (no build needed)
     await Deployment.updateOne({ id: rollbackId }).set({
@@ -113,17 +127,27 @@ async function executeRollback(rollbackId, targetDeployment, project, environmen
     await sails.helpers.docker.ensureNetwork()
 
     // 3. Generate container name
-    const containerName = await App.generateContainerName(environment.id)
+    const appSlugForName = targetApp ? targetApp.slug : undefined
+    const containerName = await App.generateContainerName(environment.id, appSlugForName)
 
     // 4. Allocate a host port
     const hostPort = await sails.helpers.docker.allocatePort()
 
-    // 5. Get env vars
+    // 5. Get env vars (3-tier merge: global < environment < app)
+    let globalEnvVars = {}
+    try {
+      const globalJson = await sails.helpers.setting.get('globalEnvVars', '{}')
+      globalEnvVars = JSON.parse(globalJson)
+    } catch { /* ignore */ }
+
     const envRecord = await Environment.findOne({ id: environment.id }).decrypt()
-    const envVars = envRecord.envVars || {}
+    const appEnvVars = (targetApp && targetApp.envVars) || {}
+    const envVars = { ...globalEnvVars, ...(envRecord.envVars || {}), ...appEnvVars }
 
     // 6. Check for existing app
-    const existingApp = await App.findOne({ environment: environment.id })
+    const existingApp = targetApp
+      || await App.findOne({ environment: environment.id, isDefault: true })
+      || await App.findOne({ environment: environment.id })
 
     // 7. Run the container with the existing image
     const containerResult = await sails.helpers.docker.runContainer.with({
@@ -158,7 +182,10 @@ async function executeRollback(rollbackId, targetDeployment, project, environmen
         hostPort: containerResult.hostPort,
         lastDeployedAt: Date.now(),
         environment: environment.id,
-        currentDeployment: rollbackId
+        currentDeployment: rollbackId,
+        slug: appSlugForName || 'app',
+        name: appSlugForName || 'app',
+        isDefault: true
       })
     }
 
@@ -170,9 +197,10 @@ async function executeRollback(rollbackId, targetDeployment, project, environmen
       await Deployment.appendDeployLog(rollbackId, `Warning: Caddy route update failed: ${caddyErr.message}\n`)
     }
 
-    // 10. Mark previous running deployments as stopped
-    await Deployment.update({ environment: environment.id, status: 'running', id: { '!=': rollbackId } })
-      .set({ status: 'stopped' })
+    // 10. Mark previous running deployments as stopped (scoped to app)
+    const stopCriteria = { environment: environment.id, status: 'running', id: { '!=': rollbackId } }
+    if (existingApp) stopCriteria.app = existingApp.id
+    await Deployment.update(stopCriteria).set({ status: 'stopped' })
 
     // 11. Mark deployment as running
     await Deployment.updateOne({ id: rollbackId }).set({

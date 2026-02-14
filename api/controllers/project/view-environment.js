@@ -43,8 +43,9 @@ module.exports = {
       throw { notFound: `/projects/${slug}` }
     }
 
-    // Get the app record (container state)
-    let app = await App.findOne({ environment: environment.id })
+    // Get all app records (multi-app support)
+    let allApps = await App.find({ environment: environment.id })
+    let app = allApps.find(a => a.isDefault) || allApps[0] || null
 
     // Get full domain
     const fullDomain = await Environment.getFullDomain(environment.id)
@@ -92,27 +93,35 @@ module.exports = {
       )
     } catch { /* ignore */ }
 
-    // Check if container actually exists and get its health status
-    let containerExists = false
-    let containerHealth = null
-    if (app && app.containerName) {
-      try {
-        const containerStatus = await sails.helpers.docker.getContainerStatus(app.containerName)
-        containerExists = true
-        containerHealth = containerStatus.health
-      } catch (err) {
-        if (err.code === 'notFound' || err === 'notFound') {
-          // Container doesn't exist - update app status
-          await App.updateOne({ id: app.id }).set({ status: 'stopped' })
-          app = await App.findOne({ id: app.id })
+    // Check container status for all apps
+    const appsWithHealth = []
+    for (const a of allApps) {
+      let containerExists = false
+      let containerHealth = null
+      if (a.containerName) {
+        try {
+          const containerStatus = await sails.helpers.docker.getContainerStatus(a.containerName)
+          containerExists = true
+          containerHealth = containerStatus.health
+        } catch (err) {
+          if (err.code === 'notFound' || err === 'notFound') {
+            await App.updateOne({ id: a.id }).set({ status: 'stopped' })
+            a.status = 'stopped'
+          }
         }
       }
+      appsWithHealth.push({ ...a, containerHealth, containerExists })
     }
 
+    // Update default app reference after potential status changes
+    app = appsWithHealth.find(a => a.isDefault) || appsWithHealth[0] || null
+
     // Fix stale running deployments
-    const hasRunningApp = containerExists && app && app.currentDeployment
-    
-    if (!hasRunningApp) {
+    const runningAppDeploymentIds = appsWithHealth
+      .filter(a => a.containerExists && a.currentDeployment)
+      .map(a => a.currentDeployment)
+
+    if (runningAppDeploymentIds.length === 0) {
       await Deployment.update({
         environment: environment.id,
         status: 'running'
@@ -121,7 +130,7 @@ module.exports = {
       await Deployment.update({
         environment: environment.id,
         status: 'running',
-        id: { '!=': app.currentDeployment }
+        id: { '!=': runningAppDeploymentIds }
       }).set({ status: 'stopped' })
     }
 
@@ -147,7 +156,8 @@ module.exports = {
           serverIp,
           services
         },
-        app: app ? { ...app, containerHealth } : null,
+        app: app || null,
+        apps: appsWithHealth,
         envVars: environment.envVars || {},
         deployments,
         checklist,

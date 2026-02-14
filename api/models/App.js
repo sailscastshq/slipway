@@ -2,18 +2,61 @@
  * App.js
  *
  * Represents a running application container within an environment.
- * Built from the project's Dockerfile.
+ * Multiple apps can belong to one environment (e.g. web + worker).
+ * Built from the project's Dockerfile (or a per-app Dockerfile).
  */
 
 module.exports = {
   tableName: 'apps',
 
   attributes: {
+    name: {
+      type: 'string',
+      defaultsTo: 'app',
+      description: 'Human-readable name for this app'
+    },
+
+    slug: {
+      type: 'string',
+      defaultsTo: 'app',
+      regex: /^[a-z0-9-]+$/,
+      description: 'URL-safe identifier (unique per environment)'
+    },
+
     status: {
       type: 'string',
       isIn: ['building', 'starting', 'running', 'stopped', 'failed', 'deploying'],
       defaultsTo: 'stopped',
       description: 'Current status of the app'
+    },
+
+    dockerfilePath: {
+      type: 'string',
+      defaultsTo: 'Dockerfile',
+      description: 'Path to Dockerfile relative to project root',
+      columnName: 'dockerfile_path'
+    },
+
+    routePath: {
+      type: 'string',
+      allowNull: true,
+      defaultsTo: '/',
+      description: 'Caddy route path prefix (/, /api, or null for workers)',
+      columnName: 'route_path'
+    },
+
+    envVars: {
+      type: 'json',
+      encrypt: true,
+      description: 'App-specific environment variable overrides',
+      columnName: 'app_env_vars'
+    },
+
+    isDefault: {
+      type: 'boolean',
+      defaultsTo: true,
+      description: 'Whether this is the primary/default app in the environment',
+      columnName: 'is_default'
     },
 
     containerId: {
@@ -74,13 +117,17 @@ module.exports = {
     // Associations
     environment: {
       model: 'environment',
-      required: true,
-      unique: true
+      required: true
     },
 
     currentDeployment: {
       model: 'deployment',
       columnName: 'current_deployment_id'
+    },
+
+    deployments: {
+      collection: 'deployment',
+      via: 'app'
     },
 
     metrics: {
@@ -90,29 +137,67 @@ module.exports = {
   },
 
   /**
-   * Generate container name from environment
+   * Enforce compound uniqueness (environment + slug) and auto-set isDefault.
    */
-  generateContainerName: async function (environmentId) {
+  beforeCreate: async function (values, proceed) {
+    // Auto-generate slug from name if name was provided but slug wasn't explicitly set
+    if (values.name && values.name !== 'app' && (!values.slug || values.slug === 'app')) {
+      values.slug = values.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+    }
+
+    // Enforce compound uniqueness: environment + slug
+    if (values.environment && values.slug) {
+      const existing = await App.findOne({ environment: values.environment, slug: values.slug })
+      if (existing) {
+        return proceed(new Error(`An app with slug "${values.slug}" already exists in this environment.`))
+      }
+    }
+
+    // First app in environment is always default
+    if (values.environment) {
+      const count = await App.count({ environment: values.environment })
+      if (count === 0) {
+        values.isDefault = true
+      } else if (values.isDefault) {
+        // If this app is marked as default, unmark others
+        await App.update({ environment: values.environment, isDefault: true }).set({ isDefault: false })
+      }
+    }
+
+    return proceed()
+  },
+
+  /**
+   * Generate container name from environment and optional app slug.
+   * Default app ('app') omits the suffix for backward compatibility.
+   */
+  generateContainerName: async function (environmentId, appSlug) {
     const env = await Environment.findOne({ id: environmentId }).populate('project')
     if (!env) return null
-    return `slipway-${env.project.slug}-${env.slug}`
+    const base = `slipway-${env.project.slug}-${env.slug}`
+    if (!appSlug || appSlug === 'app') return base
+    return `${base}-${appSlug}`
   },
 
   /**
    * Generate a deploy-scoped container name (used during blue-green deployment)
    */
-  generateDeployContainerName: async function (environmentId, deploymentId) {
+  generateDeployContainerName: async function (environmentId, deploymentId, appSlug) {
     const env = await Environment.findOne({ id: environmentId }).populate('project')
     if (!env) return null
-    return `slipway-${env.project.slug}-${env.slug}-${deploymentId}`
+    const base = `slipway-${env.project.slug}-${env.slug}`
+    if (!appSlug || appSlug === 'app') return `${base}-${deploymentId}`
+    return `${base}-${appSlug}-${deploymentId}`
   },
 
   /**
-   * Generate image name from environment
+   * Generate image name from environment and optional app slug
    */
-  generateImageName: async function (environmentId, tag = 'latest') {
+  generateImageName: async function (environmentId, tag = 'latest', appSlug) {
     const env = await Environment.findOne({ id: environmentId }).populate('project')
     if (!env) return null
-    return `slipway/${env.project.slug}-${env.slug}:${tag}`
+    const base = `slipway/${env.project.slug}-${env.slug}`
+    if (!appSlug || appSlug === 'app') return `${base}:${tag}`
+    return `${base}-${appSlug}:${tag}`
   }
 }

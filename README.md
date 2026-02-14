@@ -1,46 +1,125 @@
 <div align="center">
-<a href="https://sailscasts.com/boring"><img src="https://github.com/sailscastshq/boring-stack/blob/main/.github/banner.png" alt="The Boring JavaScript Stack"></a>
+<br>
+<img src="assets/images/slipway-wordmark.svg" alt="Slipway" height="40">
+<br><br>
+<p>The complete platform for Sails.js — deploy, manage, monitor, and debug your apps on your own infrastructure.</p>
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE.md)
+
 </div>
 
-# Mellow
+---
 
-## Introduction
+## What is Slipway?
 
-Mellow provides a minimal and simple starting point for building fullstack Sails applications with authentication. Styled with Tailwind, Mellow ships with authentication Sails actions and Vue pages/components that can be easily customized based on your application's needs.
+Slipway is an open-source, self-hosted platform purpose-built for **Sails.js** and **The Boring JavaScript Stack** applications. One command to install, one command to deploy.
 
-Mellow is powered by Tailwind and Vue and made possible by Inertia.js
+- **One-command deploys** — `slipway slide` packages, pushes, and deploys your app with zero-downtime blue-green deployments
+- **Self-hosted** — Runs on any Linux VPS you control. Your code, your data, your servers
+- **Sails-native** — Understands your models, helpers, hooks, and config out of the box
+- **Automatic HTTPS** — SSL certificates provisioned automatically via Caddy
+- **Database management** — Provision PostgreSQL, MySQL, or Redis with one click. Connection URLs auto-injected
+- **Built-in toolbox** — Helm (production REPL), Bridge (data management), Dock (SQL console), Quest (job scheduler), Content (CMS)
+- **Backups** — Database backups to S3-compatible storage with one-click restore
+- **Team collaboration** — Multi-user access with team management
 
-Key features of Mellow include:
+## Quick Start
 
-1. **Sails.js Backend**: Leveraging the power and simplicity of Sails.js for robust server-side operations.
-2. **Vue.js Frontend**: Utilizing Vue.js for building dynamic and responsive user interfaces.
-3. **Tailwind CSS Styling**: Employing Tailwind CSS for rapid and flexible UI development with utility-first classes.
-4. **Inertia.js Integration**: Bridging the gap between the Sails.js backend and Vue.js frontend, allowing for SPA-like experiences without the complexity of building an API.
-5. **Authentication Out-of-the-Box**: Providing pre-built authentication actions and pages that can be easily customized to fit your application's needs.
+### Install on your server
 
-## Why "Mellow"?
+SSH into your VPS and run:
 
-The name "Mellow" reflects this template's philosophy:
+```bash
+curl -fsSL https://raw.githubusercontent.com/sailscastshq/slipway/main/install.sh | bash
+```
 
-1. **Ease of Use**: A smooth, hassle-free development experience.
-2. **Balanced Approach**: Combining powerful tools without overwhelming complexity.
-3. **Flexibility**: Adapting to your needs without rigid constraints.
-4. **Stability**: Providing a calm, reliable foundation for your projects.
+This installs two containers (Slipway + Caddy proxy) and gives you a dashboard URL.
 
-## Official Documentation
+### Deploy your app
 
-Documentation for Mellow can be found on [The Boring JavaScript Stack docs](https://docs.sailscasts.com/boring-stack/templates#mellow).
+```bash
+# Install the CLI
+npm install -g slipway-cli
 
-## Community and Support
+# Login to your Slipway instance
+slipway login --server https://slipway.yourdomain.com
 
-Join our community of developers using The Boring JavaScript Stack:
+# Initialize your project
+cd my-sails-app
+slipway init
 
-- **Discord**: Real-time chat with other developers on our [Discord server](https://sailscasts.com/chat)
-- **GitHub**: Report issues and contribute to the project on [GitHub](https://github.com/sailscasts/boring-stack/issues)
-- **YouTube**: Watch tutorials and updates on our [YouTube channel](https://youtube.com/@sailscasts)
+# Deploy
+slipway slide
+```
+
+## Architecture
+
+```
+┌──────────────────────────────────────────────────┐
+│                    YOUR VPS                       │
+│                                                   │
+│  ┌────────────────────────────────────────────┐   │
+│  │          SLIPWAY (Sails.js + Vue)          │   │
+│  │  Dashboard · API · Deploy Engine · Toolbox │   │
+│  └────────────────────┬───────────────────────┘   │
+│                       │                           │
+│  ┌────────────────────┴───────────────────────┐   │
+│  │            Docker + Caddy Proxy            │   │
+│  │  ┌──────┐ ┌──────┐ ┌───────┐ ┌─────────┐  │   │
+│  │  │ app  │ │ app  │ │ redis │ │postgres │  │   │
+│  │  └──────┘ └──────┘ └───────┘ └─────────┘  │   │
+│  └────────────────────────────────────────────┘   │
+└──────────────────────────────────────────────────┘
+```
+
+**Key technology choices:**
+
+| Component | Choice | Why |
+|-----------|--------|-----|
+| App framework | Sails.js + Vue 3 + Inertia.js | Dogfooding the stack |
+| Database | SQLite | Zero-config, single-file backup |
+| Proxy | Caddy | Automatic HTTPS, Docker-native routing |
+| Containers | Docker | Universal runtime, no vendor lock-in |
+| Security | `execFile()` everywhere | No shell injection possible |
+
+## The Toolbox
+
+Slipway includes integrated tools that work with your deployed Sails apps:
+
+| Tool | What it does |
+|------|-------------|
+| **Helm** | Production REPL — query models, run helpers, inspect config from the browser |
+| **Bridge** | Auto-generated data management UI from your Waterline models |
+| **Dock** | SQL console, schema diff, and migration tool for your databases |
+| **Quest** | Job scheduler dashboard for [sails-hook-quest](https://docs.sailscasts.com/quest) |
+| **Content** | CMS for [sails-content](https://docs.sailscasts.com/content) markdown files |
+| **Lookout** | Infrastructure monitoring via [sails-hook-slipway](packages/hook) telemetry |
+
+## Requirements
+
+- A Linux VPS with 1GB+ RAM (we recommend [Hetzner Cloud](https://www.hetzner.com/cloud/))
+- Docker (auto-installed by the install script)
+- Node.js 22+ on your local machine (for the CLI)
+
+## Documentation
+
+Full documentation at **[docs.sailscasts.com/slipway](https://docs.sailscasts.com/slipway)**
+
+## Packages
+
+This repo is a monorepo containing:
+
+| Package | Description |
+|---------|-------------|
+| [`packages/cli`](packages/cli) | Zero-dependency CLI (`slipway-cli` on npm) |
+| [`packages/hook`](packages/hook) | Auto-instrumentation hook for deployed apps (`sails-hook-slipway` on npm) |
+
+## Community
+
+- [Discord](https://sailscasts.com/chat) — Chat with other developers
+- [GitHub Issues](https://github.com/sailscastshq/slipway/issues) — Report bugs and request features
+- [YouTube](https://youtube.com/@sailscasts) — Tutorials and updates
 
 ## License
 
-Mellow is open-sourced software licensed under the MIT license. This means you're free to use, modify, and distribute the software, subject to the conditions of the MIT license. We encourage contributions from the community to help improve and evolve Mellow for everyone's benefit.
-
-For full license details, please see the [LICENSE](LICENSE.md) file in the project repository.
+Slipway is open-source software licensed under the [MIT license](LICENSE.md).

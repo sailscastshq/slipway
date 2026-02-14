@@ -1,7 +1,7 @@
 module.exports = {
   friendlyName: 'Generate route config',
 
-  description: 'Generate Caddy route configuration for an environment.',
+  description: 'Generate Caddy route configuration for an environment (supports multi-app).',
 
   inputs: {
     environmentId: {
@@ -24,45 +24,91 @@ module.exports = {
   fn: async function ({ environmentId }) {
     const environment = await Environment.findOne({ id: environmentId })
       .populate('project')
-      .populate('app')
 
     if (!environment) {
       throw 'notFound'
     }
 
-    const app = environment.app && environment.app[0]
-    if (!app || !app.hostPort) {
-      return null // No app deployed yet
+    // Fetch all apps in this environment
+    const apps = await App.find({ environment: environmentId })
+
+    // Filter to apps with a hostPort (deployed) and a routePath (not workers)
+    const routableApps = apps.filter(app => app.hostPort && app.routePath !== null)
+
+    if (routableApps.length === 0) {
+      return null // No apps deployed yet
     }
 
-    // Get the domain for this environment
     const domain = await Environment.getFullDomain(environmentId)
+    const routeId = `slipway-${environment.project.slug}-${environment.slug}`
 
-    // Generate Caddy route config
-    // This follows Caddy's JSON config structure
-    const routeConfig = {
-      '@id': `slipway-${environment.project.slug}-${environment.slug}`,
-      match: [
-        {
-          host: [domain]
-        }
-      ],
-      handle: [
-        {
-          handler: 'reverse_proxy',
-          upstreams: [
+    // Single app with root path — identical config to original (backward compat)
+    if (routableApps.length === 1 && routableApps[0].routePath === '/') {
+      const app = routableApps[0]
+      return {
+        domain,
+        route: {
+          '@id': routeId,
+          match: [{ host: [domain] }],
+          handle: [
             {
-              dial: `host.docker.internal:${app.hostPort}`
+              handler: 'reverse_proxy',
+              upstreams: [{ dial: `host.docker.internal:${app.hostPort}` }]
+            }
+          ],
+          terminal: true
+        },
+        environmentId: environment.id,
+        projectSlug: environment.project.slug,
+        environmentSlug: environment.slug
+      }
+    }
+
+    // Multi-app: build composite route with path-based sub-routes
+    // Sort: specific paths first (/api, /admin), root (/) last as catch-all
+    const sorted = [...routableApps].sort((a, b) => {
+      if (a.routePath === '/') return 1
+      if (b.routePath === '/') return -1
+      // Longer paths first (more specific)
+      return b.routePath.length - a.routePath.length
+    })
+
+    const handlers = []
+
+    for (const app of sorted) {
+      if (app.routePath === '/') {
+        // Root catch-all — no path matcher needed
+        handlers.push({
+          handler: 'reverse_proxy',
+          upstreams: [{ dial: `host.docker.internal:${app.hostPort}` }]
+        })
+      } else {
+        // Path-specific sub-route
+        handlers.push({
+          handler: 'subroute',
+          routes: [
+            {
+              match: [{ path: [`${app.routePath}*`] }],
+              handle: [
+                {
+                  handler: 'reverse_proxy',
+                  upstreams: [{ dial: `host.docker.internal:${app.hostPort}` }]
+                }
+              ]
             }
           ]
-        }
-      ],
-      terminal: true
+        })
+      }
     }
 
     return {
       domain,
-      route: routeConfig,
+      route: {
+        '@id': routeId,
+        match: [{ host: [domain] }],
+        handle: handlers,
+        terminal: true
+      },
       environmentId: environment.id,
       projectSlug: environment.project.slug,
       environmentSlug: environment.slug

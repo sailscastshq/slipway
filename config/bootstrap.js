@@ -25,6 +25,37 @@ module.exports.bootstrap = async function () {
     sails.log.info('Slipway needs initial setup. Visit /setup to configure.')
   }
 
+  // One-time migration: backfill multi-app fields on existing App/Deployment records
+  const migrationDone = await sails.helpers.setting.get('multiAppMigrationDone')
+  if (!migrationDone) {
+    try {
+      const apps = await App.find()
+      for (const app of apps) {
+        const updates = {}
+        if (!app.slug) updates.slug = 'app'
+        if (!app.name) updates.name = 'app'
+        if (app.isDefault === undefined || app.isDefault === null) updates.isDefault = true
+        if (Object.keys(updates).length > 0) {
+          await App.updateOne({ id: app.id }).set(updates)
+        }
+      }
+
+      // Backfill Deployment.app for existing deployments
+      const deployments = await Deployment.find({ app: null })
+      for (const dep of deployments) {
+        const app = await App.findOne({ environment: dep.environment })
+        if (app) {
+          await Deployment.updateOne({ id: dep.id }).set({ app: app.id })
+        }
+      }
+
+      await sails.helpers.setting.set('multiAppMigrationDone', 'true')
+      sails.log.info('Multi-app migration completed successfully.')
+    } catch (err) {
+      sails.log.warn('Multi-app migration failed (will retry on next boot):', err.message)
+    }
+  }
+
   // Ensure Docker network exists
   try {
     await sails.helpers.docker.ensureNetwork()

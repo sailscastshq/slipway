@@ -8,6 +8,7 @@ module.exports = {
   hooks: {
     views: false,
     sockets: false,
-    pubsub: false
+    pubsub: false,
+    shipwright: false
   }
 }

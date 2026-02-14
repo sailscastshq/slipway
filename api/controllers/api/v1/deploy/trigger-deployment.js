@@ -25,6 +25,10 @@ module.exports = {
     gitMessage: {
       type: 'string',
       description: 'Git commit message'
+    },
+    appSlug: {
+      type: 'string',
+      description: 'Target app slug (defaults to default app)'
     }
   },
 
@@ -43,7 +47,7 @@ module.exports = {
     }
   },
 
-  fn: async function ({ projectSlug, environmentSlug, gitCommit, gitBranch, gitMessage }) {
+  fn: async function ({ projectSlug, environmentSlug, gitCommit, gitBranch, gitMessage, appSlug }) {
     const user = await User.findOne({ id: this.req.session.userId })
 
     const project = await Project.findOne({ slug: projectSlug }).populate('team')
@@ -60,6 +64,15 @@ module.exports = {
 
     if (!environment) {
       throw 'notFound'
+    }
+
+    // Resolve target app
+    let targetApp
+    if (appSlug) {
+      targetApp = await App.findOne({ environment: environment.id, slug: appSlug })
+    } else {
+      targetApp = await App.findOne({ environment: environment.id, isDefault: true })
+        || await App.findOne({ environment: environment.id })
     }
 
     // If git info not provided, get from most recent deployment
@@ -90,6 +103,7 @@ module.exports = {
       triggeredBy: user.id,
       triggerType: 'api',
       environment: environment.id,
+      app: targetApp ? targetApp.id : undefined,
       startedAt: Date.now()
     }).fetch()
 
@@ -112,7 +126,8 @@ module.exports = {
         await sails.helpers.deploy.executePipeline.with({
           deploymentId: deployment.id,
           project,
-          environment
+          environment,
+          app: targetApp
         })
       } catch (err) {
         sails.log.error(`Deployment ${deployment.id} failed: ${err.message || err}`)

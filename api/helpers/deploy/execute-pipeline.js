@@ -22,6 +22,10 @@ module.exports = {
       type: 'ref',
       required: true,
       description: 'Environment record'
+    },
+    app: {
+      type: 'ref',
+      description: 'Target App record (if omitted, resolves default app in environment)'
     }
   },
 
@@ -31,7 +35,7 @@ module.exports = {
     }
   },
 
-  fn: async function ({ deploymentId, project, environment }) {
+  fn: async function ({ deploymentId, project, environment, app: appInput }) {
     let deployContainerName = null
     let deployHostPort = null
 
@@ -42,17 +46,26 @@ module.exports = {
       // 2. Ensure Docker network exists
       await sails.helpers.docker.ensureNetwork()
 
+      // Resolve target app
+      let targetApp = appInput
+      if (!targetApp) {
+        targetApp = await App.findOne({ environment: environment.id, isDefault: true })
+          || await App.findOne({ environment: environment.id })
+      }
+      const appSlug = targetApp ? targetApp.slug : undefined
+
       // 3. Generate image name and container names
-      const imageName = await App.generateImageName(environment.id, deploymentId)
-      const canonicalName = await App.generateContainerName(environment.id)
-      deployContainerName = await App.generateDeployContainerName(environment.id, deploymentId)
+      const imageName = await App.generateImageName(environment.id, deploymentId, appSlug)
+      const canonicalName = await App.generateContainerName(environment.id, appSlug)
+      deployContainerName = await App.generateDeployContainerName(environment.id, deploymentId, appSlug)
       const contextPath = require('path').join(sails.config.custom.slipwayAppsDir, project.slug)
 
-      // 4. Build the Docker image
+      // 4. Build the Docker image (use app's dockerfilePath, fall back to project's)
+      const dockerfilePath = (targetApp && targetApp.dockerfilePath) || project.dockerfilePath || 'Dockerfile'
       await sails.helpers.docker.buildImage.with({
         contextPath,
         imageName,
-        dockerfilePath: project.dockerfilePath || 'Dockerfile',
+        dockerfilePath,
         deploymentId
       })
 
@@ -74,7 +87,7 @@ module.exports = {
       // 6. Allocate a host port
       deployHostPort = await sails.helpers.docker.allocatePort()
 
-      // 7. Merge global env vars with environment-specific vars (env overrides global)
+      // 7. 3-tier env var merge: global < environment < app-specific
       let globalEnvVars = {}
       try {
         const globalJson = await sails.helpers.setting.get('globalEnvVars', '{}')
@@ -82,7 +95,8 @@ module.exports = {
       } catch { /* ignore parse errors */ }
 
       const envRecord = await Environment.findOne({ id: environment.id }).decrypt()
-      const envVars = { ...globalEnvVars, ...(envRecord.envVars || {}) }
+      const appEnvVars = (targetApp && targetApp.envVars) || {}
+      const envVars = { ...globalEnvVars, ...(envRecord.envVars || {}), ...appEnvVars }
 
       // 7b. Auto-inject Slipway telemetry env vars for sails-hook-slipway
       if (envRecord.telemetryToken) {
@@ -90,8 +104,8 @@ module.exports = {
         envVars.SLIPWAY_TELEMETRY_TOKEN = envRecord.telemetryToken
       }
 
-      // 8. Get existing App record for resource limits
-      const existingApp = await App.findOne({ environment: environment.id })
+      // 8. Get resource limits from existing app
+      const existingApp = targetApp || await App.findOne({ environment: environment.id, isDefault: true }) || await App.findOne({ environment: environment.id })
       const resourceLimits = (existingApp && existingApp.resourceLimits) || { cpus: '1', memory: '512m' }
       const oldContainerName = existingApp ? existingApp.containerName : null
 
@@ -137,7 +151,10 @@ module.exports = {
           hostPort: deployHostPort,
           lastDeployedAt: Date.now(),
           environment: environment.id,
-          currentDeployment: deploymentId
+          currentDeployment: deploymentId,
+          slug: appSlug || 'app',
+          name: appSlug || 'app',
+          isDefault: true
         })
       }
 
@@ -170,12 +187,16 @@ module.exports = {
         }
       }
 
-      // 15. Mark previous running deployments as stopped
-      await Deployment.update({
+      // 15. Mark previous running deployments as stopped (scoped to this app)
+      const stopCriteria = {
         environment: environment.id,
         status: 'running',
         id: { '!=': deploymentId }
-      }).set({ status: 'stopped' })
+      }
+      if (existingApp) {
+        stopCriteria.app = existingApp.id
+      }
+      await Deployment.update(stopCriteria).set({ status: 'stopped' })
 
       // 16. Mark this deployment as running
       await Deployment.updateOne({ id: deploymentId }).set({

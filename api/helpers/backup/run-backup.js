@@ -148,6 +148,12 @@ module.exports = {
       })
 
       sails.log.info(`Backup completed: ${s3Key} (${formatBytes(sizeBytes)} in ${completedAt - startedAt}ms)`)
+
+      // Send backup success notification
+      await sails.helpers.notification.sendBackupNotification.with({
+        backup: await Backup.findOne({ id: backupId }),
+        service
+      }).tolerate('error')
     } catch (err) {
       const completedAt = Date.now()
       await Backup.updateOne({ id: backupId }).set({
@@ -157,6 +163,12 @@ module.exports = {
         durationMs: completedAt - startedAt
       })
       sails.log.error(`Backup failed for service ${service.name}: ${err.message}`)
+
+      // Send backup failure notification
+      await sails.helpers.notification.sendBackupNotification.with({
+        backup: await Backup.findOne({ id: backupId }),
+        service
+      }).tolerate('error')
     } finally {
       // Clean up temp file
       try { fs.unlinkSync(tmpFile) } catch { /* ignore */ }

@@ -67,11 +67,38 @@ module.exports = {
       }
     }
 
-    // Delete associated resources
-    // TODO: Stop running containers before deleting
+    // Stop and remove ALL app containers
+    const apps = await App.find({ environment: environment.id })
+    for (const app of apps) {
+      if (app.containerName) {
+        try {
+          await sails.helpers.docker.stopContainer(app.containerName)
+        } catch (err) {
+          sails.log.warn(`Failed to stop app container ${app.containerName}: ${err.message}`)
+        }
+      }
+    }
+
+    const services = await Service.find({ environment: environment.id })
+    for (const service of services) {
+      try {
+        await sails.helpers.docker.destroyService(service.id)
+      } catch (err) {
+        sails.log.warn(`Failed to destroy service ${service.name}: ${err.message}`)
+      }
+    }
+
+    // Remove Caddy route
+    try {
+      await sails.helpers.caddy.removeRoute(`slipway-${project.slug}-${slug}`)
+    } catch (err) {
+      sails.log.warn(`Failed to remove Caddy route: ${err.message}`)
+    }
+
+    // Delete database records
+    await Deployment.destroy({ environment: environment.id })
     await App.destroy({ environment: environment.id })
     await Service.destroy({ environment: environment.id })
-    await Deployment.destroy({ environment: environment.id })
     await Environment.destroyOne({ id: environment.id })
 
     return { message: 'Environment deleted successfully' }
