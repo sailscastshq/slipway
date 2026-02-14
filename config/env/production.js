@@ -45,7 +45,7 @@ module.exports = {
      * http://sailsjs.com/docs/concepts/models-and-orm/model-settings#?migrate *
      *                                                                         *
      ***************************************************************************/
-    migrate: 'safe',
+    migrate: process.env.SLIPWAY_MIGRATE || 'safe',
 
     dataEncryptionKeys: {
       default: process.env.DATA_ENCRYPTION_KEY
