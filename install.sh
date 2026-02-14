@@ -37,9 +37,9 @@ echo "Creating Docker network..."
 docker network create slipway 2>/dev/null || true
 echo -e "${GREEN}Network ready${NC}"
 
-# 3. Detect server's public IP
+# 3. Detect server's public IPv4 address
 echo "Detecting server IP..."
-IP=$(curl -s ifconfig.me 2>/dev/null || curl -s icanhazip.com 2>/dev/null || echo "")
+IP=$(curl -4 -s --max-time 5 ifconfig.me 2>/dev/null || curl -4 -s --max-time 5 icanhazip.com 2>/dev/null || echo "")
 if [ -z "$IP" ]; then
     echo -e "${YELLOW}Could not detect public IP. Using localhost.${NC}"
     IP="localhost"
