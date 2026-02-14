@@ -83,9 +83,10 @@ docker run -d \
     lucaslorentz/caddy-docker-proxy:latest
 echo -e "${GREEN}Caddy proxy running${NC}"
 
-# 6. Pull latest image
+# 6. Pull latest images
 echo "Pulling latest Slipway image..."
 docker pull ghcr.io/sailscastshq/slipway:latest
+docker pull alpine
 
 # 7. Start Slipway dashboard
 echo "Starting Slipway dashboard..."
