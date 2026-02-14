@@ -26,7 +26,7 @@ export function useQueryState(key, defaultValue = '', options = {}) {
     }
 
     const method = replace ? 'replaceState' : 'pushState'
-    window.history[method]({}, '', url.toString())
+    window.history[method](window.history.state, '', url.toString())
   })
 
   // Listen for back/forward navigation

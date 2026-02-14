@@ -1,8 +1,7 @@
 <script setup>
-import { Head, Link, router } from '@inertiajs/vue3'
-import { ref, computed, inject, onMounted, onUnmounted, nextTick } from 'vue'
+import { Head } from '@inertiajs/vue3'
+import { ref, computed, inject, watch, onMounted, onUnmounted } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
-import { useQueryState } from '@/composables/useQueryState'
 
 defineOptions({
   layout: AppLayout
@@ -20,8 +19,10 @@ const toggleMobileMenu = inject('toggleMobileMenu')
 const toggleSidebar = inject('toggleSidebar')
 const sidebarCollapsed = inject('sidebarCollapsed')
 
-// Tab management
-const activeTab = useQueryState('tab', 'overview', { replace: true })
+// ─── Tab management (matches Dock pattern: init from URL, sync via watcher) ───
+const validTabs = ['overview', 'environment', 'console', 'activity']
+const initialTab = new URLSearchParams(window.location.search).get('tab')
+const activeTab = ref(validTabs.includes(initialTab) ? initialTab : 'overview')
 const tabs = [
   { id: 'overview', name: 'Overview' },
   { id: 'environment', name: 'Environment' },
@@ -29,16 +30,33 @@ const tabs = [
   { id: 'activity', name: 'Activity' }
 ]
 
+// ─── Console state ───
+const sqlQuery = ref("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name;")
+const validDbs = ['app', 'observability', 'cache']
+const initialDb = new URLSearchParams(window.location.search).get('db')
+const selectedDatabase = ref(validDbs.includes(initialDb) ? initialDb : 'app')
+
+// Sync tab + database to URL (same pattern as Dock: watcher + replaceState)
+watch(activeTab, (tab) => {
+  const url = new URL(window.location)
+  if (tab === 'overview') url.searchParams.delete('tab')
+  else url.searchParams.set('tab', tab)
+  window.history.replaceState({}, '', url)
+})
+
+watch(selectedDatabase, (db) => {
+  const url = new URL(window.location)
+  if (db === 'app') url.searchParams.delete('db')
+  else url.searchParams.set('db', db)
+  window.history.replaceState({}, '', url)
+})
+
 function onTabChange(tabId) {
   activeTab.value = tabId
   if (tabId === 'activity' && activities.value.length === 0) {
     fetchActivity()
   }
 }
-
-// ─── Console state ───
-const sqlQuery = ref("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name;")
-const selectedDatabase = ref('app')
 const consoleResults = ref(null)
 const consoleError = ref(null)
 const consoleLoading = ref(false)
@@ -89,7 +107,6 @@ async function executeQuery() {
 
   consoleLoading.value = true
   consoleError.value = null
-  consoleResults.value = null
 
   try {
     const response = await fetch('/api/v1/bosun/sql', {
@@ -105,6 +122,7 @@ async function executeQuery() {
 
     if (!response.ok) {
       consoleError.value = data.message || data.error || 'Query failed'
+      consoleResults.value = null
       return
     }
 
@@ -203,7 +221,8 @@ async function saveEnvVars(vars) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ envVars: vars })
     })
-    router.reload({ only: ['instanceEnvVars'] })
+    // localVars is already updated by the caller — no need for router.reload()
+    // which can trigger version-mismatch full page reloads in dev
   } finally {
     envSaving.value = false
   }
@@ -259,15 +278,9 @@ const heapPercent = computed(() => {
   return Math.round((props.processInfo.memoryUsage.heapUsed / props.processInfo.memoryUsage.heapTotal) * 100)
 })
 
-const maxDbSize = computed(() => {
-  return Math.max(...Object.values(props.databases).map(db => db.sizeBytes || 0), 1)
-})
-
 const statCards = computed(() => [
   { label: 'Projects', value: props.stats.projects || 0 },
-  { label: 'Environments', value: props.stats.environments || 0 },
   { label: 'Apps', value: props.stats.apps || 0 },
-  { label: 'Services', value: props.stats.services || 0 },
   { label: 'Deployments', value: props.stats.deployments || 0 },
   { label: 'Backups', value: props.stats.backups || 0 }
 ])
@@ -654,7 +667,7 @@ onUnmounted(() => {
           </div>
 
           <!-- Stat cards -->
-          <div class="mb-8 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
+          <div class="mb-8 grid grid-cols-2 gap-4 lg:grid-cols-4">
             <div
               v-for="stat in statCards"
               :key="stat.label"
@@ -698,7 +711,7 @@ onUnmounted(() => {
                   </div>
                 </div>
                 <!-- RSS -->
-                <div class="flex items-center justify-between border-t border-gray-100 pt-3 dark:border-gray-800">
+                <div class="flex items-center justify-between">
                   <span class="text-xs text-gray-500 dark:text-gray-400">RSS (Total)</span>
                   <span class="font-mono text-sm font-medium text-gray-900 dark:text-white">{{ formatBytes(processInfo.memoryUsage?.rss) }}</span>
                 </div>
@@ -710,21 +723,13 @@ onUnmounted(() => {
               <div class="border-b border-gray-200 px-4 py-3 dark:border-gray-800">
                 <h3 class="text-sm font-medium text-gray-900 dark:text-white">Databases</h3>
               </div>
-              <div class="divide-y divide-gray-100 dark:divide-gray-800">
-                <div v-for="(db, name) in databases" :key="name" class="px-4 py-3">
-                  <div class="flex items-center justify-between">
-                    <div class="flex items-center gap-2">
-                      <span class="text-sm font-medium text-gray-900 dark:text-white">{{ name }}</span>
-                      <span class="text-xs text-gray-400 dark:text-gray-500">{{ db.path.split('/').pop() }}</span>
-                    </div>
-                    <span class="font-mono text-sm font-medium text-gray-900 dark:text-white">{{ formatBytes(db.sizeBytes) }}</span>
+              <div class="space-y-1 px-4 pb-3">
+                <div v-for="(db, name) in databases" :key="name" class="flex items-center justify-between py-1.5">
+                  <div class="flex items-center gap-2">
+                    <span class="text-sm font-medium text-gray-900 dark:text-white">{{ name }}</span>
+                    <span class="text-xs text-gray-400 dark:text-gray-500">{{ db.path.split('/').pop() }}</span>
                   </div>
-                  <div class="mt-1.5 h-1 w-full overflow-hidden rounded-full bg-gray-100 dark:bg-gray-800">
-                    <div
-                      class="h-full rounded-full bg-gray-400 transition-all dark:bg-gray-600"
-                      :style="{ width: Math.max((db.sizeBytes / maxDbSize) * 100, 2) + '%' }"
-                    ></div>
-                  </div>
+                  <span class="font-mono text-sm font-medium text-gray-900 dark:text-white">{{ formatBytes(db.sizeBytes) }}</span>
                 </div>
               </div>
             </div>
