@@ -10,5 +10,13 @@ module.exports = {
     sockets: false,
     pubsub: false,
     shipwright: false
+  },
+
+  models: {
+    migrate: 'safe',
+
+    dataEncryptionKeys: {
+      default: process.env.DATA_ENCRYPTION_KEY
+    }
   }
 }
