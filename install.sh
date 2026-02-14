@@ -77,7 +77,6 @@ docker run -d \
     --restart unless-stopped \
     -p 80:80 \
     -p 443:443 \
-    -p 1337:1337 \
     -v /var/run/docker.sock:/var/run/docker.sock:ro \
     -v slipway-certs:/data \
     -e CADDY_INGRESS_NETWORKS=slipway \
@@ -113,6 +112,7 @@ docker run -d \
     --name slipway \
     --network slipway \
     --restart unless-stopped \
+    -p 1337:1337 \
     -v /var/run/docker.sock:/var/run/docker.sock \
     -v slipway-db:/app/db \
     -e NODE_ENV=production \

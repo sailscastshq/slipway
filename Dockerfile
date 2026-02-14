@@ -14,7 +14,7 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 COPY package*.json ./
-RUN npm ci && npm cache clean --force
+RUN rm -rf node_modules && npm ci && npm cache clean --force
 
 COPY . .
 
