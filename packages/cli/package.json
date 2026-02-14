@@ -1,23 +1,29 @@
 {
-  "name": "slipway",
-  "version": "0.1.0",
-  "description": "CLI for Slipway - the Sails-native deployment platform",
+  "name": "slipway-cli",
+  "version": "0.0.0",
+  "description": "CLI for Slipway - Deploy Sails apps with ease",
   "type": "module",
-  "keywords": ["sails", "deployment", "cli", "paas"],
   "bin": {
-    "slipway": "./bin/slipway.js"
+    "slipway": "./src/index.js"
   },
-  "exports": "./src/index.js",
-  "scripts": {
-    "test": "node --test"
-  },
-  "engines": {
-    "node": ">=22.0.0"
-  },
+  "keywords": [
+    "slipway",
+    "sails",
+    "deploy",
+    "docker",
+    "cli"
+  ],
+  "author": "Kelvin Omereshone <kelvin@sailscasts.com>",
   "license": "MIT",
   "repository": {
     "type": "git",
     "url": "https://github.com/sailscastshq/slipway.git",
     "directory": "packages/cli"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

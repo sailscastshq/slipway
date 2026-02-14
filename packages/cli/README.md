@@ -17,10 +17,10 @@ This means instant startup, no supply chain risk, and zero maintenance overhead.
 ## Commands
 
 ```bash
-# Deploy (slide into production!)
+# Slide into production!
 slipway slide                    # Primary command
-slipway launch                   # Alias
 slipway deploy                   # Alias
+slipway launch                   # Alias
 
 # Apps
 slipway app:create myapp
@@ -53,9 +53,9 @@ slipway dev                      # Local dev mode
 ## Installation
 
 ```bash
-npm install -g slipway
+npm install -g slipway-cli
 # or
-npx slipway
+npx slipway-cli
 ```
 
 ## Part of the Slipway Suite

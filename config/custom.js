@@ -40,7 +40,31 @@ module.exports.custom = {
   rememberMeCookieMaxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
 
   // Email address for receiving support messages & other correspondences.
-  internalEmail: 'support+development@example.com'
+  internalEmail: 'support+development@example.com',
+
+  /**************************************************************************
+   *                                                                         *
+   * Slipway configuration                                                   *
+   *                                                                         *
+   **************************************************************************/
+
+  // Base domain for deployed apps (e.g., myapp-production.localhost)
+  slipwayDomain: 'localhost',
+
+  // Docker network name for app containers
+  slipwayNetwork: 'slipway',
+
+  // Directory where app source code is stored
+  slipwayAppsDir: '/var/slipway/apps',
+
+  // Port range for app containers (Slipway allocates from this range)
+  slipwayPortRange: { start: 1338, end: 1500 },
+
+  // Caddy admin API URL (for dynamic route configuration)
+  caddyAdminUrl: 'http://localhost:2019',
+
+  // API version (used for building API URLs)
+  apiVersion: 'v1'
 
   /***************************************************************************
    *                                                                          *
