@@ -2,24 +2,10 @@
 import { ref, onMounted } from 'vue'
 import { Link } from '@inertiajs/vue3'
 import Tooltip from '@/components/Tooltip.vue'
+import { useUpdateCheck } from '@/composables/useUpdateCheck'
 
-const updateInfo = ref(null)
+const { updateInfo, check } = useUpdateCheck()
 const dismissed = ref(false)
-const checking = ref(false)
-
-async function checkForUpdates() {
-  checking.value = true
-  try {
-    const response = await fetch('/api/v1/system/check-update')
-    if (response.ok) {
-      updateInfo.value = await response.json()
-    }
-  } catch (err) {
-    console.error('Failed to check for updates:', err)
-  } finally {
-    checking.value = false
-  }
-}
 
 function dismiss() {
   dismissed.value = true
@@ -33,7 +19,7 @@ onMounted(() => {
   // Check if this version was already dismissed
   const dismissedVersion = localStorage.getItem('slipway_update_dismissed')
 
-  checkForUpdates().then(() => {
+  check().then(() => {
     if (updateInfo.value?.latestVersion === dismissedVersion) {
       dismissed.value = true
     }
@@ -86,7 +72,7 @@ onMounted(() => {
             href="/settings/update"
             class="rounded-md bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-700 dark:bg-emerald-600 dark:hover:bg-emerald-500"
           >
-            View Update
+            Update
           </Link>
           <Tooltip text="Dismiss">
             <button
