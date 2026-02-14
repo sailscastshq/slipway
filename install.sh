@@ -92,20 +92,29 @@ docker pull ghcr.io/sailscastshq/slipway:latest
 echo "Starting Slipway dashboard..."
 docker rm -f slipway 2>/dev/null || true
 
-# Run migration to create/update database tables (idempotent — safe to run every time)
-echo "Running database migration..."
-docker run --rm \
-    --network slipway \
+# Check if database needs initial table creation
+NEEDS_MIGRATION=$(docker run --rm \
     -v slipway-db:/app/db \
-    -e NODE_ENV=production \
-    -e PORT=1337 \
-    -e SLIPWAY_URL="$SLIPWAY_URL" \
-    -e SESSION_SECRET="$SESSION_SECRET" \
-    -e DATA_ENCRYPTION_KEY="$DATA_ENCRYPTION_KEY" \
-    -e SLIPWAY_MIGRATE=alter \
     ghcr.io/sailscastshq/slipway:latest \
-    node -e "require('./app').lift({}, (err) => { if (err) { console.error(err); process.exit(1); } console.log('Migration complete'); process.exit(0); })"
-echo -e "${GREEN}Database migrated${NC}"
+    node -e "try { const D = require('better-sqlite3'); const db = new D('/app/db/app.db'); const r = db.prepare(\"SELECT count(*) as c FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'\").get(); console.log(r.c > 0 ? 'no' : 'yes'); db.close(); } catch(e) { console.log('yes'); }" 2>/dev/null)
+
+if [ "$NEEDS_MIGRATION" = "yes" ]; then
+    echo "Running database migration..."
+    docker run --rm \
+        --network slipway \
+        -v slipway-db:/app/db \
+        -e NODE_ENV=production \
+        -e PORT=1337 \
+        -e SLIPWAY_URL="$SLIPWAY_URL" \
+        -e SESSION_SECRET="$SESSION_SECRET" \
+        -e DATA_ENCRYPTION_KEY="$DATA_ENCRYPTION_KEY" \
+        -e SLIPWAY_MIGRATE=alter \
+        ghcr.io/sailscastshq/slipway:latest \
+        node -e "require('./app').lift({}, (err) => { if (err) { console.error(err); process.exit(1); } console.log('Migration complete'); process.exit(0); })"
+    echo -e "${GREEN}Database migrated${NC}"
+else
+    echo -e "${GREEN}Database already initialized${NC}"
+fi
 
 docker run -d \
     --name slipway \
