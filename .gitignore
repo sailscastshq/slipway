@@ -149,3 +149,8 @@ db/*.db
 db/*.db-wal
 db/*.db-shm
 !db/.gitkeep
+
+# Slipway
+.slipway.json
+.claude
+data/

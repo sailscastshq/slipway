@@ -6,6 +6,8 @@
  */
 
 module.exports = {
+  tableName: 'users',
+
   attributes: {
     //  ╔═╗╦═╗╦╔╦╗╦╔╦╗╦╦  ╦╔═╗╔═╗
     //  ╠═╝╠╦╝║║║║║ ║ ║╚╗╔╝║╣ ╚═╗
@@ -35,7 +37,7 @@ module.exports = {
       isIn: ['unverified', 'verified', 'change-requested'],
       defaultsTo: 'unverified',
       description: "The verification status of the user's email address.",
-      extendedDescription: `Users might be created as "unverified" (e.g. normal signup) or as "verified" (e.g. hard-coded admin users or OAuth flow). If a user signs up via an OAuth provider, this should be set to "verified" if the email has been verified by the OAuth provider`,
+      extendedDescription: `Users might be created as "unverified" (e.g. normal signup) or as "verified" (e.g. hard-coded admin users). When email verification is complete, this becomes "verified".`,
       columnName: 'email_status'
     },
     emailChangeCandidate: {
@@ -79,36 +81,39 @@ module.exports = {
       example: 1502844074211,
       columnName: 'email_proof_token_expires_at'
     },
-    googleId: {
-      type: 'string',
-      description:
-        'The unique ID of a user that signs in or register with their Google account.',
-      columnName: 'google_id'
+    // Slipway associations
+    // Team this user belongs to (null for genesis user until team created)
+    team: {
+      model: 'team'
     },
-    googleAccessToken: {
+
+    // Role within the team
+    teamRole: {
       type: 'string',
-      description: 'Access token provided by Google for an OAuth user.',
-      columnName: 'google_access_token'
+      isIn: ['owner', 'admin', 'member'],
+      description: 'User role within their team',
+      columnName: 'team_role'
     },
-    googleIdToken: {
-      type: 'string',
-      description: 'The ID token provided by Google for an OAuth user.',
-      columnName: 'google_id_token'
+
+    // Teams owned by this user
+    ownedTeams: {
+      collection: 'team',
+      via: 'owner'
     },
-    googleAvatarUrl: {
-      type: 'string',
-      description: 'The picture URL provided by Google for an OAuth user.',
-      columnName: 'google_avatar_url'
+
+    // Is this the genesis (first) user?
+    isGenesisUser: {
+      type: 'boolean',
+      defaultsTo: false,
+      columnName: 'is_genesis_user'
     }
   },
   customToJSON: function () {
     return Object.keys(this).reduce((result, key) => {
       if (
         ![
-          'googleIdToken',
-          'googleUserId',
-          'googleAccessToken',
           'password',
+          'passwordResetToken',
           'passwordResetTokenExpiresAt',
           'emailProofToken',
           'emailProofTokenExpiresAt'

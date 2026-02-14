@@ -21,6 +21,10 @@
 
 module.exports = {
   hookTimeout: 80000,
+
+  custom: {
+    baseUrl: process.env.SLIPWAY_URL
+  },
   /**************************************************************************
    *                                                                         *
    * Tell Sails what database(s) it should use in production.                *
@@ -28,12 +32,7 @@ module.exports = {
    * (http://sailsjs.com/config/datastores)                                  *
    *                                                                         *
    **************************************************************************/
-  datastores: {
-    default: {
-      adapter: 'sails-sqlite',
-      url: 'sqlite:./db/production.db'
-    }
-  },
+  datastores: {},
 
   models: {
     /**************************************************************************
@@ -46,7 +45,11 @@ module.exports = {
      * http://sailsjs.com/docs/concepts/models-and-orm/model-settings#?migrate *
      *                                                                         *
      ***************************************************************************/
-    migrate: 'safe'
+    migrate: 'safe',
+
+    dataEncryptionKeys: {
+      default: process.env.DATA_ENCRYPTION_KEY
+    }
   },
 
   /**************************************************************************
@@ -103,11 +106,13 @@ module.exports = {
    *                                                                          *
    ***************************************************************************/
   session: {
-    adapter: '@sailscastshq/connect-sqlite',
-    url: 'sqlite:./db/production.db',
-    table: 'sessions',
+    secret: process.env.SESSION_SECRET,
     cookie: {
-      secure: true,
+      // Only require secure cookies if SSL is configured (SLIPWAY_SSL=true)
+      // This allows initial setup via http://<IP>:1337 before domain/SSL is configured
+      secure: process.env.SLIPWAY_SSL === 'true',
+      httpOnly: true,
+      sameSite: 'lax',
       maxAge: 24 * 60 * 60 * 1000 // 24 hours
     }
   },
@@ -125,17 +130,11 @@ module.exports = {
   sockets: {
     /***************************************************************************
      *                                                                          *
-     * Uncomment the `onlyAllowOrigins` whitelist below to configure which      *
-     * "origins" are allowed to open socket connections to your Sails app.      *
-     *                                                                          *
-     * > Replace "https://example.com" with the URL of your production server.  *
-     * > Be sure to use the right protocol!  ("http://" vs. "https://")         *
+     * Socket origins whitelist - uses SLIPWAY_URL env var if set               *
+     * Example: SLIPWAY_URL=http://123.45.67.89:1337                            *
      *                                                                          *
      ***************************************************************************/
-    onlyAllowOrigins: [
-      'http://localhost:1337'
-      //   'https://example.com',
-    ]
+    onlyAllowOrigins: [process.env.SLIPWAY_URL]
 
     /***************************************************************************
      *                                                                          *
@@ -167,7 +166,7 @@ module.exports = {
    *                                                                         *
    ***************************************************************************/
   log: {
-    level: 'debug'
+    level: 'info'
   },
 
   http: {
@@ -194,7 +193,7 @@ module.exports = {
      * (http://sailsjs.com/config/http)                                         *
      *                                                                          *
      ***************************************************************************/
-    trustProxy: true,
+    trustProxy: true
   },
 
   /**************************************************************************
@@ -234,6 +233,8 @@ module.exports = {
    *                                                                         *
    ***************************************************************************/
   custom: {
+    // Disable slipwayDomain so production requires wildcardDomain setting or custom domains
+    slipwayDomain: null
     // mailgunApiKey: 'key-prod_fake_bd32301385130a0bafe030c',
     // stripeSecret: 'sk_prod__fake_Nfgh82401348jaDa3lkZ0d9Hm',
     //--------------------------------------------------------------------------

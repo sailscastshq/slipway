@@ -381,33 +381,338 @@ myapp
 staging
 ```
 
-### Git Push Deploy (Dokku-style)
+### Push to Deploy: The Superior Flow
 
-In addition to CLI deploy, support git push:
+Slipway's deployment model is designed to be **better than Heroku, Vercel, and Railway** while supporting private repos seamlessly.
+
+#### The Problem with Existing Approaches
+
+| Platform | Approach | Private Repo Support | Pain Points |
+|----------|----------|---------------------|-------------|
+| Heroku | `git push heroku main` | SSH keys required | Key management, team scaling |
+| Vercel | GitHub App | ✅ Excellent | GitHub-only, vendor lock-in |
+| Railway | GitHub App | ✅ Good | Limited providers |
+| Dokku | SSH-based push | SSH keys required | Manual key setup per user |
+| Coolify | Webhooks + tokens | Manual setup | Token management, webhook config |
+| Kamal | CLI only | N/A | No git integration |
+
+#### Slipway's Three Deployment Paths
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                     SLIPWAY DEPLOYMENT OPTIONS                           │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                          │
+│  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐         │
+│  │  🔗 Git Connect │  │  🔑 Deploy Token │  │  💻 CLI Direct  │         │
+│  │   (Recommended) │  │   (CI/CD)       │  │   (Solo Dev)    │         │
+│  └────────┬────────┘  └────────┬────────┘  └────────┬────────┘         │
+│           │                    │                    │                   │
+│           ▼                    ▼                    ▼                   │
+│  ┌─────────────────────────────────────────────────────────────┐       │
+│  │                    SLIPWAY BUILD ENGINE                      │       │
+│  │  • Clone/fetch code                                          │       │
+│  │  • Detect Sails.js app                                       │       │
+│  │  • Build Docker image                                        │       │
+│  │  • Zero-downtime deploy                                      │       │
+│  └─────────────────────────────────────────────────────────────┘       │
+│                                                                          │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+#### Path 1: Git Connect (Recommended)
+
+**One-time setup, then push-to-deploy forever.** Works with GitHub, GitLab, Bitbucket, and self-hosted Git.
+
+##### Step 1: Connect Your Git Provider
 
 ```bash
-# Add Slipway as a git remote
-$ git remote add slipway slipway@myserver.com:myapp
+$ slipway git:connect
 
-# Deploy by pushing
-$ git push slipway main
+? Select Git provider:
+❯ GitHub
+  GitLab
+  Bitbucket
+  Self-hosted (any Git URL)
 
-Counting objects: 42, done.
-Delta compression using up to 8 threads.
-Compressing objects: 100% (30/30), done.
-Writing objects: 100% (42/42), 8.12 KiB | 8.12 MiB/s, done.
-
------> Sails.js app detected
------> Installing dependencies...
-       npm install (node 20.x)
------> Building assets...
-       npm run build
------> Releasing myapp...
------> Deployed to https://myapp.example.com
-
-To slipway@myserver.com:myapp
-   abc1234..def5678  main -> main
+# For GitHub: Opens browser for OAuth
+# For self-hosted: Prompts for credentials/token
 ```
+
+##### Step 2: Link Repository to Project
+
+```bash
+# In Slipway dashboard, or via CLI:
+$ slipway app:create myapp --repo=github.com/user/myapp
+
+✓ Repository connected
+✓ Deploy key added (read-only)
+✓ Webhook configured
+
+  Branch Mapping:
+  • main     → production (https://myapp.example.com)
+  • develop  → staging    (https://staging.myapp.example.com)
+  • PR #*    → preview    (https://pr-123.myapp.example.com)
+```
+
+##### Step 3: Push to Deploy
+
+```bash
+# Just push to GitHub as normal
+$ git push origin main
+
+# Slipway receives webhook, starts deploy automatically
+# View progress in dashboard or:
+$ slipway logs myapp --deploy
+```
+
+##### How It Works (Technical)
+
+```
+┌──────────────┐     webhook      ┌──────────────┐
+│   GitHub     │ ───────────────▶ │   Slipway    │
+│  (push event)│                  │   Server     │
+└──────────────┘                  └──────┬───────┘
+                                         │
+                                         │ 1. Validate webhook signature
+                                         │ 2. Clone via deploy key (SSH)
+                                         │ 3. Build Docker image
+                                         │ 4. Deploy container
+                                         │
+                                         ▼
+                                  ┌──────────────┐
+                                  │  Your App    │
+                                  │  (running)   │
+                                  └──────────────┘
+```
+
+**For Private Repos:**
+- Slipway generates a read-only **deploy key** (SSH)
+- Key is added to your repo automatically via API
+- No personal access tokens needed
+- Key is scoped to single repo (principle of least privilege)
+
+##### GitHub App Alternative
+
+For organizations managing many repos, install the Slipway GitHub App:
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│  Install Slipway                                                         │
+│  ─────────────────                                                       │
+│                                                                          │
+│  Slipway requests access to:                                            │
+│                                                                          │
+│  ✓ Read access to code (to clone and build)                             │
+│  ✓ Read access to metadata (repo info)                                  │
+│  ✓ Write access to commit statuses (deploy status checks)               │
+│  ✓ Write access to deployments (GitHub Deployments API)                 │
+│  ✓ Read access to pull requests (for preview environments)              │
+│                                                                          │
+│  Select repositories:                                                    │
+│  ◉ All repositories                                                     │
+│  ○ Only select repositories                                             │
+│                                                                          │
+│                                    [Install & Authorize]                 │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+#### Path 2: Deploy Tokens (CI/CD Integration)
+
+For teams with existing CI/CD pipelines, or when you want full control over when deploys happen.
+
+##### Generate Token
+
+```bash
+$ slipway token:create --name="GitHub Actions" --scope=deploy
+
+✓ Token created: slp_live_abc123...
+
+  Add this to your CI secrets:
+  SLIPWAY_TOKEN=slp_live_abc123...
+
+  Token permissions:
+  • Deploy to linked apps
+  • View deploy logs
+  • Cannot modify settings
+```
+
+##### GitHub Actions Example
+
+```yaml
+# .github/workflows/deploy.yml
+name: Deploy to Slipway
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy to Slipway
+        run: npx slipway slide
+        env:
+          SLIPWAY_TOKEN: ${{ secrets.SLIPWAY_TOKEN }}
+          SLIPWAY_SERVER: https://slipway.yourdomain.com
+```
+
+##### GitLab CI Example
+
+```yaml
+# .gitlab-ci.yml
+deploy:
+  stage: deploy
+  script:
+    - npx slipway slide
+  variables:
+    SLIPWAY_TOKEN: $SLIPWAY_TOKEN
+  only:
+    - main
+```
+
+##### Why Tokens Over SSH Keys
+
+| Aspect | SSH Keys | Deploy Tokens |
+|--------|----------|---------------|
+| Rotation | Manual, disruptive | One-click, instant |
+| Scoping | Per-machine | Per-action (deploy only) |
+| Revocation | Hunt down all copies | Single click in dashboard |
+| Audit trail | None | Full history in dashboard |
+| Team scaling | Each dev needs key | Share token via CI secrets |
+
+---
+
+#### Path 3: CLI Direct Push
+
+For solo developers or when you want to deploy local changes without pushing to Git first.
+
+```bash
+# One-time setup
+$ slipway login
+$ cd my-sails-app
+$ slipway link
+
+# Deploy anytime
+$ slipway slide
+
+  ▶ Packaging local files...
+    → Creating tarball (excluding node_modules, .git)
+
+  ▶ Uploading to Slipway...
+    → 2.3 MB uploaded
+
+  ▶ Building image...
+    → docker build -t slipway/myapp:local-abc123 .
+
+  ▶ Deploying...
+    → Stopping old container
+    → Starting new container
+    → Health check passed
+
+  ✓ Deployed myapp in 47s
+    https://myapp.example.com
+
+  ⚠️  Note: This deploy is not linked to a Git commit.
+      For production, we recommend pushing to Git first.
+```
+
+**When to Use CLI Direct:**
+- Testing changes before committing
+- Hotfixes that need immediate deployment
+- Environments without CI/CD
+- Personal projects
+
+---
+
+#### Branch-Based Environments
+
+Slipway automatically maps branches to environments:
+
+```javascript
+// config/slipway.js
+module.exports.slipway = {
+  environments: {
+    production: {
+      branch: 'main',
+      domain: 'myapp.example.com',
+      autoDeploy: true
+    },
+    staging: {
+      branch: 'develop',
+      domain: 'staging.myapp.example.com',
+      autoDeploy: true
+    },
+    // Preview environments for PRs
+    preview: {
+      pattern: 'pr-*',
+      domain: '{{branch}}.preview.myapp.example.com',
+      autoDeploy: true,
+      autoDestroy: true,  // Delete when PR is closed
+      ttl: '7d'           // Or after 7 days of inactivity
+    }
+  }
+}
+```
+
+##### PR Preview Environments
+
+When a PR is opened:
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│  Pull Request #42: Add user dashboard                                    │
+│  ─────────────────────────────────────────────────────────────────────  │
+│                                                                          │
+│  ┌────────────────────────────────────────────────────────────────────┐ │
+│  │ 🚀 Slipway Preview                                                  │ │
+│  │                                                                     │ │
+│  │ Preview deployed successfully!                                      │ │
+│  │                                                                     │ │
+│  │ 🔗 https://pr-42.preview.myapp.example.com                          │ │
+│  │                                                                     │ │
+│  │ This preview will be automatically deleted when the PR is closed.  │ │
+│  │                                                                     │ │
+│  │ Updated 2 minutes ago • Build time: 34s                            │ │
+│  └────────────────────────────────────────────────────────────────────┘ │
+│                                                                          │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+#### Comparison: Slipway vs Others
+
+| Feature | Heroku | Vercel | Railway | Slipway |
+|---------|--------|--------|---------|---------|
+| Private repo support | SSH keys | GitHub App | GitHub App | **All methods** |
+| GitLab/Bitbucket | Limited | ❌ | Limited | ✅ Full |
+| Self-hosted Git | ❌ | ❌ | ❌ | ✅ |
+| PR previews | ❌ | ✅ | ✅ | ✅ |
+| Branch environments | Manual | ✅ | ✅ | ✅ |
+| Deploy without push | ❌ | ❌ | ❌ | ✅ CLI direct |
+| CI/CD tokens | ❌ | ❌ | ❌ | ✅ |
+| Self-hosted | ❌ | ❌ | ❌ | ✅ |
+| Monorepo support | Limited | ✅ | Limited | ✅ |
+| Framework-aware | ❌ | ❌ | ❌ | ✅ Sails |
+
+---
+
+#### The Slipway Advantage
+
+1. **No vendor lock-in**: Self-hosted, works with any Git provider
+2. **Flexibility**: Three deployment paths for different needs
+3. **Security**: Deploy keys scoped per-repo, tokens scoped per-action
+4. **Developer experience**: Push to GitHub = deployed, or CLI for quick deploys
+5. **Team-friendly**: Tokens for CI/CD, no SSH key management
+6. **Framework-aware**: Sails.js optimization, not generic buildpacks
 
 ### CLI Technology Stack
 
@@ -1114,6 +1419,238 @@ const labelsWithWS = {
 - Tracks errors
 - Generates alerts
 
+#### Git Integration Service
+
+The Git integration is the heart of push-to-deploy. Here's how it works:
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                      GIT INTEGRATION ARCHITECTURE                        │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                          │
+│  ┌─────────────────────────────────────────────────────────────────┐   │
+│  │                     Git Providers                                │   │
+│  │  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────────┐    │   │
+│  │  │  GitHub  │  │  GitLab  │  │ Bitbucket│  │ Self-hosted  │    │   │
+│  │  └────┬─────┘  └────┬─────┘  └────┬─────┘  └──────┬───────┘    │   │
+│  │       │              │              │              │             │   │
+│  │       │  Webhooks    │              │              │             │   │
+│  │       └──────────────┴──────────────┴──────────────┘             │   │
+│  │                              │                                    │   │
+│  └──────────────────────────────┼────────────────────────────────────┘   │
+│                                 │                                        │
+│                                 ▼                                        │
+│  ┌─────────────────────────────────────────────────────────────────┐   │
+│  │                    Webhook Handler                               │   │
+│  │  • Verify signature (HMAC-SHA256)                               │   │
+│  │  • Parse event type (push, PR, tag)                             │   │
+│  │  • Queue deployment job                                          │   │
+│  └────────────────────────────────┬────────────────────────────────┘   │
+│                                   │                                      │
+│                                   ▼                                      │
+│  ┌─────────────────────────────────────────────────────────────────┐   │
+│  │                    Deployment Queue                              │   │
+│  │  • Rate limiting (prevent deploy storms)                        │   │
+│  │  • Deduplication (skip if same commit already deploying)        │   │
+│  │  • Priority (production > staging > preview)                    │   │
+│  └────────────────────────────────┬────────────────────────────────┘   │
+│                                   │                                      │
+│                                   ▼                                      │
+│  ┌─────────────────────────────────────────────────────────────────┐   │
+│  │                    Build Worker                                  │   │
+│  │                                                                  │   │
+│  │  1. Clone Repository                                            │   │
+│  │     ├─ GitHub: Deploy key (SSH) or GitHub App token            │   │
+│  │     ├─ GitLab: Deploy token or OAuth                           │   │
+│  │     └─ Self-hosted: SSH key or HTTPS with token                │   │
+│  │                                                                  │   │
+│  │  2. Detect App Type                                             │   │
+│  │     ├─ Sails.js → Use Sails-optimized Dockerfile               │   │
+│  │     ├─ Has Dockerfile → Use provided Dockerfile                │   │
+│  │     └─ Other Node.js → Use generic Node Dockerfile             │   │
+│  │                                                                  │   │
+│  │  3. Build Docker Image                                          │   │
+│  │     ├─ Layer caching (npm install cached if package.json same) │   │
+│  │     ├─ Build args injection (NODE_ENV, etc.)                   │   │
+│  │     └─ Multi-stage build (small final image)                   │   │
+│  │                                                                  │   │
+│  │  4. Deploy Container                                            │   │
+│  │     ├─ Health check before switching                           │   │
+│  │     ├─ Zero-downtime swap                                       │   │
+│  │     └─ Rollback on failure                                      │   │
+│  │                                                                  │   │
+│  └─────────────────────────────────────────────────────────────────┘   │
+│                                                                          │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+##### Database Schema for Git Integration
+
+```javascript
+// api/models/GitProvider.js
+module.exports = {
+  attributes: {
+    type: { type: 'string', isIn: ['github', 'gitlab', 'bitbucket', 'custom'] },
+    name: { type: 'string' },  // "GitHub" or custom name
+
+    // OAuth credentials (encrypted)
+    clientId: { type: 'string', encrypt: true },
+    clientSecret: { type: 'string', encrypt: true },
+
+    // For GitHub App
+    appId: { type: 'string' },
+    privateKey: { type: 'string', encrypt: true },
+    installationId: { type: 'string' },
+
+    // For self-hosted
+    apiUrl: { type: 'string' },  // e.g., https://gitlab.company.com/api/v4
+
+    team: { model: 'team' }
+  }
+};
+
+// api/models/GitRepository.js
+module.exports = {
+  attributes: {
+    provider: { model: 'gitprovider' },
+
+    // Repository identifiers
+    externalId: { type: 'string' },      // GitHub repo ID
+    fullName: { type: 'string' },        // "user/repo"
+    cloneUrl: { type: 'string' },        // git@github.com:user/repo.git
+    defaultBranch: { type: 'string' },   // "main"
+
+    // Access credentials (encrypted)
+    deployKeyId: { type: 'string' },     // GitHub deploy key ID (for deletion)
+    deployKeyPrivate: { type: 'string', encrypt: true },  // SSH private key
+
+    // Webhook
+    webhookId: { type: 'string' },
+    webhookSecret: { type: 'string', encrypt: true },
+
+    // Link to Slipway app
+    app: { model: 'app' },
+
+    // Branch → Environment mapping
+    branchMappings: { type: 'json' }
+    // e.g., { "main": "production", "develop": "staging", "pr-*": "preview" }
+  }
+};
+
+// api/models/DeployToken.js
+module.exports = {
+  attributes: {
+    name: { type: 'string' },            // "GitHub Actions"
+    token: { type: 'string' },           // slp_live_abc123...
+    tokenHash: { type: 'string' },       // For lookup without storing plain token
+
+    scopes: { type: 'json' },            // ["deploy", "logs"]
+
+    lastUsedAt: { type: 'number' },
+    expiresAt: { type: 'number' },       // Optional expiry
+
+    app: { model: 'app' },               // Scoped to specific app
+    user: { model: 'user' }              // Who created it
+  }
+};
+```
+
+##### Webhook Endpoint
+
+```javascript
+// api/controllers/webhook/github.js
+module.exports = {
+  fn: async function (req, res) {
+    const signature = req.headers['x-hub-signature-256'];
+    const event = req.headers['x-github-event'];
+    const payload = req.body;
+
+    // 1. Find repository by webhook
+    const repo = await GitRepository.findOne({
+      externalId: String(payload.repository.id)
+    });
+
+    if (!repo) {
+      return res.notFound();
+    }
+
+    // 2. Verify signature
+    const isValid = sails.helpers.git.verifyWebhookSignature(
+      req.rawBody,
+      signature,
+      repo.webhookSecret
+    );
+
+    if (!isValid) {
+      return res.forbidden('Invalid signature');
+    }
+
+    // 3. Handle event
+    switch (event) {
+      case 'push':
+        await sails.helpers.git.handlePushEvent(repo, payload);
+        break;
+
+      case 'pull_request':
+        await sails.helpers.git.handlePullRequestEvent(repo, payload);
+        break;
+
+      case 'delete':
+        // Branch deleted - clean up preview environment
+        await sails.helpers.git.handleDeleteEvent(repo, payload);
+        break;
+    }
+
+    return res.ok({ received: true });
+  }
+};
+```
+
+##### CLI Deploy Token Flow
+
+```javascript
+// packages/cli/src/commands/slide.js
+async function slide(options) {
+  // 1. Check for token (CI/CD mode)
+  const token = process.env.SLIPWAY_TOKEN || options.token;
+
+  if (token) {
+    // Token-based deploy (CI/CD)
+    return await deployWithToken(token, options);
+  }
+
+  // 2. Check for saved credentials (interactive mode)
+  const config = await loadConfig();
+
+  if (!config.server || !config.sessionToken) {
+    console.log('Not logged in. Run: slipway login');
+    process.exit(1);
+  }
+
+  // 3. Check if current directory is linked to an app
+  const linkedApp = await getLinkedApp();
+
+  if (!linkedApp) {
+    console.log('Not linked to an app. Run: slipway link');
+    process.exit(1);
+  }
+
+  // 4. Package and upload local files
+  const tarball = await createTarball({
+    exclude: ['node_modules', '.git', '.env', '*.log']
+  });
+
+  // 5. Upload and trigger deploy
+  const deployment = await api.post(`/apps/${linkedApp.id}/deploy`, {
+    source: 'cli-direct',
+    tarball: tarball.toString('base64')
+  });
+
+  // 6. Stream logs
+  await streamDeploymentLogs(deployment.id);
+}
+```
+
 ---
 
 ## Technology Stack
@@ -1759,31 +2296,68 @@ To deploy your 3 apps + databases + Redis from Coolify:
 
 ```
 Week 1-2: Core Infrastructure
-├── [ ] Monorepo setup (npm workspaces)
-├── [ ] packages/dashboard - Basic Sails app with sails-sqlite
+├── [x] Monorepo setup (npm workspaces)
+├── [x] packages/dashboard - Basic Sails app with sails-sqlite
 ├── [ ] packages/cli - Basic CLI structure
 ├── [ ] install.sh - VPS bootstrap
-├── [ ] Docker + Caddy setup
-└── [ ] User authentication (login/register)
+├── [x] Docker + Caddy setup
+└── [x] User authentication (login/register)
 
-Week 3-4: App Deployment
-├── [ ] slipway apps:create
-├── [ ] slipway deploy (git-based)
-├── [ ] Docker image building
-├── [ ] Zero-downtime container replacement
+Week 3-4: Git Integration (PRIORITY)
+├── [ ] Git provider OAuth (GitHub first)
+│   ├── [ ] GitHub App registration
+│   ├── [ ] OAuth flow for user authentication
+│   └── [ ] Installation flow for repo access
+├── [ ] Deploy key management
+│   ├── [ ] Generate SSH keypair per repo
+│   ├── [ ] Add deploy key via GitHub API
+│   └── [ ] Store encrypted private key
+├── [ ] Webhook handling
+│   ├── [ ] Webhook endpoint with signature verification
+│   ├── [ ] Push event handling (trigger deploy)
+│   ├── [ ] PR event handling (preview environments)
+│   └── [ ] Delete event handling (cleanup previews)
+├── [ ] Deploy tokens (CI/CD)
+│   ├── [ ] Token generation with scoped permissions
+│   ├── [ ] Token authentication middleware
+│   └── [ ] Token management UI (create, revoke, audit)
+└── [ ] Branch-to-environment mapping
+
+Week 5-6: App Deployment
+├── [ ] slipway app:create (with repo link)
+├── [ ] Build worker
+│   ├── [ ] Clone via deploy key
+│   ├── [ ] Sails.js detection
+│   ├── [ ] Dockerfile generation/detection
+│   └── [ ] Docker image building with caching
+├── [ ] Zero-downtime deployment
+│   ├── [ ] Health check before switch
+│   ├── [ ] Container replacement
+│   └── [ ] Automatic rollback on failure
 ├── [ ] Environment variables
 ├── [ ] Custom domains + SSL
-└── [ ] slipway logs
+├── [ ] slipway logs (streaming)
+└── [ ] Deployment history & rollback
 
-Week 5-6: Database Services
-├── [ ] slipway postgres:create
-├── [ ] slipway postgres:link (auto DATABASE_URL)
-├── [ ] slipway redis:create
-├── [ ] slipway redis:link
-├── [ ] Backup basics
-└── [ ] slipway postgres:connect
+Week 7-8: Database Services
+├── [x] slipway db:create (postgres, mysql, redis, mongodb)
+├── [x] Auto-inject DATABASE_URL on service link
+├── [x] slipway db:connect (Dock SQL console)
+├── [x] Database export/import
+└── [ ] Automated backups
 
-Week 7-8: Sails Native
+Week 9-10: CLI & Developer Experience
+├── [ ] slipway login (OAuth flow)
+├── [ ] slipway link (link local dir to app)
+├── [ ] slipway slide (deploy)
+│   ├── [ ] From linked Git repo
+│   ├── [ ] Direct upload (no git)
+│   └── [ ] With deploy token (CI/CD)
+├── [ ] slipway logs (real-time streaming)
+├── [ ] slipway env:set/get
+└── [ ] slipway rollback
+
+Week 11-12: Sails Native
 ├── [ ] packages/hook - Basic structure
 ├── [ ] Sails app auto-detection
 ├── [ ] slipway helm (REPL)
@@ -1791,13 +2365,23 @@ Week 7-8: Sails Native
 └── [ ] Quest dashboard (if detected)
 ```
 
+### What's IN MVP (Git Integration Focus)
+
+- ✅ **GitHub integration** (OAuth + GitHub App)
+- ✅ **Push to deploy** (webhook-triggered)
+- ✅ **PR preview environments** (auto-create, auto-destroy)
+- ✅ **Deploy tokens** (for CI/CD pipelines)
+- ✅ **Branch → Environment mapping**
+- ✅ **CLI direct deploy** (without pushing to Git)
+
 ### What's NOT in MVP
 
+- ❌ GitLab/Bitbucket integration (GitHub first, add later)
 - ❌ Serverless deployment
 - ❌ Slipway Cloud (managed offering)
 - ❌ Full OpenTelemetry (basic metrics only)
 - ❌ Sails Content CMS (later)
-- ❌ Team collaboration
+- ❌ Team collaboration (single user first)
 - ❌ Multiple servers/clustering
 
 ### Resource Footprint
@@ -1820,6 +2404,634 @@ Inspired by Linear and Resend:
 - Minimal chrome, maximum content
 - Subtle animations
 - Clean typography (Inter, JetBrains Mono)
+
+### Command Palette (Raycast-Style)
+
+A power-user feature inspired by Raycast, Linear, and VS Code. Press `Cmd+K` (Mac) or `Ctrl+K` (Windows/Linux) to access any action instantly.
+
+#### User Experience
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│  ⌘K                                                                      │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                          │
+│  ┌────────────────────────────────────────────────────────────────────┐ │
+│  │ 🔍  Deploy to production...                                    ⌘D  │ │
+│  └────────────────────────────────────────────────────────────────────┘ │
+│                                                                          │
+│  Recent                                                                  │
+│  ┌────────────────────────────────────────────────────────────────────┐ │
+│  │ 🚀  chieflevite / production          Deploy          ↵ to select │ │
+│  │ 📊  chieflevite / Dock                Open                        │ │
+│  │ 🔧  Settings / Global Env             Navigate                    │ │
+│  └────────────────────────────────────────────────────────────────────┘ │
+│                                                                          │
+│  Actions                                                                 │
+│  ┌────────────────────────────────────────────────────────────────────┐ │
+│  │ 🚀  Deploy project...                                          ⌘D │ │
+│  │ ↩️   Rollback deployment...                                    ⌘R │ │
+│  │ 🔄  Restart service...                                         ⌘⇧R│ │
+│  │ 📋  Copy connection string...                                     │ │
+│  └────────────────────────────────────────────────────────────────────┘ │
+│                                                                          │
+│  Navigation                                                              │
+│  ┌────────────────────────────────────────────────────────────────────┐ │
+│  │ 📁  Go to project...                                           ⌘P │ │
+│  │ ⚙️   Go to settings...                                         ⌘, │ │
+│  │ 🗄️   Open Dock...                                                 │ │
+│  │ 🌉  Open Bridge...                                                │ │
+│  │ ⎈   Open Helm...                                                  │ │
+│  └────────────────────────────────────────────────────────────────────┘ │
+│                                                                          │
+│  ↑↓ Navigate  ↵ Select  ⎋ Close  ⌘⌫ Clear                              │
+│                                                                          │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+#### Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    COMMAND PALETTE ARCHITECTURE                          │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                          │
+│  ┌─────────────────────────────────────────────────────────────────┐   │
+│  │                     CommandPalette.vue                           │   │
+│  │  • Modal overlay (Teleport to body)                             │   │
+│  │  • Search input with debounce                                   │   │
+│  │  • Keyboard navigation (↑↓↵⎋)                                   │   │
+│  │  • Result grouping & rendering                                  │   │
+│  └────────────────────────────────┬────────────────────────────────┘   │
+│                                   │                                      │
+│                                   ▼                                      │
+│  ┌─────────────────────────────────────────────────────────────────┐   │
+│  │                   useCommandPalette.js (Composable)              │   │
+│  │                                                                  │   │
+│  │  • isOpen: ref<boolean>                                         │   │
+│  │  • query: ref<string>                                           │   │
+│  │  • results: computed (filtered & ranked)                        │   │
+│  │  • selectedIndex: ref<number>                                   │   │
+│  │  • execute(command): void                                       │   │
+│  │  • registerCommand(command): void                               │   │
+│  │  • history: ref<Command[]>                                      │   │
+│  └────────────────────────────────┬────────────────────────────────┘   │
+│                                   │                                      │
+│                                   ▼                                      │
+│  ┌─────────────────────────────────────────────────────────────────┐   │
+│  │                     Command Registry                             │   │
+│  │                                                                  │   │
+│  │  commands: Map<string, Command>                                 │   │
+│  │                                                                  │   │
+│  │  interface Command {                                            │   │
+│  │    id: string                    // 'deploy.project'            │   │
+│  │    title: string                 // 'Deploy project'            │   │
+│  │    icon: string                  // '🚀' or component           │   │
+│  │    keywords: string[]            // ['ship', 'push', 'release'] │   │
+│  │    shortcut?: string             // '⌘D'                        │   │
+│  │    group: string                 // 'actions' | 'navigation'    │   │
+│  │    context?: () => boolean       // When to show this command   │   │
+│  │    action: () => void | Promise  // What to execute             │   │
+│  │    children?: () => Command[]    // Sub-commands (drill-down)   │   │
+│  │  }                                                              │   │
+│  └─────────────────────────────────────────────────────────────────┘   │
+│                                                                          │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+#### Command Types
+
+| Type | Examples | Behavior |
+|------|----------|----------|
+| **Actions** | Deploy, Rollback, Restart | Execute immediately or show sub-menu |
+| **Navigation** | Go to project, Open settings | Router navigation |
+| **Search** | Find project, Find service | Filter results as you type |
+| **Quick Access** | Recent projects, Pinned items | Show personalized results |
+| **Contextual** | Copy DATABASE_URL (on Dock) | Only shown in relevant context |
+
+#### Implementation
+
+##### 1. Command Registry (`assets/js/composables/useCommandRegistry.js`)
+
+```javascript
+// Singleton command registry
+const commands = new Map()
+const history = useLocalStorage('slipway:command-history', [])
+
+export function useCommandRegistry() {
+  function register(command) {
+    commands.set(command.id, {
+      ...command,
+      // Normalize keywords for search
+      _searchText: [
+        command.title,
+        ...(command.keywords || [])
+      ].join(' ').toLowerCase()
+    })
+  }
+
+  function unregister(id) {
+    commands.delete(id)
+  }
+
+  function getAll(context = {}) {
+    return Array.from(commands.values())
+      .filter(cmd => !cmd.context || cmd.context(context))
+  }
+
+  function execute(id, ...args) {
+    const cmd = commands.get(id)
+    if (cmd) {
+      // Track in history
+      history.value = [id, ...history.value.filter(h => h !== id)].slice(0, 10)
+      return cmd.action(...args)
+    }
+  }
+
+  return { register, unregister, getAll, execute, history }
+}
+```
+
+##### 2. Fuzzy Search (`assets/js/lib/fuzzySearch.js`)
+
+```javascript
+/**
+ * Fuzzy search with scoring
+ * Inspired by fzf/Raycast ranking
+ */
+export function fuzzyMatch(query, text) {
+  const queryLower = query.toLowerCase()
+  const textLower = text.toLowerCase()
+
+  let score = 0
+  let queryIndex = 0
+  let consecutiveMatches = 0
+  let lastMatchIndex = -1
+
+  for (let i = 0; i < textLower.length && queryIndex < queryLower.length; i++) {
+    if (textLower[i] === queryLower[queryIndex]) {
+      // Boost for consecutive matches
+      if (lastMatchIndex === i - 1) {
+        consecutiveMatches++
+        score += 2 * consecutiveMatches
+      } else {
+        consecutiveMatches = 0
+        score += 1
+      }
+
+      // Boost for word boundary matches
+      if (i === 0 || text[i - 1] === ' ' || text[i - 1] === '/') {
+        score += 5
+      }
+
+      // Boost for exact case match
+      if (text[i] === query[queryIndex]) {
+        score += 1
+      }
+
+      lastMatchIndex = i
+      queryIndex++
+    }
+  }
+
+  // All query chars must match
+  if (queryIndex < queryLower.length) return null
+
+  // Boost shorter matches (more relevant)
+  score -= text.length * 0.1
+
+  return { score, text }
+}
+
+export function fuzzySearch(query, items, getText) {
+  if (!query) return items
+
+  return items
+    .map(item => {
+      const result = fuzzyMatch(query, getText(item))
+      return result ? { item, score: result.score } : null
+    })
+    .filter(Boolean)
+    .sort((a, b) => b.score - a.score)
+    .map(r => r.item)
+}
+```
+
+##### 3. Command Palette Component (`assets/js/components/CommandPalette.vue`)
+
+```vue
+<script setup>
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import { useRouter } from 'vue-router'
+import { useCommandRegistry } from '@/composables/useCommandRegistry'
+import { fuzzySearch } from '@/lib/fuzzySearch'
+
+const router = useRouter()
+const { getAll, execute, history } = useCommandRegistry()
+
+const isOpen = ref(false)
+const query = ref('')
+const selectedIndex = ref(0)
+const inputRef = ref(null)
+const mode = ref('root') // 'root' | 'submenu'
+const parentCommand = ref(null)
+
+// Get commands based on current context
+const currentContext = computed(() => ({
+  route: router.currentRoute.value,
+  // Add more context as needed
+}))
+
+const allCommands = computed(() => getAll(currentContext.value))
+
+// Filter and group results
+const results = computed(() => {
+  let cmds = mode.value === 'submenu' && parentCommand.value?.children
+    ? parentCommand.value.children()
+    : allCommands.value
+
+  if (query.value) {
+    cmds = fuzzySearch(query.value, cmds, c => c._searchText || c.title)
+  }
+
+  // Group by category
+  const groups = {}
+
+  // Add recent first if no query
+  if (!query.value && mode.value === 'root') {
+    const recent = history.value
+      .map(id => cmds.find(c => c.id === id))
+      .filter(Boolean)
+      .slice(0, 3)
+
+    if (recent.length) {
+      groups['Recent'] = recent
+    }
+  }
+
+  // Group remaining by their group property
+  cmds.forEach(cmd => {
+    if (!query.value && history.value.includes(cmd.id)) return // Skip recent
+    const group = cmd.group || 'Other'
+    if (!groups[group]) groups[group] = []
+    groups[group].push(cmd)
+  })
+
+  return groups
+})
+
+// Flat list for keyboard navigation
+const flatResults = computed(() =>
+  Object.values(results.value).flat()
+)
+
+// Keyboard handling
+function handleKeydown(e) {
+  // Global: Open palette
+  if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+    e.preventDefault()
+    isOpen.value = !isOpen.value
+    return
+  }
+
+  if (!isOpen.value) return
+
+  switch (e.key) {
+    case 'ArrowDown':
+      e.preventDefault()
+      selectedIndex.value = Math.min(
+        selectedIndex.value + 1,
+        flatResults.value.length - 1
+      )
+      break
+
+    case 'ArrowUp':
+      e.preventDefault()
+      selectedIndex.value = Math.max(selectedIndex.value - 1, 0)
+      break
+
+    case 'Enter':
+      e.preventDefault()
+      const cmd = flatResults.value[selectedIndex.value]
+      if (cmd) selectCommand(cmd)
+      break
+
+    case 'Escape':
+      e.preventDefault()
+      if (mode.value === 'submenu') {
+        mode.value = 'root'
+        parentCommand.value = null
+        query.value = ''
+      } else {
+        isOpen.value = false
+      }
+      break
+
+    case 'Backspace':
+      if (!query.value && mode.value === 'submenu') {
+        mode.value = 'root'
+        parentCommand.value = null
+      }
+      break
+  }
+}
+
+function selectCommand(cmd) {
+  if (cmd.children) {
+    // Drill down into submenu
+    mode.value = 'submenu'
+    parentCommand.value = cmd
+    query.value = ''
+    selectedIndex.value = 0
+  } else {
+    // Execute and close
+    isOpen.value = false
+    query.value = ''
+    mode.value = 'root'
+    execute(cmd.id)
+  }
+}
+
+// Reset state when opening
+watch(isOpen, (open) => {
+  if (open) {
+    query.value = ''
+    selectedIndex.value = 0
+    mode.value = 'root'
+    parentCommand.value = null
+    nextTick(() => inputRef.value?.focus())
+  }
+})
+
+// Reset selection when results change
+watch(query, () => {
+  selectedIndex.value = 0
+})
+
+onMounted(() => {
+  document.addEventListener('keydown', handleKeydown)
+})
+
+onUnmounted(() => {
+  document.removeEventListener('keydown', handleKeydown)
+})
+</script>
+
+<template>
+  <Teleport to="body">
+    <Transition name="fade">
+      <div
+        v-if="isOpen"
+        class="fixed inset-0 z-50 flex items-start justify-center pt-[20vh]"
+        @click.self="isOpen = false"
+      >
+        <!-- Backdrop -->
+        <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" />
+
+        <!-- Palette -->
+        <div class="relative w-full max-w-xl rounded-xl border border-gray-200 bg-white shadow-2xl dark:border-gray-700 dark:bg-gray-900">
+          <!-- Search input -->
+          <div class="flex items-center border-b border-gray-200 px-4 dark:border-gray-700">
+            <SearchIcon class="h-5 w-5 text-gray-400" />
+            <input
+              ref="inputRef"
+              v-model="query"
+              type="text"
+              class="w-full bg-transparent px-3 py-4 text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:text-white"
+              :placeholder="mode === 'submenu' ? parentCommand?.title : 'Type a command or search...'"
+            />
+            <kbd class="hidden rounded bg-gray-100 px-2 py-1 text-xs text-gray-500 dark:bg-gray-800 sm:inline">
+              esc
+            </kbd>
+          </div>
+
+          <!-- Results -->
+          <div class="max-h-80 overflow-y-auto p-2">
+            <template v-for="(commands, group) in results" :key="group">
+              <div class="px-2 py-1.5 text-xs font-medium text-gray-500 dark:text-gray-400">
+                {{ group }}
+              </div>
+              <button
+                v-for="(cmd, i) in commands"
+                :key="cmd.id"
+                @click="selectCommand(cmd)"
+                @mouseenter="selectedIndex = flatResults.indexOf(cmd)"
+                :class="[
+                  'flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm',
+                  flatResults.indexOf(cmd) === selectedIndex
+                    ? 'bg-gray-100 dark:bg-gray-800'
+                    : 'hover:bg-gray-50 dark:hover:bg-gray-800/50'
+                ]"
+              >
+                <span class="text-lg">{{ cmd.icon }}</span>
+                <span class="flex-1 text-gray-900 dark:text-white">{{ cmd.title }}</span>
+                <kbd v-if="cmd.shortcut" class="text-xs text-gray-400">{{ cmd.shortcut }}</kbd>
+                <ChevronRightIcon v-if="cmd.children" class="h-4 w-4 text-gray-400" />
+              </button>
+            </template>
+
+            <!-- Empty state -->
+            <div v-if="!flatResults.length" class="py-8 text-center text-sm text-gray-500">
+              No commands found for "{{ query }}"
+            </div>
+          </div>
+
+          <!-- Footer -->
+          <div class="flex items-center justify-between border-t border-gray-200 px-4 py-2 text-xs text-gray-500 dark:border-gray-700">
+            <div class="flex gap-2">
+              <span><kbd>↑↓</kbd> Navigate</span>
+              <span><kbd>↵</kbd> Select</span>
+              <span><kbd>esc</kbd> Close</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </Transition>
+  </Teleport>
+</template>
+```
+
+##### 4. Registering Commands (`assets/js/commands/index.js`)
+
+```javascript
+import { useCommandRegistry } from '@/composables/useCommandRegistry'
+import { router } from '@/router'
+
+export function registerCoreCommands() {
+  const { register } = useCommandRegistry()
+
+  // === Navigation Commands ===
+
+  register({
+    id: 'nav.projects',
+    title: 'Go to Projects',
+    icon: '📁',
+    keywords: ['dashboard', 'home', 'apps'],
+    shortcut: '⌘P',
+    group: 'Navigation',
+    action: () => router.push('/')
+  })
+
+  register({
+    id: 'nav.settings',
+    title: 'Go to Settings',
+    icon: '⚙️',
+    keywords: ['preferences', 'config'],
+    shortcut: '⌘,',
+    group: 'Navigation',
+    action: () => router.push('/settings')
+  })
+
+  register({
+    id: 'nav.settings.git',
+    title: 'Git Settings',
+    icon: '🔗',
+    keywords: ['github', 'gitlab', 'repository'],
+    group: 'Navigation',
+    action: () => router.push('/settings/git')
+  })
+
+  register({
+    id: 'nav.settings.env',
+    title: 'Global Environment Variables',
+    icon: '🌍',
+    keywords: ['env', 'variables', 'secrets'],
+    group: 'Navigation',
+    action: () => router.push('/settings/global-env')
+  })
+
+  // === Action Commands ===
+
+  register({
+    id: 'action.deploy',
+    title: 'Deploy project...',
+    icon: '🚀',
+    keywords: ['ship', 'push', 'release', 'slide'],
+    shortcut: '⌘D',
+    group: 'Actions',
+    // Show submenu of projects/environments
+    children: () => getDeployableEnvironments()
+  })
+
+  register({
+    id: 'action.rollback',
+    title: 'Rollback deployment...',
+    icon: '↩️',
+    keywords: ['revert', 'undo'],
+    shortcut: '⌘R',
+    group: 'Actions',
+    children: () => getRollbackOptions()
+  })
+
+  // === Contextual Commands (shown only in relevant context) ===
+
+  register({
+    id: 'context.copy-db-url',
+    title: 'Copy DATABASE_URL',
+    icon: '📋',
+    keywords: ['connection', 'string', 'postgres'],
+    group: 'Quick Actions',
+    context: (ctx) => ctx.route.path.includes('/dock'),
+    action: () => copyDatabaseUrl()
+  })
+
+  register({
+    id: 'context.open-logs',
+    title: 'View Logs',
+    icon: '📜',
+    keywords: ['output', 'console', 'debug'],
+    group: 'Quick Actions',
+    context: (ctx) => ctx.route.path.includes('/projects/'),
+    action: () => openLogsPanel()
+  })
+}
+
+// Dynamic command generators
+function getDeployableEnvironments() {
+  // Fetch from store or API
+  return projects.value.flatMap(project =>
+    project.environments.map(env => ({
+      id: `deploy.${project.slug}.${env.slug}`,
+      title: `${project.name} / ${env.name}`,
+      icon: env.slug === 'production' ? '🔴' : '🟡',
+      action: () => triggerDeploy(project.slug, env.slug)
+    }))
+  )
+}
+```
+
+#### Keyboard Shortcuts
+
+| Shortcut | Action |
+|----------|--------|
+| `⌘K` / `Ctrl+K` | Open command palette |
+| `⌘D` | Deploy (opens project selector) |
+| `⌘R` | Rollback (opens deployment selector) |
+| `⌘P` | Go to project |
+| `⌘,` | Open settings |
+| `⌘⇧R` | Restart service |
+| `⌘.` | Quick actions menu |
+| `↑↓` | Navigate results |
+| `↵` | Execute selected |
+| `⎋` | Close / Go back |
+| `⌘⌫` | Clear search |
+
+#### Advanced Features
+
+##### 1. Nested Commands (Drill-Down)
+
+```javascript
+register({
+  id: 'action.service',
+  title: 'Service actions...',
+  icon: '🔧',
+  group: 'Actions',
+  children: () => [
+    { id: 'service.restart', title: 'Restart', icon: '🔄', action: restartService },
+    { id: 'service.stop', title: 'Stop', icon: '⏹️', action: stopService },
+    { id: 'service.logs', title: 'View Logs', icon: '📜', action: viewLogs },
+    { id: 'service.shell', title: 'Open Shell', icon: '💻', action: openShell },
+  ]
+})
+```
+
+##### 2. Dynamic Search Results
+
+```javascript
+register({
+  id: 'search.projects',
+  title: 'Search projects...',
+  icon: '🔍',
+  group: 'Search',
+  // Async children - fetched as user types
+  children: async (query) => {
+    const projects = await searchProjects(query)
+    return projects.map(p => ({
+      id: `project.${p.id}`,
+      title: p.name,
+      icon: '📁',
+      action: () => router.push(`/projects/${p.slug}`)
+    }))
+  }
+})
+```
+
+##### 3. Recent & Pinned
+
+```javascript
+// Track command usage
+const commandHistory = useLocalStorage('slipway:cmd-history', [])
+const pinnedCommands = useLocalStorage('slipway:cmd-pinned', [])
+
+// Show at top of results
+const recentCommands = computed(() =>
+  commandHistory.value.slice(0, 5).map(id => commands.get(id))
+)
+```
+
+##### 4. Theme Integration
+
+The command palette follows the app's dark/light mode automatically and uses the same design tokens for consistency.
 
 ---
 
@@ -2642,6 +3854,233 @@ slipway helm my-app
 │ 3  │ dev@example.com  │ developer │ 2024-01-17T09:15   │
 └────┴──────────────────┴───────────┴────────────────────┘
 ```
+
+---
+
+## Slipway Lookout — Unified Application Observability
+
+### The Name: Lookout
+
+On a ship, the **lookout** is the crew member stationed in the crow's nest — the highest vantage point — watching for danger, obstacles, and opportunities on the horizon. They see everything: weather patterns, approaching vessels, shallow water, and coastline. The lookout doesn't just see one thing — they see the *whole picture* from a position of advantage.
+
+**Slipway Lookout** = Laravel Nightwatch + Laravel Pulse, unified in one self-hosted, Sails-native observability platform.
+
+- **Nightwatch** = deep event-level tracing, error tracking, request timelines, team collaboration
+- **Pulse** = real-time dashboard with server stats, slow queries, queue throughput, cache performance
+- **Lookout** = both, in one view, self-hosted, free, built for Sails.js
+
+> "The Lookout sees everything your app does — from the crow's nest."
+
+### What Laravel Has (Two Separate Products)
+
+Laravel split observability into two products with different trade-offs:
+
+| Aspect | Laravel Pulse | Laravel Nightwatch |
+|--------|--------------|-------------------|
+| **Type** | Self-hosted, open source | Managed cloud SaaS |
+| **Cost** | Free | $0–$20+/mo (event-based pricing) |
+| **Data** | Aggregated metrics only | Event-level granularity |
+| **Dashboard** | Real-time widgets (Livewire cards) | Deep drill-down traces |
+| **Error tracking** | Exception frequency/recency | Full stack traces + issue tracking |
+| **Query monitoring** | Slow query aggregates | Individual query traces with timeline |
+| **Team features** | None | Issue assignment, collaboration, priorities |
+| **Alerts** | None | Configurable alerts, smart grouping |
+| **Server stats** | CPU, memory, disk (via daemon) | Server metrics via agent |
+| **Request tracing** | None | Full request timeline (microsecond precision) |
+| **Queue monitoring** | Throughput cards | Job-level tracing + failure inspection |
+| **Cache** | Hit/miss stats per key | Not a focus |
+| **Custom cards** | Livewire extensible | N/A |
+
+**The problem**: To get the full picture, Laravel developers need *both* — a free dashboard for glanceable metrics AND a paid service for deep tracing. Two different UIs, two different data stores, two different mental models.
+
+### What Slipway Lookout Provides (The Marriage)
+
+Lookout combines both into a single, self-hosted feature inside the Slipway dashboard:
+
+#### Pulse-Side: The Glanceable Dashboard
+
+Real-time cards showing vital signs at a glance:
+
+| Card | What It Shows | Sails-Native Twist |
+|------|--------------|-------------------|
+| **Servers** | CPU, memory, disk per container | Docker container stats via `docker stats` API |
+| **Slow Requests** | Endpoints exceeding threshold | Sails action names, not generic Express routes |
+| **Slow Queries** | Waterline queries over threshold | Shows model + method (e.g., `User.find()`) |
+| **Slow Jobs** | Quest jobs exceeding threshold | Sails Quest job names, not generic worker IDs |
+| **Exceptions** | Frequency, recency, grouping | Grouped by Sails action/helper origin |
+| **Queues** | Pending, processing, failed, completed | Sails Quest integration, per-queue breakdown |
+| **Cache** | Hit/miss ratios per key group | Redis service stats from Dock |
+| **App Usage** | Top users by requests, slow requests, jobs | Via Sails session/auth integration |
+| **Outgoing HTTP** | Slow external API calls | Machine helper calls tracked |
+
+#### Nightwatch-Side: Deep Tracing & Issue Management
+
+| Feature | What It Does | Sails-Native Twist |
+|---------|-------------|-------------------|
+| **Request Timeline** | Microsecond-precision trace of every request | Shows Sails lifecycle: policies → action → response |
+| **Query Inspector** | Individual query analysis with explain plans | Waterline model context (which `.find()` generated which SQL) |
+| **Error Tracker** | Stack traces → issues → assignment → resolution | Maps to Sails helpers/actions, not generic files |
+| **Job Inspector** | Full job execution trace with retry | Sails Quest job payload + execution context |
+| **Alert Rules** | Configurable thresholds with notifications | "Alert when `POST /api/v1/deploy` > 30s" |
+| **Issue Board** | Kanban-style issue tracking for errors | Built into Slipway's team/notification system |
+| **Log Search** | Searchable, filterable structured logs | Container log aggregation via `docker logs` |
+
+#### How It Works Technically
+
+```
+┌─────────────────────────┐       ┌──────────────────────────────┐
+│   Your Sails App        │       │   Slipway Server (Lookout)   │
+│                         │       │                              │
+│  ┌───────────────────┐  │ OTLP  │  ┌────────────────────────┐ │
+│  │ sails-hook-slipway│──┼──────▶│  │  Telemetry Collector   │ │
+│  │                   │  │       │  └───────────┬────────────┘ │
+│  │ Auto-instruments: │  │       │              │              │
+│  │ • HTTP requests   │  │       │              ▼              │
+│  │ • Waterline queries│ │       │  ┌────────────────────────┐ │
+│  │ • Sails actions   │  │       │  │  SQLite / PostgreSQL   │ │
+│  │ • Quest jobs      │  │       │  │  (event storage)       │ │
+│  │ • Cache ops       │  │       │  └───────────┬────────────┘ │
+│  │ • Outgoing HTTP   │  │       │              │              │
+│  │ • Exceptions      │  │       │              ▼              │
+│  └───────────────────┘  │       │  ┌────────────────────────┐ │
+│                         │       │  │  Lookout Dashboard     │ │
+│  Also collects:         │       │  │  • Pulse-style cards   │ │
+│  • Container stats      │       │  │  • Deep trace viewer   │ │
+│  • Log streams          │       │  │  • Issue tracker       │ │
+└─────────────────────────┘       │  │  • Alert engine        │ │
+                                  │  └────────────────────────┘ │
+                                  └──────────────────────────────┘
+```
+
+**Data pipeline**:
+1. `sails-hook-slipway` instruments the app via OpenTelemetry
+2. Events stream to Slipway's telemetry collector (OTLP endpoint)
+3. Slipway stores raw events (for tracing) AND computes aggregates (for dashboard cards)
+4. Both views — cards and traces — powered by the same data, in one UI
+
+**Key architectural advantage over Laravel's split**: Because Slipway stores event-level data AND computes aggregates from it, clicking on a "slow queries" card can drill down into the individual query trace. Pulse can't do this (aggregates only). Nightwatch can, but it's a separate product. Lookout connects them seamlessly.
+
+### The Dashboard Layout
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│  Lookout — myapp / production                              [1h ▾]  │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                     │
+│  ┌─ Server ──────┐  ┌─ Requests ──────┐  ┌─ Errors ─────────────┐ │
+│  │ CPU    23%     │  │ 1,247 req/min   │  │ 3 new exceptions     │ │
+│  │ Memory 512MB   │  │ p95: 142ms      │  │ 12 total today       │ │
+│  │ Disk   34%     │  │ p99: 890ms      │  │ ⚠ 1 unresolved       │ │
+│  └────────────────┘  └─────────────────┘  └──────────────────────┘ │
+│                                                                     │
+│  ┌─ Slow Requests ─────────────────┐  ┌─ Slow Queries ──────────┐ │
+│  │ POST /api/v1/deploy   4.2s (3x) │  │ User.find()     890ms   │ │
+│  │ GET  /projects/:id    1.8s (12x) │  │ Project.find()  450ms   │ │
+│  │ POST /api/v1/dock/sql 1.2s (8x)  │  │ Deployment.create 320ms│ │
+│  │                   [View traces →] │  │             [Inspect →] │ │
+│  └──────────────────────────────────┘  └─────────────────────────┘ │
+│                                                                     │
+│  ┌─ Queues ──────────────┐  ┌─ Cache ─────────────────────────────┐│
+│  │ deploy   12 pending    │  │ Hit rate: 94.2%                     ││
+│  │ email     0 pending    │  │ Most missed: user:session:*  (6%)   ││
+│  │ backup    1 processing │  │ Most hit:   settings:global  (847)  ││
+│  └────────────────────────┘  └─────────────────────────────────────┘│
+│                                                                     │
+│  ┌─ Exceptions ─────────────────────────────────────────────────┐  │
+│  │ ● TypeError: Cannot read property 'id' of undefined          │  │
+│  │   api/helpers/docker/run-container.js:47 — 3x in last hour   │  │
+│  │   [Assign] [Resolve] [View trace →]                          │  │
+│  │                                                               │  │
+│  │ ○ ECONNREFUSED: connect ECONNREFUSED 127.0.0.1:5432          │  │
+│  │   api/helpers/dock/execute-sql.js:98 — 1x in last hour       │  │
+│  │   [Assign] [Resolve] [View trace →]                          │  │
+│  └──────────────────────────────────────────────────────────────┘  │
+│                                                                     │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+Clicking "View trace →" on any item drills into the Nightwatch-style timeline:
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│  Request Trace — POST /api/v1/deploy/trigger-deployment             │
+│  Duration: 4,247ms | Status: 200 | User: admin@example.com         │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                     │
+│  Timeline                                                           │
+│  ────────────────────────────────────────────────────               │
+│  0ms      Policy: is-logged-in              2ms    ■                │
+│  2ms      Policy: can-deploy                5ms    ■                │
+│  7ms      Environment.findOne()             12ms   ██               │
+│  19ms     Project.findOne().populate()      45ms   █████            │
+│  64ms     docker build                      3800ms ████████████████ │
+│  3864ms   docker run                        320ms  ██████           │
+│  4184ms   Deployment.create()               15ms   ██               │
+│  4199ms   Notification.send()               48ms   █████            │
+│                                                                     │
+│  Queries (4)                                                        │
+│  ─────────                                                          │
+│  SELECT * FROM environment WHERE id = ? AND ...       12ms          │
+│  SELECT * FROM project WHERE id = ? ...               38ms          │
+│  INSERT INTO deployment (project, ...) VALUES ...     15ms          │
+│  INSERT INTO notification (user, ...) VALUES ...       3ms          │
+│                                                                     │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### What Apps/Services Lookout Replaces
+
+When Lookout ships, Slipway users won't need any of these:
+
+| Tool | What It Does | Lookout Equivalent | Annual Cost Saved |
+|------|-------------|-------------------|-------------------|
+| **Sentry** | Error tracking, stack traces, issue management | Lookout error tracker + issue board | $26–$80/mo |
+| **New Relic** | APM, request tracing, server monitoring | Lookout traces + server cards | $25–$99/mo per host |
+| **Datadog** | Infrastructure monitoring, APM, logs | Lookout dashboard + traces + logs | $15–$35/mo per host |
+| **BugSnag** | Error monitoring, stability tracking | Lookout error tracker | $59–$249/mo |
+| **Logtail/Better Stack** | Log aggregation, search, alerts | Lookout log search + alerts | $25–$85/mo |
+| **Uptime Robot** | Uptime monitoring, status page | Lookout health checks | $7–$57/mo |
+| **Laravel Pulse** | Real-time dashboard cards | Lookout dashboard (same concept) | Free (but Laravel-only) |
+| **Laravel Nightwatch** | Deep tracing, issue tracking | Lookout traces + issues | $20+/mo |
+| **PM2 Plus** | Node.js process monitoring | Lookout server cards | $14–$79/mo |
+| **Papertrail** | Log management, search, alerts | Lookout log search | $7–$230/mo |
+| **Prometheus + Grafana** | Metrics collection + dashboards | Lookout dashboard cards | Free (but complex setup) |
+| **Elastic APM** | Full-stack observability | Lookout traces + dashboard | Free (but massive infra overhead) |
+
+**Conservative estimate**: A typical production Sails app using Sentry + a log service + uptime monitoring = **$50–$200/month**. Lookout provides all of this for $0 (self-hosted in Slipway).
+
+### Why This Is Massive for the Sails Ecosystem
+
+1. **No equivalent exists for Node.js/Sails**: Laravel has Nightwatch + Pulse. Rails has Skylight + Scout. Django has Silk. Sails has... nothing framework-aware. Lookout fills a void nobody else is addressing.
+
+2. **Self-hosted by default**: Unlike Nightwatch ($20+/mo, cloud-only), Lookout runs on the same server as Slipway. Your data never leaves your infrastructure. This matters for GDPR, SOC 2, and HIPAA-conscious teams.
+
+3. **Framework-native intelligence**: Generic APMs show you "Express middleware took 200ms." Lookout shows you "the `is-logged-in` policy took 2ms, then `User.findOne()` took 45ms in the `trigger-deployment` action." It speaks Sails, not Node.js generics.
+
+4. **Zero-config for Slipway-deployed apps**: If your app is deployed via Slipway, Lookout works automatically. No agent installation, no SDK setup, no configuration. The telemetry hook is injected at deploy time.
+
+5. **Connected to the deployment lifecycle**: Lookout can correlate errors with deployments. "This exception started appearing after deployment v1.2.3." No third-party tool can do this natively with Slipway.
+
+6. **Unified experience**: One dashboard for deploying, managing databases (Dock), AND monitoring your app. No context-switching between 4 different tools.
+
+### Implementation Phases
+
+| Phase | What Ships | Timeline |
+|-------|-----------|----------|
+| **Phase 1: Dashboard Cards** | Server stats, request/error counts, slow queries — the Pulse equivalent | MVP+1 |
+| **Phase 2: Error Tracking** | Exception capture, grouping, stack traces, issue board | MVP+2 |
+| **Phase 3: Request Tracing** | Full timeline view, query inspector, dependency map | MVP+3 |
+| **Phase 4: Alerts & Logs** | Configurable alerts, log aggregation, search | MVP+4 |
+
+### The Positioning
+
+> **"Slipway Lookout: The observability platform that ships with your deployment platform. Zero setup. Zero cost. Full visibility."**
+
+Or simpler:
+
+> **"Every app you deploy with Slipway is automatically monitored by Lookout."**
+
+This is the killer feature that makes Slipway not just a "deployment tool" but a complete **application operations platform** — and it's the feature that justifies charging for Slipway Cloud (managed hosting) while keeping self-hosted free.
 
 ---
 

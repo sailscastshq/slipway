@@ -10,19 +10,70 @@
  */
 
 module.exports.bootstrap = async function () {
-  // By convention, this is a good place to set up fake data during development.
-  //
-  // For example:
-  // ```
-  // // Set up fake development data (or if we already have some, avast)
-  // if (await User.count() > 0) {
-  //   return;
-  // }
-  //
-  // await User.createEach([
-  //   { email: 'ry@example.com', fullName: 'Ryan Dahl', },
-  //   { email: 'rachael@example.com', fullName: 'Rachael Shaw', },
-  //   // etc.
-  // ]);
-  // ```
+  // Initialize CLI tokens map for Bearer token authentication
+  sails.cliTokens = new Map()
+
+  // Check if Slipway has been set up (genesis user exists)
+  const genesisUser = await User.findOne({ isGenesisUser: true })
+
+  // Store setup status in config for middleware/policies to use
+  sails.config.custom.slipwayIsSetup = !!genesisUser
+
+  if (genesisUser) {
+    sails.log.info('Slipway is configured. Genesis user:', genesisUser.email)
+  } else {
+    sails.log.info('Slipway needs initial setup. Visit /setup to configure.')
+  }
+
+  // One-time migration: backfill multi-app fields on existing App/Deployment records
+  const migrationDone = await sails.helpers.setting.get('multiAppMigrationDone')
+  if (!migrationDone) {
+    try {
+      const apps = await App.find()
+      for (const app of apps) {
+        const updates = {}
+        if (!app.slug) updates.slug = 'app'
+        if (!app.name) updates.name = 'app'
+        if (app.isDefault === undefined || app.isDefault === null) updates.isDefault = true
+        if (Object.keys(updates).length > 0) {
+          await App.updateOne({ id: app.id }).set(updates)
+        }
+      }
+
+      // Backfill Deployment.app for existing deployments
+      const deployments = await Deployment.find({ app: null })
+      for (const dep of deployments) {
+        const app = await App.findOne({ environment: dep.environment })
+        if (app) {
+          await Deployment.updateOne({ id: dep.id }).set({ app: app.id })
+        }
+      }
+
+      await sails.helpers.setting.set('multiAppMigrationDone', 'true')
+      sails.log.info('Multi-app migration completed successfully.')
+    } catch (err) {
+      sails.log.warn('Multi-app migration failed (will retry on next boot):', err.message)
+    }
+  }
+
+  // Ensure Docker network exists
+  try {
+    await sails.helpers.docker.ensureNetwork()
+  } catch (error) {
+    sails.log.warn('Could not ensure Docker network. Docker may not be available.')
+    sails.log.verbose(error)
+  }
+
+  // Configure Caddy TLS if ACME email is set
+  if (genesisUser) {
+    try {
+      const acmeEmail = await sails.helpers.setting.get('acmeEmail')
+      if (acmeEmail) {
+        await sails.helpers.caddy.configureTls({ acmeEmail })
+        sails.log.info('Caddy TLS configured with ACME email:', acmeEmail)
+      }
+    } catch (error) {
+      sails.log.verbose('Could not configure Caddy TLS:', error.message)
+    }
+  }
 }

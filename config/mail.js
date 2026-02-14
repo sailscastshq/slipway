@@ -18,7 +18,7 @@ module.exports.mail = {
    * the default choice.
    *
    */
-  default: process.env.MAIL_MAILER || 'log',
+  default: process.env.MAIL_MAILER || 'smtp',
   /**
    * Mailer Configurations
    * (config.mail.mailers)
@@ -54,7 +54,7 @@ module.exports.mail = {
    *
    */
   from: {
-    address: 'boring@sailscasts.com',
-    name: 'The Boring JavaScript Stack'
+    address: 'slipway@sailscasts.com',
+    name: 'Slipway'
   }
 }
