@@ -31,6 +31,21 @@ module.exports = {
         .replace(/^https?:\/\//, '')
         .replace(/\/+$/, '')
       await sails.helpers.setting.set('instanceDomain', cleanDomain)
+
+      // Update Caddy route for the dashboard domain
+      if (cleanDomain) {
+        try {
+          await sails.helpers.caddy.updateDashboardRoute(cleanDomain)
+        } catch (err) {
+          sails.log.warn('Failed to create Caddy dashboard route:', err.message)
+        }
+      } else {
+        try {
+          await sails.helpers.caddy.removeDashboardRoute()
+        } catch (err) {
+          sails.log.warn('Failed to remove Caddy dashboard route:', err.message)
+        }
+      }
     }
 
     if (instanceName !== undefined) {
