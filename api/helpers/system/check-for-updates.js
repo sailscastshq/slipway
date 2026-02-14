@@ -3,7 +3,13 @@ module.exports = {
 
   description: 'Check GitHub releases for new versions of Slipway.',
 
-  inputs: {},
+  inputs: {
+    skipCache: {
+      type: 'boolean',
+      defaultsTo: false,
+      description: 'Bypass the cache and fetch fresh results from GitHub.'
+    }
+  },
 
   exits: {
     success: {
@@ -11,15 +17,17 @@ module.exports = {
     }
   },
 
-  fn: async function () {
+  fn: async function ({ skipCache }) {
     const currentVersion = sails.config.slipway?.version || '0.1.0'
     const githubRepo = sails.config.slipway?.githubRepo || 'sailscastshq/slipway'
 
     // Cache key for rate limiting - only check once per hour
     const cacheKey = 'slipway_update_check'
-    const cached = await sails.cache.get(cacheKey)
-    if (cached) {
-      return cached
+    if (!skipCache) {
+      const cached = await sails.cache.get(cacheKey)
+      if (cached) {
+        return cached
+      }
     }
 
     try {
