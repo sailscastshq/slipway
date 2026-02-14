@@ -32,7 +32,7 @@ module.exports = {
    * (http://sailsjs.com/config/datastores)                                  *
    *                                                                         *
    **************************************************************************/
-  datastores: {},
+  // datastores: inherited from config/datastores.js (SQLite for all environments)
 
   models: {
     /**************************************************************************
