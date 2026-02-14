@@ -20,6 +20,7 @@ const props = defineProps({
       requests: { total: 0, errors: 0, errorRate: '0', p95: 0, avg: 0, recent: [] },
       exceptions: { total: 0, groups: [] },
       queries: { slow: [], total: 0 },
+      cache: { totalOps: 0, hits: 0, misses: 0, hitRate: '0', writes: 0, deletes: 0, topKeys: [], recent: [] },
       hasTelemetry: false,
       telemetryToken: null
     })
@@ -44,6 +45,9 @@ const tabs = computed(() => {
       { id: 'exceptions', label: 'Exceptions', count: props.telemetry.exceptions.total },
       { id: 'queries', label: 'Queries', count: props.telemetry.queries.total }
     )
+    if (props.telemetry.cache?.totalOps > 0) {
+      list.push({ id: 'cache', label: 'Cache', count: props.telemetry.cache.totalOps })
+    }
   } else {
     list.push({ id: 'setup', label: 'App Telemetry' })
   }
@@ -155,6 +159,28 @@ function formatDuration(ms) {
 function serviceIcon(type) {
   const icons = { postgresql: 'PG', mysql: 'My', redis: 'Rd', mongodb: 'Mg' }
   return icons[type] || 'Sv'
+}
+
+function cacheOpBg(name) {
+  if (name === 'cache.hit') return 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400'
+  if (name === 'cache.miss') return 'bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-400'
+  if (name === 'cache.write') return 'bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400'
+  return 'bg-gray-50 text-gray-700 dark:bg-gray-900/20 dark:text-gray-400'
+}
+
+function cacheOpLabel(name) {
+  if (name === 'cache.hit') return 'HIT'
+  if (name === 'cache.miss') return 'MISS'
+  if (name === 'cache.write') return 'SET'
+  if (name === 'cache.delete') return 'DEL'
+  return name
+}
+
+function hitRateColor(rate) {
+  const r = parseFloat(rate)
+  if (r > 80) return 'text-emerald-600 dark:text-emerald-400'
+  if (r > 50) return 'text-yellow-600 dark:text-yellow-400'
+  return 'text-red-600 dark:text-red-400'
 }
 
 function sparklinePoints(history, key, width = 120, height = 24) {
@@ -697,6 +723,113 @@ async function copyToken() {
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4" />
             </svg>
             <p class="mt-3 text-sm text-gray-500 dark:text-gray-400">No slow queries recorded. Database is performing well.</p>
+          </div>
+        </div>
+
+        <!-- CACHE TAB -->
+        <div v-if="activeTab === 'cache'">
+          <!-- Summary cards -->
+          <div class="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
+            <div class="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
+              <div class="text-[10px] font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">Hit rate</div>
+              <div :class="['mt-1 text-2xl font-semibold', hitRateColor(telemetry.cache.hitRate)]">
+                {{ telemetry.cache.hitRate }}%
+              </div>
+            </div>
+            <div class="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
+              <div class="text-[10px] font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">Total ops / hr</div>
+              <div class="mt-1 text-2xl font-semibold text-gray-900 dark:text-white">{{ telemetry.cache.totalOps }}</div>
+            </div>
+            <div class="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
+              <div class="text-[10px] font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">Hits</div>
+              <div class="mt-1 text-2xl font-semibold text-emerald-600 dark:text-emerald-400">{{ telemetry.cache.hits }}</div>
+            </div>
+            <div class="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
+              <div class="text-[10px] font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">Misses</div>
+              <div class="mt-1 text-2xl font-semibold text-red-600 dark:text-red-400">{{ telemetry.cache.misses }}</div>
+            </div>
+          </div>
+
+          <!-- Top keys -->
+          <div v-if="telemetry.cache.topKeys.length > 0" class="mb-6">
+            <h3 class="mb-3 text-sm font-medium text-gray-700 dark:text-gray-300">Top keys</h3>
+            <div class="overflow-hidden rounded-lg border border-gray-200 dark:border-gray-800">
+              <div
+                v-for="(entry, i) in telemetry.cache.topKeys"
+                :key="entry.key"
+                :class="[
+                  'flex items-center gap-3 px-4 py-2.5',
+                  i > 0 ? 'border-t border-gray-100 dark:border-gray-800' : ''
+                ]"
+              >
+                <!-- Key name -->
+                <div class="min-w-0 flex-1 truncate font-mono text-sm text-gray-900 dark:text-white">
+                  {{ entry.key }}
+                </div>
+
+                <!-- Hit/miss bar -->
+                <div class="hidden w-32 items-center space-x-1.5 sm:flex">
+                  <div class="h-1.5 flex-1 overflow-hidden rounded-full bg-gray-100 dark:bg-gray-800">
+                    <div
+                      class="h-full rounded-full bg-emerald-500"
+                      :style="{ width: ((entry.hits / (entry.hits + entry.misses)) * 100 || 0) + '%' }"
+                    ></div>
+                  </div>
+                  <span class="w-10 text-right text-[10px] text-gray-400 dark:text-gray-500">
+                    {{ entry.hits + entry.misses > 0 ? ((entry.hits / (entry.hits + entry.misses)) * 100).toFixed(0) : 0 }}%
+                  </span>
+                </div>
+
+                <!-- Counts -->
+                <div class="flex shrink-0 items-center space-x-3 text-xs">
+                  <span class="text-emerald-600 dark:text-emerald-400">{{ entry.hits }} hits</span>
+                  <span class="text-red-600 dark:text-red-400">{{ entry.misses }} miss</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Recent operations -->
+          <div v-if="telemetry.cache.recent.length > 0">
+            <h3 class="mb-3 text-sm font-medium text-gray-700 dark:text-gray-300">Recent operations</h3>
+            <div class="overflow-hidden rounded-lg border border-gray-200 dark:border-gray-800">
+              <div
+                v-for="(op, i) in telemetry.cache.recent"
+                :key="i"
+                :class="[
+                  'flex items-center gap-3 px-4 py-2.5',
+                  i > 0 ? 'border-t border-gray-100 dark:border-gray-800' : ''
+                ]"
+              >
+                <!-- Operation badge -->
+                <span :class="['w-12 shrink-0 rounded px-1.5 py-0.5 text-center text-[10px] font-bold', cacheOpBg(op.name)]">
+                  {{ cacheOpLabel(op.name) }}
+                </span>
+
+                <!-- Key -->
+                <div class="min-w-0 flex-1 truncate font-mono text-sm text-gray-900 dark:text-white">
+                  {{ op.key }}
+                </div>
+
+                <!-- Duration -->
+                <span :class="['w-16 shrink-0 text-right font-mono text-xs', durationColor(op.duration)]">
+                  {{ formatDuration(op.duration) }}
+                </span>
+
+                <!-- Time -->
+                <span class="w-12 shrink-0 text-right text-[10px] text-gray-400 dark:text-gray-500">
+                  {{ timeAgo(op.recordedAt) }}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <!-- No cache data -->
+          <div v-if="telemetry.cache.recent.length === 0 && telemetry.cache.topKeys.length === 0" class="py-16 text-center">
+            <svg class="mx-auto h-10 w-10 text-gray-300 dark:text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+            </svg>
+            <p class="mt-3 text-sm text-gray-500 dark:text-gray-400">No cache operations recorded in the last hour.</p>
           </div>
         </div>
 

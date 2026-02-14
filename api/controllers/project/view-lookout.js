@@ -50,7 +50,7 @@ module.exports = {
     }
 
     // Get app and services
-    const app = await App.findOne({ environment: environment.id })
+    const app = await App.findOne({ environment: environment.id, isDefault: true }) || await App.findOne({ environment: environment.id })
     const services = await Service.find({ environment: environment.id, status: 'running' })
 
     const containerNames = []
@@ -141,7 +141,7 @@ module.exports = {
 
     // Telemetry summary (last 1 hour)
     const telemetryCutoff = Date.now() - (60 * 60 * 1000)
-    const [recentSpans, recentExceptions, slowQueries] = await Promise.all([
+    const [recentSpans, recentExceptions, slowQueries, cacheMetrics] = await Promise.all([
       TelemetrySpan.find({
         environment: environment.id,
         startedAt: { '>=': telemetryCutoff }
@@ -154,7 +154,12 @@ module.exports = {
         environment: environment.id,
         name: 'db.query',
         recordedAt: { '>=': telemetryCutoff }
-      }).sort('value DESC').limit(50)
+      }).sort('value DESC').limit(50),
+      TelemetryMetric.find({
+        environment: environment.id,
+        name: ['cache.hit', 'cache.miss', 'cache.write', 'cache.delete'],
+        recordedAt: { '>=': telemetryCutoff }
+      }).sort('recordedAt DESC').limit(500)
     ])
 
     // Compute telemetry stats
@@ -186,6 +191,25 @@ module.exports = {
       exceptionGroups[key].count++
     }
 
+    // Cache aggregation
+    const cacheHits = cacheMetrics.filter(m => m.name === 'cache.hit').length
+    const cacheMisses = cacheMetrics.filter(m => m.name === 'cache.miss').length
+    const cacheWrites = cacheMetrics.filter(m => m.name === 'cache.write').length
+    const cacheDeletes = cacheMetrics.filter(m => m.name === 'cache.delete').length
+    const cacheTotalOps = cacheMetrics.length
+    const cacheHitMissTotal = cacheHits + cacheMisses
+
+    // Top keys by frequency with per-key hit/miss counts
+    const keyStats = {}
+    for (const m of cacheMetrics) {
+      const key = m.attributes && m.attributes.key ? m.attributes.key : 'unknown'
+      if (!keyStats[key]) keyStats[key] = { key, hits: 0, misses: 0, total: 0 }
+      keyStats[key].total++
+      if (m.name === 'cache.hit') keyStats[key].hits++
+      if (m.name === 'cache.miss') keyStats[key].misses++
+    }
+    const cacheTopKeys = Object.values(keyStats).sort((a, b) => b.total - a.total).slice(0, 10)
+
     const telemetry = {
       requests: {
         total: totalRequests,
@@ -214,7 +238,22 @@ module.exports = {
         })),
         total: slowQueries.length
       },
-      hasTelemetry: recentSpans.length > 0 || recentExceptions.length > 0,
+      cache: {
+        totalOps: cacheTotalOps,
+        hits: cacheHits,
+        misses: cacheMisses,
+        hitRate: cacheHitMissTotal > 0 ? ((cacheHits / cacheHitMissTotal) * 100).toFixed(1) : '0',
+        writes: cacheWrites,
+        deletes: cacheDeletes,
+        topKeys: cacheTopKeys,
+        recent: cacheMetrics.slice(0, 20).map(m => ({
+          name: m.name,
+          key: m.attributes && m.attributes.key ? m.attributes.key : 'unknown',
+          duration: m.value,
+          recordedAt: m.recordedAt
+        }))
+      },
+      hasTelemetry: recentSpans.length > 0 || recentExceptions.length > 0 || cacheMetrics.length > 0,
       telemetryToken: environment.telemetryToken
     }
 

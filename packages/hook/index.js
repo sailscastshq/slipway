@@ -48,6 +48,7 @@ module.exports = function defineSlipwayHook(sails) {
           captureQueries: true,
           captureExceptions: true,
           captureQuestEvents: true,
+          captureCache: true,
           slowQueryThreshold: 100
         }
       }
@@ -99,6 +100,13 @@ module.exports = function defineSlipwayHook(sails) {
       // Instrument Quest job lifecycle events
       if (config.captureQuestEvents) {
         instrumentQuest()
+      }
+
+      // Instrument sails-stash cache operations
+      if (config.captureCache) {
+        sails.after('hook:stash:loaded', () => {
+          instrumentCache()
+        })
       }
 
       return done()
@@ -363,6 +371,73 @@ module.exports = function defineSlipwayHook(sails) {
       // Flush immediately on errors
       flush()
     })
+  }
+
+  // ─── Cache Instrumentation (sails-stash) ─────────────────────
+
+  function instrumentCache() {
+    if (!sails.cache) return
+
+    // Wrap get(key, default?)
+    const originalGet = sails.cache.get.bind(sails.cache)
+    sails.cache.get = async function (key, ...rest) {
+      const startTime = Date.now()
+      const result = await originalGet(key, ...rest)
+      const duration = Date.now() - startTime
+      const name = result !== undefined ? 'cache.hit' : 'cache.miss'
+      recordCacheMetric(name, key, duration)
+      return result
+    }
+
+    // Wrap fetch(key, cb, ttl?)
+    const originalFetch = sails.cache.fetch.bind(sails.cache)
+    sails.cache.fetch = async function (key, cb, ...rest) {
+      const startTime = Date.now()
+      let wasMiss = false
+      const wrappedCb = async function (...cbArgs) {
+        wasMiss = true
+        return cb(...cbArgs)
+      }
+      const result = await originalFetch(key, wrappedCb, ...rest)
+      const duration = Date.now() - startTime
+      const name = wasMiss ? 'cache.miss' : 'cache.hit'
+      recordCacheMetric(name, key, duration)
+      return result
+    }
+
+    // Wrap set(key, value, ttl?)
+    const originalSet = sails.cache.set.bind(sails.cache)
+    sails.cache.set = async function (key, ...rest) {
+      const startTime = Date.now()
+      const result = await originalSet(key, ...rest)
+      const duration = Date.now() - startTime
+      recordCacheMetric('cache.write', key, duration)
+      return result
+    }
+
+    // Wrap delete(key)
+    const originalDelete = sails.cache.delete.bind(sails.cache)
+    sails.cache.delete = async function (key, ...rest) {
+      const startTime = Date.now()
+      const result = await originalDelete(key, ...rest)
+      const duration = Date.now() - startTime
+      recordCacheMetric('cache.delete', key, duration)
+      return result
+    }
+  }
+
+  function recordCacheMetric(name, key, duration) {
+    metricBuffer.push({
+      name,
+      value: duration,
+      unit: 'ms',
+      attributes: { key: String(key) },
+      recordedAt: Date.now()
+    })
+
+    if (metricBuffer.length >= config.batchSize) {
+      flush()
+    }
   }
 
   // ─── Flush Telemetry Data ─────────────────────────────────────
