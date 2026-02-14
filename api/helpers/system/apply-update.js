@@ -15,12 +15,10 @@ module.exports = {
       description: 'Update initiated successfully.'
     },
     noUpdate: {
-      description: 'Already running the latest version.',
-      responseType: 'badRequest'
+      description: 'Already running the latest version.'
     },
     pullFailed: {
-      description: 'Failed to pull the new image.',
-      responseType: 'serverError'
+      description: 'Failed to pull the new image.'
     }
   },
 
