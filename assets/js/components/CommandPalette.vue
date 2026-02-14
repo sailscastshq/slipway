@@ -1,0 +1,464 @@
+<script setup>
+import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
+import { router, usePage } from '@inertiajs/vue3'
+import { useCommandPalette } from '@/composables/useCommandPalette'
+import { fuzzySearch } from '@/lib/fuzzySearch'
+
+const { isOpen, history, register, unregister, getAll, execute, close } = useCommandPalette()
+
+const query = ref('')
+const selectedIndex = ref(0)
+const inputRef = ref(null)
+const resultsRef = ref(null)
+const mode = ref('root')
+const parentCommand = ref(null)
+
+const page = usePage()
+const currentUrl = computed(() => page.url)
+
+// ─── Register core commands ──────────────────────────────────────────
+
+register({
+  id: 'nav.projects',
+  title: 'Go to Projects',
+  keywords: ['dashboard', 'home', 'apps'],
+  group: 'Navigation',
+  icon: 'folder',
+  action: () => router.visit('/')
+})
+
+register({
+  id: 'nav.lookout',
+  title: 'Go to Lookout',
+  keywords: ['monitoring', 'metrics', 'observability', 'cpu', 'memory'],
+  group: 'Navigation',
+  icon: 'chart',
+  action: () => router.visit('/lookout')
+})
+
+register({
+  id: 'nav.settings',
+  title: 'Go to Settings',
+  keywords: ['preferences', 'config', 'configuration'],
+  group: 'Navigation',
+  icon: 'settings',
+  action: () => router.visit('/settings')
+})
+
+register({
+  id: 'nav.settings.global-env',
+  title: 'Global Environment Variables',
+  keywords: ['env', 'variables', 'secrets', 'environment'],
+  group: 'Navigation',
+  icon: 'globe',
+  action: () => router.visit('/settings/global-env')
+})
+
+register({
+  id: 'nav.settings.instance',
+  title: 'Instance Settings',
+  keywords: ['domain', 'server', 'hostname'],
+  group: 'Navigation',
+  icon: 'server',
+  action: () => router.visit('/settings/instance')
+})
+
+register({
+  id: 'nav.settings.notifications',
+  title: 'Notification Settings',
+  keywords: ['telegram', 'email', 'alerts', 'smtp'],
+  group: 'Navigation',
+  icon: 'bell',
+  action: () => router.visit('/settings/notifications')
+})
+
+register({
+  id: 'nav.settings.uploads',
+  title: 'File Storage Settings',
+  keywords: ['s3', 'r2', 'storage', 'uploads', 'backup'],
+  group: 'Navigation',
+  icon: 'cloud',
+  action: () => router.visit('/settings/uploads')
+})
+
+register({
+  id: 'nav.settings.team-profile',
+  title: 'Team Profile',
+  keywords: ['team', 'name', 'logo', 'organization'],
+  group: 'Navigation',
+  icon: 'users',
+  action: () => router.visit('/settings/team-profile')
+})
+
+register({
+  id: 'nav.settings.team',
+  title: 'Team Members',
+  keywords: ['invite', 'users', 'members', 'roles'],
+  group: 'Navigation',
+  icon: 'users',
+  action: () => router.visit('/settings/team')
+})
+
+register({
+  id: 'nav.settings.cli-tokens',
+  title: 'CLI Tokens',
+  keywords: ['api', 'keys', 'tokens', 'authentication'],
+  group: 'Navigation',
+  icon: 'key',
+  action: () => router.visit('/settings/cli-tokens')
+})
+
+register({
+  id: 'nav.settings.update',
+  title: 'System Updates',
+  keywords: ['version', 'update', 'upgrade'],
+  group: 'Navigation',
+  icon: 'download',
+  action: () => router.visit('/settings/update')
+})
+
+register({
+  id: 'nav.profile',
+  title: 'Profile',
+  keywords: ['account', 'user', 'email', 'password'],
+  group: 'Navigation',
+  icon: 'user',
+  action: () => router.visit('/profile')
+})
+
+register({
+  id: 'nav.new-project',
+  title: 'Create New Project',
+  keywords: ['new', 'create', 'add', 'project'],
+  group: 'Actions',
+  icon: 'plus',
+  action: () => router.visit('/projects/new')
+})
+
+register({
+  id: 'action.docs',
+  title: 'Open Documentation',
+  keywords: ['docs', 'help', 'guide', 'manual'],
+  group: 'Actions',
+  icon: 'book',
+  action: () => window.open('https://docs.sailscasts.com/slipway', '_blank')
+})
+
+// ─── Dynamic project commands ───────────────────────────────────────
+
+const navProjects = computed(() => page.props.navProjects || [])
+const registeredProjectIds = ref([])
+
+watch(navProjects, (projects) => {
+  // Remove old project commands
+  registeredProjectIds.value.forEach(id => unregister(id))
+
+  // Register new ones
+  const ids = projects.map(project => {
+    const id = `nav.project.${project.slug}`
+    register({
+      id,
+      title: project.name,
+      keywords: [project.slug],
+      group: 'Projects',
+      icon: 'folder',
+      action: () => router.visit(`/projects/${project.slug}`)
+    })
+    return id
+  })
+  registeredProjectIds.value = ids
+}, { immediate: true })
+
+// ─── Filtering & grouping ────────────────────────────────────────────
+
+const allCommands = computed(() => {
+  let cmds = getAll()
+  // Context filtering based on current URL
+  return cmds.filter(cmd => {
+    if (!cmd.context) return true
+    return cmd.context(currentUrl.value)
+  })
+})
+
+const results = computed(() => {
+  let cmds = mode.value === 'submenu' && parentCommand.value?.children
+    ? parentCommand.value.children()
+    : allCommands.value
+
+  if (query.value) {
+    cmds = fuzzySearch(query.value, cmds, c => c._searchText || c.title)
+  }
+
+  const groups = {}
+
+  // Show recent first when no query
+  if (!query.value && mode.value === 'root') {
+    const recent = history.value
+      .map(id => cmds.find(c => c.id === id))
+      .filter(Boolean)
+      .slice(0, 3)
+
+    if (recent.length) {
+      groups['Recent'] = recent
+    }
+  }
+
+  // Group remaining by their group property
+  cmds.forEach(cmd => {
+    if (!query.value && history.value.includes(cmd.id)) return
+    const group = cmd.group || 'Other'
+    if (!groups[group]) groups[group] = []
+    groups[group].push(cmd)
+  })
+
+  return groups
+})
+
+const flatResults = computed(() => Object.values(results.value).flat())
+
+// ─── Keyboard navigation ─────────────────────────────────────────────
+
+function handleKeydown(e) {
+  // Global: toggle palette
+  if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+    e.preventDefault()
+    if (isOpen.value) {
+      close()
+    } else {
+      isOpen.value = true
+    }
+    return
+  }
+
+  if (!isOpen.value) return
+
+  switch (e.key) {
+    case 'ArrowDown':
+      e.preventDefault()
+      selectedIndex.value = Math.min(selectedIndex.value + 1, flatResults.value.length - 1)
+      scrollToSelected()
+      break
+
+    case 'ArrowUp':
+      e.preventDefault()
+      selectedIndex.value = Math.max(selectedIndex.value - 1, 0)
+      scrollToSelected()
+      break
+
+    case 'Enter':
+      e.preventDefault()
+      if (flatResults.value[selectedIndex.value]) {
+        selectCommand(flatResults.value[selectedIndex.value])
+      }
+      break
+
+    case 'Escape':
+      e.preventDefault()
+      if (mode.value === 'submenu') {
+        mode.value = 'root'
+        parentCommand.value = null
+        query.value = ''
+      } else {
+        close()
+      }
+      break
+
+    case 'Backspace':
+      if (!query.value && mode.value === 'submenu') {
+        mode.value = 'root'
+        parentCommand.value = null
+      }
+      break
+  }
+}
+
+function scrollToSelected() {
+  nextTick(() => {
+    const container = resultsRef.value
+    if (!container) return
+    const selected = container.querySelector('[data-selected="true"]')
+    if (selected) {
+      selected.scrollIntoView({ block: 'nearest' })
+    }
+  })
+}
+
+function selectCommand(cmd) {
+  if (cmd.children) {
+    mode.value = 'submenu'
+    parentCommand.value = cmd
+    query.value = ''
+    selectedIndex.value = 0
+  } else {
+    query.value = ''
+    mode.value = 'root'
+    parentCommand.value = null
+    execute(cmd)
+  }
+}
+
+// ─── State watchers ──────────────────────────────────────────────────
+
+watch(isOpen, (open) => {
+  if (open) {
+    query.value = ''
+    selectedIndex.value = 0
+    mode.value = 'root'
+    parentCommand.value = null
+    nextTick(() => inputRef.value?.focus())
+  }
+})
+
+watch(query, () => {
+  selectedIndex.value = 0
+})
+
+// ─── Lifecycle ───────────────────────────────────────────────────────
+
+onMounted(() => {
+  document.addEventListener('keydown', handleKeydown)
+})
+
+onUnmounted(() => {
+  document.removeEventListener('keydown', handleKeydown)
+})
+
+// ─── Icons ───────────────────────────────────────────────────────────
+// Using inline SVG paths to match codebase style (no emoji)
+
+const icons = {
+  folder: 'M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z',
+  chart: 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z',
+  settings: 'M10.5 6h9.75M10.5 6a1.5 1.5 0 11-3 0m3 0a1.5 1.5 0 10-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-9.75 0h9.75',
+  globe: 'M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9',
+  server: 'M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01',
+  bell: 'M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9',
+  cloud: 'M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z',
+  users: 'M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z',
+  key: 'M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z',
+  download: 'M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4',
+  user: 'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z',
+  plus: 'M12 4v16m8-8H4',
+  book: 'M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253',
+  search: 'M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z',
+  chevronRight: 'M9 5l7 7-7 7'
+}
+</script>
+
+<template>
+  <Teleport to="body">
+    <Transition
+      enter-active-class="transition duration-150 ease-out"
+      enter-from-class="opacity-0"
+      enter-to-class="opacity-100"
+      leave-active-class="transition duration-100 ease-in"
+      leave-from-class="opacity-100"
+      leave-to-class="opacity-0"
+    >
+      <div
+        v-if="isOpen"
+        class="fixed inset-0 z-50 flex items-start justify-center pt-[20vh]"
+      >
+        <!-- Backdrop -->
+        <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" @click="close()" />
+
+        <!-- Palette -->
+        <Transition
+          enter-active-class="transition duration-150 ease-out"
+          enter-from-class="opacity-0 scale-95 translate-y-2"
+          enter-to-class="opacity-100 scale-100 translate-y-0"
+          leave-active-class="transition duration-100 ease-in"
+          leave-from-class="opacity-100 scale-100 translate-y-0"
+          leave-to-class="opacity-0 scale-95 translate-y-2"
+          appear
+        >
+          <div class="relative w-full max-w-lg rounded-xl border border-gray-200 bg-white shadow-2xl dark:border-gray-700 dark:bg-gray-900">
+            <!-- Search input -->
+            <div class="flex items-center border-b border-gray-100 px-4 dark:border-gray-800">
+              <svg class="h-4 w-4 shrink-0 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" :d="icons.search" />
+              </svg>
+              <input
+                ref="inputRef"
+                v-model="query"
+                type="text"
+                class="w-full bg-transparent px-3 py-3.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:text-white dark:placeholder-gray-500"
+                :placeholder="mode === 'submenu' ? parentCommand?.title + '...' : 'Type a command or search...'"
+              />
+              <kbd class="hidden shrink-0 rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-400 dark:bg-gray-800 dark:text-gray-500 sm:inline">
+                ESC
+              </kbd>
+            </div>
+
+            <!-- Results -->
+            <div ref="resultsRef" class="max-h-72 overflow-y-auto overscroll-contain p-1.5">
+              <!-- Breadcrumb for submenu -->
+              <div v-if="mode === 'submenu'" class="mb-1 flex items-center gap-1 px-2 py-1 text-xs text-gray-400 dark:text-gray-500">
+                <button @click="mode = 'root'; parentCommand = null; query = ''" class="hover:text-gray-600 dark:hover:text-gray-300">
+                  Commands
+                </button>
+                <svg class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" :d="icons.chevronRight" />
+                </svg>
+                <span class="text-gray-600 dark:text-gray-300">{{ parentCommand?.title }}</span>
+              </div>
+
+              <template v-for="(commands, group) in results" :key="group">
+                <div class="px-2 pb-1 pt-2 text-[11px] font-medium uppercase tracking-wider text-gray-400 dark:text-gray-500">
+                  {{ group }}
+                </div>
+                <button
+                  v-for="cmd in commands"
+                  :key="cmd.id"
+                  @click="selectCommand(cmd)"
+                  @mouseenter="selectedIndex = flatResults.indexOf(cmd)"
+                  :data-selected="flatResults.indexOf(cmd) === selectedIndex"
+                  :class="[
+                    'flex w-full items-center gap-3 rounded-lg px-2.5 py-2 text-left text-sm transition-colors',
+                    flatResults.indexOf(cmd) === selectedIndex
+                      ? 'bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-white'
+                      : 'text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-800/50'
+                  ]"
+                >
+                  <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-gray-100 dark:bg-gray-800">
+                    <svg class="h-3.5 w-3.5 text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" :d="icons[cmd.icon] || icons.folder" />
+                    </svg>
+                  </span>
+                  <span class="flex-1 truncate">{{ cmd.title }}</span>
+                  <svg v-if="cmd.children" class="h-3.5 w-3.5 shrink-0 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" :d="icons.chevronRight" />
+                  </svg>
+                </button>
+              </template>
+
+              <!-- Empty state -->
+              <div v-if="!flatResults.length && query" class="py-10 text-center">
+                <svg class="mx-auto h-6 w-6 text-gray-300 dark:text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" :d="icons.search" />
+                </svg>
+                <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">No results for "{{ query }}"</p>
+              </div>
+            </div>
+
+            <!-- Footer -->
+            <div class="flex items-center gap-4 border-t border-gray-100 px-4 py-2 text-[11px] text-gray-400 dark:border-gray-800 dark:text-gray-500">
+              <span class="flex items-center gap-1">
+                <kbd class="rounded bg-gray-100 px-1 py-0.5 font-mono dark:bg-gray-800">&uarr;&darr;</kbd>
+                navigate
+              </span>
+              <span class="flex items-center gap-1">
+                <kbd class="rounded bg-gray-100 px-1 py-0.5 font-mono dark:bg-gray-800">&crarr;</kbd>
+                select
+              </span>
+              <span class="flex items-center gap-1">
+                <kbd class="rounded bg-gray-100 px-1 py-0.5 font-mono dark:bg-gray-800">esc</kbd>
+                close
+              </span>
+            </div>
+          </div>
+        </Transition>
+      </div>
+    </Transition>
+  </Teleport>
+</template>

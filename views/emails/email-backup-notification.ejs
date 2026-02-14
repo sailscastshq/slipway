@@ -1,0 +1,63 @@
+<%
+  var durationFormatted = '';
+  if (backup && backup.durationMs != null) {
+    var totalSeconds = Math.round(backup.durationMs / 1000);
+    if (totalSeconds < 60) {
+      durationFormatted = totalSeconds + 's';
+    } else {
+      var mins = Math.floor(totalSeconds / 60);
+      var secs = totalSeconds % 60;
+      durationFormatted = mins + 'm ' + secs + 's';
+    }
+  }
+
+  var sizeFormatted = '';
+  if (backup && backup.sizeBytes != null) {
+    if (backup.sizeBytes < 1024) {
+      sizeFormatted = backup.sizeBytes + ' B';
+    } else if (backup.sizeBytes < 1024 * 1024) {
+      sizeFormatted = (backup.sizeBytes / 1024).toFixed(1) + ' KB';
+    } else if (backup.sizeBytes < 1024 * 1024 * 1024) {
+      sizeFormatted = (backup.sizeBytes / (1024 * 1024)).toFixed(1) + ' MB';
+    } else {
+      sizeFormatted = (backup.sizeBytes / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
+    }
+  }
+%>
+<div style="font-family: 'Inter', 'Helvetica', 'Arial', sans-serif; max-width: 600px; margin: 0 auto;">
+  <div style="background-color: <%= isSuccess ? '#10b981' : '#ef4444' %>; height: 6px; border-radius: 3px 3px 0 0;"></div>
+  <div style="padding: 24px;">
+    <h2 style="margin: 0 0 20px 0; color: #192147; font-size: 20px; font-weight: 600;">
+      Backup <%= isSuccess ? 'completed' : 'failed' %>
+    </h2>
+    <table style="width: 100%; border-collapse: collapse; margin-bottom: 24px;">
+      <tr>
+        <td style="padding: 10px 12px; border-bottom: 1px solid #E2E4EA; color: #3E4771; font-size: 13px; font-weight: 600; width: 120px;">Service</td>
+        <td style="padding: 10px 12px; border-bottom: 1px solid #E2E4EA; color: #192147; font-size: 14px;"><%= service.name %></td>
+      </tr>
+      <tr>
+        <td style="padding: 10px 12px; border-bottom: 1px solid #E2E4EA; color: #3E4771; font-size: 13px; font-weight: 600;">Status</td>
+        <td style="padding: 10px 12px; border-bottom: 1px solid #E2E4EA; font-size: 14px; color: <%= isSuccess ? '#10b981' : '#ef4444' %>; font-weight: 600;"><%= isSuccess ? 'Success' : 'Failed' %></td>
+      </tr>
+      <% if (durationFormatted) { %>
+      <tr>
+        <td style="padding: 10px 12px; border-bottom: 1px solid #E2E4EA; color: #3E4771; font-size: 13px; font-weight: 600;">Duration</td>
+        <td style="padding: 10px 12px; border-bottom: 1px solid #E2E4EA; color: #192147; font-size: 14px;"><%= durationFormatted %></td>
+      </tr>
+      <% } %>
+      <% if (isSuccess && sizeFormatted) { %>
+      <tr>
+        <td style="padding: 10px 12px; border-bottom: 1px solid #E2E4EA; color: #3E4771; font-size: 13px; font-weight: 600;">Size</td>
+        <td style="padding: 10px 12px; border-bottom: 1px solid #E2E4EA; color: #192147; font-size: 14px;"><%= sizeFormatted %></td>
+      </tr>
+      <% } %>
+    </table>
+    <% if (!isSuccess && errorMessage) { %>
+    <div style="background-color: #fef2f2; border: 1px solid #fecaca; border-radius: 6px; padding: 12px 16px; margin-bottom: 24px;">
+      <p style="margin: 0; color: #991b1b; font-size: 13px; font-weight: 600;">Error</p>
+      <p style="margin: 6px 0 0 0; color: #b91c1c; font-size: 13px;"><%= errorMessage %></p>
+    </div>
+    <% } %>
+    <p style="color: #3E4771; font-size: 12px; margin: 0;">Sent from <%= instanceName %></p>
+  </div>
+</div>

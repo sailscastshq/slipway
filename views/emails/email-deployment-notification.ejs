@@ -1,0 +1,36 @@
+<div style="font-family: 'Inter', 'Helvetica', 'Arial', sans-serif; max-width: 600px; margin: 0 auto;">
+  <div style="background-color: <%= isSuccess ? '#10b981' : '#ef4444' %>; height: 6px; border-radius: 3px 3px 0 0;"></div>
+  <div style="padding: 24px;">
+    <h2 style="margin: 0 0 20px 0; color: #192147; font-size: 20px; font-weight: 600;">
+      Deployment <%= statusText %>
+    </h2>
+    <table style="width: 100%; border-collapse: collapse; margin-bottom: 24px;">
+      <tr>
+        <td style="padding: 10px 12px; border-bottom: 1px solid #E2E4EA; color: #3E4771; font-size: 13px; font-weight: 600; width: 120px;">Project</td>
+        <td style="padding: 10px 12px; border-bottom: 1px solid #E2E4EA; color: #192147; font-size: 14px;"><%= project.name %></td>
+      </tr>
+      <tr>
+        <td style="padding: 10px 12px; border-bottom: 1px solid #E2E4EA; color: #3E4771; font-size: 13px; font-weight: 600;">Environment</td>
+        <td style="padding: 10px 12px; border-bottom: 1px solid #E2E4EA; color: #192147; font-size: 14px;"><%= environment.name %></td>
+      </tr>
+      <% if (deployment.branch) { %>
+      <tr>
+        <td style="padding: 10px 12px; border-bottom: 1px solid #E2E4EA; color: #3E4771; font-size: 13px; font-weight: 600;">Branch</td>
+        <td style="padding: 10px 12px; border-bottom: 1px solid #E2E4EA; color: #192147; font-size: 14px;"><%= deployment.branch %></td>
+      </tr>
+      <% } %>
+      <% if (deployment.commitSha) { %>
+      <tr>
+        <td style="padding: 10px 12px; border-bottom: 1px solid #E2E4EA; color: #3E4771; font-size: 13px; font-weight: 600;">Commit</td>
+        <td style="padding: 10px 12px; border-bottom: 1px solid #E2E4EA; color: #192147; font-size: 14px; font-family: monospace;"><%= deployment.commitSha.substring(0, 8) %></td>
+      </tr>
+      <% } %>
+    </table>
+    <% if (deploymentUrl) { %>
+    <div style="text-align: center; margin-bottom: 24px;">
+      <a href="<%= deploymentUrl %>" style="display: inline-block; background-color: #192147; color: #ffffff; text-decoration: none; padding: 10px 24px; border-radius: 6px; font-size: 14px; font-weight: 600;">View Deployment</a>
+    </div>
+    <% } %>
+    <p style="color: #3E4771; font-size: 12px; margin: 0;">Sent from <%= instanceName %></p>
+  </div>
+</div>

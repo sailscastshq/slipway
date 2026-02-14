@@ -1,162 +1,268 @@
 <script setup>
 import { Link, Head, usePage, useForm, router } from '@inertiajs/vue3'
-
-import InputText from '@/components/InputText.vue'
-import InputPassword from '@/components/InputPassword.vue'
-import InputEmail from '@/components/InputEmail.vue'
-import InputButton from '@/components/InputButton.vue'
-
+import { inject, ref } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
+import ConfirmModal from '@/components/ConfirmModal.vue'
+import { useToast } from '@/composables/toast'
 
 defineOptions({
   layout: AppLayout
 })
 
+const toggleMobileMenu = inject('toggleMobileMenu')
+const toggleSidebar = inject('toggleSidebar')
+const sidebarCollapsed = inject('sidebarCollapsed')
+
+const toast = useToast()
 const loggedInUser = usePage().props.loggedInUser
 
 const form = useForm({
   email: loggedInUser.email,
   fullName: loggedInUser.fullName,
-  currentPassword: null,
-  password: null,
-  confirmPassword: null
+  currentPassword: '',
+  password: '',
+  confirmPassword: ''
 })
 
 const deleteAccountForm = useForm({
-  password: null
+  password: ''
 })
 
 function updateProfile() {
-  form.patch(`/profile`, {
+  form.patch('/profile', {
     preserveScroll: true,
     preserveState: true,
-    onError: (errors) => {
-      console.error('Update failed:', errors)
+    onSuccess: () => {
+      form.currentPassword = ''
+      form.password = ''
+      form.confirmPassword = ''
+      toast({ message: 'Profile updated', type: 'success' })
     }
   })
 }
 
+const showDeleteModal = ref(false)
+
 function deleteAccount() {
-  if (
-    confirm(
-      'Are you sure you want to delete your account? This action cannot be undone.'
-    )
-  ) {
-    deleteAccountForm.delete('/profile')
-  }
+  showDeleteModal.value = true
+}
+
+function executeDeleteAccount() {
+  deleteAccountForm.delete('/profile')
+  showDeleteModal.value = false
+}
+
+function cancelDeleteAccount() {
+  showDeleteModal.value = false
+}
+
+function logout() {
+  router.delete('/logout')
 }
 </script>
 
 <template>
-  <Head title="Profile | Mellow"></Head>
-
-  <div class="mx-auto space-y-8 px-4 md:w-8/12 xl:w-4/12">
-    <section
-      class="rounded-lg bg-gradient-to-b from-brand-50/10 to-white p-6 shadow-md transition-all duration-300 hover:shadow-lg"
-    >
-      <header class="mb-6">
-        <h1 class="text-2xl">Profile Information</h1>
-        <p class="mt-2 text-gray-600">
-          Update your account's profile information and email address.
-        </p>
-      </header>
-
-      <form @submit.prevent="updateProfile" class="space-y-4">
-        <InputText v-model="form.fullName" />
-        <InputEmail v-model="form.email" />
-        <div class="flex items-center justify-end">
-          <InputButton
-            :processing="form.processing"
-            :disabled="form.processing"
-          >
-            Save changes
-          </InputButton>
-        </div>
-        <p class="text-right text-green-700" v-if="form.recentlySuccessful">
-          Profile updated successfully!
-        </p>
-      </form>
-    </section>
-
-    <section
-      class="rounded-lg bg-gradient-to-b from-brand-50/10 to-white p-6 shadow-md transition-all duration-300 hover:shadow-lg"
-    >
-      <header class="mb-6">
-        <h2 class="text-2xl">Change Password</h2>
-        <p class="mt-2 text-gray-600">
-          Ensure your account is using a long, random password to stay secure.
-        </p>
-      </header>
-
-      <form @submit.prevent="updateProfile" class="space-y-4">
-        <InputPassword
-          label="Current Password"
-          id="currentPassword"
-          v-model="form.currentPassword"
-          placeholder="Current Password"
-        />
-        <InputPassword
-          label="New Password"
-          id="password"
-          v-model="form.password"
-          placeholder="New Password"
-        />
-        <InputPassword
-          label="Confirm Password"
-          placeholder="Confirm Password"
-          id="confirmPassword"
-          v-model="form.confirmPassword"
+  <Head title="Profile | Slipway"></Head>
+  <div class="flex h-full flex-col">
+    <!-- Header -->
+    <div class="flex items-center justify-between border-b border-gray-200 py-4 pl-4 pr-4 dark:border-gray-800 sm:pl-4 sm:pr-8">
+      <div class="flex items-center space-x-3">
+        <!-- Mobile menu button -->
+        <button
+          @click="toggleMobileMenu"
+          class="rounded-md p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white md:hidden"
         >
-          <p class="text-red-500" v-if="form.errors.password">
-            {{ form.errors.password }}
-          </p>
-        </InputPassword>
+          <svg class="h-5 w-5" viewBox="-0.5 -0.5 16 16" fill="none" stroke="currentColor">
+            <path d="M12.777 14.285H2.223c-.833 0-1.508-.675-1.508-1.508V2.223c0-.833.675-1.508 1.508-1.508h10.554c.833 0 1.508.675 1.508 1.508v10.554c0 .833-.675 1.508-1.508 1.508Z" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
+            <path d="M5.615 14.285V.715" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
+            <path d="M2.6 5.992 3.919 7.5 2.6 9.008" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
+          </svg>
+        </button>
+        <!-- Desktop sidebar toggle -->
+        <button
+          @click="toggleSidebar"
+          class="hidden text-gray-400 dark:text-gray-500 md:block"
+        >
+          <svg v-if="sidebarCollapsed" class="h-5 w-5" viewBox="-0.5 -0.5 16 16" fill="none" stroke="currentColor">
+            <path d="M12.777 14.285H2.223c-.833 0-1.508-.675-1.508-1.508V2.223c0-.833.675-1.508 1.508-1.508h10.554c.833 0 1.508.675 1.508 1.508v10.554c0 .833-.675 1.508-1.508 1.508Z" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
+            <path d="M5.615 14.285V.715" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
+            <path d="M2.6 5.992 3.919 7.5 2.6 9.008" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
+          </svg>
+          <svg v-else class="h-5 w-5" viewBox="-0.5 -0.5 16 16" fill="none" stroke="currentColor">
+            <path d="M12.777 14.285H2.223c-.833 0-1.508-.675-1.508-1.508V2.223c0-.833.675-1.508 1.508-1.508h10.554c.833 0 1.508.675 1.508 1.508v10.554c0 .833-.675 1.508-1.508 1.508Z" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
+            <path d="M5.615 14.285V.715" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
+            <path d="M3.919 5.992 2.6 7.5l1.319 1.508" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
+          </svg>
+        </button>
+        <nav class="flex items-center text-sm">
+          <span class="font-medium text-gray-900 dark:text-white">profile</span>
+        </nav>
+      </div>
+      <div class="flex items-center space-x-4">
+        <a
+          href="https://docs.sailscasts.com/slipway"
+          target="_blank"
+          class="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
+        >
+          Docs
+          <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+          </svg>
+        </a>
+      </div>
+    </div>
 
-        <div class="flex items-center justify-end">
-          <InputButton
-            :processing="form.processing"
-            :disabled="form.processing"
-          >
-            Update Password
-          </InputButton>
+    <!-- Content -->
+    <div class="flex-1 overflow-y-auto px-4 py-6 sm:px-8 sm:py-8">
+      <div class="mx-auto max-w-2xl space-y-6">
+        <!-- Profile Info -->
+        <form @submit.prevent="updateProfile" class="rounded-lg border border-gray-200 dark:border-gray-800">
+          <div class="px-4 py-3">
+            <h2 class="text-sm font-medium text-gray-900 dark:text-white">Profile Information</h2>
+            <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+              Update your account's profile information and email address.
+            </p>
+          </div>
+          <div class="divide-y divide-gray-200 border-t border-gray-200 dark:divide-gray-800 dark:border-gray-800">
+            <div class="px-4 py-3">
+              <label class="mb-1 block text-sm text-gray-700 dark:text-gray-300">Full Name</label>
+              <input
+                v-model="form.fullName"
+                type="text"
+                class="w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:border-brand focus:outline-none sm:max-w-xs dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
+              />
+            </div>
+            <div class="px-4 py-3">
+              <label class="mb-1 block text-sm text-gray-700 dark:text-gray-300">Email</label>
+              <input
+                v-model="form.email"
+                type="email"
+                class="w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:border-brand focus:outline-none sm:max-w-xs dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
+              />
+              <p class="mt-1 text-xs text-gray-400 dark:text-gray-500">
+                Changing your email requires verification
+              </p>
+            </div>
+            <div class="flex items-center justify-end px-4 py-3">
+              <button
+                type="submit"
+                :disabled="form.processing"
+                class="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
+              >
+                {{ form.processing ? 'Saving...' : 'Save changes' }}
+              </button>
+            </div>
+          </div>
+        </form>
+
+        <!-- Change Password -->
+        <form @submit.prevent="updateProfile" class="rounded-lg border border-gray-200 dark:border-gray-800">
+          <div class="px-4 py-3">
+            <h2 class="text-sm font-medium text-gray-900 dark:text-white">Change Password</h2>
+            <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+              Ensure your account is using a strong, random password.
+            </p>
+          </div>
+          <div class="divide-y divide-gray-200 border-t border-gray-200 dark:divide-gray-800 dark:border-gray-800">
+            <div class="px-4 py-3">
+              <label class="mb-1 block text-sm text-gray-700 dark:text-gray-300">Current Password</label>
+              <input
+                v-model="form.currentPassword"
+                type="password"
+                autocomplete="current-password"
+                class="w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:border-brand focus:outline-none sm:max-w-xs dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
+              />
+            </div>
+            <div class="px-4 py-3">
+              <label class="mb-1 block text-sm text-gray-700 dark:text-gray-300">New Password</label>
+              <input
+                v-model="form.password"
+                type="password"
+                autocomplete="new-password"
+                class="w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:border-brand focus:outline-none sm:max-w-xs dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
+              />
+            </div>
+            <div class="px-4 py-3">
+              <label class="mb-1 block text-sm text-gray-700 dark:text-gray-300">Confirm Password</label>
+              <input
+                v-model="form.confirmPassword"
+                type="password"
+                autocomplete="new-password"
+                class="w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:border-brand focus:outline-none sm:max-w-xs dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
+              />
+              <p v-if="form.errors.password" class="mt-1 text-xs text-red-500">
+                {{ form.errors.password }}
+              </p>
+            </div>
+            <div class="flex items-center justify-end px-4 py-3">
+              <button
+                type="submit"
+                :disabled="form.processing || !form.currentPassword || !form.password"
+                class="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
+              >
+                {{ form.processing ? 'Updating...' : 'Update password' }}
+              </button>
+            </div>
+          </div>
+        </form>
+
+        <!-- Danger Zone -->
+        <div class="rounded-lg border border-red-200 dark:border-red-900/50">
+          <div class="px-4 py-3">
+            <h2 class="text-sm font-medium text-red-600 dark:text-red-400">Danger Zone</h2>
+          </div>
+          <div class="divide-y divide-red-100 border-t border-red-200 dark:divide-red-900/30 dark:border-red-900/50">
+            <div class="flex items-center justify-between px-4 py-3">
+              <div>
+                <p class="text-sm font-medium text-gray-900 dark:text-white">Sign out</p>
+                <p class="text-xs text-gray-500 dark:text-gray-400">Sign out of your account on this device</p>
+              </div>
+              <button
+                @click="logout"
+                type="button"
+                class="rounded-md border border-gray-200 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
+              >
+                Sign out
+              </button>
+            </div>
+            <div class="flex items-center justify-between px-4 py-3">
+              <div>
+                <p class="text-sm font-medium text-gray-900 dark:text-white">Delete account</p>
+                <p class="text-xs text-gray-500 dark:text-gray-400">Permanently delete your account and all data</p>
+              </div>
+              <button
+                @click="deleteAccount"
+                type="button"
+                class="rounded-md bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-700"
+              >
+                Delete account
+              </button>
+            </div>
+          </div>
         </div>
-        <p class="text-right text-green-700" v-if="form.recentlySuccessful">
-          Profile updated successfully!
-        </p>
-      </form>
-    </section>
+      </div>
+    </div>
 
-    <section
-      class="rounded-lg bg-gradient-to-b from-brand-50/10 to-white p-6 shadow-md transition-all duration-300 hover:shadow-lg"
+    <ConfirmModal
+      :show="showDeleteModal"
+      title="Delete account"
+      message="Are you sure you want to delete your account? All of your data will be permanently removed. This action cannot be undone."
+      confirm-label="Delete account"
+      :destructive="true"
+      @confirm="executeDeleteAccount"
+      @cancel="cancelDeleteAccount"
     >
-      <header class="mb-6">
-        <h2 class="text-2xl">Delete Account</h2>
-        <p class="mt-2 text-gray-600">
-          Once your account is deleted, all of its resources and data will be
-          permanently deleted. Before deleting your account, please download any
-          data or information that you wish to retain.
-        </p>
-      </header>
-
-      <form @submit.prevent="deleteAccount" class="space-y-4">
-        <InputPassword required v-model="deleteAccountForm.password" />
-        <div class="flex items-center justify-end">
-          <InputButton
-            :processing="deleteAccountForm.processing"
-            :disabled="deleteAccountForm.processing"
-            class="border-red-600 bg-red-600"
-          >
-            Delete Account
-          </InputButton>
+      <template #form>
+        <div class="mt-4">
+          <label class="mb-1 block text-sm text-gray-700 dark:text-gray-300">Enter your password to confirm</label>
+          <input
+            v-model="deleteAccountForm.password"
+            type="password"
+            autocomplete="current-password"
+            class="w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:border-brand focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
+          />
         </div>
-      </form>
-    </section>
-
-    <InputButton
-      @click="router.delete('/logout')"
-      class="w-full border-red-600 bg-red-600"
-    >
-      Logout
-    </InputButton>
+      </template>
+    </ConfirmModal>
   </div>
 </template>

@@ -1,0 +1,66 @@
+module.exports = {
+  friendlyName: 'Update app',
+
+  description: 'Update app settings (name, dockerfilePath, routePath, envVars, resourceLimits).',
+
+  inputs: {
+    projectSlug: {
+      type: 'string',
+      required: true
+    },
+    environmentSlug: {
+      type: 'string',
+      required: true
+    },
+    appSlug: {
+      type: 'string',
+      required: true
+    },
+    name: {
+      type: 'string'
+    },
+    dockerfilePath: {
+      type: 'string'
+    },
+    routePath: {
+      type: 'string',
+      allowNull: true
+    },
+    envVars: {
+      type: 'json'
+    },
+    resourceLimits: {
+      type: 'json'
+    }
+  },
+
+  exits: {
+    success: { statusCode: 200 },
+    notFound: { statusCode: 404 },
+    forbidden: { statusCode: 403 }
+  },
+
+  fn: async function ({ projectSlug, environmentSlug, appSlug, name, dockerfilePath, routePath, envVars, resourceLimits }) {
+    const user = await User.findOne({ id: this.req.session.userId })
+
+    const project = await Project.findOne({ slug: projectSlug }).populate('team')
+    if (!project || project.team.id !== user.team) throw 'notFound'
+
+    const environment = await Environment.findOne({ project: project.id, slug: environmentSlug })
+    if (!environment) throw 'notFound'
+
+    const app = await App.findOne({ environment: environment.id, slug: appSlug })
+    if (!app) throw 'notFound'
+
+    const updates = {}
+    if (name !== undefined) updates.name = name
+    if (dockerfilePath !== undefined) updates.dockerfilePath = dockerfilePath
+    if (routePath !== undefined) updates.routePath = routePath
+    if (envVars !== undefined) updates.envVars = envVars
+    if (resourceLimits !== undefined) updates.resourceLimits = resourceLimits
+
+    const updated = await App.updateOne({ id: app.id }).set(updates)
+
+    return { app: updated }
+  }
+}

@@ -1,0 +1,45 @@
+# Packages (CLI and hook are separate npm packages, not part of the dashboard image)
+packages/
+
+# Development and testing
+tests/
+playwright.config.js
+playwright-report/
+test-results/
+
+# Documentation
+RESEARCH.md
+
+# Git and CI
+.git/
+.github/
+.gitignore
+
+# Editor and OS
+.vscode/
+.idea/
+*.iml
+.DS_STORE
+
+# Development config
+.eslintrc
+.eslintignore
+.editorconfig
+prettier.config.js
+jsconfig.json
+
+# Local database files (production uses mounted volume)
+db/*.db
+db/*.db-wal
+db/*.db-shm
+
+# Temp and logs
+.tmp/
+*.log
+npm-debug.log
+
+# Install script (already on the host)
+install.sh
+
+# Claude
+.claude/

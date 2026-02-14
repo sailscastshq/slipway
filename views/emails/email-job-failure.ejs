@@ -1,0 +1,44 @@
+<%
+  var durationFormatted = '';
+  if (duration != null) {
+    var totalSeconds = Math.round(duration / 1000);
+    if (totalSeconds < 60) {
+      durationFormatted = totalSeconds + 's';
+    } else {
+      var mins = Math.floor(totalSeconds / 60);
+      var secs = totalSeconds % 60;
+      durationFormatted = mins + 'm ' + secs + 's';
+    }
+  }
+%>
+<div style="font-family: 'Inter', 'Helvetica', 'Arial', sans-serif; max-width: 600px; margin: 0 auto;">
+  <div style="background-color: #ef4444; height: 6px; border-radius: 3px 3px 0 0;"></div>
+  <div style="padding: 24px;">
+    <h2 style="margin: 0 0 20px 0; color: #192147; font-size: 20px; font-weight: 600;">
+      Job failed
+    </h2>
+    <table style="width: 100%; border-collapse: collapse; margin-bottom: 24px;">
+      <tr>
+        <td style="padding: 10px 12px; border-bottom: 1px solid #E2E4EA; color: #3E4771; font-size: 13px; font-weight: 600; width: 120px;">Job</td>
+        <td style="padding: 10px 12px; border-bottom: 1px solid #E2E4EA; color: #192147; font-size: 14px;"><%= jobName %></td>
+      </tr>
+      <tr>
+        <td style="padding: 10px 12px; border-bottom: 1px solid #E2E4EA; color: #3E4771; font-size: 13px; font-weight: 600;">Status</td>
+        <td style="padding: 10px 12px; border-bottom: 1px solid #E2E4EA; font-size: 14px; color: #ef4444; font-weight: 600;">Failed</td>
+      </tr>
+      <% if (durationFormatted) { %>
+      <tr>
+        <td style="padding: 10px 12px; border-bottom: 1px solid #E2E4EA; color: #3E4771; font-size: 13px; font-weight: 600;">Duration</td>
+        <td style="padding: 10px 12px; border-bottom: 1px solid #E2E4EA; color: #192147; font-size: 14px;"><%= durationFormatted %></td>
+      </tr>
+      <% } %>
+    </table>
+    <% if (errorMessage) { %>
+    <div style="background-color: #fef2f2; border: 1px solid #fecaca; border-radius: 6px; padding: 12px 16px; margin-bottom: 24px;">
+      <p style="margin: 0; color: #991b1b; font-size: 13px; font-weight: 600;">Error</p>
+      <p style="margin: 6px 0 0 0; color: #b91c1c; font-size: 13px;"><%= errorMessage %></p>
+    </div>
+    <% } %>
+    <p style="color: #3E4771; font-size: 12px; margin: 0;">Sent from <%= instanceName %></p>
+  </div>
+</div>

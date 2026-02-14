@@ -1,31 +1,29 @@
 {
   "name": "sails-hook-slipway",
-  "version": "0.1.0",
-  "description": "Sails hook for Slipway - admin panel, console, and telemetry",
-  "keywords": ["sails", "hook", "admin", "slipway"],
+  "version": "0.0.1",
+  "description": "Auto-instrumentation hook for Sails.js apps deployed on Slipway. Sends request traces, exceptions, and database query metrics to your Slipway Lookout dashboard.",
   "main": "index.js",
+  "keywords": [
+    "sails",
+    "sailsjs",
+    "sails-hook",
+    "slipway",
+    "observability",
+    "telemetry",
+    "monitoring",
+    "apm"
+  ],
   "sails": {
     "isHook": true,
     "hookName": "slipway"
   },
-  "scripts": {
-    "test": "echo \"TODO: add tests\""
-  },
-  "dependencies": {},
   "peerDependencies": {
     "sails": "^1.5.0"
   },
-  "peerDependenciesMeta": {
-    "sails-quest": {
-      "optional": true
-    },
-    "sails-content": {
-      "optional": true
-    }
-  },
   "engines": {
-    "node": ">=18.0"
+    "node": ">=18.0.0"
   },
+  "author": "Kelvin Omereshone <kelvin@sailscasts.com>",
   "license": "MIT",
   "repository": {
     "type": "git",

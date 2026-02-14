@@ -25,17 +25,16 @@ module.exports = function defineCustomHook(sails) {
               // - The user logs out (session cleared)
               // - The user explicitly refreshes
               // - The prop is marked as .fresh() after profile updates
+              const userId = req.session.userId
               sails.inertia.share(
                 'loggedInUser',
                 sails.inertia.once(async () => {
+                  if (!userId) { return null }
                   const user = await User.findOne({
-                    id: req.session.userId
-                  }).select([
-                    'email',
-                    'fullName',
-                    'googleAvatarUrl',
-                    'initials'
-                  ])
+                    id: userId
+                  })
+                    .select(['email', 'fullName', 'initials', 'team'])
+                    .populate('team')
 
                   if (!user) {
                     sails.log.warn(
@@ -47,14 +46,26 @@ module.exports = function defineCustomHook(sails) {
                     return null
                   }
 
-                  return user
+                  // Also fetch teams owned by this user (for team switching)
+                  const ownedTeams = await Team.find({ owner: user.id }).select(['id', 'name', 'slug', 'logoUrl'])
+
+                  return { ...user, ownedTeams }
                 })
               )
+
+              sails.inertia.share('navProjects', async () => {
+                const user = await User.findOne({ id: userId }).select(['team'])
+                if (!user || !user.team) { return [] }
+                return await Project.find({ team: user.team })
+                  .select(['name', 'slug'])
+                  .sort('name ASC')
+              })
 
               res.setHeader('Cache-Control', 'no-cache, no-store')
               return next()
             } else {
               sails.inertia.flushShared('loggedInUser')
+              sails.inertia.flushShared('navProjects')
             }
             return next()
           }

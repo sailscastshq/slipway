@@ -26,6 +26,11 @@ password attempt.`,
     rememberMe: {
       description: "Whether to extend the lifetime of the user's session.",
       type: 'boolean'
+    },
+    redirect: {
+      description: 'URL to redirect to after successful login.',
+      type: 'string',
+      allowNull: true
     }
   },
 
@@ -46,7 +51,7 @@ and exposed as a shared data via loggedInUser prop.)`,
     }
   },
 
-  fn: async function ({ email, password, rememberMe }) {
+  fn: async function ({ email, password, rememberMe, redirect }) {
     const user = await User.findOne({
       email: email.toLowerCase()
     })
@@ -76,6 +81,13 @@ and exposed as a shared data via loggedInUser prop.)`,
     }
 
     this.req.session.userId = user.id
-    return '/dashboard'
+
+    // Support redirect after login (e.g., for CLI auth flow)
+    // Only allow relative URLs to prevent open redirect vulnerabilities
+    if (redirect && redirect.startsWith('/') && !redirect.startsWith('//')) {
+      return redirect
+    }
+
+    return '/'
   }
 }
