@@ -52,7 +52,7 @@ module.exports = {
     const questFeature = hasQuestFeature ? environment.features['sails-quest'] : null
 
     // Get app status
-    const app = await App.findOne({ environment: environment.id })
+    const app = await App.findOne({ environment: environment.id, isDefault: true }) || await App.findOne({ environment: environment.id })
     const appRunning = app && app.status === 'running'
 
     // Load jobs if app is running and quest is available

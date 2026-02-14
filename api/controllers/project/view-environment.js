@@ -138,9 +138,17 @@ module.exports = {
     const deployments = await Deployment.find({ environment: environment.id })
       .limit(20)
       .populate('triggeredBy')
+      .populate('app')
 
     // Sort by id descending (newest first) - explicit JS sort for reliability
     deployments.sort((a, b) => b.id - a.id)
+
+    // Backfill app name for legacy deployments (created before multi-app)
+    for (const dep of deployments) {
+      if (!dep.app && app) {
+        dep.app = { id: app.id, name: app.name, slug: app.slug }
+      }
+    }
 
     // Generate deployment checklist
     const checklist = await sails.helpers.environment.generateChecklist(environment.id)

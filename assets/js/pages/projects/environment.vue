@@ -1,8 +1,7 @@
 <script setup>
 import { Link, Head, router, usePoll } from '@inertiajs/vue3'
-import { inject, ref, reactive, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
+import { inject, ref, reactive, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
-import SlideToDeploy from '@/components/SlideToDeploy.vue'
 import ConfirmModal from '@/components/ConfirmModal.vue'
 import Tooltip from '@/components/Tooltip.vue'
 import { useToast } from '@/composables/toast'
@@ -16,6 +15,7 @@ const props = defineProps({
   project: Object,
   environment: Object,
   app: Object,
+  apps: Array,
   envVars: Object,
   deployments: Array,
   checklist: Array,
@@ -27,6 +27,78 @@ const toggleSidebar = inject('toggleSidebar')
 const sidebarCollapsed = inject('sidebarCollapsed')
 const toast = useToast()
 const { startAction, completeAction } = useServiceActions()
+
+// --- Multi-app ---
+const isMultiApp = computed(() => (props.apps || []).length > 1)
+const sortedApps = computed(() => {
+  const list = [...(props.apps || [])]
+  list.sort((a, b) => (b.isDefault ? 1 : 0) - (a.isDefault ? 1 : 0))
+  return list
+})
+
+const appMenuOpen = ref(null)
+const appSlideRefs = ref({})
+const addAppOpen = ref(false)
+const newAppName = ref('')
+const newAppDockerfile = ref('Dockerfile')
+const newAppRoutePath = ref('/')
+const creatingApp = ref(false)
+
+async function createApp() {
+  if (!newAppName.value.trim() || creatingApp.value) return
+  creatingApp.value = true
+  try {
+    await fetch(`/api/v1/projects/${props.project.slug}/environments/${props.environment.slug}/apps`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: newAppName.value.trim(),
+        dockerfilePath: newAppDockerfile.value || 'Dockerfile',
+        routePath: newAppRoutePath.value === 'none' ? null : newAppRoutePath.value
+      })
+    })
+    newAppName.value = ''
+    newAppDockerfile.value = 'Dockerfile'
+    newAppRoutePath.value = '/'
+    addAppOpen.value = false
+    router.reload()
+  } finally {
+    creatingApp.value = false
+  }
+}
+
+async function deployApp(appItem) {
+  try {
+    const res = await fetch(`/api/v1/projects/${props.project.slug}/environments/${props.environment.slug}/apps/${appItem.slug}/deploy`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' }
+    })
+    const data = await res.json()
+    if (data.deployment) {
+      router.visit(`/projects/${props.project.slug}/deployments/${data.deployment.id}`)
+    }
+  } catch { /* ignore */ }
+}
+
+async function restartSingleApp(appItem) {
+  try {
+    await fetch(`/api/v1/projects/${props.project.slug}/environments/${props.environment.slug}/apps/${appItem.slug}/restart`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' }
+    })
+    router.reload({ only: ['apps', 'app'] })
+  } catch { /* ignore */ }
+}
+
+async function stopSingleApp(appItem) {
+  try {
+    await fetch(`/api/v1/projects/${props.project.slug}/environments/${props.environment.slug}/apps/${appItem.slug}/stop`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' }
+    })
+    router.reload({ only: ['apps', 'app'] })
+  } catch { /* ignore */ }
+}
 
 // --- Polling for real-time updates ---
 const isDeploymentActive = computed(() => {
@@ -66,8 +138,6 @@ const revealedKeys = ref(new Set())
 const newKey = ref('')
 const newValue = ref('')
 const saving = ref(false)
-const deploying = ref(false)
-const slideRef = ref(null)
 const _params = new URLSearchParams(window.location.search)
 const envVarsOpen = ref(_params.has('env') || _params.has('bulk'))
 const bulkMode = ref(_params.has('bulk'))
@@ -135,22 +205,8 @@ watch(bulkMode, (open) => {
   window.history.replaceState({}, '', url)
 })
 
-// --- Domain display ---
-const domainDropdownOpen = ref(false)
+// --- Clipboard ---
 const copiedDomain = ref(null)
-
-const domains = computed(() => {
-  const list = []
-  if (props.environment.domain) {
-    list.push({ label: 'Custom', value: props.environment.domain })
-  }
-  if (props.environment.generatedDomain && props.environment.generatedDomain !== props.environment.domain) {
-    list.push({ label: 'Generated', value: props.environment.generatedDomain })
-  }
-  return list
-})
-
-const hasMultipleDomains = computed(() => domains.value.length > 1)
 
 function copyToClipboard(text) {
   navigator.clipboard.writeText(text)
@@ -158,14 +214,10 @@ function copyToClipboard(text) {
   setTimeout(() => { copiedDomain.value = null }, 2000)
 }
 
-function closeDomainDropdown() {
-  domainDropdownOpen.value = false
-}
-
 function closeAllDropdowns() {
-  domainDropdownOpen.value = false
   moreMenuOpen.value = false
   serviceMenuOpen.value = null
+  appMenuOpen.value = null
 }
 
 // --- Env vars helpers ---
@@ -219,37 +271,20 @@ function removeVar(key) {
   saveEnvVars(localVars)
 }
 
-// --- Container lifecycle ---
-const restarting = ref(false)
-const stopping = ref(false)
-
-async function restartApp() {
-  restarting.value = true
-  try {
-    await fetch(`/api/v1/projects/${props.project.slug}/environments/${props.environment.slug}/restart`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' }
-    })
-    router.reload({ only: ['app'] })
-  } finally {
-    restarting.value = false
-  }
-}
-
-async function stopApp() {
-  stopping.value = true
-  try {
-    await fetch(`/api/v1/projects/${props.project.slug}/environments/${props.environment.slug}/stop`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' }
-    })
-    router.reload({ only: ['app'] })
-  } finally {
-    stopping.value = false
-  }
-}
 
 // --- Services ---
+const appsOpen = ref(new URLSearchParams(window.location.search).has('apps'))
+
+watch(appsOpen, (open) => {
+  const url = new URL(window.location)
+  if (open) {
+    url.searchParams.set('apps', '1')
+  } else {
+    url.searchParams.delete('apps')
+  }
+  window.history.replaceState({}, '', url)
+})
+
 const servicesOpen = ref(new URLSearchParams(window.location.search).has('services'))
 
 watch(servicesOpen, (open) => {
@@ -520,33 +555,8 @@ function timeAgo(date) {
   return 'just now'
 }
 
-async function triggerDeploy() {
-  if (deploying.value) return
-  deploying.value = true
-  try {
-    const res = await fetch(`/api/v1/projects/${props.project.slug}/environments/${props.environment.slug}/deploy`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' }
-    })
-    const data = await res.json()
-    if (data.deployment) {
-      router.visit(`/projects/${props.project.slug}/deployments/${data.deployment.id}`)
-    } else {
-      slideRef.value?.reset()
-      deploying.value = false
-    }
-  } catch {
-    slideRef.value?.reset()
-    deploying.value = false
-  }
-}
-
 const sortedVarKeys = computed(() => Object.keys(localVars).sort())
 const services = computed(() => props.environment.services || [])
-
-const hasDatabaseService = computed(() => {
-  return services.value.some(s => ['postgresql', 'mysql', 'mongodb', 'redis'].includes(s.type) && s.status === 'running')
-})
 
 const checklistWarnings = computed(() => {
   return (props.checklist || []).filter(c => c.severity === 'warning' || c.severity === 'info')
@@ -582,186 +592,23 @@ function handleChecklistAction(action) {
   }
 }
 
-// --- Custom domains ---
-const newDomain = ref(props.environment.domain || '')
-const savingDomain = ref(false)
-const domainModalOpen = ref(false)
 const moreMenuOpen = ref(false)
 
-function openDomainModal() {
-  newDomain.value = props.environment.domain || ''
-  domainModalOpen.value = true
-  moreMenuOpen.value = false
-}
-
-function closeDomainModal() {
-  if (!savingDomain.value) {
-    domainModalOpen.value = false
-  }
-}
-
-// Handle escape key to close dropdowns and modals
+// Handle escape key to close dropdowns
 function handleEscapeKey(e) {
   if (e.key === 'Escape') {
     closeAllDropdowns()
-    closeDomainModal()
   }
 }
-
-async function saveCustomDomain() {
-  if (savingDomain.value) return
-  savingDomain.value = true
-  try {
-    const res = await fetch(`/api/v1/projects/${props.project.slug}/environments/${props.environment.slug}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ domain: newDomain.value.trim() })
-    })
-    if (res.ok) {
-      toast({ message: newDomain.value.trim() ? 'Custom domain saved' : 'Custom domain removed', type: 'success' })
-      domainModalOpen.value = false
-      router.reload({ only: ['environment'] })
-    } else {
-      const err = await res.json().catch(() => null)
-      toast({ message: err?.message || 'Failed to save domain', type: 'error' })
-    }
-  } finally {
-    savingDomain.value = false
-  }
-}
-
-// --- Container logs ---
-const logsOpen = ref(new URLSearchParams(window.location.search).has('logs'))
-const logLines = ref([])
-const logsConnected = ref(false)
-const logsError = ref(null)
-let logsEventSource = null
-const logContainer = ref(null)
-const autoScroll = ref(true)
-
-function highlightLogLine(line) {
-  let s = line.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-
-  // Status codes FIRST - use color names without conflicting numbers
-  s = s.replace(/\b(2\d{2})\b/g, '<span class="text-emerald-500">$1</span>')  // 2xx success
-  s = s.replace(/\b(3\d{2})\b/g, '<span class="text-sky-500">$1</span>')      // 3xx redirect
-  s = s.replace(/\b(4\d{2})\b/g, '<span class="text-amber-500">$1</span>')    // 4xx client error
-  s = s.replace(/\b(5\d{2})\b/g, '<span class="text-rose-500">$1</span>')     // 5xx server error
-
-  // ISO timestamps from docker logs --timestamps
-  s = s.replace(/(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z?)/, '<span class="text-zinc-500">$1</span>')
-
-  // Log levels
-  s = s.replace(/\b(error|Error|ERROR|ERR)\b/g, '<span class="text-rose-500 font-semibold">$1</span>')
-  s = s.replace(/\b(warn|Warn|WARN|warning|Warning|WARNING)\b/g, '<span class="text-amber-500 font-semibold">$1</span>')
-  s = s.replace(/\b(info|Info|INFO)\b/g, '<span class="text-sky-500">$1</span>')
-  s = s.replace(/\b(debug|Debug|DEBUG|verbose|silly)\b/g, '<span class="text-zinc-500">$1</span>')
-
-  // HTTP methods
-  s = s.replace(/\b(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS)\b/g, '<span class="text-cyan-500 font-medium">$1</span>')
-
-  // URLs and paths
-  s = s.replace(/(\/api\/[^\s"'<>]+)/g, '<span class="text-violet-500">$1</span>')
-  s = s.replace(/(https?:\/\/[^\s"'<>]+)/g, '<span class="text-sky-500 underline">$1</span>')
-
-  // Stack trace "at" lines
-  s = s.replace(/(\s+at\s+)/g, '<span class="text-zinc-600">$1</span>')
-
-  // Port numbers
-  s = s.replace(/(\bport\s*)(\d+)/gi, '$1<span class="text-emerald-500">$2</span>')
-
-  // Sails hook names in brackets
-  s = s.replace(/\[([^\]]+)\]/g, '<span class="text-zinc-600">[$1]</span>')
-
-  return s
-}
-
-function connectLogs() {
-  if (logsEventSource) return
-  if (!props.app?.containerName) {
-    logsError.value = 'No container running'
-    return
-  }
-
-  logsError.value = null
-  logLines.value = []
-
-  const url = `/api/v1/projects/${props.project.slug}/environments/${props.environment.slug}/logs/stream?tail=200`
-  logsEventSource = new EventSource(url)
-  logsEventSource.onopen = () => {
-    logsConnected.value = true
-  }
-
-  logsEventSource.onmessage = (event) => {
-    try {
-      const data = JSON.parse(event.data)
-      if (data.log) {
-        logLines.value.push(data.log)
-        // Cap at 2000 lines to prevent memory issues
-        if (logLines.value.length > 2000) {
-          logLines.value = logLines.value.slice(-1500)
-        }
-        if (autoScroll.value) {
-          nextTick(() => {
-            if (logContainer.value) {
-              logContainer.value.scrollTop = logContainer.value.scrollHeight
-            }
-          })
-        }
-      }
-      if (data.error) {
-        logsError.value = data.error
-      }
-      if (data.closed) {
-        logsConnected.value = false
-      }
-    } catch (e) {
-      console.error('Failed to parse log event:', e, event.data)
-    }
-  }
-
-  logsEventSource.onerror = () => {
-    logsConnected.value = false
-    disconnectLogs()
-  }
-}
-
-function disconnectLogs() {
-  if (logsEventSource) {
-    logsEventSource.close()
-    logsEventSource = null
-  }
-  logsConnected.value = false
-}
-
-watch(logsOpen, (open) => {
-  // Update URL query param
-  const url = new URL(window.location)
-  if (open) {
-    url.searchParams.set('logs', '1')
-  } else {
-    url.searchParams.delete('logs')
-  }
-  window.history.replaceState({}, '', url)
-
-  // Connect/disconnect SSE stream
-  if (open) {
-    connectLogs()
-  } else {
-    disconnectLogs()
-  }
-})
 
 onMounted(() => {
   if (bulkMode.value) {
     bulkText.value = sortedVarKeys.value.map(k => `${k}=${localVars[k]}`).join('\n')
   }
-  if (logsOpen.value) connectLogs()
   document.addEventListener('keydown', handleEscapeKey)
 })
 
 onBeforeUnmount(() => {
-  disconnectLogs()
   document.removeEventListener('keydown', handleEscapeKey)
 })
 </script>
@@ -841,80 +688,9 @@ onBeforeUnmount(() => {
                 Production
               </span>
             </div>
-            <!-- Domain display -->
-            <div class="relative mt-1 inline-flex items-center">
-              <div class="group flex items-center gap-2">
-                <a
-                  :href="`https://${environment.fullDomain}`"
-                  target="_blank"
-                  class="text-sm text-gray-500 underline decoration-dashed decoration-gray-300 underline-offset-2 hover:text-gray-900 dark:text-gray-400 dark:decoration-gray-600 dark:hover:text-white"
-                >
-                  {{ environment.fullDomain }}
-                </a>
-                <button
-                  @click.prevent="copyToClipboard(environment.fullDomain)"
-                  class="rounded p-0.5 text-gray-300 opacity-0 transition-opacity hover:text-gray-500 group-hover:opacity-100 dark:text-gray-600 dark:hover:text-gray-400"
-                >
-                  <svg v-if="copiedDomain === environment.fullDomain" class="h-3.5 w-3.5 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-                  </svg>
-                  <svg v-else class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                  </svg>
-                </button>
-                <button
-                  v-if="hasMultipleDomains"
-                  @click.stop="domainDropdownOpen = !domainDropdownOpen"
-                  class="rounded p-0.5 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
-                >
-                  <svg
-                    :class="['h-3.5 w-3.5 transition-transform duration-200', domainDropdownOpen ? 'rotate-180' : '']"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-                  </svg>
-                </button>
-              </div>
-
-              <!-- Domain dropdown -->
-              <div
-                v-if="domainDropdownOpen && hasMultipleDomains"
-                @click.stop
-                class="absolute left-0 top-full z-20 mt-1.5 w-max rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-900"
-              >
-                <div
-                  v-for="d in domains"
-                  :key="d.value"
-                  class="group/item flex items-center gap-2 px-3 py-2"
-                >
-                  <span class="text-[10px] font-medium uppercase tracking-wider text-gray-400 dark:text-gray-500 w-16">{{ d.label }}</span>
-                  <a
-                    :href="`https://${d.value}`"
-                    target="_blank"
-                    class="text-sm text-gray-700 underline decoration-dashed decoration-gray-300 underline-offset-2 hover:text-gray-900 dark:text-gray-300 dark:decoration-gray-600 dark:hover:text-white"
-                  >
-                    {{ d.value }}
-                  </a>
-                  <button
-                    @click="copyToClipboard(d.value)"
-                    class="rounded p-0.5 text-gray-300 opacity-0 transition-opacity hover:text-gray-500 group-hover/item:opacity-100 dark:text-gray-600 dark:hover:text-gray-400"
-                  >
-                    <svg v-if="copiedDomain === d.value" class="h-3.5 w-3.5 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-                    </svg>
-                    <svg v-else class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                    </svg>
-                  </button>
-                </div>
-              </div>
-            </div>
-
           </div>
           <div class="flex items-center space-x-2">
-            <!-- More menu with tools -->
+            <!-- More menu -->
             <div class="relative">
               <button
                 @click.stop="moreMenuOpen = !moreMenuOpen"
@@ -940,106 +716,27 @@ onBeforeUnmount(() => {
                   @click.stop
                   class="absolute right-0 top-full z-20 mt-1 w-48 rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-900"
                 >
-                  <!-- Tools section (ordered by importance) -->
                   <div class="border-b border-gray-100 pb-1 dark:border-gray-800">
-                    <Link
-                      :href="`/projects/${project.slug}/environments/${environment.slug}/helm`"
-                      class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
-                    >
-                      <svg class="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                      </svg>
-                      Helm
-                    </Link>
-                    <Link
-                      v-if="app && app.status === 'running'"
-                      :href="`/projects/${project.slug}/environments/${environment.slug}/bridge`"
-                      class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
-                    >
-                      <svg class="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-                      </svg>
-                      Bridge
-                    </Link>
-                    <Link
-                      v-if="hasDatabaseService"
-                      :href="`/projects/${project.slug}/environments/${environment.slug}/dock`"
-                      class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
-                    >
-                      <svg class="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4" />
-                      </svg>
-                      Dock
-                    </Link>
-                    <Link
-                      v-if="environment.features && environment.features['sails-quest']"
-                      :href="`/projects/${project.slug}/environments/${environment.slug}/quest`"
-                      class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
-                    >
-                      <svg class="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                      Quest
-                    </Link>
-                    <Link
-                      v-if="environment.features && environment.features['sails-content']"
-                      :href="`/projects/${project.slug}/environments/${environment.slug}/content`"
-                      class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
-                    >
-                      <svg class="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                      </svg>
-                      Content
-                    </Link>
-                    <Link
-                      :href="`/projects/${project.slug}/environments/${environment.slug}/lookout`"
-                      class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
-                    >
-                      <svg class="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                      </svg>
-                      Lookout
-                    </Link>
-                  </div>
-                  <!-- Container controls -->
-                  <div v-if="app && app.status === 'running'" class="border-b border-gray-100 py-1 dark:border-gray-800">
                     <button
-                      @click="restartApp; moreMenuOpen = false"
-                      :disabled="restarting"
+                      @click="appsOpen = true; addAppOpen = true; moreMenuOpen = false"
                       class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
                     >
-                      <svg v-if="restarting" class="h-4 w-4 animate-spin text-gray-400" fill="none" viewBox="0 0 24 24">
-                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
-                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                      <svg class="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                       </svg>
-                      <svg v-else class="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                      </svg>
-                      Restart
+                      Create app
                     </button>
                     <button
-                      @click="stopApp; moreMenuOpen = false"
-                      :disabled="stopping"
-                      class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20"
+                      @click="servicesOpen = true; addServiceOpen = true; moreMenuOpen = false"
+                      class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
                     >
-                      <svg class="h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
-                        <rect x="6" y="6" width="12" height="12" rx="1" />
+                      <svg class="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4" />
                       </svg>
-                      Stop
+                      Create service
                     </button>
                   </div>
-                  <!-- Settings -->
                   <div class="pt-1">
-                    <button
-                      @click="openDomainModal"
-                      class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
-                    >
-                      <svg class="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
-                      </svg>
-                      Custom domain
-                      <span v-if="environment.domain" class="ml-auto h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
-                    </button>
                     <Link
                       :href="`/projects/${project.slug}/environments/${environment.slug}/settings`"
                       class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
@@ -1054,10 +751,6 @@ onBeforeUnmount(() => {
                 </div>
               </Transition>
             </div>
-            <span v-if="app" :class="['inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium', appStatusClasses(app).bg]">
-              <span :class="['h-1.5 w-1.5 rounded-full', appStatusClasses(app).dot]"></span>
-              <span :class="appStatusClasses(app).text">{{ appStatusLabel(app) }}</span>
-            </span>
           </div>
         </div>
 
@@ -1106,43 +799,26 @@ onBeforeUnmount(() => {
           </div>
         </div>
 
-        <!-- Slide to Deploy -->
-        <div class="mb-10 flex justify-end">
-          <div class="w-56">
-            <SlideToDeploy
-              ref="slideRef"
-              :is-production="environment.isProduction"
-              :environment-name="environment.name"
-              :disabled="deploying || !checklistAllGood"
-              @deploy="triggerDeploy"
-            />
-          </div>
-        </div>
-
-        <!-- Accordion: Logs, Env Vars, Services -->
+        <!-- Accordion: Apps, Services, Env Vars -->
         <div class="mb-10 divide-y divide-gray-200 rounded-lg border border-gray-200 dark:divide-gray-800 dark:border-gray-800">
-          <!-- Logs -->
-          <div v-if="app">
+          <!-- Apps -->
+          <div>
             <div class="flex items-center justify-between px-4 py-3">
               <button
-                @click="logsOpen = !logsOpen"
+                @click="appsOpen = !appsOpen"
                 class="flex flex-1 items-center space-x-3 text-left hover:opacity-80"
               >
-                <h2 class="text-sm font-medium text-gray-900 dark:text-white">Logs</h2>
-                <span
-                  v-if="logsConnected"
-                  class="inline-flex items-center space-x-1 rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700 dark:bg-green-900/30 dark:text-green-400"
-                >
-                  <span class="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse"></span>
-                  <span>Live</span>
+                <h2 class="text-sm font-medium text-gray-900 dark:text-white">Apps</h2>
+                <span class="inline-flex rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-500 dark:bg-gray-800 dark:text-gray-400">
+                  {{ sortedApps.length }}
                 </span>
               </button>
               <button
-                @click="logsOpen = !logsOpen"
+                @click="appsOpen = !appsOpen"
                 class="rounded p-0.5 hover:bg-gray-100 dark:hover:bg-gray-800"
               >
                 <svg
-                  :class="['h-4 w-4 text-gray-400 transition-transform duration-200', logsOpen ? 'rotate-90' : '']"
+                  :class="['h-4 w-4 text-gray-400 transition-transform duration-200', appsOpen ? 'rotate-90' : '']"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -1151,185 +827,166 @@ onBeforeUnmount(() => {
                 </svg>
               </button>
             </div>
-            <div v-show="logsOpen">
-              <div
-                v-if="logsError"
-                class="border-t border-gray-200 px-4 py-6 text-center text-sm text-gray-500 dark:border-gray-800 dark:text-gray-400"
-              >
-                {{ logsError }}
-              </div>
-              <div v-else class="border-t border-gray-200 dark:border-gray-800">
-                <div
-                  ref="logContainer"
-                  class="h-80 overflow-y-auto bg-gray-100 p-4 font-mono text-xs leading-5 text-gray-700 dark:bg-gray-950 dark:text-gray-300"
-                  @scroll="autoScroll = logContainer && (logContainer.scrollHeight - logContainer.scrollTop - logContainer.clientHeight < 40)"
-                >
-                  <div v-if="!logsConnected && logLines.length === 0" class="flex h-full items-center justify-center text-gray-500">
-                    <svg class="mr-2 h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                      <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                      <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                    Connecting to logs...
-                  </div>
-                  <div v-else-if="logLines.length === 0 && logsConnected" class="text-gray-500">
-                    Waiting for output...
-                  </div>
-                  <template v-else>
-                    <div v-for="(line, i) in logLines" :key="i" class="whitespace-pre-wrap break-all hover:bg-gray-200/50 dark:hover:bg-gray-900/50" v-html="highlightLogLine(line)"></div>
-                  </template>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Environment Variables -->
-          <div>
-            <div class="flex items-center justify-between px-4 py-3">
-              <button
-                @click="envVarsOpen = !envVarsOpen"
-                class="flex flex-1 items-center space-x-3 text-left hover:opacity-80"
-              >
-                <h2 class="text-sm font-medium text-gray-900 dark:text-white">Environment variables</h2>
-                <span class="inline-flex rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-500 dark:bg-gray-800 dark:text-gray-400">
-                  {{ sortedVarKeys.length }}
-                </span>
-              </button>
-              <div class="flex items-center gap-2">
-                <Tooltip v-if="envVarsOpen" :text="bulkMode ? 'Single edit' : 'Bulk edit'">
-                  <button
-                    @click="bulkMode ? exitBulkMode() : enterBulkMode()"
-                    class="rounded p-0.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-800 dark:hover:text-gray-200"
-                  >
-                    <svg v-if="bulkMode" class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
-                    </svg>
-                    <svg v-else class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
-                    </svg>
-                  </button>
-                </Tooltip>
-                <button
-                  @click="envVarsOpen = !envVarsOpen"
-                  class="rounded p-0.5 hover:bg-gray-100 dark:hover:bg-gray-800"
-                >
-                  <svg
-                    :class="['h-4 w-4 text-gray-400 transition-transform duration-200', envVarsOpen ? 'rotate-90' : '']"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-                  </svg>
-                </button>
-              </div>
-            </div>
-            <div v-show="envVarsOpen">
-              <template v-if="bulkMode">
-                <div class="border-t border-gray-200 dark:border-gray-800">
-                  <div class="relative">
-                    <pre
-                      class="pointer-events-none absolute inset-0 overflow-hidden whitespace-pre-wrap break-all bg-gray-50 px-4 py-4 font-mono text-sm leading-relaxed dark:bg-gray-950"
-                      aria-hidden="true"
-                      v-html="bulkHighlighted"
-                    ></pre>
-                    <textarea
-                      v-model="bulkText"
-                      rows="3"
-                      placeholder="KEY=value&#10;DATABASE_URL=postgres://localhost:5432/db&#10;# Comments are ignored"
-                      class="relative block w-full resize-none bg-transparent px-4 py-4 font-mono text-sm text-transparent caret-gray-900 placeholder-gray-400 focus:outline-none dark:caret-white dark:placeholder-gray-500"
-                      style="field-sizing: content"
-                      spellcheck="false"
-                    />
-                  </div>
-                  <div class="flex items-center justify-between border-t border-gray-200 px-4 py-3 dark:border-gray-800">
-                    <p class="text-xs text-gray-400 dark:text-gray-500">
-                      One KEY=value per line. Lines starting with # are ignored.
-                    </p>
-                    <button
-                      @click="saveBulk"
-                      :disabled="saving"
-                      class="rounded-md bg-gray-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
-                    >
-                      Save
-                    </button>
-                  </div>
-                </div>
-              </template>
-              <template v-else>
-                <div v-if="sortedVarKeys.length > 0" class="space-y-1 px-4 pb-2">
-                  <div
-                    v-for="key in sortedVarKeys"
-                    :key="key"
-                    class="group py-2"
-                  >
-                    <div class="flex items-center justify-between">
-                      <span class="font-mono text-sm font-medium text-gray-900 dark:text-white">{{ key }}</span>
-                      <div class="flex items-center space-x-1 opacity-0 transition-opacity group-hover:opacity-100">
-                        <button
-                          v-if="isSensitive(key)"
-                          @click="toggleReveal(key)"
-                          class="rounded p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-                        >
-                          <svg v-if="revealedKeys.has(key)" class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L6.5 6.5m7.378 7.378L17.5 17.5M3 3l18 18" />
-                          </svg>
-                          <svg v-else class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                          </svg>
-                        </button>
-                        <button
-                          @click="removeVar(key)"
-                          class="rounded p-1 text-gray-400 hover:text-red-600 dark:hover:text-red-400"
-                        >
-                          <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                          </svg>
-                        </button>
-                      </div>
+            <div v-show="appsOpen">
+              <!-- App list -->
+              <div class="divide-y divide-gray-200 border-t border-gray-200 dark:divide-gray-800 dark:border-gray-800">
+                <div v-for="appItem in sortedApps" :key="appItem.id" class="flex items-center justify-between px-4 py-3">
+                  <div class="flex items-center space-x-3">
+                    <div class="flex items-center space-x-2">
+                      <Link
+                        :href="`/projects/${project.slug}/environments/${environment.slug}/apps/${appItem.slug}`"
+                        class="text-sm font-medium text-gray-900 underline decoration-dashed decoration-gray-300 underline-offset-2 hover:text-gray-700 dark:text-white dark:decoration-gray-600 dark:hover:text-gray-300"
+                      >
+                        {{ appItem.name }}
+                      </Link>
+                      <span
+                        v-if="appItem.isDefault"
+                        class="inline-flex rounded px-1.5 py-0.5 text-[10px] font-medium bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400"
+                      >
+                        default
+                      </span>
+                      <span
+                        v-if="appItem.routePath === null"
+                        class="inline-flex rounded px-1.5 py-0.5 text-[10px] font-medium bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400"
+                      >
+                        worker
+                      </span>
+                      <span
+                        v-else-if="appItem.routePath && appItem.routePath !== '/'"
+                        class="inline-flex rounded px-1.5 py-0.5 text-[10px] font-medium bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400"
+                      >
+                        {{ appItem.routePath }}
+                      </span>
                     </div>
-                    <p class="mt-1 truncate font-mono text-sm text-gray-500 dark:text-gray-400">
-                      {{ isSensitive(key) && !revealedKeys.has(key) ? '••••••••' : envVars[key] }}
-                    </p>
+                    <!-- Status -->
+                    <div :class="[appStatusClasses(appItem).bg, 'inline-flex items-center space-x-1.5 rounded-full px-2.5 py-0.5']">
+                      <div :class="[appStatusClasses(appItem).dot, 'h-1.5 w-1.5 rounded-full']"></div>
+                      <span :class="[appStatusClasses(appItem).text, 'text-[11px] font-medium']">{{ appStatusLabel(appItem) }}</span>
+                    </div>
+                  </div>
+                  <div class="relative">
+                    <button
+                      @click.stop="appMenuOpen = appMenuOpen === appItem.id ? null : appItem.id"
+                      class="rounded-md p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-800 dark:hover:text-gray-200"
+                    >
+                      <svg class="h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
+                        <circle cx="12" cy="6" r="1.5" />
+                        <circle cx="12" cy="12" r="1.5" />
+                        <circle cx="12" cy="18" r="1.5" />
+                      </svg>
+                    </button>
+                    <Transition
+                      enter-active-class="transition ease-out duration-100"
+                      enter-from-class="transform opacity-0 scale-95"
+                      enter-to-class="transform opacity-100 scale-100"
+                      leave-active-class="transition ease-in duration-75"
+                      leave-from-class="transform opacity-100 scale-100"
+                      leave-to-class="transform opacity-0 scale-95"
+                    >
+                      <div
+                        v-if="appMenuOpen === appItem.id"
+                        @click.stop
+                        class="absolute right-0 top-full z-20 mt-1 w-56 rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-900"
+                      >
+                        <!-- Slide to Deploy -->
+                        <div class="border-b border-gray-100 px-3 py-2.5 dark:border-gray-800">
+                          <SlideToDeploy
+                            :ref="el => { if (el) appSlideRefs[appItem.id] = el }"
+                            :is-production="environment.isProduction"
+                            :environment-name="environment.name"
+                            :disabled="deploying"
+                            @deploy="deployApp(appItem)"
+                          />
+                        </div>
+                        <!-- Actions -->
+                        <div v-if="appItem.status === 'running'" class="border-b border-gray-100 py-1 dark:border-gray-800">
+                          <button
+                            @click="restartSingleApp(appItem); appMenuOpen = null"
+                            class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+                          >
+                            <svg class="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                            </svg>
+                            Restart
+                          </button>
+                          <button
+                            @click="stopSingleApp(appItem); appMenuOpen = null"
+                            class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20"
+                          >
+                            <svg class="h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
+                              <rect x="6" y="6" width="12" height="12" rx="1" />
+                            </svg>
+                            Stop
+                          </button>
+                        </div>
+                        <!-- Settings -->
+                        <div class="pt-1">
+                          <Link
+                            :href="`/projects/${project.slug}/environments/${environment.slug}/apps/${appItem.slug}/settings`"
+                            class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+                          >
+                            <svg class="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                            </svg>
+                            Settings
+                          </Link>
+                        </div>
+                      </div>
+                    </Transition>
                   </div>
                 </div>
-                <div v-else class="px-4 py-6 text-center text-sm text-gray-500 dark:text-gray-400">
-                  No environment variables set.
-                </div>
-                <div class="px-4 pb-3">
+              </div>
+              <!-- Add app -->
+              <div class="px-4 pb-3">
+                <div v-if="addAppOpen" class="space-y-3">
                   <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
                     <input
-                      v-model="newKey"
-                      type="text"
-                      placeholder="KEY"
-                      class="w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 font-mono text-sm text-gray-900 placeholder-gray-400 focus:border-brand focus:outline-none sm:flex-1 dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
-                      @keydown.enter="addVar"
+                      v-model="newAppName"
+                      placeholder="app name"
+                      class="w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:border-brand focus:outline-none sm:flex-1 dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
+                      @keydown.enter="createApp"
                     />
                     <input
-                      v-model="newValue"
-                      type="text"
-                      placeholder="value"
-                      class="w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 font-mono text-sm text-gray-900 placeholder-gray-400 focus:border-brand focus:outline-none sm:flex-1 dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
-                      @keydown.enter="addVar"
+                      v-model="newAppDockerfile"
+                      placeholder="Dockerfile"
+                      class="w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:border-brand focus:outline-none sm:w-32 dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
+                      @keydown.enter="createApp"
                     />
-                    <button
-                      v-if="shouldShowGenerate(newKey)"
-                      @click="generateSecret"
-                      type="button"
-                      class="w-full rounded-md border border-gray-200 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 sm:w-auto dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
+                    <select
+                      v-model="newAppRoutePath"
+                      class="rounded-md border border-gray-200 bg-white px-2 py-1.5 text-sm text-gray-900 focus:border-brand focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-white"
                     >
-                      Generate
+                      <option value="/">/ (root)</option>
+                      <option value="/api">/api</option>
+                      <option value="/admin">/admin</option>
+                      <option value="none">None (worker)</option>
+                    </select>
+                  </div>
+                  <div class="flex items-center justify-end space-x-2">
+                    <button
+                      @click="addAppOpen = false"
+                      class="rounded-md px-3 py-1.5 text-sm text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
+                    >
+                      Cancel
                     </button>
                     <button
-                      @click="addVar"
-                      :disabled="!newKey.trim() || saving"
-                      class="w-full rounded-md bg-gray-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50 sm:w-auto dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
+                      @click="createApp"
+                      :disabled="!newAppName.trim() || creatingApp"
+                      class="rounded-md bg-gray-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
                     >
-                      Add
+                      {{ creatingApp ? 'Creating...' : 'Create' }}
                     </button>
                   </div>
                 </div>
-              </template>
+                <button
+                  v-else
+                  @click="addAppOpen = true"
+                  class="text-sm text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
+                >
+                  + Add app
+                </button>
+              </div>
             </div>
           </div>
 
@@ -1566,6 +1223,157 @@ onBeforeUnmount(() => {
               </div>
             </div>
           </div>
+
+          <!-- Environment Variables -->
+          <div>
+            <div class="flex items-center justify-between px-4 py-3">
+              <button
+                @click="envVarsOpen = !envVarsOpen"
+                class="flex flex-1 items-center space-x-3 text-left hover:opacity-80"
+              >
+                <h2 class="text-sm font-medium text-gray-900 dark:text-white">Environment variables</h2>
+                <span class="inline-flex rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-500 dark:bg-gray-800 dark:text-gray-400">
+                  {{ sortedVarKeys.length }}
+                </span>
+              </button>
+              <div class="flex items-center gap-2">
+                <Tooltip v-if="envVarsOpen" :text="bulkMode ? 'Single edit' : 'Bulk edit'">
+                  <button
+                    @click="bulkMode ? exitBulkMode() : enterBulkMode()"
+                    class="rounded p-0.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-800 dark:hover:text-gray-200"
+                  >
+                    <svg v-if="bulkMode" class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+                    </svg>
+                    <svg v-else class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+                    </svg>
+                  </button>
+                </Tooltip>
+                <button
+                  @click="envVarsOpen = !envVarsOpen"
+                  class="rounded p-0.5 hover:bg-gray-100 dark:hover:bg-gray-800"
+                >
+                  <svg
+                    :class="['h-4 w-4 text-gray-400 transition-transform duration-200', envVarsOpen ? 'rotate-90' : '']"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+            <div v-show="envVarsOpen">
+              <template v-if="bulkMode">
+                <div class="border-t border-gray-200 dark:border-gray-800">
+                  <div class="relative">
+                    <pre
+                      class="pointer-events-none absolute inset-0 overflow-hidden whitespace-pre-wrap break-all bg-gray-50 px-4 py-4 font-mono text-sm leading-relaxed dark:bg-gray-950"
+                      aria-hidden="true"
+                      v-html="bulkHighlighted"
+                    ></pre>
+                    <textarea
+                      v-model="bulkText"
+                      rows="3"
+                      placeholder="KEY=value&#10;DATABASE_URL=postgres://localhost:5432/db&#10;# Comments are ignored"
+                      class="relative block w-full resize-none bg-transparent px-4 py-4 font-mono text-sm text-transparent caret-gray-900 placeholder-gray-400 focus:outline-none dark:caret-white dark:placeholder-gray-500"
+                      style="field-sizing: content"
+                      spellcheck="false"
+                    />
+                  </div>
+                  <div class="flex items-center justify-between border-t border-gray-200 px-4 py-3 dark:border-gray-800">
+                    <p class="text-xs text-gray-400 dark:text-gray-500">
+                      One KEY=value per line. Lines starting with # are ignored.
+                    </p>
+                    <button
+                      @click="saveBulk"
+                      :disabled="saving"
+                      class="rounded-md bg-gray-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
+                    >
+                      Save
+                    </button>
+                  </div>
+                </div>
+              </template>
+              <template v-else>
+                <div v-if="sortedVarKeys.length > 0" class="space-y-1 px-4 pb-2">
+                  <div
+                    v-for="key in sortedVarKeys"
+                    :key="key"
+                    class="group py-2"
+                  >
+                    <div class="flex items-center justify-between">
+                      <span class="font-mono text-sm font-medium text-gray-900 dark:text-white">{{ key }}</span>
+                      <div class="flex items-center space-x-1 opacity-0 transition-opacity group-hover:opacity-100">
+                        <button
+                          v-if="isSensitive(key)"
+                          @click="toggleReveal(key)"
+                          class="rounded p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                        >
+                          <svg v-if="revealedKeys.has(key)" class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L6.5 6.5m7.378 7.378L17.5 17.5M3 3l18 18" />
+                          </svg>
+                          <svg v-else class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                          </svg>
+                        </button>
+                        <button
+                          @click="removeVar(key)"
+                          class="rounded p-1 text-gray-400 hover:text-red-600 dark:hover:text-red-400"
+                        >
+                          <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                        </button>
+                      </div>
+                    </div>
+                    <p class="mt-1 truncate font-mono text-sm text-gray-500 dark:text-gray-400">
+                      {{ isSensitive(key) && !revealedKeys.has(key) ? '••••••••' : envVars[key] }}
+                    </p>
+                  </div>
+                </div>
+                <div v-else class="px-4 py-6 text-center text-sm text-gray-500 dark:text-gray-400">
+                  No environment variables set.
+                </div>
+                <div class="px-4 pb-3">
+                  <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
+                    <input
+                      v-model="newKey"
+                      type="text"
+                      placeholder="KEY"
+                      class="w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 font-mono text-sm text-gray-900 placeholder-gray-400 focus:border-brand focus:outline-none sm:flex-1 dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
+                      @keydown.enter="addVar"
+                    />
+                    <input
+                      v-model="newValue"
+                      type="text"
+                      placeholder="value"
+                      class="w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 font-mono text-sm text-gray-900 placeholder-gray-400 focus:border-brand focus:outline-none sm:flex-1 dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
+                      @keydown.enter="addVar"
+                    />
+                    <button
+                      v-if="shouldShowGenerate(newKey)"
+                      @click="generateSecret"
+                      type="button"
+                      class="w-full rounded-md border border-gray-200 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 sm:w-auto dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
+                    >
+                      Generate
+                    </button>
+                    <button
+                      @click="addVar"
+                      :disabled="!newKey.trim() || saving"
+                      class="w-full rounded-md bg-gray-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50 sm:w-auto dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
+                    >
+                      Add
+                    </button>
+                  </div>
+                </div>
+              </template>
+            </div>
+          </div>
         </div>
 
         <!-- Deployments -->
@@ -1593,6 +1401,12 @@ onBeforeUnmount(() => {
                   ></span>
                   <span :class="['inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium', statusBadge(dep.status).classes]">
                     {{ statusBadge(dep.status).label }}
+                  </span>
+                  <span
+                    v-if="dep.app && dep.app.name"
+                    class="inline-flex rounded px-1.5 py-0.5 text-[10px] font-medium bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400"
+                  >
+                    {{ dep.app.name }}
                   </span>
                   <span v-if="dep.gitBranch" class="text-xs text-gray-500 dark:text-gray-400">
                     {{ dep.gitBranch }}
@@ -1634,62 +1448,5 @@ onBeforeUnmount(() => {
       @cancel="cancelDeleteService"
     />
 
-    <!-- Custom Domain Modal -->
-    <Teleport to="body">
-      <Transition
-        enter-active-class="transition duration-200 ease-out"
-        enter-from-class="opacity-0"
-        enter-to-class="opacity-100"
-        leave-active-class="transition duration-150 ease-in"
-        leave-from-class="opacity-100"
-        leave-to-class="opacity-0"
-      >
-        <div v-if="domainModalOpen" class="fixed inset-0 z-50 flex items-center justify-center">
-          <div class="fixed inset-0 bg-black/50" @click="closeDomainModal" />
-          <Transition
-            enter-active-class="transition duration-200 ease-out"
-            enter-from-class="scale-95 opacity-0"
-            enter-to-class="scale-100 opacity-100"
-            leave-active-class="transition duration-150 ease-in"
-            leave-from-class="scale-100 opacity-100"
-            leave-to-class="scale-95 opacity-0"
-          >
-            <div
-              v-if="domainModalOpen"
-              class="relative w-full max-w-sm rounded-lg border border-gray-200 bg-white p-6 shadow-xl dark:border-gray-700 dark:bg-gray-900"
-            >
-              <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Custom domain</h3>
-              <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">
-                Point your domain to <code class="rounded bg-gray-100 px-1 py-0.5 font-mono text-xs dark:bg-gray-800">{{ environment.serverIp }}</code> with an A record. SSL is provisioned automatically.
-              </p>
-              <div class="mt-4">
-                <input
-                  v-model="newDomain"
-                  type="text"
-                  placeholder="app.example.com"
-                  class="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-brand focus:outline-none dark:border-gray-600 dark:bg-gray-800 dark:text-white dark:placeholder-gray-500"
-                  @keydown.enter="saveCustomDomain"
-                />
-              </div>
-              <div class="mt-4 flex justify-end space-x-3">
-                <button
-                  @click="closeDomainModal"
-                  class="rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800"
-                >
-                  Cancel
-                </button>
-                <button
-                  @click="saveCustomDomain"
-                  :disabled="savingDomain"
-                  class="rounded-md bg-gray-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
-                >
-                  {{ savingDomain ? 'Saving...' : 'Save' }}
-                </button>
-              </div>
-            </div>
-          </Transition>
-        </div>
-      </Transition>
-    </Teleport>
   </div>
 </template>

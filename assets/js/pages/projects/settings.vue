@@ -140,7 +140,7 @@ function deleteProject() {
               id="name"
               v-model="form.name"
               type="text"
-              class="w-full rounded-md border border-gray-200 bg-white px-4 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus:border-brand focus:outline-none dark:border-gray-800 dark:bg-black dark:text-white dark:placeholder-gray-500"
+              class="w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:border-brand focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
             />
             <p v-if="form.errors.name" class="mt-1 text-sm text-red-600">{{ form.errors.name }}</p>
           </div>
@@ -154,7 +154,7 @@ function deleteProject() {
               v-model="form.description"
               rows="3"
               placeholder="A brief description about your project"
-              class="w-full resize-none rounded-md border border-gray-200 bg-white px-4 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus:border-brand focus:outline-none dark:border-gray-800 dark:bg-black dark:text-white dark:placeholder-gray-500"
+              class="w-full resize-none border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:border-brand focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
             ></textarea>
           </div>
 
@@ -167,7 +167,7 @@ function deleteProject() {
               v-model="form.repositoryUrl"
               type="url"
               placeholder="https://github.com/your-org/your-repo"
-              class="w-full rounded-md border border-gray-200 bg-white px-4 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus:border-brand focus:outline-none dark:border-gray-800 dark:bg-black dark:text-white dark:placeholder-gray-500"
+              class="w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:border-brand focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
             />
           </div>
 
@@ -211,7 +211,7 @@ function deleteProject() {
                   v-model="deployForm.autoDeployBranch"
                   type="text"
                   placeholder="main"
-                  class="w-40 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-brand focus:outline-none dark:border-gray-800 dark:bg-black dark:text-white"
+                  class="w-40 border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 focus:border-brand focus:outline-none dark:border-gray-700 dark:text-white"
                 />
                 <button
                   @click="saveDeploySettings"

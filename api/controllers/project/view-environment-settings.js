@@ -44,7 +44,7 @@ module.exports = {
     }
 
     // Check if environment has app or services
-    const app = await App.findOne({ environment: environment.id })
+    const app = await App.findOne({ environment: environment.id, isDefault: true }) || await App.findOne({ environment: environment.id })
     const services = await Service.find({ environment: environment.id })
 
     // Count environments in project (can't delete if only one)

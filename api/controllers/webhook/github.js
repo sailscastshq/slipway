@@ -111,39 +111,49 @@ async function handlePush(repo, payload) {
     return { received: true, action: 'skipped', reason: 'no_environment' }
   }
 
-  // Trigger deployment
+  // Trigger deployment for all apps in environment
   sails.log.info(`[webhook] Triggering deployment for ${environment.slug}`)
 
   try {
-    const deployment = await Deployment.create({
-      status: 'pending',
-      triggerType: 'webhook',
-      gitCommit: commit,
-      gitMessage: payload.head_commit?.message?.substring(0, 200),
-      gitBranch: branch,
-      environment: environment.id,
-      startedAt: Date.now()
-    }).fetch()
-
     const envRecord = await Environment.findOne({ id: environment.id }).populate('project')
     const project = envRecord.project
 
-    process.nextTick(async () => {
-      try {
-        await sails.helpers.deploy.executePipeline.with({
-          deploymentId: deployment.id,
-          project,
-          environment
-        })
-      } catch (err) {
-        sails.log.error(`[webhook] Deployment ${deployment.id} failed: ${err.message || err}`)
-      }
-    })
+    // Deploy all apps in the environment
+    const apps = await App.find({ environment: environment.id })
+    const deploymentIds = []
+
+    for (const app of (apps.length > 0 ? apps : [null])) {
+      const deployment = await Deployment.create({
+        status: 'pending',
+        triggerType: 'webhook',
+        gitCommit: commit,
+        gitMessage: payload.head_commit?.message?.substring(0, 200),
+        gitBranch: branch,
+        environment: environment.id,
+        app: app ? app.id : undefined,
+        startedAt: Date.now()
+      }).fetch()
+
+      deploymentIds.push(deployment.id)
+
+      process.nextTick(async () => {
+        try {
+          await sails.helpers.deploy.executePipeline.with({
+            deploymentId: deployment.id,
+            project,
+            environment,
+            app
+          })
+        } catch (err) {
+          sails.log.error(`[webhook] Deployment ${deployment.id} failed: ${err.message || err}`)
+        }
+      })
+    }
 
     return {
       received: true,
       action: 'deployment_queued',
-      deploymentId: deployment.id
+      deploymentIds
     }
   } catch (err) {
     sails.log.error(`[webhook] Failed to create deployment: ${err.message}`)

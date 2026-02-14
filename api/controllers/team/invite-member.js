@@ -51,7 +51,7 @@ module.exports = {
       return '/settings/team'
     }
 
-    // Create new user account (no password — they'll use Forgot Password to set one)
+    // Create new user account with a temporary password
     const tempPassword = crypto.randomBytes(32).toString('hex')
 
     await User.create({
@@ -63,7 +63,27 @@ module.exports = {
       team: currentUser.team
     })
 
-    this.req.addFlash('success', `Invited ${email}. They can sign in using Forgot Password to set up their account.`)
+    // Generate a password reset token so the invitee can set their own password
+    const token = await sails.helpers.strings.random('url-friendly')
+    await User.updateOne({ email: email.toLowerCase() }).set({
+      passwordResetToken: token,
+      passwordResetTokenExpiresAt: Date.now() + sails.config.custom.passwordResetTokenTTL
+    })
+
+    // Send invite email
+    const team = await Team.findOne({ id: currentUser.team })
+    await sails.helpers.mail.send.with({
+      to: email.toLowerCase(),
+      subject: `You've been invited to join ${team.name}`,
+      template: 'email-team-invite',
+      templateData: {
+        teamName: team.name,
+        inviterName: currentUser.fullName,
+        token
+      }
+    })
+
+    this.req.addFlash('success', `Invited ${email}. They'll receive an email to set up their account.`)
     return '/settings/team'
   }
 }

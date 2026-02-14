@@ -53,7 +53,7 @@ module.exports = {
       throw { badRequest: { error: 'sails-hook-quest not detected in this app.' } }
     }
 
-    const app = await App.findOne({ environment: environment.id })
+    const app = await App.findOne({ environment: environment.id, isDefault: true }) || await App.findOne({ environment: environment.id })
     if (!app || app.status !== 'running' || !app.containerName) {
       throw { badRequest: { error: 'App is not running.' } }
     }

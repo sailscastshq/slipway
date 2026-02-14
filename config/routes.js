@@ -61,6 +61,7 @@ module.exports.routes = {
   'POST /projects/:slug/environments': 'project/create-environment',
   'GET /projects/:slug/environments/:envSlug': 'project/view-environment',
   'GET /projects/:slug/environments/:envSlug/settings': 'project/view-environment-settings',
+  'GET /projects/:slug/environments/:envSlug/apps/:appSlug': 'project/view-app',
   'GET /projects/:slug/environments/:envSlug/apps/:appSlug/settings': 'project/view-app-settings',
   'GET /projects/:slug/environments/:envSlug/helm': 'project/view-helm',
   'GET /projects/:slug/environments/:envSlug/services/:serviceId': 'project/view-service',

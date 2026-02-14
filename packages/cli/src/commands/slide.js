@@ -49,6 +49,7 @@ export default async function slide(options) {
       environment,
       {
         message: options.message,
+        appSlug: options.app,
         ...getGitInfo()
       }
     )

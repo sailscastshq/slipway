@@ -44,7 +44,7 @@ module.exports = {
     if (!environment) throw 'notFound'
 
     // Get app and services for this environment
-    const app = await App.findOne({ environment: environment.id })
+    const app = await App.findOne({ environment: environment.id, isDefault: true }) || await App.findOne({ environment: environment.id })
     const services = await Service.find({ environment: environment.id, status: 'running' })
 
     const containerNames = []

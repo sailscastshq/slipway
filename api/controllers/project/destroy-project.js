@@ -32,13 +32,15 @@ module.exports = {
 
     // Delete all associated resources for each environment
     for (const env of project.environments) {
-      // Stop and remove app container
-      const app = await App.findOne({ environment: env.id })
-      if (app && app.containerName) {
-        try {
-          await sails.helpers.docker.stopContainer(app.containerName)
-        } catch (err) {
-          sails.log.warn(`Failed to stop container ${app.containerName}: ${err.message}`)
+      // Stop and remove ALL app containers
+      const apps = await App.find({ environment: env.id })
+      for (const app of apps) {
+        if (app.containerName) {
+          try {
+            await sails.helpers.docker.stopContainer(app.containerName)
+          } catch (err) {
+            sails.log.warn(`Failed to stop container ${app.containerName}: ${err.message}`)
+          }
         }
       }
 

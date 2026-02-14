@@ -38,13 +38,22 @@ module.exports = {
       status: ['pending', 'building', 'pushing', 'deploying']
     }).sort('createdAt DESC')
 
-    // Enrich with project/environment info
+    // Get all apps for these environments (for app name enrichment)
+    const apps = await App.find({ environment: environmentIds })
+
+    // Enrich with project/environment/app info
     const enriched = []
     for (const deployment of activeDeployments) {
       const env = environments.find(e => e.id === deployment.environment)
       const proj = projects.find(p => p.id === env?.project)
 
       if (env && proj) {
+        // Find the app for this deployment (or fall back to default app)
+        let app = deployment.app ? apps.find(a => a.id === deployment.app) : null
+        if (!app) {
+          app = apps.find(a => a.environment === env.id && a.isDefault) || apps.find(a => a.environment === env.id)
+        }
+
         enriched.push({
           id: deployment.id,
           status: deployment.status,
@@ -60,7 +69,8 @@ module.exports = {
             id: env.id,
             name: env.name,
             slug: env.slug
-          }
+          },
+          app: app ? { id: app.id, name: app.name, slug: app.slug } : null
         })
       }
     }

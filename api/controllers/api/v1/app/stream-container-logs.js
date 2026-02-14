@@ -26,6 +26,10 @@ module.exports = {
       type: 'number',
       defaultsTo: 200,
       description: 'Number of historical lines to send first'
+    },
+    appSlug: {
+      type: 'string',
+      description: 'Target app slug (defaults to default app)'
     }
   },
 
@@ -39,7 +43,7 @@ module.exports = {
     }
   },
 
-  fn: async function ({ projectSlug, environmentSlug, tail }) {
+  fn: async function ({ projectSlug, environmentSlug, tail, appSlug }) {
     const req = this.req
     const res = this.res
 
@@ -50,7 +54,7 @@ module.exports = {
     const environment = await Environment.findOne({ slug: environmentSlug, project: project.id })
     if (!environment) throw 'notFound'
 
-    const app = await App.findOne({ environment: environment.id })
+    const app = await App.findOne({ environment: environment.id, isDefault: true }) || await App.findOne({ environment: environment.id })
     if (!app || !app.containerName) throw 'notFound'
 
     // Commit SSE headers immediately so Sails cannot override them

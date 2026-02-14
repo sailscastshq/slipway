@@ -209,6 +209,12 @@ function timeAgo(date) {
                     ]"
                   ></span>
                   <span class="text-sm text-gray-900 dark:text-white">{{ dep.environment?.name || 'Unknown' }}</span>
+                  <span
+                    v-if="dep.app && dep.app.name"
+                    class="inline-flex rounded px-1.5 py-0.5 text-[10px] font-medium bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400"
+                  >
+                    {{ dep.app.name }}
+                  </span>
                   <span v-if="dep.gitBranch" class="text-xs text-gray-500 dark:text-gray-400">
                     {{ dep.gitBranch }}
                   </span>

@@ -18,6 +18,10 @@ module.exports = {
       type: 'string',
       required: true,
       description: 'JavaScript code to execute'
+    },
+    appSlug: {
+      type: 'string',
+      description: 'Target app slug (defaults to default app)'
     }
   },
 
@@ -36,7 +40,7 @@ module.exports = {
     }
   },
 
-  fn: async function ({ projectSlug, environmentSlug, code }) {
+  fn: async function ({ projectSlug, environmentSlug, code, appSlug }) {
     const user = await User.findOne({ id: this.req.session.userId })
 
     const project = await Project.findOne({ slug: projectSlug }).populate('team')
@@ -55,7 +59,7 @@ module.exports = {
       throw 'notFound'
     }
 
-    const app = await App.findOne({ environment: environment.id })
+    const app = await App.findOne({ environment: environment.id, isDefault: true }) || await App.findOne({ environment: environment.id })
 
     if (!app || app.status !== 'running' || !app.containerName) {
       throw { badRequest: 'App is not running.' }

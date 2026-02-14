@@ -59,7 +59,7 @@ module.exports = {
 
     const { service } = dbResult
 
-    const app = await App.findOne({ environment: environment.id })
+    const app = await App.findOne({ environment: environment.id, isDefault: true }) || await App.findOne({ environment: environment.id })
 
     // Try to get models - first from running app, then from static files
     let modelsResult

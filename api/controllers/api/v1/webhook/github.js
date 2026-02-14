@@ -129,36 +129,44 @@ module.exports = {
     // Get the team owner to use as the deployer
     const owner = await User.findOne({ id: project.createdBy })
 
-    // Create deployment
-    const deployment = await Deployment.create({
-      status: 'pending',
-      gitCommit: body.after || body.head_commit?.id,
-      gitBranch: branch,
-      gitMessage: body.head_commit?.message,
-      triggeredBy: owner ? owner.id : null,
-      triggerType: 'webhook',
-      environment: environment.id,
-      startedAt: Date.now()
-    }).fetch()
+    // Deploy all apps in the environment
+    const apps = await App.find({ environment: environment.id })
+    const deploymentIds = []
 
-    sails.log.info(`Webhook auto-deploy triggered for ${projectSlug}: ${deployment.id}`)
+    for (const app of (apps.length > 0 ? apps : [null])) {
+      const deployment = await Deployment.create({
+        status: 'pending',
+        gitCommit: body.after || body.head_commit?.id,
+        gitBranch: branch,
+        gitMessage: body.head_commit?.message,
+        triggeredBy: owner ? owner.id : null,
+        triggerType: 'webhook',
+        environment: environment.id,
+        app: app ? app.id : undefined,
+        startedAt: Date.now()
+      }).fetch()
 
-    // Kick off async deployment via shared pipeline
-    process.nextTick(async () => {
-      try {
-        await sails.helpers.deploy.executePipeline.with({
-          deploymentId: deployment.id,
-          project,
-          environment
-        })
-      } catch (err) {
-        sails.log.error(`Webhook deploy ${deployment.id} failed: ${err.message || err}`)
-      }
-    })
+      deploymentIds.push(deployment.id)
+
+      sails.log.info(`Webhook auto-deploy triggered for ${projectSlug}: ${deployment.id}`)
+
+      process.nextTick(async () => {
+        try {
+          await sails.helpers.deploy.executePipeline.with({
+            deploymentId: deployment.id,
+            project,
+            environment,
+            app
+          })
+        } catch (err) {
+          sails.log.error(`Webhook deploy ${deployment.id} failed: ${err.message || err}`)
+        }
+      })
+    }
 
     return {
       message: 'Deployment triggered',
-      deploymentId: deployment.id
+      deploymentIds
     }
   }
 }

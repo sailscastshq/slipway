@@ -19,7 +19,7 @@ Slipway is an open-source, self-hosted platform purpose-built for **Sails.js** a
 - **Sails-native** — Understands your models, helpers, hooks, and config out of the box
 - **Automatic HTTPS** — SSL certificates provisioned automatically via Caddy
 - **Database management** — Provision PostgreSQL, MySQL, or Redis with one click. Connection URLs auto-injected
-- **Built-in toolbox** — Helm (production REPL), Bridge (data management), Dock (SQL console), Quest (job scheduler), Content (CMS)
+- **Built-in platform** — Helm (production REPL), Bridge (data management), Dock (SQL console), Quest (job scheduler), Content (CMS)
 - **Backups** — Database backups to S3-compatible storage with one-click restore
 - **Team collaboration** — Multi-user access with team management
 
@@ -60,7 +60,7 @@ slipway slide
 │                                                   │
 │  ┌────────────────────────────────────────────┐   │
 │  │          SLIPWAY (Sails.js + Vue)          │   │
-│  │  Dashboard · API · Deploy Engine · Toolbox │   │
+│  │  Dashboard · API · Deploy Engine · Platform │   │
 │  └────────────────────┬───────────────────────┘   │
 │                       │                           │
 │  ┌────────────────────┴───────────────────────┐   │
@@ -82,7 +82,7 @@ slipway slide
 | Containers | Docker | Universal runtime, no vendor lock-in |
 | Security | `execFile()` everywhere | No shell injection possible |
 
-## The Toolbox
+## The Platform
 
 Slipway includes integrated tools that work with your deployed Sails apps:
 

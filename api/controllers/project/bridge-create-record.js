@@ -54,7 +54,7 @@ module.exports = {
       throw { notFound: `/projects/${slug}` }
     }
 
-    const app = await App.findOne({ environment: environment.id })
+    const app = await App.findOne({ environment: environment.id, isDefault: true }) || await App.findOne({ environment: environment.id })
     if (!app || app.status !== 'running') {
       throw { badRequest: { error: 'App is not running' } }
     }

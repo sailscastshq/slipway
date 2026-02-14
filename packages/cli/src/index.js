@@ -87,6 +87,7 @@ const commands = {
     aliases: ['deploy', 'launch'],
     options: {
       env: { type: 'string', short: 'e', default: 'production' },
+      app: { type: 'string', short: 'a' },
       message: { type: 'string', short: 'm' }
     }
   },
@@ -101,6 +102,7 @@ const commands = {
     description: 'View application logs',
     options: {
       env: { type: 'string', short: 'e', default: 'production' },
+      app: { type: 'string', short: 'a' },
       follow: { type: 'boolean', short: 'f' },
       tail: { type: 'string', short: 'n', default: '100' },
       deployment: { type: 'string', short: 'd' }
@@ -185,14 +187,16 @@ const commands = {
   terminal: {
     description: 'Open a terminal session in the running container',
     options: {
-      env: { type: 'string', short: 'e', default: 'production' }
+      env: { type: 'string', short: 'e', default: 'production' },
+      app: { type: 'string', short: 'a' }
     }
   },
   run: {
     description: 'Run a command in the container',
     args: '<command...>',
     options: {
-      env: { type: 'string', short: 'e', default: 'production' }
+      env: { type: 'string', short: 'e', default: 'production' },
+      app: { type: 'string', short: 'a' }
     }
   }
 }

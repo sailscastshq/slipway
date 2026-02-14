@@ -28,7 +28,7 @@ module.exports = {
         let runningCount = 0
 
         for (const env of project.environments || []) {
-          const app = await App.findOne({ environment: env.id })
+          const app = await App.findOne({ environment: env.id, isDefault: true }) || await App.findOne({ environment: env.id })
           if (app) {
             if (app.status === 'running') {
               runningCount++

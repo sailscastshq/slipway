@@ -54,23 +54,28 @@ module.exports = {
     // Get full domain
     const fullDomain = await Environment.getFullDomain(environment.id)
 
-    // Get Docker health status if app is running
-    let containerHealth = null
-    const app = await App.findOne({ environment: environment.id })
-    if (app && app.containerName) {
-      try {
-        const containerStatus = await sails.helpers.docker.getContainerStatus(app.containerName)
-        containerHealth = containerStatus.health
-      } catch {
-        // Container not found or inspect failed
+    // Get Docker health status for all apps
+    const apps = await App.find({ environment: environment.id })
+    const appsWithHealth = []
+    for (const a of apps) {
+      let containerHealth = null
+      if (a.containerName) {
+        try {
+          const containerStatus = await sails.helpers.docker.getContainerStatus(a.containerName)
+          containerHealth = containerStatus.health
+        } catch {
+          // Container not found or inspect failed
+        }
       }
+      appsWithHealth.push({ ...a, containerHealth })
     }
 
     return {
       environment: {
         ...environment,
         fullDomain,
-        containerHealth
+        app: appsWithHealth,
+        containerHealth: appsWithHealth[0]?.containerHealth || null
       }
     }
   }

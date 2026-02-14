@@ -47,7 +47,7 @@ module.exports = {
 
     envVars: {
       type: 'json',
-      encrypt: true,
+      defaultsTo: {},
       description: 'App-specific environment variable overrides',
       columnName: 'app_env_vars'
     },

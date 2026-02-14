@@ -216,6 +216,10 @@ watch(() => props.deployment.status, (newStatus) => {
               {{ deployment.project.name }}
               <span class="text-gray-500">/</span>
               {{ deployment.environment.name }}
+              <template v-if="deployment.app">
+                <span class="text-gray-500">/</span>
+                {{ deployment.app.name }}
+              </template>
             </button>
 
             <div class="mt-2 flex items-center gap-3 text-xs text-gray-400">
