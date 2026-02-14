@@ -101,16 +101,9 @@ NEEDS_MIGRATION=$(docker run --rm \
 if [ "$NEEDS_MIGRATION" = "yes" ]; then
     echo "Running database migration..."
     docker run --rm \
-        --network slipway \
         -v slipway-db:/app/db \
-        -e NODE_ENV=production \
-        -e PORT=1337 \
-        -e SLIPWAY_URL="$SLIPWAY_URL" \
-        -e SESSION_SECRET="$SESSION_SECRET" \
-        -e DATA_ENCRYPTION_KEY="$DATA_ENCRYPTION_KEY" \
-        -e SLIPWAY_MIGRATE=alter \
         ghcr.io/sailscastshq/slipway:latest \
-        node -e "const sails = require('sails'); sails.lift({}, (err) => { if (err) { console.error(err); process.exit(1); } console.log('Migration complete'); sails.lower(() => process.exit(0)); })"
+        node -e "const sails = require('sails'); sails.lift({ port: 0 }, (err) => { if (err) { console.error(err); process.exit(1); } console.log('Migration complete'); sails.lower(() => process.exit(0)); })"
     echo -e "${GREEN}Database migrated${NC}"
 else
     echo -e "${GREEN}Database already initialized${NC}"
