@@ -64,7 +64,7 @@ module.exports.bootstrap = async function () {
     sails.log.verbose(error)
   }
 
-  // Configure Caddy TLS if ACME email is set
+  // Configure Caddy TLS and dashboard route if set up
   if (genesisUser) {
     try {
       const acmeEmail = await sails.helpers.setting.get('acmeEmail')
@@ -74,6 +74,16 @@ module.exports.bootstrap = async function () {
       }
     } catch (error) {
       sails.log.verbose('Could not configure Caddy TLS:', error.message)
+    }
+
+    try {
+      const instanceDomain = await sails.helpers.setting.get('instanceDomain')
+      if (instanceDomain) {
+        await sails.helpers.caddy.updateDashboardRoute(instanceDomain)
+        sails.log.info('Caddy dashboard route configured for:', instanceDomain)
+      }
+    } catch (error) {
+      sails.log.verbose('Could not configure Caddy dashboard route:', error.message)
     }
   }
 }
