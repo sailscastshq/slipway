@@ -1,7 +1,9 @@
+const { execFile } = require('child_process')
+
 module.exports = {
   friendlyName: 'Get routes',
 
-  description: 'Get all Slipway routes from Caddy.',
+  description: 'Get all Slipway route containers managed by caddy-docker-proxy.',
 
   inputs: {},
 
@@ -11,28 +13,31 @@ module.exports = {
       outputType: 'ref'
     },
     caddyError: {
-      description: 'Failed to get Caddy config'
+      description: 'Failed to get routes'
     }
   },
 
   fn: async function () {
-    try {
-      const stdout = await sails.helpers.caddy.caddyRequest.with({
-        method: 'GET',
-        path: '/config/apps/http/servers/srv0/routes'
-      })
+    const dockerPath = sails.config.docker?.binaryPath || 'docker'
 
-      const routes = JSON.parse(stdout)
-      return (routes || []).filter(
-        (route) => route['@id'] && route['@id'].startsWith('slipway-')
+    return new Promise((resolve) => {
+      execFile(
+        dockerPath,
+        ['ps', '--filter', 'name=slipway-route-', '--format', '{{.Names}}'],
+        (err, stdout) => {
+          if (err) {
+            sails.log.error(`Failed to list route containers: ${err.message}`)
+            return resolve([])
+          }
+
+          const routes = stdout.trim().split('\n').filter(Boolean).map((name) => ({
+            '@id': name,
+            containerName: name
+          }))
+
+          resolve(routes)
+        }
       )
-    } catch (err) {
-      // No routes configured yet or Caddy not reachable
-      if (err.message && err.message.includes('exit code 8')) {
-        return []
-      }
-      sails.log.error(`Caddy get routes failed: ${err.message}`)
-      return []
-    }
+    })
   }
 }

@@ -1,7 +1,11 @@
+const { execFile } = require('child_process')
+
 module.exports = {
   friendlyName: 'Update route',
 
-  description: 'Update or create a route in Caddy via its admin API.',
+  description:
+    'Update or create a Caddy route for an environment ' +
+    'using a Docker label container picked up by caddy-docker-proxy.',
 
   inputs: {
     environmentId: {
@@ -30,36 +34,71 @@ module.exports = {
       throw 'noApp'
     }
 
-    const routeId = config.route['@id']
+    const dockerPath = sails.config.docker?.binaryPath || 'docker'
+    const network = sails.config.custom.slipwayNetwork || 'slipway'
+    const routeContainerName = `slipway-route-${config.projectSlug}-${config.environmentSlug}`
 
-    // Delete existing route first (ignore errors — route may not exist yet)
-    try {
-      await sails.helpers.caddy.caddyRequest.with({
-        method: 'DELETE',
-        path: `/id/${routeId}`
+    // Remove existing route container
+    await new Promise((resolve) => {
+      execFile(dockerPath, ['rm', '-f', routeContainerName], () => resolve())
+    })
+
+    // Get routable apps for this environment
+    const apps = await App.find({ environment: environmentId })
+    const routableApps = apps.filter(app => app.hostPort && app.routePath !== null)
+
+    // Build docker run args with caddy labels
+    const args = [
+      'run', '-d',
+      '--name', routeContainerName,
+      '--network', network,
+      '--restart', 'unless-stopped',
+      '--label', `caddy=${config.domain}`
+    ]
+
+    if (routableApps.length === 1) {
+      // Single app — straightforward reverse proxy using container name
+      const app = routableApps[0]
+      args.push('--label', `caddy.reverse_proxy=${app.containerName}:${app.port}`)
+    } else {
+      // Multi-app — sort by path specificity, root last
+      const sorted = [...routableApps].sort((a, b) => {
+        if (a.routePath === '/') return 1
+        if (b.routePath === '/') return -1
+        return b.routePath.length - a.routePath.length
       })
-    } catch (err) {
-      sails.log.verbose(`Caddy route delete (pre-create) skipped: ${err.message}`)
+
+      sorted.forEach((app, i) => {
+        if (app.routePath === '/') {
+          args.push('--label', `caddy.reverse_proxy=${app.containerName}:${app.port}`)
+        } else {
+          args.push('--label', `caddy.handle_path_${i}=${app.routePath}*`)
+          args.push('--label', `caddy.handle_path_${i}.reverse_proxy=${app.containerName}:${app.port}`)
+        }
+      })
     }
 
-    // Create the new route
-    try {
-      await sails.helpers.caddy.caddyRequest.with({
-        method: 'POST',
-        path: '/config/apps/http/servers/srv0/routes',
-        data: config.route
-      })
-
-      sails.log.info(`Caddy route created for ${config.domain}`)
-
-      return {
-        domain: config.domain,
-        routeId,
-        action: 'created'
-      }
-    } catch (err) {
-      sails.log.error(`Caddy route creation failed: ${err.message}`)
-      throw 'caddyError'
+    // Add TLS email if configured
+    const acmeEmail = await sails.helpers.setting.get('acmeEmail')
+    if (acmeEmail) {
+      args.push('--label', `caddy.tls=${acmeEmail}`)
     }
+
+    args.push('alpine', 'sleep', 'infinity')
+
+    return new Promise((resolve, reject) => {
+      execFile(dockerPath, args, (err) => {
+        if (err) {
+          sails.log.error(`Route container creation failed for ${config.domain}: ${err.message}`)
+          throw 'caddyError'
+        }
+        sails.log.info(`Caddy route created for ${config.domain}`)
+        resolve({
+          domain: config.domain,
+          routeId: routeContainerName,
+          action: 'created'
+        })
+      })
+    })
   }
 }
