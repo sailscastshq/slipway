@@ -36,45 +36,30 @@ module.exports = {
   fn: async function ({ method, path, data }) {
     const dockerPath = sails.config.docker?.binaryPath || 'docker'
     const container = 'slipway-proxy'
+    const baseUrl = 'http://localhost:2019'
 
+    // All methods use sh -c so arguments are properly quoted inside the container
     return new Promise((resolve, reject) => {
-      if (method === 'GET' || method === 'POST') {
-        const args = ['exec', container, 'wget', '-q', '-O-']
+      let cmd
 
-        if (method === 'POST') {
-          args.push('--header=Content-Type: application/json')
-          args.push('--post-data=' + (data ? JSON.stringify(data) : ''))
-        }
-
-        args.push('http://localhost:2019' + path)
-
-        execFile(dockerPath, args, (err, stdout) => {
-          if (err) {
-            return reject(err)
-          }
-          resolve(stdout)
-        })
+      if (method === 'GET') {
+        cmd = `wget -q -O- '${baseUrl}${path}'`
+      } else if (method === 'POST') {
+        const json = data ? JSON.stringify(data) : ''
+        // Escape single quotes in JSON for safe shell embedding
+        const escaped = json.replace(/'/g, "'\\''")
+        cmd = `wget -q -O- --header='Content-Type: application/json' --post-data='${escaped}' '${baseUrl}${path}'`
       } else if (method === 'DELETE') {
         // BusyBox wget does not support custom methods — use printf + nc
-        const raw = [
-          `DELETE ${path} HTTP/1.1`,
-          'Host: localhost',
-          'Connection: close',
-          '',
-          ''
-        ].join('\\r\\n')
-
-        execFile(
-          dockerPath,
-          ['exec', container, 'sh', '-c', `printf '${raw}' | nc -w 5 localhost 2019`],
-          (err, stdout) => {
-            if (err) {
-              return reject(err)
-            }
-            resolve(stdout)
-          }
-        )
+        cmd = `printf 'DELETE ${path} HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' | nc -w 5 localhost 2019`
       }
+
+      execFile(dockerPath, ['exec', container, 'sh', '-c', cmd], (err, stdout) => {
+        if (err) {
+          return reject(err)
+        }
+        resolve(stdout)
+      })
     })
   }
 }
