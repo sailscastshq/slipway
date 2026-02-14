@@ -234,7 +234,10 @@ module.exports = {
    ***************************************************************************/
   custom: {
     // Disable slipwayDomain so production requires wildcardDomain setting or custom domains
-    slipwayDomain: null
+    slipwayDomain: null,
+
+    // Caddy runs in the slipway-proxy container on the shared Docker network
+    caddyAdminUrl: 'http://slipway-proxy:2019'
     // mailgunApiKey: 'key-prod_fake_bd32301385130a0bafe030c',
     // stripeSecret: 'sk_prod__fake_Nfgh82401348jaDa3lkZ0d9Hm',
     //--------------------------------------------------------------------------
