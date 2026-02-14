@@ -10,6 +10,8 @@ defineOptions({
 const props = defineProps({
   telegram: Object,
   discord: Object,
+  slack: Object,
+  webhook: Object,
   smtp: Object,
   notificationEmails: String,
   preferences: Object
@@ -27,6 +29,10 @@ const form = useForm({
   telegramEnabled: props.telegram.enabled,
   discordWebhookUrl: props.discord?.webhookUrl || '',
   discordEnabled: props.discord?.enabled || false,
+  slackWebhookUrl: props.slack?.webhookUrl || '',
+  slackEnabled: props.slack?.enabled || false,
+  webhookUrl: props.webhook?.url || '',
+  webhookEnabled: props.webhook?.enabled || false,
   smtpHost: props.smtp.host,
   smtpPort: props.smtp.port,
   smtpUser: props.smtp.user,
@@ -57,10 +63,30 @@ async function testChannel(channel) {
   testResult.value = null
 
   try {
+    // Send form values so test works even before saving
+    const payload = { channel }
+    if (channel === 'telegram') {
+      payload.telegramBotToken = form.telegramBotToken
+      payload.telegramChatId = form.telegramChatId
+    } else if (channel === 'discord') {
+      payload.discordWebhookUrl = form.discordWebhookUrl
+    } else if (channel === 'slack') {
+      payload.slackWebhookUrl = form.slackWebhookUrl
+    } else if (channel === 'webhook') {
+      payload.webhookUrl = form.webhookUrl
+    } else if (channel === 'email') {
+      payload.smtpHost = form.smtpHost
+      payload.smtpPort = form.smtpPort
+      payload.smtpUser = form.smtpUser
+      payload.smtpPassword = form.smtpPassword
+      payload.smtpFrom = form.smtpFrom
+      payload.notificationEmails = form.notificationEmails
+    }
+
     const response = await fetch('/settings/notifications/test', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ channel })
+      body: JSON.stringify(payload)
     })
     const data = await response.json()
     testResult.value = { channel, success: data.success, message: data.message }
@@ -127,6 +153,11 @@ const allChannels = [
     description: 'Receive notifications via Discord webhook'
   },
   {
+    id: 'slack',
+    label: 'Slack',
+    description: 'Receive notifications via Slack webhook'
+  },
+  {
     id: 'telegram',
     label: 'Telegram',
     description: 'Receive instant notifications via Telegram bot'
@@ -135,6 +166,11 @@ const allChannels = [
     id: 'email',
     label: 'Email',
     description: 'Receive notifications via email'
+  },
+  {
+    id: 'webhook',
+    label: 'Webhook',
+    description: 'Send structured JSON to any URL'
   }
 ]
 
@@ -285,7 +321,7 @@ const categoryIcons = {
       </div>
       <div class="flex items-center space-x-4">
         <a
-          href="https://docs.sailscasts.com/slipway"
+          href="https://docs.sailscasts.com/slipway/notifications"
           target="_blank"
           class="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
         >
@@ -466,6 +502,93 @@ const categoryIcons = {
                     </button>
                     <p
                       v-if="testResult?.channel === 'discord'"
+                      :class="[
+                        'mt-2 text-sm',
+                        testResult.success
+                          ? 'text-green-600 dark:text-green-400'
+                          : 'text-red-600 dark:text-red-400'
+                      ]"
+                    >
+                      {{ testResult.message }}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Slack Section -->
+              <div
+                v-if="filteredChannels.some((c) => c.id === 'slack')"
+                class="border-t border-gray-200 dark:border-gray-800"
+              >
+                <div class="flex items-center justify-between px-4 py-3">
+                  <div class="flex items-center gap-3">
+                    <svg
+                      class="h-5 w-5 text-[#4A154B]"
+                      viewBox="0 0 24 24"
+                      fill="currentColor"
+                    >
+                      <path d="M5.042 15.165a2.528 2.528 0 0 1-2.52 2.523A2.528 2.528 0 0 1 0 15.165a2.527 2.527 0 0 1 2.522-2.52h2.52v2.52zM6.313 15.165a2.527 2.527 0 0 1 2.521-2.52 2.527 2.527 0 0 1 2.521 2.52v6.313A2.528 2.528 0 0 1 8.834 24a2.528 2.528 0 0 1-2.521-2.522v-6.313zM8.834 5.042a2.528 2.528 0 0 1-2.521-2.52A2.528 2.528 0 0 1 8.834 0a2.528 2.528 0 0 1 2.521 2.522v2.52H8.834zM8.834 6.313a2.528 2.528 0 0 1 2.521 2.521 2.528 2.528 0 0 1-2.521 2.521H2.522A2.528 2.528 0 0 1 0 8.834a2.528 2.528 0 0 1 2.522-2.521h6.312zM18.956 8.834a2.528 2.528 0 0 1 2.522-2.521A2.528 2.528 0 0 1 24 8.834a2.528 2.528 0 0 1-2.522 2.521h-2.522V8.834zM17.688 8.834a2.528 2.528 0 0 1-2.523 2.521 2.527 2.527 0 0 1-2.52-2.521V2.522A2.527 2.527 0 0 1 15.165 0a2.528 2.528 0 0 1 2.523 2.522v6.312zM15.165 18.956a2.528 2.528 0 0 1 2.523 2.522A2.528 2.528 0 0 1 15.165 24a2.527 2.527 0 0 1-2.52-2.522v-2.522h2.52zM15.165 17.688a2.527 2.527 0 0 1-2.52-2.523 2.526 2.526 0 0 1 2.52-2.52h6.313A2.527 2.527 0 0 1 24 15.165a2.528 2.528 0 0 1-2.522 2.523h-6.313z" />
+                    </svg>
+                    <div>
+                      <h3
+                        class="text-sm font-medium text-gray-900 dark:text-white"
+                      >
+                        Slack
+                      </h3>
+                      <p class="text-xs text-gray-500 dark:text-gray-400">
+                        Receive notifications via Slack webhook
+                      </p>
+                    </div>
+                  </div>
+                  <label
+                    class="relative inline-flex cursor-pointer items-center"
+                  >
+                    <input
+                      type="checkbox"
+                      v-model="form.slackEnabled"
+                      class="peer sr-only"
+                    />
+                    <div
+                      class="peer-checked:bg-brand peer h-5 w-9 rounded-full bg-gray-200 after:absolute after:left-0.5 after:top-0.5 after:h-4 after:w-4 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:after:translate-x-full peer-checked:after:border-white peer-focus:outline-none dark:border-gray-600 dark:bg-gray-700"
+                    ></div>
+                  </label>
+                </div>
+                <div
+                  v-if="form.slackEnabled"
+                  class="divide-y divide-gray-200 border-t border-gray-200 dark:divide-gray-800 dark:border-gray-800"
+                >
+                  <div class="px-4 py-3">
+                    <label
+                      class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                      >Webhook URL</label
+                    >
+                    <input
+                      type="text"
+                      v-model="form.slackWebhookUrl"
+                      placeholder="https://hooks.slack.com/services/..."
+                      class="focus:border-brand w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 font-mono text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
+                    />
+                    <p class="mt-1 text-xs text-gray-400 dark:text-gray-500">
+                      Create an incoming webhook in your Slack workspace settings
+                    </p>
+                  </div>
+                  <div class="px-4 py-3">
+                    <button
+                      type="button"
+                      @click="testChannel('slack')"
+                      :disabled="
+                        testing === 'slack' || !form.slackWebhookUrl
+                      "
+                      class="rounded-md border border-gray-200 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
+                    >
+                      {{
+                        testing === 'slack'
+                          ? 'Sending...'
+                          : 'Send test message'
+                      }}
+                    </button>
+                    <p
+                      v-if="testResult?.channel === 'slack'"
                       :class="[
                         'mt-2 text-sm',
                         testResult.success
@@ -806,6 +929,99 @@ const categoryIcons = {
                     </button>
                     <p
                       v-if="testResult?.channel === 'email'"
+                      :class="[
+                        'mt-2 text-sm',
+                        testResult.success
+                          ? 'text-green-600 dark:text-green-400'
+                          : 'text-red-600 dark:text-red-400'
+                      ]"
+                    >
+                      {{ testResult.message }}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Webhook Section -->
+              <div
+                v-if="filteredChannels.some((c) => c.id === 'webhook')"
+                class="border-t border-gray-200 dark:border-gray-800"
+              >
+                <div class="flex items-center justify-between px-4 py-3">
+                  <div class="flex items-center gap-3">
+                    <svg
+                      class="h-5 w-5 text-gray-500"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="1.5"
+                        d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"
+                      />
+                    </svg>
+                    <div>
+                      <h3
+                        class="text-sm font-medium text-gray-900 dark:text-white"
+                      >
+                        Webhook
+                      </h3>
+                      <p class="text-xs text-gray-500 dark:text-gray-400">
+                        Send structured JSON to any URL (n8n, Zapier, custom)
+                      </p>
+                    </div>
+                  </div>
+                  <label
+                    class="relative inline-flex cursor-pointer items-center"
+                  >
+                    <input
+                      type="checkbox"
+                      v-model="form.webhookEnabled"
+                      class="peer sr-only"
+                    />
+                    <div
+                      class="peer-checked:bg-brand peer h-5 w-9 rounded-full bg-gray-200 after:absolute after:left-0.5 after:top-0.5 after:h-4 after:w-4 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:after:translate-x-full peer-checked:after:border-white peer-focus:outline-none dark:border-gray-600 dark:bg-gray-700"
+                    ></div>
+                  </label>
+                </div>
+                <div
+                  v-if="form.webhookEnabled"
+                  class="divide-y divide-gray-200 border-t border-gray-200 dark:divide-gray-800 dark:border-gray-800"
+                >
+                  <div class="px-4 py-3">
+                    <label
+                      class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                      >Webhook URL</label
+                    >
+                    <input
+                      type="text"
+                      v-model="form.webhookUrl"
+                      placeholder="https://example.com/webhook"
+                      class="focus:border-brand w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 font-mono text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
+                    />
+                    <p class="mt-1 text-xs text-gray-400 dark:text-gray-500">
+                      Receives POST with JSON payload: { event, timestamp, data }
+                    </p>
+                  </div>
+                  <div class="px-4 py-3">
+                    <button
+                      type="button"
+                      @click="testChannel('webhook')"
+                      :disabled="
+                        testing === 'webhook' || !form.webhookUrl
+                      "
+                      class="rounded-md border border-gray-200 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
+                    >
+                      {{
+                        testing === 'webhook'
+                          ? 'Sending...'
+                          : 'Send test webhook'
+                      }}
+                    </button>
+                    <p
+                      v-if="testResult?.channel === 'webhook'"
                       :class="[
                         'mt-2 text-sm',
                         testResult.success

@@ -40,49 +40,103 @@ module.exports = {
     if (memHigh) issues.push(`Memory at ${memoryPercent.toFixed(1)}%`)
     const issueText = issues.join(', ')
 
-    // Send Telegram notification
+    // Send Telegram notification (HTML format)
     const telegramEnabled = await sails.helpers.setting.get('telegramEnabled', 'false')
     if (telegramEnabled === 'true') {
-      await sails.helpers.notification.sendTelegram.with({
-        message: `⚠️ *High Resource Usage*\n\n*Container:* ${containerName}\n*Issue:* ${issueText}\n\n_${instanceName}_`
-      }).tolerate('error')
+      let message = `\u26A0\uFE0F <b>High Resource Usage</b>\n\n`
+      message += `<b>Container:</b> ${escapeHtml(containerName)}\n`
+      if (cpuHigh) {
+        message += `<b>CPU:</b> ${cpuPercent.toFixed(1)}%\n`
+      }
+      if (memHigh) {
+        message += `<b>Memory:</b> ${memoryPercent.toFixed(1)}%\n`
+      }
+      message += `\n<i>${escapeHtml(instanceName)}</i>`
+
+      await sails.helpers.notification.sendTelegram.with({ message }).tolerate('error')
+    }
+
+    // Send Slack notification
+    const slackEnabled = await sails.helpers.setting.get('slackEnabled', 'false')
+    if (slackEnabled === 'true') {
+      let message = `\u26A0\uFE0F *High Resource Usage*\n\n`
+      message += `*Container:* ${containerName}\n`
+      message += `*Issue:* ${issueText}\n`
+      message += `\n_${instanceName}_`
+
+      await sails.helpers.notification.sendSlack.with({ message }).tolerate('error')
+    }
+
+    // Send Discord notification
+    const discordEnabled = await sails.helpers.setting.get('discordEnabled', 'false')
+    if (discordEnabled === 'true') {
+      const discordWebhookUrl = await sails.helpers.setting.get('discordWebhookUrl', '')
+      if (discordWebhookUrl) {
+        const fields = [
+          { name: 'Container', value: containerName, inline: true }
+        ]
+        if (cpuHigh) {
+          fields.push({ name: 'CPU', value: `${cpuPercent.toFixed(1)}%`, inline: true })
+        }
+        if (memHigh) {
+          fields.push({ name: 'Memory', value: `${memoryPercent.toFixed(1)}%`, inline: true })
+        }
+
+        await fetch(discordWebhookUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            embeds: [{
+              title: '\u26A0\uFE0F High Resource Usage',
+              color: 0xf59e0b,
+              fields,
+              footer: { text: instanceName },
+              timestamp: new Date().toISOString()
+            }]
+          })
+        }).catch(err => sails.log.warn('Discord resource alert failed:', err.message))
+      }
     }
 
     // Send email notification
     const smtpEnabled = await sails.helpers.setting.get('smtpEnabled', 'false')
     if (smtpEnabled === 'true') {
       await sails.helpers.notification.sendEmail.with({
-        subject: `⚠️ High resource usage: ${containerName}`,
-        text: `High resource usage detected on ${containerName}\n\n${issueText}\n\nSent from ${instanceName}`,
-        html: `
-          <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto;">
-            <div style="padding: 20px; background: #f59e0b; color: white; border-radius: 8px 8px 0 0;">
-              <h2 style="margin: 0; font-size: 18px;">High Resource Usage</h2>
-            </div>
-            <div style="padding: 20px; background: #f9fafb; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 8px 8px;">
-              <table style="width: 100%; border-collapse: collapse;">
-                <tr>
-                  <td style="padding: 8px 0; color: #6b7280; font-size: 14px;">Container</td>
-                  <td style="padding: 8px 0; color: #111827; font-size: 14px; font-weight: 500;">${containerName}</td>
-                </tr>
-                ${cpuHigh ? `
-                <tr>
-                  <td style="padding: 8px 0; color: #6b7280; font-size: 14px;">CPU</td>
-                  <td style="padding: 8px 0; color: #ef4444; font-size: 14px; font-weight: 500;">${cpuPercent.toFixed(1)}%</td>
-                </tr>` : ''}
-                ${memHigh ? `
-                <tr>
-                  <td style="padding: 8px 0; color: #6b7280; font-size: 14px;">Memory</td>
-                  <td style="padding: 8px 0; color: #ef4444; font-size: 14px; font-weight: 500;">${memoryPercent.toFixed(1)}%</td>
-                </tr>` : ''}
-              </table>
-            </div>
-            <p style="margin-top: 20px; color: #9ca3af; font-size: 12px; text-align: center;">
-              Sent from ${instanceName}
-            </p>
-          </div>
-        `
+        template: 'email-resource-alert',
+        subject: `\u26A0\uFE0F High resource usage: ${containerName}`,
+        templateData: {
+          containerName,
+          cpuPercent,
+          memoryPercent,
+          cpuHigh,
+          memHigh,
+          instanceName
+        }
+      }).tolerate('error')
+    }
+
+    // Send webhook notification
+    const webhookEnabled = await sails.helpers.setting.get('webhookEnabled', 'false')
+    if (webhookEnabled === 'true') {
+      await sails.helpers.notification.sendWebhook.with({
+        event: 'resource.high_usage',
+        data: {
+          containerName,
+          cpuPercent,
+          memoryPercent,
+          cpuHigh,
+          memHigh,
+          instanceName
+        }
       }).tolerate('error')
     }
   }
+}
+
+function escapeHtml(text) {
+  if (!text) return ''
+  return String(text)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
 }

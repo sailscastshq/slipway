@@ -26,6 +26,14 @@ module.exports = {
     const discordWebhookUrl = await sails.helpers.setting.get('discordWebhookUrl', '')
     const discordEnabled = await sails.helpers.setting.get('discordEnabled', 'false')
 
+    // Slack settings
+    const slackWebhookUrl = await sails.helpers.setting.get('slackWebhookUrl', '')
+    const slackEnabled = await sails.helpers.setting.get('slackEnabled', 'false')
+
+    // Webhook settings
+    const webhookUrl = await sails.helpers.setting.get('webhookUrl', '')
+    const webhookEnabled = await sails.helpers.setting.get('webhookEnabled', 'false')
+
     // SMTP settings - prefer global env vars, fall back to stored settings
     const smtpHost = globalEnvVars.MAIL_HOST || await sails.helpers.setting.get('smtpHost', '')
     const smtpPort = globalEnvVars.MAIL_PORT || await sails.helpers.setting.get('smtpPort', '587')
@@ -62,6 +70,14 @@ module.exports = {
         discord: {
           webhookUrl: discordWebhookUrl,
           enabled: discordEnabled === 'true'
+        },
+        slack: {
+          webhookUrl: slackWebhookUrl,
+          enabled: slackEnabled === 'true'
+        },
+        webhook: {
+          url: webhookUrl,
+          enabled: webhookEnabled === 'true'
         },
         smtp: {
           host: smtpHost,

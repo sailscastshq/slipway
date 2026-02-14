@@ -43,42 +43,92 @@ module.exports = {
     const instanceName = await sails.helpers.setting.get('instanceName', 'Slipway')
     const instanceDomain = await sails.helpers.setting.get('instanceDomain', '')
 
-    const emoji = isSuccess ? '✅' : '❌'
+    const emoji = isSuccess ? '\u2705' : '\u274C'
     const statusText = isSuccess ? 'succeeded' : 'failed'
     const deploymentUrl = instanceDomain
       ? `https://${instanceDomain}/projects/${project.slug}/deployments/${deployment.id}`
       : null
 
-    // Send Telegram notification
+    // Send Telegram notification (HTML format)
     const telegramEnabled = await sails.helpers.setting.get('telegramEnabled', 'false')
     if (telegramEnabled === 'true') {
-      await sails.helpers.notification.sendTelegram.with({
-        message: formatTelegramMessage({
-          emoji,
-          statusText,
-          project,
-          environment,
-          deployment,
-          instanceName,
-          deploymentUrl
-        })
-      }).tolerate('error')
+      let message = `${emoji} <b>Deployment ${statusText}</b>\n\n`
+      message += `<b>Project:</b> ${escapeHtml(project.name)}\n`
+      message += `<b>Environment:</b> ${escapeHtml(environment.name)}\n`
+      if (deployment.gitBranch) {
+        message += `<b>Branch:</b> ${escapeHtml(deployment.gitBranch)}\n`
+      }
+      if (deployment.gitCommitShort) {
+        message += `<b>Commit:</b> <code>${escapeHtml(deployment.gitCommitShort)}</code>\n`
+      }
+      if (deploymentUrl) {
+        message += `\n<a href="${deploymentUrl}">View deployment</a>`
+      }
+      message += `\n\n<i>${escapeHtml(instanceName)}</i>`
+
+      await sails.helpers.notification.sendTelegram.with({ message }).tolerate('error')
+    }
+
+    // Send Slack notification
+    const slackEnabled = await sails.helpers.setting.get('slackEnabled', 'false')
+    if (slackEnabled === 'true') {
+      let message = `${emoji} *Deployment ${statusText}*\n\n`
+      message += `*Project:* ${project.name}\n`
+      message += `*Environment:* ${environment.name}\n`
+      if (deployment.gitBranch) {
+        message += `*Branch:* ${deployment.gitBranch}\n`
+      }
+      if (deployment.gitCommitShort) {
+        message += `*Commit:* \`${deployment.gitCommitShort}\`\n`
+      }
+      if (deploymentUrl) {
+        message += `\n<${deploymentUrl}|View deployment>`
+      }
+      message += `\n_${instanceName}_`
+
+      await sails.helpers.notification.sendSlack.with({ message }).tolerate('error')
+    }
+
+    // Send Discord notification
+    const discordEnabled = await sails.helpers.setting.get('discordEnabled', 'false')
+    if (discordEnabled === 'true') {
+      const discordWebhookUrl = await sails.helpers.setting.get('discordWebhookUrl', '')
+      if (discordWebhookUrl) {
+        const fields = [
+          { name: 'Project', value: project.name, inline: true },
+          { name: 'Environment', value: environment.name, inline: true }
+        ]
+        if (deployment.gitBranch) {
+          fields.push({ name: 'Branch', value: deployment.gitBranch, inline: true })
+        }
+        if (deployment.gitCommitShort) {
+          fields.push({ name: 'Commit', value: `\`${deployment.gitCommitShort}\``, inline: true })
+        }
+
+        await fetch(discordWebhookUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            embeds: [{
+              title: `${emoji} Deployment ${statusText}`,
+              color: isSuccess ? 0x10b981 : 0xef4444,
+              fields,
+              ...(deploymentUrl ? { url: deploymentUrl } : {}),
+              footer: { text: instanceName },
+              timestamp: new Date().toISOString()
+            }]
+          })
+        }).catch(err => sails.log.warn('Discord notification failed:', err.message))
+      }
     }
 
     // Send email notification
     const smtpEnabled = await sails.helpers.setting.get('smtpEnabled', 'false')
     if (smtpEnabled === 'true') {
       await sails.helpers.notification.sendEmail.with({
+        template: 'email-deployment-notification',
         subject: `${emoji} Deployment ${statusText}: ${project.name} (${environment.name})`,
-        text: formatEmailText({
-          statusText,
-          project,
-          environment,
-          deployment,
-          instanceName,
-          deploymentUrl
-        }),
-        html: formatEmailHtml({
+        templateData: {
           isSuccess,
           statusText,
           project,
@@ -86,90 +136,36 @@ module.exports = {
           deployment,
           instanceName,
           deploymentUrl
-        })
+        }
+      }).tolerate('error')
+    }
+
+    // Send webhook notification
+    const webhookEnabled = await sails.helpers.setting.get('webhookEnabled', 'false')
+    if (webhookEnabled === 'true') {
+      await sails.helpers.notification.sendWebhook.with({
+        event: isSuccess ? 'deployment.success' : 'deployment.failed',
+        data: {
+          project: { name: project.name, slug: project.slug },
+          environment: { name: environment.name },
+          deployment: {
+            id: deployment.id,
+            status: deployment.status,
+            gitBranch: deployment.gitBranch,
+            gitCommitShort: deployment.gitCommitShort
+          },
+          deploymentUrl,
+          instanceName
+        }
       }).tolerate('error')
     }
   }
 }
 
-function formatTelegramMessage({ emoji, statusText, project, environment, deployment, instanceName, deploymentUrl }) {
-  let message = `${emoji} *Deployment ${statusText}*\n\n`
-  message += `*Project:* ${project.name}\n`
-  message += `*Environment:* ${environment.name}\n`
-
-  if (deployment.gitBranch) {
-    message += `*Branch:* ${deployment.gitBranch}\n`
-  }
-  if (deployment.gitCommitShort) {
-    message += `*Commit:* \`${deployment.gitCommitShort}\`\n`
-  }
-
-  if (deploymentUrl) {
-    message += `\n[View deployment](${deploymentUrl})`
-  }
-
-  return message
-}
-
-function formatEmailText({ statusText, project, environment, deployment, instanceName, deploymentUrl }) {
-  let text = `Deployment ${statusText}\n\n`
-  text += `Project: ${project.name}\n`
-  text += `Environment: ${environment.name}\n`
-
-  if (deployment.gitBranch) {
-    text += `Branch: ${deployment.gitBranch}\n`
-  }
-  if (deployment.gitCommitShort) {
-    text += `Commit: ${deployment.gitCommitShort}\n`
-  }
-
-  if (deploymentUrl) {
-    text += `\nView deployment: ${deploymentUrl}`
-  }
-
-  return text
-}
-
-function formatEmailHtml({ isSuccess, statusText, project, environment, deployment, instanceName, deploymentUrl }) {
-  const statusColor = isSuccess ? '#10b981' : '#ef4444'
-
-  return `
-    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto;">
-      <div style="padding: 20px; background: ${statusColor}; color: white; border-radius: 8px 8px 0 0;">
-        <h2 style="margin: 0; font-size: 18px;">Deployment ${statusText}</h2>
-      </div>
-      <div style="padding: 20px; background: #f9fafb; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 8px 8px;">
-        <table style="width: 100%; border-collapse: collapse;">
-          <tr>
-            <td style="padding: 8px 0; color: #6b7280; font-size: 14px;">Project</td>
-            <td style="padding: 8px 0; color: #111827; font-size: 14px; font-weight: 500;">${project.name}</td>
-          </tr>
-          <tr>
-            <td style="padding: 8px 0; color: #6b7280; font-size: 14px;">Environment</td>
-            <td style="padding: 8px 0; color: #111827; font-size: 14px; font-weight: 500;">${environment.name}</td>
-          </tr>
-          ${deployment.gitBranch ? `
-          <tr>
-            <td style="padding: 8px 0; color: #6b7280; font-size: 14px;">Branch</td>
-            <td style="padding: 8px 0; color: #111827; font-size: 14px; font-weight: 500;">${deployment.gitBranch}</td>
-          </tr>
-          ` : ''}
-          ${deployment.gitCommitShort ? `
-          <tr>
-            <td style="padding: 8px 0; color: #6b7280; font-size: 14px;">Commit</td>
-            <td style="padding: 8px 0; color: #111827; font-size: 14px; font-family: monospace;">${deployment.gitCommitShort}</td>
-          </tr>
-          ` : ''}
-        </table>
-        ${deploymentUrl ? `
-        <div style="margin-top: 20px;">
-          <a href="${deploymentUrl}" style="display: inline-block; padding: 10px 20px; background: #111827; color: white; text-decoration: none; border-radius: 6px; font-size: 14px; font-weight: 500;">View Deployment</a>
-        </div>
-        ` : ''}
-      </div>
-      <p style="margin-top: 20px; color: #9ca3af; font-size: 12px; text-align: center;">
-        Sent from ${instanceName}
-      </p>
-    </div>
-  `
+function escapeHtml(text) {
+  if (!text) return ''
+  return String(text)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
 }

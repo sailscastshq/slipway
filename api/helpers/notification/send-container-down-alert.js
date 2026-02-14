@@ -23,47 +23,88 @@ module.exports = {
 
     const instanceName = await sails.helpers.setting.get('instanceName', 'Slipway')
 
-    // Send Telegram notification
+    // Send Telegram notification (HTML format)
     const telegramEnabled = await sails.helpers.setting.get('telegramEnabled', 'false')
     if (telegramEnabled === 'true') {
-      await sails.helpers.notification.sendTelegram.with({
-        message: `🔴 *Container Down*\n\n*Container:* ${containerName}\n*Type:* ${resourceType}\n*Status:* Stopped unexpectedly\n\n_${instanceName}_`
-      }).tolerate('error')
+      let message = `\uD83D\uDD34 <b>Container Down</b>\n\n`
+      message += `<b>Container:</b> ${escapeHtml(containerName)}\n`
+      message += `<b>Type:</b> ${escapeHtml(resourceType)}\n`
+      message += `<b>Status:</b> Stopped unexpectedly\n`
+      message += `\n<i>${escapeHtml(instanceName)}</i>`
+
+      await sails.helpers.notification.sendTelegram.with({ message }).tolerate('error')
+    }
+
+    // Send Slack notification
+    const slackEnabled = await sails.helpers.setting.get('slackEnabled', 'false')
+    if (slackEnabled === 'true') {
+      let message = `\uD83D\uDD34 *Container Down*\n\n`
+      message += `*Container:* ${containerName}\n`
+      message += `*Type:* ${resourceType}\n`
+      message += `*Status:* Stopped unexpectedly\n`
+      message += `\n_${instanceName}_`
+
+      await sails.helpers.notification.sendSlack.with({ message }).tolerate('error')
+    }
+
+    // Send Discord notification
+    const discordEnabled = await sails.helpers.setting.get('discordEnabled', 'false')
+    if (discordEnabled === 'true') {
+      const discordWebhookUrl = await sails.helpers.setting.get('discordWebhookUrl', '')
+      if (discordWebhookUrl) {
+        await fetch(discordWebhookUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            embeds: [{
+              title: '\uD83D\uDD34 Container Down',
+              color: 0xef4444,
+              fields: [
+                { name: 'Container', value: containerName, inline: true },
+                { name: 'Type', value: resourceType, inline: true },
+                { name: 'Status', value: 'Stopped unexpectedly', inline: true }
+              ],
+              footer: { text: instanceName },
+              timestamp: new Date().toISOString()
+            }]
+          })
+        }).catch(err => sails.log.warn('Discord container-down alert failed:', err.message))
+      }
     }
 
     // Send email notification
     const smtpEnabled = await sails.helpers.setting.get('smtpEnabled', 'false')
     if (smtpEnabled === 'true') {
       await sails.helpers.notification.sendEmail.with({
-        subject: `🔴 Container down: ${containerName}`,
-        text: `Container ${containerName} (${resourceType}) has stopped unexpectedly.\n\nSent from ${instanceName}`,
-        html: `
-          <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto;">
-            <div style="padding: 20px; background: #ef4444; color: white; border-radius: 8px 8px 0 0;">
-              <h2 style="margin: 0; font-size: 18px;">Container Down</h2>
-            </div>
-            <div style="padding: 20px; background: #f9fafb; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 8px 8px;">
-              <table style="width: 100%; border-collapse: collapse;">
-                <tr>
-                  <td style="padding: 8px 0; color: #6b7280; font-size: 14px;">Container</td>
-                  <td style="padding: 8px 0; color: #111827; font-size: 14px; font-weight: 500;">${containerName}</td>
-                </tr>
-                <tr>
-                  <td style="padding: 8px 0; color: #6b7280; font-size: 14px;">Type</td>
-                  <td style="padding: 8px 0; color: #111827; font-size: 14px; font-weight: 500;">${resourceType}</td>
-                </tr>
-                <tr>
-                  <td style="padding: 8px 0; color: #6b7280; font-size: 14px;">Status</td>
-                  <td style="padding: 8px 0; color: #ef4444; font-size: 14px; font-weight: 500;">Stopped unexpectedly</td>
-                </tr>
-              </table>
-            </div>
-            <p style="margin-top: 20px; color: #9ca3af; font-size: 12px; text-align: center;">
-              Sent from ${instanceName}
-            </p>
-          </div>
-        `
+        template: 'email-container-down',
+        subject: `\uD83D\uDD34 Container down: ${containerName}`,
+        templateData: {
+          containerName,
+          resourceType,
+          instanceName
+        }
+      }).tolerate('error')
+    }
+
+    // Send webhook notification
+    const webhookEnabled = await sails.helpers.setting.get('webhookEnabled', 'false')
+    if (webhookEnabled === 'true') {
+      await sails.helpers.notification.sendWebhook.with({
+        event: 'container.down',
+        data: {
+          containerName,
+          resourceType,
+          instanceName
+        }
       }).tolerate('error')
     }
   }
+}
+
+function escapeHtml(text) {
+  if (!text) return ''
+  return String(text)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
 }

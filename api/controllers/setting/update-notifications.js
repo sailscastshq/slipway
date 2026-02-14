@@ -23,6 +23,22 @@ module.exports = {
       type: 'boolean'
     },
 
+    // Slack
+    slackWebhookUrl: {
+      type: 'string'
+    },
+    slackEnabled: {
+      type: 'boolean'
+    },
+
+    // Webhook
+    webhookUrl: {
+      type: 'string'
+    },
+    webhookEnabled: {
+      type: 'boolean'
+    },
+
     // SMTP
     smtpHost: {
       type: 'string'
@@ -97,6 +113,22 @@ module.exports = {
     }
     if (inputs.discordEnabled !== undefined) {
       await sails.helpers.setting.set('discordEnabled', String(inputs.discordEnabled))
+    }
+
+    // Slack settings
+    if (inputs.slackWebhookUrl !== undefined) {
+      await sails.helpers.setting.set('slackWebhookUrl', inputs.slackWebhookUrl.trim())
+    }
+    if (inputs.slackEnabled !== undefined) {
+      await sails.helpers.setting.set('slackEnabled', String(inputs.slackEnabled))
+    }
+
+    // Webhook settings
+    if (inputs.webhookUrl !== undefined) {
+      await sails.helpers.setting.set('webhookUrl', inputs.webhookUrl.trim())
+    }
+    if (inputs.webhookEnabled !== undefined) {
+      await sails.helpers.setting.set('webhookEnabled', String(inputs.webhookEnabled))
     }
 
     // SMTP settings
