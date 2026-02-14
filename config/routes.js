@@ -113,6 +113,9 @@ module.exports.routes = {
   'GET /api/v1/system/check-update': 'system/check-update',
   'POST /api/v1/system/apply-update': 'system/apply-update',
 
+  // Bosun (self-administration dashboard)
+  'GET /bosun': 'bosun/view-bosun',
+
   // Lookout (infrastructure observability)
   'GET /lookout': 'lookout/view-lookout',
   'GET /projects/:slug/lookout': 'project/view-lookout',
@@ -303,6 +306,11 @@ module.exports.routes = {
   'GET /api/v1/deploy-tokens': 'api/v1/deploy-token/list',
   'POST /api/v1/deploy-tokens': 'api/v1/deploy-token/create',
   'DELETE /api/v1/deploy-tokens/:id': 'api/v1/deploy-token/revoke',
+
+  // Bosun API (self-administration)
+  'POST /api/v1/bosun/sql': 'api/v1/bosun/execute-sql',
+  'GET /api/v1/bosun/activity': 'api/v1/bosun/get-activity',
+  'PATCH /api/v1/bosun/env': 'api/v1/bosun/update-env',
 
   // Lookout API (infrastructure metrics)
   'GET /api/v1/lookout/overview': 'api/v1/lookout/get-overview',

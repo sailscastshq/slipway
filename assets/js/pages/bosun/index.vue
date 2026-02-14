@@ -1,0 +1,955 @@
+<script setup>
+import { Head, Link, router } from '@inertiajs/vue3'
+import { ref, computed, inject, onMounted, onUnmounted, nextTick } from 'vue'
+import AppLayout from '@/layouts/AppLayout.vue'
+import { useQueryState } from '@/composables/useQueryState'
+
+defineOptions({
+  layout: AppLayout
+})
+
+const props = defineProps({
+  stats: { type: Object, default: () => ({}) },
+  databases: { type: Object, default: () => ({}) },
+  processInfo: { type: Object, default: () => ({}) },
+  version: { type: String, default: 'unknown' },
+  instanceEnvVars: { type: Object, default: () => ({}) }
+})
+
+const toggleMobileMenu = inject('toggleMobileMenu')
+const toggleSidebar = inject('toggleSidebar')
+const sidebarCollapsed = inject('sidebarCollapsed')
+
+// Tab management
+const activeTab = useQueryState('tab', 'overview', { replace: true })
+const tabs = [
+  { id: 'overview', name: 'Overview' },
+  { id: 'environment', name: 'Environment' },
+  { id: 'console', name: 'Console' },
+  { id: 'activity', name: 'Activity' }
+]
+
+function onTabChange(tabId) {
+  activeTab.value = tabId
+  if (tabId === 'activity' && activities.value.length === 0) {
+    fetchActivity()
+  }
+}
+
+// ─── Console state ───
+const sqlQuery = ref("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name;")
+const selectedDatabase = ref('app')
+const consoleResults = ref(null)
+const consoleError = ref(null)
+const consoleLoading = ref(false)
+const queryHistory = ref([])
+const resultView = ref('table')
+const showExportMenu = ref(false)
+
+// SQL syntax highlighting (matching Dock)
+const highlightedQuery = computed(() => highlightSQL(sqlQuery.value))
+
+function highlightSQL(sql) {
+  if (!sql) return ''
+
+  const keywords = new Set(['SELECT', 'FROM', 'WHERE', 'AND', 'OR', 'NOT', 'IN', 'IS', 'NULL', 'LIKE', 'BETWEEN',
+    'JOIN', 'LEFT', 'RIGHT', 'INNER', 'OUTER', 'ON', 'AS', 'ORDER', 'BY', 'ASC', 'DESC', 'LIMIT', 'OFFSET',
+    'GROUP', 'HAVING', 'UNION', 'ALL', 'DISTINCT', 'INSERT', 'INTO', 'VALUES', 'UPDATE', 'SET', 'DELETE',
+    'CREATE', 'TABLE', 'ALTER', 'DROP', 'INDEX', 'PRIMARY', 'KEY', 'FOREIGN', 'REFERENCES', 'CONSTRAINT',
+    'DEFAULT', 'AUTOINCREMENT', 'INTEGER', 'TEXT', 'VARCHAR', 'BOOLEAN', 'REAL', 'BIGINT', 'TIMESTAMP',
+    'JSON', 'JSONB', 'UNIQUE', 'PRAGMA', 'EXPLAIN', 'COUNT', 'SUM', 'AVG', 'MIN', 'MAX', 'CASE', 'WHEN',
+    'THEN', 'ELSE', 'END', 'CAST', 'TYPE', 'EXISTS', 'IF'])
+
+  const tokens = []
+  const tokenPattern = /('(?:[^'\\]|\\.)*')|(\d+(?:\.\d+)?)|(\b[a-zA-Z_]\w*\b)|(\s+)|(.)/g
+  let match
+
+  while ((match = tokenPattern.exec(sql)) !== null) {
+    const [, str, num, word, ws, other] = match
+    if (str) tokens.push({ type: 'string', value: str })
+    else if (num) tokens.push({ type: 'number', value: num })
+    else if (word) tokens.push({ type: keywords.has(word.toUpperCase()) ? 'keyword' : 'identifier', value: word })
+    else if (ws) tokens.push({ type: 'whitespace', value: ws })
+    else if (other) tokens.push({ type: 'other', value: other })
+  }
+
+  return tokens.map(t => {
+    const escaped = t.value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    switch (t.type) {
+      case 'keyword': return `<span class="text-pink-600 dark:text-pink-400">${escaped}</span>`
+      case 'string': return `<span class="text-amber-600 dark:text-amber-400">${escaped}</span>`
+      case 'number': return `<span class="text-purple-600 dark:text-purple-400">${escaped}</span>`
+      default: return escaped
+    }
+  }).join('')
+}
+
+async function executeQuery() {
+  if (!sqlQuery.value.trim() || consoleLoading.value) return
+
+  consoleLoading.value = true
+  consoleError.value = null
+  consoleResults.value = null
+
+  try {
+    const response = await fetch('/api/v1/bosun/sql', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        query: sqlQuery.value.trim(),
+        database: selectedDatabase.value
+      })
+    })
+
+    const data = await response.json()
+
+    if (!response.ok) {
+      consoleError.value = data.message || data.error || 'Query failed'
+      return
+    }
+
+    consoleResults.value = data
+
+    // Add to history (deduplicate)
+    const q = sqlQuery.value.trim()
+    queryHistory.value = [q, ...queryHistory.value.filter(h => h !== q)].slice(0, 20)
+  } catch (err) {
+    consoleError.value = err.message || 'Network error'
+  } finally {
+    consoleLoading.value = false
+  }
+}
+
+function copyAsJSON() {
+  if (!consoleResults.value?.rows) return
+  navigator.clipboard.writeText(JSON.stringify(consoleResults.value.rows, null, 2))
+}
+
+function copyAsCSV() {
+  if (!consoleResults.value?.rows || !consoleResults.value?.columns) return
+  const { columns, rows } = consoleResults.value
+  const csvLines = [columns.join(',')]
+  for (const row of rows) {
+    const values = columns.map(col => {
+      const val = row[col]
+      if (val === null) return ''
+      const str = String(val)
+      if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+        return `"${str.replace(/"/g, '""')}"`
+      }
+      return str
+    })
+    csvLines.push(values.join(','))
+  }
+  navigator.clipboard.writeText(csvLines.join('\n'))
+}
+
+function downloadAsJSON() {
+  if (!consoleResults.value?.rows) return
+  downloadFile(JSON.stringify(consoleResults.value.rows, null, 2), 'query-result.json', 'application/json')
+}
+
+function downloadAsCSV() {
+  if (!consoleResults.value?.rows || !consoleResults.value?.columns) return
+  const { columns, rows } = consoleResults.value
+  const csvLines = [columns.join(',')]
+  for (const row of rows) {
+    const values = columns.map(col => {
+      const val = row[col]
+      if (val === null) return ''
+      const str = String(val)
+      if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+        return `"${str.replace(/"/g, '""')}"`
+      }
+      return str
+    })
+    csvLines.push(values.join(','))
+  }
+  downloadFile(csvLines.join('\n'), 'query-result.csv', 'text/csv')
+}
+
+function downloadFile(content, filename, mimeType) {
+  const blob = new Blob([content], { type: mimeType })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
+// ─── Environment variables state ───
+const localVars = ref({ ...props.instanceEnvVars })
+const envNewKey = ref('')
+const envNewValue = ref('')
+const envSaving = ref(false)
+const revealedKeys = ref(new Set())
+
+const sortedEnvKeys = computed(() => Object.keys(localVars.value).sort())
+
+function toggleReveal(key) {
+  if (revealedKeys.value.has(key)) {
+    revealedKeys.value.delete(key)
+  } else {
+    revealedKeys.value.add(key)
+  }
+}
+
+async function saveEnvVars(vars) {
+  envSaving.value = true
+  try {
+    await fetch('/api/v1/bosun/env', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ envVars: vars })
+    })
+    router.reload({ only: ['instanceEnvVars'] })
+  } finally {
+    envSaving.value = false
+  }
+}
+
+function addEnvVar() {
+  if (!envNewKey.value.trim()) return
+  localVars.value[envNewKey.value.trim()] = envNewValue.value
+  saveEnvVars(localVars.value)
+  envNewKey.value = ''
+  envNewValue.value = ''
+}
+
+function removeEnvVar(key) {
+  delete localVars.value[key]
+  localVars.value = { ...localVars.value }
+  saveEnvVars(localVars.value)
+}
+
+// ─── Activity state ───
+const activities = ref([])
+const activityLoading = ref(false)
+const activityFilter = ref('all')
+const activityPage = ref(1)
+
+async function fetchActivity() {
+  activityLoading.value = true
+  try {
+    const params = new URLSearchParams({
+      page: activityPage.value,
+      limit: 30,
+      type: activityFilter.value
+    })
+    const response = await fetch(`/api/v1/bosun/activity?${params}`)
+    const data = await response.json()
+    activities.value = data.activities || []
+  } catch (err) {
+    console.error('Failed to fetch activity:', err)
+  } finally {
+    activityLoading.value = false
+  }
+}
+
+function changeActivityFilter(filter) {
+  activityFilter.value = filter
+  activityPage.value = 1
+  fetchActivity()
+}
+
+// ─── Computed ───
+const heapPercent = computed(() => {
+  if (!props.processInfo.memoryUsage) return 0
+  return Math.round((props.processInfo.memoryUsage.heapUsed / props.processInfo.memoryUsage.heapTotal) * 100)
+})
+
+const maxDbSize = computed(() => {
+  return Math.max(...Object.values(props.databases).map(db => db.sizeBytes || 0), 1)
+})
+
+const statCards = computed(() => [
+  { label: 'Projects', value: props.stats.projects || 0 },
+  { label: 'Environments', value: props.stats.environments || 0 },
+  { label: 'Apps', value: props.stats.apps || 0 },
+  { label: 'Services', value: props.stats.services || 0 },
+  { label: 'Deployments', value: props.stats.deployments || 0 },
+  { label: 'Backups', value: props.stats.backups || 0 }
+])
+
+// ─── Formatters ───
+function formatBytes(bytes) {
+  if (!bytes || bytes === 0) return '0 B'
+  const units = ['B', 'KB', 'MB', 'GB']
+  const i = Math.floor(Math.log(bytes) / Math.log(1024))
+  return (bytes / Math.pow(1024, i)).toFixed(i > 0 ? 1 : 0) + ' ' + units[i]
+}
+
+function formatUptime(seconds) {
+  const days = Math.floor(seconds / 86400)
+  const hours = Math.floor((seconds % 86400) / 3600)
+  const mins = Math.floor((seconds % 3600) / 60)
+  if (days > 0) return `${days}d ${hours}h ${mins}m`
+  if (hours > 0) return `${hours}h ${mins}m`
+  return `${mins}m`
+}
+
+function timeAgo(timestamp) {
+  if (!timestamp) return ''
+  const now = Date.now()
+  const date = new Date(timestamp)
+  const diff = now - date.getTime()
+  const mins = Math.floor(diff / 60000)
+  if (mins < 1) return 'just now'
+  if (mins < 60) return `${mins}m ago`
+  const hours = Math.floor(mins / 60)
+  if (hours < 24) return `${hours}h ago`
+  const days = Math.floor(hours / 24)
+  return `${days}d ago`
+}
+
+function statusColor(status) {
+  const colors = {
+    running: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
+    completed: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
+    failed: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
+    cancelled: 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400',
+    pending: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400',
+    building: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
+    deploying: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
+    stopped: 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'
+  }
+  return colors[status] || 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'
+}
+
+function activityTypeIcon(type) {
+  return { deployment: 'DP', backup: 'BK', audit: 'AU' }[type] || '??'
+}
+
+function activityTypeColor(type) {
+  return {
+    deployment: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
+    backup: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
+    audit: 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'
+  }[type] || 'bg-gray-100 text-gray-600'
+}
+
+// Close menus on click outside
+function handleClickOutside(e) {
+  if (showExportMenu.value && !e.target.closest('[data-export-menu]')) {
+    showExportMenu.value = false
+  }
+}
+
+onMounted(() => {
+  document.addEventListener('click', handleClickOutside)
+  if (activeTab.value === 'activity') {
+    fetchActivity()
+  }
+})
+
+onUnmounted(() => {
+  document.removeEventListener('click', handleClickOutside)
+})
+</script>
+
+<template>
+  <Head title="Bosun | Slipway"></Head>
+  <div class="flex h-full flex-col">
+    <!-- Header -->
+    <div class="flex items-center justify-between border-b border-gray-200 px-4 py-3 dark:border-gray-800 sm:px-6">
+      <div class="flex items-center space-x-3">
+        <button
+          @click="toggleMobileMenu"
+          class="rounded-md p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white md:hidden"
+        >
+          <svg class="h-5 w-5" viewBox="-0.5 -0.5 16 16" fill="none" stroke="currentColor">
+            <path d="M12.777 14.285H2.223c-.833 0-1.508-.675-1.508-1.508V2.223c0-.833.675-1.508 1.508-1.508h10.554c.833 0 1.508.675 1.508 1.508v10.554c0 .833-.675 1.508-1.508 1.508Z" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
+            <path d="M5.615 14.285V.715" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
+            <path d="M2.6 5.992 3.919 7.5 2.6 9.008" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
+          </svg>
+        </button>
+        <button
+          @click="toggleSidebar"
+          class="hidden text-gray-400 dark:text-gray-500 md:block"
+        >
+          <svg v-if="sidebarCollapsed" class="h-5 w-5" viewBox="-0.5 -0.5 16 16" fill="none" stroke="currentColor">
+            <path d="M12.777 14.285H2.223c-.833 0-1.508-.675-1.508-1.508V2.223c0-.833.675-1.508 1.508-1.508h10.554c.833 0 1.508.675 1.508 1.508v10.554c0 .833-.675 1.508-1.508 1.508Z" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
+            <path d="M5.615 14.285V.715" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
+            <path d="M2.6 5.992 3.919 7.5 2.6 9.008" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
+          </svg>
+          <svg v-else class="h-5 w-5" viewBox="-0.5 -0.5 16 16" fill="none" stroke="currentColor">
+            <path d="M12.777 14.285H2.223c-.833 0-1.508-.675-1.508-1.508V2.223c0-.833.675-1.508 1.508-1.508h10.554c.833 0 1.508.675 1.508 1.508v10.554c0 .833-.675 1.508-1.508 1.508Z" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
+            <path d="M5.615 14.285V.715" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
+            <path d="M3.919 5.992 2.6 7.5l1.319 1.508" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
+          </svg>
+        </button>
+        <span class="font-medium text-gray-900 dark:text-white">Bosun</span>
+      </div>
+      <div class="flex items-center space-x-2 sm:space-x-3">
+        <span class="rounded bg-gray-100 px-2 py-1 text-xs font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-400">v{{ version }}</span>
+        <a
+          href="https://docs.sailscasts.com/slipway/bosun"
+          target="_blank"
+          class="flex items-center space-x-1 text-sm text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
+        >
+          <span>Docs</span>
+          <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+          </svg>
+        </a>
+      </div>
+    </div>
+
+    <!-- Tab bar (Dock-style pills with frosted glass) -->
+    <div class="flex items-center space-x-1 border-b border-gray-200/50 bg-white/80 px-4 py-2 backdrop-blur-md dark:border-gray-800/50 dark:bg-gray-950/80 sm:px-6">
+      <button
+        v-for="tab in tabs"
+        :key="tab.id"
+        @click="onTabChange(tab.id)"
+        :class="[
+          'rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
+          activeTab === tab.id
+            ? 'bg-gray-900 text-white dark:bg-white dark:text-gray-900'
+            : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-300'
+        ]"
+      >
+        {{ tab.name }}
+      </button>
+    </div>
+
+    <!-- ═══ Console Tab (full-height layout matching Dock) ═══ -->
+    <div v-if="activeTab === 'console'" class="flex flex-1 flex-col overflow-hidden">
+      <!-- Editor -->
+      <div class="flex-1 overflow-hidden border-b border-gray-200 dark:border-gray-800">
+        <div class="relative h-full">
+          <!-- Highlighted layer -->
+          <pre
+            class="pointer-events-none absolute inset-0 overflow-auto whitespace-pre-wrap break-words p-4 font-mono text-sm leading-6 text-gray-900 dark:text-gray-100"
+            aria-hidden="true"
+            v-html="highlightedQuery"
+          ></pre>
+          <!-- Actual textarea (transparent text, visible caret) -->
+          <textarea
+            v-model="sqlQuery"
+            class="absolute inset-0 h-full w-full resize-none bg-transparent p-4 font-mono text-sm leading-6 text-transparent caret-gray-900 placeholder-gray-400 focus:outline-none dark:caret-white dark:placeholder-gray-600"
+            placeholder="SELECT * FROM ..."
+            spellcheck="false"
+            @keydown.ctrl.enter="executeQuery"
+            @keydown.meta.enter="executeQuery"
+          ></textarea>
+        </div>
+      </div>
+
+      <!-- Actions bar -->
+      <div class="flex items-center justify-between border-b border-gray-200 px-4 py-2 dark:border-gray-800 sm:px-6">
+        <div class="flex items-center gap-4">
+          <!-- Database selector pills -->
+          <div class="flex items-center gap-1">
+            <button
+              v-for="db in ['app', 'observability', 'cache']"
+              :key="db"
+              @click="selectedDatabase = db"
+              :class="[
+                'rounded px-2 py-0.5 text-xs font-medium transition-colors',
+                selectedDatabase === db
+                  ? 'bg-gray-900 text-white dark:bg-white dark:text-gray-900'
+                  : 'text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800'
+              ]"
+            >
+              {{ db }}
+            </button>
+          </div>
+          <div class="hidden items-center space-x-2 text-xs text-gray-500 dark:text-gray-400 sm:flex">
+            <kbd class="rounded bg-gray-100 px-1.5 py-0.5 font-mono text-gray-600 dark:bg-gray-800 dark:text-gray-400">&#8984;</kbd>
+            <kbd class="rounded bg-gray-100 px-1.5 py-0.5 font-mono text-gray-600 dark:bg-gray-800 dark:text-gray-400">Enter</kbd>
+            <span>to run</span>
+          </div>
+        </div>
+        <button
+          @click="executeQuery"
+          :disabled="consoleLoading || !sqlQuery.trim()"
+          class="rounded-md bg-gray-900 px-4 py-1.5 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
+        >
+          <span v-if="consoleLoading">Running...</span>
+          <span v-else>Run</span>
+        </button>
+      </div>
+
+      <!-- Results -->
+      <div class="flex-1 overflow-auto">
+        <!-- Error -->
+        <div v-if="consoleError" class="p-4">
+          <div class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 dark:border-red-900/50 dark:bg-red-950/30">
+            <p class="font-mono text-sm text-red-600 dark:text-red-400">{{ consoleError }}</p>
+          </div>
+        </div>
+
+        <!-- Results table/json -->
+        <div v-else-if="consoleResults" class="flex h-full min-h-0 flex-col">
+          <!-- Table view -->
+          <div v-if="consoleResults.columns && resultView === 'table'" class="flex-1 overflow-auto">
+            <table class="min-w-full">
+              <thead class="sticky top-0">
+                <tr class="border-b border-gray-200 bg-gray-50 dark:border-gray-800 dark:bg-gray-900/50">
+                  <th
+                    v-for="col in consoleResults.columns"
+                    :key="col"
+                    class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400"
+                  >
+                    {{ col }}
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr
+                  v-for="(row, i) in consoleResults.rows"
+                  :key="i"
+                  class="border-b border-gray-100 hover:bg-gray-50 dark:border-gray-800/50 dark:hover:bg-gray-900/30"
+                >
+                  <td
+                    v-for="col in consoleResults.columns"
+                    :key="col"
+                    class="whitespace-nowrap px-4 py-2 font-mono text-sm text-gray-700 dark:text-gray-300"
+                  >
+                    <span v-if="row[col] === null" class="text-gray-400 dark:text-gray-600">NULL</span>
+                    <span v-else>{{ row[col] }}</span>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- JSON view -->
+          <div v-else-if="consoleResults.columns && resultView === 'json'" class="flex-1 overflow-auto p-4">
+            <pre class="font-mono text-xs text-gray-700 dark:text-gray-300">{{ JSON.stringify(consoleResults.rows, null, 2) }}</pre>
+          </div>
+
+          <!-- No columns result -->
+          <div v-else class="flex flex-1 items-center justify-center text-sm text-gray-500 dark:text-gray-400">
+            Query executed successfully
+          </div>
+        </div>
+
+        <!-- Empty state -->
+        <div v-else class="flex h-full items-center justify-center text-sm text-gray-500 dark:text-gray-400">
+          Run a query to see results
+        </div>
+      </div>
+
+      <!-- Status bar -->
+      <div
+        v-if="consoleResults"
+        class="flex items-center justify-between border-t border-gray-200 bg-gray-50 px-4 py-2 dark:border-gray-800 dark:bg-gray-900/50"
+      >
+        <div class="flex items-center gap-4">
+          <!-- Table / JSON toggle -->
+          <div v-if="consoleResults.columns" class="flex overflow-hidden rounded-md border border-gray-300 dark:border-gray-700">
+            <button
+              @click="resultView = 'table'"
+              :class="[
+                'p-1.5',
+                resultView === 'table'
+                  ? 'bg-gray-200 text-gray-900 dark:bg-gray-700 dark:text-white'
+                  : 'text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800'
+              ]"
+            >
+              <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M3.375 19.5h17.25m-17.25 0a1.125 1.125 0 01-1.125-1.125M3.375 19.5h7.5c.621 0 1.125-.504 1.125-1.125m-9.75 0V5.625m0 12.75v-1.5c0-.621.504-1.125 1.125-1.125m18.375 2.625V5.625m0 12.75c0 .621-.504 1.125-1.125 1.125m1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125m0 3.75h-7.5A1.125 1.125 0 0112 18.375m9.75-12.75c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125m19.5 0v1.5c0 .621-.504 1.125-1.125 1.125M2.25 5.625v1.5c0 .621.504 1.125 1.125 1.125m0 0h17.25m-17.25 0h7.5c.621 0 1.125.504 1.125 1.125M3.375 8.25c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125m17.25-3.75h-7.5c-.621 0-1.125.504-1.125 1.125m8.625-1.125c.621 0 1.125.504 1.125 1.125v1.5c0 .621-.504 1.125-1.125 1.125m-17.25 0h7.5m-7.5 0c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125M12 10.875v-1.5m0 1.5c0 .621-.504 1.125-1.125 1.125M12 10.875c0 .621.504 1.125 1.125 1.125m-2.25 0c.621 0 1.125.504 1.125 1.125M13.125 12h7.5m-7.5 0c-.621 0-1.125.504-1.125 1.125M20.625 12c.621 0 1.125.504 1.125 1.125v1.5c0 .621-.504 1.125-1.125 1.125m-17.25 0h7.5M12 14.625v-1.5m0 1.5c0 .621-.504 1.125-1.125 1.125M12 14.625c0 .621.504 1.125 1.125 1.125m-2.25 0c.621 0 1.125.504 1.125 1.125m0 0v1.5c0 .621-.504 1.125-1.125 1.125" />
+              </svg>
+            </button>
+            <button
+              @click="resultView = 'json'"
+              :class="[
+                'border-l border-gray-300 px-1.5 py-1 font-mono text-sm font-bold dark:border-gray-700',
+                resultView === 'json'
+                  ? 'bg-gray-200 text-gray-900 dark:bg-gray-700 dark:text-white'
+                  : 'text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800'
+              ]"
+            >
+              {}
+            </button>
+          </div>
+          <!-- Row info -->
+          <span class="text-xs text-gray-500 dark:text-gray-400">
+            {{ consoleResults.rowCount }} row{{ consoleResults.rowCount !== 1 ? 's' : '' }}
+            <span v-if="consoleResults.truncated"> (showing first 1,000)</span>
+            &middot; {{ consoleResults.durationMs }}ms
+          </span>
+        </div>
+        <!-- Actions -->
+        <div v-if="consoleResults.columns" class="flex items-center gap-1">
+          <button
+            @click="executeQuery"
+            class="rounded p-1.5 text-gray-500 hover:bg-gray-200 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-200"
+          >
+            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
+            </svg>
+          </button>
+          <button
+            @click="resultView === 'json' ? copyAsJSON() : copyAsCSV()"
+            class="rounded p-1.5 text-gray-500 hover:bg-gray-200 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-200"
+          >
+            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M15.666 3.888A2.25 2.25 0 0013.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 01-.75.75H9.75a.75.75 0 01-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 01-2.25 2.25H6.75A2.25 2.25 0 014.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 011.927-.184" />
+            </svg>
+          </button>
+          <!-- Export dropdown -->
+          <div class="relative" data-export-menu>
+            <button
+              @click="showExportMenu = !showExportMenu"
+              class="rounded p-1.5 text-gray-500 hover:bg-gray-200 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-200"
+            >
+              <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
+              </svg>
+            </button>
+            <div
+              v-if="showExportMenu"
+              class="absolute bottom-full right-0 z-10 mb-1 w-40 rounded-md border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-800"
+            >
+              <button @click="copyAsJSON(); showExportMenu = false" class="block w-full px-3 py-1.5 text-left text-xs text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700">
+                Copy as JSON
+              </button>
+              <button @click="copyAsCSV(); showExportMenu = false" class="block w-full px-3 py-1.5 text-left text-xs text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700">
+                Copy as CSV
+              </button>
+              <div class="my-1 border-t border-gray-200 dark:border-gray-700"></div>
+              <button @click="downloadAsJSON(); showExportMenu = false" class="block w-full px-3 py-1.5 text-left text-xs text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700">
+                Download JSON
+              </button>
+              <button @click="downloadAsCSV(); showExportMenu = false" class="block w-full px-3 py-1.5 text-left text-xs text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700">
+                Download CSV
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ Scrollable tabs (Overview, Environment, Activity) ═══ -->
+    <div v-if="activeTab !== 'console'" class="flex-1 overflow-y-auto px-4 py-6 sm:px-8 sm:py-8">
+      <div class="mx-auto max-w-6xl">
+
+        <!-- ═══ Overview Tab ═══ -->
+        <div v-if="activeTab === 'overview'">
+          <!-- Status line -->
+          <div class="mb-6 flex flex-wrap items-center gap-3 rounded-lg border border-gray-200 bg-gray-50/50 px-4 py-3 dark:border-gray-800 dark:bg-gray-900/50">
+            <span class="flex items-center gap-1.5 text-xs">
+              <span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
+              <span class="font-medium text-gray-900 dark:text-white">Running</span>
+            </span>
+            <span class="text-gray-300 dark:text-gray-700">&middot;</span>
+            <span class="text-xs text-gray-500 dark:text-gray-400">
+              <span class="font-medium text-gray-900 dark:text-white">{{ formatUptime(processInfo.uptime) }}</span> uptime
+            </span>
+            <span class="text-gray-300 dark:text-gray-700">&middot;</span>
+            <span class="text-xs text-gray-500 dark:text-gray-400">
+              Node <span class="font-medium text-gray-900 dark:text-white">{{ processInfo.nodeVersion }}</span>
+            </span>
+            <span class="text-gray-300 dark:text-gray-700">&middot;</span>
+            <span class="text-xs text-gray-500 dark:text-gray-400">
+              PID <span class="font-mono font-medium text-gray-900 dark:text-white">{{ processInfo.pid }}</span>
+            </span>
+            <span class="hidden text-gray-300 dark:text-gray-700 sm:inline">&middot;</span>
+            <span class="hidden text-xs text-gray-500 dark:text-gray-400 sm:inline">
+              {{ processInfo.platform }}
+            </span>
+          </div>
+
+          <!-- Stat cards -->
+          <div class="mb-8 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
+            <div
+              v-for="stat in statCards"
+              :key="stat.label"
+              class="rounded-lg border border-gray-200 px-4 py-3 dark:border-gray-800"
+            >
+              <div class="text-2xl font-semibold tabular-nums text-gray-900 dark:text-white">
+                {{ stat.value.toLocaleString() }}
+              </div>
+              <div class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                {{ stat.label }}
+              </div>
+            </div>
+          </div>
+
+          <!-- Memory + Databases -->
+          <div class="grid gap-6 lg:grid-cols-2">
+            <!-- Memory -->
+            <div class="rounded-lg border border-gray-200 dark:border-gray-800">
+              <div class="border-b border-gray-200 px-4 py-3 dark:border-gray-800">
+                <h3 class="text-sm font-medium text-gray-900 dark:text-white">Memory</h3>
+              </div>
+              <div class="space-y-4 px-4 py-4">
+                <!-- Heap usage with bar -->
+                <div>
+                  <div class="flex items-center justify-between text-xs">
+                    <span class="text-gray-500 dark:text-gray-400">Heap Used</span>
+                    <span class="font-mono font-medium text-gray-900 dark:text-white">
+                      {{ formatBytes(processInfo.memoryUsage?.heapUsed) }}
+                      <span class="text-gray-400 dark:text-gray-600">/ {{ formatBytes(processInfo.memoryUsage?.heapTotal) }}</span>
+                    </span>
+                  </div>
+                  <div class="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-gray-100 dark:bg-gray-800">
+                    <div
+                      class="h-full rounded-full bg-blue-500 transition-all"
+                      :style="{ width: heapPercent + '%' }"
+                    ></div>
+                  </div>
+                  <div class="mt-1 flex justify-between text-[10px] text-gray-400 dark:text-gray-500">
+                    <span>{{ heapPercent }}% used</span>
+                    <span>{{ formatBytes(processInfo.memoryUsage?.heapTotal - processInfo.memoryUsage?.heapUsed) }} free</span>
+                  </div>
+                </div>
+                <!-- RSS -->
+                <div class="flex items-center justify-between border-t border-gray-100 pt-3 dark:border-gray-800">
+                  <span class="text-xs text-gray-500 dark:text-gray-400">RSS (Total)</span>
+                  <span class="font-mono text-sm font-medium text-gray-900 dark:text-white">{{ formatBytes(processInfo.memoryUsage?.rss) }}</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Databases -->
+            <div class="rounded-lg border border-gray-200 dark:border-gray-800">
+              <div class="border-b border-gray-200 px-4 py-3 dark:border-gray-800">
+                <h3 class="text-sm font-medium text-gray-900 dark:text-white">Databases</h3>
+              </div>
+              <div class="divide-y divide-gray-100 dark:divide-gray-800">
+                <div v-for="(db, name) in databases" :key="name" class="px-4 py-3">
+                  <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                      <span class="text-sm font-medium text-gray-900 dark:text-white">{{ name }}</span>
+                      <span class="text-xs text-gray-400 dark:text-gray-500">{{ db.path.split('/').pop() }}</span>
+                    </div>
+                    <span class="font-mono text-sm font-medium text-gray-900 dark:text-white">{{ formatBytes(db.sizeBytes) }}</span>
+                  </div>
+                  <div class="mt-1.5 h-1 w-full overflow-hidden rounded-full bg-gray-100 dark:bg-gray-800">
+                    <div
+                      class="h-full rounded-full bg-gray-400 transition-all dark:bg-gray-600"
+                      :style="{ width: Math.max((db.sizeBytes / maxDbSize) * 100, 2) + '%' }"
+                    ></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ═══ Environment Tab ═══ -->
+        <div v-if="activeTab === 'environment'">
+          <div class="mb-6">
+            <h1 class="text-xl font-semibold text-gray-900 dark:text-white">
+              Instance Environment
+            </h1>
+            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+              Configuration variables for this Slipway instance.
+            </p>
+          </div>
+
+          <!-- Variables list -->
+          <div class="rounded-lg border border-gray-200 dark:border-gray-800">
+            <div class="flex items-center justify-between px-4 py-3">
+              <h2 class="text-sm font-medium text-gray-900 dark:text-white">
+                Environment variables
+              </h2>
+              <span class="inline-flex rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-500 dark:bg-gray-800 dark:text-gray-400">
+                {{ sortedEnvKeys.length }}
+              </span>
+            </div>
+
+            <!-- Variable rows -->
+            <div v-if="sortedEnvKeys.length > 0" class="space-y-1 px-4 pb-2">
+              <div
+                v-for="key in sortedEnvKeys"
+                :key="key"
+                class="group py-2"
+              >
+                <div class="flex items-center justify-between">
+                  <span class="font-mono text-sm font-medium text-gray-900 dark:text-white">{{ key }}</span>
+                  <div class="flex items-center space-x-1 opacity-0 transition-opacity group-hover:opacity-100">
+                    <button
+                      @click="toggleReveal(key)"
+                      class="rounded p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                    >
+                      <svg v-if="revealedKeys.has(key)" class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L6.5 6.5m7.378 7.378L17.5 17.5M3 3l18 18" />
+                      </svg>
+                      <svg v-else class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                      </svg>
+                    </button>
+                    <button
+                      @click="removeEnvVar(key)"
+                      class="rounded p-1 text-gray-400 hover:text-red-600 dark:hover:text-red-400"
+                    >
+                      <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+                <p class="mt-1 truncate font-mono text-sm text-gray-500 dark:text-gray-400">
+                  {{ revealedKeys.has(key) ? localVars[key] : '\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022' }}
+                </p>
+              </div>
+            </div>
+
+            <div v-else class="px-4 py-6 text-center text-sm text-gray-500 dark:text-gray-400">
+              No instance environment variables configured.
+            </div>
+
+            <!-- Add new variable -->
+            <div class="px-4 pb-3">
+              <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
+                <input
+                  v-model="envNewKey"
+                  type="text"
+                  placeholder="KEY"
+                  class="w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 font-mono text-sm text-gray-900 placeholder-gray-400 focus:border-brand focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500 sm:flex-1"
+                  @keydown.enter="addEnvVar"
+                />
+                <input
+                  v-model="envNewValue"
+                  type="text"
+                  placeholder="value"
+                  class="w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 font-mono text-sm text-gray-900 placeholder-gray-400 focus:border-brand focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500 sm:flex-1"
+                  @keydown.enter="addEnvVar"
+                />
+                <button
+                  @click="addEnvVar"
+                  :disabled="!envNewKey.trim() || envSaving"
+                  class="w-full rounded-md bg-gray-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100 sm:w-auto"
+                >
+                  Add
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ═══ Activity Tab ═══ -->
+        <div v-if="activeTab === 'activity'">
+          <div class="mb-6 flex items-start justify-between">
+            <div>
+              <h1 class="text-xl font-semibold text-gray-900 dark:text-white">
+                Activity
+              </h1>
+              <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                Recent deployments, backups, and audit events.
+              </p>
+            </div>
+
+            <!-- Filter -->
+            <div class="flex items-center space-x-1 rounded-md border border-gray-200 p-0.5 dark:border-gray-800">
+              <button
+                v-for="f in [
+                  { id: 'all', label: 'All' },
+                  { id: 'deployments', label: 'Deploys' },
+                  { id: 'backups', label: 'Backups' },
+                  { id: 'audit', label: 'Audit' }
+                ]"
+                :key="f.id"
+                @click="changeActivityFilter(f.id)"
+                :class="[
+                  'rounded px-2.5 py-1 text-xs font-medium transition-colors',
+                  activityFilter === f.id
+                    ? 'bg-gray-900 text-white dark:bg-white dark:text-gray-900'
+                    : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
+                ]"
+              >
+                {{ f.label }}
+              </button>
+            </div>
+          </div>
+
+          <!-- Loading -->
+          <div v-if="activityLoading" class="py-16 text-center">
+            <svg class="mx-auto h-5 w-5 animate-spin text-gray-400 dark:text-gray-600" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+          </div>
+
+          <!-- Empty state -->
+          <div v-else-if="activities.length === 0" class="py-20 text-center">
+            <svg class="mx-auto h-12 w-12 text-gray-300 dark:text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <h3 class="mt-4 text-sm font-medium text-gray-900 dark:text-white">No activity yet</h3>
+            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+              Deploy an application or create a backup to see activity here.
+            </p>
+          </div>
+
+          <!-- Activity feed -->
+          <div v-else class="overflow-hidden rounded-lg border border-gray-200 dark:border-gray-800">
+            <div
+              v-for="(activity, i) in activities"
+              :key="activity.id"
+              :class="[
+                'flex items-center gap-4 px-4 py-3',
+                i > 0 ? 'border-t border-gray-100 dark:border-gray-800' : ''
+              ]"
+            >
+              <!-- Type badge -->
+              <span
+                :class="[
+                  'inline-flex h-8 w-8 shrink-0 items-center justify-center rounded text-[10px] font-bold',
+                  activityTypeColor(activity.type)
+                ]"
+              >
+                {{ activityTypeIcon(activity.type) }}
+              </span>
+
+              <!-- Description -->
+              <div class="min-w-0 flex-1">
+                <div class="flex items-center gap-2">
+                  <span class="truncate text-sm font-medium text-gray-900 dark:text-white">{{ activity.description }}</span>
+                  <span
+                    v-if="activity.status"
+                    :class="[
+                      'inline-flex shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-medium',
+                      statusColor(activity.status)
+                    ]"
+                  >{{ activity.status }}</span>
+                </div>
+                <div class="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                  <span>{{ activity.resource }}</span>
+                  <span v-if="activity.user" class="text-gray-300 dark:text-gray-600">&middot;</span>
+                  <span v-if="activity.user">{{ activity.user.fullName || activity.user.email }}</span>
+                  <span v-if="activity.metadata?.environment" class="text-gray-300 dark:text-gray-600">&middot;</span>
+                  <span v-if="activity.metadata?.environment">{{ activity.metadata.environment }}</span>
+                </div>
+              </div>
+
+              <!-- Metadata badges -->
+              <div class="hidden items-center space-x-1.5 lg:flex">
+                <span
+                  v-if="activity.metadata?.gitCommit"
+                  class="rounded bg-gray-100 px-1.5 py-0.5 font-mono text-[10px] font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-400"
+                >
+                  {{ activity.metadata.gitCommit }}
+                </span>
+                <span
+                  v-if="activity.metadata?.triggerType"
+                  class="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-400"
+                >
+                  {{ activity.metadata.triggerType }}
+                </span>
+                <span
+                  v-if="activity.metadata?.sizeBytes"
+                  class="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-400"
+                >
+                  {{ formatBytes(activity.metadata.sizeBytes) }}
+                </span>
+              </div>
+
+              <!-- Timestamp -->
+              <span class="w-14 shrink-0 text-right text-xs text-gray-400 dark:text-gray-500">
+                {{ timeAgo(activity.createdAt) }}
+              </span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</template>

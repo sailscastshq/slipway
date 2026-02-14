@@ -38,6 +38,9 @@ module.exports.policies = {
   // System pages require authentication
   'system/*': 'is-authenticated',
 
+  // Bosun self-administration requires authentication
+  'bosun/*': 'is-authenticated',
+
   // Settings pages require authentication
   'setting/*': 'is-authenticated',
 
