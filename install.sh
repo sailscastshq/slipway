@@ -91,6 +91,22 @@ docker pull ghcr.io/sailscastshq/slipway:latest
 # 7. Start Slipway dashboard
 echo "Starting Slipway dashboard..."
 docker rm -f slipway 2>/dev/null || true
+
+# Run migration to create/update database tables (idempotent — safe to run every time)
+echo "Running database migration..."
+docker run --rm \
+    --network slipway \
+    -v slipway-db:/app/db \
+    -e NODE_ENV=production \
+    -e PORT=1337 \
+    -e SLIPWAY_URL="$SLIPWAY_URL" \
+    -e SESSION_SECRET="$SESSION_SECRET" \
+    -e DATA_ENCRYPTION_KEY="$DATA_ENCRYPTION_KEY" \
+    -e SLIPWAY_MIGRATE=alter \
+    ghcr.io/sailscastshq/slipway:latest \
+    node -e "require('./app').lift({}, (err) => { if (err) { console.error(err); process.exit(1); } console.log('Migration complete'); process.exit(0); })"
+echo -e "${GREEN}Database migrated${NC}"
+
 docker run -d \
     --name slipway \
     --network slipway \
