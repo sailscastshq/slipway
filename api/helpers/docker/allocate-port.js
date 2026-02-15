@@ -1,20 +1,3 @@
-const net = require('net')
-
-/**
- * Check if a port is actually available on the host
- */
-function isPortAvailable(port) {
-  return new Promise((resolve) => {
-    const server = net.createServer()
-    server.once('error', () => resolve(false))
-    server.once('listening', () => {
-      server.close()
-      resolve(true)
-    })
-    server.listen(port, '0.0.0.0')
-  })
-}
-
 module.exports = {
   friendlyName: 'Allocate port',
 
@@ -35,19 +18,21 @@ module.exports = {
   fn: async function () {
     const portRange = sails.config.custom.slipwayPortRange
 
-    // Get all ports already assigned in the database
-    const apps = await App.find({
-      hostPort: { '!=': null }
-    }).select(['hostPort'])
+    // Get ALL apps and filter in JS to avoid Waterline NULL query issues
+    const allApps = await App.find().select(['hostPort'])
+    const usedPorts = new Set()
 
-    const usedPorts = new Set(apps.map((app) => Number(app.hostPort)))
+    for (const app of allApps) {
+      if (app.hostPort != null) {
+        usedPorts.add(Number(app.hostPort))
+      }
+    }
 
     sails.log.debug(`Port allocator: ${usedPorts.size} ports in use: ${[...usedPorts].join(', ')}`)
 
-    // Find first available port in range not already assigned in the database
+    // Find first available port in range not already assigned
     for (let port = portRange.start; port <= portRange.end; port++) {
       if (usedPorts.has(port)) {
-        sails.log.debug(`Port ${port} assigned in DB, skipping`)
         continue
       }
 
