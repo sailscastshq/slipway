@@ -40,19 +40,18 @@ module.exports = {
       hostPort: { '!=': null }
     }).select(['hostPort'])
 
-    const usedPorts = new Set(apps.map((app) => app.hostPort))
+    const usedPorts = new Set(apps.map((app) => Number(app.hostPort)))
 
-    // Find first available port in range (check both DB and actual availability)
+    sails.log.debug(`Port allocator: ${usedPorts.size} ports in use: ${[...usedPorts].join(', ')}`)
+
+    // Find first available port in range not already assigned in the database
     for (let port = portRange.start; port <= portRange.end; port++) {
-      if (usedPorts.has(port)) continue
-
-      // Check if port is actually available on the host
-      const available = await isPortAvailable(port)
-      if (available) {
-        return port
+      if (usedPorts.has(port)) {
+        sails.log.debug(`Port ${port} assigned in DB, skipping`)
+        continue
       }
 
-      sails.log.verbose(`Port ${port} is in use by another process, skipping`)
+      return port
     }
 
     sails.log.error('No ports available in configured range')
