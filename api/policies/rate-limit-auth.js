@@ -20,7 +20,9 @@ const forgotPasswordLimiter = rateLimit({
 
 function rateLimitHandler(req, res) {
   // Use Inertia's validation error pattern so the message shows inline in the form
-  req.session.errors = { email: ['Too many attempts. Please try again later.'] }
+  // Each form checks different error keys: login checks login/email, reset checks password
+  const errorKey = req.options.action === 'auth/reset-password' ? 'password' : 'email'
+  req.session.errors = { [errorKey]: ['Too many attempts. Please try again later.'] }
   return res.redirect(303, req.get('Referrer') || '/')
 }
 
