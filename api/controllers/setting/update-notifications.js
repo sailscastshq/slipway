@@ -197,7 +197,7 @@ module.exports = {
       await sails.helpers.setting.set('notifyOnJobFailure', String(inputs.notifyOnJobFailure))
     }
 
-    this.req._sails.inertia.flash('success', 'Notification settings updated')
+    sails.inertia.flash('success', 'Notification settings updated')
     return '/settings/notifications'
   }
 }

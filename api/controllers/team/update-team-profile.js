@@ -35,7 +35,7 @@ module.exports = {
     // Flush the cached loggedInUser so sidebar updates
     sails.inertia.flushShared('loggedInUser')
 
-    this.req._sails.inertia.flash('success', 'Team profile updated')
+    sails.inertia.flash('success', 'Team profile updated')
     return '/settings/team-profile'
   }
 }

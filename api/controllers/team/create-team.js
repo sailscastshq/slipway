@@ -35,7 +35,7 @@ module.exports = {
     await User.updateOne({ id: userId }).set({ team: team.id })
 
     // Clear Inertia cache to refresh loggedInUser
-    this.req._sails.inertia.flushShared('loggedInUser')
+    sails.inertia.flushShared('loggedInUser')
 
     return '/'
   }
