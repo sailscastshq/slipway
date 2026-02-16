@@ -397,9 +397,9 @@ function recordUrl() {
                   v-model="formValues[field.name]"
                   :disabled="field.readOnly"
                   :required="field.attr.required"
-                  rows="6"
                   placeholder="Write your content here..."
-                  class="w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-brand focus:outline-none disabled:cursor-not-allowed disabled:text-gray-400 dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
+                  class="w-full resize-none border-b border-dashed border-gray-200 bg-transparent px-1 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-brand focus:outline-none disabled:cursor-not-allowed disabled:text-gray-400 dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
+                  style="field-sizing: content"
                 ></textarea>
               </div>
 
@@ -413,10 +413,10 @@ function recordUrl() {
                   :id="field.name"
                   v-model="formValues[field.name]"
                   :disabled="field.readOnly"
-                  rows="4"
                   @blur="validateJson(field.name)"
                   placeholder="{}"
-                  class="w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-2 font-mono text-sm text-gray-900 placeholder-gray-400 focus:border-brand focus:outline-none disabled:cursor-not-allowed disabled:text-gray-400 dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
+                  class="w-full resize-none border-b border-dashed border-gray-200 bg-transparent px-1 py-2 font-mono text-sm text-gray-900 placeholder-gray-400 focus:border-brand focus:outline-none disabled:cursor-not-allowed disabled:text-gray-400 dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
+                  style="field-sizing: content"
                 ></textarea>
                 <p v-if="formErrors[field.name]" class="mt-1 text-xs text-red-600 dark:text-red-400">{{ formErrors[field.name] }}</p>
               </div>
