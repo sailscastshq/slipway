@@ -211,14 +211,14 @@ watch(() => props.deployment.status, (newStatus) => {
 
             <button
               @click="goToDeployment"
-              class="mt-0.5 flex items-center gap-1 text-left text-sm font-medium text-white hover:underline"
+              class="mt-0.5 block w-full truncate text-left text-sm font-medium text-white hover:underline"
             >
-              <span class="truncate">{{ deployment.project.name }}</span>
-              <span class="shrink-0 text-gray-500">/</span>
-              <span class="truncate">{{ deployment.environment.name }}</span>
+              {{ deployment.project.name }}
+              <span class="text-gray-500">/</span>
+              {{ deployment.environment.name }}
               <template v-if="deployment.app">
-                <span class="shrink-0 text-gray-500">/</span>
-                <span class="truncate">{{ deployment.app.name }}</span>
+                <span class="text-gray-500">/</span>
+                {{ deployment.app.name }}
               </template>
             </button>
 
