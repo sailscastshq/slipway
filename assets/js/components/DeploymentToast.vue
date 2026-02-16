@@ -180,7 +180,7 @@ watch(() => props.deployment.status, (newStatus) => {
           <!-- Status icon -->
           <div :class="['flex h-10 w-10 shrink-0 items-center justify-center rounded-lg', isActive ? 'bg-gray-100 dark:bg-gray-800' : (status === 'running' ? 'bg-emerald-500/20' : 'bg-red-500/20')]">
             <!-- Spinning loader for active states -->
-            <SlippyLoader v-if="isActive" class="text-gray-700 dark:text-white" />
+            <SlippyLoader v-if="isActive" class="text-brand dark:text-white" />
             <!-- Check for success -->
             <svg v-else-if="status === 'running'" class="h-5 w-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
