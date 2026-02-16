@@ -48,7 +48,7 @@ const isFormValid = computed(() => {
           type="email"
           placeholder="Enter your email address..."
           autocomplete="email"
-          class="w-full h-12 px-4 bg-white dark:bg-black border border-gray-200 dark:border-gray-800 rounded-md text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:border-brand"
+          class="w-full h-12 px-1 bg-transparent border-b border-dashed border-gray-200 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:border-brand dark:border-gray-700"
         />
 
         <input
@@ -57,7 +57,7 @@ const isFormValid = computed(() => {
           type="password"
           placeholder="Enter password"
           autocomplete="current-password"
-          class="w-full h-12 px-4 bg-white dark:bg-black border border-gray-200 dark:border-gray-800 rounded-md text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:border-brand"
+          class="w-full h-12 px-1 bg-transparent border-b border-dashed border-gray-200 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:border-brand dark:border-gray-700"
         />
 
         <button
