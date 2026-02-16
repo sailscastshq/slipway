@@ -16,6 +16,10 @@ module.exports = {
       required: true,
       description: 'Internal port the app listens on'
     },
+    hostPort: {
+      type: 'number',
+      description: 'Host-mapped port — used as localhost fallback when Docker DNS is unavailable (e.g. local dev on macOS)'
+    },
     path: {
       type: 'string',
       defaultsTo: '/',
@@ -46,10 +50,11 @@ module.exports = {
     }
   },
 
-  fn: async function ({ containerName, port, path, timeout, interval, deploymentId }) {
+  fn: async function ({ containerName, port, hostPort, path, timeout, interval, deploymentId }) {
     const startTime = Date.now()
     let lastError = null
     let attempts = 0
+    let usingFallback = false
 
     if (deploymentId) {
       await Deployment.appendDeployLog(deploymentId, `Health check: polling http://${containerName}:${port}${path} (timeout: ${Math.round(timeout / 1000)}s)\n`)
@@ -58,11 +63,14 @@ module.exports = {
     while (Date.now() - startTime < timeout) {
       attempts++
 
+      const checkHost = usingFallback ? 'localhost' : containerName
+      const checkPort = usingFallback ? hostPort : port
+
       try {
-        const statusCode = await httpGet(containerName, port, path)
+        const statusCode = await httpGet(checkHost, checkPort, path)
 
         if (statusCode < 500) {
-          sails.log.info(`Health check passed on ${containerName}:${port} (HTTP ${statusCode}, attempt ${attempts})`)
+          sails.log.info(`Health check passed on ${checkHost}:${checkPort} (HTTP ${statusCode}, attempt ${attempts})`)
           if (deploymentId) {
             await Deployment.appendDeployLog(deploymentId, `Health check passed (HTTP ${statusCode}, attempt ${attempts})\n`)
           }
@@ -71,6 +79,15 @@ module.exports = {
 
         lastError = `HTTP ${statusCode}`
       } catch (err) {
+        // If Docker DNS can't resolve the container name, fall back to localhost:hostPort
+        if (!usingFallback && hostPort && err.code === 'ENOTFOUND') {
+          usingFallback = true
+          sails.log.info(`Docker DNS unavailable, falling back to localhost:${hostPort}`)
+          if (deploymentId) {
+            await Deployment.appendDeployLog(deploymentId, `Docker DNS unavailable, falling back to localhost:${hostPort}\n`)
+          }
+          continue // Retry immediately with fallback
+        }
         lastError = err.message
       }
 

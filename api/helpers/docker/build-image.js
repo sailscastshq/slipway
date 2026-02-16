@@ -55,8 +55,9 @@ module.exports = {
 
   fn: async function ({ contextPath, imageName, dockerfilePath, deploymentId, buildArgs, timeout, noCache }) {
     return new Promise((resolve, reject) => {
+      const dockerPath = sails.config.docker?.binaryPath || 'docker'
       const fullDockerfilePath = path.resolve(contextPath, dockerfilePath)
-      const args = ['build', '-t', imageName, '-f', fullDockerfilePath]
+      const args = ['buildx', 'build', '--load', '--progress=plain', '-t', imageName, '-f', fullDockerfilePath]
 
       // Only disable cache if explicitly requested
       if (noCache) {
@@ -70,9 +71,9 @@ module.exports = {
 
       args.push(contextPath)
 
-      sails.log.info(`Building image: docker ${args.join(' ')}`)
+      sails.log.info(`Building image: ${dockerPath} ${args.join(' ')}`)
 
-      const buildProcess = spawn('docker', args)
+      const buildProcess = spawn(dockerPath, args)
       let stdout = ''
       let stderr = ''
       let killed = false

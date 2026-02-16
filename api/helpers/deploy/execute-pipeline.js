@@ -120,10 +120,11 @@ module.exports = {
         resourceLimits
       })
 
-      // 10. HTTP health check on the new container (via Docker network DNS)
+      // 10. HTTP health check on the new container (Docker DNS, with localhost fallback for local dev)
       await sails.helpers.docker.healthCheck.with({
         containerName: deployContainerName,
         port: 1337,
+        hostPort: deployHostPort,
         deploymentId
       })
 
