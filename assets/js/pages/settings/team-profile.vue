@@ -28,8 +28,7 @@ const logoPreview = ref(props.team.logoUrl)
 
 function save() {
   form.patch('/settings/team-profile', {
-    preserveScroll: true,
-    onSuccess: () => toast({ message: 'Team profile updated', type: 'success' })
+    preserveScroll: true
   })
 }
 
