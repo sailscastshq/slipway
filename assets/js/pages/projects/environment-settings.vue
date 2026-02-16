@@ -2,6 +2,7 @@
 import { Link, Head, router } from '@inertiajs/vue3'
 import { inject, ref, computed } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
+import Breadcrumb from '@/components/Breadcrumb.vue'
 import ConfirmModal from '@/components/ConfirmModal.vue'
 import { useToast } from '@/composables/toast'
 
@@ -216,32 +217,12 @@ if (!props.canDelete) {
             />
           </svg>
         </button>
-        <nav class="flex items-center space-x-2 text-sm">
-          <Link
-            href="/"
-            class="text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
-          >
-            projects
-          </Link>
-          <span class="text-gray-400 dark:text-gray-600">/</span>
-          <Link
-            :href="`/projects/${project.slug}`"
-            class="text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
-          >
-            {{ project.name.toLowerCase() }}
-          </Link>
-          <span class="text-gray-400 dark:text-gray-600">/</span>
-          <Link
-            :href="`/projects/${project.slug}/environments/${environment.slug}`"
-            class="text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
-          >
-            {{ environment.slug }}
-          </Link>
-          <span class="text-gray-400 dark:text-gray-600">/</span>
-          <span class="font-medium text-gray-900 dark:text-white"
-            >settings</span
-          >
-        </nav>
+        <Breadcrumb :items="[
+          { label: 'projects', href: '/' },
+          { label: project.name.toLowerCase(), href: `/projects/${project.slug}` },
+          { label: environment.slug, href: `/projects/${project.slug}/environments/${environment.slug}` },
+          { label: 'settings' }
+        ]" />
       </div>
       <div class="flex items-center space-x-4">
         <a
