@@ -146,7 +146,7 @@ function logout() {
             <div class="flex items-center justify-end px-4 py-3">
               <button
                 type="submit"
-                :disabled="form.processing"
+                :disabled="form.processing || !form.isDirty"
                 class="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
               >
                 {{ form.processing ? 'Saving...' : 'Save changes' }}
@@ -197,7 +197,7 @@ function logout() {
             <div class="flex items-center justify-end px-4 py-3">
               <button
                 type="submit"
-                :disabled="form.processing || !form.currentPassword || !form.password"
+                :disabled="form.processing || !form.isDirty || !form.currentPassword || !form.password"
                 class="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
               >
                 {{ form.processing ? 'Updating...' : 'Update password' }}
