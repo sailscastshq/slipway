@@ -26,23 +26,23 @@ const sidebarCollapsed = inject('sidebarCollapsed')
 const search = ref('')
 
 const form = useForm({
-  telegramBotToken: props.telegram.botToken,
-  telegramChatId: props.telegram.chatId,
-  telegramThreadId: props.telegram.threadId,
-  telegramEnabled: props.telegram.enabled,
+  telegramBotToken: props.telegram.botToken || '',
+  telegramChatId: props.telegram.chatId || '',
+  telegramThreadId: props.telegram.threadId || '',
+  telegramEnabled: props.telegram.enabled || false,
   discordWebhookUrl: props.discord?.webhookUrl || '',
   discordEnabled: props.discord?.enabled || false,
   slackWebhookUrl: props.slack?.webhookUrl || '',
   slackEnabled: props.slack?.enabled || false,
   webhookUrl: props.webhook?.url || '',
   webhookEnabled: props.webhook?.enabled || false,
-  smtpHost: props.smtp.host,
-  smtpPort: props.smtp.port,
-  smtpUser: props.smtp.user,
+  smtpHost: props.smtp.host || '',
+  smtpPort: props.smtp.port || '',
+  smtpUser: props.smtp.user || '',
   smtpPassword: '',
-  smtpFrom: props.smtp.from,
-  smtpEnabled: props.smtp.enabled,
-  notificationEmails: props.notificationEmails,
+  smtpFrom: props.smtp.from || '',
+  smtpEnabled: props.smtp.enabled || false,
+  notificationEmails: props.notificationEmails || '',
   // Deployment
   notifyOnDeploySuccess: props.preferences.deploySuccess,
   notifyOnDeployFailure: props.preferences.deployFailure,
@@ -1068,7 +1068,7 @@ const categoryIcons = {
           >
             <button
               type="submit"
-              :disabled="form.processing"
+              :disabled="form.processing || !form.isDirty"
               class="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
             >
               {{ form.processing ? 'Saving...' : 'Save changes' }}
