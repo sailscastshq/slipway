@@ -2,6 +2,7 @@
 import { Link, Head, router, usePoll } from '@inertiajs/vue3'
 import { inject, ref, reactive, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
+import Breadcrumb from '@/components/Breadcrumb.vue'
 import ConfirmModal from '@/components/ConfirmModal.vue'
 import SlideToDeploy from '@/components/SlideToDeploy.vue'
 import Tooltip from '@/components/Tooltip.vue'
@@ -645,20 +646,11 @@ onBeforeUnmount(() => {
             <path d="M3.919 5.992 2.6 7.5l1.319 1.508" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
           </svg>
         </button>
-        <nav class="flex items-center space-x-2 text-sm">
-          <Link href="/" class="text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white">
-            projects
-          </Link>
-          <span class="text-gray-400 dark:text-gray-600">/</span>
-          <Link
-            :href="`/projects/${project.slug}`"
-            class="text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
-          >
-            {{ project.name.toLowerCase() }}
-          </Link>
-          <span class="text-gray-400 dark:text-gray-600">/</span>
-          <span class="font-medium text-gray-900 dark:text-white">{{ environment.name.toLowerCase() }}</span>
-        </nav>
+        <Breadcrumb :items="[
+          { label: 'projects', href: '/' },
+          { label: project.name.toLowerCase(), href: `/projects/${project.slug}` },
+          { label: environment.name.toLowerCase() }
+        ]" />
       </div>
       <div class="flex items-center space-x-4">
         <a
