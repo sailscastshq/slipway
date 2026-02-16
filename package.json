@@ -38,6 +38,7 @@
     "@rsbuild/plugin-vue": "^1.0.1",
     "@tailwindcss/postcss": "^4.1.16",
     "create-sails-generator": "^1.0.0",
+    "pellicule": "^0.1.1",
     "playwright": "^1.47.1",
     "prettier": "^2.8.8",
     "prettier-plugin-tailwindcss": "^0.4.1",
