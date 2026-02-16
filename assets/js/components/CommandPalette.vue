@@ -170,12 +170,12 @@ register({
 
 register({
   id: 'action.logout',
-  title: 'Logout',
+  title: 'Sign out',
   keywords: ['logout', 'sign out', 'exit'],
   group: 'Actions',
   icon: 'logout',
   destructive: true,
-  action: () => router.post('/logout')
+  action: () => router.delete('/logout')
 })
 
 register({
