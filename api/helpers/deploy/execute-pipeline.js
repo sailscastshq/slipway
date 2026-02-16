@@ -106,7 +106,7 @@ module.exports = {
 
       // 8. Get resource limits from existing app
       const existingApp = targetApp || await App.findOne({ environment: environment.id, isDefault: true }) || await App.findOne({ environment: environment.id })
-      const resourceLimits = (existingApp && existingApp.resourceLimits) || { cpus: '1', memory: '1g' }
+      const resourceLimits = (existingApp && existingApp.resourceLimits) || { cpus: '1', memory: '1.5g' }
       const oldContainerName = existingApp ? existingApp.containerName : null
 
       // 9. Run the new container with deploy-scoped name (old container still running)
