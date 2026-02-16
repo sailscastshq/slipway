@@ -28,36 +28,46 @@ defineProps({
     <path class="slippy-t2" d="M12 17 C11 21 10 25 13 28" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" />
     <path class="slippy-t3" d="M20 17 C21 21 22 25 19 28" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" />
     <path class="slippy-t4" d="M25 17 C28 21 28 25 24 28" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" />
-    <!-- Eyes -->
+    <!-- Left eye -->
     <circle cx="13" cy="11" r="1.8" fill="currentColor" />
-    <circle cx="19" cy="11" r="1.8" fill="currentColor" />
+    <!-- Right eye — winks periodically -->
+    <ellipse class="slippy-wink" cx="19" cy="11" rx="1.8" ry="1.8" fill="currentColor" />
   </svg>
 </template>
 
 <style>
 .slippy-loader {
-  animation: slippy-bob 2s ease-in-out infinite;
+  animation: slippy-bob 1.6s ease-in-out infinite;
 }
 
-.slippy-t1 { transform-origin: 7px 17px; animation: slippy-sway-wide 2.2s ease-in-out infinite; }
-.slippy-t2 { transform-origin: 12px 17px; animation: slippy-sway-narrow 1.8s ease-in-out infinite 0.15s; }
-.slippy-t3 { transform-origin: 20px 17px; animation: slippy-sway-narrow 1.8s ease-in-out infinite 0.35s; }
-.slippy-t4 { transform-origin: 25px 17px; animation: slippy-sway-wide 2.2s ease-in-out infinite 0.5s; }
+.slippy-t1 { transform-origin: 7px 17px; animation: slippy-sway-wide 1.8s ease-in-out infinite; }
+.slippy-t2 { transform-origin: 12px 17px; animation: slippy-sway-narrow 1.4s ease-in-out infinite 0.1s; }
+.slippy-t3 { transform-origin: 20px 17px; animation: slippy-sway-narrow 1.4s ease-in-out infinite 0.3s; }
+.slippy-t4 { transform-origin: 25px 17px; animation: slippy-sway-wide 1.8s ease-in-out infinite 0.45s; }
+
+.slippy-wink {
+  animation: slippy-wink 4s ease-in-out infinite;
+}
 
 @keyframes slippy-bob {
   0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-8%); }
+  50% { transform: translateY(-15%); }
 }
 
 @keyframes slippy-sway-wide {
   0%, 100% { transform: rotate(0deg); }
-  25% { transform: rotate(10deg); }
-  75% { transform: rotate(-10deg); }
+  25% { transform: rotate(18deg); }
+  75% { transform: rotate(-18deg); }
 }
 
 @keyframes slippy-sway-narrow {
   0%, 100% { transform: rotate(0deg); }
-  25% { transform: rotate(-6deg); }
-  75% { transform: rotate(6deg); }
+  25% { transform: rotate(-12deg); }
+  75% { transform: rotate(12deg); }
+}
+
+@keyframes slippy-wink {
+  0%, 38%, 42%, 100% { ry: 1.8; }
+  40% { ry: 0.2; }
 }
 </style>
