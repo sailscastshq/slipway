@@ -21,6 +21,9 @@ module.exports.policies = {
 
   // Auth routes for guests only (except when setup is needed)
   'auth/*': 'is-guest',
+  'auth/login': ['is-guest', 'rate-limit-auth'],
+  'auth/forgot-password': ['is-guest', 'rate-limit-auth'],
+  'auth/reset-password': ['is-guest', 'rate-limit-auth'],
   'auth/view-success': true,
 
   // Authenticated routes
