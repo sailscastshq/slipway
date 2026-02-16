@@ -304,7 +304,7 @@ function recordUrl() {
                     :required="field.attr.required"
                     :maxlength="field.attr.maxLength || undefined"
                     :placeholder="field.attr.defaultsTo !== undefined ? String(field.attr.defaultsTo) : ''"
-                    class="w-full rounded-md border border-gray-200 bg-transparent px-3 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:border-gray-400 focus:outline-none focus:ring-1 focus:ring-gray-400 disabled:cursor-not-allowed disabled:text-gray-400 dark:border-gray-700 dark:text-white dark:placeholder-gray-500 dark:focus:border-gray-600 dark:focus:ring-gray-600"
+                    class="w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:border-brand focus:outline-none disabled:cursor-not-allowed disabled:text-gray-400 dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
                   />
                   <!-- Email -->
                   <input
@@ -315,7 +315,7 @@ function recordUrl() {
                     :disabled="field.readOnly"
                     :required="field.attr.required"
                     placeholder="email@example.com"
-                    class="w-full rounded-md border border-gray-200 bg-transparent px-3 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:border-gray-400 focus:outline-none focus:ring-1 focus:ring-gray-400 disabled:cursor-not-allowed disabled:text-gray-400 dark:border-gray-700 dark:text-white dark:placeholder-gray-500 dark:focus:border-gray-600 dark:focus:ring-gray-600"
+                    class="w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:border-brand focus:outline-none disabled:cursor-not-allowed disabled:text-gray-400 dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
                   />
                   <!-- Password -->
                   <input
@@ -325,7 +325,7 @@ function recordUrl() {
                     type="password"
                     :disabled="field.readOnly"
                     :placeholder="isEdit ? 'Leave blank to keep current' : ''"
-                    class="w-full rounded-md border border-gray-200 bg-transparent px-3 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:border-gray-400 focus:outline-none focus:ring-1 focus:ring-gray-400 dark:border-gray-700 dark:text-white dark:placeholder-gray-500 dark:focus:border-gray-600 dark:focus:ring-gray-600"
+                    class="w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:border-brand focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
                   />
                   <!-- Number -->
                   <input
@@ -336,7 +336,7 @@ function recordUrl() {
                     :disabled="field.readOnly"
                     :required="field.attr.required"
                     placeholder="0"
-                    class="w-full rounded-md border border-gray-200 bg-transparent px-3 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:border-gray-400 focus:outline-none focus:ring-1 focus:ring-gray-400 disabled:cursor-not-allowed disabled:text-gray-400 dark:border-gray-700 dark:text-white dark:placeholder-gray-500 dark:focus:border-gray-600 dark:focus:ring-gray-600"
+                    class="w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:border-brand focus:outline-none disabled:cursor-not-allowed disabled:text-gray-400 dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
                   />
                   <!-- Select (isIn) -->
                   <select
@@ -345,7 +345,7 @@ function recordUrl() {
                     v-model="formValues[field.name]"
                     :disabled="field.readOnly"
                     :required="field.attr.required"
-                    class="w-full rounded-md border border-gray-200 bg-transparent px-3 py-1.5 text-sm text-gray-900 focus:border-gray-400 focus:outline-none focus:ring-1 focus:ring-gray-400 disabled:cursor-not-allowed disabled:text-gray-400 dark:border-gray-700 dark:bg-transparent dark:text-white dark:focus:border-gray-600 dark:focus:ring-gray-600"
+                    class="w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 focus:border-brand focus:outline-none disabled:cursor-not-allowed disabled:text-gray-400 dark:border-gray-700 dark:text-white"
                   >
                     <option value="">Select...</option>
                     <option v-for="opt in field.attr.isIn" :key="opt" :value="opt">{{ opt }}</option>
@@ -356,7 +356,7 @@ function recordUrl() {
                     :id="field.name"
                     v-model="formValues[field.name]"
                     :disabled="field.readOnly"
-                    class="w-full rounded-md border border-gray-200 bg-transparent px-3 py-1.5 text-sm text-gray-900 focus:border-gray-400 focus:outline-none focus:ring-1 focus:ring-gray-400 disabled:cursor-not-allowed disabled:text-gray-400 dark:border-gray-700 dark:bg-transparent dark:text-white dark:focus:border-gray-600 dark:focus:ring-gray-600"
+                    class="w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 focus:border-brand focus:outline-none disabled:cursor-not-allowed disabled:text-gray-400 dark:border-gray-700 dark:text-white"
                   >
                     <option value="">None</option>
                     <option v-for="opt in (assocOptions[field.name] || [])" :key="opt.id" :value="opt.id">{{ opt.label }}</option>
@@ -399,7 +399,7 @@ function recordUrl() {
                   :required="field.attr.required"
                   rows="6"
                   placeholder="Write your content here..."
-                  class="w-full rounded-md border border-gray-200 bg-transparent px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-gray-400 focus:outline-none focus:ring-1 focus:ring-gray-400 disabled:cursor-not-allowed disabled:text-gray-400 dark:border-gray-700 dark:text-white dark:placeholder-gray-500 dark:focus:border-gray-600 dark:focus:ring-gray-600"
+                  class="w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-brand focus:outline-none disabled:cursor-not-allowed disabled:text-gray-400 dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
                 ></textarea>
               </div>
 
@@ -416,7 +416,7 @@ function recordUrl() {
                   rows="4"
                   @blur="validateJson(field.name)"
                   placeholder="{}"
-                  class="w-full rounded-md border border-gray-200 bg-transparent px-3 py-2 font-mono text-sm text-gray-900 placeholder-gray-400 focus:border-gray-400 focus:outline-none focus:ring-1 focus:ring-gray-400 disabled:cursor-not-allowed disabled:text-gray-400 dark:border-gray-700 dark:text-white dark:placeholder-gray-500 dark:focus:border-gray-600 dark:focus:ring-gray-600"
+                  class="w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-2 font-mono text-sm text-gray-900 placeholder-gray-400 focus:border-brand focus:outline-none disabled:cursor-not-allowed disabled:text-gray-400 dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
                 ></textarea>
                 <p v-if="formErrors[field.name]" class="mt-1 text-xs text-red-600 dark:text-red-400">{{ formErrors[field.name] }}</p>
               </div>
@@ -429,7 +429,7 @@ function recordUrl() {
                   v-model="formValues[field.name]"
                   type="text"
                   :disabled="field.readOnly"
-                  class="w-full rounded-md border border-gray-200 bg-transparent px-3 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:border-gray-400 focus:outline-none focus:ring-1 focus:ring-gray-400 disabled:cursor-not-allowed disabled:text-gray-400 dark:border-gray-700 dark:text-white dark:placeholder-gray-500 dark:focus:border-gray-600 dark:focus:ring-gray-600"
+                  class="w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:border-brand focus:outline-none disabled:cursor-not-allowed disabled:text-gray-400 dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
                 />
               </div>
             </div>

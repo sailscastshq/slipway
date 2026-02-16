@@ -98,7 +98,7 @@ const sidebarCollapsed = inject('sidebarCollapsed')
               v-model="form.name"
               type="text"
               placeholder="Project name"
-              class="h-12 w-full rounded-md border border-gray-200 bg-white px-4 text-gray-900 placeholder-gray-400 focus:border-brand focus:outline-none dark:border-gray-800 dark:bg-black dark:text-white dark:placeholder-gray-500"
+              class="h-12 w-full border-b border-dashed border-gray-200 bg-transparent px-1 text-gray-900 placeholder-gray-400 focus:border-brand focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
             />
 
             <textarea
@@ -106,7 +106,7 @@ const sidebarCollapsed = inject('sidebarCollapsed')
               v-model="form.description"
               rows="3"
               placeholder="A brief description about your project"
-              class="w-full resize-none rounded-md border border-gray-200 bg-white px-4 py-3 text-gray-900 placeholder-gray-400 focus:border-brand focus:outline-none dark:border-gray-800 dark:bg-black dark:text-white dark:placeholder-gray-500"
+              class="w-full resize-none border-b border-dashed border-gray-200 bg-transparent px-1 py-3 text-gray-900 placeholder-gray-400 focus:border-brand focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
             ></textarea>
 
             <div class="flex items-center justify-end space-x-3 pt-4">

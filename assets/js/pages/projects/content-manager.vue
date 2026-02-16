@@ -273,7 +273,7 @@ function refresh() {
               v-model="createForm.contentSlug"
               type="text"
               placeholder="my-new-post"
-              class="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white dark:placeholder-gray-500"
+              class="mt-1 block w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-brand focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
             />
             <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Will be used as the filename</p>
           </div>
@@ -283,7 +283,7 @@ function refresh() {
               v-model="createForm.title"
               type="text"
               placeholder="My New Post"
-              class="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white dark:placeholder-gray-500"
+              class="mt-1 block w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-brand focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
             />
           </div>
           <div class="flex items-center justify-end space-x-3 pt-2">

@@ -185,7 +185,7 @@ const sidebarCollapsed = inject('sidebarCollapsed')
               type="text"
               placeholder="Name"
               autofocus
-              class="focus:border-brand h-12 w-full rounded-md border border-gray-200 bg-white px-4 text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-800 dark:bg-black dark:text-white dark:placeholder-gray-500"
+              class="focus:border-brand h-12 w-full border-b border-dashed border-gray-200 bg-transparent px-1 text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
             />
 
             <div class="flex items-center justify-end space-x-3 pt-4">
