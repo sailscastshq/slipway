@@ -2,6 +2,10 @@
 import { Head } from '@inertiajs/vue3'
 import { ref, computed, inject, watch, onMounted, onUnmounted } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
+import ToastContainer from '@/components/ToastContainer.vue'
+import Tooltip from '@/components/Tooltip.vue'
+import { highlightSQL } from '@/lib/highlightSQL'
+import { highlightJSON } from '@/lib/highlightJSON'
 
 defineOptions({
   layout: AppLayout
@@ -66,125 +70,22 @@ const queryHistory = ref([])
 const resultView = ref('table')
 const showExportMenu = ref(false)
 
-// SQL syntax highlighting (matching Dock)
-const highlightedQuery = computed(() => highlightSQL(sqlQuery.value))
+// Toast state
+const toasts = ref([])
+let toastId = 0
 
-function highlightSQL(sql) {
-  if (!sql) return ''
-
-  const keywords = new Set([
-    'SELECT',
-    'FROM',
-    'WHERE',
-    'AND',
-    'OR',
-    'NOT',
-    'IN',
-    'IS',
-    'NULL',
-    'LIKE',
-    'BETWEEN',
-    'JOIN',
-    'LEFT',
-    'RIGHT',
-    'INNER',
-    'OUTER',
-    'ON',
-    'AS',
-    'ORDER',
-    'BY',
-    'ASC',
-    'DESC',
-    'LIMIT',
-    'OFFSET',
-    'GROUP',
-    'HAVING',
-    'UNION',
-    'ALL',
-    'DISTINCT',
-    'INSERT',
-    'INTO',
-    'VALUES',
-    'UPDATE',
-    'SET',
-    'DELETE',
-    'CREATE',
-    'TABLE',
-    'ALTER',
-    'DROP',
-    'INDEX',
-    'PRIMARY',
-    'KEY',
-    'FOREIGN',
-    'REFERENCES',
-    'CONSTRAINT',
-    'DEFAULT',
-    'AUTOINCREMENT',
-    'INTEGER',
-    'TEXT',
-    'VARCHAR',
-    'BOOLEAN',
-    'REAL',
-    'BIGINT',
-    'TIMESTAMP',
-    'JSON',
-    'JSONB',
-    'UNIQUE',
-    'PRAGMA',
-    'EXPLAIN',
-    'COUNT',
-    'SUM',
-    'AVG',
-    'MIN',
-    'MAX',
-    'CASE',
-    'WHEN',
-    'THEN',
-    'ELSE',
-    'END',
-    'CAST',
-    'TYPE',
-    'EXISTS',
-    'IF'
-  ])
-
-  const tokens = []
-  const tokenPattern =
-    /('(?:[^'\\]|\\.)*')|(\d+(?:\.\d+)?)|(\b[a-zA-Z_]\w*\b)|(\s+)|(.)/g
-  let match
-
-  while ((match = tokenPattern.exec(sql)) !== null) {
-    const [, str, num, word, ws, other] = match
-    if (str) tokens.push({ type: 'string', value: str })
-    else if (num) tokens.push({ type: 'number', value: num })
-    else if (word)
-      tokens.push({
-        type: keywords.has(word.toUpperCase()) ? 'keyword' : 'identifier',
-        value: word
-      })
-    else if (ws) tokens.push({ type: 'whitespace', value: ws })
-    else if (other) tokens.push({ type: 'other', value: other })
-  }
-
-  return tokens
-    .map((t) => {
-      const escaped = t.value
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-      switch (t.type) {
-        case 'keyword':
-          return `<span class="text-pink-600 dark:text-pink-400">${escaped}</span>`
-        case 'string':
-          return `<span class="text-amber-600 dark:text-amber-400">${escaped}</span>`
-        case 'number':
-          return `<span class="text-purple-600 dark:text-purple-400">${escaped}</span>`
-        default:
-          return escaped
-      }
-    })
-    .join('')
+function showToast(message, type = 'success') {
+  const id = ++toastId
+  toasts.value.push({ id, message, type })
+  setTimeout(() => dismissToast(id), 5000)
 }
+
+function dismissToast(id) {
+  toasts.value = toasts.value.filter(t => t.id !== id)
+}
+
+// SQL syntax highlighting (shared utility)
+const highlightedQuery = computed(() => highlightSQL(sqlQuery.value))
 
 async function executeQuery() {
   if (!sqlQuery.value.trim() || consoleLoading.value) return
@@ -230,6 +131,7 @@ function copyAsJSON() {
   navigator.clipboard.writeText(
     JSON.stringify(consoleResults.value.rows, null, 2)
   )
+  showToast('Copied JSON to clipboard')
 }
 
 function copyAsCSV() {
@@ -249,6 +151,7 @@ function copyAsCSV() {
     csvLines.push(values.join(','))
   }
   navigator.clipboard.writeText(csvLines.join('\n'))
+  showToast('Copied CSV to clipboard')
 }
 
 function downloadAsJSON() {
@@ -258,6 +161,7 @@ function downloadAsJSON() {
     'query-result.json',
     'application/json'
   )
+  showToast('Downloaded query-result.json')
 }
 
 function downloadAsCSV() {
@@ -277,6 +181,7 @@ function downloadAsCSV() {
     csvLines.push(values.join(','))
   }
   downloadFile(csvLines.join('\n'), 'query-result.csv', 'text/csv')
+  showToast('Downloaded query-result.csv')
 }
 
 function downloadFile(content, filename, mimeType) {
@@ -573,10 +478,12 @@ onUnmounted(() => {
         <span class="font-medium text-gray-900 dark:text-white">Bosun</span>
       </div>
       <div class="flex items-center space-x-2 sm:space-x-3">
-        <span
-          class="rounded bg-gray-100 px-2 py-1 text-xs font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-400"
-          >v{{ version }}</span
-        >
+        <Tooltip text="Slipway version" position="bottom">
+          <span
+            class="rounded bg-gray-100 px-2 py-1 text-xs font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-400"
+            >v{{ version }}</span
+          >
+        </Tooltip>
         <a
           href="https://docs.sailscasts.com/slipway/bosun"
           target="_blank"
@@ -715,7 +622,7 @@ onUnmounted(() => {
             <table class="min-w-full">
               <thead class="sticky top-0">
                 <tr
-                  class="border-b border-gray-200 bg-gray-50 dark:border-gray-800 dark:bg-gray-900/50"
+                  class="border-b border-gray-200 bg-gray-50 dark:border-gray-800 dark:bg-gray-900"
                 >
                   <th
                     v-for="col in consoleResults.columns"
@@ -742,6 +649,8 @@ onUnmounted(() => {
                       class="text-gray-400 dark:text-gray-600"
                       >NULL</span
                     >
+                    <span v-else-if="typeof row[col] === 'number'" class="text-purple-600 dark:text-purple-400">{{ row[col] }}</span>
+                    <span v-else-if="typeof row[col] === 'boolean'" class="text-blue-600 dark:text-blue-400">{{ row[col] }}</span>
                     <span v-else>{{ row[col] }}</span>
                   </td>
                 </tr>
@@ -754,9 +663,7 @@ onUnmounted(() => {
             v-else-if="consoleResults.columns && resultView === 'json'"
             class="flex-1 overflow-auto p-4"
           >
-            <pre class="font-mono text-xs text-gray-700 dark:text-gray-300">{{
-              JSON.stringify(consoleResults.rows, null, 2)
-            }}</pre>
+            <pre class="font-mono text-xs text-gray-700 dark:text-gray-300" v-html="highlightJSON(consoleResults.rows)"></pre>
           </div>
 
           <!-- No columns result -->
@@ -788,40 +695,44 @@ onUnmounted(() => {
             v-if="consoleResults.columns"
             class="flex overflow-hidden rounded-md border border-gray-300 dark:border-gray-700"
           >
-            <button
-              @click="resultView = 'table'"
-              :class="[
-                'p-1.5',
-                resultView === 'table'
-                  ? 'bg-gray-200 text-gray-900 dark:bg-gray-700 dark:text-white'
-                  : 'text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800'
-              ]"
-            >
-              <svg
-                class="h-4 w-4"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                stroke-width="1.5"
+            <Tooltip text="Table view" position="top">
+              <button
+                @click="resultView = 'table'"
+                :class="[
+                  'p-1.5',
+                  resultView === 'table'
+                    ? 'bg-gray-200 text-gray-900 dark:bg-gray-700 dark:text-white'
+                    : 'text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800'
+                ]"
               >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  d="M3.375 19.5h17.25m-17.25 0a1.125 1.125 0 01-1.125-1.125M3.375 19.5h7.5c.621 0 1.125-.504 1.125-1.125m-9.75 0V5.625m0 12.75v-1.5c0-.621.504-1.125 1.125-1.125m18.375 2.625V5.625m0 12.75c0 .621-.504 1.125-1.125 1.125m1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125m0 3.75h-7.5A1.125 1.125 0 0112 18.375m9.75-12.75c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125m19.5 0v1.5c0 .621-.504 1.125-1.125 1.125M2.25 5.625v1.5c0 .621.504 1.125 1.125 1.125m0 0h17.25m-17.25 0h7.5c.621 0 1.125.504 1.125 1.125M3.375 8.25c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125m17.25-3.75h-7.5c-.621 0-1.125.504-1.125 1.125m8.625-1.125c.621 0 1.125.504 1.125 1.125v1.5c0 .621-.504 1.125-1.125 1.125m-17.25 0h7.5m-7.5 0c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125M12 10.875v-1.5m0 1.5c0 .621-.504 1.125-1.125 1.125M12 10.875c0 .621.504 1.125 1.125 1.125m-2.25 0c.621 0 1.125.504 1.125 1.125M13.125 12h7.5m-7.5 0c-.621 0-1.125.504-1.125 1.125M20.625 12c.621 0 1.125.504 1.125 1.125v1.5c0 .621-.504 1.125-1.125 1.125m-17.25 0h7.5M12 14.625v-1.5m0 1.5c0 .621-.504 1.125-1.125 1.125M12 14.625c0 .621.504 1.125 1.125 1.125m-2.25 0c.621 0 1.125.504 1.125 1.125m0 0v1.5c0 .621-.504 1.125-1.125 1.125"
-                />
-              </svg>
-            </button>
-            <button
-              @click="resultView = 'json'"
-              :class="[
-                'border-l border-gray-300 px-1.5 py-1 font-mono text-sm font-bold dark:border-gray-700',
-                resultView === 'json'
-                  ? 'bg-gray-200 text-gray-900 dark:bg-gray-700 dark:text-white'
-                  : 'text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800'
-              ]"
-            >
-              {}
-            </button>
+                <svg
+                  class="h-4 w-4"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  stroke-width="1.5"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    d="M3.375 19.5h17.25m-17.25 0a1.125 1.125 0 01-1.125-1.125M3.375 19.5h7.5c.621 0 1.125-.504 1.125-1.125m-9.75 0V5.625m0 12.75v-1.5c0-.621.504-1.125 1.125-1.125m18.375 2.625V5.625m0 12.75c0 .621-.504 1.125-1.125 1.125m1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125m0 3.75h-7.5A1.125 1.125 0 0112 18.375m9.75-12.75c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125m19.5 0v1.5c0 .621-.504 1.125-1.125 1.125M2.25 5.625v1.5c0 .621.504 1.125 1.125 1.125m0 0h17.25m-17.25 0h7.5c.621 0 1.125.504 1.125 1.125M3.375 8.25c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125m17.25-3.75h-7.5c-.621 0-1.125.504-1.125 1.125m8.625-1.125c.621 0 1.125.504 1.125 1.125v1.5c0 .621-.504 1.125-1.125 1.125m-17.25 0h7.5m-7.5 0c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125M12 10.875v-1.5m0 1.5c0 .621-.504 1.125-1.125 1.125M12 10.875c0 .621.504 1.125 1.125 1.125m-2.25 0c.621 0 1.125.504 1.125 1.125M13.125 12h7.5m-7.5 0c-.621 0-1.125.504-1.125 1.125M20.625 12c.621 0 1.125.504 1.125 1.125v1.5c0 .621-.504 1.125-1.125 1.125m-17.25 0h7.5M12 14.625v-1.5m0 1.5c0 .621-.504 1.125-1.125 1.125M12 14.625c0 .621.504 1.125 1.125 1.125m-2.25 0c.621 0 1.125.504 1.125 1.125m0 0v1.5c0 .621-.504 1.125-1.125 1.125"
+                  />
+                </svg>
+              </button>
+            </Tooltip>
+            <Tooltip text="JSON view" position="top">
+              <button
+                @click="resultView = 'json'"
+                :class="[
+                  'border-l border-gray-300 px-1.5 py-1 font-mono text-sm font-bold dark:border-gray-700',
+                  resultView === 'json'
+                    ? 'bg-gray-200 text-gray-900 dark:bg-gray-700 dark:text-white'
+                    : 'text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800'
+                ]"
+              >
+                {}
+              </button>
+            </Tooltip>
           </div>
           <!-- Row info -->
           <span class="text-xs text-gray-500 dark:text-gray-400">
@@ -834,46 +745,9 @@ onUnmounted(() => {
         </div>
         <!-- Actions -->
         <div v-if="consoleResults.columns" class="flex items-center gap-1">
-          <button
-            @click="executeQuery"
-            class="rounded p-1.5 text-gray-500 hover:bg-gray-200 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-200"
-          >
-            <svg
-              class="h-4 w-4"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              stroke-width="1.5"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99"
-              />
-            </svg>
-          </button>
-          <button
-            @click="resultView === 'json' ? copyAsJSON() : copyAsCSV()"
-            class="rounded p-1.5 text-gray-500 hover:bg-gray-200 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-200"
-          >
-            <svg
-              class="h-4 w-4"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              stroke-width="1.5"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                d="M15.666 3.888A2.25 2.25 0 0013.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 01-.75.75H9.75a.75.75 0 01-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 01-2.25 2.25H6.75A2.25 2.25 0 014.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 011.927-.184"
-              />
-            </svg>
-          </button>
-          <!-- Export dropdown -->
-          <div class="relative" data-export-menu>
+          <Tooltip text="Re-run query" position="top">
             <button
-              @click="showExportMenu = !showExportMenu"
+              @click="executeQuery"
               class="rounded p-1.5 text-gray-500 hover:bg-gray-200 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-200"
             >
               <svg
@@ -886,10 +760,53 @@ onUnmounted(() => {
                 <path
                   stroke-linecap="round"
                   stroke-linejoin="round"
-                  d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"
+                  d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99"
                 />
               </svg>
             </button>
+          </Tooltip>
+          <Tooltip :text="resultView === 'json' ? 'Copy as JSON' : 'Copy as CSV'" position="top">
+            <button
+              @click="resultView === 'json' ? copyAsJSON() : copyAsCSV()"
+              class="rounded p-1.5 text-gray-500 hover:bg-gray-200 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-200"
+            >
+              <svg
+                class="h-4 w-4"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                stroke-width="1.5"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  d="M15.666 3.888A2.25 2.25 0 0013.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 01-.75.75H9.75a.75.75 0 01-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 01-2.25 2.25H6.75A2.25 2.25 0 014.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 011.927-.184"
+                />
+              </svg>
+            </button>
+          </Tooltip>
+          <!-- Export dropdown -->
+          <div class="relative" data-export-menu>
+            <Tooltip text="Download" position="top">
+              <button
+                @click="showExportMenu = !showExportMenu"
+                class="rounded p-1.5 text-gray-500 hover:bg-gray-200 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-200"
+              >
+                <svg
+                  class="h-4 w-4"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  stroke-width="1.5"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"
+                  />
+                </svg>
+              </button>
+            </Tooltip>
             <div
               v-if="showExportMenu"
               class="absolute bottom-full right-0 z-10 mb-1 w-40 rounded-md border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-800"
@@ -1415,5 +1332,6 @@ onUnmounted(() => {
         </div>
       </div>
     </div>
+    <ToastContainer :toasts="toasts" @dismiss="dismissToast" />
   </div>
 </template>

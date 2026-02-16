@@ -5,6 +5,8 @@ import AppLayout from '@/layouts/AppLayout.vue'
 import ConfirmModal from '@/components/ConfirmModal.vue'
 import ToastContainer from '@/components/ToastContainer.vue'
 import Tooltip from '@/components/Tooltip.vue'
+import { highlightSQL } from '@/lib/highlightSQL'
+import { highlightJSON } from '@/lib/highlightJSON'
 
 defineOptions({
   layout: AppLayout
@@ -231,46 +233,10 @@ function apiUrl(endpoint, extraParams = '') {
   return `${apiBasePath.value}${endpoint}${queryPart}`
 }
 
-// SQL syntax highlighting with tokenizer approach to avoid nested span issues
+// SQL syntax highlighting (shared utility)
 const highlightedQuery = computed(() => {
   return highlightSQL(query.value)
 })
-
-function highlightSQL(sql) {
-  if (!sql) return ''
-
-  const keywords = new Set(['SELECT', 'FROM', 'WHERE', 'AND', 'OR', 'NOT', 'IN', 'IS', 'NULL', 'LIKE', 'BETWEEN',
-    'JOIN', 'LEFT', 'RIGHT', 'INNER', 'OUTER', 'ON', 'AS', 'ORDER', 'BY', 'ASC', 'DESC', 'LIMIT', 'OFFSET',
-    'GROUP', 'HAVING', 'UNION', 'ALL', 'DISTINCT', 'INSERT', 'INTO', 'VALUES', 'UPDATE', 'SET', 'DELETE',
-    'CREATE', 'TABLE', 'ALTER', 'DROP', 'INDEX', 'PRIMARY', 'KEY', 'FOREIGN', 'REFERENCES', 'CONSTRAINT',
-    'DEFAULT', 'AUTOINCREMENT', 'AUTO_INCREMENT', 'SERIAL', 'IF', 'EXISTS', 'CASCADE', 'ADD', 'COLUMN',
-    'INTEGER', 'TEXT', 'VARCHAR', 'BOOLEAN', 'REAL', 'BIGINT', 'TIMESTAMP', 'JSON', 'JSONB', 'UNIQUE'])
-
-  // Tokenize: strings, numbers, words, whitespace, other
-  const tokens = []
-  const tokenPattern = /('(?:[^'\\]|\\.)*')|(\d+(?:\.\d+)?)|(\b[a-zA-Z_]\w*\b)|(\s+)|(.)/g
-  let match
-
-  while ((match = tokenPattern.exec(sql)) !== null) {
-    const [, str, num, word, ws, other] = match
-    if (str) tokens.push({ type: 'string', value: str })
-    else if (num) tokens.push({ type: 'number', value: num })
-    else if (word) tokens.push({ type: keywords.has(word.toUpperCase()) ? 'keyword' : 'identifier', value: word })
-    else if (ws) tokens.push({ type: 'whitespace', value: ws })
-    else if (other) tokens.push({ type: 'other', value: other })
-  }
-
-  // Render tokens with colors (using colors that work in both modes)
-  return tokens.map(t => {
-    const escaped = t.value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-    switch (t.type) {
-      case 'keyword': return `<span class="text-pink-600 dark:text-pink-400">${escaped}</span>`
-      case 'string': return `<span class="text-amber-600 dark:text-amber-400">${escaped}</span>`
-      case 'number': return `<span class="text-purple-600 dark:text-purple-400">${escaped}</span>`
-      default: return escaped
-    }
-  }).join('')
-}
 
 // Execute SQL query
 async function executeQuery() {
@@ -1150,7 +1116,7 @@ onUnmounted(() => {
             <div v-if="queryResult.columns && queryResult.columns.length > 0 && resultView === 'table'" class="overflow-auto flex-1">
               <table class="min-w-full">
                 <thead class="sticky top-0">
-                  <tr class="border-b border-gray-200 bg-gray-50 dark:border-gray-800 dark:bg-gray-900/50">
+                  <tr class="border-b border-gray-200 bg-gray-50 dark:border-gray-800 dark:bg-gray-900">
                     <th
                       v-for="col in queryResult.columns"
                       :key="col"
@@ -1172,6 +1138,8 @@ onUnmounted(() => {
                       class="whitespace-nowrap px-4 py-2 font-mono text-sm text-gray-700 dark:text-gray-300"
                     >
                       <span v-if="row[col] === null" class="text-gray-400 dark:text-gray-600">NULL</span>
+                      <span v-else-if="typeof row[col] === 'number'" class="text-purple-600 dark:text-purple-400">{{ row[col] }}</span>
+                      <span v-else-if="typeof row[col] === 'boolean'" class="text-blue-600 dark:text-blue-400">{{ row[col] }}</span>
                       <span v-else>{{ row[col] }}</span>
                     </td>
                   </tr>
@@ -1181,7 +1149,7 @@ onUnmounted(() => {
 
             <!-- JSON view -->
             <div v-else-if="queryResult.columns && queryResult.columns.length > 0 && resultView === 'json'" class="flex-1 overflow-auto p-4">
-              <pre class="font-mono text-xs text-gray-700 dark:text-gray-300">{{ JSON.stringify(queryResult.rows, null, 2) }}</pre>
+              <pre class="font-mono text-xs text-gray-700 dark:text-gray-300" v-html="highlightJSON(queryResult.rows)"></pre>
             </div>
 
             <!-- No columns (DDL result) -->
@@ -1366,6 +1334,8 @@ onUnmounted(() => {
                     class="whitespace-nowrap px-3 py-2 font-mono text-xs text-gray-700 dark:text-gray-300"
                   >
                     <span v-if="row[col] === null" class="text-gray-400 dark:text-gray-600">NULL</span>
+                    <span v-else-if="typeof row[col] === 'number'" class="text-purple-600 dark:text-purple-400">{{ row[col] }}</span>
+                    <span v-else-if="typeof row[col] === 'boolean'" class="text-blue-600 dark:text-blue-400">{{ row[col] }}</span>
                     <span v-else>{{ row[col] }}</span>
                   </td>
                 </tr>

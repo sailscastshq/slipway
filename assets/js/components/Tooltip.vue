@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onBeforeUnmount } from 'vue'
+import { ref, computed, nextTick, onBeforeUnmount } from 'vue'
 
 const props = defineProps({
   text: {
@@ -19,75 +19,114 @@ const props = defineProps({
 
 const show = ref(false)
 const triggerRef = ref(null)
+const tooltipRef = ref(null)
 const tooltipStyle = ref({})
+const arrowStyle = ref({})
 const actualPosition = ref(props.position)
 let timeout = null
 
-function updatePosition() {
+const GAP = 8
+const EDGE_MARGIN = 10
+const ARROW_HALF_WIDTH = 6 // must match border-x size
+const BORDER_RADIUS = 6 // rounded-md
+
+function positionTooltip() {
   if (!triggerRef.value) return
 
   const rect = triggerRef.value.getBoundingClientRect()
-  const gap = 8 // Space between trigger and tooltip
-  const tooltipHeight = 32 // Approximate tooltip height
-  const tooltipWidth = 100 // Approximate tooltip width
+  const approxHeight = 32
+  const approxWidth = 100
 
-  let top, left
   let finalPosition = props.position
 
-  // Auto-detect if we need to flip vertical position
-  if (props.position === 'top' && rect.top < tooltipHeight + gap) {
+  // Flip if not enough space (uses approximations — that's fine for flipping)
+  if (props.position === 'top' && rect.top < approxHeight + GAP) {
     finalPosition = 'bottom'
-  } else if (props.position === 'bottom' && window.innerHeight - rect.bottom < tooltipHeight + gap) {
+  } else if (props.position === 'bottom' && window.innerHeight - rect.bottom < approxHeight + GAP) {
     finalPosition = 'top'
-  } else if (props.position === 'left' && rect.left < tooltipWidth + gap) {
+  } else if (props.position === 'left' && rect.left < approxWidth + GAP) {
     finalPosition = 'right'
-  } else if (props.position === 'right' && window.innerWidth - rect.right < tooltipWidth + gap) {
+  } else if (props.position === 'right' && window.innerWidth - rect.right < approxWidth + GAP) {
     finalPosition = 'left'
   }
 
   actualPosition.value = finalPosition
 
+  // Initial position: centered on trigger (overflow adjusted after render)
+  let top, left
   switch (finalPosition) {
     case 'top':
-      top = rect.top - gap
+      top = rect.top - GAP
       left = rect.left + rect.width / 2
       break
     case 'bottom':
-      top = rect.bottom + gap
+      top = rect.bottom + GAP
       left = rect.left + rect.width / 2
       break
     case 'left':
       top = rect.top + rect.height / 2
-      left = rect.left - gap
+      left = rect.left - GAP
       break
     case 'right':
       top = rect.top + rect.height / 2
-      left = rect.right + gap
+      left = rect.right + GAP
       break
   }
 
-  // Check if tooltip would overflow right edge and adjust
-  const centerX = rect.left + rect.width / 2
-  if (finalPosition === 'top' || finalPosition === 'bottom') {
-    if (centerX + tooltipWidth / 2 > window.innerWidth - 10) {
-      // Would overflow right - align to right edge instead
-      left = window.innerWidth - tooltipWidth / 2 - 10
-    } else if (centerX - tooltipWidth / 2 < 10) {
-      // Would overflow left - align to left edge instead
-      left = tooltipWidth / 2 + 10
-    }
-  }
+  tooltipStyle.value = { top: `${top}px`, left: `${left}px` }
 
-  tooltipStyle.value = {
-    top: `${top}px`,
-    left: `${left}px`
+  // Default arrow: centered, overlapping by 0.5px to prevent sub-pixel gaps
+  if (finalPosition === 'top' || finalPosition === 'bottom') {
+    arrowStyle.value = { left: '50%', transform: 'translateX(-50%)' }
+  } else {
+    arrowStyle.value = { top: '50%', transform: 'translateY(-50%)' }
   }
 }
 
-function handleMouseEnter() {
-  timeout = setTimeout(() => {
-    updatePosition()
+function adjustForOverflow() {
+  if (!tooltipRef.value || !triggerRef.value) return
+
+  const pos = actualPosition.value
+  if (pos !== 'top' && pos !== 'bottom') return
+
+  const tooltipRect = tooltipRef.value.getBoundingClientRect()
+  const triggerRect = triggerRef.value.getBoundingClientRect()
+  const triggerCenterX = triggerRect.left + triggerRect.width / 2
+
+  let shiftX = 0
+  if (tooltipRect.right > window.innerWidth - EDGE_MARGIN) {
+    shiftX = tooltipRect.right - (window.innerWidth - EDGE_MARGIN)
+  } else if (tooltipRect.left < EDGE_MARGIN) {
+    shiftX = tooltipRect.left - EDGE_MARGIN
+  }
+
+  if (shiftX === 0) return
+
+  // Shift tooltip to stay within viewport
+  const currentLeft = parseFloat(tooltipStyle.value.left)
+  tooltipStyle.value = {
+    ...tooltipStyle.value,
+    left: `${currentLeft - shiftX}px`
+  }
+
+  // Arrow must still point at trigger center
+  // After shifting, the tooltip center moved by -shiftX, so arrow needs +shiftX offset
+  // Clamp so arrow stays within the rounded corners of the tooltip
+  const maxOffset = (tooltipRect.width / 2) - BORDER_RADIUS - ARROW_HALF_WIDTH
+  const clampedOffset = Math.max(-maxOffset, Math.min(maxOffset, shiftX))
+
+  arrowStyle.value = {
+    left: `calc(50% + ${clampedOffset}px)`,
+    transform: 'translateX(-50%)'
+  }
+}
+
+async function handleMouseEnter() {
+  timeout = setTimeout(async () => {
+    positionTooltip()
     show.value = true
+    await nextTick()
+    adjustForOverflow()
   }, props.delay)
 }
 
@@ -115,10 +154,10 @@ const tooltipClasses = computed(() => {
 
 const arrowClasses = computed(() => {
   const arrows = {
-    top: 'top-full left-1/2 -translate-x-1/2 border-t-gray-900 dark:border-t-gray-100 border-x-transparent border-b-transparent',
-    bottom: 'bottom-full left-1/2 -translate-x-1/2 border-b-gray-900 dark:border-b-gray-100 border-x-transparent border-t-transparent',
-    left: 'left-full top-1/2 -translate-y-1/2 border-l-gray-900 dark:border-l-gray-100 border-y-transparent border-r-transparent',
-    right: 'right-full top-1/2 -translate-y-1/2 border-r-gray-900 dark:border-r-gray-100 border-y-transparent border-l-transparent'
+    top: 'top-full border-t-gray-900 dark:border-t-gray-100 border-x-transparent border-b-transparent',
+    bottom: 'bottom-full border-b-gray-900 dark:border-b-gray-100 border-x-transparent border-t-transparent',
+    left: 'left-full border-l-gray-900 dark:border-l-gray-100 border-y-transparent border-r-transparent',
+    right: 'right-full border-r-gray-900 dark:border-r-gray-100 border-y-transparent border-l-transparent'
   }
   return arrows[actualPosition.value]
 })
@@ -150,6 +189,7 @@ const arrowBorderSize = computed(() => {
       >
         <div
           v-if="show && text"
+          ref="tooltipRef"
           :class="tooltipClasses"
           :style="tooltipStyle"
         >
@@ -161,6 +201,7 @@ const arrowBorderSize = computed(() => {
               arrowClasses,
               arrowBorderSize
             ]"
+            :style="arrowStyle"
           />
         </div>
       </Transition>
