@@ -61,11 +61,49 @@ module.exports = function defineCustomHook(sails) {
                   .sort('name ASC')
               })
 
+              sails.inertia.share('navApps', async () => {
+                try {
+                  const user = await User.findOne({ id: userId }).select(['team'])
+                  if (!user || !user.team) { return [] }
+                  const projects = await Project.find({ team: user.team }).select(['id', 'name', 'slug'])
+                  const projectIds = projects.map(p => p.id)
+                  const environments = await Environment.find({ project: projectIds }).select(['id', 'slug', 'name', 'project', 'domain'])
+                  const envIds = environments.map(e => e.id)
+                  const apps = await App.find({ environment: envIds }).select(['name', 'slug', 'environment'])
+                  const wildcardDomain = await sails.helpers.setting.get('wildcardDomain')
+                  const slipwayDomain = sails.config.custom.slipwayDomain
+                  return apps.map(app => {
+                    const env = environments.find(e => e.id === app.environment)
+                    const project = projects.find(p => p.id === env?.project)
+                    let domain = null
+                    if (env?.domain) {
+                      domain = env.domain
+                    } else if (project && env) {
+                      const subdomain = `${project.slug}-${env.slug}`
+                      domain = wildcardDomain ? `${subdomain}.${wildcardDomain}` : (slipwayDomain ? `${subdomain}.${slipwayDomain}` : null)
+                    }
+                    return {
+                      name: app.name,
+                      slug: app.slug,
+                      projectName: project?.name,
+                      projectSlug: project?.slug,
+                      envName: env?.name,
+                      envSlug: env?.slug,
+                      domain
+                    }
+                  })
+                } catch (err) {
+                  sails.log.error('navApps shared prop error:', err)
+                  return []
+                }
+              })
+
               res.setHeader('Cache-Control', 'no-cache, no-store')
               return next()
             } else {
               sails.inertia.flushShared('loggedInUser')
               sails.inertia.flushShared('navProjects')
+              sails.inertia.flushShared('navApps')
             }
             return next()
           }
