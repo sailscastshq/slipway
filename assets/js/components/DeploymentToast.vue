@@ -211,7 +211,7 @@ watch(() => props.deployment.status, (newStatus) => {
 
             <button
               @click="goToDeployment"
-              class="mt-0.5 block truncate text-left text-sm font-medium text-white hover:underline"
+              class="mt-0.5 block w-full truncate text-left text-sm font-medium text-white hover:underline"
             >
               {{ deployment.project.name }}
               <span class="text-gray-500">/</span>
