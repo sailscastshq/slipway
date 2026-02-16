@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { Link, router } from '@inertiajs/vue3'
+import SlippyLoader from '@/components/SlippyLoader.vue'
 
 const props = defineProps({
   deployment: Object
@@ -20,43 +21,43 @@ const statusConfig = computed(() => {
   const configs = {
     pending: {
       label: 'Queued',
-      color: 'text-gray-400',
+      color: 'text-gray-600 dark:text-gray-400',
       bgColor: 'bg-gray-500',
       icon: 'clock'
     },
     building: {
       label: 'Building',
-      color: 'text-blue-400',
+      color: 'text-blue-600 dark:text-blue-400',
       bgColor: 'bg-blue-500',
       icon: 'building'
     },
     pushing: {
       label: 'Pushing',
-      color: 'text-purple-400',
+      color: 'text-purple-600 dark:text-purple-400',
       bgColor: 'bg-purple-500',
       icon: 'upload'
     },
     deploying: {
       label: 'Deploying',
-      color: 'text-amber-400',
+      color: 'text-amber-600 dark:text-amber-400',
       bgColor: 'bg-amber-500',
       icon: 'rocket'
     },
     running: {
       label: 'Deployed',
-      color: 'text-emerald-400',
+      color: 'text-emerald-600 dark:text-emerald-400',
       bgColor: 'bg-emerald-500',
       icon: 'check'
     },
     failed: {
       label: 'Failed',
-      color: 'text-red-400',
+      color: 'text-red-600 dark:text-red-400',
       bgColor: 'bg-red-500',
       icon: 'x'
     },
     cancelled: {
       label: 'Cancelled',
-      color: 'text-gray-400',
+      color: 'text-gray-600 dark:text-gray-400',
       bgColor: 'bg-gray-500',
       icon: 'x'
     }
@@ -157,11 +158,11 @@ watch(() => props.deployment.status, (newStatus) => {
       :class="[
         'pointer-events-auto w-80 overflow-hidden rounded-xl border shadow-2xl backdrop-blur-sm transition-all',
         exiting ? 'translate-y-full opacity-0' : '',
-        'border-gray-700/50 bg-gray-900/95'
+        'border-gray-200 bg-white/95 dark:border-gray-700/50 dark:bg-gray-900/95'
       ]"
     >
       <!-- Progress bar at top -->
-      <div class="h-0.5 w-full bg-gray-800">
+      <div class="h-0.5 w-full bg-gray-200 dark:bg-gray-800">
         <div
           v-if="isActive"
           :class="['h-full transition-all duration-300', statusConfig.bgColor]"
@@ -177,12 +178,9 @@ watch(() => props.deployment.status, (newStatus) => {
       <div class="p-4">
         <div class="flex items-start gap-3">
           <!-- Status icon -->
-          <div :class="['flex h-10 w-10 shrink-0 items-center justify-center rounded-lg', isActive ? 'bg-gray-800' : (status === 'running' ? 'bg-emerald-500/20' : 'bg-red-500/20')]">
+          <div :class="['flex h-10 w-10 shrink-0 items-center justify-center rounded-lg', isActive ? 'bg-gray-100 dark:bg-gray-800' : (status === 'running' ? 'bg-emerald-500/20' : 'bg-red-500/20')]">
             <!-- Spinning loader for active states -->
-            <svg v-if="isActive" class="h-5 w-5 animate-spin text-white" fill="none" viewBox="0 0 24 24">
-              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
-              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-            </svg>
+            <SlippyLoader v-if="isActive" class="text-brand dark:text-white" />
             <!-- Check for success -->
             <svg v-else-if="status === 'running'" class="h-5 w-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
@@ -201,7 +199,7 @@ watch(() => props.deployment.status, (newStatus) => {
               </p>
               <button
                 @click.stop="dismiss"
-                class="rounded p-0.5 text-gray-500 hover:bg-gray-800 hover:text-gray-300"
+                class="rounded p-0.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:text-gray-500 dark:hover:bg-gray-800 dark:hover:text-gray-300"
               >
                 <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
@@ -211,18 +209,18 @@ watch(() => props.deployment.status, (newStatus) => {
 
             <button
               @click="goToDeployment"
-              class="mt-0.5 block w-full truncate text-left text-sm font-medium text-white hover:underline"
+              class="mt-0.5 block w-full truncate text-left text-sm font-medium text-gray-900 hover:underline dark:text-white"
             >
               {{ deployment.project.name }}
-              <span class="text-gray-500">/</span>
+              <span class="text-gray-400 dark:text-gray-500">/</span>
               {{ deployment.environment.name }}
               <template v-if="deployment.app">
-                <span class="text-gray-500">/</span>
+                <span class="text-gray-400 dark:text-gray-500">/</span>
                 {{ deployment.app.name }}
               </template>
             </button>
 
-            <div class="mt-2 flex items-center gap-3 text-xs text-gray-400">
+            <div class="mt-2 flex items-center gap-3 text-xs text-gray-500 dark:text-gray-400">
               <span v-if="deployment.gitBranch" class="flex items-center gap-1">
                 <svg class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />

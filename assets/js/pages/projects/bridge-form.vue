@@ -4,6 +4,7 @@ import { inject, ref, computed, onMounted } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
 import ToastContainer from '@/components/ToastContainer.vue'
 import { createToast } from '@/composables/toast'
+import SlippyLoader from '@/components/SlippyLoader.vue'
 
 defineOptions({
   layout: AppLayout
@@ -448,10 +449,7 @@ function recordUrl() {
               :disabled="form.processing"
               class="inline-flex items-center rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
             >
-              <svg v-if="form.processing" class="mr-2 h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
-                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-              </svg>
+              <SlippyLoader v-if="form.processing" size="h-4 w-4" class="mr-2" />
               {{ isEdit ? 'Save changes' : 'Create record' }}
             </button>
           </div>
