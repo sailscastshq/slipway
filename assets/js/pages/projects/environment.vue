@@ -1164,7 +1164,7 @@ onBeforeUnmount(() => {
                     </button>
                     <Link
                       v-else-if="!backupConfigured"
-                      href="/settings/global-env"
+                      href="/settings/uploads"
                       class="rounded px-2 py-0.5 text-xs font-medium text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
                     >
                       Configure storage
