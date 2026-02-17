@@ -486,7 +486,7 @@ const categoryIcons = {
                 </div>
                 <div
                   v-if="form.discordEnabled"
-                  class="divide-y divide-gray-200 border-t border-gray-200 dark:divide-gray-800 dark:border-gray-800"
+                  class="border-t border-gray-200 dark:border-gray-800"
                 >
                   <div class="px-4 py-3">
                     <label
@@ -569,7 +569,7 @@ const categoryIcons = {
                 </div>
                 <div
                   v-if="form.slackEnabled"
-                  class="divide-y divide-gray-200 border-t border-gray-200 dark:divide-gray-800 dark:border-gray-800"
+                  class="border-t border-gray-200 dark:border-gray-800"
                 >
                   <div class="px-4 py-3">
                     <label
@@ -653,7 +653,7 @@ const categoryIcons = {
                 </div>
                 <div
                   v-if="form.telegramEnabled"
-                  class="divide-y divide-gray-200 border-t border-gray-200 dark:divide-gray-800 dark:border-gray-800"
+                  class="border-t border-gray-200 dark:border-gray-800"
                 >
                   <div class="px-4 py-3">
                     <label
@@ -824,7 +824,7 @@ const categoryIcons = {
                 </div>
                 <div
                   v-if="form.smtpEnabled"
-                  class="divide-y divide-gray-200 border-t border-gray-200 dark:divide-gray-800 dark:border-gray-800"
+                  class="border-t border-gray-200 dark:border-gray-800"
                 >
                   <!-- Env vars notice -->
                   <div
@@ -1005,7 +1005,7 @@ const categoryIcons = {
                 </div>
                 <div
                   v-if="form.webhookEnabled"
-                  class="divide-y divide-gray-200 border-t border-gray-200 dark:divide-gray-800 dark:border-gray-800"
+                  class="border-t border-gray-200 dark:border-gray-800"
                 >
                   <div class="px-4 py-3">
                     <label
