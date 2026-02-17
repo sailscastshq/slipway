@@ -223,16 +223,27 @@ module.exports = {
           subject: 'Slipway Test Notification',
           text: 'This is a test message from your Slipway instance. If you receive this, email notifications are working correctly.',
           html: `
-            <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto;">
-              <div style="padding: 20px; background: #10b981; color: white; border-radius: 8px 8px 0 0;">
-                <h2 style="margin: 0; font-size: 18px;">Test Notification</h2>
+            <div style="width: 100%; background-color: #f4f4f5; font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Helvetica', Arial, sans-serif; padding: 0; margin: 0; -webkit-font-smoothing: antialiased;">
+              <div style="padding: 48px 24px 40px; max-width: 560px; margin: 0 auto;">
+                <div style="text-align: center; margin-bottom: 32px;">
+                  <span style="font-size: 15px; font-weight: 700; letter-spacing: 0.05em; color: #192147; text-transform: uppercase;">Slipway</span>
+                </div>
+                <div style="background-color: #ffffff; border-radius: 12px; border: 1px solid #e4e4e7; overflow: hidden;">
+                  <div style="padding: 32px 32px 28px;">
+                    <div style="margin-bottom: 24px;">
+                      <span style="display: inline-block; background-color: #ecfdf5; color: #059669; font-size: 11px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; padding: 4px 10px; border-radius: 20px;">Test</span>
+                    </div>
+                    <h2 style="margin: 0 0 12px 0; color: #18181b; font-size: 20px; font-weight: 600; line-height: 1.3;">Notifications are working</h2>
+                    <p style="color: #52525b; font-size: 14px; line-height: 1.7; margin: 0 0 24px 0;">This is a test message from your Slipway instance. Everything is configured correctly and email notifications will be delivered to this address.</p>
+                    <div style="border-top: 1px solid #f4f4f5; padding-top: 20px;">
+                      <p style="color: #a1a1aa; font-size: 12px; margin: 0;">Sent from <strong style="color: #71717a;">Slipway</strong></p>
+                    </div>
+                  </div>
+                </div>
+                <div style="text-align: center; padding-top: 24px; font-size: 12px; color: #a1a1aa; line-height: 1.6;">
+                  <p style="margin: 0;">Slipway &mdash; open-source deployment platform</p>
+                </div>
               </div>
-              <div style="padding: 20px; background: #f9fafb; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 8px 8px;">
-                <p style="margin: 0; color: #374151; font-size: 14px;">This is a test message from your Slipway instance. If you receive this, email notifications are working correctly.</p>
-              </div>
-              <p style="margin-top: 20px; color: #9ca3af; font-size: 12px; text-align: center;">
-                Sent from Slipway
-              </p>
             </div>
           `
         })

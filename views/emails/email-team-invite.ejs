@@ -1,20 +1,19 @@
 <% /* Note: This is injected into `views/layouts/layout-email.ejs` */ %>
-<div style="font-family: 'Inter', 'Helvetica', 'Arial', sans-serif; max-width: 600px; margin: 0 auto;">
-  <div style="background-color: #10b981; height: 6px; border-radius: 3px 3px 0 0;"></div>
-  <div style="padding: 24px;">
-    <h2 style="margin: 0 0 20px 0; color: #192147; font-size: 20px; font-weight: 600;">
-      You've been invited to join <%= teamName %>
-    </h2>
-    <p style="color: #192147; font-size: 14px; line-height: 1.6; margin: 0 0 24px 0;">
-      <%= inviterName %> has invited you to their team on Slipway. Click the button below to set up your account:
-    </p>
-    <div style="text-align: center; margin-bottom: 24px;">
-      <a href="<%= url.resolve(sails.config.custom.baseUrl, '/reset-password') + '?token=' + encodeURIComponent(token) %>" style="display: inline-block; background-color: #192147; color: #ffffff; text-decoration: none; padding: 10px 24px; border-radius: 6px; font-size: 14px; font-weight: 600;">Set up your account</a>
-    </div>
-    <p style="color: #3E4771; font-size: 12px; line-height: 1.5; margin: 0 0 24px 0;">
-      If the button doesn't work, paste this link in your browser:<br>
-      <a href="<%= url.resolve(sails.config.custom.baseUrl, '/reset-password') + '?token=' + encodeURIComponent(token) %>" style="color: #3b82f6; word-wrap: break-word; font-size: 12px;"><%= url.resolve(sails.config.custom.baseUrl, '/reset-password') + '?token=' + encodeURIComponent(token) %></a>
-    </p>
-    <p style="color: #192147; font-size: 14px; margin: 0;">&mdash; Slipway</p>
+<div style="padding: 32px 32px 28px;">
+  <h2 style="margin: 0 0 12px 0; color: #18181b; font-size: 20px; font-weight: 600; line-height: 1.3;">
+    You&rsquo;ve been invited to <%= teamName %>
+  </h2>
+  <p style="color: #52525b; font-size: 14px; line-height: 1.7; margin: 0 0 28px 0;">
+    <strong style="color: #18181b;"><%= inviterName %></strong> has invited you to join their team on Slipway. Tap the button below to set up your account and get started.
+  </p>
+  <div style="margin-bottom: 28px;">
+    <a href="<%= url.resolve(sails.config.custom.baseUrl, '/reset-password') + '?token=' + encodeURIComponent(token) %>" style="display: inline-block; background-color: #192147; color: #ffffff; text-decoration: none; padding: 12px 28px; border-radius: 8px; font-size: 14px; font-weight: 600; line-height: 1;">Set up your account</a>
+  </div>
+  <p style="color: #a1a1aa; font-size: 12px; line-height: 1.6; margin: 0 0 20px 0;">
+    If the button doesn&rsquo;t work, copy and paste this link into your browser:<br>
+    <a href="<%= url.resolve(sails.config.custom.baseUrl, '/reset-password') + '?token=' + encodeURIComponent(token) %>" style="color: #3b82f6; word-break: break-all; font-size: 12px;"><%= url.resolve(sails.config.custom.baseUrl, '/reset-password') + '?token=' + encodeURIComponent(token) %></a>
+  </p>
+  <div style="border-top: 1px solid #f4f4f5; padding-top: 20px;">
+    <p style="color: #a1a1aa; font-size: 12px; margin: 0;">&mdash; The Slipway Team</p>
   </div>
 </div>

@@ -1,23 +1,28 @@
-<div style="font-family: 'Inter', 'Helvetica', 'Arial', sans-serif; max-width: 600px; margin: 0 auto;">
-  <div style="background-color: #f59e0b; height: 6px; border-radius: 3px 3px 0 0;"></div>
-  <div style="padding: 24px;">
-    <h2 style="margin: 0 0 20px 0; color: #192147; font-size: 20px; font-weight: 600;">
-      High Resource Usage
-    </h2>
-    <table style="width: 100%; border-collapse: collapse; margin-bottom: 24px;">
-      <tr>
-        <td style="padding: 10px 12px; border-bottom: 1px solid #E2E4EA; color: #3E4771; font-size: 13px; font-weight: 600; width: 120px;">Container</td>
-        <td style="padding: 10px 12px; border-bottom: 1px solid #E2E4EA; color: #192147; font-size: 14px;"><%= containerName %></td>
-      </tr>
-      <tr>
-        <td style="padding: 10px 12px; border-bottom: 1px solid #E2E4EA; color: #3E4771; font-size: 13px; font-weight: 600;">CPU</td>
-        <td style="padding: 10px 12px; border-bottom: 1px solid #E2E4EA; font-size: 14px; color: <%= cpuHigh ? '#ef4444' : '#192147' %>; font-weight: <%= cpuHigh ? '600' : 'normal' %>;"><%= cpuPercent %>%</td>
-      </tr>
-      <tr>
-        <td style="padding: 10px 12px; border-bottom: 1px solid #E2E4EA; color: #3E4771; font-size: 13px; font-weight: 600;">Memory</td>
-        <td style="padding: 10px 12px; border-bottom: 1px solid #E2E4EA; font-size: 14px; color: <%= memHigh ? '#ef4444' : '#192147' %>; font-weight: <%= memHigh ? '600' : 'normal' %>;"><%= memoryPercent %>%</td>
-      </tr>
-    </table>
-    <p style="color: #3E4771; font-size: 12px; margin: 0;">Sent from <%= instanceName %></p>
+<div style="padding: 32px 32px 28px;">
+  <div style="margin-bottom: 24px;">
+    <span style="display: inline-block; background-color: #fffbeb; color: #d97706; font-size: 11px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; padding: 4px 10px; border-radius: 20px;">Warning</span>
+  </div>
+  <h2 style="margin: 0 0 12px 0; color: #18181b; font-size: 20px; font-weight: 600; line-height: 1.3;">
+    High resource usage
+  </h2>
+  <table style="width: 100%; border-collapse: collapse; margin-bottom: 24px;">
+    <tr>
+      <td style="padding: 10px 0; border-bottom: 1px solid #f4f4f5; color: #a1a1aa; font-size: 13px; font-weight: 500; width: 110px; vertical-align: top;">Container</td>
+      <td style="padding: 10px 0; border-bottom: 1px solid #f4f4f5; color: #18181b; font-size: 14px; font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;"><%= containerName %></td>
+    </tr>
+    <tr>
+      <td style="padding: 10px 0; border-bottom: 1px solid #f4f4f5; color: #a1a1aa; font-size: 13px; font-weight: 500; vertical-align: top;">CPU</td>
+      <td style="padding: 10px 0; border-bottom: 1px solid #f4f4f5; font-size: 14px; color: <%= cpuHigh ? '#dc2626' : '#18181b' %>; font-weight: <%= cpuHigh ? '600' : 'normal' %>;"><%= cpuPercent %>%</td>
+    </tr>
+    <tr>
+      <td style="padding: 10px 0; border-bottom: 1px solid #f4f4f5; color: #a1a1aa; font-size: 13px; font-weight: 500; vertical-align: top;">Memory</td>
+      <td style="padding: 10px 0; border-bottom: 1px solid #f4f4f5; font-size: 14px; color: <%= memHigh ? '#dc2626' : '#18181b' %>; font-weight: <%= memHigh ? '600' : 'normal' %>;"><%= memoryPercent %>%</td>
+    </tr>
+  </table>
+  <p style="color: #52525b; font-size: 14px; line-height: 1.7; margin: 0 0 24px 0;">
+    One or more resources on this container have exceeded the alert threshold. Consider scaling or investigating the cause.
+  </p>
+  <div style="border-top: 1px solid #f4f4f5; padding-top: 20px;">
+    <p style="color: #a1a1aa; font-size: 12px; margin: 0;">Sent from <strong style="color: #71717a;"><%= instanceName %></strong></p>
   </div>
 </div>

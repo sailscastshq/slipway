@@ -311,6 +311,7 @@ module.exports.routes = {
   'POST /api/v1/bosun/sql': 'api/v1/bosun/execute-sql',
   'GET /api/v1/bosun/activity': 'api/v1/bosun/get-activity',
   'PATCH /api/v1/bosun/env': 'api/v1/bosun/update-env',
+  'GET /api/v1/bosun/logs/stream': 'api/v1/bosun/stream-instance-logs',
 
   // Lookout API (infrastructure metrics)
   'GET /api/v1/lookout/overview': 'api/v1/lookout/get-overview',
