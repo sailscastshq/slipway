@@ -38,6 +38,7 @@ module.exports = {
     const instanceName = await sails.helpers.setting.get('instanceName', 'Slipway')
     const emoji = isSuccess ? '\u2705' : '\u274C'
     const statusText = isSuccess ? 'completed' : 'failed'
+    const slippyTitle = isSuccess ? 'Backup safe and sound' : 'Backup didn\'t make it'
 
     // Format duration
     const duration = backup.durationMs
@@ -52,7 +53,7 @@ module.exports = {
     // Send Telegram notification
     const telegramEnabled = await sails.helpers.setting.get('telegramEnabled', 'false')
     if (telegramEnabled === 'true') {
-      let message = `${emoji} <b>Backup ${statusText}</b>\n\n`
+      let message = `${emoji} <b>${slippyTitle}</b>\n\n`
       message += `<b>Service:</b> ${escapeHtml(service.name)}\n`
       message += `<b>Type:</b> ${escapeHtml(service.type)}\n`
       message += `<b>Duration:</b> ${duration}\n`
@@ -62,7 +63,7 @@ module.exports = {
       if (isFailure && backup.errorMessage) {
         message += `<b>Error:</b> ${escapeHtml(backup.errorMessage)}\n`
       }
-      message += `\n<i>${escapeHtml(instanceName)}</i>`
+      message += `\n<b>\u2014 Slippy \uD83D\uDC19, from ${escapeHtml(instanceName)}</b>`
 
       await sails.helpers.notification.sendTelegram.with({ message }).tolerate('error')
     }
@@ -70,7 +71,7 @@ module.exports = {
     // Send Slack notification
     const slackEnabled = await sails.helpers.setting.get('slackEnabled', 'false')
     if (slackEnabled === 'true') {
-      let message = `${emoji} *Backup ${statusText}*\n\n`
+      let message = `${emoji} *${slippyTitle}*\n\n`
       message += `*Service:* ${service.name}\n`
       message += `*Type:* ${service.type}\n`
       message += `*Duration:* ${duration}\n`
@@ -80,7 +81,7 @@ module.exports = {
       if (isFailure && backup.errorMessage) {
         message += `*Error:* ${backup.errorMessage}\n`
       }
-      message += `\n_${instanceName}_`
+      message += `\n*\u2014 Slippy \uD83D\uDC19, from ${instanceName}*`
 
       await sails.helpers.notification.sendSlack.with({ message }).tolerate('error')
     }
@@ -107,10 +108,10 @@ module.exports = {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             embeds: [{
-              title: `${emoji} Backup ${statusText}`,
+              title: `${emoji} ${slippyTitle}`,
               color: isSuccess ? 0x10b981 : 0xef4444,
               fields,
-              footer: { text: instanceName },
+              footer: { text: `\u2014 Slippy \uD83D\uDC19, from ${instanceName}` },
               timestamp: new Date().toISOString()
             }]
           })
@@ -123,7 +124,7 @@ module.exports = {
     if (smtpEnabled === 'true') {
       await sails.helpers.notification.sendEmail.with({
         template: 'email-backup-notification',
-        subject: `${emoji} Backup ${statusText}: ${service.name}`,
+        subject: `${emoji} ${slippyTitle} \u2014 ${service.name}`,
         templateData: {
           isSuccess,
           backup,
