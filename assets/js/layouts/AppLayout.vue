@@ -577,7 +577,7 @@ onUnmounted(() => {
               <button
                 v-if="updateInfo?.updateAvailable"
                 @click="userDropdownOpen = false; closeMobileMenu(); showUpdateModal = true"
-                class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-emerald-700 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-900/20"
+                class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
               >
                 <svg
                   class="h-4 w-4"
@@ -593,7 +593,7 @@ onUnmounted(() => {
                   />
                 </svg>
                 <span class="flex-1">Update available</span>
-                <span class="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-medium text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-400">{{ updateInfo.latestVersion }}</span>
+                <span class="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-400">{{ updateInfo.latestVersion }}</span>
               </button>
               <button
                 @click="userDropdownOpen = false; closeMobileMenu(); openCommandPalette()"
@@ -1026,7 +1026,7 @@ onUnmounted(() => {
             <button
               v-if="updateInfo?.updateAvailable"
               @click="userDropdownOpen = false; showUpdateModal = true"
-              class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-emerald-700 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-900/20"
+              class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
             >
               <svg
                 class="h-4 w-4"
@@ -1042,7 +1042,7 @@ onUnmounted(() => {
                 />
               </svg>
               <span class="flex-1">Update available</span>
-              <span class="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-medium text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-400">{{ updateInfo.latestVersion }}</span>
+              <span class="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-400">{{ updateInfo.latestVersion }}</span>
             </button>
             <button
               @click="userDropdownOpen = false; openCommandPalette()"
