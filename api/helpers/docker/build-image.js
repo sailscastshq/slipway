@@ -73,7 +73,9 @@ module.exports = {
 
       sails.log.info(`Building image: ${dockerPath} ${args.join(' ')}`)
 
-      const buildProcess = spawn(dockerPath, args)
+      const buildProcess = spawn(dockerPath, args, {
+        env: { ...process.env, DOCKER_BUILDKIT: '1' }
+      })
       let stdout = ''
       let stderr = ''
       let killed = false
