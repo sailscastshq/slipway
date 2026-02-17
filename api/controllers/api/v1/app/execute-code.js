@@ -113,7 +113,7 @@ function buildWrapper(userCode) {
       });
     });
   } catch (e) {
-    // If Sails isn't available, run in plain Node context
+    process.stderr.write('Sails bootstrap failed: ' + (e.message || e) + '\\n');
   }
 
   try {
@@ -125,7 +125,11 @@ function buildWrapper(userCode) {
       if (typeof __result === 'string') {
         process.stdout.write(__result);
       } else {
-        process.stdout.write(JSON.stringify(__result, null, 2));
+        try {
+          process.stdout.write(JSON.stringify(__result, null, 2));
+        } catch {
+          process.stdout.write(require('util').inspect(__result, { depth: 4 }));
+        }
       }
     }
   } catch (err) {

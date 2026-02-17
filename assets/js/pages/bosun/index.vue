@@ -6,6 +6,7 @@ import ToastContainer from '@/components/ToastContainer.vue'
 import Tooltip from '@/components/Tooltip.vue'
 import { highlightSQL } from '@/lib/highlightSQL'
 import { highlightJSON } from '@/lib/highlightJSON'
+import { highlightJS } from '@/lib/highlightJS'
 import SlippyLoader from '@/components/SlippyLoader.vue'
 
 defineOptions({
@@ -36,6 +37,9 @@ const tabs = [
 ]
 
 // ─── Console state ───
+const validModes = ['sql', 'helm']
+const initialMode = new URLSearchParams(window.location.search).get('mode')
+const consoleMode = ref(validModes.includes(initialMode) ? initialMode : 'sql')
 const sqlQuery = ref(
   "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name;"
 )
@@ -58,6 +62,13 @@ watch(selectedDatabase, (db) => {
   window.history.replaceState({}, '', url)
 })
 
+watch(consoleMode, (mode) => {
+  const url = new URL(window.location)
+  if (mode === 'sql') url.searchParams.delete('mode')
+  else url.searchParams.set('mode', mode)
+  window.history.replaceState({}, '', url)
+})
+
 function onTabChange(tabId) {
   activeTab.value = tabId
   if (tabId === 'activity' && activities.value.length === 0) {
@@ -70,6 +81,13 @@ const consoleLoading = ref(false)
 const queryHistory = ref([])
 const resultView = ref('table')
 const showExportMenu = ref(false)
+
+// ─── Helm state ───
+const helmCode = ref('// Access Slipway models and helpers\nawait User.find()')
+const helmResults = ref(null)
+const helmError = ref(null)
+const helmLoading = ref(false)
+const helmHistory = ref([])
 
 // Toast state
 const toasts = ref([])
@@ -87,6 +105,25 @@ function dismissToast(id) {
 
 // SQL syntax highlighting (shared utility)
 const highlightedQuery = computed(() => highlightSQL(sqlQuery.value))
+
+// Helm JS syntax highlighting
+const highlightedHelmCode = computed(() => highlightJS(helmCode.value))
+
+// Format Helm output — try to parse as JSON for syntax highlighting, fall back to plain text
+const highlightedHelmOutput = computed(() => {
+  if (!helmResults.value?.output) return ''
+  const raw = helmResults.value.output
+  try {
+    const parsed = JSON.parse(raw)
+    // Only highlight objects/arrays — primitives display as plain text
+    if (typeof parsed === 'object' && parsed !== null) {
+      return highlightJSON(parsed)
+    }
+  } catch {
+    // Not valid JSON — highlight as JS (handles util.inspect output too)
+  }
+  return highlightJS(raw)
+})
 
 async function executeQuery() {
   if (!sqlQuery.value.trim() || consoleLoading.value) return
@@ -124,6 +161,50 @@ async function executeQuery() {
     consoleError.value = err.message || 'Network error'
   } finally {
     consoleLoading.value = false
+  }
+}
+
+async function executeHelm() {
+  if (!helmCode.value.trim() || helmLoading.value) return
+
+  helmLoading.value = true
+  helmError.value = null
+  helmResults.value = null
+
+  try {
+    const response = await fetch('/api/v1/bosun/eval', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code: helmCode.value })
+    })
+
+    const data = await response.json()
+
+    if (!response.ok) {
+      helmError.value = data.message || data.error || 'Evaluation failed'
+      return
+    }
+
+    helmResults.value = data
+
+    // Add to history (deduplicate)
+    const c = helmCode.value.trim()
+    helmHistory.value = [
+      c,
+      ...helmHistory.value.filter((h) => h !== c)
+    ].slice(0, 20)
+  } catch (err) {
+    helmError.value = err.message || 'Network error'
+  } finally {
+    helmLoading.value = false
+  }
+}
+
+function executeCurrentMode() {
+  if (consoleMode.value === 'helm') {
+    executeHelm()
+  } else {
+    executeQuery()
   }
 }
 
@@ -656,14 +737,13 @@ onUnmounted(() => {
       <div
         class="flex-1 overflow-hidden border-b border-gray-200 dark:border-gray-800"
       >
-        <div class="relative h-full">
-          <!-- Highlighted layer -->
+        <!-- SQL editor -->
+        <div v-if="consoleMode === 'sql'" class="relative h-full">
           <pre
             class="wrap-break-word pointer-events-none absolute inset-0 overflow-auto whitespace-pre-wrap p-4 font-mono text-sm leading-6 text-gray-900 dark:text-gray-100"
             aria-hidden="true"
             v-html="highlightedQuery"
           ></pre>
-          <!-- Actual textarea (transparent text, visible caret) -->
           <textarea
             v-model="sqlQuery"
             class="absolute inset-0 h-full w-full resize-none bg-transparent p-4 font-mono text-sm leading-6 text-transparent placeholder-gray-400 caret-gray-900 focus:outline-none dark:placeholder-gray-600 dark:caret-white"
@@ -673,6 +753,22 @@ onUnmounted(() => {
             @keydown.meta.enter="executeQuery"
           ></textarea>
         </div>
+        <!-- Helm editor -->
+        <div v-else class="relative h-full">
+          <pre
+            class="wrap-break-word pointer-events-none absolute inset-0 overflow-auto whitespace-pre-wrap p-4 font-mono text-sm leading-6 text-gray-900 dark:text-gray-100"
+            aria-hidden="true"
+            v-html="highlightedHelmCode"
+          ></pre>
+          <textarea
+            v-model="helmCode"
+            class="absolute inset-0 h-full w-full resize-none bg-transparent p-4 font-mono text-sm leading-6 text-transparent placeholder-gray-400 caret-gray-900 focus:outline-none dark:placeholder-gray-600 dark:caret-white"
+            placeholder="// Access Slipway models and helpers&#10;await User.find()"
+            spellcheck="false"
+            @keydown.ctrl.enter="executeHelm"
+            @keydown.meta.enter="executeHelm"
+          ></textarea>
+        </div>
       </div>
 
       <!-- Actions bar -->
@@ -680,8 +776,33 @@ onUnmounted(() => {
         class="flex items-center justify-between border-b border-gray-200 px-4 py-2 dark:border-gray-800 sm:px-6"
       >
         <div class="flex items-center gap-4">
-          <!-- Database selector pills -->
-          <div class="flex items-center gap-1">
+          <!-- Mode toggle pills -->
+          <div class="flex items-center gap-1 rounded-md border border-gray-200 p-0.5 dark:border-gray-700">
+            <button
+              @click="consoleMode = 'sql'"
+              :class="[
+                'rounded px-2 py-0.5 text-xs font-medium transition-colors',
+                consoleMode === 'sql'
+                  ? 'bg-gray-900 text-white dark:bg-white dark:text-gray-900'
+                  : 'text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800'
+              ]"
+            >
+              SQL
+            </button>
+            <button
+              @click="consoleMode = 'helm'"
+              :class="[
+                'rounded px-2 py-0.5 text-xs font-medium transition-colors',
+                consoleMode === 'helm'
+                  ? 'bg-gray-900 text-white dark:bg-white dark:text-gray-900'
+                  : 'text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800'
+              ]"
+            >
+              Helm
+            </button>
+          </div>
+          <!-- Database selector pills (SQL mode only) -->
+          <div v-if="consoleMode === 'sql'" class="flex items-center gap-1">
             <button
               v-for="db in ['app', 'observability', 'cache']"
               :key="db"
@@ -711,120 +832,201 @@ onUnmounted(() => {
           </div>
         </div>
         <button
-          @click="executeQuery"
-          :disabled="consoleLoading || !sqlQuery.trim()"
+          @click="executeCurrentMode"
+          :disabled="consoleMode === 'sql' ? (consoleLoading || !sqlQuery.trim()) : (helmLoading || !helmCode.trim())"
           class="rounded-md bg-gray-900 px-4 py-1.5 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
         >
-          <span v-if="consoleLoading">Running...</span>
+          <span v-if="consoleLoading || helmLoading">Running...</span>
           <span v-else>Run</span>
         </button>
       </div>
 
       <!-- Results -->
       <div class="flex-1 overflow-auto">
-        <!-- Error -->
-        <div v-if="consoleError" class="p-4">
-          <div
-            class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 dark:border-red-900/50 dark:bg-red-950/30"
-          >
-            <p class="font-mono text-sm text-red-600 dark:text-red-400">
-              {{ consoleError }}
-            </p>
+        <!-- ─── SQL Results ─── -->
+        <template v-if="consoleMode === 'sql'">
+          <!-- Error -->
+          <div v-if="consoleError" class="p-4">
+            <div
+              class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 dark:border-red-900/50 dark:bg-red-950/30"
+            >
+              <p class="font-mono text-sm text-red-600 dark:text-red-400">
+                {{ consoleError }}
+              </p>
+            </div>
           </div>
-        </div>
 
-        <!-- Results table/json -->
-        <div v-else-if="consoleResults" class="flex h-full min-h-0 flex-col">
-          <!-- Table view -->
-          <div
-            v-if="consoleResults.columns && resultView === 'table'"
-            class="flex-1 overflow-auto"
-          >
-            <table class="min-w-full">
-              <thead class="sticky top-0">
-                <tr
-                  class="border-b border-gray-200 bg-gray-50 dark:border-gray-800 dark:bg-gray-900"
-                >
-                  <th
-                    v-for="col in consoleResults.columns"
-                    :key="col"
-                    class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400"
+          <!-- Results table/json -->
+          <div v-else-if="consoleResults" class="flex h-full min-h-0 flex-col">
+            <!-- Table view -->
+            <div
+              v-if="consoleResults.columns && resultView === 'table'"
+              class="flex-1 overflow-auto"
+            >
+              <table class="min-w-full">
+                <thead class="sticky top-0">
+                  <tr
+                    class="border-b border-gray-200 bg-gray-50 dark:border-gray-800 dark:bg-gray-900"
                   >
-                    {{ col }}
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr
-                  v-for="(row, i) in consoleResults.rows"
-                  :key="i"
-                  class="border-b border-gray-100 hover:bg-gray-50 dark:border-gray-800/50 dark:hover:bg-gray-900/30"
-                >
-                  <td
-                    v-for="col in consoleResults.columns"
-                    :key="col"
-                    class="whitespace-nowrap px-4 py-2 font-mono text-sm text-gray-700 dark:text-gray-300"
-                  >
-                    <span
-                      v-if="row[col] === null"
-                      class="text-gray-400 dark:text-gray-600"
-                      >NULL</span
+                    <th
+                      v-for="col in consoleResults.columns"
+                      :key="col"
+                      class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400"
                     >
-                    <span v-else-if="typeof row[col] === 'number'" class="text-purple-600 dark:text-purple-400">{{ row[col] }}</span>
-                    <span v-else-if="typeof row[col] === 'boolean'" class="text-blue-600 dark:text-blue-400">{{ row[col] }}</span>
-                    <span v-else>{{ row[col] }}</span>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+                      {{ col }}
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr
+                    v-for="(row, i) in consoleResults.rows"
+                    :key="i"
+                    class="border-b border-gray-100 hover:bg-gray-50 dark:border-gray-800/50 dark:hover:bg-gray-900/30"
+                  >
+                    <td
+                      v-for="col in consoleResults.columns"
+                      :key="col"
+                      class="whitespace-nowrap px-4 py-2 font-mono text-sm text-gray-700 dark:text-gray-300"
+                    >
+                      <span
+                        v-if="row[col] === null"
+                        class="text-gray-400 dark:text-gray-600"
+                        >NULL</span
+                      >
+                      <span v-else-if="typeof row[col] === 'number'" class="text-purple-600 dark:text-purple-400">{{ row[col] }}</span>
+                      <span v-else-if="typeof row[col] === 'boolean'" class="text-blue-600 dark:text-blue-400">{{ row[col] }}</span>
+                      <span v-else>{{ row[col] }}</span>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <!-- JSON view -->
+            <div
+              v-else-if="consoleResults.columns && resultView === 'json'"
+              class="flex-1 overflow-auto p-4"
+            >
+              <pre class="font-mono text-xs text-gray-700 dark:text-gray-300" v-html="highlightJSON(consoleResults.rows)"></pre>
+            </div>
+
+            <!-- No columns result -->
+            <div
+              v-else
+              class="flex flex-1 items-center justify-center text-sm text-gray-500 dark:text-gray-400"
+            >
+              Query executed successfully
+            </div>
           </div>
 
-          <!-- JSON view -->
-          <div
-            v-else-if="consoleResults.columns && resultView === 'json'"
-            class="flex-1 overflow-auto p-4"
-          >
-            <pre class="font-mono text-xs text-gray-700 dark:text-gray-300" v-html="highlightJSON(consoleResults.rows)"></pre>
-          </div>
-
-          <!-- No columns result -->
+          <!-- Empty state -->
           <div
             v-else
-            class="flex flex-1 items-center justify-center text-sm text-gray-500 dark:text-gray-400"
+            class="flex h-full items-center justify-center text-sm text-gray-500 dark:text-gray-400"
           >
-            Query executed successfully
+            Run a query to see results
           </div>
-        </div>
+        </template>
 
-        <!-- Empty state -->
-        <div
-          v-else
-          class="flex h-full items-center justify-center text-sm text-gray-500 dark:text-gray-400"
-        >
-          Run a query to see results
-        </div>
+        <!-- ─── Helm Results ─── -->
+        <template v-else>
+          <!-- Loading -->
+          <div v-if="helmLoading" class="flex h-full items-center justify-center">
+            <SlippyLoader size="h-5 w-5" />
+          </div>
+
+          <!-- Error -->
+          <div v-else-if="helmError" class="p-4">
+            <div
+              class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 dark:border-red-900/50 dark:bg-red-950/30"
+            >
+              <pre class="whitespace-pre-wrap font-mono text-sm text-red-600 dark:text-red-400">{{ helmError }}</pre>
+            </div>
+            <pre v-if="helmResults?.output" class="mt-3 whitespace-pre-wrap font-mono text-sm text-gray-700 dark:text-gray-300">{{ helmResults.output }}</pre>
+          </div>
+
+          <!-- Results output -->
+          <div v-else-if="helmResults" class="p-4">
+            <pre class="whitespace-pre-wrap font-mono text-sm text-gray-700 dark:text-gray-300" v-html="highlightedHelmOutput"></pre>
+          </div>
+
+          <!-- Empty state -->
+          <div
+            v-else
+            class="flex h-full items-center justify-center text-sm text-gray-500 dark:text-gray-400"
+          >
+            Run JavaScript to see results
+          </div>
+        </template>
       </div>
 
       <!-- Status bar -->
       <div
-        v-if="consoleResults"
+        v-if="(consoleMode === 'sql' && consoleResults) || (consoleMode === 'helm' && helmResults)"
         class="flex items-center justify-between border-t border-gray-200 bg-gray-50 px-4 py-2 dark:border-gray-800 dark:bg-gray-900/50"
       >
-        <div class="flex items-center gap-4">
-          <!-- Table / JSON toggle -->
-          <div
-            v-if="consoleResults.columns"
-            class="flex overflow-hidden rounded-md border border-gray-300 dark:border-gray-700"
-          >
-            <Tooltip text="Table view" position="top">
+        <!-- SQL status bar content -->
+        <template v-if="consoleMode === 'sql'">
+          <div class="flex items-center gap-4">
+            <!-- Table / JSON toggle -->
+            <div
+              v-if="consoleResults?.columns"
+              class="flex overflow-hidden rounded-md border border-gray-300 dark:border-gray-700"
+            >
+              <Tooltip text="Table view" position="top">
+                <button
+                  @click="resultView = 'table'"
+                  :class="[
+                    'p-1.5',
+                    resultView === 'table'
+                      ? 'bg-gray-200 text-gray-900 dark:bg-gray-700 dark:text-white'
+                      : 'text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800'
+                  ]"
+                >
+                  <svg
+                    class="h-4 w-4"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    stroke-width="1.5"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      d="M3.375 19.5h17.25m-17.25 0a1.125 1.125 0 01-1.125-1.125M3.375 19.5h7.5c.621 0 1.125-.504 1.125-1.125m-9.75 0V5.625m0 12.75v-1.5c0-.621.504-1.125 1.125-1.125m18.375 2.625V5.625m0 12.75c0 .621-.504 1.125-1.125 1.125m1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125m0 3.75h-7.5A1.125 1.125 0 0112 18.375m9.75-12.75c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125m19.5 0v1.5c0 .621-.504 1.125-1.125 1.125M2.25 5.625v1.5c0 .621.504 1.125 1.125 1.125m0 0h17.25m-17.25 0h7.5c.621 0 1.125.504 1.125 1.125M3.375 8.25c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125m17.25-3.75h-7.5c-.621 0-1.125.504-1.125 1.125m8.625-1.125c.621 0 1.125.504 1.125 1.125v1.5c0 .621-.504 1.125-1.125 1.125m-17.25 0h7.5m-7.5 0c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125M12 10.875v-1.5m0 1.5c0 .621-.504 1.125-1.125 1.125M12 10.875c0 .621.504 1.125 1.125 1.125m-2.25 0c.621 0 1.125.504 1.125 1.125M13.125 12h7.5m-7.5 0c-.621 0-1.125.504-1.125 1.125M20.625 12c.621 0 1.125.504 1.125 1.125v1.5c0 .621-.504 1.125-1.125 1.125m-17.25 0h7.5M12 14.625v-1.5m0 1.5c0 .621-.504 1.125-1.125 1.125M12 14.625c0 .621.504 1.125 1.125 1.125m-2.25 0c.621 0 1.125.504 1.125 1.125m0 0v1.5c0 .621-.504 1.125-1.125 1.125"
+                    />
+                  </svg>
+                </button>
+              </Tooltip>
+              <Tooltip text="JSON view" position="top">
+                <button
+                  @click="resultView = 'json'"
+                  :class="[
+                    'border-l border-gray-300 px-1.5 py-1 font-mono text-sm font-bold dark:border-gray-700',
+                    resultView === 'json'
+                      ? 'bg-gray-200 text-gray-900 dark:bg-gray-700 dark:text-white'
+                      : 'text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800'
+                  ]"
+                >
+                  {}
+                </button>
+              </Tooltip>
+            </div>
+            <!-- Row info -->
+            <span v-if="consoleResults" class="text-xs text-gray-500 dark:text-gray-400">
+              {{ consoleResults.rowCount }} row{{
+                consoleResults.rowCount !== 1 ? 's' : ''
+              }}
+              <span v-if="consoleResults.truncated"> (showing first 1,000)</span>
+              &middot; {{ consoleResults.durationMs }}ms
+            </span>
+          </div>
+          <!-- Actions -->
+          <div v-if="consoleResults?.columns" class="flex items-center gap-1">
+            <Tooltip text="Re-run query" position="top">
               <button
-                @click="resultView = 'table'"
-                :class="[
-                  'p-1.5',
-                  resultView === 'table'
-                    ? 'bg-gray-200 text-gray-900 dark:bg-gray-700 dark:text-white'
-                    : 'text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800'
-                ]"
+                @click="executeQuery"
+                class="rounded p-1.5 text-gray-500 hover:bg-gray-200 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-200"
               >
                 <svg
                   class="h-4 w-4"
@@ -836,59 +1038,98 @@ onUnmounted(() => {
                   <path
                     stroke-linecap="round"
                     stroke-linejoin="round"
-                    d="M3.375 19.5h17.25m-17.25 0a1.125 1.125 0 01-1.125-1.125M3.375 19.5h7.5c.621 0 1.125-.504 1.125-1.125m-9.75 0V5.625m0 12.75v-1.5c0-.621.504-1.125 1.125-1.125m18.375 2.625V5.625m0 12.75c0 .621-.504 1.125-1.125 1.125m1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125m0 3.75h-7.5A1.125 1.125 0 0112 18.375m9.75-12.75c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125m19.5 0v1.5c0 .621-.504 1.125-1.125 1.125M2.25 5.625v1.5c0 .621.504 1.125 1.125 1.125m0 0h17.25m-17.25 0h7.5c.621 0 1.125.504 1.125 1.125M3.375 8.25c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125m17.25-3.75h-7.5c-.621 0-1.125.504-1.125 1.125m8.625-1.125c.621 0 1.125.504 1.125 1.125v1.5c0 .621-.504 1.125-1.125 1.125m-17.25 0h7.5m-7.5 0c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125M12 10.875v-1.5m0 1.5c0 .621-.504 1.125-1.125 1.125M12 10.875c0 .621.504 1.125 1.125 1.125m-2.25 0c.621 0 1.125.504 1.125 1.125M13.125 12h7.5m-7.5 0c-.621 0-1.125.504-1.125 1.125M20.625 12c.621 0 1.125.504 1.125 1.125v1.5c0 .621-.504 1.125-1.125 1.125m-17.25 0h7.5M12 14.625v-1.5m0 1.5c0 .621-.504 1.125-1.125 1.125M12 14.625c0 .621.504 1.125 1.125 1.125m-2.25 0c.621 0 1.125.504 1.125 1.125m0 0v1.5c0 .621-.504 1.125-1.125 1.125"
+                    d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99"
                   />
                 </svg>
               </button>
             </Tooltip>
-            <Tooltip text="JSON view" position="top">
+            <Tooltip :text="resultView === 'json' ? 'Copy as JSON' : 'Copy as CSV'" position="top">
               <button
-                @click="resultView = 'json'"
-                :class="[
-                  'border-l border-gray-300 px-1.5 py-1 font-mono text-sm font-bold dark:border-gray-700',
-                  resultView === 'json'
-                    ? 'bg-gray-200 text-gray-900 dark:bg-gray-700 dark:text-white'
-                    : 'text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800'
-                ]"
+                @click="resultView === 'json' ? copyAsJSON() : copyAsCSV()"
+                class="rounded p-1.5 text-gray-500 hover:bg-gray-200 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-200"
               >
-                {}
+                <svg
+                  class="h-4 w-4"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  stroke-width="1.5"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    d="M15.666 3.888A2.25 2.25 0 0013.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 01-.75.75H9.75a.75.75 0 01-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 01-2.25 2.25H6.75A2.25 2.25 0 014.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 011.927-.184"
+                  />
+                </svg>
               </button>
             </Tooltip>
-          </div>
-          <!-- Row info -->
-          <span class="text-xs text-gray-500 dark:text-gray-400">
-            {{ consoleResults.rowCount }} row{{
-              consoleResults.rowCount !== 1 ? 's' : ''
-            }}
-            <span v-if="consoleResults.truncated"> (showing first 1,000)</span>
-            &middot; {{ consoleResults.durationMs }}ms
-          </span>
-        </div>
-        <!-- Actions -->
-        <div v-if="consoleResults.columns" class="flex items-center gap-1">
-          <Tooltip text="Re-run query" position="top">
-            <button
-              @click="executeQuery"
-              class="rounded p-1.5 text-gray-500 hover:bg-gray-200 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-200"
-            >
-              <svg
-                class="h-4 w-4"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                stroke-width="1.5"
+            <!-- Export dropdown -->
+            <div class="relative" data-export-menu>
+              <Tooltip text="Download" position="top">
+                <button
+                  @click="showExportMenu = !showExportMenu"
+                  class="rounded p-1.5 text-gray-500 hover:bg-gray-200 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-200"
+                >
+                  <svg
+                    class="h-4 w-4"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    stroke-width="1.5"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"
+                    />
+                  </svg>
+                </button>
+              </Tooltip>
+              <div
+                v-if="showExportMenu"
+                class="absolute bottom-full right-0 z-10 mb-1 w-40 rounded-md border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-800"
               >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99"
-                />
-              </svg>
-            </button>
-          </Tooltip>
-          <Tooltip :text="resultView === 'json' ? 'Copy as JSON' : 'Copy as CSV'" position="top">
+                <button
+                  @click="exportAction(copyAsJSON)"
+                  class="block w-full px-3 py-1.5 text-left text-xs text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
+                >
+                  Copy as JSON
+                </button>
+                <button
+                  @click="exportAction(copyAsCSV)"
+                  class="block w-full px-3 py-1.5 text-left text-xs text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
+                >
+                  Copy as CSV
+                </button>
+                <div
+                  class="my-1 border-t border-gray-200 dark:border-gray-700"
+                ></div>
+                <button
+                  @click="exportAction(downloadAsJSON)"
+                  class="block w-full px-3 py-1.5 text-left text-xs text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
+                >
+                  Download JSON
+                </button>
+                <button
+                  @click="exportAction(downloadAsCSV)"
+                  class="block w-full px-3 py-1.5 text-left text-xs text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
+                >
+                  Download CSV
+                </button>
+              </div>
+            </div>
+          </div>
+        </template>
+
+        <!-- Helm status bar content -->
+        <template v-else>
+          <span v-if="helmResults" class="text-xs text-gray-500 dark:text-gray-400">
+            {{ helmResults.success ? 'Success' : 'Error' }}
+            &middot; {{ helmResults.durationMs }}ms
+          </span>
+          <Tooltip v-if="helmResults" text="Copy output" position="top">
             <button
-              @click="resultView === 'json' ? copyAsJSON() : copyAsCSV()"
+              @click="navigator.clipboard.writeText(helmResults.output || helmResults.error || ''); showToast('Copied to clipboard')"
               class="rounded p-1.5 text-gray-500 hover:bg-gray-200 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-200"
             >
               <svg
@@ -906,62 +1147,7 @@ onUnmounted(() => {
               </svg>
             </button>
           </Tooltip>
-          <!-- Export dropdown -->
-          <div class="relative" data-export-menu>
-            <Tooltip text="Download" position="top">
-              <button
-                @click="showExportMenu = !showExportMenu"
-                class="rounded p-1.5 text-gray-500 hover:bg-gray-200 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-200"
-              >
-                <svg
-                  class="h-4 w-4"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  stroke-width="1.5"
-                >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"
-                  />
-                </svg>
-              </button>
-            </Tooltip>
-            <div
-              v-if="showExportMenu"
-              class="absolute bottom-full right-0 z-10 mb-1 w-40 rounded-md border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-800"
-            >
-              <button
-                @click="exportAction(copyAsJSON)"
-                class="block w-full px-3 py-1.5 text-left text-xs text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
-              >
-                Copy as JSON
-              </button>
-              <button
-                @click="exportAction(copyAsCSV)"
-                class="block w-full px-3 py-1.5 text-left text-xs text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
-              >
-                Copy as CSV
-              </button>
-              <div
-                class="my-1 border-t border-gray-200 dark:border-gray-700"
-              ></div>
-              <button
-                @click="exportAction(downloadAsJSON)"
-                class="block w-full px-3 py-1.5 text-left text-xs text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
-              >
-                Download JSON
-              </button>
-              <button
-                @click="exportAction(downloadAsCSV)"
-                class="block w-full px-3 py-1.5 text-left text-xs text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
-              >
-                Download CSV
-              </button>
-            </div>
-          </div>
-        </div>
+        </template>
       </div>
     </div>
 
