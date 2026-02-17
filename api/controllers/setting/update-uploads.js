@@ -25,6 +25,10 @@ module.exports = {
       type: 'string',
       allowNull: true
     },
+    publicUrl: {
+      type: 'string',
+      allowNull: true
+    },
     backupSchedule: {
       type: 'json',
       description: 'Backup schedule config: { enabled, intervalHours }'
@@ -40,7 +44,7 @@ module.exports = {
     }
   },
 
-  fn: async function ({ provider, accessKey, secretKey, bucket, endpoint, region, backupSchedule }) {
+  fn: async function ({ provider, accessKey, secretKey, bucket, endpoint, region, publicUrl, backupSchedule }) {
     // Handle backup schedule update
     if (backupSchedule !== undefined) {
       const existing = await sails.helpers.setting.get('backupSchedule')
@@ -67,9 +71,9 @@ module.exports = {
 
     // Clear any existing provider keys first
     const keysToRemove = [
-      'R2_ACCESS_KEY', 'R2_SECRET_KEY', 'R2_BUCKET', 'R2_ENDPOINT',
-      'S3_ACCESS_KEY', 'S3_SECRET_KEY', 'S3_BUCKET', 'S3_REGION', 'S3_ENDPOINT',
-      'SPACES_ACCESS_KEY', 'SPACES_SECRET_KEY', 'SPACES_BUCKET', 'SPACES_REGION', 'SPACES_ENDPOINT'
+      'R2_ACCESS_KEY', 'R2_SECRET_KEY', 'R2_BUCKET', 'R2_ENDPOINT', 'R2_PUBLIC_URL',
+      'S3_ACCESS_KEY', 'S3_SECRET_KEY', 'S3_BUCKET', 'S3_REGION', 'S3_ENDPOINT', 'S3_PUBLIC_URL',
+      'SPACES_ACCESS_KEY', 'SPACES_SECRET_KEY', 'SPACES_BUCKET', 'SPACES_REGION', 'SPACES_ENDPOINT', 'SPACES_PUBLIC_URL'
     ]
     for (const key of keysToRemove) {
       delete globalEnvVars[key]
@@ -81,18 +85,21 @@ module.exports = {
       globalEnvVars.R2_SECRET_KEY = secretKey
       globalEnvVars.R2_BUCKET = bucket
       if (endpoint) globalEnvVars.R2_ENDPOINT = endpoint
+      if (publicUrl) globalEnvVars.R2_PUBLIC_URL = publicUrl
     } else if (provider === 's3') {
       globalEnvVars.S3_ACCESS_KEY = accessKey
       globalEnvVars.S3_SECRET_KEY = secretKey
       globalEnvVars.S3_BUCKET = bucket
       if (region) globalEnvVars.S3_REGION = region
       if (endpoint) globalEnvVars.S3_ENDPOINT = endpoint
+      if (publicUrl) globalEnvVars.S3_PUBLIC_URL = publicUrl
     } else if (provider === 'spaces') {
       globalEnvVars.SPACES_ACCESS_KEY = accessKey
       globalEnvVars.SPACES_SECRET_KEY = secretKey
       globalEnvVars.SPACES_BUCKET = bucket
       if (region) globalEnvVars.SPACES_REGION = region
       if (endpoint) globalEnvVars.SPACES_ENDPOINT = endpoint
+      if (publicUrl) globalEnvVars.SPACES_PUBLIC_URL = publicUrl
     }
 
     // Save back to settings
