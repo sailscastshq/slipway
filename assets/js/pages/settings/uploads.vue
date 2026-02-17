@@ -30,20 +30,24 @@ const secretKey = ref('')
 const bucket = ref('')
 const endpoint = ref('')
 const region = ref('')
+const publicUrl = ref('')
 
 // Populate form based on selected provider
 function initForm() {
   if (selectedProvider.value === 'r2') {
     bucket.value = props.config.r2Bucket || ''
     endpoint.value = props.config.r2Endpoint || ''
+    publicUrl.value = props.config.r2PublicUrl || ''
   } else if (selectedProvider.value === 's3') {
     bucket.value = props.config.s3Bucket || ''
     region.value = props.config.s3Region || 'us-east-1'
     endpoint.value = props.config.s3Endpoint || ''
+    publicUrl.value = props.config.s3PublicUrl || ''
   } else if (selectedProvider.value === 'spaces') {
     bucket.value = props.config.spacesBucket || ''
     region.value = props.config.spacesRegion || 'nyc3'
     endpoint.value = props.config.spacesEndpoint || ''
+    publicUrl.value = props.config.spacesPublicUrl || ''
   }
   // Keys are not pre-populated for security
   accessKey.value = ''
@@ -72,7 +76,8 @@ async function save() {
         secretKey: secretKey.value,
         bucket: bucket.value,
         endpoint: endpoint.value || null,
-        region: region.value || null
+        region: region.value || null,
+        publicUrl: publicUrl.value || null
       })
     })
     if (!res.ok) throw new Error('Failed to save')
@@ -345,6 +350,23 @@ const providers = [
                   :required="selectedProvider === 'r2' || selectedProvider === 'spaces'"
                   class="w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 font-mono text-sm text-gray-900 placeholder-gray-400 focus:border-brand focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
                 />
+              </div>
+
+              <!-- Public URL -->
+              <div>
+                <label class="mb-1 block text-xs font-medium text-gray-500 dark:text-gray-400">
+                  Public URL
+                  <span class="text-gray-400">(for serving files to browsers)</span>
+                </label>
+                <input
+                  v-model="publicUrl"
+                  type="text"
+                  :placeholder="selectedProvider === 'r2' ? 'https://pub-xxx.r2.dev' : selectedProvider === 'spaces' ? 'https://my-bucket.nyc3.cdn.digitaloceanspaces.com' : 'https://my-bucket.s3.us-east-1.amazonaws.com'"
+                  class="w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 font-mono text-sm text-gray-900 placeholder-gray-400 focus:border-brand focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
+                />
+                <p class="mt-1 text-xs text-gray-400 dark:text-gray-500">
+                  The public-facing URL for accessing uploaded files (e.g. R2 public bucket URL, CloudFront distribution, or custom domain)
+                </p>
               </div>
             </div>
           </div>

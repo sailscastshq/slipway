@@ -90,16 +90,18 @@ module.exports = {
 
     const uploadedFile = uploadedFiles[0]
 
-    // Construct the public URL
-    // For R2/S3, the URL pattern is typically: endpoint/bucket/key or bucket.endpoint/key
+    // Construct the public URL using the configured public URL base
+    const publicUrl = globalEnvVars.R2_PUBLIC_URL || globalEnvVars.S3_PUBLIC_URL || globalEnvVars.SPACES_PUBLIC_URL
+    const fileName = uploadedFile.fd.split('/').pop()
     let logoUrl
-    if (s3Config.endpoint) {
-      // R2/custom endpoint pattern
+    if (publicUrl) {
+      const baseUrl = publicUrl.replace(/\/$/, '')
+      logoUrl = `${baseUrl}/${dirname}/${fileName}`
+    } else if (s3Config.endpoint) {
       const endpointClean = s3Config.endpoint.replace(/\/$/, '')
-      logoUrl = `${endpointClean}/${dirname}/${uploadedFile.fd.split('/').pop()}`
+      logoUrl = `${endpointClean}/${dirname}/${fileName}`
     } else {
-      // Standard S3 pattern
-      logoUrl = `https://${s3Config.bucket}.s3.${s3Config.region}.amazonaws.com/${dirname}/${uploadedFile.fd.split('/').pop()}`
+      logoUrl = `https://${s3Config.bucket}.s3.${s3Config.region}.amazonaws.com/${dirname}/${fileName}`
     }
 
     // Update team with new logo URL
