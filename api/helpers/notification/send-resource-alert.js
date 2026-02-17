@@ -52,7 +52,7 @@ module.exports = {
         message += `<b>Memory:</b> ${memoryPercent.toFixed(1)}%\n`
       }
       message += `\nThis container is working up a sweat! Might be worth scaling up or investigating.\n`
-      message += `\n<i>\u2014 Slippy, from ${escapeHtml(instanceName)}</i>`
+      message += `\n<b>\u2014 Slippy \uD83D\uDC19, from ${escapeHtml(instanceName)}</b>`
 
       await sails.helpers.notification.sendTelegram.with({ message }).tolerate('error')
     }
@@ -64,7 +64,7 @@ module.exports = {
       message += `*Container:* ${containerName}\n`
       message += `*Issue:* ${issueText}\n`
       message += `This container is working up a sweat! Might be worth scaling up or investigating.\n`
-      message += `\n_\u2014 Slippy, from ${instanceName}_`
+      message += `\n*\u2014 Slippy \uD83D\uDC19, from ${instanceName}*`
 
       await sails.helpers.notification.sendSlack.with({ message }).tolerate('error')
     }
@@ -93,7 +93,7 @@ module.exports = {
               description: 'This container is working up a sweat! Might be worth scaling up or investigating.',
               color: 0xf59e0b,
               fields,
-              footer: { text: `\u2014 Slippy, from ${instanceName}` },
+              footer: { text: `\u2014 Slippy \uD83D\uDC19, from ${instanceName}` },
               timestamp: new Date().toISOString()
             }]
           })

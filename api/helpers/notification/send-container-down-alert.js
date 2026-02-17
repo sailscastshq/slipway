@@ -30,7 +30,7 @@ module.exports = {
       message += `<b>Container:</b> ${escapeHtml(containerName)}\n`
       message += `<b>Type:</b> ${escapeHtml(resourceType)}\n`
       message += `I noticed this container went down on its own \u2014 nobody told it to stop. You might want to check the logs.\n`
-      message += `\n<i>\u2014 Slippy, from ${escapeHtml(instanceName)}</i>`
+      message += `\n<b>\u2014 Slippy \uD83D\uDC19, from ${escapeHtml(instanceName)}</b>`
 
       await sails.helpers.notification.sendTelegram.with({ message }).tolerate('error')
     }
@@ -42,7 +42,7 @@ module.exports = {
       message += `*Container:* ${containerName}\n`
       message += `*Type:* ${resourceType}\n`
       message += `I noticed this container went down on its own \u2014 nobody told it to stop. You might want to check the logs.\n`
-      message += `\n_\u2014 Slippy, from ${instanceName}_`
+      message += `\n*\u2014 Slippy \uD83D\uDC19, from ${instanceName}*`
 
       await sails.helpers.notification.sendSlack.with({ message }).tolerate('error')
     }
@@ -64,7 +64,7 @@ module.exports = {
                 { name: 'Type', value: resourceType, inline: true }
               ],
               description: 'I noticed this container went down on its own \u2014 nobody told it to stop. You might want to check the logs.',
-              footer: { text: `\u2014 Slippy, from ${instanceName}` },
+              footer: { text: `\u2014 Slippy \uD83D\uDC19, from ${instanceName}` },
               timestamp: new Date().toISOString()
             }]
           })

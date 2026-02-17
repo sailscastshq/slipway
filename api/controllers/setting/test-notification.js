@@ -50,7 +50,7 @@ module.exports = {
 
         const threadId = inputs.telegramThreadId || await sails.helpers.setting.get('telegramThreadId', '')
 
-        const message = `\u2705 <b>You're all set!</b>\n\nHey! It's Slippy. Just a quick wave \u2014 your Telegram notifications are configured and working perfectly. I'll keep you posted on deployments, backups, and anything else that needs your attention.\n\n<i>\u2014 Slippy</i>`
+        const message = `\u2705 <b>You're all set!</b>\n\nHey! It's Slippy. Just a quick wave \u2014 your Telegram notifications are configured and working perfectly. I'll keep you posted on deployments, backups, and anything else that needs your attention.\n\n<b>\u2014 Slippy \uD83D\uDC19</b>`
 
         const payload = {
           chat_id: chatId,
@@ -101,7 +101,7 @@ module.exports = {
               description: 'Hey! It\'s Slippy. Just a quick wave \u2014 your Discord notifications are configured and working perfectly. I\'ll keep you posted on deployments, backups, and anything else that needs your attention.',
               color: 0x10b981,
               footer: {
-                text: '\u2014 Slippy'
+                text: '\u2014 Slippy \uD83D\uDC19'
               },
               timestamp: new Date().toISOString()
             }]
@@ -133,7 +133,7 @@ module.exports = {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            text: '\u2705 *You\'re all set!*\n\nHey! It\'s Slippy. Just a quick wave \u2014 your Slack notifications are configured and working perfectly. I\'ll keep you posted on deployments, backups, and anything else that needs your attention.\n\n_\u2014 Slippy_'
+            text: '\u2705 *You\'re all set!*\n\nHey! It\'s Slippy. Just a quick wave \u2014 your Slack notifications are configured and working perfectly. I\'ll keep you posted on deployments, backups, and anything else that needs your attention.\n\n*\u2014 Slippy \uD83D\uDC19*'
           })
         })
 

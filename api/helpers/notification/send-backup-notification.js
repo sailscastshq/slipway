@@ -63,7 +63,7 @@ module.exports = {
       if (isFailure && backup.errorMessage) {
         message += `<b>Error:</b> ${escapeHtml(backup.errorMessage)}\n`
       }
-      message += `\n<i>\u2014 Slippy, from ${escapeHtml(instanceName)}</i>`
+      message += `\n<b>\u2014 Slippy \uD83D\uDC19, from ${escapeHtml(instanceName)}</b>`
 
       await sails.helpers.notification.sendTelegram.with({ message }).tolerate('error')
     }
@@ -81,7 +81,7 @@ module.exports = {
       if (isFailure && backup.errorMessage) {
         message += `*Error:* ${backup.errorMessage}\n`
       }
-      message += `\n_\u2014 Slippy, from ${instanceName}_`
+      message += `\n*\u2014 Slippy \uD83D\uDC19, from ${instanceName}*`
 
       await sails.helpers.notification.sendSlack.with({ message }).tolerate('error')
     }
@@ -111,7 +111,7 @@ module.exports = {
               title: `${emoji} ${slippyTitle}`,
               color: isSuccess ? 0x10b981 : 0xef4444,
               fields,
-              footer: { text: `\u2014 Slippy, from ${instanceName}` },
+              footer: { text: `\u2014 Slippy \uD83D\uDC19, from ${instanceName}` },
               timestamp: new Date().toISOString()
             }]
           })

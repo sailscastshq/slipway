@@ -35,7 +35,7 @@ module.exports = {
       message += `<b>Job:</b> ${escapeHtml(jobName)}\n`
       message += `<b>Duration:</b> ${durationText}\n`
       message += `<b>Error:</b> ${escapeHtml(errorMessage)}\n`
-      message += `\n<i>\u2014 Slippy, from ${escapeHtml(instanceName)}</i>`
+      message += `\n<b>\u2014 Slippy \uD83D\uDC19, from ${escapeHtml(instanceName)}</b>`
 
       await sails.helpers.notification.sendTelegram.with({ message }).tolerate('error')
     }
@@ -47,7 +47,7 @@ module.exports = {
       message += `*Job:* ${jobName}\n`
       message += `*Duration:* ${durationText}\n`
       message += `*Error:* ${errorMessage}\n`
-      message += `\n_\u2014 Slippy, from ${instanceName}_`
+      message += `\n*\u2014 Slippy \uD83D\uDC19, from ${instanceName}*`
 
       await sails.helpers.notification.sendSlack.with({ message }).tolerate('error')
     }
@@ -69,7 +69,7 @@ module.exports = {
                 { name: 'Duration', value: durationText, inline: true },
                 { name: 'Error', value: errorMessage.substring(0, 1024) }
               ],
-              footer: { text: `\u2014 Slippy, from ${instanceName}` },
+              footer: { text: `\u2014 Slippy \uD83D\uDC19, from ${instanceName}` },
               timestamp: new Date().toISOString()
             }]
           })
