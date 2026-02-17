@@ -46,7 +46,10 @@ module.exports = {
     }
     sails.log.info('[slipway] Image pulled successfully')
 
-    // 3. Inspect current container to reconstruct its config
+    // 3. Back up the SQLite database before proceeding
+    await sails.helpers.system.backupDatabase()
+
+    // 4. Inspect current container to reconstruct its config
     let containerInfo
     try {
       const { stdout } = await execFileAsync(dockerPath, [
@@ -61,7 +64,7 @@ module.exports = {
       throw 'pullFailed'
     }
 
-    // 4. Build docker run arguments from current container config
+    // 5. Build docker run arguments from current container config
     const runArgs = [
       'run',
       '-d',
@@ -125,13 +128,13 @@ module.exports = {
     // Image (always use latest)
     runArgs.push(pullTarget)
 
-    // 5. Extract the DB volume name for migration
+    // 6. Extract the DB volume name for migration
     const dbMount = (containerInfo.Mounts || []).find(
       (m) => m.Type === 'volume' && m.Destination === '/app/db'
     )
     const dbVolumeName = dbMount ? dbMount.Name : 'slipway-db'
 
-    // 6. Spawn the bosun — a detached sidecar container that performs the swap
+    // 7. Spawn the bosun — a detached sidecar container that performs the swap
     // Uses Node.js + execFileSync to avoid shell injection entirely
     const argsJson = JSON.stringify(runArgs)
     const migrateArgs = JSON.stringify([
