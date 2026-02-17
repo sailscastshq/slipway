@@ -39,10 +39,14 @@ module.exports = {
 
     try {
       await sails.helpers.setting.syncSmtpConfig()
+      const fromAddress = sails.config.mail.from.address
+      const fromName = sails.config.mail.from.name
 
       for (const to of emails) {
         await sails.helpers.mail.send.with({
           to,
+          from: fromAddress,
+          fromName,
           subject,
           template,
           templateData

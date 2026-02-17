@@ -24,7 +24,7 @@ module.exports = {
       sails.config.mail.mailers.smtp.password = password
     }
     if (from) {
-      sails.config.mail.from.address = from
+      sails.config.mail.from = { name: 'Slippy from Slipway', address: from }
     }
   }
 }

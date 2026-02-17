@@ -53,8 +53,5 @@ module.exports.mail = {
    * outgoing emails have a consistent sender identity.
    *
    */
-  from: {
-    address: 'slipway@sailscasts.com',
-    name: 'Slippy from Slipway'
-  }
+  from: {}
 }
