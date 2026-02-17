@@ -141,10 +141,20 @@ async function executeQuery() {
       })
     })
 
-    const data = await response.json()
+    let data
+    const text = await response.text()
+    try {
+      data = JSON.parse(text)
+    } catch {
+      if (!response.ok) {
+        consoleError.value = text || 'Query failed'
+        consoleResults.value = null
+        return
+      }
+    }
 
     if (!response.ok) {
-      consoleError.value = data.message || data.error || 'Query failed'
+      consoleError.value = data?.message || data?.error || text || 'Query failed'
       consoleResults.value = null
       return
     }
@@ -178,10 +188,19 @@ async function executeHelm() {
       body: JSON.stringify({ code: helmCode.value })
     })
 
-    const data = await response.json()
+    let data
+    const text = await response.text()
+    try {
+      data = JSON.parse(text)
+    } catch {
+      if (!response.ok) {
+        helmError.value = text || 'Evaluation failed'
+        return
+      }
+    }
 
     if (!response.ok) {
-      helmError.value = data.message || data.error || 'Evaluation failed'
+      helmError.value = data?.message || data?.error || text || 'Evaluation failed'
       return
     }
 

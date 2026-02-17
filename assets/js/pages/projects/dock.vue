@@ -254,10 +254,17 @@ async function executeQuery() {
       body: JSON.stringify({ query: query.value })
     })
 
-    const data = await res.json()
+    let data
+    const text = await res.text()
+    try {
+      data = JSON.parse(text)
+    } catch {
+      queryError.value = text || 'Query failed'
+      return
+    }
 
     if (!res.ok || !data.success) {
-      queryError.value = data.error || data.message || 'Query failed'
+      queryError.value = data?.error || data?.message || text || 'Query failed'
     } else {
       queryResult.value = data
       // Add to history

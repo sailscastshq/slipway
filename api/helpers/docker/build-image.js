@@ -57,7 +57,7 @@ module.exports = {
     return new Promise((resolve, reject) => {
       const dockerPath = sails.config.docker?.binaryPath || 'docker'
       const fullDockerfilePath = path.resolve(contextPath, dockerfilePath)
-      const args = ['buildx', 'build', '--load', '--progress=plain', '-t', imageName, '-f', fullDockerfilePath]
+      const args = ['build', '--progress=plain', '-t', imageName, '-f', fullDockerfilePath]
 
       // Only disable cache if explicitly requested
       if (noCache) {
