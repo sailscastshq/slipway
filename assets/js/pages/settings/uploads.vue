@@ -375,7 +375,7 @@ const providers = [
           <div class="flex justify-end">
             <button
               type="submit"
-              :disabled="saving || !accessKey || !secretKey || !bucket"
+              :disabled="saving || !bucket || (!isCurrentProvider && (!accessKey || !secretKey))"
               class="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
             >
               {{ saving ? 'Saving...' : 'Save configuration' }}

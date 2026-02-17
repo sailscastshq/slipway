@@ -69,6 +69,16 @@ module.exports = {
       globalEnvVars = JSON.parse(globalJson)
     } catch { /* ignore parse errors */ }
 
+    // Preserve existing credentials before clearing
+    const existingCredentials = {
+      R2_ACCESS_KEY: globalEnvVars.R2_ACCESS_KEY,
+      R2_SECRET_KEY: globalEnvVars.R2_SECRET_KEY,
+      S3_ACCESS_KEY: globalEnvVars.S3_ACCESS_KEY,
+      S3_SECRET_KEY: globalEnvVars.S3_SECRET_KEY,
+      SPACES_ACCESS_KEY: globalEnvVars.SPACES_ACCESS_KEY,
+      SPACES_SECRET_KEY: globalEnvVars.SPACES_SECRET_KEY
+    }
+
     // Clear any existing provider keys first
     const keysToRemove = [
       'R2_ACCESS_KEY', 'R2_SECRET_KEY', 'R2_BUCKET', 'R2_ENDPOINT', 'R2_PUBLIC_URL',
@@ -79,23 +89,23 @@ module.exports = {
       delete globalEnvVars[key]
     }
 
-    // Set the new provider keys
+    // Set the new provider keys (preserve existing credentials if not provided)
     if (provider === 'r2') {
-      globalEnvVars.R2_ACCESS_KEY = accessKey
-      globalEnvVars.R2_SECRET_KEY = secretKey
+      globalEnvVars.R2_ACCESS_KEY = accessKey || existingCredentials.R2_ACCESS_KEY
+      globalEnvVars.R2_SECRET_KEY = secretKey || existingCredentials.R2_SECRET_KEY
       globalEnvVars.R2_BUCKET = bucket
       if (endpoint) globalEnvVars.R2_ENDPOINT = endpoint
       if (publicUrl) globalEnvVars.R2_PUBLIC_URL = publicUrl
     } else if (provider === 's3') {
-      globalEnvVars.S3_ACCESS_KEY = accessKey
-      globalEnvVars.S3_SECRET_KEY = secretKey
+      globalEnvVars.S3_ACCESS_KEY = accessKey || existingCredentials.S3_ACCESS_KEY
+      globalEnvVars.S3_SECRET_KEY = secretKey || existingCredentials.S3_SECRET_KEY
       globalEnvVars.S3_BUCKET = bucket
       if (region) globalEnvVars.S3_REGION = region
       if (endpoint) globalEnvVars.S3_ENDPOINT = endpoint
       if (publicUrl) globalEnvVars.S3_PUBLIC_URL = publicUrl
     } else if (provider === 'spaces') {
-      globalEnvVars.SPACES_ACCESS_KEY = accessKey
-      globalEnvVars.SPACES_SECRET_KEY = secretKey
+      globalEnvVars.SPACES_ACCESS_KEY = accessKey || existingCredentials.SPACES_ACCESS_KEY
+      globalEnvVars.SPACES_SECRET_KEY = secretKey || existingCredentials.SPACES_SECRET_KEY
       globalEnvVars.SPACES_BUCKET = bucket
       if (region) globalEnvVars.SPACES_REGION = region
       if (endpoint) globalEnvVars.SPACES_ENDPOINT = endpoint
