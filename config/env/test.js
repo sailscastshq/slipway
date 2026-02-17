@@ -13,7 +13,16 @@ module.exports = {
   },
   datastores: {
     default: {
-      adapter: 'sails-disk'
+      adapter: 'sails-sqlite',
+      url: ':memory:'
+    },
+    observability: {
+      adapter: 'sails-sqlite',
+      url: ':memory:'
+    },
+    cache: {
+      adapter: 'sails-sqlite',
+      url: ':memory:'
     }
   },
   mail: {

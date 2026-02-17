@@ -19,20 +19,7 @@ async function getSails() {
     sailsApp.load(
       {
         environment: 'test',
-        hooks: {
-          // Disable non-essential hooks for faster helper unit tests
-          shipwright: false,
-          orm: false,
-          sockets: false,
-          pubsub: false,
-          views: false,
-          http: false,
-          session: false,
-          grunt: false,
-          i18n: false,
-          flash: false
-        },
-        log: { level: 'error' }
+        hooks: { shipwright: false, lookout: false }
       },
       (err, sails) => {
         if (err) {

@@ -5,6 +5,7 @@
  */
 
 module.exports = {
+  tableName: 'git_repositories',
   attributes: {
     // Repository identifiers
     externalId: {
@@ -97,7 +98,8 @@ module.exports = {
     branchMappings: {
       type: 'json',
       defaultsTo: {},
-      description: 'Map branches to environments (e.g., {"main": "production", "develop": "staging"})'
+      description:
+        'Map branches to environments (e.g., {"main": "production", "develop": "staging"})'
     },
 
     // Settings
@@ -126,6 +128,5 @@ module.exports = {
     environment: {
       model: 'environment'
     }
-  },
-
+  }
 }

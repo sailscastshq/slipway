@@ -5,6 +5,7 @@
  */
 
 module.exports = {
+  tableName: 'deploy_tokens',
   attributes: {
     // Token identifier
     name: {
@@ -30,7 +31,8 @@ module.exports = {
     scopes: {
       type: 'json',
       defaultsTo: ['deploy'],
-      description: 'Allowed actions: deploy, logs, env:read, env:write, rollback'
+      description:
+        'Allowed actions: deploy, logs, env:read, env:write, rollback'
     },
 
     // Usage tracking
@@ -131,7 +133,10 @@ module.exports = {
     const record = await DeployToken.findOne({
       tokenHash,
       isActive: true
-    }).populate('project').populate('environment').populate('team')
+    })
+      .populate('project')
+      .populate('environment')
+      .populate('team')
 
     if (!record) {
       return null
@@ -143,10 +148,12 @@ module.exports = {
     }
 
     // Update usage stats asynchronously
-    DeployToken.updateOne({ id: record.id }).set({
-      lastUsedAt: Date.now(),
-      usageCount: record.usageCount + 1
-    }).meta({ fetch: false })
+    DeployToken.updateOne({ id: record.id })
+      .set({
+        lastUsedAt: Date.now(),
+        usageCount: record.usageCount + 1
+      })
+      .meta({ fetch: false })
 
     return record
   },
