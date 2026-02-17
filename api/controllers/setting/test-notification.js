@@ -16,7 +16,12 @@ module.exports = {
     discordWebhookUrl: { type: 'string' },
     slackWebhookUrl: { type: 'string' },
     webhookUrl: { type: 'string' },
-    notificationEmails: { type: 'string' }
+    notificationEmails: { type: 'string' },
+    smtpHost: { type: 'string' },
+    smtpPort: { type: 'string' },
+    smtpUser: { type: 'string' },
+    smtpPassword: { type: 'string' },
+    smtpFrom: { type: 'string' }
   },
 
   exits: {
@@ -185,6 +190,29 @@ module.exports = {
             message: 'Notification email addresses are required'
           })
         }
+
+        // Save SMTP settings first so sails-hook-mail can use them
+        if (inputs.smtpHost) {
+          await sails.helpers.setting.set('smtpHost', inputs.smtpHost.trim())
+        }
+        if (inputs.smtpPort) {
+          await sails.helpers.setting.set('smtpPort', inputs.smtpPort.trim())
+        }
+        if (inputs.smtpUser) {
+          await sails.helpers.setting.set('smtpUser', inputs.smtpUser.trim())
+        }
+        if (inputs.smtpPassword) {
+          await sails.helpers.setting.set('smtpPassword', inputs.smtpPassword)
+        }
+        if (inputs.smtpFrom) {
+          await sails.helpers.setting.set('smtpFrom', inputs.smtpFrom.trim())
+        }
+        if (inputs.notificationEmails) {
+          await sails.helpers.setting.set('notificationEmails', inputs.notificationEmails.trim())
+        }
+
+        // Sync saved settings into sails.config.mail
+        await sails.helpers.setting.syncSmtpConfig()
 
         const emails = notificationEmails.split(',').map(e => e.trim()).filter(Boolean)
         const instanceName = await sails.helpers.setting.get('instanceName', 'Slipway')
