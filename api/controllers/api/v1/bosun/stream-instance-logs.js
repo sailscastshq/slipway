@@ -71,6 +71,10 @@ module.exports = {
 
     const docker = spawn(dockerPath, args)
 
+    // Track whether we ever received real log output from the container.
+    // If docker closes before any stdout, the container doesn't exist (local dev).
+    let stdoutReceived = false
+
     function sendLine(line) {
       safeWrite(`data: ${JSON.stringify({ log: line })}\n\n`)
     }
@@ -83,12 +87,25 @@ module.exports = {
       }
     }
 
-    docker.stdout.on('data', onData)
-    docker.stderr.on('data', onData)
+    docker.stdout.on('data', (data) => {
+      stdoutReceived = true
+      onData(data)
+    })
+
+    // Buffer stderr until we know the container exists.
+    // docker logs sends container stderr here during normal operation,
+    // but also sends its own errors (e.g. "No such container") here.
+    docker.stderr.on('data', (data) => {
+      if (stdoutReceived) {
+        // Container is running — this is real container stderr
+        onData(data)
+      }
+      // Otherwise swallow — we'll send a friendly error on close
+    })
 
     docker.on('error', (err) => {
       sails.log.error(`[stream-instance-logs] Docker spawn error: ${err.message}`)
-      if (safeWrite(`data: ${JSON.stringify({ error: 'Instance logs available when running in Docker' })}\n\n`)) {
+      if (safeWrite(`data: ${JSON.stringify({ error: 'Instance logs are available when running in Docker' })}\n\n`)) {
         try { res.end() } catch (e) { /* ignore */ }
       }
       cleanup()
@@ -96,9 +113,13 @@ module.exports = {
 
     docker.on('close', (code, signal) => {
       sails.log.debug(`[stream-instance-logs] Docker process closed with code: ${code}, signal: ${signal}`)
-      if (safeWrite(`data: ${JSON.stringify({ closed: true })}\n\n`)) {
-        try { res.end() } catch (e) { /* ignore */ }
+      if (code !== 0 && !stdoutReceived) {
+        // Docker couldn't find the container — likely running outside Docker (local dev)
+        safeWrite(`data: ${JSON.stringify({ error: 'Instance logs are available when running in Docker' })}\n\n`)
+      } else {
+        safeWrite(`data: ${JSON.stringify({ closed: true })}\n\n`)
       }
+      try { res.end() } catch (e) { /* ignore */ }
       cleanup()
     })
 

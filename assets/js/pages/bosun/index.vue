@@ -1033,78 +1033,8 @@ onUnmounted(() => {
             </div>
           </div>
 
-          <!-- Logs Accordion -->
-          <div class="mb-8 rounded-lg border border-gray-200 dark:border-gray-800">
-            <div class="flex items-center justify-between px-4 py-3">
-              <button
-                @click="logsOpen = !logsOpen"
-                class="flex flex-1 items-center space-x-3 text-left hover:opacity-80"
-              >
-                <h2 class="text-sm font-medium text-gray-900 dark:text-white">Logs</h2>
-                <span
-                  v-if="logsConnected"
-                  class="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-medium text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
-                >
-                  <span class="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-500"></span>
-                  Live
-                </span>
-              </button>
-              <div class="flex items-center gap-2">
-                <label v-if="logsOpen" class="flex items-center gap-2 text-xs text-gray-400 dark:text-gray-500">
-                  <input
-                    v-model="autoScroll"
-                    type="checkbox"
-                    class="h-3.5 w-3.5 rounded border-gray-300 text-brand focus:ring-brand dark:border-gray-600 dark:bg-gray-800"
-                  />
-                  Auto-scroll
-                </label>
-                <button
-                  @click="logsOpen = !logsOpen"
-                  class="rounded p-0.5 hover:bg-gray-100 dark:hover:bg-gray-800"
-                >
-                  <svg
-                    :class="['h-4 w-4 text-gray-400 transition-transform duration-200', logsOpen ? 'rotate-90' : '']"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-                  </svg>
-                </button>
-              </div>
-            </div>
-
-            <div v-show="logsOpen">
-              <div
-                v-if="logsError"
-                class="border-t border-gray-200 px-4 py-6 text-center text-sm text-gray-500 dark:border-gray-800 dark:text-gray-400"
-              >
-                {{ logsError }}
-              </div>
-
-              <div v-else class="border-t border-gray-200 dark:border-gray-800">
-                <div
-                  ref="logContainer"
-                  class="h-80 overflow-y-auto bg-gray-100 p-4 font-mono text-xs leading-5 text-gray-700 dark:bg-gray-950 dark:text-gray-300"
-                  @scroll="autoScroll = logContainer && (logContainer.scrollHeight - logContainer.scrollTop - logContainer.clientHeight < 40)"
-                >
-                  <div v-if="!logsConnected && logLines.length === 0" class="flex h-full items-center justify-center text-gray-500">
-                    <SlippyLoader size="h-4 w-4" class="mr-2" />
-                    Connecting to logs...
-                  </div>
-                  <div v-else-if="logLines.length === 0 && logsConnected" class="text-gray-500">
-                    Waiting for output...
-                  </div>
-                  <template v-else>
-                    <div v-for="(line, i) in logLines" :key="i" class="whitespace-pre-wrap break-all hover:bg-gray-200/50 dark:hover:bg-gray-900/50" v-html="highlightLogLine(line)"></div>
-                  </template>
-                </div>
-              </div>
-            </div>
-          </div>
-
           <!-- Memory + Databases -->
-          <div class="grid gap-6 lg:grid-cols-2">
+          <div class="mb-8 grid gap-6 lg:grid-cols-2">
             <!-- Memory -->
             <div class="rounded-lg border border-gray-200 dark:border-gray-800">
               <div
@@ -1197,6 +1127,76 @@ onUnmounted(() => {
                     class="font-mono text-sm font-medium text-gray-900 dark:text-white"
                     >{{ formatBytes(db.sizeBytes) }}</span
                   >
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Logs Accordion -->
+          <div class="rounded-lg border border-gray-200 dark:border-gray-800">
+            <div class="flex items-center justify-between px-4 py-3">
+              <button
+                @click="logsOpen = !logsOpen"
+                class="flex flex-1 items-center space-x-3 text-left hover:opacity-80"
+              >
+                <h2 class="text-sm font-medium text-gray-900 dark:text-white">Logs</h2>
+                <span
+                  v-if="logsConnected"
+                  class="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-medium text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
+                >
+                  <span class="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-500"></span>
+                  Live
+                </span>
+              </button>
+              <div class="flex items-center gap-2">
+                <label v-if="logsOpen" class="flex items-center gap-2 text-xs text-gray-400 dark:text-gray-500">
+                  <input
+                    v-model="autoScroll"
+                    type="checkbox"
+                    class="h-3.5 w-3.5 rounded border-gray-300 text-brand focus:ring-brand dark:border-gray-600 dark:bg-gray-800"
+                  />
+                  Auto-scroll
+                </label>
+                <button
+                  @click="logsOpen = !logsOpen"
+                  class="rounded p-0.5 hover:bg-gray-100 dark:hover:bg-gray-800"
+                >
+                  <svg
+                    :class="['h-4 w-4 text-gray-400 transition-transform duration-200', logsOpen ? 'rotate-90' : '']"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <div v-show="logsOpen">
+              <div
+                v-if="logsError"
+                class="border-t border-gray-200 px-4 py-6 text-center text-sm text-gray-500 dark:border-gray-800 dark:text-gray-400"
+              >
+                {{ logsError }}
+              </div>
+
+              <div v-else class="border-t border-gray-200 dark:border-gray-800">
+                <div
+                  ref="logContainer"
+                  class="h-80 overflow-y-auto bg-gray-100 p-4 font-mono text-xs leading-5 text-gray-700 dark:bg-gray-950 dark:text-gray-300"
+                  @scroll="autoScroll = logContainer && (logContainer.scrollHeight - logContainer.scrollTop - logContainer.clientHeight < 40)"
+                >
+                  <div v-if="!logsConnected && logLines.length === 0" class="flex h-full items-center justify-center text-gray-500">
+                    <SlippyLoader size="h-4 w-4" class="mr-2" />
+                    Connecting to logs...
+                  </div>
+                  <div v-else-if="logLines.length === 0 && logsConnected" class="text-gray-500">
+                    Waiting for output...
+                  </div>
+                  <template v-else>
+                    <div v-for="(line, i) in logLines" :key="i" class="whitespace-pre-wrap break-all hover:bg-gray-200/50 dark:hover:bg-gray-900/50" v-html="highlightLogLine(line)"></div>
+                  </template>
                 </div>
               </div>
             </div>
