@@ -38,14 +38,14 @@ onMounted(() => {
   >
     <div
       v-if="updateInfo?.updateAvailable && !dismissed"
-      class="border-b border-emerald-200 bg-emerald-50 px-4 py-3 dark:border-emerald-800/50 dark:bg-emerald-950/50"
+      class="border-b border-gray-200 bg-gray-50 px-4 py-3 dark:border-gray-800 dark:bg-gray-900/50"
     >
       <div class="mx-auto flex max-w-6xl items-center justify-between">
         <div class="flex items-center space-x-3">
           <!-- Update icon -->
-          <div class="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-900/50">
+          <div class="flex h-8 w-8 items-center justify-center rounded-full bg-gray-200 dark:bg-gray-800">
             <svg
-              class="h-4 w-4 text-emerald-600 dark:text-emerald-400"
+              class="h-4 w-4 text-gray-600 dark:text-gray-400"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -59,10 +59,10 @@ onMounted(() => {
             </svg>
           </div>
           <div>
-            <p class="text-sm font-medium text-emerald-900 dark:text-emerald-100">
+            <p class="text-sm font-medium text-gray-900 dark:text-white">
               Slipway {{ updateInfo.latestVersion }} is available
             </p>
-            <p class="text-sm text-emerald-700 dark:text-emerald-400">
+            <p class="text-sm text-gray-500 dark:text-gray-400">
               You're currently running {{ updateInfo.currentVersion }}
             </p>
           </div>
@@ -70,14 +70,14 @@ onMounted(() => {
         <div class="flex items-center space-x-2">
           <Link
             href="/settings/update"
-            class="rounded-md bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-700 dark:bg-emerald-600 dark:hover:bg-emerald-500"
+            class="rounded-md bg-gray-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-gray-800 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
           >
             Update
           </Link>
           <Tooltip text="Dismiss">
             <button
               @click="dismiss"
-              class="rounded-md p-1.5 text-emerald-600 hover:bg-emerald-100 dark:text-emerald-400 dark:hover:bg-emerald-900/50"
+              class="rounded-md p-1.5 text-gray-500 hover:bg-gray-200 dark:text-gray-400 dark:hover:bg-gray-800"
             >
               <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />

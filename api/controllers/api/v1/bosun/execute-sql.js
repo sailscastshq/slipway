@@ -2,8 +2,8 @@
  * execute-sql.js
  *
  * SQLite REPL endpoint for the Bosun dashboard.
- * Opens Slipway's own SQLite databases in read-only mode
- * and executes SELECT queries against them.
+ * Opens Slipway's own SQLite databases and executes
+ * SQL queries against them.
  */
 
 const path = require('path')
@@ -12,7 +12,7 @@ const Database = require('better-sqlite3')
 module.exports = {
   friendlyName: 'Execute Bosun SQL',
 
-  description: 'Execute a read-only SQL query against a Slipway database.',
+  description: 'Execute a SQL query against a Slipway database.',
 
   inputs: {
     query: {
@@ -56,28 +56,6 @@ module.exports = {
       throw { badRequest: 'Query cannot be empty.' }
     }
 
-    // Block destructive operations
-    const destructivePatterns = [
-      /^\s*INSERT\s/i,
-      /^\s*UPDATE\s/i,
-      /^\s*DELETE\s/i,
-      /^\s*DROP\s/i,
-      /^\s*ALTER\s/i,
-      /^\s*CREATE\s/i,
-      /^\s*TRUNCATE\s/i,
-      /^\s*REPLACE\s/i,
-      /^\s*ATTACH\s/i,
-      /^\s*DETACH\s/i,
-      /^\s*REINDEX\s/i,
-      /^\s*VACUUM\s/i
-    ]
-
-    for (const pattern of destructivePatterns) {
-      if (pattern.test(trimmedQuery)) {
-        throw { forbidden: 'Only read-only queries (SELECT, PRAGMA, EXPLAIN) are allowed in the Bosun console.' }
-      }
-    }
-
     // Map database name to file path
     const dbPaths = {
       app: path.resolve(sails.config.appPath, 'db/app.db'),
@@ -92,20 +70,20 @@ module.exports = {
 
     let db
     try {
-      // Open in read-only mode for safety
-      db = new Database(dbPath, { readonly: true })
+      db = new Database(dbPath)
 
       const startTime = Date.now()
       const stmt = db.prepare(trimmedQuery)
       let rows, columns
 
-      // PRAGMA and SELECT both return data; detect via stmt.reader
+      // PRAGMA and SELECT return rows; write statements return change info
       if (stmt.reader) {
         rows = stmt.all()
         columns = rows.length > 0 ? Object.keys(rows[0]) : stmt.columns().map(c => c.name)
       } else {
-        // Non-reader statement (shouldn't reach here due to blocking above, but just in case)
-        throw { forbidden: 'Only read-only queries are allowed.' }
+        const info = stmt.run()
+        rows = [{ changes: info.changes, lastInsertRowid: Number(info.lastInsertRowid) }]
+        columns = ['changes', 'lastInsertRowid']
       }
 
       const durationMs = Date.now() - startTime
