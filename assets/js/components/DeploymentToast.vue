@@ -17,6 +17,65 @@ const exiting = ref(false)
 let eventSource = null
 let timerInterval = null
 
+const maritimeMessages = {
+  pending: [
+    'Waiting for the tide...',
+    'Checking the compass...',
+    'Reading the stars...',
+    'Gathering the crew...',
+  ],
+  building: [
+    'Hoisting the sails...',
+    'Loading the cargo...',
+    'Checking the rigging...',
+    'Swabbing the deck...',
+    'Tying the knots...',
+    'Hammering the hull...',
+  ],
+  pushing: [
+    'Signaling the fleet...',
+    'Sending up a flare...',
+    'Raising the flag...',
+  ],
+  deploying: [
+    'Charting the course...',
+    'Setting sail...',
+    'Catching the wind...',
+    'Navigating the waters...',
+    'Full speed ahead...',
+    'Approaching the harbor...',
+  ],
+}
+
+const maritimeMessage = ref('')
+let messageInterval = null
+let messageIndex = 0
+
+function rotateMessage() {
+  const messages = maritimeMessages[status.value]
+  if (!messages) {
+    maritimeMessage.value = ''
+    return
+  }
+  maritimeMessage.value = messages[messageIndex % messages.length]
+  messageIndex++
+}
+
+function startMessageRotation() {
+  stopMessageRotation()
+  messageIndex = 0
+  rotateMessage()
+  messageInterval = setInterval(rotateMessage, 4000)
+}
+
+function stopMessageRotation() {
+  if (messageInterval) {
+    clearInterval(messageInterval)
+    messageInterval = null
+  }
+  maritimeMessage.value = ''
+}
+
 const statusConfig = computed(() => {
   const configs = {
     pending: {
@@ -132,15 +191,25 @@ function goToDeployment() {
 onMounted(() => {
   connectToStream()
   startTimer()
+  if (isActive.value) startMessageRotation()
 })
 
 onUnmounted(() => {
   if (eventSource) eventSource.close()
   if (timerInterval) clearInterval(timerInterval)
+  stopMessageRotation()
 })
 
 watch(() => props.deployment.status, (newStatus) => {
   status.value = newStatus
+})
+
+watch(status, (newStatus) => {
+  if (['pending', 'building', 'pushing', 'deploying'].includes(newStatus)) {
+    startMessageRotation()
+  } else {
+    stopMessageRotation()
+  }
 })
 </script>
 
@@ -219,6 +288,13 @@ watch(() => props.deployment.status, (newStatus) => {
                 {{ deployment.app.name }}
               </template>
             </button>
+
+            <p
+              v-if="isActive && maritimeMessage"
+              class="mt-1 truncate text-xs text-gray-400 dark:text-gray-500"
+            >
+              {{ maritimeMessage }}
+            </p>
 
             <div class="mt-2 flex items-center gap-3 text-xs text-gray-500 dark:text-gray-400">
               <span v-if="deployment.gitBranch" class="flex items-center gap-1">
