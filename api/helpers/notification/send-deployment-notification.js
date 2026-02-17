@@ -45,6 +45,7 @@ module.exports = {
 
     const emoji = isSuccess ? '\u2705' : '\u274C'
     const statusText = isSuccess ? 'succeeded' : 'failed'
+    const slippyTitle = isSuccess ? 'Ship shipped!' : 'Deployment hit a snag'
     const deploymentUrl = instanceDomain
       ? `https://${instanceDomain}/projects/${project.slug}/deployments/${deployment.id}`
       : null
@@ -52,7 +53,7 @@ module.exports = {
     // Send Telegram notification (HTML format)
     const telegramEnabled = await sails.helpers.setting.get('telegramEnabled', 'false')
     if (telegramEnabled === 'true') {
-      let message = `${emoji} <b>Deployment ${statusText}</b>\n\n`
+      let message = `${emoji} <b>${slippyTitle}</b>\n\n`
       message += `<b>Project:</b> ${escapeHtml(project.name)}\n`
       message += `<b>Environment:</b> ${escapeHtml(environment.name)}\n`
       if (deployment.gitBranch) {
@@ -64,7 +65,7 @@ module.exports = {
       if (deploymentUrl) {
         message += `\n<a href="${deploymentUrl}">View deployment</a>`
       }
-      message += `\n\n<i>${escapeHtml(instanceName)}</i>`
+      message += `\n\n<i>\u2014 Slippy, from ${escapeHtml(instanceName)}</i>`
 
       await sails.helpers.notification.sendTelegram.with({ message }).tolerate('error')
     }
@@ -72,7 +73,7 @@ module.exports = {
     // Send Slack notification
     const slackEnabled = await sails.helpers.setting.get('slackEnabled', 'false')
     if (slackEnabled === 'true') {
-      let message = `${emoji} *Deployment ${statusText}*\n\n`
+      let message = `${emoji} *${slippyTitle}*\n\n`
       message += `*Project:* ${project.name}\n`
       message += `*Environment:* ${environment.name}\n`
       if (deployment.gitBranch) {
@@ -84,7 +85,7 @@ module.exports = {
       if (deploymentUrl) {
         message += `\n<${deploymentUrl}|View deployment>`
       }
-      message += `\n_${instanceName}_`
+      message += `\n_\u2014 Slippy, from ${instanceName}_`
 
       await sails.helpers.notification.sendSlack.with({ message }).tolerate('error')
     }
@@ -110,11 +111,11 @@ module.exports = {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             embeds: [{
-              title: `${emoji} Deployment ${statusText}`,
+              title: `${emoji} ${slippyTitle}`,
               color: isSuccess ? 0x10b981 : 0xef4444,
               fields,
               ...(deploymentUrl ? { url: deploymentUrl } : {}),
-              footer: { text: instanceName },
+              footer: { text: `\u2014 Slippy, from ${instanceName}` },
               timestamp: new Date().toISOString()
             }]
           })
@@ -127,7 +128,7 @@ module.exports = {
     if (smtpEnabled === 'true') {
       await sails.helpers.notification.sendEmail.with({
         template: 'email-deployment-notification',
-        subject: `${emoji} Deployment ${statusText}: ${project.name} (${environment.name})`,
+        subject: `${emoji} ${slippyTitle} \u2014 ${project.name} (${environment.name})`,
         templateData: {
           isSuccess,
           statusText,

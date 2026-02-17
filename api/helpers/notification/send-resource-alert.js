@@ -43,7 +43,7 @@ module.exports = {
     // Send Telegram notification (HTML format)
     const telegramEnabled = await sails.helpers.setting.get('telegramEnabled', 'false')
     if (telegramEnabled === 'true') {
-      let message = `\u26A0\uFE0F <b>High Resource Usage</b>\n\n`
+      let message = `\u26A0\uFE0F <b>Things are heating up</b>\n\n`
       message += `<b>Container:</b> ${escapeHtml(containerName)}\n`
       if (cpuHigh) {
         message += `<b>CPU:</b> ${cpuPercent.toFixed(1)}%\n`
@@ -51,7 +51,8 @@ module.exports = {
       if (memHigh) {
         message += `<b>Memory:</b> ${memoryPercent.toFixed(1)}%\n`
       }
-      message += `\n<i>${escapeHtml(instanceName)}</i>`
+      message += `\nThis container is working up a sweat! Might be worth scaling up or investigating.\n`
+      message += `\n<i>\u2014 Slippy, from ${escapeHtml(instanceName)}</i>`
 
       await sails.helpers.notification.sendTelegram.with({ message }).tolerate('error')
     }
@@ -59,10 +60,11 @@ module.exports = {
     // Send Slack notification
     const slackEnabled = await sails.helpers.setting.get('slackEnabled', 'false')
     if (slackEnabled === 'true') {
-      let message = `\u26A0\uFE0F *High Resource Usage*\n\n`
+      let message = `\u26A0\uFE0F *Things are heating up*\n\n`
       message += `*Container:* ${containerName}\n`
       message += `*Issue:* ${issueText}\n`
-      message += `\n_${instanceName}_`
+      message += `This container is working up a sweat! Might be worth scaling up or investigating.\n`
+      message += `\n_\u2014 Slippy, from ${instanceName}_`
 
       await sails.helpers.notification.sendSlack.with({ message }).tolerate('error')
     }
@@ -87,10 +89,11 @@ module.exports = {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             embeds: [{
-              title: '\u26A0\uFE0F High Resource Usage',
+              title: '\u26A0\uFE0F Things are heating up',
+              description: 'This container is working up a sweat! Might be worth scaling up or investigating.',
               color: 0xf59e0b,
               fields,
-              footer: { text: instanceName },
+              footer: { text: `\u2014 Slippy, from ${instanceName}` },
               timestamp: new Date().toISOString()
             }]
           })
@@ -103,7 +106,7 @@ module.exports = {
     if (smtpEnabled === 'true') {
       await sails.helpers.notification.sendEmail.with({
         template: 'email-resource-alert',
-        subject: `\u26A0\uFE0F High resource usage: ${containerName}`,
+        subject: `\u26A0\uFE0F Things are heating up \u2014 ${containerName}`,
         templateData: {
           containerName,
           cpuPercent,

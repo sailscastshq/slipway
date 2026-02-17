@@ -50,7 +50,7 @@ module.exports = {
 
         const threadId = inputs.telegramThreadId || await sails.helpers.setting.get('telegramThreadId', '')
 
-        const message = `\u2705 <b>Slipway Test Notification</b>\n\nThis is a test message from your Slipway instance. If you receive this, Telegram notifications are working correctly.\n\n<i>Slipway</i>`
+        const message = `\u2705 <b>You're all set!</b>\n\nHey! It's Slippy. Just a quick wave \u2014 your Telegram notifications are configured and working perfectly. I'll keep you posted on deployments, backups, and anything else that needs your attention.\n\n<i>\u2014 Slippy</i>`
 
         const payload = {
           chat_id: chatId,
@@ -97,11 +97,11 @@ module.exports = {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             embeds: [{
-              title: 'Slipway Test Notification',
-              description: 'This is a test message from your Slipway instance. If you receive this, Discord notifications are working correctly.',
+              title: '\u2705 You\'re all set!',
+              description: 'Hey! It\'s Slippy. Just a quick wave \u2014 your Discord notifications are configured and working perfectly. I\'ll keep you posted on deployments, backups, and anything else that needs your attention.',
               color: 0x10b981,
               footer: {
-                text: 'Slipway'
+                text: '\u2014 Slippy'
               },
               timestamp: new Date().toISOString()
             }]
@@ -133,7 +133,7 @@ module.exports = {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            text: '\u2705 *Slipway Test Notification*\n\nThis is a test message from your Slipway instance. If you receive this, Slack notifications are working correctly.\n\n_Slipway_'
+            text: '\u2705 *You\'re all set!*\n\nHey! It\'s Slippy. Just a quick wave \u2014 your Slack notifications are configured and working perfectly. I\'ll keep you posted on deployments, backups, and anything else that needs your attention.\n\n_\u2014 Slippy_'
           })
         })
 

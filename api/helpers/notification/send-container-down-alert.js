@@ -26,11 +26,11 @@ module.exports = {
     // Send Telegram notification (HTML format)
     const telegramEnabled = await sails.helpers.setting.get('telegramEnabled', 'false')
     if (telegramEnabled === 'true') {
-      let message = `\uD83D\uDD34 <b>Container Down</b>\n\n`
+      let message = `\uD83D\uDD34 <b>Heads up \u2014 container went down</b>\n\n`
       message += `<b>Container:</b> ${escapeHtml(containerName)}\n`
       message += `<b>Type:</b> ${escapeHtml(resourceType)}\n`
-      message += `<b>Status:</b> Stopped unexpectedly\n`
-      message += `\n<i>${escapeHtml(instanceName)}</i>`
+      message += `I noticed this container went down on its own \u2014 nobody told it to stop. You might want to check the logs.\n`
+      message += `\n<i>\u2014 Slippy, from ${escapeHtml(instanceName)}</i>`
 
       await sails.helpers.notification.sendTelegram.with({ message }).tolerate('error')
     }
@@ -38,11 +38,11 @@ module.exports = {
     // Send Slack notification
     const slackEnabled = await sails.helpers.setting.get('slackEnabled', 'false')
     if (slackEnabled === 'true') {
-      let message = `\uD83D\uDD34 *Container Down*\n\n`
+      let message = `\uD83D\uDD34 *Heads up \u2014 container went down*\n\n`
       message += `*Container:* ${containerName}\n`
       message += `*Type:* ${resourceType}\n`
-      message += `*Status:* Stopped unexpectedly\n`
-      message += `\n_${instanceName}_`
+      message += `I noticed this container went down on its own \u2014 nobody told it to stop. You might want to check the logs.\n`
+      message += `\n_\u2014 Slippy, from ${instanceName}_`
 
       await sails.helpers.notification.sendSlack.with({ message }).tolerate('error')
     }
@@ -57,14 +57,14 @@ module.exports = {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             embeds: [{
-              title: '\uD83D\uDD34 Container Down',
+              title: '\uD83D\uDD34 Heads up \u2014 container went down',
               color: 0xef4444,
               fields: [
                 { name: 'Container', value: containerName, inline: true },
-                { name: 'Type', value: resourceType, inline: true },
-                { name: 'Status', value: 'Stopped unexpectedly', inline: true }
+                { name: 'Type', value: resourceType, inline: true }
               ],
-              footer: { text: instanceName },
+              description: 'I noticed this container went down on its own \u2014 nobody told it to stop. You might want to check the logs.',
+              footer: { text: `\u2014 Slippy, from ${instanceName}` },
               timestamp: new Date().toISOString()
             }]
           })
@@ -77,7 +77,7 @@ module.exports = {
     if (smtpEnabled === 'true') {
       await sails.helpers.notification.sendEmail.with({
         template: 'email-container-down',
-        subject: `\uD83D\uDD34 Container down: ${containerName}`,
+        subject: `\uD83D\uDD34 Heads up \u2014 ${containerName} went down`,
         templateData: {
           containerName,
           resourceType,

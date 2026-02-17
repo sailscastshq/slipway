@@ -31,11 +31,11 @@ module.exports = {
     // Send Telegram notification (HTML format)
     const telegramEnabled = await sails.helpers.setting.get('telegramEnabled', 'false')
     if (telegramEnabled === 'true') {
-      let message = `\u274C <b>Job Failed</b>\n\n`
+      let message = `\u274C <b>A job didn't finish</b>\n\n`
       message += `<b>Job:</b> ${escapeHtml(jobName)}\n`
       message += `<b>Duration:</b> ${durationText}\n`
       message += `<b>Error:</b> ${escapeHtml(errorMessage)}\n`
-      message += `\n<i>${escapeHtml(instanceName)}</i>`
+      message += `\n<i>\u2014 Slippy, from ${escapeHtml(instanceName)}</i>`
 
       await sails.helpers.notification.sendTelegram.with({ message }).tolerate('error')
     }
@@ -43,11 +43,11 @@ module.exports = {
     // Send Slack notification
     const slackEnabled = await sails.helpers.setting.get('slackEnabled', 'false')
     if (slackEnabled === 'true') {
-      let message = `\u274C *Job Failed*\n\n`
+      let message = `\u274C *A job didn't finish*\n\n`
       message += `*Job:* ${jobName}\n`
       message += `*Duration:* ${durationText}\n`
       message += `*Error:* ${errorMessage}\n`
-      message += `\n_${instanceName}_`
+      message += `\n_\u2014 Slippy, from ${instanceName}_`
 
       await sails.helpers.notification.sendSlack.with({ message }).tolerate('error')
     }
@@ -62,14 +62,14 @@ module.exports = {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             embeds: [{
-              title: '\u274C Job Failed',
+              title: '\u274C A job didn\'t finish',
               color: 0xef4444,
               fields: [
                 { name: 'Job', value: jobName, inline: true },
                 { name: 'Duration', value: durationText, inline: true },
                 { name: 'Error', value: errorMessage.substring(0, 1024) }
               ],
-              footer: { text: instanceName },
+              footer: { text: `\u2014 Slippy, from ${instanceName}` },
               timestamp: new Date().toISOString()
             }]
           })
@@ -82,7 +82,7 @@ module.exports = {
     if (smtpEnabled === 'true') {
       await sails.helpers.notification.sendEmail.with({
         template: 'email-job-failure',
-        subject: `\u274C Job failed: ${jobName}`,
+        subject: `\u274C A job didn't finish \u2014 ${jobName}`,
         templateData: {
           jobName,
           errorMessage,
