@@ -42,10 +42,12 @@ module.exports = {
 
     const instanceName = await sails.helpers.setting.get('instanceName', 'Slipway')
     const instanceDomain = await sails.helpers.setting.get('instanceDomain', '')
+    const app = deployment.app ? await App.findOne({ id: deployment.app }) : null
+    const appName = app ? app.name : project.name
 
     const emoji = isSuccess ? '\u2705' : '\u274C'
     const statusText = isSuccess ? 'succeeded' : 'failed'
-    const slippyTitle = isSuccess ? 'Ship shipped!' : 'Deployment hit a snag'
+    const slippyTitle = isSuccess ? 'Deployment successful' : 'Deployment failed'
     const deploymentUrl = instanceDomain
       ? `https://${instanceDomain}/projects/${project.slug}/deployments/${deployment.id}`
       : null
@@ -54,7 +56,7 @@ module.exports = {
     const telegramEnabled = await sails.helpers.setting.get('telegramEnabled', 'false')
     if (telegramEnabled === 'true') {
       let message = `${emoji} <b>${slippyTitle}</b>\n\n`
-      message += `<b>Project:</b> ${escapeHtml(project.name)}\n`
+      message += `<b>App:</b> ${escapeHtml(appName)}\n`
       message += `<b>Environment:</b> ${escapeHtml(environment.name)}\n`
       if (deployment.gitBranch) {
         message += `<b>Branch:</b> ${escapeHtml(deployment.gitBranch)}\n`
@@ -74,7 +76,7 @@ module.exports = {
     const slackEnabled = await sails.helpers.setting.get('slackEnabled', 'false')
     if (slackEnabled === 'true') {
       let message = `${emoji} *${slippyTitle}*\n\n`
-      message += `*Project:* ${project.name}\n`
+      message += `*App:* ${appName}\n`
       message += `*Environment:* ${environment.name}\n`
       if (deployment.gitBranch) {
         message += `*Branch:* ${deployment.gitBranch}\n`
@@ -96,7 +98,7 @@ module.exports = {
       const discordWebhookUrl = await sails.helpers.setting.get('discordWebhookUrl', '')
       if (discordWebhookUrl) {
         const fields = [
-          { name: 'Project', value: project.name, inline: true },
+          { name: 'App', value: appName, inline: true },
           { name: 'Environment', value: environment.name, inline: true }
         ]
         if (deployment.gitBranch) {
@@ -128,10 +130,11 @@ module.exports = {
     if (smtpEnabled === 'true') {
       await sails.helpers.notification.sendEmail.with({
         template: 'email-deployment-notification',
-        subject: `${emoji} ${slippyTitle} \u2014 ${project.name} (${environment.name})`,
+        subject: `${slippyTitle} \u2014 ${appName} (${environment.name})`,
         templateData: {
           isSuccess,
           statusText,
+          appName,
           project,
           environment,
           deployment,
@@ -147,6 +150,7 @@ module.exports = {
       await sails.helpers.notification.sendWebhook.with({
         event: isSuccess ? 'deployment.success' : 'deployment.failed',
         data: {
+          app: { name: appName },
           project: { name: project.name, slug: project.slug },
           environment: { name: environment.name },
           deployment: {
