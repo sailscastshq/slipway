@@ -6,6 +6,7 @@ const standardLimiter = rateLimit({
   max: 5,
   standardHeaders: true,
   legacyHeaders: false,
+  validate: { trustProxy: false },
   handler: rateLimitHandler
 })
 
@@ -15,6 +16,7 @@ const forgotPasswordLimiter = rateLimit({
   max: 3,
   standardHeaders: true,
   legacyHeaders: false,
+  validate: { trustProxy: false },
   handler: rateLimitHandler
 })
 
