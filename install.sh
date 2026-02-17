@@ -32,12 +32,26 @@ else
     echo -e "${GREEN}Docker already installed${NC}"
 fi
 
-# 2. Create network for Slipway and apps
+# 2. Ensure Docker BuildKit (buildx) is available
+if docker buildx version &> /dev/null; then
+    echo -e "${GREEN}Docker BuildKit already installed${NC}"
+else
+    echo "Installing Docker BuildKit..."
+    apt-get update -qq && apt-get install -y -qq docker-buildx-plugin 2>/dev/null || {
+        # Manual install if package not available
+        mkdir -p ~/.docker/cli-plugins
+        BUILDX_URL="https://github.com/docker/buildx/releases/latest/download/buildx-$(uname -s | tr '[:upper:]' '[:lower:]')-$(uname -m)"
+        curl -fsSL "$BUILDX_URL" -o ~/.docker/cli-plugins/docker-buildx && chmod +x ~/.docker/cli-plugins/docker-buildx
+    }
+    echo -e "${GREEN}Docker BuildKit installed${NC}"
+fi
+
+# 3. Create network for Slipway and apps
 echo "Creating Docker network..."
 docker network create slipway 2>/dev/null || true
 echo -e "${GREEN}Network ready${NC}"
 
-# 3. Detect server's public IPv4 address
+# 4. Detect server's public IPv4 address
 echo "Detecting server IP..."
 IP=$(curl -4 -s --max-time 5 ifconfig.me 2>/dev/null || curl -4 -s --max-time 5 icanhazip.com 2>/dev/null || echo "")
 if [ -z "$IP" ]; then
@@ -47,7 +61,7 @@ fi
 SLIPWAY_URL="http://$IP:1337"
 echo -e "${GREEN}Server URL: $SLIPWAY_URL${NC}"
 
-# 4. Load or generate secrets
+# 5. Load or generate secrets
 if [ -f "$SLIPWAY_ENV_FILE" ]; then
     # Update: reuse existing secrets
     echo -e "${GREEN}Existing installation detected — reusing secrets${NC}"
@@ -68,7 +82,7 @@ EOF
     echo -e "${GREEN}Secrets generated and saved to $SLIPWAY_ENV_FILE${NC}"
 fi
 
-# 5. Start Caddy (reverse proxy with automatic HTTPS)
+# 6. Start Caddy (reverse proxy with automatic HTTPS)
 echo "Starting Caddy proxy..."
 docker rm -f slipway-proxy 2>/dev/null || true
 docker run -d \
@@ -83,12 +97,12 @@ docker run -d \
     lucaslorentz/caddy-docker-proxy:latest
 echo -e "${GREEN}Caddy proxy running${NC}"
 
-# 6. Pull latest images
+# 7. Pull latest images
 echo "Pulling latest Slipway image..."
 docker pull ghcr.io/sailscastshq/slipway:latest
 docker pull alpine
 
-# 7. Start Slipway dashboard
+# 8. Start Slipway dashboard
 echo "Starting Slipway dashboard..."
 docker rm -f slipway 2>/dev/null || true
 
@@ -124,12 +138,12 @@ docker run -d \
     ghcr.io/sailscastshq/slipway:latest
 echo -e "${GREEN}Slipway dashboard running${NC}"
 
-# 8. Wait for startup
+# 9. Wait for startup
 echo ""
 echo "Waiting for Slipway to start..."
 sleep 5
 
-# 9. Show access info
+# 10. Show access info
 echo ""
 echo -e "${GREEN}========================================================${NC}"
 if [ "$IS_UPDATE" = true ]; then

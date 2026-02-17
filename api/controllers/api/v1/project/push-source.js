@@ -14,6 +14,10 @@ module.exports = {
       type: 'string',
       required: true,
       description: 'Project slug'
+    },
+    source: {
+      type: 'ref',
+      description: 'Source tarball file upload'
     }
   },
 

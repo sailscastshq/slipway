@@ -128,36 +128,16 @@ module.exports = {
     // Image (always use latest)
     runArgs.push(pullTarget)
 
-    // 6. Extract the DB volume name for migration
-    const dbMount = (containerInfo.Mounts || []).find(
-      (m) => m.Type === 'volume' && m.Destination === '/app/db'
-    )
-    const dbVolumeName = dbMount ? dbMount.Name : 'slipway-db'
-
-    // 7. Spawn the bosun — a detached sidecar container that performs the swap
+    // 6. Spawn the bosun — a detached sidecar container that performs the swap
     // Uses Node.js + execFileSync to avoid shell injection entirely
+    // Skips migration since production uses migrate: 'safe' (no-op)
     const argsJson = JSON.stringify(runArgs)
-    const migrateArgs = JSON.stringify([
-      'run',
-      '--rm',
-      '-v',
-      `${dbVolumeName}:/app/db`,
-      pullTarget,
-      'node',
-      '-e',
-      'const sails = require("sails"); sails.lift({ port: 0 }, (err) => { if (err) { console.error(err); process.exit(1); } console.log("Migration complete"); sails.lower(() => process.exit(0)); })'
-    ])
     const script =
       'const{execFileSync}=require("child_process");' +
       'setTimeout(()=>{' +
       'try{' +
       'console.log("Stopping old Slipway container...");' +
       'execFileSync("docker",["rm","-f","slipway"]);' +
-      'console.log("Running database migration...");' +
-      'execFileSync("docker",' +
-      migrateArgs +
-      ',{stdio:"inherit"});' +
-      'console.log("Migration step complete.");' +
       'console.log("Starting new Slipway container...");' +
       'execFileSync("docker",' +
       argsJson +
@@ -165,6 +145,10 @@ module.exports = {
       'console.log("Update complete!");' +
       '}catch(e){' +
       'console.error("Update failed:",e.message);' +
+      'try{console.log("Attempting recovery...");' +
+      'execFileSync("docker",' +
+      argsJson +
+      ');}catch(e2){console.error("Recovery failed:",e2.message)}' +
       'process.exit(1)' +
       '}' +
       '},3000)'
