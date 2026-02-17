@@ -92,6 +92,17 @@ module.exports = {
       }
     }
 
+    // Port bindings
+    const portBindings = containerInfo.HostConfig?.PortBindings || {}
+    for (const [containerPort, bindings] of Object.entries(portBindings)) {
+      for (const binding of bindings || []) {
+        const hostPort = binding.HostPort || ''
+        if (hostPort) {
+          runArgs.push('-p', `${hostPort}:${containerPort.replace('/tcp', '')}`)
+        }
+      }
+    }
+
     // Environment variables
     for (const envVar of containerInfo.Config?.Env || []) {
       runArgs.push('-e', envVar)
@@ -114,15 +125,36 @@ module.exports = {
     // Image (always use latest)
     runArgs.push(pullTarget)
 
-    // 5. Spawn the bosun — a detached sidecar container that performs the swap
+    // 5. Extract the DB volume name for migration
+    const dbMount = (containerInfo.Mounts || []).find(
+      (m) => m.Type === 'volume' && m.Destination === '/app/db'
+    )
+    const dbVolumeName = dbMount ? dbMount.Name : 'slipway-db'
+
+    // 6. Spawn the bosun — a detached sidecar container that performs the swap
     // Uses Node.js + execFileSync to avoid shell injection entirely
     const argsJson = JSON.stringify(runArgs)
+    const migrateArgs = JSON.stringify([
+      'run',
+      '--rm',
+      '-v',
+      `${dbVolumeName}:/app/db`,
+      pullTarget,
+      'node',
+      '-e',
+      'const sails = require("sails"); sails.lift({ port: 0 }, (err) => { if (err) { console.error(err); process.exit(1); } console.log("Migration complete"); sails.lower(() => process.exit(0)); })'
+    ])
     const script =
       'const{execFileSync}=require("child_process");' +
       'setTimeout(()=>{' +
       'try{' +
       'console.log("Stopping old Slipway container...");' +
       'execFileSync("docker",["rm","-f","slipway"]);' +
+      'console.log("Running database migration...");' +
+      'execFileSync("docker",' +
+      migrateArgs +
+      ',{stdio:"inherit"});' +
+      'console.log("Migration step complete.");' +
       'console.log("Starting new Slipway container...");' +
       'execFileSync("docker",' +
       argsJson +
