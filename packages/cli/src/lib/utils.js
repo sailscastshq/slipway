@@ -68,14 +68,19 @@ export function createSpinner(text) {
   const frames = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏']
   let i = 0
   let interval = null
+  let currentText = text
 
   return {
     start() {
-      process.stdout.write(`\r${c.info(frames[0])} ${text}`)
+      process.stdout.write(`\r${c.info(frames[0])} ${currentText}`)
       interval = setInterval(() => {
         i = (i + 1) % frames.length
-        process.stdout.write(`\r${c.info(frames[i])} ${text}`)
+        process.stdout.write(`\x1b[2K\r${c.info(frames[i])} ${currentText}`)
       }, 80)
+      return this
+    },
+    setText(newText) {
+      currentText = newText
       return this
     },
     stop(finalText) {
@@ -83,7 +88,7 @@ export function createSpinner(text) {
         clearInterval(interval)
         interval = null
       }
-      process.stdout.write('\r' + ' '.repeat(text.length + 4) + '\r')
+      process.stdout.write(`\x1b[2K\r`)
       if (finalText) console.log(finalText)
       return this
     },
