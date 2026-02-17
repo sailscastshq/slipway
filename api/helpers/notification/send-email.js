@@ -38,6 +38,8 @@ module.exports = {
     }
 
     try {
+      await sails.helpers.setting.syncSmtpConfig()
+
       for (const to of emails) {
         await sails.helpers.mail.send.with({
           to,

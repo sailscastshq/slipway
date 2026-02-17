@@ -5,6 +5,7 @@
  */
 
 module.exports = {
+  tableName: 'git_providers',
   attributes: {
     // Provider type
     type: {
@@ -52,13 +53,15 @@ module.exports = {
     apiUrl: {
       type: 'string',
       allowNull: true,
-      description: 'API URL for self-hosted Git (e.g., https://gitlab.company.com/api/v4)'
+      description:
+        'API URL for self-hosted Git (e.g., https://gitlab.company.com/api/v4)'
     },
 
     baseUrl: {
       type: 'string',
       allowNull: true,
-      description: 'Base URL for self-hosted Git (e.g., https://gitlab.company.com)'
+      description:
+        'Base URL for self-hosted Git (e.g., https://gitlab.company.com)'
     },
 
     // Status

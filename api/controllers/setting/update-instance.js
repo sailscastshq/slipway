@@ -77,7 +77,7 @@ module.exports = {
       ipAddress: this.req.ip
     })
 
-    this.req._sails.inertia.flash('success', 'Instance settings updated')
+    sails.inertia.flash('success', 'Instance settings updated')
     return '/settings/instance'
   }
 }

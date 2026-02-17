@@ -2,6 +2,7 @@
 import { Head, useForm } from '@inertiajs/vue3'
 import { computed } from 'vue'
 import SlipwayLogo from '@/components/SlipwayLogo.vue'
+import SlippyLoader from '@/components/SlippyLoader.vue'
 
 const form = useForm({
   email: '',
@@ -61,7 +62,7 @@ const isFormValid = computed(() => {
           type="email"
           placeholder="Enter your email address..."
           autocomplete="email"
-          class="w-full h-12 px-4 bg-white dark:bg-black border border-gray-200 dark:border-gray-800 rounded-md text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:border-brand"
+          class="w-full h-12 px-1 bg-transparent border-b border-dashed border-gray-200 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:border-brand dark:border-gray-700"
         />
 
         <input
@@ -70,7 +71,7 @@ const isFormValid = computed(() => {
           type="password"
           placeholder="Create a password"
           autocomplete="new-password"
-          class="w-full h-12 px-4 bg-white dark:bg-black border border-gray-200 dark:border-gray-800 rounded-md text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:border-brand"
+          class="w-full h-12 px-1 bg-transparent border-b border-dashed border-gray-200 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:border-brand dark:border-gray-700"
         />
 
         <input
@@ -79,7 +80,7 @@ const isFormValid = computed(() => {
           type="password"
           placeholder="Confirm password"
           autocomplete="new-password"
-          class="w-full h-12 px-4 bg-white dark:bg-black border border-gray-200 dark:border-gray-800 rounded-md text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:border-brand"
+          class="w-full h-12 px-1 bg-transparent border-b border-dashed border-gray-200 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:border-brand dark:border-gray-700"
         />
 
         <!-- Password Requirements -->
@@ -96,15 +97,7 @@ const isFormValid = computed(() => {
           :disabled="!isFormValid"
           class="w-full h-12 bg-gray-900 dark:bg-white hover:bg-gray-800 dark:hover:bg-gray-100 disabled:bg-gray-100 dark:disabled:bg-gray-900 disabled:text-gray-400 dark:disabled:text-gray-600 text-white dark:text-black font-medium rounded-md transition-colors flex items-center justify-center gap-2 border border-gray-200 dark:border-gray-800"
         >
-          <svg
-            v-if="form.processing"
-            class="w-4 h-4 animate-spin"
-            fill="none"
-            viewBox="0 0 24 24"
-          >
-            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
-            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-          </svg>
+          <SlippyLoader v-if="form.processing" size="h-4 w-4" />
           <span>{{ form.processing ? 'Creating account...' : 'Create account' }}</span>
         </button>
       </form>

@@ -4,6 +4,56 @@ import { api } from '../lib/api.js'
 import { isLoggedIn, getCredentials } from '../lib/config.js'
 import { error, requireProject, createSpinner } from '../lib/utils.js'
 
+const maritimeMessages = {
+  pending: [
+    'Waiting for the tide...',
+    'Checking the compass...',
+    'Reading the stars...',
+    'Gathering the crew...',
+  ],
+  building: [
+    'Hoisting the sails...',
+    'Loading the cargo...',
+    'Checking the rigging...',
+    'Swabbing the deck...',
+    'Tying the knots...',
+    'Hammering the hull...',
+  ],
+  pushing: [
+    'Signaling the fleet...',
+    'Sending up a flare...',
+    'Raising the flag...',
+  ],
+  deploying: [
+    'Charting the course...',
+    'Setting sail...',
+    'Catching the wind...',
+    'Navigating the waters...',
+    'Full speed ahead...',
+    'Approaching the harbor...',
+  ],
+}
+
+const statusLabels = {
+  pending: 'Waiting',
+  building: 'Building',
+  pushing: 'Pushing',
+  deploying: 'Deploying',
+}
+
+function createMessageRotator(spinner, status) {
+  const messages = maritimeMessages[status]
+  if (!messages) return null
+  let index = 0
+  const label = statusLabels[status] || status
+  spinner.setText(`${label} — ${c.dim(messages[0])}`)
+  index = 1
+  return setInterval(() => {
+    spinner.setText(`${label} — ${c.dim(messages[index % messages.length])}`)
+    index++
+  }, 4000)
+}
+
 export default async function slide(options) {
   if (!isLoggedIn()) {
     error('Not logged in. Run `slipway login` first.')
@@ -183,9 +233,11 @@ function watchDeploymentSSE(deploymentId) {
     const controller = new AbortController()
     let currentSpin = null
     let lastStatus = ''
+    let messageRotatorInterval = null
 
     const timeout = setTimeout(() => {
       controller.abort()
+      if (messageRotatorInterval) clearInterval(messageRotatorInterval)
       if (currentSpin) currentSpin.stop()
       reject(new Error('timeout'))
     }, 10 * 60 * 1000) // 10 minute timeout
@@ -207,6 +259,7 @@ function watchDeploymentSSE(deploymentId) {
         let buffer = ''
 
         currentSpin = createSpinner('Building...').start()
+        messageRotatorInterval = createMessageRotator(currentSpin, 'building')
 
         while (true) {
           const { done, value } = await reader.read()
@@ -227,12 +280,12 @@ function watchDeploymentSSE(deploymentId) {
                 // Update spinner based on status
                 if (data.status !== lastStatus) {
                   lastStatus = data.status
+                  if (messageRotatorInterval) clearInterval(messageRotatorInterval)
                   if (currentSpin) currentSpin.stop()
 
-                  if (data.status === 'building') {
-                    currentSpin = createSpinner('Building...').start()
-                  } else if (data.status === 'deploying') {
-                    currentSpin = createSpinner('Deploying...').start()
+                  if (['building', 'pushing', 'deploying'].includes(data.status)) {
+                    currentSpin = createSpinner('...').start()
+                    messageRotatorInterval = createMessageRotator(currentSpin, data.status)
                   } else if (data.status === 'running' || data.status === 'failed' || data.status === 'cancelled') {
                     clearTimeout(timeout)
                     controller.abort()
@@ -243,10 +296,12 @@ function watchDeploymentSSE(deploymentId) {
 
                 // Show build output if available
                 if (data.output) {
+                  if (messageRotatorInterval) clearInterval(messageRotatorInterval)
                   if (currentSpin) currentSpin.stop()
                   console.log(`  ${c.dim(data.output)}`)
-                  if (lastStatus === 'building' || lastStatus === 'deploying') {
-                    currentSpin = createSpinner(lastStatus === 'building' ? 'Building...' : 'Deploying...').start()
+                  if (['building', 'pushing', 'deploying'].includes(lastStatus)) {
+                    currentSpin = createSpinner('...').start()
+                    messageRotatorInterval = createMessageRotator(currentSpin, lastStatus)
                   }
                 }
               } catch {
@@ -258,6 +313,7 @@ function watchDeploymentSSE(deploymentId) {
 
         // Stream ended — resolve with last known status or fall back to polling
         clearTimeout(timeout)
+        if (messageRotatorInterval) clearInterval(messageRotatorInterval)
         if (currentSpin) currentSpin.stop()
         if (lastStatus && ['running', 'failed', 'cancelled'].includes(lastStatus)) {
           resolve({ status: lastStatus })
@@ -267,6 +323,7 @@ function watchDeploymentSSE(deploymentId) {
       })
       .catch((err) => {
         clearTimeout(timeout)
+        if (messageRotatorInterval) clearInterval(messageRotatorInterval)
         if (currentSpin) currentSpin.stop()
         if (err.name !== 'AbortError') {
           reject(err)
@@ -281,6 +338,7 @@ function watchDeploymentSSE(deploymentId) {
 async function watchDeploymentPolling(deploymentId) {
   const spin = createSpinner('Building...').start()
   let lastStatus = ''
+  let messageRotatorInterval = createMessageRotator(spin, 'building')
 
   const maxAttempts = 300 // 10 minutes at 2s intervals
   let attempts = 0
@@ -296,13 +354,12 @@ async function watchDeploymentPolling(deploymentId) {
       // Update spinner text based on status
       if (status !== lastStatus) {
         lastStatus = status
-        spin.stop()
+        if (messageRotatorInterval) clearInterval(messageRotatorInterval)
 
-        if (status === 'building') {
-          createSpinner('Building...').start()
-        } else if (status === 'deploying') {
-          createSpinner('Deploying...').start()
+        if (['building', 'pushing', 'deploying'].includes(status)) {
+          messageRotatorInterval = createMessageRotator(spin, status)
         } else if (status === 'running' || status === 'failed' || status === 'cancelled') {
+          spin.stop()
           return { status }
         }
       }
@@ -311,6 +368,7 @@ async function watchDeploymentPolling(deploymentId) {
     }
   }
 
+  if (messageRotatorInterval) clearInterval(messageRotatorInterval)
   spin.stop()
   return { status: 'timeout' }
 }

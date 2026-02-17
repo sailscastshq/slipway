@@ -3,6 +3,7 @@ import { Link, Head, router } from '@inertiajs/vue3'
 import { inject, ref, computed } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
 import ConfirmModal from '@/components/ConfirmModal.vue'
+import { useToast } from '@/composables/toast'
 
 defineOptions({
   layout: AppLayout
@@ -20,6 +21,7 @@ const props = defineProps({
 const toggleMobileMenu = inject('toggleMobileMenu')
 const toggleSidebar = inject('toggleSidebar')
 const sidebarCollapsed = inject('sidebarCollapsed')
+const toast = useToast()
 
 // ---- GitHub OAuth Configuration ----
 const oauthConfig = ref({
@@ -48,12 +50,15 @@ async function saveOAuthConfig() {
     if (res.ok) {
       configSaved.value = true
       router.reload()
+      toast({ message: 'GitHub OAuth configuration saved', type: 'success' })
     } else {
       const data = await res.json()
       configError.value = data.message || 'Failed to save configuration'
+      toast({ message: configError.value, type: 'error' })
     }
   } catch (err) {
     configError.value = 'Failed to save configuration'
+    toast({ message: configError.value, type: 'error' })
   } finally {
     savingConfig.value = false
   }
@@ -93,7 +98,12 @@ async function createToken() {
       const data = await res.json()
       createdToken.value = data.token
       newToken.value = { name: '', projectId: '', scopes: ['deploy'] }
+      toast({ message: 'Deploy token created', type: 'success' })
+    } else {
+      toast({ message: 'Failed to create token', type: 'error' })
     }
+  } catch (err) {
+    toast({ message: 'Failed to create token', type: 'error' })
   } finally {
     creatingToken.value = false
   }
@@ -117,11 +127,16 @@ function confirmRevokeToken(token) {
 }
 
 async function executeRevokeToken() {
-  await fetch(`/api/v1/deploy-tokens/${revokingTokenId.value}`, {
-    method: 'DELETE'
-  })
-  revokingTokenId.value = null
-  router.reload({ only: ['deployTokens'] })
+  try {
+    await fetch(`/api/v1/deploy-tokens/${revokingTokenId.value}`, {
+      method: 'DELETE'
+    })
+    revokingTokenId.value = null
+    router.reload({ only: ['deployTokens'] })
+    toast({ message: 'Deploy token revoked', type: 'success' })
+  } catch (err) {
+    toast({ message: 'Failed to revoke token', type: 'error' })
+  }
 }
 
 // ---- Computed ----

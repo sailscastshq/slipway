@@ -2,8 +2,6 @@
 import { Link, Head, useForm } from '@inertiajs/vue3'
 import { inject } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
-import { useToast } from '@/composables/toast'
-
 defineOptions({
   layout: AppLayout
 })
@@ -19,17 +17,13 @@ const toggleSidebar = inject('toggleSidebar')
 const sidebarCollapsed = inject('sidebarCollapsed')
 
 const form = useForm({
-  instanceDomain: props.instanceDomain,
-  instanceName: props.instanceName,
-  acmeEmail: props.acmeEmail
+  instanceDomain: props.instanceDomain || '',
+  instanceName: props.instanceName || '',
+  acmeEmail: props.acmeEmail || ''
 })
 
-const toast = useToast()
-
 function save() {
-  form.patch('/settings/instance', {
-    onSuccess: () => toast({ message: 'Instance settings saved', type: 'success' })
-  })
+  form.patch('/settings/instance')
 }
 </script>
 <template>
@@ -162,7 +156,7 @@ function save() {
           <div class="flex justify-end">
             <button
               type="submit"
-              :disabled="form.processing"
+              :disabled="form.processing || !form.isDirty"
               class="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
             >
               {{ form.processing ? 'Saving...' : 'Save changes' }}

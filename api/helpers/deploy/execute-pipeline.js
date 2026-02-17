@@ -106,7 +106,7 @@ module.exports = {
 
       // 8. Get resource limits from existing app
       const existingApp = targetApp || await App.findOne({ environment: environment.id, isDefault: true }) || await App.findOne({ environment: environment.id })
-      const resourceLimits = (existingApp && existingApp.resourceLimits) || { cpus: '1', memory: '1g' }
+      const resourceLimits = (existingApp && existingApp.resourceLimits) || { cpus: '1', memory: '1.5g' }
       const oldContainerName = existingApp ? existingApp.containerName : null
 
       // 9. Run the new container with deploy-scoped name (old container still running)
@@ -120,10 +120,11 @@ module.exports = {
         resourceLimits
       })
 
-      // 10. HTTP health check on the new container (via Docker network DNS)
+      // 10. HTTP health check on the new container (Docker DNS, with localhost fallback for local dev)
       await sails.helpers.docker.healthCheck.with({
         containerName: deployContainerName,
         port: 1337,
+        hostPort: deployHostPort,
         deploymentId
       })
 

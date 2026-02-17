@@ -55,6 +55,6 @@ module.exports.mail = {
    */
   from: {
     address: 'slipway@sailscasts.com',
-    name: 'Slipway'
+    name: 'Slippy from Slipway'
   }
 }

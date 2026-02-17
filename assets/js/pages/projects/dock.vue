@@ -5,6 +5,9 @@ import AppLayout from '@/layouts/AppLayout.vue'
 import ConfirmModal from '@/components/ConfirmModal.vue'
 import ToastContainer from '@/components/ToastContainer.vue'
 import Tooltip from '@/components/Tooltip.vue'
+import { highlightSQL } from '@/lib/highlightSQL'
+import { highlightJSON } from '@/lib/highlightJSON'
+import SlippyLoader from '@/components/SlippyLoader.vue'
 
 defineOptions({
   layout: AppLayout
@@ -231,46 +234,10 @@ function apiUrl(endpoint, extraParams = '') {
   return `${apiBasePath.value}${endpoint}${queryPart}`
 }
 
-// SQL syntax highlighting with tokenizer approach to avoid nested span issues
+// SQL syntax highlighting (shared utility)
 const highlightedQuery = computed(() => {
   return highlightSQL(query.value)
 })
-
-function highlightSQL(sql) {
-  if (!sql) return ''
-
-  const keywords = new Set(['SELECT', 'FROM', 'WHERE', 'AND', 'OR', 'NOT', 'IN', 'IS', 'NULL', 'LIKE', 'BETWEEN',
-    'JOIN', 'LEFT', 'RIGHT', 'INNER', 'OUTER', 'ON', 'AS', 'ORDER', 'BY', 'ASC', 'DESC', 'LIMIT', 'OFFSET',
-    'GROUP', 'HAVING', 'UNION', 'ALL', 'DISTINCT', 'INSERT', 'INTO', 'VALUES', 'UPDATE', 'SET', 'DELETE',
-    'CREATE', 'TABLE', 'ALTER', 'DROP', 'INDEX', 'PRIMARY', 'KEY', 'FOREIGN', 'REFERENCES', 'CONSTRAINT',
-    'DEFAULT', 'AUTOINCREMENT', 'AUTO_INCREMENT', 'SERIAL', 'IF', 'EXISTS', 'CASCADE', 'ADD', 'COLUMN',
-    'INTEGER', 'TEXT', 'VARCHAR', 'BOOLEAN', 'REAL', 'BIGINT', 'TIMESTAMP', 'JSON', 'JSONB', 'UNIQUE'])
-
-  // Tokenize: strings, numbers, words, whitespace, other
-  const tokens = []
-  const tokenPattern = /('(?:[^'\\]|\\.)*')|(\d+(?:\.\d+)?)|(\b[a-zA-Z_]\w*\b)|(\s+)|(.)/g
-  let match
-
-  while ((match = tokenPattern.exec(sql)) !== null) {
-    const [, str, num, word, ws, other] = match
-    if (str) tokens.push({ type: 'string', value: str })
-    else if (num) tokens.push({ type: 'number', value: num })
-    else if (word) tokens.push({ type: keywords.has(word.toUpperCase()) ? 'keyword' : 'identifier', value: word })
-    else if (ws) tokens.push({ type: 'whitespace', value: ws })
-    else if (other) tokens.push({ type: 'other', value: other })
-  }
-
-  // Render tokens with colors (using colors that work in both modes)
-  return tokens.map(t => {
-    const escaped = t.value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-    switch (t.type) {
-      case 'keyword': return `<span class="text-pink-600 dark:text-pink-400">${escaped}</span>`
-      case 'string': return `<span class="text-amber-600 dark:text-amber-400">${escaped}</span>`
-      case 'number': return `<span class="text-purple-600 dark:text-purple-400">${escaped}</span>`
-      default: return escaped
-    }
-  }).join('')
-}
 
 // Execute SQL query
 async function executeQuery() {
@@ -1057,10 +1024,7 @@ onUnmounted(() => {
 
           <!-- Running indicator -->
           <div v-if="redisRunning" class="flex items-center space-x-2 text-gray-500">
-            <svg class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
-              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-            </svg>
+            <SlippyLoader size="h-4 w-4" />
             <span>Executing...</span>
           </div>
         </div>
@@ -1085,10 +1049,7 @@ onUnmounted(() => {
               :disabled="!redisCommand.trim() || redisRunning"
               class="ml-2 flex items-center space-x-1.5 rounded-md bg-gray-200 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-300 disabled:opacity-50 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
             >
-              <svg v-if="redisRunning" class="h-3 w-3 animate-spin" fill="none" viewBox="0 0 24 24">
-                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-              </svg>
+              <SlippyLoader v-if="redisRunning" size="h-3 w-3" />
               <span>{{ redisRunning ? 'Running...' : 'Run' }}</span>
             </button>
           </div>
@@ -1150,7 +1111,7 @@ onUnmounted(() => {
             <div v-if="queryResult.columns && queryResult.columns.length > 0 && resultView === 'table'" class="overflow-auto flex-1">
               <table class="min-w-full">
                 <thead class="sticky top-0">
-                  <tr class="border-b border-gray-200 bg-gray-50 dark:border-gray-800 dark:bg-gray-900/50">
+                  <tr class="border-b border-gray-200 bg-gray-50 dark:border-gray-800 dark:bg-gray-900">
                     <th
                       v-for="col in queryResult.columns"
                       :key="col"
@@ -1172,6 +1133,8 @@ onUnmounted(() => {
                       class="whitespace-nowrap px-4 py-2 font-mono text-sm text-gray-700 dark:text-gray-300"
                     >
                       <span v-if="row[col] === null" class="text-gray-400 dark:text-gray-600">NULL</span>
+                      <span v-else-if="typeof row[col] === 'number'" class="text-purple-600 dark:text-purple-400">{{ row[col] }}</span>
+                      <span v-else-if="typeof row[col] === 'boolean'" class="text-blue-600 dark:text-blue-400">{{ row[col] }}</span>
                       <span v-else>{{ row[col] }}</span>
                     </td>
                   </tr>
@@ -1181,7 +1144,7 @@ onUnmounted(() => {
 
             <!-- JSON view -->
             <div v-else-if="queryResult.columns && queryResult.columns.length > 0 && resultView === 'json'" class="flex-1 overflow-auto p-4">
-              <pre class="font-mono text-xs text-gray-700 dark:text-gray-300">{{ JSON.stringify(queryResult.rows, null, 2) }}</pre>
+              <pre class="font-mono text-xs text-gray-700 dark:text-gray-300" v-html="highlightJSON(queryResult.rows)"></pre>
             </div>
 
             <!-- No columns (DDL result) -->
@@ -1299,10 +1262,7 @@ onUnmounted(() => {
             {{ isMongoDB ? 'Collections' : 'Tables' }} ({{ tables.length }})
           </div>
           <div v-if="tablesLoading" class="flex items-center justify-center py-8">
-            <svg class="h-5 w-5 animate-spin text-gray-400 dark:text-gray-600" fill="none" viewBox="0 0 24 24">
-              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
-              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-            </svg>
+            <SlippyLoader class="text-gray-400 dark:text-gray-600" />
           </div>
           <div v-else>
             <button
@@ -1331,10 +1291,7 @@ onUnmounted(() => {
             Select a {{ isMongoDB ? 'collection' : 'table' }} to browse data
           </div>
           <div v-else-if="tableDataLoading" class="flex h-full items-center justify-center">
-            <svg class="h-6 w-6 animate-spin text-gray-400 dark:text-gray-600" fill="none" viewBox="0 0 24 24">
-              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
-              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-            </svg>
+            <SlippyLoader size="h-6 w-6" class="text-gray-400 dark:text-gray-600" />
           </div>
           <div v-else-if="tableData" class="flex flex-col h-full">
             <div class="sticky top-0 z-10 border-b border-gray-200 bg-white px-4 py-2 dark:border-gray-800 dark:bg-gray-900">
@@ -1366,6 +1323,8 @@ onUnmounted(() => {
                     class="whitespace-nowrap px-3 py-2 font-mono text-xs text-gray-700 dark:text-gray-300"
                   >
                     <span v-if="row[col] === null" class="text-gray-400 dark:text-gray-600">NULL</span>
+                    <span v-else-if="typeof row[col] === 'number'" class="text-purple-600 dark:text-purple-400">{{ row[col] }}</span>
+                    <span v-else-if="typeof row[col] === 'boolean'" class="text-blue-600 dark:text-blue-400">{{ row[col] }}</span>
                     <span v-else>{{ row[col] }}</span>
                   </td>
                 </tr>
@@ -1379,10 +1338,7 @@ onUnmounted(() => {
       <!-- Schema Tab -->
       <div v-if="activeTab === 'schema'" class="flex-1 overflow-auto p-4 sm:p-6">
         <div v-if="schemaLoading" class="flex items-center justify-center py-12">
-          <svg class="h-6 w-6 animate-spin text-gray-400 dark:text-gray-600" fill="none" viewBox="0 0 24 24">
-            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
-            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-          </svg>
+          <SlippyLoader size="h-6 w-6" class="text-gray-400 dark:text-gray-600" />
         </div>
 
         <div v-else-if="schemaError" class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 dark:border-red-900/50 dark:bg-red-950/30">
@@ -1478,10 +1434,7 @@ onUnmounted(() => {
       <!-- Migrate Tab -->
       <div v-if="activeTab === 'migrate'" class="flex-1 overflow-auto p-4 sm:p-6">
         <div v-if="diffLoading" class="flex items-center justify-center py-12">
-          <svg class="h-6 w-6 animate-spin text-gray-400 dark:text-gray-600" fill="none" viewBox="0 0 24 24">
-            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
-            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-          </svg>
+          <SlippyLoader size="h-6 w-6" class="text-gray-400 dark:text-gray-600" />
         </div>
 
         <div v-else-if="diffError" class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 dark:border-red-900/50 dark:bg-red-950/30">
@@ -1626,10 +1579,7 @@ onUnmounted(() => {
                 exportLoading ? 'opacity-50' : ''
               ]"
             >
-              <svg v-if="exportLoading" class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
-                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-              </svg>
+              <SlippyLoader v-if="exportLoading" size="h-4 w-4" />
               <svg v-else class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
               </svg>

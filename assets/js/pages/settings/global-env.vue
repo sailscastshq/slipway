@@ -3,6 +3,7 @@ import { Link, Head, router } from '@inertiajs/vue3'
 import { inject, ref, reactive, computed, watch, onMounted } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
 import Tooltip from '@/components/Tooltip.vue'
+import { useToast } from '@/composables/toast'
 
 defineOptions({
   layout: AppLayout
@@ -16,6 +17,7 @@ const props = defineProps({
 const toggleMobileMenu = inject('toggleMobileMenu')
 const toggleSidebar = inject('toggleSidebar')
 const sidebarCollapsed = inject('sidebarCollapsed')
+const toast = useToast()
 
 const localVars = reactive({ ...props.globalEnvVars })
 const newKey = ref('')
@@ -55,12 +57,16 @@ function generateSecret() {
 async function saveVars(vars) {
   saving.value = true
   try {
-    await fetch('/settings/global-env', {
+    const res = await fetch('/settings/global-env', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ envVars: vars })
     })
+    if (!res.ok) throw new Error('Failed to save')
     router.reload({ only: ['globalEnvVars', 'backupConfigured'] })
+    toast({ message: 'Environment variables saved', type: 'success' })
+  } catch (err) {
+    toast({ message: err?.message || 'Failed to save environment variables', type: 'error' })
   } finally {
     saving.value = false
   }

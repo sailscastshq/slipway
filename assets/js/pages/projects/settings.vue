@@ -2,6 +2,7 @@
 import { Link, Head, useForm, router } from '@inertiajs/vue3'
 import { inject, ref } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
+import Breadcrumb from '@/components/Breadcrumb.vue'
 
 defineOptions({
   layout: AppLayout
@@ -96,20 +97,11 @@ function deleteProject() {
             <path d="M3.919 5.992 2.6 7.5l1.319 1.508" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
           </svg>
         </button>
-        <nav class="flex items-center space-x-2 text-sm">
-          <Link href="/" class="text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white">
-            projects
-          </Link>
-          <span class="text-gray-400 dark:text-gray-600">/</span>
-          <Link
-            :href="`/projects/${project.slug}`"
-            class="text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
-          >
-            {{ project.name.toLowerCase() }}
-          </Link>
-          <span class="text-gray-400 dark:text-gray-600">/</span>
-          <span class="font-medium text-gray-900 dark:text-white">settings</span>
-        </nav>
+        <Breadcrumb :items="[
+          { label: 'projects', href: '/' },
+          { label: project.name.toLowerCase(), href: `/projects/${project.slug}` },
+          { label: 'settings' }
+        ]" />
       </div>
       <div class="flex items-center space-x-4">
         <a
@@ -152,9 +144,9 @@ function deleteProject() {
             <textarea
               id="description"
               v-model="form.description"
-              rows="3"
               placeholder="A brief description about your project"
               class="w-full resize-none border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:border-brand focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
+              style="field-sizing: content"
             ></textarea>
           </div>
 
@@ -174,7 +166,7 @@ function deleteProject() {
           <div class="flex justify-end">
             <button
               type="submit"
-              :disabled="form.processing"
+              :disabled="form.processing || !form.isDirty"
               class="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
             >
               {{ form.processing ? 'Saving...' : 'Save changes' }}

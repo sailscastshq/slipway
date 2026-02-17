@@ -41,5 +41,8 @@ npm-debug.log
 # Install script (already on the host)
 install.sh
 
+# Videos (Pellicule renders)
+assets/js/videos/
+
 # Claude
 .claude/

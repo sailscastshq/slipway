@@ -2,6 +2,8 @@
 import { Link, Head, usePoll, router } from '@inertiajs/vue3'
 import { inject, ref, computed, watch, nextTick, onBeforeUnmount } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
+import Breadcrumb from '@/components/Breadcrumb.vue'
+import SlippyLoader from '@/components/SlippyLoader.vue'
 
 defineOptions({
   layout: AppLayout
@@ -265,29 +267,12 @@ function executeRollback() {
             <path d="M3.919 5.992 2.6 7.5l1.319 1.508" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
           </svg>
         </button>
-        <nav class="flex items-center space-x-2 text-sm">
-          <Link href="/" class="text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white">
-            projects
-          </Link>
-          <span class="text-gray-400 dark:text-gray-600">/</span>
-          <Link
-            :href="`/projects/${project.slug}`"
-            class="text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
-          >
-            {{ project.name.toLowerCase() }}
-          </Link>
-          <span class="text-gray-400 dark:text-gray-600">/</span>
-          <Link
-            :href="`/projects/${project.slug}/environments/${environment.slug}`"
-            class="text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
-          >
-            {{ environment.name.toLowerCase() }}
-          </Link>
-          <span class="text-gray-400 dark:text-gray-600">/</span>
-          <span class="font-medium text-gray-900 dark:text-white">
-            {{ deployment.id }}
-          </span>
-        </nav>
+        <Breadcrumb :items="[
+          { label: 'projects', href: '/' },
+          { label: project.name.toLowerCase(), href: `/projects/${project.slug}` },
+          { label: environment.name.toLowerCase(), href: `/projects/${project.slug}/environments/${environment.slug}` },
+          { label: String(deployment.id) }
+        ]" />
       </div>
       <div class="flex items-center space-x-4">
         <a
@@ -324,10 +309,7 @@ function executeRollback() {
                 v-if="isInProgress"
                 class="inline-flex items-center space-x-1 text-xs text-blue-600 dark:text-blue-400"
               >
-                <svg class="h-3 w-3 animate-spin" fill="none" viewBox="0 0 24 24">
-                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
+                <SlippyLoader size="h-3 w-3" />
                 <span>In progress</span>
               </span>
             </div>
@@ -373,10 +355,7 @@ function executeRollback() {
               <svg v-if="!rollingBack" class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
               </svg>
-              <svg v-else class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-              </svg>
+              <SlippyLoader v-else size="h-4 w-4" />
             </div>
           </div>
         </div>
@@ -423,10 +402,7 @@ function executeRollback() {
           >
             <pre v-if="allLogs" class="whitespace-pre-wrap break-all" v-html="highlightedLogs"></pre>
             <div v-else-if="isInProgress" class="flex items-center space-x-2 text-gray-500">
-              <svg class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-              </svg>
+              <SlippyLoader size="h-4 w-4" />
               <span>Waiting for logs...</span>
             </div>
             <span v-else class="text-gray-500">No logs available.</span>

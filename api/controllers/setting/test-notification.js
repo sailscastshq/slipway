@@ -16,12 +16,12 @@ module.exports = {
     discordWebhookUrl: { type: 'string' },
     slackWebhookUrl: { type: 'string' },
     webhookUrl: { type: 'string' },
+    notificationEmails: { type: 'string' },
     smtpHost: { type: 'string' },
     smtpPort: { type: 'string' },
     smtpUser: { type: 'string' },
     smtpPassword: { type: 'string' },
-    smtpFrom: { type: 'string' },
-    notificationEmails: { type: 'string' }
+    smtpFrom: { type: 'string' }
   },
 
   exits: {
@@ -50,7 +50,7 @@ module.exports = {
 
         const threadId = inputs.telegramThreadId || await sails.helpers.setting.get('telegramThreadId', '')
 
-        const message = `\u2705 <b>Slipway Test Notification</b>\n\nThis is a test message from your Slipway instance. If you receive this, Telegram notifications are working correctly.\n\n<i>Slipway</i>`
+        const message = `\u2705 <b>You're all set!</b>\n\nHey! It's Slippy. Just a quick wave \u2014 your Telegram notifications are configured and working perfectly. I'll keep you posted on deployments, backups, and anything else that needs your attention.\n\n<b>\u2014 Slippy \uD83D\uDC19</b>`
 
         const payload = {
           chat_id: chatId,
@@ -97,11 +97,11 @@ module.exports = {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             embeds: [{
-              title: 'Slipway Test Notification',
-              description: 'This is a test message from your Slipway instance. If you receive this, Discord notifications are working correctly.',
+              title: '\u2705 You\'re all set!',
+              description: 'Hey! It\'s Slippy. Just a quick wave \u2014 your Discord notifications are configured and working perfectly. I\'ll keep you posted on deployments, backups, and anything else that needs your attention.',
               color: 0x10b981,
               footer: {
-                text: 'Slipway'
+                text: '\u2014 Slippy \uD83D\uDC19'
               },
               timestamp: new Date().toISOString()
             }]
@@ -133,7 +133,7 @@ module.exports = {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            text: '\u2705 *Slipway Test Notification*\n\nThis is a test message from your Slipway instance. If you receive this, Slack notifications are working correctly.\n\n_Slipway_'
+            text: '\u2705 *You\'re all set!*\n\nHey! It\'s Slippy. Just a quick wave \u2014 your Slack notifications are configured and working perfectly. I\'ll keep you posted on deployments, backups, and anything else that needs your attention.\n\n*\u2014 Slippy \uD83D\uDC19*'
           })
         })
 
@@ -182,60 +182,49 @@ module.exports = {
       }
 
       if (channel === 'email') {
-        // Get global env vars first
-        let globalEnvVars = {}
-        try {
-          const globalJson = await sails.helpers.setting.get('globalEnvVars', '{}')
-          globalEnvVars = JSON.parse(globalJson)
-        } catch { /* ignore */ }
-
-        const smtpHost = inputs.smtpHost || globalEnvVars.MAIL_HOST || await sails.helpers.setting.get('smtpHost', '')
-        const smtpPort = inputs.smtpPort || globalEnvVars.MAIL_PORT || await sails.helpers.setting.get('smtpPort', '587')
-        const smtpUser = inputs.smtpUser || globalEnvVars.MAIL_USER || await sails.helpers.setting.get('smtpUser', '')
-        const smtpPassword = inputs.smtpPassword || globalEnvVars.MAIL_PASSWORD || await sails.helpers.setting.get('smtpPassword', '')
-        const smtpFrom = inputs.smtpFrom || globalEnvVars.MAIL_FROM || await sails.helpers.setting.get('smtpFrom', '')
         const notificationEmails = inputs.notificationEmails || await sails.helpers.setting.get('notificationEmails', '')
 
-        if (!smtpHost || !notificationEmails) {
+        if (!notificationEmails) {
           return this.res.status(400).json({
             success: false,
-            message: 'SMTP host and notification emails are required'
+            message: 'Notification email addresses are required'
           })
         }
 
-        const nodemailer = require('nodemailer')
+        // Save SMTP settings first so sails-hook-mail can use them
+        if (inputs.smtpHost) {
+          await sails.helpers.setting.set('smtpHost', inputs.smtpHost.trim())
+        }
+        if (inputs.smtpPort) {
+          await sails.helpers.setting.set('smtpPort', inputs.smtpPort.trim())
+        }
+        if (inputs.smtpUser) {
+          await sails.helpers.setting.set('smtpUser', inputs.smtpUser.trim())
+        }
+        if (inputs.smtpPassword) {
+          await sails.helpers.setting.set('smtpPassword', inputs.smtpPassword)
+        }
+        if (inputs.smtpFrom) {
+          await sails.helpers.setting.set('smtpFrom', inputs.smtpFrom.trim())
+        }
+        if (inputs.notificationEmails) {
+          await sails.helpers.setting.set('notificationEmails', inputs.notificationEmails.trim())
+        }
 
-        const transporter = nodemailer.createTransport({
-          host: smtpHost,
-          port: parseInt(smtpPort, 10),
-          secure: smtpPort === '465',
-          auth: smtpUser ? {
-            user: smtpUser,
-            pass: smtpPassword
-          } : undefined
-        })
+        // Sync saved settings into sails.config.mail
+        await sails.helpers.setting.syncSmtpConfig()
 
         const emails = notificationEmails.split(',').map(e => e.trim()).filter(Boolean)
+        const instanceName = await sails.helpers.setting.get('instanceName', 'Slipway')
 
-        await transporter.sendMail({
-          from: smtpFrom || smtpUser || 'slipway@localhost',
-          to: emails.join(', '),
-          subject: 'Slipway Test Notification',
-          text: 'This is a test message from your Slipway instance. If you receive this, email notifications are working correctly.',
-          html: `
-            <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto;">
-              <div style="padding: 20px; background: #10b981; color: white; border-radius: 8px 8px 0 0;">
-                <h2 style="margin: 0; font-size: 18px;">Test Notification</h2>
-              </div>
-              <div style="padding: 20px; background: #f9fafb; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 8px 8px;">
-                <p style="margin: 0; color: #374151; font-size: 14px;">This is a test message from your Slipway instance. If you receive this, email notifications are working correctly.</p>
-              </div>
-              <p style="margin-top: 20px; color: #9ca3af; font-size: 12px; text-align: center;">
-                Sent from Slipway
-              </p>
-            </div>
-          `
-        })
+        for (const to of emails) {
+          await sails.helpers.mail.send.with({
+            to,
+            subject: 'Slipway Test Notification',
+            template: 'email-test-notification',
+            templateData: { instanceName }
+          })
+        }
 
         return { success: true, message: 'Test email sent' }
       }
