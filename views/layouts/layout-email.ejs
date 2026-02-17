@@ -1,16 +1,32 @@
 <% /* Default layout for email templates */ %>
-<div style="width: 100%; font-family: 'Inter','Helvetica','arial', sans-serif; box-sizing: border-box; padding: 0; margin: 0;">
-  <div style="color: #192147; font-size: 16px; box-sizing: border-box; padding: 40px 60px 80px 28px; width: 100%; max-width: 600px; margin-left: auto; margin-right: auto;">
-    <div style="background: transparent; text-align: left;">
+<div style="width: 100%; background-color: #f4f4f5; font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Helvetica', Arial, sans-serif; box-sizing: border-box; padding: 0; margin: 0; -webkit-font-smoothing: antialiased;">
+  <div style="padding: 48px 24px 40px; max-width: 560px; margin: 0 auto;">
+    <!-- Logo / wordmark — inline SVG of Slippy + "slipway" -->
+    <div style="text-align: center; margin-bottom: 32px;">
+      <svg viewBox="0 0 140 32" fill="none" xmlns="http://www.w3.org/2000/svg" width="140" height="32" style="display: inline-block;">
+        <path d="M7 17 C7 3 25 3 25 17 Z" stroke="#0284c7" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M7 17 C4 21 4 25 8 28" stroke="#0284c7" stroke-width="2" stroke-linecap="round"/>
+        <path d="M12 17 C11 21 10 25 13 28" stroke="#0284c7" stroke-width="2" stroke-linecap="round"/>
+        <path d="M20 17 C21 21 22 25 19 28" stroke="#0284c7" stroke-width="2" stroke-linecap="round"/>
+        <path d="M25 17 C28 21 28 25 24 28" stroke="#0284c7" stroke-width="2" stroke-linecap="round"/>
+        <circle cx="13" cy="11" r="1.5" fill="#0284c7"/>
+        <circle cx="19" cy="11" r="1.5" fill="#0284c7"/>
+        <text x="36" y="22" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" font-size="18" font-weight="600" fill="#0f172a">Slipway</text>
+      </svg>
     </div>
-    <%- body %>
-    <hr style="color: #E2E4EA;"/>
-    <div style="text-align: left; padding-top: 15px; font-size: 12px; color: #3E4771;">
-      <p style="margin: 0 0 6px 0;">Slipway &mdash; open-source deployment platform</p>
-      <p style="margin: 0; font-size: 11px; color: #9ca3af;">
-        <a href="https://github.com/sailscastshq/slipway" style="color: #9ca3af; text-decoration: none;">Star on GitHub</a>
-        &nbsp;|&nbsp;
-        <a href="https://github.com/sponsors/sailscastshq" style="color: #9ca3af; text-decoration: none;">Sponsor</a>
+    <!-- Content card -->
+    <div style="background-color: #ffffff; border-radius: 12px; border: 1px solid #e4e4e7; overflow: hidden;">
+      <%- body %>
+    </div>
+    <!-- Footer -->
+    <div style="text-align: center; padding-top: 24px; font-size: 12px; color: #a1a1aa; line-height: 1.6;">
+      <p style="margin: 0 0 4px 0;">Slipway &mdash; open-source deployment platform for Sails.js &amp; The Boring JavaScript Stack</p>
+      <p style="margin: 0; font-size: 11px;">
+        <a href="https://github.com/sailscastshq/slipway" style="color: #a1a1aa; text-decoration: underline;">GitHub</a>
+        <span style="color: #d4d4d8;">&nbsp;&middot;&nbsp;</span>
+        <a href="https://docs.sailscasts.com/slipway" style="color: #a1a1aa; text-decoration: underline;">Docs</a>
+        <span style="color: #d4d4d8;">&nbsp;&middot;&nbsp;</span>
+        <a href="https://github.com/sponsors/sailscastshq" style="color: #a1a1aa; text-decoration: underline;">Sponsor</a>
       </p>
     </div>
   </div>

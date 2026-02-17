@@ -1,6 +1,6 @@
 <script setup>
 import { Head } from '@inertiajs/vue3'
-import { ref, computed, inject, watch, onMounted, onUnmounted } from 'vue'
+import { ref, computed, inject, watch, nextTick, onMounted, onUnmounted, onBeforeUnmount } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
 import ToastContainer from '@/components/ToastContainer.vue'
 import Tooltip from '@/components/Tooltip.vue'
@@ -276,6 +276,119 @@ function changeActivityFilter(filter) {
   fetchActivity()
 }
 
+// ─── Instance logs state ───
+const _params = new URLSearchParams(window.location.search)
+const logsOpen = ref(_params.has('logs'))
+const logLines = ref([])
+const logsConnected = ref(false)
+const logsError = ref(null)
+let logsEventSource = null
+const logContainer = ref(null)
+const autoScroll = ref(true)
+
+function highlightLogLine(line) {
+  let s = line.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+
+  // ISO timestamps
+  s = s.replace(/(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z?)/, '<span class="text-zinc-500">$1</span>')
+
+  // Log levels
+  s = s.replace(/\b(error|Error|ERROR|ERR)\b/g, '<span class="text-rose-500 font-semibold">$1</span>')
+  s = s.replace(/\b(warn|Warn|WARN|warning|Warning|WARNING)\b/g, '<span class="text-amber-500 font-semibold">$1</span>')
+  s = s.replace(/\b(info|Info|INFO)\b/g, '<span class="text-sky-500">$1</span>')
+  s = s.replace(/\b(debug|Debug|DEBUG|verbose|silly)\b/g, '<span class="text-zinc-500">$1</span>')
+
+  // HTTP methods
+  s = s.replace(/\b(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS)\b/g, '<span class="text-cyan-500 font-medium">$1</span>')
+
+  // HTTP status codes
+  s = s.replace(/\b(2\d{2})\b/g, '<span class="text-emerald-500">$1</span>')
+  s = s.replace(/\b(3\d{2})\b/g, '<span class="text-sky-500">$1</span>')
+  s = s.replace(/\b(4\d{2})\b/g, '<span class="text-amber-500">$1</span>')
+  s = s.replace(/\b(5\d{2})\b/g, '<span class="text-rose-500">$1</span>')
+
+  // API paths and URLs
+  s = s.replace(/(\/api\/[^\s"'<>]+)/g, '<span class="text-violet-500">$1</span>')
+  s = s.replace(/(https?:\/\/[^\s"'<>]+)/g, '<span class="text-sky-500 underline">$1</span>')
+
+  // Stack trace markers
+  s = s.replace(/(\s+at\s+)/g, '<span class="text-zinc-600">$1</span>')
+
+  // Brackets/tags
+  s = s.replace(/\[([^\]]+)\]/g, '<span class="text-zinc-600">[$1]</span>')
+
+  return s
+}
+
+function connectLogs() {
+  if (logsEventSource) return
+  logsError.value = null
+  logLines.value = []
+
+  const url = '/api/v1/bosun/logs/stream?tail=200'
+  logsEventSource = new EventSource(url)
+
+  logsEventSource.onopen = () => {
+    logsConnected.value = true
+  }
+
+  logsEventSource.onmessage = (event) => {
+    try {
+      const data = JSON.parse(event.data)
+      if (data.log) {
+        logLines.value.push(data.log)
+        if (logLines.value.length > 2000) {
+          logLines.value = logLines.value.slice(-1500)
+        }
+        if (autoScroll.value) {
+          nextTick(() => {
+            if (logContainer.value) {
+              logContainer.value.scrollTop = logContainer.value.scrollHeight
+            }
+          })
+        }
+      }
+      if (data.error) {
+        logsError.value = data.error
+      }
+      if (data.closed) {
+        logsConnected.value = false
+      }
+    } catch (e) {
+      console.error('Failed to parse log event:', e, event.data)
+    }
+  }
+
+  logsEventSource.onerror = () => {
+    logsConnected.value = false
+    disconnectLogs()
+  }
+}
+
+function disconnectLogs() {
+  if (logsEventSource) {
+    logsEventSource.close()
+    logsEventSource = null
+  }
+  logsConnected.value = false
+}
+
+watch(logsOpen, (open) => {
+  const url = new URL(window.location)
+  if (open) {
+    url.searchParams.set('logs', '1')
+  } else {
+    url.searchParams.delete('logs')
+  }
+  window.history.replaceState({}, '', url)
+
+  if (open) {
+    connectLogs()
+  } else {
+    disconnectLogs()
+  }
+})
+
 // ─── Computed ───
 const heapPercent = computed(() => {
   if (!props.processInfo.memoryUsage) return 0
@@ -374,6 +487,13 @@ onMounted(() => {
   if (activeTab.value === 'activity') {
     fetchActivity()
   }
+  if (logsOpen.value) {
+    connectLogs()
+  }
+})
+
+onBeforeUnmount(() => {
+  disconnectLogs()
 })
 
 onUnmounted(() => {
@@ -914,7 +1034,7 @@ onUnmounted(() => {
           </div>
 
           <!-- Memory + Databases -->
-          <div class="grid gap-6 lg:grid-cols-2">
+          <div class="mb-8 grid gap-6 lg:grid-cols-2">
             <!-- Memory -->
             <div class="rounded-lg border border-gray-200 dark:border-gray-800">
               <div
@@ -1007,6 +1127,76 @@ onUnmounted(() => {
                     class="font-mono text-sm font-medium text-gray-900 dark:text-white"
                     >{{ formatBytes(db.sizeBytes) }}</span
                   >
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Logs Accordion -->
+          <div class="rounded-lg border border-gray-200 dark:border-gray-800">
+            <div class="flex items-center justify-between px-4 py-3">
+              <button
+                @click="logsOpen = !logsOpen"
+                class="flex flex-1 items-center space-x-3 text-left hover:opacity-80"
+              >
+                <h2 class="text-sm font-medium text-gray-900 dark:text-white">Logs</h2>
+                <span
+                  v-if="logsConnected"
+                  class="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-medium text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
+                >
+                  <span class="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-500"></span>
+                  Live
+                </span>
+              </button>
+              <div class="flex items-center gap-2">
+                <label v-if="logsOpen" class="flex items-center gap-2 text-xs text-gray-400 dark:text-gray-500">
+                  <input
+                    v-model="autoScroll"
+                    type="checkbox"
+                    class="h-3.5 w-3.5 rounded border-gray-300 text-brand focus:ring-brand dark:border-gray-600 dark:bg-gray-800"
+                  />
+                  Auto-scroll
+                </label>
+                <button
+                  @click="logsOpen = !logsOpen"
+                  class="rounded p-0.5 hover:bg-gray-100 dark:hover:bg-gray-800"
+                >
+                  <svg
+                    :class="['h-4 w-4 text-gray-400 transition-transform duration-200', logsOpen ? 'rotate-90' : '']"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <div v-show="logsOpen">
+              <div
+                v-if="logsError"
+                class="border-t border-gray-200 px-4 py-6 text-center text-sm text-gray-500 dark:border-gray-800 dark:text-gray-400"
+              >
+                {{ logsError }}
+              </div>
+
+              <div v-else class="border-t border-gray-200 dark:border-gray-800">
+                <div
+                  ref="logContainer"
+                  class="h-80 overflow-y-auto bg-gray-100 p-4 font-mono text-xs leading-5 text-gray-700 dark:bg-gray-950 dark:text-gray-300"
+                  @scroll="autoScroll = logContainer && (logContainer.scrollHeight - logContainer.scrollTop - logContainer.clientHeight < 40)"
+                >
+                  <div v-if="!logsConnected && logLines.length === 0" class="flex h-full items-center justify-center text-gray-500">
+                    <SlippyLoader size="h-4 w-4" class="mr-2" />
+                    Connecting to logs...
+                  </div>
+                  <div v-else-if="logLines.length === 0 && logsConnected" class="text-gray-500">
+                    Waiting for output...
+                  </div>
+                  <template v-else>
+                    <div v-for="(line, i) in logLines" :key="i" class="whitespace-pre-wrap break-all hover:bg-gray-200/50 dark:hover:bg-gray-900/50" v-html="highlightLogLine(line)"></div>
+                  </template>
                 </div>
               </div>
             </div>
