@@ -143,26 +143,41 @@ const { open: openCommandPalette } = createCommandPalette()
 const { updateInfo } = useUpdateCheck()
 const showUpdateModal = ref(false)
 
-// Active deployments tracking
+// Active deployments tracking (SSE-based — no polling)
 const activeDeployments = ref([])
-let deploymentPollInterval = null
+let deploymentsEventSource = null
 
-async function checkActiveDeployments() {
-  if (!loggedInUser) return
+function connectDeploymentStream() {
+  if (deploymentsEventSource || !loggedInUser) return
 
-  try {
-    const response = await fetch('/api/v1/deployments/active')
-    if (response.ok) {
-      const data = await response.json()
-      // Only add new deployments, don't remove ones we're tracking
-      for (const dep of data.deployments) {
-        if (!activeDeployments.value.find((d) => d.id === dep.id)) {
-          activeDeployments.value.push(dep)
+  deploymentsEventSource = new EventSource('/api/v1/deployments/active/stream')
+
+  deploymentsEventSource.onmessage = (event) => {
+    try {
+      const data = JSON.parse(event.data)
+      if (data.deployments) {
+        // Only add new deployments, don't remove ones we're already tracking
+        // (DeploymentToast handles its own lifecycle via per-deployment SSE)
+        for (const dep of data.deployments) {
+          if (!activeDeployments.value.find((d) => d.id === dep.id)) {
+            activeDeployments.value.push(dep)
+          }
         }
       }
+    } catch (err) {
+      // Silently fail on parse errors
     }
-  } catch (err) {
-    // Silently fail
+  }
+
+  deploymentsEventSource.onerror = () => {
+    // EventSource auto-reconnects on error — no manual handling needed
+  }
+}
+
+function disconnectDeploymentStream() {
+  if (deploymentsEventSource) {
+    deploymentsEventSource.close()
+    deploymentsEventSource = null
   }
 }
 
@@ -180,21 +195,15 @@ onMounted(() => {
     sidebarCollapsed.value = saved === 'true'
   }
 
-  // Check for active deployments
-  checkActiveDeployments()
-
-  // Re-check every 30 seconds
-  deploymentPollInterval = setInterval(checkActiveDeployments, 30000)
-
-  // Also check after each navigation
-  router.on('finish', checkActiveDeployments)
+  // Connect to active deployments SSE stream
+  connectDeploymentStream()
 
   // Listen for escape key to close dropdowns
   document.addEventListener('keydown', handleEscapeKey)
 })
 
 onUnmounted(() => {
-  if (deploymentPollInterval) clearInterval(deploymentPollInterval)
+  disconnectDeploymentStream()
   document.removeEventListener('keydown', handleEscapeKey)
 })
 </script>

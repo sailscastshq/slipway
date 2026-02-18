@@ -1,5 +1,5 @@
 <script setup>
-import { Link, Head, router, usePoll } from '@inertiajs/vue3'
+import { Link, Head, router } from '@inertiajs/vue3'
 import { inject, ref, reactive, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
 import Breadcrumb from '@/components/Breadcrumb.vue'
@@ -30,31 +30,41 @@ const toggleSidebar = inject('toggleSidebar')
 const sidebarCollapsed = inject('sidebarCollapsed')
 const toast = useToast()
 
-// --- Polling for real-time updates ---
-const isDeploymentActive = computed(() => {
-  if (!props.app) return false
-  return ['building', 'deploying', 'starting'].includes(props.app.status)
-})
+// --- SSE-powered deployment tracking (replaces usePoll) ---
+const activeDeploymentSources = ref(new Map())
 
-const hasActiveDeployment = computed(() => {
-  return props.deployments.some(d =>
-    ['pending', 'building', 'deploying'].includes(d.status)
-  )
-})
+function connectActiveDeployments() {
+  const activeStatuses = ['pending', 'building', 'deploying']
+  const active = props.deployments.filter(d => activeStatuses.includes(d.status))
 
-const shouldPoll = computed(() => isDeploymentActive.value || hasActiveDeployment.value)
+  for (const dep of active) {
+    if (activeDeploymentSources.value.has(dep.id)) continue
 
-const { stop: stopPoll, start: startPoll } = usePoll(2000, {
-  keepAlive: true,
-  autoStart: false
-})
-
-watch(shouldPoll, (active) => {
-  if (active) {
-    startPoll()
-  } else {
-    stopPoll()
+    const es = new EventSource(`/api/v1/deployments/${dep.id}/stream`)
+    es.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data)
+        if (data.status && ['running', 'failed', 'cancelled'].includes(data.status)) {
+          es.close()
+          activeDeploymentSources.value.delete(dep.id)
+          router.reload()
+        }
+      } catch { /* ignore */ }
+    }
+    es.onerror = () => { /* auto-reconnects */ }
+    activeDeploymentSources.value.set(dep.id, es)
   }
+}
+
+function disconnectActiveDeployments() {
+  for (const es of activeDeploymentSources.value.values()) {
+    es.close()
+  }
+  activeDeploymentSources.value.clear()
+}
+
+watch(() => props.deployments, () => {
+  connectActiveDeployments()
 }, { immediate: true })
 
 // --- Deploy ---
@@ -527,6 +537,7 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+  disconnectActiveDeployments()
   disconnectLogs()
   document.removeEventListener('keydown', handleEscapeKey)
 })

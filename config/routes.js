@@ -206,6 +206,7 @@ module.exports.routes = {
   'GET /projects/:projectSlug/environments/:environmentSlug/logs/history': 'project/get-historical-logs',
 
   // SSE Streams
+  'GET /api/v1/deployments/active/stream': 'api/v1/deploy/stream-active-deployments',
   'GET /api/v1/deployments/:id/stream': 'api/v1/deploy/stream-deployment',
   'GET /api/v1/projects/:projectSlug/environments/:environmentSlug/logs/stream': 'api/v1/app/stream-container-logs',
 
