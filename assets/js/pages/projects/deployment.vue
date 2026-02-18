@@ -1,6 +1,6 @@
 <script setup>
-import { Link, Head, usePoll, router } from '@inertiajs/vue3'
-import { inject, ref, computed, watch, nextTick, onBeforeUnmount } from 'vue'
+import { Link, Head, router } from '@inertiajs/vue3'
+import { inject, ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
 import Breadcrumb from '@/components/Breadcrumb.vue'
 import SlippyLoader from '@/components/SlippyLoader.vue'
@@ -20,14 +20,24 @@ const toggleSidebar = inject('toggleSidebar')
 const sidebarCollapsed = inject('sidebarCollapsed')
 const logContainer = ref(null)
 
+// SSE-powered real-time updates (replaces usePoll)
+const sseStatus = ref(null)
+const sseLogs = ref('')
+let deploymentEventSource = null
+
+const deployment = computed(() => ({
+  ...props.deployment,
+  ...(sseStatus.value ? { status: sseStatus.value } : {}),
+}))
+
 const isInProgress = computed(() =>
-  ['pending', 'building', 'deploying'].includes(props.deployment.status)
+  ['pending', 'building', 'deploying'].includes(deployment.value.status)
 )
 
 const allLogs = computed(() => {
   const build = props.deployment.buildLogs || ''
   const deploy = props.deployment.deployLogs || ''
-  return (build + deploy).trim()
+  return (build + deploy + sseLogs.value).trim()
 })
 
 const highlightedLogs = computed(() => {
@@ -75,15 +85,42 @@ function highlightLine(line) {
   return s
 }
 
-// Poll for updates while deployment is in progress
-const { stop } = usePoll(2000, {
-  keepAlive: true,
-  autoStart: isInProgress.value
-})
+// Stream deployment updates via SSE
+function connectDeploymentStream() {
+  if (deploymentEventSource || !isInProgress.value) return
 
-// Stop polling when deployment completes
-watch(isInProgress, (inProgress) => {
-  if (!inProgress) stop()
+  deploymentEventSource = new EventSource(`/api/v1/deployments/${props.deployment.id}/stream`)
+
+  deploymentEventSource.onmessage = (event) => {
+    try {
+      const data = JSON.parse(event.data)
+      if (data.status) {
+        sseStatus.value = data.status
+        if (['running', 'failed', 'cancelled'].includes(data.status)) {
+          disconnectDeploymentStream()
+          router.reload()
+        }
+      }
+      if (data.output) {
+        sseLogs.value += data.output + '\n'
+      }
+    } catch { /* ignore parse errors */ }
+  }
+
+  deploymentEventSource.onerror = () => {
+    // EventSource auto-reconnects
+  }
+}
+
+function disconnectDeploymentStream() {
+  if (deploymentEventSource) {
+    deploymentEventSource.close()
+    deploymentEventSource = null
+  }
+}
+
+onMounted(() => {
+  connectDeploymentStream()
 })
 
 // Auto-scroll log container when logs update
@@ -213,7 +250,10 @@ function startSlide(e) {
   cleanupSlide = cleanup
 }
 
-onBeforeUnmount(() => { if (cleanupSlide) cleanupSlide() })
+onBeforeUnmount(() => {
+  disconnectDeploymentStream()
+  if (cleanupSlide) cleanupSlide()
+})
 
 function executeRollback() {
   rollingBack.value = true
