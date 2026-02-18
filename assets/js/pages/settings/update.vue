@@ -364,13 +364,13 @@ function formatDate(dateString) {
             </div>
 
             <!-- Ready State -->
-            <div v-else>
-              <p class="mb-4 text-sm text-gray-600 dark:text-gray-400">
+            <div v-else class="flex items-center justify-between gap-4">
+              <p class="text-sm text-gray-600 dark:text-gray-400">
                 The dashboard will briefly go offline while the container restarts, then reload automatically.
               </p>
               <button
                 @click="applyUpdate"
-                class="inline-flex items-center space-x-2 rounded-md bg-gray-900 px-5 py-2.5 text-sm font-medium text-white hover:bg-gray-800 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
+                class="inline-flex shrink-0 items-center space-x-2 rounded-md bg-gray-900 px-5 py-2.5 text-sm font-medium text-white hover:bg-gray-800 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
               >
                 <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
