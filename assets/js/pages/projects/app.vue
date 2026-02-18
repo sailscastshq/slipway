@@ -7,6 +7,7 @@ import SlideToDeploy from '@/components/SlideToDeploy.vue'
 import Tooltip from '@/components/Tooltip.vue'
 import { useToast } from '@/composables/toast'
 import SlippyLoader from '@/components/SlippyLoader.vue'
+import { highlightLogLine } from '@/lib/highlightLog'
 
 defineOptions({
   layout: AppLayout
@@ -432,34 +433,6 @@ let logsEventSource = null
 const logContainer = ref(null)
 const autoScroll = ref(true)
 
-function highlightLogLine(line) {
-  let s = line.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-
-  s = s.replace(/\b(2\d{2})\b/g, '<span class="text-emerald-500">$1</span>')
-  s = s.replace(/\b(3\d{2})\b/g, '<span class="text-sky-500">$1</span>')
-  s = s.replace(/\b(4\d{2})\b/g, '<span class="text-amber-500">$1</span>')
-  s = s.replace(/\b(5\d{2})\b/g, '<span class="text-rose-500">$1</span>')
-
-  s = s.replace(/(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z?)/, '<span class="text-zinc-500">$1</span>')
-
-  s = s.replace(/\b(error|Error|ERROR|ERR)\b/g, '<span class="text-rose-500 font-semibold">$1</span>')
-  s = s.replace(/\b(warn|Warn|WARN|warning|Warning|WARNING)\b/g, '<span class="text-amber-500 font-semibold">$1</span>')
-  s = s.replace(/\b(info|Info|INFO)\b/g, '<span class="text-sky-500">$1</span>')
-  s = s.replace(/\b(debug|Debug|DEBUG|verbose|silly)\b/g, '<span class="text-zinc-500">$1</span>')
-
-  s = s.replace(/\b(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS)\b/g, '<span class="text-cyan-500 font-medium">$1</span>')
-
-  s = s.replace(/(\/api\/[^\s"'<>]+)/g, '<span class="text-violet-500">$1</span>')
-  s = s.replace(/(https?:\/\/[^\s"'<>]+)/g, '<span class="text-sky-500 underline">$1</span>')
-
-  s = s.replace(/(\s+at\s+)/g, '<span class="text-zinc-600">$1</span>')
-
-  s = s.replace(/(\bport\s*)(\d+)/gi, '$1<span class="text-emerald-500">$2</span>')
-
-  s = s.replace(/\[([^\]]+)\]/g, '<span class="text-zinc-600">[$1]</span>')
-
-  return s
-}
 
 function connectLogs() {
   if (logsEventSource) return
