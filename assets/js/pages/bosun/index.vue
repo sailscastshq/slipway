@@ -401,11 +401,15 @@ function highlightLogLine(line) {
   // HTTP methods
   s = s.replace(/\b(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS)\b/g, '<span class="text-cyan-500 font-medium">$1</span>')
 
-  // HTTP status codes
-  s = s.replace(/\b(2\d{2})\b/g, '<span class="text-emerald-500">$1</span>')
-  s = s.replace(/\b(3\d{2})\b/g, '<span class="text-sky-500">$1</span>')
-  s = s.replace(/\b(4\d{2})\b/g, '<span class="text-amber-500">$1</span>')
-  s = s.replace(/\b(5\d{2})\b/g, '<span class="text-rose-500">$1</span>')
+  // HTTP status codes (single-pass to avoid matching numbers in generated class names)
+  s = s.replace(/\b([2-5]\d{2})\b/g, (match, code) => {
+    const n = parseInt(code)
+    if (n >= 200 && n < 300) return `<span class="text-emerald-500">${code}</span>`
+    if (n >= 300 && n < 400) return `<span class="text-sky-500">${code}</span>`
+    if (n >= 400 && n < 500) return `<span class="text-amber-500">${code}</span>`
+    if (n >= 500 && n < 600) return `<span class="text-rose-500">${code}</span>`
+    return match
+  })
 
   // API paths and URLs
   s = s.replace(/(\/api\/[^\s"'<>]+)/g, '<span class="text-violet-500">$1</span>')
