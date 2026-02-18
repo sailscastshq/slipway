@@ -176,13 +176,13 @@ function formatDate(dateString) {
     <!-- Content -->
     <div class="flex-1 overflow-y-auto px-4 py-6 sm:px-8 sm:py-8">
       <div class="mx-auto max-w-2xl">
-        <!-- Up to Date Card -->
-        <div v-if="!localUpdateInfo.updateAvailable" class="rounded-lg border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
-          <!-- Header section -->
-          <div class="flex flex-col items-center border-b border-gray-200 px-6 py-8 text-center dark:border-gray-800">
-            <div class="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-900/50">
+        <!-- ═══ Up to Date ═══ -->
+        <div v-if="!localUpdateInfo.updateAvailable" class="rounded-lg border border-gray-200 dark:border-gray-800">
+          <!-- Status -->
+          <div class="flex flex-col items-center px-6 py-10 text-center">
+            <div class="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-gray-100 dark:bg-gray-800">
               <svg
-                class="h-8 w-8 text-emerald-600 dark:text-emerald-400"
+                class="h-7 w-7 text-gray-900 dark:text-white"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -190,62 +190,60 @@ function formatDate(dateString) {
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
               </svg>
             </div>
-            <h1 class="text-xl font-semibold text-gray-900 dark:text-white">You're up to date!</h1>
+            <h1 class="text-xl font-semibold text-gray-900 dark:text-white">You're up to date</h1>
             <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">
-              Your Slipway instance is running the latest version.
+              Slipway is running the latest version.
             </p>
           </div>
 
-          <!-- Version info section -->
-          <div class="px-6 py-5">
+          <!-- Version + check -->
+          <div class="border-t border-gray-200 px-6 py-4 dark:border-gray-800">
             <div class="flex items-center justify-between">
               <div>
-                <p class="text-sm font-medium text-gray-900 dark:text-white">Current Version</p>
-                <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-                  Last checked {{ formatTime(lastChecked) }}
+                <p class="text-sm font-medium text-gray-900 dark:text-white">
+                  v{{ localUpdateInfo.currentVersion }}
+                </p>
+                <p class="mt-0.5 text-xs text-gray-400 dark:text-gray-500">
+                  Checked {{ formatTime(lastChecked) }}
                 </p>
               </div>
-              <div class="flex items-center space-x-3">
-                <span class="inline-flex items-center rounded-md bg-emerald-50 px-2.5 py-1 text-sm font-mono font-medium text-emerald-700 ring-1 ring-inset ring-emerald-600/20 dark:bg-emerald-900/30 dark:text-emerald-400 dark:ring-emerald-500/30">
-                  v{{ localUpdateInfo.currentVersion }}
-                </span>
-                <button
-                  @click="checkAgain"
-                  :disabled="checking"
-                  class="inline-flex items-center rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+              <button
+                @click="checkAgain"
+                :disabled="checking"
+                class="inline-flex items-center gap-2 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+              >
+                <SlippyLoader v-if="checking" size="h-3.5 w-3.5" />
+                <svg
+                  v-else
+                  class="h-3.5 w-3.5"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
                 >
-                  <SlippyLoader v-if="checking" size="h-4 w-4" />
-                  <svg
-                    v-else
-                    class="h-4 w-4"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="2"
-                      d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                    />
-                  </svg>
-                </button>
-              </div>
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                  />
+                </svg>
+                Check for updates
+              </button>
             </div>
           </div>
 
-          <!-- Links section -->
+          <!-- Links -->
           <div class="border-t border-gray-200 px-6 py-4 dark:border-gray-800">
             <div class="flex flex-wrap gap-4">
               <a
                 href="https://github.com/sailscastshq/slipway/releases"
                 target="_blank"
-                class="inline-flex items-center space-x-2 text-sm text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200"
+                class="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200"
               >
                 <svg class="h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
                   <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
                 </svg>
-                <span>View changelog</span>
+                Changelog
                 <svg class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                 </svg>
@@ -253,12 +251,12 @@ function formatDate(dateString) {
               <a
                 href="https://docs.sailscasts.com/slipway"
                 target="_blank"
-                class="inline-flex items-center space-x-2 text-sm text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200"
+                class="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200"
               >
                 <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
                 </svg>
-                <span>Documentation</span>
+                Documentation
                 <svg class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                 </svg>
@@ -267,51 +265,53 @@ function formatDate(dateString) {
           </div>
         </div>
 
-        <!-- Update Available Card -->
-        <div v-else class="rounded-lg border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
+        <!-- ═══ Update Available ═══ -->
+        <div v-else class="rounded-lg border border-gray-200 dark:border-gray-800">
           <!-- Header -->
-          <div class="flex items-start space-x-4 border-b border-gray-200 p-6 dark:border-gray-800">
-            <div class="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-900/50">
-              <svg
-                class="h-6 w-6 text-emerald-600 dark:text-emerald-400"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                />
-              </svg>
-            </div>
-            <div>
-              <h1 class="text-xl font-semibold text-gray-900 dark:text-white">
-                Slipway {{ localUpdateInfo.latestVersion }} Available
-              </h1>
-              <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                You're currently running version {{ localUpdateInfo.currentVersion }}
-              </p>
-              <p v-if="localUpdateInfo.publishedAt" class="mt-1 text-xs text-gray-400 dark:text-gray-500">
-                Released {{ formatDate(localUpdateInfo.publishedAt) }}
-              </p>
+          <div class="p-6">
+            <div class="flex items-start space-x-4">
+              <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-brand-100 dark:bg-brand-900/40">
+                <svg
+                  class="h-5.5 w-5.5 text-brand-600 dark:text-brand-400"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                  />
+                </svg>
+              </div>
+              <div>
+                <h1 class="text-xl font-semibold text-gray-900 dark:text-white">
+                  Slipway {{ localUpdateInfo.latestVersion }}
+                </h1>
+                <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                  You're running {{ localUpdateInfo.currentVersion }}
+                </p>
+                <p v-if="localUpdateInfo.publishedAt" class="mt-0.5 text-xs text-gray-400 dark:text-gray-500">
+                  Released {{ formatDate(localUpdateInfo.publishedAt) }}
+                </p>
+              </div>
             </div>
           </div>
 
           <!-- Version Comparison -->
-          <div class="border-b border-gray-200 px-6 py-5 dark:border-gray-800">
-            <div class="flex items-center justify-center space-x-4 rounded-md bg-gray-50 p-4 dark:bg-gray-800/50">
+          <div class="mx-6 mb-6 rounded-lg border border-gray-200 bg-gray-50 p-5 dark:border-gray-800 dark:bg-gray-800/50">
+            <div class="flex items-center justify-center space-x-8">
               <div class="text-center">
-                <p class="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Current</p>
-                <p class="mt-1 font-mono text-lg text-gray-700 dark:text-gray-300">{{ localUpdateInfo.currentVersion }}</p>
+                <p class="text-[10px] uppercase tracking-widest text-gray-400 dark:text-gray-500">Current</p>
+                <p class="mt-2 font-mono text-lg text-gray-500 dark:text-gray-400">{{ localUpdateInfo.currentVersion }}</p>
               </div>
-              <svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg class="h-5 w-5 text-gray-300 dark:text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6" />
               </svg>
               <div class="text-center">
-                <p class="text-xs uppercase tracking-wide text-emerald-600 dark:text-emerald-400">Latest</p>
-                <p class="mt-1 font-mono text-lg font-semibold text-emerald-600 dark:text-emerald-400">
+                <p class="text-[10px] uppercase tracking-widest text-brand-600 dark:text-brand-400">Latest</p>
+                <p class="mt-2 font-mono text-lg font-semibold text-gray-900 dark:text-white">
                   {{ localUpdateInfo.latestVersion }}
                 </p>
               </div>
@@ -319,10 +319,15 @@ function formatDate(dateString) {
           </div>
 
           <!-- Update Action -->
-          <div class="p-6">
+          <div class="border-t border-gray-200 p-6 dark:border-gray-800">
             <!-- Updating State -->
-            <div v-if="updating" class="flex flex-col items-center py-4 text-center">
-              <SlippyLoader size="h-8 w-8" class="mb-4 text-emerald-600 dark:text-emerald-400" />
+            <div v-if="updating" class="flex flex-col items-center py-6 text-center">
+              <SlippyLoader v-if="updateStatus !== 'success'" size="h-8 w-8" class="mb-4 text-brand-600 dark:text-brand-400" />
+              <div v-else class="mb-4 flex h-10 w-10 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/40">
+                <svg class="h-5 w-5 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
               <p class="text-sm font-medium text-gray-900 dark:text-white">
                 <template v-if="updateStatus === 'pulling'">Pulling latest image...</template>
                 <template v-else-if="updateStatus === 'restarting'">Restarting Slipway...</template>
@@ -336,9 +341,9 @@ function formatDate(dateString) {
 
             <!-- Error State -->
             <div v-else-if="updateError" class="space-y-4">
-              <div class="rounded-md border border-red-200 bg-red-50 p-4 dark:border-red-800/50 dark:bg-red-950/30">
+              <div class="rounded-lg border border-red-200 bg-red-50 p-4 dark:border-red-800/50 dark:bg-red-950/30">
                 <div class="flex items-start space-x-3">
-                  <svg class="mt-0.5 h-5 w-5 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg class="mt-0.5 h-5 w-5 shrink-0 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
                   </svg>
                   <div>
@@ -350,7 +355,7 @@ function formatDate(dateString) {
               <div class="flex items-center space-x-3">
                 <button
                   @click="applyUpdate"
-                  class="rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700"
+                  class="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
                 >
                   Try Again
                 </button>
@@ -359,13 +364,13 @@ function formatDate(dateString) {
             </div>
 
             <!-- Ready State -->
-            <div v-else class="space-y-4">
-              <p class="text-sm text-gray-600 dark:text-gray-400">
-                Click the button below to update Slipway. The dashboard will briefly go offline while the container restarts, then reload automatically.
+            <div v-else>
+              <p class="mb-4 text-sm text-gray-600 dark:text-gray-400">
+                The dashboard will briefly go offline while the container restarts, then reload automatically.
               </p>
               <button
                 @click="applyUpdate"
-                class="inline-flex items-center space-x-2 rounded-md bg-emerald-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900"
+                class="inline-flex items-center space-x-2 rounded-md bg-gray-900 px-5 py-2.5 text-sm font-medium text-white hover:bg-gray-800 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
               >
                 <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
@@ -378,7 +383,7 @@ function formatDate(dateString) {
           <!-- Manual Update Fallback -->
           <div class="border-t border-gray-200 px-6 py-5 dark:border-gray-800">
             <details class="group">
-              <summary class="flex cursor-pointer items-center justify-between text-sm font-medium text-gray-700 dark:text-gray-300">
+              <summary class="flex items-center justify-between text-sm font-medium text-gray-700 dark:text-gray-300">
                 <span>Manual update instructions</span>
                 <svg class="h-4 w-4 transition-transform group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
@@ -388,7 +393,7 @@ function formatDate(dateString) {
                 <p class="text-sm text-gray-600 dark:text-gray-400">
                   SSH into your server and re-run the install script. It detects the existing installation, reuses your secrets, pulls the latest image, and restarts Slipway.
                 </p>
-                <pre class="overflow-x-auto rounded bg-gray-900 p-3 text-sm text-gray-100 dark:bg-gray-950"><code>curl -fsSL https://raw.githubusercontent.com/sailscastshq/slipway/main/install.sh | bash</code></pre>
+                <pre class="overflow-x-auto rounded-lg bg-gray-900 p-3 text-sm text-gray-100 dark:bg-gray-950"><code>curl -fsSL https://raw.githubusercontent.com/sailscastshq/slipway/main/install.sh | bash</code></pre>
                 <p class="text-xs text-gray-500 dark:text-gray-400">
                   Your data is stored on Docker volumes and is preserved across updates.
                 </p>
@@ -403,12 +408,12 @@ function formatDate(dateString) {
                 v-if="localUpdateInfo.releaseUrl"
                 :href="localUpdateInfo.releaseUrl"
                 target="_blank"
-                class="inline-flex items-center space-x-2 text-sm text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200"
+                class="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200"
               >
                 <svg class="h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
                   <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
                 </svg>
-                <span>View release notes on GitHub</span>
+                Release notes
                 <svg class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                 </svg>
@@ -416,12 +421,12 @@ function formatDate(dateString) {
               <a
                 href="https://docs.sailscasts.com/slipway/updates"
                 target="_blank"
-                class="inline-flex items-center space-x-2 text-sm text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200"
+                class="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200"
               >
                 <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
                 </svg>
-                <span>Update documentation</span>
+                Update docs
                 <svg class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                 </svg>
