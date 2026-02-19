@@ -58,20 +58,27 @@ const tabs = computed(() => {
   return list
 })
 
-// Expanded container for detail view
-const expandedContainer = ref(null)
+// Expanded container for detail view (synced with URL query param)
+const expandedContainer = useQueryState('container', '')
 const detailMetrics = ref(null)
 const loadingDetail = ref(false)
 
 function toggleExpand(containerName) {
   if (expandedContainer.value === containerName) {
-    expandedContainer.value = null
+    expandedContainer.value = ''
     detailMetrics.value = null
     return
   }
   expandedContainer.value = containerName
   loadDetailMetrics(containerName)
 }
+
+// Load detail metrics when page opens with ?container= in URL
+watch(expandedContainer, (name) => {
+  if (name && !detailMetrics.value) {
+    loadDetailMetrics(name)
+  }
+})
 
 async function loadDetailMetrics(containerName) {
   loadingDetail.value = true

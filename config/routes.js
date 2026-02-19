@@ -65,6 +65,7 @@ module.exports.routes = {
   'GET /projects/:slug/environments/:envSlug/apps/:appSlug/settings': 'project/view-app-settings',
   'GET /projects/:slug/environments/:envSlug/helm': 'project/view-helm',
   'GET /projects/:slug/environments/:envSlug/services/:serviceId': 'project/view-service',
+  'GET /projects/:slug/environments/:envSlug/services/:serviceId/settings': 'project/view-service-settings',
   'GET /projects/:slug/deployments/:deploymentId': 'project/view-deployment',
 
   // Settings (web UI)
