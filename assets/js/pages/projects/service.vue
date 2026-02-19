@@ -1,6 +1,7 @@
 <script setup>
 import { Link, Head, usePage } from '@inertiajs/vue3'
 import { inject, ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
+import { useEventSource } from '@/composables/sse'
 import AppLayout from '@/layouts/AppLayout.vue'
 import Breadcrumb from '@/components/Breadcrumb.vue'
 import { useToast } from '@/composables/toast'
@@ -27,8 +28,6 @@ const sidebarCollapsed = inject('sidebarCollapsed')
 // State
 const logContainer = ref(null)
 const logLines = ref([])
-const logsConnected = ref(false)
-const logsError = ref(null)
 const autoScroll = ref(true)
 const logsOpen = ref(true)
 const menuOpen = ref(false)
@@ -42,7 +41,6 @@ const editingName = ref(false)
 const editedName = ref('')
 const savingName = ref(false)
 const nameInput = ref(null)
-let eventSource = null
 
 // Computed
 const serviceTypeLabel = computed(() => {
@@ -120,19 +118,16 @@ function highlightLogLine(line) {
   return s
 }
 
-function connectToLogs() {
-  if (eventSource) eventSource.close()
-  logsError.value = null
-  logsConnected.value = false
-
-  const url = `/api/v1/services/${props.service.id}/logs/stream?tail=200`
-  eventSource = new EventSource(url)
-
-  eventSource.onopen = () => { logsConnected.value = true }
-
-  eventSource.onmessage = (event) => {
-    try {
-      const data = JSON.parse(event.data)
+const {
+  connected: logsConnected,
+  error: logsError,
+  close: disconnectLogs,
+  connect: connectToLogs
+} = useEventSource(
+  `/api/v1/services/${props.service.id}/logs/stream?tail=200`,
+  {
+    immediate: false,
+    onMessage(data) {
       if (data.log) {
         logLines.value.push(data.log)
         if (logLines.value.length > 1000) logLines.value = logLines.value.slice(-1000)
@@ -142,21 +137,9 @@ function connectToLogs() {
           })
         }
       }
-      if (data.error) logsError.value = data.error
-      if (data.closed) logsConnected.value = false
-    } catch (e) {
-      console.error('Failed to parse log event:', e, event.data)
     }
   }
-
-  eventSource.onerror = () => {
-    logsConnected.value = false
-    if (!logsError.value) logsError.value = 'Connection lost. Reconnecting...'
-    setTimeout(() => {
-      if (eventSource?.readyState === EventSource.CLOSED) connectToLogs()
-    }, 3000)
-  }
-}
+)
 
 async function stopService() {
   if (stopping.value) return
@@ -178,7 +161,7 @@ async function stopService() {
     })
     if (response.ok) {
       serviceStatus.value = 'stopped'
-      if (eventSource) { eventSource.close(); logsConnected.value = false }
+      disconnectLogs()
       completeAction(actionId, true)
     } else {
       completeAction(actionId, false)
@@ -304,7 +287,6 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
-  if (eventSource) eventSource.close()
   document.removeEventListener('click', handleClickOutside)
 })
 </script>

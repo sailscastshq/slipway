@@ -1,6 +1,7 @@
 <script setup>
 import { Link, usePage, router } from '@inertiajs/vue3'
 import { computed, ref, provide, onMounted, onUnmounted } from 'vue'
+import { useEventSource } from '@/composables/sse'
 import ToastContainer from '@/components/ToastContainer.vue'
 import UpdateBanner from '@/components/UpdateBanner.vue'
 import UpdateModal from '@/components/UpdateModal.vue'
@@ -145,16 +146,12 @@ const showUpdateModal = ref(false)
 
 // Active deployments tracking (SSE-based — no polling)
 const activeDeployments = ref([])
-let deploymentsEventSource = null
 
-function connectDeploymentStream() {
-  if (deploymentsEventSource || !loggedInUser) return
-
-  deploymentsEventSource = new EventSource('/api/v1/deployments/active/stream')
-
-  deploymentsEventSource.onmessage = (event) => {
-    try {
-      const data = JSON.parse(event.data)
+const { close: disconnectDeploymentStream } = useEventSource(
+  loggedInUser ? '/api/v1/deployments/active/stream' : null,
+  {
+    immediate: !!loggedInUser,
+    onMessage(data) {
       if (data.deployments) {
         // Only add new deployments, don't remove ones we're already tracking
         // (DeploymentToast handles its own lifecycle via per-deployment SSE)
@@ -164,22 +161,9 @@ function connectDeploymentStream() {
           }
         }
       }
-    } catch (err) {
-      // Silently fail on parse errors
     }
   }
-
-  deploymentsEventSource.onerror = () => {
-    // EventSource auto-reconnects on error — no manual handling needed
-  }
-}
-
-function disconnectDeploymentStream() {
-  if (deploymentsEventSource) {
-    deploymentsEventSource.close()
-    deploymentsEventSource = null
-  }
-}
+)
 
 function dismissDeployment(deploymentId) {
   activeDeployments.value = activeDeployments.value.filter(
@@ -195,15 +179,11 @@ onMounted(() => {
     sidebarCollapsed.value = saved === 'true'
   }
 
-  // Connect to active deployments SSE stream
-  connectDeploymentStream()
-
   // Listen for escape key to close dropdowns
   document.addEventListener('keydown', handleEscapeKey)
 })
 
 onUnmounted(() => {
-  disconnectDeploymentStream()
   document.removeEventListener('keydown', handleEscapeKey)
 })
 </script>
