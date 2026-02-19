@@ -1,5 +1,5 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, onUnmounted } from 'vue'
 import SlippyLoader from '@/components/SlippyLoader.vue'
 
 const props = defineProps({
@@ -13,12 +13,25 @@ const emit = defineEmits(['close'])
 
 const updating = ref(false)
 const updateError = ref(null)
-const updateStatus = ref('') // 'pulling', 'restarting', 'waiting', 'success'
+const updatePhase = ref('') // 'pulling', 'backing-up', 'validating', 'swapping', 'waiting', 'success'
+const updateDetail = ref('')
+
+let eventSource = null
+
+function disconnectSSE() {
+  if (eventSource) {
+    eventSource.close()
+    eventSource = null
+  }
+}
+
+onUnmounted(disconnectSSE)
 
 async function applyUpdate() {
   updating.value = true
   updateError.value = null
-  updateStatus.value = 'pulling'
+  updatePhase.value = 'starting'
+  updateDetail.value = 'Initiating update...'
 
   try {
     const response = await fetch('/api/v1/system/apply-update', {
@@ -31,28 +44,52 @@ async function applyUpdate() {
       throw new Error(data.message || 'Failed to initiate update')
     }
 
-    updateStatus.value = 'restarting'
-    await new Promise(resolve => setTimeout(resolve, 5000))
-    updateStatus.value = 'waiting'
-    await waitForHealthy()
-
-    updateStatus.value = 'success'
-    setTimeout(() => window.location.reload(), 1500)
+    // Connect to SSE for real-time progress
+    connectProgressStream()
   } catch (err) {
-    if (err.name === 'TypeError' || err.message.includes('fetch')) {
-      updateStatus.value = 'waiting'
-      try {
-        await waitForHealthy()
-        updateStatus.value = 'success'
-        setTimeout(() => window.location.reload(), 1500)
-      } catch {
-        updateError.value = 'Slipway did not come back up. Check your server.'
+    updateError.value = err.message
+    updating.value = false
+    updatePhase.value = ''
+  }
+}
+
+function connectProgressStream() {
+  disconnectSSE()
+  eventSource = new EventSource('/api/v1/system/stream-update')
+
+  eventSource.onmessage = (event) => {
+    try {
+      const data = JSON.parse(event.data)
+      updatePhase.value = data.phase
+      updateDetail.value = data.detail || ''
+
+      if (data.phase === 'failed') {
+        disconnectSSE()
+        updateError.value = data.detail || 'Update failed'
         updating.value = false
+        updatePhase.value = ''
       }
-    } else {
-      updateError.value = err.message
-      updating.value = false
-      updateStatus.value = ''
+    } catch { /* ignore parse errors */ }
+  }
+
+  // When the SSE connection drops (server restarting during swap),
+  // start polling /health to detect when the new version is up
+  eventSource.onerror = () => {
+    disconnectSSE()
+    if (updating.value && updatePhase.value !== 'failed') {
+      updatePhase.value = 'waiting'
+      updateDetail.value = ''
+      waitForHealthy()
+        .then(() => {
+          updatePhase.value = 'success'
+          updateDetail.value = ''
+          setTimeout(() => window.location.reload(), 1500)
+        })
+        .catch(() => {
+          updateError.value = 'Slipway did not come back up. Check your server.'
+          updating.value = false
+          updatePhase.value = ''
+        })
     }
   }
 }
@@ -68,6 +105,18 @@ async function waitForHealthy(maxAttempts = 30) {
     }
   }
   throw new Error('timeout')
+}
+
+const phaseLabels = {
+  starting: 'Initiating update...',
+  checking: 'Checking for updates...',
+  pulling: 'Pulling latest image...',
+  'backing-up': 'Backing up database...',
+  inspecting: 'Reading container configuration...',
+  validating: 'Validating new version...',
+  swapping: 'Swapping containers...',
+  waiting: 'Waiting for Slipway to come back up...',
+  success: 'Update complete! Reloading...'
 }
 
 function formatDate(dateString) {
@@ -161,17 +210,17 @@ function formatDate(dateString) {
           <div class="border-t border-gray-200 p-5 dark:border-gray-800">
             <!-- Updating State -->
             <div v-if="updating" class="flex flex-col items-center py-4 text-center">
-              <SlippyLoader v-if="updateStatus !== 'success'" size="h-7 w-7" class="mb-3 text-brand-600 dark:text-brand-400" />
+              <SlippyLoader v-if="updatePhase !== 'success'" size="h-7 w-7" class="mb-3 text-brand-600 dark:text-brand-400" />
               <div v-else class="mb-3 flex h-7 w-7 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/40">
                 <svg class="h-4 w-4 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
                 </svg>
               </div>
               <p class="text-sm font-medium text-gray-900 dark:text-white">
-                <template v-if="updateStatus === 'pulling'">Pulling latest image...</template>
-                <template v-else-if="updateStatus === 'restarting'">Restarting Slipway...</template>
-                <template v-else-if="updateStatus === 'waiting'">Waiting for Slipway to come back up...</template>
-                <template v-else-if="updateStatus === 'success'">Update complete! Reloading...</template>
+                {{ phaseLabels[updatePhase] || 'Updating...' }}
+              </p>
+              <p v-if="updateDetail && !phaseLabels[updatePhase]" class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                {{ updateDetail }}
               </p>
               <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
                 Your data is preserved. This may take up to a minute.
