@@ -475,7 +475,7 @@ const results = computed(() => {
 
   // Group remaining by their group property
   cmds.forEach(cmd => {
-    if (!query.value && history.value.includes(cmd.id)) return
+    if (!query.value && mode.value === 'root' && history.value.includes(cmd.id)) return
     const group = cmd.group || 'Other'
     if (!groups[group]) groups[group] = []
     groups[group].push(cmd)
