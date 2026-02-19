@@ -3,6 +3,7 @@ import { Link, Head, router, usePoll } from '@inertiajs/vue3'
 import { inject, ref, computed, watch } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
 import Breadcrumb from '@/components/Breadcrumb.vue'
+import SlippyLoader from '@/components/SlippyLoader.vue'
 import { useQueryState } from '@/composables/useQueryState'
 
 defineOptions({
@@ -12,6 +13,7 @@ defineOptions({
 const props = defineProps({
   project: Object,
   environment: Object,
+  appName: String,
   containers: {
     type: Array,
     default: () => []
@@ -56,20 +58,27 @@ const tabs = computed(() => {
   return list
 })
 
-// Expanded container for detail view
-const expandedContainer = ref(null)
+// Expanded container for detail view (synced with URL query param)
+const expandedContainer = useQueryState('container', '')
 const detailMetrics = ref(null)
 const loadingDetail = ref(false)
 
 function toggleExpand(containerName) {
   if (expandedContainer.value === containerName) {
-    expandedContainer.value = null
+    expandedContainer.value = ''
     detailMetrics.value = null
     return
   }
   expandedContainer.value = containerName
   loadDetailMetrics(containerName)
 }
+
+// Load detail metrics when page opens with ?container= in URL
+watch(expandedContainer, (name) => {
+  if (name && !detailMetrics.value) {
+    loadDetailMetrics(name)
+  }
+})
 
 async function loadDetailMetrics(containerName) {
   loadingDetail.value = true
@@ -86,6 +95,48 @@ async function loadDetailMetrics(containerName) {
   }
 }
 
+// Request filtering & search
+const requestSearch = useQueryState('q', '', { replace: true })
+const requestMethodFilter = useQueryState('method', '', { replace: true })
+const requestStatusFilter = useQueryState('status', '', { replace: true })
+
+const filteredRequests = computed(() => {
+  let list = props.telemetry.requests.recent
+  if (requestSearch.value) {
+    const q = requestSearch.value.toLowerCase()
+    list = list.filter(r =>
+      (r.url || r.name || '').toLowerCase().includes(q) ||
+      (r.traceId || '').toLowerCase().includes(q)
+    )
+  }
+  if (requestMethodFilter.value) {
+    list = list.filter(r => r.method === requestMethodFilter.value)
+  }
+  if (requestStatusFilter.value) {
+    const group = requestStatusFilter.value
+    list = list.filter(r => {
+      if (group === '2xx') return r.statusCode >= 200 && r.statusCode < 300
+      if (group === '3xx') return r.statusCode >= 300 && r.statusCode < 400
+      if (group === '4xx') return r.statusCode >= 400 && r.statusCode < 500
+      if (group === '5xx') return r.statusCode >= 500
+      return true
+    })
+  }
+  return list
+})
+
+const activeMethods = computed(() => {
+  const methods = new Set(props.telemetry.requests.recent.map(r => r.method))
+  return [...methods].sort()
+})
+
+// Request detail (durable via URL query param)
+const expandedRequest = useQueryState('request', '', { replace: true })
+
+function toggleRequest(traceId) {
+  expandedRequest.value = expandedRequest.value === traceId ? '' : traceId
+}
+
 // Exception detail
 const expandedException = ref(null)
 
@@ -94,6 +145,13 @@ function toggleException(idx) {
 }
 
 // Helpers
+function compactNumber(n) {
+  if (n < 1000) return String(n)
+  if (n < 10000) return `${(n / 1000).toFixed(1)}k`
+  if (n < 1000000) return `${Math.round(n / 1000)}k`
+  return `${(n / 1000000).toFixed(1)}M`
+}
+
 function formatBytes(bytes) {
   if (!bytes) return '0 B'
   if (bytes < 1024) return `${bytes} B`
@@ -118,6 +176,15 @@ function memBarColor(percent) {
   if (percent > 90) return 'bg-red-500'
   if (percent > 70) return 'bg-yellow-500'
   return 'bg-blue-500'
+}
+
+function methodBg(method) {
+  const m = (method || '').toUpperCase()
+  if (m === 'GET') return 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400'
+  if (m === 'POST') return 'bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400'
+  if (m === 'PUT' || m === 'PATCH') return 'bg-yellow-50 text-yellow-700 dark:bg-yellow-900/20 dark:text-yellow-400'
+  if (m === 'DELETE') return 'bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-400'
+  return 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'
 }
 
 function statusColor(code) {
@@ -197,6 +264,67 @@ function sparklineColor(key) {
   return key === 'cpu' ? '#10b981' : '#3b82f6'
 }
 
+function highlightQuery(query) {
+  if (!query) return ''
+  const escaped = query.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  return escaped
+    // model.method( → model in pink, method in blue
+    .replace(/^(\w+)\.(\w+)/, '<span class="text-pink-600 dark:text-pink-400">$1</span>.<span class="text-blue-600 dark:text-blue-400">$2</span>')
+    // { keys } → keys in amber
+    .replace(/\{([^}]+)\}/g, (_, inner) => `{ <span class="text-amber-600 dark:text-amber-400">${inner.trim()}</span> }`)
+}
+
+function cleanIp(ip) {
+  if (!ip) return ''
+  return ip.replace(/^::ffff:/, '')
+}
+
+// Chart hover
+const chartHover = ref(null)
+
+function onChartHover(event, data, key, chartId) {
+  const svg = event.currentTarget
+  const rect = svg.getBoundingClientRect()
+  const fraction = Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width))
+  const index = Math.round(fraction * (data.length - 1))
+  const item = data[index]
+  const value = item[key]
+  const wrapper = svg.parentElement
+  const wrapperRect = wrapper.getBoundingClientRect()
+  chartHover.value = {
+    chartId,
+    index,
+    x: event.clientX - wrapperRect.left,
+    value: typeof value === 'number' ? value.toFixed(1) : value,
+    label: item.recordedAt ? formatTime(item.recordedAt) : null
+  }
+}
+
+function onChartLeave() {
+  chartHover.value = null
+}
+
+function sparklineHoverPoint(history, key, index, width = 120, height = 24) {
+  const values = history.map(h => h[key])
+  const max = Math.max(...values, 1)
+  const step = width / (values.length - 1)
+  return { x: index * step, y: height - (values[index] / max) * height }
+}
+
+function detailHoverPoint(data, key, index) {
+  const max = Math.max(...data.map(d => d[key]), 1)
+  const x = (index / (data.length - 1)) * 400
+  const y = 80 - (data[index][key] / max) * 80
+  return { x, y }
+}
+
+const copiedTraceId = ref(null)
+async function copyTraceId(traceId) {
+  await navigator.clipboard.writeText(traceId)
+  copiedTraceId.value = traceId
+  setTimeout(() => { copiedTraceId.value = null }, 2000)
+}
+
 const logsUrl = computed(() => {
   return `/api/v1/projects/${props.project.slug}/environments/${props.environment.slug}/logs/stream`
 })
@@ -270,7 +398,7 @@ async function copyToken() {
         <div class="mb-6">
           <h1 class="text-xl font-semibold text-gray-900 dark:text-white">Lookout</h1>
           <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            Observability for {{ environment.name }}.
+            Observability for {{ appName }}.
           </p>
         </div>
 
@@ -297,7 +425,7 @@ async function copyToken() {
                     ? 'bg-gray-900 text-white dark:bg-white dark:text-gray-900'
                     : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'
                 ]"
-              >{{ tab.count }}</span>
+              >{{ compactNumber(tab.count) }}</span>
             </button>
           </nav>
         </div>
@@ -350,27 +478,59 @@ async function copyToken() {
                   <div v-if="container.history && container.history.length >= 2" class="hidden items-center space-x-3 sm:flex">
                     <div class="flex flex-col items-end">
                       <span class="text-[10px] text-gray-400 dark:text-gray-500">CPU</span>
-                      <svg width="120" height="24" class="overflow-visible">
-                        <polyline
-                          :points="sparklinePoints(container.history, 'cpu')"
-                          fill="none"
-                          :stroke="sparklineColor('cpu')"
-                          stroke-width="1.5"
-                          stroke-linejoin="round"
-                        />
-                      </svg>
+                      <div class="relative">
+                        <svg width="120" height="24" class="overflow-visible" @mousemove="onChartHover($event, container.history, 'cpu', 'spark-cpu-' + container.name)" @mouseleave="onChartLeave">
+                          <polyline
+                            :points="sparklinePoints(container.history, 'cpu')"
+                            fill="none"
+                            :stroke="sparklineColor('cpu')"
+                            stroke-width="1.5"
+                            stroke-linejoin="round"
+                          />
+                          <circle
+                            v-if="chartHover?.chartId === 'spark-cpu-' + container.name"
+                            :cx="sparklineHoverPoint(container.history, 'cpu', chartHover.index).x"
+                            :cy="sparklineHoverPoint(container.history, 'cpu', chartHover.index).y"
+                            r="3"
+                            fill="#10b981"
+                          />
+                        </svg>
+                        <div
+                          v-if="chartHover?.chartId === 'spark-cpu-' + container.name"
+                          class="pointer-events-none absolute z-10 whitespace-nowrap rounded bg-gray-900 px-2 py-1 text-xs text-white shadow-lg dark:bg-white dark:text-gray-900"
+                          :style="{ left: chartHover.x + 'px', bottom: '100%', transform: 'translateX(-50%)', marginBottom: '4px' }"
+                        >
+                          {{ chartHover.value }}%
+                        </div>
+                      </div>
                     </div>
                     <div class="flex flex-col items-end">
                       <span class="text-[10px] text-gray-400 dark:text-gray-500">Mem</span>
-                      <svg width="120" height="24" class="overflow-visible">
-                        <polyline
-                          :points="sparklinePoints(container.history, 'mem')"
-                          fill="none"
-                          :stroke="sparklineColor('mem')"
-                          stroke-width="1.5"
-                          stroke-linejoin="round"
-                        />
-                      </svg>
+                      <div class="relative">
+                        <svg width="120" height="24" class="overflow-visible" @mousemove="onChartHover($event, container.history, 'mem', 'spark-mem-' + container.name)" @mouseleave="onChartLeave">
+                          <polyline
+                            :points="sparklinePoints(container.history, 'mem')"
+                            fill="none"
+                            :stroke="sparklineColor('mem')"
+                            stroke-width="1.5"
+                            stroke-linejoin="round"
+                          />
+                          <circle
+                            v-if="chartHover?.chartId === 'spark-mem-' + container.name"
+                            :cx="sparklineHoverPoint(container.history, 'mem', chartHover.index).x"
+                            :cy="sparklineHoverPoint(container.history, 'mem', chartHover.index).y"
+                            r="3"
+                            fill="#3b82f6"
+                          />
+                        </svg>
+                        <div
+                          v-if="chartHover?.chartId === 'spark-mem-' + container.name"
+                          class="pointer-events-none absolute z-10 whitespace-nowrap rounded bg-gray-900 px-2 py-1 text-xs text-white shadow-lg dark:bg-white dark:text-gray-900"
+                          :style="{ left: chartHover.x + 'px', bottom: '100%', transform: 'translateX(-50%)', marginBottom: '4px' }"
+                        >
+                          {{ chartHover.value }}%
+                        </div>
+                      </div>
                     </div>
                   </div>
 
@@ -410,8 +570,9 @@ async function copyToken() {
               >
                 <div v-if="expandedContainer === container.name" class="overflow-hidden border-t border-gray-100 dark:border-gray-800">
                   <div class="p-4">
-                    <div v-if="loadingDetail" class="py-8 text-center text-sm text-gray-400 dark:text-gray-500">
-                      Loading 24h history...
+                    <div v-if="loadingDetail" class="py-8 text-center">
+                      <SlippyLoader class="mx-auto mb-2 text-gray-400 dark:text-gray-500" />
+                      <p class="text-sm text-gray-400 dark:text-gray-500">Loading 24h history...</p>
                     </div>
 
                     <div v-else-if="container.metric" class="space-y-6">
@@ -473,15 +634,46 @@ async function copyToken() {
                         <div class="grid gap-4 sm:grid-cols-2">
                           <div class="rounded-md border border-gray-100 p-3 dark:border-gray-800">
                             <div class="mb-2 text-xs text-gray-500 dark:text-gray-400">CPU %</div>
-                            <svg :viewBox="`0 0 400 80`" class="w-full" preserveAspectRatio="none">
-                              <polyline
-                                :points="detailMetrics.map((m, i) => `${(i / (detailMetrics.length - 1)) * 400},${80 - (m.cpuPercent / Math.max(...detailMetrics.map(d => d.cpuPercent), 1)) * 80}`).join(' ')"
-                                fill="none"
-                                stroke="#10b981"
-                                stroke-width="1.5"
-                                vector-effect="non-scaling-stroke"
-                              />
-                            </svg>
+                            <div class="relative">
+                              <svg :viewBox="`0 0 400 80`" class="w-full overflow-visible" preserveAspectRatio="none" @mousemove="onChartHover($event, detailMetrics, 'cpuPercent', 'detail-cpu')" @mouseleave="onChartLeave">
+                                <polyline
+                                  :points="detailMetrics.map((m, i) => `${(i / (detailMetrics.length - 1)) * 400},${80 - (m.cpuPercent / Math.max(...detailMetrics.map(d => d.cpuPercent), 1)) * 80}`).join(' ')"
+                                  fill="none"
+                                  stroke="#10b981"
+                                  stroke-width="1.5"
+                                  vector-effect="non-scaling-stroke"
+                                />
+                                <template v-if="chartHover?.chartId === 'detail-cpu'">
+                                  <line
+                                    :x1="detailHoverPoint(detailMetrics, 'cpuPercent', chartHover.index).x"
+                                    :x2="detailHoverPoint(detailMetrics, 'cpuPercent', chartHover.index).x"
+                                    y1="0"
+                                    y2="80"
+                                    stroke="#9ca3af"
+                                    stroke-width="1"
+                                    stroke-dasharray="3 2"
+                                    vector-effect="non-scaling-stroke"
+                                  />
+                                  <circle
+                                    :cx="detailHoverPoint(detailMetrics, 'cpuPercent', chartHover.index).x"
+                                    :cy="detailHoverPoint(detailMetrics, 'cpuPercent', chartHover.index).y"
+                                    r="4"
+                                    fill="#10b981"
+                                    stroke="white"
+                                    stroke-width="2"
+                                    vector-effect="non-scaling-stroke"
+                                  />
+                                </template>
+                              </svg>
+                              <div
+                                v-if="chartHover?.chartId === 'detail-cpu'"
+                                class="pointer-events-none absolute z-10 whitespace-nowrap rounded bg-gray-900 px-2 py-1 text-xs text-white shadow-lg dark:bg-white dark:text-gray-900"
+                                :style="{ left: chartHover.x + 'px', bottom: '100%', transform: 'translateX(-50%)', marginBottom: '12px' }"
+                              >
+                                {{ chartHover.value }}%
+                                <span v-if="chartHover.label" class="ml-1 text-gray-400 dark:text-gray-500">{{ chartHover.label }}</span>
+                              </div>
+                            </div>
                             <div class="mt-1 flex justify-between text-[10px] text-gray-400">
                               <span>{{ formatTime(detailMetrics[0].recordedAt) }}</span>
                               <span>{{ formatTime(detailMetrics[detailMetrics.length - 1].recordedAt) }}</span>
@@ -489,15 +681,46 @@ async function copyToken() {
                           </div>
                           <div class="rounded-md border border-gray-100 p-3 dark:border-gray-800">
                             <div class="mb-2 text-xs text-gray-500 dark:text-gray-400">Memory %</div>
-                            <svg :viewBox="`0 0 400 80`" class="w-full" preserveAspectRatio="none">
-                              <polyline
-                                :points="detailMetrics.map((m, i) => `${(i / (detailMetrics.length - 1)) * 400},${80 - (m.memoryPercent / Math.max(...detailMetrics.map(d => d.memoryPercent), 1)) * 80}`).join(' ')"
-                                fill="none"
-                                stroke="#3b82f6"
-                                stroke-width="1.5"
-                                vector-effect="non-scaling-stroke"
-                              />
-                            </svg>
+                            <div class="relative">
+                              <svg :viewBox="`0 0 400 80`" class="w-full overflow-visible" preserveAspectRatio="none" @mousemove="onChartHover($event, detailMetrics, 'memoryPercent', 'detail-mem')" @mouseleave="onChartLeave">
+                                <polyline
+                                  :points="detailMetrics.map((m, i) => `${(i / (detailMetrics.length - 1)) * 400},${80 - (m.memoryPercent / Math.max(...detailMetrics.map(d => d.memoryPercent), 1)) * 80}`).join(' ')"
+                                  fill="none"
+                                  stroke="#3b82f6"
+                                  stroke-width="1.5"
+                                  vector-effect="non-scaling-stroke"
+                                />
+                                <template v-if="chartHover?.chartId === 'detail-mem'">
+                                  <line
+                                    :x1="detailHoverPoint(detailMetrics, 'memoryPercent', chartHover.index).x"
+                                    :x2="detailHoverPoint(detailMetrics, 'memoryPercent', chartHover.index).x"
+                                    y1="0"
+                                    y2="80"
+                                    stroke="#9ca3af"
+                                    stroke-width="1"
+                                    stroke-dasharray="3 2"
+                                    vector-effect="non-scaling-stroke"
+                                  />
+                                  <circle
+                                    :cx="detailHoverPoint(detailMetrics, 'memoryPercent', chartHover.index).x"
+                                    :cy="detailHoverPoint(detailMetrics, 'memoryPercent', chartHover.index).y"
+                                    r="4"
+                                    fill="#3b82f6"
+                                    stroke="white"
+                                    stroke-width="2"
+                                    vector-effect="non-scaling-stroke"
+                                  />
+                                </template>
+                              </svg>
+                              <div
+                                v-if="chartHover?.chartId === 'detail-mem'"
+                                class="pointer-events-none absolute z-10 whitespace-nowrap rounded bg-gray-900 px-2 py-1 text-xs text-white shadow-lg dark:bg-white dark:text-gray-900"
+                                :style="{ left: chartHover.x + 'px', bottom: '100%', transform: 'translateX(-50%)', marginBottom: '12px' }"
+                              >
+                                {{ chartHover.value }}%
+                                <span v-if="chartHover.label" class="ml-1 text-gray-400 dark:text-gray-500">{{ chartHover.label }}</span>
+                              </div>
+                            </div>
                             <div class="mt-1 flex justify-between text-[10px] text-gray-400">
                               <span>{{ formatTime(detailMetrics[0].recordedAt) }}</span>
                               <span>{{ formatTime(detailMetrics[detailMetrics.length - 1].recordedAt) }}</span>
@@ -521,25 +744,25 @@ async function copyToken() {
         <div v-if="activeTab === 'requests'">
           <!-- Summary cards -->
           <div class="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
-            <div class="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
+            <div class="rounded-lg border border-gray-200 p-4 dark:border-gray-800">
               <div class="text-[10px] font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">Requests / hr</div>
-              <div class="mt-1 text-2xl font-semibold text-gray-900 dark:text-white">{{ telemetry.requests.total }}</div>
+              <div class="mt-1 text-2xl font-semibold tabular-nums text-gray-900 dark:text-white">{{ telemetry.requests.total }}</div>
             </div>
-            <div class="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
+            <div class="rounded-lg border border-gray-200 p-4 dark:border-gray-800">
               <div class="text-[10px] font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">Error rate</div>
-              <div :class="['mt-1 text-2xl font-semibold', parseFloat(telemetry.requests.errorRate) > 5 ? 'text-red-600 dark:text-red-400' : 'text-gray-900 dark:text-white']">
+              <div :class="['mt-1 text-2xl font-semibold tabular-nums', parseFloat(telemetry.requests.errorRate) > 5 ? 'text-red-600 dark:text-red-400' : 'text-gray-900 dark:text-white']">
                 {{ telemetry.requests.errorRate }}%
               </div>
             </div>
-            <div class="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
+            <div class="rounded-lg border border-gray-200 p-4 dark:border-gray-800">
               <div class="text-[10px] font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">p95 latency</div>
-              <div :class="['mt-1 text-2xl font-semibold', telemetry.requests.p95 > 2000 ? 'text-red-600 dark:text-red-400' : telemetry.requests.p95 > 500 ? 'text-yellow-600 dark:text-yellow-400' : 'text-gray-900 dark:text-white']">
+              <div :class="['mt-1 text-2xl font-semibold tabular-nums', telemetry.requests.p95 > 2000 ? 'text-red-600 dark:text-red-400' : telemetry.requests.p95 > 500 ? 'text-yellow-600 dark:text-yellow-400' : 'text-gray-900 dark:text-white']">
                 {{ formatDuration(telemetry.requests.p95) }}
               </div>
             </div>
-            <div class="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
+            <div class="rounded-lg border border-gray-200 p-4 dark:border-gray-800">
               <div class="text-[10px] font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">Avg latency</div>
-              <div class="mt-1 text-2xl font-semibold text-gray-900 dark:text-white">
+              <div class="mt-1 text-2xl font-semibold tabular-nums text-gray-900 dark:text-white">
                 {{ formatDuration(telemetry.requests.avg) }}
               </div>
             </div>
@@ -547,43 +770,173 @@ async function copyToken() {
 
           <!-- Recent requests -->
           <div v-if="telemetry.requests.recent.length > 0">
-            <h3 class="mb-3 text-sm font-medium text-gray-700 dark:text-gray-300">Recent requests</h3>
+            <!-- Search & filters -->
+            <div class="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <h3 class="text-sm font-medium text-gray-700 dark:text-gray-300">Recent requests</h3>
+              <div class="flex items-center gap-2">
+                <!-- Method filter pills -->
+                <div class="flex items-center gap-1">
+                  <button
+                    @click="requestMethodFilter = ''"
+                    :class="[
+                      'rounded px-1.5 py-0.5 text-[10px] font-medium transition-colors',
+                      !requestMethodFilter
+                        ? 'bg-gray-900 text-white dark:bg-white dark:text-gray-900'
+                        : 'bg-gray-100 text-gray-500 hover:text-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:text-gray-300'
+                    ]"
+                  >All</button>
+                  <button
+                    v-for="m in activeMethods"
+                    :key="m"
+                    @click="requestMethodFilter = requestMethodFilter === m ? '' : m"
+                    :class="[
+                      'rounded px-1.5 py-0.5 text-[10px] font-medium transition-colors',
+                      requestMethodFilter === m
+                        ? 'bg-gray-900 text-white dark:bg-white dark:text-gray-900'
+                        : 'bg-gray-100 text-gray-500 hover:text-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:text-gray-300'
+                    ]"
+                  >{{ m }}</button>
+                </div>
+                <!-- Status filter -->
+                <select
+                  :value="requestStatusFilter"
+                  @change="requestStatusFilter = $event.target.value"
+                  class="rounded border border-gray-200 bg-white px-1.5 py-0.5 text-[10px] font-medium text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400"
+                >
+                  <option value="">Any status</option>
+                  <option value="2xx">2xx</option>
+                  <option value="3xx">3xx</option>
+                  <option value="4xx">4xx</option>
+                  <option value="5xx">5xx</option>
+                </select>
+                <!-- Search -->
+                <div class="relative">
+                  <svg class="pointer-events-none absolute left-2 top-1/2 h-3 w-3 -translate-y-1/2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                  <input
+                    v-model="requestSearch"
+                    type="text"
+                    placeholder="URL or trace ID..."
+                    class="w-40 rounded border border-gray-200 bg-white py-0.5 pl-6 pr-2 text-[11px] text-gray-700 placeholder-gray-400 focus:border-gray-400 focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:placeholder-gray-500 dark:focus:border-gray-600"
+                  />
+                </div>
+              </div>
+            </div>
+
             <div class="overflow-hidden rounded-lg border border-gray-200 dark:border-gray-800">
               <div
-                v-for="(req, i) in telemetry.requests.recent"
-                :key="i"
-                :class="[
-                  'flex items-center gap-3 px-4 py-2.5',
-                  i > 0 ? 'border-t border-gray-100 dark:border-gray-800' : ''
-                ]"
+                v-for="(req, i) in filteredRequests"
+                :key="req.traceId || i"
+                :class="[i > 0 ? 'border-t border-gray-100 dark:border-gray-800' : '']"
               >
-                <!-- Method badge -->
-                <span class="w-12 shrink-0 rounded bg-gray-100 px-1.5 py-0.5 text-center text-[10px] font-bold text-gray-600 dark:bg-gray-800 dark:text-gray-400">
-                  {{ req.method }}
-                </span>
-
-                <!-- URL -->
-                <div class="min-w-0 flex-1 truncate text-sm text-gray-900 dark:text-white">
-                  {{ req.url || req.name }}
-                </div>
-
-                <!-- Status -->
-                <span
-                  v-if="req.statusCode"
-                  :class="['shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium', statusBg(req.statusCode)]"
+                <button
+                  @click="toggleRequest(req.traceId)"
+                  class="flex w-full items-center gap-3 px-4 py-2.5 text-left"
                 >
-                  {{ req.statusCode }}
-                </span>
+                  <!-- Method badge -->
+                  <span :class="['w-12 shrink-0 rounded px-1.5 py-0.5 text-center text-[10px] font-bold', methodBg(req.method)]">
+                    {{ req.method }}
+                  </span>
 
-                <!-- Duration -->
-                <span :class="['w-16 shrink-0 text-right font-mono text-xs', durationColor(req.duration)]">
-                  {{ formatDuration(req.duration) }}
-                </span>
+                  <!-- URL -->
+                  <div class="min-w-0 flex-1 truncate text-sm text-gray-900 dark:text-white">
+                    {{ req.url || req.name }}
+                  </div>
 
-                <!-- Time -->
-                <span class="w-12 shrink-0 text-right text-[10px] text-gray-400 dark:text-gray-500">
-                  {{ timeAgo(req.startedAt) }}
-                </span>
+                  <!-- Status -->
+                  <span
+                    v-if="req.statusCode"
+                    :class="['shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium', statusBg(req.statusCode)]"
+                  >
+                    {{ req.statusCode }}
+                  </span>
+
+                  <!-- Duration -->
+                  <span :class="['w-16 shrink-0 text-right font-mono text-xs tabular-nums', durationColor(req.duration)]">
+                    {{ formatDuration(req.duration) }}
+                  </span>
+
+                  <!-- Time -->
+                  <span class="w-12 shrink-0 text-right text-[10px] text-gray-400 dark:text-gray-500">
+                    {{ timeAgo(req.startedAt) }}
+                  </span>
+
+                  <svg
+                    :class="['h-3.5 w-3.5 shrink-0 text-gray-400 transition-transform', expandedRequest === req.traceId ? 'rotate-180' : '']"
+                    fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                  >
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+
+                <!-- Expanded detail -->
+                <Transition
+                  enter-active-class="transition-all duration-200 ease-out"
+                  enter-from-class="max-h-0 opacity-0"
+                  enter-to-class="max-h-[400px] opacity-100"
+                  leave-active-class="transition-all duration-150 ease-in"
+                  leave-from-class="max-h-[400px] opacity-100"
+                  leave-to-class="max-h-0 opacity-0"
+                >
+                  <div v-if="expandedRequest === req.traceId" class="overflow-hidden border-t border-gray-100 dark:border-gray-800">
+                    <dl>
+                      <div v-if="req.attributes?.['http.route']" class="flex items-baseline gap-4 px-4 py-2">
+                        <dt class="w-24 shrink-0 text-[10px] font-medium uppercase tracking-wider text-gray-400 dark:text-gray-500">Route</dt>
+                        <dd class="font-mono text-xs text-gray-700 dark:text-gray-300">{{ req.attributes['http.route'] }}</dd>
+                      </div>
+                      <div class="flex items-baseline gap-4 px-4 py-2">
+                        <dt class="w-24 shrink-0 text-[10px] font-medium uppercase tracking-wider text-gray-400 dark:text-gray-500">Duration</dt>
+                        <dd class="font-mono text-xs tabular-nums text-gray-700 dark:text-gray-300">{{ formatDuration(req.duration) }}</dd>
+                      </div>
+                      <div v-if="req.attributes?.['http.client_ip']" class="flex items-baseline gap-4 px-4 py-2">
+                        <dt class="w-24 shrink-0 text-[10px] font-medium uppercase tracking-wider text-gray-400 dark:text-gray-500">Client IP</dt>
+                        <dd class="font-mono text-xs text-gray-700 dark:text-gray-300">{{ cleanIp(req.attributes['http.client_ip']) }}</dd>
+                      </div>
+                      <div v-if="req.attributes?.['http.request_content_length'] || req.attributes?.['http.response_content_length']" class="flex items-baseline gap-4 px-4 py-2">
+                        <dt class="w-24 shrink-0 text-[10px] font-medium uppercase tracking-wider text-gray-400 dark:text-gray-500">Size</dt>
+                        <dd class="flex items-center gap-3 font-mono text-xs text-gray-700 dark:text-gray-300">
+                          <span v-if="req.attributes['http.request_content_length']">
+                            <span class="text-gray-400 dark:text-gray-500">req</span> {{ formatBytes(Number(req.attributes['http.request_content_length'])) }}
+                          </span>
+                          <span v-if="req.attributes['http.response_content_length']">
+                            <span class="text-gray-400 dark:text-gray-500">res</span> {{ formatBytes(Number(req.attributes['http.response_content_length'])) }}
+                          </span>
+                        </dd>
+                      </div>
+                      <div v-if="req.attributes?.['http.referrer']" class="flex items-baseline gap-4 px-4 py-2">
+                        <dt class="w-24 shrink-0 text-[10px] font-medium uppercase tracking-wider text-gray-400 dark:text-gray-500">Referrer</dt>
+                        <dd class="min-w-0 truncate text-xs text-gray-700 dark:text-gray-300">{{ req.attributes['http.referrer'] }}</dd>
+                      </div>
+                      <div v-if="req.attributes?.['http.user_agent']" class="flex items-baseline gap-4 px-4 py-2">
+                        <dt class="w-24 shrink-0 text-[10px] font-medium uppercase tracking-wider text-gray-400 dark:text-gray-500">User agent</dt>
+                        <dd class="min-w-0 truncate text-xs text-gray-700 dark:text-gray-300">{{ req.attributes['http.user_agent'] }}</dd>
+                      </div>
+                      <div v-if="req.traceId" class="flex items-center gap-4 px-4 py-2">
+                        <dt class="w-24 shrink-0 text-[10px] font-medium uppercase tracking-wider text-gray-400 dark:text-gray-500">Trace ID</dt>
+                        <dd class="flex min-w-0 items-center gap-2">
+                          <span class="truncate font-mono text-xs text-gray-700 dark:text-gray-300">{{ req.traceId }}</span>
+                          <button
+                            @click.stop="copyTraceId(req.traceId)"
+                            class="shrink-0 rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:text-gray-500 dark:hover:bg-gray-800 dark:hover:text-gray-300"
+                          >
+                            <svg v-if="copiedTraceId === req.traceId" class="h-3.5 w-3.5 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                            </svg>
+                            <svg v-else class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                            </svg>
+                          </button>
+                        </dd>
+                      </div>
+                    </dl>
+                  </div>
+                </Transition>
+              </div>
+
+              <!-- No filter results -->
+              <div v-if="filteredRequests.length === 0" class="px-4 py-8 text-center text-sm text-gray-400 dark:text-gray-500">
+                No requests match your filters.
               </div>
             </div>
           </div>
@@ -678,7 +1031,7 @@ async function copyToken() {
         <!-- QUERIES TAB -->
         <div v-if="activeTab === 'queries'">
           <div v-if="telemetry.queries.slow.length > 0">
-            <h3 class="mb-3 text-sm font-medium text-gray-700 dark:text-gray-300">Slow queries (last hour)</h3>
+            <h3 class="mb-3 text-sm font-medium text-gray-700 dark:text-gray-300">Slow queries ({{ telemetry.queries.slow.length }})</h3>
             <div class="overflow-hidden rounded-lg border border-gray-200 dark:border-gray-800">
               <div
                 v-for="(query, i) in telemetry.queries.slow"
@@ -690,13 +1043,13 @@ async function copyToken() {
               >
                 <div class="flex items-start justify-between">
                   <div class="min-w-0 flex-1">
-                    <code class="block whitespace-pre-wrap break-all text-xs text-gray-700 dark:text-gray-300">{{ query.attributes?.query || query.attributes?.statement || 'Unknown query' }}</code>
-                    <div v-if="query.attributes?.model" class="mt-1.5 text-[10px] text-gray-400 dark:text-gray-500">
-                      Model: {{ query.attributes.model }}
+                    <code class="block whitespace-pre-wrap break-all text-xs text-gray-700 dark:text-gray-300" v-html="highlightQuery(query.attributes?.query || query.attributes?.statement || 'Unknown query')"></code>
+                    <div v-if="query.attributes?.model" class="mt-1.5">
+                      <span class="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-bold text-gray-600 dark:bg-gray-800 dark:text-gray-400">{{ query.attributes.model }}</span>
                     </div>
                   </div>
                   <div class="ml-4 shrink-0 text-right">
-                    <span :class="['font-mono text-sm font-medium', durationColor(query.value)]">{{ formatDuration(query.value) }}</span>
+                    <span :class="['font-mono text-sm font-medium tabular-nums', durationColor(query.value)]">{{ formatDuration(query.value) }}</span>
                     <div class="text-[10px] text-gray-400 dark:text-gray-500">{{ timeAgo(query.recordedAt) }}</div>
                   </div>
                 </div>
@@ -717,23 +1070,23 @@ async function copyToken() {
         <div v-if="activeTab === 'cache'">
           <!-- Summary cards -->
           <div class="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
-            <div class="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
+            <div class="rounded-lg border border-gray-200 p-4 dark:border-gray-800">
               <div class="text-[10px] font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">Hit rate</div>
-              <div :class="['mt-1 text-2xl font-semibold', hitRateColor(telemetry.cache.hitRate)]">
+              <div :class="['mt-1 text-2xl font-semibold tabular-nums', hitRateColor(telemetry.cache.hitRate)]">
                 {{ telemetry.cache.hitRate }}%
               </div>
             </div>
-            <div class="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
+            <div class="rounded-lg border border-gray-200 p-4 dark:border-gray-800">
               <div class="text-[10px] font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">Total ops / hr</div>
-              <div class="mt-1 text-2xl font-semibold text-gray-900 dark:text-white">{{ telemetry.cache.totalOps }}</div>
+              <div class="mt-1 text-2xl font-semibold tabular-nums text-gray-900 dark:text-white">{{ telemetry.cache.totalOps }}</div>
             </div>
-            <div class="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
+            <div class="rounded-lg border border-gray-200 p-4 dark:border-gray-800">
               <div class="text-[10px] font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">Hits</div>
-              <div class="mt-1 text-2xl font-semibold text-emerald-600 dark:text-emerald-400">{{ telemetry.cache.hits }}</div>
+              <div class="mt-1 text-2xl font-semibold tabular-nums text-emerald-600 dark:text-emerald-400">{{ telemetry.cache.hits }}</div>
             </div>
-            <div class="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
+            <div class="rounded-lg border border-gray-200 p-4 dark:border-gray-800">
               <div class="text-[10px] font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400">Misses</div>
-              <div class="mt-1 text-2xl font-semibold text-red-600 dark:text-red-400">{{ telemetry.cache.misses }}</div>
+              <div class="mt-1 text-2xl font-semibold tabular-nums text-red-600 dark:text-red-400">{{ telemetry.cache.misses }}</div>
             </div>
           </div>
 

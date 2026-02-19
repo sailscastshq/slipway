@@ -1,3 +1,7 @@
+const { execFile } = require('child_process')
+const util = require('util')
+const execFileAsync = util.promisify(execFile)
+
 module.exports = {
   friendlyName: 'Update app',
 
@@ -57,7 +61,29 @@ module.exports = {
     if (dockerfilePath !== undefined) updates.dockerfilePath = dockerfilePath
     if (routePath !== undefined) updates.routePath = routePath
     if (envVars !== undefined) updates.envVars = envVars
-    if (resourceLimits !== undefined) updates.resourceLimits = resourceLimits
+    if (resourceLimits !== undefined) {
+      updates.resourceLimits = resourceLimits
+
+      // Apply to running container via docker update (no restart needed)
+      if (app.status === 'running' && app.containerName) {
+        try {
+          const dockerPath = sails.config.docker?.binaryPath || 'docker'
+          const args = ['update']
+          if (resourceLimits.cpus) args.push('--cpus', String(resourceLimits.cpus))
+          if (resourceLimits.memory) {
+            args.push('--memory', String(resourceLimits.memory))
+            args.push('--memory-swap', '-1')
+          }
+          args.push(app.containerName)
+
+          await execFileAsync(dockerPath, args)
+          sails.log.info(`Applied resource limits to app ${app.containerName}: cpus=${resourceLimits.cpus}, memory=${resourceLimits.memory}`)
+        } catch (err) {
+          sails.log.warn(`Could not apply resource limits to ${app.containerName}: ${err.message}`)
+          // Limits are saved to DB — they'll apply on next deploy
+        }
+      }
+    }
 
     const updated = await App.updateOne({ id: app.id }).set(updates)
 

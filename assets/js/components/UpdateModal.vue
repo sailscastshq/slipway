@@ -1,6 +1,7 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, watch, onUnmounted } from 'vue'
 import SlippyLoader from '@/components/SlippyLoader.vue'
+import { useEventSource } from '@/composables/sse'
 
 const props = defineProps({
   updateInfo: {
@@ -13,12 +14,52 @@ const emit = defineEmits(['close'])
 
 const updating = ref(false)
 const updateError = ref(null)
-const updateStatus = ref('') // 'pulling', 'restarting', 'waiting', 'success'
+const updatePhase = ref('') // 'pulling', 'backing-up', 'validating', 'swapping', 'waiting', 'success'
+const updateDetail = ref('')
+
+const { connected: sseConnected, close: disconnectSSE, connect: connectSSE } = useEventSource(
+  '/api/v1/system/stream-update',
+  {
+    immediate: false,
+    autoReconnect: false,
+    onMessage(data) {
+      updatePhase.value = data.phase
+      updateDetail.value = data.detail || ''
+
+      if (data.phase === 'failed') {
+        disconnectSSE()
+        updateError.value = data.detail || 'Update failed'
+        updating.value = false
+        updatePhase.value = ''
+      }
+    }
+  }
+)
+
+// When SSE drops during an update (server restarting), poll for health
+watch(sseConnected, (isConnected, wasConnected) => {
+  if (wasConnected && !isConnected && updating.value && updatePhase.value !== 'failed') {
+    updatePhase.value = 'waiting'
+    updateDetail.value = ''
+    waitForHealthy()
+      .then(() => {
+        updatePhase.value = 'success'
+        updateDetail.value = ''
+        setTimeout(() => window.location.reload(), 1500)
+      })
+      .catch(() => {
+        updateError.value = 'Slipway did not come back up. Check your server.'
+        updating.value = false
+        updatePhase.value = ''
+      })
+  }
+})
 
 async function applyUpdate() {
   updating.value = true
   updateError.value = null
-  updateStatus.value = 'pulling'
+  updatePhase.value = 'starting'
+  updateDetail.value = 'Initiating update...'
 
   try {
     const response = await fetch('/api/v1/system/apply-update', {
@@ -31,29 +72,11 @@ async function applyUpdate() {
       throw new Error(data.message || 'Failed to initiate update')
     }
 
-    updateStatus.value = 'restarting'
-    await new Promise(resolve => setTimeout(resolve, 5000))
-    updateStatus.value = 'waiting'
-    await waitForHealthy()
-
-    updateStatus.value = 'success'
-    setTimeout(() => window.location.reload(), 1500)
+    connectSSE()
   } catch (err) {
-    if (err.name === 'TypeError' || err.message.includes('fetch')) {
-      updateStatus.value = 'waiting'
-      try {
-        await waitForHealthy()
-        updateStatus.value = 'success'
-        setTimeout(() => window.location.reload(), 1500)
-      } catch {
-        updateError.value = 'Slipway did not come back up. Check your server.'
-        updating.value = false
-      }
-    } else {
-      updateError.value = err.message
-      updating.value = false
-      updateStatus.value = ''
-    }
+    updateError.value = err.message
+    updating.value = false
+    updatePhase.value = ''
   }
 }
 
@@ -68,6 +91,18 @@ async function waitForHealthy(maxAttempts = 30) {
     }
   }
   throw new Error('timeout')
+}
+
+const phaseLabels = {
+  starting: 'Initiating update...',
+  checking: 'Checking for updates...',
+  pulling: 'Pulling latest image...',
+  'backing-up': 'Backing up database...',
+  inspecting: 'Reading container configuration...',
+  validating: 'Validating new version...',
+  swapping: 'Swapping containers...',
+  waiting: 'Waiting for Slipway to come back up...',
+  success: 'Update complete! Reloading...'
 }
 
 function formatDate(dateString) {
@@ -93,17 +128,17 @@ function formatDate(dateString) {
       <div class="fixed inset-0 z-50 flex items-center justify-center p-4">
         <!-- Backdrop -->
         <div
-          class="absolute inset-0 bg-black/50"
+          class="absolute inset-0 bg-black/50 backdrop-blur-sm"
           @click="!updating && emit('close')"
         ></div>
 
         <!-- Modal -->
-        <div class="relative w-full max-w-md rounded-lg border border-gray-200 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-900">
+        <div class="relative w-full max-w-md overflow-hidden rounded-xl border border-gray-200 bg-white shadow-2xl dark:border-gray-700 dark:bg-gray-900">
           <!-- Header -->
-          <div class="flex items-start space-x-4 border-b border-gray-200 p-5 dark:border-gray-800">
-            <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-900/50">
+          <div class="flex items-start space-x-4 p-5">
+            <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-100 dark:bg-brand-900/40">
               <svg
-                class="h-5 w-5 text-emerald-600 dark:text-emerald-400"
+                class="h-5 w-5 text-brand-600 dark:text-brand-400"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -139,18 +174,18 @@ function formatDate(dateString) {
           </div>
 
           <!-- Version Comparison -->
-          <div class="border-b border-gray-200 px-5 py-4 dark:border-gray-800">
-            <div class="flex items-center justify-center space-x-4 rounded-md bg-gray-50 p-3 dark:bg-gray-800/50">
+          <div class="mx-5 mb-5 rounded-lg border border-gray-200 bg-gray-50 p-4 dark:border-gray-800 dark:bg-gray-800/50">
+            <div class="flex items-center justify-center space-x-6">
               <div class="text-center">
-                <p class="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Current</p>
-                <p class="mt-1 font-mono text-sm text-gray-700 dark:text-gray-300">{{ updateInfo.currentVersion }}</p>
+                <p class="text-[10px] uppercase tracking-widest text-gray-400 dark:text-gray-500">Current</p>
+                <p class="mt-1.5 font-mono text-sm text-gray-600 dark:text-gray-400">{{ updateInfo.currentVersion }}</p>
               </div>
-              <svg class="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg class="h-4 w-4 text-gray-300 dark:text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6" />
               </svg>
               <div class="text-center">
-                <p class="text-xs uppercase tracking-wide text-emerald-600 dark:text-emerald-400">Latest</p>
-                <p class="mt-1 font-mono text-sm font-semibold text-emerald-600 dark:text-emerald-400">
+                <p class="text-[10px] uppercase tracking-widest text-brand-600 dark:text-brand-400">Latest</p>
+                <p class="mt-1.5 font-mono text-sm font-semibold text-gray-900 dark:text-white">
                   {{ updateInfo.latestVersion }}
                 </p>
               </div>
@@ -158,15 +193,20 @@ function formatDate(dateString) {
           </div>
 
           <!-- Body -->
-          <div class="p-5">
+          <div class="border-t border-gray-200 p-5 dark:border-gray-800">
             <!-- Updating State -->
-            <div v-if="updating" class="flex flex-col items-center py-2 text-center">
-              <SlippyLoader size="h-7 w-7" class="mb-3 text-emerald-600 dark:text-emerald-400" />
+            <div v-if="updating" class="flex flex-col items-center py-4 text-center">
+              <SlippyLoader v-if="updatePhase !== 'success'" size="h-7 w-7" class="mb-3 text-brand-600 dark:text-brand-400" />
+              <div v-else class="mb-3 flex h-7 w-7 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/40">
+                <svg class="h-4 w-4 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
               <p class="text-sm font-medium text-gray-900 dark:text-white">
-                <template v-if="updateStatus === 'pulling'">Pulling latest image...</template>
-                <template v-else-if="updateStatus === 'restarting'">Restarting Slipway...</template>
-                <template v-else-if="updateStatus === 'waiting'">Waiting for Slipway to come back up...</template>
-                <template v-else-if="updateStatus === 'success'">Update complete! Reloading...</template>
+                {{ phaseLabels[updatePhase] || 'Updating...' }}
+              </p>
+              <p v-if="updateDetail && !phaseLabels[updatePhase]" class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                {{ updateDetail }}
               </p>
               <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
                 Your data is preserved. This may take up to a minute.
@@ -175,7 +215,7 @@ function formatDate(dateString) {
 
             <!-- Error State -->
             <div v-else-if="updateError" class="space-y-3">
-              <div class="rounded-md border border-red-200 bg-red-50 p-3 dark:border-red-800/50 dark:bg-red-950/30">
+              <div class="rounded-lg border border-red-200 bg-red-50 p-3 dark:border-red-800/50 dark:bg-red-950/30">
                 <div class="flex items-start space-x-2">
                   <svg class="mt-0.5 h-4 w-4 shrink-0 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
@@ -186,7 +226,7 @@ function formatDate(dateString) {
               <div class="flex items-center space-x-3">
                 <button
                   @click="applyUpdate"
-                  class="rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700"
+                  class="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
                 >
                   Try Again
                 </button>
@@ -201,7 +241,7 @@ function formatDate(dateString) {
 
             <!-- Ready State -->
             <div v-else class="space-y-4">
-              <div class="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 p-3 dark:border-amber-800/50 dark:bg-amber-950/30">
+              <div class="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 dark:border-amber-800/50 dark:bg-amber-950/30">
                 <svg class="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
                 </svg>
@@ -218,7 +258,7 @@ function formatDate(dateString) {
                 </button>
                 <button
                   @click="applyUpdate"
-                  class="inline-flex items-center space-x-2 rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700"
+                  class="inline-flex items-center space-x-2 rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
                 >
                   <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />

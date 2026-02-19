@@ -21,6 +21,7 @@ const page = usePage()
 const currentUrl = computed(() => page.url)
 const navProjects = computed(() => page.props.navProjects || [])
 const navApps = computed(() => page.props.navApps || [])
+const navServices = computed(() => page.props.navServices || [])
 
 // ─── Register core commands ──────────────────────────────────────────
 
@@ -39,7 +40,14 @@ register({
   keywords: ['monitoring', 'metrics', 'observability', 'cpu', 'memory'],
   group: 'Navigation',
   icon: 'chart',
-  action: () => router.visit('/lookout')
+  children: () => navProjects.value.map(project => ({
+    id: `nav.lookout.${project.slug}`,
+    title: project.name,
+    keywords: [project.slug],
+    group: 'Projects',
+    icon: 'chart',
+    action: () => router.visit(`/projects/${project.slug}/lookout`)
+  }))
 })
 
 register({
@@ -166,6 +174,55 @@ register({
   group: 'Navigation',
   icon: 'database',
   action: () => router.visit('/bosun')
+})
+
+register({
+  id: 'nav.logs',
+  title: 'Go to Logs',
+  keywords: ['logs', 'output', 'stdout', 'stderr', 'console', 'tail', 'stream'],
+  group: 'Navigation',
+  icon: 'terminal',
+  children: () => {
+    const items = []
+
+    // Bosun (instance) logs — always first
+    items.push({
+      id: 'nav.logs.bosun',
+      title: 'Slipway instance',
+      keywords: ['bosun', 'instance', 'system'],
+      group: 'Instance',
+      icon: 'terminal',
+      action: () => router.visit('/bosun?logs=1')
+    })
+
+    // App logs
+    navApps.value.forEach(app => {
+      items.push({
+        id: `nav.logs.app.${app.projectSlug}.${app.envSlug}.${app.slug}`,
+        title: app.name,
+        subtitle: `${app.projectName} / ${app.envName}`,
+        keywords: [app.slug, app.projectName, app.envName],
+        group: 'Apps',
+        icon: 'server',
+        action: () => router.visit(`/projects/${app.projectSlug}/environments/${app.envSlug}/apps/${app.slug}`)
+      })
+    })
+
+    // Service logs
+    navServices.value.forEach(service => {
+      items.push({
+        id: `nav.logs.service.${service.projectSlug}.${service.envSlug}.${service.id}`,
+        title: `${service.name} (${service.type})`,
+        subtitle: `${service.projectName} / ${service.envName}`,
+        keywords: [service.name, service.type, service.projectName, service.envName],
+        group: 'Services',
+        icon: 'database',
+        action: () => router.visit(`/projects/${service.projectSlug}/environments/${service.envSlug}/services/${service.id}`)
+      })
+    })
+
+    return items
+  }
 })
 
 register({
@@ -418,7 +475,7 @@ const results = computed(() => {
 
   // Group remaining by their group property
   cmds.forEach(cmd => {
-    if (!query.value && history.value.includes(cmd.id)) return
+    if (!query.value && mode.value === 'root' && history.value.includes(cmd.id)) return
     const group = cmd.group || 'Other'
     if (!groups[group]) groups[group] = []
     groups[group].push(cmd)
@@ -498,6 +555,9 @@ function scrollToSelected() {
 
 function selectCommand(cmd) {
   if (cmd.children) {
+    // Track parent commands in history so they appear in Recent
+    history.value = [cmd.id, ...history.value.filter(h => h !== cmd.id)].slice(0, 10)
+    localStorage.setItem('slipway:command-history', JSON.stringify(history.value))
     mode.value = 'submenu'
     parentCommand.value = cmd
     query.value = ''
@@ -575,6 +635,7 @@ const icons = computed(() => ({
   stop: 'M5.25 7.5A2.25 2.25 0 017.5 5.25h9a2.25 2.25 0 012.25 2.25v9a2.25 2.25 0 01-2.25 2.25h-9a2.25 2.25 0 01-2.25-2.25v-9z',
   clipboard: 'M15.666 3.888A2.25 2.25 0 0013.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 01-.75.75H9.75a.75.75 0 01-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 01-2.25 2.25H6.75A2.25 2.25 0 014.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 011.927-.184',
   code: 'M17.25 6.75L22.5 12l-5.25 5.25m-10.5 0L1.5 12l5.25-5.25m7.5-3l-4.5 16.5',
+  terminal: 'M6.75 7.5l3 2.25-3 2.25m4.5 0h3m-9 8.25h13.5A2.25 2.25 0 0021 18V6a2.25 2.25 0 00-2.25-2.25H5.25A2.25 2.25 0 003 6v12a2.25 2.25 0 002.25 2.25z',
   search: 'M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z',
   chevronRight: 'M9 5l7 7-7 7'
 }))

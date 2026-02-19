@@ -126,6 +126,7 @@ module.exports = {
         const readStream = fs.createReadStream(tmpFile)
 
         // Skipper receivers expect file metadata
+        readStream.skipperFd = s3Key
         readStream.fd = s3Key
         readStream.filename = path.basename(s3Key)
         readStream.headers = { 'content-type': 'application/octet-stream' }

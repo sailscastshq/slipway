@@ -1,12 +1,14 @@
 <script setup>
-import { Link, Head, router, usePoll } from '@inertiajs/vue3'
+import { Link, Head, router } from '@inertiajs/vue3'
 import { inject, ref, reactive, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
+import { useEventSource } from '@/composables/sse'
 import AppLayout from '@/layouts/AppLayout.vue'
 import Breadcrumb from '@/components/Breadcrumb.vue'
 import SlideToDeploy from '@/components/SlideToDeploy.vue'
 import Tooltip from '@/components/Tooltip.vue'
 import { useToast } from '@/composables/toast'
 import SlippyLoader from '@/components/SlippyLoader.vue'
+import { highlightLogLine } from '@/lib/highlightLog'
 
 defineOptions({
   layout: AppLayout
@@ -29,31 +31,41 @@ const toggleSidebar = inject('toggleSidebar')
 const sidebarCollapsed = inject('sidebarCollapsed')
 const toast = useToast()
 
-// --- Polling for real-time updates ---
-const isDeploymentActive = computed(() => {
-  if (!props.app) return false
-  return ['building', 'deploying', 'starting'].includes(props.app.status)
-})
+// --- SSE-powered deployment tracking (replaces usePoll) ---
+const activeDeploymentSources = ref(new Map())
 
-const hasActiveDeployment = computed(() => {
-  return props.deployments.some(d =>
-    ['pending', 'building', 'deploying'].includes(d.status)
-  )
-})
+function connectActiveDeployments() {
+  const activeStatuses = ['pending', 'building', 'deploying']
+  const active = props.deployments.filter(d => activeStatuses.includes(d.status))
 
-const shouldPoll = computed(() => isDeploymentActive.value || hasActiveDeployment.value)
+  for (const dep of active) {
+    if (activeDeploymentSources.value.has(dep.id)) continue
 
-const { stop: stopPoll, start: startPoll } = usePoll(2000, {
-  keepAlive: true,
-  autoStart: false
-})
-
-watch(shouldPoll, (active) => {
-  if (active) {
-    startPoll()
-  } else {
-    stopPoll()
+    const es = new EventSource(`/api/v1/deployments/${dep.id}/stream`)
+    es.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data)
+        if (data.status && ['running', 'failed', 'cancelled'].includes(data.status)) {
+          es.close()
+          activeDeploymentSources.value.delete(dep.id)
+          router.reload()
+        }
+      } catch { /* ignore */ }
+    }
+    es.onerror = () => { /* auto-reconnects */ }
+    activeDeploymentSources.value.set(dep.id, es)
   }
+}
+
+function disconnectActiveDeployments() {
+  for (const es of activeDeploymentSources.value.values()) {
+    es.close()
+  }
+  activeDeploymentSources.value.clear()
+}
+
+watch(() => props.deployments, () => {
+  connectActiveDeployments()
 }, { immediate: true })
 
 // --- Deploy ---
@@ -426,60 +438,19 @@ watch(bulkMode, (open) => {
 // --- Container logs ---
 const logsOpen = ref(_params.has('logs'))
 const logLines = ref([])
-const logsConnected = ref(false)
-const logsError = ref(null)
-let logsEventSource = null
 const logContainer = ref(null)
 const autoScroll = ref(true)
 
-function highlightLogLine(line) {
-  let s = line.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-
-  s = s.replace(/\b(2\d{2})\b/g, '<span class="text-emerald-500">$1</span>')
-  s = s.replace(/\b(3\d{2})\b/g, '<span class="text-sky-500">$1</span>')
-  s = s.replace(/\b(4\d{2})\b/g, '<span class="text-amber-500">$1</span>')
-  s = s.replace(/\b(5\d{2})\b/g, '<span class="text-rose-500">$1</span>')
-
-  s = s.replace(/(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z?)/, '<span class="text-zinc-500">$1</span>')
-
-  s = s.replace(/\b(error|Error|ERROR|ERR)\b/g, '<span class="text-rose-500 font-semibold">$1</span>')
-  s = s.replace(/\b(warn|Warn|WARN|warning|Warning|WARNING)\b/g, '<span class="text-amber-500 font-semibold">$1</span>')
-  s = s.replace(/\b(info|Info|INFO)\b/g, '<span class="text-sky-500">$1</span>')
-  s = s.replace(/\b(debug|Debug|DEBUG|verbose|silly)\b/g, '<span class="text-zinc-500">$1</span>')
-
-  s = s.replace(/\b(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS)\b/g, '<span class="text-cyan-500 font-medium">$1</span>')
-
-  s = s.replace(/(\/api\/[^\s"'<>]+)/g, '<span class="text-violet-500">$1</span>')
-  s = s.replace(/(https?:\/\/[^\s"'<>]+)/g, '<span class="text-sky-500 underline">$1</span>')
-
-  s = s.replace(/(\s+at\s+)/g, '<span class="text-zinc-600">$1</span>')
-
-  s = s.replace(/(\bport\s*)(\d+)/gi, '$1<span class="text-emerald-500">$2</span>')
-
-  s = s.replace(/\[([^\]]+)\]/g, '<span class="text-zinc-600">[$1]</span>')
-
-  return s
-}
-
-function connectLogs() {
-  if (logsEventSource) return
-  if (!props.app?.containerName) {
-    logsError.value = 'No container running'
-    return
-  }
-
-  logsError.value = null
-  logLines.value = []
-
-  const url = `/api/v1/projects/${props.project.slug}/environments/${props.environment.slug}/apps/${props.app.slug}/logs/stream?tail=200`
-  logsEventSource = new EventSource(url)
-  logsEventSource.onopen = () => {
-    logsConnected.value = true
-  }
-
-  logsEventSource.onmessage = (event) => {
-    try {
-      const data = JSON.parse(event.data)
+const {
+  connected: logsConnected,
+  error: logsError,
+  close: disconnectLogs,
+  connect: connectLogs
+} = useEventSource(
+  `/api/v1/projects/${props.project.slug}/environments/${props.environment.slug}/apps/${props.app.slug}/logs/stream?tail=200`,
+  {
+    immediate: false,
+    onMessage(data) {
       if (data.log) {
         logLines.value.push(data.log)
         if (logLines.value.length > 2000) {
@@ -493,30 +464,9 @@ function connectLogs() {
           })
         }
       }
-      if (data.error) {
-        logsError.value = data.error
-      }
-      if (data.closed) {
-        logsConnected.value = false
-      }
-    } catch (e) {
-      console.error('Failed to parse log event:', e, event.data)
     }
   }
-
-  logsEventSource.onerror = () => {
-    logsConnected.value = false
-    disconnectLogs()
-  }
-}
-
-function disconnectLogs() {
-  if (logsEventSource) {
-    logsEventSource.close()
-    logsEventSource = null
-  }
-  logsConnected.value = false
-}
+)
 
 watch(logsOpen, (open) => {
   const url = new URL(window.location)
@@ -554,6 +504,7 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+  disconnectActiveDeployments()
   disconnectLogs()
   document.removeEventListener('keydown', handleEscapeKey)
 })

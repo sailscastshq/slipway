@@ -32,6 +32,18 @@
     <%= isSuccess ? 'Backup safe and sound' : 'Backup didn\'t make it' %>
   </h2>
   <table style="width: 100%; border-collapse: collapse; margin-bottom: 24px;">
+    <% if (projectName) { %>
+    <tr>
+      <td style="padding: 10px 0; border-bottom: 1px solid #f4f4f5; color: #a1a1aa; font-size: 13px; font-weight: 500; width: 110px; vertical-align: top;">Project</td>
+      <td style="padding: 10px 0; border-bottom: 1px solid #f4f4f5; color: #18181b; font-size: 14px;"><%= projectName %></td>
+    </tr>
+    <% } %>
+    <% if (environmentName) { %>
+    <tr>
+      <td style="padding: 10px 0; border-bottom: 1px solid #f4f4f5; color: #a1a1aa; font-size: 13px; font-weight: 500; width: 110px; vertical-align: top;">Environment</td>
+      <td style="padding: 10px 0; border-bottom: 1px solid #f4f4f5; color: #18181b; font-size: 14px;"><%= environmentName %></td>
+    </tr>
+    <% } %>
     <tr>
       <td style="padding: 10px 0; border-bottom: 1px solid #f4f4f5; color: #a1a1aa; font-size: 13px; font-weight: 500; width: 110px; vertical-align: top;">Service</td>
       <td style="padding: 10px 0; border-bottom: 1px solid #f4f4f5; color: #18181b; font-size: 14px;"><%= service.name %></td>

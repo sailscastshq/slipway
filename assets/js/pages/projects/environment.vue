@@ -1,5 +1,5 @@
 <script setup>
-import { Link, Head, router, usePoll } from '@inertiajs/vue3'
+import { Link, Head, router } from '@inertiajs/vue3'
 import { inject, ref, reactive, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
 import Breadcrumb from '@/components/Breadcrumb.vue'
@@ -102,32 +102,41 @@ async function stopSingleApp(appItem) {
   } catch { /* ignore */ }
 }
 
-// --- Polling for real-time updates ---
-const isDeploymentActive = computed(() => {
-  if (!props.app) return false
-  return ['building', 'deploying', 'starting'].includes(props.app.status)
-})
+// --- SSE-powered deployment tracking (replaces usePoll) ---
+const activeDeploymentSources = ref(new Map())
 
-const hasActiveDeployment = computed(() => {
-  return props.deployments.some(d =>
-    ['pending', 'building', 'deploying'].includes(d.status)
-  )
-})
+function connectActiveDeployments() {
+  const activeStatuses = ['pending', 'building', 'deploying']
+  const active = props.deployments.filter(d => activeStatuses.includes(d.status))
 
-const shouldPoll = computed(() => isDeploymentActive.value || hasActiveDeployment.value)
+  for (const dep of active) {
+    if (activeDeploymentSources.value.has(dep.id)) continue
 
-const { stop: stopPoll, start: startPoll } = usePoll(2000, {
-  keepAlive: true,
-  autoStart: false // Don't auto-start, we'll control it manually
-})
-
-// Start/stop polling based on deployment status
-watch(shouldPoll, (active) => {
-  if (active) {
-    startPoll()
-  } else {
-    stopPoll()
+    const es = new EventSource(`/api/v1/deployments/${dep.id}/stream`)
+    es.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data)
+        if (data.status && ['running', 'failed', 'cancelled'].includes(data.status)) {
+          es.close()
+          activeDeploymentSources.value.delete(dep.id)
+          router.reload()
+        }
+      } catch { /* ignore */ }
+    }
+    es.onerror = () => { /* auto-reconnects */ }
+    activeDeploymentSources.value.set(dep.id, es)
   }
+}
+
+function disconnectActiveDeployments() {
+  for (const es of activeDeploymentSources.value.values()) {
+    es.close()
+  }
+  activeDeploymentSources.value.clear()
+}
+
+watch(() => props.deployments, () => {
+  connectActiveDeployments()
 }, { immediate: true })
 
 // --- Env vars management ---
@@ -611,6 +620,7 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+  disconnectActiveDeployments()
   document.removeEventListener('keydown', handleEscapeKey)
 })
 </script>
@@ -1082,6 +1092,16 @@ onBeforeUnmount(() => {
                             </svg>
                             {{ startingServiceId === service.id ? 'Starting...' : 'Start' }}
                           </button>
+                          <Link
+                            :href="`/projects/${project.slug}/environments/${environment.slug}/services/${service.id}/settings`"
+                            class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-800"
+                          >
+                            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                            </svg>
+                            Settings
+                          </Link>
                           <button
                             @click.stop="confirmDeleteService(service)"
                             class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20"

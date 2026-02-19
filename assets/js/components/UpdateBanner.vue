@@ -38,14 +38,13 @@ onMounted(() => {
   >
     <div
       v-if="updateInfo?.updateAvailable && !dismissed"
-      class="border-b border-gray-200 bg-gray-50 px-4 py-3 dark:border-gray-800 dark:bg-gray-900/50"
+      class="border-b border-brand-200/50 bg-brand-50/50 px-4 py-2.5 dark:border-brand-900/30 dark:bg-brand-950/20"
     >
       <div class="mx-auto flex max-w-6xl items-center justify-between">
         <div class="flex items-center space-x-3">
-          <!-- Update icon -->
-          <div class="flex h-8 w-8 items-center justify-center rounded-full bg-gray-200 dark:bg-gray-800">
+          <div class="flex h-7 w-7 items-center justify-center rounded-full bg-brand-100 dark:bg-brand-900/40">
             <svg
-              class="h-4 w-4 text-gray-600 dark:text-gray-400"
+              class="h-3.5 w-3.5 text-brand-600 dark:text-brand-400"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -58,14 +57,11 @@ onMounted(() => {
               />
             </svg>
           </div>
-          <div>
-            <p class="text-sm font-medium text-gray-900 dark:text-white">
-              Slipway {{ updateInfo.latestVersion }} is available
-            </p>
-            <p class="text-sm text-gray-500 dark:text-gray-400">
-              You're currently running {{ updateInfo.currentVersion }}
-            </p>
-          </div>
+          <p class="text-sm text-gray-700 dark:text-gray-300">
+            <span class="font-medium text-gray-900 dark:text-white">Slipway {{ updateInfo.latestVersion }}</span>
+            is available
+            <span class="hidden text-gray-400 dark:text-gray-500 sm:inline">&middot; currently {{ updateInfo.currentVersion }}</span>
+          </p>
         </div>
         <div class="flex items-center space-x-2">
           <Link
@@ -77,7 +73,7 @@ onMounted(() => {
           <Tooltip text="Dismiss">
             <button
               @click="dismiss"
-              class="rounded-md p-1.5 text-gray-500 hover:bg-gray-200 dark:text-gray-400 dark:hover:bg-gray-800"
+              class="rounded-md p-1.5 text-gray-400 hover:bg-brand-100 hover:text-gray-600 dark:text-gray-500 dark:hover:bg-brand-900/30 dark:hover:text-gray-300"
             >
               <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />

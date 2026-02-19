@@ -65,6 +65,7 @@ module.exports.routes = {
   'GET /projects/:slug/environments/:envSlug/apps/:appSlug/settings': 'project/view-app-settings',
   'GET /projects/:slug/environments/:envSlug/helm': 'project/view-helm',
   'GET /projects/:slug/environments/:envSlug/services/:serviceId': 'project/view-service',
+  'GET /projects/:slug/environments/:envSlug/services/:serviceId/settings': 'project/view-service-settings',
   'GET /projects/:slug/deployments/:deploymentId': 'project/view-deployment',
 
   // Settings (web UI)
@@ -112,6 +113,7 @@ module.exports.routes = {
   'GET /settings/update': 'system/view-update',
   'GET /api/v1/system/check-update': 'system/check-update',
   'POST /api/v1/system/apply-update': 'system/apply-update',
+  'GET /api/v1/system/stream-update': 'system/stream-update',
 
   // Bosun (self-administration dashboard)
   'GET /bosun': 'bosun/view-bosun',
@@ -206,6 +208,7 @@ module.exports.routes = {
   'GET /projects/:projectSlug/environments/:environmentSlug/logs/history': 'project/get-historical-logs',
 
   // SSE Streams
+  'GET /api/v1/deployments/active/stream': 'api/v1/deploy/stream-active-deployments',
   'GET /api/v1/deployments/:id/stream': 'api/v1/deploy/stream-deployment',
   'GET /api/v1/projects/:projectSlug/environments/:environmentSlug/logs/stream': 'api/v1/app/stream-container-logs',
 

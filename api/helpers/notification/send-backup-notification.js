@@ -35,9 +35,22 @@ module.exports = {
       return
     }
 
+    // Resolve environment and project for context
+    let environmentName = ''
+    let projectName = ''
+    const envId = typeof service.environment === 'object' ? service.environment.id : service.environment
+    if (envId) {
+      const environment = await Environment.findOne({ id: envId }).populate('project')
+      if (environment) {
+        environmentName = environment.name
+        if (environment.project) {
+          projectName = environment.project.name
+        }
+      }
+    }
+
     const instanceName = await sails.helpers.setting.get('instanceName', 'Slipway')
     const emoji = isSuccess ? '\u2705' : '\u274C'
-    const statusText = isSuccess ? 'completed' : 'failed'
     const slippyTitle = isSuccess ? 'Backup safe and sound' : 'Backup didn\'t make it'
 
     // Format duration
@@ -54,6 +67,8 @@ module.exports = {
     const telegramEnabled = await sails.helpers.setting.get('telegramEnabled', 'false')
     if (telegramEnabled === 'true') {
       let message = `${emoji} <b>${slippyTitle}</b>\n\n`
+      if (projectName) message += `<b>Project:</b> ${escapeHtml(projectName)}\n`
+      if (environmentName) message += `<b>Environment:</b> ${escapeHtml(environmentName)}\n`
       message += `<b>Service:</b> ${escapeHtml(service.name)}\n`
       message += `<b>Type:</b> ${escapeHtml(service.type)}\n`
       message += `<b>Duration:</b> ${duration}\n`
@@ -72,6 +87,8 @@ module.exports = {
     const slackEnabled = await sails.helpers.setting.get('slackEnabled', 'false')
     if (slackEnabled === 'true') {
       let message = `${emoji} *${slippyTitle}*\n\n`
+      if (projectName) message += `*Project:* ${projectName}\n`
+      if (environmentName) message += `*Environment:* ${environmentName}\n`
       message += `*Service:* ${service.name}\n`
       message += `*Type:* ${service.type}\n`
       message += `*Duration:* ${duration}\n`
@@ -91,11 +108,14 @@ module.exports = {
     if (discordEnabled === 'true') {
       const discordWebhookUrl = await sails.helpers.setting.get('discordWebhookUrl', '')
       if (discordWebhookUrl) {
-        const fields = [
+        const fields = []
+        if (projectName) fields.push({ name: 'Project', value: projectName, inline: true })
+        if (environmentName) fields.push({ name: 'Environment', value: environmentName, inline: true })
+        fields.push(
           { name: 'Service', value: service.name, inline: true },
           { name: 'Type', value: service.type, inline: true },
           { name: 'Duration', value: duration, inline: true }
-        ]
+        )
         if (isSuccess) {
           fields.push({ name: 'Size', value: size, inline: true })
         }
@@ -122,13 +142,16 @@ module.exports = {
     // Send email notification
     const smtpEnabled = await sails.helpers.setting.get('smtpEnabled', 'false')
     if (smtpEnabled === 'true') {
+      const subjectSuffix = environmentName ? `${service.name} (${environmentName})` : service.name
       await sails.helpers.notification.sendEmail.with({
         template: 'email-backup-notification',
-        subject: `${emoji} ${slippyTitle} \u2014 ${service.name}`,
+        subject: `${emoji} ${slippyTitle} \u2014 ${subjectSuffix}`,
         templateData: {
           isSuccess,
           backup,
           service,
+          projectName,
+          environmentName,
           instanceName,
           errorMessage: backup.errorMessage || ''
         }
@@ -141,6 +164,8 @@ module.exports = {
       await sails.helpers.notification.sendWebhook.with({
         event: isSuccess ? 'backup.success' : 'backup.failed',
         data: {
+          project: projectName || undefined,
+          environment: environmentName || undefined,
           service: { name: service.name, type: service.type },
           backup: {
             id: backup.id,
