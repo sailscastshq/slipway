@@ -125,14 +125,18 @@ module.exports = {
         const receiver = adapter.receive({ dirname: '', saveAs: s3Key })
         const readStream = fs.createReadStream(tmpFile)
 
-        // Skipper receivers expect file metadata
+        // Skipper receivers expect file metadata on the stream object
         readStream.skipperFd = s3Key
         readStream.fd = s3Key
         readStream.filename = path.basename(s3Key)
         readStream.headers = { 'content-type': 'application/octet-stream' }
         readStream.byteCount = sizeBytes
 
-        readStream.pipe(receiver)
+        // The receiver is an objectMode writable — it expects stream objects,
+        // not raw Buffer chunks. Using .write() passes the stream object itself;
+        // .pipe() would send Buffer chunks and lose the metadata properties.
+        receiver.write(readStream)
+        receiver.end()
 
         receiver.on('finish', () => resolve())
         receiver.on('error', (err) => reject(err))
