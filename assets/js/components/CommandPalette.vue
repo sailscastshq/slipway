@@ -192,7 +192,7 @@ register({
       keywords: ['bosun', 'instance', 'system'],
       group: 'Instance',
       icon: 'terminal',
-      action: () => router.visit('/bosun')
+      action: () => router.visit('/bosun?logs=1')
     })
 
     // App logs
