@@ -82,10 +82,7 @@ module.exports = function defineSlipwayHook(sails) {
       // Start flush timer
       flushTimer = setInterval(flush, config.flushInterval)
 
-      // Instrument HTTP requests
-      instrumentRequests()
-
-      // Instrument unhandled exceptions
+      // Instrument unhandled exceptions (process-level handlers only)
       if (config.captureExceptions) {
         instrumentExceptions()
       }
@@ -112,6 +109,83 @@ module.exports = function defineSlipwayHook(sails) {
       return done()
     },
 
+    // ─── HTTP Request & Exception Instrumentation ───────────────
+    // Uses routes.before instead of sails.on('router:request') because
+    // the router:request event doesn't fire reliably for all requests
+    // (e.g. when Inertia middleware handles the response).
+    routes: {
+      before: {
+        'all /*': function (req, res, next) {
+          // Skip if telemetry is not configured or disabled
+          if (!config.telemetryUrl || !config.telemetryToken || !config.enabled) {
+            return next()
+          }
+
+          const startTime = Date.now()
+          const traceId = crypto.randomBytes(16).toString('hex')
+          const spanId = crypto.randomBytes(8).toString('hex')
+
+          // Attach trace context to request
+          req._slipwayTraceId = traceId
+          req._slipwaySpanId = spanId
+
+          // Patch res.serverError to capture handled exceptions
+          if (config.captureExceptions) {
+            const originalServerError = res.serverError
+            if (typeof originalServerError === 'function') {
+              res.serverError = function (data) {
+                if (data instanceof Error) {
+                  captureException(data, true, req)
+                } else if (data && data.raw) {
+                  captureException(data.raw instanceof Error ? data.raw : new Error(String(data.raw)), true, req)
+                }
+                return originalServerError.call(res, data)
+              }
+            }
+          }
+
+          // Hook into response finish to record the span
+          const originalEnd = res.end
+          res.end = function (...args) {
+            // Restore immediately to prevent double-firing
+            res.end = originalEnd
+
+            const duration = Date.now() - startTime
+
+            // Skip health check and static asset requests
+            const url = req.originalUrl || req.url
+            if (url !== '/health' && !url.startsWith('/__') && !url.match(/\.(js|css|png|jpg|svg|ico|map|woff|woff2)$/)) {
+              spanBuffer.push({
+                traceId,
+                spanId,
+                name: `${req.method} ${url}`,
+                kind: 'server',
+                method: req.method,
+                url,
+                statusCode: res.statusCode,
+                duration,
+                startedAt: startTime,
+                attributes: {
+                  'http.route': req.route ? req.route.path : url,
+                  'http.user_agent': req.headers['user-agent'] || '',
+                  'http.request_content_length': req.headers['content-length'] || 0
+                }
+              })
+
+              // Auto-flush if buffer is full
+              if (spanBuffer.length >= config.batchSize) {
+                flush()
+              }
+            }
+
+            return originalEnd.apply(res, args)
+          }
+
+          next()
+        }
+      }
+    },
+
     teardown: function (done) {
       if (flushTimer) {
         clearInterval(flushTimer)
@@ -122,87 +196,18 @@ module.exports = function defineSlipwayHook(sails) {
     }
   }
 
-  // ─── HTTP Request Instrumentation ─────────────────────────────
-
-  function instrumentRequests() {
-    sails.on('router:request', function (req, res) {
-      const startTime = Date.now()
-      const traceId = crypto.randomBytes(16).toString('hex')
-      const spanId = crypto.randomBytes(8).toString('hex')
-
-      // Attach trace context to request
-      req._slipwayTraceId = traceId
-      req._slipwaySpanId = spanId
-
-      // Hook into response finish
-      const originalEnd = res.end
-      res.end = function (...args) {
-        const duration = Date.now() - startTime
-
-        // Skip health check and static asset requests
-        const url = req.originalUrl || req.url
-        if (url === '/health' || url.startsWith('/__') || url.match(/\.(js|css|png|jpg|svg|ico|map|woff|woff2)$/)) {
-          return originalEnd.apply(res, args)
-        }
-
-        const span = {
-          traceId,
-          spanId,
-          name: `${req.method} ${url}`,
-          kind: 'server',
-          method: req.method,
-          url,
-          statusCode: res.statusCode,
-          duration,
-          startedAt: startTime,
-          attributes: {
-            'http.route': req.route ? req.route.path : url,
-            'http.user_agent': req.headers['user-agent'] || '',
-            'http.request_content_length': req.headers['content-length'] || 0
-          }
-        }
-
-        spanBuffer.push(span)
-
-        // Auto-flush if buffer is full
-        if (spanBuffer.length >= config.batchSize) {
-          flush()
-        }
-
-        return originalEnd.apply(res, args)
-      }
-    })
-  }
-
-  // ─── Exception Instrumentation ────────────────────────────────
+  // ─── Exception Instrumentation (process-level) ─────────────────
 
   function instrumentExceptions() {
     // Capture unhandled exceptions
     process.on('uncaughtException', function (err) {
       captureException(err, false)
-      // Re-throw to let the default handler do its thing
-      // (Sails already catches these)
     })
 
     // Capture unhandled promise rejections
     process.on('unhandledRejection', function (reason) {
       const err = reason instanceof Error ? reason : new Error(String(reason))
       captureException(err, false)
-    })
-
-    // Hook into Sails response error handling
-    sails.on('router:request', function (req, res) {
-      const originalServerError = res.serverError
-      if (typeof originalServerError === 'function') {
-        res.serverError = function (data) {
-          if (data instanceof Error) {
-            captureException(data, true, req)
-          } else if (data && data.raw) {
-            captureException(data.raw instanceof Error ? data.raw : new Error(String(data.raw)), true, req)
-          }
-          return originalServerError.call(res, data)
-        }
-      }
     })
   }
 
