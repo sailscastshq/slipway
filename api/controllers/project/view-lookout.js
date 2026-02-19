@@ -253,7 +253,7 @@ module.exports = {
           recordedAt: m.recordedAt
         }))
       },
-      hasTelemetry: recentSpans.length > 0 || recentExceptions.length > 0 || cacheMetrics.length > 0,
+      hasTelemetry: recentSpans.length > 0 || recentExceptions.length > 0 || cacheMetrics.length > 0 || slowQueries.length > 0,
       telemetryToken: environment.telemetryToken
     }
 
