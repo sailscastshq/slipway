@@ -3,6 +3,7 @@ import { Link, Head, router, usePoll } from '@inertiajs/vue3'
 import { inject, ref, computed, watch } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
 import Breadcrumb from '@/components/Breadcrumb.vue'
+import SlippyLoader from '@/components/SlippyLoader.vue'
 import { useQueryState } from '@/composables/useQueryState'
 
 defineOptions({
@@ -491,8 +492,9 @@ async function copyToken() {
               >
                 <div v-if="expandedContainer === container.name" class="overflow-hidden border-t border-gray-100 dark:border-gray-800">
                   <div class="p-4">
-                    <div v-if="loadingDetail" class="py-8 text-center text-sm text-gray-400 dark:text-gray-500">
-                      Loading 24h history...
+                    <div v-if="loadingDetail" class="py-8 text-center">
+                      <SlippyLoader class="mx-auto mb-2 text-gray-400 dark:text-gray-500" />
+                      <p class="text-sm text-gray-400 dark:text-gray-500">Loading 24h history...</p>
                     </div>
 
                     <div v-else-if="container.metric" class="space-y-6">
