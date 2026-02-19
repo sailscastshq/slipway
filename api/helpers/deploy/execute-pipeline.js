@@ -100,7 +100,8 @@ module.exports = {
 
       // 7b. Auto-inject Slipway telemetry env vars for sails-hook-slipway
       if (envRecord.telemetryToken) {
-        envVars.SLIPWAY_TELEMETRY_URL = `${sails.config.custom.baseUrl}/api/v1/telemetry/ingest`
+        const telemetryHost = sails.config.environment === 'production' ? 'slipway' : 'host.docker.internal'
+        envVars.SLIPWAY_TELEMETRY_URL = `http://${telemetryHost}:1337/api/v1/telemetry/ingest`
         envVars.SLIPWAY_TELEMETRY_TOKEN = envRecord.telemetryToken
       }
 

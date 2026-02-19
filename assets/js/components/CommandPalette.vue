@@ -39,7 +39,14 @@ register({
   keywords: ['monitoring', 'metrics', 'observability', 'cpu', 'memory'],
   group: 'Navigation',
   icon: 'chart',
-  action: () => router.visit('/lookout')
+  children: () => navProjects.value.map(project => ({
+    id: `nav.lookout.${project.slug}`,
+    title: project.name,
+    keywords: [project.slug],
+    group: 'Projects',
+    icon: 'chart',
+    action: () => router.visit(`/projects/${project.slug}/lookout`)
+  }))
 })
 
 register({

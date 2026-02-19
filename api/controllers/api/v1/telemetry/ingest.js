@@ -48,6 +48,7 @@ module.exports = {
 
     // Look up the environment by token hash (can't query encrypted fields directly)
     const crypto = require('crypto')
+    const randomId = () => crypto.randomBytes(16).toString('hex')
     const tokenHash = crypto.createHash('sha256').update(token).digest('hex')
     const environment = await Environment.findOne({ telemetryTokenHash: tokenHash })
     if (!environment) {
@@ -61,8 +62,8 @@ module.exports = {
     // Ingest spans
     if (Array.isArray(spans) && spans.length > 0) {
       const spanRecords = spans.slice(0, 500).map(s => ({
-        traceId: String(s.traceId || ''),
-        spanId: String(s.spanId || ''),
+        traceId: String(s.traceId || randomId()),
+        spanId: String(s.spanId || randomId()),
         parentSpanId: s.parentSpanId || null,
         name: String(s.name || 'unknown'),
         kind: ['server', 'client', 'internal'].includes(s.kind) ? s.kind : 'server',
