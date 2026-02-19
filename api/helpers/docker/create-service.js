@@ -38,6 +38,22 @@ module.exports = {
     // Build docker run args based on service type
     const args = ['run', '-d', '--name', service.containerName, '--network', networkName, '--restart', 'unless-stopped']
 
+    // Add resource limits (per-type defaults for databases vs Redis)
+    const typeDefaults = {
+      postgresql: { cpus: '1', memory: '512m' },
+      mysql: { cpus: '1', memory: '512m' },
+      mongodb: { cpus: '1', memory: '512m' },
+      redis: { cpus: '0.25', memory: '128m' }
+    }
+    const resourceLimits = service.resourceLimits || typeDefaults[service.type] || { cpus: '0.5', memory: '256m' }
+    if (resourceLimits.cpus) {
+      args.push('--cpus', String(resourceLimits.cpus))
+    }
+    if (resourceLimits.memory) {
+      args.push('--memory', String(resourceLimits.memory))
+      args.push('--memory-swap', '-1')
+    }
+
     // Add service-specific environment variables
     switch (service.type) {
       case 'postgresql':

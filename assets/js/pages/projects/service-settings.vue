@@ -3,7 +3,6 @@ import { Link, Head, router, usePage } from '@inertiajs/vue3'
 import { ref, computed, inject } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
 import Breadcrumb from '@/components/Breadcrumb.vue'
-import ConfirmModal from '@/components/ConfirmModal.vue'
 import Tooltip from '@/components/Tooltip.vue'
 import { useToast } from '@/composables/toast'
 
@@ -14,31 +13,33 @@ defineOptions({
 const props = defineProps({
   project: Object,
   environment: Object,
-  app: Object
+  service: Object
 })
 
+const page = usePage()
 const toggleMobileMenu = inject('toggleMobileMenu')
 const toggleSidebar = inject('toggleSidebar')
 const sidebarCollapsed = inject('sidebarCollapsed')
 const toast = useToast()
 
-const page = usePage()
+// Recommended defaults per service type
+const typeDefaults = {
+  postgresql: { cpus: '1', memory: '512m' },
+  mysql: { cpus: '1', memory: '512m' },
+  mongodb: { cpus: '1', memory: '512m' },
+  redis: { cpus: '0.25', memory: '128m' }
+}
+const defaults = typeDefaults[props.service.type] || { cpus: '0.5', memory: '256m' }
 
-// --- Form state ---
-const name = ref(props.app.name)
-const dockerfilePath = ref(props.app.dockerfilePath || 'Dockerfile')
-const routePath = ref(props.app.routePath === null ? 'none' : (props.app.routePath || '/'))
-const cpus = ref(props.app.resourceLimits?.cpus || '1')
-const memory = ref(props.app.resourceLimits?.memory || '512m')
+// Form state
+const cpus = ref(props.service.resourceLimits?.cpus || defaults.cpus)
+const memory = ref(props.service.resourceLimits?.memory || defaults.memory)
 const saving = ref(false)
 const savingAndRestarting = ref(false)
 
 const isDirty = computed(() =>
-  name.value !== props.app.name ||
-  dockerfilePath.value !== (props.app.dockerfilePath || 'Dockerfile') ||
-  routePath.value !== (props.app.routePath === null ? 'none' : (props.app.routePath || '/')) ||
-  cpus.value !== (props.app.resourceLimits?.cpus || '1') ||
-  memory.value !== (props.app.resourceLimits?.memory || '512m')
+  cpus.value !== (props.service.resourceLimits?.cpus || defaults.cpus) ||
+  memory.value !== (props.service.resourceLimits?.memory || defaults.memory)
 )
 
 async function saveSettings({ restart = false } = {}) {
@@ -47,60 +48,49 @@ async function saveSettings({ restart = false } = {}) {
   } else {
     saving.value = true
   }
+
   try {
-    const res = await fetch(`/api/v1/projects/${props.project.slug}/environments/${props.environment.slug}/apps/${props.app.slug}`, {
+    const res = await fetch(`/api/v1/services/${props.service.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json', 'x-csrf-token': page.props._csrf || '' },
       body: JSON.stringify({
-        name: name.value,
-        dockerfilePath: dockerfilePath.value,
-        routePath: routePath.value === 'none' ? null : routePath.value,
         resourceLimits: { cpus: cpus.value, memory: memory.value }
       })
     })
 
-    if (res.ok && restart) {
-      await fetch(`/api/v1/projects/${props.project.slug}/environments/${props.environment.slug}/apps/${props.app.slug}/restart`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-csrf-token': page.props._csrf || '' }
-      })
-      toast({ message: 'Settings saved and app restarted', type: 'success' })
+    if (res.ok) {
+      if (restart) {
+        await fetch(`/api/v1/services/${props.service.id}/restart`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-csrf-token': page.props._csrf || '' }
+        })
+        toast({ message: 'Settings saved and service restarted', type: 'success' })
+      } else {
+        toast({ message: 'Settings saved', type: 'success' })
+      }
+      router.reload()
     } else {
-      toast({ message: 'App settings saved', type: 'success' })
+      const data = await res.json()
+      toast({ message: data.message || 'Failed to save settings', type: 'error' })
     }
-    router.reload()
+  } catch (err) {
+    toast({ message: 'Failed to save settings', type: 'error' })
   } finally {
     saving.value = false
     savingAndRestarting.value = false
   }
 }
 
-// --- Delete ---
-const deleteConfirm = ref(false)
-const deleting = ref(false)
-
-async function deleteApp() {
-  deleting.value = true
-  try {
-    const res = await fetch(`/api/v1/projects/${props.project.slug}/environments/${props.environment.slug}/apps/${props.app.slug}`, {
-      method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' }
-    })
-    if (res.ok) {
-      router.visit(`/projects/${props.project.slug}/environments/${props.environment.slug}`)
-    } else {
-      const data = await res.json()
-      toast({ message: data.problems?.[0]?.app || 'Failed to delete app', type: 'error' })
-    }
-  } finally {
-    deleting.value = false
-    deleteConfirm.value = false
-  }
+const serviceTypeLabel = {
+  postgresql: 'PostgreSQL',
+  mysql: 'MySQL',
+  redis: 'Redis',
+  mongodb: 'MongoDB'
 }
 </script>
 
 <template>
-  <Head :title="`${app.name} Settings - ${environment.name} | Slipway`"></Head>
+  <Head :title="`${service.name} Settings - ${environment.name} | Slipway`"></Head>
   <div class="flex h-full flex-col">
     <!-- Header -->
     <div class="flex items-center justify-between border-b border-gray-200 py-4 pl-4 pr-4 dark:border-gray-800 sm:pl-4 sm:pr-8">
@@ -127,20 +117,9 @@ async function deleteApp() {
           { label: 'projects', href: '/' },
           { label: project.name.toLowerCase(), href: `/projects/${project.slug}` },
           { label: environment.name.toLowerCase(), href: `/projects/${project.slug}/environments/${environment.slug}` },
-          { label: `${app.name} settings` }
+          { label: service.name, href: `/projects/${project.slug}/environments/${environment.slug}/services/${service.id}` },
+          { label: 'settings' }
         ]" />
-      </div>
-      <div class="flex items-center space-x-4">
-        <a
-          href="https://docs.sailscasts.com/slipway"
-          target="_blank"
-          class="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
-        >
-          Docs
-          <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-          </svg>
-        </a>
       </div>
     </div>
 
@@ -148,57 +127,13 @@ async function deleteApp() {
     <div class="flex-1 overflow-y-auto px-4 py-6 sm:px-8 sm:py-8">
       <div class="mx-auto max-w-2xl">
         <div class="mb-8">
-          <h1 class="text-xl font-semibold text-gray-900 dark:text-white">{{ app.name }} settings</h1>
+          <h1 class="text-xl font-semibold text-gray-900 dark:text-white">{{ service.name }} settings</h1>
           <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            Configure this app's Dockerfile, routing, and resource limits.
+            Configure resource limits for this {{ serviceTypeLabel[service.type] || service.type }} service.
           </p>
         </div>
 
-        <!-- General Settings -->
         <form @submit.prevent="saveSettings()" class="space-y-6">
-          <div>
-            <label for="appName" class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
-              Name
-            </label>
-            <input
-              id="appName"
-              v-model="name"
-              type="text"
-              class="w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:border-brand focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
-            />
-          </div>
-
-          <div>
-            <label for="dockerfilePath" class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
-              Dockerfile path
-            </label>
-            <input
-              id="dockerfilePath"
-              v-model="dockerfilePath"
-              type="text"
-              placeholder="Dockerfile"
-              class="w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:border-brand focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
-            />
-            <p class="mt-1 text-xs text-gray-400 dark:text-gray-500">Relative to your project root, e.g. <code class="text-gray-500 dark:text-gray-400">Dockerfile.worker</code></p>
-          </div>
-
-          <div>
-            <label for="routePath" class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
-              Route path
-            </label>
-            <select
-              id="routePath"
-              v-model="routePath"
-              class="w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 focus:border-brand focus:outline-none dark:border-gray-700 dark:text-white"
-            >
-              <option value="/">/ (root)</option>
-              <option value="/api">/api</option>
-              <option value="/admin">/admin</option>
-              <option value="none">None (worker)</option>
-            </select>
-            <p class="mt-1 text-xs text-gray-400 dark:text-gray-500">URL prefix this app handles. Choose "None" for background workers.</p>
-          </div>
-
           <div class="grid grid-cols-2 gap-4">
             <div>
               <label for="cpuLimit" class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -208,9 +143,10 @@ async function deleteApp() {
                 id="cpuLimit"
                 v-model="cpus"
                 type="text"
-                placeholder="1"
+                :placeholder="defaults.cpus"
                 class="w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:border-brand focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
               />
+              <p class="mt-1 text-xs text-gray-400 dark:text-gray-500">Number of CPU cores, e.g. <code class="text-gray-500 dark:text-gray-400">0.5</code> or <code class="text-gray-500 dark:text-gray-400">2</code></p>
             </div>
             <div>
               <label for="memoryLimit" class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -220,12 +156,14 @@ async function deleteApp() {
                 id="memoryLimit"
                 v-model="memory"
                 type="text"
-                placeholder="512m"
+                :placeholder="defaults.memory"
                 class="w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:border-brand focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
               />
+              <p class="mt-1 text-xs text-gray-400 dark:text-gray-500">e.g. <code class="text-gray-500 dark:text-gray-400">256m</code>, <code class="text-gray-500 dark:text-gray-400">512m</code>, <code class="text-gray-500 dark:text-gray-400">1g</code></p>
             </div>
           </div>
 
+          <!-- Compound button -->
           <div class="flex justify-end">
             <div class="inline-flex rounded-md shadow-sm">
               <button
@@ -235,7 +173,7 @@ async function deleteApp() {
               >
                 {{ saving ? 'Saving...' : 'Save changes' }}
               </button>
-              <Tooltip text="Save and restart app">
+              <Tooltip text="Save and restart service">
                 <button
                   type="button"
                   @click="saveSettings({ restart: true })"
@@ -258,34 +196,7 @@ async function deleteApp() {
             </div>
           </div>
         </form>
-
-        <!-- Danger Zone -->
-        <div v-if="!app.isDefault" class="mt-12 rounded-lg border border-red-200 p-6 dark:border-red-900/50">
-          <h3 class="text-sm font-medium text-red-600 dark:text-red-400">Danger zone</h3>
-          <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">
-            Permanently delete this app. This will stop its container and remove all associated deployments.
-          </p>
-          <div class="mt-4">
-            <button
-              @click="deleteConfirm = true"
-              class="rounded-md border border-red-300 px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-900/20"
-            >
-              Delete app
-            </button>
-          </div>
-        </div>
       </div>
     </div>
-
-    <!-- Delete Confirm Modal -->
-    <ConfirmModal
-      v-if="deleteConfirm"
-      title="Delete app"
-      :message="`Are you sure you want to delete '${app.name}'? This will stop the container and cannot be undone.`"
-      confirm-text="Delete"
-      :loading="deleting"
-      @confirm="deleteApp"
-      @cancel="deleteConfirm = false"
-    />
   </div>
 </template>

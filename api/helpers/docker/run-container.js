@@ -80,6 +80,7 @@ module.exports = {
     }
     if (resourceLimits && resourceLimits.memory) {
       args.push('--memory', String(resourceLimits.memory))
+      args.push('--memory-swap', '-1')
     }
 
     // Add restart policy

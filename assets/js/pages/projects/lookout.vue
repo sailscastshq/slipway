@@ -58,20 +58,27 @@ const tabs = computed(() => {
   return list
 })
 
-// Expanded container for detail view
-const expandedContainer = ref(null)
+// Expanded container for detail view (synced with URL query param)
+const expandedContainer = useQueryState('container', '')
 const detailMetrics = ref(null)
 const loadingDetail = ref(false)
 
 function toggleExpand(containerName) {
   if (expandedContainer.value === containerName) {
-    expandedContainer.value = null
+    expandedContainer.value = ''
     detailMetrics.value = null
     return
   }
   expandedContainer.value = containerName
   loadDetailMetrics(containerName)
 }
+
+// Load detail metrics when page opens with ?container= in URL
+watch(expandedContainer, (name) => {
+  if (name && !detailMetrics.value) {
+    loadDetailMetrics(name)
+  }
+})
 
 async function loadDetailMetrics(containerName) {
   loadingDetail.value = true
@@ -272,6 +279,45 @@ function cleanIp(ip) {
   return ip.replace(/^::ffff:/, '')
 }
 
+// Chart hover
+const chartHover = ref(null)
+
+function onChartHover(event, data, key, chartId) {
+  const svg = event.currentTarget
+  const rect = svg.getBoundingClientRect()
+  const fraction = Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width))
+  const index = Math.round(fraction * (data.length - 1))
+  const item = data[index]
+  const value = item[key]
+  const wrapper = svg.parentElement
+  const wrapperRect = wrapper.getBoundingClientRect()
+  chartHover.value = {
+    chartId,
+    index,
+    x: event.clientX - wrapperRect.left,
+    value: typeof value === 'number' ? value.toFixed(1) : value,
+    label: item.recordedAt ? formatTime(item.recordedAt) : null
+  }
+}
+
+function onChartLeave() {
+  chartHover.value = null
+}
+
+function sparklineHoverPoint(history, key, index, width = 120, height = 24) {
+  const values = history.map(h => h[key])
+  const max = Math.max(...values, 1)
+  const step = width / (values.length - 1)
+  return { x: index * step, y: height - (values[index] / max) * height }
+}
+
+function detailHoverPoint(data, key, index) {
+  const max = Math.max(...data.map(d => d[key]), 1)
+  const x = (index / (data.length - 1)) * 400
+  const y = 80 - (data[index][key] / max) * 80
+  return { x, y }
+}
+
 const copiedTraceId = ref(null)
 async function copyTraceId(traceId) {
   await navigator.clipboard.writeText(traceId)
@@ -432,27 +478,59 @@ async function copyToken() {
                   <div v-if="container.history && container.history.length >= 2" class="hidden items-center space-x-3 sm:flex">
                     <div class="flex flex-col items-end">
                       <span class="text-[10px] text-gray-400 dark:text-gray-500">CPU</span>
-                      <svg width="120" height="24" class="overflow-visible">
-                        <polyline
-                          :points="sparklinePoints(container.history, 'cpu')"
-                          fill="none"
-                          :stroke="sparklineColor('cpu')"
-                          stroke-width="1.5"
-                          stroke-linejoin="round"
-                        />
-                      </svg>
+                      <div class="relative">
+                        <svg width="120" height="24" class="overflow-visible" @mousemove="onChartHover($event, container.history, 'cpu', 'spark-cpu-' + container.name)" @mouseleave="onChartLeave">
+                          <polyline
+                            :points="sparklinePoints(container.history, 'cpu')"
+                            fill="none"
+                            :stroke="sparklineColor('cpu')"
+                            stroke-width="1.5"
+                            stroke-linejoin="round"
+                          />
+                          <circle
+                            v-if="chartHover?.chartId === 'spark-cpu-' + container.name"
+                            :cx="sparklineHoverPoint(container.history, 'cpu', chartHover.index).x"
+                            :cy="sparklineHoverPoint(container.history, 'cpu', chartHover.index).y"
+                            r="3"
+                            fill="#10b981"
+                          />
+                        </svg>
+                        <div
+                          v-if="chartHover?.chartId === 'spark-cpu-' + container.name"
+                          class="pointer-events-none absolute z-10 whitespace-nowrap rounded bg-gray-900 px-2 py-1 text-xs text-white shadow-lg dark:bg-white dark:text-gray-900"
+                          :style="{ left: chartHover.x + 'px', bottom: '100%', transform: 'translateX(-50%)', marginBottom: '4px' }"
+                        >
+                          {{ chartHover.value }}%
+                        </div>
+                      </div>
                     </div>
                     <div class="flex flex-col items-end">
                       <span class="text-[10px] text-gray-400 dark:text-gray-500">Mem</span>
-                      <svg width="120" height="24" class="overflow-visible">
-                        <polyline
-                          :points="sparklinePoints(container.history, 'mem')"
-                          fill="none"
-                          :stroke="sparklineColor('mem')"
-                          stroke-width="1.5"
-                          stroke-linejoin="round"
-                        />
-                      </svg>
+                      <div class="relative">
+                        <svg width="120" height="24" class="overflow-visible" @mousemove="onChartHover($event, container.history, 'mem', 'spark-mem-' + container.name)" @mouseleave="onChartLeave">
+                          <polyline
+                            :points="sparklinePoints(container.history, 'mem')"
+                            fill="none"
+                            :stroke="sparklineColor('mem')"
+                            stroke-width="1.5"
+                            stroke-linejoin="round"
+                          />
+                          <circle
+                            v-if="chartHover?.chartId === 'spark-mem-' + container.name"
+                            :cx="sparklineHoverPoint(container.history, 'mem', chartHover.index).x"
+                            :cy="sparklineHoverPoint(container.history, 'mem', chartHover.index).y"
+                            r="3"
+                            fill="#3b82f6"
+                          />
+                        </svg>
+                        <div
+                          v-if="chartHover?.chartId === 'spark-mem-' + container.name"
+                          class="pointer-events-none absolute z-10 whitespace-nowrap rounded bg-gray-900 px-2 py-1 text-xs text-white shadow-lg dark:bg-white dark:text-gray-900"
+                          :style="{ left: chartHover.x + 'px', bottom: '100%', transform: 'translateX(-50%)', marginBottom: '4px' }"
+                        >
+                          {{ chartHover.value }}%
+                        </div>
+                      </div>
                     </div>
                   </div>
 
@@ -556,15 +634,46 @@ async function copyToken() {
                         <div class="grid gap-4 sm:grid-cols-2">
                           <div class="rounded-md border border-gray-100 p-3 dark:border-gray-800">
                             <div class="mb-2 text-xs text-gray-500 dark:text-gray-400">CPU %</div>
-                            <svg :viewBox="`0 0 400 80`" class="w-full" preserveAspectRatio="none">
-                              <polyline
-                                :points="detailMetrics.map((m, i) => `${(i / (detailMetrics.length - 1)) * 400},${80 - (m.cpuPercent / Math.max(...detailMetrics.map(d => d.cpuPercent), 1)) * 80}`).join(' ')"
-                                fill="none"
-                                stroke="#10b981"
-                                stroke-width="1.5"
-                                vector-effect="non-scaling-stroke"
-                              />
-                            </svg>
+                            <div class="relative">
+                              <svg :viewBox="`0 0 400 80`" class="w-full overflow-visible" preserveAspectRatio="none" @mousemove="onChartHover($event, detailMetrics, 'cpuPercent', 'detail-cpu')" @mouseleave="onChartLeave">
+                                <polyline
+                                  :points="detailMetrics.map((m, i) => `${(i / (detailMetrics.length - 1)) * 400},${80 - (m.cpuPercent / Math.max(...detailMetrics.map(d => d.cpuPercent), 1)) * 80}`).join(' ')"
+                                  fill="none"
+                                  stroke="#10b981"
+                                  stroke-width="1.5"
+                                  vector-effect="non-scaling-stroke"
+                                />
+                                <template v-if="chartHover?.chartId === 'detail-cpu'">
+                                  <line
+                                    :x1="detailHoverPoint(detailMetrics, 'cpuPercent', chartHover.index).x"
+                                    :x2="detailHoverPoint(detailMetrics, 'cpuPercent', chartHover.index).x"
+                                    y1="0"
+                                    y2="80"
+                                    stroke="#9ca3af"
+                                    stroke-width="1"
+                                    stroke-dasharray="3 2"
+                                    vector-effect="non-scaling-stroke"
+                                  />
+                                  <circle
+                                    :cx="detailHoverPoint(detailMetrics, 'cpuPercent', chartHover.index).x"
+                                    :cy="detailHoverPoint(detailMetrics, 'cpuPercent', chartHover.index).y"
+                                    r="4"
+                                    fill="#10b981"
+                                    stroke="white"
+                                    stroke-width="2"
+                                    vector-effect="non-scaling-stroke"
+                                  />
+                                </template>
+                              </svg>
+                              <div
+                                v-if="chartHover?.chartId === 'detail-cpu'"
+                                class="pointer-events-none absolute z-10 whitespace-nowrap rounded bg-gray-900 px-2 py-1 text-xs text-white shadow-lg dark:bg-white dark:text-gray-900"
+                                :style="{ left: chartHover.x + 'px', bottom: '100%', transform: 'translateX(-50%)', marginBottom: '12px' }"
+                              >
+                                {{ chartHover.value }}%
+                                <span v-if="chartHover.label" class="ml-1 text-gray-400 dark:text-gray-500">{{ chartHover.label }}</span>
+                              </div>
+                            </div>
                             <div class="mt-1 flex justify-between text-[10px] text-gray-400">
                               <span>{{ formatTime(detailMetrics[0].recordedAt) }}</span>
                               <span>{{ formatTime(detailMetrics[detailMetrics.length - 1].recordedAt) }}</span>
@@ -572,15 +681,46 @@ async function copyToken() {
                           </div>
                           <div class="rounded-md border border-gray-100 p-3 dark:border-gray-800">
                             <div class="mb-2 text-xs text-gray-500 dark:text-gray-400">Memory %</div>
-                            <svg :viewBox="`0 0 400 80`" class="w-full" preserveAspectRatio="none">
-                              <polyline
-                                :points="detailMetrics.map((m, i) => `${(i / (detailMetrics.length - 1)) * 400},${80 - (m.memoryPercent / Math.max(...detailMetrics.map(d => d.memoryPercent), 1)) * 80}`).join(' ')"
-                                fill="none"
-                                stroke="#3b82f6"
-                                stroke-width="1.5"
-                                vector-effect="non-scaling-stroke"
-                              />
-                            </svg>
+                            <div class="relative">
+                              <svg :viewBox="`0 0 400 80`" class="w-full overflow-visible" preserveAspectRatio="none" @mousemove="onChartHover($event, detailMetrics, 'memoryPercent', 'detail-mem')" @mouseleave="onChartLeave">
+                                <polyline
+                                  :points="detailMetrics.map((m, i) => `${(i / (detailMetrics.length - 1)) * 400},${80 - (m.memoryPercent / Math.max(...detailMetrics.map(d => d.memoryPercent), 1)) * 80}`).join(' ')"
+                                  fill="none"
+                                  stroke="#3b82f6"
+                                  stroke-width="1.5"
+                                  vector-effect="non-scaling-stroke"
+                                />
+                                <template v-if="chartHover?.chartId === 'detail-mem'">
+                                  <line
+                                    :x1="detailHoverPoint(detailMetrics, 'memoryPercent', chartHover.index).x"
+                                    :x2="detailHoverPoint(detailMetrics, 'memoryPercent', chartHover.index).x"
+                                    y1="0"
+                                    y2="80"
+                                    stroke="#9ca3af"
+                                    stroke-width="1"
+                                    stroke-dasharray="3 2"
+                                    vector-effect="non-scaling-stroke"
+                                  />
+                                  <circle
+                                    :cx="detailHoverPoint(detailMetrics, 'memoryPercent', chartHover.index).x"
+                                    :cy="detailHoverPoint(detailMetrics, 'memoryPercent', chartHover.index).y"
+                                    r="4"
+                                    fill="#3b82f6"
+                                    stroke="white"
+                                    stroke-width="2"
+                                    vector-effect="non-scaling-stroke"
+                                  />
+                                </template>
+                              </svg>
+                              <div
+                                v-if="chartHover?.chartId === 'detail-mem'"
+                                class="pointer-events-none absolute z-10 whitespace-nowrap rounded bg-gray-900 px-2 py-1 text-xs text-white shadow-lg dark:bg-white dark:text-gray-900"
+                                :style="{ left: chartHover.x + 'px', bottom: '100%', transform: 'translateX(-50%)', marginBottom: '12px' }"
+                              >
+                                {{ chartHover.value }}%
+                                <span v-if="chartHover.label" class="ml-1 text-gray-400 dark:text-gray-500">{{ chartHover.label }}</span>
+                              </div>
+                            </div>
                             <div class="mt-1 flex justify-between text-[10px] text-gray-400">
                               <span>{{ formatTime(detailMetrics[0].recordedAt) }}</span>
                               <span>{{ formatTime(detailMetrics[detailMetrics.length - 1].recordedAt) }}</span>
