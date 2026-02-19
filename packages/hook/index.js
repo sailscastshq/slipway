@@ -168,7 +168,11 @@ module.exports = function defineSlipwayHook(sails) {
                 attributes: {
                   'http.route': req.route ? req.route.path : url,
                   'http.user_agent': req.headers['user-agent'] || '',
-                  'http.request_content_length': req.headers['content-length'] || 0
+                  'http.request_content_length': req.headers['content-length'] || 0,
+                  'http.response_content_length': res.getHeader('content-length') || 0,
+                  'http.client_ip': req.ip || req.headers['x-forwarded-for'] || '',
+                  'http.referrer': req.headers.referer || '',
+                  'http.accept': req.headers.accept || ''
                 }
               })
 
