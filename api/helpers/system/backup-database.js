@@ -76,6 +76,7 @@ module.exports = {
         const receiver = adapter.receive({ dirname: '', saveAs: s3Key })
         const readStream = fs.createReadStream(tmpFile)
 
+        readStream.skipperFd = s3Key
         readStream.fd = s3Key
         readStream.filename = path.basename(s3Key)
         readStream.headers = { 'content-type': 'application/octet-stream' }
