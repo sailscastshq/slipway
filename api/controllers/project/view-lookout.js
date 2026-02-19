@@ -223,7 +223,9 @@ module.exports = {
           url: s.url,
           statusCode: s.statusCode,
           duration: s.duration,
-          startedAt: s.startedAt
+          startedAt: s.startedAt,
+          traceId: s.traceId,
+          attributes: s.attributes || {}
         }))
       },
       exceptions: {
@@ -270,6 +272,7 @@ module.exports = {
           name: environment.name,
           slug: environment.slug
         },
+        appName: app ? app.name : project.name,
         containers,
         telemetry
       }
