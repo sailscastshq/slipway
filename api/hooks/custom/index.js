@@ -98,12 +98,41 @@ module.exports = function defineCustomHook(sails) {
                 }
               })
 
+              sails.inertia.share('navServices', async () => {
+                try {
+                  const user = await User.findOne({ id: userId }).select(['team'])
+                  if (!user || !user.team) { return [] }
+                  const projects = await Project.find({ team: user.team }).select(['id', 'name', 'slug'])
+                  const projectIds = projects.map(p => p.id)
+                  const environments = await Environment.find({ project: projectIds }).select(['id', 'slug', 'name', 'project'])
+                  const envIds = environments.map(e => e.id)
+                  const services = await Service.find({ environment: envIds }).select(['id', 'name', 'type', 'environment'])
+                  return services.map(service => {
+                    const env = environments.find(e => e.id === service.environment)
+                    const project = projects.find(p => p.id === env?.project)
+                    return {
+                      id: service.id,
+                      name: service.name,
+                      type: service.type,
+                      projectName: project?.name,
+                      projectSlug: project?.slug,
+                      envName: env?.name,
+                      envSlug: env?.slug
+                    }
+                  })
+                } catch (err) {
+                  sails.log.error('navServices shared prop error:', err)
+                  return []
+                }
+              })
+
               res.setHeader('Cache-Control', 'no-cache, no-store')
               return next()
             } else {
               sails.inertia.flushShared('loggedInUser')
               sails.inertia.flushShared('navProjects')
               sails.inertia.flushShared('navApps')
+              sails.inertia.flushShared('navServices')
             }
             return next()
           }
