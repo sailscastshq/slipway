@@ -22,58 +22,43 @@ module.exports = {
 
     const user = await User.findOne({ id: req.session.userId }).populate('team')
     if (!user) {
-      res.writeHead(200, sseHeaders())
-      sendEvent(res, { deployments: [] })
-      res.end()
+      const stream = res.sse()
+      stream.send({ deployments: [] })
+      stream.close()
       return
     }
 
     const teamId = user.team.id
 
-    res.writeHead(200, sseHeaders())
+    const stream = res.sse()
 
     // Send initial state immediately
     const initial = await fetchActiveDeployments(teamId)
-    sendEvent(res, { deployments: initial })
+    stream.send({ deployments: initial })
 
     // Track the last set of deployment IDs to detect changes
     let lastIds = initial.map(d => d.id).sort().join(',')
 
-    return new Promise((resolve) => {
-      const checkInterval = setInterval(async () => {
-        try {
-          const current = await fetchActiveDeployments(teamId)
-          const currentIds = current.map(d => d.id).sort().join(',')
+    const checkInterval = setInterval(async () => {
+      try {
+        const current = await fetchActiveDeployments(teamId)
+        const currentIds = current.map(d => d.id).sort().join(',')
 
-          if (currentIds !== lastIds) {
-            lastIds = currentIds
-            sendEvent(res, { deployments: current })
-          }
-        } catch (err) {
-          sails.log.error('Active deployments SSE error:', err)
+        if (currentIds !== lastIds) {
+          lastIds = currentIds
+          stream.send({ deployments: current })
         }
-      }, 5000)
+      } catch (err) {
+        sails.log.error('Active deployments SSE error:', err)
+      }
+    }, 5000)
 
-      req.on('close', () => {
-        clearInterval(checkInterval)
-        resolve()
-      })
+    stream.onClose(() => {
+      clearInterval(checkInterval)
     })
-  }
-}
 
-function sseHeaders() {
-  return {
-    'Content-Type': 'text/event-stream',
-    'Cache-Control': 'no-cache, no-transform',
-    'Connection': 'keep-alive',
-    'X-Accel-Buffering': 'no',
-    'Content-Encoding': 'identity'
+    return stream.wait()
   }
-}
-
-function sendEvent(res, data) {
-  res.write(`data: ${JSON.stringify(data)}\n\n`)
 }
 
 async function fetchActiveDeployments(teamId) {
