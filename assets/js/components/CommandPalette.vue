@@ -555,6 +555,9 @@ function scrollToSelected() {
 
 function selectCommand(cmd) {
   if (cmd.children) {
+    // Track parent commands in history so they appear in Recent
+    history.value = [cmd.id, ...history.value.filter(h => h !== cmd.id)].slice(0, 10)
+    localStorage.setItem('slipway:command-history', JSON.stringify(history.value))
     mode.value = 'submenu'
     parentCommand.value = cmd
     query.value = ''
