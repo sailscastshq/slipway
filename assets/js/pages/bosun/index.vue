@@ -1,6 +1,7 @@
 <script setup>
 import { Head } from '@inertiajs/vue3'
 import { ref, computed, inject, watch, nextTick, onMounted, onUnmounted, onBeforeUnmount } from 'vue'
+import { useEventSource } from '@/composables/sse'
 import AppLayout from '@/layouts/AppLayout.vue'
 import ToastContainer from '@/components/ToastContainer.vue'
 import Tooltip from '@/components/Tooltip.vue'
@@ -381,28 +382,19 @@ function changeActivityFilter(filter) {
 const _params = new URLSearchParams(window.location.search)
 const logsOpen = ref(_params.has('logs'))
 const logLines = ref([])
-const logsConnected = ref(false)
-const logsError = ref(null)
-let logsEventSource = null
 const logContainer = ref(null)
 const autoScroll = ref(true)
 
-
-function connectLogs() {
-  if (logsEventSource) return
-  logsError.value = null
-  logLines.value = []
-
-  const url = '/api/v1/bosun/logs/stream?tail=200'
-  logsEventSource = new EventSource(url)
-
-  logsEventSource.onopen = () => {
-    logsConnected.value = true
-  }
-
-  logsEventSource.onmessage = (event) => {
-    try {
-      const data = JSON.parse(event.data)
+const {
+  connected: logsConnected,
+  error: logsError,
+  close: disconnectLogs,
+  connect: connectLogs
+} = useEventSource(
+  '/api/v1/bosun/logs/stream?tail=200',
+  {
+    immediate: false,
+    onMessage(data) {
       if (data.log) {
         logLines.value.push(data.log)
         if (logLines.value.length > 2000) {
@@ -416,30 +408,9 @@ function connectLogs() {
           })
         }
       }
-      if (data.error) {
-        logsError.value = data.error
-      }
-      if (data.closed) {
-        logsConnected.value = false
-      }
-    } catch (e) {
-      console.error('Failed to parse log event:', e, event.data)
     }
   }
-
-  logsEventSource.onerror = () => {
-    logsConnected.value = false
-    disconnectLogs()
-  }
-}
-
-function disconnectLogs() {
-  if (logsEventSource) {
-    logsEventSource.close()
-    logsEventSource = null
-  }
-  logsConnected.value = false
-}
+)
 
 watch(logsOpen, (open) => {
   const url = new URL(window.location)

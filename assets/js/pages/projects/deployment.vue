@@ -4,6 +4,7 @@ import { inject, ref, computed, watch, nextTick, onMounted, onBeforeUnmount } fr
 import AppLayout from '@/layouts/AppLayout.vue'
 import Breadcrumb from '@/components/Breadcrumb.vue'
 import SlippyLoader from '@/components/SlippyLoader.vue'
+import { useEventSource } from '@/composables/sse'
 
 defineOptions({
   layout: AppLayout
@@ -20,10 +21,9 @@ const toggleSidebar = inject('toggleSidebar')
 const sidebarCollapsed = inject('sidebarCollapsed')
 const logContainer = ref(null)
 
-// SSE-powered real-time updates (replaces usePoll)
+// SSE-powered real-time updates
 const sseStatus = ref(null)
 const sseLogs = ref('')
-let deploymentEventSource = null
 
 const deployment = computed(() => ({
   ...props.deployment,
@@ -85,15 +85,11 @@ function highlightLine(line) {
   return s
 }
 
-// Stream deployment updates via SSE
-function connectDeploymentStream() {
-  if (deploymentEventSource || !isInProgress.value) return
-
-  deploymentEventSource = new EventSource(`/api/v1/deployments/${props.deployment.id}/stream`)
-
-  deploymentEventSource.onmessage = (event) => {
-    try {
-      const data = JSON.parse(event.data)
+const { close: disconnectDeploymentStream } = useEventSource(
+  `/api/v1/deployments/${props.deployment.id}/stream`,
+  {
+    immediate: isInProgress.value,
+    onMessage(data) {
       if (data.status) {
         sseStatus.value = data.status
         if (['running', 'failed', 'cancelled'].includes(data.status)) {
@@ -104,24 +100,9 @@ function connectDeploymentStream() {
       if (data.output) {
         sseLogs.value += data.output + '\n'
       }
-    } catch { /* ignore parse errors */ }
+    }
   }
-
-  deploymentEventSource.onerror = () => {
-    // EventSource auto-reconnects
-  }
-}
-
-function disconnectDeploymentStream() {
-  if (deploymentEventSource) {
-    deploymentEventSource.close()
-    deploymentEventSource = null
-  }
-}
-
-onMounted(() => {
-  connectDeploymentStream()
-})
+)
 
 // Auto-scroll log container when logs update
 watch(allLogs, async () => {

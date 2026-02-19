@@ -1,6 +1,7 @@
 <script setup>
 import { Head, Link } from '@inertiajs/vue3'
-import { inject, ref, onUnmounted } from 'vue'
+import { inject, ref, watch, onUnmounted } from 'vue'
+import { useEventSource } from '@/composables/sse'
 import AppLayout from '@/layouts/AppLayout.vue'
 import SlippyLoader from '@/components/SlippyLoader.vue'
 
@@ -26,16 +27,43 @@ const updateDetail = ref('')
 const localUpdateInfo = ref(props.updateInfo)
 const lastChecked = ref(new Date())
 
-let eventSource = null
+const { connected: sseConnected, close: disconnectSSE, connect: connectSSE } = useEventSource(
+  '/api/v1/system/stream-update',
+  {
+    immediate: false,
+    autoReconnect: false,
+    onMessage(data) {
+      updatePhase.value = data.phase
+      updateDetail.value = data.detail || ''
 
-function disconnectSSE() {
-  if (eventSource) {
-    eventSource.close()
-    eventSource = null
+      if (data.phase === 'failed') {
+        disconnectSSE()
+        updateError.value = data.detail || 'Update failed'
+        updating.value = false
+        updatePhase.value = ''
+      }
+    }
   }
-}
+)
 
-onUnmounted(disconnectSSE)
+// When SSE drops during an update (server restarting), poll for health
+watch(sseConnected, (isConnected, wasConnected) => {
+  if (wasConnected && !isConnected && updating.value && updatePhase.value !== 'failed') {
+    updatePhase.value = 'waiting'
+    updateDetail.value = ''
+    waitForHealthy()
+      .then(() => {
+        updatePhase.value = 'success'
+        updateDetail.value = ''
+        setTimeout(() => window.location.reload(), 1500)
+      })
+      .catch(() => {
+        updateError.value = 'Slipway did not come back up. Check your server.'
+        updating.value = false
+        updatePhase.value = ''
+      })
+  }
+})
 
 async function checkAgain() {
   checking.value = true
@@ -69,50 +97,11 @@ async function applyUpdate() {
       throw new Error(data.message || 'Failed to initiate update')
     }
 
-    connectProgressStream()
+    connectSSE()
   } catch (err) {
     updateError.value = err.message
     updating.value = false
     updatePhase.value = ''
-  }
-}
-
-function connectProgressStream() {
-  disconnectSSE()
-  eventSource = new EventSource('/api/v1/system/stream-update')
-
-  eventSource.onmessage = (event) => {
-    try {
-      const data = JSON.parse(event.data)
-      updatePhase.value = data.phase
-      updateDetail.value = data.detail || ''
-
-      if (data.phase === 'failed') {
-        disconnectSSE()
-        updateError.value = data.detail || 'Update failed'
-        updating.value = false
-        updatePhase.value = ''
-      }
-    } catch { /* ignore parse errors */ }
-  }
-
-  eventSource.onerror = () => {
-    disconnectSSE()
-    if (updating.value && updatePhase.value !== 'failed') {
-      updatePhase.value = 'waiting'
-      updateDetail.value = ''
-      waitForHealthy()
-        .then(() => {
-          updatePhase.value = 'success'
-          updateDetail.value = ''
-          setTimeout(() => window.location.reload(), 1500)
-        })
-        .catch(() => {
-          updateError.value = 'Slipway did not come back up. Check your server.'
-          updating.value = false
-          updatePhase.value = ''
-        })
-    }
   }
 }
 

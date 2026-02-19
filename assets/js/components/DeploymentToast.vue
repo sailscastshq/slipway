@@ -2,6 +2,7 @@
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { Link, router } from '@inertiajs/vue3'
 import SlippyLoader from '@/components/SlippyLoader.vue'
+import { useEventSource } from '@/composables/sse'
 
 const props = defineProps({
   deployment: Object
@@ -14,7 +15,6 @@ const startTime = ref(props.deployment.startedAt || Date.now())
 const elapsed = ref(0)
 const dismissed = ref(false)
 const exiting = ref(false)
-let eventSource = null
 let timerInterval = null
 
 const maritimeMessages = {
@@ -134,40 +134,21 @@ const elapsedFormatted = computed(() => {
   return mins > 0 ? `${mins}m ${secs}s` : `${secs}s`
 })
 
-function connectToStream() {
-  if (eventSource) eventSource.close()
-
-  eventSource = new EventSource(`/api/v1/deployments/${props.deployment.id}/stream`)
-
-  eventSource.onmessage = (event) => {
-    try {
-      const data = JSON.parse(event.data)
+const { close: closeStream, connect: connectToStream } = useEventSource(
+  `/api/v1/deployments/${props.deployment.id}/stream`,
+  {
+    immediate: false,
+    onMessage(data) {
       if (data.status) {
         status.value = data.status
-
-        // Deployment finished
         if (['running', 'failed', 'cancelled'].includes(data.status)) {
-          eventSource.close()
-          eventSource = null
-
-          // Auto-dismiss after 5 seconds
-          setTimeout(() => {
-            dismiss()
-          }, 5000)
+          closeStream()
+          setTimeout(() => dismiss(), 5000)
         }
       }
-    } catch (e) { /* ignore */ }
+    }
   }
-
-  eventSource.onerror = () => {
-    // Reconnect after 3 seconds if still active
-    setTimeout(() => {
-      if (isActive.value && !eventSource) {
-        connectToStream()
-      }
-    }, 3000)
-  }
-}
+)
 
 function startTimer() {
   elapsed.value = Math.floor((Date.now() - startTime.value) / 1000)
@@ -195,7 +176,6 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
-  if (eventSource) eventSource.close()
   if (timerInterval) clearInterval(timerInterval)
   stopMessageRotation()
 })

@@ -39,17 +39,10 @@ module.exports = {
       throw 'notFound'
     }
 
-    // Set up SSE headers
-    res.setHeader('Content-Type', 'text/event-stream')
-    res.setHeader('Cache-Control', 'no-cache')
-    res.setHeader('Connection', 'keep-alive')
-    res.setHeader('X-Accel-Buffering', 'no') // Disable nginx buffering
-
-    // Flush headers immediately to establish the connection
-    res.flushHeaders()
+    const stream = res.sse()
 
     // Send initial status
-    sendEvent(res, { status: 'pending' })
+    stream.send({ status: 'pending' })
 
     // Poll for status changes (the session is updated when user confirms)
     const checkInterval = setInterval(() => {
@@ -57,14 +50,14 @@ module.exports = {
 
       if (!currentSession) {
         // Session expired or deleted
-        sendEvent(res, { status: 'expired' })
+        stream.send({ status: 'expired' })
         clearInterval(checkInterval)
-        res.end()
+        stream.close()
         return
       }
 
       if (currentSession.status === 'authenticated') {
-        sendEvent(res, {
+        stream.send({
           status: 'authenticated',
           token: currentSession.sessionToken,
           user: currentSession.user
@@ -72,24 +65,18 @@ module.exports = {
         // Clean up the session
         authSessions.delete(code)
         clearInterval(checkInterval)
-        res.end()
+        stream.close()
         return
       }
 
       // Send heartbeat to keep connection alive
-      res.write(': heartbeat\n\n')
+      stream.heartbeat()
     }, 1000)
 
-    // Clean up on client disconnect
-    req.on('close', () => {
+    stream.onClose(() => {
       clearInterval(checkInterval)
     })
 
-    // Keep the connection open (don't return)
-    return
+    return stream.wait()
   }
-}
-
-function sendEvent(res, data) {
-  res.write(`data: ${JSON.stringify(data)}\n\n`)
 }

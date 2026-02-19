@@ -1,6 +1,7 @@
 <script setup>
 import { Link, Head, router } from '@inertiajs/vue3'
 import { inject, ref, reactive, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
+import { useEventSource } from '@/composables/sse'
 import AppLayout from '@/layouts/AppLayout.vue'
 import Breadcrumb from '@/components/Breadcrumb.vue'
 import SlideToDeploy from '@/components/SlideToDeploy.vue'
@@ -437,32 +438,19 @@ watch(bulkMode, (open) => {
 // --- Container logs ---
 const logsOpen = ref(_params.has('logs'))
 const logLines = ref([])
-const logsConnected = ref(false)
-const logsError = ref(null)
-let logsEventSource = null
 const logContainer = ref(null)
 const autoScroll = ref(true)
 
-
-function connectLogs() {
-  if (logsEventSource) return
-  if (!props.app?.containerName) {
-    logsError.value = 'No container running'
-    return
-  }
-
-  logsError.value = null
-  logLines.value = []
-
-  const url = `/api/v1/projects/${props.project.slug}/environments/${props.environment.slug}/apps/${props.app.slug}/logs/stream?tail=200`
-  logsEventSource = new EventSource(url)
-  logsEventSource.onopen = () => {
-    logsConnected.value = true
-  }
-
-  logsEventSource.onmessage = (event) => {
-    try {
-      const data = JSON.parse(event.data)
+const {
+  connected: logsConnected,
+  error: logsError,
+  close: disconnectLogs,
+  connect: connectLogs
+} = useEventSource(
+  `/api/v1/projects/${props.project.slug}/environments/${props.environment.slug}/apps/${props.app.slug}/logs/stream?tail=200`,
+  {
+    immediate: false,
+    onMessage(data) {
       if (data.log) {
         logLines.value.push(data.log)
         if (logLines.value.length > 2000) {
@@ -476,30 +464,9 @@ function connectLogs() {
           })
         }
       }
-      if (data.error) {
-        logsError.value = data.error
-      }
-      if (data.closed) {
-        logsConnected.value = false
-      }
-    } catch (e) {
-      console.error('Failed to parse log event:', e, event.data)
     }
   }
-
-  logsEventSource.onerror = () => {
-    logsConnected.value = false
-    disconnectLogs()
-  }
-}
-
-function disconnectLogs() {
-  if (logsEventSource) {
-    logsEventSource.close()
-    logsEventSource = null
-  }
-  logsConnected.value = false
-}
+)
 
 watch(logsOpen, (open) => {
   const url = new URL(window.location)
