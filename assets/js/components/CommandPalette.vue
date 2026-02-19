@@ -178,7 +178,7 @@ register({
 
 register({
   id: 'nav.logs',
-  title: 'View Logs',
+  title: 'Go to Logs',
   keywords: ['logs', 'output', 'stdout', 'stderr', 'console', 'tail', 'stream'],
   group: 'Navigation',
   icon: 'terminal',
