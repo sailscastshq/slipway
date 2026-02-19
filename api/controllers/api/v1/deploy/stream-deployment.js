@@ -39,79 +39,62 @@ module.exports = {
       throw 'notFound'
     }
 
-    // Commit SSE headers immediately so Sails cannot override them
-    res.writeHead(200, {
-      'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache, no-transform',
-      'Connection': 'keep-alive',
-      'X-Accel-Buffering': 'no',
-      'Content-Encoding': 'identity'
-    })
+    const stream = res.sse()
 
     // Send initial status
-    sendEvent(res, { status: deployment.status })
+    stream.send({ status: deployment.status })
 
     // If deployment is already complete, end immediately
     if (['running', 'failed', 'cancelled'].includes(deployment.status)) {
-      res.end()
+      stream.close()
       return
     }
 
-    // Return a promise that only resolves when the stream ends.
-    // This prevents Sails from calling res.end() prematurely.
-    return new Promise((resolve) => {
-      let lastStatus = deployment.status
-      let lastLogLength = 0
+    let lastStatus = deployment.status
+    let lastLogLength = 0
 
-      const checkInterval = setInterval(async () => {
-        try {
-          const current = await Deployment.findOne(id)
+    const checkInterval = setInterval(async () => {
+      try {
+        const current = await Deployment.findOne(id)
 
-          if (!current) {
-            sendEvent(res, { status: 'failed', error: 'Deployment not found' })
-            clearInterval(checkInterval)
-            res.end()
-            resolve()
-            return
-          }
-
-          // Send status update if changed
-          if (current.status !== lastStatus) {
-            lastStatus = current.status
-            sendEvent(res, { status: current.status })
-          }
-
-          // Stream new build log output if available
-          if (current.buildLogs && current.buildLogs.length > lastLogLength) {
-            const newOutput = current.buildLogs.slice(lastLogLength)
-            lastLogLength = current.buildLogs.length
-
-            const lines = newOutput.split('\n').filter(l => l.trim())
-            for (const line of lines) {
-              sendEvent(res, { output: line })
-            }
-          }
-
-          // End stream when deployment is complete
-          if (['running', 'failed', 'cancelled'].includes(current.status)) {
-            clearInterval(checkInterval)
-            res.end()
-            resolve()
-          }
-        } catch (err) {
-          sails.log.error('SSE stream error:', err)
+        if (!current) {
+          stream.send({ status: 'failed', error: 'Deployment not found' })
+          clearInterval(checkInterval)
+          stream.close()
+          return
         }
-      }, 500)
 
-      // Clean up on client disconnect
-      req.on('close', () => {
-        clearInterval(checkInterval)
-        resolve()
-      })
+        // Send status update if changed
+        if (current.status !== lastStatus) {
+          lastStatus = current.status
+          stream.send({ status: current.status })
+        }
+
+        // Stream new build log output if available
+        if (current.buildLogs && current.buildLogs.length > lastLogLength) {
+          const newOutput = current.buildLogs.slice(lastLogLength)
+          lastLogLength = current.buildLogs.length
+
+          const lines = newOutput.split('\n').filter(l => l.trim())
+          for (const line of lines) {
+            stream.send({ output: line })
+          }
+        }
+
+        // End stream when deployment is complete
+        if (['running', 'failed', 'cancelled'].includes(current.status)) {
+          clearInterval(checkInterval)
+          stream.close()
+        }
+      } catch (err) {
+        sails.log.error('SSE stream error:', err)
+      }
+    }, 500)
+
+    stream.onClose(() => {
+      clearInterval(checkInterval)
     })
-  }
-}
 
-function sendEvent(res, data) {
-  res.write(`data: ${JSON.stringify(data)}\n\n`)
+    return stream.wait()
+  }
 }
