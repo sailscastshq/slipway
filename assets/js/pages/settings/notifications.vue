@@ -60,7 +60,7 @@ const testing = ref(null)
 const testResult = ref(null)
 
 function save() {
-  form.patch('/settings/notifications')
+  form.patch('/settings/notifications', { preserveScroll: true })
 }
 
 async function testChannel(channel) {
