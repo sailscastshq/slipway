@@ -185,8 +185,8 @@ module.exports.routes = {
   'GET /cli/authorize': 'cli/view-authorize',
 
   // App CRUD (multi-app)
+  'POST /projects/:slug/environments/:envSlug/apps': 'project/create-app',
   'GET /api/v1/projects/:projectSlug/environments/:environmentSlug/apps': 'api/v1/app/list-apps',
-  'POST /api/v1/projects/:projectSlug/environments/:environmentSlug/apps': 'api/v1/app/create-app',
   'PATCH /api/v1/projects/:projectSlug/environments/:environmentSlug/apps/:appSlug': 'api/v1/app/update-app',
   'DELETE /api/v1/projects/:projectSlug/environments/:environmentSlug/apps/:appSlug': 'api/v1/app/destroy-app',
 
@@ -302,8 +302,13 @@ module.exports.routes = {
 
   // Git API
   'GET /api/v1/git/repos': 'api/v1/git/list-repos',
-  'POST /api/v1/git/repos/connect': 'api/v1/git/connect-repo',
+  'GET /api/v1/git/branches': 'api/v1/git/list-branches',
   'GET /api/v1/git/status': 'api/v1/git/get-status',
+
+  // Git Integration (Inertia form submissions)
+  'POST /projects/:slug/environments/:envSlug/apps/:appSlug/connect-repo': 'project/connect-repo',
+  'DELETE /projects/:slug/environments/:envSlug/apps/:appSlug/disconnect-repo': 'project/disconnect-repo',
+  'PATCH /projects/:slug/environments/:envSlug/apps/:appSlug/repo': 'project/update-repo',
 
   // Deploy Tokens
   'GET /api/v1/deploy-tokens': 'api/v1/deploy-token/list',
