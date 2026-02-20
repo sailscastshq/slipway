@@ -23,7 +23,7 @@ const form = useForm({
 })
 
 function save() {
-  form.patch('/settings/instance')
+  form.patch('/settings/instance', { preserveScroll: true })
 }
 </script>
 <template>

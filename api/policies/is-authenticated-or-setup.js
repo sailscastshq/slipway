@@ -28,7 +28,10 @@ module.exports = async function (req, res, proceed) {
   // Second check: Is user logged in?
   if (!req.session.userId) {
     if (isPureApi) {
-      return res.unauthorized()
+      return res.status(401).json({
+        error: 'Unauthorized',
+        message: 'Authentication required'
+      })
     }
     return res.redirect('/login')
   }
