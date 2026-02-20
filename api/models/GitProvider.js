@@ -23,11 +23,13 @@ module.exports = {
     // OAuth credentials
     clientId: {
       type: 'string',
+      columnName: 'client_id',
       allowNull: true
     },
 
     clientSecret: {
       type: 'string',
+      columnName: 'client_secret',
       allowNull: true,
       encrypt: true
     },
@@ -35,23 +37,27 @@ module.exports = {
     // For GitHub App (alternative to OAuth)
     appId: {
       type: 'string',
+      columnName: 'app_id',
       allowNull: true
     },
 
     privateKey: {
       type: 'string',
+      columnName: 'private_key',
       allowNull: true,
       encrypt: true
     },
 
     installationId: {
       type: 'string',
+      columnName: 'installation_id',
       allowNull: true
     },
 
     // For self-hosted instances
     apiUrl: {
       type: 'string',
+      columnName: 'api_url',
       allowNull: true,
       description:
         'API URL for self-hosted Git (e.g., https://gitlab.company.com/api/v4)'
@@ -59,6 +65,7 @@ module.exports = {
 
     baseUrl: {
       type: 'string',
+      columnName: 'base_url',
       allowNull: true,
       description:
         'Base URL for self-hosted Git (e.g., https://gitlab.company.com)'
@@ -67,6 +74,7 @@ module.exports = {
     // Status
     isActive: {
       type: 'boolean',
+      columnName: 'is_active',
       defaultsTo: true
     },
 
