@@ -52,7 +52,7 @@ module.exports = {
       throw new Error('Backup storage not configured')
     }
 
-    const ext = service.type === 'mongodb' ? 'gz' : 'sql'
+    const ext = { postgresql: 'dmp', mysql: 'sql', mongodb: 'gz' }[service.type] || 'sql'
     const tmpFile = path.join(os.tmpdir(), `slipway-restore-${backupId}.${ext}`)
 
     try {
@@ -100,13 +100,13 @@ module.exports = {
           'mongorestore', '--uri', mongoUri, '--archive', '--gzip', '--drop'
         ], fileContent)
       } else if (service.type === 'postgresql') {
-        // PostgreSQL: pipe SQL through psql
+        // PostgreSQL: pipe custom-format dump through pg_restore
         await execRestore(dockerPath, [
           'exec', '-i',
           '-e', `PGPASSWORD=${service.password}`,
           service.containerName,
-          'psql', '-U', service.username, '-d', service.database,
-          '--no-psqlrc', '-v', 'ON_ERROR_STOP=1'
+          'pg_restore', '-U', service.username, '-d', service.database,
+          '--no-owner', '--clean', '--if-exists'
         ], fileContent)
       } else if (service.type === 'mysql') {
         // MySQL: pipe SQL through mysql

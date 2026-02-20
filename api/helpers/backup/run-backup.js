@@ -75,7 +75,7 @@ module.exports = {
     // Generate S3 key path
     const env = await Environment.findOne({ id: service.environment }).populate('project')
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
-    const ext = service.type === 'mongodb' ? 'gz' : 'sql'
+    const ext = { postgresql: 'dmp', mysql: 'sql', mongodb: 'gz' }[service.type] || 'sql'
     const s3Key = `backups/${env.project.slug}/${env.slug}/${service.name}/${timestamp}.${ext}`
 
     // Temp file for the dump
@@ -186,9 +186,9 @@ module.exports = {
 function getDumpArgs(service) {
   switch (service.type) {
     case 'postgresql':
-      return ['pg_dump', '-U', service.username, service.database]
+      return ['pg_dump', '-U', service.username, '--format=custom', service.database]
     case 'mysql':
-      return ['mysqldump', '-u', service.username, `-p${service.password}`, service.database]
+      return ['mysqldump', '-u', service.username, `-p${service.password}`, '--single-transaction', '--routines', '--triggers', '--quick', service.database]
     case 'mongodb':
       return ['mongodump', '--archive', '--gzip', '--db', service.database, '--username', service.username, '--password', service.password]
     default:
