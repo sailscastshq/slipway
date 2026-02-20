@@ -17,12 +17,14 @@ module.exports = {
     // The token prefix (visible) + hash (for lookup)
     tokenPrefix: {
       type: 'string',
+      columnName: 'token_prefix',
       required: true,
       description: 'First 12 chars of token (slp_live_xxx)'
     },
 
     tokenHash: {
       type: 'string',
+      columnName: 'token_hash',
       required: true,
       description: 'SHA-256 hash of full token for verification'
     },
@@ -38,22 +40,26 @@ module.exports = {
     // Usage tracking
     lastUsedAt: {
       type: 'number',
+      columnName: 'last_used_at',
       allowNull: true
     },
 
     lastUsedIp: {
       type: 'string',
+      columnName: 'last_used_ip',
       allowNull: true
     },
 
     usageCount: {
       type: 'number',
+      columnName: 'usage_count',
       defaultsTo: 0
     },
 
     // Expiration
     expiresAt: {
       type: 'number',
+      columnName: 'expires_at',
       allowNull: true,
       description: 'Unix timestamp for expiration (null = never)'
     },
@@ -61,16 +67,19 @@ module.exports = {
     // Status
     isActive: {
       type: 'boolean',
+      columnName: 'is_active',
       defaultsTo: true
     },
 
     revokedAt: {
       type: 'number',
+      columnName: 'revoked_at',
       allowNull: true
     },
 
     revokedBy: {
-      model: 'user'
+      model: 'user',
+      columnName: 'revoked_by'
     },
 
     // Relationships
@@ -86,6 +95,7 @@ module.exports = {
 
     createdBy: {
       model: 'user',
+      columnName: 'created_by',
       required: true
     },
 

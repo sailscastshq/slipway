@@ -45,6 +45,7 @@ module.exports = {
     // Team logo (stored in S3-compatible storage)
     logoUrl: {
       type: 'string',
+      columnName: 'logo_url',
       description: 'URL to team logo image'
     }
   },
