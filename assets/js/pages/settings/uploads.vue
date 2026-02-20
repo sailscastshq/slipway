@@ -1,5 +1,5 @@
 <script setup>
-import { Link, Head, router } from '@inertiajs/vue3'
+import { Link, Head, useForm } from '@inertiajs/vue3'
 import { inject, ref, computed } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
 import { useToast } from '@/composables/toast'
@@ -21,102 +21,77 @@ const sidebarCollapsed = inject('sidebarCollapsed')
 const toast = useToast()
 
 const selectedProvider = ref(props.provider || 'r2')
-const saving = ref(false)
 const showSecrets = ref(false)
 
-// Form fields
-const accessKey = ref('')
-const secretKey = ref('')
-const bucket = ref('')
-const endpoint = ref('')
-const region = ref('')
-const publicUrl = ref('')
-
-// Populate form based on selected provider
-function initForm() {
+function getProviderDefaults() {
   if (selectedProvider.value === 'r2') {
-    bucket.value = props.config.r2Bucket || ''
-    endpoint.value = props.config.r2Endpoint || ''
-    publicUrl.value = props.config.r2PublicUrl || ''
+    return {
+      bucket: props.config.r2Bucket || '',
+      endpoint: props.config.r2Endpoint || '',
+      region: '',
+      publicUrl: props.config.r2PublicUrl || ''
+    }
   } else if (selectedProvider.value === 's3') {
-    bucket.value = props.config.s3Bucket || ''
-    region.value = props.config.s3Region || 'us-east-1'
-    endpoint.value = props.config.s3Endpoint || ''
-    publicUrl.value = props.config.s3PublicUrl || ''
-  } else if (selectedProvider.value === 'spaces') {
-    bucket.value = props.config.spacesBucket || ''
-    region.value = props.config.spacesRegion || 'nyc3'
-    endpoint.value = props.config.spacesEndpoint || ''
-    publicUrl.value = props.config.spacesPublicUrl || ''
+    return {
+      bucket: props.config.s3Bucket || '',
+      endpoint: props.config.s3Endpoint || '',
+      region: props.config.s3Region || 'us-east-1',
+      publicUrl: props.config.s3PublicUrl || ''
+    }
+  } else {
+    return {
+      bucket: props.config.spacesBucket || '',
+      endpoint: props.config.spacesEndpoint || '',
+      region: props.config.spacesRegion || 'nyc3',
+      publicUrl: props.config.spacesPublicUrl || ''
+    }
   }
-  // Keys are not pre-populated for security
-  accessKey.value = ''
-  secretKey.value = ''
 }
 
-initForm()
+const storageForm = useForm({
+  provider: selectedProvider.value,
+  accessKey: '',
+  secretKey: '',
+  ...getProviderDefaults()
+})
 
 function onProviderChange() {
-  initForm()
+  const defaults = getProviderDefaults()
+  storageForm.provider = selectedProvider.value
+  storageForm.accessKey = ''
+  storageForm.secretKey = ''
+  storageForm.bucket = defaults.bucket
+  storageForm.endpoint = defaults.endpoint
+  storageForm.region = defaults.region
+  storageForm.publicUrl = defaults.publicUrl
 }
 
 const isCurrentProvider = computed(() => selectedProvider.value === props.provider)
 
-async function save() {
-  if (!accessKey.value || !secretKey.value || !bucket.value) return
-
-  saving.value = true
-  try {
-    const res = await fetch('/settings/uploads', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        provider: selectedProvider.value,
-        accessKey: accessKey.value,
-        secretKey: secretKey.value,
-        bucket: bucket.value,
-        endpoint: endpoint.value || null,
-        region: region.value || null,
-        publicUrl: publicUrl.value || null
-      })
-    })
-    if (!res.ok) throw new Error('Failed to save')
-    router.reload()
-    accessKey.value = ''
-    secretKey.value = ''
-    toast({ message: 'Storage configuration saved', type: 'success' })
-  } catch (err) {
-    toast({ message: err?.message || 'Failed to save configuration', type: 'error' })
-  } finally {
-    saving.value = false
-  }
+function save() {
+  storageForm.patch('/settings/uploads', {
+    preserveScroll: true,
+    onSuccess: () => {
+      storageForm.accessKey = ''
+      storageForm.secretKey = ''
+    },
+    onError: () => toast({ message: 'Failed to save configuration', type: 'error' })
+  })
 }
 
-// Backup schedule state
-const scheduleEnabled = ref(props.backupSchedule?.enabled || false)
-const scheduleInterval = ref(props.backupSchedule?.intervalHours || 24)
-const savingSchedule = ref(false)
-
-async function saveSchedule() {
-  savingSchedule.value = true
-  try {
-    const res = await fetch('/settings/uploads', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        backupSchedule: {
-          enabled: scheduleEnabled.value,
-          intervalHours: scheduleInterval.value
-        }
-      })
-    })
-    if (!res.ok) throw new Error('Failed to save')
-    toast({ message: 'Backup schedule updated', type: 'success' })
-  } catch (err) {
-    toast({ message: err?.message || 'Failed to save schedule', type: 'error' })
-  } finally {
-    savingSchedule.value = false
+// Backup schedule
+const scheduleForm = useForm({
+  backupSchedule: {
+    enabled: props.backupSchedule?.enabled || false,
+    intervalHours: props.backupSchedule?.intervalHours || 24
   }
+})
+
+function saveSchedule() {
+  scheduleForm.patch('/settings/uploads', {
+    preserveScroll: true,
+    onError: () => toast({ message: 'Failed to save schedule', type: 'error' })
+  })
 }
 
 const providers = [
@@ -274,12 +249,12 @@ const providers = [
               <div>
                 <label class="mb-1 block text-xs font-medium text-gray-500 dark:text-gray-400">
                   Access Key
-                  <span v-if="isCurrentProvider && (selectedProvider === 'r2' ? config.r2AccessKey : selectedProvider === 's3' ? config.s3AccessKey : config.spacesAccessKey)" class="text-gray-400">
-                    (current: {{ selectedProvider === 'r2' ? config.r2AccessKey : selectedProvider === 's3' ? config.s3AccessKey : config.spacesAccessKey }})
+                  <span v-if="isCurrentProvider && (selectedProvider === 'r2' ? props.config.r2AccessKey : selectedProvider === 's3' ? props.config.s3AccessKey : props.config.spacesAccessKey)" class="text-gray-400">
+                    (current: {{ selectedProvider === 'r2' ? props.config.r2AccessKey : selectedProvider === 's3' ? props.config.s3AccessKey : props.config.spacesAccessKey }})
                   </span>
                 </label>
                 <input
-                  v-model="accessKey"
+                  v-model="storageForm.accessKey"
                   type="text"
                   required
                   placeholder="Enter access key"
@@ -292,7 +267,7 @@ const providers = [
                 <label class="mb-1 block text-xs font-medium text-gray-500 dark:text-gray-400">Secret Key</label>
                 <div class="flex items-center gap-2">
                   <input
-                    v-model="secretKey"
+                    v-model="storageForm.secretKey"
                     :type="showSecrets ? 'text' : 'password'"
                     required
                     placeholder="Enter secret key"
@@ -318,7 +293,7 @@ const providers = [
               <div>
                 <label class="mb-1 block text-xs font-medium text-gray-500 dark:text-gray-400">Bucket Name</label>
                 <input
-                  v-model="bucket"
+                  v-model="storageForm.bucket"
                   type="text"
                   required
                   placeholder="my-bucket"
@@ -330,7 +305,7 @@ const providers = [
               <div v-if="selectedProvider === 's3' || selectedProvider === 'spaces'">
                 <label class="mb-1 block text-xs font-medium text-gray-500 dark:text-gray-400">Region</label>
                 <input
-                  v-model="region"
+                  v-model="storageForm.region"
                   type="text"
                   :placeholder="selectedProvider === 's3' ? 'us-east-1' : 'nyc3'"
                   class="w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 font-mono text-sm text-gray-900 placeholder-gray-400 focus:border-brand focus:outline-none sm:max-w-md dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
@@ -344,7 +319,7 @@ const providers = [
                   <span v-if="selectedProvider === 's3'" class="text-gray-400">(optional, for custom endpoints)</span>
                 </label>
                 <input
-                  v-model="endpoint"
+                  v-model="storageForm.endpoint"
                   type="text"
                   :placeholder="selectedProvider === 'r2' ? 'https://accountid.r2.cloudflarestorage.com' : selectedProvider === 'spaces' ? 'https://nyc3.digitaloceanspaces.com' : 'https://s3.us-east-1.amazonaws.com'"
                   :required="selectedProvider === 'r2' || selectedProvider === 'spaces'"
@@ -359,7 +334,7 @@ const providers = [
                   <span class="text-gray-400">(for serving files to browsers)</span>
                 </label>
                 <input
-                  v-model="publicUrl"
+                  v-model="storageForm.publicUrl"
                   type="text"
                   :placeholder="selectedProvider === 'r2' ? 'https://pub-xxx.r2.dev' : selectedProvider === 'spaces' ? 'https://my-bucket.nyc3.cdn.digitaloceanspaces.com' : 'https://my-bucket.s3.us-east-1.amazonaws.com'"
                   class="w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 font-mono text-sm text-gray-900 placeholder-gray-400 focus:border-brand focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
@@ -375,10 +350,10 @@ const providers = [
           <div class="flex justify-end">
             <button
               type="submit"
-              :disabled="saving || !bucket || (!isCurrentProvider && (!accessKey || !secretKey))"
+              :disabled="storageForm.processing || !storageForm.bucket || (!isCurrentProvider && (!storageForm.accessKey || !storageForm.secretKey))"
               class="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
             >
-              {{ saving ? 'Saving...' : 'Save configuration' }}
+              {{ storageForm.processing ? 'Saving...' : 'Save configuration' }}
             </button>
           </div>
         </form>
@@ -401,25 +376,25 @@ const providers = [
               </div>
               <button
                 type="button"
-                @click="scheduleEnabled = !scheduleEnabled"
+                @click="scheduleForm.backupSchedule.enabled = !scheduleForm.backupSchedule.enabled"
                 :class="[
                   'relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none',
-                  scheduleEnabled ? 'bg-brand' : 'bg-gray-200 dark:bg-gray-700'
+                  scheduleForm.backupSchedule.enabled ? 'bg-brand' : 'bg-gray-200 dark:bg-gray-700'
                 ]"
               >
                 <span
                   :class="[
                     'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
-                    scheduleEnabled ? 'translate-x-5' : 'translate-x-0'
+                    scheduleForm.backupSchedule.enabled ? 'translate-x-5' : 'translate-x-0'
                   ]"
                 ></span>
               </button>
             </div>
 
-            <div v-if="scheduleEnabled">
+            <div v-if="scheduleForm.backupSchedule.enabled">
               <label class="mb-1 block text-xs font-medium text-gray-500 dark:text-gray-400">Backup Interval</label>
               <select
-                v-model="scheduleInterval"
+                v-model="scheduleForm.backupSchedule.intervalHours"
                 class="rounded-md border border-gray-200 bg-transparent px-3 py-1.5 text-sm text-gray-900 focus:border-brand focus:outline-none dark:border-gray-700 dark:text-white"
               >
                 <option :value="6">Every 6 hours</option>
@@ -433,10 +408,10 @@ const providers = [
             <div class="flex justify-end">
               <button
                 @click="saveSchedule"
-                :disabled="savingSchedule"
+                :disabled="scheduleForm.processing"
                 class="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
               >
-                {{ savingSchedule ? 'Saving...' : 'Save schedule' }}
+                {{ scheduleForm.processing ? 'Saving...' : 'Save schedule' }}
               </button>
             </div>
           </div>

@@ -13,7 +13,7 @@ module.exports = {
 
   exits: {
     success: {
-      statusCode: 200
+      responseType: 'inertiaRedirect'
     },
     forbidden: {
       statusCode: 403
@@ -34,6 +34,7 @@ module.exports = {
       'Instance-wide environment variables injected into all deployed applications'
     )
 
-    return { message: 'Global environment variables updated' }
+    sails.inertia.flash('success', 'Environment variables saved')
+    return '/settings/global-env'
   }
 }

@@ -1,6 +1,3 @@
-/**
- * Update Git Integration Configuration
- */
 module.exports = {
   friendlyName: 'Update Git Config',
 
@@ -21,7 +18,7 @@ module.exports = {
 
   exits: {
     success: {
-      statusCode: 200
+      responseType: 'inertiaRedirect'
     },
     forbidden: {
       statusCode: 403,
@@ -32,17 +29,16 @@ module.exports = {
   fn: async function ({ clientId, clientSecret }) {
     const user = await User.findOne({ id: this.req.session.userId })
 
-    // Only admins can configure OAuth
-    if (user.role !== 'admin') {
+    if (user.teamRole !== 'owner' && user.teamRole !== 'admin') {
       throw 'forbidden'
     }
 
-    // Save the GitHub OAuth credentials
     await sails.helpers.setting.set('githubClientId', clientId.trim())
     await sails.helpers.setting.set('githubClientSecret', clientSecret.trim())
 
     sails.log.info(`[git] GitHub OAuth configured by ${user.email}`)
 
-    return { message: 'GitHub OAuth configured successfully' }
+    sails.inertia.flash('success', 'GitHub OAuth configured successfully')
+    return '/settings/git'
   }
 }

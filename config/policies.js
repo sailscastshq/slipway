@@ -26,6 +26,10 @@ module.exports.policies = {
   'auth/reset-password': ['is-guest', 'rate-limit-auth'],
   'auth/view-success': true,
 
+  // GitHub OAuth requires authentication (account-linking, not login)
+  'auth/github': 'is-authenticated',
+  'auth/github-callback': 'is-authenticated',
+
   // Authenticated routes
   'user/*': 'is-authenticated',
 

@@ -37,7 +37,7 @@ module.exports = {
 
   exits: {
     success: {
-      description: 'Configuration saved.'
+      responseType: 'inertiaRedirect'
     },
     badRequest: {
       responseType: 'badRequest'
@@ -58,7 +58,8 @@ module.exports = {
 
       // If only updating schedule (no storage config), return early
       if (!provider) {
-        return { success: true }
+        sails.inertia.flash('success', 'Backup schedule updated')
+        return '/settings/uploads'
       }
     }
 
@@ -115,6 +116,7 @@ module.exports = {
     // Save back to settings
     await sails.helpers.setting.set('globalEnvVars', JSON.stringify(globalEnvVars))
 
-    return { success: true }
+    sails.inertia.flash('success', 'Storage configuration saved')
+    return '/settings/uploads'
   }
 }

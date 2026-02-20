@@ -298,12 +298,12 @@ module.exports.routes = {
 
   // Git Settings UI
   'GET /settings/git': 'setting/view-git',
+  'PATCH /settings/git': 'setting/update-git',
 
   // Git API
   'GET /api/v1/git/repos': 'api/v1/git/list-repos',
   'POST /api/v1/git/repos/connect': 'api/v1/git/connect-repo',
   'GET /api/v1/git/status': 'api/v1/git/get-status',
-  'PATCH /api/v1/git/config': 'api/v1/git/update-config',
 
   // Deploy Tokens
   'GET /api/v1/deploy-tokens': 'api/v1/deploy-token/list',
