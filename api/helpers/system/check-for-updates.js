@@ -71,14 +71,23 @@ module.exports = {
       // Simple semver comparison (major.minor.patch)
       const isNewer = compareVersions(latestVersion, currentVersion) > 0
 
+      // Verify the Docker image actually exists on GHCR before showing update
+      let imageReady = false
+      if (isNewer) {
+        imageReady = await checkGhcrImage(githubRepo, latestVersion)
+        if (!imageReady) {
+          sails.log.verbose(`[slipway] v${latestVersion} released but Docker image not yet available on GHCR`)
+        }
+      }
+
       const result = {
         currentVersion,
         latestVersion,
-        updateAvailable: isNewer,
+        updateAvailable: isNewer && imageReady,
         releaseUrl: release.html_url,
         releaseNotes: release.body?.substring(0, 500) || '',
         publishedAt: release.published_at,
-        error: null
+        error: isNewer && !imageReady ? 'image_not_ready' : null
       }
 
       // Cache for 1 hour (3600000ms)
@@ -114,4 +123,36 @@ function compareVersions(a, b) {
     if (numA < numB) return -1
   }
   return 0
+}
+
+/**
+ * Check if a Docker image tag exists on GHCR (anonymous, no credentials needed for public repos).
+ * Uses the OCI distribution spec: get a token, then HEAD the manifest.
+ */
+async function checkGhcrImage(repo, version) {
+  try {
+    const tokenRes = await fetch(
+      `https://ghcr.io/token?service=ghcr.io&scope=repository:${repo}:pull`,
+      { headers: { 'User-Agent': 'Slipway' } }
+    )
+    if (!tokenRes.ok) return false
+    const { token } = await tokenRes.json()
+
+    const tag = version
+    const manifestRes = await fetch(
+      `https://ghcr.io/v2/${repo}/manifests/${tag}`,
+      {
+        method: 'HEAD',
+        headers: {
+          'User-Agent': 'Slipway',
+          Authorization: `Bearer ${token}`,
+          Accept: 'application/vnd.oci.image.index.v1+json, application/vnd.docker.distribution.manifest.v2+json'
+        }
+      }
+    )
+    return manifestRes.ok
+  } catch {
+    // Network error — don't block the update banner, assume image exists
+    return true
+  }
 }
