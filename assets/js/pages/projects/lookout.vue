@@ -279,40 +279,93 @@ function cleanIp(ip) {
   return ip.replace(/^::ffff:/, '')
 }
 
-// Chart hover
+// Chart hover (throttled to one update per animation frame)
 const chartHover = ref(null)
+let hoverRaf = null
 
 function onChartHover(event, data, key, chartId) {
+  if (hoverRaf) return
+  // Capture event values synchronously — currentTarget is null after handler returns
   const svg = event.currentTarget
-  const rect = svg.getBoundingClientRect()
-  const fraction = Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width))
-  const index = Math.round(fraction * (data.length - 1))
-  const item = data[index]
-  const value = item[key]
-  const wrapper = svg.parentElement
-  const wrapperRect = wrapper.getBoundingClientRect()
-  chartHover.value = {
-    chartId,
-    index,
-    x: event.clientX - wrapperRect.left,
-    value: typeof value === 'number' ? value.toFixed(1) : value,
-    label: item.recordedAt ? formatTime(item.recordedAt) : null
-  }
+  const clientX = event.clientX
+  hoverRaf = requestAnimationFrame(() => {
+    hoverRaf = null
+    if (!svg) return
+    const rect = svg.getBoundingClientRect()
+    const fraction = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width))
+    const nearest = Math.round(fraction * (data.length - 1))
+    // Snap to local peak within ±5 points so spikes are easier to inspect
+    const lo = Math.max(0, nearest - 5)
+    const hi = Math.min(data.length - 1, nearest + 5)
+    let index = nearest
+    for (let i = lo; i <= hi; i++) {
+      if (data[i][key] > data[index][key]) index = i
+    }
+    const item = data[index]
+    if (!item) return
+    const value = item[key]
+    const wrapper = svg.parentElement
+    const wrapperRect = wrapper.getBoundingClientRect()
+    const x = clientX - wrapperRect.left
+    const w = wrapperRect.width
+    // Clamp tooltip center so it stays within chart bounds
+    const isDetail = chartId.startsWith('detail-')
+    const tipHalf = isDetail ? 70 : 25
+    const tipX = Math.max(tipHalf, Math.min(x, w - tipHalf))
+    chartHover.value = {
+      chartId,
+      index,
+      x: tipX,
+      value: typeof value === 'number' ? value.toFixed(1) : value,
+      label: item.recordedAt ? formatTime(item.recordedAt) : null
+    }
+  })
 }
 
 function onChartLeave() {
+  if (hoverRaf) { cancelAnimationFrame(hoverRaf); hoverRaf = null }
   chartHover.value = null
 }
 
+// Cached max values — recomputed only when data changes, not on every mousemove
+const sparklineMaxCache = new WeakMap()
+
+function getSparklineMax(history, key) {
+  let cache = sparklineMaxCache.get(history)
+  if (!cache) { cache = {}; sparklineMaxCache.set(history, cache) }
+  if (cache[key] === undefined) {
+    let max = 1
+    for (let i = 0; i < history.length; i++) {
+      if (history[i][key] > max) max = history[i][key]
+    }
+    cache[key] = max
+  }
+  return cache[key]
+}
+
 function sparklineHoverPoint(history, key, index, width = 120, height = 24) {
-  const values = history.map(h => h[key])
-  const max = Math.max(...values, 1)
-  const step = width / (values.length - 1)
-  return { x: index * step, y: height - (values[index] / max) * height }
+  const max = getSparklineMax(history, key)
+  const step = width / (history.length - 1)
+  return { x: index * step, y: height - (history[index][key] / max) * height }
+}
+
+const detailMaxCache = new WeakMap()
+
+function getDetailMax(data, key) {
+  let cache = detailMaxCache.get(data)
+  if (!cache) { cache = {}; detailMaxCache.set(data, cache) }
+  if (cache[key] === undefined) {
+    let max = 1
+    for (let i = 0; i < data.length; i++) {
+      if (data[i][key] > max) max = data[i][key]
+    }
+    cache[key] = max
+  }
+  return cache[key]
 }
 
 function detailHoverPoint(data, key, index) {
-  const max = Math.max(...data.map(d => d[key]), 1)
+  const max = getDetailMax(data, key)
   const x = (index / (data.length - 1)) * 400
   const y = 80 - (data[index][key] / max) * 80
   return { x, y }
