@@ -153,6 +153,14 @@ module.exports = {
     // Generate deployment checklist
     const checklist = await sails.helpers.environment.generateChecklist(environment.id)
 
+    // Check if GitHub is connected for this team
+    const gitProvider = await GitProvider.findOne({
+      team: user.team.id,
+      type: 'github',
+      isActive: true
+    })
+    const githubConnected = !!gitProvider
+
     return {
       page: 'projects/environment',
       props: {
@@ -169,7 +177,8 @@ module.exports = {
         envVars: environment.envVars || {},
         deployments,
         checklist,
-        backupConfigured
+        backupConfigured,
+        githubConnected
       }
     }
   }
