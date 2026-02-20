@@ -178,6 +178,7 @@ const selectedExportTables = ref(new Set())
 const exportMode = ref('full') // 'full', 'schema', 'data'
 const importMode = ref('paste') // 'paste' or 'upload'
 const importSql = ref('')
+const importFile = ref(null) // Raw File object for binary .dmp uploads
 const importLoading = ref(false)
 const showImportModal = ref(false)
 const showImportConfirm = ref(false)
@@ -543,34 +544,70 @@ function clearExportTableSelection() {
   selectedExportTables.value = new Set()
 }
 
-// Import SQL
+// Import modal — synced with ?import query param
+const initialImport = new URLSearchParams(window.location.search).get('import')
+
 function openImportModal() {
   importSql.value = ''
+  importFile.value = null
   importMode.value = 'paste'
   showImportModal.value = true
+  const url = new URL(window.location)
+  url.searchParams.set('import', '1')
+  window.history.replaceState({}, '', url)
 }
 
 function closeImportModal() {
   showImportModal.value = false
   importSql.value = ''
+  importFile.value = null
+  const url = new URL(window.location)
+  url.searchParams.delete('import')
+  window.history.replaceState({}, '', url)
 }
+
+const isBinaryImport = computed(() => {
+  const name = importFile.value?.name
+  return name?.endsWith('.dmp') || name?.endsWith('.gz')
+})
+
+const importAccept = computed(() => {
+  if (isMongoDB.value) return '.json,.gz'
+  if (props.databaseService?.type === 'postgresql') return '.sql,.txt,.dmp'
+  return '.sql,.txt'
+})
+
+const importFileLabel = computed(() => {
+  if (isMongoDB.value) return 'Upload a .json or .gz file'
+  if (props.databaseService?.type === 'postgresql') return 'Upload a .sql or .dmp file'
+  return 'Upload a .sql file'
+})
 
 async function handleFileUpload(event) {
   const file = event.target.files[0]
   if (!file) return
 
   try {
-    const text = await file.text()
-    importSql.value = text
-    showToast(`Loaded ${file.name} (${formatBytes(file.size)})`, 'success')
+    if (file.name.endsWith('.dmp') || file.name.endsWith('.gz')) {
+      // Binary dump — store the File object, don't read as text
+      importFile.value = file
+      importSql.value = '' // Clear any previous text
+      showToast(`Loaded ${file.name} (${formatBytes(file.size)})`, 'success')
+    } else {
+      // Text SQL file — existing behavior
+      importFile.value = null
+      const text = await file.text()
+      importSql.value = text
+      showToast(`Loaded ${file.name} (${formatBytes(file.size)})`, 'success')
+    }
   } catch (e) {
     showToast('Failed to read file', 'error')
   }
 }
 
 function confirmImport() {
-  if (!importSql.value.trim()) {
-    showToast('No SQL to import', 'error')
+  if (!importFile.value && !importSql.value.trim()) {
+    showToast('No data to import', 'error')
     return
   }
   showImportConfirm.value = true
@@ -581,20 +618,34 @@ async function executeImport() {
   importLoading.value = true
 
   try {
-    const res = await fetch(apiUrl('/import'), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ sql: importSql.value })
-    })
+    let res
+    if (isBinaryImport.value) {
+      // Binary dump — send as FormData
+      const formData = new FormData()
+      formData.append('dump', importFile.value)
+      res = await fetch(apiUrl('/import'), {
+        method: 'POST',
+        body: formData
+      })
+    } else {
+      // Text SQL — existing JSON body
+      res = await fetch(apiUrl('/import'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sql: importSql.value })
+      })
+    }
 
     const data = await res.json()
 
     if (!res.ok || !data.success) {
       showToast(data.error || 'Import failed', 'error')
     } else {
-      showToast(`Import completed: ${data.statementCount} statement(s) in ${data.duration}ms`, 'success')
+      showToast(isBinaryImport.value
+        ? `Dump restored in ${data.duration}ms`
+        : `Import completed: ${data.statementCount} statement(s) in ${data.duration}ms`,
+      'success')
       closeImportModal()
-      // Refresh tables and schema
       fetchTables()
       if (schema.value) fetchSchema()
       if (diff.value) fetchDiff()
@@ -779,6 +830,10 @@ onMounted(() => {
     if (selectedTable.value) {
       browseTable(selectedTable.value)
     }
+  }
+  // Open import modal if ?import=1 in URL
+  if (initialImport) {
+    openImportModal()
   }
 })
 
@@ -1542,18 +1597,6 @@ onUnmounted(() => {
               </div>
             </div>
 
-            <!-- Apply button -->
-            <div class="flex justify-end space-x-3">
-              <button
-                @click="confirmMigration"
-                :disabled="migrateLoading || filteredStatements.length === 0"
-                class="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
-              >
-                <span v-if="migrateLoading">Applying...</span>
-                <span v-else>Apply Migration</span>
-              </button>
-            </div>
-
             <!-- Confirm migration modal -->
             <ConfirmModal
               :show="showMigrateConfirm"
@@ -1572,6 +1615,15 @@ onUnmounted(() => {
     <!-- Bottom-right toolbar (not for Redis) -->
     <div v-if="databaseService && !isRedis" class="fixed bottom-4 right-4 z-40" data-export-dropdown>
       <div class="flex items-center gap-1 rounded-lg border border-gray-200 bg-white p-1 shadow-lg dark:border-gray-700 dark:bg-gray-800">
+        <!-- Apply migration button (migrate tab only) -->
+        <button
+          v-if="activeTab === 'migrate' && filteredStatements.length > 0"
+          @click="confirmMigration"
+          :disabled="migrateLoading"
+          class="flex h-8 items-center rounded-md bg-gray-900 px-3 text-sm font-medium text-white transition-colors hover:bg-gray-800 disabled:opacity-50 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
+        >
+          {{ migrateLoading ? 'Applying...' : 'Apply' }}
+        </button>
         <!-- Export button -->
         <div class="relative">
           <Tooltip :text="exportLoading ? 'Exporting...' : 'Export'" position="top">
@@ -1636,7 +1688,7 @@ onUnmounted(() => {
     <div v-if="showImportModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50" @click.self="closeImportModal">
       <div class="w-full max-w-2xl rounded-lg border border-gray-200 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-900">
         <div class="flex items-center justify-between border-b border-gray-200 px-4 py-3 dark:border-gray-700">
-          <h3 class="text-sm font-medium text-gray-900 dark:text-white">Import SQL</h3>
+          <h3 class="text-sm font-medium text-gray-900 dark:text-white">Import</h3>
           <button @click="closeImportModal" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
             <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
@@ -1695,15 +1747,25 @@ onUnmounted(() => {
               <svg class="h-10 w-10 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
               </svg>
-              <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">Upload a .sql file</p>
+              <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">{{ importFileLabel }}</p>
               <input
                 type="file"
-                accept=".sql,.txt"
+                :accept="importAccept"
                 @change="handleFileUpload"
                 class="mt-3 text-sm text-gray-500 file:mr-3 file:rounded-md file:border-0 file:bg-gray-900 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-white hover:file:bg-gray-800 dark:file:bg-white dark:file:text-gray-900"
               />
             </div>
-            <div v-if="importSql" class="mt-4">
+            <div v-if="isBinaryImport" class="mt-4">
+              <div class="flex items-center gap-2 rounded-md bg-gray-50 px-3 py-2 dark:bg-gray-800">
+                <svg class="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4" />
+                </svg>
+                <span class="text-sm text-gray-700 dark:text-gray-300">{{ importFile.name }}</span>
+                <span class="text-xs text-gray-400">({{ formatBytes(importFile.size) }})</span>
+              </div>
+              <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Binary dump — will be restored with {{ isMongoDB ? 'mongorestore' : 'pg_restore' }}</p>
+            </div>
+            <div v-else-if="importSql" class="mt-4">
               <p class="mb-2 text-xs font-medium text-gray-500 dark:text-gray-400">Preview:</p>
               <pre
                 class="max-h-48 overflow-auto p-3 font-mono text-xs leading-5"
@@ -1714,7 +1776,7 @@ onUnmounted(() => {
 
           <!-- Info -->
           <p class="mt-3 text-xs text-gray-500 dark:text-gray-400">
-            {{ importSql ? `${importSql.length.toLocaleString()} characters` : 'No SQL loaded' }}
+            {{ isBinaryImport ? `${formatBytes(importFile.size)} dump file` : importSql ? `${importSql.length.toLocaleString()} characters` : 'No data loaded' }}
           </p>
         </div>
         <div class="flex justify-end gap-2 border-t border-gray-200 px-4 py-3 dark:border-gray-700">
@@ -1726,7 +1788,7 @@ onUnmounted(() => {
           </button>
           <button
             @click="confirmImport"
-            :disabled="!importSql.trim() || importLoading"
+            :disabled="(!importFile && !importSql.trim()) || importLoading"
             class="rounded-md bg-gray-900 px-4 py-1.5 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
           >
             <span v-if="importLoading">Importing...</span>
@@ -1740,7 +1802,7 @@ onUnmounted(() => {
     <ConfirmModal
       :show="showImportConfirm"
       title="Confirm Import"
-      message="This will execute the SQL statements on your database. Make sure you have a backup if needed."
+      :message="isBinaryImport ? 'This will restore the dump file into your database, replacing existing data. Make sure you have a backup if needed.' : 'This will execute the SQL statements on your database. Make sure you have a backup if needed.'"
       confirmLabel="Import"
       :loading="importLoading"
       @confirm="executeImport"

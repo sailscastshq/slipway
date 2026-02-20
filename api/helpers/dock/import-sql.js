@@ -15,8 +15,11 @@ module.exports = {
     },
     sql: {
       type: 'string',
-      required: true,
-      description: 'SQL statements to import'
+      description: 'SQL statements to import (text mode)'
+    },
+    dump: {
+      type: 'ref',
+      description: 'Binary dump buffer for pg_restore (binary mode)'
     }
   },
 
@@ -30,9 +33,60 @@ module.exports = {
     }
   },
 
-  fn: async function ({ service, sql }) {
+  fn: async function ({ service, sql, dump }) {
+    if (!sql && !dump) {
+      throw new Error('Either sql or dump must be provided')
+    }
+
     const dockerPath = sails.config.docker?.binaryPath || 'docker'
     const startTime = Date.now()
+
+    // Binary dump import (.dmp for PostgreSQL, .gz for MongoDB)
+    if (dump) {
+      const { spawn } = require('child_process')
+      let args
+      let tool
+
+      if (service.type === 'postgresql') {
+        tool = 'pg_restore'
+        args = [
+          'exec', '-i',
+          '-e', `PGPASSWORD=${service.password}`,
+          service.containerName,
+          'pg_restore', '-U', service.username, '-d', service.database,
+          '--no-owner', '--clean', '--if-exists'
+        ]
+      } else if (service.type === 'mongodb') {
+        tool = 'mongorestore'
+        const mongoUri = `mongodb://${service.username}:${service.password}@localhost:27017/${service.database}?authSource=admin`
+        args = [
+          'exec', '-i', service.containerName,
+          'mongorestore', '--uri', mongoUri, '--archive', '--gzip', '--drop'
+        ]
+      } else {
+        throw new Error(`Binary dump import is not supported for ${service.type}`)
+      }
+
+      return new Promise((resolve, reject) => {
+        const proc = spawn(dockerPath, args, { timeout: 300000 })
+        let stderr = ''
+        proc.stderr.on('data', (data) => { stderr += data.toString() })
+        proc.on('close', (code) => {
+          const duration = Date.now() - startTime
+          if (code !== 0) {
+            sails.log.error(`[dock] ${tool} failed with code ${code}: ${stderr}`)
+            reject({ importFailed: { message: stderr.trim() || `${tool} failed with exit code ${code}` } })
+          } else {
+            resolve({ success: true, message: 'Dump restored successfully', statementCount: 1, duration })
+          }
+        })
+        proc.on('error', (err) => {
+          reject({ importFailed: { message: err.message } })
+        })
+        proc.stdin.write(dump)
+        proc.stdin.end()
+      })
+    }
 
     let args
     let env = { ...process.env }
