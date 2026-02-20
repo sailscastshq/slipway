@@ -2,9 +2,10 @@
  * get-instance-url.js
  *
  * Gets the instance URL with fallback chain:
- * 1. Database setting (instanceUrl) - can be updated from dashboard
- * 2. SLIPWAY_URL environment variable - set during install
- * 3. sails.config.custom.baseUrl - default config value
+ * 1. instanceDomain setting (set from settings UI, bare domain)
+ * 2. instanceUrl setting (legacy, full URL)
+ * 3. SLIPWAY_URL environment variable - set during install
+ * 4. sails.config.custom.baseUrl - default config value
  */
 
 module.exports = {
@@ -21,18 +22,25 @@ module.exports = {
   },
 
   fn: async function () {
-    // 1. Try database setting first (allows changing without restart)
+    // 1. Try instanceDomain first (set from settings UI)
+    const instanceDomain = await sails.helpers.setting.get('instanceDomain')
+    if (instanceDomain) {
+      const domain = instanceDomain.replace(/^https?:\/\//, '').replace(/\/+$/, '')
+      return `https://${domain}`
+    }
+
+    // 2. Try instanceUrl setting (legacy)
     const dbValue = await sails.helpers.setting.get('instanceUrl')
     if (dbValue) {
       return dbValue
     }
 
-    // 2. Try environment variable (set by install script)
+    // 3. Try environment variable (set by install script)
     if (process.env.SLIPWAY_URL) {
       return process.env.SLIPWAY_URL
     }
 
-    // 3. Fall back to config (default: http://localhost:1337)
+    // 4. Fall back to config (default: http://localhost:1337)
     return sails.config.custom.baseUrl || `http://localhost:${sails.config.port || 1337}`
   }
 }
