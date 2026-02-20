@@ -152,7 +152,7 @@ async function checkGhcrImage(repo, version) {
     )
     return manifestRes.ok
   } catch {
-    // Network error — don't block the update banner, assume image exists
-    return true
+    // Network error — don't show banner, next hourly check will retry
+    return false
   }
 }
