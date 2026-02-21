@@ -97,12 +97,19 @@ async function handlePush(repo, payload) {
     return { received: true, action: 'skipped', reason: 'auto_deploy_disabled' }
   }
 
-  // Check branch mapping
+  // Check branch mapping — if mappings are configured, only deploy mapped branches.
+  // Fall back to defaultBranch only when no mappings exist at all.
   const branchMappings = repo.branchMappings || {}
+  const hasMappings = Object.keys(branchMappings).length > 0
   const targetEnvSlug = branchMappings[branch]
 
-  if (!targetEnvSlug && branch !== repo.defaultBranch) {
-    sails.log.verbose(`[webhook] No mapping for branch ${branch}, skipping`)
+  if (hasMappings && !targetEnvSlug) {
+    sails.log.verbose(`[webhook] No mapping for branch ${branch}, skipping (mappings: ${JSON.stringify(branchMappings)})`)
+    return { received: true, action: 'skipped', reason: 'no_branch_mapping' }
+  }
+
+  if (!hasMappings && branch !== repo.defaultBranch) {
+    sails.log.verbose(`[webhook] No mappings configured and ${branch} is not the default branch, skipping`)
     return { received: true, action: 'skipped', reason: 'no_branch_mapping' }
   }
 
