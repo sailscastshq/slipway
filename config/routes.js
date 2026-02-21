@@ -328,6 +328,7 @@ module.exports.routes = {
   'GET /api/v1/lookout/metrics/:containerName': 'api/v1/lookout/get-container-metrics',
   'GET /api/v1/projects/:projectSlug/lookout': 'api/v1/lookout/get-environment-metrics',
   'GET /api/v1/projects/:projectSlug/environments/:environmentSlug/lookout': 'api/v1/lookout/get-environment-metrics',
+  'GET /api/v1/projects/:projectSlug/environments/:environmentSlug/lookout/stream': 'api/v1/lookout/stream-metrics',
 
   // Telemetry API (app observability)
   'POST /api/v1/telemetry/ingest': 'api/v1/telemetry/ingest',

@@ -50,19 +50,36 @@ module.exports = {
       recordedAt: { '>=': twentyFourHoursAgo }
     }).sort('recordedAt ASC')
 
+    const mapped = metrics.map(m => ({
+      cpuPercent: m.cpuPercent,
+      memoryUsage: m.memoryUsage,
+      memoryLimit: m.memoryLimit,
+      memoryPercent: m.memoryPercent,
+      netIO: m.netIO,
+      blockIO: m.blockIO,
+      pids: m.pids,
+      recordedAt: m.recordedAt
+    }))
+
     return {
       containerName,
       containerType: app ? 'app' : 'service',
-      metrics: metrics.map(m => ({
-        cpuPercent: m.cpuPercent,
-        memoryUsage: m.memoryUsage,
-        memoryLimit: m.memoryLimit,
-        memoryPercent: m.memoryPercent,
-        netIO: m.netIO,
-        blockIO: m.blockIO,
-        pids: m.pids,
-        recordedAt: m.recordedAt
-      }))
+      metrics: downsample(mapped, 200)
     }
   }
+}
+
+/**
+ * Downsample an array to at most maxPoints entries.
+ * Keeps first and last, evenly samples the rest.
+ */
+function downsample(data, maxPoints) {
+  if (data.length <= maxPoints) return data
+  const result = [data[0]]
+  const step = (data.length - 1) / (maxPoints - 1)
+  for (let i = 1; i < maxPoints - 1; i++) {
+    result.push(data[Math.round(i * step)])
+  }
+  result.push(data[data.length - 1])
+  return result
 }
