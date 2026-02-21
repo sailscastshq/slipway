@@ -38,9 +38,18 @@ module.exports = {
   },
 
   fn: async function ({ cloneUrl, branch, targetDir, deployKeyPrivate, deploymentId }) {
+    // Normalize the key: fix escaped newlines and ensure trailing newline
+    let key = deployKeyPrivate.replace(/\\n/g, '\n')
+    if (!key.endsWith('\n')) { key += '\n' }
+
+    if (!key.includes('-----BEGIN')) {
+      throw new Error('Deploy key is not in a valid SSH format — it may be corrupted or not decrypted. Re-connect the repository to regenerate the key.')
+    }
+
     // Write deploy key to a temp file
     const keyFile = path.join(os.tmpdir(), `slipway-deploy-key-${Date.now()}-${Math.random().toString(36).slice(2)}`)
-    fs.writeFileSync(keyFile, deployKeyPrivate, { mode: 0o600 })
+    sails.log.debug(`[git] Writing deploy key (${key.length} chars, format: ${key.substring(0, 36).trim()})`)
+    fs.writeFileSync(keyFile, key, { mode: 0o600, encoding: 'utf8' })
 
     const sshCommand = `ssh -i ${keyFile} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null`
     const env = { ...process.env, GIT_SSH_COMMAND: sshCommand }
