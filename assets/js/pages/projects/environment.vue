@@ -1623,7 +1623,7 @@ onBeforeUnmount(() => {
                 </div>
                 <div class="flex items-center space-x-4">
                   <span class="text-xs text-gray-500 dark:text-gray-400">
-                    {{ dep.triggeredBy?.fullName || 'System' }}
+                    {{ dep.triggeredBy?.fullName || (dep.triggerType === 'webhook' ? 'GitHub' : 'System') }}
                   </span>
                   <span class="text-xs text-gray-400 dark:text-gray-500">
                     {{ timeAgo(dep.createdAt) }}

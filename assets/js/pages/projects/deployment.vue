@@ -386,7 +386,7 @@ function executeRollback() {
           <div>
             <dt class="text-xs text-gray-500 dark:text-gray-400">Triggered by</dt>
             <dd class="mt-1 text-sm text-gray-900 dark:text-white">
-              {{ deployment.triggeredBy?.fullName || 'System' }}
+              {{ deployment.triggeredBy?.fullName || (deployment.triggerType === 'webhook' ? 'GitHub' : 'System') }}
             </dd>
           </div>
           <div>
