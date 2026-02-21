@@ -37,7 +37,8 @@ module.exports = {
       throw new Error('GitHub OAuth not configured. Configure it in Settings → Git Integration.')
     }
 
-    const callback = redirectUri || `${sails.config.custom.baseUrl}/auth/github/callback`
+    const instanceUrl = await sails.helpers.getInstanceUrl()
+    const callback = redirectUri || `${instanceUrl}/auth/github/callback`
 
     const response = await fetch('https://github.com/login/oauth/access_token', {
       method: 'POST',

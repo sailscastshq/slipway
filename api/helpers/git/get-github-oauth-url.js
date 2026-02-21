@@ -26,7 +26,8 @@ module.exports = {
     }
 
     const baseUrl = 'https://github.com/login/oauth/authorize'
-    const callback = redirectUri || `${sails.config.custom.baseUrl}/auth/github/callback`
+    const instanceUrl = await sails.helpers.getInstanceUrl()
+    const callback = redirectUri || `${instanceUrl}/auth/github/callback`
 
     const params = new URLSearchParams({
       client_id: clientId,
