@@ -34,6 +34,7 @@ module.exports = {
       status: 'running',
       startedAt
     })
+    sails.sse.publish(`backup:${backupId}`, { status: 'running' })
 
     // Read S3 config from global env vars (stored in Settings), fall back to sails.config.uploads
     let globalEnvVars = {}
@@ -57,6 +58,7 @@ module.exports = {
         completedAt: Date.now(),
         durationMs: Date.now() - startedAt
       })
+      sails.sse.publish(`backup:${backupId}`, { status: 'failed' })
       return backup
     }
 
@@ -69,6 +71,7 @@ module.exports = {
         completedAt: Date.now(),
         durationMs: Date.now() - startedAt
       })
+      sails.sse.publish(`backup:${backupId}`, { status: 'failed' })
       return backup
     }
 
@@ -153,6 +156,7 @@ module.exports = {
       })
 
       sails.log.info(`Backup completed: ${s3Key} (${formatBytes(sizeBytes)} in ${completedAt - startedAt}ms)`)
+      sails.sse.publish(`backup:${backupId}`, { status: 'completed' })
 
       // Send backup success notification
       await sails.helpers.notification.sendBackupNotification.with({
@@ -168,6 +172,7 @@ module.exports = {
         durationMs: completedAt - startedAt
       })
       sails.log.error(`Backup failed for service ${service.name}: ${err.message}`)
+      sails.sse.publish(`backup:${backupId}`, { status: 'failed' })
 
       // Send backup failure notification
       await sails.helpers.notification.sendBackupNotification.with({

@@ -181,7 +181,6 @@ function selectBranch(branchName) {
 function connectRepo() {
   if (!connectForm.repoId) return
   connectForm.post(`${basePath.value}/connect-repo`, {
-    preserveScroll: true,
     onSuccess: () => {
       selectedRepo.value = null
       selectedBranch.value = null
