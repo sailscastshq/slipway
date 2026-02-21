@@ -29,7 +29,7 @@ module.exports = {
       throw { notFound: '/' }
     }
 
-    const baseUrl = sails.config.custom.baseUrl || `${this.req.protocol}://${this.req.get('host')}`
+    const baseUrl = await sails.helpers.getInstanceUrl()
     const webhookUrl = `${baseUrl}/api/v1/webhooks/github/${project.slug}`
 
     return {
