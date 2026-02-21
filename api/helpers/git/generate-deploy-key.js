@@ -1,4 +1,7 @@
-const crypto = require('crypto')
+const { execFileSync } = require('child_process')
+const fs = require('fs')
+const os = require('os')
+const path = require('path')
 
 module.exports = {
   friendlyName: 'Generate Deploy Key',
@@ -14,40 +17,26 @@ module.exports = {
   },
 
   fn: async function ({ repoName }) {
-    // Generate ED25519 keypair using Node.js crypto
-    const { publicKey, privateKey } = crypto.generateKeyPairSync('ed25519', {
-      publicKeyEncoding: {
-        type: 'spki',
-        format: 'pem'
-      },
-      privateKeyEncoding: {
-        type: 'pkcs8',
-        format: 'pem'
-      }
-    })
+    // Generate ED25519 keypair using ssh-keygen for native OpenSSH format.
+    // Node's crypto.generateKeyPairSync produces PKCS8 PEM which some SSH
+    // clients reject with "invalid format" for ED25519 keys.
+    const keyFile = path.join(os.tmpdir(), `slipway-keygen-${Date.now()}-${Math.random().toString(36).slice(2)}`)
 
-    // Convert to OpenSSH format
-    const publicKeyBuffer = crypto.createPublicKey(publicKey).export({
-      type: 'spki',
-      format: 'der'
-    })
+    try {
+      execFileSync('ssh-keygen', [
+        '-t', 'ed25519',
+        '-f', keyFile,
+        '-N', '',
+        '-C', `slipway-deploy-${repoName}`
+      ], { timeout: 10_000 })
 
-    // ED25519 public key is last 32 bytes of SPKI DER
-    const keyData = publicKeyBuffer.slice(-32)
-    const sshPublicKey = `ssh-ed25519 ${Buffer.concat([
-      Buffer.from([0, 0, 0, 11]), // length of "ssh-ed25519"
-      Buffer.from('ssh-ed25519'),
-      Buffer.from([0, 0, 0, 32]), // length of key data
-      keyData
-    ]).toString('base64')} slipway-deploy-${repoName}`
+      const privateKey = fs.readFileSync(keyFile, 'utf8')
+      const publicKey = fs.readFileSync(`${keyFile}.pub`, 'utf8').trim()
 
-    // Convert private key to OpenSSH format
-    // Node's PKCS8 PEM works with ssh, but we'll keep it simple
-    const sshPrivateKey = privateKey
-
-    return {
-      publicKey: sshPublicKey,
-      privateKey: sshPrivateKey
+      return { publicKey, privateKey }
+    } finally {
+      try { fs.unlinkSync(keyFile) } catch { /* ignore */ }
+      try { fs.unlinkSync(`${keyFile}.pub`) } catch { /* ignore */ }
     }
   }
 }
