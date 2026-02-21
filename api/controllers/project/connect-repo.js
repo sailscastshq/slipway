@@ -104,7 +104,8 @@ module.exports = {
 
     // Generate webhook secret and create webhook
     const webhookSecret = await sails.helpers.strings.random('url-friendly')
-    const webhookUrl = `${sails.config.custom.baseUrl}/webhook/github`
+    const instanceUrl = await sails.helpers.getInstanceUrl()
+    const webhookUrl = `${instanceUrl}/webhook/github`
 
     let webhookId
     try {
