@@ -1,10 +1,11 @@
 <script setup>
-import { Link, Head, router, usePoll } from '@inertiajs/vue3'
+import { Link, Head, router } from '@inertiajs/vue3'
 import { inject, ref, computed, watch } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
 import Breadcrumb from '@/components/Breadcrumb.vue'
 import SlippyLoader from '@/components/SlippyLoader.vue'
 import { useQueryState } from '@/composables/useQueryState'
+import { useEventSource } from '@/composables/sse'
 
 defineOptions({
   layout: AppLayout
@@ -35,13 +36,51 @@ const toggleMobileMenu = inject('toggleMobileMenu')
 const toggleSidebar = inject('toggleSidebar')
 const sidebarCollapsed = inject('sidebarCollapsed')
 
-usePoll(30000)
+// Live-updating containers: initialized from Inertia props, updated via SSE
+const liveContainers = ref(props.containers.map(c => ({
+  ...c,
+  history: c.history ? [...c.history] : []
+})))
+
+// SSE: stream new metric snapshots instead of polling the entire page
+const sseUrl = computed(() =>
+  `/api/v1/projects/${props.project.slug}/environments/${props.environment.slug}/lookout/stream`
+)
+
+useEventSource(sseUrl, {
+  onMessage(msg) {
+    if (!msg.metrics) return
+    const oneHourAgo = Date.now() - 60 * 60 * 1000
+    for (const m of msg.metrics) {
+      const container = liveContainers.value.find(c => c.name === m.containerName)
+      if (!container) continue
+
+      // Update latest metric snapshot
+      container.metric = {
+        cpuPercent: m.cpuPercent,
+        memoryUsage: m.memoryUsage,
+        memoryLimit: m.memoryLimit,
+        memoryPercent: m.memoryPercent,
+        netIO: m.netIO,
+        blockIO: m.blockIO,
+        pids: m.pids,
+        recordedAt: m.recordedAt
+      }
+
+      // Append to sparkline history and trim to 1-hour window
+      container.history.push({ cpu: m.cpuPercent, mem: m.memoryPercent, t: m.recordedAt })
+      while (container.history.length > 0 && container.history[0].t < oneHourAgo) {
+        container.history.shift()
+      }
+    }
+  }
+})
 
 // Tabs
 const activeTab = useQueryState('tab', 'infrastructure')
 const tabs = computed(() => {
   const list = [
-    { id: 'infrastructure', label: 'Infrastructure', count: props.containers.length }
+    { id: 'infrastructure', label: 'Infrastructure', count: liveContainers.value.length }
   ]
   if (props.telemetry.hasTelemetry) {
     list.push(
@@ -371,6 +410,13 @@ function detailHoverPoint(data, key, index) {
   return { x, y }
 }
 
+function detailChartPoints(data, key) {
+  const max = getDetailMax(data, key)
+  return data.map((m, i) =>
+    `${(i / (data.length - 1)) * 400},${80 - (m[key] / max) * 80}`
+  ).join(' ')
+}
+
 const copiedTraceId = ref(null)
 async function copyTraceId(traceId) {
   await navigator.clipboard.writeText(traceId)
@@ -486,7 +532,7 @@ async function copyToken() {
         <!-- INFRASTRUCTURE TAB -->
         <div v-if="activeTab === 'infrastructure'">
           <!-- Empty state -->
-          <div v-if="containers.length === 0" class="py-20 text-center">
+          <div v-if="liveContainers.length === 0" class="py-20 text-center">
             <svg class="mx-auto h-12 w-12 text-gray-300 dark:text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
             </svg>
@@ -499,7 +545,7 @@ async function copyToken() {
           <!-- Container list -->
           <div class="space-y-4">
             <div
-              v-for="container in containers"
+              v-for="container in liveContainers"
               :key="container.name"
               class="rounded-lg border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900"
             >
@@ -690,7 +736,7 @@ async function copyToken() {
                             <div class="relative">
                               <svg :viewBox="`0 0 400 80`" class="w-full overflow-visible" preserveAspectRatio="none" @mousemove="onChartHover($event, detailMetrics, 'cpuPercent', 'detail-cpu')" @mouseleave="onChartLeave">
                                 <polyline
-                                  :points="detailMetrics.map((m, i) => `${(i / (detailMetrics.length - 1)) * 400},${80 - (m.cpuPercent / Math.max(...detailMetrics.map(d => d.cpuPercent), 1)) * 80}`).join(' ')"
+                                  :points="detailChartPoints(detailMetrics, 'cpuPercent')"
                                   fill="none"
                                   stroke="#10b981"
                                   stroke-width="1.5"
@@ -737,7 +783,7 @@ async function copyToken() {
                             <div class="relative">
                               <svg :viewBox="`0 0 400 80`" class="w-full overflow-visible" preserveAspectRatio="none" @mousemove="onChartHover($event, detailMetrics, 'memoryPercent', 'detail-mem')" @mouseleave="onChartLeave">
                                 <polyline
-                                  :points="detailMetrics.map((m, i) => `${(i / (detailMetrics.length - 1)) * 400},${80 - (m.memoryPercent / Math.max(...detailMetrics.map(d => d.memoryPercent), 1)) * 80}`).join(' ')"
+                                  :points="detailChartPoints(detailMetrics, 'memoryPercent')"
                                   fill="none"
                                   stroke="#3b82f6"
                                   stroke-width="1.5"

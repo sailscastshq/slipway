@@ -118,6 +118,27 @@ module.exports = function defineLookoutHook(sails) {
       // Bulk create metrics
       if (records.length > 0) {
         await ContainerMetric.createEach(records)
+
+        // Publish new data points to SSE channels (one message per environment)
+        const byEnv = {}
+        for (const r of records) {
+          if (!byEnv[r.environment]) byEnv[r.environment] = []
+          byEnv[r.environment].push({
+            containerName: r.containerName,
+            containerType: r.containerType,
+            cpuPercent: r.cpuPercent,
+            memoryUsage: r.memoryUsage,
+            memoryLimit: r.memoryLimit,
+            memoryPercent: r.memoryPercent,
+            netIO: r.netIO,
+            blockIO: r.blockIO,
+            pids: r.pids,
+            recordedAt: r.recordedAt
+          })
+        }
+        for (const envId of Object.keys(byEnv)) {
+          sails.sse.publish(`lookout:env:${envId}`, { metrics: byEnv[envId] })
+        }
       }
 
       // Prune container metrics older than 24 hours
