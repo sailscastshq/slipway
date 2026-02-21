@@ -8,6 +8,7 @@ import SlideToDeploy from '@/components/SlideToDeploy.vue'
 import Tooltip from '@/components/Tooltip.vue'
 import { useToast } from '@/composables/toast'
 import { useServiceActions } from '@/composables/service-actions'
+import { useEventSource } from '@/composables/sse'
 
 defineOptions({
   layout: AppLayout
@@ -530,16 +531,32 @@ function cancelDeleteService() {
 
 // --- Backups ---
 const backingUpServiceId = ref(null)
+const backupStreamUrl = ref(null)
+
+const { close: closeBackupStream, connect: connectBackupStream } = useEventSource(backupStreamUrl, {
+  immediate: false,
+  autoReconnect: false,
+  onMessage(msg) {
+    if (msg.status === 'completed' || msg.status === 'failed') {
+      closeBackupStream()
+      router.reload({ only: ['environment'] })
+    }
+  }
+})
 
 async function triggerBackup(service) {
   if (backingUpServiceId.value) return
   backingUpServiceId.value = service.id
   try {
-    await fetch(`/api/v1/services/${service.id}/backups`, {
+    const res = await fetch(`/api/v1/services/${service.id}/backups`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' }
     })
+    if (!res.ok) return
+    const data = await res.json()
     router.reload({ only: ['environment'] })
+    backupStreamUrl.value = `/api/v1/backups/${data.backup.id}/stream`
+    connectBackupStream()
   } finally {
     backingUpServiceId.value = null
   }
