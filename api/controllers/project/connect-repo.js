@@ -1,46 +1,56 @@
-/**
- * Connect a GitHub repository
- */
 module.exports = {
-  friendlyName: 'Connect Repo',
+  friendlyName: 'Connect repo',
 
-  description: 'Connect a GitHub repository to an environment for push-to-deploy.',
+  description: 'Connect a GitHub repository to an existing app for push-to-deploy.',
 
   inputs: {
+    slug: {
+      type: 'string',
+      required: true,
+      description: 'Project slug'
+    },
+    envSlug: {
+      type: 'string',
+      required: true,
+      description: 'Environment slug'
+    },
+    appSlug: {
+      type: 'string',
+      required: true,
+      description: 'App slug'
+    },
     repoId: {
       type: 'string',
       required: true,
       description: 'GitHub repository ID'
     },
-    environmentId: {
+    branch: {
       type: 'string',
-      required: true,
-      description: 'Environment to deploy to'
-    },
-    branchMappings: {
-      type: 'json',
-      defaultsTo: {},
-      description: 'Branch to environment mapping'
+      description: 'Branch to deploy from (defaults to repo default branch)'
     }
   },
 
   exits: {
     success: {
-      statusCode: 201
+      responseType: 'inertiaRedirect'
     },
     notFound: {
-      statusCode: 404
-    },
-    forbidden: {
-      statusCode: 403
-    },
-    alreadyConnected: {
-      statusCode: 409
+      responseType: 'redirect'
     }
   },
 
-  fn: async function ({ repoId, environmentId, branchMappings }) {
+  fn: async function ({ slug, envSlug, appSlug, repoId, branch }) {
     const user = await User.findOne({ id: this.req.session.userId })
+    const redirectUrl = `/projects/${slug}/environments/${envSlug}/apps/${appSlug}/settings`
+
+    const project = await Project.findOne({ slug }).populate('team')
+    if (!project || project.team.id !== user.team) throw { notFound: '/' }
+
+    const environment = await Environment.findOne({ project: project.id, slug: envSlug })
+    if (!environment) throw { notFound: `/projects/${slug}` }
+
+    const app = await App.findOne({ environment: environment.id, slug: appSlug })
+    if (!app) throw { notFound: `/projects/${slug}/environments/${envSlug}` }
 
     // Find GitHub provider
     const provider = await GitProvider.findOne({
@@ -50,32 +60,15 @@ module.exports = {
     }).decrypt()
 
     if (!provider) {
-      throw { notFound: { message: 'GitHub not connected' } }
-    }
-
-    // Verify environment access
-    const environment = await Environment.findOne({ id: environmentId })
-      .populate('project')
-
-    if (!environment) {
-      throw 'notFound'
-    }
-
-    const project = await Project.findOne({ id: environment.project.id })
-      .populate('team')
-
-    if (project.team.id !== user.team) {
-      throw 'forbidden'
+      sails.inertia.flash('error', 'GitHub is not connected. Configure it in Settings > Git.')
+      return redirectUrl
     }
 
     // Check if already connected
-    const existing = await GitRepository.findOne({
-      externalId: repoId,
-      provider: provider.id
-    })
-
+    const existing = await GitRepository.findOne({ externalId: repoId, provider: provider.id })
     if (existing) {
-      throw { alreadyConnected: { message: 'Repository already connected' } }
+      sails.inertia.flash('error', 'This repository is already connected')
+      return redirectUrl
     }
 
     // Get repo details from GitHub
@@ -83,7 +76,8 @@ module.exports = {
     const repoInfo = repos.find(r => r.id === repoId)
 
     if (!repoInfo) {
-      throw { notFound: { message: 'Repository not found' } }
+      sails.inertia.flash('error', 'Repository not found on GitHub')
+      return redirectUrl
     }
 
     // Generate deploy key
@@ -96,7 +90,7 @@ module.exports = {
         provider.clientSecret,
         repoInfo.owner,
         repoInfo.name,
-        `Slipway Deploy (${project.name})`,
+        `Slipway Deploy (${project.name} - ${app.name})`,
         publicKey
       )
       deployKeyId = key.id
@@ -108,11 +102,10 @@ module.exports = {
       }
     }
 
-    // Generate webhook secret
+    // Generate webhook secret and create webhook
     const webhookSecret = await sails.helpers.strings.random('url-friendly')
     const webhookUrl = `${sails.config.custom.baseUrl}/webhook/github`
 
-    // Create webhook on GitHub
     let webhookId
     try {
       const hook = await sails.helpers.git.createGithubWebhook(
@@ -125,11 +118,10 @@ module.exports = {
       webhookId = hook.id
     } catch (err) {
       sails.log.error('Failed to create webhook:', err)
-      // Continue without webhook - can be added manually
     }
 
-    // Create repository record
-    const gitRepo = await GitRepository.create({
+    // Create repository record linked to the app
+    await GitRepository.create({
       externalId: repoId,
       fullName: repoInfo.fullName,
       name: repoInfo.name,
@@ -144,21 +136,14 @@ module.exports = {
       webhookId,
       webhookSecret,
       webhookUrl,
-      branchMappings: branchMappings || { [repoInfo.defaultBranch]: environment.slug },
+      branchMappings: { [branch || repoInfo.defaultBranch]: environment.slug },
       provider: provider.id,
-      environment: environment.id
-    }).fetch()
+      environment: environment.id,
+      app: app.id
+    })
 
-    sails.log.info(`[git] Connected ${repoInfo.fullName} to ${project.slug}/${environment.slug}`)
-
-    return {
-      repository: {
-        id: gitRepo.id,
-        fullName: gitRepo.fullName,
-        defaultBranch: gitRepo.defaultBranch,
-        webhookActive: !!webhookId,
-        deployKeyActive: !!deployKeyId
-      }
-    }
+    sails.log.info(`[git] Connected ${repoInfo.fullName} to app ${app.slug} (${project.slug}/${envSlug})`)
+    sails.inertia.flash('success', 'Repository connected')
+    return redirectUrl
   }
 }

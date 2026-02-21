@@ -42,12 +42,38 @@ module.exports = {
     const app = await App.findOne({ environment: environment.id, slug: appSlug })
     if (!app) throw { notFound: `/projects/${slug}/environments/${envSlug}` }
 
+    // Check if GitHub is connected for this team
+    const gitProvider = await GitProvider.findOne({
+      team: user.team.id,
+      type: 'github',
+      isActive: true
+    })
+    const githubConnected = !!gitProvider
+
+    // Get connected repository for this app
+    const gitRepo = await GitRepository.findOne({ app: app.id })
+    // Determine the deploy branch from branchMappings (first key), fallback to defaultBranch
+    const deployBranch = gitRepo
+      ? (Object.keys(gitRepo.branchMappings || {})[0] || gitRepo.defaultBranch)
+      : null
+
+    const connectedRepo = gitRepo ? {
+      id: gitRepo.id,
+      fullName: gitRepo.fullName,
+      htmlUrl: gitRepo.htmlUrl,
+      defaultBranch: gitRepo.defaultBranch,
+      deployBranch,
+      autoDeploy: gitRepo.autoDeploy
+    } : null
+
     return {
       page: 'projects/app-settings',
       props: {
         project,
         environment,
-        app
+        app,
+        connectedRepo,
+        githubConnected
       }
     }
   }

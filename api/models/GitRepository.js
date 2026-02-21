@@ -10,12 +10,14 @@ module.exports = {
     // Repository identifiers
     externalId: {
       type: 'string',
+      columnName: 'external_id',
       required: true,
       description: 'Provider-specific repo ID (e.g., GitHub repo ID)'
     },
 
     fullName: {
       type: 'string',
+      columnName: 'full_name',
       required: true,
       description: 'Full repository name (e.g., "user/repo")'
     },
@@ -35,41 +37,48 @@ module.exports = {
     // URLs
     cloneUrl: {
       type: 'string',
+      columnName: 'clone_url',
       required: true,
       description: 'SSH clone URL (e.g., git@github.com:user/repo.git)'
     },
 
     htmlUrl: {
       type: 'string',
+      columnName: 'html_url',
       allowNull: true,
       description: 'Web URL to view repository'
     },
 
     defaultBranch: {
       type: 'string',
+      columnName: 'default_branch',
       defaultsTo: 'main'
     },
 
     isPrivate: {
       type: 'boolean',
+      columnName: 'is_private',
       defaultsTo: false
     },
 
     // Deploy key (SSH key for cloning private repos)
     deployKeyId: {
       type: 'string',
+      columnName: 'deploy_key_id',
       allowNull: true,
       description: 'Provider-specific deploy key ID (for deletion)'
     },
 
     deployKeyPublic: {
       type: 'string',
+      columnName: 'deploy_key_public',
       allowNull: true,
       description: 'SSH public key'
     },
 
     deployKeyPrivate: {
       type: 'string',
+      columnName: 'deploy_key_private',
       allowNull: true,
       encrypt: true,
       description: 'SSH private key (encrypted)'
@@ -78,12 +87,14 @@ module.exports = {
     // Webhook configuration
     webhookId: {
       type: 'string',
+      columnName: 'webhook_id',
       allowNull: true,
       description: 'Provider-specific webhook ID'
     },
 
     webhookSecret: {
       type: 'string',
+      columnName: 'webhook_secret',
       allowNull: true,
       encrypt: true,
       description: 'Webhook signature secret'
@@ -91,12 +102,14 @@ module.exports = {
 
     webhookUrl: {
       type: 'string',
+      columnName: 'webhook_url',
       allowNull: true
     },
 
     // Branch → Environment mapping
     branchMappings: {
       type: 'json',
+      columnName: 'branch_mappings',
       defaultsTo: {},
       description:
         'Map branches to environments (e.g., {"main": "production", "develop": "staging"})'
@@ -105,12 +118,14 @@ module.exports = {
     // Settings
     autoDeploy: {
       type: 'boolean',
+      columnName: 'auto_deploy',
       defaultsTo: true,
       description: 'Automatically deploy on push'
     },
 
     autoDeployPreviews: {
       type: 'boolean',
+      columnName: 'auto_deploy_previews',
       defaultsTo: true,
       description: 'Automatically deploy PR preview environments'
     },

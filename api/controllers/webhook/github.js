@@ -1,3 +1,5 @@
+const path = require('path')
+
 /**
  * GitHub Webhook Handler
  */
@@ -37,7 +39,7 @@ module.exports = {
 
     const repo = await GitRepository.findOne({
       externalId: String(repoId)
-    }).populate('provider').populate('environment').decrypt()
+    }).populate('provider').populate('environment').populate('app').decrypt()
 
     if (!repo) {
       sails.log.warn(`[webhook] Unknown repository: ${repoId}`)
@@ -118,8 +120,24 @@ async function handlePush(repo, payload) {
     const envRecord = await Environment.findOne({ id: environment.id }).populate('project')
     const project = envRecord.project
 
-    // Deploy all apps in the environment
-    const apps = await App.find({ environment: environment.id })
+    // Clone or pull the repo source code before building
+    const targetDir = path.join(sails.config.custom.slipwayAppsDir, project.slug)
+    await sails.helpers.git.cloneOrPull.with({
+      cloneUrl: repo.cloneUrl,
+      branch,
+      targetDir,
+      deployKeyPrivate: repo.deployKeyPrivate
+    })
+
+    // If repo is linked to a specific app, deploy only that app.
+    // Otherwise, deploy all apps in the environment.
+    let apps
+    if (repo.app) {
+      apps = [repo.app]
+      sails.log.info(`[webhook] Scoping deploy to app: ${repo.app.name || repo.app.slug}`)
+    } else {
+      apps = await App.find({ environment: environment.id })
+    }
     const deploymentIds = []
 
     for (const app of (apps.length > 0 ? apps : [null])) {

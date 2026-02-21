@@ -1,5 +1,5 @@
 <script setup>
-import { Link, Head, router } from '@inertiajs/vue3'
+import { Link, Head, router, useForm } from '@inertiajs/vue3'
 import { inject, ref, computed } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
 import ConfirmModal from '@/components/ConfirmModal.vue'
@@ -24,44 +24,17 @@ const sidebarCollapsed = inject('sidebarCollapsed')
 const toast = useToast()
 
 // ---- GitHub OAuth Configuration ----
-const oauthConfig = ref({
+const oauthForm = useForm({
   clientId: '',
   clientSecret: ''
 })
-const savingConfig = ref(false)
-const configError = ref(null)
-const configSaved = ref(false)
 
-async function saveOAuthConfig() {
-  if (!oauthConfig.value.clientId.trim() || !oauthConfig.value.clientSecret.trim() || savingConfig.value) return
-  savingConfig.value = true
-  configError.value = null
-
-  try {
-    const res = await fetch('/api/v1/git/config', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        clientId: oauthConfig.value.clientId.trim(),
-        clientSecret: oauthConfig.value.clientSecret.trim()
-      })
-    })
-
-    if (res.ok) {
-      configSaved.value = true
-      router.reload()
-      toast({ message: 'GitHub OAuth configuration saved', type: 'success' })
-    } else {
-      const data = await res.json()
-      configError.value = data.message || 'Failed to save configuration'
-      toast({ message: configError.value, type: 'error' })
-    }
-  } catch (err) {
-    configError.value = 'Failed to save configuration'
-    toast({ message: configError.value, type: 'error' })
-  } finally {
-    savingConfig.value = false
-  }
+function saveOAuthConfig() {
+  if (!oauthForm.clientId.trim() || !oauthForm.clientSecret.trim()) return
+  oauthForm.patch('/settings/git', {
+    preserveScroll: true,
+    onError: () => toast({ message: 'Failed to save configuration', type: 'error' })
+  })
 }
 
 // ---- GitHub Connection ----
@@ -220,7 +193,7 @@ function timeAgo(date) {
               <div>
                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Client ID</label>
                 <input
-                  v-model="oauthConfig.clientId"
+                  v-model="oauthForm.clientId"
                   type="text"
                   placeholder="Ov23li..."
                   class="mt-1 w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:border-brand focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
@@ -231,7 +204,7 @@ function timeAgo(date) {
               <div>
                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Client Secret</label>
                 <input
-                  v-model="oauthConfig.clientSecret"
+                  v-model="oauthForm.clientSecret"
                   type="password"
                   placeholder="••••••••••••••••"
                   class="mt-1 w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:border-brand focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
@@ -239,17 +212,17 @@ function timeAgo(date) {
                 />
               </div>
 
-              <div v-if="configError" class="rounded-md bg-red-50 p-3 text-sm text-red-800 dark:bg-red-900/20 dark:text-red-300">
-                {{ configError }}
+              <div v-if="oauthForm.hasErrors" class="rounded-md bg-red-50 p-3 text-sm text-red-800 dark:bg-red-900/20 dark:text-red-300">
+                Failed to save configuration
               </div>
 
               <div class="pt-2">
                 <button
                   type="submit"
-                  :disabled="!oauthConfig.clientId.trim() || !oauthConfig.clientSecret.trim() || savingConfig"
+                  :disabled="!oauthForm.clientId.trim() || !oauthForm.clientSecret.trim() || oauthForm.processing"
                   class="rounded-md bg-gray-900 px-4 py-1.5 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
                 >
-                  {{ savingConfig ? 'Saving...' : 'Save Configuration' }}
+                  {{ oauthForm.processing ? 'Saving...' : 'Save Configuration' }}
                 </button>
               </div>
             </form>
