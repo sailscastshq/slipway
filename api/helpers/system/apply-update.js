@@ -199,6 +199,10 @@ module.exports = {
 
       sails.log.info('[slipway] Bosun spawned — container swap in ~3 seconds')
 
+      // Reset progress so the stale "swapping" phase (persisted in SQLite
+      // cache) doesn't block the next update after the container restarts.
+      await setProgress('idle', null)
+
       return {
         status: 'updating',
         currentVersion: updateInfo.currentVersion,
