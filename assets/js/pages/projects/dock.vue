@@ -1275,33 +1275,27 @@ onUnmounted(() => {
                     </svg>
                   </button>
                 </Tooltip>
-                <!-- Export dropdown -->
-                <div class="relative">
-                  <button
-                    @click="showExportMenu = !showExportMenu"
-                    class="rounded p-1.5 text-gray-500 hover:bg-gray-200 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-200"
-                  >
-                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-                      <path stroke-linecap="round" stroke-linejoin="round" d="M10.343 3.94c.09-.542.56-.94 1.11-.94h1.093c.55 0 1.02.398 1.11.94l.149.894c.07.424.384.764.78.93.398.164.855.142 1.205-.108l.737-.527a1.125 1.125 0 011.45.12l.773.774c.39.389.44 1.002.12 1.45l-.527.737c-.25.35-.272.806-.107 1.204.165.397.505.71.93.78l.893.15c.543.09.94.56.94 1.109v1.094c0 .55-.397 1.02-.94 1.11l-.893.149c-.425.07-.765.383-.93.78-.165.398-.143.854.107 1.204l.527.738c.32.447.269 1.06-.12 1.45l-.774.773a1.125 1.125 0 01-1.449.12l-.738-.527c-.35-.25-.806-.272-1.203-.107-.397.165-.71.505-.781.929l-.149.894c-.09.542-.56.94-1.11.94h-1.094c-.55 0-1.019-.398-1.11-.94l-.148-.894c-.071-.424-.384-.764-.781-.93-.398-.164-.854-.142-1.204.108l-.738.527c-.447.32-1.06.269-1.45-.12l-.773-.774a1.125 1.125 0 01-.12-1.45l.527-.737c.25-.35.273-.806.108-1.204-.165-.397-.505-.71-.93-.78l-.894-.15c-.542-.09-.94-.56-.94-1.109v-1.094c0-.55.398-1.02.94-1.11l.894-.149c.424-.07.765-.383.93-.78.165-.398.143-.854-.107-1.204l-.527-.738a1.125 1.125 0 01.12-1.45l.773-.773a1.125 1.125 0 011.45-.12l.737.527c.35.25.807.272 1.204.107.397-.165.71-.505.78-.929l.15-.894z" />
-                      <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                    </svg>
-                  </button>
+                <!-- Download dropdown -->
+                <div class="relative inline-flex">
+                  <Tooltip :text="resultView === 'json' ? 'Download JSON' : 'Download CSV'" position="top">
+                    <button
+                      @click="showExportMenu = !showExportMenu"
+                      class="rounded p-1.5 text-gray-500 hover:bg-gray-200 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-200"
+                    >
+                      <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
+                      </svg>
+                    </button>
+                  </Tooltip>
                   <div
                     v-if="showExportMenu"
                     class="absolute bottom-full right-0 z-10 mb-1 w-40 rounded-md border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-800"
                   >
-                    <button @click="copyAsJSON(); showExportMenu = false" class="block w-full px-3 py-1.5 text-left text-xs text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700">
-                      Copy as JSON
-                    </button>
-                    <button @click="copyAsCSV(); showExportMenu = false" class="block w-full px-3 py-1.5 text-left text-xs text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700">
-                      Copy as CSV
-                    </button>
-                    <div class="my-1 border-t border-gray-200 dark:border-gray-700"></div>
                     <button @click="exportAsJSON(); showExportMenu = false" class="block w-full px-3 py-1.5 text-left text-xs text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700">
-                      Download JSON
+                      Download as JSON
                     </button>
                     <button @click="exportAsCSV(); showExportMenu = false" class="block w-full px-3 py-1.5 text-left text-xs text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700">
-                      Download CSV
+                      Download as CSV
                     </button>
                   </div>
                 </div>
@@ -1612,8 +1606,8 @@ onUnmounted(() => {
       </div>
     </div>
 
-    <!-- Bottom-right toolbar (not for Redis) -->
-    <div v-if="databaseService && !isRedis" class="fixed bottom-4 right-4 z-40" data-export-dropdown>
+    <!-- Bottom-right toolbar (migrate tab only, not for Redis) -->
+    <div v-if="databaseService && !isRedis && activeTab === 'migrate'" class="fixed bottom-4 right-4 z-40" data-export-dropdown>
       <div class="flex items-center gap-1 rounded-lg border border-gray-200 bg-white p-1 shadow-lg dark:border-gray-700 dark:bg-gray-800">
         <!-- Apply migration button (migrate tab only) -->
         <button
