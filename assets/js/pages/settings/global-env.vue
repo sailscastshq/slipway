@@ -69,8 +69,10 @@ function saveVars(vars) {
 
 function addVar() {
   if (!newKey.value.trim()) return
-  localVars[newKey.value.trim()] = newValue.value
+  const key = newKey.value.trim()
+  localVars[key] = newValue.value
   saveVars(localVars)
+  toast({ message: `Added "${key}"`, type: 'success' })
   newKey.value = ''
   newValue.value = ''
 }
@@ -78,7 +80,50 @@ function addVar() {
 function removeVar(key) {
   delete localVars[key]
   saveVars(localVars)
+  toast({ message: `Removed "${key}"`, type: 'success' })
 }
+
+function renameVar(oldKey, el) {
+  const trimmed = el.value.trim()
+  if (!trimmed || trimmed === oldKey) {
+    el.value = oldKey
+    return
+  }
+  if (trimmed in localVars) {
+    toast({ message: `Variable "${trimmed}" already exists`, type: 'error' })
+    el.value = oldKey
+    return
+  }
+  const value = localVars[oldKey]
+  delete localVars[oldKey]
+  localVars[trimmed] = value
+  saveVars(localVars)
+  toast({ message: `Renamed "${oldKey}" to "${trimmed}"`, type: 'success' })
+}
+
+function updateVarValue(key, value) {
+  if (localVars[key] === value) return
+  localVars[key] = value
+  saveVars(localVars)
+  toast({ message: `Updated "${key}"`, type: 'success' })
+}
+
+const bulkHasChanges = computed(() => {
+  const vars = {}
+  for (const line of (bulkText.value || '').split('\n')) {
+    const trimmed = line.trim()
+    if (!trimmed || trimmed.startsWith('#')) continue
+    const eqIdx = trimmed.indexOf('=')
+    if (eqIdx === -1) continue
+    const k = trimmed.slice(0, eqIdx).trim()
+    const v = trimmed.slice(eqIdx + 1).trim()
+    if (k) vars[k] = v
+  }
+  const keys = Object.keys(vars).sort()
+  const currentKeys = Object.keys(localVars).sort()
+  if (keys.length !== currentKeys.length) return true
+  return keys.some((k, i) => k !== currentKeys[i] || vars[k] !== localVars[currentKeys[i]])
+})
 
 const bulkHighlighted = computed(() => {
   const text = bulkText.value || ''
@@ -125,9 +170,16 @@ function saveBulk() {
     const value = trimmed.slice(eqIdx + 1).trim()
     if (key) vars[key] = value
   }
+  const oldKeys = Object.keys(localVars).sort().join(',')
+  const oldVals = Object.keys(localVars).sort().map(k => localVars[k]).join(',')
   Object.keys(localVars).forEach((k) => delete localVars[k])
   Object.assign(localVars, vars)
-  saveVars(localVars)
+  const newKeys = Object.keys(localVars).sort().join(',')
+  const newVals = Object.keys(localVars).sort().map(k => localVars[k]).join(',')
+  if (oldKeys !== newKeys || oldVals !== newVals) {
+    saveVars(localVars)
+    toast({ message: 'Environment variables updated', type: 'success' })
+  }
   bulkMode.value = false
 }
 
@@ -407,7 +459,7 @@ onMounted(() => {
             <div class="border-t border-gray-200 dark:border-gray-800">
               <div class="relative">
                 <pre
-                  class="pointer-events-none absolute inset-0 overflow-hidden whitespace-pre-wrap break-all bg-gray-50 px-4 py-3 font-mono text-sm leading-relaxed dark:bg-gray-900"
+                  class="pointer-events-none absolute inset-0 overflow-auto whitespace-pre-wrap break-all bg-gray-50 px-4 py-3 font-mono text-sm leading-relaxed dark:bg-gray-900"
                   aria-hidden="true"
                   v-html="bulkHighlighted"
                 ></pre>
@@ -415,7 +467,7 @@ onMounted(() => {
                   v-model="bulkText"
                   rows="3"
                   placeholder="KEY=value&#10;R2_ACCESS_KEY=abc123&#10;# Comments are ignored"
-                  class="relative block w-full resize-none bg-transparent px-4 py-3 font-mono text-sm text-transparent placeholder-gray-400 caret-gray-900 focus:outline-none dark:placeholder-gray-500 dark:caret-white"
+                  class="relative block w-full resize-none bg-transparent px-4 py-3 font-mono text-sm leading-relaxed text-transparent placeholder-gray-400 caret-gray-900 focus:outline-none dark:placeholder-gray-500 dark:caret-white"
                   style="field-sizing: content"
                   spellcheck="false"
                 />
@@ -428,7 +480,7 @@ onMounted(() => {
                 </p>
                 <button
                   @click="saveBulk"
-                  :disabled="saving"
+                  :disabled="saving || !bulkHasChanges"
                   class="rounded-md bg-gray-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
                 >
                   Save
@@ -445,10 +497,14 @@ onMounted(() => {
             >
               <div v-for="key in sortedVarKeys" :key="key" class="px-4 py-3">
                 <div class="flex items-center justify-between">
-                  <span
-                    class="font-mono text-sm font-medium text-gray-900 dark:text-white"
-                    >{{ key }}</span
-                  >
+                  <input
+                    :value="key"
+                    @blur="renameVar(key, $event.target)"
+                    @keydown.enter="$event.target.blur()"
+                    autocomplete="off"
+                    spellcheck="false"
+                    class="border-b border-dashed border-transparent bg-transparent font-mono text-sm font-medium text-gray-900 focus:border-gray-300 focus:outline-none dark:text-white dark:focus:border-gray-600"
+                  />
                   <div class="flex items-center space-x-1">
                     <button
                       v-if="isSensitive(key)"
@@ -510,15 +566,15 @@ onMounted(() => {
                     </button>
                   </div>
                 </div>
-                <p
-                  class="mt-1 truncate font-mono text-sm text-gray-500 dark:text-gray-400"
-                >
-                  {{
-                    isSensitive(key) && !revealedKeys.has(key)
-                      ? '••••••••'
-                      : localVars[key]
-                  }}
-                </p>
+                <input
+                  :value="localVars[key]"
+                  :type="isSensitive(key) && !revealedKeys.has(key) ? 'password' : 'text'"
+                  @blur="updateVarValue(key, $event.target.value)"
+                  @keydown.enter="$event.target.blur()"
+                  autocomplete="off"
+                  spellcheck="false"
+                  class="mt-1 w-full border-b border-dashed border-transparent bg-transparent font-mono text-sm text-gray-500 focus:border-gray-300 focus:outline-none dark:text-gray-400 dark:focus:border-gray-600"
+                />
               </div>
             </div>
 
