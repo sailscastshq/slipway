@@ -144,7 +144,8 @@ module.exports = {
       if (!tables[tableName]) {
         tables[tableName] = {
           name: tableName,
-          columns: []
+          columns: [],
+          indexes: []
         }
       }
 
@@ -156,6 +157,73 @@ module.exports = {
         defaultValue: row.column_default,
         primaryKey: row.is_primary_key === 'true' || row.is_primary_key === true
       })
+    }
+
+    // Fetch indexes (excluding primary keys)
+    let indexQuery
+    if (service.type === 'postgresql') {
+      indexQuery = `
+        SELECT
+          i.indexname as index_name,
+          i.tablename as table_name,
+          a.attname as column_name,
+          ix.indisunique as is_unique
+        FROM pg_indexes i
+        JOIN pg_class c ON c.relname = i.indexname
+        JOIN pg_index ix ON ix.indexrelid = c.oid
+        JOIN pg_attribute a ON a.attrelid = ix.indrelid AND a.attnum = ANY(ix.indkey)
+        WHERE i.schemaname = 'public'
+          AND ix.indisprimary = false
+        ORDER BY i.tablename, i.indexname, a.attnum
+      `
+    } else {
+      indexQuery = `
+        SELECT
+          TABLE_NAME as table_name,
+          INDEX_NAME as index_name,
+          COLUMN_NAME as column_name,
+          NON_UNIQUE as non_unique
+        FROM information_schema.STATISTICS
+        WHERE TABLE_SCHEMA = DATABASE()
+          AND INDEX_NAME != 'PRIMARY'
+        ORDER BY TABLE_NAME, INDEX_NAME, SEQ_IN_INDEX
+      `
+    }
+
+    const indexResult = await sails.helpers.dock.executeSql(service, indexQuery)
+
+    if (indexResult.success && indexResult.rows) {
+      const isPostgres = service.type === 'postgresql'
+
+      // Group index rows by table + index name
+      const indexMap = {}
+      for (const row of indexResult.rows) {
+        const key = `${row.table_name}::${row.index_name}`
+
+        if (!indexMap[key]) {
+          const isUnique = isPostgres
+            ? (row.is_unique === true || row.is_unique === 't')
+            : (row.non_unique === 0 || row.non_unique === '0')
+          indexMap[key] = {
+            name: row.index_name,
+            tableName: row.table_name,
+            columns: [],
+            unique: isUnique
+          }
+        }
+        indexMap[key].columns.push(row.column_name)
+      }
+
+      // Attach indexes to their tables
+      for (const idx of Object.values(indexMap)) {
+        if (tables[idx.tableName]) {
+          tables[idx.tableName].indexes.push({
+            name: idx.name,
+            columns: idx.columns,
+            unique: idx.unique
+          })
+        }
+      }
     }
 
     return { tables }
