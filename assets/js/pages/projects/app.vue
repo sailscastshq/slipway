@@ -226,13 +226,11 @@ const statusStyles = {
 
 function appStatusClasses(app) {
   if (app.status === 'running') {
-    if (app.containerHealth === 'healthy') return statusStyles.green
     if (app.containerHealth === 'unhealthy') return statusStyles.red
-    if (app.containerHealth === 'starting') return statusStyles.yellow
     return statusStyles.green
   }
   if (['building', 'deploying', 'creating'].includes(app.status)) return statusStyles.blue
-  if (app.status === 'pending') return statusStyles.yellow
+  if (['pending', 'starting'].includes(app.status)) return statusStyles.yellow
   if (app.status === 'failed') return statusStyles.red
   return statusStyles.gray
 }
@@ -240,12 +238,12 @@ function appStatusClasses(app) {
 function appStatusLabel(app) {
   if (app.status === 'running') {
     if (app.containerHealth === 'unhealthy') return 'Unhealthy'
-    if (app.containerHealth === 'starting') return 'Starting'
     return 'Running'
   }
   const labels = {
     building: 'Building', deploying: 'Deploying', pending: 'Pending',
-    failed: 'Failed', stopped: 'Stopped', cancelled: 'Cancelled', creating: 'Creating'
+    starting: 'Starting', failed: 'Failed', stopped: 'Stopped',
+    cancelled: 'Cancelled', creating: 'Creating'
   }
   return labels[app.status] || app.status
 }

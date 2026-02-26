@@ -652,13 +652,11 @@ const statusStyles = {
 function appStatusClasses(app) {
   // When running, use health status to determine color
   if (app.status === 'running') {
-    if (app.containerHealth === 'healthy') return statusStyles.green
     if (app.containerHealth === 'unhealthy') return statusStyles.red
-    if (app.containerHealth === 'starting') return statusStyles.yellow
     return statusStyles.green
   }
   if (['building', 'deploying', 'creating'].includes(app.status)) return statusStyles.blue
-  if (app.status === 'pending') return statusStyles.yellow
+  if (['pending', 'starting'].includes(app.status)) return statusStyles.yellow
   if (app.status === 'failed') return statusStyles.red
   return statusStyles.gray
 }
@@ -666,12 +664,12 @@ function appStatusClasses(app) {
 function appStatusLabel(app) {
   if (app.status === 'running') {
     if (app.containerHealth === 'unhealthy') return 'Unhealthy'
-    if (app.containerHealth === 'starting') return 'Starting'
     return 'Running'
   }
   const labels = {
     building: 'Building', deploying: 'Deploying', pending: 'Pending',
-    failed: 'Failed', stopped: 'Stopped', cancelled: 'Cancelled', creating: 'Creating'
+    starting: 'Starting', failed: 'Failed', stopped: 'Stopped',
+    cancelled: 'Cancelled', creating: 'Creating'
   }
   return labels[app.status] || app.status
 }
@@ -1159,6 +1157,7 @@ onBeforeUnmount(() => {
                         <input
                           v-model="repoSearch"
                           @focus="repoDropdownOpen = true"
+                          @click.stop
                           placeholder="Link a GitHub repository (optional)"
                           class="w-full border-b border-dashed border-gray-200 bg-transparent py-1.5 pl-8 pr-8 text-sm text-gray-900 placeholder-gray-400 focus:border-brand focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
                         />
@@ -1184,6 +1183,7 @@ onBeforeUnmount(() => {
                       >
                         <div
                           v-if="repoDropdownOpen && !loadingRepos"
+                          @click.stop
                           class="absolute left-0 right-0 z-30 mt-1 max-h-48 overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-900"
                         >
                           <div v-if="filteredRepos.length === 0" class="px-3 py-4 text-center text-sm text-gray-500 dark:text-gray-400">
