@@ -139,6 +139,10 @@ function createApp() {
       selectedBranch.value = null
       branches.value = []
       addAppOpen.value = false
+      toast({ message: 'App created', type: 'success' })
+    },
+    onError: () => {
+      toast({ message: 'Failed to create app', type: 'error' })
     }
   })
 }
