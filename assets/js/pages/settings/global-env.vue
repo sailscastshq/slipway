@@ -83,11 +83,15 @@ function removeVar(key) {
   toast({ message: `Removed "${key}"`, type: 'success' })
 }
 
-function renameVar(oldKey, newKey) {
-  const trimmed = newKey.trim()
-  if (!trimmed || trimmed === oldKey) return
+function renameVar(oldKey, el) {
+  const trimmed = el.value.trim()
+  if (!trimmed || trimmed === oldKey) {
+    el.value = oldKey
+    return
+  }
   if (trimmed in localVars) {
     toast({ message: `Variable "${trimmed}" already exists`, type: 'error' })
+    el.value = oldKey
     return
   }
   const value = localVars[oldKey]
@@ -495,7 +499,7 @@ onMounted(() => {
                 <div class="flex items-center justify-between">
                   <input
                     :value="key"
-                    @blur="renameVar(key, $event.target.value)"
+                    @blur="renameVar(key, $event.target)"
                     @keydown.enter="$event.target.blur()"
                     autocomplete="off"
                     spellcheck="false"
