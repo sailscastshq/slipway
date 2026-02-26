@@ -85,6 +85,19 @@ module.exports = {
       })
     }
 
+    // Generate CREATE INDEX statements
+    for (const idx of diff.indexesToCreate) {
+      const indexName = `idx_${idx.tableName}_${idx.columnName}`
+      const uniqueKeyword = idx.unique ? 'UNIQUE ' : ''
+      const sql = `CREATE ${uniqueKeyword}INDEX ${quote}${indexName}${quote} ON ${quote}${idx.tableName}${quote} (${quote}${idx.columnName}${quote});`
+      statements.push({
+        type: 'create_index',
+        table: idx.tableName,
+        column: idx.columnName,
+        sql
+      })
+    }
+
     return { statements }
   }
 }

@@ -73,6 +73,22 @@ module.exports = {
       sails.log.verbose(`[dock] Added archive model: ${archiveIdentity}`)
     }
 
+    // Resolve FK types: inherit the referenced model's PK type
+    for (const model of Object.values(models)) {
+      for (const attr of Object.values(model.attributes)) {
+        if (!attr.foreignKey || !attr.references) continue
+
+        const referencedModel = models[attr.references]
+        if (!referencedModel) continue
+
+        const pkName = referencedModel.primaryKey || 'id'
+        const pkAttr = referencedModel.attributes[pkName]
+        if (pkAttr && pkAttr.type) {
+          attr.type = pkAttr.type
+        }
+      }
+    }
+
     sails.log.verbose(`[dock] Total models found: ${Object.keys(models).length}`)
     return { models }
   }
@@ -417,8 +433,21 @@ function parseAttributes(block) {
 
     const attrBlock = block.substring(startIndex, endIndex)
 
-    // Skip associations (model/collection)
-    if (attrBlock.includes('model:') || attrBlock.includes('collection:')) {
+    // Skip collection associations (virtual, no DB column)
+    if (attrBlock.includes('collection:')) {
+      continue
+    }
+
+    // Handle model associations (FK columns -- INTEGER in the DB)
+    if (attrBlock.includes('model:')) {
+      const modelMatch = attrBlock.match(/model:\s*['"]([^'"]+)['"]/)
+      if (modelMatch) {
+        const attr = extractCommonProperties(attrBlock, name)
+        attr.type = 'number'
+        attr.foreignKey = true
+        attr.references = modelMatch[1]
+        attributes[name] = attr
+      }
       continue
     }
 
@@ -432,64 +461,28 @@ function parseAttributes(block) {
 }
 
 /**
- * Parse a single attribute definition
+ * Extract common properties shared by all attribute types (regular and FK).
+ * Parses columnName, required, unique, index, allowNull, and other boolean flags.
  */
-function parseAttribute(block, name) {
-  const attr = {
-    columnName: name
+function extractCommonProperties(block, name) {
+  const attr = { columnName: name }
+
+  // Extract string properties
+  const stringProps = ['type', 'columnType', 'columnName']
+  for (const prop of stringProps) {
+    const match = block.match(new RegExp(`${prop}:\\s*['"]([^'"]+)['"]`))
+    if (match) {
+      attr[prop] = match[1]
+    }
   }
 
-  // Extract type
-  const typeMatch = block.match(/type:\s*['"]([^'"]+)['"]/)
-  if (typeMatch) {
-    attr.type = typeMatch[1]
-  }
-
-  // Extract columnType
-  const columnTypeMatch = block.match(/columnType:\s*['"]([^'"]+)['"]/)
-  if (columnTypeMatch) {
-    attr.columnType = columnTypeMatch[1]
-  }
-
-  // Extract columnName
-  const columnNameMatch = block.match(/columnName:\s*['"]([^'"]+)['"]/)
-  if (columnNameMatch) {
-    attr.columnName = columnNameMatch[1]
-  }
-
-  // Extract required
-  const requiredMatch = block.match(/required:\s*(true|false)/)
-  if (requiredMatch) {
-    attr.required = requiredMatch[1] === 'true'
-  }
-
-  // Extract unique
-  const uniqueMatch = block.match(/unique:\s*(true|false)/)
-  if (uniqueMatch) {
-    attr.unique = uniqueMatch[1] === 'true'
-  }
-
-  // Extract allowNull
-  const allowNullMatch = block.match(/allowNull:\s*(true|false)/)
-  if (allowNullMatch) {
-    attr.allowNull = allowNullMatch[1] === 'true'
-  }
-
-  // Extract autoIncrement
-  const autoIncrementMatch = block.match(/autoIncrement:\s*(true|false)/)
-  if (autoIncrementMatch) {
-    attr.autoIncrement = autoIncrementMatch[1] === 'true'
-  }
-
-  // Extract autoCreatedAt / autoUpdatedAt
-  const autoCreatedAtMatch = block.match(/autoCreatedAt:\s*(true|false)/)
-  if (autoCreatedAtMatch) {
-    attr.autoCreatedAt = autoCreatedAtMatch[1] === 'true'
-  }
-
-  const autoUpdatedAtMatch = block.match(/autoUpdatedAt:\s*(true|false)/)
-  if (autoUpdatedAtMatch) {
-    attr.autoUpdatedAt = autoUpdatedAtMatch[1] === 'true'
+  // Extract boolean properties (all follow the same pattern)
+  const boolProps = ['required', 'unique', 'index', 'allowNull', 'autoIncrement', 'autoCreatedAt', 'autoUpdatedAt']
+  for (const prop of boolProps) {
+    const match = block.match(new RegExp(`${prop}:\\s*(true|false)`))
+    if (match) {
+      attr[prop] = match[1] === 'true'
+    }
   }
 
   // Extract defaultsTo
@@ -508,15 +501,23 @@ function parseAttribute(block, name) {
     attr.isIn = isInMatch[1].split(',').map(v => v.trim().replace(/['"]/g, ''))
   }
 
+  return attr
+}
+
+/**
+ * Parse a single attribute definition.
+ * Returns null if no type information can be determined.
+ */
+function parseAttribute(block, name) {
+  const attr = extractCommonProperties(block, name)
+
   // If no explicit type, try to infer from other properties
   if (!attr.type && !attr.columnType) {
-    // Check if it's a timestamp attribute
     if (attr.autoCreatedAt || attr.autoUpdatedAt) {
-      attr.type = 'number' // Timestamps are stored as numbers (epoch ms)
+      attr.type = 'number'
     } else if (attr.autoIncrement) {
       attr.type = 'number'
     } else {
-      // No type info - skip this attribute
       return null
     }
   }
