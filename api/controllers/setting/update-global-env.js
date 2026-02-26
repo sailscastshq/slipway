@@ -34,7 +34,6 @@ module.exports = {
       'Instance-wide environment variables injected into all deployed applications'
     )
 
-    sails.inertia.flash('success', 'Environment variables saved')
     return '/settings/global-env'
   }
 }

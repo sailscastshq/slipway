@@ -43,7 +43,8 @@ module.exports = {
       tablesToDrop: [],
       columnsToAdd: [],
       columnsToModify: [],
-      columnsToDrop: []
+      columnsToDrop: [],
+      indexesToCreate: []
     }
 
     const existingTables = new Set(Object.keys(schema))
@@ -136,6 +137,40 @@ module.exports = {
       }
     }
 
+    // Index comparison: check for missing indexes on existing tables
+    for (const [identity, model] of Object.entries(models)) {
+      const tableName = model.tableName || identity
+      const existingTable = schema[tableName]
+      if (!existingTable) continue // New tables handled above
+
+      const existingIndexes = existingTable.indexes || []
+      // Build a set of indexed column names for quick lookup
+      const indexedColumns = new Set()
+      for (const idx of existingIndexes) {
+        // Single-column indexes: track by column name
+        if (idx.columns && idx.columns.length === 1) {
+          indexedColumns.add(idx.columns[0].toLowerCase())
+        }
+      }
+
+      for (const [attrName, attr] of Object.entries(model.attributes)) {
+        const columnName = attr.columnName || attrName
+        const needsIndex = attr.unique || attr.index
+
+        if (needsIndex && !indexedColumns.has(columnName.toLowerCase())) {
+          // Check it's not the primary key (PKs already have indexes)
+          const isPK = attrName === model.primaryKey || attr.primaryKey
+          if (!isPK) {
+            diff.indexesToCreate.push({
+              tableName,
+              columnName,
+              unique: attr.unique || false
+            })
+          }
+        }
+      }
+    }
+
     return diff
   }
 }
@@ -182,14 +217,15 @@ function mapWaterlineToSql(attr, attrName, dbType, modelPrimaryKey) {
   const isPrimaryKey = attr.primaryKey || attrName === modelPrimaryKey
   const isAutoIncrement = attr.autoIncrement || false
   const isTimestamp = attr.autoCreatedAt || attr.autoUpdatedAt
+  const isForeignKey = attr.foreignKey || false
 
   // Determine SQL type based on Waterline type and context
   let sqlType
 
   if (dbType === 'postgresql') {
-    sqlType = getPostgresType(attr.type, isPrimaryKey, isAutoIncrement, isTimestamp)
+    sqlType = getPostgresType(attr.type, isPrimaryKey, isAutoIncrement, isTimestamp, isForeignKey)
   } else {
-    sqlType = getMysqlType(attr.type, isPrimaryKey, isAutoIncrement, isTimestamp)
+    sqlType = getMysqlType(attr.type, isPrimaryKey, isAutoIncrement, isTimestamp, isForeignKey)
   }
 
   return {
@@ -205,7 +241,7 @@ function mapWaterlineToSql(attr, attrName, dbType, modelPrimaryKey) {
 /**
  * Get PostgreSQL type for a Waterline type
  */
-function getPostgresType(waterlineType, isPrimaryKey, isAutoIncrement, isTimestamp) {
+function getPostgresType(waterlineType, isPrimaryKey, isAutoIncrement, isTimestamp, isForeignKey) {
   // Auto-increment primary keys use SERIAL
   if (isAutoIncrement) {
     return 'SERIAL'
@@ -229,7 +265,7 @@ function getPostgresType(waterlineType, isPrimaryKey, isAutoIncrement, isTimesta
     case 'number':
       // _number maps to REAL (floating point)
       // _numberkey (for PKs/FKs) maps to INTEGER
-      return isPrimaryKey ? 'INTEGER' : 'REAL'
+      return (isPrimaryKey || isForeignKey) ? 'INTEGER' : 'REAL'
 
     case 'boolean':
       return 'BOOLEAN'
@@ -250,7 +286,7 @@ function getPostgresType(waterlineType, isPrimaryKey, isAutoIncrement, isTimesta
 /**
  * Get MySQL type for a Waterline type
  */
-function getMysqlType(waterlineType, isPrimaryKey, isAutoIncrement, isTimestamp) {
+function getMysqlType(waterlineType, isPrimaryKey, isAutoIncrement, isTimestamp, isForeignKey) {
   // Timestamps typically use BIGINT
   if (isTimestamp) {
     return 'BIGINT'
@@ -268,7 +304,7 @@ function getMysqlType(waterlineType, isPrimaryKey, isAutoIncrement, isTimestamp)
 
     case 'number':
       // _number maps to REAL, _numberkey to INTEGER
-      return isPrimaryKey ? 'INTEGER' : 'REAL'
+      return (isPrimaryKey || isForeignKey) ? 'INTEGER' : 'REAL'
 
     case 'boolean':
       // MySQL BOOLEAN is actually TINYINT(1)
@@ -291,34 +327,19 @@ function getMysqlType(waterlineType, isPrimaryKey, isAutoIncrement, isTimestamp)
  * Check if column needs modification
  */
 function needsModification(existing, expected, dbType) {
-  // Normalize types for comparison
-  const normalizedExisting = normalizeType(existing.type, dbType)
-  const normalizedExpected = normalizeType(expected.sqlType, dbType)
+  const normalizedExisting = normalizeType(existing.type)
+  const normalizedExpected = normalizeType(expected.sqlType)
 
-  // Type comparison with alias handling
-  if (!typesMatch(normalizedExisting, normalizedExpected, dbType)) {
-    return true
-  }
-
-  // Skip nullability check for now - can be too aggressive
-  // In practice, most schema changes are about new columns/types
-
-  return false
+  return !typesMatch(normalizedExisting, normalizedExpected, dbType)
 }
 
 /**
- * Normalize a SQL type for comparison
+ * Normalize a SQL type for comparison by lowercasing and removing length specifiers.
  */
-function normalizeType(type, dbType) {
+function normalizeType(type) {
   if (!type) return ''
 
-  let t = type.toLowerCase().trim()
-
-  // Remove length specifiers for comparison
-  t = t.replace(/\(\d+\)/, '')
-  t = t.replace(/\(\d+,\s*\d+\)/, '')
-
-  return t
+  return type.toLowerCase().trim().replace(/\(\d+(?:,\s*\d+)?\)/, '')
 }
 
 /**
