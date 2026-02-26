@@ -1572,7 +1572,7 @@ onBeforeUnmount(() => {
                         @keydown.enter="$event.target.blur()"
                         autocomplete="off"
                         spellcheck="false"
-                        class="border-b border-dashed border-transparent bg-transparent font-mono text-sm font-medium text-gray-900 focus:border-gray-300 focus:outline-none dark:text-white dark:focus:border-gray-600"
+                        class="min-w-0 flex-1 border-b border-dashed border-transparent bg-transparent font-mono text-sm font-medium text-gray-900 focus:border-gray-300 focus:outline-none dark:text-white dark:focus:border-gray-600"
                       />
                       <div class="flex items-center space-x-1 opacity-0 transition-opacity group-hover:opacity-100">
                         <button
