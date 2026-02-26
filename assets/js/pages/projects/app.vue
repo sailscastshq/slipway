@@ -226,13 +226,11 @@ const statusStyles = {
 
 function appStatusClasses(app) {
   if (app.status === 'running') {
-    if (app.containerHealth === 'healthy') return statusStyles.green
     if (app.containerHealth === 'unhealthy') return statusStyles.red
-    if (app.containerHealth === 'starting') return statusStyles.yellow
     return statusStyles.green
   }
   if (['building', 'deploying', 'creating'].includes(app.status)) return statusStyles.blue
-  if (app.status === 'pending') return statusStyles.yellow
+  if (['pending', 'starting'].includes(app.status)) return statusStyles.yellow
   if (app.status === 'failed') return statusStyles.red
   return statusStyles.gray
 }
@@ -240,12 +238,12 @@ function appStatusClasses(app) {
 function appStatusLabel(app) {
   if (app.status === 'running') {
     if (app.containerHealth === 'unhealthy') return 'Unhealthy'
-    if (app.containerHealth === 'starting') return 'Starting'
     return 'Running'
   }
   const labels = {
     building: 'Building', deploying: 'Deploying', pending: 'Pending',
-    failed: 'Failed', stopped: 'Stopped', cancelled: 'Cancelled', creating: 'Creating'
+    starting: 'Starting', failed: 'Failed', stopped: 'Stopped',
+    cancelled: 'Cancelled', creating: 'Creating'
   }
   return labels[app.status] || app.status
 }
@@ -412,6 +410,31 @@ function addVar() {
 function removeVar(key) {
   delete localVars[key]
   saveEnvVars()
+}
+
+function renameVar(oldKey, el) {
+  const trimmed = el.value.trim()
+  if (!trimmed || trimmed === oldKey) {
+    el.value = oldKey
+    return
+  }
+  if (trimmed in localVars) {
+    toast({ message: `Variable "${trimmed}" already exists`, type: 'error' })
+    el.value = oldKey
+    return
+  }
+  const value = localVars[oldKey]
+  delete localVars[oldKey]
+  localVars[trimmed] = value
+  saveEnvVars()
+  toast({ message: `Renamed "${oldKey}" to "${trimmed}"`, type: 'success' })
+}
+
+function updateVarValue(key, value) {
+  if (localVars[key] === value) return
+  localVars[key] = value
+  saveEnvVars()
+  toast({ message: `Updated "${key}"`, type: 'success' })
 }
 
 watch(envVarsOpen, (open) => {
@@ -946,7 +969,14 @@ onBeforeUnmount(() => {
                     class="group py-2"
                   >
                     <div class="flex items-center justify-between">
-                      <span class="font-mono text-sm font-medium text-gray-900 dark:text-white">{{ key }}</span>
+                      <input
+                        :value="key"
+                        @blur="renameVar(key, $event.target)"
+                        @keydown.enter="$event.target.blur()"
+                        autocomplete="off"
+                        spellcheck="false"
+                        class="min-w-0 flex-1 border-b border-dashed border-transparent bg-transparent font-mono text-sm font-medium text-gray-900 focus:border-gray-300 focus:outline-none dark:text-white dark:focus:border-gray-600"
+                      />
                       <div class="flex items-center space-x-1 opacity-0 transition-opacity group-hover:opacity-100">
                         <button
                           v-if="isSensitive(key)"
@@ -971,9 +1001,15 @@ onBeforeUnmount(() => {
                         </button>
                       </div>
                     </div>
-                    <p class="mt-1 truncate font-mono text-sm text-gray-500 dark:text-gray-400">
-                      {{ isSensitive(key) && !revealedKeys.has(key) ? '••••••••' : localVars[key] }}
-                    </p>
+                    <input
+                      :value="localVars[key]"
+                      :type="isSensitive(key) && !revealedKeys.has(key) ? 'password' : 'text'"
+                      @blur="updateVarValue(key, $event.target.value)"
+                      @keydown.enter="$event.target.blur()"
+                      autocomplete="off"
+                      spellcheck="false"
+                      class="mt-1 w-full border-b border-dashed border-transparent bg-transparent font-mono text-sm text-gray-500 focus:border-gray-300 focus:outline-none dark:text-gray-400 dark:focus:border-gray-600"
+                    />
                   </div>
                 </div>
                 <div v-else class="px-4 py-6 text-center text-sm text-gray-500 dark:text-gray-400">
