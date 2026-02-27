@@ -232,7 +232,23 @@ module.exports = {
     } catch (err) {
       sails.log.error(`Deployment ${deploymentId} failed: ${err.message || err}`)
 
-      // Rollback: stop and remove the new (unhealthy) container if it was started
+      // Capture container logs before removing — shows the actual crash reason
+      if (deployContainerName) {
+        try {
+          const containerLogs = await sails.helpers.docker.getContainerLogs.with({
+            containerName: deployContainerName,
+            tail: 50,
+            timestamps: false
+          })
+          if (containerLogs && containerLogs.trim()) {
+            await Deployment.appendDeployLog(deploymentId, `\n--- Container logs ---\n${containerLogs.trim()}\n`)
+          }
+        } catch {
+          // Container may not have started — no logs to capture
+        }
+      }
+
+      // Rollback: stop and remove the new (unhealthy) container
       if (deployContainerName) {
         try {
           await sails.helpers.docker.stopContainer.with({ containerName: deployContainerName })
