@@ -203,6 +203,10 @@ module.exports = {
       // cache) doesn't block the next update after the container restarts.
       await setProgress('idle', null)
 
+      // Clear the update check cache so the new version doesn't show
+      // a stale "update available" banner after restart.
+      await sails.cache.set('slipway_update_check', null, 1)
+
       return {
         status: 'updating',
         currentVersion: updateInfo.currentVersion,
