@@ -80,7 +80,8 @@ module.exports = {
         lastError = `HTTP ${statusCode}`
       } catch (err) {
         // If Docker DNS can't resolve the container name, fall back to localhost:hostPort
-        if (!usingFallback && hostPort && err.code === 'ENOTFOUND') {
+        // EAI_AGAIN is a transient DNS failure that also indicates Docker DNS is unavailable
+        if (!usingFallback && hostPort && (err.code === 'ENOTFOUND' || err.code === 'EAI_AGAIN')) {
           usingFallback = true
           sails.log.info(`Docker DNS unavailable, falling back to localhost:${hostPort}`)
           if (deploymentId) {
