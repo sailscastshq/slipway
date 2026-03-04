@@ -1,5 +1,9 @@
 const { spawn } = require('child_process')
 
+// eslint-disable-next-line no-control-regex
+const ANSI_RE = /\x1b\[[0-9;]*[A-Za-z]|\[\d+(?:;\d+)*m/g
+function stripAnsi(s) { return s.replace(ANSI_RE, '') }
+
 module.exports = {
   friendlyName: 'Run Quest job',
 
@@ -84,9 +88,31 @@ module.exports = {
       }
     }
 
+    const startedAt = Date.now()
     const result = await executeInContainer(args)
+    const duration = Date.now() - startedAt
 
     sails.log.info(`[quest] Job "${name}" triggered in ${project.slug}/${environmentSlug}`)
+
+    // Record telemetry so manual runs appear in job history
+    try {
+      await TelemetryMetric.create({
+        name: result.success ? 'quest.job.completed' : 'quest.job.failed',
+        value: duration,
+        unit: 'ms',
+        attributes: {
+          jobName: name,
+          trigger: 'manual',
+          triggeredBy: user.fullName,
+          stdout: result.output || '',
+          ...(result.success ? {} : { error: result.error || 'Unknown error', stderr: result.error || '' })
+        },
+        recordedAt: Date.now(),
+        environment: environment.id
+      })
+    } catch (err) {
+      sails.log.warn('[quest] Failed to record telemetry for manual run:', err.message)
+    }
 
     return {
       success: result.success,
@@ -121,8 +147,8 @@ function executeInContainer(args) {
     proc.on('close', (exitCode) => {
       resolve({
         success: exitCode === 0,
-        output: stdout.trim(),
-        error: stderr.trim() || null,
+        output: stripAnsi(stdout.trim()),
+        error: stripAnsi(stderr.trim()) || null,
         exitCode
       })
     })
