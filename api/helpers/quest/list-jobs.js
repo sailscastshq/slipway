@@ -132,7 +132,7 @@ function buildListJobsCode() {
     await new Promise((resolve, reject) => {
       sailsApp.load({
         environment: 'console',
-        hooks: { http: false, views: false, sockets: false, pubsub: false, grunt: false, flash: false, session: false },
+        environment: 'console',
         log: { level: 'silent' }
       }, (err) => {
         if (err) reject(err);
@@ -145,6 +145,22 @@ function buildListJobsCode() {
       const questJob = sails.quest ? sails.quest.get(script.name) : null;
       const quest = script.quest || {};
 
+      let nextRunAt = null;
+      let lastRunAt = null;
+
+      if (sails.quest) {
+        // Try to get next scheduled run time
+        if (typeof sails.quest.nextRun === 'function') {
+          try { nextRunAt = sails.quest.nextRun(script.name); } catch (e) { /* ignore */ }
+        }
+        // Try to get last run time from quest runtime
+        if (questJob && questJob.lastRunAt) {
+          lastRunAt = questJob.lastRunAt;
+        } else if (questJob && questJob.lastRun) {
+          lastRunAt = questJob.lastRun;
+        }
+      }
+
       return {
         name: script.name,
         friendlyName: script.friendlyName,
@@ -153,7 +169,9 @@ function buildListJobsCode() {
         scheduleType: quest.cron ? 'cron' : (quest.interval ? 'interval' : (quest.timeout ? 'timeout' : 'manual')),
         paused: questJob ? !!questJob.paused : false,
         withoutOverlapping: quest.withoutOverlapping || false,
-        isRunning: sails.quest && sails.quest.isRunning ? sails.quest.isRunning(script.name) : false
+        isRunning: sails.quest && sails.quest.isRunning ? sails.quest.isRunning(script.name) : false,
+        nextRunAt: nextRunAt ? new Date(nextRunAt).getTime() : null,
+        lastRunAt: lastRunAt ? new Date(lastRunAt).getTime() : null
       };
     });
 

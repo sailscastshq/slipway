@@ -231,6 +231,10 @@ module.exports.routes = {
   'POST /api/v1/projects/:projectSlug/quest/jobs/:name/run': 'api/v1/quest/run-job',
   'POST /api/v1/projects/:projectSlug/environments/:environmentSlug/quest/jobs/:name/run': 'api/v1/quest/run-job',
 
+  // Quest SSE Stream
+  'GET /api/v1/projects/:projectSlug/quest/stream': 'api/v1/quest/stream-jobs',
+  'GET /api/v1/projects/:projectSlug/environments/:environmentSlug/quest/stream': 'api/v1/quest/stream-jobs',
+
   // Quest UI
   'GET /projects/:slug/quest': 'project/view-quest',
   'GET /projects/:slug/environments/:envSlug/quest': 'project/view-quest',

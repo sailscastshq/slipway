@@ -30,7 +30,7 @@ module.exports = {
     sailsApp = require('sails');
     await new Promise((resolve, reject) => {
       sailsApp.load({
-        hooks: { http: false, views: false, sockets: false, pubsub: false, grunt: false },
+        environment: 'console',
         log: { level: 'warn' }
       }, (err) => {
         if (err) reject(err);
