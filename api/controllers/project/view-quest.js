@@ -55,20 +55,10 @@ module.exports = {
     const app = await App.findOne({ environment: environment.id, isDefault: true }) || await App.findOne({ environment: environment.id })
     const appRunning = app && app.status === 'running'
 
-    // Load jobs if app is running and quest is available
+    // Use scripts from feature detection as initial data (fast).
+    // The SSE stream will replace this with full job state from the container.
     let jobs = []
-    let jobsError = null
-
-    if (hasQuestFeature && appRunning && app.containerName) {
-      try {
-        const result = await sails.helpers.quest.listJobs(app.containerName, questFeature)
-        jobs = result.jobs || []
-        jobsError = result.error
-      } catch (err) {
-        jobsError = err.message
-      }
-    } else if (hasQuestFeature && !appRunning) {
-      // Return scripts from detection as manual-only jobs when app not running
+    if (hasQuestFeature && questFeature) {
       const scripts = questFeature.scripts || []
       jobs = scripts.map(s => ({
         name: s.name,
@@ -82,23 +72,10 @@ module.exports = {
       }))
     }
 
-    // Load recent job run history from telemetry (last 24 hours)
+    // Load recent job run history from telemetry (last 7 days)
     let jobHistory = []
     try {
-      const since = Date.now() - (24 * 60 * 60 * 1000)
-      const recentMetrics = await TelemetryMetric.find({
-        environment: environment.id,
-        name: { startsWith: 'quest.job.' },
-        recordedAt: { '>=': since }
-      }).sort('recordedAt DESC').limit(200)
-
-      jobHistory = recentMetrics.map(m => ({
-        event: m.name.replace('quest.job.', ''),
-        jobName: m.attributes.jobName,
-        duration: m.value,
-        error: m.attributes.error || null,
-        recordedAt: m.recordedAt
-      }))
+      jobHistory = await sails.helpers.quest.getJobHistory(environment.id)
     } catch {
       // Telemetry data may not exist yet
     }
@@ -121,7 +98,6 @@ module.exports = {
         questFeature,
         appRunning,
         jobs,
-        jobsError,
         jobHistory
       }
     }
