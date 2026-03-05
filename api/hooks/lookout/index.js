@@ -3,7 +3,7 @@
  *
  * Collects Docker container resource metrics on a 30-second interval.
  * Stores snapshots in the ContainerMetric model and prunes data older than 24h.
- * Triggers resource alerts when CPU or memory exceeds 90%.
+ * Triggers resource alerts when CPU or memory exceeds 90% for 3 consecutive samples (~90s).
  *
  * Also:
  * - Health checks: detects containers that should be running but aren't
@@ -86,7 +86,7 @@ module.exports = function defineLookoutHook(sails) {
             environment: matchedApp.environment.id,
             app: matchedApp.id
           })
-          checkResourceAlert(stat, matchedApp.containerName, now)
+          await checkResourceAlert(stat, matchedApp.containerName, now)
           continue
         }
 
@@ -107,7 +107,7 @@ module.exports = function defineLookoutHook(sails) {
             environment: matchedService.environment.id,
             service: matchedService.id
           })
-          checkResourceAlert(stat, matchedService.containerName, now)
+          await checkResourceAlert(stat, matchedService.containerName, now)
           continue
         }
 
@@ -267,6 +267,27 @@ module.exports = function defineLookoutHook(sails) {
       return
     }
 
+    // Require sustained high usage: check last 3 consecutive samples (~90s)
+    // to filter out transient spikes from GC, request bursts, etc.
+    const SUSTAINED_SAMPLES = 3
+    const recentMetrics = await ContainerMetric.find({
+      where: { containerName },
+      sort: 'recordedAt DESC',
+      limit: SUSTAINED_SAMPLES
+    })
+
+    // Not enough history yet — skip alerting until we have enough samples
+    if (recentMetrics.length < SUSTAINED_SAMPLES) {
+      return
+    }
+
+    const sustainedCpuHigh = cpuHigh && recentMetrics.every(m => m.cpuPercent > 90)
+    const sustainedMemHigh = memHigh && recentMetrics.every(m => m.memoryPercent > 90)
+
+    if (!sustainedCpuHigh && !sustainedMemHigh) {
+      return
+    }
+
     alertCooldowns.set(containerName, now)
 
     try {
@@ -274,8 +295,8 @@ module.exports = function defineLookoutHook(sails) {
         containerName,
         cpuPercent: stat.cpuPercent,
         memoryPercent: stat.memPercent,
-        cpuHigh,
-        memHigh
+        cpuHigh: sustainedCpuHigh,
+        memHigh: sustainedMemHigh
       })
     } catch (alertErr) {
       sails.log.verbose('Lookout: Failed to send resource alert:', alertErr.message)
