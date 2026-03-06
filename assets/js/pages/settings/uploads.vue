@@ -83,7 +83,8 @@ function save() {
 const scheduleForm = useForm({
   backupSchedule: {
     enabled: props.backupSchedule?.enabled || false,
-    intervalHours: props.backupSchedule?.intervalHours || 24
+    intervalHours: props.backupSchedule?.intervalHours || 24,
+    retentionCount: props.backupSchedule?.retentionCount || 10
   }
 })
 
@@ -391,18 +392,32 @@ const providers = [
               </button>
             </div>
 
-            <div v-if="scheduleForm.backupSchedule.enabled">
-              <label class="mb-1 block text-xs font-medium text-gray-500 dark:text-gray-400">Backup Interval</label>
-              <select
-                v-model="scheduleForm.backupSchedule.intervalHours"
-                class="rounded-md border border-gray-200 bg-transparent px-3 py-1.5 text-sm text-gray-900 focus:border-brand focus:outline-none dark:border-gray-700 dark:text-white"
-              >
-                <option :value="6">Every 6 hours</option>
-                <option :value="12">Every 12 hours</option>
-                <option :value="24">Every 24 hours</option>
-                <option :value="48">Every 48 hours</option>
-                <option :value="168">Weekly</option>
-              </select>
+            <div v-if="scheduleForm.backupSchedule.enabled" class="grid grid-cols-2 gap-4">
+              <div>
+                <label class="mb-1 block text-xs font-medium text-gray-500 dark:text-gray-400">Backup Interval</label>
+                <select
+                  v-model="scheduleForm.backupSchedule.intervalHours"
+                  class="w-full rounded-md border border-gray-200 bg-transparent px-3 py-1.5 text-sm text-gray-900 focus:border-brand focus:outline-none dark:border-gray-700 dark:text-white"
+                >
+                  <option :value="6">Every 6 hours</option>
+                  <option :value="12">Every 12 hours</option>
+                  <option :value="24">Every 24 hours</option>
+                  <option :value="48">Every 48 hours</option>
+                  <option :value="168">Weekly</option>
+                </select>
+              </div>
+              <div>
+                <label class="mb-1 block text-xs font-medium text-gray-500 dark:text-gray-400">Retention</label>
+                <select
+                  v-model="scheduleForm.backupSchedule.retentionCount"
+                  class="w-full rounded-md border border-gray-200 bg-transparent px-3 py-1.5 text-sm text-gray-900 focus:border-brand focus:outline-none dark:border-gray-700 dark:text-white"
+                >
+                  <option :value="5">Keep last 5</option>
+                  <option :value="10">Keep last 10</option>
+                  <option :value="20">Keep last 20</option>
+                  <option :value="50">Keep last 50</option>
+                </select>
+              </div>
             </div>
 
             <div class="flex justify-end">
