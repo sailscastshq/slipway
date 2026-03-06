@@ -63,7 +63,7 @@ module.exports = {
     }
 
     // Get backup schedule
-    let backupSchedule = { enabled: false, intervalHours: 24, lastRunAt: null }
+    let backupSchedule = { enabled: false, intervalHours: 24, retentionCount: 10, lastRunAt: null }
     try {
       const scheduleJson = await sails.helpers.setting.get('backupSchedule')
       if (scheduleJson) backupSchedule = JSON.parse(scheduleJson)

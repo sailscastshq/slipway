@@ -112,37 +112,31 @@ module.exports = {
         throw new Error('Dump produced an empty file')
       }
 
-      // Upload to S3 using skipper-s3 adapter
-      const skipperS3 = require('skipper-s3')
-      const adapterOpts = {
+      // Verify dump file integrity by checking format-specific headers
+      const header = Buffer.alloc(5)
+      const fd = fs.openSync(tmpFile, 'r')
+      fs.readSync(fd, header, 0, 5, 0)
+      fs.closeSync(fd)
+      if (service.type === 'postgresql' && header.toString('ascii', 0, 5) !== 'PGDMP') {
+        throw new Error('PostgreSQL dump has invalid header — expected PGDMP format')
+      }
+      if (service.type === 'mongodb' && (header[0] !== 0x1f || header[1] !== 0x8b)) {
+        throw new Error('MongoDB dump has invalid header — expected gzip format')
+      }
+
+      // Upload to S3 via sails-hook-uploads (uses skipper-s3 under the hood)
+      const readStream = fs.createReadStream(tmpFile)
+      readStream.filename = path.basename(s3Key)
+
+      await sails.uploadOne(readStream, {
+        adapter: require('skipper-s3'),
         key: uploadsConfig.key,
         secret: uploadsConfig.secret,
         bucket: uploadsConfig.bucket,
-        s3ForcePathStyle: true
-      }
-      if (uploadsConfig.endpoint) adapterOpts.endpoint = uploadsConfig.endpoint
-      if (uploadsConfig.region) adapterOpts.region = uploadsConfig.region
-      const adapter = skipperS3(adapterOpts)
-
-      await new Promise((resolve, reject) => {
-        const receiver = adapter.receive({ dirname: '', saveAs: s3Key })
-        const readStream = fs.createReadStream(tmpFile)
-
-        // Skipper receivers expect file metadata on the stream object
-        readStream.skipperFd = s3Key
-        readStream.fd = s3Key
-        readStream.filename = path.basename(s3Key)
-        readStream.headers = { 'content-type': 'application/octet-stream' }
-        readStream.byteCount = sizeBytes
-
-        // The receiver is an objectMode writable — it expects stream objects,
-        // not raw Buffer chunks. Using .write() passes the stream object itself;
-        // .pipe() would send Buffer chunks and lose the metadata properties.
-        receiver.write(readStream)
-        receiver.end()
-
-        receiver.on('finish', () => resolve())
-        receiver.on('error', (err) => reject(err))
+        endpoint: uploadsConfig.endpoint,
+        region: uploadsConfig.region,
+        s3ForcePathStyle: true,
+        saveAs: s3Key
       })
 
       // Update backup record

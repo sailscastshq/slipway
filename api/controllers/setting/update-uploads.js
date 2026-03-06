@@ -53,6 +53,7 @@ module.exports = {
 
       current.enabled = !!backupSchedule.enabled
       if (backupSchedule.intervalHours) current.intervalHours = backupSchedule.intervalHours
+      if (backupSchedule.retentionCount) current.retentionCount = backupSchedule.retentionCount
 
       await sails.helpers.setting.set('backupSchedule', JSON.stringify(current))
 
