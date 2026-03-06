@@ -73,6 +73,7 @@ module.exports = {
         args.push('-e', `POSTGRES_USER=${service.username}`)
         args.push('-e', `POSTGRES_PASSWORD=${service.password}`)
         args.push('-e', `POSTGRES_DB=${service.database}`)
+        args.push('-e', 'PGDATA=/var/lib/postgresql/data')
         break
 
       case 'mysql':

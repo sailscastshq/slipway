@@ -1713,7 +1713,7 @@ onBeforeUnmount(() => {
 
     <!-- Delete Service Confirmation -->
     <ConfirmModal
-      v-if="deletingServiceId"
+      :show="!!deletingServiceId"
       title="Delete service"
       message="This will stop the service container and permanently delete all data. This action cannot be undone."
       confirm-label="Delete service"
