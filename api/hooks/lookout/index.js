@@ -151,6 +151,9 @@ module.exports = function defineLookoutHook(sails) {
       await TelemetryException.destroy({ occurredAt: { '<': telemetryCutoff } }).tolerate('error')
       await TelemetryMetric.destroy({ recordedAt: { '<': telemetryCutoff } }).tolerate('error')
 
+      // Check host disk space (every cycle, but alert on cooldown)
+      await checkDiskSpace(now)
+
     } catch (err) {
       sails.log.warn('Lookout: Error collecting metrics:', err.message)
     }
@@ -250,6 +253,36 @@ module.exports = function defineLookoutHook(sails) {
       await AppLog.destroy({ endedAt: { '<': logCutoff } })
     } catch (err) {
       sails.log.verbose('Lookout: Error collecting logs:', err.message)
+    }
+  }
+
+  async function checkDiskSpace(now) {
+    try {
+      const cooldownKey = 'disk:space'
+      const lastAlert = alertCooldowns.get(cooldownKey)
+      if (lastAlert && (now - lastAlert) < ALERT_COOLDOWN_MS) return
+
+      const { execFile: execFileCb } = require('child_process')
+      const diskInfo = await new Promise((resolve, reject) => {
+        execFileCb('df', ['-h', '/'], (err, stdout) => {
+          if (err) return reject(err)
+          const lines = stdout.trim().split('\n')
+          if (lines.length < 2) return reject(new Error('Unexpected df output'))
+          const parts = lines[1].split(/\s+/)
+          resolve({ usedPercent: parseInt(parts[4], 10), available: parts[3] })
+        })
+      })
+
+      if (diskInfo.usedPercent >= 90) {
+        alertCooldowns.set(cooldownKey, now)
+        sails.log.warn(`Lookout: Disk space critical — ${diskInfo.usedPercent}% used, ${diskInfo.available} available`)
+        await sails.helpers.notification.sendDiskSpaceAlert.with({
+          usedPercent: diskInfo.usedPercent,
+          availableGb: diskInfo.available
+        }).tolerate('error')
+      }
+    } catch (err) {
+      sails.log.verbose('Lookout: Disk space check error:', err.message)
     }
   }
 

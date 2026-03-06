@@ -33,6 +33,20 @@ module.exports = {
 
     const service = await Service.findOne({ id: backup.service }).decrypt()
 
+    // Create a safety snapshot before restoring so the current state is recoverable
+    try {
+      sails.log.info(`Creating pre-restore snapshot for service ${service.name}`)
+      const snapshot = await Backup.create({
+        status: 'pending',
+        type: 'manual',
+        service: service.id
+      }).fetch()
+      await sails.helpers.backup.runBackup(snapshot.id)
+      sails.log.info(`Pre-restore snapshot completed: ${snapshot.id}`)
+    } catch (err) {
+      sails.log.warn(`Pre-restore snapshot failed (proceeding with restore): ${err.message}`)
+    }
+
     // Read S3 config (same pattern as run-backup.js)
     let globalEnvVars = {}
     try {

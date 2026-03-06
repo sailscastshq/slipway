@@ -66,7 +66,36 @@ module.exports = {
       }
     }
 
-    // 5. Update lastRunAt
+    // 5. Prune old backups beyond retention count
+    const retentionCount = schedule.retentionCount || 10
+    for (const service of backupableServices) {
+      try {
+        const completed = await Backup.find({
+          where: { service: service.id, status: 'completed' },
+          sort: 'completedAt DESC'
+        })
+        if (completed.length <= retentionCount) continue
+
+        const toDelete = completed.slice(retentionCount)
+        sails.log.info(`Pruning ${toDelete.length} old backup(s) for service ${service.name}`)
+
+        for (const old of toDelete) {
+          // Delete from S3 if key exists
+          if (old.s3Key) {
+            try {
+              await sails.helpers.backup.deleteBackupObject(old.s3Key)
+            } catch (err) {
+              sails.log.warn(`Failed to delete S3 object ${old.s3Key}: ${err.message}`)
+            }
+          }
+          await Backup.destroyOne({ id: old.id })
+        }
+      } catch (err) {
+        sails.log.error(`Backup pruning failed for ${service.name}: ${err.message}`)
+      }
+    }
+
+    // 6. Update lastRunAt
     schedule.lastRunAt = now
     await sails.helpers.setting.set('backupSchedule', JSON.stringify(schedule))
   }
