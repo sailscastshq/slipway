@@ -39,17 +39,29 @@ module.exports = {
       return null // No apps deployed yet
     }
 
-    const domain = await Environment.getFullDomain(environmentId)
+    const { fullDomain, domains } = await Environment.resolveDomains(environmentId)
     const routeId = `slipway-${environment.project.slug}-${environment.slug}`
+
+    if (domains.length === 0) {
+      return {
+        domain: null,
+        domains: [],
+        route: null,
+        environmentId: environment.id,
+        projectSlug: environment.project.slug,
+        environmentSlug: environment.slug
+      }
+    }
 
     // Single app with root path — identical config to original (backward compat)
     if (routableApps.length === 1 && routableApps[0].routePath === '/') {
       const app = routableApps[0]
       return {
-        domain,
+        domain: fullDomain,
+        domains,
         route: {
           '@id': routeId,
-          match: [{ host: [domain] }],
+          match: [{ host: domains }],
           handle: [
             {
               handler: 'reverse_proxy',
@@ -102,10 +114,11 @@ module.exports = {
     }
 
     return {
-      domain,
+      domain: fullDomain,
+      domains,
       route: {
         '@id': routeId,
-        match: [{ host: [domain] }],
+        match: [{ host: domains }],
         handle: handlers,
         terminal: true
       },

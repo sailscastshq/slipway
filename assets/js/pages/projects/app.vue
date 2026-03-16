@@ -132,18 +132,44 @@ const domainDropdownOpen = ref(false)
 const copiedText = ref(null)
 const moreMenuOpen = ref(false)
 
-const domains = computed(() => {
+const accessUrls = computed(() => {
   const list = []
   if (props.environment.domain) {
-    list.push({ label: 'Custom', value: props.environment.domain })
+    list.push({
+      label: 'Custom',
+      display: props.environment.domain,
+      value: `https://${props.environment.domain}`,
+      href: `https://${props.environment.domain}`
+    })
   }
   if (props.environment.generatedDomain && props.environment.generatedDomain !== props.environment.domain) {
-    list.push({ label: 'Generated', value: props.environment.generatedDomain })
+    list.push({
+      label: 'Generated',
+      display: props.environment.generatedDomain,
+      value: `https://${props.environment.generatedDomain}`,
+      href: `https://${props.environment.generatedDomain}`
+    })
+  } else if (!props.environment.domain && props.environment.generatedDomain) {
+    list.push({
+      label: 'Generated',
+      display: props.environment.generatedDomain,
+      value: `https://${props.environment.generatedDomain}`,
+      href: `https://${props.environment.generatedDomain}`
+    })
+  }
+  if (props.app.directUrl) {
+    list.push({
+      label: 'Direct',
+      display: props.app.directUrl.replace(/^https?:\/\//, ''),
+      value: props.app.directUrl,
+      href: props.app.directUrl
+    })
   }
   return list
 })
 
-const hasMultipleDomains = computed(() => domains.value.length > 1)
+const primaryAccessUrl = computed(() => accessUrls.value[0] || null)
+const hasMultipleAccessUrls = computed(() => accessUrls.value.length > 1)
 
 function copyToClipboard(text) {
   navigator.clipboard.writeText(text)
@@ -601,20 +627,20 @@ onBeforeUnmount(() => {
               </span>
             </div>
             <!-- Domain display -->
-            <div v-if="environment.fullDomain" class="relative mt-1 inline-flex items-center">
+            <div v-if="primaryAccessUrl" class="relative mt-1 inline-flex items-center">
               <div class="group flex items-center gap-2">
                 <a
-                  :href="`https://${environment.fullDomain}`"
+                  :href="primaryAccessUrl.href"
                   target="_blank"
                   class="text-sm text-gray-500 underline decoration-dashed decoration-gray-300 underline-offset-2 hover:text-gray-900 dark:text-gray-400 dark:decoration-gray-600 dark:hover:text-white"
                 >
-                  {{ environment.fullDomain }}
+                  {{ primaryAccessUrl.display }}
                 </a>
                 <button
-                  @click.prevent="copyToClipboard(environment.fullDomain)"
+                  @click.prevent="copyToClipboard(primaryAccessUrl.value)"
                   class="rounded p-0.5 text-gray-300 opacity-0 transition-opacity hover:text-gray-500 group-hover:opacity-100 dark:text-gray-600 dark:hover:text-gray-400"
                 >
-                  <svg v-if="copiedText === environment.fullDomain" class="h-3.5 w-3.5 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg v-if="copiedText === primaryAccessUrl.value" class="h-3.5 w-3.5 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
                   </svg>
                   <svg v-else class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -622,7 +648,7 @@ onBeforeUnmount(() => {
                   </svg>
                 </button>
                 <button
-                  v-if="hasMultipleDomains"
+                  v-if="hasMultipleAccessUrls"
                   @click.stop="domainDropdownOpen = !domainDropdownOpen"
                   class="rounded p-0.5 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
                 >
@@ -639,22 +665,22 @@ onBeforeUnmount(() => {
 
               <!-- Domain dropdown -->
               <div
-                v-if="domainDropdownOpen && hasMultipleDomains"
+                v-if="domainDropdownOpen && hasMultipleAccessUrls"
                 @click.stop
                 class="absolute left-0 top-full z-20 mt-1.5 w-max rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-900"
               >
                 <div
-                  v-for="d in domains"
+                  v-for="d in accessUrls"
                   :key="d.value"
                   class="group/item flex items-center gap-2 px-3 py-2"
                 >
                   <span class="text-[10px] font-medium uppercase tracking-wider text-gray-400 dark:text-gray-500 w-16">{{ d.label }}</span>
                   <a
-                    :href="`https://${d.value}`"
+                    :href="d.href"
                     target="_blank"
                     class="text-sm text-gray-700 underline decoration-dashed decoration-gray-300 underline-offset-2 hover:text-gray-900 dark:text-gray-300 dark:decoration-gray-600 dark:hover:text-white"
                   >
-                    {{ d.value }}
+                    {{ d.display }}
                   </a>
                   <button
                     @click="copyToClipboard(d.value)"

@@ -134,7 +134,50 @@ module.exports = {
   },
 
   /**
-   * Get the full domain for this environment
+   * Resolve the primary, generated, and fallback domains for this environment.
+   */
+  resolveDomains: async function (environmentId) {
+    const env = await Environment.findOne({ id: environmentId }).populate('project')
+    if (!env) {
+      return {
+        fullDomain: null,
+        generatedDomain: null,
+        domains: []
+      }
+    }
+
+    const domains = []
+    let generatedDomain = null
+
+    if (env.domain) {
+      domains.push(env.domain)
+    }
+
+    const subdomain = `${env.project.slug}-${env.slug}`
+
+    const wildcardDomain = await sails.helpers.setting.get('wildcardDomain')
+    if (wildcardDomain) {
+      generatedDomain = `${subdomain}.${wildcardDomain}`
+    } else {
+      const slipwayDomain = sails.config.custom.slipwayDomain
+      if (slipwayDomain) {
+        generatedDomain = `${subdomain}.${slipwayDomain}`
+      }
+    }
+
+    if (generatedDomain && !domains.includes(generatedDomain)) {
+      domains.push(generatedDomain)
+    }
+
+    return {
+      fullDomain: domains[0] || null,
+      generatedDomain,
+      domains
+    }
+  },
+
+  /**
+   * Get the full domain for this environment.
    *
    * Domain resolution tiers:
    * 1. Custom domain (env.domain) — e.g. myapp.example.com
@@ -142,28 +185,17 @@ module.exports = {
    * 3. slipwayDomain from config — e.g. myapp-prod.localhost
    */
   getFullDomain: async function (environmentId) {
-    const env = await Environment.findOne({ id: environmentId }).populate('project')
-    if (!env) return null
+    const { fullDomain } = await Environment.resolveDomains(environmentId)
+    return fullDomain
+  },
 
-    // 1. Custom domain set on this environment
-    if (env.domain) {
-      return env.domain
-    }
+  getGeneratedDomain: async function (environmentId) {
+    const { generatedDomain } = await Environment.resolveDomains(environmentId)
+    return generatedDomain
+  },
 
-    const subdomain = `${env.project.slug}-${env.slug}`
-
-    // 2. Wildcard domain configured (e.g. example.com → myapp-prod.example.com)
-    const wildcardDomain = await sails.helpers.setting.get('wildcardDomain')
-    if (wildcardDomain) {
-      return `${subdomain}.${wildcardDomain}`
-    }
-
-    // 3. slipwayDomain from config (e.g. localhost → myapp-prod.localhost)
-    const slipwayDomain = sails.config.custom.slipwayDomain
-    if (slipwayDomain) {
-      return `${subdomain}.${slipwayDomain}`
-    }
-
-    return null
+  getDomains: async function (environmentId) {
+    const { domains } = await Environment.resolveDomains(environmentId)
+    return domains
   }
 }

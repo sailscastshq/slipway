@@ -61,19 +61,9 @@ module.exports = {
       }
     }
 
-    // Get full domain
-    const fullDomain = await Environment.getFullDomain(environment.id)
-
-    // Build list of all available domains (for the domain dropdown)
-    const subdomain = `${project.slug}-${environment.slug}`
-    const wildcardDomain = await sails.helpers.setting.get('wildcardDomain')
+    const { fullDomain, generatedDomain, domains } = await Environment.resolveDomains(environment.id)
     const serverIp = await sails.helpers.getServerIp()
-    let generatedDomain
-    if (wildcardDomain) {
-      generatedDomain = `${subdomain}.${wildcardDomain}`
-    } else if (sails.config.custom.slipwayDomain) {
-      generatedDomain = `${subdomain}.${sails.config.custom.slipwayDomain}`
-    }
+    const directUrl = app.hostPort && app.routePath !== null ? `http://${serverIp}:${app.hostPort}` : null
 
     // Fetch deployments filtered to this app (include legacy deployments without app for default app)
     let deployments
@@ -140,10 +130,11 @@ module.exports = {
           ...environment,
           fullDomain,
           generatedDomain,
+          domains,
           serverIp,
           services
         },
-        app: { ...app, containerHealth },
+        app: { ...app, containerHealth, directUrl },
         appEnvVars: decryptedApp.envVars || {},
         inheritedVars,
         deployments,
