@@ -39,13 +39,13 @@ module.exports = defineScenario('configured-slipway', async ({ sails, sequence }
   return {
     key,
     auth: {
-      ownerPassword: owner.password,
+      genesisUserPassword: owner.password,
     },
     teams: {
-      owner: owner.team,
+      genesisTeam: owner.team,
     },
     users: {
-      owner: owner.user,
+      genesisUser: owner.user,
     },
   }
 })

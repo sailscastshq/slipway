@@ -7,10 +7,10 @@ const INERTIA_HEADERS = {
   accept: 'text/html, application/xhtml+xml',
 }
 
-test('configured owner can open the new project page', async ({ sails, expect }) => {
+test('genesis user can open the new project page', async ({ sails, expect }) => {
   const current = await sails.sounding.world.use('configured-slipway')
   const response = await sails.sounding.request
-    .as(current.users.owner)
+    .as(current.users.genesisUser)
     .withHeaders(INERTIA_HEADERS)
     .get('/projects/new')
 
@@ -18,9 +18,9 @@ test('configured owner can open the new project page', async ({ sails, expect })
   expect(response).toBeInertiaPage('projects/new')
 })
 
-test('configured owner can create a project, environment, and app', async ({ sails, expect }) => {
+test('genesis user can create a project, environment, and app', async ({ sails, expect }) => {
   const current = await sails.sounding.world.use('configured-slipway')
-  const request = sails.sounding.request.as(current.users.owner)
+  const request = sails.sounding.request.as(current.users.genesisUser)
   const inertia = request.withHeaders(INERTIA_HEADERS)
 
   const createProject = await request.post('/projects', {
@@ -33,7 +33,7 @@ test('configured owner can create a project, environment, and app', async ({ sai
 
   const project = await sails.models.project.findOne({ slug: 'launch-pad' })
   assert.ok(project)
-  assert.equal(project.team, current.teams.owner.id)
+  assert.equal(project.team, current.teams.genesisTeam.id)
 
   const production = await sails.models.environment.findOne({
     project: project.id,

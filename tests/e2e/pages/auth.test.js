@@ -9,11 +9,11 @@ test('a guest is sent to login once Slipway is configured', async ({ visit, expe
   expect(response).toRedirectTo('/login')
 })
 
-test('configured owner can authenticate with the real password flow', async ({ auth, expect, sails }) => {
+test('genesis user can authenticate with the real password flow', async ({ auth, expect, sails }) => {
   const current = await sails.sounding.world.use('configured-slipway')
 
-  const result = await auth.request.withPassword(current.users.owner, {
-    password: current.auth.ownerPassword,
+  const result = await auth.request.withPassword(current.users.genesisUser, {
+    password: current.auth.genesisUserPassword,
     returnUrl: '/projects/new',
   })
 
