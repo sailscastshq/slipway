@@ -1,15 +1,21 @@
 module.exports = {
   port: 3333,
   hooks: {
-    // Uncomment if you have the apianalytics hook and you don't want to see logs
-    // from it during testing
-    // apianalytics: false
+    lookout: false,
+    quest: false,
+    sockets: false,
+    sse: false,
+    pubsub: false
   },
   log: {
     level: 'error'
   },
   models: {
     migrate: 'drop'
+  },
+  session: {
+    adapter: '@sailscastshq/connect-sqlite',
+    url: ':memory:'
   },
   datastores: {
     default: {
