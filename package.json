@@ -55,8 +55,8 @@
     "start": "NODE_ENV=production node app.js",
     "lint": "prettier --check .",
     "lint:fix": "prettier --write .",
-    "test:unit": "node --test --test-force-exit --test-concurrency=1 tests/unit/**/*.test.js",
-    "test:e2e": "node --test --test-force-exit --test-concurrency=1 tests/e2e/pages/*.test.js tests/e2e/pages/**/*.test.js",
+    "test:unit": "node --test --test-force-exit --test-concurrency=1 $(find tests/unit -type f -name '*.test.js' | sort)",
+    "test:e2e": "node --test --test-force-exit --test-concurrency=1 $(find tests/e2e/pages -type f -name '*.test.js' | sort)",
     "test": "npm run test:unit && npm run test:e2e"
   },
   "main": "app.js",
