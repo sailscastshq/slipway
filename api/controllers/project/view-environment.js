@@ -47,19 +47,8 @@ module.exports = {
     let allApps = await App.find({ environment: environment.id })
     let app = allApps.find(a => a.isDefault) || allApps[0] || null
 
-    // Get full domain
-    const fullDomain = await Environment.getFullDomain(environment.id)
-
-    // Build list of all available domains (for the domain dropdown)
-    const subdomain = `${project.slug}-${environment.slug}`
-    const wildcardDomain = await sails.helpers.setting.get('wildcardDomain')
+    const { fullDomain, generatedDomain, domains } = await Environment.resolveDomains(environment.id)
     const serverIp = await sails.helpers.getServerIp()
-    let generatedDomain
-    if (wildcardDomain) {
-      generatedDomain = `${subdomain}.${wildcardDomain}`
-    } else if (sails.config.custom.slipwayDomain) {
-      generatedDomain = `${subdomain}.${sails.config.custom.slipwayDomain}`
-    }
 
     // Enrich services with connection URLs and last backup
     const services = await Promise.all(
@@ -169,6 +158,7 @@ module.exports = {
           ...environment,
           fullDomain,
           generatedDomain,
+          domains,
           serverIp,
           services
         },

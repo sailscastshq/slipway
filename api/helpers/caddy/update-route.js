@@ -43,6 +43,15 @@ module.exports = {
       execFile(dockerPath, ['rm', '-f', routeContainerName], () => resolve())
     })
 
+    if (!config.domains || config.domains.length === 0 || !config.route) {
+      sails.log.info(`No hostname route configured for environment ${environmentId}; direct IP access remains available`)
+      return {
+        domains: [],
+        routeId: routeContainerName,
+        action: 'removed'
+      }
+    }
+
     // Get routable apps for this environment
     const apps = await App.find({ environment: environmentId })
     const routableApps = apps.filter(app => app.hostPort && app.routePath !== null)
@@ -53,7 +62,7 @@ module.exports = {
       '--name', routeContainerName,
       '--network', network,
       '--restart', 'unless-stopped',
-      '--label', `caddy=${config.domain}`
+      '--label', `caddy=${config.domains.join(',')}`
     ]
 
     if (routableApps.length === 1) {
@@ -89,12 +98,13 @@ module.exports = {
     return new Promise((resolve, reject) => {
       execFile(dockerPath, args, (err) => {
         if (err) {
-          sails.log.error(`Route container creation failed for ${config.domain}: ${err.message}`)
+          sails.log.error(`Route container creation failed for ${config.domains.join(', ')}: ${err.message}`)
           throw 'caddyError'
         }
-        sails.log.info(`Caddy route created for ${config.domain}`)
+        sails.log.info(`Caddy route created for ${config.domains.join(', ')}`)
         resolve({
           domain: config.domain,
+          domains: config.domains,
           routeId: routeContainerName,
           action: 'created'
         })

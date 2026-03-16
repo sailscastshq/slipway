@@ -51,8 +51,7 @@ module.exports = {
       throw 'notFound'
     }
 
-    // Get full domain
-    const fullDomain = await Environment.getFullDomain(environment.id)
+    const { fullDomain, generatedDomain, domains } = await Environment.resolveDomains(environment.id)
 
     // Get Docker health status for all apps
     const apps = await App.find({ environment: environment.id })
@@ -74,6 +73,8 @@ module.exports = {
       environment: {
         ...environment,
         fullDomain,
+        generatedDomain,
+        domains,
         app: appsWithHealth,
         containerHealth: appsWithHealth[0]?.containerHealth || null
       }

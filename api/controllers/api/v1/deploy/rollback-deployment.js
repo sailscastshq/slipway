@@ -208,10 +208,20 @@ async function executeRollback(rollbackId, targetDeployment, project, environmen
       finishedAt: Date.now()
     })
 
-    const domain = await Environment.getFullDomain(environment.id)
+    const { fullDomain, generatedDomain } = await Environment.resolveDomains(environment.id)
+    const directUrl = targetApp && targetApp.routePath === null
+      ? null
+      : `http://${await sails.helpers.getServerIp()}:${containerResult.hostPort}`
     await Deployment.appendDeployLog(rollbackId, `Rollback complete.\n`)
-    await Deployment.appendDeployLog(rollbackId, `  URL:       https://${domain}\n`)
-    await Deployment.appendDeployLog(rollbackId, `  Direct:    http://localhost:${containerResult.hostPort}\n`)
+    if (fullDomain) {
+      await Deployment.appendDeployLog(rollbackId, `  URL:       https://${fullDomain}\n`)
+    }
+    if (generatedDomain && generatedDomain !== fullDomain) {
+      await Deployment.appendDeployLog(rollbackId, `  Fallback:  https://${generatedDomain}\n`)
+    }
+    if (directUrl) {
+      await Deployment.appendDeployLog(rollbackId, `  Direct:    ${directUrl}\n`)
+    }
 
     sails.log.info(`Rollback ${rollbackId} completed successfully`)
   } catch (err) {

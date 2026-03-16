@@ -207,12 +207,22 @@ module.exports = {
         finishedAt: Date.now()
       })
 
-      const domain = await Environment.getFullDomain(environment.id)
+      const { fullDomain, generatedDomain } = await Environment.resolveDomains(environment.id)
+      const directUrl = targetApp && targetApp.routePath === null
+        ? null
+        : `http://${await sails.helpers.getServerIp()}:${deployHostPort}`
       await Deployment.appendDeployLog(deploymentId, `Deployment complete.\n`)
-      await Deployment.appendDeployLog(deploymentId, `  URL:       https://${domain}\n`)
-      await Deployment.appendDeployLog(deploymentId, `  Direct:    http://localhost:${deployHostPort}\n`)
+      if (fullDomain) {
+        await Deployment.appendDeployLog(deploymentId, `  URL:       https://${fullDomain}\n`)
+      }
+      if (generatedDomain && generatedDomain !== fullDomain) {
+        await Deployment.appendDeployLog(deploymentId, `  Fallback:  https://${generatedDomain}\n`)
+      }
+      if (directUrl) {
+        await Deployment.appendDeployLog(deploymentId, `  Direct:    ${directUrl}\n`)
+      }
 
-      sails.log.info(`Deployment ${deploymentId} completed successfully — http://localhost:${deployHostPort}`)
+      sails.log.info(`Deployment ${deploymentId} completed successfully${directUrl ? ` — ${directUrl}` : ''}`)
 
       // 17. Clear Bridge model cache (schema may have changed)
       try {
