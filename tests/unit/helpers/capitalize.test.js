@@ -1,17 +1,26 @@
-const { describe, it } = require('node:test')
+const test = require('node:test')
 const assert = require('node:assert/strict')
-const { getSails } = require('../../util/get-sails')
 
-describe('sails.helpers.capitalize()', () => {
-  it('capitalizes single word correctly', async () => {
-    const sails = await getSails()
-    const capitalized = sails.helpers.capitalize('hello')
-    assert.equal(capitalized, 'Hello')
-  })
+const capitalize = require('../../../api/helpers/capitalize')
 
-  it('capitalizes multiple words correctly', async () => {
-    const sails = await getSails()
-    const capitalized = sails.helpers.capitalize('the quick brown fox')
-    assert.equal(capitalized, 'The quick brown fox')
-  })
+test('sails.helpers.capitalize capitalizes a single word', () => {
+  const value = capitalize.fn(
+    { inputString: 'hello' },
+    {
+      success: (result) => result,
+    }
+  )
+
+  assert.equal(value, 'Hello')
+})
+
+test('sails.helpers.capitalize formats hyphenated names for the UI', () => {
+  const value = capitalize.fn(
+    { inputString: 'launch-pad' },
+    {
+      success: (result) => result,
+    }
+  )
+
+  assert.equal(value, 'Launch Pad')
 })

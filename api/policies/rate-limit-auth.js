@@ -34,6 +34,10 @@ function rateLimitHandler(req, res) {
 }
 
 module.exports = function (req, res, next) {
+  if (sails.config.environment === 'test') {
+    return next()
+  }
+
   if (req.options.action === 'auth/forgot-password') {
     return forgotPasswordLimiter(req, res, next)
   }

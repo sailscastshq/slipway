@@ -1,17 +1,12 @@
-const { describe, it } = require('node:test')
+const test = require('node:test')
 const assert = require('node:assert/strict')
-const { getSails } = require('../../util/get-sails')
 
-describe('sails.helpers.getUserInitials()', () => {
-  it('gets user initials from first name and last name', async () => {
-    const sails = await getSails()
-    const initials = sails.helpers.getUserInitials('Kelvin Omereshone')
-    assert.equal(initials, 'KO')
-  })
+const getUserInitials = require('../../../api/helpers/get-user-initials')
 
-  it('gets user initials from just name', async () => {
-    const sails = await getSails()
-    const initials = sails.helpers.getUserInitials('Kelvin')
-    assert.equal(initials, 'KE')
-  })
+test('sails.helpers.getUserInitials uses first and last name initials', () => {
+  assert.equal(getUserInitials.fn({ fullName: 'Kelvin Omereshone' }), 'KO')
+})
+
+test('sails.helpers.getUserInitials falls back to the first two letters', () => {
+  assert.equal(getUserInitials.fn({ fullName: 'Kelvin' }), 'KE')
 })
