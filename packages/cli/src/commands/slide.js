@@ -9,7 +9,7 @@ const maritimeMessages = {
     'Waiting for the tide...',
     'Checking the compass...',
     'Reading the stars...',
-    'Gathering the crew...',
+    'Gathering the crew...'
   ],
   building: [
     'Hoisting the sails...',
@@ -17,12 +17,12 @@ const maritimeMessages = {
     'Checking the rigging...',
     'Swabbing the deck...',
     'Tying the knots...',
-    'Hammering the hull...',
+    'Hammering the hull...'
   ],
   pushing: [
     'Signaling the fleet...',
     'Sending up a flare...',
-    'Raising the flag...',
+    'Raising the flag...'
   ],
   deploying: [
     'Charting the course...',
@@ -30,15 +30,15 @@ const maritimeMessages = {
     'Catching the wind...',
     'Navigating the waters...',
     'Full speed ahead...',
-    'Approaching the harbor...',
-  ],
+    'Approaching the harbor...'
+  ]
 }
 
 const statusLabels = {
   pending: 'Waiting',
   building: 'Building',
   pushing: 'Pushing',
-  deploying: 'Deploying',
+  deploying: 'Deploying'
 }
 
 function createMessageRotator(spinner, status) {
@@ -63,7 +63,11 @@ export default async function slide(options) {
   const environment = options.env || 'production'
 
   console.log()
-  console.log(`  ${c.bold(c.highlight('Sliding'))} ${project.project} ${c.dim('into')} ${environment}`)
+  console.log(
+    `  ${c.bold(c.highlight('Sliding'))} ${project.project} ${c.dim(
+      'into'
+    )} ${environment}`
+  )
   console.log()
 
   // 1. Package source code
@@ -118,7 +122,10 @@ export default async function slide(options) {
 
       // Get environment info to show URL
       try {
-        const { environment: env } = await api.environments.get(project.project, environment)
+        const { environment: env } = await api.environments.get(
+          project.project,
+          environment
+        )
         if (env.url) {
           console.log(`  ${c.dim('URL:')} ${c.highlight(env.url)}`)
           console.log()
@@ -129,11 +136,17 @@ export default async function slide(options) {
     } else if (result.status === 'failed') {
       console.log(`  ${c.error('✗')} Deployment failed`)
       console.log()
-      console.log(`  ${c.dim('Run')} ${c.highlight(`slipway logs -d ${deployment.id}`)} ${c.dim('to view logs.')}`)
+      console.log(
+        `  ${c.dim('Run')} ${c.highlight(
+          `slipway logs -d ${deployment.id}`
+        )} ${c.dim('to view logs.')}`
+      )
       console.log()
       process.exit(1)
     } else {
-      console.log(`  ${c.warn('!')} Deployment ended with status: ${result.status}`)
+      console.log(
+        `  ${c.warn('!')} Deployment ended with status: ${result.status}`
+      )
       console.log()
     }
   } catch (err) {
@@ -161,15 +174,9 @@ function createTarball() {
   }
 
   // Fallback: tar with exclusions
-  const excludes = [
-    'node_modules',
-    '.git',
-    '.env',
-    '.DS_Store',
-    '*.log'
-  ]
+  const excludes = ['node_modules', '.git', '.env', '.DS_Store', '*.log']
 
-  const args = ['czf', '-', ...excludes.flatMap(e => ['--exclude', e]), '.']
+  const args = ['czf', '-', ...excludes.flatMap((e) => ['--exclude', e]), '.']
 
   return execFileSync('tar', args, {
     cwd,
@@ -198,12 +205,25 @@ function isGitRepo(dir) {
 function getGitInfo() {
   try {
     const cwd = process.cwd()
-    const gitCommit = execFileSync('git', ['rev-parse', 'HEAD'], { cwd, stdio: 'pipe' })
-      .toString().trim()
-    const gitBranch = execFileSync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], { cwd, stdio: 'pipe' })
-      .toString().trim()
-    const gitMessage = execFileSync('git', ['log', '-1', '--pretty=%s'], { cwd, stdio: 'pipe' })
-      .toString().trim()
+    const gitCommit = execFileSync('git', ['rev-parse', 'HEAD'], {
+      cwd,
+      stdio: 'pipe'
+    })
+      .toString()
+      .trim()
+    const gitBranch = execFileSync(
+      'git',
+      ['rev-parse', '--abbrev-ref', 'HEAD'],
+      { cwd, stdio: 'pipe' }
+    )
+      .toString()
+      .trim()
+    const gitMessage = execFileSync('git', ['log', '-1', '--pretty=%s'], {
+      cwd,
+      stdio: 'pipe'
+    })
+      .toString()
+      .trim()
     return { gitCommit, gitBranch, gitMessage }
   } catch {
     return {}
@@ -280,13 +300,23 @@ function watchDeploymentSSE(deploymentId) {
                 // Update spinner based on status
                 if (data.status !== lastStatus) {
                   lastStatus = data.status
-                  if (messageRotatorInterval) clearInterval(messageRotatorInterval)
+                  if (messageRotatorInterval)
+                    clearInterval(messageRotatorInterval)
                   if (currentSpin) currentSpin.stop()
 
-                  if (['building', 'pushing', 'deploying'].includes(data.status)) {
+                  if (
+                    ['building', 'pushing', 'deploying'].includes(data.status)
+                  ) {
                     currentSpin = createSpinner('...').start()
-                    messageRotatorInterval = createMessageRotator(currentSpin, data.status)
-                  } else if (data.status === 'running' || data.status === 'failed' || data.status === 'cancelled') {
+                    messageRotatorInterval = createMessageRotator(
+                      currentSpin,
+                      data.status
+                    )
+                  } else if (
+                    data.status === 'running' ||
+                    data.status === 'failed' ||
+                    data.status === 'cancelled'
+                  ) {
                     clearTimeout(timeout)
                     controller.abort()
                     resolve({ status: data.status })
@@ -296,12 +326,18 @@ function watchDeploymentSSE(deploymentId) {
 
                 // Show build output if available
                 if (data.output) {
-                  if (messageRotatorInterval) clearInterval(messageRotatorInterval)
+                  if (messageRotatorInterval)
+                    clearInterval(messageRotatorInterval)
                   if (currentSpin) currentSpin.stop()
                   console.log(`  ${c.dim(data.output)}`)
-                  if (['building', 'pushing', 'deploying'].includes(lastStatus)) {
+                  if (
+                    ['building', 'pushing', 'deploying'].includes(lastStatus)
+                  ) {
                     currentSpin = createSpinner('...').start()
-                    messageRotatorInterval = createMessageRotator(currentSpin, lastStatus)
+                    messageRotatorInterval = createMessageRotator(
+                      currentSpin,
+                      lastStatus
+                    )
                   }
                 }
               } catch {
@@ -315,7 +351,10 @@ function watchDeploymentSSE(deploymentId) {
         clearTimeout(timeout)
         if (messageRotatorInterval) clearInterval(messageRotatorInterval)
         if (currentSpin) currentSpin.stop()
-        if (lastStatus && ['running', 'failed', 'cancelled'].includes(lastStatus)) {
+        if (
+          lastStatus &&
+          ['running', 'failed', 'cancelled'].includes(lastStatus)
+        ) {
           resolve({ status: lastStatus })
         } else {
           reject(new Error('Stream ended before deployment completed'))
@@ -358,7 +397,11 @@ async function watchDeploymentPolling(deploymentId) {
 
         if (['building', 'pushing', 'deploying'].includes(status)) {
           messageRotatorInterval = createMessageRotator(spin, status)
-        } else if (status === 'running' || status === 'failed' || status === 'cancelled') {
+        } else if (
+          status === 'running' ||
+          status === 'failed' ||
+          status === 'cancelled'
+        ) {
           spin.stop()
           return { status }
         }
@@ -374,5 +417,5 @@ async function watchDeploymentPolling(deploymentId) {
 }
 
 function sleep(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms))
+  return new Promise((resolve) => setTimeout(resolve, ms))
 }

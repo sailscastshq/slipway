@@ -36,12 +36,18 @@ module.exports = {
   },
 
   fn: async function ({ serviceId, name, resourceLimits }) {
-    const user = await User.findOne({ id: this.req.session.userId }).populate('team')
+    const user = await User.findOne({ id: this.req.session.userId }).populate(
+      'team'
+    )
 
-    const service = await Service.findOne({ id: serviceId }).populate('environment')
+    const service = await Service.findOne({ id: serviceId }).populate(
+      'environment'
+    )
     if (!service) throw 'notFound'
 
-    const environment = await Environment.findOne({ id: service.environment.id }).populate('project')
+    const environment = await Environment.findOne({
+      id: service.environment.id
+    }).populate('project')
     if (!environment) throw 'notFound'
 
     const project = await Project.findOne({ id: environment.project.id })
@@ -70,7 +76,8 @@ module.exports = {
         try {
           const dockerPath = sails.config.docker?.binaryPath || 'docker'
           const args = ['update']
-          if (resourceLimits.cpus) args.push('--cpus', String(resourceLimits.cpus))
+          if (resourceLimits.cpus)
+            args.push('--cpus', String(resourceLimits.cpus))
           if (resourceLimits.memory) {
             args.push('--memory', String(resourceLimits.memory))
             args.push('--memory-swap', '-1')
@@ -78,9 +85,13 @@ module.exports = {
           args.push(service.containerName)
 
           await execFileAsync(dockerPath, args)
-          sails.log.info(`Applied resource limits to service ${service.containerName}: cpus=${resourceLimits.cpus}, memory=${resourceLimits.memory}`)
+          sails.log.info(
+            `Applied resource limits to service ${service.containerName}: cpus=${resourceLimits.cpus}, memory=${resourceLimits.memory}`
+          )
         } catch (err) {
-          sails.log.warn(`Could not apply resource limits to ${service.containerName}: ${err.message}`)
+          sails.log.warn(
+            `Could not apply resource limits to ${service.containerName}: ${err.message}`
+          )
           // Limits are saved to DB — they'll apply on next container recreation
         }
       }

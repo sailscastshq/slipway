@@ -12,7 +12,8 @@ const util = require('util')
 module.exports = {
   friendlyName: 'Bosun Helm eval',
 
-  description: 'Evaluate a JavaScript expression with access to Slipway models and helpers.',
+  description:
+    'Evaluate a JavaScript expression with access to Slipway models and helpers.',
 
   inputs: {
     code: {
@@ -59,10 +60,18 @@ module.exports = {
       sails,
       _: require('lodash'),
       console: {
-        log: (...args) => { logs.push(args.map(a => formatValue(a)).join(' ')) },
-        error: (...args) => { logs.push(args.map(a => formatValue(a)).join(' ')) },
-        warn: (...args) => { logs.push(args.map(a => formatValue(a)).join(' ')) },
-        info: (...args) => { logs.push(args.map(a => formatValue(a)).join(' ')) }
+        log: (...args) => {
+          logs.push(args.map((a) => formatValue(a)).join(' '))
+        },
+        error: (...args) => {
+          logs.push(args.map((a) => formatValue(a)).join(' '))
+        },
+        warn: (...args) => {
+          logs.push(args.map((a) => formatValue(a)).join(' '))
+        },
+        info: (...args) => {
+          logs.push(args.map((a) => formatValue(a)).join(' '))
+        }
       },
       JSON,
       Date,
@@ -135,7 +144,8 @@ function formatValue(val) {
   if (val === undefined) return 'undefined'
   if (val === null) return 'null'
   if (typeof val === 'string') return val
-  if (typeof val === 'function') return '[Function: ' + (val.name || 'anonymous') + ']'
+  if (typeof val === 'function')
+    return '[Function: ' + (val.name || 'anonymous') + ']'
   if (typeof val === 'bigint') return val.toString() + 'n'
   if (typeof val === 'symbol') return val.toString()
 
@@ -149,16 +159,21 @@ function formatValue(val) {
 
   try {
     const seen = new WeakSet()
-    return JSON.stringify(val, function (_key, value) {
-      if (typeof value === 'function') return '[Function: ' + (value.name || 'anonymous') + ']'
-      if (typeof value === 'bigint') return value.toString() + 'n'
-      if (typeof value === 'symbol') return value.toString()
-      if (typeof value === 'object' && value !== null) {
-        if (seen.has(value)) return '[Circular]'
-        seen.add(value)
-      }
-      return value
-    }, 2)
+    return JSON.stringify(
+      val,
+      function (_key, value) {
+        if (typeof value === 'function')
+          return '[Function: ' + (value.name || 'anonymous') + ']'
+        if (typeof value === 'bigint') return value.toString() + 'n'
+        if (typeof value === 'symbol') return value.toString()
+        if (typeof value === 'object' && value !== null) {
+          if (seen.has(value)) return '[Circular]'
+          seen.add(value)
+        }
+        return value
+      },
+      2
+    )
   } catch {
     return util.inspect(val, { depth: 2 })
   }

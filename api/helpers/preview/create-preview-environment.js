@@ -1,7 +1,8 @@
 module.exports = {
   friendlyName: 'Create preview environment',
 
-  description: 'Create a preview environment for a pull request, cloning envVars from production.',
+  description:
+    'Create a preview environment for a pull request, cloning envVars from production.',
 
   inputs: {
     project: {
@@ -37,7 +38,9 @@ module.exports = {
     })
 
     if (existing) {
-      sails.log.info(`Preview environment ${slug} already exists for ${project.slug}`)
+      sails.log.info(
+        `Preview environment ${slug} already exists for ${project.slug}`
+      )
       return existing
     }
 
@@ -46,7 +49,9 @@ module.exports = {
     try {
       const globalJson = await sails.helpers.setting.get('globalEnvVars', '{}')
       envVars = JSON.parse(globalJson)
-    } catch { /* ignore parse errors */ }
+    } catch {
+      /* ignore parse errors */
+    }
 
     const production = await Environment.findOne({
       project: project.id,
@@ -57,7 +62,8 @@ module.exports = {
     }
 
     // Create the preview environment
-    const { telemetryToken, telemetryTokenHash } = sails.helpers.environment.generateTelemetryToken()
+    const { telemetryToken, telemetryTokenHash } =
+      sails.helpers.environment.generateTelemetryToken()
     const environment = await Environment.create({
       name: `PR #${prNumber}`,
       slug,
@@ -70,7 +76,9 @@ module.exports = {
       project: project.id
     }).fetch()
 
-    sails.log.info(`Preview environment created: ${project.slug}/${slug} (branch: ${branch})`)
+    sails.log.info(
+      `Preview environment created: ${project.slug}/${slug} (branch: ${branch})`
+    )
 
     return environment
   }

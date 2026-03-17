@@ -31,7 +31,9 @@ module.exports = {
   },
 
   fn: async function ({ slug, envSlug, serviceId }) {
-    const user = await User.findOne({ id: this.req.session.userId }).populate('team')
+    const user = await User.findOne({ id: this.req.session.userId }).populate(
+      'team'
+    )
 
     const project = await Project.findOne({ slug, team: user.team.id })
 
@@ -39,13 +41,19 @@ module.exports = {
       throw { notFound: '/' }
     }
 
-    const environment = await Environment.findOne({ project: project.id, slug: envSlug })
+    const environment = await Environment.findOne({
+      project: project.id,
+      slug: envSlug
+    })
 
     if (!environment) {
       throw { notFound: `/projects/${slug}` }
     }
 
-    const service = await Service.findOne({ id: serviceId, environment: environment.id })
+    const service = await Service.findOne({
+      id: serviceId,
+      environment: environment.id
+    })
 
     if (!service) {
       throw { notFound: `/projects/${slug}/environments/${envSlug}?services` }
@@ -59,7 +67,9 @@ module.exports = {
     if (Service.isBackupSupported(service.type)) {
       const backups = await Backup.find({
         service: service.id
-      }).sort('createdAt DESC').limit(1)
+      })
+        .sort('createdAt DESC')
+        .limit(1)
       lastBackup = backups[0] || null
     }
 
@@ -90,12 +100,14 @@ module.exports = {
           username: service.username,
           envVarKey: service.envVarKey,
           backupSupported: Service.isBackupSupported(service.type),
-          lastBackup: lastBackup ? {
-            id: lastBackup.id,
-            status: lastBackup.status,
-            completedAt: lastBackup.completedAt,
-            sizeBytes: lastBackup.sizeBytes
-          } : null
+          lastBackup: lastBackup
+            ? {
+                id: lastBackup.id,
+                status: lastBackup.status,
+                completedAt: lastBackup.completedAt,
+                sizeBytes: lastBackup.sizeBytes
+              }
+            : null
         }
       }
     }

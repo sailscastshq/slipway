@@ -1,6 +1,14 @@
 <script setup>
 import { Link, Head, router, useForm } from '@inertiajs/vue3'
-import { inject, ref, reactive, computed, watch, onMounted, onBeforeUnmount } from 'vue'
+import {
+  inject,
+  ref,
+  reactive,
+  computed,
+  watch,
+  onMounted,
+  onBeforeUnmount
+} from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
 import Breadcrumb from '@/components/Breadcrumb.vue'
 import ConfirmModal from '@/components/ConfirmModal.vue'
@@ -68,7 +76,7 @@ const selectedBranch = ref(null)
 const filteredRepos = computed(() => {
   if (!repoSearch.value) return repos.value
   const q = repoSearch.value.toLowerCase()
-  return repos.value.filter(r => r.fullName.toLowerCase().includes(q))
+  return repos.value.filter((r) => r.fullName.toLowerCase().includes(q))
 })
 
 async function fetchRepos() {
@@ -89,7 +97,9 @@ async function fetchBranches(repo) {
   loadingBranches.value = true
   branches.value = []
   try {
-    const res = await fetch(`/api/v1/git/branches?owner=${repo.owner}&repo=${repo.name}`)
+    const res = await fetch(
+      `/api/v1/git/branches?owner=${repo.owner}&repo=${repo.name}`
+    )
     const data = await res.json()
     branches.value = data.branches || []
     // Default to the repo's default branch
@@ -131,53 +141,74 @@ watch(addAppOpen, (open) => {
 
 function createApp() {
   if (!createAppForm.name.trim()) return
-  createAppForm.routePath = createAppForm.routePath === 'none' ? null : createAppForm.routePath
-  createAppForm.post(`/projects/${props.project.slug}/environments/${props.environment.slug}/apps`, {
-    onSuccess: () => {
-      createAppForm.reset()
-      selectedRepo.value = null
-      selectedBranch.value = null
-      branches.value = []
-      addAppOpen.value = false
-      toast({ message: 'App created', type: 'success' })
-    },
-    onError: () => {
-      toast({ message: 'Failed to create app', type: 'error' })
+  createAppForm.routePath =
+    createAppForm.routePath === 'none' ? null : createAppForm.routePath
+  createAppForm.post(
+    `/projects/${props.project.slug}/environments/${props.environment.slug}/apps`,
+    {
+      onSuccess: () => {
+        createAppForm.reset()
+        selectedRepo.value = null
+        selectedBranch.value = null
+        branches.value = []
+        addAppOpen.value = false
+        toast({ message: 'App created', type: 'success' })
+      },
+      onError: () => {
+        toast({ message: 'Failed to create app', type: 'error' })
+      }
     }
-  })
+  )
 }
 
 async function deployApp(appItem) {
   try {
-    const res = await fetch(`/api/v1/projects/${props.project.slug}/environments/${props.environment.slug}/apps/${appItem.slug}/deploy`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' }
-    })
+    const res = await fetch(
+      `/api/v1/projects/${props.project.slug}/environments/${props.environment.slug}/apps/${appItem.slug}/deploy`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      }
+    )
     const data = await res.json()
     if (data.deployment) {
-      router.visit(`/projects/${props.project.slug}/deployments/${data.deployment.id}`)
+      router.visit(
+        `/projects/${props.project.slug}/deployments/${data.deployment.id}`
+      )
     }
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
 }
 
 async function restartSingleApp(appItem) {
   try {
-    await fetch(`/api/v1/projects/${props.project.slug}/environments/${props.environment.slug}/apps/${appItem.slug}/restart`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' }
-    })
+    await fetch(
+      `/api/v1/projects/${props.project.slug}/environments/${props.environment.slug}/apps/${appItem.slug}/restart`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      }
+    )
     router.reload({ only: ['apps', 'app'] })
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
 }
 
 async function stopSingleApp(appItem) {
   try {
-    await fetch(`/api/v1/projects/${props.project.slug}/environments/${props.environment.slug}/apps/${appItem.slug}/stop`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' }
-    })
+    await fetch(
+      `/api/v1/projects/${props.project.slug}/environments/${props.environment.slug}/apps/${appItem.slug}/stop`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      }
+    )
     router.reload({ only: ['apps', 'app'] })
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
 }
 
 // --- SSE-powered deployment tracking (replaces usePoll) ---
@@ -185,7 +216,9 @@ const activeDeploymentSources = ref(new Map())
 
 function connectActiveDeployments() {
   const activeStatuses = ['pending', 'building', 'deploying']
-  const active = props.deployments.filter(d => activeStatuses.includes(d.status))
+  const active = props.deployments.filter((d) =>
+    activeStatuses.includes(d.status)
+  )
 
   for (const dep of active) {
     if (activeDeploymentSources.value.has(dep.id)) continue
@@ -194,14 +227,21 @@ function connectActiveDeployments() {
     es.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data)
-        if (data.status && ['running', 'failed', 'cancelled'].includes(data.status)) {
+        if (
+          data.status &&
+          ['running', 'failed', 'cancelled'].includes(data.status)
+        ) {
           es.close()
           activeDeploymentSources.value.delete(dep.id)
           router.reload()
         }
-      } catch { /* ignore */ }
+      } catch {
+        /* ignore */
+      }
     }
-    es.onerror = () => { /* auto-reconnects */ }
+    es.onerror = () => {
+      /* auto-reconnects */
+    }
     activeDeploymentSources.value.set(dep.id, es)
   }
 }
@@ -213,16 +253,23 @@ function disconnectActiveDeployments() {
   activeDeploymentSources.value.clear()
 }
 
-watch(() => props.deployments, () => {
-  connectActiveDeployments()
-}, { immediate: true })
+watch(
+  () => props.deployments,
+  () => {
+    connectActiveDeployments()
+  },
+  { immediate: true }
+)
 
 // --- Env vars management ---
 const localVars = reactive({ ...props.envVars })
-watch(() => props.envVars, (newVars) => {
-  Object.keys(localVars).forEach(k => delete localVars[k])
-  Object.assign(localVars, newVars)
-})
+watch(
+  () => props.envVars,
+  (newVars) => {
+    Object.keys(localVars).forEach((k) => delete localVars[k])
+    Object.assign(localVars, newVars)
+  }
+)
 const revealedKeys = ref(new Set())
 const newKey = ref('')
 const newValue = ref('')
@@ -246,26 +293,38 @@ const bulkHasChanges = computed(() => {
   const keys = Object.keys(vars).sort()
   const currentKeys = Object.keys(localVars).sort()
   if (keys.length !== currentKeys.length) return true
-  return keys.some((k, i) => k !== currentKeys[i] || vars[k] !== localVars[currentKeys[i]])
+  return keys.some(
+    (k, i) => k !== currentKeys[i] || vars[k] !== localVars[currentKeys[i]]
+  )
 })
 
 const bulkHighlighted = computed(() => {
   const text = bulkText.value || ''
-  return text.split('\n').map(line => {
-    const escaped = line.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-    if (escaped.trimStart().startsWith('#')) {
-      return `<span class="text-gray-500 dark:text-gray-600">${escaped}</span>`
-    }
-    const eqIdx = escaped.indexOf('=')
-    if (eqIdx === -1) return escaped
-    const key = escaped.slice(0, eqIdx)
-    const value = escaped.slice(eqIdx + 1)
-    return `<span class="text-amber-600 dark:text-amber-400">${key}</span><span class="text-gray-400 dark:text-gray-600">=</span><span class="text-gray-800 dark:text-gray-300">${value}</span>`
-  }).join('\n') + '\n'
+  return (
+    text
+      .split('\n')
+      .map((line) => {
+        const escaped = line
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+        if (escaped.trimStart().startsWith('#')) {
+          return `<span class="text-gray-500 dark:text-gray-600">${escaped}</span>`
+        }
+        const eqIdx = escaped.indexOf('=')
+        if (eqIdx === -1) return escaped
+        const key = escaped.slice(0, eqIdx)
+        const value = escaped.slice(eqIdx + 1)
+        return `<span class="text-amber-600 dark:text-amber-400">${key}</span><span class="text-gray-400 dark:text-gray-600">=</span><span class="text-gray-800 dark:text-gray-300">${value}</span>`
+      })
+      .join('\n') + '\n'
+  )
 })
 
 function enterBulkMode() {
-  bulkText.value = sortedVarKeys.value.map(k => `${k}=${localVars[k]}`).join('\n')
+  bulkText.value = sortedVarKeys.value
+    .map((k) => `${k}=${localVars[k]}`)
+    .join('\n')
   bulkMode.value = true
 }
 
@@ -285,11 +344,17 @@ function saveBulk() {
     if (key) vars[key] = value
   }
   const oldKeys = Object.keys(localVars).sort().join(',')
-  const oldVals = Object.keys(localVars).sort().map(k => localVars[k]).join(',')
-  Object.keys(localVars).forEach(k => delete localVars[k])
+  const oldVals = Object.keys(localVars)
+    .sort()
+    .map((k) => localVars[k])
+    .join(',')
+  Object.keys(localVars).forEach((k) => delete localVars[k])
   Object.assign(localVars, vars)
   const newKeys = Object.keys(localVars).sort().join(',')
-  const newVals = Object.keys(localVars).sort().map(k => localVars[k]).join(',')
+  const newVals = Object.keys(localVars)
+    .sort()
+    .map((k) => localVars[k])
+    .join(',')
   if (oldKeys !== newKeys || oldVals !== newVals) {
     saveEnvVars(localVars)
     toast({ message: 'Environment variables updated', type: 'success' })
@@ -324,7 +389,9 @@ const copiedDomain = ref(null)
 function copyToClipboard(text) {
   navigator.clipboard.writeText(text)
   copiedDomain.value = text
-  setTimeout(() => { copiedDomain.value = null }, 2000)
+  setTimeout(() => {
+    copiedDomain.value = null
+  }, 2000)
 }
 
 function closeAllDropdowns() {
@@ -355,18 +422,26 @@ function shouldShowGenerate(key) {
 function generateSecret() {
   const bytes = new Uint8Array(32)
   crypto.getRandomValues(bytes)
-  newValue.value = Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('')
+  newValue.value = Array.from(bytes, (b) =>
+    b.toString(16).padStart(2, '0')
+  ).join('')
 }
 
 async function saveEnvVars(vars) {
   saving.value = true
   try {
-    await fetch(`/api/v1/projects/${props.project.slug}/environments/${props.environment.slug}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ envVars: vars })
+    await fetch(
+      `/api/v1/projects/${props.project.slug}/environments/${props.environment.slug}`,
+      {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ envVars: vars })
+      }
+    )
+    router.reload({
+      only: ['envVars', 'environment', 'checklist'],
+      preserveScroll: true
     })
-    router.reload({ only: ['envVars', 'environment', 'checklist'], preserveScroll: true })
   } finally {
     saving.value = false
   }
@@ -426,7 +501,9 @@ watch(appsOpen, (open) => {
   window.history.replaceState({}, '', url)
 })
 
-const servicesOpen = ref(new URLSearchParams(window.location.search).has('services'))
+const servicesOpen = ref(
+  new URLSearchParams(window.location.search).has('services')
+)
 
 watch(servicesOpen, (open) => {
   const url = new URL(window.location)
@@ -472,7 +549,10 @@ async function createService() {
   if (!newServiceName.value.trim() || creatingService.value) return
   creatingService.value = true
 
-  const serviceName = newServiceName.value.trim().toLowerCase().replace(/\s+/g, '-')
+  const serviceName = newServiceName.value
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, '-')
   const serviceType = newServiceType.value
 
   const actionId = startAction({
@@ -484,15 +564,18 @@ async function createService() {
   })
 
   try {
-    const res = await fetch(`/api/v1/projects/${props.project.slug}/environments/${props.environment.slug}/services`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        name: serviceName,
-        type: serviceType,
-        version: newServiceVersion.value || 'latest'
-      })
-    })
+    const res = await fetch(
+      `/api/v1/projects/${props.project.slug}/environments/${props.environment.slug}/services`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: serviceName,
+          type: serviceType,
+          version: newServiceVersion.value || 'latest'
+        })
+      }
+    )
     completeAction(actionId, res.ok)
     newServiceName.value = ''
     newServiceVersion.value = 'latest'
@@ -588,16 +671,17 @@ function cancelDeleteService() {
 const backingUpServiceId = ref(null)
 const backupStreamUrl = ref(null)
 
-const { close: closeBackupStream, connect: connectBackupStream } = useEventSource(backupStreamUrl, {
-  immediate: false,
-  autoReconnect: false,
-  onMessage(msg) {
-    if (msg.status === 'completed' || msg.status === 'failed') {
-      closeBackupStream()
-      router.reload({ only: ['environment'] })
+const { close: closeBackupStream, connect: connectBackupStream } =
+  useEventSource(backupStreamUrl, {
+    immediate: false,
+    autoReconnect: false,
+    onMessage(msg) {
+      if (msg.status === 'completed' || msg.status === 'failed') {
+        closeBackupStream()
+        router.reload({ only: ['environment'] })
+      }
     }
-  }
-})
+  })
 
 async function triggerBackup(service) {
   if (backingUpServiceId.value) return
@@ -659,7 +743,8 @@ function appStatusClasses(app) {
     if (app.containerHealth === 'unhealthy') return statusStyles.red
     return statusStyles.green
   }
-  if (['building', 'deploying', 'creating'].includes(app.status)) return statusStyles.blue
+  if (['building', 'deploying', 'creating'].includes(app.status))
+    return statusStyles.blue
   if (['pending', 'starting'].includes(app.status)) return statusStyles.yellow
   if (app.status === 'failed') return statusStyles.red
   return statusStyles.gray
@@ -671,25 +756,64 @@ function appStatusLabel(app) {
     return 'Running'
   }
   const labels = {
-    building: 'Building', deploying: 'Deploying', pending: 'Pending',
-    starting: 'Starting', failed: 'Failed', stopped: 'Stopped',
-    cancelled: 'Cancelled', creating: 'Creating'
+    building: 'Building',
+    deploying: 'Deploying',
+    pending: 'Pending',
+    starting: 'Starting',
+    failed: 'Failed',
+    stopped: 'Stopped',
+    cancelled: 'Cancelled',
+    creating: 'Creating'
   }
   return labels[app.status] || app.status
 }
 
 function statusBadge(status) {
   const map = {
-    running: { label: 'Running', classes: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' },
-    building: { label: 'Building', classes: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' },
-    deploying: { label: 'Deploying', classes: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' },
-    pending: { label: 'Pending', classes: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400' },
-    failed: { label: 'Failed', classes: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' },
-    stopped: { label: 'Stopped', classes: 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400' },
-    cancelled: { label: 'Cancelled', classes: 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400' },
-    creating: { label: 'Creating', classes: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' }
+    running: {
+      label: 'Running',
+      classes:
+        'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+    },
+    building: {
+      label: 'Building',
+      classes:
+        'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+    },
+    deploying: {
+      label: 'Deploying',
+      classes:
+        'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+    },
+    pending: {
+      label: 'Pending',
+      classes:
+        'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'
+    },
+    failed: {
+      label: 'Failed',
+      classes: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+    },
+    stopped: {
+      label: 'Stopped',
+      classes: 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'
+    },
+    cancelled: {
+      label: 'Cancelled',
+      classes: 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'
+    },
+    creating: {
+      label: 'Creating',
+      classes:
+        'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+    }
   }
-  return map[status] || { label: status, classes: 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400' }
+  return (
+    map[status] || {
+      label: status,
+      classes: 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'
+    }
+  )
 }
 
 function timeAgo(date) {
@@ -705,7 +829,8 @@ function timeAgo(date) {
   ]
   for (const interval of intervals) {
     const count = Math.floor(seconds / interval.seconds)
-    if (count >= 1) return `${count} ${interval.label}${count > 1 ? 's' : ''} ago`
+    if (count >= 1)
+      return `${count} ${interval.label}${count > 1 ? 's' : ''} ago`
   }
   return 'just now'
 }
@@ -714,11 +839,16 @@ const sortedVarKeys = computed(() => Object.keys(localVars).sort())
 const services = computed(() => props.environment.services || [])
 
 const checklistWarnings = computed(() => {
-  return (props.checklist || []).filter(c => c.severity === 'warning' || c.severity === 'info')
+  return (props.checklist || []).filter(
+    (c) => c.severity === 'warning' || c.severity === 'info'
+  )
 })
 
 const checklistAllGood = computed(() => {
-  return (props.checklist || []).length === 1 && props.checklist[0].severity === 'success'
+  return (
+    (props.checklist || []).length === 1 &&
+    props.checklist[0].severity === 'success'
+  )
 })
 
 // --- Checklist actions ---
@@ -728,7 +858,9 @@ function handleChecklistAction(action) {
     case 'generate-session-secret': {
       const bytes = new Uint8Array(32)
       crypto.getRandomValues(bytes)
-      const secret = Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('')
+      const secret = Array.from(bytes, (b) =>
+        b.toString(16).padStart(2, '0')
+      ).join('')
       localVars['SESSION_SECRET'] = secret
       saveEnvVars(localVars)
       toast({ message: 'SESSION_SECRET generated and saved', type: 'success' })
@@ -758,7 +890,9 @@ function handleEscapeKey(e) {
 
 onMounted(() => {
   if (bulkMode.value) {
-    bulkText.value = sortedVarKeys.value.map(k => `${k}=${localVars[k]}`).join('\n')
+    bulkText.value = sortedVarKeys.value
+      .map((k) => `${k}=${localVars[k]}`)
+      .join('\n')
   }
   document.addEventListener('keydown', handleEscapeKey)
 })
@@ -772,16 +906,38 @@ onBeforeUnmount(() => {
   <Head :title="`${environment.name} - ${project.name} | Slipway`"></Head>
   <div class="flex h-full flex-col" @click="closeAllDropdowns">
     <!-- Header -->
-    <div class="flex items-center justify-between border-b border-gray-200 py-4 pl-4 pr-4 dark:border-gray-800 sm:pl-4 sm:pr-8">
+    <div
+      class="flex items-center justify-between border-b border-gray-200 py-4 pl-4 pr-4 dark:border-gray-800 sm:pl-4 sm:pr-8"
+    >
       <div class="flex items-center space-x-3">
         <button
           @click="toggleMobileMenu"
           class="rounded-md p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white md:hidden"
         >
-          <svg class="h-5 w-5" viewBox="-0.5 -0.5 16 16" fill="none" stroke="currentColor">
-            <path d="M12.777 14.285H2.223c-.833 0-1.508-.675-1.508-1.508V2.223c0-.833.675-1.508 1.508-1.508h10.554c.833 0 1.508.675 1.508 1.508v10.554c0 .833-.675 1.508-1.508 1.508Z" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
-            <path d="M5.615 14.285V.715" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
-            <path d="M2.6 5.992 3.919 7.5 2.6 9.008" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
+          <svg
+            class="h-5 w-5"
+            viewBox="-0.5 -0.5 16 16"
+            fill="none"
+            stroke="currentColor"
+          >
+            <path
+              d="M12.777 14.285H2.223c-.833 0-1.508-.675-1.508-1.508V2.223c0-.833.675-1.508 1.508-1.508h10.554c.833 0 1.508.675 1.508 1.508v10.554c0 .833-.675 1.508-1.508 1.508Z"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1"
+            />
+            <path
+              d="M5.615 14.285V.715"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1"
+            />
+            <path
+              d="M2.6 5.992 3.919 7.5 2.6 9.008"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1"
+            />
           </svg>
         </button>
         <!-- Desktop sidebar toggle -->
@@ -789,22 +945,69 @@ onBeforeUnmount(() => {
           @click="toggleSidebar"
           class="hidden text-gray-400 dark:text-gray-500 md:block"
         >
-          <svg v-if="sidebarCollapsed" class="h-5 w-5" viewBox="-0.5 -0.5 16 16" fill="none" stroke="currentColor">
-            <path d="M12.777 14.285H2.223c-.833 0-1.508-.675-1.508-1.508V2.223c0-.833.675-1.508 1.508-1.508h10.554c.833 0 1.508.675 1.508 1.508v10.554c0 .833-.675 1.508-1.508 1.508Z" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
-            <path d="M5.615 14.285V.715" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
-            <path d="M2.6 5.992 3.919 7.5 2.6 9.008" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
+          <svg
+            v-if="sidebarCollapsed"
+            class="h-5 w-5"
+            viewBox="-0.5 -0.5 16 16"
+            fill="none"
+            stroke="currentColor"
+          >
+            <path
+              d="M12.777 14.285H2.223c-.833 0-1.508-.675-1.508-1.508V2.223c0-.833.675-1.508 1.508-1.508h10.554c.833 0 1.508.675 1.508 1.508v10.554c0 .833-.675 1.508-1.508 1.508Z"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1"
+            />
+            <path
+              d="M5.615 14.285V.715"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1"
+            />
+            <path
+              d="M2.6 5.992 3.919 7.5 2.6 9.008"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1"
+            />
           </svg>
-          <svg v-else class="h-5 w-5" viewBox="-0.5 -0.5 16 16" fill="none" stroke="currentColor">
-            <path d="M12.777 14.285H2.223c-.833 0-1.508-.675-1.508-1.508V2.223c0-.833.675-1.508 1.508-1.508h10.554c.833 0 1.508.675 1.508 1.508v10.554c0 .833-.675 1.508-1.508 1.508Z" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
-            <path d="M5.615 14.285V.715" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
-            <path d="M3.919 5.992 2.6 7.5l1.319 1.508" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
+          <svg
+            v-else
+            class="h-5 w-5"
+            viewBox="-0.5 -0.5 16 16"
+            fill="none"
+            stroke="currentColor"
+          >
+            <path
+              d="M12.777 14.285H2.223c-.833 0-1.508-.675-1.508-1.508V2.223c0-.833.675-1.508 1.508-1.508h10.554c.833 0 1.508.675 1.508 1.508v10.554c0 .833-.675 1.508-1.508 1.508Z"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1"
+            />
+            <path
+              d="M5.615 14.285V.715"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1"
+            />
+            <path
+              d="M3.919 5.992 2.6 7.5l1.319 1.508"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1"
+            />
           </svg>
         </button>
-        <Breadcrumb :items="[
-          { label: 'projects', href: '/' },
-          { label: project.name.toLowerCase(), href: `/projects/${project.slug}` },
-          { label: environment.name.toLowerCase() }
-        ]" />
+        <Breadcrumb
+          :items="[
+            { label: 'projects', href: '/' },
+            {
+              label: project.name.toLowerCase(),
+              href: `/projects/${project.slug}`
+            },
+            { label: environment.name.toLowerCase() }
+          ]"
+        />
       </div>
       <div class="flex items-center space-x-4">
         <a
@@ -813,8 +1016,18 @@ onBeforeUnmount(() => {
           class="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
         >
           Docs
-          <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+          <svg
+            class="h-3.5 w-3.5"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+            />
           </svg>
         </a>
       </div>
@@ -827,10 +1040,12 @@ onBeforeUnmount(() => {
         <div class="mb-8 flex items-start justify-between">
           <div>
             <div class="flex items-center space-x-3">
-              <h1 class="text-xl font-semibold text-gray-900 dark:text-white">{{ environment.name }}</h1>
+              <h1 class="text-xl font-semibold text-gray-900 dark:text-white">
+                {{ environment.name }}
+              </h1>
               <span
                 v-if="environment.isProduction"
-                class="inline-flex rounded px-1.5 py-0.5 text-[10px] font-medium bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
+                class="inline-flex rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
               >
                 Production
               </span>
@@ -863,22 +1078,52 @@ onBeforeUnmount(() => {
                   @click.stop
                   class="absolute right-0 top-full z-20 mt-1 w-48 rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-900"
                 >
-                  <div class="border-b border-gray-100 pb-1 dark:border-gray-800">
+                  <div
+                    class="border-b border-gray-100 pb-1 dark:border-gray-800"
+                  >
                     <button
-                      @click="appsOpen = true; addAppOpen = true; moreMenuOpen = false"
+                      @click="
+                        appsOpen = true
+                        addAppOpen = true
+                        moreMenuOpen = false
+                      "
                       class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
                     >
-                      <svg class="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                      <svg
+                        class="h-4 w-4 text-gray-400"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          stroke-width="2"
+                          d="M12 6v6m0 0v6m0-6h6m-6 0H6"
+                        />
                       </svg>
                       Create app
                     </button>
                     <button
-                      @click="servicesOpen = true; addServiceOpen = true; moreMenuOpen = false"
+                      @click="
+                        servicesOpen = true
+                        addServiceOpen = true
+                        moreMenuOpen = false
+                      "
                       class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
                     >
-                      <svg class="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4" />
+                      <svg
+                        class="h-4 w-4 text-gray-400"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          stroke-width="2"
+                          d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4"
+                        />
                       </svg>
                       Create service
                     </button>
@@ -888,9 +1133,24 @@ onBeforeUnmount(() => {
                       :href="`/projects/${project.slug}/environments/${environment.slug}/settings`"
                       class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
                     >
-                      <svg class="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                      <svg
+                        class="h-4 w-4 text-gray-400"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          stroke-width="2"
+                          d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
+                        />
+                        <path
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          stroke-width="2"
+                          d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                        />
                       </svg>
                       Settings
                     </Link>
@@ -902,36 +1162,99 @@ onBeforeUnmount(() => {
         </div>
 
         <!-- Deployment Checklist -->
-        <div v-if="checklist && checklist.length > 0 && !checklistAllGood" class="mb-10">
-          <div class="rounded-lg border border-amber-200 bg-amber-50/50 dark:border-amber-900/50 dark:bg-amber-950/20">
+        <div
+          v-if="checklist && checklist.length > 0 && !checklistAllGood"
+          class="mb-10"
+        >
+          <div
+            class="rounded-lg border border-amber-200 bg-amber-50/50 dark:border-amber-900/50 dark:bg-amber-950/20"
+          >
             <div class="flex items-center gap-2 px-4 py-3">
-              <svg class="h-4 w-4 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+              <svg
+                class="h-4 w-4 text-amber-500"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"
+                />
               </svg>
-              <h2 class="text-sm font-medium text-amber-800 dark:text-amber-300">Deployment checklist</h2>
-              <span class="inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-700 dark:bg-amber-900/40 dark:text-amber-400">
+              <h2
+                class="text-sm font-medium text-amber-800 dark:text-amber-300"
+              >
+                Deployment checklist
+              </h2>
+              <span
+                class="inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-700 dark:bg-amber-900/40 dark:text-amber-400"
+              >
                 {{ checklistWarnings.length }}
               </span>
             </div>
-            <div class="divide-y divide-amber-200/50 border-t border-amber-200/50 dark:divide-amber-900/30 dark:border-amber-900/30">
+            <div
+              class="divide-y divide-amber-200/50 border-t border-amber-200/50 dark:divide-amber-900/30 dark:border-amber-900/30"
+            >
               <div
                 v-for="item in checklist"
                 :key="item.key"
                 class="flex items-start justify-between gap-3 px-4 py-2.5"
               >
                 <div class="flex items-start gap-3">
-                  <svg v-if="item.severity === 'warning'" class="mt-0.5 h-4 w-4 shrink-0 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                  <svg
+                    v-if="item.severity === 'warning'"
+                    class="mt-0.5 h-4 w-4 shrink-0 text-amber-500"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"
+                    />
                   </svg>
-                  <svg v-else-if="item.severity === 'info'" class="mt-0.5 h-4 w-4 shrink-0 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  <svg
+                    v-else-if="item.severity === 'info'"
+                    class="mt-0.5 h-4 w-4 shrink-0 text-blue-500"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                    />
                   </svg>
-                  <svg v-else class="mt-0.5 h-4 w-4 shrink-0 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                  <svg
+                    v-else
+                    class="mt-0.5 h-4 w-4 shrink-0 text-green-500"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M5 13l4 4L19 7"
+                    />
                   </svg>
                   <div>
-                    <p class="text-sm text-gray-800 dark:text-gray-200">{{ item.label }}</p>
-                    <p v-if="item.suggestion" class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{{ item.suggestion }}</p>
+                    <p class="text-sm text-gray-800 dark:text-gray-200">
+                      {{ item.label }}
+                    </p>
+                    <p
+                      v-if="item.suggestion"
+                      class="mt-0.5 text-xs text-gray-500 dark:text-gray-400"
+                    >
+                      {{ item.suggestion }}
+                    </p>
                   </div>
                 </div>
                 <button
@@ -947,7 +1270,9 @@ onBeforeUnmount(() => {
         </div>
 
         <!-- Accordion: Apps, Services, Env Vars -->
-        <div class="mb-10 divide-y divide-gray-200 rounded-lg border border-gray-200 dark:divide-gray-800 dark:border-gray-800">
+        <div
+          class="mb-10 divide-y divide-gray-200 rounded-lg border border-gray-200 dark:divide-gray-800 dark:border-gray-800"
+        >
           <!-- Apps -->
           <div>
             <div class="flex items-center justify-between px-4 py-3">
@@ -955,8 +1280,12 @@ onBeforeUnmount(() => {
                 @click="appsOpen = !appsOpen"
                 class="flex flex-1 items-center space-x-3 text-left hover:opacity-80"
               >
-                <h2 class="text-sm font-medium text-gray-900 dark:text-white">Apps</h2>
-                <span class="inline-flex rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-500 dark:bg-gray-800 dark:text-gray-400">
+                <h2 class="text-sm font-medium text-gray-900 dark:text-white">
+                  Apps
+                </h2>
+                <span
+                  class="inline-flex rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-500 dark:bg-gray-800 dark:text-gray-400"
+                >
                   {{ sortedApps.length }}
                 </span>
               </button>
@@ -965,58 +1294,97 @@ onBeforeUnmount(() => {
                 class="rounded p-0.5 hover:bg-gray-100 dark:hover:bg-gray-800"
               >
                 <svg
-                  :class="['h-4 w-4 text-gray-400 transition-transform duration-200', appsOpen ? 'rotate-90' : '']"
+                  :class="[
+                    'h-4 w-4 text-gray-400 transition-transform duration-200',
+                    appsOpen ? 'rotate-90' : ''
+                  ]"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
                 >
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M9 5l7 7-7 7"
+                  />
                 </svg>
               </button>
             </div>
             <div v-show="appsOpen">
               <!-- App list -->
-              <div class="divide-y divide-gray-200 border-t border-gray-200 dark:divide-gray-800 dark:border-gray-800">
-                <div v-for="appItem in sortedApps" :key="appItem.id" class="flex items-center justify-between px-4 py-3">
+              <div
+                class="divide-y divide-gray-200 border-t border-gray-200 dark:divide-gray-800 dark:border-gray-800"
+              >
+                <div
+                  v-for="appItem in sortedApps"
+                  :key="appItem.id"
+                  class="flex items-center justify-between px-4 py-3"
+                >
                   <div class="flex items-center space-x-3">
                     <div class="flex items-center space-x-2">
                       <Link
                         :href="`/projects/${project.slug}/environments/${environment.slug}/apps/${appItem.slug}`"
-                        class="text-sm font-medium text-gray-900 underline decoration-dashed decoration-gray-300 underline-offset-2 hover:text-gray-700 dark:text-white dark:decoration-gray-600 dark:hover:text-gray-300"
+                        class="text-sm font-medium text-gray-900 underline decoration-gray-300 decoration-dashed underline-offset-2 hover:text-gray-700 dark:text-white dark:decoration-gray-600 dark:hover:text-gray-300"
                       >
                         {{ appItem.name }}
                       </Link>
                       <span
                         v-if="appItem.isDefault"
-                        class="inline-flex rounded px-1.5 py-0.5 text-[10px] font-medium bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400"
+                        class="inline-flex rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-500 dark:bg-gray-800 dark:text-gray-400"
                       >
                         default
                       </span>
                       <span
                         v-if="appItem.routePath === null"
-                        class="inline-flex rounded px-1.5 py-0.5 text-[10px] font-medium bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400"
+                        class="inline-flex rounded bg-purple-100 px-1.5 py-0.5 text-[10px] font-medium text-purple-600 dark:bg-purple-900/30 dark:text-purple-400"
                       >
                         worker
                       </span>
                       <span
-                        v-else-if="appItem.routePath && appItem.routePath !== '/'"
-                        class="inline-flex rounded px-1.5 py-0.5 text-[10px] font-medium bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400"
+                        v-else-if="
+                          appItem.routePath && appItem.routePath !== '/'
+                        "
+                        class="inline-flex rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-medium text-blue-600 dark:bg-blue-900/30 dark:text-blue-400"
                       >
                         {{ appItem.routePath }}
                       </span>
                     </div>
                     <!-- Status -->
-                    <div :class="[appStatusClasses(appItem).bg, 'inline-flex items-center space-x-1.5 rounded-full px-2.5 py-0.5']">
-                      <div :class="[appStatusClasses(appItem).dot, 'h-1.5 w-1.5 rounded-full']"></div>
-                      <span :class="[appStatusClasses(appItem).text, 'text-[11px] font-medium']">{{ appStatusLabel(appItem) }}</span>
+                    <div
+                      :class="[
+                        appStatusClasses(appItem).bg,
+                        'inline-flex items-center space-x-1.5 rounded-full px-2.5 py-0.5'
+                      ]"
+                    >
+                      <div
+                        :class="[
+                          appStatusClasses(appItem).dot,
+                          'h-1.5 w-1.5 rounded-full'
+                        ]"
+                      ></div>
+                      <span
+                        :class="[
+                          appStatusClasses(appItem).text,
+                          'text-[11px] font-medium'
+                        ]"
+                        >{{ appStatusLabel(appItem) }}</span
+                      >
                     </div>
                   </div>
                   <div class="relative">
                     <button
-                      @click.stop="appMenuOpen = appMenuOpen === appItem.id ? null : appItem.id"
+                      @click.stop="
+                        appMenuOpen =
+                          appMenuOpen === appItem.id ? null : appItem.id
+                      "
                       class="rounded-md p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-800 dark:hover:text-gray-200"
                     >
-                      <svg class="h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
+                      <svg
+                        class="h-4 w-4"
+                        fill="currentColor"
+                        viewBox="0 0 24 24"
+                      >
                         <circle cx="12" cy="6" r="1.5" />
                         <circle cx="12" cy="12" r="1.5" />
                         <circle cx="12" cy="18" r="1.5" />
@@ -1036,9 +1404,15 @@ onBeforeUnmount(() => {
                         class="absolute right-0 top-full z-20 mt-1 w-56 rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-900"
                       >
                         <!-- Slide to Deploy -->
-                        <div class="border-b border-gray-100 px-3 py-2.5 dark:border-gray-800">
+                        <div
+                          class="border-b border-gray-100 px-3 py-2.5 dark:border-gray-800"
+                        >
                           <SlideToDeploy
-                            :ref="el => { if (el) appSlideRefs[appItem.id] = el }"
+                            :ref="
+                              (el) => {
+                                if (el) appSlideRefs[appItem.id] = el
+                              }
+                            "
                             :is-production="environment.isProduction"
                             :environment-name="environment.name"
                             :disabled="deploying"
@@ -1046,21 +1420,44 @@ onBeforeUnmount(() => {
                           />
                         </div>
                         <!-- Actions -->
-                        <div v-if="appItem.status === 'running'" class="border-b border-gray-100 py-1 dark:border-gray-800">
+                        <div
+                          v-if="appItem.status === 'running'"
+                          class="border-b border-gray-100 py-1 dark:border-gray-800"
+                        >
                           <button
-                            @click="restartSingleApp(appItem); appMenuOpen = null"
+                            @click="
+                              restartSingleApp(appItem)
+                              appMenuOpen = null
+                            "
                             class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
                           >
-                            <svg class="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                            <svg
+                              class="h-4 w-4 text-gray-400"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                stroke-width="2"
+                                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                              />
                             </svg>
                             Restart
                           </button>
                           <button
-                            @click="stopSingleApp(appItem); appMenuOpen = null"
+                            @click="
+                              stopSingleApp(appItem)
+                              appMenuOpen = null
+                            "
                             class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20"
                           >
-                            <svg class="h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
+                            <svg
+                              class="h-4 w-4"
+                              fill="currentColor"
+                              viewBox="0 0 24 24"
+                            >
                               <rect x="6" y="6" width="12" height="12" rx="1" />
                             </svg>
                             Stop
@@ -1072,9 +1469,24 @@ onBeforeUnmount(() => {
                             :href="`/projects/${project.slug}/environments/${environment.slug}/apps/${appItem.slug}/settings`"
                             class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
                           >
-                            <svg class="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                            <svg
+                              class="h-4 w-4 text-gray-400"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                stroke-width="2"
+                                d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
+                              />
+                              <path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                stroke-width="2"
+                                d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                              />
                             </svg>
                             Settings
                           </Link>
@@ -1091,18 +1503,18 @@ onBeforeUnmount(() => {
                     <input
                       v-model="createAppForm.name"
                       placeholder="app name"
-                      class="w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:border-brand focus:outline-none sm:flex-1 dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
+                      class="focus:border-brand w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500 sm:flex-1"
                       @keydown.enter="createApp"
                     />
                     <input
                       v-model="createAppForm.dockerfilePath"
                       placeholder="Dockerfile"
-                      class="w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:border-brand focus:outline-none sm:w-32 dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
+                      class="focus:border-brand w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500 sm:w-32"
                       @keydown.enter="createApp"
                     />
                     <select
                       v-model="createAppForm.routePath"
-                      class="rounded-md border border-gray-200 bg-white px-2 py-1.5 text-sm text-gray-900 focus:border-brand focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+                      class="focus:border-brand rounded-md border border-gray-200 bg-white px-2 py-1.5 text-sm text-gray-900 focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-white"
                     >
                       <option value="/">/ (root)</option>
                       <option value="/api">/api</option>
@@ -1116,46 +1528,115 @@ onBeforeUnmount(() => {
                     <!-- Selected repo chip + branch picker -->
                     <div v-if="selectedRepo" class="space-y-2">
                       <div class="flex items-center gap-2">
-                        <div class="inline-flex items-center gap-2 rounded-md border border-gray-200 bg-gray-50 px-2.5 py-1.5 text-sm dark:border-gray-700 dark:bg-gray-800">
-                          <svg class="h-4 w-4 text-gray-500 dark:text-gray-400" fill="currentColor" viewBox="0 0 24 24">
-                            <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z" />
+                        <div
+                          class="inline-flex items-center gap-2 rounded-md border border-gray-200 bg-gray-50 px-2.5 py-1.5 text-sm dark:border-gray-700 dark:bg-gray-800"
+                        >
+                          <svg
+                            class="h-4 w-4 text-gray-500 dark:text-gray-400"
+                            fill="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"
+                            />
                           </svg>
-                          <span class="text-gray-700 dark:text-gray-300">{{ selectedRepo.fullName }}</span>
-                          <button @click="clearRepo" class="ml-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
-                            <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                          <span class="text-gray-700 dark:text-gray-300">{{
+                            selectedRepo.fullName
+                          }}</span>
+                          <button
+                            @click="clearRepo"
+                            class="ml-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                          >
+                            <svg
+                              class="h-3.5 w-3.5"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                stroke-width="2"
+                                d="M6 18L18 6M6 6l12 12"
+                              />
                             </svg>
                           </button>
                         </div>
                       </div>
                       <!-- Branch select -->
                       <div class="flex items-center gap-2">
-                        <svg class="h-4 w-4 shrink-0 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                        <svg
+                          class="h-4 w-4 shrink-0 text-gray-400"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            stroke-width="2"
+                            d="M13 10V3L4 14h7v7l9-11h-7z"
+                          />
                         </svg>
-                        <span class="text-xs text-gray-500 dark:text-gray-400">Deploy branch</span>
+                        <span class="text-xs text-gray-500 dark:text-gray-400"
+                          >Deploy branch</span
+                        >
                         <select
                           v-if="branches.length > 0"
                           :value="selectedBranch"
                           @change="selectBranch($event.target.value)"
-                          class="rounded-md border border-gray-200 bg-white px-2 py-1 text-sm text-gray-900 focus:border-brand focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+                          class="focus:border-brand rounded-md border border-gray-200 bg-white px-2 py-1 text-sm text-gray-900 focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-white"
                         >
-                          <option v-for="b in branches" :key="b.name" :value="b.name">{{ b.name }}</option>
+                          <option
+                            v-for="b in branches"
+                            :key="b.name"
+                            :value="b.name"
+                          >
+                            {{ b.name }}
+                          </option>
                         </select>
-                        <svg v-else-if="loadingBranches" class="h-4 w-4 animate-spin text-gray-400" fill="none" viewBox="0 0 24 24">
-                          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                        <svg
+                          v-else-if="loadingBranches"
+                          class="h-4 w-4 animate-spin text-gray-400"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                        >
+                          <circle
+                            class="opacity-25"
+                            cx="12"
+                            cy="12"
+                            r="10"
+                            stroke="currentColor"
+                            stroke-width="4"
+                          ></circle>
+                          <path
+                            class="opacity-75"
+                            fill="currentColor"
+                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                          ></path>
                         </svg>
-                        <span v-else class="rounded bg-gray-200 px-1.5 py-0.5 text-xs font-medium text-gray-600 dark:bg-gray-700 dark:text-gray-400">{{ selectedRepo.defaultBranch }}</span>
+                        <span
+                          v-else
+                          class="rounded bg-gray-200 px-1.5 py-0.5 text-xs font-medium text-gray-600 dark:bg-gray-700 dark:text-gray-400"
+                          >{{ selectedRepo.defaultBranch }}</span
+                        >
                       </div>
                     </div>
 
                     <!-- Repo search combobox -->
                     <div v-else>
                       <div class="relative">
-                        <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-2">
-                          <svg class="h-4 w-4 text-gray-400" fill="currentColor" viewBox="0 0 24 24">
-                            <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z" />
+                        <div
+                          class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-2"
+                        >
+                          <svg
+                            class="h-4 w-4 text-gray-400"
+                            fill="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"
+                            />
                           </svg>
                         </div>
                         <input
@@ -1163,15 +1644,44 @@ onBeforeUnmount(() => {
                           @focus="repoDropdownOpen = true"
                           @click.stop
                           placeholder="Link a GitHub repository (optional)"
-                          class="w-full border-b border-dashed border-gray-200 bg-transparent py-1.5 pl-8 pr-8 text-sm text-gray-900 placeholder-gray-400 focus:border-brand focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
+                          class="focus:border-brand w-full border-b border-dashed border-gray-200 bg-transparent py-1.5 pl-8 pr-8 text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
                         />
-                        <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2">
-                          <svg v-if="loadingRepos" class="h-4 w-4 animate-spin text-gray-400" fill="none" viewBox="0 0 24 24">
-                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                        <div
+                          class="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2"
+                        >
+                          <svg
+                            v-if="loadingRepos"
+                            class="h-4 w-4 animate-spin text-gray-400"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                          >
+                            <circle
+                              class="opacity-25"
+                              cx="12"
+                              cy="12"
+                              r="10"
+                              stroke="currentColor"
+                              stroke-width="4"
+                            ></circle>
+                            <path
+                              class="opacity-75"
+                              fill="currentColor"
+                              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                            ></path>
                           </svg>
-                          <svg v-else class="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                          <svg
+                            v-else
+                            class="h-4 w-4 text-gray-400"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                              stroke-width="2"
+                              d="M19 9l-7 7-7-7"
+                            />
                           </svg>
                         </div>
                       </div>
@@ -1190,7 +1700,10 @@ onBeforeUnmount(() => {
                           @click.stop
                           class="absolute left-0 right-0 z-30 mt-1 max-h-48 overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-900"
                         >
-                          <div v-if="filteredRepos.length === 0" class="px-3 py-4 text-center text-sm text-gray-500 dark:text-gray-400">
+                          <div
+                            v-if="filteredRepos.length === 0"
+                            class="px-3 py-4 text-center text-sm text-gray-500 dark:text-gray-400"
+                          >
                             No repositories found
                           </div>
                           <button
@@ -1201,13 +1714,33 @@ onBeforeUnmount(() => {
                             class="flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-gray-50 disabled:opacity-50 dark:hover:bg-gray-800"
                           >
                             <div class="flex items-center gap-2">
-                              <span class="text-gray-400 dark:text-gray-500">{{ repo.owner }}/</span>
-                              <span class="font-medium text-gray-900 dark:text-white">{{ repo.name }}</span>
-                              <svg v-if="repo.isPrivate" class="h-3.5 w-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                              <span class="text-gray-400 dark:text-gray-500"
+                                >{{ repo.owner }}/</span
+                              >
+                              <span
+                                class="font-medium text-gray-900 dark:text-white"
+                                >{{ repo.name }}</span
+                              >
+                              <svg
+                                v-if="repo.isPrivate"
+                                class="h-3.5 w-3.5 text-gray-400"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                              >
+                                <path
+                                  stroke-linecap="round"
+                                  stroke-linejoin="round"
+                                  stroke-width="2"
+                                  d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
+                                />
                               </svg>
                             </div>
-                            <span v-if="repo.isConnected" class="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-500 dark:bg-gray-800 dark:text-gray-400">Connected</span>
+                            <span
+                              v-if="repo.isConnected"
+                              class="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-500 dark:bg-gray-800 dark:text-gray-400"
+                              >Connected</span
+                            >
                           </button>
                         </div>
                       </Transition>
@@ -1216,14 +1749,20 @@ onBeforeUnmount(() => {
 
                   <div class="flex items-center justify-end space-x-2">
                     <button
-                      @click="addAppOpen = false; createAppForm.reset(); clearRepo()"
+                      @click="
+                        addAppOpen = false
+                        createAppForm.reset()
+                        clearRepo()
+                      "
                       class="rounded-md px-3 py-1.5 text-sm text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
                     >
                       Cancel
                     </button>
                     <button
                       @click="createApp"
-                      :disabled="!createAppForm.name.trim() || createAppForm.processing"
+                      :disabled="
+                        !createAppForm.name.trim() || createAppForm.processing
+                      "
                       class="rounded-md bg-gray-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
                     >
                       {{ createAppForm.processing ? 'Creating...' : 'Create' }}
@@ -1248,8 +1787,12 @@ onBeforeUnmount(() => {
                 @click="servicesOpen = !servicesOpen"
                 class="flex flex-1 items-center space-x-3 text-left hover:opacity-80"
               >
-                <h2 class="text-sm font-medium text-gray-900 dark:text-white">Services</h2>
-                <span class="inline-flex rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-500 dark:bg-gray-800 dark:text-gray-400">
+                <h2 class="text-sm font-medium text-gray-900 dark:text-white">
+                  Services
+                </h2>
+                <span
+                  class="inline-flex rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-500 dark:bg-gray-800 dark:text-gray-400"
+                >
                   {{ services.length }}
                 </span>
               </button>
@@ -1258,12 +1801,20 @@ onBeforeUnmount(() => {
                 class="rounded p-0.5 hover:bg-gray-100 dark:hover:bg-gray-800"
               >
                 <svg
-                  :class="['h-4 w-4 text-gray-400 transition-transform duration-200', servicesOpen ? 'rotate-90' : '']"
+                  :class="[
+                    'h-4 w-4 text-gray-400 transition-transform duration-200',
+                    servicesOpen ? 'rotate-90' : ''
+                  ]"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
                 >
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M9 5l7 7-7 7"
+                  />
                 </svg>
               </button>
             </div>
@@ -1276,28 +1827,61 @@ onBeforeUnmount(() => {
                 >
                   <div class="flex items-center justify-between">
                     <div class="flex items-center space-x-3">
-                      <span class="inline-flex h-7 w-7 items-center justify-center rounded bg-gray-100 text-[10px] font-bold text-gray-500 dark:bg-gray-800 dark:text-gray-400">
+                      <span
+                        class="inline-flex h-7 w-7 items-center justify-center rounded bg-gray-100 text-[10px] font-bold text-gray-500 dark:bg-gray-800 dark:text-gray-400"
+                      >
                         {{ serviceIcon(service.type) }}
                       </span>
                       <div>
                         <Link
                           :href="`/projects/${project.slug}/environments/${environment.slug}/services/${service.id}`"
-                          class="text-sm font-medium text-gray-900 underline decoration-dashed decoration-gray-300 underline-offset-2 hover:text-gray-700 dark:text-white dark:decoration-gray-600 dark:hover:text-gray-300"
-                        >{{ service.name }}</Link>
-                        <span class="ml-2 text-xs text-gray-400 dark:text-gray-500">{{ service.type }}{{ service.version !== 'latest' ? ` ${service.version}` : '' }}</span>
+                          class="text-sm font-medium text-gray-900 underline decoration-gray-300 decoration-dashed underline-offset-2 hover:text-gray-700 dark:text-white dark:decoration-gray-600 dark:hover:text-gray-300"
+                          >{{ service.name }}</Link
+                        >
+                        <span
+                          class="ml-2 text-xs text-gray-400 dark:text-gray-500"
+                          >{{ service.type
+                          }}{{
+                            service.version !== 'latest'
+                              ? ` ${service.version}`
+                              : ''
+                          }}</span
+                        >
                       </div>
                     </div>
                     <div class="flex items-center space-x-2">
-                      <span :class="['inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-medium', statusBadge(service.status).classes]">
+                      <span
+                        :class="[
+                          'inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-medium',
+                          statusBadge(service.status).classes
+                        ]"
+                      >
                         {{ statusBadge(service.status).label }}
                       </span>
-                      <Tooltip v-if="['postgresql', 'mysql', 'mongodb', 'redis'].includes(service.type) && service.status === 'running'" text="Dock">
+                      <Tooltip
+                        v-if="
+                          ['postgresql', 'mysql', 'mongodb', 'redis'].includes(
+                            service.type
+                          ) && service.status === 'running'
+                        "
+                        text="Dock"
+                      >
                         <Link
                           :href="`/projects/${project.slug}/environments/${environment.slug}/dock/${service.id}`"
                           class="rounded p-1 text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
                         >
-                          <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4" />
+                          <svg
+                            class="h-4 w-4"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                              stroke-width="2"
+                              d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"
+                            />
                           </svg>
                         </Link>
                       </Tooltip>
@@ -1307,8 +1891,14 @@ onBeforeUnmount(() => {
                           @click.stop="toggleServiceMenu(service.id)"
                           class="rounded p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
                         >
-                          <svg class="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
-                            <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
+                          <svg
+                            class="h-4 w-4"
+                            fill="currentColor"
+                            viewBox="0 0 20 20"
+                          >
+                            <path
+                              d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z"
+                            />
                           </svg>
                         </button>
                         <div
@@ -1322,11 +1912,30 @@ onBeforeUnmount(() => {
                             :disabled="stoppingServiceId === service.id"
                             class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:text-gray-300 dark:hover:bg-gray-800"
                           >
-                            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z" />
+                            <svg
+                              class="h-4 w-4"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                stroke-width="2"
+                                d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                              />
+                              <path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                stroke-width="2"
+                                d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z"
+                              />
                             </svg>
-                            {{ stoppingServiceId === service.id ? 'Stopping...' : 'Stop' }}
+                            {{
+                              stoppingServiceId === service.id
+                                ? 'Stopping...'
+                                : 'Stop'
+                            }}
                           </button>
                           <button
                             v-if="service.status === 'stopped'"
@@ -1334,19 +1943,53 @@ onBeforeUnmount(() => {
                             :disabled="startingServiceId === service.id"
                             class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:text-gray-300 dark:hover:bg-gray-800"
                           >
-                            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
-                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            <svg
+                              class="h-4 w-4"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                stroke-width="2"
+                                d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"
+                              />
+                              <path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                stroke-width="2"
+                                d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                              />
                             </svg>
-                            {{ startingServiceId === service.id ? 'Starting...' : 'Start' }}
+                            {{
+                              startingServiceId === service.id
+                                ? 'Starting...'
+                                : 'Start'
+                            }}
                           </button>
                           <Link
                             :href="`/projects/${project.slug}/environments/${environment.slug}/services/${service.id}/settings`"
                             class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-800"
                           >
-                            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                            <svg
+                              class="h-4 w-4"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                stroke-width="2"
+                                d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
+                              />
+                              <path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                stroke-width="2"
+                                d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                              />
                             </svg>
                             Settings
                           </Link>
@@ -1354,8 +1997,18 @@ onBeforeUnmount(() => {
                             @click.stop="confirmDeleteService(service)"
                             class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20"
                           >
-                            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            <svg
+                              class="h-4 w-4"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                stroke-width="2"
+                                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                              />
                             </svg>
                             Delete
                           </button>
@@ -1363,56 +2016,137 @@ onBeforeUnmount(() => {
                       </div>
                     </div>
                   </div>
-                  <div v-if="service.connectionUrl" class="group mt-2 flex items-center gap-2">
-                    <p class="truncate font-mono text-xs text-gray-500 dark:text-gray-400">
-                      {{ revealedServiceUrls.has(service.id) ? service.connectionUrl : service.connectionUrl.replace(/\/\/.*@/, '//***:***@') }}
+                  <div
+                    v-if="service.connectionUrl"
+                    class="group mt-2 flex items-center gap-2"
+                  >
+                    <p
+                      class="truncate font-mono text-xs text-gray-500 dark:text-gray-400"
+                    >
+                      {{
+                        revealedServiceUrls.has(service.id)
+                          ? service.connectionUrl
+                          : service.connectionUrl.replace(
+                              /\/\/.*@/,
+                              '//***:***@'
+                            )
+                      }}
                     </p>
                     <button
                       @click="toggleServiceUrlReveal(service.id)"
                       class="shrink-0 rounded p-0.5 text-gray-400 opacity-0 transition-opacity hover:text-gray-600 group-hover:opacity-100 dark:hover:text-gray-300"
                     >
-                      <svg v-if="revealedServiceUrls.has(service.id)" class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L6.5 6.5m7.378 7.378L17.5 17.5M3 3l18 18" />
+                      <svg
+                        v-if="revealedServiceUrls.has(service.id)"
+                        class="h-3.5 w-3.5"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          stroke-width="2"
+                          d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L6.5 6.5m7.378 7.378L17.5 17.5M3 3l18 18"
+                        />
                       </svg>
-                      <svg v-else class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                      <svg
+                        v-else
+                        class="h-3.5 w-3.5"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          stroke-width="2"
+                          d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                        />
+                        <path
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          stroke-width="2"
+                          d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+                        />
                       </svg>
                     </button>
                     <button
                       @click="copyToClipboard(service.connectionUrl)"
                       class="shrink-0 rounded p-0.5 text-gray-400 opacity-0 transition-opacity hover:text-gray-600 group-hover:opacity-100 dark:hover:text-gray-300"
                     >
-                      <svg v-if="copiedDomain === service.connectionUrl" class="h-3.5 w-3.5 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                      <svg
+                        v-if="copiedDomain === service.connectionUrl"
+                        class="h-3.5 w-3.5 text-emerald-500"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          stroke-width="2"
+                          d="M5 13l4 4L19 7"
+                        />
                       </svg>
-                      <svg v-else class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                      <svg
+                        v-else
+                        class="h-3.5 w-3.5"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          stroke-width="2"
+                          d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
+                        />
                       </svg>
                     </button>
                   </div>
-                  <div v-if="service.backupSupported" class="mt-2 flex items-center justify-between">
-                    <div class="flex items-center gap-2 text-xs text-gray-400 dark:text-gray-500">
-                      <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                  <div
+                    v-if="service.backupSupported"
+                    class="mt-2 flex items-center justify-between"
+                  >
+                    <div
+                      class="flex items-center gap-2 text-xs text-gray-400 dark:text-gray-500"
+                    >
+                      <svg
+                        class="h-3.5 w-3.5"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          stroke-width="2"
+                          d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"
+                        />
                       </svg>
                       <template v-if="service.lastBackup">
                         <span v-if="service.lastBackup.status === 'completed'">
-                          Last backup {{ timeAgo(service.lastBackup.completedAt) }} ({{ formatBytes(service.lastBackup.sizeBytes) }})
+                          Last backup
+                          {{ timeAgo(service.lastBackup.completedAt) }} ({{
+                            formatBytes(service.lastBackup.sizeBytes)
+                          }})
                         </span>
-                        <span v-else-if="service.lastBackup.status === 'running'" class="text-blue-500">
+                        <span
+                          v-else-if="service.lastBackup.status === 'running'"
+                          class="text-blue-500"
+                        >
                           Backup in progress...
                         </span>
-                        <span v-else-if="service.lastBackup.status === 'failed'" class="text-red-500">
+                        <span
+                          v-else-if="service.lastBackup.status === 'failed'"
+                          class="text-red-500"
+                        >
                           Last backup failed
                         </span>
-                        <span v-else>
-                          Backup pending...
-                        </span>
+                        <span v-else> Backup pending... </span>
                       </template>
-                      <template v-else>
-                        No backups yet
-                      </template>
+                      <template v-else> No backups yet </template>
                     </div>
                     <button
                       v-if="backupConfigured && service.status === 'running'"
@@ -1420,7 +2154,11 @@ onBeforeUnmount(() => {
                       :disabled="backingUpServiceId === service.id"
                       class="rounded px-2 py-0.5 text-xs font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-700 disabled:opacity-50 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200"
                     >
-                      {{ backingUpServiceId === service.id ? 'Starting...' : 'Backup now' }}
+                      {{
+                        backingUpServiceId === service.id
+                          ? 'Starting...'
+                          : 'Backup now'
+                      }}
                     </button>
                     <Link
                       v-else-if="!backupConfigured"
@@ -1432,7 +2170,10 @@ onBeforeUnmount(() => {
                   </div>
                 </div>
               </div>
-              <div v-else class="px-4 py-6 text-center text-sm text-gray-500 dark:text-gray-400">
+              <div
+                v-else
+                class="px-4 py-6 text-center text-sm text-gray-500 dark:text-gray-400"
+              >
                 No services attached.
               </div>
               <div class="px-4 pb-3">
@@ -1442,20 +2183,26 @@ onBeforeUnmount(() => {
                       v-model="newServiceName"
                       type="text"
                       placeholder="service name (e.g. main-db)"
-                      class="w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 font-mono text-sm text-gray-900 placeholder-gray-400 focus:border-brand focus:outline-none sm:flex-1 dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
+                      class="focus:border-brand w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 font-mono text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500 sm:flex-1"
                       @keydown.enter="createService"
                     />
                     <select
                       v-model="newServiceType"
-                      class="rounded-md border border-gray-200 bg-white px-2 py-1.5 text-sm text-gray-900 focus:border-brand focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+                      class="focus:border-brand rounded-md border border-gray-200 bg-white px-2 py-1.5 text-sm text-gray-900 focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-white"
                     >
-                      <option v-for="st in serviceTypes" :key="st.value" :value="st.value">{{ st.label }}</option>
+                      <option
+                        v-for="st in serviceTypes"
+                        :key="st.value"
+                        :value="st.value"
+                      >
+                        {{ st.label }}
+                      </option>
                     </select>
                     <input
                       v-model="newServiceVersion"
                       type="text"
                       placeholder="version"
-                      class="w-20 border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:border-brand focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
+                      class="focus:border-brand w-20 border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
                     />
                   </div>
                   <div class="flex items-center justify-end space-x-2">
@@ -1492,22 +2239,51 @@ onBeforeUnmount(() => {
                 @click="envVarsOpen = !envVarsOpen"
                 class="flex flex-1 items-center space-x-3 text-left hover:opacity-80"
               >
-                <h2 class="text-sm font-medium text-gray-900 dark:text-white">Environment variables</h2>
-                <span class="inline-flex rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-500 dark:bg-gray-800 dark:text-gray-400">
+                <h2 class="text-sm font-medium text-gray-900 dark:text-white">
+                  Environment variables
+                </h2>
+                <span
+                  class="inline-flex rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-500 dark:bg-gray-800 dark:text-gray-400"
+                >
                   {{ sortedVarKeys.length }}
                 </span>
               </button>
               <div class="flex items-center gap-2">
-                <Tooltip v-if="envVarsOpen" :text="bulkMode ? 'Single edit' : 'Bulk edit'">
+                <Tooltip
+                  v-if="envVarsOpen"
+                  :text="bulkMode ? 'Single edit' : 'Bulk edit'"
+                >
                   <button
                     @click="bulkMode ? exitBulkMode() : enterBulkMode()"
                     class="rounded p-0.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-800 dark:hover:text-gray-200"
                   >
-                    <svg v-if="bulkMode" class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+                    <svg
+                      v-if="bulkMode"
+                      class="h-4 w-4"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M4 6h16M4 12h16M4 18h16"
+                      />
                     </svg>
-                    <svg v-else class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+                    <svg
+                      v-else
+                      class="h-4 w-4"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"
+                      />
                     </svg>
                   </button>
                 </Tooltip>
@@ -1516,12 +2292,20 @@ onBeforeUnmount(() => {
                   class="rounded p-0.5 hover:bg-gray-100 dark:hover:bg-gray-800"
                 >
                   <svg
-                    :class="['h-4 w-4 text-gray-400 transition-transform duration-200', envVarsOpen ? 'rotate-90' : '']"
+                    :class="[
+                      'h-4 w-4 text-gray-400 transition-transform duration-200',
+                      envVarsOpen ? 'rotate-90' : ''
+                    ]"
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
                   >
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M9 5l7 7-7 7"
+                    />
                   </svg>
                 </button>
               </div>
@@ -1539,12 +2323,14 @@ onBeforeUnmount(() => {
                       v-model="bulkText"
                       rows="3"
                       placeholder="KEY=value&#10;DATABASE_URL=postgres://localhost:5432/db&#10;# Comments are ignored"
-                      class="relative block w-full resize-none bg-transparent px-4 py-4 font-mono text-sm leading-relaxed text-transparent caret-gray-900 placeholder-gray-400 focus:outline-none dark:caret-white dark:placeholder-gray-500"
+                      class="relative block w-full resize-none bg-transparent px-4 py-4 font-mono text-sm leading-relaxed text-transparent placeholder-gray-400 caret-gray-900 focus:outline-none dark:placeholder-gray-500 dark:caret-white"
                       style="field-sizing: content"
                       spellcheck="false"
                     />
                   </div>
-                  <div class="flex items-center justify-between border-t border-gray-200 px-4 py-3 dark:border-gray-800">
+                  <div
+                    class="flex items-center justify-between border-t border-gray-200 px-4 py-3 dark:border-gray-800"
+                  >
                     <p class="text-xs text-gray-400 dark:text-gray-500">
                       One KEY=value per line. Lines starting with # are ignored.
                     </p>
@@ -1559,7 +2345,10 @@ onBeforeUnmount(() => {
                 </div>
               </template>
               <template v-else>
-                <div v-if="sortedVarKeys.length > 0" class="space-y-1 px-4 pb-2">
+                <div
+                  v-if="sortedVarKeys.length > 0"
+                  class="space-y-1 px-4 pb-2"
+                >
                   <div
                     v-for="key in sortedVarKeys"
                     :key="key"
@@ -1574,33 +2363,76 @@ onBeforeUnmount(() => {
                         spellcheck="false"
                         class="min-w-0 flex-1 border-b border-dashed border-transparent bg-transparent font-mono text-sm font-medium text-gray-900 focus:border-gray-300 focus:outline-none dark:text-white dark:focus:border-gray-600"
                       />
-                      <div class="flex items-center space-x-1 opacity-0 transition-opacity group-hover:opacity-100">
+                      <div
+                        class="flex items-center space-x-1 opacity-0 transition-opacity group-hover:opacity-100"
+                      >
                         <button
                           v-if="isSensitive(key)"
                           @click="toggleReveal(key)"
                           class="rounded p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
                         >
-                          <svg v-if="revealedKeys.has(key)" class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L6.5 6.5m7.378 7.378L17.5 17.5M3 3l18 18" />
+                          <svg
+                            v-if="revealedKeys.has(key)"
+                            class="h-4 w-4"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                              stroke-width="2"
+                              d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L6.5 6.5m7.378 7.378L17.5 17.5M3 3l18 18"
+                            />
                           </svg>
-                          <svg v-else class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                          <svg
+                            v-else
+                            class="h-4 w-4"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                              stroke-width="2"
+                              d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                            />
+                            <path
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                              stroke-width="2"
+                              d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+                            />
                           </svg>
                         </button>
                         <button
                           @click="removeVar(key)"
                           class="rounded p-1 text-gray-400 hover:text-red-600 dark:hover:text-red-400"
                         >
-                          <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          <svg
+                            class="h-4 w-4"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                              stroke-width="2"
+                              d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                            />
                           </svg>
                         </button>
                       </div>
                     </div>
                     <input
                       :value="localVars[key]"
-                      :type="isSensitive(key) && !revealedKeys.has(key) ? 'password' : 'text'"
+                      :type="
+                        isSensitive(key) && !revealedKeys.has(key)
+                          ? 'password'
+                          : 'text'
+                      "
                       @blur="updateVarValue(key, $event.target.value)"
                       @keydown.enter="$event.target.blur()"
                       autocomplete="off"
@@ -1609,7 +2441,10 @@ onBeforeUnmount(() => {
                     />
                   </div>
                 </div>
-                <div v-else class="px-4 py-6 text-center text-sm text-gray-500 dark:text-gray-400">
+                <div
+                  v-else
+                  class="px-4 py-6 text-center text-sm text-gray-500 dark:text-gray-400"
+                >
                   No environment variables set.
                 </div>
                 <div class="px-4 pb-3">
@@ -1618,28 +2453,28 @@ onBeforeUnmount(() => {
                       v-model="newKey"
                       type="text"
                       placeholder="KEY"
-                      class="w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 font-mono text-sm text-gray-900 placeholder-gray-400 focus:border-brand focus:outline-none sm:flex-1 dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
+                      class="focus:border-brand w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 font-mono text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500 sm:flex-1"
                       @keydown.enter="addVar"
                     />
                     <input
                       v-model="newValue"
                       type="text"
                       placeholder="value"
-                      class="w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 font-mono text-sm text-gray-900 placeholder-gray-400 focus:border-brand focus:outline-none sm:flex-1 dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
+                      class="focus:border-brand w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 font-mono text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500 sm:flex-1"
                       @keydown.enter="addVar"
                     />
                     <button
                       v-if="shouldShowGenerate(newKey)"
                       @click="generateSecret"
                       type="button"
-                      class="w-full rounded-md border border-gray-200 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 sm:w-auto dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
+                      class="w-full rounded-md border border-gray-200 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800 sm:w-auto"
                     >
                       Generate
                     </button>
                     <button
                       @click="addVar"
                       :disabled="!newKey.trim() || saving"
-                      class="w-full rounded-md bg-gray-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50 sm:w-auto dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
+                      class="w-full rounded-md bg-gray-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100 sm:w-auto"
                     >
                       Add
                     </button>
@@ -1652,10 +2487,17 @@ onBeforeUnmount(() => {
 
         <!-- Deployments -->
         <div>
-          <h2 class="mb-4 text-sm font-medium text-gray-900 dark:text-white">Deployments</h2>
+          <h2 class="mb-4 text-sm font-medium text-gray-900 dark:text-white">
+            Deployments
+          </h2>
 
-          <div v-if="deployments.length > 0" class="rounded-lg border border-gray-200 dark:border-gray-800">
-            <div class="divide-y divide-gray-200 bg-white dark:divide-gray-800 dark:bg-gray-950 rounded-lg">
+          <div
+            v-if="deployments.length > 0"
+            class="rounded-lg border border-gray-200 dark:border-gray-800"
+          >
+            <div
+              class="divide-y divide-gray-200 rounded-lg bg-white dark:divide-gray-800 dark:bg-gray-950"
+            >
               <Link
                 v-for="dep in deployments"
                 :key="dep.id"
@@ -1666,32 +2508,51 @@ onBeforeUnmount(() => {
                   <span
                     :class="[
                       'h-2 w-2 rounded-full',
-                      dep.status === 'running' ? 'bg-green-500' :
-                      dep.status === 'failed' ? 'bg-red-500' :
-                      dep.status === 'building' || dep.status === 'deploying' ? 'bg-blue-500' :
-                      dep.status === 'cancelled' || dep.status === 'stopped' ? 'bg-gray-400' :
-                      'bg-yellow-500'
+                      dep.status === 'running'
+                        ? 'bg-green-500'
+                        : dep.status === 'failed'
+                        ? 'bg-red-500'
+                        : dep.status === 'building' ||
+                          dep.status === 'deploying'
+                        ? 'bg-blue-500'
+                        : dep.status === 'cancelled' || dep.status === 'stopped'
+                        ? 'bg-gray-400'
+                        : 'bg-yellow-500'
                     ]"
                   ></span>
-                  <span :class="['inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium', statusBadge(dep.status).classes]">
+                  <span
+                    :class="[
+                      'inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium',
+                      statusBadge(dep.status).classes
+                    ]"
+                  >
                     {{ statusBadge(dep.status).label }}
                   </span>
                   <span
                     v-if="dep.app && dep.app.name"
-                    class="inline-flex rounded px-1.5 py-0.5 text-[10px] font-medium bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400"
+                    class="inline-flex rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-500 dark:bg-gray-800 dark:text-gray-400"
                   >
                     {{ dep.app.name }}
                   </span>
-                  <span v-if="dep.gitBranch" class="text-xs text-gray-500 dark:text-gray-400">
+                  <span
+                    v-if="dep.gitBranch"
+                    class="text-xs text-gray-500 dark:text-gray-400"
+                  >
                     {{ dep.gitBranch }}
                   </span>
-                  <span v-if="dep.gitCommit" class="font-mono text-xs text-gray-400 dark:text-gray-500">
+                  <span
+                    v-if="dep.gitCommit"
+                    class="font-mono text-xs text-gray-400 dark:text-gray-500"
+                  >
                     {{ dep.gitCommit.slice(0, 7) }}
                   </span>
                 </div>
                 <div class="flex items-center space-x-4">
                   <span class="text-xs text-gray-500 dark:text-gray-400">
-                    {{ dep.triggeredBy?.fullName || (dep.triggerType === 'webhook' ? 'Git' : 'System') }}
+                    {{
+                      dep.triggeredBy?.fullName ||
+                      (dep.triggerType === 'webhook' ? 'Git' : 'System')
+                    }}
                   </span>
                   <span class="text-xs text-gray-400 dark:text-gray-500">
                     {{ timeAgo(dep.createdAt) }}
@@ -1701,8 +2562,13 @@ onBeforeUnmount(() => {
             </div>
           </div>
 
-          <div v-else class="rounded-lg border border-dashed border-gray-300 px-6 py-8 text-center dark:border-gray-700">
-            <p class="text-sm text-gray-500 dark:text-gray-400">No deployments yet.</p>
+          <div
+            v-else
+            class="rounded-lg border border-dashed border-gray-300 px-6 py-8 text-center dark:border-gray-700"
+          >
+            <p class="text-sm text-gray-500 dark:text-gray-400">
+              No deployments yet.
+            </p>
             <p class="mt-1 text-sm text-gray-400 dark:text-gray-500">
               Slide to deploy your first version.
             </p>
@@ -1721,6 +2587,5 @@ onBeforeUnmount(() => {
       @confirm="executeDeleteService"
       @cancel="cancelDeleteService"
     />
-
   </div>
 </template>

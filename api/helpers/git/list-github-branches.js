@@ -22,7 +22,9 @@ module.exports = {
     const cacheKey = `github:branches:${owner}/${repo}`
     try {
       const cached = await sails.cache.get(cacheKey)
-      if (cached) { return cached }
+      if (cached) {
+        return cached
+      }
     } catch (err) {
       sails.log.verbose('Cache read failed for GitHub branches:', err.message)
     }
@@ -31,8 +33,8 @@ module.exports = {
       `https://api.github.com/repos/${owner}/${repo}/branches?per_page=100`,
       {
         headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'Accept': 'application/vnd.github+json',
+          Authorization: `Bearer ${accessToken}`,
+          Accept: 'application/vnd.github+json',
           'X-GitHub-Api-Version': '2022-11-28'
         }
       }
@@ -44,13 +46,17 @@ module.exports = {
 
     const branches = await response.json()
 
-    const result = branches.map(branch => ({
+    const result = branches.map((branch) => ({
       name: branch.name,
       isProtected: branch.protected
     }))
 
     // Cache for 2 minutes
-    try { await sails.cache.set(cacheKey, result, 120_000) } catch (err) { /* best-effort */ }
+    try {
+      await sails.cache.set(cacheKey, result, 120_000)
+    } catch (err) {
+      /* best-effort */
+    }
 
     return result
   }

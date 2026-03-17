@@ -39,12 +39,17 @@ module.exports = {
   fn: async function ({ projectSlug, environmentSlug, page, limit }) {
     const user = await User.findOne({ id: this.req.session.userId })
 
-    const project = await Project.findOne({ slug: projectSlug }).populate('team')
+    const project = await Project.findOne({ slug: projectSlug }).populate(
+      'team'
+    )
     if (!project) throw 'notFound'
 
     if (project.team.id !== user.team) throw 'forbidden'
 
-    const environment = await Environment.findOne({ project: project.id, slug: environmentSlug })
+    const environment = await Environment.findOne({
+      project: project.id,
+      slug: environmentSlug
+    })
     if (!environment) throw 'notFound'
 
     const skip = (page - 1) * limit

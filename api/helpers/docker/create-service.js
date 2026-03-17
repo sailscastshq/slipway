@@ -5,7 +5,8 @@ const execFileAsync = util.promisify(execFile)
 module.exports = {
   friendlyName: 'Create service',
 
-  description: 'Create a backing service container (PostgreSQL, MySQL, Redis, MongoDB).',
+  description:
+    'Create a backing service container (PostgreSQL, MySQL, Redis, MongoDB).',
 
   inputs: {
     serviceId: {
@@ -36,7 +37,16 @@ module.exports = {
     const image = Service.getDockerImage(service.type, service.version)
 
     // Build docker run args based on service type
-    const args = ['run', '-d', '--name', service.containerName, '--network', networkName, '--restart', 'unless-stopped']
+    const args = [
+      'run',
+      '-d',
+      '--name',
+      service.containerName,
+      '--network',
+      networkName,
+      '--restart',
+      'unless-stopped'
+    ]
 
     // Mount a named volume so data persists independently of the container
     const dataDirs = {
@@ -58,7 +68,8 @@ module.exports = {
       mongodb: { cpus: '1', memory: '512m' },
       redis: { cpus: '0.25', memory: '128m' }
     }
-    const resourceLimits = service.resourceLimits || typeDefaults[service.type] || { cpus: '0.5', memory: '256m' }
+    const resourceLimits = service.resourceLimits ||
+      typeDefaults[service.type] || { cpus: '0.5', memory: '256m' }
     if (resourceLimits.cpus) {
       args.push('--cpus', String(resourceLimits.cpus))
     }
@@ -117,7 +128,12 @@ module.exports = {
         status: 'running'
       })
 
-      sails.log.info(`Service started: ${service.containerName} (${containerId.substring(0, 12)})`)
+      sails.log.info(
+        `Service started: ${service.containerName} (${containerId.substring(
+          0,
+          12
+        )})`
+      )
 
       return {
         containerId,

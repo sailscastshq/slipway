@@ -48,13 +48,21 @@ module.exports = {
     const res = this.res
 
     const user = await User.findOne({ id: req.session.userId }).populate('team')
-    const project = await Project.findOne({ slug: projectSlug, team: user.team.id })
+    const project = await Project.findOne({
+      slug: projectSlug,
+      team: user.team.id
+    })
     if (!project) throw 'notFound'
 
-    const environment = await Environment.findOne({ slug: environmentSlug, project: project.id })
+    const environment = await Environment.findOne({
+      slug: environmentSlug,
+      project: project.id
+    })
     if (!environment) throw 'notFound'
 
-    const app = await App.findOne({ environment: environment.id, isDefault: true }) || await App.findOne({ environment: environment.id })
+    const app =
+      (await App.findOne({ environment: environment.id, isDefault: true })) ||
+      (await App.findOne({ environment: environment.id }))
     if (!app || !app.containerName) throw 'notFound'
 
     const stream = res.sse()
@@ -64,9 +72,18 @@ module.exports = {
 
     // Spawn `docker logs --follow` as a child process
     const dockerPath = sails.config.docker?.binaryPath || 'docker'
-    const args = ['logs', '--follow', '--tail', String(tail), '--timestamps', app.containerName]
+    const args = [
+      'logs',
+      '--follow',
+      '--tail',
+      String(tail),
+      '--timestamps',
+      app.containerName
+    ]
 
-    sails.log.debug(`[stream-container-logs] Starting docker logs for container: ${app.containerName}`)
+    sails.log.debug(
+      `[stream-container-logs] Starting docker logs for container: ${app.containerName}`
+    )
 
     const docker = spawn(dockerPath, args)
 
@@ -81,13 +98,17 @@ module.exports = {
     docker.stderr.on('data', onData)
 
     docker.on('error', (err) => {
-      sails.log.error(`[stream-container-logs] Docker spawn error: ${err.message}`)
+      sails.log.error(
+        `[stream-container-logs] Docker spawn error: ${err.message}`
+      )
       stream.send({ error: err.message })
       stream.close()
     })
 
     docker.on('close', (code, signal) => {
-      sails.log.debug(`[stream-container-logs] Docker process closed with code: ${code}, signal: ${signal}`)
+      sails.log.debug(
+        `[stream-container-logs] Docker process closed with code: ${code}, signal: ${signal}`
+      )
       stream.send({ closed: true })
       stream.close()
     })

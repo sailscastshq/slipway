@@ -7,7 +7,8 @@ module.exports = {
     template: {
       type: 'string',
       required: true,
-      description: 'The email template name (e.g. email-deployment-notification)'
+      description:
+        'The email template name (e.g. email-deployment-notification)'
     },
     subject: {
       type: 'string',
@@ -26,13 +27,19 @@ module.exports = {
   },
 
   fn: async function ({ template, subject, templateData }) {
-    const notificationEmails = await sails.helpers.setting.get('notificationEmails', '')
+    const notificationEmails = await sails.helpers.setting.get(
+      'notificationEmails',
+      ''
+    )
 
     if (!notificationEmails) {
       throw 'error'
     }
 
-    const emails = notificationEmails.split(',').map(e => e.trim()).filter(Boolean)
+    const emails = notificationEmails
+      .split(',')
+      .map((e) => e.trim())
+      .filter(Boolean)
     if (emails.length === 0) {
       throw 'error'
     }

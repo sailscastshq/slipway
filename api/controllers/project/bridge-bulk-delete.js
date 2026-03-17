@@ -36,7 +36,9 @@ module.exports = {
   },
 
   fn: async function ({ slug, envSlug, modelIdentity, ids }) {
-    const user = await User.findOne({ id: this.req.session.userId }).populate('team')
+    const user = await User.findOne({ id: this.req.session.userId }).populate(
+      'team'
+    )
     if (!user) {
       throw { notFound: '/login' }
     }
@@ -54,7 +56,9 @@ module.exports = {
       throw { notFound: `/projects/${slug}` }
     }
 
-    const app = await App.findOne({ environment: environment.id, isDefault: true }) || await App.findOne({ environment: environment.id })
+    const app =
+      (await App.findOne({ environment: environment.id, isDefault: true })) ||
+      (await App.findOne({ environment: environment.id }))
     if (!app || app.status !== 'running') {
       throw { badRequest: { error: 'App is not running' } }
     }
@@ -65,14 +69,21 @@ module.exports = {
 
     // Execute bulk delete in container
     const deleteCode = `
-      const deleted = await sails.models['${modelIdentity}'].destroy({ id: { in: ${JSON.stringify(ids)} } }).fetch();
+      const deleted = await sails.models['${modelIdentity}'].destroy({ id: { in: ${JSON.stringify(
+      ids
+    )} } }).fetch();
       return { count: deleted.length };
     `
     const wrappedCode = await sails.helpers.bridge.buildSailsWrapper(deleteCode)
-    const result = await sails.helpers.bridge.executeInContainer(app.containerName, wrappedCode)
+    const result = await sails.helpers.bridge.executeInContainer(
+      app.containerName,
+      wrappedCode
+    )
 
     if (!result.success) {
-      throw { badRequest: { error: result.error || 'Failed to delete records' } }
+      throw {
+        badRequest: { error: result.error || 'Failed to delete records' }
+      }
     }
 
     // Redirect back to model list

@@ -44,7 +44,9 @@ module.exports = {
     })
 
     if (!config.domains || config.domains.length === 0 || !config.route) {
-      sails.log.info(`No hostname route configured for environment ${environmentId}; direct IP access remains available`)
+      sails.log.info(
+        `No hostname route configured for environment ${environmentId}; direct IP access remains available`
+      )
       return {
         domains: [],
         routeId: routeContainerName,
@@ -54,21 +56,31 @@ module.exports = {
 
     // Get routable apps for this environment
     const apps = await App.find({ environment: environmentId })
-    const routableApps = apps.filter(app => app.hostPort && app.routePath !== null)
+    const routableApps = apps.filter(
+      (app) => app.hostPort && app.routePath !== null
+    )
 
     // Build docker run args with caddy labels
     const args = [
-      'run', '-d',
-      '--name', routeContainerName,
-      '--network', network,
-      '--restart', 'unless-stopped',
-      '--label', `caddy=${config.domains.join(',')}`
+      'run',
+      '-d',
+      '--name',
+      routeContainerName,
+      '--network',
+      network,
+      '--restart',
+      'unless-stopped',
+      '--label',
+      `caddy=${config.domains.join(',')}`
     ]
 
     if (routableApps.length === 1) {
       // Single app — straightforward reverse proxy using container name
       const app = routableApps[0]
-      args.push('--label', `caddy.reverse_proxy=${app.containerName}:${app.port}`)
+      args.push(
+        '--label',
+        `caddy.reverse_proxy=${app.containerName}:${app.port}`
+      )
     } else {
       // Multi-app — sort by path specificity, root last
       const sorted = [...routableApps].sort((a, b) => {
@@ -79,10 +91,16 @@ module.exports = {
 
       sorted.forEach((app, i) => {
         if (app.routePath === '/') {
-          args.push('--label', `caddy.reverse_proxy=${app.containerName}:${app.port}`)
+          args.push(
+            '--label',
+            `caddy.reverse_proxy=${app.containerName}:${app.port}`
+          )
         } else {
           args.push('--label', `caddy.handle_path_${i}=${app.routePath}*`)
-          args.push('--label', `caddy.handle_path_${i}.reverse_proxy=${app.containerName}:${app.port}`)
+          args.push(
+            '--label',
+            `caddy.handle_path_${i}.reverse_proxy=${app.containerName}:${app.port}`
+          )
         }
       })
     }
@@ -98,7 +116,11 @@ module.exports = {
     return new Promise((resolve, reject) => {
       execFile(dockerPath, args, (err) => {
         if (err) {
-          sails.log.error(`Route container creation failed for ${config.domains.join(', ')}: ${err.message}`)
+          sails.log.error(
+            `Route container creation failed for ${config.domains.join(
+              ', '
+            )}: ${err.message}`
+          )
           throw 'caddyError'
         }
         sails.log.info(`Caddy route created for ${config.domains.join(', ')}`)

@@ -2,7 +2,9 @@ const { spawn } = require('child_process')
 
 // eslint-disable-next-line no-control-regex
 const ANSI_RE = /\x1b\[[0-9;]*[A-Za-z]|\[\d+(?:;\d+)*m/g
-function stripAnsi(s) { return s.replace(ANSI_RE, '') }
+function stripAnsi(s) {
+  return s.replace(ANSI_RE, '')
+}
 
 module.exports = {
   friendlyName: 'Run Quest job',
@@ -46,7 +48,9 @@ module.exports = {
 
   fn: async function ({ projectSlug, environmentSlug, name, jobInputs }) {
     const user = await User.findOne({ id: this.req.session.userId })
-    const project = await Project.findOne({ slug: projectSlug }).populate('team')
+    const project = await Project.findOne({ slug: projectSlug }).populate(
+      'team'
+    )
 
     if (!project) {
       throw 'notFound'
@@ -69,7 +73,9 @@ module.exports = {
       throw { badRequest: 'sails-hook-quest not detected in this app.' }
     }
 
-    const app = await App.findOne({ environment: environment.id, isDefault: true }) || await App.findOne({ environment: environment.id })
+    const app =
+      (await App.findOne({ environment: environment.id, isDefault: true })) ||
+      (await App.findOne({ environment: environment.id }))
 
     if (!app || app.status !== 'running' || !app.containerName) {
       throw { badRequest: 'App is not running.' }
@@ -81,9 +87,10 @@ module.exports = {
     // Add inputs as command line args
     if (jobInputs && typeof jobInputs === 'object') {
       for (const [key, value] of Object.entries(jobInputs)) {
-        const serialized = typeof value === 'object' && value !== null
-          ? JSON.stringify(value)
-          : String(value)
+        const serialized =
+          typeof value === 'object' && value !== null
+            ? JSON.stringify(value)
+            : String(value)
         args.push(`--${key}=${serialized}`)
       }
     }
@@ -92,7 +99,9 @@ module.exports = {
     const result = await executeInContainer(args)
     const duration = Date.now() - startedAt
 
-    sails.log.info(`[quest] Job "${name}" triggered in ${project.slug}/${environmentSlug}`)
+    sails.log.info(
+      `[quest] Job "${name}" triggered in ${project.slug}/${environmentSlug}`
+    )
 
     // Record telemetry so manual runs appear in job history
     try {
@@ -105,13 +114,21 @@ module.exports = {
           trigger: 'manual',
           triggeredBy: user.fullName,
           stdout: result.output || '',
-          ...(result.success ? {} : { error: result.error || 'Unknown error', stderr: result.error || '' })
+          ...(result.success
+            ? {}
+            : {
+                error: result.error || 'Unknown error',
+                stderr: result.error || ''
+              })
         },
         recordedAt: Date.now(),
         environment: environment.id
       })
     } catch (err) {
-      sails.log.warn('[quest] Failed to record telemetry for manual run:', err.message)
+      sails.log.warn(
+        '[quest] Failed to record telemetry for manual run:',
+        err.message
+      )
     }
 
     return {

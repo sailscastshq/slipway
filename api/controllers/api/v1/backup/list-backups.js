@@ -26,13 +26,19 @@ module.exports = {
   fn: async function ({ serviceId }) {
     const user = await User.findOne({ id: this.req.session.userId })
 
-    const service = await Service.findOne({ id: serviceId }).populate('environment')
+    const service = await Service.findOne({ id: serviceId }).populate(
+      'environment'
+    )
     if (!service) {
       throw 'notFound'
     }
 
-    const environment = await Environment.findOne({ id: service.environment.id }).populate('project')
-    const project = await Project.findOne({ id: environment.project.id }).populate('team')
+    const environment = await Environment.findOne({
+      id: service.environment.id
+    }).populate('project')
+    const project = await Project.findOne({
+      id: environment.project.id
+    }).populate('team')
 
     if (project.team.id !== user.team) {
       throw 'forbidden'
@@ -44,7 +50,7 @@ module.exports = {
       .populate('triggeredBy')
 
     return {
-      backups: backups.map(b => ({
+      backups: backups.map((b) => ({
         id: b.id,
         status: b.status,
         type: b.type,

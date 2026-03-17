@@ -1,7 +1,7 @@
 module.exports = {
   friendlyName: 'Create project',
 
-  description: 'Create a new project within the user\'s team.',
+  description: "Create a new project within the user's team.",
 
   inputs: {
     name: {
@@ -58,7 +58,8 @@ module.exports = {
       }).fetch()
 
       // Create default production environment
-      const { telemetryToken, telemetryTokenHash } = sails.helpers.environment.generateTelemetryToken()
+      const { telemetryToken, telemetryTokenHash } =
+        sails.helpers.environment.generateTelemetryToken()
       await Environment.create({
         name: 'Production',
         slug: 'production',

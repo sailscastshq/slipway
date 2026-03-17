@@ -1,7 +1,8 @@
 module.exports = {
   friendlyName: 'Create app',
 
-  description: 'Create a new app in an environment, optionally linking a GitHub repository.',
+  description:
+    'Create a new app in an environment, optionally linking a GitHub repository.',
 
   inputs: {
     slug: {
@@ -48,13 +49,24 @@ module.exports = {
     }
   },
 
-  fn: async function ({ slug, envSlug, name, dockerfilePath, routePath, repoId, branch }) {
+  fn: async function ({
+    slug,
+    envSlug,
+    name,
+    dockerfilePath,
+    routePath,
+    repoId,
+    branch
+  }) {
     const user = await User.findOne({ id: this.req.session.userId })
 
     const project = await Project.findOne({ slug }).populate('team')
     if (!project || project.team.id !== user.team) throw { notFound: '/' }
 
-    const environment = await Environment.findOne({ project: project.id, slug: envSlug })
+    const environment = await Environment.findOne({
+      project: project.id,
+      slug: envSlug
+    })
     if (!environment) throw { notFound: `/projects/${slug}` }
 
     let app
@@ -81,12 +93,17 @@ module.exports = {
         }).decrypt()
 
         if (provider) {
-          const repos = await sails.helpers.git.listGithubRepos(provider.clientSecret, 1, 100)
-          const repoInfo = repos.find(r => r.id === repoId)
+          const repos = await sails.helpers.git.listGithubRepos(
+            provider.clientSecret,
+            1,
+            100
+          )
+          const repoInfo = repos.find((r) => r.id === repoId)
 
           if (repoInfo) {
             // Generate deploy key
-            const { publicKey, privateKey } = await sails.helpers.git.generateDeployKey(repoInfo.name)
+            const { publicKey, privateKey } =
+              await sails.helpers.git.generateDeployKey(repoInfo.name)
 
             // Add deploy key to GitHub
             let deployKeyId
@@ -108,7 +125,9 @@ module.exports = {
             }
 
             // Generate webhook secret and create webhook
-            const webhookSecret = await sails.helpers.strings.random('url-friendly')
+            const webhookSecret = await sails.helpers.strings.random(
+              'url-friendly'
+            )
             const instanceUrl = await sails.helpers.getInstanceUrl()
             const webhookUrl = `${instanceUrl}/webhook/github`
 
@@ -142,19 +161,29 @@ module.exports = {
               webhookId,
               webhookSecret,
               webhookUrl,
-              branchMappings: { [branch || repoInfo.defaultBranch]: environment.slug },
+              branchMappings: {
+                [branch || repoInfo.defaultBranch]: environment.slug
+              },
               provider: provider.id,
               environment: environment.id,
               app: app.id
             })
 
-            sails.log.info(`[git] Connected ${repoInfo.fullName} to ${project.slug}/${envSlug} (app: ${app.slug})`)
-            sails.inertia.flash('success', `App created and ${repoInfo.fullName} connected`)
+            sails.log.info(
+              `[git] Connected ${repoInfo.fullName} to ${project.slug}/${envSlug} (app: ${app.slug})`
+            )
+            sails.inertia.flash(
+              'success',
+              `App created and ${repoInfo.fullName} connected`
+            )
             return `/projects/${slug}/environments/${envSlug}`
           }
         }
       } catch (err) {
-        sails.log.error('[git] Failed to connect repo during app creation:', err)
+        sails.log.error(
+          '[git] Failed to connect repo during app creation:',
+          err
+        )
         // App was still created, just no repo link
       }
     }

@@ -44,7 +44,8 @@ module.exports = {
     }).fetch()
 
     // Auto-create a production environment
-    const { telemetryToken, telemetryTokenHash } = sails.helpers.environment.generateTelemetryToken()
+    const { telemetryToken, telemetryTokenHash } =
+      sails.helpers.environment.generateTelemetryToken()
     await Environment.create({
       name: 'Production',
       slug: 'production',

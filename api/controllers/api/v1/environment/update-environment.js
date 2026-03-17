@@ -1,7 +1,7 @@
 module.exports = {
   friendlyName: 'Update environment',
 
-  description: 'Update an environment\'s details.',
+  description: "Update an environment's details.",
 
   inputs: {
     projectSlug: {
@@ -52,10 +52,20 @@ module.exports = {
     }
   },
 
-  fn: async function ({ projectSlug, slug, name, isProduction, domain, envVars, resourceLimits }) {
+  fn: async function ({
+    projectSlug,
+    slug,
+    name,
+    isProduction,
+    domain,
+    envVars,
+    resourceLimits
+  }) {
     const user = await User.findOne({ id: this.req.session.userId })
 
-    const project = await Project.findOne({ slug: projectSlug }).populate('team')
+    const project = await Project.findOne({ slug: projectSlug }).populate(
+      'team'
+    )
 
     if (!project) {
       throw 'notFound'
@@ -91,7 +101,10 @@ module.exports = {
         await sails.helpers.caddy.updateRoute(environment.id)
       } catch (err) {
         // Log but don't fail - Caddy update is best-effort
-        sails.log.warn('Failed to update Caddy route after domain change:', err.message)
+        sails.log.warn(
+          'Failed to update Caddy route after domain change:',
+          err.message
+        )
       }
     }
 
@@ -100,7 +113,11 @@ module.exports = {
       action: 'environment.updated',
       resourceType: 'environment',
       resourceId: environment.id,
-      details: { projectSlug, environmentSlug: slug, fields: Object.keys(updates) },
+      details: {
+        projectSlug,
+        environmentSlug: slug,
+        fields: Object.keys(updates)
+      },
       userId: user.id,
       teamId: project.team.id,
       ipAddress: this.req.ip

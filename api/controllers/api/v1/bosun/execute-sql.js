@@ -45,7 +45,9 @@ module.exports = {
   },
 
   fn: async function ({ query, database }) {
-    const user = await User.findOne({ id: this.req.session.userId }).populate('team')
+    const user = await User.findOne({ id: this.req.session.userId }).populate(
+      'team'
+    )
     if (!user) {
       throw 'notFound'
     }
@@ -79,10 +81,18 @@ module.exports = {
       // PRAGMA and SELECT return rows; write statements return change info
       if (stmt.reader) {
         rows = stmt.all()
-        columns = rows.length > 0 ? Object.keys(rows[0]) : stmt.columns().map(c => c.name)
+        columns =
+          rows.length > 0
+            ? Object.keys(rows[0])
+            : stmt.columns().map((c) => c.name)
       } else {
         const info = stmt.run()
-        rows = [{ changes: info.changes, lastInsertRowid: Number(info.lastInsertRowid) }]
+        rows = [
+          {
+            changes: info.changes,
+            lastInsertRowid: Number(info.lastInsertRowid)
+          }
+        ]
         columns = ['changes', 'lastInsertRowid']
       }
 
@@ -106,7 +116,11 @@ module.exports = {
       throw { badRequest: err.message || 'Query execution failed.' }
     } finally {
       if (db) {
-        try { db.close() } catch { /* ignore */ }
+        try {
+          db.close()
+        } catch {
+          /* ignore */
+        }
       }
     }
   }

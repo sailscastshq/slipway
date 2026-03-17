@@ -38,8 +38,8 @@ module.exports = {
       {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'Accept': 'application/vnd.github+json',
+          Authorization: `Bearer ${accessToken}`,
+          Accept: 'application/vnd.github+json',
           'X-GitHub-Api-Version': '2022-11-28',
           'Content-Type': 'application/json'
         },
@@ -66,8 +66,8 @@ module.exports = {
           `https://api.github.com/repos/${owner}/${repo}/hooks`,
           {
             headers: {
-              'Authorization': `Bearer ${accessToken}`,
-              'Accept': 'application/vnd.github+json',
+              Authorization: `Bearer ${accessToken}`,
+              Accept: 'application/vnd.github+json',
               'X-GitHub-Api-Version': '2022-11-28'
             }
           }
@@ -75,7 +75,7 @@ module.exports = {
 
         if (listRes.ok) {
           const hooks = await listRes.json()
-          const existing = hooks.find(h => h.config?.url === webhookUrl)
+          const existing = hooks.find((h) => h.config?.url === webhookUrl)
           if (existing) {
             // Update the existing webhook's secret and events
             const updateRes = await fetch(
@@ -83,8 +83,8 @@ module.exports = {
               {
                 method: 'PATCH',
                 headers: {
-                  'Authorization': `Bearer ${accessToken}`,
-                  'Accept': 'application/vnd.github+json',
+                  Authorization: `Bearer ${accessToken}`,
+                  Accept: 'application/vnd.github+json',
                   'X-GitHub-Api-Version': '2022-11-28',
                   'Content-Type': 'application/json'
                 },
@@ -103,7 +103,9 @@ module.exports = {
 
             if (updateRes.ok) {
               const updated = await updateRes.json()
-              sails.log.info(`[git] Reused existing webhook ${existing.id} on ${owner}/${repo}`)
+              sails.log.info(
+                `[git] Reused existing webhook ${existing.id} on ${owner}/${repo}`
+              )
               return {
                 id: String(updated.id),
                 url: updated.config.url,

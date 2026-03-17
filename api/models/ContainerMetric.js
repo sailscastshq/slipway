@@ -87,12 +87,14 @@ module.exports = {
 
     app: {
       model: 'app',
-      description: 'The app this metric belongs to (null for service containers)'
+      description:
+        'The app this metric belongs to (null for service containers)'
     },
 
     service: {
       model: 'service',
-      description: 'The service this metric belongs to (null for app containers)'
+      description:
+        'The service this metric belongs to (null for app containers)'
     }
   }
 }

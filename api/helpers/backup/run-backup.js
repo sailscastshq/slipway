@@ -41,20 +41,42 @@ module.exports = {
     try {
       const globalJson = await sails.helpers.setting.get('globalEnvVars', '{}')
       globalEnvVars = JSON.parse(globalJson)
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
 
     const uploadsConfig = {
-      key: globalEnvVars.R2_ACCESS_KEY || globalEnvVars.S3_ACCESS_KEY || globalEnvVars.SPACES_ACCESS_KEY || (sails.config.uploads || {}).key,
-      secret: globalEnvVars.R2_SECRET_KEY || globalEnvVars.S3_SECRET_KEY || globalEnvVars.SPACES_SECRET_KEY || (sails.config.uploads || {}).secret,
-      bucket: globalEnvVars.R2_BUCKET || globalEnvVars.S3_BUCKET || globalEnvVars.SPACES_BUCKET || (sails.config.uploads || {}).bucket,
-      endpoint: globalEnvVars.R2_ENDPOINT || globalEnvVars.S3_ENDPOINT || globalEnvVars.SPACES_ENDPOINT || (sails.config.uploads || {}).endpoint,
-      region: globalEnvVars.S3_REGION || globalEnvVars.SPACES_REGION || (sails.config.uploads || {}).region
+      key:
+        globalEnvVars.R2_ACCESS_KEY ||
+        globalEnvVars.S3_ACCESS_KEY ||
+        globalEnvVars.SPACES_ACCESS_KEY ||
+        (sails.config.uploads || {}).key,
+      secret:
+        globalEnvVars.R2_SECRET_KEY ||
+        globalEnvVars.S3_SECRET_KEY ||
+        globalEnvVars.SPACES_SECRET_KEY ||
+        (sails.config.uploads || {}).secret,
+      bucket:
+        globalEnvVars.R2_BUCKET ||
+        globalEnvVars.S3_BUCKET ||
+        globalEnvVars.SPACES_BUCKET ||
+        (sails.config.uploads || {}).bucket,
+      endpoint:
+        globalEnvVars.R2_ENDPOINT ||
+        globalEnvVars.S3_ENDPOINT ||
+        globalEnvVars.SPACES_ENDPOINT ||
+        (sails.config.uploads || {}).endpoint,
+      region:
+        globalEnvVars.S3_REGION ||
+        globalEnvVars.SPACES_REGION ||
+        (sails.config.uploads || {}).region
     }
 
     if (!uploadsConfig.key || !uploadsConfig.secret || !uploadsConfig.bucket) {
       await Backup.updateOne({ id: backupId }).set({
         status: 'failed',
-        errorMessage: 'Backup storage not configured. Go to Settings > Global Environment and set R2_ACCESS_KEY, R2_SECRET_KEY, R2_BUCKET, and R2_ENDPOINT.',
+        errorMessage:
+          'Backup storage not configured. Go to Settings > Global Environment and set R2_ACCESS_KEY, R2_SECRET_KEY, R2_BUCKET, and R2_ENDPOINT.',
         completedAt: Date.now(),
         durationMs: Date.now() - startedAt
       })
@@ -76,9 +98,12 @@ module.exports = {
     }
 
     // Generate S3 key path
-    const env = await Environment.findOne({ id: service.environment }).populate('project')
+    const env = await Environment.findOne({ id: service.environment }).populate(
+      'project'
+    )
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
-    const ext = { postgresql: 'dmp', mysql: 'sql', mongodb: 'gz' }[service.type] || 'sql'
+    const ext =
+      { postgresql: 'dmp', mysql: 'sql', mongodb: 'gz' }[service.type] || 'sql'
     const s3Key = `backups/${env.project.slug}/${env.slug}/${service.name}/${timestamp}.${ext}`
 
     // Temp file for the dump
@@ -90,18 +115,28 @@ module.exports = {
       const dockerArgs = ['exec', service.containerName, ...dumpArgs]
 
       await new Promise((resolve, reject) => {
-        const child = execFile(dockerBinary, dockerArgs, {
-          maxBuffer: 1024 * 1024 * 512,
-          encoding: 'buffer'
-        }, (err, stdout, stderr) => {
-          if (err) return reject(new Error(`Dump failed: ${stderr ? stderr.toString() : err.message}`))
-          try {
-            fs.writeFileSync(tmpFile, stdout)
-            resolve()
-          } catch (writeErr) {
-            reject(writeErr)
+        const child = execFile(
+          dockerBinary,
+          dockerArgs,
+          {
+            maxBuffer: 1024 * 1024 * 512,
+            encoding: 'buffer'
+          },
+          (err, stdout, stderr) => {
+            if (err)
+              return reject(
+                new Error(
+                  `Dump failed: ${stderr ? stderr.toString() : err.message}`
+                )
+              )
+            try {
+              fs.writeFileSync(tmpFile, stdout)
+              resolve()
+            } catch (writeErr) {
+              reject(writeErr)
+            }
           }
-        })
+        )
       })
 
       // Get file size
@@ -117,11 +152,21 @@ module.exports = {
       const fd = fs.openSync(tmpFile, 'r')
       fs.readSync(fd, header, 0, 5, 0)
       fs.closeSync(fd)
-      if (service.type === 'postgresql' && header.toString('ascii', 0, 5) !== 'PGDMP') {
-        throw new Error('PostgreSQL dump has invalid header — expected PGDMP format')
+      if (
+        service.type === 'postgresql' &&
+        header.toString('ascii', 0, 5) !== 'PGDMP'
+      ) {
+        throw new Error(
+          'PostgreSQL dump has invalid header — expected PGDMP format'
+        )
       }
-      if (service.type === 'mongodb' && (header[0] !== 0x1f || header[1] !== 0x8b)) {
-        throw new Error('MongoDB dump has invalid header — expected gzip format')
+      if (
+        service.type === 'mongodb' &&
+        (header[0] !== 0x1f || header[1] !== 0x8b)
+      ) {
+        throw new Error(
+          'MongoDB dump has invalid header — expected gzip format'
+        )
       }
 
       // Upload to S3 via sails-hook-uploads (uses skipper-s3 under the hood)
@@ -149,14 +194,20 @@ module.exports = {
         durationMs: completedAt - startedAt
       })
 
-      sails.log.info(`Backup completed: ${s3Key} (${formatBytes(sizeBytes)} in ${completedAt - startedAt}ms)`)
+      sails.log.info(
+        `Backup completed: ${s3Key} (${formatBytes(sizeBytes)} in ${
+          completedAt - startedAt
+        }ms)`
+      )
       sails.sse.publish(`backup:${backupId}`, { status: 'completed' })
 
       // Send backup success notification
-      await sails.helpers.notification.sendBackupNotification.with({
-        backup: await Backup.findOne({ id: backupId }),
-        service
-      }).tolerate('error')
+      await sails.helpers.notification.sendBackupNotification
+        .with({
+          backup: await Backup.findOne({ id: backupId }),
+          service
+        })
+        .tolerate('error')
     } catch (err) {
       const completedAt = Date.now()
       await Backup.updateOne({ id: backupId }).set({
@@ -165,17 +216,25 @@ module.exports = {
         completedAt,
         durationMs: completedAt - startedAt
       })
-      sails.log.error(`Backup failed for service ${service.name}: ${err.message}`)
+      sails.log.error(
+        `Backup failed for service ${service.name}: ${err.message}`
+      )
       sails.sse.publish(`backup:${backupId}`, { status: 'failed' })
 
       // Send backup failure notification
-      await sails.helpers.notification.sendBackupNotification.with({
-        backup: await Backup.findOne({ id: backupId }),
-        service
-      }).tolerate('error')
+      await sails.helpers.notification.sendBackupNotification
+        .with({
+          backup: await Backup.findOne({ id: backupId }),
+          service
+        })
+        .tolerate('error')
     } finally {
       // Clean up temp file
-      try { fs.unlinkSync(tmpFile) } catch { /* ignore */ }
+      try {
+        fs.unlinkSync(tmpFile)
+      } catch {
+        /* ignore */
+      }
     }
 
     return await Backup.findOne({ id: backupId })
@@ -185,11 +244,37 @@ module.exports = {
 function getDumpArgs(service) {
   switch (service.type) {
     case 'postgresql':
-      return ['pg_dump', '-U', service.username, '--format=custom', service.database]
+      return [
+        'pg_dump',
+        '-U',
+        service.username,
+        '--format=custom',
+        service.database
+      ]
     case 'mysql':
-      return ['mysqldump', '-u', service.username, `-p${service.password}`, '--single-transaction', '--routines', '--triggers', '--quick', service.database]
+      return [
+        'mysqldump',
+        '-u',
+        service.username,
+        `-p${service.password}`,
+        '--single-transaction',
+        '--routines',
+        '--triggers',
+        '--quick',
+        service.database
+      ]
     case 'mongodb':
-      return ['mongodump', '--archive', '--gzip', '--db', service.database, '--username', service.username, '--password', service.password]
+      return [
+        'mongodump',
+        '--archive',
+        '--gzip',
+        '--db',
+        service.database,
+        '--username',
+        service.username,
+        '--password',
+        service.password
+      ]
     default:
       return null
   }

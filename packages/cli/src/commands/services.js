@@ -19,7 +19,7 @@ export default async function services(options) {
 
     // Filter by environment if specified
     const targetEnvs = options.env
-      ? environments.filter(e => e.slug === options.env)
+      ? environments.filter((e) => e.slug === options.env)
       : environments
 
     if (targetEnvs.length === 0) {
@@ -30,9 +30,12 @@ export default async function services(options) {
     const allServices = []
 
     for (const env of targetEnvs) {
-      const { services: envServices } = await api.services.list(project.project, env.slug)
+      const { services: envServices } = await api.services.list(
+        project.project,
+        env.slug
+      )
       if (envServices) {
-        envServices.forEach(s => {
+        envServices.forEach((s) => {
           allServices.push({
             ...s,
             environment: env.slug
@@ -43,12 +46,16 @@ export default async function services(options) {
 
     if (allServices.length === 0) {
       console.log(`  ${c.dim('No services found.')}`)
-      console.log(`  ${c.dim('Run')} ${c.highlight('slipway db:create <name>')} ${c.dim('to create a database.')}`)
+      console.log(
+        `  ${c.dim('Run')} ${c.highlight('slipway db:create <name>')} ${c.dim(
+          'to create a database.'
+        )}`
+      )
       console.log()
       return
     }
 
-    const rows = allServices.map(s => [
+    const rows = allServices.map((s) => [
       s.name,
       s.type,
       s.version || '-',
@@ -56,10 +63,7 @@ export default async function services(options) {
       statusColor(s.status)
     ])
 
-    table(
-      ['Name', 'Type', 'Version', 'Env', 'Status'],
-      rows
-    )
+    table(['Name', 'Type', 'Version', 'Env', 'Status'], rows)
 
     console.log()
   } catch (err) {

@@ -37,18 +37,35 @@ module.exports = {
     }
   },
 
-  fn: async function ({ cloneUrl, branch, targetDir, deployKeyPrivate, deploymentId }) {
+  fn: async function ({
+    cloneUrl,
+    branch,
+    targetDir,
+    deployKeyPrivate,
+    deploymentId
+  }) {
     // Normalize the key: fix escaped newlines and ensure trailing newline
     let key = deployKeyPrivate.replace(/\\n/g, '\n')
-    if (!key.endsWith('\n')) { key += '\n' }
+    if (!key.endsWith('\n')) {
+      key += '\n'
+    }
 
     if (!key.includes('-----BEGIN')) {
-      throw new Error('Deploy key is not in a valid SSH format — it may be corrupted or not decrypted. Re-connect the repository to regenerate the key.')
+      throw new Error(
+        'Deploy key is not in a valid SSH format — it may be corrupted or not decrypted. Re-connect the repository to regenerate the key.'
+      )
     }
 
     // Write deploy key to a temp file
-    const keyFile = path.join(os.tmpdir(), `slipway-deploy-key-${Date.now()}-${Math.random().toString(36).slice(2)}`)
-    sails.log.debug(`[git] Writing deploy key (${key.length} chars, format: ${key.substring(0, 36).trim()})`)
+    const keyFile = path.join(
+      os.tmpdir(),
+      `slipway-deploy-key-${Date.now()}-${Math.random().toString(36).slice(2)}`
+    )
+    sails.log.debug(
+      `[git] Writing deploy key (${key.length} chars, format: ${key
+        .substring(0, 36)
+        .trim()})`
+    )
     fs.writeFileSync(keyFile, key, { mode: 0o600, encoding: 'utf8' })
 
     const sshCommand = `ssh -i ${keyFile} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null`
@@ -58,7 +75,11 @@ module.exports = {
     const log = async (msg) => {
       sails.log.info(`[git] ${msg}`)
       if (deploymentId) {
-        try { await Deployment.appendBuildLog(deploymentId, `${msg}\n`) } catch { /* best-effort */ }
+        try {
+          await Deployment.appendBuildLog(deploymentId, `${msg}\n`)
+        } catch {
+          /* best-effort */
+        }
       }
     }
 
@@ -69,9 +90,21 @@ module.exports = {
       if (fs.existsSync(path.join(targetDir, '.git'))) {
         // Existing repo — fetch + reset to match remote
         await log(`Fetching latest from ${branch}...`)
-        await execFileAsync('git', ['fetch', 'origin', branch], { cwd: targetDir, env, timeout })
-        await execFileAsync('git', ['checkout', '-B', branch, `origin/${branch}`], { cwd: targetDir, env, timeout: 30_000 })
-        await execFileAsync('git', ['clean', '-fd'], { cwd: targetDir, env, timeout: 30_000 })
+        await execFileAsync('git', ['fetch', 'origin', branch], {
+          cwd: targetDir,
+          env,
+          timeout
+        })
+        await execFileAsync(
+          'git',
+          ['checkout', '-B', branch, `origin/${branch}`],
+          { cwd: targetDir, env, timeout: 30_000 }
+        )
+        await execFileAsync('git', ['clean', '-fd'], {
+          cwd: targetDir,
+          env,
+          timeout: 30_000
+        })
         await log(`Updated to latest ${branch}`)
       } else {
         // Fresh clone
@@ -79,23 +112,37 @@ module.exports = {
           fs.rmSync(targetDir, { recursive: true, force: true })
         }
         await log(`Cloning ${cloneUrl} (branch: ${branch})...`)
-        await execFileAsync('git', [
-          'clone', '--branch', branch, '--single-branch', '--depth', '1',
-          cloneUrl, targetDir
-        ], { env, timeout })
+        await execFileAsync(
+          'git',
+          [
+            'clone',
+            '--branch',
+            branch,
+            '--single-branch',
+            '--depth',
+            '1',
+            cloneUrl,
+            targetDir
+          ],
+          { env, timeout }
+        )
         await log(`Cloned successfully`)
       }
 
       // Log the HEAD commit for traceability
       const { stdout: headSha } = await execFileAsync(
-        'git', ['rev-parse', '--short', 'HEAD'],
+        'git',
+        ['rev-parse', '--short', 'HEAD'],
         { cwd: targetDir, env, timeout: 5_000 }
       )
       await log(`HEAD is now at ${headSha.trim()}`)
-
     } finally {
       // Always clean up the key file
-      try { fs.unlinkSync(keyFile) } catch { /* ignore */ }
+      try {
+        fs.unlinkSync(keyFile)
+      } catch {
+        /* ignore */
+      }
     }
   }
 }

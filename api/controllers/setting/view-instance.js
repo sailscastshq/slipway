@@ -11,7 +11,10 @@ module.exports = {
 
   fn: async function () {
     const instanceDomain = await sails.helpers.setting.get('instanceDomain', '')
-    const instanceName = await sails.helpers.setting.get('instanceName', 'Slipway')
+    const instanceName = await sails.helpers.setting.get(
+      'instanceName',
+      'Slipway'
+    )
     const acmeEmail = await sails.helpers.setting.get('acmeEmail', '')
 
     return {

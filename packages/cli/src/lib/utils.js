@@ -21,7 +21,9 @@ export function info(message) {
 export function requireProject() {
   const project = getProjectConfig()
   if (!project) {
-    error('No Slipway project found. Run `slipway init` or `slipway link <project>` first.')
+    error(
+      'No Slipway project found. Run `slipway init` or `slipway link <project>` first.'
+    )
   }
   return project
 }
@@ -37,7 +39,10 @@ export function formatBytes(bytes) {
   const units = ['B', 'KB', 'MB', 'GB']
   let i = 0
   let size = bytes
-  while (size >= 1024 && i < units.length - 1) { size /= 1024; i++ }
+  while (size >= 1024 && i < units.length - 1) {
+    size /= 1024
+    i++
+  }
   return `${size.toFixed(i === 0 ? 0 : 1)} ${units[i]}`
 }
 
@@ -110,8 +115,8 @@ export function spinner(text) {
 export function table(headers, rows) {
   // Calculate column widths
   const widths = headers.map((h, i) => {
-    const colValues = [h, ...rows.map(r => String(r[i] || ''))]
-    return Math.max(...colValues.map(v => stripAnsi(v).length))
+    const colValues = [h, ...rows.map((r) => String(r[i] || ''))]
+    return Math.max(...colValues.map((v) => stripAnsi(v).length))
   })
 
   // Print header
@@ -121,11 +126,13 @@ export function table(headers, rows) {
 
   // Print rows
   for (const row of rows) {
-    const rowStr = row.map((cell, i) => {
-      const str = String(cell || '')
-      const padding = widths[i] - stripAnsi(str).length
-      return str + ' '.repeat(Math.max(0, padding))
-    }).join('  ')
+    const rowStr = row
+      .map((cell, i) => {
+        const str = String(cell || '')
+        const padding = widths[i] - stripAnsi(str).length
+        return str + ' '.repeat(Math.max(0, padding))
+      })
+      .join('  ')
     console.log(`  ${rowStr}`)
   }
 }

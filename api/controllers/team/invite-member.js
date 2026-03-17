@@ -47,7 +47,10 @@ module.exports = {
         return '/settings/team'
       }
       // User exists but on another team — for 0.0.1, don't support multi-team
-      this.req.addFlash('error', `${email} already has an account on another team.`)
+      this.req.addFlash(
+        'error',
+        `${email} already has an account on another team.`
+      )
       return '/settings/team'
     }
 
@@ -56,7 +59,10 @@ module.exports = {
 
     await User.create({
       email: email.toLowerCase(),
-      fullName: email.split('@')[0].replace(/[._-]/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
+      fullName: email
+        .split('@')[0]
+        .replace(/[._-]/g, ' ')
+        .replace(/\b\w/g, (c) => c.toUpperCase()),
       password: tempPassword,
       emailStatus: 'unverified',
       teamRole: role,
@@ -67,7 +73,8 @@ module.exports = {
     const token = await sails.helpers.strings.random('url-friendly')
     await User.updateOne({ email: email.toLowerCase() }).set({
       passwordResetToken: token,
-      passwordResetTokenExpiresAt: Date.now() + sails.config.custom.passwordResetTokenTTL
+      passwordResetTokenExpiresAt:
+        Date.now() + sails.config.custom.passwordResetTokenTTL
     })
 
     // Send invite email
@@ -83,7 +90,10 @@ module.exports = {
       }
     })
 
-    this.req.addFlash('success', `Invited ${email}. They'll receive an email to set up their account.`)
+    this.req.addFlash(
+      'success',
+      `Invited ${email}. They'll receive an email to set up their account.`
+    )
     return '/settings/team'
   }
 }

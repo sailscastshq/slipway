@@ -1,7 +1,8 @@
 module.exports = {
   friendlyName: 'Resolve app',
 
-  description: 'Resolve user → project → environment → app from request params. Central resolver for multi-app support.',
+  description:
+    'Resolve user → project → environment → app from request params. Central resolver for multi-app support.',
 
   inputs: {
     req: {
@@ -24,7 +25,8 @@ module.exports = {
     requireRunning: {
       type: 'boolean',
       defaultsTo: false,
-      description: 'If true, throws appNotRunning when app is not in running state'
+      description:
+        'If true, throws appNotRunning when app is not in running state'
     }
   },
 
@@ -43,13 +45,21 @@ module.exports = {
     }
   },
 
-  fn: async function ({ req, projectSlug, environmentSlug, appSlug, requireRunning }) {
+  fn: async function ({
+    req,
+    projectSlug,
+    environmentSlug,
+    appSlug,
+    requireRunning
+  }) {
     const user = await User.findOne({ id: req.session.userId })
     if (!user) {
       throw 'forbidden'
     }
 
-    const project = await Project.findOne({ slug: projectSlug }).populate('team')
+    const project = await Project.findOne({ slug: projectSlug }).populate(
+      'team'
+    )
     if (!project) {
       throw 'notFound'
     }
@@ -72,8 +82,9 @@ module.exports = {
     if (appSlug) {
       app = await App.findOne({ environment: environment.id, slug: appSlug })
     } else {
-      app = await App.findOne({ environment: environment.id, isDefault: true })
-        || await App.findOne({ environment: environment.id })
+      app =
+        (await App.findOne({ environment: environment.id, isDefault: true })) ||
+        (await App.findOne({ environment: environment.id }))
     }
 
     if (!app) {

@@ -42,10 +42,16 @@ module.exports = {
     const project = await Project.findOne({ slug }).populate('team')
     if (!project || project.team.id !== user.team) throw { notFound: '/' }
 
-    const environment = await Environment.findOne({ slug: envSlug, project: project.id })
+    const environment = await Environment.findOne({
+      slug: envSlug,
+      project: project.id
+    })
     if (!environment) throw { notFound: `/projects/${slug}` }
 
-    const app = await App.findOne({ environment: environment.id, slug: appSlug })
+    const app = await App.findOne({
+      environment: environment.id,
+      slug: appSlug
+    })
     if (!app) throw { notFound: `/projects/${slug}/environments/${envSlug}` }
 
     const repo = await GitRepository.findOne({ app: app.id })
@@ -56,7 +62,10 @@ module.exports = {
 
     await GitRepository.updateOne({ id: repo.id }).set({ autoDeploy })
 
-    sails.inertia.flash('success', `Auto-deploy ${autoDeploy ? 'enabled' : 'disabled'}`)
+    sails.inertia.flash(
+      'success',
+      `Auto-deploy ${autoDeploy ? 'enabled' : 'disabled'}`
+    )
     return redirectUrl
   }
 }

@@ -9,7 +9,13 @@ export function createServiceActions() {
   const actions = ref([])
   let actionId = 0
 
-  function startAction({ serviceName, serviceType, action, projectName, environmentName }) {
+  function startAction({
+    serviceName,
+    serviceType,
+    action,
+    projectName,
+    environmentName
+  }) {
     const id = ++actionId
     actions.value.push({
       id,
@@ -25,7 +31,7 @@ export function createServiceActions() {
   }
 
   function completeAction(id, success = true) {
-    const action = actions.value.find(a => a.id === id)
+    const action = actions.value.find((a) => a.id === id)
     if (action) {
       action.status = success ? 'success' : 'failed'
       // Auto-dismiss after 4 seconds
@@ -36,7 +42,7 @@ export function createServiceActions() {
   }
 
   function dismissAction(id) {
-    actions.value = actions.value.filter(a => a.id !== id)
+    actions.value = actions.value.filter((a) => a.id !== id)
   }
 
   return { actions, startAction, completeAction, dismissAction }

@@ -3,7 +3,8 @@ const { execFile } = require('child_process')
 module.exports = {
   friendlyName: 'Remove dashboard route',
 
-  description: 'Remove the Caddy route container for the Slipway dashboard domain.',
+  description:
+    'Remove the Caddy route container for the Slipway dashboard domain.',
 
   inputs: {},
 

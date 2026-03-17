@@ -15,7 +15,8 @@ module.exports = {
     imageName: {
       type: 'string',
       required: true,
-      description: 'Name and tag for the image (e.g., slipway/myapp-production:latest)'
+      description:
+        'Name and tag for the image (e.g., slipway/myapp-production:latest)'
     },
     dockerfilePath: {
       type: 'string',
@@ -39,7 +40,8 @@ module.exports = {
     noCache: {
       type: 'boolean',
       defaultsTo: false,
-      description: 'Disable Docker layer caching (slower but ensures fresh build)'
+      description:
+        'Disable Docker layer caching (slower but ensures fresh build)'
     }
   },
 
@@ -53,11 +55,26 @@ module.exports = {
     }
   },
 
-  fn: async function ({ contextPath, imageName, dockerfilePath, deploymentId, buildArgs, timeout, noCache }) {
+  fn: async function ({
+    contextPath,
+    imageName,
+    dockerfilePath,
+    deploymentId,
+    buildArgs,
+    timeout,
+    noCache
+  }) {
     return new Promise((resolve, reject) => {
       const dockerPath = sails.config.docker?.binaryPath || 'docker'
       const fullDockerfilePath = path.resolve(contextPath, dockerfilePath)
-      const args = ['build', '--progress=plain', '-t', imageName, '-f', fullDockerfilePath]
+      const args = [
+        'build',
+        '--progress=plain',
+        '-t',
+        imageName,
+        '-f',
+        fullDockerfilePath
+      ]
 
       // Only disable cache if explicitly requested
       if (noCache) {
@@ -150,7 +167,9 @@ module.exports = {
               finishedAt: Date.now()
             })
           }
-          reject(new Error(`Docker build failed with exit code ${code}\n${stderr}`))
+          reject(
+            new Error(`Docker build failed with exit code ${code}\n${stderr}`)
+          )
         }
       })
 

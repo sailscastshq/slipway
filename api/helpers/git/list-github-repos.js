@@ -23,7 +23,9 @@ module.exports = {
     const cacheKey = `github:repos:${page}:${perPage}`
     try {
       const cached = await sails.cache.get(cacheKey)
-      if (cached) { return cached }
+      if (cached) {
+        return cached
+      }
     } catch (err) {
       sails.log.verbose('Cache read failed for GitHub repos:', err.message)
     }
@@ -32,8 +34,8 @@ module.exports = {
       `https://api.github.com/user/repos?page=${page}&per_page=${perPage}&sort=updated&affiliation=owner,collaborator,organization_member`,
       {
         headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'Accept': 'application/vnd.github+json',
+          Authorization: `Bearer ${accessToken}`,
+          Accept: 'application/vnd.github+json',
           'X-GitHub-Api-Version': '2022-11-28'
         }
       }
@@ -45,7 +47,7 @@ module.exports = {
 
     const repos = await response.json()
 
-    const result = repos.map(repo => ({
+    const result = repos.map((repo) => ({
       id: String(repo.id),
       name: repo.name,
       fullName: repo.full_name,
@@ -60,7 +62,11 @@ module.exports = {
     }))
 
     // Cache successful response for 5 minutes
-    try { await sails.cache.set(cacheKey, result, 300_000) } catch (err) { /* best-effort */ }
+    try {
+      await sails.cache.set(cacheKey, result, 300_000)
+    } catch (err) {
+      /* best-effort */
+    }
 
     return result
   }

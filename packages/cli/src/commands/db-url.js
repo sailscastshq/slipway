@@ -21,7 +21,7 @@ export default async function dbUrl(options, positionals) {
   try {
     const { services } = await api.services.list(project.project, environment)
 
-    const database = services.find(s => s.name === name)
+    const database = services.find((s) => s.name === name)
 
     if (!database) {
       spin.fail('Database not found')
@@ -34,7 +34,9 @@ export default async function dbUrl(options, positionals) {
     if (database.connectionUrl) {
       console.log(database.connectionUrl)
     } else {
-      console.log(`  ${c.dim('No connection URL available for this database.')}`)
+      console.log(
+        `  ${c.dim('No connection URL available for this database.')}`
+      )
     }
     console.log()
   } catch (err) {

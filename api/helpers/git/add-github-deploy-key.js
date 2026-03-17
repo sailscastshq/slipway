@@ -39,14 +39,21 @@ module.exports = {
     }
   },
 
-  fn: async function ({ accessToken, owner, repo, title, publicKey, readOnly }) {
+  fn: async function ({
+    accessToken,
+    owner,
+    repo,
+    title,
+    publicKey,
+    readOnly
+  }) {
     const response = await fetch(
       `https://api.github.com/repos/${owner}/${repo}/keys`,
       {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'Accept': 'application/vnd.github+json',
+          Authorization: `Bearer ${accessToken}`,
+          Accept: 'application/vnd.github+json',
           'X-GitHub-Api-Version': '2022-11-28',
           'Content-Type': 'application/json'
         },

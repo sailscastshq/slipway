@@ -9,7 +9,8 @@
 module.exports = {
   friendlyName: 'Stream metrics',
 
-  description: 'Server-Sent Events stream of live container metrics for an environment.',
+  description:
+    'Server-Sent Events stream of live container metrics for an environment.',
 
   inputs: {
     projectSlug: {
@@ -39,10 +40,16 @@ module.exports = {
     const user = await User.findOne({ id: req.session.userId }).populate('team')
     if (!user) throw 'notFound'
 
-    const project = await Project.findOne({ slug: projectSlug, team: user.team.id })
+    const project = await Project.findOne({
+      slug: projectSlug,
+      team: user.team.id
+    })
     if (!project) throw 'notFound'
 
-    const environment = await Environment.findOne({ slug: environmentSlug, project: project.id })
+    const environment = await Environment.findOne({
+      slug: environmentSlug,
+      project: project.id
+    })
     if (!environment) throw 'notFound'
 
     return sails.sse.subscribe(req, res, `lookout:env:${environment.id}`)

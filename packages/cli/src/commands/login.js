@@ -43,7 +43,9 @@ export default async function login(options) {
   if (!serverUrl && process.env.SLIPWAY_SERVER) {
     // Use environment variable
     serverUrl = process.env.SLIPWAY_SERVER
-    console.log(`  ${c.dim('Server:')} ${serverUrl} ${c.dim('(from SLIPWAY_SERVER)')}`)
+    console.log(
+      `  ${c.dim('Server:')} ${serverUrl} ${c.dim('(from SLIPWAY_SERVER)')}`
+    )
     console.log()
   } else if (!serverUrl && savedCredentials.server) {
     // Use saved server URL
@@ -111,7 +113,9 @@ export default async function login(options) {
     console.log() // New line after dots
 
     if (!result.authenticated) {
-      console.log(`  ${c.error('✗')} ${result.error || 'Authentication failed'}`)
+      console.log(
+        `  ${c.error('✗')} ${result.error || 'Authentication failed'}`
+      )
       error('Please try again')
     }
 
@@ -201,5 +205,5 @@ async function waitForAuthPolling(serverUrl, code, onProgress) {
 }
 
 function sleep(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms))
+  return new Promise((resolve) => setTimeout(resolve, ms))
 }

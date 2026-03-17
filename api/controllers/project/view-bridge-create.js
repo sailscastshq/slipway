@@ -28,7 +28,9 @@ module.exports = {
   },
 
   fn: async function ({ slug, envSlug, modelIdentity }) {
-    const user = await User.findOne({ id: this.req.session.userId }).populate('team')
+    const user = await User.findOne({ id: this.req.session.userId }).populate(
+      'team'
+    )
 
     if (!user) {
       throw { notFound: '/login' }
@@ -49,7 +51,9 @@ module.exports = {
       throw { notFound: `/projects/${slug}` }
     }
 
-    const app = await App.findOne({ environment: environment.id, isDefault: true }) || await App.findOne({ environment: environment.id })
+    const app =
+      (await App.findOne({ environment: environment.id, isDefault: true })) ||
+      (await App.findOne({ environment: environment.id }))
     const appRunning = app && app.status === 'running'
 
     let modelMeta = null
@@ -72,7 +76,9 @@ module.exports = {
             error = `Model "${modelIdentity}" not found.`
           } else {
             // Load association options for belongsTo relationships
-            const modelAssocs = (modelMeta.associations || []).filter(a => a.type === 'model')
+            const modelAssocs = (modelMeta.associations || []).filter(
+              (a) => a.type === 'model'
+            )
             for (const assoc of modelAssocs) {
               try {
                 const queryCode = `
@@ -82,8 +88,12 @@ module.exports = {
                     label: r.name || r.title || r.email || \`#\${r.id}\`
                   }));
                 `
-                const wrappedCode = await sails.helpers.bridge.buildSailsWrapper(queryCode)
-                const result = await sails.helpers.bridge.executeInContainer(app.containerName, wrappedCode)
+                const wrappedCode =
+                  await sails.helpers.bridge.buildSailsWrapper(queryCode)
+                const result = await sails.helpers.bridge.executeInContainer(
+                  app.containerName,
+                  wrappedCode
+                )
 
                 if (result.success) {
                   try {

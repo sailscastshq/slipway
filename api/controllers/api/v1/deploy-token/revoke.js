@@ -44,7 +44,9 @@ module.exports = {
       revokedBy: user.id
     })
 
-    sails.log.info(`[token] Deploy token "${token.name}" revoked by ${user.email}`)
+    sails.log.info(
+      `[token] Deploy token "${token.name}" revoked by ${user.email}`
+    )
 
     return { message: 'Token revoked successfully' }
   }

@@ -11,7 +11,16 @@ module.exports = {
   attributes: {
     status: {
       type: 'string',
-      isIn: ['pending', 'building', 'pushing', 'deploying', 'running', 'stopped', 'failed', 'cancelled'],
+      isIn: [
+        'pending',
+        'building',
+        'pushing',
+        'deploying',
+        'running',
+        'stopped',
+        'failed',
+        'cancelled'
+      ],
       defaultsTo: 'pending',
       description: 'Current deployment status'
     },

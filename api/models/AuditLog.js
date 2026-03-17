@@ -12,7 +12,8 @@ module.exports = {
     action: {
       type: 'string',
       required: true,
-      description: 'Action performed (e.g. deployment.triggered, service.created)',
+      description:
+        'Action performed (e.g. deployment.triggered, service.created)',
       example: 'deployment.triggered'
     },
 

@@ -45,7 +45,12 @@ module.exports = {
 
     try {
       // Stop the container
-      await execFileAsync('docker', ['stop', '-t', String(timeout), containerName])
+      await execFileAsync('docker', [
+        'stop',
+        '-t',
+        String(timeout),
+        containerName
+      ])
       sails.log.info(`Stopped container: ${containerName}`)
 
       if (remove) {
@@ -55,7 +60,9 @@ module.exports = {
 
       return { stopped: true, removed: remove }
     } catch (error) {
-      sails.log.error(`Failed to stop container ${containerName}: ${error.message}`)
+      sails.log.error(
+        `Failed to stop container ${containerName}: ${error.message}`
+      )
       throw error
     }
   }

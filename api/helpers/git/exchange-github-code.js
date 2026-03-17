@@ -26,33 +26,40 @@ module.exports = {
 
   fn: async function ({ code, redirectUri }) {
     // Check settings first, then config, then env
-    const clientId = await sails.helpers.setting.get('githubClientId') ||
+    const clientId =
+      (await sails.helpers.setting.get('githubClientId')) ||
       sails.config.custom.github?.clientId ||
       process.env.GITHUB_CLIENT_ID
-    const clientSecret = await sails.helpers.setting.get('githubClientSecret') ||
+    const clientSecret =
+      (await sails.helpers.setting.get('githubClientSecret')) ||
       sails.config.custom.github?.clientSecret ||
       process.env.GITHUB_CLIENT_SECRET
 
     if (!clientId || !clientSecret) {
-      throw new Error('GitHub OAuth not configured. Configure it in Settings → Git Integration.')
+      throw new Error(
+        'GitHub OAuth not configured. Configure it in Settings → Git Integration.'
+      )
     }
 
     const instanceUrl = await sails.helpers.getInstanceUrl()
     const callback = redirectUri || `${instanceUrl}/auth/github/callback`
 
-    const response = await fetch('https://github.com/login/oauth/access_token', {
-      method: 'POST',
-      headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        client_id: clientId,
-        client_secret: clientSecret,
-        code,
-        redirect_uri: callback
-      })
-    })
+    const response = await fetch(
+      'https://github.com/login/oauth/access_token',
+      {
+        method: 'POST',
+        headers: {
+          Accept: 'application/json',
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          client_id: clientId,
+          client_secret: clientSecret,
+          code,
+          redirect_uri: callback
+        })
+      }
+    )
 
     const data = await response.json()
 

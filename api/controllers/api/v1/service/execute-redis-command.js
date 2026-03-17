@@ -41,8 +41,12 @@ module.exports = {
       throw 'notFound'
     }
 
-    const environment = await Environment.findOne({ id: service.environment.id })
-    const project = await Project.findOne({ id: environment.project }).populate('team')
+    const environment = await Environment.findOne({
+      id: service.environment.id
+    })
+    const project = await Project.findOne({ id: environment.project }).populate(
+      'team'
+    )
 
     if (!project) {
       throw 'notFound'
@@ -56,7 +60,10 @@ module.exports = {
       throw { badRequest: 'Redis service is not running.' }
     }
 
-    const result = await sails.helpers.docker.executeRedisCommand(service, command)
+    const result = await sails.helpers.docker.executeRedisCommand(
+      service,
+      command
+    )
 
     return result
   }

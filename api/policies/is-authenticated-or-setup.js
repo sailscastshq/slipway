@@ -20,7 +20,9 @@ module.exports = async function (req, res, proceed) {
   // First check: Is Slipway set up?
   if (!sails.config.custom.slipwayIsSetup) {
     if (isPureApi) {
-      return res.status(503).json({ message: 'Slipway requires initial setup.' })
+      return res
+        .status(503)
+        .json({ message: 'Slipway requires initial setup.' })
     }
     return res.redirect('/setup')
   }

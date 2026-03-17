@@ -55,7 +55,8 @@ module.exports = {
     environment: {
       type: 'string',
       required: true,
-      description: 'Environment ID (references Environment model in default datastore)'
+      description:
+        'Environment ID (references Environment model in default datastore)'
     }
   }
 }

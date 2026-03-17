@@ -41,9 +41,17 @@ module.exports = {
     }
   },
 
-  fn: async function ({ projectSlug, environmentSlug, tables, dataOnly, schemaOnly }) {
+  fn: async function ({
+    projectSlug,
+    environmentSlug,
+    tables,
+    dataOnly,
+    schemaOnly
+  }) {
     const user = await User.findOne({ id: this.req.session.userId })
-    const project = await Project.findOne({ slug: projectSlug }).populate('team')
+    const project = await Project.findOne({ slug: projectSlug }).populate(
+      'team'
+    )
 
     if (!project) {
       throw 'notFound'
@@ -66,7 +74,10 @@ module.exports = {
     const serviceId = this.req.query.service
     let dbResult
     try {
-      dbResult = await sails.helpers.dock.getDatabaseService(environment.id, serviceId)
+      dbResult = await sails.helpers.dock.getDatabaseService(
+        environment.id,
+        serviceId
+      )
     } catch (err) {
       throw { badRequest: 'No database service found for this environment.' }
     }
@@ -79,9 +90,16 @@ module.exports = {
     }
 
     try {
-      const result = await sails.helpers.dock.exportDatabase(service, tables, dataOnly, schemaOnly)
+      const result = await sails.helpers.dock.exportDatabase(
+        service,
+        tables,
+        dataOnly,
+        schemaOnly
+      )
 
-      sails.log.info(`[dock] Database exported from ${project.slug}/${environmentSlug} by ${user.fullName}`)
+      sails.log.info(
+        `[dock] Database exported from ${project.slug}/${environmentSlug} by ${user.fullName}`
+      )
 
       return result
     } catch (error) {

@@ -7,7 +7,8 @@ const END_MARKER = '___SLIPWAY_BRIDGE_END___'
 module.exports = {
   friendlyName: 'Execute in container',
 
-  description: 'Execute JavaScript code inside a running app container and return the result.',
+  description:
+    'Execute JavaScript code inside a running app container and return the result.',
 
   inputs: {
     containerName: {

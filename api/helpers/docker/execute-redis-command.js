@@ -5,13 +5,15 @@ const execFileAsync = util.promisify(execFile)
 module.exports = {
   friendlyName: 'Execute Redis command',
 
-  description: 'Execute a Redis command against a Redis service via docker exec.',
+  description:
+    'Execute a Redis command against a Redis service via docker exec.',
 
   inputs: {
     service: {
       type: 'ref',
       required: true,
-      description: 'Redis service object (must have containerName, password, internalPort)'
+      description:
+        'Redis service object (must have containerName, password, internalPort)'
     },
     command: {
       type: 'string',
@@ -35,8 +37,11 @@ module.exports = {
     // so redis-cli can parse it naturally (handles quoted strings, etc.)
     const redisCliCmd = [
       'redis-cli',
-      '-p', String(service.internalPort),
-      ...(service.password ? ['-a', service.password, '--no-auth-warning'] : []),
+      '-p',
+      String(service.internalPort),
+      ...(service.password
+        ? ['-a', service.password, '--no-auth-warning']
+        : []),
       ...tokenizeRedisCommand(command)
     ]
 
@@ -89,7 +94,7 @@ function tokenizeRedisCommand(command) {
 
     if (ch === '"' && !inSingleQuote) {
       inDoubleQuote = !inDoubleQuote
-    } else if (ch === '\'' && !inDoubleQuote) {
+    } else if (ch === "'" && !inDoubleQuote) {
       inSingleQuote = !inSingleQuote
     } else if (ch === ' ' && !inDoubleQuote && !inSingleQuote) {
       if (current.length > 0) {

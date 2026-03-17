@@ -1,7 +1,8 @@
 module.exports = {
   friendlyName: 'Destroy preview environment',
 
-  description: 'Stop containers, remove routes, and delete a preview environment.',
+  description:
+    'Stop containers, remove routes, and delete a preview environment.',
 
   inputs: {
     project: {
@@ -31,12 +32,16 @@ module.exports = {
     })
 
     if (!environment) {
-      sails.log.verbose(`No preview environment ${slug} found for ${project.slug}`)
+      sails.log.verbose(
+        `No preview environment ${slug} found for ${project.slug}`
+      )
       return
     }
 
     // Stop app container
-    const app = await App.findOne({ environment: environment.id, isDefault: true }) || await App.findOne({ environment: environment.id })
+    const app =
+      (await App.findOne({ environment: environment.id, isDefault: true })) ||
+      (await App.findOne({ environment: environment.id }))
     if (app && app.containerName) {
       try {
         await sails.helpers.docker.stopContainer(app.containerName)
@@ -51,15 +56,22 @@ module.exports = {
       try {
         await sails.helpers.docker.destroyService(service.id)
       } catch (err) {
-        sails.log.warn(`Failed to destroy preview service ${service.name}: ${err.message}`)
+        sails.log.warn(
+          `Failed to destroy preview service ${service.name}: ${err.message}`
+        )
       }
     }
 
     // Remove Caddy route
     try {
-      await sails.helpers.caddy.removeRoute.with({ projectSlug: project.slug, environmentSlug: slug })
+      await sails.helpers.caddy.removeRoute.with({
+        projectSlug: project.slug,
+        environmentSlug: slug
+      })
     } catch (err) {
-      sails.log.verbose(`Failed to remove Caddy route for preview: ${err.message}`)
+      sails.log.verbose(
+        `Failed to remove Caddy route for preview: ${err.message}`
+      )
     }
 
     // Delete database records

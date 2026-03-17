@@ -2,19 +2,81 @@
 // Colors: keywords purple, builtins cyan, strings green, numbers orange, comments gray
 
 const keywords = new Set([
-  'async', 'await', 'break', 'case', 'catch', 'class', 'const', 'continue',
-  'debugger', 'default', 'delete', 'do', 'else', 'export', 'extends', 'finally',
-  'for', 'function', 'if', 'import', 'in', 'instanceof', 'let', 'new', 'of',
-  'return', 'static', 'super', 'switch', 'this', 'throw', 'try', 'typeof',
-  'var', 'void', 'while', 'with', 'yield'
+  'async',
+  'await',
+  'break',
+  'case',
+  'catch',
+  'class',
+  'const',
+  'continue',
+  'debugger',
+  'default',
+  'delete',
+  'do',
+  'else',
+  'export',
+  'extends',
+  'finally',
+  'for',
+  'function',
+  'if',
+  'import',
+  'in',
+  'instanceof',
+  'let',
+  'new',
+  'of',
+  'return',
+  'static',
+  'super',
+  'switch',
+  'this',
+  'throw',
+  'try',
+  'typeof',
+  'var',
+  'void',
+  'while',
+  'with',
+  'yield'
 ])
 
 const builtins = new Set([
-  'true', 'false', 'null', 'undefined', 'NaN', 'Infinity',
-  'console', 'process', 'require', 'module', 'exports',
-  'Array', 'Object', 'String', 'Number', 'Boolean', 'Date', 'Math', 'JSON',
-  'Promise', 'Map', 'Set', 'WeakMap', 'WeakSet', 'Symbol', 'Error',
-  'sails', 'User', 'Project', 'Environment', 'App', 'Deployment', 'Team', 'Setting'
+  'true',
+  'false',
+  'null',
+  'undefined',
+  'NaN',
+  'Infinity',
+  'console',
+  'process',
+  'require',
+  'module',
+  'exports',
+  'Array',
+  'Object',
+  'String',
+  'Number',
+  'Boolean',
+  'Date',
+  'Math',
+  'JSON',
+  'Promise',
+  'Map',
+  'Set',
+  'WeakMap',
+  'WeakSet',
+  'Symbol',
+  'Error',
+  'sails',
+  'User',
+  'Project',
+  'Environment',
+  'App',
+  'Deployment',
+  'Team',
+  'Setting'
 ])
 
 function escapeHtml(s) {
@@ -107,23 +169,25 @@ export function highlightJS(code) {
     i++
   }
 
-  return tokens.map(t => {
-    const escaped = escapeHtml(t.value)
-    switch (t.type) {
-      case 'keyword':
-        return `<span class="text-purple-600 dark:text-purple-400">${escaped}</span>`
-      case 'builtin':
-        return `<span class="text-cyan-600 dark:text-cyan-400">${escaped}</span>`
-      case 'string':
-        return `<span class="text-green-600 dark:text-green-400">${escaped}</span>`
-      case 'number':
-        return `<span class="text-orange-600 dark:text-orange-400">${escaped}</span>`
-      case 'comment':
-        return `<span class="text-gray-400 dark:text-gray-500">${escaped}</span>`
-      case 'punctuation':
-        return `<span class="text-gray-500 dark:text-gray-400">${escaped}</span>`
-      default:
-        return `<span class="text-gray-900 dark:text-gray-100">${escaped}</span>`
-    }
-  }).join('')
+  return tokens
+    .map((t) => {
+      const escaped = escapeHtml(t.value)
+      switch (t.type) {
+        case 'keyword':
+          return `<span class="text-purple-600 dark:text-purple-400">${escaped}</span>`
+        case 'builtin':
+          return `<span class="text-cyan-600 dark:text-cyan-400">${escaped}</span>`
+        case 'string':
+          return `<span class="text-green-600 dark:text-green-400">${escaped}</span>`
+        case 'number':
+          return `<span class="text-orange-600 dark:text-orange-400">${escaped}</span>`
+        case 'comment':
+          return `<span class="text-gray-400 dark:text-gray-500">${escaped}</span>`
+        case 'punctuation':
+          return `<span class="text-gray-500 dark:text-gray-400">${escaped}</span>`
+        default:
+          return `<span class="text-gray-900 dark:text-gray-100">${escaped}</span>`
+      }
+    })
+    .join('')
 }

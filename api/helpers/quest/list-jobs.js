@@ -1,7 +1,8 @@
 module.exports = {
   friendlyName: 'List Quest jobs',
 
-  description: 'Get all scheduled jobs from a running app with sails-hook-quest.',
+  description:
+    'Get all scheduled jobs from a running app with sails-hook-quest.',
 
   inputs: {
     containerName: {
@@ -26,12 +27,15 @@ module.exports = {
     const scripts = questFeature.scripts || []
 
     const code = buildListJobsCode()
-    const result = await sails.helpers.quest.executeInContainer(containerName, code)
+    const result = await sails.helpers.quest.executeInContainer(
+      containerName,
+      code
+    )
 
     if (!result.success) {
       // Fallback to scripts from detection
       return {
-        jobs: scripts.map(s => ({
+        jobs: scripts.map((s) => ({
           name: s.name,
           friendlyName: s.name,
           description: '',
@@ -47,12 +51,12 @@ module.exports = {
 
     try {
       const scheduledJobs = JSON.parse(result.output)
-      const scheduledNames = new Set(scheduledJobs.map(j => j.name))
+      const scheduledNames = new Set(scheduledJobs.map((j) => j.name))
 
       // Add scripts that aren't scheduled as manual jobs
       const manualJobs = scripts
-        .filter(s => !scheduledNames.has(s.name))
-        .map(s => ({
+        .filter((s) => !scheduledNames.has(s.name))
+        .map((s) => ({
           name: s.name,
           friendlyName: s.name,
           description: '',
@@ -70,7 +74,7 @@ module.exports = {
     } catch (e) {
       // Fallback when parsing fails
       return {
-        jobs: scripts.map(s => ({
+        jobs: scripts.map((s) => ({
           name: s.name,
           friendlyName: s.name,
           description: '',
@@ -80,7 +84,9 @@ module.exports = {
           withoutOverlapping: false,
           isRunning: false
         })),
-        error: result.output ? `Parse error: ${result.output.substring(0, 200)}` : 'Failed to parse job list'
+        error: result.output
+          ? `Parse error: ${result.output.substring(0, 200)}`
+          : 'Failed to parse job list'
       }
     }
   }

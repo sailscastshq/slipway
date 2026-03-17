@@ -33,7 +33,8 @@ module.exports = {
     },
     raw: {
       type: 'string',
-      description: 'Raw file content (if provided, frontmatter and body are ignored)'
+      description:
+        'Raw file content (if provided, frontmatter and body are ignored)'
     },
     deploy: {
       type: 'boolean',
@@ -54,8 +55,19 @@ module.exports = {
     }
   },
 
-  fn: async function ({ slug, envSlug, collection, file, frontmatter, body, raw, deploy }) {
-    const user = await User.findOne({ id: this.req.session.userId }).populate('team')
+  fn: async function ({
+    slug,
+    envSlug,
+    collection,
+    file,
+    frontmatter,
+    body,
+    raw,
+    deploy
+  }) {
+    const user = await User.findOne({ id: this.req.session.userId }).populate(
+      'team'
+    )
     if (!user) {
       throw { notFound: '/login' }
     }
@@ -128,7 +140,9 @@ module.exports = {
         startedAt: Date.now()
       }).fetch()
 
-      sails.log.info(`[content] Deployment ${deployment.id} triggered for content change`)
+      sails.log.info(
+        `[content] Deployment ${deployment.id} triggered for content change`
+      )
 
       // Kick off the async deployment pipeline
       process.nextTick(async () => {

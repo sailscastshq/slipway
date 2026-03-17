@@ -9,7 +9,9 @@ export default async function envSet(options, positionals) {
   }
 
   if (positionals.length === 0) {
-    error('Please provide at least one KEY=value pair. Usage: slipway env:set KEY=value')
+    error(
+      'Please provide at least one KEY=value pair. Usage: slipway env:set KEY=value'
+    )
   }
 
   const project = requireProject()
@@ -36,7 +38,10 @@ export default async function envSet(options, positionals) {
 
   try {
     // Get current environment
-    const { environment: env } = await api.environments.get(project.project, environment)
+    const { environment: env } = await api.environments.get(
+      project.project,
+      environment
+    )
 
     // Merge with existing vars
     const updatedVars = { ...env.envVars, ...vars }
@@ -54,7 +59,11 @@ export default async function envSet(options, positionals) {
     }
 
     console.log()
-    console.log(`  ${c.dim('Run')} ${c.highlight('slipway slide')} ${c.dim('to apply changes.')}`)
+    console.log(
+      `  ${c.dim('Run')} ${c.highlight('slipway slide')} ${c.dim(
+        'to apply changes.'
+      )}`
+    )
     console.log()
   } catch (err) {
     spin.fail('Failed to set environment variables')

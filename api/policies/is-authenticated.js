@@ -31,7 +31,9 @@ module.exports = async function (req, res, proceed) {
 
     if (cliToken) {
       // Update last used timestamp (fire and forget)
-      CliToken.updateOne(cliToken.id).set({ lastUsedAt: new Date() }).catch(() => {})
+      CliToken.updateOne(cliToken.id)
+        .set({ lastUsedAt: new Date() })
+        .catch(() => {})
 
       // Attach user ID to request for downstream use
       req.session.userId = cliToken.user

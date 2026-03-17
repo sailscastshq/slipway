@@ -25,9 +25,10 @@ const copiedSlug = ref(null)
 const filteredProjects = computed(() => {
   if (!searchQuery.value) return props.projects
   const query = searchQuery.value.toLowerCase()
-  return props.projects.filter(project =>
-    project.name.toLowerCase().includes(query) ||
-    (project.description && project.description.toLowerCase().includes(query))
+  return props.projects.filter(
+    (project) =>
+      project.name.toLowerCase().includes(query) ||
+      (project.description && project.description.toLowerCase().includes(query))
   )
 })
 
@@ -112,17 +113,39 @@ onUnmounted(() => {
   <Head title="Projects | Slipway"></Head>
   <div class="flex h-full flex-col">
     <!-- Header -->
-    <div class="flex items-center justify-between border-b border-gray-200 py-4 pl-4 pr-4 dark:border-gray-800 sm:pl-4 sm:pr-8">
+    <div
+      class="flex items-center justify-between border-b border-gray-200 py-4 pl-4 pr-4 dark:border-gray-800 sm:pl-4 sm:pr-8"
+    >
       <div class="flex items-center space-x-3">
         <!-- Mobile menu button -->
         <button
           @click="toggleMobileMenu"
           class="rounded-md p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white md:hidden"
         >
-          <svg class="h-5 w-5" viewBox="-0.5 -0.5 16 16" fill="none" stroke="currentColor">
-            <path d="M12.777 14.285H2.223c-.833 0-1.508-.675-1.508-1.508V2.223c0-.833.675-1.508 1.508-1.508h10.554c.833 0 1.508.675 1.508 1.508v10.554c0 .833-.675 1.508-1.508 1.508Z" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
-            <path d="M5.615 14.285V.715" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
-            <path d="M2.6 5.992 3.919 7.5 2.6 9.008" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
+          <svg
+            class="h-5 w-5"
+            viewBox="-0.5 -0.5 16 16"
+            fill="none"
+            stroke="currentColor"
+          >
+            <path
+              d="M12.777 14.285H2.223c-.833 0-1.508-.675-1.508-1.508V2.223c0-.833.675-1.508 1.508-1.508h10.554c.833 0 1.508.675 1.508 1.508v10.554c0 .833-.675 1.508-1.508 1.508Z"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1"
+            />
+            <path
+              d="M5.615 14.285V.715"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1"
+            />
+            <path
+              d="M2.6 5.992 3.919 7.5 2.6 9.008"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1"
+            />
           </svg>
         </button>
         <!-- Desktop sidebar toggle -->
@@ -130,19 +153,63 @@ onUnmounted(() => {
           @click="toggleSidebar"
           class="hidden text-gray-400 dark:text-gray-500 md:block"
         >
-          <svg v-if="sidebarCollapsed" class="h-5 w-5" viewBox="-0.5 -0.5 16 16" fill="none" stroke="currentColor">
-            <path d="M12.777 14.285H2.223c-.833 0-1.508-.675-1.508-1.508V2.223c0-.833.675-1.508 1.508-1.508h10.554c.833 0 1.508.675 1.508 1.508v10.554c0 .833-.675 1.508-1.508 1.508Z" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
-            <path d="M5.615 14.285V.715" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
-            <path d="M2.6 5.992 3.919 7.5 2.6 9.008" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
+          <svg
+            v-if="sidebarCollapsed"
+            class="h-5 w-5"
+            viewBox="-0.5 -0.5 16 16"
+            fill="none"
+            stroke="currentColor"
+          >
+            <path
+              d="M12.777 14.285H2.223c-.833 0-1.508-.675-1.508-1.508V2.223c0-.833.675-1.508 1.508-1.508h10.554c.833 0 1.508.675 1.508 1.508v10.554c0 .833-.675 1.508-1.508 1.508Z"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1"
+            />
+            <path
+              d="M5.615 14.285V.715"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1"
+            />
+            <path
+              d="M2.6 5.992 3.919 7.5 2.6 9.008"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1"
+            />
           </svg>
-          <svg v-else class="h-5 w-5" viewBox="-0.5 -0.5 16 16" fill="none" stroke="currentColor">
-            <path d="M12.777 14.285H2.223c-.833 0-1.508-.675-1.508-1.508V2.223c0-.833.675-1.508 1.508-1.508h10.554c.833 0 1.508.675 1.508 1.508v10.554c0 .833-.675 1.508-1.508 1.508Z" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
-            <path d="M5.615 14.285V.715" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
-            <path d="M3.919 5.992 2.6 7.5l1.319 1.508" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
+          <svg
+            v-else
+            class="h-5 w-5"
+            viewBox="-0.5 -0.5 16 16"
+            fill="none"
+            stroke="currentColor"
+          >
+            <path
+              d="M12.777 14.285H2.223c-.833 0-1.508-.675-1.508-1.508V2.223c0-.833.675-1.508 1.508-1.508h10.554c.833 0 1.508.675 1.508 1.508v10.554c0 .833-.675 1.508-1.508 1.508Z"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1"
+            />
+            <path
+              d="M5.615 14.285V.715"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1"
+            />
+            <path
+              d="M3.919 5.992 2.6 7.5l1.319 1.508"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1"
+            />
           </svg>
         </button>
         <nav class="flex items-center text-sm">
-          <span class="font-medium text-gray-900 dark:text-white">projects</span>
+          <span class="font-medium text-gray-900 dark:text-white"
+            >projects</span
+          >
         </nav>
       </div>
       <div class="flex items-center space-x-4">
@@ -152,8 +219,18 @@ onUnmounted(() => {
           class="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
         >
           Docs
-          <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+          <svg
+            class="h-3.5 w-3.5"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+            />
           </svg>
         </a>
       </div>
@@ -169,7 +246,7 @@ onUnmounted(() => {
             v-model="searchQuery"
             type="text"
             placeholder="Search projects..."
-            class="w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:border-brand focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500 sm:w-64"
+            class="focus:border-brand w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500 sm:w-64"
           />
           <Link
             href="/projects/new"
@@ -193,7 +270,9 @@ onUnmounted(() => {
           </div>
 
           <!-- Table Body -->
-          <div class="divide-y divide-gray-200 rounded-b-lg bg-white dark:divide-gray-800 dark:bg-gray-950">
+          <div
+            class="divide-y divide-gray-200 rounded-b-lg bg-white dark:divide-gray-800 dark:bg-gray-950"
+          >
             <div
               v-for="project in filteredProjects"
               :key="project.id"
@@ -221,7 +300,7 @@ onUnmounted(() => {
                   <div class="group/name flex min-w-0 items-center space-x-1.5">
                     <Link
                       :href="`/projects/${project.slug}`"
-                      class="font-medium text-gray-900 underline decoration-dashed decoration-gray-300 underline-offset-2 hover:text-gray-700 dark:text-white dark:decoration-gray-600 dark:hover:text-gray-300"
+                      class="font-medium text-gray-900 underline decoration-gray-300 decoration-dashed underline-offset-2 hover:text-gray-700 dark:text-white dark:decoration-gray-600 dark:hover:text-gray-300"
                     >
                       {{ project.name }}
                     </Link>
@@ -237,7 +316,12 @@ onUnmounted(() => {
                         stroke="currentColor"
                         viewBox="0 0 24 24"
                       >
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                        <path
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          stroke-width="2"
+                          d="M5 13l4 4L19 7"
+                        />
                       </svg>
                       <svg
                         v-else
@@ -246,7 +330,12 @@ onUnmounted(() => {
                         stroke="currentColor"
                         viewBox="0 0 24 24"
                       >
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                        <path
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          stroke-width="2"
+                          d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
+                        />
                       </svg>
                     </button>
                   </div>
@@ -261,10 +350,15 @@ onUnmounted(() => {
                   Running
                 </span>
                 <span
-                  v-else-if="project.status === 'building' || project.status === 'deploying'"
+                  v-else-if="
+                    project.status === 'building' ||
+                    project.status === 'deploying'
+                  "
                   class="inline-flex items-center gap-1.5 rounded-md bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
                 >
-                  <span class="h-1.5 w-1.5 rounded-full bg-blue-500 animate-pulse"></span>
+                  <span
+                    class="h-1.5 w-1.5 animate-pulse rounded-full bg-blue-500"
+                  ></span>
                   {{ project.status === 'building' ? 'Building' : 'Deploying' }}
                 </span>
                 <span
@@ -298,8 +392,14 @@ onUnmounted(() => {
                     @click="toggleMenu($event, project.id)"
                     class="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-800 dark:hover:text-gray-300"
                   >
-                    <svg class="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
-                      <path d="M6 10a2 2 0 11-4 0 2 2 0 014 0zm6 0a2 2 0 11-4 0 2 2 0 014 0zm6 0a2 2 0 11-4 0 2 2 0 014 0z" />
+                    <svg
+                      class="h-5 w-5"
+                      fill="currentColor"
+                      viewBox="0 0 20 20"
+                    >
+                      <path
+                        d="M6 10a2 2 0 11-4 0 2 2 0 014 0zm6 0a2 2 0 11-4 0 2 2 0 014 0zm6 0a2 2 0 11-4 0 2 2 0 014 0z"
+                      />
                     </svg>
                   </button>
                   <!-- Dropdown -->
@@ -311,8 +411,18 @@ onUnmounted(() => {
                       :href="`/projects/${project.slug}/settings`"
                       class="flex w-full items-center px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
                     >
-                      <svg class="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                      <svg
+                        class="mr-2 h-4 w-4"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          stroke-width="2"
+                          d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                        />
                       </svg>
                       Edit
                     </Link>
@@ -323,8 +433,18 @@ onUnmounted(() => {
                       class="flex w-full items-center px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
                       @click.stop
                     >
-                      <svg class="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                      <svg
+                        class="mr-2 h-4 w-4"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          stroke-width="2"
+                          d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+                        />
                       </svg>
                       View repo
                     </a>
@@ -332,18 +452,40 @@ onUnmounted(() => {
                       @click="copySlug($event, project.slug)"
                       class="flex w-full items-center px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
                     >
-                      <svg class="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                      <svg
+                        class="mr-2 h-4 w-4"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          stroke-width="2"
+                          d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
+                        />
                       </svg>
                       Copy slug
                     </button>
-                    <div class="my-1 border-t border-gray-200 dark:border-gray-700"></div>
+                    <div
+                      class="my-1 border-t border-gray-200 dark:border-gray-700"
+                    ></div>
                     <button
                       @click="deleteProject($event, project)"
                       class="flex w-full items-center px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20"
                     >
-                      <svg class="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      <svg
+                        class="mr-2 h-4 w-4"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          stroke-width="2"
+                          d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                        />
                       </svg>
                       Delete
                     </button>
@@ -364,10 +506,7 @@ onUnmounted(() => {
       </div>
 
       <!-- Empty State -->
-      <div
-        v-else
-        class="flex flex-col items-center justify-center py-24"
-      >
+      <div v-else class="flex flex-col items-center justify-center py-24">
         <div
           class="mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-gray-100 dark:bg-gray-800"
         >
@@ -385,7 +524,9 @@ onUnmounted(() => {
             />
           </svg>
         </div>
-        <h3 class="mb-1 text-lg font-medium text-gray-900 dark:text-white">No projects yet</h3>
+        <h3 class="mb-1 text-lg font-medium text-gray-900 dark:text-white">
+          No projects yet
+        </h3>
         <p class="mb-6 text-sm text-gray-500">
           Get started by creating your first project.
         </p>

@@ -1,7 +1,16 @@
 import { c } from '../lib/colors.js'
 import { api } from '../lib/api.js'
 import { isLoggedIn } from '../lib/config.js'
-import { error, requireProject, createSpinner, table, formatDate, formatBytes, formatDuration, statusColor } from '../lib/utils.js'
+import {
+  error,
+  requireProject,
+  createSpinner,
+  table,
+  formatDate,
+  formatBytes,
+  formatDuration,
+  statusColor
+} from '../lib/utils.js'
 
 export default async function backupList(options, positionals) {
   if (!isLoggedIn()) {
@@ -10,7 +19,9 @@ export default async function backupList(options, positionals) {
 
   const name = positionals[0]
   if (!name) {
-    error('Please provide a service name. Usage: slipway backup:list <service-name>')
+    error(
+      'Please provide a service name. Usage: slipway backup:list <service-name>'
+    )
   }
 
   const project = requireProject()
@@ -21,7 +32,7 @@ export default async function backupList(options, positionals) {
   try {
     // Resolve service name to ID
     const { services } = await api.services.list(project.project, environment)
-    const service = services.find(s => s.name === name)
+    const service = services.find((s) => s.name === name)
 
     if (!service) {
       spin.fail('Service not found')
@@ -33,17 +44,25 @@ export default async function backupList(options, positionals) {
     spin.stop()
 
     console.log()
-    console.log(`  ${c.bold(c.highlight('Backups'))} ${c.dim(`— ${name} (${environment})`)}`)
+    console.log(
+      `  ${c.bold(c.highlight('Backups'))} ${c.dim(
+        `— ${name} (${environment})`
+      )}`
+    )
     console.log()
 
     if (!backups || backups.length === 0) {
       console.log(`  ${c.dim('No backups found.')}`)
-      console.log(`  ${c.dim('Run')} ${c.highlight(`slipway backup:create ${name}`)} ${c.dim('to create one.')}`)
+      console.log(
+        `  ${c.dim('Run')} ${c.highlight(
+          `slipway backup:create ${name}`
+        )} ${c.dim('to create one.')}`
+      )
       console.log()
       return
     }
 
-    const rows = backups.map(b => [
+    const rows = backups.map((b) => [
       b.id,
       statusColor(b.status),
       b.type,
@@ -52,10 +71,7 @@ export default async function backupList(options, positionals) {
       formatDate(b.createdAt)
     ])
 
-    table(
-      ['ID', 'Status', 'Type', 'Size', 'Duration', 'Date'],
-      rows
-    )
+    table(['ID', 'Status', 'Type', 'Size', 'Duration', 'Date'], rows)
 
     console.log()
   } catch (err) {

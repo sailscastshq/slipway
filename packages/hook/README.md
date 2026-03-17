@@ -14,28 +14,32 @@ This hook transforms any Sails app into a fully-managed application with:
 
 ## Routes
 
-| Route | Feature | Condition |
-|-------|---------|-----------|
-| `/slipway` | Control panel dashboard | Always |
-| `/slipway/bridge` | The Bridge (data management) | Always |
-| `/slipway/helm` | The Helm (REPL) | Always |
-| `/slipway/quest` | Job queue dashboard | If sails-quest detected |
-| `/slipway/content` | CMS interface | If sails-content detected |
+| Route              | Feature                      | Condition                 |
+| ------------------ | ---------------------------- | ------------------------- |
+| `/slipway`         | Control panel dashboard      | Always                    |
+| `/slipway/bridge`  | The Bridge (data management) | Always                    |
+| `/slipway/helm`    | The Helm (REPL)              | Always                    |
+| `/slipway/quest`   | Job queue dashboard          | If sails-quest detected   |
+| `/slipway/content` | CMS interface                | If sails-content detected |
 
 ## Two Access Methods
 
 ### 1. Direct (via app URL)
+
 ```
 myapp.example.com/slipway/bridge
 myapp.example.com/slipway/helm
 ```
+
 Users go directly to your app's Bridge or Helm.
 
 ### 2. Via Slipway Dashboard (centralized)
+
 ```
 slipway.yourdomain.com/app/myapp/bridge
 slipway.yourdomain.com/app/myapp/helm
 ```
+
 The Slipway Dashboard proxies requests, providing single sign-on across all apps.
 
 ## Installation
@@ -58,13 +62,13 @@ module.exports.slipway = {
   helm: {
     enabled: true,
     path: '/slipway/helm',
-    readOnly: false  // Set true in production
+    readOnly: false // Set true in production
   },
   quest: {
-    enabled: true    // Auto-disabled if sails-quest not installed
+    enabled: true // Auto-disabled if sails-quest not installed
   },
   content: {
-    enabled: true    // Auto-disabled if sails-content not installed
+    enabled: true // Auto-disabled if sails-content not installed
   },
   telemetry: {
     enabled: true,
@@ -106,4 +110,4 @@ slipway dev
 
 ---
 
-*Where your apps slide into production.*
+_Where your apps slide into production._

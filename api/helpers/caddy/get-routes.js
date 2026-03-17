@@ -3,7 +3,8 @@ const { execFile } = require('child_process')
 module.exports = {
   friendlyName: 'Get routes',
 
-  description: 'Get all Slipway route containers managed by caddy-docker-proxy.',
+  description:
+    'Get all Slipway route containers managed by caddy-docker-proxy.',
 
   inputs: {},
 
@@ -30,10 +31,14 @@ module.exports = {
             return resolve([])
           }
 
-          const routes = stdout.trim().split('\n').filter(Boolean).map((name) => ({
-            '@id': name,
-            containerName: name
-          }))
+          const routes = stdout
+            .trim()
+            .split('\n')
+            .filter(Boolean)
+            .map((name) => ({
+              '@id': name,
+              containerName: name
+            }))
 
           resolve(routes)
         }

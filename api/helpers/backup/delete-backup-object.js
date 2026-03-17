@@ -15,14 +15,35 @@ module.exports = {
     try {
       const globalJson = await sails.helpers.setting.get('globalEnvVars', '{}')
       globalEnvVars = JSON.parse(globalJson)
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
 
     const uploadsConfig = {
-      key: globalEnvVars.R2_ACCESS_KEY || globalEnvVars.S3_ACCESS_KEY || globalEnvVars.SPACES_ACCESS_KEY || (sails.config.uploads || {}).key,
-      secret: globalEnvVars.R2_SECRET_KEY || globalEnvVars.S3_SECRET_KEY || globalEnvVars.SPACES_SECRET_KEY || (sails.config.uploads || {}).secret,
-      bucket: globalEnvVars.R2_BUCKET || globalEnvVars.S3_BUCKET || globalEnvVars.SPACES_BUCKET || (sails.config.uploads || {}).bucket,
-      endpoint: globalEnvVars.R2_ENDPOINT || globalEnvVars.S3_ENDPOINT || globalEnvVars.SPACES_ENDPOINT || (sails.config.uploads || {}).endpoint,
-      region: globalEnvVars.S3_REGION || globalEnvVars.SPACES_REGION || (sails.config.uploads || {}).region
+      key:
+        globalEnvVars.R2_ACCESS_KEY ||
+        globalEnvVars.S3_ACCESS_KEY ||
+        globalEnvVars.SPACES_ACCESS_KEY ||
+        (sails.config.uploads || {}).key,
+      secret:
+        globalEnvVars.R2_SECRET_KEY ||
+        globalEnvVars.S3_SECRET_KEY ||
+        globalEnvVars.SPACES_SECRET_KEY ||
+        (sails.config.uploads || {}).secret,
+      bucket:
+        globalEnvVars.R2_BUCKET ||
+        globalEnvVars.S3_BUCKET ||
+        globalEnvVars.SPACES_BUCKET ||
+        (sails.config.uploads || {}).bucket,
+      endpoint:
+        globalEnvVars.R2_ENDPOINT ||
+        globalEnvVars.S3_ENDPOINT ||
+        globalEnvVars.SPACES_ENDPOINT ||
+        (sails.config.uploads || {}).endpoint,
+      region:
+        globalEnvVars.S3_REGION ||
+        globalEnvVars.SPACES_REGION ||
+        (sails.config.uploads || {}).region
     }
 
     const skipperS3 = require('skipper-s3')

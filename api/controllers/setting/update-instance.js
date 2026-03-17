@@ -14,7 +14,8 @@ module.exports = {
     },
     acmeEmail: {
       type: 'string',
-      description: 'Email address for Let\'s Encrypt ACME certificate provisioning'
+      description:
+        "Email address for Let's Encrypt ACME certificate provisioning"
     }
   },
 
@@ -27,7 +28,8 @@ module.exports = {
   fn: async function ({ instanceDomain, instanceName, acmeEmail }) {
     if (instanceDomain !== undefined) {
       // Clean up the domain - remove protocol and trailing slashes
-      let cleanDomain = instanceDomain.trim()
+      let cleanDomain = instanceDomain
+        .trim()
         .replace(/^https?:\/\//, '')
         .replace(/\/+$/, '')
       await sails.helpers.setting.set('instanceDomain', cleanDomain)

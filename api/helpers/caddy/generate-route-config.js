@@ -1,7 +1,8 @@
 module.exports = {
   friendlyName: 'Generate route config',
 
-  description: 'Generate Caddy route configuration for an environment (supports multi-app).',
+  description:
+    'Generate Caddy route configuration for an environment (supports multi-app).',
 
   inputs: {
     environmentId: {
@@ -22,8 +23,9 @@ module.exports = {
   },
 
   fn: async function ({ environmentId }) {
-    const environment = await Environment.findOne({ id: environmentId })
-      .populate('project')
+    const environment = await Environment.findOne({
+      id: environmentId
+    }).populate('project')
 
     if (!environment) {
       throw 'notFound'
@@ -33,13 +35,17 @@ module.exports = {
     const apps = await App.find({ environment: environmentId })
 
     // Filter to apps with a hostPort (deployed) and a routePath (not workers)
-    const routableApps = apps.filter(app => app.hostPort && app.routePath !== null)
+    const routableApps = apps.filter(
+      (app) => app.hostPort && app.routePath !== null
+    )
 
     if (routableApps.length === 0) {
       return null // No apps deployed yet
     }
 
-    const { fullDomain, domains } = await Environment.resolveDomains(environmentId)
+    const { fullDomain, domains } = await Environment.resolveDomains(
+      environmentId
+    )
     const routeId = `slipway-${environment.project.slug}-${environment.slug}`
 
     if (domains.length === 0) {

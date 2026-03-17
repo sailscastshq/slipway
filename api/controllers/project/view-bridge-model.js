@@ -43,8 +43,18 @@ module.exports = {
     }
   },
 
-  fn: async function ({ slug, envSlug, modelIdentity, page, perPage, sort, search }) {
-    const user = await User.findOne({ id: this.req.session.userId }).populate('team')
+  fn: async function ({
+    slug,
+    envSlug,
+    modelIdentity,
+    page,
+    perPage,
+    sort,
+    search
+  }) {
+    const user = await User.findOne({ id: this.req.session.userId }).populate(
+      'team'
+    )
 
     if (!user) {
       throw { notFound: '/login' }
@@ -65,7 +75,9 @@ module.exports = {
       throw { notFound: `/projects/${slug}` }
     }
 
-    const app = await App.findOne({ environment: environment.id, isDefault: true }) || await App.findOne({ environment: environment.id })
+    const app =
+      (await App.findOne({ environment: environment.id, isDefault: true })) ||
+      (await App.findOne({ environment: environment.id }))
     const appRunning = app && app.status === 'running'
 
     // Load model metadata and records server-side
@@ -104,9 +116,15 @@ module.exports = {
                 .map(([name]) => name)
 
               if (stringAttrs.length > 0) {
-                const orClauses = stringAttrs.map(attr =>
-                  `{ ${attr}: { contains: '${search.replace(/'/g, "\\'")}' } }`
-                ).join(', ')
+                const orClauses = stringAttrs
+                  .map(
+                    (attr) =>
+                      `{ ${attr}: { contains: '${search.replace(
+                        /'/g,
+                        "\\'"
+                      )}' } }`
+                  )
+                  .join(', ')
 
                 queryCode = `
                   const total = await sails.models['${modelIdentity}'].count({ or: [${orClauses}] });
@@ -141,8 +159,13 @@ module.exports = {
               `
             }
 
-            const wrappedCode = await sails.helpers.bridge.buildSailsWrapper(queryCode)
-            const result = await sails.helpers.bridge.executeInContainer(app.containerName, wrappedCode)
+            const wrappedCode = await sails.helpers.bridge.buildSailsWrapper(
+              queryCode
+            )
+            const result = await sails.helpers.bridge.executeInContainer(
+              app.containerName,
+              wrappedCode
+            )
 
             if (result.success) {
               try {

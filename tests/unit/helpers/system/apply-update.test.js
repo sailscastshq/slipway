@@ -4,29 +4,31 @@ const applyUpdate = require('../../../../api/helpers/system/apply-update')
 
 const { buildRunArgs, hasMountDestination } = applyUpdate._private
 
-test('buildRunArgs injects the Slipway apps bind mount when it is missing', async ({ expect }) => {
+test('buildRunArgs injects the Slipway apps bind mount when it is missing', async ({
+  expect
+}) => {
   const containerInfo = {
     Mounts: [
       {
         Type: 'volume',
         Name: 'slipway-db',
-        Destination: '/app/db',
-      },
+        Destination: '/app/db'
+      }
     ],
     NetworkSettings: {
       Networks: {
-        slipway: {},
-      },
+        slipway: {}
+      }
     },
     HostConfig: {
       PortBindings: {
-        '1337/tcp': [{ HostPort: '1337' }],
-      },
+        '1337/tcp': [{ HostPort: '1337' }]
+      }
     },
     Config: {
       Env: ['NODE_ENV=production'],
-      Labels: {},
-    },
+      Labels: {}
+    }
   }
 
   const args = buildRunArgs(containerInfo, {
@@ -34,9 +36,9 @@ test('buildRunArgs injects the Slipway apps bind mount when it is missing', asyn
       {
         type: 'bind',
         source: '/var/slipway/apps',
-        destination: '/var/slipway/apps',
-      },
-    ],
+        destination: '/var/slipway/apps'
+      }
+    ]
   })
 
   expect(args.includes('--network')).toBe(true)
@@ -49,26 +51,28 @@ test('buildRunArgs injects the Slipway apps bind mount when it is missing', asyn
   expect(args.includes('1337:1337')).toBe(true)
 })
 
-test('buildRunArgs does not duplicate the apps bind mount when it already exists', async ({ expect }) => {
+test('buildRunArgs does not duplicate the apps bind mount when it already exists', async ({
+  expect
+}) => {
   const containerInfo = {
     Mounts: [
       {
         Type: 'bind',
         Source: '/var/slipway/apps',
         Destination: '/var/slipway/apps',
-        RW: true,
-      },
+        RW: true
+      }
     ],
     NetworkSettings: {
-      Networks: {},
+      Networks: {}
     },
     HostConfig: {
-      PortBindings: {},
+      PortBindings: {}
     },
     Config: {
       Env: [],
-      Labels: {},
-    },
+      Labels: {}
+    }
   }
 
   const args = buildRunArgs(containerInfo, {
@@ -76,13 +80,14 @@ test('buildRunArgs does not duplicate the apps bind mount when it already exists
       {
         type: 'bind',
         source: '/var/slipway/apps',
-        destination: '/var/slipway/apps',
-      },
-    ],
+        destination: '/var/slipway/apps'
+      }
+    ]
   })
 
   expect(
-    args.filter((value) => value === '/var/slipway/apps:/var/slipway/apps').length
+    args.filter((value) => value === '/var/slipway/apps:/var/slipway/apps')
+      .length
   ).toBe(1)
   expect(hasMountDestination(containerInfo, '/var/slipway/apps')).toBe(true)
 })

@@ -41,7 +41,9 @@ module.exports = {
   },
 
   fn: async function ({ slug, envSlug, collection, contentSlug, title }) {
-    const user = await User.findOne({ id: this.req.session.userId }).populate('team')
+    const user = await User.findOne({ id: this.req.session.userId }).populate(
+      'team'
+    )
     if (!user) {
       throw { notFound: '/login' }
     }
@@ -79,7 +81,9 @@ module.exports = {
 
     // Check if file already exists
     if (fs.existsSync(filePath)) {
-      throw { badRequest: { error: `Content file "${safeSlug}.md" already exists` } }
+      throw {
+        badRequest: { error: `Content file "${safeSlug}.md" already exists` }
+      }
     }
 
     // Ensure collection directory exists
@@ -95,7 +99,10 @@ module.exports = {
     // Generate content
     let content = '---\n'
     for (const [key, value] of Object.entries(frontmatter)) {
-      if (typeof value === 'string' && (value.includes(':') || value.includes('#'))) {
+      if (
+        typeof value === 'string' &&
+        (value.includes(':') || value.includes('#'))
+      ) {
         content += `${key}: '${value}'\n`
       } else {
         content += `${key}: ${value}\n`

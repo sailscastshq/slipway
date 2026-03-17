@@ -68,7 +68,9 @@ module.exports = function defineSlipwayHook(sails) {
 
       // Skip if not configured
       if (!config.telemetryUrl || !config.telemetryToken) {
-        sails.log.verbose('sails-hook-slipway: No telemetry endpoint configured, skipping.')
+        sails.log.verbose(
+          'sails-hook-slipway: No telemetry endpoint configured, skipping.'
+        )
         return done()
       }
 
@@ -77,7 +79,9 @@ module.exports = function defineSlipwayHook(sails) {
         return done()
       }
 
-      sails.log.info('sails-hook-slipway: Initializing telemetry instrumentation')
+      sails.log.info(
+        'sails-hook-slipway: Initializing telemetry instrumentation'
+      )
 
       // Start flush timer
       flushTimer = setInterval(flush, config.flushInterval)
@@ -117,7 +121,11 @@ module.exports = function defineSlipwayHook(sails) {
       before: {
         'all /*': function (req, res, next) {
           // Skip if telemetry is not configured or disabled
-          if (!config.telemetryUrl || !config.telemetryToken || !config.enabled) {
+          if (
+            !config.telemetryUrl ||
+            !config.telemetryToken ||
+            !config.enabled
+          ) {
             return next()
           }
 
@@ -137,7 +145,13 @@ module.exports = function defineSlipwayHook(sails) {
                 if (data instanceof Error) {
                   captureException(data, true, req)
                 } else if (data && data.raw) {
-                  captureException(data.raw instanceof Error ? data.raw : new Error(String(data.raw)), true, req)
+                  captureException(
+                    data.raw instanceof Error
+                      ? data.raw
+                      : new Error(String(data.raw)),
+                    true,
+                    req
+                  )
                 }
                 return originalServerError.call(res, data)
               }
@@ -154,7 +168,11 @@ module.exports = function defineSlipwayHook(sails) {
 
             // Skip health check and static asset requests
             const url = req.originalUrl || req.url
-            if (url !== '/health' && !url.startsWith('/__') && !url.match(/\.(js|css|png|jpg|svg|ico|map|woff|woff2)$/)) {
+            if (
+              url !== '/health' &&
+              !url.startsWith('/__') &&
+              !url.match(/\.(js|css|png|jpg|svg|ico|map|woff|woff2)$/)
+            ) {
               spanBuffer.push({
                 traceId,
                 spanId,
@@ -168,9 +186,12 @@ module.exports = function defineSlipwayHook(sails) {
                 attributes: {
                   'http.route': req.route ? req.route.path : url,
                   'http.user_agent': req.headers['user-agent'] || '',
-                  'http.request_content_length': req.headers['content-length'] || 0,
-                  'http.response_content_length': res.getHeader('content-length') || 0,
-                  'http.client_ip': req.ip || req.headers['x-forwarded-for'] || '',
+                  'http.request_content_length':
+                    req.headers['content-length'] || 0,
+                  'http.response_content_length':
+                    res.getHeader('content-length') || 0,
+                  'http.client_ip':
+                    req.ip || req.headers['x-forwarded-for'] || '',
                   'http.referrer': req.headers.referer || '',
                   'http.accept': req.headers.accept || ''
                 }
@@ -222,7 +243,7 @@ module.exports = function defineSlipwayHook(sails) {
       stackTrace: err.stack || null,
       handled,
       method: req ? req.method : null,
-      url: req ? (req.originalUrl || req.url) : null,
+      url: req ? req.originalUrl || req.url : null,
       traceId: req ? req._slipwayTraceId : null,
       occurredAt: Date.now()
     }
@@ -240,9 +261,17 @@ module.exports = function defineSlipwayHook(sails) {
   function instrumentQueries() {
     const models = sails.models
     const methodsToInstrument = [
-      'find', 'findOne', 'create', 'createEach',
-      'update', 'updateOne', 'destroy', 'destroyOne',
-      'count', 'sum', 'avg'
+      'find',
+      'findOne',
+      'create',
+      'createEach',
+      'update',
+      'updateOne',
+      'destroy',
+      'destroyOne',
+      'count',
+      'sum',
+      'avg'
     ]
 
     for (const modelName of Object.keys(models)) {
@@ -261,7 +290,8 @@ module.exports = function defineSlipwayHook(sails) {
           if (deferred && typeof deferred.then === 'function') {
             const originalThen = deferred.then
             deferred.then = function (resolve, reject) {
-              return originalThen.call(deferred,
+              return originalThen.call(
+                deferred,
                 function (result) {
                   const duration = Date.now() - startTime
                   recordQueryMetric(modelName, method, duration, args)
@@ -308,7 +338,9 @@ module.exports = function defineSlipwayHook(sails) {
       const criteria = args[0]
       const keys = Object.keys(criteria).slice(0, 5)
       if (keys.length > 0) {
-        metric.attributes.query = `${modelName}.${method}({ ${keys.join(', ')} })`
+        metric.attributes.query = `${modelName}.${method}({ ${keys.join(
+          ', '
+        )} })`
       } else {
         metric.attributes.query = `${modelName}.${method}()`
       }
@@ -360,7 +392,9 @@ module.exports = function defineSlipwayHook(sails) {
         attributes: {
           jobName: data.name,
           inputs: data.inputs || {},
-          error: data.error ? (data.error.message || String(data.error)) : 'Unknown error'
+          error: data.error
+            ? data.error.message || String(data.error)
+            : 'Unknown error'
         },
         recordedAt: data.timestamp || Date.now()
       })
@@ -368,7 +402,11 @@ module.exports = function defineSlipwayHook(sails) {
       // Also capture as an exception for the exceptions tab
       exceptionBuffer.push({
         exceptionType: 'QuestJobError',
-        message: `Job "${data.name}" failed: ${data.error ? (data.error.message || String(data.error)) : 'Unknown error'}`,
+        message: `Job "${data.name}" failed: ${
+          data.error
+            ? data.error.message || String(data.error)
+            : 'Unknown error'
+        }`,
         stackTrace: data.error ? data.error.stack : null,
         handled: true,
         method: null,
@@ -379,11 +417,16 @@ module.exports = function defineSlipwayHook(sails) {
 
       // Send job failure notification
       if (sails.helpers.notification) {
-        sails.helpers.notification.sendJobFailureNotification.with({
-          jobName: data.name,
-          errorMessage: data.error ? (data.error.message || String(data.error)) : 'Unknown error',
-          duration: typeof data.duration === 'number' ? data.duration : undefined
-        }).tolerate('error')
+        sails.helpers.notification.sendJobFailureNotification
+          .with({
+            jobName: data.name,
+            errorMessage: data.error
+              ? data.error.message || String(data.error)
+              : 'Unknown error',
+            duration:
+              typeof data.duration === 'number' ? data.duration : undefined
+          })
+          .tolerate('error')
       }
 
       // Flush immediately on errors
@@ -484,7 +527,7 @@ module.exports = function defineSlipwayHook(sails) {
         headers: {
           'Content-Type': 'application/json',
           'Content-Length': Buffer.byteLength(payload),
-          'Authorization': `Bearer ${config.telemetryToken}`
+          Authorization: `Bearer ${config.telemetryToken}`
         },
         timeout: 5000
       })

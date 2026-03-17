@@ -23,10 +23,15 @@ module.exports = {
   fn: async function ({ projectSlug, environmentSlug }) {
     const user = await User.findOne({ id: this.req.session.userId })
 
-    const project = await Project.findOne({ slug: projectSlug }).populate('team')
+    const project = await Project.findOne({ slug: projectSlug }).populate(
+      'team'
+    )
     if (!project || project.team.id !== user.team) throw 'notFound'
 
-    const environment = await Environment.findOne({ project: project.id, slug: environmentSlug })
+    const environment = await Environment.findOne({
+      project: project.id,
+      slug: environmentSlug
+    })
     if (!environment) throw 'notFound'
 
     const apps = await App.find({ environment: environment.id })

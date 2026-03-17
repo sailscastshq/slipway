@@ -19,7 +19,11 @@ export default async function auditLog(options) {
     spin.stop()
 
     console.log()
-    console.log(`  ${c.bold(c.highlight('Audit Log'))} ${c.dim(`— page ${pagination.page} of ${pagination.totalPages}`)}`)
+    console.log(
+      `  ${c.bold(c.highlight('Audit Log'))} ${c.dim(
+        `— page ${pagination.page} of ${pagination.totalPages}`
+      )}`
+    )
     console.log()
 
     if (!logs || logs.length === 0) {
@@ -28,7 +32,7 @@ export default async function auditLog(options) {
       return
     }
 
-    const rows = logs.map(log => [
+    const rows = logs.map((log) => [
       formatDate(log.createdAt),
       log.action,
       log.resourceType,
@@ -36,14 +40,15 @@ export default async function auditLog(options) {
       log.ipAddress || 'N/A'
     ])
 
-    table(
-      ['Date', 'Action', 'Resource', 'User', 'IP'],
-      rows
-    )
+    table(['Date', 'Action', 'Resource', 'User', 'IP'], rows)
 
     if (pagination.page < pagination.totalPages) {
       console.log()
-      console.log(`  ${c.dim('Next page:')} ${c.highlight(`slipway audit-log --page ${pagination.page + 1}`)}`)
+      console.log(
+        `  ${c.dim('Next page:')} ${c.highlight(
+          `slipway audit-log --page ${pagination.page + 1}`
+        )}`
+      )
     }
 
     console.log()

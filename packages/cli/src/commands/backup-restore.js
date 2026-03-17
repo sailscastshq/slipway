@@ -9,7 +9,9 @@ export default async function backupRestore(options, positionals) {
 
   const backupId = positionals[0]
   if (!backupId) {
-    error('Please provide a backup ID. Usage: slipway backup:restore <backup-id>')
+    error(
+      'Please provide a backup ID. Usage: slipway backup:restore <backup-id>'
+    )
   }
 
   const spin = createSpinner('Starting restore...').start()

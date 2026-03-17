@@ -21,7 +21,11 @@ module.exports = {
     }
 
     // Check if backup storage is configured
-    const backupConfigured = !!(globalEnvVars.R2_ACCESS_KEY && globalEnvVars.R2_SECRET_KEY && globalEnvVars.R2_BUCKET)
+    const backupConfigured = !!(
+      globalEnvVars.R2_ACCESS_KEY &&
+      globalEnvVars.R2_SECRET_KEY &&
+      globalEnvVars.R2_BUCKET
+    )
 
     return {
       page: 'settings/global-env',

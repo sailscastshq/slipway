@@ -1,7 +1,8 @@
 module.exports = {
   friendlyName: 'Stream update progress',
 
-  description: 'SSE endpoint that streams self-update progress phases to the UI.',
+  description:
+    'SSE endpoint that streams self-update progress phases to the UI.',
 
   inputs: {},
 

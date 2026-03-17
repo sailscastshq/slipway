@@ -1,7 +1,8 @@
 module.exports = {
   friendlyName: 'Create service',
 
-  description: 'Create a new backing service (database, redis, etc.) for an environment.',
+  description:
+    'Create a new backing service (database, redis, etc.) for an environment.',
 
   inputs: {
     projectSlug: {
@@ -52,7 +53,9 @@ module.exports = {
   fn: async function ({ projectSlug, environmentSlug, name, type, version }) {
     const user = await User.findOne({ id: this.req.session.userId })
 
-    const project = await Project.findOne({ slug: projectSlug }).populate('team')
+    const project = await Project.findOne({ slug: projectSlug }).populate(
+      'team'
+    )
 
     if (!project) {
       throw 'notFound'
@@ -62,7 +65,10 @@ module.exports = {
       throw 'forbidden'
     }
 
-    const environment = await Environment.findOne({ project: project.id, slug: environmentSlug }).decrypt()
+    const environment = await Environment.findOne({
+      project: project.id,
+      slug: environmentSlug
+    }).decrypt()
 
     if (!environment) {
       throw 'notFound'
@@ -77,7 +83,11 @@ module.exports = {
     if (existingService) {
       throw {
         badRequest: {
-          problems: [{ name: 'A service with this name already exists in this environment.' }]
+          problems: [
+            {
+              name: 'A service with this name already exists in this environment.'
+            }
+          ]
         }
       }
     }
@@ -121,11 +131,15 @@ module.exports = {
         envVarKey = `${name.replace(/-/g, '_').toUpperCase()}_URL`
       }
       const updatedVars = { ...currentVars, [envVarKey]: connectionUrl }
-      await Environment.updateOne({ id: environment.id }).set({ envVars: updatedVars })
+      await Environment.updateOne({ id: environment.id }).set({
+        envVars: updatedVars
+      })
       await Service.updateOne({ id: service.id }).set({ envVarKey })
     }
 
-    sails.log.info(`Service ${service.name} (${type}) created for ${project.slug}/${environment.slug}`)
+    sails.log.info(
+      `Service ${service.name} (${type}) created for ${project.slug}/${environment.slug}`
+    )
 
     // Audit log
     await sails.helpers.audit.log.with({

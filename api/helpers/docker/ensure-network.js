@@ -5,7 +5,8 @@ const execFileAsync = util.promisify(execFile)
 module.exports = {
   friendlyName: 'Ensure network',
 
-  description: 'Ensure the Slipway Docker network exists, creating it if necessary.',
+  description:
+    'Ensure the Slipway Docker network exists, creating it if necessary.',
 
   inputs: {
     networkName: {
@@ -25,7 +26,8 @@ module.exports = {
   },
 
   fn: async function ({ networkName }) {
-    const network = networkName || sails.config.custom.slipwayNetwork || 'slipway'
+    const network =
+      networkName || sails.config.custom.slipwayNetwork || 'slipway'
 
     try {
       // Check if network exists
@@ -39,7 +41,9 @@ module.exports = {
         sails.log.info(`Created Docker network '${network}'`)
         return { exists: true, created: true, network }
       } catch (createError) {
-        sails.log.error(`Failed to create Docker network: ${createError.message}`)
+        sails.log.error(
+          `Failed to create Docker network: ${createError.message}`
+        )
         throw 'dockerError'
       }
     }

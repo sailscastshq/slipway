@@ -4,7 +4,8 @@ const path = require('path')
 module.exports = {
   friendlyName: 'Get models from static files',
 
-  description: 'Parse Waterline model definitions from source code files (no running app needed).',
+  description:
+    'Parse Waterline model definitions from source code files (no running app needed).',
 
   inputs: {
     projectSlug: {
@@ -40,11 +41,14 @@ module.exports = {
 
     // Parse config/models.js for default attributes and archive setting
     const { defaultAttrs, archiveModelIdentity } = parseConfigModels(appRoot)
-    sails.log.verbose(`[dock] Default attributes from config/models.js:`, Object.keys(defaultAttrs))
+    sails.log.verbose(
+      `[dock] Default attributes from config/models.js:`,
+      Object.keys(defaultAttrs)
+    )
     sails.log.verbose(`[dock] Archive model identity:`, archiveModelIdentity)
 
     const models = {}
-    const files = fs.readdirSync(modelsDir).filter(f => f.endsWith('.js'))
+    const files = fs.readdirSync(modelsDir).filter((f) => f.endsWith('.js'))
 
     for (const file of files) {
       // Skip excluded models (sails-content)
@@ -59,16 +63,23 @@ module.exports = {
         const parsed = parseModelFile(content, file, defaultAttrs)
         if (parsed && Object.keys(parsed.attributes).length > 0) {
           models[parsed.identity] = parsed
-          sails.log.verbose(`[dock] Parsed model: ${parsed.identity} with ${Object.keys(parsed.attributes).length} attributes`)
+          sails.log.verbose(
+            `[dock] Parsed model: ${parsed.identity} with ${
+              Object.keys(parsed.attributes).length
+            } attributes`
+          )
         }
       } catch (err) {
-        sails.log.verbose(`[dock] Could not parse model ${file}: ${err.message}`)
+        sails.log.verbose(
+          `[dock] Could not parse model ${file}: ${err.message}`
+        )
       }
     }
 
     // Add Archive model if archiveModelIdentity is enabled
     if (archiveModelIdentity && archiveModelIdentity !== 'false') {
-      const archiveIdentity = archiveModelIdentity === true ? 'archive' : archiveModelIdentity
+      const archiveIdentity =
+        archiveModelIdentity === true ? 'archive' : archiveModelIdentity
       models[archiveIdentity] = getArchiveModel(archiveIdentity, defaultAttrs)
       sails.log.verbose(`[dock] Added archive model: ${archiveIdentity}`)
     }
@@ -89,7 +100,9 @@ module.exports = {
       }
     }
 
-    sails.log.verbose(`[dock] Total models found: ${Object.keys(models).length}`)
+    sails.log.verbose(
+      `[dock] Total models found: ${Object.keys(models).length}`
+    )
     return { models }
   }
 }
@@ -130,8 +143,12 @@ function parseConfigModels(appRoot) {
 
     // Check if using archiveModelIdentity (soft deletes)
     // Can be: 'archive', 'customname', false, or not set (defaults to 'archive')
-    const archiveStringMatch = cleanContent.match(/archiveModelIdentity:\s*['"]([^'"]+)['"]/)
-    const archiveFalseMatch = cleanContent.match(/archiveModelIdentity:\s*false/)
+    const archiveStringMatch = cleanContent.match(
+      /archiveModelIdentity:\s*['"]([^'"]+)['"]/
+    )
+    const archiveFalseMatch = cleanContent.match(
+      /archiveModelIdentity:\s*false/
+    )
 
     if (archiveFalseMatch) {
       archiveModelIdentity = false
@@ -157,8 +174,12 @@ function parseConfigModels(appRoot) {
     }
 
     // Check for createdAt/updatedAt settings
-    const createdAtMatch = cleanContent.match(/createdAt:\s*(true|false|['"][^'"]+['"])/)
-    const updatedAtMatch = cleanContent.match(/updatedAt:\s*(true|false|['"][^'"]+['"])/)
+    const createdAtMatch = cleanContent.match(
+      /createdAt:\s*(true|false|['"][^'"]+['"])/
+    )
+    const updatedAtMatch = cleanContent.match(
+      /updatedAt:\s*(true|false|['"][^'"]+['"])/
+    )
 
     // If timestamps are enabled (default in Sails), add them
     if (!createdAtMatch || createdAtMatch[1] !== 'false') {
@@ -519,7 +540,12 @@ function splitTopLevelEntries(block) {
     else if (char === '(') parenDepth++
     else if (char === ')') parenDepth--
 
-    if (char === ',' && curlyDepth === 0 && squareDepth === 0 && parenDepth === 0) {
+    if (
+      char === ',' &&
+      curlyDepth === 0 &&
+      squareDepth === 0 &&
+      parenDepth === 0
+    ) {
       const entry = current.trim()
       if (entry) {
         entries.push(entry)
@@ -563,7 +589,7 @@ function extractCommonProperties(block, name) {
     'allowNull',
     'autoIncrement',
     'autoCreatedAt',
-    'autoUpdatedAt',
+    'autoUpdatedAt'
   ]
   for (const prop of boolProps) {
     const match = block.match(new RegExp(`${prop}:\\s*(true|false)`))
@@ -585,7 +611,9 @@ function extractCommonProperties(block, name) {
   // Extract isIn (enum values)
   const isInMatch = block.match(/isIn:\s*\[([^\]]+)\]/)
   if (isInMatch) {
-    attr.isIn = isInMatch[1].split(',').map(v => v.trim().replace(/['"]/g, ''))
+    attr.isIn = isInMatch[1]
+      .split(',')
+      .map((v) => v.trim().replace(/['"]/g, ''))
   }
 
   return attr

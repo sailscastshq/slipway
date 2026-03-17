@@ -39,7 +39,11 @@ module.exports = {
 
     const repo = await GitRepository.findOne({
       externalId: String(repoId)
-    }).populate('provider').populate('environment').populate('app').decrypt()
+    })
+      .populate('provider')
+      .populate('environment')
+      .populate('app')
+      .decrypt()
 
     if (!repo) {
       sails.log.warn(`[webhook] Unknown repository: ${repoId}`)
@@ -104,12 +108,18 @@ async function handlePush(repo, payload) {
   const targetEnvSlug = branchMappings[branch]
 
   if (hasMappings && !targetEnvSlug) {
-    sails.log.verbose(`[webhook] No mapping for branch ${branch}, skipping (mappings: ${JSON.stringify(branchMappings)})`)
+    sails.log.verbose(
+      `[webhook] No mapping for branch ${branch}, skipping (mappings: ${JSON.stringify(
+        branchMappings
+      )})`
+    )
     return { received: true, action: 'skipped', reason: 'no_branch_mapping' }
   }
 
   if (!hasMappings && branch !== repo.defaultBranch) {
-    sails.log.verbose(`[webhook] No mappings configured and ${branch} is not the default branch, skipping`)
+    sails.log.verbose(
+      `[webhook] No mappings configured and ${branch} is not the default branch, skipping`
+    )
     return { received: true, action: 'skipped', reason: 'no_branch_mapping' }
   }
 
@@ -124,13 +134,20 @@ async function handlePush(repo, payload) {
   sails.log.info(`[webhook] Triggering deployment for ${environment.slug}`)
 
   try {
-    const envRecord = await Environment.findOne({ id: environment.id }).populate('project')
+    const envRecord = await Environment.findOne({
+      id: environment.id
+    }).populate('project')
     const project = envRecord.project
 
     // Clone or pull the repo source code before building
-    const targetDir = path.join(sails.config.custom.slipwayAppsDir, project.slug)
+    const targetDir = path.join(
+      sails.config.custom.slipwayAppsDir,
+      project.slug
+    )
     if (!repo.deployKeyPrivate) {
-      sails.log.warn(`[webhook] No deploy key found for ${repo.fullName} — was the key decrypted?`)
+      sails.log.warn(
+        `[webhook] No deploy key found for ${repo.fullName} — was the key decrypted?`
+      )
     }
     await sails.helpers.git.cloneOrPull.with({
       cloneUrl: repo.cloneUrl,
@@ -144,13 +161,15 @@ async function handlePush(repo, payload) {
     let apps
     if (repo.app) {
       apps = [repo.app]
-      sails.log.info(`[webhook] Scoping deploy to app: ${repo.app.name || repo.app.slug}`)
+      sails.log.info(
+        `[webhook] Scoping deploy to app: ${repo.app.name || repo.app.slug}`
+      )
     } else {
       apps = await App.find({ environment: environment.id })
     }
     const deploymentIds = []
 
-    for (const app of (apps.length > 0 ? apps : [null])) {
+    for (const app of apps.length > 0 ? apps : [null]) {
       const deployment = await Deployment.create({
         status: 'pending',
         triggerType: 'webhook',
@@ -173,7 +192,11 @@ async function handlePush(repo, payload) {
             app
           })
         } catch (err) {
-          sails.log.error(`[webhook] Deployment ${deployment.id} failed: ${err.message || err}`)
+          sails.log.error(
+            `[webhook] Deployment ${deployment.id} failed: ${
+              err.message || err
+            }`
+          )
         }
       })
     }
@@ -204,22 +227,32 @@ async function handlePullRequest(repo, payload) {
   }
 
   // Need the project to create preview environment
-  const environment = await Environment.findOne({ id: repo.environment.id || repo.environment }).populate('project')
+  const environment = await Environment.findOne({
+    id: repo.environment.id || repo.environment
+  }).populate('project')
   if (!environment || !environment.project) {
     return { received: true, action: 'skipped', reason: 'no_project' }
   }
-  const project = await Project.findOne({ id: environment.project.id || environment.project })
+  const project = await Project.findOne({
+    id: environment.project.id || environment.project
+  })
 
   switch (action) {
     case 'opened':
     case 'synchronize':
     case 'reopened': {
-      const previewEnv = await sails.helpers.preview.createPreviewEnvironment.with({
-        project,
+      const previewEnv =
+        await sails.helpers.preview.createPreviewEnvironment.with({
+          project,
+          prNumber,
+          branch
+        })
+      return {
+        received: true,
+        action: 'preview_queued',
         prNumber,
-        branch
-      })
-      return { received: true, action: 'preview_queued', prNumber, environmentId: previewEnv.id }
+        environmentId: previewEnv.id
+      }
     }
 
     case 'closed':
@@ -245,12 +278,19 @@ async function handleDelete(repo, payload) {
 
   // Clean up preview environments associated with deleted branches
   if (refType === 'branch') {
-    const environment = await Environment.findOne({ id: repo.environment.id || repo.environment }).populate('project')
+    const environment = await Environment.findOne({
+      id: repo.environment.id || repo.environment
+    }).populate('project')
     if (environment && environment.project) {
-      const project = await Project.findOne({ id: environment.project.id || environment.project })
+      const project = await Project.findOne({
+        id: environment.project.id || environment.project
+      })
       if (project) {
         // Find preview environments that match this branch (pr-* slugs)
-        const previewEnvs = await Environment.find({ project: project.id, isPreview: true })
+        const previewEnvs = await Environment.find({
+          project: project.id,
+          isPreview: true
+        })
         for (const preview of previewEnvs) {
           if (preview.prNumber) {
             try {
@@ -258,9 +298,13 @@ async function handleDelete(repo, payload) {
                 project,
                 prNumber: preview.prNumber
               })
-              sails.log.info(`[webhook] Cleaned up preview environment pr-${preview.prNumber} for deleted branch "${ref}"`)
+              sails.log.info(
+                `[webhook] Cleaned up preview environment pr-${preview.prNumber} for deleted branch "${ref}"`
+              )
             } catch (err) {
-              sails.log.warn(`[webhook] Failed to clean up preview pr-${preview.prNumber}: ${err.message}`)
+              sails.log.warn(
+                `[webhook] Failed to clean up preview pr-${preview.prNumber}: ${err.message}`
+              )
             }
           }
         }

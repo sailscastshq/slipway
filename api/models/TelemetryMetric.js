@@ -33,7 +33,8 @@ module.exports = {
     attributes: {
       type: 'json',
       defaultsTo: {},
-      description: 'Additional context, e.g. { query: "SELECT ...", model: "User" }'
+      description:
+        'Additional context, e.g. { query: "SELECT ...", model: "User" }'
     },
 
     recordedAt: {
@@ -46,7 +47,8 @@ module.exports = {
     environment: {
       type: 'string',
       required: true,
-      description: 'Environment ID (references Environment model in default datastore)'
+      description:
+        'Environment ID (references Environment model in default datastore)'
     }
   }
 }

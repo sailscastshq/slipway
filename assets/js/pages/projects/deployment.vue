@@ -1,6 +1,14 @@
 <script setup>
 import { Link, Head, router } from '@inertiajs/vue3'
-import { inject, ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
+import {
+  inject,
+  ref,
+  computed,
+  watch,
+  nextTick,
+  onMounted,
+  onBeforeUnmount
+} from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
 import Breadcrumb from '@/components/Breadcrumb.vue'
 import SlippyLoader from '@/components/SlippyLoader.vue'
@@ -27,7 +35,7 @@ const sseLogs = ref('')
 
 const deployment = computed(() => ({
   ...props.deployment,
-  ...(sseStatus.value ? { status: sseStatus.value } : {}),
+  ...(sseStatus.value ? { status: sseStatus.value } : {})
 }))
 
 const isInProgress = computed(() =>
@@ -47,40 +55,76 @@ const highlightedLogs = computed(() => {
 
 function highlightLine(line) {
   // Escape HTML entities first
-  let s = line.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  let s = line
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
 
   // Step number at start of line (#0, #1, etc.)
-  s = s.replace(/^(#\d+)/, '<span class="text-cyan-600 dark:text-cyan-500">$1</span>')
+  s = s.replace(
+    /^(#\d+)/,
+    '<span class="text-cyan-600 dark:text-cyan-500">$1</span>'
+  )
 
   // DONE marker with timing
-  s = s.replace(/\bDONE (\d+\.\d+s)/, '<span class="text-green-600 dark:text-green-400 font-semibold">DONE</span> <span class="text-gray-400 dark:text-gray-500">$1</span>')
+  s = s.replace(
+    /\bDONE (\d+\.\d+s)/,
+    '<span class="text-green-600 dark:text-green-400 font-semibold">DONE</span> <span class="text-gray-400 dark:text-gray-500">$1</span>'
+  )
 
   // ERROR marker
-  s = s.replace(/\bERROR\b/g, '<span class="text-red-600 dark:text-red-400 font-semibold">ERROR</span>')
+  s = s.replace(
+    /\bERROR\b/g,
+    '<span class="text-red-600 dark:text-red-400 font-semibold">ERROR</span>'
+  )
 
   // CANCELED marker
-  s = s.replace(/\bCANCELED\b/g, '<span class="text-yellow-600 dark:text-yellow-400 font-semibold">CANCELED</span>')
+  s = s.replace(
+    /\bCANCELED\b/g,
+    '<span class="text-yellow-600 dark:text-yellow-400 font-semibold">CANCELED</span>'
+  )
 
   // Build stage steps [1/6], [2/6], etc.
-  s = s.replace(/\[(\d+\/\d+)\]/, '<span class="text-yellow-600 dark:text-yellow-400">[$1]</span>')
+  s = s.replace(
+    /\[(\d+\/\d+)\]/,
+    '<span class="text-yellow-600 dark:text-yellow-400">[$1]</span>'
+  )
 
   // [internal] tag
-  s = s.replace(/\[internal\]/, '<span class="text-gray-400 dark:text-gray-500">[internal]</span>')
+  s = s.replace(
+    /\[internal\]/,
+    '<span class="text-gray-400 dark:text-gray-500">[internal]</span>'
+  )
 
   // [auth] tag
-  s = s.replace(/\[auth\]/, '<span class="text-gray-400 dark:text-gray-500">[auth]</span>')
+  s = s.replace(
+    /\[auth\]/,
+    '<span class="text-gray-400 dark:text-gray-500">[auth]</span>'
+  )
 
   // Dockerfile instructions
-  s = s.replace(/\b(FROM|RUN|COPY|WORKDIR|EXPOSE|CMD|ENTRYPOINT|ENV|ARG|ADD|LABEL|USER|VOLUME)\b/, '<span class="text-purple-600 dark:text-purple-400">$1</span>')
+  s = s.replace(
+    /\b(FROM|RUN|COPY|WORKDIR|EXPOSE|CMD|ENTRYPOINT|ENV|ARG|ADD|LABEL|USER|VOLUME)\b/,
+    '<span class="text-purple-600 dark:text-purple-400">$1</span>'
+  )
 
   // "done" at end of line
-  s = s.replace(/\bdone$/, '<span class="text-green-600 dark:text-green-500">done</span>')
+  s = s.replace(
+    /\bdone$/,
+    '<span class="text-green-600 dark:text-green-500">done</span>'
+  )
 
   // sha256 hashes — dim them
-  s = s.replace(/(sha256:)([a-f0-9]+)/g, '<span class="text-gray-400 dark:text-gray-600">$1$2</span>')
+  s = s.replace(
+    /(sha256:)([a-f0-9]+)/g,
+    '<span class="text-gray-400 dark:text-gray-600">$1$2</span>'
+  )
 
   // Docker image references (e.g. docker.io/library/node:22-slim)
-  s = s.replace(/(docker\.io\/[^\s@]+)/g, '<span class="text-blue-600 dark:text-blue-400">$1</span>')
+  s = s.replace(
+    /(docker\.io\/[^\s@]+)/g,
+    '<span class="text-blue-600 dark:text-blue-400">$1</span>'
+  )
 
   return s
 }
@@ -105,24 +149,58 @@ const { close: disconnectDeploymentStream } = useEventSource(
 )
 
 // Auto-scroll log container when logs update
-watch(allLogs, async () => {
-  await nextTick()
-  if (logContainer.value) {
-    logContainer.value.scrollTop = logContainer.value.scrollHeight
-  }
-}, { immediate: true })
+watch(
+  allLogs,
+  async () => {
+    await nextTick()
+    if (logContainer.value) {
+      logContainer.value.scrollTop = logContainer.value.scrollHeight
+    }
+  },
+  { immediate: true }
+)
 
 function statusBadge(status) {
   const map = {
-    running: { label: 'Running', classes: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' },
-    building: { label: 'Building', classes: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' },
-    deploying: { label: 'Deploying', classes: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' },
-    pending: { label: 'Pending', classes: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400' },
-    failed: { label: 'Failed', classes: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' },
-    stopped: { label: 'Stopped', classes: 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400' },
-    cancelled: { label: 'Cancelled', classes: 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400' }
+    running: {
+      label: 'Running',
+      classes:
+        'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+    },
+    building: {
+      label: 'Building',
+      classes:
+        'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+    },
+    deploying: {
+      label: 'Deploying',
+      classes:
+        'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+    },
+    pending: {
+      label: 'Pending',
+      classes:
+        'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'
+    },
+    failed: {
+      label: 'Failed',
+      classes: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+    },
+    stopped: {
+      label: 'Stopped',
+      classes: 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'
+    },
+    cancelled: {
+      label: 'Cancelled',
+      classes: 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'
+    }
   }
-  return map[status] || { label: status, classes: 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400' }
+  return (
+    map[status] || {
+      label: status,
+      classes: 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'
+    }
+  )
 }
 
 function formatDuration(seconds) {
@@ -146,10 +224,13 @@ async function cancelDeployment() {
   cancelling.value = true
 
   try {
-    const res = await fetch(`/api/v1/deployments/${props.deployment.id}/cancel`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' }
-    })
+    const res = await fetch(
+      `/api/v1/deployments/${props.deployment.id}/cancel`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      }
+    )
 
     if (res.ok) {
       router.reload()
@@ -165,10 +246,11 @@ async function cancelDeployment() {
 }
 
 // Rollback
-const canRollback = computed(() =>
-  props.deployment.status === 'running' &&
-  !props.deployment.isCurrentDeployment &&
-  props.deployment.imageName
+const canRollback = computed(
+  () =>
+    props.deployment.status === 'running' &&
+    !props.deployment.isCurrentDeployment &&
+    props.deployment.imageName
 )
 
 const rollingBack = ref(false)
@@ -179,7 +261,8 @@ const slideProgress = ref(0)
 const isSliding = ref(false)
 
 const thumbColor = computed(() => {
-  if (slideProgress.value < 0.33) return 'bg-gray-900 text-white dark:bg-white dark:text-gray-900'
+  if (slideProgress.value < 0.33)
+    return 'bg-gray-900 text-white dark:bg-white dark:text-gray-900'
   if (slideProgress.value < 0.66) return 'bg-yellow-500 text-white'
   return 'bg-red-500 text-white'
 })
@@ -200,7 +283,10 @@ function startSlide(e) {
   const maxSlide = track.offsetWidth - 40
 
   const onMove = (moveEvent) => {
-    const currentX = moveEvent.type === 'touchmove' ? moveEvent.touches[0].clientX : moveEvent.clientX
+    const currentX =
+      moveEvent.type === 'touchmove'
+        ? moveEvent.touches[0].clientX
+        : moveEvent.clientX
     const delta = startX - currentX
     slideProgress.value = Math.max(0, Math.min(1, delta / maxSlide))
   }
@@ -245,7 +331,9 @@ function executeRollback() {
       onSuccess: (page) => {
         const newDeployment = page.props?.deployment
         if (newDeployment?.id) {
-          router.visit(`/projects/${props.project.slug}/deployments/${newDeployment.id}`)
+          router.visit(
+            `/projects/${props.project.slug}/deployments/${newDeployment.id}`
+          )
         }
       },
       onFinish: () => {
@@ -260,16 +348,38 @@ function executeRollback() {
   <Head :title="`Deployment ${deployment.id} | Slipway`"></Head>
   <div class="flex h-full flex-col">
     <!-- Header -->
-    <div class="flex items-center justify-between border-b border-gray-200 py-4 pl-4 pr-4 dark:border-gray-800 sm:pl-4 sm:pr-8">
+    <div
+      class="flex items-center justify-between border-b border-gray-200 py-4 pl-4 pr-4 dark:border-gray-800 sm:pl-4 sm:pr-8"
+    >
       <div class="flex items-center space-x-3">
         <button
           @click="toggleMobileMenu"
           class="rounded-md p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white md:hidden"
         >
-          <svg class="h-5 w-5" viewBox="-0.5 -0.5 16 16" fill="none" stroke="currentColor">
-            <path d="M12.777 14.285H2.223c-.833 0-1.508-.675-1.508-1.508V2.223c0-.833.675-1.508 1.508-1.508h10.554c.833 0 1.508.675 1.508 1.508v10.554c0 .833-.675 1.508-1.508 1.508Z" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
-            <path d="M5.615 14.285V.715" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
-            <path d="M2.6 5.992 3.919 7.5 2.6 9.008" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
+          <svg
+            class="h-5 w-5"
+            viewBox="-0.5 -0.5 16 16"
+            fill="none"
+            stroke="currentColor"
+          >
+            <path
+              d="M12.777 14.285H2.223c-.833 0-1.508-.675-1.508-1.508V2.223c0-.833.675-1.508 1.508-1.508h10.554c.833 0 1.508.675 1.508 1.508v10.554c0 .833-.675 1.508-1.508 1.508Z"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1"
+            />
+            <path
+              d="M5.615 14.285V.715"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1"
+            />
+            <path
+              d="M2.6 5.992 3.919 7.5 2.6 9.008"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1"
+            />
           </svg>
         </button>
         <!-- Desktop sidebar toggle -->
@@ -277,23 +387,73 @@ function executeRollback() {
           @click="toggleSidebar"
           class="hidden text-gray-400 dark:text-gray-500 md:block"
         >
-          <svg v-if="sidebarCollapsed" class="h-5 w-5" viewBox="-0.5 -0.5 16 16" fill="none" stroke="currentColor">
-            <path d="M12.777 14.285H2.223c-.833 0-1.508-.675-1.508-1.508V2.223c0-.833.675-1.508 1.508-1.508h10.554c.833 0 1.508.675 1.508 1.508v10.554c0 .833-.675 1.508-1.508 1.508Z" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
-            <path d="M5.615 14.285V.715" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
-            <path d="M2.6 5.992 3.919 7.5 2.6 9.008" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
+          <svg
+            v-if="sidebarCollapsed"
+            class="h-5 w-5"
+            viewBox="-0.5 -0.5 16 16"
+            fill="none"
+            stroke="currentColor"
+          >
+            <path
+              d="M12.777 14.285H2.223c-.833 0-1.508-.675-1.508-1.508V2.223c0-.833.675-1.508 1.508-1.508h10.554c.833 0 1.508.675 1.508 1.508v10.554c0 .833-.675 1.508-1.508 1.508Z"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1"
+            />
+            <path
+              d="M5.615 14.285V.715"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1"
+            />
+            <path
+              d="M2.6 5.992 3.919 7.5 2.6 9.008"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1"
+            />
           </svg>
-          <svg v-else class="h-5 w-5" viewBox="-0.5 -0.5 16 16" fill="none" stroke="currentColor">
-            <path d="M12.777 14.285H2.223c-.833 0-1.508-.675-1.508-1.508V2.223c0-.833.675-1.508 1.508-1.508h10.554c.833 0 1.508.675 1.508 1.508v10.554c0 .833-.675 1.508-1.508 1.508Z" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
-            <path d="M5.615 14.285V.715" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
-            <path d="M3.919 5.992 2.6 7.5l1.319 1.508" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
+          <svg
+            v-else
+            class="h-5 w-5"
+            viewBox="-0.5 -0.5 16 16"
+            fill="none"
+            stroke="currentColor"
+          >
+            <path
+              d="M12.777 14.285H2.223c-.833 0-1.508-.675-1.508-1.508V2.223c0-.833.675-1.508 1.508-1.508h10.554c.833 0 1.508.675 1.508 1.508v10.554c0 .833-.675 1.508-1.508 1.508Z"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1"
+            />
+            <path
+              d="M5.615 14.285V.715"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1"
+            />
+            <path
+              d="M3.919 5.992 2.6 7.5l1.319 1.508"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1"
+            />
           </svg>
         </button>
-        <Breadcrumb :items="[
-          { label: 'projects', href: '/' },
-          { label: project.name.toLowerCase(), href: `/projects/${project.slug}` },
-          { label: environment.name.toLowerCase(), href: `/projects/${project.slug}/environments/${environment.slug}` },
-          { label: String(deployment.id) }
-        ]" />
+        <Breadcrumb
+          :items="[
+            { label: 'projects', href: '/' },
+            {
+              label: project.name.toLowerCase(),
+              href: `/projects/${project.slug}`
+            },
+            {
+              label: environment.name.toLowerCase(),
+              href: `/projects/${project.slug}/environments/${environment.slug}`
+            },
+            { label: String(deployment.id) }
+          ]"
+        />
       </div>
       <div class="flex items-center space-x-4">
         <a
@@ -302,8 +462,18 @@ function executeRollback() {
           class="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
         >
           Docs
-          <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+          <svg
+            class="h-3.5 w-3.5"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+            />
           </svg>
         </a>
       </div>
@@ -311,18 +481,27 @@ function executeRollback() {
 
     <!-- Content -->
     <div class="flex flex-1 flex-col overflow-hidden px-4 py-6 sm:px-8 sm:py-8">
-      <div class="mx-auto flex w-full max-w-5xl flex-1 flex-col overflow-hidden">
+      <div
+        class="mx-auto flex w-full max-w-5xl flex-1 flex-col overflow-hidden"
+      >
         <!-- Deployment Info -->
         <div class="mb-6 flex items-start justify-between">
           <div>
             <div class="flex items-center space-x-3">
-              <h1 class="text-xl font-semibold text-gray-900 dark:text-white">Deployment</h1>
-              <span :class="['inline-flex items-center rounded-md px-2.5 py-1 text-xs font-medium', statusBadge(deployment.status).classes]">
+              <h1 class="text-xl font-semibold text-gray-900 dark:text-white">
+                Deployment
+              </h1>
+              <span
+                :class="[
+                  'inline-flex items-center rounded-md px-2.5 py-1 text-xs font-medium',
+                  statusBadge(deployment.status).classes
+                ]"
+              >
                 {{ statusBadge(deployment.status).label }}
               </span>
               <span
                 v-if="deployment.isCurrentDeployment"
-                class="inline-flex items-center rounded-md bg-brand/10 px-2 py-0.5 text-xs font-medium text-brand"
+                class="bg-brand/10 text-brand inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium"
               >
                 current
               </span>
@@ -353,28 +532,56 @@ function executeRollback() {
             <!-- Track fill -->
             <div
               class="absolute inset-y-0 left-0"
-              :class="[trackFill, { 'transition-[width] duration-300': !isSliding }]"
+              :class="[
+                trackFill,
+                { 'transition-[width] duration-300': !isSliding }
+              ]"
               :style="{ width: `${slideProgress * 100}%` }"
             ></div>
 
             <!-- Label -->
-            <span class="pointer-events-none absolute inset-0 flex items-center justify-center text-xs font-medium text-gray-400 dark:text-gray-500">
-              {{ rollingBack ? 'Rolling back...' : slideProgress > 0.85 ? 'Release to confirm' : 'Slide to rollback' }}
+            <span
+              class="pointer-events-none absolute inset-0 flex items-center justify-center text-xs font-medium text-gray-400 dark:text-gray-500"
+            >
+              {{
+                rollingBack
+                  ? 'Rolling back...'
+                  : slideProgress > 0.85
+                  ? 'Release to confirm'
+                  : 'Slide to rollback'
+              }}
             </span>
 
             <!-- Thumb -->
             <div
               class="absolute bottom-0.5 top-0.5 flex w-10 items-center justify-center rounded-full shadow-lg"
               :class="[
-                rollingBack ? 'bg-red-500 text-white cursor-not-allowed' : thumbColor + ' cursor-grab active:cursor-grabbing',
+                rollingBack
+                  ? 'cursor-not-allowed bg-red-500 text-white'
+                  : thumbColor + ' cursor-grab active:cursor-grabbing',
                 { 'transition-all duration-300 ease-out': !isSliding }
               ]"
-              :style="{ left: `calc(${(1 - slideProgress) * 100}% - ${(1 - slideProgress) * 2.5}rem)` }"
+              :style="{
+                left: `calc(${(1 - slideProgress) * 100}% - ${
+                  (1 - slideProgress) * 2.5
+                }rem)`
+              }"
               @mousedown.prevent="startSlide"
               @touchstart.prevent="startSlide"
             >
-              <svg v-if="!rollingBack" class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+              <svg
+                v-if="!rollingBack"
+                class="h-4 w-4"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M15 19l-7-7 7-7"
+                />
               </svg>
               <SlippyLoader v-else size="h-4 w-4" />
             </div>
@@ -384,9 +591,14 @@ function executeRollback() {
         <!-- Metadata -->
         <div class="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
           <div>
-            <dt class="text-xs text-gray-500 dark:text-gray-400">Triggered by</dt>
+            <dt class="text-xs text-gray-500 dark:text-gray-400">
+              Triggered by
+            </dt>
             <dd class="mt-1 text-sm text-gray-900 dark:text-white">
-              {{ deployment.triggeredBy?.fullName || (deployment.triggerType === 'webhook' ? 'Git' : 'System') }}
+              {{
+                deployment.triggeredBy?.fullName ||
+                (deployment.triggerType === 'webhook' ? 'Git' : 'System')
+              }}
             </dd>
           </div>
           <div>
@@ -405,7 +617,10 @@ function executeRollback() {
             <dt class="text-xs text-gray-500 dark:text-gray-400">Branch</dt>
             <dd class="mt-1 text-sm text-gray-900 dark:text-white">
               {{ deployment.gitBranch }}
-              <span v-if="deployment.gitCommit" class="ml-1 font-mono text-xs text-gray-500">
+              <span
+                v-if="deployment.gitCommit"
+                class="ml-1 font-mono text-xs text-gray-500"
+              >
                 {{ deployment.gitCommit.slice(0, 7) }}
               </span>
             </dd>
@@ -413,16 +628,29 @@ function executeRollback() {
         </div>
 
         <!-- Log Viewer -->
-        <div class="flex flex-1 flex-col overflow-hidden rounded-lg border border-gray-200 dark:border-gray-800">
-          <div class="flex items-center justify-between border-b border-gray-200 bg-gray-50 px-4 py-2 dark:border-gray-800 dark:bg-gray-900">
-            <span class="text-xs font-medium text-gray-500 dark:text-gray-400">Build &amp; Deploy Logs</span>
+        <div
+          class="flex flex-1 flex-col overflow-hidden rounded-lg border border-gray-200 dark:border-gray-800"
+        >
+          <div
+            class="flex items-center justify-between border-b border-gray-200 bg-gray-50 px-4 py-2 dark:border-gray-800 dark:bg-gray-900"
+          >
+            <span class="text-xs font-medium text-gray-500 dark:text-gray-400"
+              >Build &amp; Deploy Logs</span
+            >
           </div>
           <div
             ref="logContainer"
             class="flex-1 overflow-y-auto bg-gray-50 p-4 font-mono text-xs leading-5 text-gray-700 dark:bg-gray-950 dark:text-gray-300"
           >
-            <pre v-if="allLogs" class="whitespace-pre-wrap break-all" v-html="highlightedLogs"></pre>
-            <div v-else-if="isInProgress" class="flex items-center space-x-2 text-gray-500">
+            <pre
+              v-if="allLogs"
+              class="whitespace-pre-wrap break-all"
+              v-html="highlightedLogs"
+            ></pre>
+            <div
+              v-else-if="isInProgress"
+              class="flex items-center space-x-2 text-gray-500"
+            >
               <SlippyLoader size="h-4 w-4" />
               <span>Waiting for logs...</span>
             </div>
@@ -431,6 +659,5 @@ function executeRollback() {
         </div>
       </div>
     </div>
-
   </div>
 </template>

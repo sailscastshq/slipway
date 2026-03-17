@@ -16,7 +16,7 @@ export function createToast() {
   }
 
   function dismiss(id) {
-    toasts.value = toasts.value.filter(t => t.id !== id)
+    toasts.value = toasts.value.filter((t) => t.id !== id)
   }
 
   provide(TOAST_KEY, toast)
@@ -27,7 +27,9 @@ export function createToast() {
 export function useToast() {
   const toast = inject(TOAST_KEY)
   if (!toast) {
-    throw new Error('useToast() must be used within a component that has called createToast()')
+    throw new Error(
+      'useToast() must be used within a component that has called createToast()'
+    )
   }
   return toast
 }

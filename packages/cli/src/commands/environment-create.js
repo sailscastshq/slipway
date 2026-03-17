@@ -12,7 +12,9 @@ export default async function environmentCreate(options, positionals) {
 
   const name = positionals[0]
   if (!name) {
-    error('Please provide an environment name. Usage: slipway environment:create <name>')
+    error(
+      'Please provide an environment name. Usage: slipway environment:create <name>'
+    )
   }
 
   try {
@@ -27,7 +29,11 @@ export default async function environmentCreate(options, positionals) {
     console.log()
     console.log(`  ${c.dim('Name:')} ${environment.name}`)
     console.log(`  ${c.dim('Slug:')} ${environment.slug}`)
-    console.log(`  ${c.dim('Type:')} ${environment.isProduction ? 'production' : 'staging'}`)
+    console.log(
+      `  ${c.dim('Type:')} ${
+        environment.isProduction ? 'production' : 'staging'
+      }`
+    )
     if (environment.domain) {
       console.log(`  ${c.dim('Domain:')} ${environment.domain}`)
     }

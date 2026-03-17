@@ -50,34 +50,65 @@ module.exports = {
       if (service.type === 'postgresql') {
         tool = 'pg_restore'
         args = [
-          'exec', '-i',
-          '-e', `PGPASSWORD=${service.password}`,
+          'exec',
+          '-i',
+          '-e',
+          `PGPASSWORD=${service.password}`,
           service.containerName,
-          'pg_restore', '-U', service.username, '-d', service.database,
-          '--no-owner', '--clean', '--if-exists'
+          'pg_restore',
+          '-U',
+          service.username,
+          '-d',
+          service.database,
+          '--no-owner',
+          '--clean',
+          '--if-exists'
         ]
       } else if (service.type === 'mongodb') {
         tool = 'mongorestore'
         const mongoUri = `mongodb://${service.username}:${service.password}@localhost:27017/${service.database}?authSource=admin`
         args = [
-          'exec', '-i', service.containerName,
-          'mongorestore', '--uri', mongoUri, '--archive', '--gzip', '--drop'
+          'exec',
+          '-i',
+          service.containerName,
+          'mongorestore',
+          '--uri',
+          mongoUri,
+          '--archive',
+          '--gzip',
+          '--drop'
         ]
       } else {
-        throw new Error(`Binary dump import is not supported for ${service.type}`)
+        throw new Error(
+          `Binary dump import is not supported for ${service.type}`
+        )
       }
 
       return new Promise((resolve, reject) => {
         const proc = spawn(dockerPath, args, { timeout: 300000 })
         let stderr = ''
-        proc.stderr.on('data', (data) => { stderr += data.toString() })
+        proc.stderr.on('data', (data) => {
+          stderr += data.toString()
+        })
         proc.on('close', (code) => {
           const duration = Date.now() - startTime
           if (code !== 0) {
-            sails.log.error(`[dock] ${tool} failed with code ${code}: ${stderr}`)
-            reject({ importFailed: { message: stderr.trim() || `${tool} failed with exit code ${code}` } })
+            sails.log.error(
+              `[dock] ${tool} failed with code ${code}: ${stderr}`
+            )
+            reject({
+              importFailed: {
+                message:
+                  stderr.trim() || `${tool} failed with exit code ${code}`
+              }
+            })
           } else {
-            resolve({ success: true, message: 'Dump restored successfully', statementCount: 1, duration })
+            resolve({
+              success: true,
+              message: 'Dump restored successfully',
+              statementCount: 1,
+              duration
+            })
           }
         })
         proc.on('error', (err) => {
@@ -96,19 +127,27 @@ module.exports = {
       env.PGPASSWORD = service.password
 
       args = [
-        'exec', '-i', service.containerName,
+        'exec',
+        '-i',
+        service.containerName,
         'psql',
-        '-U', service.username,
-        '-d', service.database,
+        '-U',
+        service.username,
+        '-d',
+        service.database,
         '--no-psqlrc',
-        '-v', 'ON_ERROR_STOP=1'
+        '-v',
+        'ON_ERROR_STOP=1'
       ]
     } else if (service.type === 'mysql') {
       // MySQL: pipe SQL to mysql
       args = [
-        'exec', '-i', service.containerName,
+        'exec',
+        '-i',
+        service.containerName,
         'mysql',
-        '-u', service.username,
+        '-u',
+        service.username,
         `-p${service.password}`,
         service.database
       ]
@@ -118,7 +157,8 @@ module.exports = {
 
       // Detect if input is JSON array (mongoexport format) or binary (mongodump archive)
       const trimmedSql = sql.trim()
-      const isJsonArray = trimmedSql.startsWith('[') || trimmedSql.startsWith('{')
+      const isJsonArray =
+        trimmedSql.startsWith('[') || trimmedSql.startsWith('{')
 
       if (isJsonArray) {
         // JSON import - need collection name from input or default
@@ -127,19 +167,26 @@ module.exports = {
         const collection = collectionMatch ? collectionMatch[1] : 'imported'
 
         args = [
-          'exec', '-i', service.containerName,
+          'exec',
+          '-i',
+          service.containerName,
           'mongoimport',
-          '--uri', mongoUri,
-          '--collection', collection,
+          '--uri',
+          mongoUri,
+          '--collection',
+          collection,
           '--jsonArray',
           '--drop' // Replace existing collection
         ]
       } else {
         // Assume mongodump archive format
         args = [
-          'exec', '-i', service.containerName,
+          'exec',
+          '-i',
+          service.containerName,
           'mongorestore',
-          '--uri', mongoUri,
+          '--uri',
+          mongoUri,
           '--archive',
           '--gzip',
           '--drop'
@@ -176,7 +223,9 @@ module.exports = {
           const duration = Date.now() - startTime
 
           if (code !== 0) {
-            sails.log.error(`[dock] SQL import failed with code ${code}: ${stderr}`)
+            sails.log.error(
+              `[dock] SQL import failed with code ${code}: ${stderr}`
+            )
             reject({
               importFailed: {
                 message: stderr.trim() || `Import failed with exit code ${code}`

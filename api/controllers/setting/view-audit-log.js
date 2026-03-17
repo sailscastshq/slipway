@@ -33,7 +33,7 @@ module.exports = {
     ])
 
     // Sanitize user data for the frontend
-    const sanitizedLogs = logs.map(log => ({
+    const sanitizedLogs = logs.map((log) => ({
       id: log.id,
       action: log.action,
       resourceType: log.resourceType,

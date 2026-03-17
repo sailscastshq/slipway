@@ -54,9 +54,19 @@ module.exports = {
     }
   },
 
-  fn: async function ({ projectSlug, environmentSlug, table, limit, offset, orderBy, order }) {
+  fn: async function ({
+    projectSlug,
+    environmentSlug,
+    table,
+    limit,
+    offset,
+    orderBy,
+    order
+  }) {
     const user = await User.findOne({ id: this.req.session.userId })
-    const project = await Project.findOne({ slug: projectSlug }).populate('team')
+    const project = await Project.findOne({ slug: projectSlug }).populate(
+      'team'
+    )
 
     if (!project) {
       throw 'notFound'
@@ -79,7 +89,10 @@ module.exports = {
     const serviceId = this.req.query.service
     let dbResult
     try {
-      dbResult = await sails.helpers.dock.getDatabaseService(environment.id, serviceId)
+      dbResult = await sails.helpers.dock.getDatabaseService(
+        environment.id,
+        serviceId
+      )
     } catch (err) {
       throw { badRequest: 'No database service found for this environment.' }
     }
@@ -100,7 +113,10 @@ module.exports = {
       // MongoDB: browse collection data
       const sortDir = order === 'desc' ? -1 : 1
       const countQuery = `db.getCollection('${table}').countDocuments()`
-      const countResult = await sails.helpers.dock.executeSql(service, countQuery)
+      const countResult = await sails.helpers.dock.executeSql(
+        service,
+        countQuery
+      )
 
       if (!countResult.success) {
         throw { badRequest: countResult.error }
@@ -149,9 +165,12 @@ module.exports = {
       `
     }
 
-    const columnsResult = await sails.helpers.dock.executeSql(service, columnsQuery)
+    const columnsResult = await sails.helpers.dock.executeSql(
+      service,
+      columnsQuery
+    )
     const columns = columnsResult.success
-      ? columnsResult.rows.map(r => r.column_name.toLowerCase())
+      ? columnsResult.rows.map((r) => r.column_name.toLowerCase())
       : []
 
     // Get total count

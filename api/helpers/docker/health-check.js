@@ -3,13 +3,15 @@ const http = require('http')
 module.exports = {
   friendlyName: 'Health check',
 
-  description: 'Poll a container via HTTP until it responds, confirming it is healthy.',
+  description:
+    'Poll a container via HTTP until it responds, confirming it is healthy.',
 
   inputs: {
     containerName: {
       type: 'string',
       required: true,
-      description: 'Container name to health-check (used as hostname on the Docker network)'
+      description:
+        'Container name to health-check (used as hostname on the Docker network)'
     },
     port: {
       type: 'number',
@@ -18,7 +20,8 @@ module.exports = {
     },
     hostPort: {
       type: 'number',
-      description: 'Host-mapped port — used as localhost fallback when Docker DNS is unavailable (e.g. local dev on macOS)'
+      description:
+        'Host-mapped port — used as localhost fallback when Docker DNS is unavailable (e.g. local dev on macOS)'
     },
     path: {
       type: 'string',
@@ -50,14 +53,27 @@ module.exports = {
     }
   },
 
-  fn: async function ({ containerName, port, hostPort, path, timeout, interval, deploymentId }) {
+  fn: async function ({
+    containerName,
+    port,
+    hostPort,
+    path,
+    timeout,
+    interval,
+    deploymentId
+  }) {
     const startTime = Date.now()
     let lastError = null
     let attempts = 0
     let usingFallback = false
 
     if (deploymentId) {
-      await Deployment.appendDeployLog(deploymentId, `Health check: polling http://${containerName}:${port}${path} (timeout: ${Math.round(timeout / 1000)}s)\n`)
+      await Deployment.appendDeployLog(
+        deploymentId,
+        `Health check: polling http://${containerName}:${port}${path} (timeout: ${Math.round(
+          timeout / 1000
+        )}s)\n`
+      )
     }
 
     while (Date.now() - startTime < timeout) {
@@ -70,9 +86,14 @@ module.exports = {
         const statusCode = await httpGet(checkHost, checkPort, path)
 
         if (statusCode < 500) {
-          sails.log.info(`Health check passed on ${checkHost}:${checkPort} (HTTP ${statusCode}, attempt ${attempts})`)
+          sails.log.info(
+            `Health check passed on ${checkHost}:${checkPort} (HTTP ${statusCode}, attempt ${attempts})`
+          )
           if (deploymentId) {
-            await Deployment.appendDeployLog(deploymentId, `Health check passed (HTTP ${statusCode}, attempt ${attempts})\n`)
+            await Deployment.appendDeployLog(
+              deploymentId,
+              `Health check passed (HTTP ${statusCode}, attempt ${attempts})\n`
+            )
           }
           return { statusCode, attempts }
         }
@@ -81,11 +102,20 @@ module.exports = {
       } catch (err) {
         // If Docker DNS can't resolve the container name, fall back to localhost:hostPort
         // EAI_AGAIN is a transient DNS failure that also indicates Docker DNS is unavailable
-        if (!usingFallback && hostPort && (err.code === 'ENOTFOUND' || err.code === 'EAI_AGAIN')) {
+        if (
+          !usingFallback &&
+          hostPort &&
+          (err.code === 'ENOTFOUND' || err.code === 'EAI_AGAIN')
+        ) {
           usingFallback = true
-          sails.log.info(`Docker DNS unavailable, falling back to localhost:${hostPort}`)
+          sails.log.info(
+            `Docker DNS unavailable, falling back to localhost:${hostPort}`
+          )
           if (deploymentId) {
-            await Deployment.appendDeployLog(deploymentId, `Docker DNS unavailable, falling back to localhost:${hostPort}\n`)
+            await Deployment.appendDeployLog(
+              deploymentId,
+              `Docker DNS unavailable, falling back to localhost:${hostPort}\n`
+            )
           }
           continue // Retry immediately with fallback
         }
@@ -95,7 +125,7 @@ module.exports = {
       sails.log.verbose(`Health check attempt ${attempts} failed: ${lastError}`)
 
       // Wait before next attempt
-      await new Promise(resolve => setTimeout(resolve, interval))
+      await new Promise((resolve) => setTimeout(resolve, interval))
     }
 
     const elapsed = Math.round((Date.now() - startTime) / 1000)

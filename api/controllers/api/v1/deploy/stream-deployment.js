@@ -75,7 +75,7 @@ module.exports = {
           const newOutput = current.buildLogs.slice(lastLogLength)
           lastLogLength = current.buildLogs.length
 
-          const lines = newOutput.split('\n').filter(l => l.trim())
+          const lines = newOutput.split('\n').filter((l) => l.trim())
           for (const line of lines) {
             stream.send({ output: line })
           }

@@ -50,11 +50,11 @@ export function fuzzySearch(query, items, getText) {
   if (!query) return items
 
   return items
-    .map(item => {
+    .map((item) => {
       const result = fuzzyMatch(query, getText(item))
       return result ? { item, score: result.score } : null
     })
     .filter(Boolean)
     .sort((a, b) => b.score - a.score)
-    .map(r => r.item)
+    .map((r) => r.item)
 }

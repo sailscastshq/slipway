@@ -25,12 +25,18 @@ module.exports = {
   },
 
   fn: async function ({ serviceId }) {
-    const user = await User.findOne({ id: this.req.session.userId }).populate('team')
+    const user = await User.findOne({ id: this.req.session.userId }).populate(
+      'team'
+    )
 
-    const service = await Service.findOne({ id: serviceId }).populate('environment')
+    const service = await Service.findOne({ id: serviceId }).populate(
+      'environment'
+    )
     if (!service) throw 'notFound'
 
-    const environment = await Environment.findOne({ id: service.environment.id }).populate('project')
+    const environment = await Environment.findOne({
+      id: service.environment.id
+    }).populate('project')
     if (!environment) throw 'notFound'
 
     const project = await Project.findOne({ id: environment.project.id })
@@ -45,10 +51,14 @@ module.exports = {
       // For stopped containers, use 'start'. For running ones, use 'restart'.
       if (service.status === 'stopped' || service.status === 'failed') {
         await execFileAsync(dockerPath, ['start', service.containerName])
-        sails.log.info(`Started service ${service.name} (${service.containerName})`)
+        sails.log.info(
+          `Started service ${service.name} (${service.containerName})`
+        )
       } else {
         await execFileAsync(dockerPath, ['restart', service.containerName])
-        sails.log.info(`Restarted service ${service.name} (${service.containerName})`)
+        sails.log.info(
+          `Restarted service ${service.name} (${service.containerName})`
+        )
       }
 
       await Service.updateOne({ id: service.id }).set({ status: 'running' })

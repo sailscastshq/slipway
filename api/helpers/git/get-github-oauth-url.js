@@ -17,12 +17,15 @@ module.exports = {
 
   fn: async function ({ state, redirectUri }) {
     // Check settings first, then config, then env
-    const clientId = await sails.helpers.setting.get('githubClientId') ||
+    const clientId =
+      (await sails.helpers.setting.get('githubClientId')) ||
       sails.config.custom.github?.clientId ||
       process.env.GITHUB_CLIENT_ID
 
     if (!clientId) {
-      throw new Error('GitHub OAuth not configured. Configure it in Settings → Git Integration.')
+      throw new Error(
+        'GitHub OAuth not configured. Configure it in Settings → Git Integration.'
+      )
     }
 
     const baseUrl = 'https://github.com/login/oauth/authorize'

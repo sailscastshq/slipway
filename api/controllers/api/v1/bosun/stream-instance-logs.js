@@ -39,7 +39,14 @@ module.exports = {
 
     // Spawn `docker logs --follow` as a child process
     const dockerPath = sails.config.docker?.binaryPath || 'docker'
-    const args = ['logs', '--follow', '--tail', String(tail), '--timestamps', containerName]
+    const args = [
+      'logs',
+      '--follow',
+      '--tail',
+      String(tail),
+      '--timestamps',
+      containerName
+    ]
 
     const docker = spawn(dockerPath, args)
 
@@ -71,16 +78,24 @@ module.exports = {
     })
 
     docker.on('error', (err) => {
-      sails.log.error(`[stream-instance-logs] Docker spawn error: ${err.message}`)
-      stream.send({ error: 'Instance logs are available when running in Docker' })
+      sails.log.error(
+        `[stream-instance-logs] Docker spawn error: ${err.message}`
+      )
+      stream.send({
+        error: 'Instance logs are available when running in Docker'
+      })
       stream.close()
     })
 
     docker.on('close', (code, signal) => {
-      sails.log.debug(`[stream-instance-logs] Docker process closed with code: ${code}, signal: ${signal}`)
+      sails.log.debug(
+        `[stream-instance-logs] Docker process closed with code: ${code}, signal: ${signal}`
+      )
       if (code !== 0 && !stdoutReceived) {
         // Docker couldn't find the container — likely running outside Docker (local dev)
-        stream.send({ error: 'Instance logs are available when running in Docker' })
+        stream.send({
+          error: 'Instance logs are available when running in Docker'
+        })
       } else {
         stream.send({ closed: true })
       }

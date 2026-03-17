@@ -36,12 +36,25 @@ module.exports = {
     }
   },
 
-  fn: async function ({ projectSlug, environmentSlug, page, limit, slow, status }) {
-    const user = await User.findOne({ id: this.req.session.userId }).populate('team')
+  fn: async function ({
+    projectSlug,
+    environmentSlug,
+    page,
+    limit,
+    slow,
+    status
+  }) {
+    const user = await User.findOne({ id: this.req.session.userId }).populate(
+      'team'
+    )
     if (!user) return this.res.status(401).json({ error: 'Unauthorized' })
 
-    const project = await Project.findOne({ slug: projectSlug, team: user.team.id })
-    if (!project) return this.res.status(404).json({ error: 'Project not found' })
+    const project = await Project.findOne({
+      slug: projectSlug,
+      team: user.team.id
+    })
+    if (!project)
+      return this.res.status(404).json({ error: 'Project not found' })
 
     // Get environment
     const envWhere = { project: project.id }
@@ -49,7 +62,8 @@ module.exports = {
       envWhere.slug = environmentSlug
     }
     const environment = await Environment.findOne(envWhere)
-    if (!environment) return this.res.status(404).json({ error: 'Environment not found' })
+    if (!environment)
+      return this.res.status(404).json({ error: 'Environment not found' })
 
     // Build query
     const where = { environment: environment.id }
@@ -67,7 +81,12 @@ module.exports = {
     const skip = (Math.max(page, 1) - 1) * safeLimit
 
     const [spans, total] = await Promise.all([
-      TelemetrySpan.find({ where, sort: 'startedAt DESC', limit: safeLimit, skip }),
+      TelemetrySpan.find({
+        where,
+        sort: 'startedAt DESC',
+        limit: safeLimit,
+        skip
+      }),
       TelemetrySpan.count(where)
     ])
 

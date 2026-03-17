@@ -3,7 +3,8 @@ const crypto = require('crypto')
 module.exports = {
   friendlyName: 'Generate telemetry token',
 
-  description: 'Generate a telemetry token and its SHA-256 hash for an environment.',
+  description:
+    'Generate a telemetry token and its SHA-256 hash for an environment.',
 
   sync: true,
 

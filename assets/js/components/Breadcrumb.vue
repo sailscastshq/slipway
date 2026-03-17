@@ -15,12 +15,17 @@ defineProps({
   <!-- Mobile: parent + current page -->
   <nav class="flex items-center space-x-2 text-sm md:hidden">
     <template v-if="items.length > 1">
-      <Link :href="items[items.length - 2].href" class="text-gray-500 dark:text-gray-400">
+      <Link
+        :href="items[items.length - 2].href"
+        class="text-gray-500 dark:text-gray-400"
+      >
         {{ items[items.length - 2].label }}
       </Link>
       <span class="text-gray-400 dark:text-gray-600">/</span>
     </template>
-    <span class="font-medium text-gray-900 dark:text-white">{{ items[items.length - 1].label }}</span>
+    <span class="font-medium text-gray-900 dark:text-white">{{
+      items[items.length - 1].label
+    }}</span>
   </nav>
   <!-- Desktop: full breadcrumb -->
   <nav class="hidden items-center space-x-2 text-sm md:flex">
@@ -33,7 +38,9 @@ defineProps({
       >
         {{ item.label }}
       </Link>
-      <span v-else class="font-medium text-gray-900 dark:text-white">{{ item.label }}</span>
+      <span v-else class="font-medium text-gray-900 dark:text-white">{{
+        item.label
+      }}</span>
     </template>
   </nav>
 </template>

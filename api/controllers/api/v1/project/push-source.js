@@ -39,7 +39,9 @@ module.exports = {
   fn: async function ({ projectSlug }) {
     const user = await User.findOne({ id: this.req.session.userId })
 
-    const project = await Project.findOne({ slug: projectSlug }).populate('team')
+    const project = await Project.findOne({ slug: projectSlug }).populate(
+      'team'
+    )
 
     if (!project) {
       throw 'notFound'
@@ -51,12 +53,15 @@ module.exports = {
 
     // Receive the uploaded tarball via Skipper
     const uploadedFiles = await new Promise((resolve, reject) => {
-      this.req.file('source').upload({
-        maxBytes: 500 * 1024 * 1024 // 500MB max
-      }, (err, files) => {
-        if (err) return reject(err)
-        resolve(files)
-      })
+      this.req.file('source').upload(
+        {
+          maxBytes: 500 * 1024 * 1024 // 500MB max
+        },
+        (err, files) => {
+          if (err) return reject(err)
+          resolve(files)
+        }
+      )
     })
 
     if (!uploadedFiles || uploadedFiles.length === 0) {
@@ -82,23 +87,41 @@ module.exports = {
       })
     } catch (err) {
       // Clean up uploaded file
-      try { fs.unlinkSync(tarballPath) } catch { /* ignore */ }
+      try {
+        fs.unlinkSync(tarballPath)
+      } catch {
+        /* ignore */
+      }
       sails.log.error(`Failed to extract source tarball: ${err.message}`)
       throw 'badRequest'
     }
 
     // Clean up the uploaded temp file
-    try { fs.unlinkSync(tarballPath) } catch { /* ignore */ }
+    try {
+      fs.unlinkSync(tarballPath)
+    } catch {
+      /* ignore */
+    }
 
     // Detect features from the pushed source and store on all environments
     try {
-      const detectedFeatures = await sails.helpers.sails.detectFeatures(targetDir)
+      const detectedFeatures = await sails.helpers.sails.detectFeatures(
+        targetDir
+      )
       if (Object.keys(detectedFeatures).length > 0) {
-        await Environment.update({ project: project.id }).set({ features: detectedFeatures })
-        sails.log.info(`Features detected for ${projectSlug}: ${Object.keys(detectedFeatures).join(', ')}`)
+        await Environment.update({ project: project.id }).set({
+          features: detectedFeatures
+        })
+        sails.log.info(
+          `Features detected for ${projectSlug}: ${Object.keys(
+            detectedFeatures
+          ).join(', ')}`
+        )
       }
     } catch (err) {
-      sails.log.warn(`Feature detection after push failed (non-fatal): ${err.message}`)
+      sails.log.warn(
+        `Feature detection after push failed (non-fatal): ${err.message}`
+      )
     }
 
     sails.log.info(`Source pushed for ${projectSlug} → ${targetDir}`)

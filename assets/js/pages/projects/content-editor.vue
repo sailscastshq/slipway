@@ -130,26 +130,37 @@ function deleteContent() {
 }
 
 // Track changes
-watch([frontmatter, body], () => {
-  hasChanges.value = true
-}, { deep: true })
+watch(
+  [frontmatter, body],
+  () => {
+    hasChanges.value = true
+  },
+  { deep: true }
+)
 
 // Update raw when frontmatter/body change (for raw mode toggle)
-watch([frontmatter, body], () => {
-  if (!editingRaw.value) {
-    let content = '---\n'
-    for (const [key, value] of Object.entries(frontmatter.value)) {
-      if (typeof value === 'string' && (value.includes(':') || value.includes('#'))) {
-        content += `${key}: '${value}'\n`
-      } else {
-        content += `${key}: ${value}\n`
+watch(
+  [frontmatter, body],
+  () => {
+    if (!editingRaw.value) {
+      let content = '---\n'
+      for (const [key, value] of Object.entries(frontmatter.value)) {
+        if (
+          typeof value === 'string' &&
+          (value.includes(':') || value.includes('#'))
+        ) {
+          content += `${key}: '${value}'\n`
+        } else {
+          content += `${key}: ${value}\n`
+        }
       }
+      content += '---\n\n'
+      content += body.value
+      raw.value = content
     }
-    content += '---\n\n'
-    content += body.value
-    raw.value = content
-  }
-}, { deep: true })
+  },
+  { deep: true }
+)
 
 // Click outside handler
 function handleClickOutside(e) {
@@ -182,16 +193,38 @@ function handleKeydown(e) {
   <Head :title="`${file} - ${collection} | ${project.name}`"></Head>
   <div class="flex h-full flex-col" @keydown="handleKeydown">
     <!-- Header -->
-    <div class="flex items-center justify-between gap-2 border-b border-gray-200 px-3 py-2 dark:border-gray-800 sm:px-6 sm:py-3">
+    <div
+      class="flex items-center justify-between gap-2 border-b border-gray-200 px-3 py-2 dark:border-gray-800 sm:px-6 sm:py-3"
+    >
       <div class="flex min-w-0 items-center gap-2">
         <button
           @click="toggleMobileMenu"
           class="shrink-0 rounded-md p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white md:hidden"
         >
-          <svg class="h-5 w-5" viewBox="-0.5 -0.5 16 16" fill="none" stroke="currentColor">
-            <path d="M12.777 14.285H2.223c-.833 0-1.508-.675-1.508-1.508V2.223c0-.833.675-1.508 1.508-1.508h10.554c.833 0 1.508.675 1.508 1.508v10.554c0 .833-.675 1.508-1.508 1.508Z" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
-            <path d="M5.615 14.285V.715" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
-            <path d="M2.6 5.992 3.919 7.5 2.6 9.008" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
+          <svg
+            class="h-5 w-5"
+            viewBox="-0.5 -0.5 16 16"
+            fill="none"
+            stroke="currentColor"
+          >
+            <path
+              d="M12.777 14.285H2.223c-.833 0-1.508-.675-1.508-1.508V2.223c0-.833.675-1.508 1.508-1.508h10.554c.833 0 1.508.675 1.508 1.508v10.554c0 .833-.675 1.508-1.508 1.508Z"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1"
+            />
+            <path
+              d="M5.615 14.285V.715"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1"
+            />
+            <path
+              d="M2.6 5.992 3.919 7.5 2.6 9.008"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1"
+            />
           </svg>
         </button>
         <!-- Desktop sidebar toggle -->
@@ -199,15 +232,57 @@ function handleKeydown(e) {
           @click="toggleSidebar"
           class="hidden text-gray-400 dark:text-gray-500 md:block"
         >
-          <svg v-if="sidebarCollapsed" class="h-5 w-5" viewBox="-0.5 -0.5 16 16" fill="none" stroke="currentColor">
-            <path d="M12.777 14.285H2.223c-.833 0-1.508-.675-1.508-1.508V2.223c0-.833.675-1.508 1.508-1.508h10.554c.833 0 1.508.675 1.508 1.508v10.554c0 .833-.675 1.508-1.508 1.508Z" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
-            <path d="M5.615 14.285V.715" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
-            <path d="M2.6 5.992 3.919 7.5 2.6 9.008" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
+          <svg
+            v-if="sidebarCollapsed"
+            class="h-5 w-5"
+            viewBox="-0.5 -0.5 16 16"
+            fill="none"
+            stroke="currentColor"
+          >
+            <path
+              d="M12.777 14.285H2.223c-.833 0-1.508-.675-1.508-1.508V2.223c0-.833.675-1.508 1.508-1.508h10.554c.833 0 1.508.675 1.508 1.508v10.554c0 .833-.675 1.508-1.508 1.508Z"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1"
+            />
+            <path
+              d="M5.615 14.285V.715"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1"
+            />
+            <path
+              d="M2.6 5.992 3.919 7.5 2.6 9.008"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1"
+            />
           </svg>
-          <svg v-else class="h-5 w-5" viewBox="-0.5 -0.5 16 16" fill="none" stroke="currentColor">
-            <path d="M12.777 14.285H2.223c-.833 0-1.508-.675-1.508-1.508V2.223c0-.833.675-1.508 1.508-1.508h10.554c.833 0 1.508.675 1.508 1.508v10.554c0 .833-.675 1.508-1.508 1.508Z" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
-            <path d="M5.615 14.285V.715" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
-            <path d="M3.919 5.992 2.6 7.5l1.319 1.508" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
+          <svg
+            v-else
+            class="h-5 w-5"
+            viewBox="-0.5 -0.5 16 16"
+            fill="none"
+            stroke="currentColor"
+          >
+            <path
+              d="M12.777 14.285H2.223c-.833 0-1.508-.675-1.508-1.508V2.223c0-.833.675-1.508 1.508-1.508h10.554c.833 0 1.508.675 1.508 1.508v10.554c0 .833-.675 1.508-1.508 1.508Z"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1"
+            />
+            <path
+              d="M5.615 14.285V.715"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1"
+            />
+            <path
+              d="M3.919 5.992 2.6 7.5l1.319 1.508"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1"
+            />
           </svg>
         </button>
         <!-- Mobile: condensed breadcrumb -->
@@ -216,16 +291,31 @@ function handleKeydown(e) {
             :href="getContentManagerPath()"
             class="shrink-0 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
           >
-            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+            <svg
+              class="h-4 w-4"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M15 19l-7-7 7-7"
+              />
             </svg>
           </Link>
-          <span class="truncate font-medium text-gray-900 dark:text-white">{{ file }}</span>
+          <span class="truncate font-medium text-gray-900 dark:text-white">{{
+            file
+          }}</span>
         </nav>
 
         <!-- Desktop: full breadcrumb -->
         <nav class="hidden items-center gap-2 text-sm sm:flex">
-          <Link href="/" class="text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white">
+          <Link
+            href="/"
+            class="text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
+          >
             projects
           </Link>
           <span class="text-gray-400 dark:text-gray-600">/</span>
@@ -252,17 +342,28 @@ function handleKeydown(e) {
           <span class="text-gray-400 dark:text-gray-600">/</span>
           <span class="text-gray-500 dark:text-gray-400">{{ collection }}</span>
           <span class="text-gray-400 dark:text-gray-600">/</span>
-          <span class="font-medium text-gray-900 dark:text-white">{{ file }}</span>
+          <span class="font-medium text-gray-900 dark:text-white">{{
+            file
+          }}</span>
         </nav>
       </div>
 
       <div class="flex shrink-0 items-center gap-1 sm:gap-2">
         <!-- Unsaved indicator -->
-        <span v-if="hasChanges" class="hidden text-xs text-amber-600 dark:text-amber-400 sm:inline">Unsaved changes</span>
-        <span v-if="hasChanges" class="h-2 w-2 rounded-full bg-amber-500 sm:hidden"></span>
+        <span
+          v-if="hasChanges"
+          class="hidden text-xs text-amber-600 dark:text-amber-400 sm:inline"
+          >Unsaved changes</span
+        >
+        <span
+          v-if="hasChanges"
+          class="h-2 w-2 rounded-full bg-amber-500 sm:hidden"
+        ></span>
 
         <!-- View mode toggle -->
-        <div class="hidden rounded-lg border border-gray-200 p-0.5 dark:border-gray-700 sm:flex">
+        <div
+          class="hidden rounded-lg border border-gray-200 p-0.5 dark:border-gray-700 sm:flex"
+        >
           <button
             @click="editorMode = 'edit'"
             :class="[
@@ -309,8 +410,18 @@ function handleKeydown(e) {
                 : 'text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-800 dark:hover:text-gray-200'
             ]"
           >
-            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+            <svg
+              class="h-4 w-4"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"
+              />
             </svg>
           </button>
         </Tooltip>
@@ -321,8 +432,18 @@ function handleKeydown(e) {
             @click="deleteModalOpen = true"
             class="hidden rounded-md p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400 sm:block"
           >
-            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            <svg
+              class="h-4 w-4"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+              />
             </svg>
           </button>
         </Tooltip>
@@ -334,15 +455,31 @@ function handleKeydown(e) {
             :disabled="saveForm.processing || !hasChanges"
             class="rounded-l-md bg-gray-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
           >
-            {{ saveForm.processing ? (saveForm.deploy ? 'Deploying...' : 'Saving...') : 'Save' }}
+            {{
+              saveForm.processing
+                ? saveForm.deploy
+                  ? 'Deploying...'
+                  : 'Saving...'
+                : 'Save'
+            }}
           </button>
           <button
             @click="showSaveMenu = !showSaveMenu"
             :disabled="saveForm.processing"
             class="rounded-r-md border-l border-gray-700 bg-gray-900 px-2 py-1.5 text-white hover:bg-gray-800 disabled:opacity-50 dark:border-gray-300 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
           >
-            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+            <svg
+              class="h-4 w-4"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                d="M19 9l-7 7-7-7"
+              />
             </svg>
           </button>
           <!-- Dropdown -->
@@ -351,7 +488,10 @@ function handleKeydown(e) {
             class="absolute right-0 top-full z-10 mt-1 w-48 rounded-md border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-800"
           >
             <button
-              @click="saveContent(false); showSaveMenu = false"
+              @click="
+                saveContent(false)
+                showSaveMenu = false
+              "
               :disabled="!hasChanges"
               class="flex w-full items-center justify-between px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 disabled:opacity-50 dark:text-gray-200 dark:hover:bg-gray-700"
             >
@@ -359,7 +499,10 @@ function handleKeydown(e) {
               <span class="text-xs text-gray-400">⌘S</span>
             </button>
             <button
-              @click="saveContent(true); showSaveMenu = false"
+              @click="
+                saveContent(true)
+                showSaveMenu = false
+              "
               class="flex w-full items-center justify-between px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700"
             >
               Save & Deploy
@@ -374,8 +517,13 @@ function handleKeydown(e) {
       <!-- Error -->
       <div v-if="contentError" class="flex flex-1 items-center justify-center">
         <div class="text-center">
-          <p class="text-sm text-red-600 dark:text-red-400">{{ contentError }}</p>
-          <Link :href="getContentManagerPath()" class="mt-2 inline-block text-sm text-gray-500 underline hover:text-gray-900 dark:text-gray-400 dark:hover:text-white">
+          <p class="text-sm text-red-600 dark:text-red-400">
+            {{ contentError }}
+          </p>
+          <Link
+            :href="getContentManagerPath()"
+            class="mt-2 inline-block text-sm text-gray-500 underline hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
+          >
             Back to content manager
           </Link>
         </div>
@@ -434,23 +582,37 @@ function handleKeydown(e) {
         >
           <div class="mx-auto max-w-2xl">
             <!-- Frontmatter display -->
-            <div v-if="Object.keys(frontmatter).length > 0" class="mb-8 space-y-1 border-b border-dashed border-gray-200 pb-6 dark:border-gray-700">
-              <p v-for="(value, key) in frontmatter" :key="key" class="text-sm text-gray-900 dark:text-white">
+            <div
+              v-if="Object.keys(frontmatter).length > 0"
+              class="mb-8 space-y-1 border-b border-dashed border-gray-200 pb-6 dark:border-gray-700"
+            >
+              <p
+                v-for="(value, key) in frontmatter"
+                :key="key"
+                class="text-sm text-gray-900 dark:text-white"
+              >
                 {{ value }}
               </p>
             </div>
 
             <!-- Body preview -->
-            <article v-html="previewHtml" class="prose max-w-none text-gray-700 dark:text-gray-300 prose-headings:font-bold prose-headings:text-gray-900 dark:prose-headings:text-white prose-p:text-gray-700 dark:prose-p:text-gray-300 prose-strong:text-gray-900 dark:prose-strong:text-white prose-a:font-semibold prose-a:text-gray-900 dark:prose-a:text-white prose-a:no-underline hover:prose-a:underline prose-code:rounded-md prose-code:bg-gray-100 dark:prose-code:bg-gray-800 prose-code:text-gray-800 dark:prose-code:text-gray-200 prose-code:px-1.5 prose-code:py-0.5 prose-code:font-medium prose-li:text-gray-700 dark:prose-li:text-gray-300 prose-ul:text-gray-700 dark:prose-ul:text-gray-300 prose-ol:text-gray-700 dark:prose-ol:text-gray-300"></article>
+            <article
+              v-html="previewHtml"
+              class="prose prose-headings:font-bold prose-headings:text-gray-900 dark:prose-headings:text-white prose-p:text-gray-700 dark:prose-p:text-gray-300 prose-strong:text-gray-900 dark:prose-strong:text-white prose-a:font-semibold prose-a:text-gray-900 dark:prose-a:text-white prose-a:no-underline hover:prose-a:underline prose-code:rounded-md prose-code:bg-gray-100 dark:prose-code:bg-gray-800 prose-code:text-gray-800 dark:prose-code:text-gray-200 prose-code:px-1.5 prose-code:py-0.5 prose-code:font-medium prose-li:text-gray-700 dark:prose-li:text-gray-300 prose-ul:text-gray-700 dark:prose-ul:text-gray-300 prose-ol:text-gray-700 dark:prose-ol:text-gray-300 max-w-none text-gray-700 dark:text-gray-300"
+            ></article>
           </div>
         </div>
       </template>
     </div>
 
     <!-- Footer -->
-    <div class="flex items-center justify-between border-t border-gray-200 px-4 py-2 text-xs text-gray-500 dark:border-gray-800 dark:text-gray-400">
+    <div
+      class="flex items-center justify-between border-t border-gray-200 px-4 py-2 text-xs text-gray-500 dark:border-gray-800 dark:text-gray-400"
+    >
       <span>{{ fileType === 'markdown' ? 'Markdown' : 'JSON' }}</span>
-      <span v-if="updatedAt">Last updated: {{ new Date(updatedAt).toLocaleString() }}</span>
+      <span v-if="updatedAt"
+        >Last updated: {{ new Date(updatedAt).toLocaleString() }}</span
+      >
     </div>
 
     <!-- Delete Confirmation Modal -->

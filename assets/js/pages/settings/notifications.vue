@@ -541,7 +541,9 @@ const categoryIcons = {
                       viewBox="0 0 24 24"
                       fill="currentColor"
                     >
-                      <path d="M5.042 15.165a2.528 2.528 0 0 1-2.52 2.523A2.528 2.528 0 0 1 0 15.165a2.527 2.527 0 0 1 2.522-2.52h2.52v2.52zM6.313 15.165a2.527 2.527 0 0 1 2.521-2.52 2.527 2.527 0 0 1 2.521 2.52v6.313A2.528 2.528 0 0 1 8.834 24a2.528 2.528 0 0 1-2.521-2.522v-6.313zM8.834 5.042a2.528 2.528 0 0 1-2.521-2.52A2.528 2.528 0 0 1 8.834 0a2.528 2.528 0 0 1 2.521 2.522v2.52H8.834zM8.834 6.313a2.528 2.528 0 0 1 2.521 2.521 2.528 2.528 0 0 1-2.521 2.521H2.522A2.528 2.528 0 0 1 0 8.834a2.528 2.528 0 0 1 2.522-2.521h6.312zM18.956 8.834a2.528 2.528 0 0 1 2.522-2.521A2.528 2.528 0 0 1 24 8.834a2.528 2.528 0 0 1-2.522 2.521h-2.522V8.834zM17.688 8.834a2.528 2.528 0 0 1-2.523 2.521 2.527 2.527 0 0 1-2.52-2.521V2.522A2.527 2.527 0 0 1 15.165 0a2.528 2.528 0 0 1 2.523 2.522v6.312zM15.165 18.956a2.528 2.528 0 0 1 2.523 2.522A2.528 2.528 0 0 1 15.165 24a2.527 2.527 0 0 1-2.52-2.522v-2.522h2.52zM15.165 17.688a2.527 2.527 0 0 1-2.52-2.523 2.526 2.526 0 0 1 2.52-2.52h6.313A2.527 2.527 0 0 1 24 15.165a2.528 2.528 0 0 1-2.522 2.523h-6.313z" />
+                      <path
+                        d="M5.042 15.165a2.528 2.528 0 0 1-2.52 2.523A2.528 2.528 0 0 1 0 15.165a2.527 2.527 0 0 1 2.522-2.52h2.52v2.52zM6.313 15.165a2.527 2.527 0 0 1 2.521-2.52 2.527 2.527 0 0 1 2.521 2.52v6.313A2.528 2.528 0 0 1 8.834 24a2.528 2.528 0 0 1-2.521-2.522v-6.313zM8.834 5.042a2.528 2.528 0 0 1-2.521-2.52A2.528 2.528 0 0 1 8.834 0a2.528 2.528 0 0 1 2.521 2.522v2.52H8.834zM8.834 6.313a2.528 2.528 0 0 1 2.521 2.521 2.528 2.528 0 0 1-2.521 2.521H2.522A2.528 2.528 0 0 1 0 8.834a2.528 2.528 0 0 1 2.522-2.521h6.312zM18.956 8.834a2.528 2.528 0 0 1 2.522-2.521A2.528 2.528 0 0 1 24 8.834a2.528 2.528 0 0 1-2.522 2.521h-2.522V8.834zM17.688 8.834a2.528 2.528 0 0 1-2.523 2.521 2.527 2.527 0 0 1-2.52-2.521V2.522A2.527 2.527 0 0 1 15.165 0a2.528 2.528 0 0 1 2.523 2.522v6.312zM15.165 18.956a2.528 2.528 0 0 1 2.523 2.522A2.528 2.528 0 0 1 15.165 24a2.527 2.527 0 0 1-2.52-2.522v-2.522h2.52zM15.165 17.688a2.527 2.527 0 0 1-2.52-2.523 2.526 2.526 0 0 1 2.52-2.52h6.313A2.527 2.527 0 0 1 24 15.165a2.528 2.528 0 0 1-2.522 2.523h-6.313z"
+                      />
                     </svg>
                     <div>
                       <h3
@@ -583,22 +585,19 @@ const categoryIcons = {
                       class="focus:border-brand w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 font-mono text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
                     />
                     <p class="mt-1 text-xs text-gray-400 dark:text-gray-500">
-                      Create an incoming webhook in your Slack workspace settings
+                      Create an incoming webhook in your Slack workspace
+                      settings
                     </p>
                   </div>
                   <div class="px-4 py-3">
                     <button
                       type="button"
                       @click="testChannel('slack')"
-                      :disabled="
-                        testing === 'slack' || !form.slackWebhookUrl
-                      "
+                      :disabled="testing === 'slack' || !form.slackWebhookUrl"
                       class="rounded-md border border-gray-200 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
                     >
                       {{
-                        testing === 'slack'
-                          ? 'Sending...'
-                          : 'Send test message'
+                        testing === 'slack' ? 'Sending...' : 'Send test message'
                       }}
                     </button>
                     <p
@@ -748,7 +747,8 @@ const categoryIcons = {
                       class="focus:border-brand w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 font-mono text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500 sm:max-w-xs"
                     />
                     <p class="mt-1 text-xs text-gray-400 dark:text-gray-500">
-                      For groups with Topics enabled, send to a specific topic thread
+                      For groups with Topics enabled, send to a specific topic
+                      thread
                     </p>
                   </div>
                   <div class="px-4 py-3">
@@ -1019,16 +1019,15 @@ const categoryIcons = {
                       class="focus:border-brand w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 font-mono text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
                     />
                     <p class="mt-1 text-xs text-gray-400 dark:text-gray-500">
-                      Receives POST with JSON payload: { event, timestamp, data }
+                      Receives POST with JSON payload: { event, timestamp, data
+                      }
                     </p>
                   </div>
                   <div class="px-4 py-3">
                     <button
                       type="button"
                       @click="testChannel('webhook')"
-                      :disabled="
-                        testing === 'webhook' || !form.webhookUrl
-                      "
+                      :disabled="testing === 'webhook' || !form.webhookUrl"
                       class="rounded-md border border-gray-200 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
                     >
                       {{
@@ -1063,9 +1062,7 @@ const categoryIcons = {
           </div>
 
           <!-- Save button -->
-          <div
-            class="flex justify-end pt-6"
-          >
+          <div class="flex justify-end pt-6">
             <button
               type="submit"
               :disabled="form.processing || !form.isDirty"

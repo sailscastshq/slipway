@@ -22,7 +22,7 @@ const maritimeMessages = {
     'Waiting for the tide...',
     'Checking the compass...',
     'Reading the stars...',
-    'Gathering the crew...',
+    'Gathering the crew...'
   ],
   building: [
     'Hoisting the sails...',
@@ -30,12 +30,12 @@ const maritimeMessages = {
     'Checking the rigging...',
     'Swabbing the deck...',
     'Tying the knots...',
-    'Hammering the hull...',
+    'Hammering the hull...'
   ],
   pushing: [
     'Signaling the fleet...',
     'Sending up a flare...',
-    'Raising the flag...',
+    'Raising the flag...'
   ],
   deploying: [
     'Charting the course...',
@@ -43,8 +43,8 @@ const maritimeMessages = {
     'Catching the wind...',
     'Navigating the waters...',
     'Full speed ahead...',
-    'Approaching the harbor...',
-  ],
+    'Approaching the harbor...'
+  ]
 }
 
 const maritimeMessage = ref('')
@@ -166,7 +166,9 @@ function dismiss() {
 }
 
 function goToDeployment() {
-  router.visit(`/projects/${props.deployment.project.slug}/deployments/${props.deployment.id}`)
+  router.visit(
+    `/projects/${props.deployment.project.slug}/deployments/${props.deployment.id}`
+  )
 }
 
 onMounted(() => {
@@ -180,9 +182,12 @@ onUnmounted(() => {
   stopMessageRotation()
 })
 
-watch(() => props.deployment.status, (newStatus) => {
-  status.value = newStatus
-})
+watch(
+  () => props.deployment.status,
+  (newStatus) => {
+    status.value = newStatus
+  }
+)
 
 watch(status, (newStatus) => {
   if (['pending', 'building', 'pushing', 'deploying'].includes(newStatus)) {
@@ -215,28 +220,59 @@ watch(status, (newStatus) => {
         <div
           v-if="isActive"
           :class="['h-full transition-all duration-300', statusConfig.bgColor]"
-          :style="{ width: isActive ? '100%' : '0%', animation: isActive ? 'pulse 2s ease-in-out infinite' : 'none' }"
+          :style="{
+            width: isActive ? '100%' : '0%',
+            animation: isActive ? 'pulse 2s ease-in-out infinite' : 'none'
+          }"
         ></div>
-        <div
-          v-else
-          :class="['h-full w-full', statusConfig.bgColor]"
-        ></div>
+        <div v-else :class="['h-full w-full', statusConfig.bgColor]"></div>
       </div>
 
       <!-- Content -->
       <div class="p-4">
         <div class="flex items-start gap-3">
           <!-- Status icon -->
-          <div :class="['flex h-10 w-10 shrink-0 items-center justify-center rounded-lg', isActive ? 'bg-gray-100 dark:bg-gray-800' : (status === 'running' ? 'bg-emerald-500/20' : 'bg-red-500/20')]">
+          <div
+            :class="[
+              'flex h-10 w-10 shrink-0 items-center justify-center rounded-lg',
+              isActive
+                ? 'bg-gray-100 dark:bg-gray-800'
+                : status === 'running'
+                ? 'bg-emerald-500/20'
+                : 'bg-red-500/20'
+            ]"
+          >
             <!-- Spinning loader for active states -->
             <SlippyLoader v-if="isActive" class="text-brand dark:text-white" />
             <!-- Check for success -->
-            <svg v-else-if="status === 'running'" class="h-5 w-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+            <svg
+              v-else-if="status === 'running'"
+              class="h-5 w-5 text-emerald-400"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M5 13l4 4L19 7"
+              />
             </svg>
             <!-- X for failed/cancelled -->
-            <svg v-else class="h-5 w-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            <svg
+              v-else
+              class="h-5 w-5 text-red-400"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M6 18L18 6M6 6l12 12"
+              />
             </svg>
           </div>
 
@@ -250,8 +286,18 @@ watch(status, (newStatus) => {
                 @click.stop="dismiss"
                 class="rounded p-0.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:text-gray-500 dark:hover:bg-gray-800 dark:hover:text-gray-300"
               >
-                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                <svg
+                  class="h-4 w-4"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M6 18L18 6M6 6l12 12"
+                  />
                 </svg>
               </button>
             </div>
@@ -276,16 +322,38 @@ watch(status, (newStatus) => {
               {{ maritimeMessage }}
             </p>
 
-            <div class="mt-2 flex items-center gap-3 text-xs text-gray-500 dark:text-gray-400">
+            <div
+              class="mt-2 flex items-center gap-3 text-xs text-gray-500 dark:text-gray-400"
+            >
               <span v-if="deployment.gitBranch" class="flex items-center gap-1">
-                <svg class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                <svg
+                  class="h-3 w-3"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M13 10V3L4 14h7v7l9-11h-7z"
+                  />
                 </svg>
                 {{ deployment.gitBranch }}
               </span>
               <span class="flex items-center gap-1">
-                <svg class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                <svg
+                  class="h-3 w-3"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                  />
                 </svg>
                 {{ elapsedFormatted }}
               </span>
@@ -299,7 +367,8 @@ watch(status, (newStatus) => {
 
 <style scoped>
 @keyframes pulse {
-  0%, 100% {
+  0%,
+  100% {
     opacity: 1;
   }
   50% {

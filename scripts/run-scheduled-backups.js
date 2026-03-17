@@ -1,7 +1,8 @@
 module.exports = {
   friendlyName: 'Run scheduled backups',
 
-  description: 'Check if scheduled backups are due and run them for all backup-supported services.',
+  description:
+    'Check if scheduled backups are due and run them for all backup-supported services.',
 
   quest: {
     interval: '1 minute',
@@ -14,11 +15,25 @@ module.exports = {
     try {
       const globalJson = await sails.helpers.setting.get('globalEnvVars', '{}')
       globalEnvVars = JSON.parse(globalJson)
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
 
-    const hasKey = globalEnvVars.R2_ACCESS_KEY || globalEnvVars.S3_ACCESS_KEY || globalEnvVars.SPACES_ACCESS_KEY || (sails.config.uploads || {}).key
-    const hasSecret = globalEnvVars.R2_SECRET_KEY || globalEnvVars.S3_SECRET_KEY || globalEnvVars.SPACES_SECRET_KEY || (sails.config.uploads || {}).secret
-    const hasBucket = globalEnvVars.R2_BUCKET || globalEnvVars.S3_BUCKET || globalEnvVars.SPACES_BUCKET || (sails.config.uploads || {}).bucket
+    const hasKey =
+      globalEnvVars.R2_ACCESS_KEY ||
+      globalEnvVars.S3_ACCESS_KEY ||
+      globalEnvVars.SPACES_ACCESS_KEY ||
+      (sails.config.uploads || {}).key
+    const hasSecret =
+      globalEnvVars.R2_SECRET_KEY ||
+      globalEnvVars.S3_SECRET_KEY ||
+      globalEnvVars.SPACES_SECRET_KEY ||
+      (sails.config.uploads || {}).secret
+    const hasBucket =
+      globalEnvVars.R2_BUCKET ||
+      globalEnvVars.S3_BUCKET ||
+      globalEnvVars.SPACES_BUCKET ||
+      (sails.config.uploads || {}).bucket
 
     if (!hasKey || !hasSecret || !hasBucket) {
       sails.log.verbose('Scheduled backups: storage not configured, skipping')
@@ -30,7 +45,11 @@ module.exports = {
     if (!scheduleJson) return
 
     let schedule
-    try { schedule = JSON.parse(scheduleJson) } catch { return }
+    try {
+      schedule = JSON.parse(scheduleJson)
+    } catch {
+      return
+    }
 
     if (!schedule.enabled || !schedule.intervalHours) return
 
@@ -38,18 +57,24 @@ module.exports = {
     const lastRunAt = schedule.lastRunAt || 0
     const now = Date.now()
 
-    if ((now - lastRunAt) < intervalMs) return
+    if (now - lastRunAt < intervalMs) return
 
     // 3. Find all running services that support backups
     const services = await Service.find({ status: 'running' })
-    const backupableServices = services.filter(s => Service.isBackupSupported(s.type))
+    const backupableServices = services.filter((s) =>
+      Service.isBackupSupported(s.type)
+    )
 
     if (backupableServices.length === 0) {
-      sails.log.verbose('Scheduled backups: no backup-supported services running')
+      sails.log.verbose(
+        'Scheduled backups: no backup-supported services running'
+      )
       return
     }
 
-    sails.log.info(`Running scheduled backups for ${backupableServices.length} service(s)`)
+    sails.log.info(
+      `Running scheduled backups for ${backupableServices.length} service(s)`
+    )
 
     // 4. Create and run backups
     for (const service of backupableServices) {
@@ -62,7 +87,9 @@ module.exports = {
 
         await sails.helpers.backup.runBackup(backup.id)
       } catch (err) {
-        sails.log.error(`Scheduled backup failed for ${service.name}: ${err.message}`)
+        sails.log.error(
+          `Scheduled backup failed for ${service.name}: ${err.message}`
+        )
       }
     }
 
@@ -77,7 +104,9 @@ module.exports = {
         if (completed.length <= retentionCount) continue
 
         const toDelete = completed.slice(retentionCount)
-        sails.log.info(`Pruning ${toDelete.length} old backup(s) for service ${service.name}`)
+        sails.log.info(
+          `Pruning ${toDelete.length} old backup(s) for service ${service.name}`
+        )
 
         for (const old of toDelete) {
           // Delete from S3 if key exists
@@ -85,13 +114,17 @@ module.exports = {
             try {
               await sails.helpers.backup.deleteBackupObject(old.s3Key)
             } catch (err) {
-              sails.log.warn(`Failed to delete S3 object ${old.s3Key}: ${err.message}`)
+              sails.log.warn(
+                `Failed to delete S3 object ${old.s3Key}: ${err.message}`
+              )
             }
           }
           await Backup.destroyOne({ id: old.id })
         }
       } catch (err) {
-        sails.log.error(`Backup pruning failed for ${service.name}: ${err.message}`)
+        sails.log.error(
+          `Backup pruning failed for ${service.name}: ${err.message}`
+        )
       }
     }
 

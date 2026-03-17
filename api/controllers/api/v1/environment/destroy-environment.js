@@ -34,7 +34,9 @@ module.exports = {
   fn: async function ({ projectSlug, slug }) {
     const user = await User.findOne({ id: this.req.session.userId })
 
-    const project = await Project.findOne({ slug: projectSlug }).populate('team')
+    const project = await Project.findOne({ slug: projectSlug }).populate(
+      'team'
+    )
 
     if (!project) {
       throw 'notFound'
@@ -61,7 +63,9 @@ module.exports = {
       if (envCount === 1) {
         throw {
           badRequest: {
-            problems: [{ environment: 'Cannot delete the only production environment.' }]
+            problems: [
+              { environment: 'Cannot delete the only production environment.' }
+            ]
           }
         }
       }
@@ -74,7 +78,9 @@ module.exports = {
         try {
           await sails.helpers.docker.stopContainer(app.containerName)
         } catch (err) {
-          sails.log.warn(`Failed to stop app container ${app.containerName}: ${err.message}`)
+          sails.log.warn(
+            `Failed to stop app container ${app.containerName}: ${err.message}`
+          )
         }
       }
     }
@@ -84,13 +90,18 @@ module.exports = {
       try {
         await sails.helpers.docker.destroyService(service.id)
       } catch (err) {
-        sails.log.warn(`Failed to destroy service ${service.name}: ${err.message}`)
+        sails.log.warn(
+          `Failed to destroy service ${service.name}: ${err.message}`
+        )
       }
     }
 
     // Remove Caddy route
     try {
-      await sails.helpers.caddy.removeRoute.with({ projectSlug: project.slug, environmentSlug: slug })
+      await sails.helpers.caddy.removeRoute.with({
+        projectSlug: project.slug,
+        environmentSlug: slug
+      })
     } catch (err) {
       sails.log.warn(`Failed to remove Caddy route: ${err.message}`)
     }

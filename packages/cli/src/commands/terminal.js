@@ -13,7 +13,10 @@ export default async function terminal(options) {
 
   try {
     // Get environment to find container name
-    const { environment: env } = await api.environments.get(project.project, environment)
+    const { environment: env } = await api.environments.get(
+      project.project,
+      environment
+    )
 
     const apps = env.app || []
     if (apps.length === 0) {
@@ -21,11 +24,15 @@ export default async function terminal(options) {
     }
 
     const app = options.app
-      ? apps.find(a => a.slug === options.app)
-      : apps.find(a => a.isDefault) || apps[0]
+      ? apps.find((a) => a.slug === options.app)
+      : apps.find((a) => a.isDefault) || apps[0]
 
     if (!app) {
-      error(`App "${options.app}" not found. Available: ${apps.map(a => a.slug).join(', ')}`)
+      error(
+        `App "${options.app}" not found. Available: ${apps
+          .map((a) => a.slug)
+          .join(', ')}`
+      )
     }
     if (app.status !== 'running') {
       error(`App is not running (status: ${app.status})`)

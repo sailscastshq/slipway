@@ -1,7 +1,7 @@
 module.exports = {
   friendlyName: 'List projects',
 
-  description: 'List all projects for the current user\'s team.',
+  description: "List all projects for the current user's team.",
 
   exits: {
     success: {

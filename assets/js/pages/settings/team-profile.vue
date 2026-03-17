@@ -107,7 +107,7 @@ async function removeLogo() {
 const initials = computed(() => {
   return props.team.name
     .split(' ')
-    .map(w => w[0])
+    .map((w) => w[0])
     .join('')
     .slice(0, 2)
     .toUpperCase()
@@ -117,16 +117,38 @@ const initials = computed(() => {
   <Head title="Team Profile | Slipway"></Head>
   <div class="flex h-full flex-col">
     <!-- Header -->
-    <div class="flex items-center justify-between border-b border-gray-200 py-4 pl-4 pr-4 dark:border-gray-800 sm:pl-4 sm:pr-8">
+    <div
+      class="flex items-center justify-between border-b border-gray-200 py-4 pl-4 pr-4 dark:border-gray-800 sm:pl-4 sm:pr-8"
+    >
       <div class="flex items-center space-x-3">
         <button
           @click="toggleMobileMenu"
           class="rounded-md p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white md:hidden"
         >
-          <svg class="h-5 w-5" viewBox="-0.5 -0.5 16 16" fill="none" stroke="currentColor">
-            <path d="M12.777 14.285H2.223c-.833 0-1.508-.675-1.508-1.508V2.223c0-.833.675-1.508 1.508-1.508h10.554c.833 0 1.508.675 1.508 1.508v10.554c0 .833-.675 1.508-1.508 1.508Z" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
-            <path d="M5.615 14.285V.715" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
-            <path d="M2.6 5.992 3.919 7.5 2.6 9.008" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
+          <svg
+            class="h-5 w-5"
+            viewBox="-0.5 -0.5 16 16"
+            fill="none"
+            stroke="currentColor"
+          >
+            <path
+              d="M12.777 14.285H2.223c-.833 0-1.508-.675-1.508-1.508V2.223c0-.833.675-1.508 1.508-1.508h10.554c.833 0 1.508.675 1.508 1.508v10.554c0 .833-.675 1.508-1.508 1.508Z"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1"
+            />
+            <path
+              d="M5.615 14.285V.715"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1"
+            />
+            <path
+              d="M2.6 5.992 3.919 7.5 2.6 9.008"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1"
+            />
           </svg>
         </button>
         <!-- Desktop sidebar toggle -->
@@ -134,23 +156,70 @@ const initials = computed(() => {
           @click="toggleSidebar"
           class="hidden text-gray-400 dark:text-gray-500 md:block"
         >
-          <svg v-if="sidebarCollapsed" class="h-5 w-5" viewBox="-0.5 -0.5 16 16" fill="none" stroke="currentColor">
-            <path d="M12.777 14.285H2.223c-.833 0-1.508-.675-1.508-1.508V2.223c0-.833.675-1.508 1.508-1.508h10.554c.833 0 1.508.675 1.508 1.508v10.554c0 .833-.675 1.508-1.508 1.508Z" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
-            <path d="M5.615 14.285V.715" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
-            <path d="M2.6 5.992 3.919 7.5 2.6 9.008" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
+          <svg
+            v-if="sidebarCollapsed"
+            class="h-5 w-5"
+            viewBox="-0.5 -0.5 16 16"
+            fill="none"
+            stroke="currentColor"
+          >
+            <path
+              d="M12.777 14.285H2.223c-.833 0-1.508-.675-1.508-1.508V2.223c0-.833.675-1.508 1.508-1.508h10.554c.833 0 1.508.675 1.508 1.508v10.554c0 .833-.675 1.508-1.508 1.508Z"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1"
+            />
+            <path
+              d="M5.615 14.285V.715"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1"
+            />
+            <path
+              d="M2.6 5.992 3.919 7.5 2.6 9.008"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1"
+            />
           </svg>
-          <svg v-else class="h-5 w-5" viewBox="-0.5 -0.5 16 16" fill="none" stroke="currentColor">
-            <path d="M12.777 14.285H2.223c-.833 0-1.508-.675-1.508-1.508V2.223c0-.833.675-1.508 1.508-1.508h10.554c.833 0 1.508.675 1.508 1.508v10.554c0 .833-.675 1.508-1.508 1.508Z" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
-            <path d="M5.615 14.285V.715" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
-            <path d="M3.919 5.992 2.6 7.5l1.319 1.508" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
+          <svg
+            v-else
+            class="h-5 w-5"
+            viewBox="-0.5 -0.5 16 16"
+            fill="none"
+            stroke="currentColor"
+          >
+            <path
+              d="M12.777 14.285H2.223c-.833 0-1.508-.675-1.508-1.508V2.223c0-.833.675-1.508 1.508-1.508h10.554c.833 0 1.508.675 1.508 1.508v10.554c0 .833-.675 1.508-1.508 1.508Z"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1"
+            />
+            <path
+              d="M5.615 14.285V.715"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1"
+            />
+            <path
+              d="M3.919 5.992 2.6 7.5l1.319 1.508"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1"
+            />
           </svg>
         </button>
         <nav class="flex items-center space-x-2 text-sm">
-          <Link href="/settings" class="text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white">
+          <Link
+            href="/settings"
+            class="text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
+          >
             settings
           </Link>
           <span class="text-gray-400 dark:text-gray-600">/</span>
-          <span class="font-medium text-gray-900 dark:text-white">team profile</span>
+          <span class="font-medium text-gray-900 dark:text-white"
+            >team profile</span
+          >
         </nav>
       </div>
       <div class="flex items-center space-x-4">
@@ -160,8 +229,18 @@ const initials = computed(() => {
           class="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
         >
           Docs
-          <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+          <svg
+            class="h-3.5 w-3.5"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+            />
           </svg>
         </a>
       </div>
@@ -172,18 +251,25 @@ const initials = computed(() => {
       <div class="mx-auto max-w-6xl">
         <!-- Description -->
         <div class="mb-6">
-          <h1 class="text-xl font-semibold text-gray-900 dark:text-white">Team Profile</h1>
+          <h1 class="text-xl font-semibold text-gray-900 dark:text-white">
+            Team Profile
+          </h1>
           <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
             Customize your team's name and logo.
           </p>
         </div>
 
         <!-- Logo section -->
-        <div class="mb-6 rounded-lg border border-gray-200 dark:border-gray-800">
+        <div
+          class="mb-6 rounded-lg border border-gray-200 dark:border-gray-800"
+        >
           <div class="px-4 py-3">
-            <h2 class="text-sm font-medium text-gray-900 dark:text-white">Team Logo</h2>
+            <h2 class="text-sm font-medium text-gray-900 dark:text-white">
+              Team Logo
+            </h2>
             <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-              Displayed in the sidebar and team switcher. Recommended size: 128x128px.
+              Displayed in the sidebar and team switcher. Recommended size:
+              128x128px.
             </p>
           </div>
           <div class="border-t border-gray-200 px-4 py-4 dark:border-gray-800">
@@ -194,11 +280,15 @@ const initials = computed(() => {
                   v-if="logoPreview"
                   class="h-16 w-16 overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700"
                 >
-                  <img :src="logoPreview" alt="Team logo" class="h-full w-full object-cover" />
+                  <img
+                    :src="logoPreview"
+                    alt="Team logo"
+                    class="h-full w-full object-cover"
+                  />
                 </div>
                 <div
                   v-else
-                  class="flex h-16 w-16 items-center justify-center rounded-lg bg-brand text-xl font-semibold text-white"
+                  class="bg-brand flex h-16 w-16 items-center justify-center rounded-lg text-xl font-semibold text-white"
                 >
                   {{ initials }}
                 </div>
@@ -215,7 +305,9 @@ const initials = computed(() => {
               <div class="flex flex-col gap-2">
                 <template v-if="uploadsConfigured">
                   <div class="flex items-center gap-2">
-                    <label class="cursor-pointer rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800">
+                    <label
+                      class="cursor-pointer rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800"
+                    >
                       <span>{{ logoPreview ? 'Change' : 'Upload' }}</span>
                       <input
                         type="file"
@@ -234,17 +326,36 @@ const initials = computed(() => {
                       Remove
                     </button>
                   </div>
-                  <p v-if="uploadError" class="text-xs text-red-600 dark:text-red-400">
+                  <p
+                    v-if="uploadError"
+                    class="text-xs text-red-600 dark:text-red-400"
+                  >
                     {{ uploadError }}
                   </p>
                 </template>
                 <template v-else>
-                  <div class="flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50/50 px-3 py-2 dark:border-amber-900/50 dark:bg-amber-950/20">
-                    <svg class="h-4 w-4 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  <div
+                    class="flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50/50 px-3 py-2 dark:border-amber-900/50 dark:bg-amber-950/20"
+                  >
+                    <svg
+                      class="h-4 w-4 text-amber-500"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                      />
                     </svg>
                     <span class="text-sm text-amber-700 dark:text-amber-400">
-                      <Link href="/settings/uploads" class="underline hover:no-underline">Configure file storage</Link>
+                      <Link
+                        href="/settings/uploads"
+                        class="underline hover:no-underline"
+                        >Configure file storage</Link
+                      >
                       {{ ' ' }}to enable logo uploads.
                     </span>
                   </div>
@@ -258,22 +369,34 @@ const initials = computed(() => {
         <form @submit.prevent="save" class="space-y-6">
           <div class="rounded-lg border border-gray-200 dark:border-gray-800">
             <div class="px-4 py-3">
-              <label for="teamName" class="text-sm font-medium text-gray-900 dark:text-white">Team Name</label>
+              <label
+                for="teamName"
+                class="text-sm font-medium text-gray-900 dark:text-white"
+                >Team Name</label
+              >
               <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
                 The name of your team. This will also update the team slug.
               </p>
             </div>
-            <div class="border-t border-gray-200 px-4 py-3 dark:border-gray-800">
+            <div
+              class="border-t border-gray-200 px-4 py-3 dark:border-gray-800"
+            >
               <input
                 id="teamName"
                 v-model="form.name"
                 type="text"
                 required
                 placeholder="My Team"
-                class="w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:border-brand focus:outline-none sm:max-w-md dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
+                class="focus:border-brand w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500 sm:max-w-md"
               />
               <p class="mt-2 text-xs text-gray-400 dark:text-gray-500">
-                Slug: <span class="font-mono">{{ form.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'my-team' }}</span>
+                Slug:
+                <span class="font-mono">{{
+                  form.name
+                    .toLowerCase()
+                    .replace(/[^a-z0-9]+/g, '-')
+                    .replace(/^-|-$/g, '') || 'my-team'
+                }}</span>
               </p>
             </div>
           </div>

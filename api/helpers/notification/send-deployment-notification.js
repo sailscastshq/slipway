@@ -27,8 +27,14 @@ module.exports = {
     const isFailure = status === 'failed'
 
     // Check notification preferences
-    const notifyOnSuccess = await sails.helpers.setting.get('notifyOnDeploySuccess', 'true')
-    const notifyOnFailure = await sails.helpers.setting.get('notifyOnDeployFailure', 'true')
+    const notifyOnSuccess = await sails.helpers.setting.get(
+      'notifyOnDeploySuccess',
+      'true'
+    )
+    const notifyOnFailure = await sails.helpers.setting.get(
+      'notifyOnDeployFailure',
+      'true'
+    )
 
     if (isSuccess && notifyOnSuccess !== 'true') {
       return
@@ -40,20 +46,30 @@ module.exports = {
       return // Only notify on final states
     }
 
-    const instanceName = await sails.helpers.setting.get('instanceName', 'Slipway')
+    const instanceName = await sails.helpers.setting.get(
+      'instanceName',
+      'Slipway'
+    )
     const instanceDomain = await sails.helpers.setting.get('instanceDomain', '')
-    const app = deployment.app ? await App.findOne({ id: deployment.app }) : null
+    const app = deployment.app
+      ? await App.findOne({ id: deployment.app })
+      : null
     const appName = app ? app.name : project.name
 
     const emoji = isSuccess ? '\u2705' : '\u274C'
     const statusText = isSuccess ? 'succeeded' : 'failed'
-    const slippyTitle = isSuccess ? 'Deployment successful' : 'Deployment failed'
+    const slippyTitle = isSuccess
+      ? 'Deployment successful'
+      : 'Deployment failed'
     const deploymentUrl = instanceDomain
       ? `https://${instanceDomain}/projects/${project.slug}/deployments/${deployment.id}`
       : null
 
     // Send Telegram notification (HTML format)
-    const telegramEnabled = await sails.helpers.setting.get('telegramEnabled', 'false')
+    const telegramEnabled = await sails.helpers.setting.get(
+      'telegramEnabled',
+      'false'
+    )
     if (telegramEnabled === 'true') {
       let message = `${emoji} <b>${slippyTitle}</b>\n\n`
       message += `<b>App:</b> ${escapeHtml(appName)}\n`
@@ -62,18 +78,27 @@ module.exports = {
         message += `<b>Branch:</b> ${escapeHtml(deployment.gitBranch)}\n`
       }
       if (deployment.gitCommitShort) {
-        message += `<b>Commit:</b> <code>${escapeHtml(deployment.gitCommitShort)}</code>\n`
+        message += `<b>Commit:</b> <code>${escapeHtml(
+          deployment.gitCommitShort
+        )}</code>\n`
       }
       if (deploymentUrl) {
         message += `\n<a href="${deploymentUrl}">View deployment</a>`
       }
-      message += `\n\n<b>\u2014 Slippy \uD83D\uDC19, from ${escapeHtml(instanceName)}</b>`
+      message += `\n\n<b>\u2014 Slippy \uD83D\uDC19, from ${escapeHtml(
+        instanceName
+      )}</b>`
 
-      await sails.helpers.notification.sendTelegram.with({ message }).tolerate('error')
+      await sails.helpers.notification.sendTelegram
+        .with({ message })
+        .tolerate('error')
     }
 
     // Send Slack notification
-    const slackEnabled = await sails.helpers.setting.get('slackEnabled', 'false')
+    const slackEnabled = await sails.helpers.setting.get(
+      'slackEnabled',
+      'false'
+    )
     if (slackEnabled === 'true') {
       let message = `${emoji} *${slippyTitle}*\n\n`
       message += `*App:* ${appName}\n`
@@ -89,80 +114,109 @@ module.exports = {
       }
       message += `\n*\u2014 Slippy \uD83D\uDC19, from ${instanceName}*`
 
-      await sails.helpers.notification.sendSlack.with({ message }).tolerate('error')
+      await sails.helpers.notification.sendSlack
+        .with({ message })
+        .tolerate('error')
     }
 
     // Send Discord notification
-    const discordEnabled = await sails.helpers.setting.get('discordEnabled', 'false')
+    const discordEnabled = await sails.helpers.setting.get(
+      'discordEnabled',
+      'false'
+    )
     if (discordEnabled === 'true') {
-      const discordWebhookUrl = await sails.helpers.setting.get('discordWebhookUrl', '')
+      const discordWebhookUrl = await sails.helpers.setting.get(
+        'discordWebhookUrl',
+        ''
+      )
       if (discordWebhookUrl) {
         const fields = [
           { name: 'App', value: appName, inline: true },
           { name: 'Environment', value: environment.name, inline: true }
         ]
         if (deployment.gitBranch) {
-          fields.push({ name: 'Branch', value: deployment.gitBranch, inline: true })
+          fields.push({
+            name: 'Branch',
+            value: deployment.gitBranch,
+            inline: true
+          })
         }
         if (deployment.gitCommitShort) {
-          fields.push({ name: 'Commit', value: `\`${deployment.gitCommitShort}\``, inline: true })
+          fields.push({
+            name: 'Commit',
+            value: `\`${deployment.gitCommitShort}\``,
+            inline: true
+          })
         }
 
         await fetch(discordWebhookUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            embeds: [{
-              title: `${emoji} ${slippyTitle}`,
-              color: isSuccess ? 0x10b981 : 0xef4444,
-              fields,
-              ...(deploymentUrl ? { url: deploymentUrl } : {}),
-              footer: { text: `\u2014 Slippy \uD83D\uDC19, from ${instanceName}` },
-              timestamp: new Date().toISOString()
-            }]
+            embeds: [
+              {
+                title: `${emoji} ${slippyTitle}`,
+                color: isSuccess ? 0x10b981 : 0xef4444,
+                fields,
+                ...(deploymentUrl ? { url: deploymentUrl } : {}),
+                footer: {
+                  text: `\u2014 Slippy \uD83D\uDC19, from ${instanceName}`
+                },
+                timestamp: new Date().toISOString()
+              }
+            ]
           })
-        }).catch(err => sails.log.warn('Discord notification failed:', err.message))
+        }).catch((err) =>
+          sails.log.warn('Discord notification failed:', err.message)
+        )
       }
     }
 
     // Send email notification
     const smtpEnabled = await sails.helpers.setting.get('smtpEnabled', 'false')
     if (smtpEnabled === 'true') {
-      await sails.helpers.notification.sendEmail.with({
-        template: 'email-deployment-notification',
-        subject: `${slippyTitle} \u2014 ${appName} (${environment.name})`,
-        templateData: {
-          isSuccess,
-          statusText,
-          appName,
-          project,
-          environment,
-          deployment,
-          instanceName,
-          deploymentUrl
-        }
-      }).tolerate('error')
+      await sails.helpers.notification.sendEmail
+        .with({
+          template: 'email-deployment-notification',
+          subject: `${slippyTitle} \u2014 ${appName} (${environment.name})`,
+          templateData: {
+            isSuccess,
+            statusText,
+            appName,
+            project,
+            environment,
+            deployment,
+            instanceName,
+            deploymentUrl
+          }
+        })
+        .tolerate('error')
     }
 
     // Send webhook notification
-    const webhookEnabled = await sails.helpers.setting.get('webhookEnabled', 'false')
+    const webhookEnabled = await sails.helpers.setting.get(
+      'webhookEnabled',
+      'false'
+    )
     if (webhookEnabled === 'true') {
-      await sails.helpers.notification.sendWebhook.with({
-        event: isSuccess ? 'deployment.success' : 'deployment.failed',
-        data: {
-          app: { name: appName },
-          project: { name: project.name, slug: project.slug },
-          environment: { name: environment.name },
-          deployment: {
-            id: deployment.id,
-            status: deployment.status,
-            gitBranch: deployment.gitBranch,
-            gitCommitShort: deployment.gitCommitShort
-          },
-          deploymentUrl,
-          instanceName
-        }
-      }).tolerate('error')
+      await sails.helpers.notification.sendWebhook
+        .with({
+          event: isSuccess ? 'deployment.success' : 'deployment.failed',
+          data: {
+            app: { name: appName },
+            project: { name: project.name, slug: project.slug },
+            environment: { name: environment.name },
+            deployment: {
+              id: deployment.id,
+              status: deployment.status,
+              gitBranch: deployment.gitBranch,
+              gitCommitShort: deployment.gitCommitShort
+            },
+            deploymentUrl,
+            instanceName
+          }
+        })
+        .tolerate('error')
     }
   }
 }

@@ -1,7 +1,8 @@
 module.exports = {
   friendlyName: 'Get database service',
 
-  description: 'Find a database service (PostgreSQL, MySQL, MongoDB, or Redis) for an environment.',
+  description:
+    'Find a database service (PostgreSQL, MySQL, MongoDB, or Redis) for an environment.',
 
   inputs: {
     environmentId: {
@@ -11,11 +12,13 @@ module.exports = {
     },
     serviceId: {
       type: 'string',
-      description: 'Specific service ID (optional - if not provided, returns first available)'
+      description:
+        'Specific service ID (optional - if not provided, returns first available)'
     },
     serviceType: {
       type: 'string',
-      description: 'Specific service type (optional - postgresql, mysql, mongodb, redis)'
+      description:
+        'Specific service type (optional - postgresql, mysql, mongodb, redis)'
     }
   },
 

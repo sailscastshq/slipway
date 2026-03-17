@@ -28,9 +28,10 @@ const name = ref(props.environment.name)
 const isProduction = ref(props.environment.isProduction)
 const saving = ref(false)
 
-const isDirty = computed(() =>
-  name.value !== props.environment.name ||
-  isProduction.value !== props.environment.isProduction
+const isDirty = computed(
+  () =>
+    name.value !== props.environment.name ||
+    isProduction.value !== props.environment.isProduction
 )
 const showDeleteConfirm = ref(false)
 const deleting = ref(false)
@@ -217,12 +218,20 @@ if (!props.canDelete) {
             />
           </svg>
         </button>
-        <Breadcrumb :items="[
-          { label: 'projects', href: '/' },
-          { label: project.name.toLowerCase(), href: `/projects/${project.slug}` },
-          { label: environment.slug, href: `/projects/${project.slug}/environments/${environment.slug}` },
-          { label: 'settings' }
-        ]" />
+        <Breadcrumb
+          :items="[
+            { label: 'projects', href: '/' },
+            {
+              label: project.name.toLowerCase(),
+              href: `/projects/${project.slug}`
+            },
+            {
+              label: environment.slug,
+              href: `/projects/${project.slug}/environments/${environment.slug}`
+            },
+            { label: 'settings' }
+          ]"
+        />
       </div>
       <div class="flex items-center space-x-4">
         <a
@@ -268,7 +277,7 @@ if (!props.canDelete) {
               id="name"
               v-model="name"
               type="text"
-              class="w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:border-brand focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
+              class="focus:border-brand w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
             />
           </div>
 

@@ -89,7 +89,8 @@ module.exports = {
     envVarKey: {
       type: 'string',
       allowNull: true,
-      description: 'The env var key this service auto-manages (e.g. DATABASE_URL)',
+      description:
+        'The env var key this service auto-manages (e.g. DATABASE_URL)',
       columnName: 'env_var_key'
     },
 
@@ -191,10 +192,14 @@ module.exports = {
    * Generate container name for service
    */
   generateContainerName: async function (serviceId) {
-    const service = await Service.findOne({ id: serviceId }).populate('environment')
+    const service = await Service.findOne({ id: serviceId }).populate(
+      'environment'
+    )
     if (!service) return null
 
-    const env = await Environment.findOne({ id: service.environment.id }).populate('project')
+    const env = await Environment.findOne({
+      id: service.environment.id
+    }).populate('project')
     return `slipway-${env.project.slug}-${env.slug}-${service.name}`
   }
 }

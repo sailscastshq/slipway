@@ -1,7 +1,8 @@
 module.exports = {
   friendlyName: 'View environment',
 
-  description: 'Display environment detail page with env vars, services, and deployments.',
+  description:
+    'Display environment detail page with env vars, services, and deployments.',
 
   inputs: {
     slug: {
@@ -26,7 +27,9 @@ module.exports = {
   },
 
   fn: async function ({ slug, envSlug }) {
-    const user = await User.findOne({ id: this.req.session.userId }).populate('team')
+    const user = await User.findOne({ id: this.req.session.userId }).populate(
+      'team'
+    )
 
     const project = await Project.findOne({ slug, team: user.team.id })
 
@@ -34,7 +37,10 @@ module.exports = {
       throw { notFound: '/' }
     }
 
-    const environment = await Environment.findOne({ slug: envSlug, project: project.id })
+    const environment = await Environment.findOne({
+      slug: envSlug,
+      project: project.id
+    })
       .populate('services')
       .populate('deployments')
       .decrypt()
@@ -45,9 +51,10 @@ module.exports = {
 
     // Get all app records (multi-app support)
     let allApps = await App.find({ environment: environment.id })
-    let app = allApps.find(a => a.isDefault) || allApps[0] || null
+    let app = allApps.find((a) => a.isDefault) || allApps[0] || null
 
-    const { fullDomain, generatedDomain, domains } = await Environment.resolveDomains(environment.id)
+    const { fullDomain, generatedDomain, domains } =
+      await Environment.resolveDomains(environment.id)
     const serverIp = await sails.helpers.getServerIp()
 
     // Enrich services with connection URLs and last backup
@@ -76,11 +83,19 @@ module.exports = {
       const globalJson = await sails.helpers.setting.get('globalEnvVars', '{}')
       const globalVars = JSON.parse(globalJson)
       backupConfigured = !!(
-        (globalVars.R2_ACCESS_KEY || globalVars.S3_ACCESS_KEY || globalVars.SPACES_ACCESS_KEY) &&
-        (globalVars.R2_SECRET_KEY || globalVars.S3_SECRET_KEY || globalVars.SPACES_SECRET_KEY) &&
-        (globalVars.R2_BUCKET || globalVars.S3_BUCKET || globalVars.SPACES_BUCKET)
+        (globalVars.R2_ACCESS_KEY ||
+          globalVars.S3_ACCESS_KEY ||
+          globalVars.SPACES_ACCESS_KEY) &&
+        (globalVars.R2_SECRET_KEY ||
+          globalVars.S3_SECRET_KEY ||
+          globalVars.SPACES_SECRET_KEY) &&
+        (globalVars.R2_BUCKET ||
+          globalVars.S3_BUCKET ||
+          globalVars.SPACES_BUCKET)
       )
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
 
     // Check container status for all apps
     const appsWithHealth = []
@@ -89,7 +104,9 @@ module.exports = {
       let containerHealth = null
       if (a.containerName) {
         try {
-          const containerStatus = await sails.helpers.docker.getContainerStatus(a.containerName)
+          const containerStatus = await sails.helpers.docker.getContainerStatus(
+            a.containerName
+          )
           containerExists = true
           containerHealth = containerStatus.health
         } catch (err) {
@@ -103,12 +120,12 @@ module.exports = {
     }
 
     // Update default app reference after potential status changes
-    app = appsWithHealth.find(a => a.isDefault) || appsWithHealth[0] || null
+    app = appsWithHealth.find((a) => a.isDefault) || appsWithHealth[0] || null
 
     // Fix stale running deployments
     const runningAppDeploymentIds = appsWithHealth
-      .filter(a => a.containerExists && a.currentDeployment)
-      .map(a => a.currentDeployment)
+      .filter((a) => a.containerExists && a.currentDeployment)
+      .map((a) => a.currentDeployment)
 
     if (runningAppDeploymentIds.length === 0) {
       await Deployment.update({
@@ -140,7 +157,9 @@ module.exports = {
     }
 
     // Generate deployment checklist
-    const checklist = await sails.helpers.environment.generateChecklist(environment.id)
+    const checklist = await sails.helpers.environment.generateChecklist(
+      environment.id
+    )
 
     // Check if GitHub is connected for this team
     const gitProvider = await GitProvider.findOne({

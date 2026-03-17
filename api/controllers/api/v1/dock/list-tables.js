@@ -31,7 +31,9 @@ module.exports = {
 
   fn: async function ({ projectSlug, environmentSlug }) {
     const user = await User.findOne({ id: this.req.session.userId })
-    const project = await Project.findOne({ slug: projectSlug }).populate('team')
+    const project = await Project.findOne({ slug: projectSlug }).populate(
+      'team'
+    )
 
     if (!project) {
       throw 'notFound'
@@ -54,7 +56,10 @@ module.exports = {
     const serviceId = this.req.query.service
     let dbResult
     try {
-      dbResult = await sails.helpers.dock.getDatabaseService(environment.id, serviceId)
+      dbResult = await sails.helpers.dock.getDatabaseService(
+        environment.id,
+        serviceId
+      )
     } catch (err) {
       throw { badRequest: 'No database service found for this environment.' }
     }
@@ -110,7 +115,7 @@ module.exports = {
         throw { badRequest: result.error }
       }
 
-      const tables = result.rows.map(row => ({
+      const tables = result.rows.map((row) => ({
         name: row.table_name,
         schema: row.schema_name,
         rowCount: parseInt(row.row_count) || 0
@@ -130,7 +135,7 @@ module.exports = {
       throw { badRequest: result.error }
     }
 
-    const tables = result.rows.map(row => ({
+    const tables = result.rows.map((row) => ({
       name: row.table_name,
       schema: row.schema_name,
       rowCount: parseInt(row.row_count) || 0

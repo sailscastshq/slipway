@@ -106,32 +106,56 @@ module.exports = {
   fn: async function (inputs) {
     // Telegram settings
     if (inputs.telegramBotToken !== undefined) {
-      await sails.helpers.setting.set('telegramBotToken', inputs.telegramBotToken.trim())
+      await sails.helpers.setting.set(
+        'telegramBotToken',
+        inputs.telegramBotToken.trim()
+      )
     }
     if (inputs.telegramChatId !== undefined) {
-      await sails.helpers.setting.set('telegramChatId', inputs.telegramChatId.trim())
+      await sails.helpers.setting.set(
+        'telegramChatId',
+        inputs.telegramChatId.trim()
+      )
     }
     if (inputs.telegramThreadId !== undefined) {
-      await sails.helpers.setting.set('telegramThreadId', inputs.telegramThreadId.trim())
+      await sails.helpers.setting.set(
+        'telegramThreadId',
+        inputs.telegramThreadId.trim()
+      )
     }
     if (inputs.telegramEnabled !== undefined) {
-      await sails.helpers.setting.set('telegramEnabled', String(inputs.telegramEnabled))
+      await sails.helpers.setting.set(
+        'telegramEnabled',
+        String(inputs.telegramEnabled)
+      )
     }
 
     // Discord settings
     if (inputs.discordWebhookUrl !== undefined) {
-      await sails.helpers.setting.set('discordWebhookUrl', inputs.discordWebhookUrl.trim())
+      await sails.helpers.setting.set(
+        'discordWebhookUrl',
+        inputs.discordWebhookUrl.trim()
+      )
     }
     if (inputs.discordEnabled !== undefined) {
-      await sails.helpers.setting.set('discordEnabled', String(inputs.discordEnabled))
+      await sails.helpers.setting.set(
+        'discordEnabled',
+        String(inputs.discordEnabled)
+      )
     }
 
     // Slack settings
     if (inputs.slackWebhookUrl !== undefined) {
-      await sails.helpers.setting.set('slackWebhookUrl', inputs.slackWebhookUrl.trim())
+      await sails.helpers.setting.set(
+        'slackWebhookUrl',
+        inputs.slackWebhookUrl.trim()
+      )
     }
     if (inputs.slackEnabled !== undefined) {
-      await sails.helpers.setting.set('slackEnabled', String(inputs.slackEnabled))
+      await sails.helpers.setting.set(
+        'slackEnabled',
+        String(inputs.slackEnabled)
+      )
     }
 
     // Webhook settings
@@ -139,7 +163,10 @@ module.exports = {
       await sails.helpers.setting.set('webhookUrl', inputs.webhookUrl.trim())
     }
     if (inputs.webhookEnabled !== undefined) {
-      await sails.helpers.setting.set('webhookEnabled', String(inputs.webhookEnabled))
+      await sails.helpers.setting.set(
+        'webhookEnabled',
+        String(inputs.webhookEnabled)
+      )
     }
 
     // SMTP settings
@@ -165,36 +192,60 @@ module.exports = {
 
     // Email recipients
     if (inputs.notificationEmails !== undefined) {
-      await sails.helpers.setting.set('notificationEmails', inputs.notificationEmails.trim())
+      await sails.helpers.setting.set(
+        'notificationEmails',
+        inputs.notificationEmails.trim()
+      )
     }
 
     // Preferences - Deployment
     if (inputs.notifyOnDeploySuccess !== undefined) {
-      await sails.helpers.setting.set('notifyOnDeploySuccess', String(inputs.notifyOnDeploySuccess))
+      await sails.helpers.setting.set(
+        'notifyOnDeploySuccess',
+        String(inputs.notifyOnDeploySuccess)
+      )
     }
     if (inputs.notifyOnDeployFailure !== undefined) {
-      await sails.helpers.setting.set('notifyOnDeployFailure', String(inputs.notifyOnDeployFailure))
+      await sails.helpers.setting.set(
+        'notifyOnDeployFailure',
+        String(inputs.notifyOnDeployFailure)
+      )
     }
 
     // Preferences - Backup
     if (inputs.notifyOnBackupSuccess !== undefined) {
-      await sails.helpers.setting.set('notifyOnBackupSuccess', String(inputs.notifyOnBackupSuccess))
+      await sails.helpers.setting.set(
+        'notifyOnBackupSuccess',
+        String(inputs.notifyOnBackupSuccess)
+      )
     }
     if (inputs.notifyOnBackupFailure !== undefined) {
-      await sails.helpers.setting.set('notifyOnBackupFailure', String(inputs.notifyOnBackupFailure))
+      await sails.helpers.setting.set(
+        'notifyOnBackupFailure',
+        String(inputs.notifyOnBackupFailure)
+      )
     }
 
     // Preferences - Lookout
     if (inputs.notifyOnContainerRestart !== undefined) {
-      await sails.helpers.setting.set('notifyOnContainerRestart', String(inputs.notifyOnContainerRestart))
+      await sails.helpers.setting.set(
+        'notifyOnContainerRestart',
+        String(inputs.notifyOnContainerRestart)
+      )
     }
     if (inputs.notifyOnHighResourceUsage !== undefined) {
-      await sails.helpers.setting.set('notifyOnHighResourceUsage', String(inputs.notifyOnHighResourceUsage))
+      await sails.helpers.setting.set(
+        'notifyOnHighResourceUsage',
+        String(inputs.notifyOnHighResourceUsage)
+      )
     }
 
     // Preferences - Quest
     if (inputs.notifyOnJobFailure !== undefined) {
-      await sails.helpers.setting.set('notifyOnJobFailure', String(inputs.notifyOnJobFailure))
+      await sails.helpers.setting.set(
+        'notifyOnJobFailure',
+        String(inputs.notifyOnJobFailure)
+      )
     }
 
     sails.inertia.flash('success', 'Notification settings updated')

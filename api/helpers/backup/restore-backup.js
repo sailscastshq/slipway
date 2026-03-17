@@ -6,7 +6,8 @@ const { spawn } = require('child_process')
 module.exports = {
   friendlyName: 'Restore backup',
 
-  description: 'Download a backup from S3 and restore it into the database service.',
+  description:
+    'Download a backup from S3 and restore it into the database service.',
 
   inputs: {
     backupId: {
@@ -35,7 +36,9 @@ module.exports = {
 
     // Create a safety snapshot before restoring so the current state is recoverable
     try {
-      sails.log.info(`Creating pre-restore snapshot for service ${service.name}`)
+      sails.log.info(
+        `Creating pre-restore snapshot for service ${service.name}`
+      )
       const snapshot = await Backup.create({
         status: 'pending',
         type: 'manual',
@@ -44,7 +47,9 @@ module.exports = {
       await sails.helpers.backup.runBackup(snapshot.id)
       sails.log.info(`Pre-restore snapshot completed: ${snapshot.id}`)
     } catch (err) {
-      sails.log.warn(`Pre-restore snapshot failed (proceeding with restore): ${err.message}`)
+      sails.log.warn(
+        `Pre-restore snapshot failed (proceeding with restore): ${err.message}`
+      )
     }
 
     // Read S3 config (same pattern as run-backup.js)
@@ -52,26 +57,50 @@ module.exports = {
     try {
       const globalJson = await sails.helpers.setting.get('globalEnvVars', '{}')
       globalEnvVars = JSON.parse(globalJson)
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
 
     const uploadsConfig = {
-      key: globalEnvVars.R2_ACCESS_KEY || globalEnvVars.S3_ACCESS_KEY || globalEnvVars.SPACES_ACCESS_KEY || (sails.config.uploads || {}).key,
-      secret: globalEnvVars.R2_SECRET_KEY || globalEnvVars.S3_SECRET_KEY || globalEnvVars.SPACES_SECRET_KEY || (sails.config.uploads || {}).secret,
-      bucket: globalEnvVars.R2_BUCKET || globalEnvVars.S3_BUCKET || globalEnvVars.SPACES_BUCKET || (sails.config.uploads || {}).bucket,
-      endpoint: globalEnvVars.R2_ENDPOINT || globalEnvVars.S3_ENDPOINT || globalEnvVars.SPACES_ENDPOINT || (sails.config.uploads || {}).endpoint,
-      region: globalEnvVars.S3_REGION || globalEnvVars.SPACES_REGION || (sails.config.uploads || {}).region
+      key:
+        globalEnvVars.R2_ACCESS_KEY ||
+        globalEnvVars.S3_ACCESS_KEY ||
+        globalEnvVars.SPACES_ACCESS_KEY ||
+        (sails.config.uploads || {}).key,
+      secret:
+        globalEnvVars.R2_SECRET_KEY ||
+        globalEnvVars.S3_SECRET_KEY ||
+        globalEnvVars.SPACES_SECRET_KEY ||
+        (sails.config.uploads || {}).secret,
+      bucket:
+        globalEnvVars.R2_BUCKET ||
+        globalEnvVars.S3_BUCKET ||
+        globalEnvVars.SPACES_BUCKET ||
+        (sails.config.uploads || {}).bucket,
+      endpoint:
+        globalEnvVars.R2_ENDPOINT ||
+        globalEnvVars.S3_ENDPOINT ||
+        globalEnvVars.SPACES_ENDPOINT ||
+        (sails.config.uploads || {}).endpoint,
+      region:
+        globalEnvVars.S3_REGION ||
+        globalEnvVars.SPACES_REGION ||
+        (sails.config.uploads || {}).region
     }
 
     if (!uploadsConfig.key || !uploadsConfig.secret || !uploadsConfig.bucket) {
       throw new Error('Backup storage not configured')
     }
 
-    const ext = { postgresql: 'dmp', mysql: 'sql', mongodb: 'gz' }[service.type] || 'sql'
+    const ext =
+      { postgresql: 'dmp', mysql: 'sql', mongodb: 'gz' }[service.type] || 'sql'
     const tmpFile = path.join(os.tmpdir(), `slipway-restore-${backupId}.${ext}`)
 
     try {
       // 1. Download from S3 using skipper-s3's read() method
-      sails.log.info(`Restoring backup ${backupId}: downloading ${backup.s3Key}`)
+      sails.log.info(
+        `Restoring backup ${backupId}: downloading ${backup.s3Key}`
+      )
 
       const skipperS3 = require('skipper-s3')
       const adapterOpts = {
@@ -88,8 +117,12 @@ module.exports = {
         const readable = adapter.read(backup.s3Key)
         const writable = fs.createWriteStream(tmpFile)
 
-        readable.on('error', (err) => reject(new Error(`S3 download failed: ${err.message}`)))
-        writable.on('error', (err) => reject(new Error(`File write failed: ${err.message}`)))
+        readable.on('error', (err) =>
+          reject(new Error(`S3 download failed: ${err.message}`))
+        )
+        writable.on('error', (err) =>
+          reject(new Error(`File write failed: ${err.message}`))
+        )
         writable.on('finish', resolve)
 
         readable.pipe(writable)
@@ -109,35 +142,76 @@ module.exports = {
       if (service.type === 'mongodb') {
         // MongoDB: pipe gzip archive through mongorestore via docker exec
         const mongoUri = `mongodb://${service.username}:${service.password}@localhost:27017/${service.database}?authSource=admin`
-        await execRestore(dockerPath, [
-          'exec', '-i', service.containerName,
-          'mongorestore', '--uri', mongoUri, '--archive', '--gzip', '--drop'
-        ], fileContent)
+        await execRestore(
+          dockerPath,
+          [
+            'exec',
+            '-i',
+            service.containerName,
+            'mongorestore',
+            '--uri',
+            mongoUri,
+            '--archive',
+            '--gzip',
+            '--drop'
+          ],
+          fileContent
+        )
       } else if (service.type === 'postgresql') {
         // PostgreSQL: pipe custom-format dump through pg_restore
-        await execRestore(dockerPath, [
-          'exec', '-i',
-          '-e', `PGPASSWORD=${service.password}`,
-          service.containerName,
-          'pg_restore', '-U', service.username, '-d', service.database,
-          '--no-owner', '--clean', '--if-exists'
-        ], fileContent)
+        await execRestore(
+          dockerPath,
+          [
+            'exec',
+            '-i',
+            '-e',
+            `PGPASSWORD=${service.password}`,
+            service.containerName,
+            'pg_restore',
+            '-U',
+            service.username,
+            '-d',
+            service.database,
+            '--no-owner',
+            '--clean',
+            '--if-exists'
+          ],
+          fileContent
+        )
       } else if (service.type === 'mysql') {
         // MySQL: pipe SQL through mysql
-        await execRestore(dockerPath, [
-          'exec', '-i', service.containerName,
-          'mysql', '-u', service.username, `-p${service.password}`, service.database
-        ], fileContent)
+        await execRestore(
+          dockerPath,
+          [
+            'exec',
+            '-i',
+            service.containerName,
+            'mysql',
+            '-u',
+            service.username,
+            `-p${service.password}`,
+            service.database
+          ],
+          fileContent
+        )
       } else {
-        throw new Error(`Restore not supported for service type: ${service.type}`)
+        throw new Error(
+          `Restore not supported for service type: ${service.type}`
+        )
       }
 
-      sails.log.info(`Backup ${backupId} restored successfully to ${service.containerName}`)
+      sails.log.info(
+        `Backup ${backupId} restored successfully to ${service.containerName}`
+      )
 
       return { success: true, backupId, serviceName: service.name }
     } finally {
       // Clean up temp file
-      try { fs.unlinkSync(tmpFile) } catch { /* ignore */ }
+      try {
+        fs.unlinkSync(tmpFile)
+      } catch {
+        /* ignore */
+      }
     }
   }
 }
@@ -150,7 +224,9 @@ function execRestore(dockerPath, args, inputBuffer) {
     const proc = spawn(dockerPath, args, { timeout: 300000 })
 
     let stderr = ''
-    proc.stderr.on('data', (data) => { stderr += data.toString() })
+    proc.stderr.on('data', (data) => {
+      stderr += data.toString()
+    })
 
     proc.on('close', (code) => {
       if (code !== 0) {

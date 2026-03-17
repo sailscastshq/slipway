@@ -5,7 +5,8 @@ const execFileAsync = util.promisify(execFile)
 module.exports = {
   friendlyName: 'Update app',
 
-  description: 'Update app settings (name, dockerfilePath, routePath, envVars, resourceLimits).',
+  description:
+    'Update app settings (name, dockerfilePath, routePath, envVars, resourceLimits).',
 
   inputs: {
     projectSlug: {
@@ -44,16 +45,33 @@ module.exports = {
     forbidden: { statusCode: 403 }
   },
 
-  fn: async function ({ projectSlug, environmentSlug, appSlug, name, dockerfilePath, routePath, envVars, resourceLimits }) {
+  fn: async function ({
+    projectSlug,
+    environmentSlug,
+    appSlug,
+    name,
+    dockerfilePath,
+    routePath,
+    envVars,
+    resourceLimits
+  }) {
     const user = await User.findOne({ id: this.req.session.userId })
 
-    const project = await Project.findOne({ slug: projectSlug }).populate('team')
+    const project = await Project.findOne({ slug: projectSlug }).populate(
+      'team'
+    )
     if (!project || project.team.id !== user.team) throw 'notFound'
 
-    const environment = await Environment.findOne({ project: project.id, slug: environmentSlug })
+    const environment = await Environment.findOne({
+      project: project.id,
+      slug: environmentSlug
+    })
     if (!environment) throw 'notFound'
 
-    const app = await App.findOne({ environment: environment.id, slug: appSlug })
+    const app = await App.findOne({
+      environment: environment.id,
+      slug: appSlug
+    })
     if (!app) throw 'notFound'
 
     const updates = {}
@@ -69,7 +87,8 @@ module.exports = {
         try {
           const dockerPath = sails.config.docker?.binaryPath || 'docker'
           const args = ['update']
-          if (resourceLimits.cpus) args.push('--cpus', String(resourceLimits.cpus))
+          if (resourceLimits.cpus)
+            args.push('--cpus', String(resourceLimits.cpus))
           if (resourceLimits.memory) {
             args.push('--memory', String(resourceLimits.memory))
             args.push('--memory-swap', '-1')
@@ -77,9 +96,13 @@ module.exports = {
           args.push(app.containerName)
 
           await execFileAsync(dockerPath, args)
-          sails.log.info(`Applied resource limits to app ${app.containerName}: cpus=${resourceLimits.cpus}, memory=${resourceLimits.memory}`)
+          sails.log.info(
+            `Applied resource limits to app ${app.containerName}: cpus=${resourceLimits.cpus}, memory=${resourceLimits.memory}`
+          )
         } catch (err) {
-          sails.log.warn(`Could not apply resource limits to ${app.containerName}: ${err.message}`)
+          sails.log.warn(
+            `Could not apply resource limits to ${app.containerName}: ${err.message}`
+          )
           // Limits are saved to DB — they'll apply on next deploy
         }
       }

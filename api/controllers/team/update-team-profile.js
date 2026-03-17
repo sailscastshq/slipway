@@ -19,7 +19,9 @@ module.exports = {
   },
 
   fn: async function ({ name }) {
-    const user = await User.findOne({ id: this.req.session.userId }).populate('team')
+    const user = await User.findOne({ id: this.req.session.userId }).populate(
+      'team'
+    )
 
     // Generate new slug from name
     const slug = name

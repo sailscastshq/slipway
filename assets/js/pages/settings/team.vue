@@ -23,12 +23,15 @@ const search = ref('')
 const filtered = computed(() => {
   const q = search.value.toLowerCase().trim()
   if (!q) return props.members
-  return props.members.filter(m =>
-    m.fullName.toLowerCase().includes(q) || m.email.toLowerCase().includes(q)
+  return props.members.filter(
+    (m) =>
+      m.fullName.toLowerCase().includes(q) || m.email.toLowerCase().includes(q)
   )
 })
 
-const canManage = computed(() => ['owner', 'admin'].includes(props.currentUserRole))
+const canManage = computed(() =>
+  ['owner', 'admin'].includes(props.currentUserRole)
+)
 const isOwner = computed(() => props.currentUserRole === 'owner')
 
 // Invite
@@ -40,18 +43,24 @@ const inviting = ref(false)
 function submitInvite() {
   if (!inviteEmail.value.trim()) return
   inviting.value = true
-  router.post('/settings/team/invite', {
-    email: inviteEmail.value.trim(),
-    role: inviteRole.value
-  }, {
-    preserveScroll: true,
-    onSuccess: () => {
-      showInvite.value = false
-      inviteEmail.value = ''
-      inviteRole.value = 'member'
+  router.post(
+    '/settings/team/invite',
+    {
+      email: inviteEmail.value.trim(),
+      role: inviteRole.value
     },
-    onFinish: () => { inviting.value = false }
-  })
+    {
+      preserveScroll: true,
+      onSuccess: () => {
+        showInvite.value = false
+        inviteEmail.value = ''
+        inviteRole.value = 'member'
+      },
+      onFinish: () => {
+        inviting.value = false
+      }
+    }
+  )
 }
 
 function closeInvite() {
@@ -92,9 +101,13 @@ function closeMenu() {
 // Role change
 function changeRole(member, newRole) {
   openMenu.value = null
-  router.patch(`/settings/team/${member.id}/role`, {
-    role: newRole
-  }, { preserveScroll: true })
+  router.patch(
+    `/settings/team/${member.id}/role`,
+    {
+      role: newRole
+    },
+    { preserveScroll: true }
+  )
 }
 
 // Remove member
@@ -108,7 +121,9 @@ function confirmRemove(member) {
 function executeRemove() {
   router.delete(`/settings/team/${removingMember.value.id}`, {
     preserveScroll: true,
-    onSuccess: () => { removingMember.value = null }
+    onSuccess: () => {
+      removingMember.value = null
+    }
   })
 }
 
@@ -117,8 +132,10 @@ function cancelRemove() {
 }
 
 function roleBadgeClass(role) {
-  if (role === 'owner') return 'bg-brand-100 text-brand-700 dark:bg-brand-900/30 dark:text-brand-400'
-  if (role === 'admin') return 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+  if (role === 'owner')
+    return 'bg-brand-100 text-brand-700 dark:bg-brand-900/30 dark:text-brand-400'
+  if (role === 'admin')
+    return 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
   return 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'
 }
 
@@ -135,7 +152,8 @@ function timeAgo(date) {
   ]
   for (const interval of intervals) {
     const count = Math.floor(seconds / interval.seconds)
-    if (count >= 1) return `${count} ${interval.label}${count > 1 ? 's' : ''} ago`
+    if (count >= 1)
+      return `${count} ${interval.label}${count > 1 ? 's' : ''} ago`
   }
   return 'just now'
 }
@@ -144,16 +162,38 @@ function timeAgo(date) {
   <Head :title="`Team Members | ${team.name} | Slipway`"></Head>
   <div class="flex h-full flex-col" @click="closeMenu">
     <!-- Header -->
-    <div class="flex items-center justify-between border-b border-gray-200 py-4 pl-4 pr-4 dark:border-gray-800 sm:pl-4 sm:pr-8">
+    <div
+      class="flex items-center justify-between border-b border-gray-200 py-4 pl-4 pr-4 dark:border-gray-800 sm:pl-4 sm:pr-8"
+    >
       <div class="flex items-center space-x-3">
         <button
           @click="toggleMobileMenu"
           class="rounded-md p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white md:hidden"
         >
-          <svg class="h-5 w-5" viewBox="-0.5 -0.5 16 16" fill="none" stroke="currentColor">
-            <path d="M12.777 14.285H2.223c-.833 0-1.508-.675-1.508-1.508V2.223c0-.833.675-1.508 1.508-1.508h10.554c.833 0 1.508.675 1.508 1.508v10.554c0 .833-.675 1.508-1.508 1.508Z" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
-            <path d="M5.615 14.285V.715" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
-            <path d="M2.6 5.992 3.919 7.5 2.6 9.008" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
+          <svg
+            class="h-5 w-5"
+            viewBox="-0.5 -0.5 16 16"
+            fill="none"
+            stroke="currentColor"
+          >
+            <path
+              d="M12.777 14.285H2.223c-.833 0-1.508-.675-1.508-1.508V2.223c0-.833.675-1.508 1.508-1.508h10.554c.833 0 1.508.675 1.508 1.508v10.554c0 .833-.675 1.508-1.508 1.508Z"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1"
+            />
+            <path
+              d="M5.615 14.285V.715"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1"
+            />
+            <path
+              d="M2.6 5.992 3.919 7.5 2.6 9.008"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1"
+            />
           </svg>
         </button>
         <!-- Desktop sidebar toggle -->
@@ -161,19 +201,64 @@ function timeAgo(date) {
           @click="toggleSidebar"
           class="hidden text-gray-400 dark:text-gray-500 md:block"
         >
-          <svg v-if="sidebarCollapsed" class="h-5 w-5" viewBox="-0.5 -0.5 16 16" fill="none" stroke="currentColor">
-            <path d="M12.777 14.285H2.223c-.833 0-1.508-.675-1.508-1.508V2.223c0-.833.675-1.508 1.508-1.508h10.554c.833 0 1.508.675 1.508 1.508v10.554c0 .833-.675 1.508-1.508 1.508Z" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
-            <path d="M5.615 14.285V.715" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
-            <path d="M2.6 5.992 3.919 7.5 2.6 9.008" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
+          <svg
+            v-if="sidebarCollapsed"
+            class="h-5 w-5"
+            viewBox="-0.5 -0.5 16 16"
+            fill="none"
+            stroke="currentColor"
+          >
+            <path
+              d="M12.777 14.285H2.223c-.833 0-1.508-.675-1.508-1.508V2.223c0-.833.675-1.508 1.508-1.508h10.554c.833 0 1.508.675 1.508 1.508v10.554c0 .833-.675 1.508-1.508 1.508Z"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1"
+            />
+            <path
+              d="M5.615 14.285V.715"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1"
+            />
+            <path
+              d="M2.6 5.992 3.919 7.5 2.6 9.008"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1"
+            />
           </svg>
-          <svg v-else class="h-5 w-5" viewBox="-0.5 -0.5 16 16" fill="none" stroke="currentColor">
-            <path d="M12.777 14.285H2.223c-.833 0-1.508-.675-1.508-1.508V2.223c0-.833.675-1.508 1.508-1.508h10.554c.833 0 1.508.675 1.508 1.508v10.554c0 .833-.675 1.508-1.508 1.508Z" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
-            <path d="M5.615 14.285V.715" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
-            <path d="M3.919 5.992 2.6 7.5l1.319 1.508" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
+          <svg
+            v-else
+            class="h-5 w-5"
+            viewBox="-0.5 -0.5 16 16"
+            fill="none"
+            stroke="currentColor"
+          >
+            <path
+              d="M12.777 14.285H2.223c-.833 0-1.508-.675-1.508-1.508V2.223c0-.833.675-1.508 1.508-1.508h10.554c.833 0 1.508.675 1.508 1.508v10.554c0 .833-.675 1.508-1.508 1.508Z"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1"
+            />
+            <path
+              d="M5.615 14.285V.715"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1"
+            />
+            <path
+              d="M3.919 5.992 2.6 7.5l1.319 1.508"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1"
+            />
           </svg>
         </button>
         <nav class="flex items-center space-x-2 text-sm">
-          <Link href="/settings" class="text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white">
+          <Link
+            href="/settings"
+            class="text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
+          >
             settings
           </Link>
           <span class="text-gray-400 dark:text-gray-600">/</span>
@@ -194,8 +279,18 @@ function timeAgo(date) {
           class="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
         >
           Docs
-          <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+          <svg
+            class="h-3.5 w-3.5"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+            />
           </svg>
         </a>
       </div>
@@ -206,7 +301,9 @@ function timeAgo(date) {
       <div class="mx-auto max-w-6xl">
         <!-- Page Header -->
         <div class="mb-6">
-          <h1 class="text-xl font-semibold text-gray-900 dark:text-white">Team Members</h1>
+          <h1 class="text-xl font-semibold text-gray-900 dark:text-white">
+            Team Members
+          </h1>
           <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
             Manage who has access to {{ team.name }}'s projects and resources.
           </p>
@@ -218,14 +315,19 @@ function timeAgo(date) {
             v-model="search"
             type="text"
             placeholder="Search members..."
-            class="w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:border-brand focus:outline-none sm:max-w-xs dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
+            class="focus:border-brand w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500 sm:max-w-xs"
           />
         </div>
 
         <!-- Members table -->
-        <div v-if="members.length > 0" class="overflow-hidden rounded-lg border border-gray-200 dark:border-gray-800">
+        <div
+          v-if="members.length > 0"
+          class="overflow-hidden rounded-lg border border-gray-200 dark:border-gray-800"
+        >
           <!-- Table Header (hidden on mobile) -->
-          <div class="hidden grid-cols-12 gap-4 border-b border-gray-200 bg-gray-50/30 px-6 py-2 text-xs font-medium uppercase tracking-wide text-gray-500 dark:border-gray-800 dark:bg-gray-900/30 sm:grid">
+          <div
+            class="hidden grid-cols-12 gap-4 border-b border-gray-200 bg-gray-50/30 px-6 py-2 text-xs font-medium uppercase tracking-wide text-gray-500 dark:border-gray-800 dark:bg-gray-900/30 sm:grid"
+          >
             <div class="col-span-5">Member</div>
             <div class="col-span-2">Role</div>
             <div class="col-span-3">Joined</div>
@@ -233,7 +335,10 @@ function timeAgo(date) {
           </div>
 
           <!-- Table Body -->
-          <div v-if="filtered.length > 0" class="divide-y divide-gray-200 bg-white dark:divide-gray-800 dark:bg-gray-950">
+          <div
+            v-if="filtered.length > 0"
+            class="divide-y divide-gray-200 bg-white dark:divide-gray-800 dark:bg-gray-950"
+          >
             <div
               v-for="member in filtered"
               :key="member.id"
@@ -242,19 +347,30 @@ function timeAgo(date) {
               <!-- Member info -->
               <div class="col-span-5 flex items-center space-x-3">
                 <span
-                  class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand text-sm font-medium text-white"
+                  class="bg-brand flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-medium text-white"
                 >
                   {{ member.initials }}
                 </span>
                 <div class="min-w-0">
-                  <p class="truncate text-sm font-medium text-gray-900 dark:text-white">{{ member.fullName }}</p>
-                  <p class="truncate text-xs text-gray-500 dark:text-gray-400">{{ member.email }}</p>
+                  <p
+                    class="truncate text-sm font-medium text-gray-900 dark:text-white"
+                  >
+                    {{ member.fullName }}
+                  </p>
+                  <p class="truncate text-xs text-gray-500 dark:text-gray-400">
+                    {{ member.email }}
+                  </p>
                 </div>
               </div>
 
               <!-- Role -->
               <div class="col-span-2">
-                <span :class="['inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium', roleBadgeClass(member.teamRole)]">
+                <span
+                  :class="[
+                    'inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium',
+                    roleBadgeClass(member.teamRole)
+                  ]"
+                >
                   {{ member.teamRole }}
                 </span>
                 <span
@@ -274,13 +390,22 @@ function timeAgo(date) {
 
               <!-- Actions -->
               <div class="col-span-2 flex justify-end">
-                <div v-if="canManage && member.teamRole !== 'owner'" class="relative">
+                <div
+                  v-if="canManage && member.teamRole !== 'owner'"
+                  class="relative"
+                >
                   <button
                     @click.stop="toggleMenu(member.id)"
                     class="rounded-md p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-800 dark:hover:text-gray-300"
                   >
-                    <svg class="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
-                      <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
+                    <svg
+                      class="h-5 w-5"
+                      fill="currentColor"
+                      viewBox="0 0 20 20"
+                    >
+                      <path
+                        d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z"
+                      />
                     </svg>
                   </button>
 
@@ -319,8 +444,18 @@ function timeAgo(date) {
 
           <!-- No search results -->
           <div v-else class="px-6 py-12 text-center">
-            <svg class="mx-auto h-8 w-8 text-gray-300 dark:text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            <svg
+              class="mx-auto h-8 w-8 text-gray-300 dark:text-gray-600"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="1.5"
+                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+              />
             </svg>
             <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">
               No members matching "{{ search }}"
@@ -329,8 +464,13 @@ function timeAgo(date) {
         </div>
 
         <!-- No members at all (shouldn't happen but just in case) -->
-        <div v-else class="rounded-lg border border-gray-200 px-6 py-12 text-center dark:border-gray-800">
-          <p class="text-sm text-gray-500 dark:text-gray-400">No team members yet.</p>
+        <div
+          v-else
+          class="rounded-lg border border-gray-200 px-6 py-12 text-center dark:border-gray-800"
+        >
+          <p class="text-sm text-gray-500 dark:text-gray-400">
+            No team members yet.
+          </p>
         </div>
       </div>
     </div>
@@ -345,7 +485,10 @@ function timeAgo(date) {
         leave-from-class="opacity-100"
         leave-to-class="opacity-0"
       >
-        <div v-if="showInvite" class="fixed inset-0 z-50 flex items-center justify-center">
+        <div
+          v-if="showInvite"
+          class="fixed inset-0 z-50 flex items-center justify-center"
+        >
           <div class="fixed inset-0 bg-black/50" @click="closeInvite" />
           <Transition
             enter-active-class="transition duration-200 ease-out"
@@ -359,24 +502,34 @@ function timeAgo(date) {
               v-if="showInvite"
               class="relative w-full max-w-sm rounded-lg border border-gray-200 bg-white p-6 shadow-xl dark:border-gray-700 dark:bg-gray-900"
             >
-              <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Invite member</h3>
-              <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">They'll receive an email to set up their account.</p>
+              <h3 class="text-lg font-semibold text-gray-900 dark:text-white">
+                Invite member
+              </h3>
+              <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                They'll receive an email to set up their account.
+              </p>
               <form @submit.prevent="submitInvite" class="mt-4 space-y-4">
                 <div>
-                  <label class="mb-1 block text-xs font-medium text-gray-500 dark:text-gray-400">Email</label>
+                  <label
+                    class="mb-1 block text-xs font-medium text-gray-500 dark:text-gray-400"
+                    >Email</label
+                  >
                   <input
                     v-model="inviteEmail"
                     type="email"
                     placeholder="teammate@example.com"
                     required
-                    class="w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-brand focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
+                    class="focus:border-brand w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-2 text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
                   />
                 </div>
                 <div>
-                  <label class="mb-1 block text-xs font-medium text-gray-500 dark:text-gray-400">Role</label>
+                  <label
+                    class="mb-1 block text-xs font-medium text-gray-500 dark:text-gray-400"
+                    >Role</label
+                  >
                   <select
                     v-model="inviteRole"
-                    class="w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-brand focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+                    class="focus:border-brand w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-white"
                   >
                     <option value="member">Member</option>
                     <option value="admin">Admin</option>

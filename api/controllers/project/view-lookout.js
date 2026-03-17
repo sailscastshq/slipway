@@ -31,7 +31,9 @@ module.exports = {
   },
 
   fn: async function ({ slug, envSlug }) {
-    const user = await User.findOne({ id: this.req.session.userId }).populate('team')
+    const user = await User.findOne({ id: this.req.session.userId }).populate(
+      'team'
+    )
     if (!user) {
       throw { notFound: '/login' }
     }
@@ -50,8 +52,13 @@ module.exports = {
     }
 
     // Get app and services
-    const app = await App.findOne({ environment: environment.id, isDefault: true }) || await App.findOne({ environment: environment.id })
-    const services = await Service.find({ environment: environment.id, status: 'running' })
+    const app =
+      (await App.findOne({ environment: environment.id, isDefault: true })) ||
+      (await App.findOne({ environment: environment.id }))
+    const services = await Service.find({
+      environment: environment.id,
+      status: 'running'
+    })
 
     const containerNames = []
     if (app && app.containerName) containerNames.push(app.containerName)
@@ -60,11 +67,12 @@ module.exports = {
     }
 
     // Get latest metrics
-    const latestMetrics = containerNames.length > 0
-      ? await ContainerMetric.find({ containerName: containerNames })
-        .sort('recordedAt DESC')
-        .limit(containerNames.length * 2)
-      : []
+    const latestMetrics =
+      containerNames.length > 0
+        ? await ContainerMetric.find({ containerName: containerNames })
+            .sort('recordedAt DESC')
+            .limit(containerNames.length * 2)
+        : []
 
     const metricMap = {}
     for (const m of latestMetrics) {
@@ -74,13 +82,14 @@ module.exports = {
     }
 
     // Get 1 hour of history for sparklines
-    const oneHourAgo = Date.now() - (60 * 60 * 1000)
-    const history = containerNames.length > 0
-      ? await ContainerMetric.find({
-        containerName: containerNames,
-        recordedAt: { '>=': oneHourAgo }
-      }).sort('recordedAt ASC')
-      : []
+    const oneHourAgo = Date.now() - 60 * 60 * 1000
+    const history =
+      containerNames.length > 0
+        ? await ContainerMetric.find({
+            containerName: containerNames,
+            recordedAt: { '>=': oneHourAgo }
+          }).sort('recordedAt ASC')
+        : []
 
     const historyMap = {}
     for (const m of history) {
@@ -103,16 +112,18 @@ module.exports = {
         status: app.status,
         lastDeployedAt: app.lastDeployedAt,
         imageName: app.imageName,
-        metric: metric ? {
-          cpuPercent: metric.cpuPercent,
-          memoryUsage: metric.memoryUsage,
-          memoryLimit: metric.memoryLimit,
-          memoryPercent: metric.memoryPercent,
-          netIO: metric.netIO,
-          blockIO: metric.blockIO,
-          pids: metric.pids,
-          recordedAt: metric.recordedAt
-        } : null,
+        metric: metric
+          ? {
+              cpuPercent: metric.cpuPercent,
+              memoryUsage: metric.memoryUsage,
+              memoryLimit: metric.memoryLimit,
+              memoryPercent: metric.memoryPercent,
+              netIO: metric.netIO,
+              blockIO: metric.blockIO,
+              pids: metric.pids,
+              recordedAt: metric.recordedAt
+            }
+          : null,
         history: historyMap[app.containerName] || []
       })
     }
@@ -125,53 +136,66 @@ module.exports = {
         serviceType: service.type,
         serviceName: service.name,
         status: service.status,
-        metric: metric ? {
-          cpuPercent: metric.cpuPercent,
-          memoryUsage: metric.memoryUsage,
-          memoryLimit: metric.memoryLimit,
-          memoryPercent: metric.memoryPercent,
-          netIO: metric.netIO,
-          blockIO: metric.blockIO,
-          pids: metric.pids,
-          recordedAt: metric.recordedAt
-        } : null,
+        metric: metric
+          ? {
+              cpuPercent: metric.cpuPercent,
+              memoryUsage: metric.memoryUsage,
+              memoryLimit: metric.memoryLimit,
+              memoryPercent: metric.memoryPercent,
+              netIO: metric.netIO,
+              blockIO: metric.blockIO,
+              pids: metric.pids,
+              recordedAt: metric.recordedAt
+            }
+          : null,
         history: historyMap[service.containerName] || []
       })
     }
 
     // Telemetry summary (last 1 hour)
-    const telemetryCutoff = Date.now() - (60 * 60 * 1000)
-    const [recentSpans, recentExceptions, slowQueries, cacheMetrics] = await Promise.all([
-      TelemetrySpan.find({
-        environment: environment.id,
-        startedAt: { '>=': telemetryCutoff }
-      }).sort('startedAt DESC').limit(500),
-      TelemetryException.find({
-        environment: environment.id,
-        occurredAt: { '>=': telemetryCutoff }
-      }).sort('occurredAt DESC').limit(200),
-      TelemetryMetric.find({
-        environment: environment.id,
-        name: 'db.query',
-        recordedAt: { '>=': telemetryCutoff }
-      }).sort('value DESC').limit(50),
-      TelemetryMetric.find({
-        environment: environment.id,
-        name: ['cache.hit', 'cache.miss', 'cache.write', 'cache.delete'],
-        recordedAt: { '>=': telemetryCutoff }
-      }).sort('recordedAt DESC').limit(500)
-    ])
+    const telemetryCutoff = Date.now() - 60 * 60 * 1000
+    const [recentSpans, recentExceptions, slowQueries, cacheMetrics] =
+      await Promise.all([
+        TelemetrySpan.find({
+          environment: environment.id,
+          startedAt: { '>=': telemetryCutoff }
+        })
+          .sort('startedAt DESC')
+          .limit(500),
+        TelemetryException.find({
+          environment: environment.id,
+          occurredAt: { '>=': telemetryCutoff }
+        })
+          .sort('occurredAt DESC')
+          .limit(200),
+        TelemetryMetric.find({
+          environment: environment.id,
+          name: 'db.query',
+          recordedAt: { '>=': telemetryCutoff }
+        })
+          .sort('value DESC')
+          .limit(50),
+        TelemetryMetric.find({
+          environment: environment.id,
+          name: ['cache.hit', 'cache.miss', 'cache.write', 'cache.delete'],
+          recordedAt: { '>=': telemetryCutoff }
+        })
+          .sort('recordedAt DESC')
+          .limit(500)
+      ])
 
     // Compute telemetry stats
     const totalRequests = recentSpans.length
-    const errorRequests = recentSpans.filter(s => s.statusCode >= 500).length
-    const durations = recentSpans.map(s => s.duration).sort((a, b) => a - b)
-    const p95Duration = durations.length > 0
-      ? durations[Math.ceil(durations.length * 0.95) - 1]
-      : 0
-    const avgDuration = durations.length > 0
-      ? durations.reduce((a, b) => a + b, 0) / durations.length
-      : 0
+    const errorRequests = recentSpans.filter((s) => s.statusCode >= 500).length
+    const durations = recentSpans.map((s) => s.duration).sort((a, b) => a - b)
+    const p95Duration =
+      durations.length > 0
+        ? durations[Math.ceil(durations.length * 0.95) - 1]
+        : 0
+    const avgDuration =
+      durations.length > 0
+        ? durations.reduce((a, b) => a + b, 0) / durations.length
+        : 0
 
     // Group exceptions by type+message
     const exceptionGroups = {}
@@ -192,32 +216,44 @@ module.exports = {
     }
 
     // Cache aggregation
-    const cacheHits = cacheMetrics.filter(m => m.name === 'cache.hit').length
-    const cacheMisses = cacheMetrics.filter(m => m.name === 'cache.miss').length
-    const cacheWrites = cacheMetrics.filter(m => m.name === 'cache.write').length
-    const cacheDeletes = cacheMetrics.filter(m => m.name === 'cache.delete').length
+    const cacheHits = cacheMetrics.filter((m) => m.name === 'cache.hit').length
+    const cacheMisses = cacheMetrics.filter(
+      (m) => m.name === 'cache.miss'
+    ).length
+    const cacheWrites = cacheMetrics.filter(
+      (m) => m.name === 'cache.write'
+    ).length
+    const cacheDeletes = cacheMetrics.filter(
+      (m) => m.name === 'cache.delete'
+    ).length
     const cacheTotalOps = cacheMetrics.length
     const cacheHitMissTotal = cacheHits + cacheMisses
 
     // Top keys by frequency with per-key hit/miss counts
     const keyStats = {}
     for (const m of cacheMetrics) {
-      const key = m.attributes && m.attributes.key ? m.attributes.key : 'unknown'
+      const key =
+        m.attributes && m.attributes.key ? m.attributes.key : 'unknown'
       if (!keyStats[key]) keyStats[key] = { key, hits: 0, misses: 0, total: 0 }
       keyStats[key].total++
       if (m.name === 'cache.hit') keyStats[key].hits++
       if (m.name === 'cache.miss') keyStats[key].misses++
     }
-    const cacheTopKeys = Object.values(keyStats).sort((a, b) => b.total - a.total).slice(0, 10)
+    const cacheTopKeys = Object.values(keyStats)
+      .sort((a, b) => b.total - a.total)
+      .slice(0, 10)
 
     const telemetry = {
       requests: {
         total: totalRequests,
         errors: errorRequests,
-        errorRate: totalRequests > 0 ? ((errorRequests / totalRequests) * 100).toFixed(1) : '0',
+        errorRate:
+          totalRequests > 0
+            ? ((errorRequests / totalRequests) * 100).toFixed(1)
+            : '0',
         p95: Math.round(p95Duration),
         avg: Math.round(avgDuration),
-        recent: recentSpans.slice(0, 20).map(s => ({
+        recent: recentSpans.slice(0, 20).map((s) => ({
           name: s.name,
           method: s.method,
           url: s.url,
@@ -230,10 +266,12 @@ module.exports = {
       },
       exceptions: {
         total: recentExceptions.length,
-        groups: Object.values(exceptionGroups).sort((a, b) => b.count - a.count).slice(0, 20)
+        groups: Object.values(exceptionGroups)
+          .sort((a, b) => b.count - a.count)
+          .slice(0, 20)
       },
       queries: {
-        slow: slowQueries.slice(0, 20).map(q => ({
+        slow: slowQueries.slice(0, 20).map((q) => ({
           value: q.value,
           attributes: q.attributes,
           recordedAt: q.recordedAt
@@ -244,18 +282,25 @@ module.exports = {
         totalOps: cacheTotalOps,
         hits: cacheHits,
         misses: cacheMisses,
-        hitRate: cacheHitMissTotal > 0 ? ((cacheHits / cacheHitMissTotal) * 100).toFixed(1) : '0',
+        hitRate:
+          cacheHitMissTotal > 0
+            ? ((cacheHits / cacheHitMissTotal) * 100).toFixed(1)
+            : '0',
         writes: cacheWrites,
         deletes: cacheDeletes,
         topKeys: cacheTopKeys,
-        recent: cacheMetrics.slice(0, 20).map(m => ({
+        recent: cacheMetrics.slice(0, 20).map((m) => ({
           name: m.name,
           key: m.attributes && m.attributes.key ? m.attributes.key : 'unknown',
           duration: m.value,
           recordedAt: m.recordedAt
         }))
       },
-      hasTelemetry: recentSpans.length > 0 || recentExceptions.length > 0 || cacheMetrics.length > 0 || slowQueries.length > 0,
+      hasTelemetry:
+        recentSpans.length > 0 ||
+        recentExceptions.length > 0 ||
+        cacheMetrics.length > 0 ||
+        slowQueries.length > 0,
       telemetryToken: environment.telemetryToken
     }
 

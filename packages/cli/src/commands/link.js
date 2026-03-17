@@ -31,12 +31,18 @@ export default async function link(options, positionals) {
     console.log(`  ${c.dim('Project:')} ${project.name}`)
     console.log(`  ${c.dim('Slug:')} ${project.slug}`)
     console.log()
-    console.log(`  ${c.dim('Run')} ${c.highlight('slipway slide')} ${c.dim('to deploy your app.')}`)
+    console.log(
+      `  ${c.dim('Run')} ${c.highlight('slipway slide')} ${c.dim(
+        'to deploy your app.'
+      )}`
+    )
     console.log()
   } catch (err) {
     spin.fail('Failed to link project')
     if (err.statusCode === 404) {
-      error(`Project "${projectSlug}" not found. Check the project slug and try again.`)
+      error(
+        `Project "${projectSlug}" not found. Check the project slug and try again.`
+      )
     }
     error(err.message)
   }

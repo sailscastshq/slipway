@@ -32,7 +32,9 @@ module.exports = {
   },
 
   fn: async function ({ slug, envSlug, modelIdentity, recordId }) {
-    const user = await User.findOne({ id: this.req.session.userId }).populate('team')
+    const user = await User.findOne({ id: this.req.session.userId }).populate(
+      'team'
+    )
 
     if (!user) {
       throw { notFound: '/login' }
@@ -53,7 +55,9 @@ module.exports = {
       throw { notFound: `/projects/${slug}` }
     }
 
-    const app = await App.findOne({ environment: environment.id, isDefault: true }) || await App.findOne({ environment: environment.id })
+    const app =
+      (await App.findOne({ environment: environment.id, isDefault: true })) ||
+      (await App.findOne({ environment: environment.id }))
     const appRunning = app && app.status === 'running'
 
     let modelMeta = null
@@ -78,20 +82,28 @@ module.exports = {
           } else {
             // Build populate clause for associations
             const collectionAssocs = (modelMeta.associations || [])
-              .filter(a => a.type === 'collection')
-              .map(a => `'${a.alias}'`)
+              .filter((a) => a.type === 'collection')
+              .map((a) => `'${a.alias}'`)
 
-            const populateChain = collectionAssocs.length > 0
-              ? `.populate([${collectionAssocs.join(', ')}])`
-              : ''
+            const populateChain =
+              collectionAssocs.length > 0
+                ? `.populate([${collectionAssocs.join(', ')}])`
+                : ''
 
             // Fetch the record
             const queryCode = `
-              const record = await sails.models['${modelIdentity}'].findOne({ id: ${JSON.stringify(recordId)} })${populateChain};
+              const record = await sails.models['${modelIdentity}'].findOne({ id: ${JSON.stringify(
+              recordId
+            )} })${populateChain};
               return { record };
             `
-            const wrappedCode = await sails.helpers.bridge.buildSailsWrapper(queryCode)
-            const result = await sails.helpers.bridge.executeInContainer(app.containerName, wrappedCode)
+            const wrappedCode = await sails.helpers.bridge.buildSailsWrapper(
+              queryCode
+            )
+            const result = await sails.helpers.bridge.executeInContainer(
+              app.containerName,
+              wrappedCode
+            )
 
             if (result.success) {
               try {

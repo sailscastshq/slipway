@@ -91,7 +91,9 @@ module.exports = function defineSseHook(sails) {
               // Guard: if headers were already sent (e.g. by middleware),
               // log a warning and return a no-op stream so the action doesn't crash
               if (res.headersSent) {
-                sails.log.warn('res.sse() called but headers already sent — returning no-op stream')
+                sails.log.warn(
+                  'res.sse() called but headers already sent — returning no-op stream'
+                )
                 _sseStream = noopStream()
                 return _sseStream
               }
@@ -100,7 +102,7 @@ module.exports = function defineSseHook(sails) {
               res.writeHead(200, {
                 'Content-Type': 'text/event-stream',
                 'Cache-Control': 'no-cache, no-transform',
-                'Connection': 'keep-alive',
+                Connection: 'keep-alive',
                 'X-Accel-Buffering': 'no',
                 'Content-Encoding': 'identity'
               })
@@ -113,7 +115,11 @@ module.exports = function defineSseHook(sails) {
                 if (closed) return
                 closed = true
                 for (const fn of cleanupFns) {
-                  try { fn() } catch (e) { /* swallow */ }
+                  try {
+                    fn()
+                  } catch (e) {
+                    /* swallow */
+                  }
                 }
               }
 
@@ -173,7 +179,11 @@ module.exports = function defineSseHook(sails) {
                  */
                 close: function () {
                   runCleanup()
-                  try { res.end() } catch (e) { /* ignore */ }
+                  try {
+                    res.end()
+                  } catch (e) {
+                    /* ignore */
+                  }
                   if (resolveWait) resolveWait()
                 },
 
@@ -186,7 +196,11 @@ module.exports = function defineSseHook(sails) {
                 onClose: function (fn) {
                   if (closed) {
                     // Already closed — fire immediately
-                    try { fn() } catch (e) { /* swallow */ }
+                    try {
+                      fn()
+                    } catch (e) {
+                      /* swallow */
+                    }
                     return
                   }
                   cleanupFns.push(fn)
@@ -238,12 +252,24 @@ module.exports = function defineSseHook(sails) {
    */
   function noopStream() {
     return {
-      get closed() { return true },
-      send() { return false },
+      get closed() {
+        return true
+      },
+      send() {
+        return false
+      },
       heartbeat() {},
       close() {},
-      onClose(fn) { try { fn() } catch (e) { /* swallow */ } },
-      wait() { return Promise.resolve() }
+      onClose(fn) {
+        try {
+          fn()
+        } catch (e) {
+          /* swallow */
+        }
+      },
+      wait() {
+        return Promise.resolve()
+      }
     }
   }
 }

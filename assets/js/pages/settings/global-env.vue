@@ -62,8 +62,11 @@ function saveVars(vars) {
   envForm.envVars = { ...vars }
   envForm.patch('/settings/global-env', {
     preserveScroll: true,
-    onError: () => toast({ message: 'Failed to save environment variables', type: 'error' }),
-    onFinish: () => { saving.value = false }
+    onError: () =>
+      toast({ message: 'Failed to save environment variables', type: 'error' }),
+    onFinish: () => {
+      saving.value = false
+    }
   })
 }
 
@@ -122,7 +125,9 @@ const bulkHasChanges = computed(() => {
   const keys = Object.keys(vars).sort()
   const currentKeys = Object.keys(localVars).sort()
   if (keys.length !== currentKeys.length) return true
-  return keys.some((k, i) => k !== currentKeys[i] || vars[k] !== localVars[currentKeys[i]])
+  return keys.some(
+    (k, i) => k !== currentKeys[i] || vars[k] !== localVars[currentKeys[i]]
+  )
 })
 
 const bulkHighlighted = computed(() => {
@@ -171,11 +176,17 @@ function saveBulk() {
     if (key) vars[key] = value
   }
   const oldKeys = Object.keys(localVars).sort().join(',')
-  const oldVals = Object.keys(localVars).sort().map(k => localVars[k]).join(',')
+  const oldVals = Object.keys(localVars)
+    .sort()
+    .map((k) => localVars[k])
+    .join(',')
   Object.keys(localVars).forEach((k) => delete localVars[k])
   Object.assign(localVars, vars)
   const newKeys = Object.keys(localVars).sort().join(',')
-  const newVals = Object.keys(localVars).sort().map(k => localVars[k]).join(',')
+  const newVals = Object.keys(localVars)
+    .sort()
+    .map((k) => localVars[k])
+    .join(',')
   if (oldKeys !== newKeys || oldVals !== newVals) {
     saveVars(localVars)
     toast({ message: 'Environment variables updated', type: 'success' })
@@ -568,7 +579,11 @@ onMounted(() => {
                 </div>
                 <input
                   :value="localVars[key]"
-                  :type="isSensitive(key) && !revealedKeys.has(key) ? 'password' : 'text'"
+                  :type="
+                    isSensitive(key) && !revealedKeys.has(key)
+                      ? 'password'
+                      : 'text'
+                  "
                   @blur="updateVarValue(key, $event.target.value)"
                   @keydown.enter="$event.target.blur()"
                   autocomplete="off"

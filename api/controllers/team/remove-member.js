@@ -25,7 +25,7 @@ module.exports = {
 
     // Only owners and admins can remove members
     if (!['owner', 'admin'].includes(currentUser.teamRole)) {
-      this.req.addFlash('error', 'You don\'t have permission to remove members.')
+      this.req.addFlash('error', "You don't have permission to remove members.")
       return '/settings/team'
     }
 
@@ -35,7 +35,10 @@ module.exports = {
       return '/settings/team'
     }
 
-    const targetUser = await User.findOne({ id: userId, team: currentUser.team })
+    const targetUser = await User.findOne({
+      id: userId,
+      team: currentUser.team
+    })
 
     if (!targetUser) {
       throw 'notFound'
@@ -49,7 +52,10 @@ module.exports = {
 
     // Admins can't remove other admins
     if (currentUser.teamRole === 'admin' && targetUser.teamRole === 'admin') {
-      this.req.addFlash('error', 'Admins cannot remove other admins. Ask the team owner.')
+      this.req.addFlash(
+        'error',
+        'Admins cannot remove other admins. Ask the team owner.'
+      )
       return '/settings/team'
     }
 
@@ -57,7 +63,10 @@ module.exports = {
     await CliToken.destroy({ user: userId })
     await User.destroyOne({ id: userId })
 
-    this.req.addFlash('success', `Removed ${targetUser.fullName} from the team.`)
+    this.req.addFlash(
+      'success',
+      `Removed ${targetUser.fullName} from the team.`
+    )
     return '/settings/team'
   }
 }

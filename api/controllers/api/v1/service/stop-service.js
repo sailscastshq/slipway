@@ -25,12 +25,18 @@ module.exports = {
   },
 
   fn: async function ({ serviceId }) {
-    const user = await User.findOne({ id: this.req.session.userId }).populate('team')
+    const user = await User.findOne({ id: this.req.session.userId }).populate(
+      'team'
+    )
 
-    const service = await Service.findOne({ id: serviceId }).populate('environment')
+    const service = await Service.findOne({ id: serviceId }).populate(
+      'environment'
+    )
     if (!service) throw 'notFound'
 
-    const environment = await Environment.findOne({ id: service.environment.id }).populate('project')
+    const environment = await Environment.findOne({
+      id: service.environment.id
+    }).populate('project')
     if (!environment) throw 'notFound'
 
     const project = await Project.findOne({ id: environment.project.id })
@@ -40,11 +46,18 @@ module.exports = {
 
     try {
       const dockerPath = sails.config.docker?.binaryPath || 'docker'
-      await execFileAsync(dockerPath, ['stop', '-t', '10', service.containerName])
+      await execFileAsync(dockerPath, [
+        'stop',
+        '-t',
+        '10',
+        service.containerName
+      ])
 
       await Service.updateOne({ id: service.id }).set({ status: 'stopped' })
 
-      sails.log.info(`Stopped service ${service.name} (${service.containerName})`)
+      sails.log.info(
+        `Stopped service ${service.name} (${service.containerName})`
+      )
 
       return { message: 'Service stopped', status: 'stopped' }
     } catch (err) {
