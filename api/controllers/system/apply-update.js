@@ -13,7 +13,8 @@ module.exports = {
     },
     badRequest: {
       responseType: 'badRequest',
-      description: 'Already running the latest version or update already in progress.'
+      description:
+        'Already running the latest version or update already in progress.'
     }
   },
 
@@ -43,7 +44,9 @@ module.exports = {
       try {
         await sails.helpers.system.applyUpdate()
       } catch (err) {
-        sails.log.error(`[slipway] Update pipeline failed: ${err.message || err}`)
+        sails.log.error(
+          `[slipway] Update pipeline failed: ${err.message || err}`
+        )
       }
     })
 

@@ -38,8 +38,12 @@ module.exports = {
 
     try {
       if (channel === 'telegram') {
-        const botToken = inputs.telegramBotToken || await sails.helpers.setting.get('telegramBotToken', '')
-        const chatId = inputs.telegramChatId || await sails.helpers.setting.get('telegramChatId', '')
+        const botToken =
+          inputs.telegramBotToken ||
+          (await sails.helpers.setting.get('telegramBotToken', ''))
+        const chatId =
+          inputs.telegramChatId ||
+          (await sails.helpers.setting.get('telegramChatId', ''))
 
         if (!botToken || !chatId) {
           return this.res.status(400).json({
@@ -48,7 +52,9 @@ module.exports = {
           })
         }
 
-        const threadId = inputs.telegramThreadId || await sails.helpers.setting.get('telegramThreadId', '')
+        const threadId =
+          inputs.telegramThreadId ||
+          (await sails.helpers.setting.get('telegramThreadId', ''))
 
         const message = `\u2705 <b>You're all set!</b>\n\nHey! It's Slippy. Just a quick wave \u2014 your Telegram notifications are configured and working perfectly. I'll keep you posted on deployments, backups, and anything else that needs your attention.\n\n<b>\u2014 Slippy \uD83D\uDC19</b>`
 
@@ -83,7 +89,9 @@ module.exports = {
       }
 
       if (channel === 'discord') {
-        const webhookUrl = inputs.discordWebhookUrl || await sails.helpers.setting.get('discordWebhookUrl', '')
+        const webhookUrl =
+          inputs.discordWebhookUrl ||
+          (await sails.helpers.setting.get('discordWebhookUrl', ''))
 
         if (!webhookUrl) {
           return this.res.status(400).json({
@@ -96,15 +104,18 @@ module.exports = {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            embeds: [{
-              title: '\u2705 You\'re all set!',
-              description: 'Hey! It\'s Slippy. Just a quick wave \u2014 your Discord notifications are configured and working perfectly. I\'ll keep you posted on deployments, backups, and anything else that needs your attention.',
-              color: 0x10b981,
-              footer: {
-                text: '\u2014 Slippy \uD83D\uDC19'
-              },
-              timestamp: new Date().toISOString()
-            }]
+            embeds: [
+              {
+                title: "\u2705 You're all set!",
+                description:
+                  "Hey! It's Slippy. Just a quick wave \u2014 your Discord notifications are configured and working perfectly. I'll keep you posted on deployments, backups, and anything else that needs your attention.",
+                color: 0x10b981,
+                footer: {
+                  text: '\u2014 Slippy \uD83D\uDC19'
+                },
+                timestamp: new Date().toISOString()
+              }
+            ]
           })
         })
 
@@ -120,7 +131,9 @@ module.exports = {
       }
 
       if (channel === 'slack') {
-        const webhookUrl = inputs.slackWebhookUrl || await sails.helpers.setting.get('slackWebhookUrl', '')
+        const webhookUrl =
+          inputs.slackWebhookUrl ||
+          (await sails.helpers.setting.get('slackWebhookUrl', ''))
 
         if (!webhookUrl) {
           return this.res.status(400).json({
@@ -133,7 +146,7 @@ module.exports = {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            text: '\u2705 *You\'re all set!*\n\nHey! It\'s Slippy. Just a quick wave \u2014 your Slack notifications are configured and working perfectly. I\'ll keep you posted on deployments, backups, and anything else that needs your attention.\n\n*\u2014 Slippy \uD83D\uDC19*'
+            text: "\u2705 *You're all set!*\n\nHey! It's Slippy. Just a quick wave \u2014 your Slack notifications are configured and working perfectly. I'll keep you posted on deployments, backups, and anything else that needs your attention.\n\n*\u2014 Slippy \uD83D\uDC19*"
           })
         })
 
@@ -149,7 +162,9 @@ module.exports = {
       }
 
       if (channel === 'webhook') {
-        const url = inputs.webhookUrl || await sails.helpers.setting.get('webhookUrl', '')
+        const url =
+          inputs.webhookUrl ||
+          (await sails.helpers.setting.get('webhookUrl', ''))
 
         if (!url) {
           return this.res.status(400).json({
@@ -182,7 +197,9 @@ module.exports = {
       }
 
       if (channel === 'email') {
-        const notificationEmails = inputs.notificationEmails || await sails.helpers.setting.get('notificationEmails', '')
+        const notificationEmails =
+          inputs.notificationEmails ||
+          (await sails.helpers.setting.get('notificationEmails', ''))
 
         if (!notificationEmails) {
           return this.res.status(400).json({
@@ -208,7 +225,10 @@ module.exports = {
           await sails.helpers.setting.set('smtpFrom', inputs.smtpFrom.trim())
         }
         if (inputs.notificationEmails) {
-          await sails.helpers.setting.set('notificationEmails', inputs.notificationEmails.trim())
+          await sails.helpers.setting.set(
+            'notificationEmails',
+            inputs.notificationEmails.trim()
+          )
         }
 
         // Sync saved settings into sails.config.mail
@@ -216,8 +236,14 @@ module.exports = {
         const fromAddress = sails.config.mail.from.address
         const fromName = sails.config.mail.from.name
 
-        const emails = notificationEmails.split(',').map(e => e.trim()).filter(Boolean)
-        const instanceName = await sails.helpers.setting.get('instanceName', 'Slipway')
+        const emails = notificationEmails
+          .split(',')
+          .map((e) => e.trim())
+          .filter(Boolean)
+        const instanceName = await sails.helpers.setting.get(
+          'instanceName',
+          'Slipway'
+        )
 
         for (const to of emails) {
           await sails.helpers.mail.send.with({

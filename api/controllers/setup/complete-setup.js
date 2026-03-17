@@ -1,7 +1,8 @@
 module.exports = {
   friendlyName: 'Complete setup',
 
-  description: 'Create the genesis user and default team to complete Slipway setup.',
+  description:
+    'Create the genesis user and default team to complete Slipway setup.',
 
   inputs: {
     email: {
@@ -32,7 +33,10 @@ module.exports = {
     const email = userEmail.toLowerCase()
 
     // Derive display name from email (part before @)
-    const fullName = email.split('@')[0].replace(/[._-]/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+    const fullName = email
+      .split('@')[0]
+      .replace(/[._-]/g, ' ')
+      .replace(/\b\w/g, (c) => c.toUpperCase())
 
     // Auto-generate team name
     const teamName = `${fullName}'s Team`
@@ -85,14 +89,18 @@ module.exports = {
       if (error.code === 'E_UNIQUE') {
         throw {
           badRequest: {
-            problems: [{ email: 'An account with this email address already exists.' }]
+            problems: [
+              { email: 'An account with this email address already exists.' }
+            ]
           }
         }
       }
 
       throw {
         badRequest: {
-          problems: [{ setup: 'Something went wrong during setup. Please try again.' }]
+          problems: [
+            { setup: 'Something went wrong during setup. Please try again.' }
+          ]
         }
       }
     }
@@ -103,7 +111,9 @@ module.exports = {
     // Log in the genesis user
     this.req.session.userId = genesisUser.id
 
-    sails.log.info(`Slipway setup complete. Genesis user: ${genesisUser.email}, Team: ${defaultTeam.name}`)
+    sails.log.info(
+      `Slipway setup complete. Genesis user: ${genesisUser.email}, Team: ${defaultTeam.name}`
+    )
 
     return '/'
   }

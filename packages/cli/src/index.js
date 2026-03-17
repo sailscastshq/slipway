@@ -213,16 +213,16 @@ function showHelp() {
 
   // Group commands
   const groups = {
-    'Authentication': ['login', 'logout', 'whoami'],
-    'Project': ['projects', 'project:update', 'init', 'link'],
-    'Environments': ['environments', 'environment:create', 'environment:update'],
-    'Deployment': ['push', 'slide', 'deployments', 'logs'],
-    'Database': ['db:create', 'db:url'],
-    'Services': ['services'],
-    'Backups': ['backup:create', 'backup:list', 'backup:restore'],
+    Authentication: ['login', 'logout', 'whoami'],
+    Project: ['projects', 'project:update', 'init', 'link'],
+    Environments: ['environments', 'environment:create', 'environment:update'],
+    Deployment: ['push', 'slide', 'deployments', 'logs'],
+    Database: ['db:create', 'db:url'],
+    Services: ['services'],
+    Backups: ['backup:create', 'backup:list', 'backup:restore'],
     'Env Variables': ['env', 'env:set', 'env:unset'],
-    'Container': ['terminal', 'run'],
-    'Admin': ['audit-log']
+    Container: ['terminal', 'run'],
+    Admin: ['audit-log']
   }
 
   for (const [groupName, cmds] of Object.entries(groups)) {
@@ -230,7 +230,9 @@ function showHelp() {
     for (const cmd of cmds) {
       const def = commands[cmd]
       const args = def.args ? ` ${def.args}` : ''
-      const aliasText = def.aliases ? ` ${c.dim(`(or: ${def.aliases.join(', ')})`)}` : ''
+      const aliasText = def.aliases
+        ? ` ${c.dim(`(or: ${def.aliases.join(', ')})`)}`
+        : ''
       console.log(`    ${c.highlight(cmd)}${c.dim(args)}${aliasText}`)
       console.log(`      ${def.description}`)
     }
@@ -278,7 +280,9 @@ async function main() {
 
   if (!commandDef) {
     console.error(`${c.error('Error:')} Unknown command: ${positionals[0]}`)
-    console.error(`Run ${c.highlight('slipway --help')} for available commands.`)
+    console.error(
+      `Run ${c.highlight('slipway --help')} for available commands.`
+    )
     process.exit(1)
   }
 
@@ -302,7 +306,11 @@ async function main() {
 
   if (parsed.values.help) {
     console.log()
-    console.log(`  ${c.bold(command)}${commandDef.args ? ` ${c.dim(commandDef.args)}` : ''}`)
+    console.log(
+      `  ${c.bold(command)}${
+        commandDef.args ? ` ${c.dim(commandDef.args)}` : ''
+      }`
+    )
     if (commandDef.aliases) {
       console.log(`  ${c.dim(`Aliases: ${commandDef.aliases.join(', ')}`)}`)
     }
@@ -336,7 +344,9 @@ async function main() {
     await module.default(options, parsed.positionals)
   } catch (err) {
     if (err.code === 'ERR_MODULE_NOT_FOUND') {
-      console.error(`${c.error('Error:')} Command '${command}' is not yet implemented.`)
+      console.error(
+        `${c.error('Error:')} Command '${command}' is not yet implemented.`
+      )
       process.exit(1)
     }
     throw err

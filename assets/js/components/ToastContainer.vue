@@ -23,7 +23,9 @@ const colors = {
 
 <template>
   <Teleport to="body">
-    <div class="fixed bottom-4 right-4 z-50 flex flex-col-reverse space-y-reverse space-y-2">
+    <div
+      class="fixed bottom-4 right-4 z-50 flex flex-col-reverse space-y-2 space-y-reverse"
+    >
       <TransitionGroup
         enter-active-class="transition duration-300 ease-out"
         enter-from-class="translate-x-full opacity-0"
@@ -51,13 +53,25 @@ const colors = {
               :d="icons[toast.type] || icons.success"
             />
           </svg>
-          <p class="flex-1 text-sm text-gray-900 dark:text-white">{{ toast.message }}</p>
+          <p class="flex-1 text-sm text-gray-900 dark:text-white">
+            {{ toast.message }}
+          </p>
           <button
             @click="emit('dismiss', toast.id)"
             class="shrink-0 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
           >
-            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            <svg
+              class="h-4 w-4"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M6 18L18 6M6 6l12 12"
+              />
             </svg>
           </button>
         </div>

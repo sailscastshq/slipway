@@ -39,7 +39,9 @@ module.exports = {
   },
 
   fn: async function ({ page, limit, type }) {
-    const user = await User.findOne({ id: this.req.session.userId }).populate('team')
+    const user = await User.findOne({ id: this.req.session.userId }).populate(
+      'team'
+    )
     if (!user) {
       throw 'notFound'
     }
@@ -71,14 +73,17 @@ module.exports = {
           description: `Deployment ${d.status}`,
           resource: d.app?.name || projectName || 'Unknown',
           resourceType: 'deployment',
-          user: d.triggeredBy ? { fullName: d.triggeredBy.fullName, email: d.triggeredBy.email } : null,
+          user: d.triggeredBy
+            ? { fullName: d.triggeredBy.fullName, email: d.triggeredBy.email }
+            : null,
           status: d.status,
           metadata: {
             gitBranch: d.gitBranch,
             gitCommit: d.gitCommit ? d.gitCommit.substring(0, 7) : null,
             triggerType: d.triggerType,
             environment: d.environment?.name,
-            durationMs: d.startedAt && d.finishedAt ? d.finishedAt - d.startedAt : null
+            durationMs:
+              d.startedAt && d.finishedAt ? d.finishedAt - d.startedAt : null
           },
           createdAt: d.createdAt
         })
@@ -102,7 +107,9 @@ module.exports = {
           description: `Backup ${b.status}`,
           resource: b.service?.name || 'Unknown service',
           resourceType: 'backup',
-          user: b.triggeredBy ? { fullName: b.triggeredBy.fullName, email: b.triggeredBy.email } : null,
+          user: b.triggeredBy
+            ? { fullName: b.triggeredBy.fullName, email: b.triggeredBy.email }
+            : null,
           status: b.status,
           metadata: {
             sizeBytes: b.sizeBytes,
@@ -127,10 +134,14 @@ module.exports = {
           id: `audit-${log.id}`,
           type: 'audit',
           action: log.action,
-          description: log.action.replace(/\./g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
+          description: log.action
+            .replace(/\./g, ' ')
+            .replace(/\b\w/g, (c) => c.toUpperCase()),
           resource: log.resourceType,
           resourceType: log.resourceType,
-          user: log.user ? { fullName: log.user.fullName, email: log.user.email } : null,
+          user: log.user
+            ? { fullName: log.user.fullName, email: log.user.email }
+            : null,
           status: null,
           metadata: {
             ipAddress: log.ipAddress,
@@ -146,9 +157,8 @@ module.exports = {
     activities.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
 
     // Paginate the combined result for 'all' type
-    const finalActivities = type === 'all'
-      ? activities.slice(0, limit)
-      : activities
+    const finalActivities =
+      type === 'all' ? activities.slice(0, limit) : activities
 
     return {
       activities: finalActivities,

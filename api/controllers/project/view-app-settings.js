@@ -31,15 +31,23 @@ module.exports = {
   },
 
   fn: async function ({ slug, envSlug, appSlug }) {
-    const user = await User.findOne({ id: this.req.session.userId }).populate('team')
+    const user = await User.findOne({ id: this.req.session.userId }).populate(
+      'team'
+    )
 
     const project = await Project.findOne({ slug, team: user.team.id })
     if (!project) throw { notFound: '/' }
 
-    const environment = await Environment.findOne({ slug: envSlug, project: project.id })
+    const environment = await Environment.findOne({
+      slug: envSlug,
+      project: project.id
+    })
     if (!environment) throw { notFound: `/projects/${slug}` }
 
-    const app = await App.findOne({ environment: environment.id, slug: appSlug })
+    const app = await App.findOne({
+      environment: environment.id,
+      slug: appSlug
+    })
     if (!app) throw { notFound: `/projects/${slug}/environments/${envSlug}` }
 
     // Check if GitHub is connected for this team
@@ -54,17 +62,19 @@ module.exports = {
     const gitRepo = await GitRepository.findOne({ app: app.id })
     // Determine the deploy branch from branchMappings (first key), fallback to defaultBranch
     const deployBranch = gitRepo
-      ? (Object.keys(gitRepo.branchMappings || {})[0] || gitRepo.defaultBranch)
+      ? Object.keys(gitRepo.branchMappings || {})[0] || gitRepo.defaultBranch
       : null
 
-    const connectedRepo = gitRepo ? {
-      id: gitRepo.id,
-      fullName: gitRepo.fullName,
-      htmlUrl: gitRepo.htmlUrl,
-      defaultBranch: gitRepo.defaultBranch,
-      deployBranch,
-      autoDeploy: gitRepo.autoDeploy
-    } : null
+    const connectedRepo = gitRepo
+      ? {
+          id: gitRepo.id,
+          fullName: gitRepo.fullName,
+          htmlUrl: gitRepo.htmlUrl,
+          defaultBranch: gitRepo.defaultBranch,
+          deployBranch,
+          autoDeploy: gitRepo.autoDeploy
+        }
+      : null
 
     return {
       page: 'projects/app-settings',

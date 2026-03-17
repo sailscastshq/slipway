@@ -27,15 +27,20 @@ module.exports = {
     const cacheKey = `container:status:${containerName}`
     try {
       const cached = await sails.cache.get(cacheKey)
-      if (cached) { return cached }
+      if (cached) {
+        return cached
+      }
     } catch (err) {
       sails.log.verbose('Cache read failed for container status:', err.message)
     }
 
     try {
-      const { stdout } = await execFileAsync(
-        'docker', ['inspect', '--format', '{{json .State}}', containerName]
-      )
+      const { stdout } = await execFileAsync('docker', [
+        'inspect',
+        '--format',
+        '{{json .State}}',
+        containerName
+      ])
 
       const state = JSON.parse(stdout.trim())
 
@@ -50,7 +55,11 @@ module.exports = {
       }
 
       // Cache for 30 seconds
-      try { await sails.cache.set(cacheKey, result, 30_000) } catch (err) { /* best-effort */ }
+      try {
+        await sails.cache.set(cacheKey, result, 30_000)
+      } catch (err) {
+        /* best-effort */
+      }
 
       return result
     } catch (error) {

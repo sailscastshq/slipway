@@ -1,7 +1,8 @@
 module.exports = {
   friendlyName: 'Resolve environment',
 
-  description: 'Resolve user → project → environment → app from request params. Shared auth/lookup for Bridge actions.',
+  description:
+    'Resolve user → project → environment → app from request params. Shared auth/lookup for Bridge actions.',
 
   inputs: {
     req: {

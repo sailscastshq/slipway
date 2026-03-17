@@ -21,10 +21,14 @@ module.exports = {
   },
 
   fn: async function ({ slug }) {
-    const user = await User.findOne({ id: this.req.session.userId }).populate('team')
+    const user = await User.findOne({ id: this.req.session.userId }).populate(
+      'team'
+    )
 
-    const project = await Project.findOne({ slug, team: user.team.id })
-      .populate('environments')
+    const project = await Project.findOne({
+      slug,
+      team: user.team.id
+    }).populate('environments')
 
     if (!project) {
       throw { notFound: '/' }
@@ -34,7 +38,7 @@ module.exports = {
     const environments = await Promise.all(
       project.environments.map(async (env) => {
         const apps = await App.find({ environment: env.id })
-        const app = apps.find(a => a.isDefault) || apps[0] || null
+        const app = apps.find((a) => a.isDefault) || apps[0] || null
 
         // Fix stale running deployments
         if (app && app.currentDeployment) {
@@ -72,7 +76,7 @@ module.exports = {
     // Get recent deployments across all environments
     // First get any running/building/deploying deployments to ensure they're included
     const activeDeployments = await Deployment.find({
-      environment: project.environments.map(e => e.id),
+      environment: project.environments.map((e) => e.id),
       status: ['running', 'building', 'deploying']
     })
       .populate('triggeredBy')
@@ -81,7 +85,7 @@ module.exports = {
 
     // Then get recent deployments by date
     const latestDeployments = await Deployment.find({
-      environment: project.environments.map(e => e.id)
+      environment: project.environments.map((e) => e.id)
     })
       .sort('createdAt DESC')
       .limit(10)
@@ -115,7 +119,7 @@ module.exports = {
     // Backfill app name for legacy deployments (created before multi-app)
     for (const dep of recentDeployments) {
       if (!dep.app && dep.environment) {
-        const env = environments.find(e => e.id === dep.environment.id)
+        const env = environments.find((e) => e.id === dep.environment.id)
         if (env && env.app) {
           dep.app = { id: env.app.id, name: env.app.name, slug: env.app.slug }
         }

@@ -9,7 +9,9 @@ export default async function envUnset(options, positionals) {
   }
 
   if (positionals.length === 0) {
-    error('Please provide at least one key to remove. Usage: slipway env:unset KEY1 KEY2')
+    error(
+      'Please provide at least one key to remove. Usage: slipway env:unset KEY1 KEY2'
+    )
   }
 
   const project = requireProject()
@@ -19,7 +21,10 @@ export default async function envUnset(options, positionals) {
 
   try {
     // Get current environment
-    const { environment: env } = await api.environments.get(project.project, environment)
+    const { environment: env } = await api.environments.get(
+      project.project,
+      environment
+    )
 
     // Remove specified keys
     const updatedVars = { ...env.envVars }
@@ -53,7 +58,11 @@ export default async function envUnset(options, positionals) {
     }
 
     console.log()
-    console.log(`  ${c.dim('Run')} ${c.highlight('slipway slide')} ${c.dim('to apply changes.')}`)
+    console.log(
+      `  ${c.dim('Run')} ${c.highlight('slipway slide')} ${c.dim(
+        'to apply changes.'
+      )}`
+    )
     console.log()
   } catch (err) {
     spin.fail('Failed to remove environment variables')

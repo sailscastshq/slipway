@@ -33,6 +33,7 @@ Slipway is an open-source, self-hostable deployment platform purpose-built for *
 The goal: **One platform to deploy, manage, monitor, and administrate all your Sails applications and their databases.**
 
 ### The Tagline Options
+
 - "Where Sails apps slide into production"
 - "The Sails-native deployment platform"
 - "Deploy Sails. Manage everything."
@@ -44,6 +45,7 @@ The goal: **One platform to deploy, manage, monitor, and administrate all your S
 ### The Problem Today
 
 Developers building with Sails.js and The Boring JavaScript Stack have to cobble together:
+
 - **Coolify/Dokploy** for deployment (generic, not Sails-aware)
 - **AdminJS/Forest Admin** for admin panels (separate setup, not integrated)
 - **Sentry/LogRocket** for error tracking (another service)
@@ -53,21 +55,22 @@ Developers building with Sails.js and The Boring JavaScript Stack have to cobble
 
 ### What Laravel Developers Have
 
-| Tool | Purpose |
-|------|---------|
-| Laravel Forge | Server provisioning & deployment |
-| Laravel Vapor | Serverless deployment |
-| Laravel Nova | Admin panel |
-| Laravel Tinker | Production REPL |
-| Laravel Horizon | Queue monitoring |
-| Laravel Pulse | Application monitoring |
-| Laravel Telescope | Debug assistant |
+| Tool              | Purpose                          |
+| ----------------- | -------------------------------- |
+| Laravel Forge     | Server provisioning & deployment |
+| Laravel Vapor     | Serverless deployment            |
+| Laravel Nova      | Admin panel                      |
+| Laravel Tinker    | Production REPL                  |
+| Laravel Horizon   | Queue monitoring                 |
+| Laravel Pulse     | Application monitoring           |
+| Laravel Telescope | Debug assistant                  |
 
 **Sails developers deserve the same integrated experience.**
 
 ### What Slipway Provides
 
 A **single, unified platform** that:
+
 - Deploys Sails apps (fullstack and serverless)
 - Manages databases (PostgreSQL, MySQL, SQLite, Redis)
 - Provides a Sails-aware admin panel (like Nova)
@@ -89,13 +92,13 @@ Kamal is Basecamp/37signals' deployment tool, used to run HEY and their internal
 
 #### Key Principles We're Adopting
 
-| Principle | What It Means | How Slipway Applies |
-|-----------|---------------|---------------------|
-| **Transparency** | "You can see everything that's going on, it's just basic Docker commands" | Show users the actual Docker commands being run |
-| **No Agents** | SSH-based execution, no daemon on servers | Direct SSH + Docker, minimal server footprint |
-| **Single Config File** | `config/deploy.yml` declares everything | `config/slipway.js` for app configuration |
-| **Accessories** | Databases/Redis as "accessories" alongside the app | First-class service management |
-| **Zero-Downtime** | Rolling deployments with kamal-proxy | Caddy-based blue-green deployments |
+| Principle              | What It Means                                                             | How Slipway Applies                             |
+| ---------------------- | ------------------------------------------------------------------------- | ----------------------------------------------- |
+| **Transparency**       | "You can see everything that's going on, it's just basic Docker commands" | Show users the actual Docker commands being run |
+| **No Agents**          | SSH-based execution, no daemon on servers                                 | Direct SSH + Docker, minimal server footprint   |
+| **Single Config File** | `config/deploy.yml` declares everything                                   | `config/slipway.js` for app configuration       |
+| **Accessories**        | Databases/Redis as "accessories" alongside the app                        | First-class service management                  |
+| **Zero-Downtime**      | Rolling deployments with kamal-proxy                                      | Caddy-based blue-green deployments              |
 
 #### Kamal Commands Worth Emulating
 
@@ -124,13 +127,13 @@ Dokku is a "mini-Heroku" - the smallest PaaS implementation.
 
 #### Key Principles We're Adopting
 
-| Principle | What It Means | How Slipway Applies |
-|-----------|---------------|---------------------|
-| **Git Push Deploy** | `git push dokku main` triggers deploy | Support git push alongside CLI deploy |
-| **Plugin Architecture** | postgres, redis, mysql as plugins | Extensible service system |
-| **Service Linking** | `dokku postgres:link mydb myapp` sets DATABASE_URL | Automatic env var injection |
-| **Procfile** | Declare processes in a simple file | Respect Procfile for Sails apps |
-| **Buildpacks** | Auto-detect app type and build | Use buildpacks or Dockerfile |
+| Principle               | What It Means                                      | How Slipway Applies                   |
+| ----------------------- | -------------------------------------------------- | ------------------------------------- |
+| **Git Push Deploy**     | `git push dokku main` triggers deploy              | Support git push alongside CLI deploy |
+| **Plugin Architecture** | postgres, redis, mysql as plugins                  | Extensible service system             |
+| **Service Linking**     | `dokku postgres:link mydb myapp` sets DATABASE_URL | Automatic env var injection           |
+| **Procfile**            | Declare processes in a simple file                 | Respect Procfile for Sails apps       |
+| **Buildpacks**          | Auto-detect app type and build                     | Use buildpacks or Dockerfile          |
 
 #### Dokku Commands Worth Emulating
 
@@ -174,16 +177,16 @@ slipway postgres:link mydb myapp
 
 Slipway combines the best of both:
 
-| Feature | Kamal | Dokku | Slipway |
-|---------|-------|-------|---------|
-| Config file | ✅ deploy.yml | ❌ | ✅ config/slipway.js |
-| Git push deploy | ❌ | ✅ | ✅ |
-| CLI deploy | ✅ | ✅ | ✅ |
-| Web dashboard | ❌ | ❌ (Pro only) | ✅ |
-| Service linking | ❌ (manual env) | ✅ | ✅ |
-| Plugin system | ❌ | ✅ | ✅ (future) |
-| Transparent Docker | ✅ | ❌ (hidden) | ✅ |
-| Framework-aware | Rails (light) | ❌ | ✅ Sails-native |
+| Feature            | Kamal           | Dokku         | Slipway              |
+| ------------------ | --------------- | ------------- | -------------------- |
+| Config file        | ✅ deploy.yml   | ❌            | ✅ config/slipway.js |
+| Git push deploy    | ❌              | ✅            | ✅                   |
+| CLI deploy         | ✅              | ✅            | ✅                   |
+| Web dashboard      | ❌              | ❌ (Pro only) | ✅                   |
+| Service linking    | ❌ (manual env) | ✅            | ✅                   |
+| Plugin system      | ❌              | ✅            | ✅ (future)          |
+| Transparent Docker | ✅              | ❌ (hidden)   | ✅                   |
+| Framework-aware    | Rails (light)   | ❌            | ✅ Sails-native      |
 
 ---
 
@@ -192,6 +195,7 @@ Slipway combines the best of both:
 ### 1. Sails-Native, Not Generic
 
 Slipway **understands** Sails applications:
+
 - Auto-detects `config/models.js`, `config/datastores.js`, `api/models/`
 - Knows about Sails lifecycle, hooks, and policies
 - Integrates with Sails Quest for job queues
@@ -201,6 +205,7 @@ Slipway **understands** Sails applications:
 ### 2. Lightweight First
 
 Unlike Coolify (which can feel heavy), Slipway is designed to be:
+
 - Minimal resource footprint
 - Fast to install and boot
 - Efficient with container orchestration
@@ -209,6 +214,7 @@ Unlike Coolify (which can feel heavy), Slipway is designed to be:
 ### 3. Beautiful by Default
 
 Dashboard design inspired by:
+
 - **Linear** - Clean, fast, keyboard-driven
 - **Resend** - Elegant, modern, developer-focused
 - **Vercel** - Clear information hierarchy
@@ -387,14 +393,14 @@ Slipway's deployment model is designed to be **better than Heroku, Vercel, and R
 
 #### The Problem with Existing Approaches
 
-| Platform | Approach | Private Repo Support | Pain Points |
-|----------|----------|---------------------|-------------|
-| Heroku | `git push heroku main` | SSH keys required | Key management, team scaling |
-| Vercel | GitHub App | ✅ Excellent | GitHub-only, vendor lock-in |
-| Railway | GitHub App | ✅ Good | Limited providers |
-| Dokku | SSH-based push | SSH keys required | Manual key setup per user |
-| Coolify | Webhooks + tokens | Manual setup | Token management, webhook config |
-| Kamal | CLI only | N/A | No git integration |
+| Platform | Approach               | Private Repo Support | Pain Points                      |
+| -------- | ---------------------- | -------------------- | -------------------------------- |
+| Heroku   | `git push heroku main` | SSH keys required    | Key management, team scaling     |
+| Vercel   | GitHub App             | ✅ Excellent         | GitHub-only, vendor lock-in      |
+| Railway  | GitHub App             | ✅ Good              | Limited providers                |
+| Dokku    | SSH-based push         | SSH keys required    | Manual key setup per user        |
+| Coolify  | Webhooks + tokens      | Manual setup         | Token management, webhook config |
+| Kamal    | CLI only               | N/A                  | No git integration               |
 
 #### Slipway's Three Deployment Paths
 
@@ -489,6 +495,7 @@ $ slipway logs myapp --deploy
 ```
 
 **For Private Repos:**
+
 - Slipway generates a read-only **deploy key** (SSH)
 - Key is added to your repo automatically via API
 - No personal access tokens needed
@@ -580,13 +587,13 @@ deploy:
 
 ##### Why Tokens Over SSH Keys
 
-| Aspect | SSH Keys | Deploy Tokens |
-|--------|----------|---------------|
-| Rotation | Manual, disruptive | One-click, instant |
-| Scoping | Per-machine | Per-action (deploy only) |
-| Revocation | Hunt down all copies | Single click in dashboard |
-| Audit trail | None | Full history in dashboard |
-| Team scaling | Each dev needs key | Share token via CI secrets |
+| Aspect       | SSH Keys             | Deploy Tokens              |
+| ------------ | -------------------- | -------------------------- |
+| Rotation     | Manual, disruptive   | One-click, instant         |
+| Scoping      | Per-machine          | Per-action (deploy only)   |
+| Revocation   | Hunt down all copies | Single click in dashboard  |
+| Audit trail  | None                 | Full history in dashboard  |
+| Team scaling | Each dev needs key   | Share token via CI secrets |
 
 ---
 
@@ -625,6 +632,7 @@ $ slipway slide
 ```
 
 **When to Use CLI Direct:**
+
 - Testing changes before committing
 - Hotfixes that need immediate deployment
 - Environments without CI/CD
@@ -655,8 +663,8 @@ module.exports.slipway = {
       pattern: 'pr-*',
       domain: '{{branch}}.preview.myapp.example.com',
       autoDeploy: true,
-      autoDestroy: true,  // Delete when PR is closed
-      ttl: '7d'           // Or after 7 days of inactivity
+      autoDestroy: true, // Delete when PR is closed
+      ttl: '7d' // Or after 7 days of inactivity
     }
   }
 }
@@ -690,18 +698,18 @@ When a PR is opened:
 
 #### Comparison: Slipway vs Others
 
-| Feature | Heroku | Vercel | Railway | Slipway |
-|---------|--------|--------|---------|---------|
+| Feature              | Heroku   | Vercel     | Railway    | Slipway         |
+| -------------------- | -------- | ---------- | ---------- | --------------- |
 | Private repo support | SSH keys | GitHub App | GitHub App | **All methods** |
-| GitLab/Bitbucket | Limited | ❌ | Limited | ✅ Full |
-| Self-hosted Git | ❌ | ❌ | ❌ | ✅ |
-| PR previews | ❌ | ✅ | ✅ | ✅ |
-| Branch environments | Manual | ✅ | ✅ | ✅ |
-| Deploy without push | ❌ | ❌ | ❌ | ✅ CLI direct |
-| CI/CD tokens | ❌ | ❌ | ❌ | ✅ |
-| Self-hosted | ❌ | ❌ | ❌ | ✅ |
-| Monorepo support | Limited | ✅ | Limited | ✅ |
-| Framework-aware | ❌ | ❌ | ❌ | ✅ Sails |
+| GitLab/Bitbucket     | Limited  | ❌         | Limited    | ✅ Full         |
+| Self-hosted Git      | ❌       | ❌         | ❌         | ✅              |
+| PR previews          | ❌       | ✅         | ✅         | ✅              |
+| Branch environments  | Manual   | ✅         | ✅         | ✅              |
+| Deploy without push  | ❌       | ❌         | ❌         | ✅ CLI direct   |
+| CI/CD tokens         | ❌       | ❌         | ❌         | ✅              |
+| Self-hosted          | ❌       | ❌         | ❌         | ✅              |
+| Monorepo support     | Limited  | ✅         | Limited    | ✅              |
+| Framework-aware      | ❌       | ❌         | ❌         | ✅ Sails        |
 
 ---
 
@@ -718,16 +726,17 @@ When a PR is opened:
 
 **Zero npm dependencies.** The CLI uses only Node.js 22+ built-ins:
 
-| Need | Node.js Built-in | Notes |
-|------|------------------|-------|
-| Argument parsing | `node:util` parseArgs | Replaces Commander.js |
-| Interactive prompts | `node:readline` | Replaces Inquirer.js |
-| HTTP requests | Native `fetch` | No axios/undici needed |
-| WebSocket | Native `WebSocket` | For log streaming, Helm |
-| Colors/styling | Raw ANSI codes | No chalk needed |
-| Config storage | `node:fs` | Writes to `~/.slipway/config.json` |
+| Need                | Node.js Built-in      | Notes                              |
+| ------------------- | --------------------- | ---------------------------------- |
+| Argument parsing    | `node:util` parseArgs | Replaces Commander.js              |
+| Interactive prompts | `node:readline`       | Replaces Inquirer.js               |
+| HTTP requests       | Native `fetch`        | No axios/undici needed             |
+| WebSocket           | Native `WebSocket`    | For log streaming, Helm            |
+| Colors/styling      | Raw ANSI codes        | No chalk needed                    |
+| Config storage      | `node:fs`             | Writes to `~/.slipway/config.json` |
 
 This means:
+
 - **Instant startup** — no node_modules to load
 - **No supply chain risk** — nothing to audit
 - **Simpler maintenance** — no dependency updates
@@ -787,6 +796,7 @@ http://localhost:1337/slipway/helm
 ```
 
 Or in terminal:
+
 ```bash
 $ slipway dev:helm
 
@@ -884,7 +894,6 @@ The `sails-hook-slipway` package provides all these features. When installed, it
 ```javascript
 // config/slipway.js - JavaScript, not YAML!
 module.exports.slipway = {
-
   // Hook settings (sails-hook-slipway)
   bridge: {
     enabled: true,
@@ -893,22 +902,20 @@ module.exports.slipway = {
   helm: {
     enabled: true,
     path: '/slipway/helm',
-    readOnly: false  // Set true in production for safety
+    readOnly: false // Set true in production for safety
   },
   quest: {
-    enabled: true,  // Auto-disabled if sails-quest not installed
+    enabled: true, // Auto-disabled if sails-quest not installed
     path: '/slipway/quest'
   },
   content: {
-    enabled: true,  // Auto-disabled if sails-content not installed
+    enabled: true, // Auto-disabled if sails-content not installed
     path: '/slipway/content'
   },
 
   // Production deployment
   deploy: {
-    servers: [
-      process.env.SLIPWAY_SERVER || 'deploy@myserver.com'
-    ],
+    servers: [process.env.SLIPWAY_SERVER || 'deploy@myserver.com'],
     registry: process.env.DOCKER_REGISTRY || 'registry.example.com',
 
     // Environment-specific overrides
@@ -932,11 +939,11 @@ module.exports.slipway = {
       name: 'myapp-cache'
     }
   }
-
-};
+}
 ```
 
 **Why JavaScript, not YAML?**
+
 - Consistent with Sails conventions (`config/*.js`)
 - Full JavaScript power: functions, conditionals, `process.env`
 - Comments that work
@@ -945,13 +952,13 @@ module.exports.slipway = {
 
 ### Dev Mode vs Production
 
-| Feature | Dev Mode | Production |
-|---------|----------|------------|
-| Bridge | `/slipway/bridge` open access | Role-based via Sails Clearance |
-| Helm | Open access | Role-based, audit logged |
-| Quest | Full control | Read + retry only |
-| Content | Full control | Role-based (editors, admins) |
-| Auth | Optional/none | Required via Sails Clearance |
+| Feature | Dev Mode                      | Production                     |
+| ------- | ----------------------------- | ------------------------------ |
+| Bridge  | `/slipway/bridge` open access | Role-based via Sails Clearance |
+| Helm    | Open access                   | Role-based, audit logged       |
+| Quest   | Full control                  | Read + retry only              |
+| Content | Full control                  | Role-based (editors, admins)   |
+| Auth    | Optional/none                 | Required via Sails Clearance   |
 
 ### Why This Matters
 
@@ -991,6 +998,7 @@ slipway slide
 ### Deployment & Infrastructure
 
 #### Application Deployment
+
 - [ ] One-click deploy from Git (GitHub, GitLab, Bitbucket)
 - [ ] Automatic builds with buildpack detection
 - [ ] Docker-based isolation
@@ -1002,6 +1010,7 @@ slipway slide
 - [ ] Multi-environment support (staging, production, custom)
 
 #### Sails-Specific Deployment
+
 - [ ] Auto-detection of Sails applications
 - [ ] Sails lift configuration management
 - [ ] Hook initialization monitoring
@@ -1010,6 +1019,7 @@ slipway slide
 - [ ] Sails.js version compatibility checking
 
 #### Serverless Sails
+
 - [ ] Deploy Sails actions as serverless functions
 - [ ] Cold start optimization
 - [ ] Edge deployment options
@@ -1017,6 +1027,7 @@ slipway slide
 - [ ] Usage-based billing metrics
 
 #### Server Management
+
 - [ ] SSH key management
 - [ ] Server health monitoring
 - [ ] Resource usage tracking (CPU, RAM, Disk)
@@ -1027,6 +1038,7 @@ slipway slide
 ### Database Management
 
 #### Supported Databases
+
 - [ ] **PostgreSQL** - Full support with connection pooling
 - [ ] **MySQL/MariaDB** - Full support
 - [ ] **SQLite** - Embedded database support
@@ -1034,6 +1046,7 @@ slipway slide
 - [ ] **Redis** - Caching and session storage
 
 #### Database Features
+
 - [ ] One-click database provisioning
 - [ ] Automatic backups (configurable schedule)
 - [ ] Point-in-time recovery
@@ -1046,6 +1059,7 @@ slipway slide
 - [ ] Database migrations tracking
 
 #### Sails Waterline Integration
+
 - [ ] Auto-configure datastores from detected config
 - [ ] Model-aware database browser
 - [ ] Relationship visualization
@@ -1054,6 +1068,7 @@ slipway slide
 ### Proxy & Networking
 
 #### Reverse Proxy
+
 - [ ] Automatic SSL termination
 - [ ] HTTP/2 and HTTP/3 support
 - [ ] WebSocket proxying (critical for Sails sockets)
@@ -1062,6 +1077,7 @@ slipway slide
 - [ ] IP allowlist/blocklist
 
 #### Domain Management
+
 - [ ] Easy custom domain setup
 - [ ] Automatic DNS configuration helpers
 - [ ] Wildcard domain support
@@ -1075,6 +1091,7 @@ This is the **Tinkerwell equivalent**—a production-safe REPL for Sails applica
 Inspired by [Tinkerwell](https://tinkerwell.app/), the Helm provides a powerful web-based REPL with multi-line editing, autocompletion, and output visualization.
 
 #### Features
+
 - [ ] Full Sails environment loaded (`sails.models`, `sails.helpers`, etc.)
 - [ ] Direct model queries: `await User.find({ email: 'test@example.com' })`
 - [ ] Helper execution: `await sails.helpers.email.send(...)`
@@ -1087,6 +1104,7 @@ Inspired by [Tinkerwell](https://tinkerwell.app/), the Helm provides a powerful 
 - [ ] Exportable results
 
 #### Safety Features
+
 - [ ] Audit logging of all Helm commands
 - [ ] Role-based access (who can run what)
 - [ ] Read-only mode by default
@@ -1098,6 +1116,7 @@ Inspired by [Tinkerwell](https://tinkerwell.app/), the Helm provides a powerful 
 A **Laravel Nova equivalent** built into Slipway. Named after the ship's **bridge** — the command center where the captain navigates and controls the vessel.
 
 #### Resource Management
+
 - [ ] Auto-generated CRUD for all Sails models
 - [ ] Customizable list views (columns, filters, sorting)
 - [ ] Inline editing
@@ -1106,6 +1125,7 @@ A **Laravel Nova equivalent** built into Slipway. Named after the ship's **bridg
 - [ ] File upload handling
 
 #### Custom Fields
+
 - [ ] Text, textarea, markdown editor
 - [ ] Number, currency, percentage
 - [ ] Date, datetime, time
@@ -1117,12 +1137,14 @@ A **Laravel Nova equivalent** built into Slipway. Named after the ship's **bridg
 - [ ] Relationship selectors
 
 #### Dashboard Widgets
+
 - [ ] Stats cards (counts, sums, averages)
 - [ ] Charts (line, bar, pie, area)
 - [ ] Recent activity feeds
 - [ ] Custom metric displays
 
 #### Access Control
+
 - [ ] User roles and permissions
 - [ ] Field-level permissions
 - [ ] Action-level permissions
@@ -1133,6 +1155,7 @@ A **Laravel Nova equivalent** built into Slipway. Named after the ship's **bridg
 For applications using **Sails Quest** (or compatible job queues).
 
 #### Features
+
 - [ ] Job queue dashboard
 - [ ] Real-time job status (pending, processing, completed, failed)
 - [ ] Job retry functionality
@@ -1148,6 +1171,7 @@ For applications using **Sails Quest** (or compatible job queues).
 If **Sails Content** is detected in the application:
 
 #### Features
+
 - [ ] Content type browser
 - [ ] Visual content editor
 - [ ] Media library integration
@@ -1159,6 +1183,7 @@ If **Sails Content** is detected in the application:
 ### Observability Suite
 
 #### Error Tracking
+
 - [ ] Automatic error capture from Sails apps
 - [ ] Stack trace analysis with source maps
 - [ ] Error grouping and deduplication
@@ -1168,6 +1193,7 @@ If **Sails Content** is detected in the application:
 - [ ] Slack/Discord/email notifications
 
 #### Application Monitoring
+
 - [ ] Request/response metrics
 - [ ] Response time tracking (p50, p95, p99)
 - [ ] Throughput metrics (requests/minute)
@@ -1178,6 +1204,7 @@ If **Sails Content** is detected in the application:
 - [ ] Custom metric ingestion
 
 #### Logging
+
 - [ ] Centralized log aggregation
 - [ ] Log search and filtering
 - [ ] Log streaming (real-time tail)
@@ -1186,6 +1213,7 @@ If **Sails Content** is detected in the application:
 - [ ] Log-based alerting
 
 #### Uptime Monitoring
+
 - [ ] HTTP endpoint monitoring
 - [ ] Custom check intervals
 - [ ] Multi-region checks
@@ -1196,6 +1224,7 @@ If **Sails Content** is detected in the application:
 ### Analytics
 
 #### Application Analytics
+
 - [ ] Page view tracking
 - [ ] User session analytics
 - [ ] Geographic distribution
@@ -1204,6 +1233,7 @@ If **Sails Content** is detected in the application:
 - [ ] Custom event tracking
 
 #### Business Metrics
+
 - [ ] Custom KPI dashboards
 - [ ] Funnel analysis
 - [ ] Cohort analysis
@@ -1212,6 +1242,7 @@ If **Sails Content** is detected in the application:
 ### Security
 
 #### Application Security
+
 - [ ] Dependency vulnerability scanning
 - [ ] SAST (Static Application Security Testing)
 - [ ] Secret scanning in code
@@ -1219,6 +1250,7 @@ If **Sails Content** is detected in the application:
 - [ ] CORS configuration management
 
 #### Platform Security
+
 - [ ] Two-factor authentication
 - [ ] SSO support (SAML, OIDC)
 - [ ] Role-based access control
@@ -1229,12 +1261,14 @@ If **Sails Content** is detected in the application:
 ### Collaboration Features
 
 #### Team Management
+
 - [ ] Team invitations
 - [ ] Role assignment (Admin, Developer, Viewer)
 - [ ] Project-level permissions
 - [ ] Activity feed
 
 #### Notifications
+
 - [ ] In-app notifications
 - [ ] Email notifications
 - [ ] Slack integration
@@ -1248,17 +1282,17 @@ If **Sails Content** is detected in the application:
 
 All-in-one integrated tools that come with Slipway:
 
-| Component | Equivalent To | Description |
-|-----------|---------------|-------------|
-| **Slipway Deploy** | Forge/Coolify | Deployment & infrastructure |
-| **Slipway Helm** | Tinkerwell | Production REPL for Sails |
-| **Slipway Bridge** | Nova/Nexus | Auto-generated data management |
-| **Slipway Pulse** | Laravel Pulse | Application monitoring |
-| **Slipway Horizon** | Laravel Horizon | Queue monitoring (Quest) |
-| **Slipway Telescope** | Laravel Telescope | Debug & inspection |
-| **Slipway Content** | - | CMS when Sails Content detected |
-| **Slipway Guard** | - | Error tracking |
-| **Slipway Metrics** | - | Analytics dashboard |
+| Component             | Equivalent To     | Description                     |
+| --------------------- | ----------------- | ------------------------------- |
+| **Slipway Deploy**    | Forge/Coolify     | Deployment & infrastructure     |
+| **Slipway Helm**      | Tinkerwell        | Production REPL for Sails       |
+| **Slipway Bridge**    | Nova/Nexus        | Auto-generated data management  |
+| **Slipway Pulse**     | Laravel Pulse     | Application monitoring          |
+| **Slipway Horizon**   | Laravel Horizon   | Queue monitoring (Quest)        |
+| **Slipway Telescope** | Laravel Telescope | Debug & inspection              |
+| **Slipway Content**   | -                 | CMS when Sails Content detected |
+| **Slipway Guard**     | -                 | Error tracking                  |
+| **Slipway Metrics**   | -                 | Analytics dashboard             |
 
 ---
 
@@ -1307,6 +1341,7 @@ All-in-one integrated tools that come with Slipway:
 ### Key Architectural Decisions
 
 #### 1. Built with Sails & The Boring JavaScript Stack
+
 - **Sails.js** - Backend framework
 - **Vue 3 + Inertia.js** - Frontend SPA without API layer
 - **Tailwind CSS** - Styling
@@ -1347,6 +1382,7 @@ Following Kamal's approach, Docker is central but **transparent**:
 ```
 
 **Key Docker Principles:**
+
 - Each app = one container (simple, isolated)
 - Each database = one container with persistent volume
 - Caddy handles routing, SSL, WebSockets
@@ -1354,29 +1390,32 @@ Following Kamal's approach, Docker is central but **transparent**:
 - `docker compose` for local dev, direct Docker API for production
 
 **Caddy Docker Labels (via caddy-docker-proxy):**
+
 ```javascript
 // When deploying a container, we add these labels
 const labels = {
-  'caddy': 'myapp.example.com',                    // Domain
-  'caddy.reverse_proxy': '{{upstreams 3000}}',     // Proxy to port 3000
+  caddy: 'myapp.example.com', // Domain
+  'caddy.reverse_proxy': '{{upstreams 3000}}' // Proxy to port 3000
   // That's it! SSL is automatic via Let's Encrypt
-};
+}
 
 // For WebSocket support (Sails sockets)
 const labelsWithWS = {
-  'caddy': 'myapp.example.com',
+  caddy: 'myapp.example.com',
   'caddy.reverse_proxy': '{{upstreams 3000}}',
-  'caddy.reverse_proxy.transport': 'http',
-};
+  'caddy.reverse_proxy.transport': 'http'
+}
 ```
 
 **Why Caddy over Traefik:**
+
 - Simpler labels (2 vs 5+ for basic setup)
 - Automatic HTTPS with zero config
 - Lighter memory footprint (~40MB vs ~80MB)
 - Caddyfile readable if needed for debugging
 
 #### 3. Sails-Aware Intelligence
+
 - Custom Sails app analyzer (detects models, config, hooks)
 - Waterline introspection for admin panel generation
 - Sails lifecycle integration for REPL
@@ -1384,36 +1423,42 @@ const labelsWithWS = {
 ### Component Details
 
 #### Deployer Service
+
 - Clones Git repositories
 - Builds Docker images (buildpacks or Dockerfile)
 - Manages container lifecycle
 - Handles zero-downtime deployments
 
 #### Database Manager
+
 - Provisions database containers
 - Manages backups and restores
 - Handles connection pooling
 - Monitors database health
 
 #### Proxy Manager
+
 - Configures Caddy routes via Docker labels
 - Manages SSL certificates
 - Handles WebSocket upgrades
 - Implements rate limiting
 
 #### Helm Service
+
 - Spawns isolated Sails REPL sessions
 - Connects to target app's database
 - Loads app's models and helpers
 - Executes commands in sandboxed environment
 
 #### Bridge Generator
+
 - Introspects Sails models via Waterline
 - Generates CRUD interfaces
 - Handles file uploads
 - Manages relationships
 
 #### Monitor Service
+
 - Collects metrics from running containers
 - Aggregates logs
 - Tracks errors
@@ -1491,7 +1536,7 @@ The Git integration is the heart of push-to-deploy. Here's how it works:
 module.exports = {
   attributes: {
     type: { type: 'string', isIn: ['github', 'gitlab', 'bitbucket', 'custom'] },
-    name: { type: 'string' },  // "GitHub" or custom name
+    name: { type: 'string' }, // "GitHub" or custom name
 
     // OAuth credentials (encrypted)
     clientId: { type: 'string', encrypt: true },
@@ -1503,11 +1548,11 @@ module.exports = {
     installationId: { type: 'string' },
 
     // For self-hosted
-    apiUrl: { type: 'string' },  // e.g., https://gitlab.company.com/api/v4
+    apiUrl: { type: 'string' }, // e.g., https://gitlab.company.com/api/v4
 
     team: { model: 'team' }
   }
-};
+}
 
 // api/models/GitRepository.js
 module.exports = {
@@ -1515,14 +1560,14 @@ module.exports = {
     provider: { model: 'gitprovider' },
 
     // Repository identifiers
-    externalId: { type: 'string' },      // GitHub repo ID
-    fullName: { type: 'string' },        // "user/repo"
-    cloneUrl: { type: 'string' },        // git@github.com:user/repo.git
-    defaultBranch: { type: 'string' },   // "main"
+    externalId: { type: 'string' }, // GitHub repo ID
+    fullName: { type: 'string' }, // "user/repo"
+    cloneUrl: { type: 'string' }, // git@github.com:user/repo.git
+    defaultBranch: { type: 'string' }, // "main"
 
     // Access credentials (encrypted)
-    deployKeyId: { type: 'string' },     // GitHub deploy key ID (for deletion)
-    deployKeyPrivate: { type: 'string', encrypt: true },  // SSH private key
+    deployKeyId: { type: 'string' }, // GitHub deploy key ID (for deletion)
+    deployKeyPrivate: { type: 'string', encrypt: true }, // SSH private key
 
     // Webhook
     webhookId: { type: 'string' },
@@ -1535,24 +1580,24 @@ module.exports = {
     branchMappings: { type: 'json' }
     // e.g., { "main": "production", "develop": "staging", "pr-*": "preview" }
   }
-};
+}
 
 // api/models/DeployToken.js
 module.exports = {
   attributes: {
-    name: { type: 'string' },            // "GitHub Actions"
-    token: { type: 'string' },           // slp_live_abc123...
-    tokenHash: { type: 'string' },       // For lookup without storing plain token
+    name: { type: 'string' }, // "GitHub Actions"
+    token: { type: 'string' }, // slp_live_abc123...
+    tokenHash: { type: 'string' }, // For lookup without storing plain token
 
-    scopes: { type: 'json' },            // ["deploy", "logs"]
+    scopes: { type: 'json' }, // ["deploy", "logs"]
 
     lastUsedAt: { type: 'number' },
-    expiresAt: { type: 'number' },       // Optional expiry
+    expiresAt: { type: 'number' }, // Optional expiry
 
-    app: { model: 'app' },               // Scoped to specific app
-    user: { model: 'user' }              // Who created it
+    app: { model: 'app' }, // Scoped to specific app
+    user: { model: 'user' } // Who created it
   }
-};
+}
 ```
 
 ##### Webhook Endpoint
@@ -1561,17 +1606,17 @@ module.exports = {
 // api/controllers/webhook/github.js
 module.exports = {
   fn: async function (req, res) {
-    const signature = req.headers['x-hub-signature-256'];
-    const event = req.headers['x-github-event'];
-    const payload = req.body;
+    const signature = req.headers['x-hub-signature-256']
+    const event = req.headers['x-github-event']
+    const payload = req.body
 
     // 1. Find repository by webhook
     const repo = await GitRepository.findOne({
       externalId: String(payload.repository.id)
-    });
+    })
 
     if (!repo) {
-      return res.notFound();
+      return res.notFound()
     }
 
     // 2. Verify signature
@@ -1579,31 +1624,31 @@ module.exports = {
       req.rawBody,
       signature,
       repo.webhookSecret
-    );
+    )
 
     if (!isValid) {
-      return res.forbidden('Invalid signature');
+      return res.forbidden('Invalid signature')
     }
 
     // 3. Handle event
     switch (event) {
       case 'push':
-        await sails.helpers.git.handlePushEvent(repo, payload);
-        break;
+        await sails.helpers.git.handlePushEvent(repo, payload)
+        break
 
       case 'pull_request':
-        await sails.helpers.git.handlePullRequestEvent(repo, payload);
-        break;
+        await sails.helpers.git.handlePullRequestEvent(repo, payload)
+        break
 
       case 'delete':
         // Branch deleted - clean up preview environment
-        await sails.helpers.git.handleDeleteEvent(repo, payload);
-        break;
+        await sails.helpers.git.handleDeleteEvent(repo, payload)
+        break
     }
 
-    return res.ok({ received: true });
+    return res.ok({ received: true })
   }
-};
+}
 ```
 
 ##### CLI Deploy Token Flow
@@ -1612,42 +1657,42 @@ module.exports = {
 // packages/cli/src/commands/slide.js
 async function slide(options) {
   // 1. Check for token (CI/CD mode)
-  const token = process.env.SLIPWAY_TOKEN || options.token;
+  const token = process.env.SLIPWAY_TOKEN || options.token
 
   if (token) {
     // Token-based deploy (CI/CD)
-    return await deployWithToken(token, options);
+    return await deployWithToken(token, options)
   }
 
   // 2. Check for saved credentials (interactive mode)
-  const config = await loadConfig();
+  const config = await loadConfig()
 
   if (!config.server || !config.sessionToken) {
-    console.log('Not logged in. Run: slipway login');
-    process.exit(1);
+    console.log('Not logged in. Run: slipway login')
+    process.exit(1)
   }
 
   // 3. Check if current directory is linked to an app
-  const linkedApp = await getLinkedApp();
+  const linkedApp = await getLinkedApp()
 
   if (!linkedApp) {
-    console.log('Not linked to an app. Run: slipway link');
-    process.exit(1);
+    console.log('Not linked to an app. Run: slipway link')
+    process.exit(1)
   }
 
   // 4. Package and upload local files
   const tarball = await createTarball({
     exclude: ['node_modules', '.git', '.env', '*.log']
-  });
+  })
 
   // 5. Upload and trigger deploy
   const deployment = await api.post(`/apps/${linkedApp.id}/deploy`, {
     source: 'cli-direct',
     tarball: tarball.toString('base64')
-  });
+  })
 
   // 6. Stream logs
-  await streamDeploymentLogs(deployment.id);
+  await streamDeploymentLogs(deployment.id)
 }
 ```
 
@@ -1739,11 +1784,11 @@ slipway/
 
 ### Package Structure
 
-| Package | npm Name | Purpose |
-|---------|----------|---------|
-| Root (`/`) | (Docker image) | The Slipway dashboard - manage apps from your VPS |
-| `packages/cli` | `slipway` | CLI tool - `npx slipway slide` |
-| `packages/hook` | `sails-hook-slipway` | Hook for Sails apps - Bridge, Helm, telemetry |
+| Package         | npm Name             | Purpose                                           |
+| --------------- | -------------------- | ------------------------------------------------- |
+| Root (`/`)      | (Docker image)       | The Slipway dashboard - manage apps from your VPS |
+| `packages/cli`  | `slipway`            | CLI tool - `npx slipway slide`                    |
+| `packages/hook` | `sails-hook-slipway` | Hook for Sails apps - Bridge, Helm, telemetry     |
 
 ### Dashboard Dependencies (root package.json)
 
@@ -1792,6 +1837,7 @@ slipway/
 ```
 
 **Usage:**
+
 ```bash
 npx slipway login
 npx slipway slide              # Deploy!
@@ -1828,6 +1874,7 @@ npx slipway helm myapp
 ```
 
 **What the hook provides:**
+
 - `/slipway/bridge` - The Bridge (data management)
 - `/slipway/helm` - The Helm (REPL)
 - `/slipway/quest` - Quest dashboard (if sails-quest installed)
@@ -1841,22 +1888,26 @@ npx slipway helm myapp
 Users can access the Bridge, Helm, Quest, and Content in **two ways**:
 
 ### 1. Direct Access (via app URL)
+
 ```
 myapp.example.com/slipway/bridge
 myapp.example.com/slipway/helm
 myapp.example.com/slipway/quest
 myapp.example.com/slipway/content
 ```
+
 - Requires separate authentication per app
 - Good for content editors who only need one app
 
 ### 2. Via Slipway Dashboard (centralized)
+
 ```
 slipway.yourdomain.com/app/myapp/bridge
 slipway.yourdomain.com/app/myapp/helm
 slipway.yourdomain.com/app/myapp/quest
 slipway.yourdomain.com/app/myapp/content
 ```
+
 - Single sign-on through Slipway Dashboard
 - Dashboard proxies/embeds the app's control panel
 - Good for developers managing multiple apps
@@ -1917,6 +1968,7 @@ The Slipway Dashboard acts as a secure gateway:
 Two levels of permissions work together:
 
 **Dashboard Permissions** (who can access which apps):
+
 ```javascript
 {
   // Global roles
@@ -1930,6 +1982,7 @@ Two levels of permissions work together:
 ```
 
 **App-Level Permissions** (fine-grained data access):
+
 ```javascript
 {
   'user:read': ['admin', 'support'],
@@ -1940,6 +1993,7 @@ Two levels of permissions work together:
 ```
 
 This allows scenarios like:
+
 - **Content Editor Sarah**: Can only access myapp's Content CMS
 - **Support Mike**: Can view Bridge (read-only) across all apps
 - **Developer Alex**: Full access to everything
@@ -1975,9 +2029,11 @@ OpenTelemetry provides standardized observability - traces, metrics, logs.
 
 ```javascript
 // packages/hook/lib/telemetry/index.js
-const { NodeSDK } = require('@opentelemetry/sdk-node');
-const { OTLPTraceExporter } = require('@opentelemetry/exporter-otlp-http');
-const { getNodeAutoInstrumentations } = require('@opentelemetry/auto-instrumentations-node');
+const { NodeSDK } = require('@opentelemetry/sdk-node')
+const { OTLPTraceExporter } = require('@opentelemetry/exporter-otlp-http')
+const {
+  getNodeAutoInstrumentations
+} = require('@opentelemetry/auto-instrumentations-node')
 
 module.exports = function initTelemetry(sails) {
   const sdk = new NodeSDK({
@@ -1992,15 +2048,15 @@ module.exports = function initTelemetry(sails) {
         '@opentelemetry/instrumentation-express': { enabled: true }
       })
     ]
-  });
+  })
 
-  sdk.start();
+  sdk.start()
 
   // Custom Sails instrumentation
-  instrumentWaterlineQueries(sails);
-  instrumentSailsActions(sails);
-  instrumentQuestJobs(sails);
-};
+  instrumentWaterlineQueries(sails)
+  instrumentSailsActions(sails)
+  instrumentQuestJobs(sails)
+}
 ```
 
 ### What You See in Dashboard
@@ -2017,6 +2073,7 @@ module.exports = function initTelemetry(sails) {
 ## Tunneling (Public URLs for Local Dev)
 
 Expose your local Sails app to the internet for:
+
 - Webhook testing (Stripe, GitHub, etc.)
 - Sharing previews with clients
 - Mobile device testing
@@ -2046,32 +2103,34 @@ $ npx slipway tunnel --subdomain=preview-feature-x
 
 ### Implementation Options
 
-| Option | Pros | Cons |
-|--------|------|------|
-| **localtunnel** | Simple, npm package | Unreliable, rate limits |
-| **Cloudflare Tunnel** | Free, fast, reliable | Requires cloudflared binary |
-| **Self-hosted (bore/rathole)** | Full control | More setup |
-| **Slipway Tunnel Server** | Integrated, branded URLs | Need to build/host |
+| Option                         | Pros                     | Cons                        |
+| ------------------------------ | ------------------------ | --------------------------- |
+| **localtunnel**                | Simple, npm package      | Unreliable, rate limits     |
+| **Cloudflare Tunnel**          | Free, fast, reliable     | Requires cloudflared binary |
+| **Self-hosted (bore/rathole)** | Full control             | More setup                  |
+| **Slipway Tunnel Server**      | Integrated, branded URLs | Need to build/host          |
 
 **Recommended**: Start with Cloudflare Tunnel integration, consider self-hosted later.
 
 ```javascript
 // packages/cli/commands/tunnel.js
-const { spawn } = require('child_process');
+const { spawn } = require('child_process')
 
 async function tunnel(port, options) {
   // Check if cloudflared is installed
   if (await hasCloudflared()) {
     // Use Cloudflare Tunnel (free, reliable)
     const proc = spawn('cloudflared', [
-      'tunnel', '--url', `http://localhost:${port}`
-    ]);
+      'tunnel',
+      '--url',
+      `http://localhost:${port}`
+    ])
     // Parse output for URL...
   } else {
     // Fall back to localtunnel
-    const localtunnel = require('localtunnel');
-    const tunnel = await localtunnel({ port });
-    console.log(`Public URL: ${tunnel.url}`);
+    const localtunnel = require('localtunnel')
+    const tunnel = await localtunnel({ port })
+    console.log(`Public URL: ${tunnel.url}`)
   }
 }
 ```
@@ -2113,31 +2172,31 @@ If the deployed app uses **sails-quest** for job queues:
 
 ```javascript
 // packages/hook/lib/quest/index.js
-module.exports = function(sails) {
+module.exports = function (sails) {
   // Check if sails-quest is installed
   if (!sails.hooks.quest) {
-    return { routes: {} };
+    return { routes: {} }
   }
 
   return {
     routes: {
       before: {
         'GET /slipway/quest': async (req, res) => {
-          const stats = await sails.helpers.quest.getStats();
-          const failed = await sails.helpers.quest.getFailedJobs();
-          const workers = await sails.helpers.quest.getWorkers();
+          const stats = await sails.helpers.quest.getStats()
+          const failed = await sails.helpers.quest.getFailedJobs()
+          const workers = await sails.helpers.quest.getWorkers()
 
-          res.view('slipway/quest', { stats, failed, workers });
+          res.view('slipway/quest', { stats, failed, workers })
         },
 
         'POST /slipway/quest/retry/:jobId': async (req, res) => {
-          await sails.helpers.quest.retryJob(req.params.jobId);
-          res.redirect('/slipway/quest');
+          await sails.helpers.quest.retryJob(req.params.jobId)
+          res.redirect('/slipway/quest')
         }
       }
     }
-  };
-};
+  }
+}
 ```
 
 ---
@@ -2175,6 +2234,7 @@ If the deployed app uses **sails-content**:
 ### Non-Technical User Experience
 
 The CMS interface is designed for non-developers:
+
 - Visual editor (no markdown required)
 - Drag-and-drop media uploads
 - Preview before publishing
@@ -2386,18 +2446,19 @@ Week 11-12: Sails Native
 
 ### Resource Footprint
 
-| Component | Memory Target |
-|-----------|---------------|
-| Slipway Server | ~80MB |
-| Caddy | ~40MB |
-| SQLite | embedded |
-| **Total** | **~120MB** |
+| Component      | Memory Target |
+| -------------- | ------------- |
+| Slipway Server | ~80MB         |
+| Caddy          | ~40MB         |
+| SQLite         | embedded      |
+| **Total**      | **~120MB**    |
 
 This is **7x lighter** than Coolify (~800MB-1GB).
 
 ### Dashboard Design System
 
 Inspired by Linear and Resend:
+
 - Dark mode first (with light mode option)
 - Keyboard shortcuts everywhere
 - Command palette (Cmd+K)
@@ -2501,13 +2562,13 @@ A power-user feature inspired by Raycast, Linear, and VS Code. Press `Cmd+K` (Ma
 
 #### Command Types
 
-| Type | Examples | Behavior |
-|------|----------|----------|
-| **Actions** | Deploy, Rollback, Restart | Execute immediately or show sub-menu |
-| **Navigation** | Go to project, Open settings | Router navigation |
-| **Search** | Find project, Find service | Filter results as you type |
-| **Quick Access** | Recent projects, Pinned items | Show personalized results |
-| **Contextual** | Copy DATABASE_URL (on Dock) | Only shown in relevant context |
+| Type             | Examples                      | Behavior                             |
+| ---------------- | ----------------------------- | ------------------------------------ |
+| **Actions**      | Deploy, Rollback, Restart     | Execute immediately or show sub-menu |
+| **Navigation**   | Go to project, Open settings  | Router navigation                    |
+| **Search**       | Find project, Find service    | Filter results as you type           |
+| **Quick Access** | Recent projects, Pinned items | Show personalized results            |
+| **Contextual**   | Copy DATABASE_URL (on Dock)   | Only shown in relevant context       |
 
 #### Implementation
 
@@ -2523,10 +2584,9 @@ export function useCommandRegistry() {
     commands.set(command.id, {
       ...command,
       // Normalize keywords for search
-      _searchText: [
-        command.title,
-        ...(command.keywords || [])
-      ].join(' ').toLowerCase()
+      _searchText: [command.title, ...(command.keywords || [])]
+        .join(' ')
+        .toLowerCase()
     })
   }
 
@@ -2535,15 +2595,19 @@ export function useCommandRegistry() {
   }
 
   function getAll(context = {}) {
-    return Array.from(commands.values())
-      .filter(cmd => !cmd.context || cmd.context(context))
+    return Array.from(commands.values()).filter(
+      (cmd) => !cmd.context || cmd.context(context)
+    )
   }
 
   function execute(id, ...args) {
     const cmd = commands.get(id)
     if (cmd) {
       // Track in history
-      history.value = [id, ...history.value.filter(h => h !== id)].slice(0, 10)
+      history.value = [id, ...history.value.filter((h) => h !== id)].slice(
+        0,
+        10
+      )
       return cmd.action(...args)
     }
   }
@@ -2607,13 +2671,13 @@ export function fuzzySearch(query, items, getText) {
   if (!query) return items
 
   return items
-    .map(item => {
+    .map((item) => {
       const result = fuzzyMatch(query, getText(item))
       return result ? { item, score: result.score } : null
     })
     .filter(Boolean)
     .sort((a, b) => b.score - a.score)
-    .map(r => r.item)
+    .map((r) => r.item)
 }
 ```
 
@@ -2638,7 +2702,7 @@ const parentCommand = ref(null)
 
 // Get commands based on current context
 const currentContext = computed(() => ({
-  route: router.currentRoute.value,
+  route: router.currentRoute.value
   // Add more context as needed
 }))
 
@@ -2646,12 +2710,13 @@ const allCommands = computed(() => getAll(currentContext.value))
 
 // Filter and group results
 const results = computed(() => {
-  let cmds = mode.value === 'submenu' && parentCommand.value?.children
-    ? parentCommand.value.children()
-    : allCommands.value
+  let cmds =
+    mode.value === 'submenu' && parentCommand.value?.children
+      ? parentCommand.value.children()
+      : allCommands.value
 
   if (query.value) {
-    cmds = fuzzySearch(query.value, cmds, c => c._searchText || c.title)
+    cmds = fuzzySearch(query.value, cmds, (c) => c._searchText || c.title)
   }
 
   // Group by category
@@ -2660,7 +2725,7 @@ const results = computed(() => {
   // Add recent first if no query
   if (!query.value && mode.value === 'root') {
     const recent = history.value
-      .map(id => cmds.find(c => c.id === id))
+      .map((id) => cmds.find((c) => c.id === id))
       .filter(Boolean)
       .slice(0, 3)
 
@@ -2670,7 +2735,7 @@ const results = computed(() => {
   }
 
   // Group remaining by their group property
-  cmds.forEach(cmd => {
+  cmds.forEach((cmd) => {
     if (!query.value && history.value.includes(cmd.id)) return // Skip recent
     const group = cmd.group || 'Other'
     if (!groups[group]) groups[group] = []
@@ -2681,9 +2746,7 @@ const results = computed(() => {
 })
 
 // Flat list for keyboard navigation
-const flatResults = computed(() =>
-  Object.values(results.value).flat()
-)
+const flatResults = computed(() => Object.values(results.value).flat())
 
 // Keyboard handling
 function handleKeydown(e) {
@@ -2789,18 +2852,28 @@ onUnmounted(() => {
         <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" />
 
         <!-- Palette -->
-        <div class="relative w-full max-w-xl rounded-xl border border-gray-200 bg-white shadow-2xl dark:border-gray-700 dark:bg-gray-900">
+        <div
+          class="relative w-full max-w-xl rounded-xl border border-gray-200 bg-white shadow-2xl dark:border-gray-700 dark:bg-gray-900"
+        >
           <!-- Search input -->
-          <div class="flex items-center border-b border-gray-200 px-4 dark:border-gray-700">
+          <div
+            class="flex items-center border-b border-gray-200 px-4 dark:border-gray-700"
+          >
             <SearchIcon class="h-5 w-5 text-gray-400" />
             <input
               ref="inputRef"
               v-model="query"
               type="text"
               class="w-full bg-transparent px-3 py-4 text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:text-white"
-              :placeholder="mode === 'submenu' ? parentCommand?.title : 'Type a command or search...'"
+              :placeholder="
+                mode === 'submenu'
+                  ? parentCommand?.title
+                  : 'Type a command or search...'
+              "
             />
-            <kbd class="hidden rounded bg-gray-100 px-2 py-1 text-xs text-gray-500 dark:bg-gray-800 sm:inline">
+            <kbd
+              class="hidden rounded bg-gray-100 px-2 py-1 text-xs text-gray-500 dark:bg-gray-800 sm:inline"
+            >
               esc
             </kbd>
           </div>
@@ -2808,7 +2881,9 @@ onUnmounted(() => {
           <!-- Results -->
           <div class="max-h-80 overflow-y-auto p-2">
             <template v-for="(commands, group) in results" :key="group">
-              <div class="px-2 py-1.5 text-xs font-medium text-gray-500 dark:text-gray-400">
+              <div
+                class="px-2 py-1.5 text-xs font-medium text-gray-500 dark:text-gray-400"
+              >
                 {{ group }}
               </div>
               <button
@@ -2824,20 +2899,32 @@ onUnmounted(() => {
                 ]"
               >
                 <span class="text-lg">{{ cmd.icon }}</span>
-                <span class="flex-1 text-gray-900 dark:text-white">{{ cmd.title }}</span>
-                <kbd v-if="cmd.shortcut" class="text-xs text-gray-400">{{ cmd.shortcut }}</kbd>
-                <ChevronRightIcon v-if="cmd.children" class="h-4 w-4 text-gray-400" />
+                <span class="flex-1 text-gray-900 dark:text-white">{{
+                  cmd.title
+                }}</span>
+                <kbd v-if="cmd.shortcut" class="text-xs text-gray-400">{{
+                  cmd.shortcut
+                }}</kbd>
+                <ChevronRightIcon
+                  v-if="cmd.children"
+                  class="h-4 w-4 text-gray-400"
+                />
               </button>
             </template>
 
             <!-- Empty state -->
-            <div v-if="!flatResults.length" class="py-8 text-center text-sm text-gray-500">
+            <div
+              v-if="!flatResults.length"
+              class="py-8 text-center text-sm text-gray-500"
+            >
               No commands found for "{{ query }}"
             </div>
           </div>
 
           <!-- Footer -->
-          <div class="flex items-center justify-between border-t border-gray-200 px-4 py-2 text-xs text-gray-500 dark:border-gray-700">
+          <div
+            class="flex items-center justify-between border-t border-gray-200 px-4 py-2 text-xs text-gray-500 dark:border-gray-700"
+          >
             <div class="flex gap-2">
               <span><kbd>↑↓</kbd> Navigate</span>
               <span><kbd>↵</kbd> Select</span>
@@ -2949,8 +3036,8 @@ export function registerCoreCommands() {
 // Dynamic command generators
 function getDeployableEnvironments() {
   // Fetch from store or API
-  return projects.value.flatMap(project =>
-    project.environments.map(env => ({
+  return projects.value.flatMap((project) =>
+    project.environments.map((env) => ({
       id: `deploy.${project.slug}.${env.slug}`,
       title: `${project.name} / ${env.name}`,
       icon: env.slug === 'production' ? '🔴' : '🟡',
@@ -2962,19 +3049,19 @@ function getDeployableEnvironments() {
 
 #### Keyboard Shortcuts
 
-| Shortcut | Action |
-|----------|--------|
-| `⌘K` / `Ctrl+K` | Open command palette |
-| `⌘D` | Deploy (opens project selector) |
-| `⌘R` | Rollback (opens deployment selector) |
-| `⌘P` | Go to project |
-| `⌘,` | Open settings |
-| `⌘⇧R` | Restart service |
-| `⌘.` | Quick actions menu |
-| `↑↓` | Navigate results |
-| `↵` | Execute selected |
-| `⎋` | Close / Go back |
-| `⌘⌫` | Clear search |
+| Shortcut        | Action                               |
+| --------------- | ------------------------------------ |
+| `⌘K` / `Ctrl+K` | Open command palette                 |
+| `⌘D`            | Deploy (opens project selector)      |
+| `⌘R`            | Rollback (opens deployment selector) |
+| `⌘P`            | Go to project                        |
+| `⌘,`            | Open settings                        |
+| `⌘⇧R`           | Restart service                      |
+| `⌘.`            | Quick actions menu                   |
+| `↑↓`            | Navigate results                     |
+| `↵`             | Execute selected                     |
+| `⎋`             | Close / Go back                      |
+| `⌘⌫`            | Clear search                         |
 
 #### Advanced Features
 
@@ -2987,10 +3074,15 @@ register({
   icon: '🔧',
   group: 'Actions',
   children: () => [
-    { id: 'service.restart', title: 'Restart', icon: '🔄', action: restartService },
+    {
+      id: 'service.restart',
+      title: 'Restart',
+      icon: '🔄',
+      action: restartService
+    },
     { id: 'service.stop', title: 'Stop', icon: '⏹️', action: stopService },
     { id: 'service.logs', title: 'View Logs', icon: '📜', action: viewLogs },
-    { id: 'service.shell', title: 'Open Shell', icon: '💻', action: openShell },
+    { id: 'service.shell', title: 'Open Shell', icon: '💻', action: openShell }
   ]
 })
 ```
@@ -3006,7 +3098,7 @@ register({
   // Async children - fetched as user types
   children: async (query) => {
     const projects = await searchProjects(query)
-    return projects.map(p => ({
+    return projects.map((p) => ({
       id: `project.${p.id}`,
       title: p.name,
       icon: '📁',
@@ -3025,7 +3117,7 @@ const pinnedCommands = useLocalStorage('slipway:cmd-pinned', [])
 
 // Show at top of results
 const recentCommands = computed(() =>
-  commandHistory.value.slice(0, 5).map(id => commands.get(id))
+  commandHistory.value.slice(0, 5).map((id) => commands.get(id))
 )
 ```
 
@@ -3044,6 +3136,7 @@ curl -fsSL https://raw.githubusercontent.com/sailscastshq/slipway/main/install.s
 ```
 
 This will:
+
 1. Check system requirements (Docker, Node.js)
 2. Download Slipway
 3. Run initial setup wizard
@@ -3058,9 +3151,9 @@ services:
   slipway:
     image: slipway/slipway:latest
     ports:
-      - "3000:1337"
-      - "443:443"
-      - "80:80"
+      - '3000:1337'
+      - '443:443'
+      - '80:80'
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - slipway_data:/data
@@ -3105,6 +3198,7 @@ npm start
 ### System Requirements
 
 **Minimum:**
+
 - 1 CPU core
 - 1GB RAM
 - 10GB disk space
@@ -3112,6 +3206,7 @@ npm start
 - Node.js 18+ (for CLI)
 
 **Recommended:**
+
 - 2+ CPU cores
 - 4GB+ RAM
 - 50GB+ SSD
@@ -3126,6 +3221,7 @@ npm start
 The true test of Slipway's viability: **migrate three production Sails applications, their databases, and Redis instances from Coolify to Slipway** and have it feel native.
 
 #### Current Setup (Coolify)
+
 - 3 Sails.js fullstack applications
 - PostgreSQL database
 - Redis instance
@@ -3133,31 +3229,35 @@ The true test of Slipway's viability: **migrate three production Sails applicati
 
 #### Migration Goals
 
-| Requirement | How Slipway Handles It |
-|-------------|------------------------|
-| Deploy 3 Sails apps | Git integration, auto-detect Sails, configure environment |
+| Requirement         | How Slipway Handles It                                        |
+| ------------------- | ------------------------------------------------------------- |
+| Deploy 3 Sails apps | Git integration, auto-detect Sails, configure environment     |
 | PostgreSQL database | Database provisioning, import data, update connection strings |
-| Redis instance | Redis container, session/cache configuration |
-| Custom domains | Domain configuration, automatic SSL |
-| Zero downtime | Blue-green deployment during migration |
+| Redis instance      | Redis container, session/cache configuration                  |
+| Custom domains      | Domain configuration, automatic SSL                           |
+| Zero downtime       | Blue-green deployment during migration                        |
 
 #### What Makes It Feel "Sails Native"
 
 1. **Auto-Detection**
+
    - Slipway sees `package.json` → detects Sails
    - Reads `config/datastores.js` → knows database config
    - Finds `api/models/` → can generate admin panel
 
 2. **Integrated Helm**
+
    - Click "Helm" → get a REPL connected to the app
    - Run `await User.find()` → see results
    - Like having Guppy built into the platform
 
 3. **Quest Integration**
+
    - If app uses Sails Quest, queue dashboard appears
    - See job status, retry failed jobs, monitor workers
 
 4. **Content Detection**
+
    - If Sails Content is present, CMS interface enables
    - Manage content without separate CMS deploy
 
@@ -3207,11 +3307,13 @@ slipway helm app1
 #### Target Audience
 
 1. **Sails.js Developers** - Primary audience
+
    - Estimated community: 10,000-50,000 active developers
    - Pain point: No integrated deployment solution
    - Currently using: Coolify, Dokploy, manual Docker, Heroku, Railway
 
 2. **The Boring JavaScript Stack Users**
+
    - Growing community around Vue/React + Inertia + Sails
    - Values simplicity over complexity
    - Likely early adopters
@@ -3223,27 +3325,28 @@ slipway helm app1
 
 #### Why They Would Move
 
-| Reason | Weight |
-|--------|--------|
-| Sails-native understanding (REPL, models, etc.) | ★★★★★ |
-| Integrated Bridge (no separate setup) | ★★★★☆ |
-| All-in-one solution (deploy + monitor + admin) | ★★★★☆ |
-| Lighter than Coolify | ★★★☆☆ |
-| Beautiful, modern dashboard | ★★★☆☆ |
-| Open source, self-hostable | ★★★★☆ |
+| Reason                                          | Weight |
+| ----------------------------------------------- | ------ |
+| Sails-native understanding (REPL, models, etc.) | ★★★★★  |
+| Integrated Bridge (no separate setup)           | ★★★★☆  |
+| All-in-one solution (deploy + monitor + admin)  | ★★★★☆  |
+| Lighter than Coolify                            | ★★★☆☆  |
+| Beautiful, modern dashboard                     | ★★★☆☆  |
+| Open source, self-hostable                      | ★★★★☆  |
 
 #### Why They Might Not Move
 
-| Concern | Mitigation |
-|---------|------------|
-| New project, unproven | Focus on stability, clear roadmap |
-| Fear of vendor lock-in | Open source, standard Docker containers |
+| Concern                     | Mitigation                                    |
+| --------------------------- | --------------------------------------------- |
+| New project, unproven       | Focus on stability, clear roadmap             |
+| Fear of vendor lock-in      | Open source, standard Docker containers       |
 | Already invested in Coolify | Migration tools, clear benefits documentation |
-| Learning curve | Excellent documentation, familiar patterns |
+| Learning curve              | Excellent documentation, familiar patterns    |
 
 #### Market Opportunity
 
 The Node.js deployment market is fragmented:
+
 - **Generic platforms** (Coolify, Dokploy) - Not framework-aware
 - **PaaS providers** (Railway, Render) - Limited control
 - **Enterprise** (Kubernetes) - Too complex for small teams
@@ -3261,18 +3364,18 @@ Laravel has Forge/Vapor, Rails has Hatchbox, Django has... not much.
 
 #### Complexity Assessment
 
-| Component | Complexity | Estimated Effort |
-|-----------|------------|------------------|
-| Core deployment engine | High | Major |
-| Database management | Medium | Moderate |
-| Proxy/SSL configuration | Medium | Moderate |
-| Sails REPL (Helm) | High | Major |
-| Bridge generator | High | Major |
-| Monitoring & metrics | Medium | Moderate |
-| Error tracking | Medium | Moderate |
-| Dashboard UI | Medium | Moderate |
-| CLI tool | Low | Minor |
-| Documentation | Medium | Ongoing |
+| Component               | Complexity | Estimated Effort |
+| ----------------------- | ---------- | ---------------- |
+| Core deployment engine  | High       | Major            |
+| Database management     | Medium     | Moderate         |
+| Proxy/SSL configuration | Medium     | Moderate         |
+| Sails REPL (Helm)       | High       | Major            |
+| Bridge generator        | High       | Major            |
+| Monitoring & metrics    | Medium     | Moderate         |
+| Error tracking          | Medium     | Moderate         |
+| Dashboard UI            | Medium     | Moderate         |
+| CLI tool                | Low        | Minor            |
+| Documentation           | Medium     | Ongoing          |
 
 **Total Assessment**: This is a **significant** project, comparable to building Coolify itself.
 
@@ -3280,41 +3383,46 @@ Laravel has Forge/Vapor, Rails has Hatchbox, Django has... not much.
 
 With AI coding assistants (Claude, Cursor, Copilot), productivity is greatly amplified:
 
-| Task | AI Assistance Level |
-|------|---------------------|
-| Boilerplate generation | ★★★★★ |
-| API endpoint creation | ★★★★★ |
-| UI component building | ★★★★☆ |
-| Docker configuration | ★★★★☆ |
-| Test writing | ★★★★☆ |
-| Documentation | ★★★★★ |
-| Complex algorithms (REPL sandboxing) | ★★★☆☆ |
-| System architecture | ★★★☆☆ |
+| Task                                 | AI Assistance Level |
+| ------------------------------------ | ------------------- |
+| Boilerplate generation               | ★★★★★               |
+| API endpoint creation                | ★★★★★               |
+| UI component building                | ★★★★☆               |
+| Docker configuration                 | ★★★★☆               |
+| Test writing                         | ★★★★☆               |
+| Documentation                        | ★★★★★               |
+| Complex algorithms (REPL sandboxing) | ★★★☆☆               |
+| System architecture                  | ★★★☆☆               |
 
 ### Recommended Approach
 
 #### Phase 1: MVP (Core Deployment)
+
 - Git-based deployment
 - Basic database provisioning
 - Caddy integration
 - Simple dashboard
 
 #### Phase 2: Sails Intelligence
+
 - Sails app detection
 - Basic Helm (REPL)
 - Model introspection
 
 #### Phase 3: The Bridge
+
 - Auto-generated CRUD
 - Basic field types
 - Relationship handling
 
 #### Phase 4: Observability
+
 - Log aggregation
 - Basic metrics
 - Error capture
 
 #### Phase 5: Polish & Cloud
+
 - Beautiful dashboard
 - Advanced features
 - Slipway Cloud offering
@@ -3322,6 +3430,7 @@ With AI coding assistants (Claude, Cursor, Copilot), productivity is greatly amp
 ### Leveraging Open Source
 
 Don't reinvent wheels:
+
 - **Caddy** - Reverse proxy with automatic HTTPS
 - **Litestream** - SQLite replication
 - **Sentry SDK patterns** - Error tracking approach
@@ -3331,6 +3440,7 @@ Don't reinvent wheels:
 ### Time Investment Reality
 
 With focused effort and AI assistance:
+
 - **MVP**: 2-3 months of dedicated work
 - **Usable v1.0**: 6-9 months
 - **Feature parity with vision**: 12-18 months
@@ -3343,88 +3453,88 @@ With focused effort and AI assistance:
 
 ### Comparison Matrix
 
-| Feature | Coolify | Dokku | Kamal | Slipway |
-|---------|---------|-------|-------|---------|
-| **Focus** | Generic | Generic | Rails-first | Sails-native |
-| **Open Source** | ✅ | ✅ | ✅ | ✅ |
-| **Self-Hosted** | ✅ | ✅ | ✅ | ✅ |
-| **Web Dashboard** | ✅ | ❌ (Pro only) | ❌ | ✅ |
-| **CLI** | Basic | ✅ Excellent | ✅ Excellent | ✅ Excellent |
-| **Git Push Deploy** | ✅ | ✅ | ❌ | ✅ |
-| **Config File** | ❌ | ❌ | ✅ | ✅ |
-| **Service Linking** | Manual | ✅ Auto | Manual | ✅ Auto |
-| **Bridge** | ❌ | ❌ | ❌ | ✅ Integrated |
-| **Framework REPL** | ❌ | ❌ | `exec` only | ✅ Sails Helm |
-| **Dev Mode** | ❌ | ❌ | ❌ | ✅ |
-| **Queue Dashboard** | ❌ | ❌ | ❌ | ✅ Quest |
-| **Transparent Docker** | ❌ Hidden | ❌ Hidden | ✅ | ✅ |
-| **Resource Usage** | Heavy | Light | Light | Light (goal) |
+| Feature                | Coolify   | Dokku         | Kamal        | Slipway       |
+| ---------------------- | --------- | ------------- | ------------ | ------------- |
+| **Focus**              | Generic   | Generic       | Rails-first  | Sails-native  |
+| **Open Source**        | ✅        | ✅            | ✅           | ✅            |
+| **Self-Hosted**        | ✅        | ✅            | ✅           | ✅            |
+| **Web Dashboard**      | ✅        | ❌ (Pro only) | ❌           | ✅            |
+| **CLI**                | Basic     | ✅ Excellent  | ✅ Excellent | ✅ Excellent  |
+| **Git Push Deploy**    | ✅        | ✅            | ❌           | ✅            |
+| **Config File**        | ❌        | ❌            | ✅           | ✅            |
+| **Service Linking**    | Manual    | ✅ Auto       | Manual       | ✅ Auto       |
+| **Bridge**             | ❌        | ❌            | ❌           | ✅ Integrated |
+| **Framework REPL**     | ❌        | ❌            | `exec` only  | ✅ Sails Helm |
+| **Dev Mode**           | ❌        | ❌            | ❌           | ✅            |
+| **Queue Dashboard**    | ❌        | ❌            | ❌           | ✅ Quest      |
+| **Transparent Docker** | ❌ Hidden | ❌ Hidden     | ✅           | ✅            |
+| **Resource Usage**     | Heavy     | Light         | Light        | Light (goal)  |
 
 ### Coolify
 
-| Aspect | Coolify | Slipway |
-|--------|---------|---------|
-| Focus | Generic (any app) | Sails-native |
-| Bridge | None built-in | Integrated |
-| REPL | None | Sails Helm |
-| Framework awareness | None | Deep Sails integration |
-| Resource usage | Higher (~1GB RAM) | Lighter (goal: <256MB) |
-| Maturity | Established | New |
-| Dashboard | Good | Better (Linear-inspired) |
-| Docker visibility | Hidden | Transparent |
+| Aspect              | Coolify           | Slipway                  |
+| ------------------- | ----------------- | ------------------------ |
+| Focus               | Generic (any app) | Sails-native             |
+| Bridge              | None built-in     | Integrated               |
+| REPL                | None              | Sails Helm               |
+| Framework awareness | None              | Deep Sails integration   |
+| Resource usage      | Higher (~1GB RAM) | Lighter (goal: <256MB)   |
+| Maturity            | Established       | New                      |
+| Dashboard           | Good              | Better (Linear-inspired) |
+| Docker visibility   | Hidden            | Transparent              |
 
 ### Dokku
 
-| Aspect | Dokku | Slipway |
-|--------|-------|---------|
-| CLI Design | ✅ Excellent (noun:verb) | ✅ Adopting this pattern |
-| Git Push | ✅ Native | ✅ Supported |
-| Service Linking | ✅ Auto DATABASE_URL | ✅ Adopting this |
-| Plugin System | ✅ Extensible | ✅ (future) |
-| Web Dashboard | ❌ (Pro only) | ✅ Built-in |
-| Bridge | ❌ | ✅ |
-| Framework REPL | ❌ | ✅ Sails Helm |
+| Aspect          | Dokku                    | Slipway                  |
+| --------------- | ------------------------ | ------------------------ |
+| CLI Design      | ✅ Excellent (noun:verb) | ✅ Adopting this pattern |
+| Git Push        | ✅ Native                | ✅ Supported             |
+| Service Linking | ✅ Auto DATABASE_URL     | ✅ Adopting this         |
+| Plugin System   | ✅ Extensible            | ✅ (future)              |
+| Web Dashboard   | ❌ (Pro only)            | ✅ Built-in              |
+| Bridge          | ❌                       | ✅                       |
+| Framework REPL  | ❌                       | ✅ Sails Helm            |
 
 ### Kamal
 
-| Aspect | Kamal | Slipway |
-|--------|-------|---------|
-| Config File | ✅ deploy.yml | ✅ config/slipway.js |
-| Transparency | ✅ Shows Docker commands | ✅ Adopting this |
-| Accessories | ✅ Databases as accessories | ✅ Adopting this |
-| Web Dashboard | ❌ CLI only | ✅ Built-in |
-| Dev Mode | ❌ | ✅ Local companion |
-| Framework | Rails-focused | Sails-native |
+| Aspect        | Kamal                       | Slipway              |
+| ------------- | --------------------------- | -------------------- |
+| Config File   | ✅ deploy.yml               | ✅ config/slipway.js |
+| Transparency  | ✅ Shows Docker commands    | ✅ Adopting this     |
+| Accessories   | ✅ Databases as accessories | ✅ Adopting this     |
+| Web Dashboard | ❌ CLI only                 | ✅ Built-in          |
+| Dev Mode      | ❌                          | ✅ Local companion   |
+| Framework     | Rails-focused               | Sails-native         |
 
 ### Dokploy
 
-| Aspect | Dokploy | Slipway |
-|--------|---------|---------|
-| Focus | Generic | Sails-native |
-| UI | Good | Better (goal) |
-| Bridge | None | Integrated |
-| REPL | None | Sails Helm |
+| Aspect | Dokploy | Slipway       |
+| ------ | ------- | ------------- |
+| Focus  | Generic | Sails-native  |
+| UI     | Good    | Better (goal) |
+| Bridge | None    | Integrated    |
+| REPL   | None    | Sails Helm    |
 
 ### Railway/Render
 
-| Aspect | Railway/Render | Slipway |
-|--------|----------------|---------|
-| Self-hosted | No | Yes |
-| Pricing | Pay per use | Free (self-hosted) |
-| Framework awareness | Limited | Deep Sails integration |
-| Data ownership | Their servers | Your servers |
-| Dev mode | ❌ | ✅ |
+| Aspect              | Railway/Render | Slipway                |
+| ------------------- | -------------- | ---------------------- |
+| Self-hosted         | No             | Yes                    |
+| Pricing             | Pay per use    | Free (self-hosted)     |
+| Framework awareness | Limited        | Deep Sails integration |
+| Data ownership      | Their servers  | Your servers           |
+| Dev mode            | ❌             | ✅                     |
 
 ### Laravel Forge
 
-| Aspect | Laravel Forge | Slipway |
-|--------|---------------|---------|
-| Framework | Laravel | Sails |
-| Open source | No | Yes |
-| Self-hosted | No | Yes |
-| Pricing | $19-39/month | Free |
-| Bridge | Separate (Nova) | Integrated |
-| REPL | Tinker (separate) | Helm (integrated) |
+| Aspect      | Laravel Forge     | Slipway           |
+| ----------- | ----------------- | ----------------- |
+| Framework   | Laravel           | Sails             |
+| Open source | No                | Yes               |
+| Self-hosted | No                | Yes               |
+| Pricing     | $19-39/month      | Free              |
+| Bridge      | Separate (Nova)   | Integrated        |
+| REPL        | Tinker (separate) | Helm (integrated) |
 
 ### What Slipway Uniquely Offers
 
@@ -3440,6 +3550,7 @@ With focused effort and AI assistance:
 ## Roadmap
 
 ### Phase 1: Foundation (v0.1)
+
 - [x] Project research and planning
 - [ ] Monorepo structure setup
 - [ ] Core Sails application scaffolding
@@ -3449,6 +3560,7 @@ With focused effort and AI assistance:
 - [ ] Basic Docker deployment engine
 
 ### Phase 2: Core Deployment (v0.2)
+
 - [ ] Application deployment pipeline
 - [ ] Environment variable management
 - [ ] Caddy integration for routing
@@ -3457,6 +3569,7 @@ With focused effort and AI assistance:
 - [ ] Basic deployment logs
 
 ### Phase 3: Database Layer (v0.3)
+
 - [ ] PostgreSQL provisioning
 - [ ] MySQL provisioning
 - [ ] SQLite support
@@ -3465,6 +3578,7 @@ With focused effort and AI assistance:
 - [ ] Connection management
 
 ### Phase 4: Sails Intelligence (v0.4)
+
 - [ ] Sails app auto-detection
 - [ ] Sails Helm (REPL) - MVP
 - [ ] Model introspection
@@ -3472,6 +3586,7 @@ With focused effort and AI assistance:
 - [ ] Lifecycle awareness
 
 ### Phase 5: The Bridge (v0.5)
+
 - [ ] Model-based CRUD generation
 - [ ] Field type handling
 - [ ] List views with filtering
@@ -3479,6 +3594,7 @@ With focused effort and AI assistance:
 - [ ] Basic permissions
 
 ### Phase 6: Observability (v0.6)
+
 - [ ] Log aggregation
 - [ ] Basic metrics collection
 - [ ] Error capture
@@ -3486,12 +3602,14 @@ With focused effort and AI assistance:
 - [ ] Uptime checks
 
 ### Phase 7: Queue Management (v0.7)
+
 - [ ] Sails Quest integration
 - [ ] Job dashboard
 - [ ] Retry functionality
 - [ ] Worker monitoring
 
 ### Phase 8: Polish (v0.8)
+
 - [ ] Dashboard design refinement
 - [ ] Keyboard shortcuts
 - [ ] Command palette
@@ -3499,11 +3617,13 @@ With focused effort and AI assistance:
 - [ ] Team collaboration
 
 ### Phase 9: CMS Integration (v0.9)
+
 - [ ] Sails Content detection
 - [ ] Content management interface
 - [ ] Media library
 
 ### Phase 10: Production Ready (v1.0)
+
 - [ ] Security audit
 - [ ] Performance optimization
 - [ ] Documentation complete
@@ -3511,6 +3631,7 @@ With focused effort and AI assistance:
 - [ ] Community launch
 
 ### Future: Slipway Cloud (v2.0+)
+
 - [ ] Managed hosting offering
 - [ ] Multi-region deployment
 - [ ] Enhanced analytics
@@ -3529,14 +3650,14 @@ The dashboard periodically checks for updates:
 ```javascript
 // api/helpers/check-for-updates.js
 module.exports = {
-  fn: async function() {
-    const currentVersion = sails.config.slipway.version;
+  fn: async function () {
+    const currentVersion = sails.config.slipway.version
 
     // Check GitHub releases API (no auth needed for public repo)
     const response = await fetch(
       'https://api.github.com/repos/sailscastshq/slipway/releases/latest'
-    );
-    const latest = await response.json();
+    )
+    const latest = await response.json()
 
     return {
       currentVersion,
@@ -3544,9 +3665,9 @@ module.exports = {
       updateAvailable: semver.gt(latest.tag_name, currentVersion),
       releaseNotes: latest.body,
       releaseUrl: latest.html_url
-    };
+    }
   }
-};
+}
 ```
 
 ### Update Notification Banner
@@ -3569,19 +3690,19 @@ The dashboard can trigger its own update:
 ```javascript
 // api/controllers/system/update.js
 module.exports = {
-  fn: async function() {
+  fn: async function () {
     // 1. Pull latest image
-    await sails.helpers.docker.pullImage('ghcr.io/sailscastshq/slipway:latest');
+    await sails.helpers.docker.pullImage('ghcr.io/sailscastshq/slipway:latest')
 
     // 2. Signal the container orchestrator to restart with new image
     // This is done via a sidecar or Docker socket
-    await sails.helpers.docker.recreateContainer('slipway');
+    await sails.helpers.docker.recreateContainer('slipway')
 
     // The response won't reach the client since we're restarting,
     // but the frontend handles this gracefully
-    return { updating: true };
+    return { updating: true }
   }
-};
+}
 ```
 
 #### 2. CLI Update
@@ -3613,12 +3734,12 @@ Users can enable automatic updates in settings:
 // config/slipway.js
 module.exports.slipway = {
   updates: {
-    autoCheck: true,           // Check for updates daily
-    autoUpdate: false,         // Don't auto-update by default (opt-in)
-    channel: 'stable',         // 'stable' | 'beta' | 'nightly'
-    notifyOnly: true           // Just show banner, don't auto-update
+    autoCheck: true, // Check for updates daily
+    autoUpdate: false, // Don't auto-update by default (opt-in)
+    channel: 'stable', // 'stable' | 'beta' | 'nightly'
+    notifyOnly: true // Just show banner, don't auto-update
   }
-};
+}
 ```
 
 ### Graceful Restart During Update
@@ -3633,9 +3754,11 @@ To avoid disrupting users during update:
 ```javascript
 // The Inertia version changes with each release
 // This forces clients to reload and get fresh assets
-app.use(inertia({
-  version: () => sails.config.slipway.version
-}));
+app.use(
+  inertia({
+    version: () => sails.config.slipway.version
+  })
+)
 ```
 
 ### Changelog & Migration Notes
@@ -3701,16 +3824,19 @@ services:
 ### Why "Slipway"?
 
 A **slipway** is a ramp that slopes into water, used for:
+
 - **Building ships** - Where ships are constructed
 - **Launching ships** - Ships slide into the water
 - **Maintenance** - Ships are pulled up for repairs
 
 This perfectly captures the deployment platform concept:
+
 - **Build** - Your app is prepared
 - **Launch** - Slides smoothly into production
 - **Maintain** - Monitor, update, manage
 
 The name is:
+
 - **Nautical** - Fits with Sails.js theming
 - **Memorable** - Unique, not commonly used in tech
 - **Evocative** - Implies smooth, effortless deployment
@@ -3721,24 +3847,28 @@ The name is:
 ## Appendix B: Dashboard Design Inspiration
 
 ### Linear
+
 - Keyboard-first navigation
 - Clean sidebar
 - Subtle animations
 - Dark theme excellence
 
 ### Resend
+
 - Developer-focused simplicity
 - Clear information hierarchy
 - Beautiful typography
 - Functional minimalism
 
 ### Vercel
+
 - Deployment-focused UI
 - Real-time logs
 - Environment management
 - Git integration UI
 
 ### Target Aesthetic
+
 - **Dark mode** default (light mode option)
 - **Inter** for UI text
 - **JetBrains Mono** for code
@@ -3783,13 +3913,13 @@ The deploy action uses a **slide-to-deploy** interaction instead of a traditiona
 
 **Why Slide Instead of Click:**
 
-| Benefit | Description |
-|---------|-------------|
-| **Prevents accidents** | Can't misclick a production deploy |
-| **Intentional action** | Requires deliberate physical gesture |
-| **Brand reinforcement** | "Slide" = Slipway's core metaphor |
-| **Satisfying UX** | Tactile, game-like, memorable |
-| **Mobile-friendly** | Natural swipe gesture on touch devices |
+| Benefit                 | Description                            |
+| ----------------------- | -------------------------------------- |
+| **Prevents accidents**  | Can't misclick a production deploy     |
+| **Intentional action**  | Requires deliberate physical gesture   |
+| **Brand reinforcement** | "Slide" = Slipway's core metaphor      |
+| **Satisfying UX**       | Tactile, game-like, memorable          |
+| **Mobile-friendly**     | Natural swipe gesture on touch devices |
 
 **Variations:**
 
@@ -3800,6 +3930,7 @@ The deploy action uses a **slide-to-deploy** interaction instead of a traditiona
 **Keyboard Alternative:**
 
 For keyboard users, `Cmd+Shift+D` opens a confirmation dialog:
+
 ```
 ┌────────────────────────────────────────┐
 │  Deploy to production?                 │
@@ -3861,7 +3992,7 @@ slipway helm my-app
 
 ### The Name: Lookout
 
-On a ship, the **lookout** is the crew member stationed in the crow's nest — the highest vantage point — watching for danger, obstacles, and opportunities on the horizon. They see everything: weather patterns, approaching vessels, shallow water, and coastline. The lookout doesn't just see one thing — they see the *whole picture* from a position of advantage.
+On a ship, the **lookout** is the crew member stationed in the crow's nest — the highest vantage point — watching for danger, obstacles, and opportunities on the horizon. They see everything: weather patterns, approaching vessels, shallow water, and coastline. The lookout doesn't just see one thing — they see the _whole picture_ from a position of advantage.
 
 **Slipway Lookout** = Laravel Nightwatch + Laravel Pulse, unified in one self-hosted, Sails-native observability platform.
 
@@ -3875,23 +4006,23 @@ On a ship, the **lookout** is the crew member stationed in the crow's nest — t
 
 Laravel split observability into two products with different trade-offs:
 
-| Aspect | Laravel Pulse | Laravel Nightwatch |
-|--------|--------------|-------------------|
-| **Type** | Self-hosted, open source | Managed cloud SaaS |
-| **Cost** | Free | $0–$20+/mo (event-based pricing) |
-| **Data** | Aggregated metrics only | Event-level granularity |
-| **Dashboard** | Real-time widgets (Livewire cards) | Deep drill-down traces |
-| **Error tracking** | Exception frequency/recency | Full stack traces + issue tracking |
-| **Query monitoring** | Slow query aggregates | Individual query traces with timeline |
-| **Team features** | None | Issue assignment, collaboration, priorities |
-| **Alerts** | None | Configurable alerts, smart grouping |
-| **Server stats** | CPU, memory, disk (via daemon) | Server metrics via agent |
-| **Request tracing** | None | Full request timeline (microsecond precision) |
-| **Queue monitoring** | Throughput cards | Job-level tracing + failure inspection |
-| **Cache** | Hit/miss stats per key | Not a focus |
-| **Custom cards** | Livewire extensible | N/A |
+| Aspect               | Laravel Pulse                      | Laravel Nightwatch                            |
+| -------------------- | ---------------------------------- | --------------------------------------------- |
+| **Type**             | Self-hosted, open source           | Managed cloud SaaS                            |
+| **Cost**             | Free                               | $0–$20+/mo (event-based pricing)              |
+| **Data**             | Aggregated metrics only            | Event-level granularity                       |
+| **Dashboard**        | Real-time widgets (Livewire cards) | Deep drill-down traces                        |
+| **Error tracking**   | Exception frequency/recency        | Full stack traces + issue tracking            |
+| **Query monitoring** | Slow query aggregates              | Individual query traces with timeline         |
+| **Team features**    | None                               | Issue assignment, collaboration, priorities   |
+| **Alerts**           | None                               | Configurable alerts, smart grouping           |
+| **Server stats**     | CPU, memory, disk (via daemon)     | Server metrics via agent                      |
+| **Request tracing**  | None                               | Full request timeline (microsecond precision) |
+| **Queue monitoring** | Throughput cards                   | Job-level tracing + failure inspection        |
+| **Cache**            | Hit/miss stats per key             | Not a focus                                   |
+| **Custom cards**     | Livewire extensible                | N/A                                           |
 
-**The problem**: To get the full picture, Laravel developers need *both* — a free dashboard for glanceable metrics AND a paid service for deep tracing. Two different UIs, two different data stores, two different mental models.
+**The problem**: To get the full picture, Laravel developers need _both_ — a free dashboard for glanceable metrics AND a paid service for deep tracing. Two different UIs, two different data stores, two different mental models.
 
 ### What Slipway Lookout Provides (The Marriage)
 
@@ -3901,29 +4032,29 @@ Lookout combines both into a single, self-hosted feature inside the Slipway dash
 
 Real-time cards showing vital signs at a glance:
 
-| Card | What It Shows | Sails-Native Twist |
-|------|--------------|-------------------|
-| **Servers** | CPU, memory, disk per container | Docker container stats via `docker stats` API |
-| **Slow Requests** | Endpoints exceeding threshold | Sails action names, not generic Express routes |
-| **Slow Queries** | Waterline queries over threshold | Shows model + method (e.g., `User.find()`) |
-| **Slow Jobs** | Quest jobs exceeding threshold | Sails Quest job names, not generic worker IDs |
-| **Exceptions** | Frequency, recency, grouping | Grouped by Sails action/helper origin |
-| **Queues** | Pending, processing, failed, completed | Sails Quest integration, per-queue breakdown |
-| **Cache** | Hit/miss ratios per key group | Redis service stats from Dock |
-| **App Usage** | Top users by requests, slow requests, jobs | Via Sails session/auth integration |
-| **Outgoing HTTP** | Slow external API calls | Machine helper calls tracked |
+| Card              | What It Shows                              | Sails-Native Twist                             |
+| ----------------- | ------------------------------------------ | ---------------------------------------------- |
+| **Servers**       | CPU, memory, disk per container            | Docker container stats via `docker stats` API  |
+| **Slow Requests** | Endpoints exceeding threshold              | Sails action names, not generic Express routes |
+| **Slow Queries**  | Waterline queries over threshold           | Shows model + method (e.g., `User.find()`)     |
+| **Slow Jobs**     | Quest jobs exceeding threshold             | Sails Quest job names, not generic worker IDs  |
+| **Exceptions**    | Frequency, recency, grouping               | Grouped by Sails action/helper origin          |
+| **Queues**        | Pending, processing, failed, completed     | Sails Quest integration, per-queue breakdown   |
+| **Cache**         | Hit/miss ratios per key group              | Redis service stats from Dock                  |
+| **App Usage**     | Top users by requests, slow requests, jobs | Via Sails session/auth integration             |
+| **Outgoing HTTP** | Slow external API calls                    | Machine helper calls tracked                   |
 
 #### Nightwatch-Side: Deep Tracing & Issue Management
 
-| Feature | What It Does | Sails-Native Twist |
-|---------|-------------|-------------------|
-| **Request Timeline** | Microsecond-precision trace of every request | Shows Sails lifecycle: policies → action → response |
-| **Query Inspector** | Individual query analysis with explain plans | Waterline model context (which `.find()` generated which SQL) |
-| **Error Tracker** | Stack traces → issues → assignment → resolution | Maps to Sails helpers/actions, not generic files |
-| **Job Inspector** | Full job execution trace with retry | Sails Quest job payload + execution context |
-| **Alert Rules** | Configurable thresholds with notifications | "Alert when `POST /api/v1/deploy` > 30s" |
-| **Issue Board** | Kanban-style issue tracking for errors | Built into Slipway's team/notification system |
-| **Log Search** | Searchable, filterable structured logs | Container log aggregation via `docker logs` |
+| Feature              | What It Does                                    | Sails-Native Twist                                            |
+| -------------------- | ----------------------------------------------- | ------------------------------------------------------------- |
+| **Request Timeline** | Microsecond-precision trace of every request    | Shows Sails lifecycle: policies → action → response           |
+| **Query Inspector**  | Individual query analysis with explain plans    | Waterline model context (which `.find()` generated which SQL) |
+| **Error Tracker**    | Stack traces → issues → assignment → resolution | Maps to Sails helpers/actions, not generic files              |
+| **Job Inspector**    | Full job execution trace with retry             | Sails Quest job payload + execution context                   |
+| **Alert Rules**      | Configurable thresholds with notifications      | "Alert when `POST /api/v1/deploy` > 30s"                      |
+| **Issue Board**      | Kanban-style issue tracking for errors          | Built into Slipway's team/notification system                 |
+| **Log Search**       | Searchable, filterable structured logs          | Container log aggregation via `docker logs`                   |
 
 #### How It Works Technically
 
@@ -3953,6 +4084,7 @@ Real-time cards showing vital signs at a glance:
 ```
 
 **Data pipeline**:
+
 1. `sails-hook-slipway` instruments the app via OpenTelemetry
 2. Events stream to Slipway's telemetry collector (OTLP endpoint)
 3. Slipway stores raw events (for tracing) AND computes aggregates (for dashboard cards)
@@ -4032,20 +4164,20 @@ Clicking "View trace →" on any item drills into the Nightwatch-style timeline:
 
 When Lookout ships, Slipway users won't need any of these:
 
-| Tool | What It Does | Lookout Equivalent | Annual Cost Saved |
-|------|-------------|-------------------|-------------------|
-| **Sentry** | Error tracking, stack traces, issue management | Lookout error tracker + issue board | $26–$80/mo |
-| **New Relic** | APM, request tracing, server monitoring | Lookout traces + server cards | $25–$99/mo per host |
-| **Datadog** | Infrastructure monitoring, APM, logs | Lookout dashboard + traces + logs | $15–$35/mo per host |
-| **BugSnag** | Error monitoring, stability tracking | Lookout error tracker | $59–$249/mo |
-| **Logtail/Better Stack** | Log aggregation, search, alerts | Lookout log search + alerts | $25–$85/mo |
-| **Uptime Robot** | Uptime monitoring, status page | Lookout health checks | $7–$57/mo |
-| **Laravel Pulse** | Real-time dashboard cards | Lookout dashboard (same concept) | Free (but Laravel-only) |
-| **Laravel Nightwatch** | Deep tracing, issue tracking | Lookout traces + issues | $20+/mo |
-| **PM2 Plus** | Node.js process monitoring | Lookout server cards | $14–$79/mo |
-| **Papertrail** | Log management, search, alerts | Lookout log search | $7–$230/mo |
-| **Prometheus + Grafana** | Metrics collection + dashboards | Lookout dashboard cards | Free (but complex setup) |
-| **Elastic APM** | Full-stack observability | Lookout traces + dashboard | Free (but massive infra overhead) |
+| Tool                     | What It Does                                   | Lookout Equivalent                  | Annual Cost Saved                 |
+| ------------------------ | ---------------------------------------------- | ----------------------------------- | --------------------------------- |
+| **Sentry**               | Error tracking, stack traces, issue management | Lookout error tracker + issue board | $26–$80/mo                        |
+| **New Relic**            | APM, request tracing, server monitoring        | Lookout traces + server cards       | $25–$99/mo per host               |
+| **Datadog**              | Infrastructure monitoring, APM, logs           | Lookout dashboard + traces + logs   | $15–$35/mo per host               |
+| **BugSnag**              | Error monitoring, stability tracking           | Lookout error tracker               | $59–$249/mo                       |
+| **Logtail/Better Stack** | Log aggregation, search, alerts                | Lookout log search + alerts         | $25–$85/mo                        |
+| **Uptime Robot**         | Uptime monitoring, status page                 | Lookout health checks               | $7–$57/mo                         |
+| **Laravel Pulse**        | Real-time dashboard cards                      | Lookout dashboard (same concept)    | Free (but Laravel-only)           |
+| **Laravel Nightwatch**   | Deep tracing, issue tracking                   | Lookout traces + issues             | $20+/mo                           |
+| **PM2 Plus**             | Node.js process monitoring                     | Lookout server cards                | $14–$79/mo                        |
+| **Papertrail**           | Log management, search, alerts                 | Lookout log search                  | $7–$230/mo                        |
+| **Prometheus + Grafana** | Metrics collection + dashboards                | Lookout dashboard cards             | Free (but complex setup)          |
+| **Elastic APM**          | Full-stack observability                       | Lookout traces + dashboard          | Free (but massive infra overhead) |
 
 **Conservative estimate**: A typical production Sails app using Sentry + a log service + uptime monitoring = **$50–$200/month**. Lookout provides all of this for $0 (self-hosted in Slipway).
 
@@ -4065,12 +4197,12 @@ When Lookout ships, Slipway users won't need any of these:
 
 ### Implementation Phases
 
-| Phase | What Ships | Timeline |
-|-------|-----------|----------|
-| **Phase 1: Dashboard Cards** | Server stats, request/error counts, slow queries — the Pulse equivalent | MVP+1 |
-| **Phase 2: Error Tracking** | Exception capture, grouping, stack traces, issue board | MVP+2 |
-| **Phase 3: Request Tracing** | Full timeline view, query inspector, dependency map | MVP+3 |
-| **Phase 4: Alerts & Logs** | Configurable alerts, log aggregation, search | MVP+4 |
+| Phase                        | What Ships                                                              | Timeline |
+| ---------------------------- | ----------------------------------------------------------------------- | -------- |
+| **Phase 1: Dashboard Cards** | Server stats, request/error counts, slow queries — the Pulse equivalent | MVP+1    |
+| **Phase 2: Error Tracking**  | Exception capture, grouping, stack traces, issue board                  | MVP+2    |
+| **Phase 3: Request Tracing** | Full timeline view, query inspector, dependency map                     | MVP+3    |
+| **Phase 4: Alerts & Logs**   | Configurable alerts, log aggregation, search                            | MVP+4    |
 
 ### The Positioning
 
@@ -4089,6 +4221,7 @@ This is the killer feature that makes Slipway not just a "deployment tool" but a
 **Slipway** is an ambitious but achievable project that fills a genuine gap in the Sails.js ecosystem. By combining deployment, administration, monitoring, and Sails-native tooling into a single, beautiful platform, it can become the go-to solution for Sails developers worldwide.
 
 The key to success:
+
 1. **Start with MVP** - Core deployment first
 2. **Iterate rapidly** - Ship early, get feedback
 3. **Leverage AI** - Use AI assistants for productivity
@@ -4099,4 +4232,4 @@ The key to success:
 
 ---
 
-*This document is a living research artifact. Update as decisions are made and features are implemented.*
+_This document is a living research artifact. Update as decisions are made and features are implemented._

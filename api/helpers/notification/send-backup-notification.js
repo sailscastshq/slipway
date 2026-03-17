@@ -1,7 +1,8 @@
 module.exports = {
   friendlyName: 'Send backup notification',
 
-  description: 'Send a notification about a backup result to configured channels.',
+  description:
+    'Send a notification about a backup result to configured channels.',
 
   inputs: {
     backup: {
@@ -25,8 +26,14 @@ module.exports = {
     }
 
     // Check notification preferences
-    const notifyOnSuccess = await sails.helpers.setting.get('notifyOnBackupSuccess', 'false')
-    const notifyOnFailure = await sails.helpers.setting.get('notifyOnBackupFailure', 'true')
+    const notifyOnSuccess = await sails.helpers.setting.get(
+      'notifyOnBackupSuccess',
+      'false'
+    )
+    const notifyOnFailure = await sails.helpers.setting.get(
+      'notifyOnBackupFailure',
+      'true'
+    )
 
     if (isSuccess && notifyOnSuccess !== 'true') {
       return
@@ -38,9 +45,14 @@ module.exports = {
     // Resolve environment and project for context
     let environmentName = ''
     let projectName = ''
-    const envId = typeof service.environment === 'object' ? service.environment.id : service.environment
+    const envId =
+      typeof service.environment === 'object'
+        ? service.environment.id
+        : service.environment
     if (envId) {
-      const environment = await Environment.findOne({ id: envId }).populate('project')
+      const environment = await Environment.findOne({ id: envId }).populate(
+        'project'
+      )
       if (environment) {
         environmentName = environment.name
         if (environment.project) {
@@ -49,9 +61,14 @@ module.exports = {
       }
     }
 
-    const instanceName = await sails.helpers.setting.get('instanceName', 'Slipway')
+    const instanceName = await sails.helpers.setting.get(
+      'instanceName',
+      'Slipway'
+    )
     const emoji = isSuccess ? '\u2705' : '\u274C'
-    const slippyTitle = isSuccess ? 'Backup safe and sound' : 'Backup didn\'t make it'
+    const slippyTitle = isSuccess
+      ? 'Backup safe and sound'
+      : "Backup didn't make it"
 
     // Format duration
     const duration = backup.durationMs
@@ -59,16 +76,18 @@ module.exports = {
       : 'N/A'
 
     // Format size
-    const size = backup.sizeBytes
-      ? formatBytes(backup.sizeBytes)
-      : 'N/A'
+    const size = backup.sizeBytes ? formatBytes(backup.sizeBytes) : 'N/A'
 
     // Send Telegram notification
-    const telegramEnabled = await sails.helpers.setting.get('telegramEnabled', 'false')
+    const telegramEnabled = await sails.helpers.setting.get(
+      'telegramEnabled',
+      'false'
+    )
     if (telegramEnabled === 'true') {
       let message = `${emoji} <b>${slippyTitle}</b>\n\n`
       if (projectName) message += `<b>Project:</b> ${escapeHtml(projectName)}\n`
-      if (environmentName) message += `<b>Environment:</b> ${escapeHtml(environmentName)}\n`
+      if (environmentName)
+        message += `<b>Environment:</b> ${escapeHtml(environmentName)}\n`
       message += `<b>Service:</b> ${escapeHtml(service.name)}\n`
       message += `<b>Type:</b> ${escapeHtml(service.type)}\n`
       message += `<b>Duration:</b> ${duration}\n`
@@ -78,13 +97,20 @@ module.exports = {
       if (isFailure && backup.errorMessage) {
         message += `<b>Error:</b> ${escapeHtml(backup.errorMessage)}\n`
       }
-      message += `\n<b>\u2014 Slippy \uD83D\uDC19, from ${escapeHtml(instanceName)}</b>`
+      message += `\n<b>\u2014 Slippy \uD83D\uDC19, from ${escapeHtml(
+        instanceName
+      )}</b>`
 
-      await sails.helpers.notification.sendTelegram.with({ message }).tolerate('error')
+      await sails.helpers.notification.sendTelegram
+        .with({ message })
+        .tolerate('error')
     }
 
     // Send Slack notification
-    const slackEnabled = await sails.helpers.setting.get('slackEnabled', 'false')
+    const slackEnabled = await sails.helpers.setting.get(
+      'slackEnabled',
+      'false'
+    )
     if (slackEnabled === 'true') {
       let message = `${emoji} *${slippyTitle}*\n\n`
       if (projectName) message += `*Project:* ${projectName}\n`
@@ -100,17 +126,31 @@ module.exports = {
       }
       message += `\n*\u2014 Slippy \uD83D\uDC19, from ${instanceName}*`
 
-      await sails.helpers.notification.sendSlack.with({ message }).tolerate('error')
+      await sails.helpers.notification.sendSlack
+        .with({ message })
+        .tolerate('error')
     }
 
     // Send Discord notification
-    const discordEnabled = await sails.helpers.setting.get('discordEnabled', 'false')
+    const discordEnabled = await sails.helpers.setting.get(
+      'discordEnabled',
+      'false'
+    )
     if (discordEnabled === 'true') {
-      const discordWebhookUrl = await sails.helpers.setting.get('discordWebhookUrl', '')
+      const discordWebhookUrl = await sails.helpers.setting.get(
+        'discordWebhookUrl',
+        ''
+      )
       if (discordWebhookUrl) {
         const fields = []
-        if (projectName) fields.push({ name: 'Project', value: projectName, inline: true })
-        if (environmentName) fields.push({ name: 'Environment', value: environmentName, inline: true })
+        if (projectName)
+          fields.push({ name: 'Project', value: projectName, inline: true })
+        if (environmentName)
+          fields.push({
+            name: 'Environment',
+            value: environmentName,
+            inline: true
+          })
         fields.push(
           { name: 'Service', value: service.name, inline: true },
           { name: 'Type', value: service.type, inline: true },
@@ -120,63 +160,82 @@ module.exports = {
           fields.push({ name: 'Size', value: size, inline: true })
         }
         if (isFailure && backup.errorMessage) {
-          fields.push({ name: 'Error', value: backup.errorMessage, inline: false })
+          fields.push({
+            name: 'Error',
+            value: backup.errorMessage,
+            inline: false
+          })
         }
 
         await fetch(discordWebhookUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            embeds: [{
-              title: `${emoji} ${slippyTitle}`,
-              color: isSuccess ? 0x10b981 : 0xef4444,
-              fields,
-              footer: { text: `\u2014 Slippy \uD83D\uDC19, from ${instanceName}` },
-              timestamp: new Date().toISOString()
-            }]
+            embeds: [
+              {
+                title: `${emoji} ${slippyTitle}`,
+                color: isSuccess ? 0x10b981 : 0xef4444,
+                fields,
+                footer: {
+                  text: `\u2014 Slippy \uD83D\uDC19, from ${instanceName}`
+                },
+                timestamp: new Date().toISOString()
+              }
+            ]
           })
-        }).catch(err => sails.log.warn('Discord backup notification failed:', err.message))
+        }).catch((err) =>
+          sails.log.warn('Discord backup notification failed:', err.message)
+        )
       }
     }
 
     // Send email notification
     const smtpEnabled = await sails.helpers.setting.get('smtpEnabled', 'false')
     if (smtpEnabled === 'true') {
-      const subjectSuffix = environmentName ? `${service.name} (${environmentName})` : service.name
-      await sails.helpers.notification.sendEmail.with({
-        template: 'email-backup-notification',
-        subject: `${emoji} ${slippyTitle} \u2014 ${subjectSuffix}`,
-        templateData: {
-          isSuccess,
-          backup,
-          service,
-          projectName,
-          environmentName,
-          instanceName,
-          errorMessage: backup.errorMessage || ''
-        }
-      }).tolerate('error')
+      const subjectSuffix = environmentName
+        ? `${service.name} (${environmentName})`
+        : service.name
+      await sails.helpers.notification.sendEmail
+        .with({
+          template: 'email-backup-notification',
+          subject: `${emoji} ${slippyTitle} \u2014 ${subjectSuffix}`,
+          templateData: {
+            isSuccess,
+            backup,
+            service,
+            projectName,
+            environmentName,
+            instanceName,
+            errorMessage: backup.errorMessage || ''
+          }
+        })
+        .tolerate('error')
     }
 
     // Send webhook notification
-    const webhookEnabled = await sails.helpers.setting.get('webhookEnabled', 'false')
+    const webhookEnabled = await sails.helpers.setting.get(
+      'webhookEnabled',
+      'false'
+    )
     if (webhookEnabled === 'true') {
-      await sails.helpers.notification.sendWebhook.with({
-        event: isSuccess ? 'backup.success' : 'backup.failed',
-        data: {
-          project: projectName || undefined,
-          environment: environmentName || undefined,
-          service: { name: service.name, type: service.type },
-          backup: {
-            id: backup.id,
-            status: backup.status,
-            durationMs: backup.durationMs,
-            sizeBytes: backup.sizeBytes,
-            errorMessage: backup.errorMessage
-          },
-          instanceName
-        }
-      }).tolerate('error')
+      await sails.helpers.notification.sendWebhook
+        .with({
+          event: isSuccess ? 'backup.success' : 'backup.failed',
+          data: {
+            project: projectName || undefined,
+            environment: environmentName || undefined,
+            service: { name: service.name, type: service.type },
+            backup: {
+              id: backup.id,
+              status: backup.status,
+              durationMs: backup.durationMs,
+              sizeBytes: backup.sizeBytes,
+              errorMessage: backup.errorMessage
+            },
+            instanceName
+          }
+        })
+        .tolerate('error')
     }
   }
 }

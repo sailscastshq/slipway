@@ -524,7 +524,10 @@ onUnmounted(() => {
             >
               <Link
                 href="/profile"
-                @click="userDropdownOpen = false; closeMobileMenu()"
+                @click="
+                  userDropdownOpen = false
+                  closeMobileMenu()
+                "
                 class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
               >
                 <svg
@@ -544,7 +547,10 @@ onUnmounted(() => {
               </Link>
               <Link
                 href="/settings"
-                @click="userDropdownOpen = false; closeMobileMenu()"
+                @click="
+                  userDropdownOpen = false
+                  closeMobileMenu()
+                "
                 class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
               >
                 <svg
@@ -565,7 +571,11 @@ onUnmounted(() => {
               <!-- Update available (conditional) -->
               <button
                 v-if="updateInfo?.updateAvailable"
-                @click="userDropdownOpen = false; closeMobileMenu(); showUpdateModal = true"
+                @click="
+                  userDropdownOpen = false
+                  closeMobileMenu()
+                  showUpdateModal = true
+                "
                 class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
               >
                 <svg
@@ -582,10 +592,17 @@ onUnmounted(() => {
                   />
                 </svg>
                 <span class="flex-1">Update available</span>
-                <span class="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-400">{{ updateInfo.latestVersion }}</span>
+                <span
+                  class="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-400"
+                  >{{ updateInfo.latestVersion }}</span
+                >
               </button>
               <button
-                @click="userDropdownOpen = false; closeMobileMenu(); openCommandPalette()"
+                @click="
+                  userDropdownOpen = false
+                  closeMobileMenu()
+                  openCommandPalette()
+                "
                 class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
               >
                 <svg
@@ -602,7 +619,10 @@ onUnmounted(() => {
                   />
                 </svg>
                 <span class="flex-1">Search</span>
-                <kbd class="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-400 dark:bg-gray-800 dark:text-gray-500">&#8984;K</kbd>
+                <kbd
+                  class="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-400 dark:bg-gray-800 dark:text-gray-500"
+                  >&#8984;K</kbd
+                >
               </button>
               <div
                 class="my-1 border-t border-gray-100 dark:border-gray-800"
@@ -1014,7 +1034,10 @@ onUnmounted(() => {
             <!-- Update available (conditional) -->
             <button
               v-if="updateInfo?.updateAvailable"
-              @click="userDropdownOpen = false; showUpdateModal = true"
+              @click="
+                userDropdownOpen = false
+                showUpdateModal = true
+              "
               class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
             >
               <svg
@@ -1031,10 +1054,16 @@ onUnmounted(() => {
                 />
               </svg>
               <span class="flex-1">Update available</span>
-              <span class="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-400">{{ updateInfo.latestVersion }}</span>
+              <span
+                class="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-400"
+                >{{ updateInfo.latestVersion }}</span
+              >
             </button>
             <button
-              @click="userDropdownOpen = false; openCommandPalette()"
+              @click="
+                userDropdownOpen = false
+                openCommandPalette()
+              "
               class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
             >
               <svg
@@ -1051,7 +1080,10 @@ onUnmounted(() => {
                 />
               </svg>
               <span class="flex-1">Search</span>
-              <kbd class="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-400 dark:bg-gray-800 dark:text-gray-500">&#8984;K</kbd>
+              <kbd
+                class="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-400 dark:bg-gray-800 dark:text-gray-500"
+                >&#8984;K</kbd
+              >
             </button>
             <div
               class="my-1 border-t border-gray-100 dark:border-gray-800"

@@ -40,11 +40,17 @@ module.exports = {
     const backup = await Backup.findOne({ id: backupId })
     if (!backup) throw 'notFound'
 
-    const service = await Service.findOne({ id: backup.service }).populate('environment')
+    const service = await Service.findOne({ id: backup.service }).populate(
+      'environment'
+    )
     if (!service) throw 'notFound'
 
-    const environment = await Environment.findOne({ id: service.environment.id }).populate('project')
-    const project = await Project.findOne({ id: environment.project.id }).populate('team')
+    const environment = await Environment.findOne({
+      id: service.environment.id
+    }).populate('project')
+    const project = await Project.findOne({
+      id: environment.project.id
+    }).populate('team')
     if (project.team.id !== user.team) throw 'forbidden'
 
     // If already finished, send status and close immediately

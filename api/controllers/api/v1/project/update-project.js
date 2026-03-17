@@ -1,7 +1,7 @@
 module.exports = {
   friendlyName: 'Update project',
 
-  description: 'Update a project\'s details.',
+  description: "Update a project's details.",
 
   inputs: {
     slug: {
@@ -46,7 +46,13 @@ module.exports = {
     }
   },
 
-  fn: async function ({ slug, name, description, repositoryUrl, dockerfilePath }) {
+  fn: async function ({
+    slug,
+    name,
+    description,
+    repositoryUrl,
+    dockerfilePath
+  }) {
     const user = await User.findOne({ id: this.req.session.userId })
 
     const project = await Project.findOne({ slug }).populate('team')

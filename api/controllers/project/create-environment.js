@@ -26,7 +26,9 @@ module.exports = {
   },
 
   fn: async function ({ slug, name }) {
-    const user = await User.findOne({ id: this.req.session.userId }).populate('team')
+    const user = await User.findOne({ id: this.req.session.userId }).populate(
+      'team'
+    )
 
     const project = await Project.findOne({ slug, team: user.team.id })
 
@@ -34,7 +36,8 @@ module.exports = {
       throw { notFound: '/' }
     }
 
-    const { telemetryToken, telemetryTokenHash } = sails.helpers.environment.generateTelemetryToken()
+    const { telemetryToken, telemetryTokenHash } =
+      sails.helpers.environment.generateTelemetryToken()
     await Environment.create({
       name,
       telemetryToken,

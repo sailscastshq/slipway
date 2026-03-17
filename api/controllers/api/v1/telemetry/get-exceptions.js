@@ -34,18 +34,25 @@ module.exports = {
   },
 
   fn: async function ({ projectSlug, environmentSlug, page, limit, grouped }) {
-    const user = await User.findOne({ id: this.req.session.userId }).populate('team')
+    const user = await User.findOne({ id: this.req.session.userId }).populate(
+      'team'
+    )
     if (!user) return this.res.status(401).json({ error: 'Unauthorized' })
 
-    const project = await Project.findOne({ slug: projectSlug, team: user.team.id })
-    if (!project) return this.res.status(404).json({ error: 'Project not found' })
+    const project = await Project.findOne({
+      slug: projectSlug,
+      team: user.team.id
+    })
+    if (!project)
+      return this.res.status(404).json({ error: 'Project not found' })
 
     const envWhere = { project: project.id }
     if (environmentSlug) {
       envWhere.slug = environmentSlug
     }
     const environment = await Environment.findOne(envWhere)
-    if (!environment) return this.res.status(404).json({ error: 'Environment not found' })
+    if (!environment)
+      return this.res.status(404).json({ error: 'Environment not found' })
 
     const where = { environment: environment.id }
     const safeLimit = Math.min(Math.max(limit, 1), 100)
@@ -53,12 +60,22 @@ module.exports = {
 
     if (!grouped) {
       const [exceptions, total] = await Promise.all([
-        TelemetryException.find({ where, sort: 'occurredAt DESC', limit: safeLimit, skip }),
+        TelemetryException.find({
+          where,
+          sort: 'occurredAt DESC',
+          limit: safeLimit,
+          skip
+        }),
         TelemetryException.count(where)
       ])
       return {
         exceptions,
-        pagination: { page: Math.max(page, 1), limit: safeLimit, total, pages: Math.ceil(total / safeLimit) }
+        pagination: {
+          page: Math.max(page, 1),
+          limit: safeLimit,
+          total,
+          pages: Math.ceil(total / safeLimit)
+        }
       }
     }
 
@@ -87,7 +104,8 @@ module.exports = {
         }
       }
       groups[key].count++
-      if (ex.occurredAt < groups[key].firstSeen) groups[key].firstSeen = ex.occurredAt
+      if (ex.occurredAt < groups[key].firstSeen)
+        groups[key].firstSeen = ex.occurredAt
       if (ex.occurredAt > groups[key].lastSeen) {
         groups[key].lastSeen = ex.occurredAt
         groups[key].lastStackTrace = ex.stackTrace
@@ -102,7 +120,12 @@ module.exports = {
 
     return {
       exceptions: paged,
-      pagination: { page: Math.max(page, 1), limit: safeLimit, total, pages: Math.ceil(total / safeLimit) }
+      pagination: {
+        page: Math.max(page, 1),
+        limit: safeLimit,
+        total,
+        pages: Math.ceil(total / safeLimit)
+      }
     }
   }
 }

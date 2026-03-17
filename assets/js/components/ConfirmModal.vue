@@ -42,13 +42,17 @@ function handleKeydown(e) {
   }
 }
 
-watch(() => props.show, (isShown) => {
-  if (isShown) {
-    document.addEventListener('keydown', handleKeydown)
-  } else {
-    document.removeEventListener('keydown', handleKeydown)
-  }
-}, { immediate: true })
+watch(
+  () => props.show,
+  (isShown) => {
+    if (isShown) {
+      document.addEventListener('keydown', handleKeydown)
+    } else {
+      document.removeEventListener('keydown', handleKeydown)
+    }
+  },
+  { immediate: true }
+)
 
 onUnmounted(() => {
   document.removeEventListener('keydown', handleKeydown)
@@ -65,7 +69,10 @@ onUnmounted(() => {
       leave-from-class="opacity-100"
       leave-to-class="opacity-0"
     >
-      <div v-if="show" class="fixed inset-0 z-50 flex items-center justify-center">
+      <div
+        v-if="show"
+        class="fixed inset-0 z-50 flex items-center justify-center"
+      >
         <div class="fixed inset-0 bg-black/50" @click="emit('cancel')" />
         <Transition
           enter-active-class="transition duration-200 ease-out"

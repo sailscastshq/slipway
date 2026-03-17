@@ -11,7 +11,8 @@
 module.exports = {
   friendlyName: 'Get instance URL',
 
-  description: 'Get the Slipway instance URL from settings, env var, or config.',
+  description:
+    'Get the Slipway instance URL from settings, env var, or config.',
 
   inputs: {},
 
@@ -25,7 +26,9 @@ module.exports = {
     // 1. Try instanceDomain first (set from settings UI)
     const instanceDomain = await sails.helpers.setting.get('instanceDomain')
     if (instanceDomain) {
-      const domain = instanceDomain.replace(/^https?:\/\//, '').replace(/\/+$/, '')
+      const domain = instanceDomain
+        .replace(/^https?:\/\//, '')
+        .replace(/\/+$/, '')
       return `https://${domain}`
     }
 
@@ -41,6 +44,9 @@ module.exports = {
     }
 
     // 4. Fall back to config (default: http://localhost:1337)
-    return sails.config.custom.baseUrl || `http://localhost:${sails.config.port || 1337}`
+    return (
+      sails.config.custom.baseUrl ||
+      `http://localhost:${sails.config.port || 1337}`
+    )
   }
 }

@@ -44,7 +44,9 @@ module.exports = {
   fn: async function ({ projectSlug, name, isProduction, domain }) {
     const user = await User.findOne({ id: this.req.session.userId })
 
-    const project = await Project.findOne({ slug: projectSlug }).populate('team')
+    const project = await Project.findOne({ slug: projectSlug }).populate(
+      'team'
+    )
 
     if (!project) {
       throw 'notFound'
@@ -56,7 +58,8 @@ module.exports = {
 
     let environment
     try {
-      const { telemetryToken, telemetryTokenHash } = sails.helpers.environment.generateTelemetryToken()
+      const { telemetryToken, telemetryTokenHash } =
+        sails.helpers.environment.generateTelemetryToken()
       environment = await Environment.create({
         name,
         isProduction,
@@ -69,7 +72,11 @@ module.exports = {
       if (error.message && error.message.includes('already exists')) {
         throw {
           badRequest: {
-            problems: [{ name: 'An environment with this name already exists in this project.' }]
+            problems: [
+              {
+                name: 'An environment with this name already exists in this project.'
+              }
+            ]
           }
         }
       }

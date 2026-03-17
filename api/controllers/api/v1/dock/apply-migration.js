@@ -41,7 +41,9 @@ module.exports = {
 
   fn: async function ({ projectSlug, environmentSlug, statements, dryRun }) {
     const user = await User.findOne({ id: this.req.session.userId })
-    const project = await Project.findOne({ slug: projectSlug }).populate('team')
+    const project = await Project.findOne({ slug: projectSlug }).populate(
+      'team'
+    )
 
     if (!project) {
       throw 'notFound'
@@ -64,7 +66,10 @@ module.exports = {
     const serviceId = this.req.query.service
     let dbResult
     try {
-      dbResult = await sails.helpers.dock.getDatabaseService(environment.id, serviceId)
+      dbResult = await sails.helpers.dock.getDatabaseService(
+        environment.id,
+        serviceId
+      )
     } catch (err) {
       throw { badRequest: 'No database service found for this environment.' }
     }
@@ -76,7 +81,9 @@ module.exports = {
     }
 
     // Extract SQL from statement objects
-    const sqlStatements = statements.map(s => typeof s === 'string' ? s : s.sql)
+    const sqlStatements = statements.map((s) =>
+      typeof s === 'string' ? s : s.sql
+    )
 
     if (dryRun) {
       // Just return what would be executed
@@ -115,7 +122,9 @@ module.exports = {
     }
 
     // Log the migration
-    sails.log.info(`[dock] Migration applied in ${project.slug}/${environmentSlug} by ${user.fullName}: ${successCount} succeeded, ${errorCount} failed`)
+    sails.log.info(
+      `[dock] Migration applied in ${project.slug}/${environmentSlug} by ${user.fullName}: ${successCount} succeeded, ${errorCount} failed`
+    )
 
     return {
       success: errorCount === 0,

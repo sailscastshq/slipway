@@ -26,7 +26,9 @@ module.exports = {
   },
 
   fn: async function ({ slug, envSlug }) {
-    const user = await User.findOne({ id: this.req.session.userId }).populate('team')
+    const user = await User.findOne({ id: this.req.session.userId }).populate(
+      'team'
+    )
 
     if (!user) {
       throw { notFound: '/login' }
@@ -48,11 +50,17 @@ module.exports = {
     }
 
     // Check if sails-quest is available
-    const hasQuestFeature = !!(environment.features && environment.features['sails-quest'])
-    const questFeature = hasQuestFeature ? environment.features['sails-quest'] : null
+    const hasQuestFeature = !!(
+      environment.features && environment.features['sails-quest']
+    )
+    const questFeature = hasQuestFeature
+      ? environment.features['sails-quest']
+      : null
 
     // Get app status
-    const app = await App.findOne({ environment: environment.id, isDefault: true }) || await App.findOne({ environment: environment.id })
+    const app =
+      (await App.findOne({ environment: environment.id, isDefault: true })) ||
+      (await App.findOne({ environment: environment.id }))
     const appRunning = app && app.status === 'running'
 
     // Use scripts from feature detection as initial data (fast).
@@ -60,7 +68,7 @@ module.exports = {
     let jobs = []
     if (hasQuestFeature && questFeature) {
       const scripts = questFeature.scripts || []
-      jobs = scripts.map(s => ({
+      jobs = scripts.map((s) => ({
         name: s.name,
         friendlyName: s.name,
         description: '',

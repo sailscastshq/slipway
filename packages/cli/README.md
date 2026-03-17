@@ -65,4 +65,4 @@ npx slipway-cli
 
 ---
 
-*Where your apps slide into production.*
+_Where your apps slide into production._

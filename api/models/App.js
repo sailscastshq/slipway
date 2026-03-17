@@ -25,7 +25,14 @@ module.exports = {
 
     status: {
       type: 'string',
-      isIn: ['building', 'starting', 'running', 'stopped', 'failed', 'deploying'],
+      isIn: [
+        'building',
+        'starting',
+        'running',
+        'stopped',
+        'failed',
+        'deploying'
+      ],
       defaultsTo: 'stopped',
       description: 'Current status of the app'
     },
@@ -90,7 +97,8 @@ module.exports = {
     port: {
       type: 'number',
       allowNull: true,
-      description: 'Internal port the container listens on (usually 1337 for Sails)'
+      description:
+        'Internal port the container listens on (usually 1337 for Sails)'
     },
 
     hostPort: {
@@ -141,15 +149,29 @@ module.exports = {
    */
   beforeCreate: async function (values, proceed) {
     // Auto-generate slug from name if name was provided but slug wasn't explicitly set
-    if (values.name && values.name !== 'app' && (!values.slug || values.slug === 'app')) {
-      values.slug = values.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+    if (
+      values.name &&
+      values.name !== 'app' &&
+      (!values.slug || values.slug === 'app')
+    ) {
+      values.slug = values.name
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-|-$/g, '')
     }
 
     // Enforce compound uniqueness: environment + slug
     if (values.environment && values.slug) {
-      const existing = await App.findOne({ environment: values.environment, slug: values.slug })
+      const existing = await App.findOne({
+        environment: values.environment,
+        slug: values.slug
+      })
       if (existing) {
-        return proceed(new Error(`An app with slug "${values.slug}" already exists in this environment.`))
+        return proceed(
+          new Error(
+            `An app with slug "${values.slug}" already exists in this environment.`
+          )
+        )
       }
     }
 
@@ -160,7 +182,10 @@ module.exports = {
         values.isDefault = true
       } else if (values.isDefault) {
         // If this app is marked as default, unmark others
-        await App.update({ environment: values.environment, isDefault: true }).set({ isDefault: false })
+        await App.update({
+          environment: values.environment,
+          isDefault: true
+        }).set({ isDefault: false })
       }
     }
 
@@ -172,7 +197,9 @@ module.exports = {
    * Default app ('app') omits the suffix for backward compatibility.
    */
   generateContainerName: async function (environmentId, appSlug) {
-    const env = await Environment.findOne({ id: environmentId }).populate('project')
+    const env = await Environment.findOne({ id: environmentId }).populate(
+      'project'
+    )
     if (!env) return null
     const base = `slipway-${env.project.slug}-${env.slug}`
     if (!appSlug || appSlug === 'app') return base
@@ -182,8 +209,14 @@ module.exports = {
   /**
    * Generate a deploy-scoped container name (used during blue-green deployment)
    */
-  generateDeployContainerName: async function (environmentId, deploymentId, appSlug) {
-    const env = await Environment.findOne({ id: environmentId }).populate('project')
+  generateDeployContainerName: async function (
+    environmentId,
+    deploymentId,
+    appSlug
+  ) {
+    const env = await Environment.findOne({ id: environmentId }).populate(
+      'project'
+    )
     if (!env) return null
     const base = `slipway-${env.project.slug}-${env.slug}`
     if (!appSlug || appSlug === 'app') return `${base}-${deploymentId}`
@@ -194,7 +227,9 @@ module.exports = {
    * Generate image name from environment and optional app slug
    */
   generateImageName: async function (environmentId, tag = 'latest', appSlug) {
-    const env = await Environment.findOne({ id: environmentId }).populate('project')
+    const env = await Environment.findOne({ id: environmentId }).populate(
+      'project'
+    )
     if (!env) return null
     const base = `slipway/${env.project.slug}-${env.slug}`
     if (!appSlug || appSlug === 'app') return `${base}:${tag}`

@@ -12,7 +12,8 @@
 module.exports = {
   friendlyName: 'Get server IP',
 
-  description: 'Get the server IP from settings, env var, or fallback to 127.0.0.1.',
+  description:
+    'Get the server IP from settings, env var, or fallback to 127.0.0.1.',
 
   inputs: {},
 

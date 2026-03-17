@@ -51,11 +51,12 @@ test('get-diff returns a stable error payload when static model source is missin
   }
 
   global.Project = {
-    findOne: () => withPopulate({
-      id: 20,
-      slug: 'demo',
-      team: { id: 10 }
-    })
+    findOne: () =>
+      withPopulate({
+        id: 20,
+        slug: 'demo',
+        team: { id: 10 }
+      })
   }
 
   global.Environment = {

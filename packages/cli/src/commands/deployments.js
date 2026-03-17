@@ -1,7 +1,13 @@
 import { c } from '../lib/colors.js'
 import { api } from '../lib/api.js'
 import { isLoggedIn } from '../lib/config.js'
-import { error, requireProject, table, statusColor, formatDate } from '../lib/utils.js'
+import {
+  error,
+  requireProject,
+  table,
+  statusColor,
+  formatDate
+} from '../lib/utils.js'
 
 export default async function deployments(options) {
   if (!isLoggedIn()) {
@@ -20,7 +26,7 @@ export default async function deployments(options) {
 
     // Filter by environment if specified
     const targetEnvs = options.env
-      ? environments.filter(e => e.slug === options.env)
+      ? environments.filter((e) => e.slug === options.env)
       : environments
 
     if (targetEnvs.length === 0) {
@@ -31,9 +37,12 @@ export default async function deployments(options) {
     // Collect deployments from each environment
     const allDeployments = []
     for (const env of targetEnvs) {
-      const { environment } = await api.environments.get(project.project, env.slug)
+      const { environment } = await api.environments.get(
+        project.project,
+        env.slug
+      )
       if (environment.deployments) {
-        environment.deployments.forEach(d => {
+        environment.deployments.forEach((d) => {
           allDeployments.push({
             ...d,
             environment: env.slug
@@ -47,11 +56,13 @@ export default async function deployments(options) {
     const limited = allDeployments.slice(0, parseInt(options.limit) || 10)
 
     if (limited.length === 0) {
-      console.log(`  ${c.dim('No deployments yet. Run `slipway slide` to create one.')}`)
+      console.log(
+        `  ${c.dim('No deployments yet. Run `slipway slide` to create one.')}`
+      )
       return
     }
 
-    const rows = limited.map(d => [
+    const rows = limited.map((d) => [
       String(d.id),
       statusColor(d.status),
       d.environment,
@@ -60,10 +71,7 @@ export default async function deployments(options) {
       formatDate(d.createdAt)
     ])
 
-    table(
-      ['ID', 'Status', 'Env', 'Branch', 'Commit', 'Date'],
-      rows
-    )
+    table(['ID', 'Status', 'Env', 'Branch', 'Commit', 'Date'], rows)
 
     console.log()
   } catch (err) {

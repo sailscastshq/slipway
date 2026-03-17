@@ -1,7 +1,7 @@
 module.exports = {
   friendlyName: 'Update member role',
 
-  description: 'Change a team member\'s role.',
+  description: "Change a team member's role.",
 
   inputs: {
     userId: {
@@ -41,7 +41,10 @@ module.exports = {
       return '/settings/team'
     }
 
-    const targetUser = await User.findOne({ id: userId, team: currentUser.team })
+    const targetUser = await User.findOne({
+      id: userId,
+      team: currentUser.team
+    })
 
     if (!targetUser) {
       throw 'notFound'
@@ -49,13 +52,16 @@ module.exports = {
 
     // Can't change owner role
     if (targetUser.teamRole === 'owner') {
-      this.req.addFlash('error', 'Cannot change the team owner\'s role.')
+      this.req.addFlash('error', "Cannot change the team owner's role.")
       return '/settings/team'
     }
 
     await User.updateOne({ id: userId }).set({ teamRole: role })
 
-    this.req.addFlash('success', `Updated ${targetUser.fullName}'s role to ${role}.`)
+    this.req.addFlash(
+      'success',
+      `Updated ${targetUser.fullName}'s role to ${role}.`
+    )
     return '/settings/team'
   }
 }

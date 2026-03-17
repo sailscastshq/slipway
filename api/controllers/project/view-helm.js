@@ -26,7 +26,9 @@ module.exports = {
   },
 
   fn: async function ({ slug, envSlug }) {
-    const user = await User.findOne({ id: this.req.session.userId }).populate('team')
+    const user = await User.findOne({ id: this.req.session.userId }).populate(
+      'team'
+    )
 
     const project = await Project.findOne({ slug, team: user.team.id })
 
@@ -34,13 +36,18 @@ module.exports = {
       throw { notFound: '/' }
     }
 
-    const environment = await Environment.findOne({ project: project.id, slug: envSlug })
+    const environment = await Environment.findOne({
+      project: project.id,
+      slug: envSlug
+    })
 
     if (!environment) {
       throw { notFound: `/projects/${slug}` }
     }
 
-    const app = await App.findOne({ environment: environment.id, isDefault: true }) || await App.findOne({ environment: environment.id })
+    const app =
+      (await App.findOne({ environment: environment.id, isDefault: true })) ||
+      (await App.findOne({ environment: environment.id }))
 
     return {
       page: 'projects/helm',

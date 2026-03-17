@@ -10,7 +10,9 @@ module.exports = {
   },
 
   fn: async function () {
-    const user = await User.findOne({ id: this.req.session.userId }).populate('team')
+    const user = await User.findOne({ id: this.req.session.userId }).populate(
+      'team'
+    )
 
     await Team.updateOne({ id: user.team.id }).set({
       logoUrl: null

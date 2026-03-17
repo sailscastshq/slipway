@@ -29,28 +29,45 @@ const emailIsValid = computed(() => {
 })
 
 const isFormValid = computed(() => {
-  return emailIsValid.value && passwordIsValid.value && containsSpecialChars.value && passwordsMatch.value && !form.processing
+  return (
+    emailIsValid.value &&
+    passwordIsValid.value &&
+    containsSpecialChars.value &&
+    passwordsMatch.value &&
+    !form.processing
+  )
 })
 </script>
 
 <template>
   <Head title="Setup | Slipway" />
 
-  <div class="min-h-screen bg-white dark:bg-black flex flex-col items-center justify-center px-4">
+  <div
+    class="flex min-h-screen flex-col items-center justify-center bg-white px-4 dark:bg-black"
+  >
     <div class="w-full max-w-sm">
       <!-- Logo -->
-      <div class="text-center mb-8">
-        <div class="inline-flex flex-col items-center gap-3 mb-2">
-          <SlipwayLogo :processing="form.processing" class="h-12 w-12 text-[#0284c7] dark:text-white" />
-          <h1 class="text-2xl font-semibold text-gray-900 dark:text-white tracking-tight">Slipway</h1>
+      <div class="mb-8 text-center">
+        <div class="mb-2 inline-flex flex-col items-center gap-3">
+          <SlipwayLogo
+            :processing="form.processing"
+            class="h-12 w-12 text-[#0284c7] dark:text-white"
+          />
+          <h1
+            class="text-2xl font-semibold tracking-tight text-gray-900 dark:text-white"
+          >
+            Slipway
+          </h1>
         </div>
-        <p class="text-gray-500 text-sm">Create an admin account to get started</p>
+        <p class="text-sm text-gray-500">
+          Create an admin account to get started
+        </p>
       </div>
 
       <!-- Error message -->
       <div
         v-if="form.errors.email || form.errors.password || form.errors.setup"
-        class="mb-6 p-3 rounded-md bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 text-red-600 dark:text-red-400 text-sm"
+        class="mb-6 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-600 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-400"
       >
         {{ form.errors.email || form.errors.password || form.errors.setup }}
       </div>
@@ -62,7 +79,7 @@ const isFormValid = computed(() => {
           type="email"
           placeholder="Enter your email address..."
           autocomplete="email"
-          class="w-full h-12 px-1 bg-transparent border-b border-dashed border-gray-200 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:border-brand dark:border-gray-700"
+          class="focus:border-brand h-12 w-full border-b border-dashed border-gray-200 bg-transparent px-1 text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
         />
 
         <input
@@ -71,7 +88,7 @@ const isFormValid = computed(() => {
           type="password"
           placeholder="Create a password"
           autocomplete="new-password"
-          class="w-full h-12 px-1 bg-transparent border-b border-dashed border-gray-200 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:border-brand dark:border-gray-700"
+          class="focus:border-brand h-12 w-full border-b border-dashed border-gray-200 bg-transparent px-1 text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
         />
 
         <input
@@ -80,25 +97,38 @@ const isFormValid = computed(() => {
           type="password"
           placeholder="Confirm password"
           autocomplete="new-password"
-          class="w-full h-12 px-1 bg-transparent border-b border-dashed border-gray-200 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:border-brand dark:border-gray-700"
+          class="focus:border-brand h-12 w-full border-b border-dashed border-gray-200 bg-transparent px-1 text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
         />
 
         <!-- Password Requirements -->
         <p class="text-xs text-gray-400">
-          <span :class="passwordIsValid ? 'text-green-600 dark:text-green-500' : ''">8+ chars</span>
+          <span
+            :class="passwordIsValid ? 'text-green-600 dark:text-green-500' : ''"
+            >8+ chars</span
+          >
           <span class="mx-1.5">·</span>
-          <span :class="containsSpecialChars ? 'text-green-600 dark:text-green-500' : ''">1 special</span>
+          <span
+            :class="
+              containsSpecialChars ? 'text-green-600 dark:text-green-500' : ''
+            "
+            >1 special</span
+          >
           <span class="mx-1.5">·</span>
-          <span :class="passwordsMatch ? 'text-green-600 dark:text-green-500' : ''">match</span>
+          <span
+            :class="passwordsMatch ? 'text-green-600 dark:text-green-500' : ''"
+            >match</span
+          >
         </p>
 
         <button
           type="submit"
           :disabled="!isFormValid"
-          class="w-full h-12 bg-gray-900 dark:bg-white hover:bg-gray-800 dark:hover:bg-gray-100 disabled:bg-gray-100 dark:disabled:bg-gray-900 disabled:text-gray-400 dark:disabled:text-gray-600 text-white dark:text-black font-medium rounded-md transition-colors flex items-center justify-center gap-2 border border-gray-200 dark:border-gray-800"
+          class="flex h-12 w-full items-center justify-center gap-2 rounded-md border border-gray-200 bg-gray-900 font-medium text-white transition-colors hover:bg-gray-800 disabled:bg-gray-100 disabled:text-gray-400 dark:border-gray-800 dark:bg-white dark:text-black dark:hover:bg-gray-100 dark:disabled:bg-gray-900 dark:disabled:text-gray-600"
         >
           <SlippyLoader v-if="form.processing" size="h-4 w-4" />
-          <span>{{ form.processing ? 'Creating account...' : 'Create account' }}</span>
+          <span>{{
+            form.processing ? 'Creating account...' : 'Create account'
+          }}</span>
         </button>
       </form>
     </div>

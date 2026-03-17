@@ -31,7 +31,9 @@ module.exports = {
 
   fn: async function ({ projectSlug, environmentSlug }) {
     const user = await User.findOne({ id: this.req.session.userId })
-    const project = await Project.findOne({ slug: projectSlug }).populate('team')
+    const project = await Project.findOne({ slug: projectSlug }).populate(
+      'team'
+    )
 
     if (!project) {
       throw 'notFound'
@@ -50,7 +52,9 @@ module.exports = {
       throw 'notFound'
     }
 
-    const app = await App.findOne({ environment: environment.id, isDefault: true }) || await App.findOne({ environment: environment.id })
+    const app =
+      (await App.findOne({ environment: environment.id, isDefault: true })) ||
+      (await App.findOne({ environment: environment.id }))
 
     if (!app || app.status !== 'running' || !app.containerName) {
       throw { badRequest: 'App is not running.' }

@@ -10,7 +10,9 @@ export default async function backupCreate(options, positionals) {
 
   const name = positionals[0]
   if (!name) {
-    error('Please provide a service name. Usage: slipway backup:create <service-name>')
+    error(
+      'Please provide a service name. Usage: slipway backup:create <service-name>'
+    )
   }
 
   const project = requireProject()
@@ -21,7 +23,7 @@ export default async function backupCreate(options, positionals) {
   try {
     // Resolve service name to ID
     const { services } = await api.services.list(project.project, environment)
-    const service = services.find(s => s.name === name)
+    const service = services.find((s) => s.name === name)
 
     if (!service) {
       spin.fail('Service not found')
@@ -37,7 +39,11 @@ export default async function backupCreate(options, positionals) {
     console.log(`  ${c.dim('Status:')}     ${backup.status}`)
     console.log(`  ${c.dim('Type:')}       ${backup.type}`)
     console.log()
-    console.log(`  ${c.dim('Run')} ${c.highlight(`slipway backup:list ${name}`)} ${c.dim('to check progress.')}`)
+    console.log(
+      `  ${c.dim('Run')} ${c.highlight(`slipway backup:list ${name}`)} ${c.dim(
+        'to check progress.'
+      )}`
+    )
     console.log()
   } catch (err) {
     spin.fail('Failed to create backup')

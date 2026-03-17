@@ -24,10 +24,9 @@ export function createCommandPalette() {
   function register(command) {
     commands.set(command.id, {
       ...command,
-      _searchText: [
-        command.title,
-        ...(command.keywords || [])
-      ].join(' ').toLowerCase()
+      _searchText: [command.title, ...(command.keywords || [])]
+        .join(' ')
+        .toLowerCase()
     })
   }
 
@@ -41,7 +40,10 @@ export function createCommandPalette() {
 
   function execute(command) {
     // Track in history
-    history.value = [command.id, ...history.value.filter(h => h !== command.id)].slice(0, 10)
+    history.value = [
+      command.id,
+      ...history.value.filter((h) => h !== command.id)
+    ].slice(0, 10)
     saveHistory(history.value)
 
     // Close palette
@@ -63,7 +65,17 @@ export function createCommandPalette() {
     isOpen.value = !isOpen.value
   }
 
-  const palette = { isOpen, history, register, unregister, getAll, execute, open, close, toggle }
+  const palette = {
+    isOpen,
+    history,
+    register,
+    unregister,
+    getAll,
+    execute,
+    open,
+    close,
+    toggle
+  }
 
   provide(COMMAND_PALETTE_KEY, palette)
 
@@ -73,7 +85,9 @@ export function createCommandPalette() {
 export function useCommandPalette() {
   const palette = inject(COMMAND_PALETTE_KEY)
   if (!palette) {
-    throw new Error('useCommandPalette() requires createCommandPalette() in a parent component')
+    throw new Error(
+      'useCommandPalette() requires createCommandPalette() in a parent component'
+    )
   }
   return palette
 }

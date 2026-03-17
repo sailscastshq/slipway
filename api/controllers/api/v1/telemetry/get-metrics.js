@@ -30,18 +30,25 @@ module.exports = {
   },
 
   fn: async function ({ projectSlug, environmentSlug, name, period }) {
-    const user = await User.findOne({ id: this.req.session.userId }).populate('team')
+    const user = await User.findOne({ id: this.req.session.userId }).populate(
+      'team'
+    )
     if (!user) return this.res.status(401).json({ error: 'Unauthorized' })
 
-    const project = await Project.findOne({ slug: projectSlug, team: user.team.id })
-    if (!project) return this.res.status(404).json({ error: 'Project not found' })
+    const project = await Project.findOne({
+      slug: projectSlug,
+      team: user.team.id
+    })
+    if (!project)
+      return this.res.status(404).json({ error: 'Project not found' })
 
     const envWhere = { project: project.id }
     if (environmentSlug) {
       envWhere.slug = environmentSlug
     }
     const environment = await Environment.findOne(envWhere)
-    if (!environment) return this.res.status(404).json({ error: 'Environment not found' })
+    if (!environment)
+      return this.res.status(404).json({ error: 'Environment not found' })
 
     // Calculate cutoff based on period
     const periodMs = {
@@ -85,7 +92,11 @@ module.exports = {
       agg.sum += m.value
       if (m.value < agg.min) agg.min = m.value
       if (m.value > agg.max) agg.max = m.value
-      agg.values.push({ value: m.value, recordedAt: m.recordedAt, attributes: m.attributes })
+      agg.values.push({
+        value: m.value,
+        recordedAt: m.recordedAt,
+        attributes: m.attributes
+      })
     }
 
     // Calculate averages and p95
@@ -95,7 +106,7 @@ module.exports = {
       if (agg.max === -Infinity) agg.max = 0
 
       // p95
-      const sorted = agg.values.map(v => v.value).sort((a, b) => a - b)
+      const sorted = agg.values.map((v) => v.value).sort((a, b) => a - b)
       const p95Index = Math.ceil(sorted.length * 0.95) - 1
       agg.p95 = sorted[Math.max(p95Index, 0)] || 0
 

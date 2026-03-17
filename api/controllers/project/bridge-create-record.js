@@ -36,7 +36,9 @@ module.exports = {
   },
 
   fn: async function ({ slug, envSlug, modelIdentity, values }) {
-    const user = await User.findOne({ id: this.req.session.userId }).populate('team')
+    const user = await User.findOne({ id: this.req.session.userId }).populate(
+      'team'
+    )
     if (!user) {
       throw { notFound: '/login' }
     }
@@ -54,18 +56,25 @@ module.exports = {
       throw { notFound: `/projects/${slug}` }
     }
 
-    const app = await App.findOne({ environment: environment.id, isDefault: true }) || await App.findOne({ environment: environment.id })
+    const app =
+      (await App.findOne({ environment: environment.id, isDefault: true })) ||
+      (await App.findOne({ environment: environment.id }))
     if (!app || app.status !== 'running') {
       throw { badRequest: { error: 'App is not running' } }
     }
 
     // Execute create in container
     const createCode = `
-      const record = await sails.models['${modelIdentity}'].create(${JSON.stringify(values)}).fetch();
+      const record = await sails.models['${modelIdentity}'].create(${JSON.stringify(
+      values
+    )}).fetch();
       return { record };
     `
     const wrappedCode = await sails.helpers.bridge.buildSailsWrapper(createCode)
-    const result = await sails.helpers.bridge.executeInContainer(app.containerName, wrappedCode)
+    const result = await sails.helpers.bridge.executeInContainer(
+      app.containerName,
+      wrappedCode
+    )
 
     if (!result.success) {
       throw { badRequest: { error: result.error || 'Failed to create record' } }

@@ -37,7 +37,7 @@ module.exports = {
     ])
 
     return {
-      logs: logs.map(log => ({
+      logs: logs.map((log) => ({
         id: log.id,
         action: log.action,
         resourceType: log.resourceType,

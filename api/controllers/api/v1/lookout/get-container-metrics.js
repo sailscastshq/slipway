@@ -27,7 +27,9 @@ module.exports = {
   },
 
   fn: async function ({ containerName }) {
-    const user = await User.findOne({ id: this.req.session.userId }).populate('team')
+    const user = await User.findOne({ id: this.req.session.userId }).populate(
+      'team'
+    )
     if (!user) throw 'notFound'
 
     // Verify user has access to this container (belongs to their team)
@@ -40,17 +42,20 @@ module.exports = {
     const environment = await Environment.findOne({ id: entityEnvironmentId })
     if (!environment) throw 'notFound'
 
-    const project = await Project.findOne({ id: environment.project, team: user.team.id })
+    const project = await Project.findOne({
+      id: environment.project,
+      team: user.team.id
+    })
     if (!project) throw 'notFound'
 
     // Get full 24h history
-    const twentyFourHoursAgo = Date.now() - (24 * 60 * 60 * 1000)
+    const twentyFourHoursAgo = Date.now() - 24 * 60 * 60 * 1000
     const metrics = await ContainerMetric.find({
       containerName,
       recordedAt: { '>=': twentyFourHoursAgo }
     }).sort('recordedAt ASC')
 
-    const mapped = metrics.map(m => ({
+    const mapped = metrics.map((m) => ({
       cpuPercent: m.cpuPercent,
       memoryUsage: m.memoryUsage,
       memoryLimit: m.memoryLimit,

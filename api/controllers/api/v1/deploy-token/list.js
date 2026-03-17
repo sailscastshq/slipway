@@ -27,13 +27,15 @@ module.exports = {
       .sort('createdAt DESC')
 
     return {
-      tokens: tokens.map(t => ({
+      tokens: tokens.map((t) => ({
         id: t.id,
         name: t.name,
         tokenPrefix: t.tokenPrefix,
         scopes: t.scopes,
         project: t.project ? { id: t.project.id, name: t.project.name } : null,
-        environment: t.environment ? { id: t.environment.id, slug: t.environment.slug } : null,
+        environment: t.environment
+          ? { id: t.environment.id, slug: t.environment.slug }
+          : null,
         createdBy: t.createdBy ? { email: t.createdBy.email } : null,
         createdAt: t.createdAt,
         expiresAt: t.expiresAt,

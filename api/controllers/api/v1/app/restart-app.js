@@ -35,13 +35,18 @@ module.exports = {
   fn: async function ({ projectSlug, environmentSlug, appSlug }) {
     const user = await User.findOne({ id: this.req.session.userId })
 
-    const project = await Project.findOne({ slug: projectSlug }).populate('team')
+    const project = await Project.findOne({ slug: projectSlug }).populate(
+      'team'
+    )
 
     if (!project || project.team.id !== user.team) {
       throw 'notFound'
     }
 
-    const environment = await Environment.findOne({ project: project.id, slug: environmentSlug })
+    const environment = await Environment.findOne({
+      project: project.id,
+      slug: environmentSlug
+    })
 
     if (!environment) {
       throw 'notFound'
@@ -51,8 +56,9 @@ module.exports = {
     if (appSlug) {
       app = await App.findOne({ environment: environment.id, slug: appSlug })
     } else {
-      app = await App.findOne({ environment: environment.id, isDefault: true })
-        || await App.findOne({ environment: environment.id })
+      app =
+        (await App.findOne({ environment: environment.id, isDefault: true })) ||
+        (await App.findOne({ environment: environment.id }))
     }
 
     if (!app || !app.containerName) {
@@ -68,7 +74,9 @@ module.exports = {
 
       await App.updateOne({ id: app.id }).set({ status: 'running' })
 
-      sails.log.info(`Restarted container ${app.containerName} for ${projectSlug}/${environmentSlug}`)
+      sails.log.info(
+        `Restarted container ${app.containerName} for ${projectSlug}/${environmentSlug}`
+      )
 
       return { message: 'App restarted' }
     } catch (err) {

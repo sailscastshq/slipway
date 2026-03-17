@@ -47,10 +47,19 @@ module.exports = {
     }
   },
 
-  fn: async function ({ projectSlug, environmentSlug, gitCommit, gitBranch, gitMessage, appSlug }) {
+  fn: async function ({
+    projectSlug,
+    environmentSlug,
+    gitCommit,
+    gitBranch,
+    gitMessage,
+    appSlug
+  }) {
     const user = await User.findOne({ id: this.req.session.userId })
 
-    const project = await Project.findOne({ slug: projectSlug }).populate('team')
+    const project = await Project.findOne({ slug: projectSlug }).populate(
+      'team'
+    )
 
     if (!project) {
       throw 'notFound'
@@ -60,7 +69,10 @@ module.exports = {
       throw 'forbidden'
     }
 
-    const environment = await Environment.findOne({ project: project.id, slug: environmentSlug })
+    const environment = await Environment.findOne({
+      project: project.id,
+      slug: environmentSlug
+    })
 
     if (!environment) {
       throw 'notFound'
@@ -69,10 +81,14 @@ module.exports = {
     // Resolve target app
     let targetApp
     if (appSlug) {
-      targetApp = await App.findOne({ environment: environment.id, slug: appSlug })
+      targetApp = await App.findOne({
+        environment: environment.id,
+        slug: appSlug
+      })
     } else {
-      targetApp = await App.findOne({ environment: environment.id, isDefault: true })
-        || await App.findOne({ environment: environment.id })
+      targetApp =
+        (await App.findOne({ environment: environment.id, isDefault: true })) ||
+        (await App.findOne({ environment: environment.id }))
     }
 
     // If git info not provided, get from most recent deployment
@@ -84,7 +100,9 @@ module.exports = {
       const lastDeployments = await Deployment.find({
         environment: environment.id,
         gitCommit: { '!=': null }
-      }).sort('id DESC').limit(1)
+      })
+        .sort('id DESC')
+        .limit(1)
 
       if (lastDeployments.length > 0) {
         const lastDeployment = lastDeployments[0]
@@ -107,18 +125,22 @@ module.exports = {
       startedAt: Date.now()
     }).fetch()
 
-    sails.log.info(`Deployment ${deployment.id} triggered for ${project.slug}/${environment.slug}`)
+    sails.log.info(
+      `Deployment ${deployment.id} triggered for ${project.slug}/${environment.slug}`
+    )
 
     // Audit log
-    sails.helpers.audit.log.with({
-      action: 'deployment.triggered',
-      resourceType: 'deployment',
-      resourceId: deployment.id,
-      details: { projectSlug, environmentSlug, gitCommit: finalGitCommit },
-      userId: user.id,
-      teamId: project.team.id,
-      ipAddress: this.req.ip
-    }).exec(() => {})
+    sails.helpers.audit.log
+      .with({
+        action: 'deployment.triggered',
+        resourceType: 'deployment',
+        resourceId: deployment.id,
+        details: { projectSlug, environmentSlug, gitCommit: finalGitCommit },
+        userId: user.id,
+        teamId: project.team.id,
+        ipAddress: this.req.ip
+      })
+      .exec(() => {})
 
     // Kick off the async deployment pipeline after returning the response
     process.nextTick(async () => {
@@ -130,7 +152,9 @@ module.exports = {
           app: targetApp
         })
       } catch (err) {
-        sails.log.error(`Deployment ${deployment.id} failed: ${err.message || err}`)
+        sails.log.error(
+          `Deployment ${deployment.id} failed: ${err.message || err}`
+        )
       }
     })
 

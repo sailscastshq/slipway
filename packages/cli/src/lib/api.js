@@ -40,13 +40,22 @@ async function apiRequest(method, path, options = {}) {
       body = JSON.parse(text)
     } catch {
       if (!response.ok) {
-        throw new APIError(text || `Request failed with status ${response.status}`, response.status)
+        throw new APIError(
+          text || `Request failed with status ${response.status}`,
+          response.status
+        )
       }
-      throw new APIError(`Unexpected response from server: ${text}`, response.status)
+      throw new APIError(
+        `Unexpected response from server: ${text}`,
+        response.status
+      )
     }
 
     if (!response.ok) {
-      const message = body.message || body.error || `Request failed with status ${response.status}`
+      const message =
+        body.message ||
+        body.error ||
+        `Request failed with status ${response.status}`
       throw new APIError(message, response.status, body)
     }
 
@@ -90,13 +99,22 @@ async function apiUpload(path, fieldName, buffer, filename) {
       body = JSON.parse(text)
     } catch {
       if (!response.ok) {
-        throw new APIError(text || `Upload failed with status ${response.status}`, response.status)
+        throw new APIError(
+          text || `Upload failed with status ${response.status}`,
+          response.status
+        )
       }
-      throw new APIError(`Unexpected response from server: ${text}`, response.status)
+      throw new APIError(
+        `Unexpected response from server: ${text}`,
+        response.status
+      )
     }
 
     if (!response.ok) {
-      const message = body.message || body.error || `Upload failed with status ${response.status}`
+      const message =
+        body.message ||
+        body.error ||
+        `Upload failed with status ${response.status}`
       throw new APIError(message, response.status, body)
     }
 
@@ -125,22 +143,29 @@ api.projects = {
   get: (id) => api.get(`/projects/${id}`),
   update: (id, data) => api.patch(`/projects/${id}`, data),
   delete: (id) => api.delete(`/projects/${id}`),
-  push: (id, tarballBuffer) => api.upload(`/projects/${id}/push`, 'source', tarballBuffer, 'source.tar.gz')
+  push: (id, tarballBuffer) =>
+    api.upload(`/projects/${id}/push`, 'source', tarballBuffer, 'source.tar.gz')
 }
 
 // Environment endpoints
 api.environments = {
   list: (projectId) => api.get(`/projects/${projectId}/environments`),
-  create: (projectId, data) => api.post(`/projects/${projectId}/environments`, data),
+  create: (projectId, data) =>
+    api.post(`/projects/${projectId}/environments`, data),
   get: (projectId, id) => api.get(`/projects/${projectId}/environments/${id}`),
-  update: (projectId, id, data) => api.patch(`/projects/${projectId}/environments/${id}`, data),
-  delete: (projectId, id) => api.delete(`/projects/${projectId}/environments/${id}`)
+  update: (projectId, id, data) =>
+    api.patch(`/projects/${projectId}/environments/${id}`, data),
+  delete: (projectId, id) =>
+    api.delete(`/projects/${projectId}/environments/${id}`)
 }
 
 // Deployment endpoints
 api.deployments = {
   trigger: (projectId, environmentId, data) =>
-    api.post(`/projects/${projectId}/environments/${environmentId}/deploy`, data),
+    api.post(
+      `/projects/${projectId}/environments/${environmentId}/deploy`,
+      data
+    ),
   status: (id) => api.get(`/deployments/${id}`),
   logs: (id, type = 'all') => api.get(`/deployments/${id}/logs?type=${type}`)
 }
@@ -150,7 +175,10 @@ api.services = {
   list: (projectId, environmentId) =>
     api.get(`/projects/${projectId}/environments/${environmentId}/services`),
   create: (projectId, environmentId, data) =>
-    api.post(`/projects/${projectId}/environments/${environmentId}/services`, data),
+    api.post(
+      `/projects/${projectId}/environments/${environmentId}/services`,
+      data
+    ),
   get: (id) => api.get(`/services/${id}`),
   delete: (id) => api.delete(`/services/${id}`)
 }
@@ -164,5 +192,6 @@ api.backups = {
 
 // Audit log endpoints
 api.auditLogs = {
-  list: (page = 1, limit = 20) => api.get(`/audit-logs?page=${page}&limit=${limit}`)
+  list: (page = 1, limit = 20) =>
+    api.get(`/audit-logs?page=${page}&limit=${limit}`)
 }

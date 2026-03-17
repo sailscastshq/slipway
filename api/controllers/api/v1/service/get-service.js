@@ -1,7 +1,7 @@
 module.exports = {
   friendlyName: 'Get service',
 
-  description: 'Get a service\'s details including connection URL.',
+  description: "Get a service's details including connection URL.",
 
   inputs: {
     id: {
@@ -26,19 +26,20 @@ module.exports = {
   fn: async function ({ id }) {
     const user = await User.findOne({ id: this.req.session.userId })
 
-    const service = await Service.findOne(id)
-      .populate('environment')
+    const service = await Service.findOne(id).populate('environment')
 
     if (!service) {
       throw 'notFound'
     }
 
     // Get project to check access
-    const environment = await Environment.findOne({ id: service.environment.id })
-      .populate('project')
+    const environment = await Environment.findOne({
+      id: service.environment.id
+    }).populate('project')
 
-    const project = await Project.findOne({ id: environment.project.id })
-      .populate('team')
+    const project = await Project.findOne({
+      id: environment.project.id
+    }).populate('team')
 
     if (project.team.id !== user.team) {
       throw 'forbidden'

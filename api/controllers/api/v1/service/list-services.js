@@ -31,7 +31,9 @@ module.exports = {
   fn: async function ({ projectSlug, environmentSlug }) {
     const user = await User.findOne({ id: this.req.session.userId })
 
-    const project = await Project.findOne({ slug: projectSlug }).populate('team')
+    const project = await Project.findOne({ slug: projectSlug }).populate(
+      'team'
+    )
 
     if (!project) {
       throw 'notFound'
@@ -41,17 +43,21 @@ module.exports = {
       throw 'forbidden'
     }
 
-    const environment = await Environment.findOne({ project: project.id, slug: environmentSlug })
+    const environment = await Environment.findOne({
+      project: project.id,
+      slug: environmentSlug
+    })
 
     if (!environment) {
       throw 'notFound'
     }
 
-    const services = await Service.find({ environment: environment.id })
-      .sort('createdAt ASC')
+    const services = await Service.find({ environment: environment.id }).sort(
+      'createdAt ASC'
+    )
 
     // Add connection URLs (without exposing passwords in list)
-    const servicesWithInfo = services.map(service => ({
+    const servicesWithInfo = services.map((service) => ({
       id: service.id,
       name: service.name,
       type: service.type,

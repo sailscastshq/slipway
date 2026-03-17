@@ -4,7 +4,8 @@ const path = require('path')
 module.exports = {
   friendlyName: 'Detect Sails features',
 
-  description: 'Analyze package.json to detect installed Sails features like sails-content, sails-quest, etc.',
+  description:
+    'Analyze package.json to detect installed Sails features like sails-content, sails-quest, etc.',
 
   inputs: {
     appPath: {
@@ -30,7 +31,9 @@ module.exports = {
       const content = fs.readFileSync(packageJsonPath, 'utf8')
       packageJson = JSON.parse(content)
     } catch (err) {
-      sails.log.warn(`[sails/detect-features] Could not read package.json: ${err.message}`)
+      sails.log.warn(
+        `[sails/detect-features] Could not read package.json: ${err.message}`
+      )
       return features
     }
 
@@ -45,9 +48,15 @@ module.exports = {
       features['sails-content'] = {
         version: deps['sails-content'] || deps['sails-hook-content'],
         contentDir: contentDir || 'content',
-        collections: contentDir ? listCollections(path.join(appPath, contentDir)) : []
+        collections: contentDir
+          ? listCollections(path.join(appPath, contentDir))
+          : []
       }
-      sails.log.info(`[sails/detect-features] Detected sails-content (contentDir: ${contentDir || 'content'})`)
+      sails.log.info(
+        `[sails/detect-features] Detected sails-content (contentDir: ${
+          contentDir || 'content'
+        })`
+      )
     }
 
     // Detect sails-quest (job queues)
@@ -57,7 +66,9 @@ module.exports = {
         version: deps['sails-quest'] || deps['sails-hook-quest'],
         scripts
       }
-      sails.log.info(`[sails/detect-features] Detected sails-quest (${scripts.length} scripts)`)
+      sails.log.info(
+        `[sails/detect-features] Detected sails-quest (${scripts.length} scripts)`
+      )
     }
 
     // Detect sails-hook-uploads
@@ -81,25 +92,35 @@ module.exports = {
       'sails-postgresql': 'postgresql',
       'sails-mysql': 'mysql',
       'sails-mongo': 'mongodb',
-      'pg': 'postgresql',
-      'mysql2': 'mysql',
-      'mongoose': 'mongodb',
-      'mongodb': 'mongodb'
+      pg: 'postgresql',
+      mysql2: 'mysql',
+      mongoose: 'mongodb',
+      mongodb: 'mongodb'
     }
     for (const [pkg, type] of Object.entries(dbAdapters)) {
       if (deps[pkg]) {
         features['requires-database'] = { adapter: pkg, type }
-        sails.log.info(`[sails/detect-features] Detected database requirement: ${pkg} (${type})`)
+        sails.log.info(
+          `[sails/detect-features] Detected database requirement: ${pkg} (${type})`
+        )
         break
       }
     }
 
     // Detect Redis requirements (connect-redis first — most common in Sails apps for sessions)
-    const redisAdapters = ['@sailshq/connect-redis', 'ioredis', 'redis', '@redis/client', 'sails-redis']
+    const redisAdapters = [
+      '@sailshq/connect-redis',
+      'ioredis',
+      'redis',
+      '@redis/client',
+      'sails-redis'
+    ]
     for (const pkg of redisAdapters) {
       if (deps[pkg]) {
         features['requires-redis'] = { adapter: pkg }
-        sails.log.info(`[sails/detect-features] Detected Redis requirement: ${pkg}`)
+        sails.log.info(
+          `[sails/detect-features] Detected Redis requirement: ${pkg}`
+        )
         break
       }
     }
@@ -157,7 +178,9 @@ function listScripts(appPath) {
       }
     }
   } catch (err) {
-    sails.log.warn(`[sails/detect-features] Could not list scripts: ${err.message}`)
+    sails.log.warn(
+      `[sails/detect-features] Could not list scripts: ${err.message}`
+    )
   }
 
   return scripts
@@ -179,7 +202,9 @@ function listCollections(contentPath) {
       if (entry.isDirectory() && !entry.name.startsWith('.')) {
         // Count markdown files in collection
         const collectionPath = path.join(contentPath, entry.name)
-        const files = fs.readdirSync(collectionPath).filter(f => f.endsWith('.md'))
+        const files = fs
+          .readdirSync(collectionPath)
+          .filter((f) => f.endsWith('.md'))
         collections.push({
           name: entry.name,
           count: files.length
@@ -187,7 +212,9 @@ function listCollections(contentPath) {
       }
     }
   } catch (err) {
-    sails.log.warn(`[sails/detect-features] Could not list collections: ${err.message}`)
+    sails.log.warn(
+      `[sails/detect-features] Could not list collections: ${err.message}`
+    )
   }
 
   return collections

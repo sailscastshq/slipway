@@ -31,10 +31,15 @@ module.exports = {
   },
 
   fn: async function ({ projectSlug, environmentSlug }) {
-    const user = await User.findOne({ id: this.req.session.userId }).populate('team')
+    const user = await User.findOne({ id: this.req.session.userId }).populate(
+      'team'
+    )
     if (!user) throw 'notFound'
 
-    const project = await Project.findOne({ slug: projectSlug, team: user.team.id })
+    const project = await Project.findOne({
+      slug: projectSlug,
+      team: user.team.id
+    })
     if (!project) throw 'notFound'
 
     const environment = await Environment.findOne({
@@ -44,8 +49,13 @@ module.exports = {
     if (!environment) throw 'notFound'
 
     // Get app and services for this environment
-    const app = await App.findOne({ environment: environment.id, isDefault: true }) || await App.findOne({ environment: environment.id })
-    const services = await Service.find({ environment: environment.id, status: 'running' })
+    const app =
+      (await App.findOne({ environment: environment.id, isDefault: true })) ||
+      (await App.findOne({ environment: environment.id }))
+    const services = await Service.find({
+      environment: environment.id,
+      status: 'running'
+    })
 
     const containerNames = []
     if (app && app.containerName) containerNames.push(app.containerName)
@@ -60,7 +70,9 @@ module.exports = {
     // Get latest metrics
     const latestMetrics = await ContainerMetric.find({
       containerName: containerNames
-    }).sort('recordedAt DESC').limit(containerNames.length * 2)
+    })
+      .sort('recordedAt DESC')
+      .limit(containerNames.length * 2)
 
     const metricMap = {}
     for (const m of latestMetrics) {
@@ -70,7 +82,7 @@ module.exports = {
     }
 
     // Get 1 hour of history for sparklines
-    const oneHourAgo = Date.now() - (60 * 60 * 1000)
+    const oneHourAgo = Date.now() - 60 * 60 * 1000
     const history = await ContainerMetric.find({
       containerName: containerNames,
       recordedAt: { '>=': oneHourAgo }
@@ -98,16 +110,18 @@ module.exports = {
         status: app.status,
         lastDeployedAt: app.lastDeployedAt,
         imageName: app.imageName,
-        metric: metric ? {
-          cpuPercent: metric.cpuPercent,
-          memoryUsage: metric.memoryUsage,
-          memoryLimit: metric.memoryLimit,
-          memoryPercent: metric.memoryPercent,
-          netIO: metric.netIO,
-          blockIO: metric.blockIO,
-          pids: metric.pids,
-          recordedAt: metric.recordedAt
-        } : null,
+        metric: metric
+          ? {
+              cpuPercent: metric.cpuPercent,
+              memoryUsage: metric.memoryUsage,
+              memoryLimit: metric.memoryLimit,
+              memoryPercent: metric.memoryPercent,
+              netIO: metric.netIO,
+              blockIO: metric.blockIO,
+              pids: metric.pids,
+              recordedAt: metric.recordedAt
+            }
+          : null,
         history: historyMap[app.containerName] || []
       })
     }
@@ -120,16 +134,18 @@ module.exports = {
         serviceType: service.type,
         serviceName: service.name,
         status: service.status,
-        metric: metric ? {
-          cpuPercent: metric.cpuPercent,
-          memoryUsage: metric.memoryUsage,
-          memoryLimit: metric.memoryLimit,
-          memoryPercent: metric.memoryPercent,
-          netIO: metric.netIO,
-          blockIO: metric.blockIO,
-          pids: metric.pids,
-          recordedAt: metric.recordedAt
-        } : null,
+        metric: metric
+          ? {
+              cpuPercent: metric.cpuPercent,
+              memoryUsage: metric.memoryUsage,
+              memoryLimit: metric.memoryLimit,
+              memoryPercent: metric.memoryPercent,
+              netIO: metric.netIO,
+              blockIO: metric.blockIO,
+              pids: metric.pids,
+              recordedAt: metric.recordedAt
+            }
+          : null,
         history: historyMap[service.containerName] || []
       })
     }

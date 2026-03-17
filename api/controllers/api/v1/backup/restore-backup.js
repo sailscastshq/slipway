@@ -35,23 +35,41 @@ module.exports = {
     }
 
     if (!backup.service) {
-      throw { badRequest: { problems: [{ service: 'Backup service no longer exists.' }] } }
+      throw {
+        badRequest: {
+          problems: [{ service: 'Backup service no longer exists.' }]
+        }
+      }
     }
 
     // Check access
-    const environment = await Environment.findOne({ id: backup.service.environment }).populate('project')
-    const project = await Project.findOne({ id: environment.project.id }).populate('team')
+    const environment = await Environment.findOne({
+      id: backup.service.environment
+    }).populate('project')
+    const project = await Project.findOne({
+      id: environment.project.id
+    }).populate('team')
 
     if (project.team.id !== user.team) {
       throw 'forbidden'
     }
 
     if (backup.status !== 'completed') {
-      throw { badRequest: { problems: [{ status: 'Only completed backups can be restored.' }] } }
+      throw {
+        badRequest: {
+          problems: [{ status: 'Only completed backups can be restored.' }]
+        }
+      }
     }
 
     if (backup.service.status !== 'running') {
-      throw { badRequest: { problems: [{ service: 'Service must be running to restore a backup.' }] } }
+      throw {
+        badRequest: {
+          problems: [
+            { service: 'Service must be running to restore a backup.' }
+          ]
+        }
+      }
     }
 
     // Audit log
@@ -59,14 +77,18 @@ module.exports = {
       action: 'backup.restored',
       resourceType: 'backup',
       resourceId: backup.id,
-      details: { serviceName: backup.service.name, serviceType: backup.service.type },
+      details: {
+        serviceName: backup.service.name,
+        serviceType: backup.service.type
+      },
       userId: user.id,
       teamId: project.team.id,
       ipAddress: this.req.ip
     })
 
     // Run restore asynchronously
-    sails.helpers.backup.restoreBackup(backup.id)
+    sails.helpers.backup
+      .restoreBackup(backup.id)
       .then(() => sails.log.info(`Backup ${backup.id} restored successfully`))
       .catch((err) => sails.log.error(`Backup restore failed: ${err.message}`))
 

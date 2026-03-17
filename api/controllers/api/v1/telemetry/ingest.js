@@ -30,7 +30,10 @@ module.exports = {
 
   exits: {
     success: { statusCode: 200 },
-    unauthorized: { statusCode: 401, description: 'Invalid or missing telemetry token' },
+    unauthorized: {
+      statusCode: 401,
+      description: 'Invalid or missing telemetry token'
+    },
     badRequest: { statusCode: 400, description: 'Invalid payload' }
   },
 
@@ -50,7 +53,9 @@ module.exports = {
     const crypto = require('crypto')
     const randomId = () => crypto.randomBytes(16).toString('hex')
     const tokenHash = crypto.createHash('sha256').update(token).digest('hex')
-    const environment = await Environment.findOne({ telemetryTokenHash: tokenHash })
+    const environment = await Environment.findOne({
+      telemetryTokenHash: tokenHash
+    })
     if (!environment) {
       throw 'unauthorized'
     }
@@ -61,12 +66,14 @@ module.exports = {
 
     // Ingest spans
     if (Array.isArray(spans) && spans.length > 0) {
-      const spanRecords = spans.slice(0, 500).map(s => ({
+      const spanRecords = spans.slice(0, 500).map((s) => ({
         traceId: String(s.traceId || randomId()),
         spanId: String(s.spanId || randomId()),
         parentSpanId: s.parentSpanId || null,
         name: String(s.name || 'unknown'),
-        kind: ['server', 'client', 'internal'].includes(s.kind) ? s.kind : 'server',
+        kind: ['server', 'client', 'internal'].includes(s.kind)
+          ? s.kind
+          : 'server',
         method: s.method || null,
         url: s.url || null,
         statusCode: typeof s.statusCode === 'number' ? s.statusCode : null,
@@ -81,7 +88,7 @@ module.exports = {
 
     // Ingest exceptions
     if (Array.isArray(exceptions) && exceptions.length > 0) {
-      const exceptionRecords = exceptions.slice(0, 200).map(e => ({
+      const exceptionRecords = exceptions.slice(0, 200).map((e) => ({
         exceptionType: String(e.exceptionType || e.type || 'Error'),
         message: String(e.message || 'Unknown error'),
         stackTrace: e.stackTrace || e.stack || null,
@@ -98,7 +105,7 @@ module.exports = {
 
     // Ingest metrics
     if (Array.isArray(metrics) && metrics.length > 0) {
-      const metricRecords = metrics.slice(0, 1000).map(m => ({
+      const metricRecords = metrics.slice(0, 1000).map((m) => ({
         name: String(m.name || 'unknown'),
         value: typeof m.value === 'number' ? m.value : 0,
         unit: String(m.unit || 'ms'),

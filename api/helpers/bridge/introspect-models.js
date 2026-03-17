@@ -13,7 +13,8 @@ function clearCache(environmentId) {
 module.exports = {
   friendlyName: 'Introspect models',
 
-  description: 'Introspect Waterline models from a running app container, including associations and validations.',
+  description:
+    'Introspect Waterline models from a running app container, including associations and validations.',
 
   inputs: {
     containerName: {
@@ -48,7 +49,10 @@ module.exports = {
 
     const code = buildIntrospectionCode()
     const wrappedCode = await sails.helpers.bridge.buildSailsWrapper(code)
-    const result = await sails.helpers.bridge.executeInContainer(containerName, wrappedCode)
+    const result = await sails.helpers.bridge.executeInContainer(
+      containerName,
+      wrappedCode
+    )
 
     if (!result.success) {
       return { models: {}, error: result.error }

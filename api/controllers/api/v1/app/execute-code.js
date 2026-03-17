@@ -3,7 +3,8 @@ const { spawn } = require('child_process')
 module.exports = {
   friendlyName: 'Execute code',
 
-  description: 'Execute JavaScript code inside a running app container (Helm REPL).',
+  description:
+    'Execute JavaScript code inside a running app container (Helm REPL).',
 
   inputs: {
     projectSlug: {
@@ -43,7 +44,9 @@ module.exports = {
   fn: async function ({ projectSlug, environmentSlug, code, appSlug }) {
     const user = await User.findOne({ id: this.req.session.userId })
 
-    const project = await Project.findOne({ slug: projectSlug }).populate('team')
+    const project = await Project.findOne({ slug: projectSlug }).populate(
+      'team'
+    )
 
     if (!project) {
       throw 'notFound'
@@ -53,13 +56,18 @@ module.exports = {
       throw 'forbidden'
     }
 
-    const environment = await Environment.findOne({ project: project.id, slug: environmentSlug })
+    const environment = await Environment.findOne({
+      project: project.id,
+      slug: environmentSlug
+    })
 
     if (!environment) {
       throw 'notFound'
     }
 
-    const app = await App.findOne({ environment: environment.id, isDefault: true }) || await App.findOne({ environment: environment.id })
+    const app =
+      (await App.findOne({ environment: environment.id, isDefault: true })) ||
+      (await App.findOne({ environment: environment.id }))
 
     if (!app || app.status !== 'running' || !app.containerName) {
       throw { badRequest: 'App is not running.' }

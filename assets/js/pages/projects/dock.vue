@@ -1,6 +1,14 @@
 <script setup>
 import { Link, Head } from '@inertiajs/vue3'
-import { inject, ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
+import {
+  inject,
+  ref,
+  computed,
+  watch,
+  onMounted,
+  onUnmounted,
+  nextTick
+} from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
 import ConfirmModal from '@/components/ConfirmModal.vue'
 import ToastContainer from '@/components/ToastContainer.vue'
@@ -30,15 +38,20 @@ const isPickerMode = computed(() => !props.databaseService)
 
 // Database type helpers
 const isMongoDB = computed(() => props.databaseService?.type === 'mongodb')
-const isSQL = computed(() => ['postgresql', 'mysql'].includes(props.databaseService?.type))
+const isSQL = computed(() =>
+  ['postgresql', 'mysql'].includes(props.databaseService?.type)
+)
 const isRedis = computed(() => props.databaseService?.type === 'redis')
-const hasMultipleServices = computed(() => (props.availableServices?.length || 0) > 1)
+const hasMultipleServices = computed(
+  () => (props.availableServices?.length || 0) > 1
+)
 
 // Build dock URL for a service
 function dockUrl(serviceId) {
-  const envPath = props.environment.slug !== 'production'
-    ? `/environments/${props.environment.slug}`
-    : ''
+  const envPath =
+    props.environment.slug !== 'production'
+      ? `/environments/${props.environment.slug}`
+      : ''
   return `/projects/${props.project.slug}${envPath}/dock/${serviceId}`
 }
 
@@ -57,7 +70,9 @@ const validTabs = computed(() => {
   return ['console', 'tables', 'schema', 'migrate']
 })
 const initialTab = new URLSearchParams(window.location.search).get('tab')
-const activeTab = ref(validTabs.value.includes(initialTab) ? initialTab : 'console')
+const activeTab = ref(
+  validTabs.value.includes(initialTab) ? initialTab : 'console'
+)
 
 // Sync tab to URL
 watch(activeTab, (tab) => {
@@ -71,9 +86,10 @@ watch(activeTab, (tab) => {
 })
 
 // Default query based on database type
-const defaultQuery = computed(() => isMongoDB.value
-  ? 'db.users.find().limit(10).toArray()'
-  : 'SELECT * FROM users LIMIT 10;'
+const defaultQuery = computed(() =>
+  isMongoDB.value
+    ? 'db.users.find().limit(10).toArray()'
+    : 'SELECT * FROM users LIMIT 10;'
 )
 
 // Console state
@@ -108,8 +124,12 @@ const schemaError = ref(null)
 const schemaFilterOpen = ref(false)
 
 // Initialize selected schema tables from URL
-const initialSchemaTables = new URLSearchParams(window.location.search).get('schemaTables')
-const selectedSchemaTables = ref(new Set(initialSchemaTables ? initialSchemaTables.split(',') : []))
+const initialSchemaTables = new URLSearchParams(window.location.search).get(
+  'schemaTables'
+)
+const selectedSchemaTables = ref(
+  new Set(initialSchemaTables ? initialSchemaTables.split(',') : [])
+)
 
 // All available table names for the dropdown
 const allSchemaTableNames = computed(() => {
@@ -158,7 +178,10 @@ function syncSchemaFilterToUrl() {
   if (selectedSchemaTables.value.size === 0) {
     url.searchParams.delete('schemaTables')
   } else {
-    url.searchParams.set('schemaTables', Array.from(selectedSchemaTables.value).join(','))
+    url.searchParams.set(
+      'schemaTables',
+      Array.from(selectedSchemaTables.value).join(',')
+    )
   }
   window.history.replaceState({}, '', url)
 }
@@ -194,7 +217,7 @@ function showToast(message, type = 'success') {
 }
 
 function dismissToast(id) {
-  toasts.value = toasts.value.filter(t => t.id !== id)
+  toasts.value = toasts.value.filter((t) => t.id !== id)
 }
 
 // Tables state
@@ -217,9 +240,10 @@ watch(selectedTable, (table) => {
 })
 
 const apiBasePath = computed(() => {
-  const envPath = props.environment.slug !== 'production'
-    ? `/environments/${props.environment.slug}`
-    : ''
+  const envPath =
+    props.environment.slug !== 'production'
+      ? `/environments/${props.environment.slug}`
+      : ''
   return `/api/v1/projects/${props.project.slug}${envPath}/dock`
 })
 
@@ -231,7 +255,11 @@ const serviceQuery = computed(() => {
 // Helper to build API URL with service param
 function apiUrl(endpoint, extraParams = '') {
   const hasQuery = serviceQuery.value || extraParams
-  const queryPart = serviceQuery.value + (extraParams ? (serviceQuery.value ? '&' : '?') + extraParams.replace(/^\?/, '') : '')
+  const queryPart =
+    serviceQuery.value +
+    (extraParams
+      ? (serviceQuery.value ? '&' : '?') + extraParams.replace(/^\?/, '')
+      : '')
   return `${apiBasePath.value}${endpoint}${queryPart}`
 }
 
@@ -290,11 +318,14 @@ async function executeRedisCommand() {
   redisHistoryIndex.value = -1
 
   try {
-    const res = await fetch(`/api/v1/services/${props.databaseService.id}/redis`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ command: cmd })
-    })
+    const res = await fetch(
+      `/api/v1/services/${props.databaseService.id}/redis`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ command: cmd })
+      }
+    )
 
     const result = await res.json()
 
@@ -327,7 +358,8 @@ async function executeRedisCommand() {
     nextTick(() => {
       redisCommandInput.value?.focus()
       if (redisOutputContainer.value) {
-        redisOutputContainer.value.scrollTop = redisOutputContainer.value.scrollHeight
+        redisOutputContainer.value.scrollTop =
+          redisOutputContainer.value.scrollHeight
       }
     })
   }
@@ -344,7 +376,10 @@ function handleRedisKeydown(e) {
     if (redisHistoryIndex.value < redisHistory.value.length - 1) {
       redisHistoryIndex.value++
     }
-    const entry = redisHistory.value[redisHistory.value.length - 1 - redisHistoryIndex.value]
+    const entry =
+      redisHistory.value[
+        redisHistory.value.length - 1 - redisHistoryIndex.value
+      ]
     if (entry) redisCommand.value = entry.command
   }
   // Down arrow to navigate history
@@ -352,7 +387,10 @@ function handleRedisKeydown(e) {
     e.preventDefault()
     if (redisHistoryIndex.value > 0) {
       redisHistoryIndex.value--
-      const entry = redisHistory.value[redisHistory.value.length - 1 - redisHistoryIndex.value]
+      const entry =
+        redisHistory.value[
+          redisHistory.value.length - 1 - redisHistoryIndex.value
+        ]
       if (entry) redisCommand.value = entry.command
     } else {
       redisHistoryIndex.value = -1
@@ -412,7 +450,7 @@ async function fetchDiff() {
       diff.value = data
       // Initialize all models as selected
       const models = new Set()
-      data.statements.forEach(stmt => {
+      data.statements.forEach((stmt) => {
         if (stmt.table) models.add(stmt.table)
       })
       selectedModels.value = models
@@ -428,7 +466,7 @@ async function fetchDiff() {
 const diffModels = computed(() => {
   if (!diff.value?.statements) return []
   const models = new Set()
-  diff.value.statements.forEach(stmt => {
+  diff.value.statements.forEach((stmt) => {
     if (stmt.table) models.add(stmt.table)
   })
   return Array.from(models).sort()
@@ -437,8 +475,8 @@ const diffModels = computed(() => {
 // Filter statements by selected models
 const filteredStatements = computed(() => {
   if (!diff.value?.statements) return []
-  return diff.value.statements.filter(stmt =>
-    !stmt.table || selectedModels.value.has(stmt.table)
+  return diff.value.statements.filter(
+    (stmt) => !stmt.table || selectedModels.value.has(stmt.table)
   )
 })
 
@@ -483,7 +521,10 @@ async function applyMigration() {
     if (!res.ok || !data.success) {
       showToast(data.error || data.message || 'Migration failed', 'error')
     } else {
-      showToast(`Migration applied: ${data.executed} statement(s) executed`, 'success')
+      showToast(
+        `Migration applied: ${data.executed} statement(s) executed`,
+        'success'
+      )
       await fetchDiff()
     }
   } catch (e) {
@@ -499,9 +540,10 @@ async function exportDatabase(mode = 'full') {
   exportDropdownOpen.value = false
 
   try {
-    const tablesToExport = selectedExportTables.value.size > 0
-      ? Array.from(selectedExportTables.value)
-      : null
+    const tablesToExport =
+      selectedExportTables.value.size > 0
+        ? Array.from(selectedExportTables.value)
+        : null
 
     const res = await fetch(apiUrl('/export'), {
       method: 'POST',
@@ -523,9 +565,14 @@ async function exportDatabase(mode = 'full') {
     // Download the export file
     const ext = isMongoDB.value ? 'json' : 'sql'
     const mimeType = isMongoDB.value ? 'application/json' : 'application/sql'
-    const filename = `${props.project.slug}-${props.environment.slug}-${mode === 'schema' ? 'schema' : mode === 'data' ? 'data' : 'backup'}.${ext}`
+    const filename = `${props.project.slug}-${props.environment.slug}-${
+      mode === 'schema' ? 'schema' : mode === 'data' ? 'data' : 'backup'
+    }.${ext}`
     downloadFile(data.sql, filename, mimeType)
-    showToast(`Exported ${data.lines} lines (${formatBytes(data.size)})`, 'success')
+    showToast(
+      `Exported ${data.lines} lines (${formatBytes(data.size)})`,
+      'success'
+    )
   } catch (e) {
     showToast(e.message, 'error')
   } finally {
@@ -543,7 +590,7 @@ function toggleExportTable(tableName) {
 }
 
 function selectAllExportTables() {
-  selectedExportTables.value = new Set(tables.value.map(t => t.name))
+  selectedExportTables.value = new Set(tables.value.map((t) => t.name))
 }
 
 function clearExportTableSelection() {
@@ -585,7 +632,8 @@ const importAccept = computed(() => {
 
 const importFileLabel = computed(() => {
   if (isMongoDB.value) return 'Upload a .json or .gz file'
-  if (props.databaseService?.type === 'postgresql') return 'Upload a .sql or .dmp file'
+  if (props.databaseService?.type === 'postgresql')
+    return 'Upload a .sql or .dmp file'
   return 'Upload a .sql file'
 })
 
@@ -647,10 +695,12 @@ async function executeImport() {
     if (!res.ok || !data.success) {
       showToast(data.error || 'Import failed', 'error')
     } else {
-      showToast(isBinaryImport.value
-        ? `Dump restored in ${data.duration}ms`
-        : `Import completed: ${data.statementCount} statement(s) in ${data.duration}ms`,
-      'success')
+      showToast(
+        isBinaryImport.value
+          ? `Dump restored in ${data.duration}ms`
+          : `Import completed: ${data.statementCount} statement(s) in ${data.duration}ms`,
+        'success'
+      )
       closeImportModal()
       fetchTables()
       if (schema.value) fetchSchema()
@@ -695,7 +745,9 @@ async function browseTable(tableName) {
 
   try {
     const orderBy = isMongoDB.value ? '_id' : 'id'
-    const res = await fetch(apiUrl(`/tables/${tableName}/data`, `limit=50&orderBy=${orderBy}`))
+    const res = await fetch(
+      apiUrl(`/tables/${tableName}/data`, `limit=50&orderBy=${orderBy}`)
+    )
     const data = await res.json()
 
     if (res.ok) {
@@ -716,7 +768,11 @@ function switchTab(tab) {
   if (tab === 'migrate' && !diff.value && !diffLoading.value) {
     fetchDiff()
   }
-  if ((tab === 'tables' || tab === 'collections') && tables.value.length === 0 && !tablesLoading.value) {
+  if (
+    (tab === 'tables' || tab === 'collections') &&
+    tables.value.length === 0 &&
+    !tablesLoading.value
+  ) {
     fetchTables()
   }
 }
@@ -739,7 +795,7 @@ function exportAsCSV() {
   const { columns, rows } = queryResult.value
   const csvLines = [columns.join(',')]
   for (const row of rows) {
-    const values = columns.map(col => {
+    const values = columns.map((col) => {
       const val = row[col]
       if (val === null) return ''
       const str = String(val)
@@ -766,7 +822,7 @@ function copyAsCSV() {
   const { columns, rows } = queryResult.value
   const csvLines = [columns.join(',')]
   for (const row of rows) {
-    const values = columns.map(col => {
+    const values = columns.map((col) => {
       const val = row[col]
       if (val === null) return ''
       const str = String(val)
@@ -858,17 +914,39 @@ onUnmounted(() => {
   <Head :title="`Dock - ${project.name} | Slipway`"></Head>
   <div class="flex h-full flex-col">
     <!-- Header -->
-    <div class="flex items-center justify-between border-b border-gray-200 px-4 py-3 dark:border-gray-800 sm:px-6">
+    <div
+      class="flex items-center justify-between border-b border-gray-200 px-4 py-3 dark:border-gray-800 sm:px-6"
+    >
       <div class="flex items-center space-x-3">
         <!-- Mobile menu toggle -->
         <button
           @click="toggleMobileMenu"
           class="rounded-md p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white md:hidden"
         >
-          <svg class="h-5 w-5" viewBox="-0.5 -0.5 16 16" fill="none" stroke="currentColor">
-            <path d="M12.777 14.285H2.223c-.833 0-1.508-.675-1.508-1.508V2.223c0-.833.675-1.508 1.508-1.508h10.554c.833 0 1.508.675 1.508 1.508v10.554c0 .833-.675 1.508-1.508 1.508Z" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
-            <path d="M5.615 14.285V.715" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
-            <path d="M2.6 5.992 3.919 7.5 2.6 9.008" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
+          <svg
+            class="h-5 w-5"
+            viewBox="-0.5 -0.5 16 16"
+            fill="none"
+            stroke="currentColor"
+          >
+            <path
+              d="M12.777 14.285H2.223c-.833 0-1.508-.675-1.508-1.508V2.223c0-.833.675-1.508 1.508-1.508h10.554c.833 0 1.508.675 1.508 1.508v10.554c0 .833-.675 1.508-1.508 1.508Z"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1"
+            />
+            <path
+              d="M5.615 14.285V.715"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1"
+            />
+            <path
+              d="M2.6 5.992 3.919 7.5 2.6 9.008"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1"
+            />
           </svg>
         </button>
         <!-- Desktop sidebar toggle -->
@@ -876,20 +954,65 @@ onUnmounted(() => {
           @click="toggleSidebar"
           class="hidden text-gray-400 dark:text-gray-500 md:block"
         >
-          <svg v-if="sidebarCollapsed" class="h-5 w-5" viewBox="-0.5 -0.5 16 16" fill="none" stroke="currentColor">
-            <path d="M12.777 14.285H2.223c-.833 0-1.508-.675-1.508-1.508V2.223c0-.833.675-1.508 1.508-1.508h10.554c.833 0 1.508.675 1.508 1.508v10.554c0 .833-.675 1.508-1.508 1.508Z" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
-            <path d="M5.615 14.285V.715" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
-            <path d="M2.6 5.992 3.919 7.5 2.6 9.008" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
+          <svg
+            v-if="sidebarCollapsed"
+            class="h-5 w-5"
+            viewBox="-0.5 -0.5 16 16"
+            fill="none"
+            stroke="currentColor"
+          >
+            <path
+              d="M12.777 14.285H2.223c-.833 0-1.508-.675-1.508-1.508V2.223c0-.833.675-1.508 1.508-1.508h10.554c.833 0 1.508.675 1.508 1.508v10.554c0 .833-.675 1.508-1.508 1.508Z"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1"
+            />
+            <path
+              d="M5.615 14.285V.715"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1"
+            />
+            <path
+              d="M2.6 5.992 3.919 7.5 2.6 9.008"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1"
+            />
           </svg>
-          <svg v-else class="h-5 w-5" viewBox="-0.5 -0.5 16 16" fill="none" stroke="currentColor">
-            <path d="M12.777 14.285H2.223c-.833 0-1.508-.675-1.508-1.508V2.223c0-.833.675-1.508 1.508-1.508h10.554c.833 0 1.508.675 1.508 1.508v10.554c0 .833-.675 1.508-1.508 1.508Z" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
-            <path d="M5.615 14.285V.715" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
-            <path d="M3.919 5.992 2.6 7.5l1.319 1.508" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
+          <svg
+            v-else
+            class="h-5 w-5"
+            viewBox="-0.5 -0.5 16 16"
+            fill="none"
+            stroke="currentColor"
+          >
+            <path
+              d="M12.777 14.285H2.223c-.833 0-1.508-.675-1.508-1.508V2.223c0-.833.675-1.508 1.508-1.508h10.554c.833 0 1.508.675 1.508 1.508v10.554c0 .833-.675 1.508-1.508 1.508Z"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1"
+            />
+            <path
+              d="M5.615 14.285V.715"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1"
+            />
+            <path
+              d="M3.919 5.992 2.6 7.5l1.319 1.508"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1"
+            />
           </svg>
         </button>
         <!-- Mobile: simplified breadcrumb -->
         <nav class="flex items-center space-x-2 text-sm sm:hidden">
-          <Link :href="`/projects/${project.slug}/environments/${environment.slug}`" class="text-gray-500 dark:text-gray-400">
+          <Link
+            :href="`/projects/${project.slug}/environments/${environment.slug}`"
+            class="text-gray-500 dark:text-gray-400"
+          >
             {{ project.name.toLowerCase() }}
           </Link>
           <span class="text-gray-400 dark:text-gray-600">/</span>
@@ -897,13 +1020,23 @@ onUnmounted(() => {
         </nav>
         <!-- Desktop: full breadcrumb -->
         <nav class="hidden items-center space-x-2 text-sm sm:flex">
-          <Link href="/" class="text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white">projects</Link>
+          <Link
+            href="/"
+            class="text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
+            >projects</Link
+          >
           <span class="text-gray-400 dark:text-gray-600">/</span>
-          <Link :href="`/projects/${project.slug}`" class="text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white">
+          <Link
+            :href="`/projects/${project.slug}`"
+            class="text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
+          >
             {{ project.name.toLowerCase() }}
           </Link>
           <span class="text-gray-400 dark:text-gray-600">/</span>
-          <Link :href="`/projects/${project.slug}/environments/${environment.slug}`" class="text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white">
+          <Link
+            :href="`/projects/${project.slug}/environments/${environment.slug}`"
+            class="text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
+          >
             {{ environment.slug }}
           </Link>
           <span class="text-gray-400 dark:text-gray-600">/</span>
@@ -912,29 +1045,55 @@ onUnmounted(() => {
       </div>
       <div class="flex items-center space-x-2 sm:space-x-3">
         <!-- Database selector (when multiple DBs available) -->
-        <div v-if="databaseService && hasMultipleServices" class="relative hidden sm:block">
+        <div
+          v-if="databaseService && hasMultipleServices"
+          class="relative hidden sm:block"
+        >
           <select
             :value="databaseService.id"
             @change="switchService($event.target.value)"
-            class="appearance-none border-b border-dashed border-gray-300 bg-transparent py-1 pl-1 pr-6 text-sm text-gray-600 focus:border-brand focus:outline-none dark:border-gray-600 dark:text-gray-400"
+            class="focus:border-brand appearance-none border-b border-dashed border-gray-300 bg-transparent py-1 pl-1 pr-6 text-sm text-gray-600 focus:outline-none dark:border-gray-600 dark:text-gray-400"
           >
-            <option v-for="svc in availableServices" :key="svc.id" :value="svc.id">
+            <option
+              v-for="svc in availableServices"
+              :key="svc.id"
+              :value="svc.id"
+            >
               {{ svc.name }}
             </option>
           </select>
-          <svg class="pointer-events-none absolute right-0 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+          <svg
+            class="pointer-events-none absolute right-0 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-400"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M19 9l-7 7-7-7"
+            />
           </svg>
         </div>
         <!-- Single DB badge -->
-        <span v-else-if="databaseService && isRedis" class="inline-flex h-6 w-6 items-center justify-center rounded bg-red-100 text-[9px] font-bold text-red-600 dark:bg-red-900/30 dark:text-red-400 sm:inline-flex">
+        <span
+          v-else-if="databaseService && isRedis"
+          class="inline-flex h-6 w-6 items-center justify-center rounded bg-red-100 text-[9px] font-bold text-red-600 dark:bg-red-900/30 dark:text-red-400 sm:inline-flex"
+        >
           Rd
         </span>
-        <span v-else-if="databaseService" class="hidden rounded bg-gray-100 px-2 py-1 text-xs font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-400 sm:inline-block">
+        <span
+          v-else-if="databaseService"
+          class="hidden rounded bg-gray-100 px-2 py-1 text-xs font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-400 sm:inline-block"
+        >
           {{ databaseService.type }}
         </span>
         <!-- Redis connection status -->
-        <span v-if="isRedis && databaseService?.status === 'running'" class="flex items-center space-x-1.5 text-xs text-green-600 dark:text-green-400">
+        <span
+          v-if="isRedis && databaseService?.status === 'running'"
+          class="flex items-center space-x-1.5 text-xs text-green-600 dark:text-green-400"
+        >
           <span class="h-1.5 w-1.5 rounded-full bg-green-500"></span>
           <span class="hidden sm:inline">connected</span>
         </span>
@@ -944,20 +1103,45 @@ onUnmounted(() => {
           class="flex items-center space-x-1 text-sm text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
         >
           <span>Docs</span>
-          <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+          <svg
+            class="h-3.5 w-3.5"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+            />
           </svg>
         </a>
       </div>
     </div>
 
     <!-- No services available -->
-    <div v-if="isPickerMode && availableServices.length === 0" class="flex flex-1 items-center justify-center p-8">
+    <div
+      v-if="isPickerMode && availableServices.length === 0"
+      class="flex flex-1 items-center justify-center p-8"
+    >
       <div class="max-w-md text-center">
-        <svg class="mx-auto h-12 w-12 text-gray-400 dark:text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4" />
+        <svg
+          class="mx-auto h-12 w-12 text-gray-400 dark:text-gray-600"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="1.5"
+            d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"
+          />
         </svg>
-        <h3 class="mt-4 text-sm font-medium text-gray-900 dark:text-white">No database services</h3>
+        <h3 class="mt-4 text-sm font-medium text-gray-900 dark:text-white">
+          No database services
+        </h3>
         <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">
           Add a PostgreSQL, MySQL, MongoDB, or Redis service to enable Dock.
         </p>
@@ -966,36 +1150,69 @@ onUnmounted(() => {
           class="mt-4 inline-flex items-center text-sm text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
         >
           Go to environment
-          <svg class="ml-1 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+          <svg
+            class="ml-1 h-4 w-4"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M9 5l7 7-7 7"
+            />
           </svg>
         </Link>
       </div>
     </div>
 
     <!-- Service Picker (no service selected yet) -->
-    <div v-else-if="isPickerMode" class="flex flex-1 items-center justify-center p-6 sm:p-8">
+    <div
+      v-else-if="isPickerMode"
+      class="flex flex-1 items-center justify-center p-6 sm:p-8"
+    >
       <div class="w-full max-w-md">
         <!-- Header -->
         <div class="mb-6 text-center">
-          <div class="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-gray-100 dark:bg-gray-800">
-            <svg class="h-6 w-6 text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4" />
+          <div
+            class="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-gray-100 dark:bg-gray-800"
+          >
+            <svg
+              class="h-6 w-6 text-gray-500 dark:text-gray-400"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="1.5"
+                d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"
+              />
             </svg>
           </div>
-          <h2 class="text-lg font-medium text-gray-900 dark:text-white">Dock</h2>
-          <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Select a service to manage</p>
+          <h2 class="text-lg font-medium text-gray-900 dark:text-white">
+            Dock
+          </h2>
+          <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+            Select a service to manage
+          </p>
         </div>
 
         <!-- Service List -->
-        <div class="overflow-hidden rounded-lg border border-gray-200 dark:border-gray-800">
+        <div
+          class="overflow-hidden rounded-lg border border-gray-200 dark:border-gray-800"
+        >
           <Link
             v-for="(service, index) in availableServices"
             :key="service.id"
             :href="dockUrl(service.id)"
             :class="[
               'group flex items-center justify-between px-4 py-3 transition-colors hover:bg-gray-50 dark:hover:bg-gray-900/50',
-              index !== availableServices.length - 1 ? 'border-b border-gray-200 dark:border-gray-800' : ''
+              index !== availableServices.length - 1
+                ? 'border-b border-gray-200 dark:border-gray-800'
+                : ''
             ]"
           >
             <div class="flex items-center space-x-3">
@@ -1003,24 +1220,59 @@ onUnmounted(() => {
               <div
                 :class="[
                   'flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-xs font-bold',
-                  service.type === 'redis' ? 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400' :
-                  service.type === 'mongodb' ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400' :
-                  service.type === 'mysql' ? 'bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400' :
-                  'bg-sky-100 text-sky-600 dark:bg-sky-900/30 dark:text-sky-400'
+                  service.type === 'redis'
+                    ? 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400'
+                    : service.type === 'mongodb'
+                    ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400'
+                    : service.type === 'mysql'
+                    ? 'bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400'
+                    : 'bg-sky-100 text-sky-600 dark:bg-sky-900/30 dark:text-sky-400'
                 ]"
               >
-                {{ service.type === 'redis' ? 'RD' : service.type === 'mongodb' ? 'MG' : service.type === 'mysql' ? 'MY' : 'PG' }}
+                {{
+                  service.type === 'redis'
+                    ? 'RD'
+                    : service.type === 'mongodb'
+                    ? 'MG'
+                    : service.type === 'mysql'
+                    ? 'MY'
+                    : 'PG'
+                }}
               </div>
               <div>
-                <p class="text-sm font-medium text-gray-900 dark:text-white">{{ service.name }}</p>
+                <p class="text-sm font-medium text-gray-900 dark:text-white">
+                  {{ service.name }}
+                </p>
                 <p class="text-xs text-gray-500 dark:text-gray-400">
-                  {{ service.type === 'postgresql' ? 'PostgreSQL' : service.type === 'mysql' ? 'MySQL' : service.type === 'mongodb' ? 'MongoDB' : 'Redis' }}
-                  <span v-if="service.database" class="text-gray-400 dark:text-gray-500">· {{ service.database }}</span>
+                  {{
+                    service.type === 'postgresql'
+                      ? 'PostgreSQL'
+                      : service.type === 'mysql'
+                      ? 'MySQL'
+                      : service.type === 'mongodb'
+                      ? 'MongoDB'
+                      : 'Redis'
+                  }}
+                  <span
+                    v-if="service.database"
+                    class="text-gray-400 dark:text-gray-500"
+                    >· {{ service.database }}</span
+                  >
                 </p>
               </div>
             </div>
-            <svg class="h-4 w-4 text-gray-400 transition-transform group-hover:translate-x-0.5 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+            <svg
+              class="h-4 w-4 text-gray-400 transition-transform group-hover:translate-x-0.5 dark:text-gray-500"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M9 5l7 7-7 7"
+              />
             </svg>
           </Link>
         </div>
@@ -1030,7 +1282,10 @@ onUnmounted(() => {
     <!-- Database management UI (service selected) -->
     <div v-else class="flex flex-1 flex-col overflow-hidden">
       <!-- Tabs (hidden for Redis since it only has console) -->
-      <div v-if="validTabs.length > 1" class="sticky top-0 z-10 flex items-center space-x-1 border-b border-gray-200/50 bg-white/80 px-4 py-2 backdrop-blur-md dark:border-gray-800/50 dark:bg-gray-950/80 sm:px-6">
+      <div
+        v-if="validTabs.length > 1"
+        class="sticky top-0 z-10 flex items-center space-x-1 border-b border-gray-200/50 bg-white/80 px-4 py-2 backdrop-blur-md dark:border-gray-800/50 dark:bg-gray-950/80 sm:px-6"
+      >
         <button
           v-for="tab in validTabs"
           :key="tab"
@@ -1047,10 +1302,18 @@ onUnmounted(() => {
       </div>
 
       <!-- Redis Console Tab -->
-      <div v-if="activeTab === 'console' && isRedis" class="flex flex-1 flex-col overflow-hidden">
+      <div
+        v-if="activeTab === 'console' && isRedis"
+        class="flex flex-1 flex-col overflow-hidden"
+      >
         <!-- Quick actions bar -->
-        <div class="flex items-center gap-2 border-b border-gray-200 bg-gray-50 px-4 py-2 dark:border-gray-800 dark:bg-gray-900">
-          <span class="hidden shrink-0 text-xs font-medium text-gray-500 dark:text-gray-400 sm:block">Quick:</span>
+        <div
+          class="flex items-center gap-2 border-b border-gray-200 bg-gray-50 px-4 py-2 dark:border-gray-800 dark:bg-gray-900"
+        >
+          <span
+            class="hidden shrink-0 text-xs font-medium text-gray-500 dark:text-gray-400 sm:block"
+            >Quick:</span
+          >
           <div class="flex flex-1 items-center gap-2 overflow-x-auto">
             <button
               v-for="qc in redisQuickCommands"
@@ -1077,35 +1340,79 @@ onUnmounted(() => {
           class="flex-1 overflow-y-auto bg-gray-100 p-4 font-mono text-sm leading-6 dark:bg-gray-950"
         >
           <!-- Empty state -->
-          <div v-if="redisHistory.length === 0 && !redisRunning" class="text-gray-500 dark:text-gray-600">
-            <p>Redis CLI console for <span class="font-medium text-gray-700 dark:text-gray-400">{{ databaseService.name }}</span></p>
-            <p class="mt-2">Type a command below or use the quick actions above.</p>
-            <p class="mt-1 text-gray-400 dark:text-gray-700">Use <kbd class="rounded bg-gray-200 px-1.5 py-0.5 text-xs text-gray-600 dark:bg-gray-800 dark:text-gray-400">Up</kbd>/<kbd class="rounded bg-gray-200 px-1.5 py-0.5 text-xs text-gray-600 dark:bg-gray-800 dark:text-gray-400">Down</kbd> arrows to navigate history.</p>
+          <div
+            v-if="redisHistory.length === 0 && !redisRunning"
+            class="text-gray-500 dark:text-gray-600"
+          >
+            <p>
+              Redis CLI console for
+              <span class="font-medium text-gray-700 dark:text-gray-400">{{
+                databaseService.name
+              }}</span>
+            </p>
+            <p class="mt-2">
+              Type a command below or use the quick actions above.
+            </p>
+            <p class="mt-1 text-gray-400 dark:text-gray-700">
+              Use
+              <kbd
+                class="rounded bg-gray-200 px-1.5 py-0.5 text-xs text-gray-600 dark:bg-gray-800 dark:text-gray-400"
+                >Up</kbd
+              >/<kbd
+                class="rounded bg-gray-200 px-1.5 py-0.5 text-xs text-gray-600 dark:bg-gray-800 dark:text-gray-400"
+                >Down</kbd
+              >
+              arrows to navigate history.
+            </p>
           </div>
 
           <!-- Command history output -->
           <div v-for="(entry, i) in redisHistory" :key="i" class="mb-3">
             <div class="flex items-center gap-2">
               <span class="text-red-500 dark:text-red-400">redis&gt;</span>
-              <span class="text-gray-900 dark:text-gray-200">{{ entry.command }}</span>
-              <span class="text-xs text-gray-400 dark:text-gray-700">{{ entry.duration }}ms</span>
+              <span class="text-gray-900 dark:text-gray-200">{{
+                entry.command
+              }}</span>
+              <span class="text-xs text-gray-400 dark:text-gray-700"
+                >{{ entry.duration }}ms</span
+              >
             </div>
-            <pre v-if="entry.success && entry.output" class="mt-0.5 whitespace-pre-wrap text-green-600 dark:text-green-400">{{ entry.output }}</pre>
-            <pre v-if="entry.error" class="mt-0.5 whitespace-pre-wrap text-red-500 dark:text-red-400">{{ entry.error }}</pre>
-            <div v-if="entry.success && !entry.output && !entry.error" class="mt-0.5 text-gray-400 dark:text-gray-600">(empty)</div>
+            <pre
+              v-if="entry.success && entry.output"
+              class="mt-0.5 whitespace-pre-wrap text-green-600 dark:text-green-400"
+              >{{ entry.output }}</pre
+            >
+            <pre
+              v-if="entry.error"
+              class="mt-0.5 whitespace-pre-wrap text-red-500 dark:text-red-400"
+              >{{ entry.error }}</pre
+            >
+            <div
+              v-if="entry.success && !entry.output && !entry.error"
+              class="mt-0.5 text-gray-400 dark:text-gray-600"
+            >
+              (empty)
+            </div>
           </div>
 
           <!-- Running indicator -->
-          <div v-if="redisRunning" class="flex items-center space-x-2 text-gray-500">
+          <div
+            v-if="redisRunning"
+            class="flex items-center space-x-2 text-gray-500"
+          >
             <SlippyLoader size="h-4 w-4" />
             <span>Executing...</span>
           </div>
         </div>
 
         <!-- Command input -->
-        <div class="border-t border-gray-200 bg-gray-100 dark:border-gray-800 dark:bg-gray-950">
+        <div
+          class="border-t border-gray-200 bg-gray-100 dark:border-gray-800 dark:bg-gray-950"
+        >
           <div class="flex items-center px-4 py-3">
-            <span class="mr-2 font-mono text-sm text-red-500 dark:text-red-400">redis&gt;</span>
+            <span class="mr-2 font-mono text-sm text-red-500 dark:text-red-400"
+              >redis&gt;</span
+            >
             <input
               ref="redisCommandInput"
               v-model="redisCommand"
@@ -1130,9 +1437,14 @@ onUnmounted(() => {
       </div>
 
       <!-- SQL/MongoDB Console Tab -->
-      <div v-if="activeTab === 'console' && !isRedis" class="flex flex-1 flex-col overflow-hidden">
+      <div
+        v-if="activeTab === 'console' && !isRedis"
+        class="flex flex-1 flex-col overflow-hidden"
+      >
         <!-- Editor -->
-        <div class="flex-1 overflow-hidden border-b border-gray-200 dark:border-gray-800">
+        <div
+          class="flex-1 overflow-hidden border-b border-gray-200 dark:border-gray-800"
+        >
           <div class="relative h-full">
             <!-- Highlighted layer -->
             <pre
@@ -1143,7 +1455,7 @@ onUnmounted(() => {
             <!-- Textarea -->
             <textarea
               v-model="query"
-              class="absolute inset-0 h-full w-full resize-none bg-transparent p-4 font-mono text-sm leading-6 text-transparent caret-gray-900 placeholder-gray-400 focus:outline-none dark:caret-white dark:placeholder-gray-600"
+              class="absolute inset-0 h-full w-full resize-none bg-transparent p-4 font-mono text-sm leading-6 text-transparent placeholder-gray-400 caret-gray-900 focus:outline-none dark:placeholder-gray-600 dark:caret-white"
               :placeholder="defaultQuery"
               spellcheck="false"
               @keydown.ctrl.enter="executeQuery"
@@ -1153,10 +1465,20 @@ onUnmounted(() => {
         </div>
 
         <!-- Actions bar -->
-        <div class="flex items-center justify-between border-b border-gray-200 px-4 py-2 dark:border-gray-800 sm:px-6">
-          <div class="flex items-center space-x-2 text-xs text-gray-500 dark:text-gray-400">
-            <kbd class="rounded bg-gray-100 px-1.5 py-0.5 font-mono text-gray-600 dark:bg-gray-800 dark:text-gray-400">⌘</kbd>
-            <kbd class="rounded bg-gray-100 px-1.5 py-0.5 font-mono text-gray-600 dark:bg-gray-800 dark:text-gray-400">Enter</kbd>
+        <div
+          class="flex items-center justify-between border-b border-gray-200 px-4 py-2 dark:border-gray-800 sm:px-6"
+        >
+          <div
+            class="flex items-center space-x-2 text-xs text-gray-500 dark:text-gray-400"
+          >
+            <kbd
+              class="rounded bg-gray-100 px-1.5 py-0.5 font-mono text-gray-600 dark:bg-gray-800 dark:text-gray-400"
+              >⌘</kbd
+            >
+            <kbd
+              class="rounded bg-gray-100 px-1.5 py-0.5 font-mono text-gray-600 dark:bg-gray-800 dark:text-gray-400"
+              >Enter</kbd
+            >
             <span>to run</span>
           </div>
           <button
@@ -1173,18 +1495,31 @@ onUnmounted(() => {
         <div class="flex-1 overflow-auto">
           <!-- Error -->
           <div v-if="queryError" class="p-4">
-            <div class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 dark:border-red-900/50 dark:bg-red-950/30">
-              <p class="font-mono text-sm text-red-600 dark:text-red-400">{{ queryError }}</p>
+            <div
+              class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 dark:border-red-900/50 dark:bg-red-950/30"
+            >
+              <p class="font-mono text-sm text-red-600 dark:text-red-400">
+                {{ queryError }}
+              </p>
             </div>
           </div>
 
           <!-- Results -->
-          <div v-else-if="queryResult" class="flex flex-col min-h-0 h-full">
+          <div v-else-if="queryResult" class="flex h-full min-h-0 flex-col">
             <!-- Table view -->
-            <div v-if="queryResult.columns && queryResult.columns.length > 0 && resultView === 'table'" class="overflow-auto flex-1">
+            <div
+              v-if="
+                queryResult.columns &&
+                queryResult.columns.length > 0 &&
+                resultView === 'table'
+              "
+              class="flex-1 overflow-auto"
+            >
               <table class="min-w-full">
                 <thead class="sticky top-0">
-                  <tr class="border-b border-gray-200 bg-gray-50 dark:border-gray-800 dark:bg-gray-900">
+                  <tr
+                    class="border-b border-gray-200 bg-gray-50 dark:border-gray-800 dark:bg-gray-900"
+                  >
                     <th
                       v-for="col in queryResult.columns"
                       :key="col"
@@ -1205,9 +1540,21 @@ onUnmounted(() => {
                       :key="col"
                       class="whitespace-nowrap px-4 py-2 font-mono text-sm text-gray-700 dark:text-gray-300"
                     >
-                      <span v-if="row[col] === null" class="text-gray-400 dark:text-gray-600">NULL</span>
-                      <span v-else-if="typeof row[col] === 'number'" class="text-purple-600 dark:text-purple-400">{{ row[col] }}</span>
-                      <span v-else-if="typeof row[col] === 'boolean'" class="text-blue-600 dark:text-blue-400">{{ row[col] }}</span>
+                      <span
+                        v-if="row[col] === null"
+                        class="text-gray-400 dark:text-gray-600"
+                        >NULL</span
+                      >
+                      <span
+                        v-else-if="typeof row[col] === 'number'"
+                        class="text-purple-600 dark:text-purple-400"
+                        >{{ row[col] }}</span
+                      >
+                      <span
+                        v-else-if="typeof row[col] === 'boolean'"
+                        class="text-blue-600 dark:text-blue-400"
+                        >{{ row[col] }}</span
+                      >
                       <span v-else>{{ row[col] }}</span>
                     </td>
                   </tr>
@@ -1216,20 +1563,38 @@ onUnmounted(() => {
             </div>
 
             <!-- JSON view -->
-            <div v-else-if="queryResult.columns && queryResult.columns.length > 0 && resultView === 'json'" class="flex-1 overflow-auto p-4">
-              <pre class="font-mono text-xs text-gray-700 dark:text-gray-300" v-html="highlightJSON(queryResult.rows)"></pre>
+            <div
+              v-else-if="
+                queryResult.columns &&
+                queryResult.columns.length > 0 &&
+                resultView === 'json'
+              "
+              class="flex-1 overflow-auto p-4"
+            >
+              <pre
+                class="font-mono text-xs text-gray-700 dark:text-gray-300"
+                v-html="highlightJSON(queryResult.rows)"
+              ></pre>
             </div>
 
             <!-- No columns (DDL result) -->
-            <div v-else class="flex-1 flex items-center justify-center text-sm text-gray-500 dark:text-gray-400">
+            <div
+              v-else
+              class="flex flex-1 items-center justify-center text-sm text-gray-500 dark:text-gray-400"
+            >
               {{ queryResult.message || 'Query executed successfully' }}
             </div>
 
             <!-- Bottom status bar -->
-            <div class="flex items-center justify-between border-t border-gray-200 bg-gray-50 px-4 py-2 dark:border-gray-800 dark:bg-gray-900/50">
+            <div
+              class="flex items-center justify-between border-t border-gray-200 bg-gray-50 px-4 py-2 dark:border-gray-800 dark:bg-gray-900/50"
+            >
               <div class="flex items-center gap-4">
                 <!-- View toggle -->
-                <div v-if="queryResult.columns && queryResult.columns.length > 0" class="flex rounded-md border border-gray-300 dark:border-gray-700 overflow-hidden">
+                <div
+                  v-if="queryResult.columns && queryResult.columns.length > 0"
+                  class="flex overflow-hidden rounded-md border border-gray-300 dark:border-gray-700"
+                >
                   <Tooltip text="Table view" position="top">
                     <button
                       @click="resultView = 'table'"
@@ -1240,8 +1605,18 @@ onUnmounted(() => {
                           : 'text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800'
                       ]"
                     >
-                      <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M3.375 19.5h17.25m-17.25 0a1.125 1.125 0 01-1.125-1.125M3.375 19.5h7.5c.621 0 1.125-.504 1.125-1.125m-9.75 0V5.625m0 12.75v-1.5c0-.621.504-1.125 1.125-1.125m18.375 2.625V5.625m0 12.75c0 .621-.504 1.125-1.125 1.125m1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125m0 3.75h-7.5A1.125 1.125 0 0112 18.375m9.75-12.75c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125m19.5 0v1.5c0 .621-.504 1.125-1.125 1.125M2.25 5.625v1.5c0 .621.504 1.125 1.125 1.125m0 0h17.25m-17.25 0h7.5c.621 0 1.125.504 1.125 1.125M3.375 8.25c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125m17.25-3.75h-7.5c-.621 0-1.125.504-1.125 1.125m8.625-1.125c.621 0 1.125.504 1.125 1.125v1.5c0 .621-.504 1.125-1.125 1.125m-17.25 0h7.5m-7.5 0c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125M12 10.875v-1.5m0 1.5c0 .621-.504 1.125-1.125 1.125M12 10.875c0 .621.504 1.125 1.125 1.125m-2.25 0c.621 0 1.125.504 1.125 1.125M13.125 12h7.5m-7.5 0c-.621 0-1.125.504-1.125 1.125M20.625 12c.621 0 1.125.504 1.125 1.125v1.5c0 .621-.504 1.125-1.125 1.125m-17.25 0h7.5M12 14.625v-1.5m0 1.5c0 .621-.504 1.125-1.125 1.125M12 14.625c0 .621.504 1.125 1.125 1.125m-2.25 0c.621 0 1.125.504 1.125 1.125m0 0v1.5c0 .621-.504 1.125-1.125 1.125" />
+                      <svg
+                        class="h-4 w-4"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                        stroke-width="1.5"
+                      >
+                        <path
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          d="M3.375 19.5h17.25m-17.25 0a1.125 1.125 0 01-1.125-1.125M3.375 19.5h7.5c.621 0 1.125-.504 1.125-1.125m-9.75 0V5.625m0 12.75v-1.5c0-.621.504-1.125 1.125-1.125m18.375 2.625V5.625m0 12.75c0 .621-.504 1.125-1.125 1.125m1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125m0 3.75h-7.5A1.125 1.125 0 0112 18.375m9.75-12.75c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125m19.5 0v1.5c0 .621-.504 1.125-1.125 1.125M2.25 5.625v1.5c0 .621.504 1.125 1.125 1.125m0 0h17.25m-17.25 0h7.5c.621 0 1.125.504 1.125 1.125M3.375 8.25c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125m17.25-3.75h-7.5c-.621 0-1.125.504-1.125 1.125m8.625-1.125c.621 0 1.125.504 1.125 1.125v1.5c0 .621-.504 1.125-1.125 1.125m-17.25 0h7.5m-7.5 0c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125M12 10.875v-1.5m0 1.5c0 .621-.504 1.125-1.125 1.125M12 10.875c0 .621.504 1.125 1.125 1.125m-2.25 0c.621 0 1.125.504 1.125 1.125M13.125 12h7.5m-7.5 0c-.621 0-1.125.504-1.125 1.125M20.625 12c.621 0 1.125.504 1.125 1.125v1.5c0 .621-.504 1.125-1.125 1.125m-17.25 0h7.5M12 14.625v-1.5m0 1.5c0 .621-.504 1.125-1.125 1.125M12 14.625c0 .621.504 1.125 1.125 1.125m-2.25 0c.621 0 1.125.504 1.125 1.125m0 0v1.5c0 .621-.504 1.125-1.125 1.125"
+                        />
                       </svg>
                     </button>
                   </Tooltip>
@@ -1249,7 +1624,7 @@ onUnmounted(() => {
                     <button
                       @click="resultView = 'json'"
                       :class="[
-                        'px-1.5 py-1 border-l border-gray-300 dark:border-gray-700 font-mono text-sm font-bold',
+                        'border-l border-gray-300 px-1.5 py-1 font-mono text-sm font-bold dark:border-gray-700',
                         resultView === 'json'
                           ? 'bg-gray-200 text-gray-900 dark:bg-gray-700 dark:text-white'
                           : 'text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800'
@@ -1261,40 +1636,82 @@ onUnmounted(() => {
                 </div>
                 <!-- Row info -->
                 <span class="text-xs text-gray-500 dark:text-gray-400">
-                  {{ queryResult.rowCount }} row(s) • {{ queryResult.duration }}ms
+                  {{ queryResult.rowCount }} row(s) •
+                  {{ queryResult.duration }}ms
                 </span>
               </div>
               <!-- Actions -->
-              <div v-if="queryResult.columns && queryResult.columns.length > 0" class="flex items-center gap-1">
+              <div
+                v-if="queryResult.columns && queryResult.columns.length > 0"
+                class="flex items-center gap-1"
+              >
                 <Tooltip text="Re-run query" position="top">
                   <button
                     @click="executeQuery"
                     class="rounded p-1.5 text-gray-500 hover:bg-gray-200 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-200"
                   >
-                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-                      <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
+                    <svg
+                      class="h-4 w-4"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      stroke-width="1.5"
+                    >
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99"
+                      />
                     </svg>
                   </button>
                 </Tooltip>
-                <Tooltip :text="resultView === 'json' ? 'Copy as JSON' : 'Copy as CSV'" position="top">
+                <Tooltip
+                  :text="resultView === 'json' ? 'Copy as JSON' : 'Copy as CSV'"
+                  position="top"
+                >
                   <button
                     @click="resultView === 'json' ? copyAsJSON() : copyAsCSV()"
                     class="rounded p-1.5 text-gray-500 hover:bg-gray-200 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-200"
                   >
-                    <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-                      <path stroke-linecap="round" stroke-linejoin="round" d="M15.666 3.888A2.25 2.25 0 0013.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 01-.75.75H9.75a.75.75 0 01-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 01-2.25 2.25H6.75A2.25 2.25 0 014.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 011.927-.184" />
+                    <svg
+                      class="h-4 w-4"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      stroke-width="1.5"
+                    >
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        d="M15.666 3.888A2.25 2.25 0 0013.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 01-.75.75H9.75a.75.75 0 01-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 01-2.25 2.25H6.75A2.25 2.25 0 014.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 011.927-.184"
+                      />
                     </svg>
                   </button>
                 </Tooltip>
                 <!-- Download dropdown -->
                 <div class="relative inline-flex">
-                  <Tooltip :text="resultView === 'json' ? 'Download JSON' : 'Download CSV'" position="top">
+                  <Tooltip
+                    :text="
+                      resultView === 'json' ? 'Download JSON' : 'Download CSV'
+                    "
+                    position="top"
+                  >
                     <button
                       @click="showExportMenu = !showExportMenu"
                       class="rounded p-1.5 text-gray-500 hover:bg-gray-200 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-200"
                     >
-                      <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
+                      <svg
+                        class="h-4 w-4"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                        stroke-width="1.5"
+                      >
+                        <path
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"
+                        />
                       </svg>
                     </button>
                   </Tooltip>
@@ -1302,10 +1719,22 @@ onUnmounted(() => {
                     v-if="showExportMenu"
                     class="absolute bottom-full right-0 z-10 mb-1 w-40 rounded-md border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-800"
                   >
-                    <button @click="exportAsJSON(); showExportMenu = false" class="block w-full px-3 py-1.5 text-left text-xs text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700">
+                    <button
+                      @click="
+                        exportAsJSON()
+                        showExportMenu = false
+                      "
+                      class="block w-full px-3 py-1.5 text-left text-xs text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
+                    >
                       Download as JSON
                     </button>
-                    <button @click="exportAsCSV(); showExportMenu = false" class="block w-full px-3 py-1.5 text-left text-xs text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700">
+                    <button
+                      @click="
+                        exportAsCSV()
+                        showExportMenu = false
+                      "
+                      class="block w-full px-3 py-1.5 text-left text-xs text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
+                    >
                       Download as CSV
                     </button>
                   </div>
@@ -1315,20 +1744,33 @@ onUnmounted(() => {
           </div>
 
           <!-- Empty state -->
-          <div v-else class="flex h-full items-center justify-center text-sm text-gray-500 dark:text-gray-400">
+          <div
+            v-else
+            class="flex h-full items-center justify-center text-sm text-gray-500 dark:text-gray-400"
+          >
             Run a query to see results
           </div>
         </div>
       </div>
 
       <!-- Tables / Collections Tab -->
-      <div v-if="activeTab === 'tables' || activeTab === 'collections'" class="flex flex-1 overflow-hidden">
+      <div
+        v-if="activeTab === 'tables' || activeTab === 'collections'"
+        class="flex flex-1 overflow-hidden"
+      >
         <!-- Table list sidebar -->
-        <div class="w-64 flex-shrink-0 overflow-y-auto border-r border-gray-200 dark:border-gray-800">
-          <div class="p-3 text-xs font-medium uppercase text-gray-500 dark:text-gray-400">
+        <div
+          class="w-64 flex-shrink-0 overflow-y-auto border-r border-gray-200 dark:border-gray-800"
+        >
+          <div
+            class="p-3 text-xs font-medium uppercase text-gray-500 dark:text-gray-400"
+          >
             {{ isMongoDB ? 'Collections' : 'Tables' }} ({{ tables.length }})
           </div>
-          <div v-if="tablesLoading" class="flex items-center justify-center py-8">
+          <div
+            v-if="tablesLoading"
+            class="flex items-center justify-center py-8"
+          >
             <SlippyLoader class="text-gray-400 dark:text-gray-600" />
           </div>
           <div v-else>
@@ -1338,78 +1780,136 @@ onUnmounted(() => {
               @click="browseTable(table.name)"
               :class="[
                 'flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-800/50',
-                selectedTable === table.name ? 'bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-white' : 'text-gray-600 dark:text-gray-400'
+                selectedTable === table.name
+                  ? 'bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-white'
+                  : 'text-gray-600 dark:text-gray-400'
               ]"
             >
               <span class="flex items-center gap-2">
-                <svg class="h-4 w-4 flex-shrink-0 text-gray-400 dark:text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M3.375 19.5h17.25m-17.25 0a1.125 1.125 0 01-1.125-1.125M3.375 19.5h7.5c.621 0 1.125-.504 1.125-1.125m-9.75 0V5.625m0 12.75v-1.5c0-.621.504-1.125 1.125-1.125m18.375 2.625V5.625m0 12.75c0 .621-.504 1.125-1.125 1.125m1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125m0 3.75h-7.5A1.125 1.125 0 0112 18.375m9.75-12.75c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125m19.5 0v1.5c0 .621-.504 1.125-1.125 1.125M2.25 5.625v1.5c0 .621.504 1.125 1.125 1.125m0 0h17.25m-17.25 0h7.5c.621 0 1.125.504 1.125 1.125M3.375 8.25c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125m17.25-3.75h-7.5c-.621 0-1.125.504-1.125 1.125m8.625-1.125c.621 0 1.125.504 1.125 1.125v1.5c0 .621-.504 1.125-1.125 1.125m-17.25 0h7.5m-7.5 0c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125M12 10.875v-1.5m0 1.5c0 .621-.504 1.125-1.125 1.125M12 10.875c0 .621.504 1.125 1.125 1.125m-2.25 0c.621 0 1.125.504 1.125 1.125M13.125 12h7.5m-7.5 0c-.621 0-1.125.504-1.125 1.125M20.625 12c.621 0 1.125.504 1.125 1.125v1.5c0 .621-.504 1.125-1.125 1.125m-17.25 0h7.5M12 14.625v-1.5m0 1.5c0 .621-.504 1.125-1.125 1.125M12 14.625c0 .621.504 1.125 1.125 1.125m-2.25 0c.621 0 1.125.504 1.125 1.125m0 0v1.5c0 .621-.504 1.125-1.125 1.125" />
+                <svg
+                  class="h-4 w-4 flex-shrink-0 text-gray-400 dark:text-gray-500"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  stroke-width="1.5"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    d="M3.375 19.5h17.25m-17.25 0a1.125 1.125 0 01-1.125-1.125M3.375 19.5h7.5c.621 0 1.125-.504 1.125-1.125m-9.75 0V5.625m0 12.75v-1.5c0-.621.504-1.125 1.125-1.125m18.375 2.625V5.625m0 12.75c0 .621-.504 1.125-1.125 1.125m1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125m0 3.75h-7.5A1.125 1.125 0 0112 18.375m9.75-12.75c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125m19.5 0v1.5c0 .621-.504 1.125-1.125 1.125M2.25 5.625v1.5c0 .621.504 1.125 1.125 1.125m0 0h17.25m-17.25 0h7.5c.621 0 1.125.504 1.125 1.125M3.375 8.25c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125m17.25-3.75h-7.5c-.621 0-1.125.504-1.125 1.125m8.625-1.125c.621 0 1.125.504 1.125 1.125v1.5c0 .621-.504 1.125-1.125 1.125m-17.25 0h7.5m-7.5 0c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125M12 10.875v-1.5m0 1.5c0 .621-.504 1.125-1.125 1.125M12 10.875c0 .621.504 1.125 1.125 1.125m-2.25 0c.621 0 1.125.504 1.125 1.125M13.125 12h7.5m-7.5 0c-.621 0-1.125.504-1.125 1.125M20.625 12c.621 0 1.125.504 1.125 1.125v1.5c0 .621-.504 1.125-1.125 1.125m-17.25 0h7.5M12 14.625v-1.5m0 1.5c0 .621-.504 1.125-1.125 1.125M12 14.625c0 .621.504 1.125 1.125 1.125m-2.25 0c.621 0 1.125.504 1.125 1.125m0 0v1.5c0 .621-.504 1.125-1.125 1.125"
+                  />
                 </svg>
                 <span class="font-mono">{{ table.name }}</span>
               </span>
-              <span class="text-xs text-gray-400 dark:text-gray-600">{{ formatRowCount(table.rowCount) }}</span>
+              <span class="text-xs text-gray-400 dark:text-gray-600">{{
+                formatRowCount(table.rowCount)
+              }}</span>
             </button>
           </div>
         </div>
 
         <!-- Table data -->
         <div class="flex-1 overflow-auto">
-          <div v-if="!selectedTable" class="flex h-full items-center justify-center text-sm text-gray-500 dark:text-gray-400">
+          <div
+            v-if="!selectedTable"
+            class="flex h-full items-center justify-center text-sm text-gray-500 dark:text-gray-400"
+          >
             Select a {{ isMongoDB ? 'collection' : 'table' }} to browse data
           </div>
-          <div v-else-if="tableDataLoading" class="flex h-full items-center justify-center">
-            <SlippyLoader size="h-6 w-6" class="text-gray-400 dark:text-gray-600" />
+          <div
+            v-else-if="tableDataLoading"
+            class="flex h-full items-center justify-center"
+          >
+            <SlippyLoader
+              size="h-6 w-6"
+              class="text-gray-400 dark:text-gray-600"
+            />
           </div>
-          <div v-else-if="tableData" class="flex flex-col h-full">
-            <div class="sticky top-0 z-10 border-b border-gray-200 bg-white px-4 py-2 dark:border-gray-800 dark:bg-gray-900">
-              <span class="font-mono text-sm text-gray-900 dark:text-white">{{ selectedTable }}</span>
-              <span class="ml-2 text-xs text-gray-500 dark:text-gray-400">{{ tableData.pagination.total }} {{ isMongoDB ? 'documents' : 'rows' }}</span>
+          <div v-else-if="tableData" class="flex h-full flex-col">
+            <div
+              class="sticky top-0 z-10 border-b border-gray-200 bg-white px-4 py-2 dark:border-gray-800 dark:bg-gray-900"
+            >
+              <span class="font-mono text-sm text-gray-900 dark:text-white">{{
+                selectedTable
+              }}</span>
+              <span class="ml-2 text-xs text-gray-500 dark:text-gray-400"
+                >{{ tableData.pagination.total }}
+                {{ isMongoDB ? 'documents' : 'rows' }}</span
+              >
             </div>
             <div class="flex-1 overflow-x-auto">
-            <table class="min-w-full">
-              <thead>
-                <tr class="border-b border-gray-200 bg-gray-50 dark:border-gray-800 dark:bg-gray-900/50">
-                  <th
-                    v-for="col in tableData.columns"
-                    :key="col"
-                    class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400"
+              <table class="min-w-full">
+                <thead>
+                  <tr
+                    class="border-b border-gray-200 bg-gray-50 dark:border-gray-800 dark:bg-gray-900/50"
                   >
-                    {{ col }}
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr
-                  v-for="(row, i) in tableData.rows"
-                  :key="i"
-                  class="border-b border-gray-100 hover:bg-gray-50 dark:border-gray-800/50 dark:hover:bg-gray-900/30"
-                >
-                  <td
-                    v-for="col in tableData.columns"
-                    :key="col"
-                    class="whitespace-nowrap px-3 py-2 font-mono text-xs text-gray-700 dark:text-gray-300"
+                    <th
+                      v-for="col in tableData.columns"
+                      :key="col"
+                      class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400"
+                    >
+                      {{ col }}
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr
+                    v-for="(row, i) in tableData.rows"
+                    :key="i"
+                    class="border-b border-gray-100 hover:bg-gray-50 dark:border-gray-800/50 dark:hover:bg-gray-900/30"
                   >
-                    <span v-if="row[col] === null" class="text-gray-400 dark:text-gray-600">NULL</span>
-                    <span v-else-if="typeof row[col] === 'number'" class="text-purple-600 dark:text-purple-400">{{ row[col] }}</span>
-                    <span v-else-if="typeof row[col] === 'boolean'" class="text-blue-600 dark:text-blue-400">{{ row[col] }}</span>
-                    <span v-else>{{ row[col] }}</span>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+                    <td
+                      v-for="col in tableData.columns"
+                      :key="col"
+                      class="whitespace-nowrap px-3 py-2 font-mono text-xs text-gray-700 dark:text-gray-300"
+                    >
+                      <span
+                        v-if="row[col] === null"
+                        class="text-gray-400 dark:text-gray-600"
+                        >NULL</span
+                      >
+                      <span
+                        v-else-if="typeof row[col] === 'number'"
+                        class="text-purple-600 dark:text-purple-400"
+                        >{{ row[col] }}</span
+                      >
+                      <span
+                        v-else-if="typeof row[col] === 'boolean'"
+                        class="text-blue-600 dark:text-blue-400"
+                        >{{ row[col] }}</span
+                      >
+                      <span v-else>{{ row[col] }}</span>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
           </div>
         </div>
       </div>
 
       <!-- Schema Tab -->
-      <div v-if="activeTab === 'schema'" class="flex-1 overflow-auto p-4 sm:p-6">
-        <div v-if="schemaLoading" class="flex items-center justify-center py-12">
-          <SlippyLoader size="h-6 w-6" class="text-gray-400 dark:text-gray-600" />
+      <div
+        v-if="activeTab === 'schema'"
+        class="flex-1 overflow-auto p-4 sm:p-6"
+      >
+        <div
+          v-if="schemaLoading"
+          class="flex items-center justify-center py-12"
+        >
+          <SlippyLoader
+            size="h-6 w-6"
+            class="text-gray-400 dark:text-gray-600"
+          />
         </div>
 
-        <div v-else-if="schemaError" class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 dark:border-red-900/50 dark:bg-red-950/30">
-          <p class="text-sm text-red-600 dark:text-red-400">{{ schemaError }}</p>
+        <div
+          v-else-if="schemaError"
+          class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 dark:border-red-900/50 dark:bg-red-950/30"
+        >
+          <p class="text-sm text-red-600 dark:text-red-400">
+            {{ schemaError }}
+          </p>
         </div>
 
         <div v-else-if="schema" class="space-y-4">
@@ -1420,15 +1920,32 @@ onUnmounted(() => {
                 @click.stop="schemaFilterOpen = !schemaFilterOpen"
                 class="flex items-center gap-2 border-b border-dashed border-gray-300 bg-transparent px-1 py-1.5 text-sm text-gray-900 focus:border-gray-500 focus:outline-none dark:border-gray-600 dark:text-white dark:focus:border-gray-400"
               >
-                <span v-if="selectedSchemaTables.size === 0" class="text-gray-400 dark:text-gray-500">All tables</span>
-                <span v-else>{{ selectedSchemaTables.size }} table{{ selectedSchemaTables.size > 1 ? 's' : '' }} selected</span>
+                <span
+                  v-if="selectedSchemaTables.size === 0"
+                  class="text-gray-400 dark:text-gray-500"
+                  >All tables</span
+                >
+                <span v-else
+                  >{{ selectedSchemaTables.size }} table{{
+                    selectedSchemaTables.size > 1 ? 's' : ''
+                  }}
+                  selected</span
+                >
                 <svg
-                  :class="['h-4 w-4 text-gray-400 transition-transform', schemaFilterOpen ? 'rotate-180' : '']"
+                  :class="[
+                    'h-4 w-4 text-gray-400 transition-transform',
+                    schemaFilterOpen ? 'rotate-180' : ''
+                  ]"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
                 >
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M19 9l-7 7-7-7"
+                  />
                 </svg>
               </button>
               <!-- Dropdown -->
@@ -1437,11 +1954,26 @@ onUnmounted(() => {
                 @click.stop
                 class="absolute left-0 top-full z-20 mt-1 max-h-64 w-56 overflow-y-auto rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-900"
               >
-                <div class="flex items-center justify-between border-b border-gray-100 px-3 py-1.5 dark:border-gray-800">
-                  <span class="text-xs font-medium text-gray-500 dark:text-gray-400">Tables</span>
+                <div
+                  class="flex items-center justify-between border-b border-gray-100 px-3 py-1.5 dark:border-gray-800"
+                >
+                  <span
+                    class="text-xs font-medium text-gray-500 dark:text-gray-400"
+                    >Tables</span
+                  >
                   <div class="flex gap-2">
-                    <button @click="selectAllSchemaTables" class="text-xs text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white">All</button>
-                    <button @click="clearSchemaTableSelection" class="text-xs text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white">None</button>
+                    <button
+                      @click="selectAllSchemaTables"
+                      class="text-xs text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
+                    >
+                      All
+                    </button>
+                    <button
+                      @click="clearSchemaTableSelection"
+                      class="text-xs text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
+                    >
+                      None
+                    </button>
                   </div>
                 </div>
                 <label
@@ -1455,7 +1987,10 @@ onUnmounted(() => {
                     @change="toggleSchemaTable(tableName)"
                     class="h-3.5 w-3.5 rounded border-gray-300 text-gray-900 focus:ring-0 focus:ring-offset-0 dark:border-gray-600 dark:bg-gray-800"
                   />
-                  <span class="font-mono text-sm text-gray-700 dark:text-gray-300">{{ tableName }}</span>
+                  <span
+                    class="font-mono text-sm text-gray-700 dark:text-gray-300"
+                    >{{ tableName }}</span
+                  >
                 </label>
               </div>
             </div>
@@ -1463,50 +1998,117 @@ onUnmounted(() => {
 
           <!-- Tables -->
           <div class="space-y-6">
-            <div v-for="(table, tableName) in filteredSchemaTables" :key="tableName" class="rounded-lg border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900/30">
-            <div class="border-b border-gray-200 px-4 py-2 dark:border-gray-800">
-              <span class="font-mono text-sm font-medium text-gray-900 dark:text-white">{{ tableName }}</span>
+            <div
+              v-for="(table, tableName) in filteredSchemaTables"
+              :key="tableName"
+              class="rounded-lg border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900/30"
+            >
+              <div
+                class="border-b border-gray-200 px-4 py-2 dark:border-gray-800"
+              >
+                <span
+                  class="font-mono text-sm font-medium text-gray-900 dark:text-white"
+                  >{{ tableName }}</span
+                >
+              </div>
+              <table class="min-w-full">
+                <thead>
+                  <tr class="border-b border-gray-200 dark:border-gray-800">
+                    <th
+                      class="px-4 py-2 text-left text-xs font-medium uppercase text-gray-500 dark:text-gray-400"
+                    >
+                      Column
+                    </th>
+                    <th
+                      class="px-4 py-2 text-left text-xs font-medium uppercase text-gray-500 dark:text-gray-400"
+                    >
+                      Type
+                    </th>
+                    <th
+                      class="px-4 py-2 text-left text-xs font-medium uppercase text-gray-500 dark:text-gray-400"
+                    >
+                      Nullable
+                    </th>
+                    <th
+                      class="px-4 py-2 text-left text-xs font-medium uppercase text-gray-500 dark:text-gray-400"
+                    >
+                      Default
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr
+                    v-for="col in table.columns"
+                    :key="col.name"
+                    class="border-b border-gray-100 dark:border-gray-800/50"
+                  >
+                    <td class="px-4 py-2">
+                      <span
+                        class="font-mono text-sm text-emerald-600 dark:text-green-400"
+                        >{{ col.name }}</span
+                      >
+                      <span
+                        v-if="col.primaryKey"
+                        class="ml-2 rounded bg-amber-100 px-1 py-0.5 text-[10px] font-medium text-amber-700 dark:bg-amber-900/50 dark:text-amber-400"
+                        >PK</span
+                      >
+                    </td>
+                    <td
+                      class="px-4 py-2 font-mono text-sm text-gray-600 dark:text-gray-400"
+                    >
+                      {{ col.type
+                      }}{{ col.maxLength ? `(${col.maxLength})` : '' }}
+                    </td>
+                    <td
+                      class="px-4 py-2 text-sm text-gray-500 dark:text-gray-500"
+                    >
+                      {{ col.nullable ? 'YES' : 'NO' }}
+                    </td>
+                    <td
+                      class="px-4 py-2 font-mono text-sm text-gray-500 dark:text-gray-500"
+                    >
+                      {{ col.defaultValue ?? '-' }}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
-            <table class="min-w-full">
-              <thead>
-                <tr class="border-b border-gray-200 dark:border-gray-800">
-                  <th class="px-4 py-2 text-left text-xs font-medium uppercase text-gray-500 dark:text-gray-400">Column</th>
-                  <th class="px-4 py-2 text-left text-xs font-medium uppercase text-gray-500 dark:text-gray-400">Type</th>
-                  <th class="px-4 py-2 text-left text-xs font-medium uppercase text-gray-500 dark:text-gray-400">Nullable</th>
-                  <th class="px-4 py-2 text-left text-xs font-medium uppercase text-gray-500 dark:text-gray-400">Default</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="col in table.columns" :key="col.name" class="border-b border-gray-100 dark:border-gray-800/50">
-                  <td class="px-4 py-2">
-                    <span class="font-mono text-sm text-emerald-600 dark:text-green-400">{{ col.name }}</span>
-                    <span v-if="col.primaryKey" class="ml-2 rounded bg-amber-100 px-1 py-0.5 text-[10px] font-medium text-amber-700 dark:bg-amber-900/50 dark:text-amber-400">PK</span>
-                  </td>
-                  <td class="px-4 py-2 font-mono text-sm text-gray-600 dark:text-gray-400">{{ col.type }}{{ col.maxLength ? `(${col.maxLength})` : '' }}</td>
-                  <td class="px-4 py-2 text-sm text-gray-500 dark:text-gray-500">{{ col.nullable ? 'YES' : 'NO' }}</td>
-                  <td class="px-4 py-2 font-mono text-sm text-gray-500 dark:text-gray-500">{{ col.defaultValue ?? '-' }}</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
           </div>
 
           <!-- Empty state when filter has no matches -->
-          <div v-if="Object.keys(filteredSchemaTables).length === 0 && selectedSchemaTables.size > 0" class="py-8 text-center text-sm text-gray-500 dark:text-gray-400">
+          <div
+            v-if="
+              Object.keys(filteredSchemaTables).length === 0 &&
+              selectedSchemaTables.size > 0
+            "
+            class="py-8 text-center text-sm text-gray-500 dark:text-gray-400"
+          >
             Selected tables not found in schema
           </div>
         </div>
       </div>
 
       <!-- Migrate Tab -->
-      <div v-if="activeTab === 'migrate'" class="flex-1 overflow-auto p-4 sm:p-6">
+      <div
+        v-if="activeTab === 'migrate'"
+        class="flex-1 overflow-auto p-4 sm:p-6"
+      >
         <div v-if="diffLoading" class="flex items-center justify-center py-12">
-          <SlippyLoader size="h-6 w-6" class="text-gray-400 dark:text-gray-600" />
+          <SlippyLoader
+            size="h-6 w-6"
+            class="text-gray-400 dark:text-gray-600"
+          />
         </div>
 
-        <div v-else-if="diffError" class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 dark:border-red-900/50 dark:bg-red-950/30">
+        <div
+          v-else-if="diffError"
+          class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 dark:border-red-900/50 dark:bg-red-950/30"
+        >
           <p class="text-sm text-red-600 dark:text-red-400">{{ diffError }}</p>
-          <button @click="fetchDiff" class="mt-2 text-sm text-red-600 underline hover:text-red-700 dark:text-red-400 dark:hover:text-red-300">
+          <button
+            @click="fetchDiff"
+            class="mt-2 text-sm text-red-600 underline hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
+          >
             Try again
           </button>
         </div>
@@ -1514,31 +2116,81 @@ onUnmounted(() => {
         <div v-else-if="diff" class="space-y-6">
           <div class="flex items-center justify-between">
             <div>
-              <h3 class="text-sm font-medium text-gray-900 dark:text-white">{{ isMongoDB ? 'Collection Diff' : 'Schema Diff' }}</h3>
+              <h3 class="text-sm font-medium text-gray-900 dark:text-white">
+                {{ isMongoDB ? 'Collection Diff' : 'Schema Diff' }}
+              </h3>
               <p class="text-xs text-gray-500 dark:text-gray-400">
-                Comparing models with {{ isMongoDB ? 'collections' : 'database' }}
-                <span v-if="diff.modelsSource === 'static'" class="text-gray-400 dark:text-gray-500">(from source files)</span>
-                <span v-else class="text-gray-400 dark:text-gray-500">(from running app)</span>
+                Comparing models with
+                {{ isMongoDB ? 'collections' : 'database' }}
+                <span
+                  v-if="diff.modelsSource === 'static'"
+                  class="text-gray-400 dark:text-gray-500"
+                  >(from source files)</span
+                >
+                <span v-else class="text-gray-400 dark:text-gray-500"
+                  >(from running app)</span
+                >
               </p>
             </div>
-            <button @click="fetchDiff" class="text-sm text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white">Refresh</button>
+            <button
+              @click="fetchDiff"
+              class="text-sm text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
+            >
+              Refresh
+            </button>
           </div>
 
           <!-- No changes -->
-          <div v-if="!diff.hasPendingChanges" class="rounded-lg border border-green-200 bg-green-50 px-6 py-8 text-center dark:border-green-900/50 dark:bg-green-950/30">
-            <svg class="mx-auto h-10 w-10 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+          <div
+            v-if="!diff.hasPendingChanges"
+            class="rounded-lg border border-green-200 bg-green-50 px-6 py-8 text-center dark:border-green-900/50 dark:bg-green-950/30"
+          >
+            <svg
+              class="mx-auto h-10 w-10 text-green-500"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+              />
             </svg>
-            <h3 class="mt-4 text-sm font-medium text-green-700 dark:text-green-400">{{ isMongoDB ? 'Collections are up to date' : 'Schema is up to date' }}</h3>
-            <p class="mt-1 text-sm text-green-600/70 dark:text-green-500/70">{{ isMongoDB ? 'All model collections exist.' : 'Database matches your Waterline models.' }}</p>
+            <h3
+              class="mt-4 text-sm font-medium text-green-700 dark:text-green-400"
+            >
+              {{
+                isMongoDB
+                  ? 'Collections are up to date'
+                  : 'Schema is up to date'
+              }}
+            </h3>
+            <p class="mt-1 text-sm text-green-600/70 dark:text-green-500/70">
+              {{
+                isMongoDB
+                  ? 'All model collections exist.'
+                  : 'Database matches your Waterline models.'
+              }}
+            </p>
           </div>
 
           <!-- Has changes -->
           <div v-else class="space-y-4">
             <!-- Model selection -->
-            <div class="rounded-lg border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900/30">
-              <div class="flex items-center justify-between border-b border-gray-200 px-4 py-2 dark:border-gray-800">
-                <span class="text-sm font-medium text-gray-900 dark:text-white">{{ isMongoDB ? 'Collections to create' : 'Models to migrate' }}</span>
+            <div
+              class="rounded-lg border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900/30"
+            >
+              <div
+                class="flex items-center justify-between border-b border-gray-200 px-4 py-2 dark:border-gray-800"
+              >
+                <span
+                  class="text-sm font-medium text-gray-900 dark:text-white"
+                  >{{
+                    isMongoDB ? 'Collections to create' : 'Models to migrate'
+                  }}</span
+                >
                 <div class="flex items-center space-x-2">
                   <button
                     @click="selectAllModels"
@@ -1560,9 +2212,11 @@ onUnmounted(() => {
                   v-for="model in diffModels"
                   :key="model"
                   class="flex cursor-pointer items-center rounded border px-2 py-0.5 text-xs transition-colors"
-                  :class="selectedModels.has(model)
-                    ? 'border-gray-900 bg-gray-900 text-white dark:border-white dark:bg-white dark:text-gray-900'
-                    : 'border-gray-200 bg-white text-gray-500 hover:border-gray-300 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:border-gray-600'"
+                  :class="
+                    selectedModels.has(model)
+                      ? 'border-gray-900 bg-gray-900 text-white dark:border-white dark:bg-white dark:text-gray-900'
+                      : 'border-gray-200 bg-white text-gray-500 hover:border-gray-300 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:border-gray-600'
+                  "
                 >
                   <input
                     type="checkbox"
@@ -1576,21 +2230,38 @@ onUnmounted(() => {
             </div>
 
             <!-- Status -->
-            <div v-if="filteredStatements.length > 0" class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 dark:border-amber-900/50 dark:bg-amber-950/30">
+            <div
+              v-if="filteredStatements.length > 0"
+              class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 dark:border-amber-900/50 dark:bg-amber-950/30"
+            >
               <p class="text-sm text-amber-700 dark:text-amber-400">
-                {{ filteredStatements.length }} change(s) for {{ selectedModels.size }} model(s)
+                {{ filteredStatements.length }} change(s) for
+                {{ selectedModels.size }} model(s)
               </p>
             </div>
-            <div v-else class="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 dark:border-gray-800 dark:bg-gray-900/30">
+            <div
+              v-else
+              class="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 dark:border-gray-800 dark:bg-gray-900/30"
+            >
               <p class="text-sm text-gray-500 dark:text-gray-400">
                 No models selected
               </p>
             </div>
 
             <!-- Migration SQL/Commands with syntax highlighting -->
-            <div v-if="filteredStatements.length > 0" class="rounded-lg border border-gray-200 bg-gray-50 overflow-hidden dark:border-gray-800 dark:bg-gray-900/50">
-              <div class="border-b border-gray-200 px-4 py-2 dark:border-gray-800">
-                <span class="text-sm font-medium text-gray-900 dark:text-white">{{ isMongoDB ? 'Migration Commands' : 'Migration SQL' }}</span>
+            <div
+              v-if="filteredStatements.length > 0"
+              class="overflow-hidden rounded-lg border border-gray-200 bg-gray-50 dark:border-gray-800 dark:bg-gray-900/50"
+            >
+              <div
+                class="border-b border-gray-200 px-4 py-2 dark:border-gray-800"
+              >
+                <span
+                  class="text-sm font-medium text-gray-900 dark:text-white"
+                  >{{
+                    isMongoDB ? 'Migration Commands' : 'Migration SQL'
+                  }}</span
+                >
               </div>
               <div class="divide-y divide-gray-200 dark:divide-gray-800">
                 <pre
@@ -1606,20 +2277,29 @@ onUnmounted(() => {
             <ConfirmModal
               :show="showMigrateConfirm"
               title="Apply Migration"
-              :message="isMongoDB ? `This will create ${filteredStatements.length} collection(s) in your database.` : `This will execute ${filteredStatements.length} SQL statement(s) on your database.`"
+              :message="
+                isMongoDB
+                  ? `This will create ${filteredStatements.length} collection(s) in your database.`
+                  : `This will execute ${filteredStatements.length} SQL statement(s) on your database.`
+              "
               confirmLabel="Apply"
               @confirm="applyMigration"
               @cancel="showMigrateConfirm = false"
             />
           </div>
-
         </div>
       </div>
     </div>
 
     <!-- Bottom-right toolbar (migrate tab only, not for Redis) -->
-    <div v-if="databaseService && !isRedis && activeTab === 'migrate'" class="fixed bottom-4 right-4 z-40" data-export-dropdown>
-      <div class="flex items-center gap-1 rounded-lg border border-gray-200 bg-white p-1 shadow-lg dark:border-gray-700 dark:bg-gray-800">
+    <div
+      v-if="databaseService && !isRedis && activeTab === 'migrate'"
+      class="fixed bottom-4 right-4 z-40"
+      data-export-dropdown
+    >
+      <div
+        class="flex items-center gap-1 rounded-lg border border-gray-200 bg-white p-1 shadow-lg dark:border-gray-700 dark:bg-gray-800"
+      >
         <!-- Apply migration button (migrate tab only) -->
         <button
           v-if="activeTab === 'migrate' && filteredStatements.length > 0"
@@ -1631,7 +2311,10 @@ onUnmounted(() => {
         </button>
         <!-- Export button -->
         <div class="relative">
-          <Tooltip :text="exportLoading ? 'Exporting...' : 'Export'" position="top">
+          <Tooltip
+            :text="exportLoading ? 'Exporting...' : 'Export'"
+            position="top"
+          >
             <button
               @click.stop="exportDropdownOpen = !exportDropdownOpen"
               :disabled="exportLoading"
@@ -1644,8 +2327,19 @@ onUnmounted(() => {
               ]"
             >
               <SlippyLoader v-if="exportLoading" size="h-4 w-4" />
-              <svg v-else class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+              <svg
+                v-else
+                class="h-4 w-4"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
+                />
               </svg>
             </button>
           </Tooltip>
@@ -1654,21 +2348,60 @@ onUnmounted(() => {
             v-if="exportDropdownOpen"
             class="absolute bottom-full right-0 z-50 mb-2 w-44 rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-800"
           >
-            <button @click="exportDatabase('full')" class="flex w-full items-center gap-3 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700">
-              <svg class="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4" />
+            <button
+              @click="exportDatabase('full')"
+              class="flex w-full items-center gap-3 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700"
+            >
+              <svg
+                class="h-4 w-4 text-gray-400"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="1.5"
+                  d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4"
+                />
               </svg>
               Full backup
             </button>
-            <button @click="exportDatabase('schema')" class="flex w-full items-center gap-3 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700">
-              <svg class="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7" />
+            <button
+              @click="exportDatabase('schema')"
+              class="flex w-full items-center gap-3 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700"
+            >
+              <svg
+                class="h-4 w-4 text-gray-400"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="1.5"
+                  d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7"
+                />
               </svg>
               Schema only
             </button>
-            <button @click="exportDatabase('data')" class="flex w-full items-center gap-3 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700">
-              <svg class="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7" />
+            <button
+              @click="exportDatabase('data')"
+              class="flex w-full items-center gap-3 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700"
+            >
+              <svg
+                class="h-4 w-4 text-gray-400"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="1.5"
+                  d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7"
+                />
               </svg>
               Data only
             </button>
@@ -1678,11 +2411,24 @@ onUnmounted(() => {
         <!-- Import button -->
         <Tooltip text="Import" position="top">
           <button
-            @click="exportDropdownOpen = false; openImportModal()"
+            @click="
+              exportDropdownOpen = false
+              openImportModal()
+            "
             class="flex h-8 w-8 items-center justify-center rounded-md text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white"
           >
-            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+            <svg
+              class="h-4 w-4"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"
+              />
             </svg>
           </button>
         </Tooltip>
@@ -1690,13 +2436,36 @@ onUnmounted(() => {
     </div>
 
     <!-- Import SQL Modal -->
-    <div v-if="showImportModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50" @click.self="closeImportModal">
-      <div class="w-full max-w-2xl rounded-lg border border-gray-200 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-900">
-        <div class="flex items-center justify-between border-b border-gray-200 px-4 py-3 dark:border-gray-700">
-          <h3 class="text-sm font-medium text-gray-900 dark:text-white">Import</h3>
-          <button @click="closeImportModal" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
-            <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+    <div
+      v-if="showImportModal"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+      @click.self="closeImportModal"
+    >
+      <div
+        class="w-full max-w-2xl rounded-lg border border-gray-200 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-900"
+      >
+        <div
+          class="flex items-center justify-between border-b border-gray-200 px-4 py-3 dark:border-gray-700"
+        >
+          <h3 class="text-sm font-medium text-gray-900 dark:text-white">
+            Import
+          </h3>
+          <button
+            @click="closeImportModal"
+            class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+          >
+            <svg
+              class="h-5 w-5"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M6 18L18 6M6 6l12 12"
+              />
             </svg>
           </button>
         </div>
@@ -1729,17 +2498,20 @@ onUnmounted(() => {
 
           <!-- Paste mode -->
           <div v-if="importMode === 'paste'">
-            <div class="relative min-h-[200px] max-h-[400px] overflow-auto">
+            <div class="relative max-h-[400px] min-h-[200px] overflow-auto">
               <!-- Highlighted layer -->
               <pre
                 class="pointer-events-none absolute inset-0 overflow-hidden whitespace-pre-wrap break-words p-3 font-mono text-sm leading-6 text-gray-900 dark:text-gray-100"
                 aria-hidden="true"
-                v-html="highlightSQL(importSql) || '<span class=\'text-gray-400 dark:text-gray-500\'>Paste your SQL statements here...</span>'"
+                v-html="
+                  highlightSQL(importSql) ||
+                  '<span class=\'text-gray-400 dark:text-gray-500\'>Paste your SQL statements here...</span>'
+                "
               ></pre>
               <!-- Textarea -->
               <textarea
                 v-model="importSql"
-                class="relative min-h-[200px] w-full resize-none bg-transparent p-3 font-mono text-sm leading-6 text-transparent caret-gray-900 placeholder-transparent field-sizing-content focus:outline-none dark:caret-white"
+                class="field-sizing-content relative min-h-[200px] w-full resize-none bg-transparent p-3 font-mono text-sm leading-6 text-transparent placeholder-transparent caret-gray-900 focus:outline-none dark:caret-white"
                 placeholder="Paste your SQL statements here..."
                 spellcheck="false"
               ></textarea>
@@ -1748,11 +2520,25 @@ onUnmounted(() => {
 
           <!-- Upload mode -->
           <div v-else>
-            <div class="flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-gray-200 bg-gray-50 px-6 py-10 dark:border-gray-700 dark:bg-gray-800">
-              <svg class="h-10 w-10 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            <div
+              class="flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-gray-200 bg-gray-50 px-6 py-10 dark:border-gray-700 dark:bg-gray-800"
+            >
+              <svg
+                class="h-10 w-10 text-gray-400"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="1.5"
+                  d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                />
               </svg>
-              <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">{{ importFileLabel }}</p>
+              <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">
+                {{ importFileLabel }}
+              </p>
               <input
                 type="file"
                 :accept="importAccept"
@@ -1761,30 +2547,66 @@ onUnmounted(() => {
               />
             </div>
             <div v-if="isBinaryImport" class="mt-4">
-              <div class="flex items-center gap-2 rounded-md bg-gray-50 px-3 py-2 dark:bg-gray-800">
-                <svg class="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4" />
+              <div
+                class="flex items-center gap-2 rounded-md bg-gray-50 px-3 py-2 dark:bg-gray-800"
+              >
+                <svg
+                  class="h-4 w-4 text-gray-400"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4"
+                  />
                 </svg>
-                <span class="text-sm text-gray-700 dark:text-gray-300">{{ importFile.name }}</span>
-                <span class="text-xs text-gray-400">({{ formatBytes(importFile.size) }})</span>
+                <span class="text-sm text-gray-700 dark:text-gray-300">{{
+                  importFile.name
+                }}</span>
+                <span class="text-xs text-gray-400"
+                  >({{ formatBytes(importFile.size) }})</span
+                >
               </div>
-              <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Binary dump — will be restored with {{ isMongoDB ? 'mongorestore' : 'pg_restore' }}</p>
+              <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                Binary dump — will be restored with
+                {{ isMongoDB ? 'mongorestore' : 'pg_restore' }}
+              </p>
             </div>
             <div v-else-if="importSql" class="mt-4">
-              <p class="mb-2 text-xs font-medium text-gray-500 dark:text-gray-400">Preview:</p>
+              <p
+                class="mb-2 text-xs font-medium text-gray-500 dark:text-gray-400"
+              >
+                Preview:
+              </p>
               <pre
                 class="max-h-48 overflow-auto p-3 font-mono text-xs leading-5"
-                v-html="highlightSQL(importSql.slice(0, 2000)) + (importSql.length > 2000 ? '<span class=\'text-gray-400\'>...</span>' : '')"
+                v-html="
+                  highlightSQL(importSql.slice(0, 2000)) +
+                  (importSql.length > 2000
+                    ? '<span class=\'text-gray-400\'>...</span>'
+                    : '')
+                "
               ></pre>
             </div>
           </div>
 
           <!-- Info -->
           <p class="mt-3 text-xs text-gray-500 dark:text-gray-400">
-            {{ isBinaryImport ? `${formatBytes(importFile.size)} dump file` : importSql ? `${importSql.length.toLocaleString()} characters` : 'No data loaded' }}
+            {{
+              isBinaryImport
+                ? `${formatBytes(importFile.size)} dump file`
+                : importSql
+                ? `${importSql.length.toLocaleString()} characters`
+                : 'No data loaded'
+            }}
           </p>
         </div>
-        <div class="flex justify-end gap-2 border-t border-gray-200 px-4 py-3 dark:border-gray-700">
+        <div
+          class="flex justify-end gap-2 border-t border-gray-200 px-4 py-3 dark:border-gray-700"
+        >
           <button
             @click="closeImportModal"
             class="rounded-md px-3 py-1.5 text-sm font-medium text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
@@ -1807,7 +2629,11 @@ onUnmounted(() => {
     <ConfirmModal
       :show="showImportConfirm"
       title="Confirm Import"
-      :message="isBinaryImport ? 'This will restore the dump file into your database, replacing existing data. Make sure you have a backup if needed.' : 'This will execute the SQL statements on your database. Make sure you have a backup if needed.'"
+      :message="
+        isBinaryImport
+          ? 'This will restore the dump file into your database, replacing existing data. Make sure you have a backup if needed.'
+          : 'This will execute the SQL statements on your database. Make sure you have a backup if needed.'
+      "
       confirmLabel="Import"
       :loading="importLoading"
       @confirm="executeImport"

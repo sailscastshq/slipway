@@ -19,12 +19,16 @@ export default async function environments() {
     const { environments } = await api.environments.list(project.project)
 
     if (environments.length === 0) {
-      console.log(`  ${c.dim('No environments yet. Run `slipway environment:create` to create one.')}`)
+      console.log(
+        `  ${c.dim(
+          'No environments yet. Run `slipway environment:create` to create one.'
+        )}`
+      )
       console.log()
       return
     }
 
-    const rows = environments.map(env => [
+    const rows = environments.map((env) => [
       env.name,
       c.dim(env.slug),
       env.isProduction ? c.warn('production') : c.info('staging'),
@@ -33,13 +37,16 @@ export default async function environments() {
       formatDate(env.createdAt)
     ])
 
-    table(
-      ['Name', 'Slug', 'Type', 'Domain', 'Status', 'Created'],
-      rows
-    )
+    table(['Name', 'Slug', 'Type', 'Domain', 'Status', 'Created'], rows)
 
     console.log()
-    console.log(`  ${c.dim(`${environments.length} environment${environments.length !== 1 ? 's' : ''}`)}`)
+    console.log(
+      `  ${c.dim(
+        `${environments.length} environment${
+          environments.length !== 1 ? 's' : ''
+        }`
+      )}`
+    )
     console.log()
   } catch (err) {
     error(err.message)

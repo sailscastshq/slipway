@@ -25,14 +25,14 @@ fn: async function () {
 
 ### SseStream API
 
-| Method | Description |
-|---|---|
+| Method                      | Description                                                         |
+| --------------------------- | ------------------------------------------------------------------- |
 | `stream.send(data, event?)` | JSON-encode + write SSE frame. Returns `false` if stream is closed. |
-| `stream.heartbeat()` | Write a comment-only keepalive (`: heartbeat`). |
-| `stream.close()` | End the stream, fire cleanup callbacks, resolve `wait()`. |
-| `stream.onClose(fn)` | Register a cleanup callback. Idempotent, runs once. |
-| `stream.wait()` | Returns a Promise that resolves when the stream closes. |
-| `stream.closed` | Boolean getter — `true` after close. |
+| `stream.heartbeat()`        | Write a comment-only keepalive (`: heartbeat`).                     |
+| `stream.close()`            | End the stream, fire cleanup callbacks, resolve `wait()`.           |
+| `stream.onClose(fn)`        | Register a cleanup callback. Idempotent, runs once.                 |
+| `stream.wait()`             | Returns a Promise that resolves when the stream closes.             |
+| `stream.closed`             | Boolean getter — `true` after close.                                |
 
 ### Safe writes
 
@@ -77,13 +77,13 @@ The hook is designed to degrade safely at every layer:
 
 ### Server-side (hook level)
 
-| Scenario | Behavior |
-|---|---|
-| `res.sse()` called twice | Returns the same stream (idempotent) |
-| Headers already sent by middleware | Returns a silent no-op stream + logs a warning |
-| `stream.send()` after client disconnects | Returns `false`, no crash |
-| `stream.onClose()` registered after close | Callback fires immediately |
-| Sails shutdown while streams are open | `teardown` closes all active streams and clears channels |
+| Scenario                                  | Behavior                                                 |
+| ----------------------------------------- | -------------------------------------------------------- |
+| `res.sse()` called twice                  | Returns the same stream (idempotent)                     |
+| Headers already sent by middleware        | Returns a silent no-op stream + logs a warning           |
+| `stream.send()` after client disconnects  | Returns `false`, no crash                                |
+| `stream.onClose()` registered after close | Callback fires immediately                               |
+| Sails shutdown while streams are open     | `teardown` closes all active streams and clears channels |
 
 ### Client-side (browser level)
 

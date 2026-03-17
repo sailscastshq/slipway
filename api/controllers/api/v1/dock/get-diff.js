@@ -1,7 +1,8 @@
 module.exports = {
   friendlyName: 'Get schema diff',
 
-  description: 'Compare Waterline models with database schema and show differences.',
+  description:
+    'Compare Waterline models with database schema and show differences.',
 
   inputs: {
     projectSlug: {
@@ -28,7 +29,9 @@ module.exports = {
 
   fn: async function ({ projectSlug, environmentSlug }) {
     const user = await User.findOne({ id: this.req.session.userId })
-    const project = await Project.findOne({ slug: projectSlug }).populate('team')
+    const project = await Project.findOne({ slug: projectSlug }).populate(
+      'team'
+    )
 
     if (!project) {
       throw 'notFound'
@@ -51,7 +54,10 @@ module.exports = {
     const serviceId = this.req.query.service
     let dbResult
     try {
-      dbResult = await sails.helpers.dock.getDatabaseService(environment.id, serviceId)
+      dbResult = await sails.helpers.dock.getDatabaseService(
+        environment.id,
+        serviceId
+      )
     } catch (err) {
       this.res.status(400)
       return { error: 'No database service found for this environment.' }
@@ -59,7 +65,9 @@ module.exports = {
 
     const { service } = dbResult
 
-    const app = await App.findOne({ environment: environment.id, isDefault: true }) || await App.findOne({ environment: environment.id })
+    const app =
+      (await App.findOne({ environment: environment.id, isDefault: true })) ||
+      (await App.findOne({ environment: environment.id }))
 
     // Try to get models - first from running app, then from static files
     let modelsResult
@@ -72,7 +80,11 @@ module.exports = {
     }
 
     // Fall back to static parsing if runtime failed or app not running
-    if (!modelsResult || modelsResult.error || Object.keys(modelsResult.models || {}).length === 0) {
+    if (
+      !modelsResult ||
+      modelsResult.error ||
+      Object.keys(modelsResult.models || {}).length === 0
+    ) {
       try {
         modelsResult = await sails.helpers.dock.getModelsStatic(project.slug)
         modelsSource = 'static'
@@ -80,7 +92,9 @@ module.exports = {
         const normalizedError = normalizeModelsReadError(err)
 
         if (normalizedError.code === 'modelsSourceNotFound') {
-          sails.log.warn('[dock] Could not read static models because the source directory is missing.')
+          sails.log.warn(
+            '[dock] Could not read static models because the source directory is missing.'
+          )
         } else {
           sails.log.error('[dock] Could not read models:', err)
         }
@@ -118,7 +132,10 @@ module.exports = {
     )
 
     // Generate SQL for the diff
-    const { statements } = await sails.helpers.dock.generateMigrationSql(diff, service.type)
+    const { statements } = await sails.helpers.dock.generateMigrationSql(
+      diff,
+      service.type
+    )
 
     return {
       databaseType: service.type,
@@ -131,10 +148,15 @@ module.exports = {
 }
 
 function normalizeModelsReadError(err) {
-  if (err?.code === 'notFound' || err?.exit === 'notFound' || err === 'notFound') {
+  if (
+    err?.code === 'notFound' ||
+    err?.exit === 'notFound' ||
+    err === 'notFound'
+  ) {
     return {
       code: 'modelsSourceNotFound',
-      message: 'Could not read models because the source directory was not found. Push source code first.'
+      message:
+        'Could not read models because the source directory was not found. Push source code first.'
     }
   }
 

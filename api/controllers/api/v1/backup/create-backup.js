@@ -29,13 +29,19 @@ module.exports = {
   fn: async function ({ serviceId }) {
     const user = await User.findOne({ id: this.req.session.userId })
 
-    const service = await Service.findOne({ id: serviceId }).populate('environment').decrypt()
+    const service = await Service.findOne({ id: serviceId })
+      .populate('environment')
+      .decrypt()
     if (!service) {
       throw 'notFound'
     }
 
-    const environment = await Environment.findOne({ id: service.environment.id }).populate('project')
-    const project = await Project.findOne({ id: environment.project.id }).populate('team')
+    const environment = await Environment.findOne({
+      id: service.environment.id
+    }).populate('project')
+    const project = await Project.findOne({
+      id: environment.project.id
+    }).populate('team')
 
     if (project.team.id !== user.team) {
       throw 'forbidden'
@@ -45,7 +51,9 @@ module.exports = {
     if (!Service.isBackupSupported(service.type)) {
       throw {
         badRequest: {
-          problems: [{ type: `Backups are not supported for ${service.type} services.` }]
+          problems: [
+            { type: `Backups are not supported for ${service.type} services.` }
+          ]
         }
       }
     }
@@ -68,19 +76,22 @@ module.exports = {
     }).fetch()
 
     // Audit log
-    sails.helpers.audit.log.with({
-      action: 'backup.created',
-      resourceType: 'backup',
-      resourceId: backup.id,
-      details: { serviceName: service.name, serviceType: service.type },
-      userId: user.id,
-      teamId: project.team.id,
-      ipAddress: this.req.ip
-    }).intercept(() => {}) // fire-and-forget
+    sails.helpers.audit.log
+      .with({
+        action: 'backup.created',
+        resourceType: 'backup',
+        resourceId: backup.id,
+        details: { serviceName: service.name, serviceType: service.type },
+        userId: user.id,
+        teamId: project.team.id,
+        ipAddress: this.req.ip
+      })
+      .intercept(() => {}) // fire-and-forget
 
     // Run backup asynchronously (fire-and-forget using Sails helper callback)
     // Note: this is sails.helpers.*.exec(), NOT child_process.exec()
-    sails.helpers.backup.runBackup(backup.id)
+    sails.helpers.backup
+      .runBackup(backup.id)
       .then(() => {})
       .catch((err) => sails.log.error('Backup helper error:', err.message))
 

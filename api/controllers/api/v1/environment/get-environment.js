@@ -31,7 +31,9 @@ module.exports = {
   fn: async function ({ projectSlug, slug }) {
     const user = await User.findOne({ id: this.req.session.userId })
 
-    const project = await Project.findOne({ slug: projectSlug }).populate('team')
+    const project = await Project.findOne({ slug: projectSlug }).populate(
+      'team'
+    )
 
     if (!project) {
       throw 'notFound'
@@ -51,7 +53,8 @@ module.exports = {
       throw 'notFound'
     }
 
-    const { fullDomain, generatedDomain, domains } = await Environment.resolveDomains(environment.id)
+    const { fullDomain, generatedDomain, domains } =
+      await Environment.resolveDomains(environment.id)
 
     // Get Docker health status for all apps
     const apps = await App.find({ environment: environment.id })
@@ -60,7 +63,9 @@ module.exports = {
       let containerHealth = null
       if (a.containerName) {
         try {
-          const containerStatus = await sails.helpers.docker.getContainerStatus(a.containerName)
+          const containerStatus = await sails.helpers.docker.getContainerStatus(
+            a.containerName
+          )
           containerHealth = containerStatus.health
         } catch {
           // Container not found or inspect failed

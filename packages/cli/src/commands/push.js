@@ -62,15 +62,9 @@ function createTarball() {
   }
 
   // Fallback: tar with exclusions
-  const excludes = [
-    'node_modules',
-    '.git',
-    '.env',
-    '.DS_Store',
-    '*.log'
-  ]
+  const excludes = ['node_modules', '.git', '.env', '.DS_Store', '*.log']
 
-  const args = ['czf', '-', ...excludes.flatMap(e => ['--exclude', e]), '.']
+  const args = ['czf', '-', ...excludes.flatMap((e) => ['--exclude', e]), '.']
 
   return execFileSync('tar', args, {
     cwd,

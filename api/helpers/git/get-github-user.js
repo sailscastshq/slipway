@@ -13,8 +13,8 @@ module.exports = {
   fn: async function ({ accessToken }) {
     const response = await fetch('https://api.github.com/user', {
       headers: {
-        'Authorization': `Bearer ${accessToken}`,
-        'Accept': 'application/vnd.github+json',
+        Authorization: `Bearer ${accessToken}`,
+        Accept: 'application/vnd.github+json',
         'X-GitHub-Api-Version': '2022-11-28'
       }
     })

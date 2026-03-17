@@ -25,11 +25,15 @@ export default async function dbCreate(options, positionals) {
   const spin = createSpinner(`Creating ${dbType} database "${name}"...`).start()
 
   try {
-    const { service } = await api.services.create(project.project, environment, {
-      name,
-      type: dbType,
-      version
-    })
+    const { service } = await api.services.create(
+      project.project,
+      environment,
+      {
+        name,
+        type: dbType,
+        version
+      }
+    )
 
     spin.succeed('Database created')
     console.log()
@@ -45,8 +49,16 @@ export default async function dbCreate(options, positionals) {
       console.log()
     }
 
-    console.log(`  ${c.dim('The connection URL has been added to your environment variables.')}`)
-    console.log(`  ${c.dim('Use')} ${c.highlight(`slipway db:url ${name}`)} ${c.dim('to retrieve it later.')}`)
+    console.log(
+      `  ${c.dim(
+        'The connection URL has been added to your environment variables.'
+      )}`
+    )
+    console.log(
+      `  ${c.dim('Use')} ${c.highlight(`slipway db:url ${name}`)} ${c.dim(
+        'to retrieve it later.'
+      )}`
+    )
     console.log()
   } catch (err) {
     spin.fail('Failed to create database')

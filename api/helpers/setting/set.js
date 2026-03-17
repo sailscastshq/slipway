@@ -5,7 +5,14 @@
  * Usage: await sails.helpers.setting.set('instanceUrl', 'https://slipway.example.com')
  */
 
-const SENSITIVE_KEYS = ['smtpPassword', 'telegramBotToken', 'discordWebhookUrl', 'slackWebhookUrl', 'webhookUrl', 'globalEnvVars']
+const SENSITIVE_KEYS = [
+  'smtpPassword',
+  'telegramBotToken',
+  'discordWebhookUrl',
+  'slackWebhookUrl',
+  'webhookUrl',
+  'globalEnvVars'
+]
 
 module.exports = {
   friendlyName: 'Set setting',
@@ -42,7 +49,9 @@ module.exports = {
 
     const updates = {
       // Sensitive keys go to encryptedValue (encrypted at rest), plain value is cleared
-      ...(isSensitive ? { encryptedValue: value, value: null } : { value, encryptedValue: null }),
+      ...(isSensitive
+        ? { encryptedValue: value, value: null }
+        : { value, encryptedValue: null }),
       ...(description && { description })
     }
 
@@ -53,7 +62,11 @@ module.exports = {
     }
 
     // Invalidate cache so next read picks up the new value
-    try { await sails.cache.delete(`setting:${key}`) } catch (err) { /* best-effort */ }
+    try {
+      await sails.cache.delete(`setting:${key}`)
+    } catch (err) {
+      /* best-effort */
+    }
 
     return true
   }

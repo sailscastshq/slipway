@@ -3,7 +3,8 @@ const { spawn } = require('child_process')
 module.exports = {
   friendlyName: 'Execute in container',
 
-  description: 'Execute JavaScript code inside a running app container for Quest operations.',
+  description:
+    'Execute JavaScript code inside a running app container for Quest operations.',
 
   inputs: {
     containerName: {

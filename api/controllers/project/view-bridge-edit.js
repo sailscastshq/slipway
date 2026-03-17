@@ -32,7 +32,9 @@ module.exports = {
   },
 
   fn: async function ({ slug, envSlug, modelIdentity, recordId }) {
-    const user = await User.findOne({ id: this.req.session.userId }).populate('team')
+    const user = await User.findOne({ id: this.req.session.userId }).populate(
+      'team'
+    )
 
     if (!user) {
       throw { notFound: '/login' }
@@ -53,7 +55,9 @@ module.exports = {
       throw { notFound: `/projects/${slug}` }
     }
 
-    const app = await App.findOne({ environment: environment.id, isDefault: true }) || await App.findOne({ environment: environment.id })
+    const app =
+      (await App.findOne({ environment: environment.id, isDefault: true })) ||
+      (await App.findOne({ environment: environment.id }))
     const appRunning = app && app.status === 'running'
 
     let modelMeta = null
@@ -78,11 +82,18 @@ module.exports = {
           } else {
             // Fetch the record
             const queryCode = `
-              const record = await sails.models['${modelIdentity}'].findOne({ id: ${JSON.stringify(recordId)} });
+              const record = await sails.models['${modelIdentity}'].findOne({ id: ${JSON.stringify(
+              recordId
+            )} });
               return { record };
             `
-            const wrappedCode = await sails.helpers.bridge.buildSailsWrapper(queryCode)
-            const result = await sails.helpers.bridge.executeInContainer(app.containerName, wrappedCode)
+            const wrappedCode = await sails.helpers.bridge.buildSailsWrapper(
+              queryCode
+            )
+            const result = await sails.helpers.bridge.executeInContainer(
+              app.containerName,
+              wrappedCode
+            )
 
             if (result.success) {
               try {
@@ -100,7 +111,9 @@ module.exports = {
 
             // Load association options for belongsTo relationships
             if (!error) {
-              const modelAssocs = (modelMeta.associations || []).filter(a => a.type === 'model')
+              const modelAssocs = (modelMeta.associations || []).filter(
+                (a) => a.type === 'model'
+              )
               for (const assoc of modelAssocs) {
                 try {
                   const assocQueryCode = `
@@ -110,8 +123,13 @@ module.exports = {
                       label: r.name || r.title || r.email || \`#\${r.id}\`
                     }));
                   `
-                  const assocWrappedCode = await sails.helpers.bridge.buildSailsWrapper(assocQueryCode)
-                  const assocResult = await sails.helpers.bridge.executeInContainer(app.containerName, assocWrappedCode)
+                  const assocWrappedCode =
+                    await sails.helpers.bridge.buildSailsWrapper(assocQueryCode)
+                  const assocResult =
+                    await sails.helpers.bridge.executeInContainer(
+                      app.containerName,
+                      assocWrappedCode
+                    )
 
                   if (assocResult.success) {
                     try {

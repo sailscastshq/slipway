@@ -29,8 +29,14 @@ module.exports = {
     const appsDir = sails.config.custom.slipwayAppsDir || '/var/slipway/apps'
 
     async function setProgress(phase, detail) {
-      await sails.cache.set(CACHE_KEY, { phase, detail, updatedAt: Date.now() }, 300000)
-      sails.log.info(`[slipway] Update progress: ${phase}${detail ? ' — ' + detail : ''}`)
+      await sails.cache.set(
+        CACHE_KEY,
+        { phase, detail, updatedAt: Date.now() },
+        300000
+      )
+      sails.log.info(
+        `[slipway] Update progress: ${phase}${detail ? ' — ' + detail : ''}`
+      )
     }
 
     try {
@@ -64,7 +70,10 @@ module.exports = {
       await setProgress('inspecting', 'Reading current container configuration')
       let containerInfo
       try {
-        const { stdout } = await execFileAsync(dockerPath, ['inspect', 'slipway'])
+        const { stdout } = await execFileAsync(dockerPath, [
+          'inspect',
+          'slipway'
+        ])
         containerInfo = JSON.parse(stdout)[0]
       } catch (err) {
         sails.log.error(`[slipway] Failed to inspect container: ${err.message}`)
@@ -74,7 +83,10 @@ module.exports = {
 
       // 4b. Make sure deployed source survives container replacement.
       if (!hasMountDestination(containerInfo, appsDir)) {
-        await setProgress('inspecting', 'Migrating deployed source into persistent storage')
+        await setProgress(
+          'inspecting',
+          'Migrating deployed source into persistent storage'
+        )
         await migrateAppsDirectoryToBindMount({
           dockerPath,
           containerName: 'slipway',
@@ -94,14 +106,19 @@ module.exports = {
       })
 
       // 6. Start a validation container (slipway-next) on a temporary port
-      await setProgress('validating', 'Starting temporary container for health check')
+      await setProgress(
+        'validating',
+        'Starting temporary container for health check'
+      )
       const tempPort = await sails.helpers.docker.allocatePort()
 
       // Build temp container args: same config but different name + temp port
       const tempArgs = ['run', '-d', '--name', 'slipway-next']
 
       // Network (needed for Docker DNS / volume access)
-      const networks = Object.keys(containerInfo.NetworkSettings?.Networks || {})
+      const networks = Object.keys(
+        containerInfo.NetworkSettings?.Networks || {}
+      )
       if (networks.length > 0) {
         tempArgs.push('--network', networks[0])
       }
@@ -127,12 +144,16 @@ module.exports = {
       // Clean up any leftover temp container
       try {
         await execFileAsync(dockerPath, ['rm', '-f', 'slipway-next'])
-      } catch { /* ignore */ }
+      } catch {
+        /* ignore */
+      }
 
       try {
         await execFileAsync(dockerPath, tempArgs)
       } catch (err) {
-        sails.log.error(`[slipway] Failed to start validation container: ${err.message}`)
+        sails.log.error(
+          `[slipway] Failed to start validation container: ${err.message}`
+        )
         await setProgress('failed', 'New image failed to start')
         throw 'pullFailed'
       }
@@ -149,12 +170,19 @@ module.exports = {
           interval: 2000
         })
       } catch (err) {
-        sails.log.error(`[slipway] Validation container failed health check: ${err.message}`)
+        sails.log.error(
+          `[slipway] Validation container failed health check: ${err.message}`
+        )
         // Clean up the failed temp container
         try {
           await execFileAsync(dockerPath, ['rm', '-f', 'slipway-next'])
-        } catch { /* ignore */ }
-        await setProgress('failed', 'New version failed health check — update aborted, current version untouched')
+        } catch {
+          /* ignore */
+        }
+        await setProgress(
+          'failed',
+          'New version failed health check — update aborted, current version untouched'
+        )
         throw 'pullFailed'
       }
 
@@ -163,15 +191,27 @@ module.exports = {
       // 8. Stop the validation container (free the temp port before swap)
       try {
         await execFileAsync(dockerPath, ['rm', '-f', 'slipway-next'])
-      } catch { /* ignore */ }
+      } catch {
+        /* ignore */
+      }
 
       // 9. Build final run args for the production container
-      const runArgs = ['run', '-d', '--name', 'slipway', '--restart', 'unless-stopped']
+      const runArgs = [
+        'run',
+        '-d',
+        '--name',
+        'slipway',
+        '--restart',
+        'unless-stopped'
+      ]
       runArgs.push(...baseArgs)
       runArgs.push(pullTarget)
 
       // 10. Spawn the bosun sidecar to perform the swap
-      await setProgress('swapping', 'Swapping containers — Slipway will restart momentarily')
+      await setProgress(
+        'swapping',
+        'Swapping containers — Slipway will restart momentarily'
+      )
 
       const argsJson = JSON.stringify(runArgs)
       const script =
@@ -198,7 +238,9 @@ module.exports = {
       // Remove any leftover bosun container from a previous attempt
       try {
         await execFileAsync(dockerPath, ['rm', '-f', 'slipway-bosun'])
-      } catch { /* ignore */ }
+      } catch {
+        /* ignore */
+      }
 
       await execFileAsync(dockerPath, [
         'run',
@@ -271,8 +313,13 @@ function buildRunArgs(containerInfo, { extraMounts = [] } = {}) {
   }
 
   // Labels (skip internal Docker labels)
-  for (const [key, value] of Object.entries(containerInfo.Config?.Labels || {})) {
-    if (key.startsWith('org.opencontainers.') || key.startsWith('com.docker.')) {
+  for (const [key, value] of Object.entries(
+    containerInfo.Config?.Labels || {}
+  )) {
+    if (
+      key.startsWith('org.opencontainers.') ||
+      key.startsWith('com.docker.')
+    ) {
       continue
     }
     args.push('-l', `${key}=${value}`)
@@ -308,18 +355,29 @@ function appendMountArgs(args, mounts = [], extraMounts = []) {
         continue
       }
 
-      const readOnly = mount.RW === false || mount.readOnly === true ? ':ro' : ''
+      const readOnly =
+        mount.RW === false || mount.readOnly === true ? ':ro' : ''
       args.push('-v', `${source}:${destination}${readOnly}`)
     }
   }
 }
 
 function hasMountDestination(containerInfo, destination) {
-  return (containerInfo?.Mounts || []).some((mount) => mount.Destination === destination)
+  return (containerInfo?.Mounts || []).some(
+    (mount) => mount.Destination === destination
+  )
 }
 
-async function migrateAppsDirectoryToBindMount({ dockerPath, containerName, appsDir }) {
-  const hasSource = await containerDirectoryHasFiles({ dockerPath, containerName, appsDir })
+async function migrateAppsDirectoryToBindMount({
+  dockerPath,
+  containerName,
+  appsDir
+}) {
+  const hasSource = await containerDirectoryHasFiles({
+    dockerPath,
+    containerName,
+    appsDir
+  })
 
   if (!hasSource) {
     return
@@ -332,11 +390,21 @@ async function migrateAppsDirectoryToBindMount({ dockerPath, containerName, apps
   })
 }
 
-async function containerDirectoryHasFiles({ dockerPath, containerName, appsDir }) {
+async function containerDirectoryHasFiles({
+  dockerPath,
+  containerName,
+  appsDir
+}) {
   try {
     const { stdout } = await execFileAsync(
       dockerPath,
-      ['exec', containerName, 'sh', '-lc', `test -d ${appsDir} && [ "$(ls -A ${appsDir} 2>/dev/null)" ] && printf yes || true`],
+      [
+        'exec',
+        containerName,
+        'sh',
+        '-lc',
+        `test -d ${appsDir} && [ "$(ls -A ${appsDir} 2>/dev/null)" ] && printf yes || true`
+      ],
       { timeout: 10000 }
     )
 
@@ -346,9 +414,22 @@ async function containerDirectoryHasFiles({ dockerPath, containerName, appsDir }
   }
 }
 
-function streamContainerDirectoryToBindMount({ dockerPath, containerName, appsDir }) {
+function streamContainerDirectoryToBindMount({
+  dockerPath,
+  containerName,
+  appsDir
+}) {
   return new Promise((resolve, reject) => {
-    const exportProc = spawn(dockerPath, ['exec', containerName, 'tar', 'cf', '-', '-C', appsDir, '.'])
+    const exportProc = spawn(dockerPath, [
+      'exec',
+      containerName,
+      'tar',
+      'cf',
+      '-',
+      '-C',
+      appsDir,
+      '.'
+    ])
     const importProc = spawn(dockerPath, [
       'run',
       '--rm',
@@ -382,7 +463,11 @@ function streamContainerDirectoryToBindMount({ dockerPath, containerName, appsDi
       reject(
         new Error(
           `Could not migrate ${appsDir} into a persistent bind mount. ` +
-            `${exportStderr.trim() || importStderr.trim() || 'Unknown Docker error.'}`
+            `${
+              exportStderr.trim() ||
+              importStderr.trim() ||
+              'Unknown Docker error.'
+            }`
         )
       )
     }
@@ -432,5 +517,5 @@ function streamContainerDirectoryToBindMount({ dockerPath, containerName, appsDi
 module.exports._private = {
   appendMountArgs,
   buildRunArgs,
-  hasMountDestination,
+  hasMountDestination
 }

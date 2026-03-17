@@ -40,10 +40,14 @@ module.exports = {
     const user = await User.findOne({ id: req.session.userId }).populate('team')
     if (!user) throw 'notFound'
 
-    const service = await Service.findOne({ id: serviceId }).populate('environment')
+    const service = await Service.findOne({ id: serviceId }).populate(
+      'environment'
+    )
     if (!service) throw 'notFound'
 
-    const environment = await Environment.findOne({ id: service.environment.id }).populate('project')
+    const environment = await Environment.findOne({
+      id: service.environment.id
+    }).populate('project')
     if (!environment) throw 'notFound'
 
     const project = await Project.findOne({ id: environment.project.id })
@@ -58,9 +62,18 @@ module.exports = {
 
     // Spawn `docker logs --follow` as a child process
     const dockerPath = sails.config.docker?.binaryPath || 'docker'
-    const args = ['logs', '--follow', '--tail', String(tail), '--timestamps', service.containerName]
+    const args = [
+      'logs',
+      '--follow',
+      '--tail',
+      String(tail),
+      '--timestamps',
+      service.containerName
+    ]
 
-    sails.log.debug(`[stream-logs] Starting docker logs for container: ${service.containerName}`)
+    sails.log.debug(
+      `[stream-logs] Starting docker logs for container: ${service.containerName}`
+    )
 
     const docker = spawn(dockerPath, args)
 
@@ -81,7 +94,9 @@ module.exports = {
     })
 
     docker.on('close', (code, signal) => {
-      sails.log.debug(`[stream-logs] Docker process closed with code: ${code}, signal: ${signal}`)
+      sails.log.debug(
+        `[stream-logs] Docker process closed with code: ${code}, signal: ${signal}`
+      )
       stream.send({ closed: true })
       stream.close()
     })

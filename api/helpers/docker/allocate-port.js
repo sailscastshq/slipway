@@ -28,7 +28,11 @@ module.exports = {
       }
     }
 
-    sails.log.debug(`Port allocator: ${usedPorts.size} ports in use: ${[...usedPorts].join(', ')}`)
+    sails.log.debug(
+      `Port allocator: ${usedPorts.size} ports in use: ${[...usedPorts].join(
+        ', '
+      )}`
+    )
 
     // Find first available port in range not already assigned
     for (let port = portRange.start; port <= portRange.end; port++) {

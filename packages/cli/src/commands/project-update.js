@@ -10,12 +10,15 @@ export default async function projectUpdate(options, positionals) {
 
   const slug = positionals[0]
   if (!slug) {
-    error('Please provide a project slug. Usage: slipway project:update <slug> [options]')
+    error(
+      'Please provide a project slug. Usage: slipway project:update <slug> [options]'
+    )
   }
 
   const updates = {}
   if (options.name !== undefined) updates.name = options.name
-  if (options.description !== undefined) updates.description = options.description
+  if (options.description !== undefined)
+    updates.description = options.description
   if (options.repo !== undefined) updates.repositoryUrl = options.repo
 
   if (Object.keys(updates).length === 0) {

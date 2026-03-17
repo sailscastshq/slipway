@@ -74,26 +74,26 @@ slipway slide
 
 **Key technology choices:**
 
-| Component | Choice | Why |
-|-----------|--------|-----|
-| App framework | Sails.js + Vue 3 + Inertia.js | Dogfooding the stack |
-| Database | SQLite | Zero-config, single-file backup |
-| Proxy | Caddy | Automatic HTTPS, Docker-native routing |
-| Containers | Docker | Universal runtime, no vendor lock-in |
-| Security | `execFile()` everywhere | No shell injection possible |
+| Component     | Choice                        | Why                                    |
+| ------------- | ----------------------------- | -------------------------------------- |
+| App framework | Sails.js + Vue 3 + Inertia.js | Dogfooding the stack                   |
+| Database      | SQLite                        | Zero-config, single-file backup        |
+| Proxy         | Caddy                         | Automatic HTTPS, Docker-native routing |
+| Containers    | Docker                        | Universal runtime, no vendor lock-in   |
+| Security      | `execFile()` everywhere       | No shell injection possible            |
 
 ## The Platform
 
 Slipway includes integrated tools that work with your deployed Sails apps:
 
-| Tool | What it does |
-|------|-------------|
-| **Helm** | Production REPL — query models, run helpers, inspect config from the browser |
-| **Bridge** | Auto-generated data management UI from your Waterline models |
-| **Dock** | SQL console, schema diff, and migration tool for your databases |
-| **Quest** | Job scheduler dashboard for [sails-hook-quest](https://docs.sailscasts.com/quest) |
-| **Content** | CMS for [sails-content](https://docs.sailscasts.com/content) markdown files |
-| **Lookout** | Infrastructure monitoring via [sails-hook-slipway](packages/hook) telemetry |
+| Tool        | What it does                                                                      |
+| ----------- | --------------------------------------------------------------------------------- |
+| **Helm**    | Production REPL — query models, run helpers, inspect config from the browser      |
+| **Bridge**  | Auto-generated data management UI from your Waterline models                      |
+| **Dock**    | SQL console, schema diff, and migration tool for your databases                   |
+| **Quest**   | Job scheduler dashboard for [sails-hook-quest](https://docs.sailscasts.com/quest) |
+| **Content** | CMS for [sails-content](https://docs.sailscasts.com/content) markdown files       |
+| **Lookout** | Infrastructure monitoring via [sails-hook-slipway](packages/hook) telemetry       |
 
 ## Requirements
 
@@ -109,9 +109,9 @@ Full documentation at **[docs.sailscasts.com/slipway](https://docs.sailscasts.co
 
 This repo is a monorepo containing:
 
-| Package | Description |
-|---------|-------------|
-| [`packages/cli`](packages/cli) | Zero-dependency CLI (`slipway-cli` on npm) |
+| Package                          | Description                                                               |
+| -------------------------------- | ------------------------------------------------------------------------- |
+| [`packages/cli`](packages/cli)   | Zero-dependency CLI (`slipway-cli` on npm)                                |
 | [`packages/hook`](packages/hook) | Auto-instrumentation hook for deployed apps (`sails-hook-slipway` on npm) |
 
 ## Community

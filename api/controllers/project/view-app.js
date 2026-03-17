@@ -1,7 +1,8 @@
 module.exports = {
   friendlyName: 'View app',
 
-  description: 'Display app detail page with logs, deployments, services, and platform tools.',
+  description:
+    'Display app detail page with logs, deployments, services, and platform tools.',
 
   inputs: {
     slug: {
@@ -31,17 +32,25 @@ module.exports = {
   },
 
   fn: async function ({ slug, envSlug, appSlug }) {
-    const user = await User.findOne({ id: this.req.session.userId }).populate('team')
+    const user = await User.findOne({ id: this.req.session.userId }).populate(
+      'team'
+    )
 
     const project = await Project.findOne({ slug, team: user.team.id })
     if (!project) throw { notFound: '/' }
 
-    const environment = await Environment.findOne({ slug: envSlug, project: project.id })
+    const environment = await Environment.findOne({
+      slug: envSlug,
+      project: project.id
+    })
       .populate('services')
       .decrypt()
     if (!environment) throw { notFound: `/projects/${slug}` }
 
-    const app = await App.findOne({ environment: environment.id, slug: appSlug })
+    const app = await App.findOne({
+      environment: environment.id,
+      slug: appSlug
+    })
     if (!app) throw { notFound: `/projects/${slug}/environments/${envSlug}` }
 
     // Decrypt app to get envVars
@@ -51,7 +60,9 @@ module.exports = {
     let containerHealth = null
     if (app.containerName) {
       try {
-        const containerStatus = await sails.helpers.docker.getContainerStatus(app.containerName)
+        const containerStatus = await sails.helpers.docker.getContainerStatus(
+          app.containerName
+        )
         containerHealth = containerStatus.health
       } catch (err) {
         if (err.code === 'notFound' || err === 'notFound') {
@@ -61,9 +72,13 @@ module.exports = {
       }
     }
 
-    const { fullDomain, generatedDomain, domains } = await Environment.resolveDomains(environment.id)
+    const { fullDomain, generatedDomain, domains } =
+      await Environment.resolveDomains(environment.id)
     const serverIp = await sails.helpers.getServerIp()
-    const directUrl = app.hostPort && app.routePath !== null ? `http://${serverIp}:${app.hostPort}` : null
+    const directUrl =
+      app.hostPort && app.routePath !== null
+        ? `http://${serverIp}:${app.hostPort}`
+        : null
 
     // Fetch deployments filtered to this app (include legacy deployments without app for default app)
     let deployments
@@ -77,7 +92,10 @@ module.exports = {
         .limit(20)
         .populate('triggeredBy')
     } else {
-      deployments = await Deployment.find({ environment: environment.id, app: app.id })
+      deployments = await Deployment.find({
+        environment: environment.id,
+        app: app.id
+      })
         .limit(20)
         .populate('triggeredBy')
     }
@@ -110,17 +128,27 @@ module.exports = {
       const globalJson = await sails.helpers.setting.get('globalEnvVars', '{}')
       globalEnvVars = JSON.parse(globalJson)
       backupConfigured = !!(
-        (globalEnvVars.R2_ACCESS_KEY || globalEnvVars.S3_ACCESS_KEY || globalEnvVars.SPACES_ACCESS_KEY) &&
-        (globalEnvVars.R2_SECRET_KEY || globalEnvVars.S3_SECRET_KEY || globalEnvVars.SPACES_SECRET_KEY) &&
-        (globalEnvVars.R2_BUCKET || globalEnvVars.S3_BUCKET || globalEnvVars.SPACES_BUCKET)
+        (globalEnvVars.R2_ACCESS_KEY ||
+          globalEnvVars.S3_ACCESS_KEY ||
+          globalEnvVars.SPACES_ACCESS_KEY) &&
+        (globalEnvVars.R2_SECRET_KEY ||
+          globalEnvVars.S3_SECRET_KEY ||
+          globalEnvVars.SPACES_SECRET_KEY) &&
+        (globalEnvVars.R2_BUCKET ||
+          globalEnvVars.S3_BUCKET ||
+          globalEnvVars.SPACES_BUCKET)
       )
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
 
     // Build inherited vars (global + environment)
     const inheritedVars = { ...globalEnvVars, ...(environment.envVars || {}) }
 
     // Generate deployment checklist
-    const checklist = await sails.helpers.environment.generateChecklist(environment.id)
+    const checklist = await sails.helpers.environment.generateChecklist(
+      environment.id
+    )
 
     return {
       page: 'projects/app',

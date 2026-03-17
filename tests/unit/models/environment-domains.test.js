@@ -15,7 +15,10 @@ function withQueryResult(record) {
   }
 }
 
-function mockEnvironmentModel(environmentRecord, { wildcardDomain = null, slipwayDomain = 'localhost' } = {}) {
+function mockEnvironmentModel(
+  environmentRecord,
+  { wildcardDomain = null, slipwayDomain = 'localhost' } = {}
+) {
   global.sails = {
     helpers: {
       setting: {
@@ -43,7 +46,9 @@ function restoreGlobals() {
   global.App = originalGlobals.App
 }
 
-test('environment uses the generated hostname as the primary domain when no custom domain is set', async ({ expect }) => {
+test('environment uses the generated hostname as the primary domain when no custom domain is set', async ({
+  expect
+}) => {
   try {
     const Environment = mockEnvironmentModel(
       {
@@ -67,7 +72,9 @@ test('environment uses the generated hostname as the primary domain when no cust
   }
 })
 
-test('environment keeps the generated hostname as a fallback when a custom domain is present', async ({ expect }) => {
+test('environment keeps the generated hostname as a fallback when a custom domain is present', async ({
+  expect
+}) => {
   try {
     const Environment = mockEnvironmentModel(
       {
@@ -91,7 +98,9 @@ test('environment keeps the generated hostname as a fallback when a custom domai
   }
 })
 
-test('environment returns no hostname routes when neither wildcard nor slipwayDomain is available', async ({ expect }) => {
+test('environment returns no hostname routes when neither wildcard nor slipwayDomain is available', async ({
+  expect
+}) => {
   try {
     const Environment = mockEnvironmentModel(
       {
@@ -115,7 +124,9 @@ test('environment returns no hostname routes when neither wildcard nor slipwayDo
   }
 })
 
-test('caddy route generation matches both the custom and generated hostnames when both exist', async ({ expect }) => {
+test('caddy route generation matches both the custom and generated hostnames when both exist', async ({
+  expect
+}) => {
   try {
     mockEnvironmentModel(
       {
@@ -140,10 +151,13 @@ test('caddy route generation matches both the custom and generated hostnames whe
     const config = await generateRouteConfig.fn({ environmentId: 'env-4' })
 
     expect(config.domain).toBe('app.example.com')
-    expect(config.domains).toEqual(['app.example.com', 'my-app-production.apps.example.com'])
+    expect(config.domains).toEqual([
+      'app.example.com',
+      'my-app-production.apps.example.com'
+    ])
     expect(config.route.match[0].host).toEqual([
       'app.example.com',
-      'my-app-production.apps.example.com',
+      'my-app-production.apps.example.com'
     ])
   } finally {
     restoreGlobals()

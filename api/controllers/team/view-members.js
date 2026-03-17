@@ -12,10 +12,13 @@ module.exports = {
   },
 
   fn: async function () {
-    const user = await User.findOne({ id: this.req.session.userId }).populate('team')
+    const user = await User.findOne({ id: this.req.session.userId }).populate(
+      'team'
+    )
 
-    const members = await User.find({ team: user.team.id })
-      .sort('createdAt ASC')
+    const members = await User.find({ team: user.team.id }).sort(
+      'createdAt ASC'
+    )
 
     return {
       page: 'settings/team',
@@ -25,7 +28,7 @@ module.exports = {
           name: user.team.name,
           slug: user.team.slug
         },
-        members: members.map(m => ({
+        members: members.map((m) => ({
           id: m.id,
           fullName: m.fullName,
           email: m.email,

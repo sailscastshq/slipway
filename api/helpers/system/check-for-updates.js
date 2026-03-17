@@ -19,7 +19,8 @@ module.exports = {
 
   fn: async function ({ skipCache }) {
     const currentVersion = sails.config.slipway?.version || '0.1.0'
-    const githubRepo = sails.config.slipway?.githubRepo || 'sailscastshq/slipway'
+    const githubRepo =
+      sails.config.slipway?.githubRepo || 'sailscastshq/slipway'
 
     // Cache key for rate limiting - only check once per hour
     const cacheKey = 'slipway_update_check'
@@ -66,7 +67,8 @@ module.exports = {
       }
 
       const release = await response.json()
-      const latestVersion = release.tag_name?.replace(/^v/, '') || currentVersion
+      const latestVersion =
+        release.tag_name?.replace(/^v/, '') || currentVersion
 
       // Simple semver comparison (major.minor.patch)
       const isNewer = compareVersions(latestVersion, currentVersion) > 0
@@ -76,7 +78,9 @@ module.exports = {
       if (isNewer) {
         imageReady = await checkGhcrImage(githubRepo, latestVersion)
         if (!imageReady) {
-          sails.log.verbose(`[slipway] v${latestVersion} released but Docker image not yet available on GHCR`)
+          sails.log.verbose(
+            `[slipway] v${latestVersion} released but Docker image not yet available on GHCR`
+          )
         }
       }
 
@@ -146,7 +150,8 @@ async function checkGhcrImage(repo, version) {
         headers: {
           'User-Agent': 'Slipway',
           Authorization: `Bearer ${token}`,
-          Accept: 'application/vnd.oci.image.index.v1+json, application/vnd.docker.distribution.manifest.v2+json'
+          Accept:
+            'application/vnd.oci.image.index.v1+json, application/vnd.docker.distribution.manifest.v2+json'
         }
       }
     )

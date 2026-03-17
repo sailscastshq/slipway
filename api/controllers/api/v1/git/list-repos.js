@@ -47,10 +47,10 @@ module.exports = {
       provider: provider.id
     }).select(['externalId'])
 
-    const connectedIds = new Set(connectedRepos.map(r => r.externalId))
+    const connectedIds = new Set(connectedRepos.map((r) => r.externalId))
 
     return {
-      repos: repos.map(repo => ({
+      repos: repos.map((repo) => ({
         ...repo,
         isConnected: connectedIds.has(repo.id)
       })),

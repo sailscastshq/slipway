@@ -46,8 +46,18 @@ module.exports = {
     }
   },
 
-  fn: async function ({ slug, name, description, repositoryUrl, autoDeploy, autoDeployBranch, generateWebhookSecret }) {
-    const user = await User.findOne({ id: this.req.session.userId }).populate('team')
+  fn: async function ({
+    slug,
+    name,
+    description,
+    repositoryUrl,
+    autoDeploy,
+    autoDeployBranch,
+    generateWebhookSecret
+  }) {
+    const user = await User.findOne({ id: this.req.session.userId }).populate(
+      'team'
+    )
 
     const project = await Project.findOne({ slug, team: user.team.id })
 
@@ -60,7 +70,8 @@ module.exports = {
     if (description !== undefined) updates.description = description
     if (repositoryUrl !== undefined) updates.repositoryUrl = repositoryUrl
     if (autoDeploy !== undefined) updates.autoDeploy = autoDeploy
-    if (autoDeployBranch !== undefined) updates.autoDeployBranch = autoDeployBranch
+    if (autoDeployBranch !== undefined)
+      updates.autoDeployBranch = autoDeployBranch
 
     // Generate a new webhook secret if requested
     if (generateWebhookSecret) {

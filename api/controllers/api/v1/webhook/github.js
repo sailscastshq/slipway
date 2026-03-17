@@ -39,7 +39,9 @@ module.exports = {
     }
 
     if (!project.webhookSecret || !project.autoDeploy) {
-      sails.log.warn(`Webhook received for ${projectSlug} but auto-deploy is not enabled`)
+      sails.log.warn(
+        `Webhook received for ${projectSlug} but auto-deploy is not enabled`
+      )
       return { message: 'Auto-deploy not enabled' }
     }
 
@@ -50,13 +52,18 @@ module.exports = {
     }
 
     const rawBody = this.req.body
-    const payload = typeof rawBody === 'string' ? rawBody : JSON.stringify(rawBody)
-    const expectedSig = 'sha256=' + crypto
-      .createHmac('sha256', project.webhookSecret)
-      .update(payload)
-      .digest('hex')
+    const payload =
+      typeof rawBody === 'string' ? rawBody : JSON.stringify(rawBody)
+    const expectedSig =
+      'sha256=' +
+      crypto
+        .createHmac('sha256', project.webhookSecret)
+        .update(payload)
+        .digest('hex')
 
-    if (!crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expectedSig))) {
+    if (
+      !crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expectedSig))
+    ) {
       sails.log.warn(`Invalid webhook signature for ${projectSlug}`)
       throw 'forbidden'
     }
@@ -79,8 +86,12 @@ module.exports = {
     const branch = ref.replace('refs/heads/', '')
 
     if (branch !== project.autoDeployBranch) {
-      sails.log.verbose(`Webhook push to ${branch} — skipping (auto-deploy branch: ${project.autoDeployBranch})`)
-      return { message: `Skipped: push to ${branch}, auto-deploy branch is ${project.autoDeployBranch}` }
+      sails.log.verbose(
+        `Webhook push to ${branch} — skipping (auto-deploy branch: ${project.autoDeployBranch})`
+      )
+      return {
+        message: `Skipped: push to ${branch}, auto-deploy branch is ${project.autoDeployBranch}`
+      }
     }
 
     // Clone/pull the repo
@@ -98,17 +109,39 @@ module.exports = {
     try {
       if (fs.existsSync(path.join(targetDir, '.git'))) {
         // Pull latest
-        execFileSync('git', ['fetch', 'origin', branch], { cwd: targetDir, timeout: 120000 })
-        execFileSync('git', ['reset', '--hard', `origin/${branch}`], { cwd: targetDir, timeout: 30000 })
-        execFileSync('git', ['clean', '-fd'], { cwd: targetDir, timeout: 30000 })
+        execFileSync('git', ['fetch', 'origin', branch], {
+          cwd: targetDir,
+          timeout: 120000
+        })
+        execFileSync('git', ['reset', '--hard', `origin/${branch}`], {
+          cwd: targetDir,
+          timeout: 30000
+        })
+        execFileSync('git', ['clean', '-fd'], {
+          cwd: targetDir,
+          timeout: 30000
+        })
       } else {
         // Fresh clone
         if (fs.existsSync(targetDir)) {
           fs.rmSync(targetDir, { recursive: true, force: true })
         }
-        execFileSync('git', ['clone', '--branch', branch, '--single-branch', '--depth', '1', repoUrl, targetDir], {
-          timeout: 120000
-        })
+        execFileSync(
+          'git',
+          [
+            'clone',
+            '--branch',
+            branch,
+            '--single-branch',
+            '--depth',
+            '1',
+            repoUrl,
+            targetDir
+          ],
+          {
+            timeout: 120000
+          }
+        )
       }
     } catch (err) {
       sails.log.error(`Failed to clone/pull for ${projectSlug}: ${err.message}`)
@@ -133,7 +166,7 @@ module.exports = {
     const apps = await App.find({ environment: environment.id })
     const deploymentIds = []
 
-    for (const app of (apps.length > 0 ? apps : [null])) {
+    for (const app of apps.length > 0 ? apps : [null]) {
       const deployment = await Deployment.create({
         status: 'pending',
         gitCommit: body.after || body.head_commit?.id,
@@ -148,7 +181,9 @@ module.exports = {
 
       deploymentIds.push(deployment.id)
 
-      sails.log.info(`Webhook auto-deploy triggered for ${projectSlug}: ${deployment.id}`)
+      sails.log.info(
+        `Webhook auto-deploy triggered for ${projectSlug}: ${deployment.id}`
+      )
 
       process.nextTick(async () => {
         try {
@@ -159,7 +194,9 @@ module.exports = {
             app
           })
         } catch (err) {
-          sails.log.error(`Webhook deploy ${deployment.id} failed: ${err.message || err}`)
+          sails.log.error(
+            `Webhook deploy ${deployment.id} failed: ${err.message || err}`
+          )
         }
       })
     }
@@ -184,13 +221,18 @@ async function handlePullRequest(project, body) {
   const prNumber = pr.number
   const branch = pr.head.ref
 
-  if (action === 'opened' || action === 'synchronize' || action === 'reopened') {
+  if (
+    action === 'opened' ||
+    action === 'synchronize' ||
+    action === 'reopened'
+  ) {
     // Create or get preview environment
-    const environment = await sails.helpers.preview.createPreviewEnvironment.with({
-      project,
-      prNumber,
-      branch
-    })
+    const environment =
+      await sails.helpers.preview.createPreviewEnvironment.with({
+        project,
+        prNumber,
+        branch
+      })
 
     // Clone/pull the PR branch
     const repoUrl = project.repositoryUrl
@@ -198,25 +240,52 @@ async function handlePullRequest(project, body) {
       return { message: 'No repository URL configured' }
     }
 
-    const targetDir = path.join(sails.config.custom.slipwayAppsDir, project.slug)
+    const targetDir = path.join(
+      sails.config.custom.slipwayAppsDir,
+      project.slug
+    )
 
     fs.mkdirSync(sails.config.custom.slipwayAppsDir, { recursive: true })
 
     try {
       if (fs.existsSync(path.join(targetDir, '.git'))) {
-        execFileSync('git', ['fetch', 'origin', branch], { cwd: targetDir, timeout: 120000 })
-        execFileSync('git', ['checkout', '-B', branch, `origin/${branch}`], { cwd: targetDir, timeout: 30000 })
-        execFileSync('git', ['clean', '-fd'], { cwd: targetDir, timeout: 30000 })
+        execFileSync('git', ['fetch', 'origin', branch], {
+          cwd: targetDir,
+          timeout: 120000
+        })
+        execFileSync('git', ['checkout', '-B', branch, `origin/${branch}`], {
+          cwd: targetDir,
+          timeout: 30000
+        })
+        execFileSync('git', ['clean', '-fd'], {
+          cwd: targetDir,
+          timeout: 30000
+        })
       } else {
         if (fs.existsSync(targetDir)) {
           fs.rmSync(targetDir, { recursive: true, force: true })
         }
-        execFileSync('git', ['clone', '--branch', branch, '--single-branch', '--depth', '1', repoUrl, targetDir], {
-          timeout: 120000
-        })
+        execFileSync(
+          'git',
+          [
+            'clone',
+            '--branch',
+            branch,
+            '--single-branch',
+            '--depth',
+            '1',
+            repoUrl,
+            targetDir
+          ],
+          {
+            timeout: 120000
+          }
+        )
       }
     } catch (err) {
-      sails.log.error(`Failed to clone/pull PR branch for ${project.slug}: ${err.message}`)
+      sails.log.error(
+        `Failed to clone/pull PR branch for ${project.slug}: ${err.message}`
+      )
       return { message: `Git error: ${err.message}` }
     }
 
@@ -235,7 +304,9 @@ async function handlePullRequest(project, body) {
       startedAt: Date.now()
     }).fetch()
 
-    sails.log.info(`Preview deploy triggered for ${project.slug}/pr-${prNumber}: ${deployment.id}`)
+    sails.log.info(
+      `Preview deploy triggered for ${project.slug}/pr-${prNumber}: ${deployment.id}`
+    )
 
     // Kick off async deployment via shared pipeline
     process.nextTick(async () => {
@@ -246,7 +317,9 @@ async function handlePullRequest(project, body) {
           environment
         })
       } catch (err) {
-        sails.log.error(`Preview deploy ${deployment.id} failed: ${err.message || err}`)
+        sails.log.error(
+          `Preview deploy ${deployment.id} failed: ${err.message || err}`
+        )
       }
     })
 

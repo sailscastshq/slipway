@@ -6,7 +6,8 @@ function escapeHtml(str) {
 }
 
 // Tokenize pre-formatted JSON string
-const jsonTokenPattern = /("(?:[^"\\]|\\.)*")\s*(:)?|(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)|(\btrue\b|\bfalse\b)|(\bnull\b)|(\s+)|(.)/g
+const jsonTokenPattern =
+  /("(?:[^"\\]|\\.)*")\s*(:)?|(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)|(\btrue\b|\bfalse\b)|(\bnull\b)|(\s+)|(.)/g
 
 export function highlightJSON(data) {
   const json = JSON.stringify(data, null, 2)
@@ -21,15 +22,23 @@ export function highlightJSON(data) {
       const escaped = escapeHtml(str)
       if (colon) {
         // Key (string followed by colon)
-        parts.push(`<span class="text-pink-600 dark:text-pink-400">${escaped}</span>: `)
+        parts.push(
+          `<span class="text-pink-600 dark:text-pink-400">${escaped}</span>: `
+        )
       } else {
         // String value
-        parts.push(`<span class="text-amber-600 dark:text-amber-400">${escaped}</span>`)
+        parts.push(
+          `<span class="text-amber-600 dark:text-amber-400">${escaped}</span>`
+        )
       }
     } else if (num) {
-      parts.push(`<span class="text-purple-600 dark:text-purple-400">${num}</span>`)
+      parts.push(
+        `<span class="text-purple-600 dark:text-purple-400">${num}</span>`
+      )
     } else if (bool) {
-      parts.push(`<span class="text-blue-600 dark:text-blue-400">${bool}</span>`)
+      parts.push(
+        `<span class="text-blue-600 dark:text-blue-400">${bool}</span>`
+      )
     } else if (nul) {
       parts.push(`<span class="text-gray-400 dark:text-gray-600">${nul}</span>`)
     } else if (ws) {

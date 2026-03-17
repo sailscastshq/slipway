@@ -30,26 +30,27 @@ module.exports = {
     const dockerPath = sails.config.docker?.binaryPath || 'docker'
 
     try {
-      const { stdout, stderr } = await execFileAsync(dockerPath, [
-        'logs',
-        '--since', since,
-        '--timestamps',
-        containerName
-      ], {
-        maxBuffer: 1024 * 1024 * 10, // 10MB max
-        timeout: 30000
-      })
+      const { stdout, stderr } = await execFileAsync(
+        dockerPath,
+        ['logs', '--since', since, '--timestamps', containerName],
+        {
+          maxBuffer: 1024 * 1024 * 10, // 10MB max
+          timeout: 30000
+        }
+      )
 
       // Docker logs outputs to both stdout and stderr
       const combined = (stdout || '') + (stderr || '')
-      const lines = combined.split('\n').filter(l => l.trim())
+      const lines = combined.split('\n').filter((l) => l.trim())
 
       return {
         logs: combined,
         lineCount: lines.length
       }
     } catch (err) {
-      sails.log.verbose(`Failed to collect logs for ${containerName}: ${err.message}`)
+      sails.log.verbose(
+        `Failed to collect logs for ${containerName}: ${err.message}`
+      )
       return { logs: '', lineCount: 0 }
     }
   }

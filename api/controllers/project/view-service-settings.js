@@ -31,16 +31,25 @@ module.exports = {
   },
 
   fn: async function ({ slug, envSlug, serviceId }) {
-    const user = await User.findOne({ id: this.req.session.userId }).populate('team')
+    const user = await User.findOne({ id: this.req.session.userId }).populate(
+      'team'
+    )
 
     const project = await Project.findOne({ slug, team: user.team.id })
     if (!project) throw { notFound: '/' }
 
-    const environment = await Environment.findOne({ slug: envSlug, project: project.id })
+    const environment = await Environment.findOne({
+      slug: envSlug,
+      project: project.id
+    })
     if (!environment) throw { notFound: `/projects/${slug}` }
 
-    const service = await Service.findOne({ id: serviceId, environment: environment.id })
-    if (!service) throw { notFound: `/projects/${slug}/environments/${envSlug}` }
+    const service = await Service.findOne({
+      id: serviceId,
+      environment: environment.id
+    })
+    if (!service)
+      throw { notFound: `/projects/${slug}/environments/${envSlug}` }
 
     return {
       page: 'projects/service-settings',

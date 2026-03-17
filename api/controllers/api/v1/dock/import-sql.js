@@ -43,7 +43,9 @@ module.exports = {
 
   fn: async function ({ projectSlug, environmentSlug, sql }) {
     const user = await User.findOne({ id: this.req.session.userId })
-    const project = await Project.findOne({ slug: projectSlug }).populate('team')
+    const project = await Project.findOne({ slug: projectSlug }).populate(
+      'team'
+    )
 
     if (!project) {
       throw 'notFound'
@@ -66,7 +68,10 @@ module.exports = {
     const serviceId = this.req.query.service
     let dbResult
     try {
-      dbResult = await sails.helpers.dock.getDatabaseService(environment.id, serviceId)
+      dbResult = await sails.helpers.dock.getDatabaseService(
+        environment.id,
+        serviceId
+      )
     } catch (err) {
       throw { badRequest: 'No database service found for this environment.' }
     }
@@ -75,25 +80,36 @@ module.exports = {
 
     // Check for binary dump file upload
     const uploadedFiles = await new Promise((resolve, reject) => {
-      this.req.file('dump').upload({ maxBytes: 500 * 1024 * 1024 }, (err, files) => {
-        if (err) reject(err)
-        else resolve(files)
-      })
+      this.req
+        .file('dump')
+        .upload({ maxBytes: 500 * 1024 * 1024 }, (err, files) => {
+          if (err) reject(err)
+          else resolve(files)
+        })
     })
 
     if (uploadedFiles.length > 0) {
       // Binary dump import
       const dumpBuffer = fs.readFileSync(uploadedFiles[0].fd)
       // Clean up temp file
-      try { fs.unlinkSync(uploadedFiles[0].fd) } catch { /* ignore */ }
+      try {
+        fs.unlinkSync(uploadedFiles[0].fd)
+      } catch {
+        /* ignore */
+      }
 
       if (dumpBuffer.length === 0) {
         throw { badRequest: 'Uploaded dump file is empty.' }
       }
 
       try {
-        const result = await sails.helpers.dock.importSql.with({ service, dump: dumpBuffer })
-        sails.log.info(`[dock] Binary dump restored into ${project.slug}/${environmentSlug} by ${user.fullName}`)
+        const result = await sails.helpers.dock.importSql.with({
+          service,
+          dump: dumpBuffer
+        })
+        sails.log.info(
+          `[dock] Binary dump restored into ${project.slug}/${environmentSlug} by ${user.fullName}`
+        )
         return result
       } catch (error) {
         if (error.importFailed) {
@@ -118,7 +134,10 @@ module.exports = {
 
       for (const pattern of dangerousPatterns) {
         if (pattern.test(sql)) {
-          throw { badRequest: 'This SQL contains operations that are not allowed for security reasons.' }
+          throw {
+            badRequest:
+              'This SQL contains operations that are not allowed for security reasons.'
+          }
         }
       }
     }
@@ -127,7 +146,9 @@ module.exports = {
       const result = await sails.helpers.dock.importSql(service, sql)
 
       const logType = service.type === 'mongodb' ? 'data' : 'SQL'
-      sails.log.info(`[dock] ${logType} imported into ${project.slug}/${environmentSlug} by ${user.fullName} (${result.statementCount} statements)`)
+      sails.log.info(
+        `[dock] ${logType} imported into ${project.slug}/${environmentSlug} by ${user.fullName} (${result.statementCount} statements)`
+      )
 
       return result
     } catch (error) {

@@ -28,7 +28,9 @@ module.exports = {
   },
 
   fn: async function ({ slug, envSlug, serviceId }) {
-    const user = await User.findOne({ id: this.req.session.userId }).populate('team')
+    const user = await User.findOne({ id: this.req.session.userId }).populate(
+      'team'
+    )
 
     if (!user) {
       throw { notFound: '/login' }
@@ -51,7 +53,9 @@ module.exports = {
 
     // Get all database services (running)
     const allDbServices = (environment.services || []).filter(
-      s => ['postgresql', 'mysql', 'mongodb', 'redis'].includes(s.type) && s.status === 'running'
+      (s) =>
+        ['postgresql', 'mysql', 'mongodb', 'redis'].includes(s.type) &&
+        s.status === 'running'
     )
 
     // If no serviceId provided, show the service picker
@@ -71,7 +75,7 @@ module.exports = {
           },
           // No service selected - show picker mode
           databaseService: null,
-          availableServices: allDbServices.map(s => ({
+          availableServices: allDbServices.map((s) => ({
             id: s.id,
             name: s.name,
             type: s.type,
@@ -83,14 +87,16 @@ module.exports = {
     }
 
     // Find the specific service (serviceId comes as string from URL)
-    const dbService = allDbServices.find(s => String(s.id) === serviceId)
+    const dbService = allDbServices.find((s) => String(s.id) === serviceId)
 
     if (!dbService) {
       // Service not found or not running - redirect to dock picker
       throw { notFound: `/projects/${slug}/environments/${envSlug}/dock` }
     }
 
-    const app = await App.findOne({ environment: environment.id, isDefault: true }) || await App.findOne({ environment: environment.id })
+    const app =
+      (await App.findOne({ environment: environment.id, isDefault: true })) ||
+      (await App.findOne({ environment: environment.id }))
 
     return {
       page: 'projects/dock',
@@ -113,7 +119,7 @@ module.exports = {
           database: dbService.database,
           status: dbService.status
         },
-        availableServices: allDbServices.map(s => ({
+        availableServices: allDbServices.map((s) => ({
           id: s.id,
           name: s.name,
           type: s.type

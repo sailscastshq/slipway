@@ -40,7 +40,9 @@ module.exports = {
 
   fn: async function ({ projectSlug, environmentSlug, query, serviceId }) {
     const user = await User.findOne({ id: this.req.session.userId })
-    const project = await Project.findOne({ slug: projectSlug }).populate('team')
+    const project = await Project.findOne({ slug: projectSlug }).populate(
+      'team'
+    )
 
     if (!project) {
       throw 'notFound'
@@ -63,7 +65,10 @@ module.exports = {
     const reqServiceId = serviceId || this.req.query.service
     let dbResult
     try {
-      dbResult = await sails.helpers.dock.getDatabaseService(environment.id, reqServiceId)
+      dbResult = await sails.helpers.dock.getDatabaseService(
+        environment.id,
+        reqServiceId
+      )
     } catch (err) {
       throw { badRequest: 'No database service found for this environment.' }
     }
@@ -71,18 +76,15 @@ module.exports = {
     const { service } = dbResult
 
     // Security: Basic query validation
-    const dangerousPatterns = service.type === 'mongodb'
-      ? [
-        /db\.dropDatabase\s*\(/i,
-        /\.drop\s*\(\s*\)/i,
-        /db\.runCommand\s*\(\s*\{\s*["']?dropDatabase/i,
-        /db\.runCommand\s*\(\s*\{\s*["']?shutdown/i
-      ]
-      : [
-        /^DROP\s+DATABASE/i,
-        /^DROP\s+SCHEMA/i,
-        /^TRUNCATE\s+TABLE\s+pg_/i
-      ]
+    const dangerousPatterns =
+      service.type === 'mongodb'
+        ? [
+            /db\.dropDatabase\s*\(/i,
+            /\.drop\s*\(\s*\)/i,
+            /db\.runCommand\s*\(\s*\{\s*["']?dropDatabase/i,
+            /db\.runCommand\s*\(\s*\{\s*["']?shutdown/i
+          ]
+        : [/^DROP\s+DATABASE/i, /^DROP\s+SCHEMA/i, /^TRUNCATE\s+TABLE\s+pg_/i]
 
     for (const pattern of dangerousPatterns) {
       if (pattern.test(query)) {
@@ -93,7 +95,9 @@ module.exports = {
     // Execute the query
     const result = await sails.helpers.dock.executeSql(service, query)
 
-    sails.log.info(`[dock] Query executed in ${project.slug}/${environmentSlug} by ${user.fullName}`)
+    sails.log.info(
+      `[dock] Query executed in ${project.slug}/${environmentSlug} by ${user.fullName}`
+    )
 
     return result
   }

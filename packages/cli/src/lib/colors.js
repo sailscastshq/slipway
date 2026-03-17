@@ -24,7 +24,8 @@ export const c = {
   bold: (s) => `${codes.bold}${s}${codes.reset}`,
   gray: (s) => `${codes.gray}${s}${codes.reset}`,
   highlight: (s) => `${codes.slipway}${s}${codes.reset}`,
-  brand: (s) => `${codes.bgSlipway}${codes.white}${codes.bold} ${s} ${codes.reset}`
+  brand: (s) =>
+    `${codes.bgSlipway}${codes.white}${codes.bold} ${s} ${codes.reset}`
 }
 
 export default c

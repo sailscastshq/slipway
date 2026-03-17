@@ -29,7 +29,9 @@ module.exports = {
   },
 
   fn: async function ({ slug, envSlug }) {
-    const user = await User.findOne({ id: this.req.session.userId }).populate('team')
+    const user = await User.findOne({ id: this.req.session.userId }).populate(
+      'team'
+    )
 
     if (!user) {
       throw { notFound: '/login' }
@@ -51,8 +53,12 @@ module.exports = {
     }
 
     // Check if sails-content is available
-    const hasContentFeature = !!(environment.features && environment.features['sails-content'])
-    const contentFeature = hasContentFeature ? environment.features['sails-content'] : null
+    const hasContentFeature = !!(
+      environment.features && environment.features['sails-content']
+    )
+    const contentFeature = hasContentFeature
+      ? environment.features['sails-content']
+      : null
 
     // Load collections if feature is available
     let collections = []
@@ -70,13 +76,15 @@ module.exports = {
           for (const entry of entries) {
             if (entry.isDirectory() && !entry.name.startsWith('.')) {
               const collectionPath = path.join(contentPath, entry.name)
-              const files = fs.readdirSync(collectionPath).filter(f => f.endsWith('.md') || f.endsWith('.json'))
+              const files = fs
+                .readdirSync(collectionPath)
+                .filter((f) => f.endsWith('.md') || f.endsWith('.json'))
 
               collections.push({
                 name: entry.name,
                 slug: entry.name,
                 count: files.length,
-                files: files.map(f => ({
+                files: files.map((f) => ({
                   name: f,
                   slug: f.replace(/\.(md|json)$/, '')
                 }))

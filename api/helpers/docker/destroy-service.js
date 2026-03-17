@@ -40,7 +40,9 @@ module.exports = {
         sails.log.info(`Stopped service container: ${containerName}`)
       } catch {
         // Container might already be stopped
-        sails.log.verbose(`Container ${containerName} already stopped or not found`)
+        sails.log.verbose(
+          `Container ${containerName} already stopped or not found`
+        )
       }
 
       // Remove the container
@@ -49,14 +51,18 @@ module.exports = {
         sails.log.info(`Removed service container: ${containerName}`)
       } catch {
         // Container might already be removed
-        sails.log.verbose(`Container ${containerName} already removed or not found`)
+        sails.log.verbose(
+          `Container ${containerName} already removed or not found`
+        )
       }
 
       await Service.updateOne({ id: serviceId }).set({ status: 'stopped' })
 
       return { destroyed: true }
     } catch (error) {
-      sails.log.error(`Failed to destroy service ${containerName}: ${error.message}`)
+      sails.log.error(
+        `Failed to destroy service ${containerName}: ${error.message}`
+      )
       throw 'destroyFailed'
     }
   }

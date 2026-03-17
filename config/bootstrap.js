@@ -34,7 +34,8 @@ module.exports.bootstrap = async function () {
         const updates = {}
         if (!app.slug) updates.slug = 'app'
         if (!app.name) updates.name = 'app'
-        if (app.isDefault === undefined || app.isDefault === null) updates.isDefault = true
+        if (app.isDefault === undefined || app.isDefault === null)
+          updates.isDefault = true
         if (Object.keys(updates).length > 0) {
           await App.updateOne({ id: app.id }).set(updates)
         }
@@ -52,7 +53,10 @@ module.exports.bootstrap = async function () {
       await sails.helpers.setting.set('multiAppMigrationDone', 'true')
       sails.log.info('Multi-app migration completed successfully.')
     } catch (err) {
-      sails.log.warn('Multi-app migration failed (will retry on next boot):', err.message)
+      sails.log.warn(
+        'Multi-app migration failed (will retry on next boot):',
+        err.message
+      )
     }
   }
 
@@ -60,7 +64,9 @@ module.exports.bootstrap = async function () {
   try {
     await sails.helpers.docker.ensureNetwork()
   } catch (error) {
-    sails.log.warn('Could not ensure Docker network. Docker may not be available.')
+    sails.log.warn(
+      'Could not ensure Docker network. Docker may not be available.'
+    )
     sails.log.verbose(error)
   }
 
@@ -83,7 +89,10 @@ module.exports.bootstrap = async function () {
         sails.log.info('Caddy dashboard route configured for:', instanceDomain)
       }
     } catch (error) {
-      sails.log.verbose('Could not configure Caddy dashboard route:', error.message)
+      sails.log.verbose(
+        'Could not configure Caddy dashboard route:',
+        error.message
+      )
     }
   }
 }

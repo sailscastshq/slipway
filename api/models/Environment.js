@@ -18,7 +18,8 @@ module.exports = {
 
     slug: {
       type: 'string',
-      description: 'URL-safe identifier, auto-generated from name if not provided',
+      description:
+        'URL-safe identifier, auto-generated from name if not provided',
       example: 'production',
       regex: /^[a-z0-9-]+$/
     },
@@ -33,7 +34,8 @@ module.exports = {
     isPreview: {
       type: 'boolean',
       defaultsTo: false,
-      description: 'Whether this is an auto-created preview environment (from a PR)',
+      description:
+        'Whether this is an auto-created preview environment (from a PR)',
       columnName: 'is_preview'
     },
 
@@ -127,7 +129,9 @@ module.exports = {
       slug: values.slug
     })
     if (existing) {
-      return proceed(new Error(`Environment "${values.slug}" already exists in this project`))
+      return proceed(
+        new Error(`Environment "${values.slug}" already exists in this project`)
+      )
     }
 
     return proceed()
@@ -137,7 +141,9 @@ module.exports = {
    * Resolve the primary, generated, and fallback domains for this environment.
    */
   resolveDomains: async function (environmentId) {
-    const env = await Environment.findOne({ id: environmentId }).populate('project')
+    const env = await Environment.findOne({ id: environmentId }).populate(
+      'project'
+    )
     if (!env) {
       return {
         fullDomain: null,

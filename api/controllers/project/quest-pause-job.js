@@ -31,7 +31,9 @@ module.exports = {
   },
 
   fn: async function ({ slug, envSlug, jobName }) {
-    const user = await User.findOne({ id: this.req.session.userId }).populate('team')
+    const user = await User.findOne({ id: this.req.session.userId }).populate(
+      'team'
+    )
     if (!user) {
       throw { notFound: '/login' }
     }
@@ -50,10 +52,14 @@ module.exports = {
     }
 
     if (!environment.features || !environment.features['sails-quest']) {
-      throw { badRequest: { error: 'sails-hook-quest not detected in this app.' } }
+      throw {
+        badRequest: { error: 'sails-hook-quest not detected in this app.' }
+      }
     }
 
-    const app = await App.findOne({ environment: environment.id, isDefault: true }) || await App.findOne({ environment: environment.id })
+    const app =
+      (await App.findOne({ environment: environment.id, isDefault: true })) ||
+      (await App.findOne({ environment: environment.id }))
     if (!app || app.status !== 'running' || !app.containerName) {
       throw { badRequest: { error: 'App is not running.' } }
     }

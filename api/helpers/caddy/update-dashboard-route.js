@@ -37,12 +37,18 @@ module.exports = {
 
     // Build docker run args with caddy labels
     const args = [
-      'run', '-d',
-      '--name', containerName,
-      '--network', network,
-      '--restart', 'unless-stopped',
-      '--label', `caddy=${domain}`,
-      '--label', `caddy.reverse_proxy=slipway:${port}`
+      'run',
+      '-d',
+      '--name',
+      containerName,
+      '--network',
+      network,
+      '--restart',
+      'unless-stopped',
+      '--label',
+      `caddy=${domain}`,
+      '--label',
+      `caddy.reverse_proxy=slipway:${port}`
     ]
 
     // Add TLS email if configured
@@ -56,7 +62,9 @@ module.exports = {
     return new Promise((resolve, reject) => {
       execFile(dockerPath, args, (err) => {
         if (err) {
-          sails.log.error(`Dashboard route container creation failed: ${err.message}`)
+          sails.log.error(
+            `Dashboard route container creation failed: ${err.message}`
+          )
           throw 'caddyError'
         }
         sails.log.info(`Caddy dashboard route created for ${domain}`)

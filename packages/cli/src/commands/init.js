@@ -2,7 +2,11 @@ import { join, basename } from 'node:path'
 import { existsSync, readFileSync, appendFileSync } from 'node:fs'
 import { c } from '../lib/colors.js'
 import { api } from '../lib/api.js'
-import { saveProjectConfig, getProjectConfig, isLoggedIn } from '../lib/config.js'
+import {
+  saveProjectConfig,
+  getProjectConfig,
+  isLoggedIn
+} from '../lib/config.js'
 import { error, createSpinner, warn } from '../lib/utils.js'
 import { prompt, confirm } from '../lib/prompt.js'
 
@@ -14,7 +18,9 @@ export default async function init(options) {
   // Check if already initialized
   const existing = getProjectConfig()
   if (existing) {
-    error(`Already linked to project "${existing.project}". Use \`slipway link\` to switch projects.`)
+    error(
+      `Already linked to project "${existing.project}". Use \`slipway link\` to switch projects.`
+    )
   }
 
   // Check for package.json to determine project name
@@ -35,7 +41,8 @@ export default async function init(options) {
   console.log()
 
   // Get project details
-  const projectName = options.name || await prompt('  Project name', suggestedName)
+  const projectName =
+    options.name || (await prompt('  Project name', suggestedName))
 
   // Check for Dockerfile
   const dockerfilePath = join(process.cwd(), 'Dockerfile')
@@ -44,13 +51,19 @@ export default async function init(options) {
   if (!hasDockerfile) {
     console.log()
     warn('No Dockerfile found in current directory.')
-    console.log(`  ${c.dim('Slipway requires a Dockerfile to build and deploy your app.')}`)
+    console.log(
+      `  ${c.dim(
+        'Slipway requires a Dockerfile to build and deploy your app.'
+      )}`
+    )
     console.log()
 
     const proceed = await confirm('  Continue anyway?', true)
 
     if (!proceed) {
-      console.log(`  ${c.dim('Run `slipway init` again after adding a Dockerfile.')}`)
+      console.log(
+        `  ${c.dim('Run `slipway init` again after adding a Dockerfile.')}`
+      )
       return
     }
   }
@@ -76,7 +89,11 @@ export default async function init(options) {
     console.log(`  ${c.dim('Slug:')} ${project.slug}`)
     console.log(`  ${c.dim('Environment:')} production`)
     console.log()
-    console.log(`  ${c.dim('Run')} ${c.highlight('slipway slide')} ${c.dim('to deploy your app.')}`)
+    console.log(
+      `  ${c.dim('Run')} ${c.highlight('slipway slide')} ${c.dim(
+        'to deploy your app.'
+      )}`
+    )
     console.log()
 
     // Add .slipway.json to .gitignore if it exists

@@ -5,7 +5,8 @@ const execFileAsync = util.promisify(execFile)
 module.exports = {
   friendlyName: 'Execute SQL',
 
-  description: 'Execute a SQL query against a database service via docker exec.',
+  description:
+    'Execute a SQL query against a database service via docker exec.',
 
   inputs: {
     service: {
@@ -46,25 +47,35 @@ module.exports = {
     if (service.type === 'postgresql') {
       // PostgreSQL: use psql with CSV output for reliable parsing
       args = [
-        'exec', '-i', service.containerName,
+        'exec',
+        '-i',
+        service.containerName,
         'psql',
-        '-U', service.username,
-        '-d', service.database,
-        '-c', query,
+        '-U',
+        service.username,
+        '-d',
+        service.database,
+        '-c',
+        query,
         '--no-psqlrc',
         '--csv'
       ]
 
-      parseOutput = (stdout, stderr) => parsePostgresOutput(stdout, stderr, format)
+      parseOutput = (stdout, stderr) =>
+        parsePostgresOutput(stdout, stderr, format)
     } else if (service.type === 'mysql') {
       // MySQL: use mysql client
       args = [
-        'exec', '-i', service.containerName,
+        'exec',
+        '-i',
+        service.containerName,
         'mysql',
-        '-u', service.username,
+        '-u',
+        service.username,
         `-p${service.password}`,
         service.database,
-        '-e', query
+        '-e',
+        query
       ]
 
       if (format === 'json') {
@@ -75,7 +86,11 @@ module.exports = {
     } else if (service.type === 'mongodb') {
       // MongoDB: use mongosh with JSON output
       // Connect to localhost inside container, authenticate against admin db
-      const mongoUri = `mongodb://${encodeURIComponent(service.username)}:${encodeURIComponent(service.password)}@localhost:27017/${service.database}?authSource=admin`
+      const mongoUri = `mongodb://${encodeURIComponent(
+        service.username
+      )}:${encodeURIComponent(service.password)}@localhost:27017/${
+        service.database
+      }?authSource=admin`
 
       // Wrap query to output JSON, with error handling
       const wrappedQuery = `
@@ -88,11 +103,14 @@ module.exports = {
       `.replace(/\n\s*/g, ' ')
 
       args = [
-        'exec', '-i', service.containerName,
+        'exec',
+        '-i',
+        service.containerName,
         'mongosh',
         mongoUri,
         '--quiet',
-        '--eval', wrappedQuery
+        '--eval',
+        wrappedQuery
       ]
 
       parseOutput = (stdout, stderr) => parseMongoOutput(stdout, stderr, format)
@@ -162,7 +180,7 @@ function parsePostgresOutput(stdout, stderr, format) {
 
   // Parse CSV output (--csv flag)
   // Handle both \n and \r\n line endings
-  const lines = output.split(/\r?\n/).filter(line => line.length > 0)
+  const lines = output.split(/\r?\n/).filter((line) => line.length > 0)
 
   if (lines.length === 0) {
     return { columns: [], rows: [], rowCount: 0 }
@@ -182,7 +200,10 @@ function parsePostgresOutput(stdout, stderr, format) {
       // Looks like a single column name
       return {
         columns: [headerLine],
-        rows: lines.slice(1).filter(l => l.trim()).map(l => ({ [headerLine]: l.trim() || null })),
+        rows: lines
+          .slice(1)
+          .filter((l) => l.trim())
+          .map((l) => ({ [headerLine]: l.trim() || null })),
         rowCount: lines.length - 1
       }
     }
@@ -293,7 +314,7 @@ function parseMysqlOutput(stdout, stderr, format) {
   }
 
   // Parse tab-separated output (--batch mode)
-  const lines = output.split('\n').filter(line => line.trim())
+  const lines = output.split('\n').filter((line) => line.trim())
 
   if (lines.length === 0) {
     return { columns: [], rows: [], rowCount: 0 }
@@ -301,7 +322,7 @@ function parseMysqlOutput(stdout, stderr, format) {
 
   // First line is headers
   const columns = lines[0].split('\t')
-  const rows = lines.slice(1).map(line => {
+  const rows = lines.slice(1).map((line) => {
     const values = line.split('\t')
     const row = {}
     columns.forEach((col, i) => {
@@ -352,9 +373,9 @@ function parseMongoOutput(stdout, stderr, format) {
       const columns = Object.keys(data[0])
 
       // Convert _id to string for display
-      const rows = data.map(doc => {
+      const rows = data.map((doc) => {
         const row = {}
-        columns.forEach(col => {
+        columns.forEach((col) => {
           const val = doc[col]
           if (col === '_id' && val && typeof val === 'object') {
             row[col] = val.$oid || JSON.stringify(val)
@@ -378,7 +399,7 @@ function parseMongoOutput(stdout, stderr, format) {
     if (typeof data === 'object' && data !== null) {
       const columns = Object.keys(data)
       const row = {}
-      columns.forEach(col => {
+      columns.forEach((col) => {
         const val = data[col]
         if (col === '_id' && val && typeof val === 'object') {
           row[col] = val.$oid || JSON.stringify(val)

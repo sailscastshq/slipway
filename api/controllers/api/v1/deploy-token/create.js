@@ -40,7 +40,13 @@ module.exports = {
     }
   },
 
-  fn: async function ({ name, projectId, environmentId, scopes, expiresInDays }) {
+  fn: async function ({
+    name,
+    projectId,
+    environmentId,
+    scopes,
+    expiresInDays
+  }) {
     const user = await User.findOne({ id: this.req.session.userId })
 
     // Validate project access if scoped
@@ -53,11 +59,15 @@ module.exports = {
 
     // Validate environment access if scoped
     if (environmentId) {
-      const env = await Environment.findOne({ id: environmentId }).populate('project')
+      const env = await Environment.findOne({ id: environmentId }).populate(
+        'project'
+      )
       if (!env) {
         throw 'forbidden'
       }
-      const project = await Project.findOne({ id: env.project.id }).populate('team')
+      const project = await Project.findOne({ id: env.project.id }).populate(
+        'team'
+      )
       if (project.team.id !== user.team) {
         throw 'forbidden'
       }
@@ -66,7 +76,7 @@ module.exports = {
     // Calculate expiration
     let expiresAt = null
     if (expiresInDays) {
-      expiresAt = Date.now() + (expiresInDays * 24 * 60 * 60 * 1000)
+      expiresAt = Date.now() + expiresInDays * 24 * 60 * 60 * 1000
     }
 
     // Generate token

@@ -58,15 +58,29 @@ module.exports = {
     }
   },
 
-  fn: async function ({ imageName, containerName, port, hostPort, envVars, network, deploymentId, resourceLimits }) {
-    const networkName = network || sails.config.custom.slipwayNetwork || 'slipway'
+  fn: async function ({
+    imageName,
+    containerName,
+    port,
+    hostPort,
+    envVars,
+    network,
+    deploymentId,
+    resourceLimits
+  }) {
+    const networkName =
+      network || sails.config.custom.slipwayNetwork || 'slipway'
 
     // Build docker run args array (no shell — safe from injection)
     const args = [
-      'run', '-d',
-      '--name', containerName,
-      '--network', networkName,
-      '-p', hostPort + ':' + port
+      'run',
+      '-d',
+      '--name',
+      containerName,
+      '--network',
+      networkName,
+      '-p',
+      hostPort + ':' + port
     ]
 
     // Add environment variables
@@ -93,17 +107,25 @@ module.exports = {
     sails.log.verbose(`Command: docker ${args.join(' ')}`)
 
     if (deploymentId) {
-      await Deployment.appendDeployLog(deploymentId, `Starting container: ${containerName}\n`)
+      await Deployment.appendDeployLog(
+        deploymentId,
+        `Starting container: ${containerName}\n`
+      )
     }
 
     try {
       const { stdout } = await execFileAsync('docker', args)
       const containerId = stdout.trim()
 
-      sails.log.info(`Container started: ${containerName} (${containerId.substring(0, 12)})`)
+      sails.log.info(
+        `Container started: ${containerName} (${containerId.substring(0, 12)})`
+      )
 
       if (deploymentId) {
-        await Deployment.appendDeployLog(deploymentId, `Container started: ${containerId.substring(0, 12)}\n`)
+        await Deployment.appendDeployLog(
+          deploymentId,
+          `Container started: ${containerId.substring(0, 12)}\n`
+        )
       }
 
       return {
@@ -116,7 +138,10 @@ module.exports = {
       sails.log.error(`Failed to run container: ${error.message}`)
 
       if (deploymentId) {
-        await Deployment.appendDeployLog(deploymentId, `Error starting container: ${error.message}\n`)
+        await Deployment.appendDeployLog(
+          deploymentId,
+          `Error starting container: ${error.message}\n`
+        )
       }
 
       throw 'runFailed'

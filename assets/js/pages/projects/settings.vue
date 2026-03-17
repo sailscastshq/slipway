@@ -54,10 +54,14 @@ function copyText(text, field) {
   navigator.clipboard.writeText(text)
   if (field === 'webhook') {
     copiedWebhook.value = true
-    setTimeout(() => { copiedWebhook.value = false }, 2000)
+    setTimeout(() => {
+      copiedWebhook.value = false
+    }, 2000)
   } else {
     copiedSecret.value = true
-    setTimeout(() => { copiedSecret.value = false }, 2000)
+    setTimeout(() => {
+      copiedSecret.value = false
+    }, 2000)
   }
 }
 
@@ -69,16 +73,38 @@ function deleteProject() {
   <Head :title="`Settings - ${project.name} | Slipway`"></Head>
   <div class="flex h-full flex-col">
     <!-- Header -->
-    <div class="flex items-center justify-between border-b border-gray-200 py-4 pl-4 pr-4 dark:border-gray-800 sm:pl-4 sm:pr-8">
+    <div
+      class="flex items-center justify-between border-b border-gray-200 py-4 pl-4 pr-4 dark:border-gray-800 sm:pl-4 sm:pr-8"
+    >
       <div class="flex items-center space-x-3">
         <button
           @click="toggleMobileMenu"
           class="rounded-md p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white md:hidden"
         >
-          <svg class="h-5 w-5" viewBox="-0.5 -0.5 16 16" fill="none" stroke="currentColor">
-            <path d="M12.777 14.285H2.223c-.833 0-1.508-.675-1.508-1.508V2.223c0-.833.675-1.508 1.508-1.508h10.554c.833 0 1.508.675 1.508 1.508v10.554c0 .833-.675 1.508-1.508 1.508Z" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
-            <path d="M5.615 14.285V.715" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
-            <path d="M2.6 5.992 3.919 7.5 2.6 9.008" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
+          <svg
+            class="h-5 w-5"
+            viewBox="-0.5 -0.5 16 16"
+            fill="none"
+            stroke="currentColor"
+          >
+            <path
+              d="M12.777 14.285H2.223c-.833 0-1.508-.675-1.508-1.508V2.223c0-.833.675-1.508 1.508-1.508h10.554c.833 0 1.508.675 1.508 1.508v10.554c0 .833-.675 1.508-1.508 1.508Z"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1"
+            />
+            <path
+              d="M5.615 14.285V.715"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1"
+            />
+            <path
+              d="M2.6 5.992 3.919 7.5 2.6 9.008"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1"
+            />
           </svg>
         </button>
         <!-- Desktop sidebar toggle -->
@@ -86,22 +112,69 @@ function deleteProject() {
           @click="toggleSidebar"
           class="hidden text-gray-400 dark:text-gray-500 md:block"
         >
-          <svg v-if="sidebarCollapsed" class="h-5 w-5" viewBox="-0.5 -0.5 16 16" fill="none" stroke="currentColor">
-            <path d="M12.777 14.285H2.223c-.833 0-1.508-.675-1.508-1.508V2.223c0-.833.675-1.508 1.508-1.508h10.554c.833 0 1.508.675 1.508 1.508v10.554c0 .833-.675 1.508-1.508 1.508Z" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
-            <path d="M5.615 14.285V.715" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
-            <path d="M2.6 5.992 3.919 7.5 2.6 9.008" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
+          <svg
+            v-if="sidebarCollapsed"
+            class="h-5 w-5"
+            viewBox="-0.5 -0.5 16 16"
+            fill="none"
+            stroke="currentColor"
+          >
+            <path
+              d="M12.777 14.285H2.223c-.833 0-1.508-.675-1.508-1.508V2.223c0-.833.675-1.508 1.508-1.508h10.554c.833 0 1.508.675 1.508 1.508v10.554c0 .833-.675 1.508-1.508 1.508Z"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1"
+            />
+            <path
+              d="M5.615 14.285V.715"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1"
+            />
+            <path
+              d="M2.6 5.992 3.919 7.5 2.6 9.008"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1"
+            />
           </svg>
-          <svg v-else class="h-5 w-5" viewBox="-0.5 -0.5 16 16" fill="none" stroke="currentColor">
-            <path d="M12.777 14.285H2.223c-.833 0-1.508-.675-1.508-1.508V2.223c0-.833.675-1.508 1.508-1.508h10.554c.833 0 1.508.675 1.508 1.508v10.554c0 .833-.675 1.508-1.508 1.508Z" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
-            <path d="M5.615 14.285V.715" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
-            <path d="M3.919 5.992 2.6 7.5l1.319 1.508" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
+          <svg
+            v-else
+            class="h-5 w-5"
+            viewBox="-0.5 -0.5 16 16"
+            fill="none"
+            stroke="currentColor"
+          >
+            <path
+              d="M12.777 14.285H2.223c-.833 0-1.508-.675-1.508-1.508V2.223c0-.833.675-1.508 1.508-1.508h10.554c.833 0 1.508.675 1.508 1.508v10.554c0 .833-.675 1.508-1.508 1.508Z"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1"
+            />
+            <path
+              d="M5.615 14.285V.715"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1"
+            />
+            <path
+              d="M3.919 5.992 2.6 7.5l1.319 1.508"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1"
+            />
           </svg>
         </button>
-        <Breadcrumb :items="[
-          { label: 'projects', href: '/' },
-          { label: project.name.toLowerCase(), href: `/projects/${project.slug}` },
-          { label: 'settings' }
-        ]" />
+        <Breadcrumb
+          :items="[
+            { label: 'projects', href: '/' },
+            {
+              label: project.name.toLowerCase(),
+              href: `/projects/${project.slug}`
+            },
+            { label: 'settings' }
+          ]"
+        />
       </div>
       <div class="flex items-center space-x-4">
         <a
@@ -110,8 +183,18 @@ function deleteProject() {
           class="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
         >
           Docs
-          <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+          <svg
+            class="h-3.5 w-3.5"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+            />
           </svg>
         </a>
       </div>
@@ -120,38 +203,51 @@ function deleteProject() {
     <!-- Content -->
     <div class="flex-1 px-4 py-6 sm:px-8 sm:py-8">
       <div class="mx-auto max-w-2xl">
-        <h1 class="mb-8 text-xl font-semibold text-gray-900 dark:text-white">Project settings</h1>
+        <h1 class="mb-8 text-xl font-semibold text-gray-900 dark:text-white">
+          Project settings
+        </h1>
 
         <!-- Settings Form -->
         <form @submit.prevent="save" class="space-y-6">
           <div>
-            <label for="name" class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
+            <label
+              for="name"
+              class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
+            >
               Project name
             </label>
             <input
               id="name"
               v-model="form.name"
               type="text"
-              class="w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:border-brand focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
+              class="focus:border-brand w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
             />
-            <p v-if="form.errors.name" class="mt-1 text-sm text-red-600">{{ form.errors.name }}</p>
+            <p v-if="form.errors.name" class="mt-1 text-sm text-red-600">
+              {{ form.errors.name }}
+            </p>
           </div>
 
           <div>
-            <label for="description" class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
+            <label
+              for="description"
+              class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
+            >
               Description
             </label>
             <textarea
               id="description"
               v-model="form.description"
               placeholder="A brief description about your project"
-              class="w-full resize-none border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:border-brand focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
+              class="focus:border-brand w-full resize-none border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
               style="field-sizing: content"
             ></textarea>
           </div>
 
           <div>
-            <label for="repositoryUrl" class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
+            <label
+              for="repositoryUrl"
+              class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
+            >
               Repository URL
             </label>
             <input
@@ -159,7 +255,7 @@ function deleteProject() {
               v-model="form.repositoryUrl"
               type="url"
               placeholder="https://github.com/your-org/your-repo"
-              class="w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:border-brand focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
+              class="focus:border-brand w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
             />
           </div>
 
@@ -175,8 +271,12 @@ function deleteProject() {
         </form>
 
         <!-- Auto-Deploy -->
-        <div class="mt-12 rounded-lg border border-gray-200 p-6 dark:border-gray-800">
-          <h3 class="text-sm font-semibold text-gray-900 dark:text-white">Auto-deploy</h3>
+        <div
+          class="mt-12 rounded-lg border border-gray-200 p-6 dark:border-gray-800"
+        >
+          <h3 class="text-sm font-semibold text-gray-900 dark:text-white">
+            Auto-deploy
+          </h3>
           <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
             Automatically deploy when you push to GitHub.
           </p>
@@ -188,14 +288,18 @@ function deleteProject() {
                 type="checkbox"
                 v-model="deployForm.autoDeploy"
                 @change="saveDeploySettings"
-                class="h-4 w-4 rounded border-gray-300 text-brand focus:ring-brand dark:border-gray-600 dark:bg-gray-900"
+                class="text-brand focus:ring-brand h-4 w-4 rounded border-gray-300 dark:border-gray-600 dark:bg-gray-900"
               />
-              <span class="text-sm text-gray-700 dark:text-gray-300">Enable auto-deploy on push</span>
+              <span class="text-sm text-gray-700 dark:text-gray-300"
+                >Enable auto-deploy on push</span
+              >
             </label>
 
             <!-- Branch -->
             <div v-if="deployForm.autoDeploy">
-              <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
+              <label
+                class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
+              >
                 Deploy branch
               </label>
               <div class="flex items-center space-x-2">
@@ -203,7 +307,7 @@ function deleteProject() {
                   v-model="deployForm.autoDeployBranch"
                   type="text"
                   placeholder="main"
-                  class="w-40 border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 focus:border-brand focus:outline-none dark:border-gray-700 dark:text-white"
+                  class="focus:border-brand w-40 border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 focus:outline-none dark:border-gray-700 dark:text-white"
                 />
                 <button
                   @click="saveDeploySettings"
@@ -217,11 +321,15 @@ function deleteProject() {
 
             <!-- Webhook URL -->
             <div v-if="deployForm.autoDeploy">
-              <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
+              <label
+                class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
+              >
                 Webhook URL
               </label>
               <div class="flex items-center space-x-2">
-                <code class="flex-1 truncate rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-700 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300">
+                <code
+                  class="flex-1 truncate rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-700 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300"
+                >
                   {{ webhookUrl }}
                 </code>
                 <button
@@ -235,11 +343,18 @@ function deleteProject() {
 
             <!-- Webhook Secret -->
             <div v-if="deployForm.autoDeploy">
-              <label class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
+              <label
+                class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
+              >
                 Webhook secret
               </label>
-              <div v-if="project.webhookSecret" class="flex items-center space-x-2">
-                <code class="flex-1 truncate rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-700 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300">
+              <div
+                v-if="project.webhookSecret"
+                class="flex items-center space-x-2"
+              >
+                <code
+                  class="flex-1 truncate rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-700 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300"
+                >
                   {{ project.webhookSecret.slice(0, 12) }}••••••••
                 </code>
                 <button
@@ -272,10 +387,15 @@ function deleteProject() {
         </div>
 
         <!-- Danger Zone -->
-        <div class="mt-12 rounded-lg border border-red-200 p-6 dark:border-red-900/50">
-          <h3 class="text-sm font-medium text-red-600 dark:text-red-400">Danger zone</h3>
+        <div
+          class="mt-12 rounded-lg border border-red-200 p-6 dark:border-red-900/50"
+        >
+          <h3 class="text-sm font-medium text-red-600 dark:text-red-400">
+            Danger zone
+          </h3>
           <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">
-            Permanently delete this project and all of its environments, deployments, and services. This action cannot be undone.
+            Permanently delete this project and all of its environments,
+            deployments, and services. This action cannot be undone.
           </p>
           <div class="mt-4">
             <button

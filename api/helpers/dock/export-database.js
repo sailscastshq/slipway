@@ -51,10 +51,14 @@ module.exports = {
       env.PGPASSWORD = service.password
 
       args = [
-        'exec', '-i', service.containerName,
+        'exec',
+        '-i',
+        service.containerName,
         'pg_dump',
-        '-U', service.username,
-        '-d', service.database,
+        '-U',
+        service.username,
+        '-d',
+        service.database,
         '--no-owner',
         '--no-acl'
       ]
@@ -74,9 +78,12 @@ module.exports = {
     } else if (service.type === 'mysql') {
       // MySQL: use mysqldump
       args = [
-        'exec', '-i', service.containerName,
+        'exec',
+        '-i',
+        service.containerName,
         'mysqldump',
-        '-u', service.username,
+        '-u',
+        service.username,
         `-p${service.password}`,
         '--single-transaction',
         '--routines',
@@ -102,9 +109,12 @@ module.exports = {
       const mongoUri = `mongodb://${service.username}:${service.password}@localhost:27017/${service.database}?authSource=admin`
 
       args = [
-        'exec', '-i', service.containerName,
+        'exec',
+        '-i',
+        service.containerName,
         'mongoexport',
-        '--uri', mongoUri,
+        '--uri',
+        mongoUri,
         '--jsonArray'
       ]
 
@@ -118,9 +128,12 @@ module.exports = {
       } else {
         // Full database export - use mongodump instead
         args = [
-          'exec', '-i', service.containerName,
+          'exec',
+          '-i',
+          service.containerName,
           'mongodump',
-          '--uri', mongoUri,
+          '--uri',
+          mongoUri,
           '--archive',
           '--gzip'
         ]
@@ -130,7 +143,9 @@ module.exports = {
     }
 
     try {
-      sails.log.verbose(`[dock] Exporting database from ${service.containerName}`)
+      sails.log.verbose(
+        `[dock] Exporting database from ${service.containerName}`
+      )
 
       const { stdout, stderr } = await execFileAsync(dockerPath, args, {
         timeout: 300000, // 5 minute timeout for large exports

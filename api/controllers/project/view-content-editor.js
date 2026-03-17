@@ -4,7 +4,8 @@ const path = require('path')
 module.exports = {
   friendlyName: 'View content editor',
 
-  description: 'Display the content editor page for editing a specific content file.',
+  description:
+    'Display the content editor page for editing a specific content file.',
 
   inputs: {
     slug: {
@@ -39,7 +40,9 @@ module.exports = {
   },
 
   fn: async function ({ slug, envSlug, collection, file }) {
-    const user = await User.findOne({ id: this.req.session.userId }).populate('team')
+    const user = await User.findOne({ id: this.req.session.userId }).populate(
+      'team'
+    )
 
     if (!user) {
       throw { notFound: '/login' }
@@ -168,8 +171,10 @@ function parseFrontmatter(content) {
       let value = line.substring(colonIndex + 1).trim()
 
       // Remove quotes
-      if ((value.startsWith("'") && value.endsWith("'")) ||
-          (value.startsWith('"') && value.endsWith('"'))) {
+      if (
+        (value.startsWith("'") && value.endsWith("'")) ||
+        (value.startsWith('"') && value.endsWith('"'))
+      ) {
         value = value.slice(1, -1)
       }
 

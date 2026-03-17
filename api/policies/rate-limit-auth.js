@@ -29,7 +29,9 @@ function rateLimitHandler(req, res) {
     'auth/reset-password': 'password'
   }
   const errorKey = errorKeys[req.options.action] || 'email'
-  req.session.errors = { [errorKey]: ['Too many attempts. Please try again later.'] }
+  req.session.errors = {
+    [errorKey]: ['Too many attempts. Please try again later.']
+  }
   return res.redirect(303, req.get('Referrer') || '/')
 }
 

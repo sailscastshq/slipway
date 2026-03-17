@@ -42,11 +42,17 @@ function positionTooltip() {
   // Flip if not enough space (uses approximations — that's fine for flipping)
   if (props.position === 'top' && rect.top < approxHeight + GAP) {
     finalPosition = 'bottom'
-  } else if (props.position === 'bottom' && window.innerHeight - rect.bottom < approxHeight + GAP) {
+  } else if (
+    props.position === 'bottom' &&
+    window.innerHeight - rect.bottom < approxHeight + GAP
+  ) {
     finalPosition = 'top'
   } else if (props.position === 'left' && rect.left < approxWidth + GAP) {
     finalPosition = 'right'
-  } else if (props.position === 'right' && window.innerWidth - rect.right < approxWidth + GAP) {
+  } else if (
+    props.position === 'right' &&
+    window.innerWidth - rect.right < approxWidth + GAP
+  ) {
     finalPosition = 'left'
   }
 
@@ -112,7 +118,7 @@ function adjustForOverflow() {
   // Arrow must still point at trigger center
   // After shifting, the tooltip center moved by -shiftX, so arrow needs +shiftX offset
   // Clamp so arrow stays within the rounded corners of the tooltip
-  const maxOffset = (tooltipRect.width / 2) - BORDER_RADIUS - ARROW_HALF_WIDTH
+  const maxOffset = tooltipRect.width / 2 - BORDER_RADIUS - ARROW_HALF_WIDTH
   const clampedOffset = Math.max(-maxOffset, Math.min(maxOffset, shiftX))
 
   arrowStyle.value = {
@@ -140,7 +146,8 @@ onBeforeUnmount(() => {
 })
 
 const tooltipClasses = computed(() => {
-  const base = 'fixed z-[9999] whitespace-nowrap rounded-md bg-gray-900 dark:bg-gray-100 px-2.5 py-1.5 text-xs font-medium text-white dark:text-gray-900 shadow-lg pointer-events-none'
+  const base =
+    'fixed z-[9999] whitespace-nowrap rounded-md bg-gray-900 dark:bg-gray-100 px-2.5 py-1.5 text-xs font-medium text-white dark:text-gray-900 shadow-lg pointer-events-none'
 
   const transforms = {
     top: '-translate-x-1/2 -translate-y-full',
@@ -155,9 +162,11 @@ const tooltipClasses = computed(() => {
 const arrowClasses = computed(() => {
   const arrows = {
     top: 'top-full border-t-gray-900 dark:border-t-gray-100 border-x-transparent border-b-transparent',
-    bottom: 'bottom-full border-b-gray-900 dark:border-b-gray-100 border-x-transparent border-t-transparent',
+    bottom:
+      'bottom-full border-b-gray-900 dark:border-b-gray-100 border-x-transparent border-t-transparent',
     left: 'left-full border-l-gray-900 dark:border-l-gray-100 border-y-transparent border-r-transparent',
-    right: 'right-full border-r-gray-900 dark:border-r-gray-100 border-y-transparent border-l-transparent'
+    right:
+      'right-full border-r-gray-900 dark:border-r-gray-100 border-y-transparent border-l-transparent'
   }
   return arrows[actualPosition.value]
 })

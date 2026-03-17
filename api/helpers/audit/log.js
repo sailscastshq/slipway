@@ -44,7 +44,15 @@ module.exports = {
     }
   },
 
-  fn: async function ({ action, resourceType, resourceId, details, userId, teamId, ipAddress }) {
+  fn: async function ({
+    action,
+    resourceType,
+    resourceId,
+    details,
+    userId,
+    teamId,
+    ipAddress
+  }) {
     try {
       await AuditLog.create({
         action,

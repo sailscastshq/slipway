@@ -37,12 +37,18 @@ module.exports = {
     stream.send({ deployments: initial })
 
     // Track the last set of deployment IDs to detect changes
-    let lastIds = initial.map(d => d.id).sort().join(',')
+    let lastIds = initial
+      .map((d) => d.id)
+      .sort()
+      .join(',')
 
     const checkInterval = setInterval(async () => {
       try {
         const current = await fetchActiveDeployments(teamId)
-        const currentIds = current.map(d => d.id).sort().join(',')
+        const currentIds = current
+          .map((d) => d.id)
+          .sort()
+          .join(',')
 
         if (currentIds !== lastIds) {
           lastIds = currentIds
@@ -63,11 +69,11 @@ module.exports = {
 
 async function fetchActiveDeployments(teamId) {
   const projects = await Project.find({ team: teamId })
-  const projectIds = projects.map(p => p.id)
+  const projectIds = projects.map((p) => p.id)
   if (projectIds.length === 0) return []
 
   const environments = await Environment.find({ project: projectIds })
-  const environmentIds = environments.map(e => e.id)
+  const environmentIds = environments.map((e) => e.id)
   if (environmentIds.length === 0) return []
 
   const activeDeployments = await Deployment.find({
@@ -81,20 +87,26 @@ async function fetchActiveDeployments(teamId) {
 
   const enriched = []
   for (const deployment of activeDeployments) {
-    const env = environments.find(e => e.id === deployment.environment)
-    const proj = projects.find(p => p.id === env?.project)
+    const env = environments.find((e) => e.id === deployment.environment)
+    const proj = projects.find((p) => p.id === env?.project)
 
     if (env && proj) {
-      let app = deployment.app ? apps.find(a => a.id === deployment.app) : null
+      let app = deployment.app
+        ? apps.find((a) => a.id === deployment.app)
+        : null
       if (!app) {
-        app = apps.find(a => a.environment === env.id && a.isDefault) || apps.find(a => a.environment === env.id)
+        app =
+          apps.find((a) => a.environment === env.id && a.isDefault) ||
+          apps.find((a) => a.environment === env.id)
       }
 
       enriched.push({
         id: deployment.id,
         status: deployment.status,
         gitBranch: deployment.gitBranch,
-        gitCommit: deployment.gitCommit ? deployment.gitCommit.slice(0, 7) : null,
+        gitCommit: deployment.gitCommit
+          ? deployment.gitCommit.slice(0, 7)
+          : null,
         startedAt: deployment.startedAt,
         project: { id: proj.id, name: proj.name, slug: proj.slug },
         environment: { id: env.id, name: env.name, slug: env.slug },

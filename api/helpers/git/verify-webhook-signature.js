@@ -28,10 +28,9 @@ module.exports = {
       return false
     }
 
-    const expectedSignature = 'sha256=' + crypto
-      .createHmac('sha256', secret)
-      .update(payload)
-      .digest('hex')
+    const expectedSignature =
+      'sha256=' +
+      crypto.createHmac('sha256', secret).update(payload).digest('hex')
 
     // Constant-time comparison to prevent timing attacks
     try {

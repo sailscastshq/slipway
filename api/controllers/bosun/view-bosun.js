@@ -23,27 +23,35 @@ module.exports = {
   },
 
   fn: async function () {
-    const user = await User.findOne({ id: this.req.session.userId }).populate('team')
+    const user = await User.findOne({ id: this.req.session.userId }).populate(
+      'team'
+    )
     if (!user) {
       throw { notFound: '/login' }
     }
 
     // Gather IDs for scoped counts
     const projects = await Project.find({ team: user.team.id }).select(['id'])
-    const projectIds = projects.map(p => p.id)
-    const environments = projectIds.length > 0
-      ? await Environment.find({ project: projectIds }).select(['id'])
-      : []
-    const environmentIds = environments.map(e => e.id)
+    const projectIds = projects.map((p) => p.id)
+    const environments =
+      projectIds.length > 0
+        ? await Environment.find({ project: projectIds }).select(['id'])
+        : []
+    const environmentIds = environments.map((e) => e.id)
 
     // Entity counts
-    const [appCount, serviceCount, deploymentCount, backupCount, userCount] = await Promise.all([
-      environmentIds.length > 0 ? App.count({ environment: environmentIds }) : 0,
-      environmentIds.length > 0 ? Service.count({ environment: environmentIds }) : 0,
-      Deployment.count(),
-      Backup.count(),
-      User.count()
-    ])
+    const [appCount, serviceCount, deploymentCount, backupCount, userCount] =
+      await Promise.all([
+        environmentIds.length > 0
+          ? App.count({ environment: environmentIds })
+          : 0,
+        environmentIds.length > 0
+          ? Service.count({ environment: environmentIds })
+          : 0,
+        Deployment.count(),
+        Backup.count(),
+        User.count()
+      ])
 
     // Database file sizes
     const dbFiles = {
@@ -81,12 +89,18 @@ module.exports = {
     try {
       const pkg = require(path.resolve(sails.config.appPath, 'package.json'))
       version = pkg.version
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
 
     // Instance environment variables (from process.env + saved overrides)
     const knownKeys = [
-      'SESSION_SECRET', 'DATA_ENCRYPTION_KEY', 'SLIPWAY_URL',
-      'NODE_ENV', 'PORT', 'SLIPWAY_SSL'
+      'SESSION_SECRET',
+      'DATA_ENCRYPTION_KEY',
+      'SLIPWAY_URL',
+      'NODE_ENV',
+      'PORT',
+      'SLIPWAY_SSL'
     ]
     const instanceEnvVars = {}
     for (const key of knownKeys) {
@@ -95,10 +109,15 @@ module.exports = {
       }
     }
     // Merge with user-saved custom vars
-    const savedEnvJson = await sails.helpers.setting.get('instanceEnvVars', '{}')
+    const savedEnvJson = await sails.helpers.setting.get(
+      'instanceEnvVars',
+      '{}'
+    )
     try {
       Object.assign(instanceEnvVars, JSON.parse(savedEnvJson))
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
 
     return {
       page: 'bosun/index',

@@ -1,7 +1,8 @@
 module.exports = {
   friendlyName: 'Build Sails wrapper',
 
-  description: 'Wrap a Waterline expression in the Sails bootstrap boilerplate for container execution.',
+  description:
+    'Wrap a Waterline expression in the Sails bootstrap boilerplate for container execution.',
 
   inputs: {
     code: {

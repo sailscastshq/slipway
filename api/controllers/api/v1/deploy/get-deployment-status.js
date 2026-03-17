@@ -35,11 +35,13 @@ module.exports = {
     }
 
     // Get the project to check access
-    const environment = await Environment.findOne({ id: deployment.environment.id })
-      .populate('project')
+    const environment = await Environment.findOne({
+      id: deployment.environment.id
+    }).populate('project')
 
-    const project = await Project.findOne({ id: environment.project.id })
-      .populate('team')
+    const project = await Project.findOne({
+      id: environment.project.id
+    }).populate('team')
 
     if (project.team.id !== user.team) {
       throw 'forbidden'
@@ -54,10 +56,12 @@ module.exports = {
         gitCommit: deployment.gitCommit,
         gitBranch: deployment.gitBranch,
         gitMessage: deployment.gitMessage,
-        triggeredBy: deployment.triggeredBy ? {
-          id: deployment.triggeredBy.id,
-          fullName: deployment.triggeredBy.fullName
-        } : null,
+        triggeredBy: deployment.triggeredBy
+          ? {
+              id: deployment.triggeredBy.id,
+              fullName: deployment.triggeredBy.fullName
+            }
+          : null,
         triggerType: deployment.triggerType,
         startedAt: deployment.startedAt,
         finishedAt: deployment.finishedAt,

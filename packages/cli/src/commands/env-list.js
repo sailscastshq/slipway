@@ -17,14 +17,21 @@ export default async function envList(options) {
   console.log()
 
   try {
-    const { environment: env } = await api.environments.get(project.project, environment)
+    const { environment: env } = await api.environments.get(
+      project.project,
+      environment
+    )
 
     const vars = env.envVars || {}
     const keys = Object.keys(vars).sort()
 
     if (keys.length === 0) {
       console.log(`  ${c.dim('No environment variables set.')}`)
-      console.log(`  ${c.dim('Use')} ${c.highlight('slipway env:set KEY=value')} ${c.dim('to add variables.')}`)
+      console.log(
+        `  ${c.dim('Use')} ${c.highlight('slipway env:set KEY=value')} ${c.dim(
+          'to add variables.'
+        )}`
+      )
       console.log()
       return
     }
@@ -45,9 +52,16 @@ export default async function envList(options) {
 // Keys that should have their values masked
 function shouldMask(key) {
   const sensitivePatterns = [
-    'PASSWORD', 'SECRET', 'KEY', 'TOKEN', 'PRIVATE',
-    'CREDENTIAL', 'AUTH', 'API_KEY', 'APIKEY'
+    'PASSWORD',
+    'SECRET',
+    'KEY',
+    'TOKEN',
+    'PRIVATE',
+    'CREDENTIAL',
+    'AUTH',
+    'API_KEY',
+    'APIKEY'
   ]
   const upper = key.toUpperCase()
-  return sensitivePatterns.some(p => upper.includes(p))
+  return sensitivePatterns.some((p) => upper.includes(p))
 }

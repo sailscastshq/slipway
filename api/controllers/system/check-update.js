@@ -12,7 +12,9 @@ module.exports = {
   },
 
   fn: async function () {
-    const updateInfo = await sails.helpers.system.checkForUpdates.with({ skipCache: true })
+    const updateInfo = await sails.helpers.system.checkForUpdates.with({
+      skipCache: true
+    })
     return updateInfo
   }
 }

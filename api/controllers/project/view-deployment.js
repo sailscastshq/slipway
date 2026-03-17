@@ -26,7 +26,9 @@ module.exports = {
   },
 
   fn: async function ({ slug, deploymentId }) {
-    const user = await User.findOne({ id: this.req.session.userId }).populate('team')
+    const user = await User.findOne({ id: this.req.session.userId }).populate(
+      'team'
+    )
 
     const project = await Project.findOne({ slug, team: user.team.id })
 
@@ -43,7 +45,9 @@ module.exports = {
     }
 
     // Verify the deployment belongs to this project
-    const environment = await Environment.findOne({ id: deployment.environment.id })
+    const environment = await Environment.findOne({
+      id: deployment.environment.id
+    })
     if (!environment || environment.project !== project.id) {
       throw { notFound: `/projects/${slug}` }
     }
@@ -51,8 +55,12 @@ module.exports = {
     const duration = Deployment.getDuration(deployment)
 
     // Check if this is the currently active deployment
-    const app = await App.findOne({ environment: environment.id, isDefault: true }) || await App.findOne({ environment: environment.id })
-    const isCurrentDeployment = app ? app.currentDeployment === deployment.id : false
+    const app =
+      (await App.findOne({ environment: environment.id, isDefault: true })) ||
+      (await App.findOne({ environment: environment.id }))
+    const isCurrentDeployment = app
+      ? app.currentDeployment === deployment.id
+      : false
 
     return {
       page: 'projects/deployment',
@@ -63,10 +71,12 @@ module.exports = {
           ...deployment,
           duration,
           isCurrentDeployment,
-          triggeredBy: deployment.triggeredBy ? {
-            id: deployment.triggeredBy.id,
-            fullName: deployment.triggeredBy.fullName
-          } : null
+          triggeredBy: deployment.triggeredBy
+            ? {
+                id: deployment.triggeredBy.id,
+                fullName: deployment.triggeredBy.fullName
+              }
+            : null
         }
       }
     }

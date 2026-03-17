@@ -65,17 +65,39 @@ function logout() {
   <Head title="Profile | Slipway"></Head>
   <div class="flex h-full flex-col">
     <!-- Header -->
-    <div class="flex items-center justify-between border-b border-gray-200 py-4 pl-4 pr-4 dark:border-gray-800 sm:pl-4 sm:pr-8">
+    <div
+      class="flex items-center justify-between border-b border-gray-200 py-4 pl-4 pr-4 dark:border-gray-800 sm:pl-4 sm:pr-8"
+    >
       <div class="flex items-center space-x-3">
         <!-- Mobile menu button -->
         <button
           @click="toggleMobileMenu"
           class="rounded-md p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white md:hidden"
         >
-          <svg class="h-5 w-5" viewBox="-0.5 -0.5 16 16" fill="none" stroke="currentColor">
-            <path d="M12.777 14.285H2.223c-.833 0-1.508-.675-1.508-1.508V2.223c0-.833.675-1.508 1.508-1.508h10.554c.833 0 1.508.675 1.508 1.508v10.554c0 .833-.675 1.508-1.508 1.508Z" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
-            <path d="M5.615 14.285V.715" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
-            <path d="M2.6 5.992 3.919 7.5 2.6 9.008" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
+          <svg
+            class="h-5 w-5"
+            viewBox="-0.5 -0.5 16 16"
+            fill="none"
+            stroke="currentColor"
+          >
+            <path
+              d="M12.777 14.285H2.223c-.833 0-1.508-.675-1.508-1.508V2.223c0-.833.675-1.508 1.508-1.508h10.554c.833 0 1.508.675 1.508 1.508v10.554c0 .833-.675 1.508-1.508 1.508Z"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1"
+            />
+            <path
+              d="M5.615 14.285V.715"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1"
+            />
+            <path
+              d="M2.6 5.992 3.919 7.5 2.6 9.008"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1"
+            />
           </svg>
         </button>
         <!-- Desktop sidebar toggle -->
@@ -83,15 +105,57 @@ function logout() {
           @click="toggleSidebar"
           class="hidden text-gray-400 dark:text-gray-500 md:block"
         >
-          <svg v-if="sidebarCollapsed" class="h-5 w-5" viewBox="-0.5 -0.5 16 16" fill="none" stroke="currentColor">
-            <path d="M12.777 14.285H2.223c-.833 0-1.508-.675-1.508-1.508V2.223c0-.833.675-1.508 1.508-1.508h10.554c.833 0 1.508.675 1.508 1.508v10.554c0 .833-.675 1.508-1.508 1.508Z" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
-            <path d="M5.615 14.285V.715" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
-            <path d="M2.6 5.992 3.919 7.5 2.6 9.008" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
+          <svg
+            v-if="sidebarCollapsed"
+            class="h-5 w-5"
+            viewBox="-0.5 -0.5 16 16"
+            fill="none"
+            stroke="currentColor"
+          >
+            <path
+              d="M12.777 14.285H2.223c-.833 0-1.508-.675-1.508-1.508V2.223c0-.833.675-1.508 1.508-1.508h10.554c.833 0 1.508.675 1.508 1.508v10.554c0 .833-.675 1.508-1.508 1.508Z"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1"
+            />
+            <path
+              d="M5.615 14.285V.715"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1"
+            />
+            <path
+              d="M2.6 5.992 3.919 7.5 2.6 9.008"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1"
+            />
           </svg>
-          <svg v-else class="h-5 w-5" viewBox="-0.5 -0.5 16 16" fill="none" stroke="currentColor">
-            <path d="M12.777 14.285H2.223c-.833 0-1.508-.675-1.508-1.508V2.223c0-.833.675-1.508 1.508-1.508h10.554c.833 0 1.508.675 1.508 1.508v10.554c0 .833-.675 1.508-1.508 1.508Z" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
-            <path d="M5.615 14.285V.715" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
-            <path d="M3.919 5.992 2.6 7.5l1.319 1.508" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
+          <svg
+            v-else
+            class="h-5 w-5"
+            viewBox="-0.5 -0.5 16 16"
+            fill="none"
+            stroke="currentColor"
+          >
+            <path
+              d="M12.777 14.285H2.223c-.833 0-1.508-.675-1.508-1.508V2.223c0-.833.675-1.508 1.508-1.508h10.554c.833 0 1.508.675 1.508 1.508v10.554c0 .833-.675 1.508-1.508 1.508Z"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1"
+            />
+            <path
+              d="M5.615 14.285V.715"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1"
+            />
+            <path
+              d="M3.919 5.992 2.6 7.5l1.319 1.508"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1"
+            />
           </svg>
         </button>
         <nav class="flex items-center text-sm">
@@ -105,8 +169,18 @@ function logout() {
           class="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
         >
           Docs
-          <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+          <svg
+            class="h-3.5 w-3.5"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+            />
           </svg>
         </a>
       </div>
@@ -116,28 +190,39 @@ function logout() {
     <div class="flex-1 overflow-y-auto px-4 py-6 sm:px-8 sm:py-8">
       <div class="mx-auto max-w-2xl space-y-6">
         <!-- Profile Info -->
-        <form @submit.prevent="updateProfile" class="rounded-lg border border-gray-200 dark:border-gray-800">
+        <form
+          @submit.prevent="updateProfile"
+          class="rounded-lg border border-gray-200 dark:border-gray-800"
+        >
           <div class="px-4 py-3">
-            <h2 class="text-sm font-medium text-gray-900 dark:text-white">Profile Information</h2>
+            <h2 class="text-sm font-medium text-gray-900 dark:text-white">
+              Profile Information
+            </h2>
             <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
               Update your account's profile information and email address.
             </p>
           </div>
-          <div class="divide-y divide-gray-200 border-t border-gray-200 dark:divide-gray-800 dark:border-gray-800">
+          <div
+            class="divide-y divide-gray-200 border-t border-gray-200 dark:divide-gray-800 dark:border-gray-800"
+          >
             <div class="px-4 py-3">
-              <label class="mb-1 block text-sm text-gray-700 dark:text-gray-300">Full Name</label>
+              <label class="mb-1 block text-sm text-gray-700 dark:text-gray-300"
+                >Full Name</label
+              >
               <input
                 v-model="form.fullName"
                 type="text"
-                class="w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:border-brand focus:outline-none sm:max-w-xs dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
+                class="focus:border-brand w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500 sm:max-w-xs"
               />
             </div>
             <div class="px-4 py-3">
-              <label class="mb-1 block text-sm text-gray-700 dark:text-gray-300">Email</label>
+              <label class="mb-1 block text-sm text-gray-700 dark:text-gray-300"
+                >Email</label
+              >
               <input
                 v-model="form.email"
                 type="email"
-                class="w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:border-brand focus:outline-none sm:max-w-xs dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
+                class="focus:border-brand w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500 sm:max-w-xs"
               />
               <p class="mt-1 text-xs text-gray-400 dark:text-gray-500">
                 Changing your email requires verification
@@ -156,39 +241,52 @@ function logout() {
         </form>
 
         <!-- Change Password -->
-        <form @submit.prevent="updateProfile" class="rounded-lg border border-gray-200 dark:border-gray-800">
+        <form
+          @submit.prevent="updateProfile"
+          class="rounded-lg border border-gray-200 dark:border-gray-800"
+        >
           <div class="px-4 py-3">
-            <h2 class="text-sm font-medium text-gray-900 dark:text-white">Change Password</h2>
+            <h2 class="text-sm font-medium text-gray-900 dark:text-white">
+              Change Password
+            </h2>
             <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
               Ensure your account is using a strong, random password.
             </p>
           </div>
-          <div class="divide-y divide-gray-200 border-t border-gray-200 dark:divide-gray-800 dark:border-gray-800">
+          <div
+            class="divide-y divide-gray-200 border-t border-gray-200 dark:divide-gray-800 dark:border-gray-800"
+          >
             <div class="px-4 py-3">
-              <label class="mb-1 block text-sm text-gray-700 dark:text-gray-300">Current Password</label>
+              <label class="mb-1 block text-sm text-gray-700 dark:text-gray-300"
+                >Current Password</label
+              >
               <input
                 v-model="form.currentPassword"
                 type="password"
                 autocomplete="current-password"
-                class="w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:border-brand focus:outline-none sm:max-w-xs dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
+                class="focus:border-brand w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500 sm:max-w-xs"
               />
             </div>
             <div class="px-4 py-3">
-              <label class="mb-1 block text-sm text-gray-700 dark:text-gray-300">New Password</label>
+              <label class="mb-1 block text-sm text-gray-700 dark:text-gray-300"
+                >New Password</label
+              >
               <input
                 v-model="form.password"
                 type="password"
                 autocomplete="new-password"
-                class="w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:border-brand focus:outline-none sm:max-w-xs dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
+                class="focus:border-brand w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500 sm:max-w-xs"
               />
             </div>
             <div class="px-4 py-3">
-              <label class="mb-1 block text-sm text-gray-700 dark:text-gray-300">Confirm Password</label>
+              <label class="mb-1 block text-sm text-gray-700 dark:text-gray-300"
+                >Confirm Password</label
+              >
               <input
                 v-model="form.confirmPassword"
                 type="password"
                 autocomplete="new-password"
-                class="w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:border-brand focus:outline-none sm:max-w-xs dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
+                class="focus:border-brand w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500 sm:max-w-xs"
               />
               <p v-if="form.errors.password" class="mt-1 text-xs text-red-500">
                 {{ form.errors.password }}
@@ -197,7 +295,12 @@ function logout() {
             <div class="flex items-center justify-end px-4 py-3">
               <button
                 type="submit"
-                :disabled="form.processing || !form.isDirty || !form.currentPassword || !form.password"
+                :disabled="
+                  form.processing ||
+                  !form.isDirty ||
+                  !form.currentPassword ||
+                  !form.password
+                "
                 class="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
               >
                 {{ form.processing ? 'Updating...' : 'Update password' }}
@@ -209,13 +312,21 @@ function logout() {
         <!-- Danger Zone -->
         <div class="rounded-lg border border-red-200 dark:border-red-900/50">
           <div class="px-4 py-3">
-            <h2 class="text-sm font-medium text-red-600 dark:text-red-400">Danger Zone</h2>
+            <h2 class="text-sm font-medium text-red-600 dark:text-red-400">
+              Danger Zone
+            </h2>
           </div>
-          <div class="divide-y divide-red-100 border-t border-red-200 dark:divide-red-900/30 dark:border-red-900/50">
+          <div
+            class="divide-y divide-red-100 border-t border-red-200 dark:divide-red-900/30 dark:border-red-900/50"
+          >
             <div class="flex items-center justify-between px-4 py-3">
               <div>
-                <p class="text-sm font-medium text-gray-900 dark:text-white">Sign out</p>
-                <p class="text-xs text-gray-500 dark:text-gray-400">Sign out of your account on this device</p>
+                <p class="text-sm font-medium text-gray-900 dark:text-white">
+                  Sign out
+                </p>
+                <p class="text-xs text-gray-500 dark:text-gray-400">
+                  Sign out of your account on this device
+                </p>
               </div>
               <button
                 @click="logout"
@@ -227,8 +338,12 @@ function logout() {
             </div>
             <div class="flex items-center justify-between px-4 py-3">
               <div>
-                <p class="text-sm font-medium text-gray-900 dark:text-white">Delete account</p>
-                <p class="text-xs text-gray-500 dark:text-gray-400">Permanently delete your account and all data</p>
+                <p class="text-sm font-medium text-gray-900 dark:text-white">
+                  Delete account
+                </p>
+                <p class="text-xs text-gray-500 dark:text-gray-400">
+                  Permanently delete your account and all data
+                </p>
               </div>
               <button
                 @click="deleteAccount"
@@ -254,12 +369,14 @@ function logout() {
     >
       <template #form>
         <div class="mt-4">
-          <label class="mb-1 block text-sm text-gray-700 dark:text-gray-300">Enter your password to confirm</label>
+          <label class="mb-1 block text-sm text-gray-700 dark:text-gray-300"
+            >Enter your password to confirm</label
+          >
           <input
             v-model="deleteAccountForm.password"
             type="password"
             autocomplete="current-password"
-            class="w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:border-brand focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
+            class="focus:border-brand w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
           />
         </div>
       </template>

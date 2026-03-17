@@ -48,7 +48,9 @@ module.exports = {
     }
 
     // Get the logged-in user with their team
-    const user = await User.findOne({ id: this.req.session.userId }).populate('team')
+    const user = await User.findOne({ id: this.req.session.userId }).populate(
+      'team'
+    )
 
     if (!user) {
       throw 'unauthorized'
@@ -60,20 +62,29 @@ module.exports = {
     const sessionToken = `sl_${rawToken}`
 
     // Confirm the session with user and team info
-    const confirmed = authSessions.confirm(code, {
-      id: user.id,
-      email: user.email,
-      fullName: user.fullName,
-      team: user.team ? {
-        id: user.team.id,
-        name: user.team.name,
-        slug: user.team.slug
-      } : null
-    }, sessionToken)
+    const confirmed = authSessions.confirm(
+      code,
+      {
+        id: user.id,
+        email: user.email,
+        fullName: user.fullName,
+        team: user.team
+          ? {
+              id: user.team.id,
+              name: user.team.name,
+              slug: user.team.slug
+            }
+          : null
+      },
+      sessionToken
+    )
 
     // Store this token in the database for persistence
     // Hash only the random part (without sl_ prefix) for lookup
-    const hashedToken = crypto.createHash('sha256').update(rawToken).digest('hex')
+    const hashedToken = crypto
+      .createHash('sha256')
+      .update(rawToken)
+      .digest('hex')
 
     await CliToken.create({
       token: hashedToken,

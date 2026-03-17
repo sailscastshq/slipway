@@ -75,8 +75,13 @@
 }
 
 @keyframes nudge-right {
-  0%, 100% { transform: translateX(0); }
-  50% { transform: translateX(4px); }
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  50% {
+    transform: translateX(4px);
+  }
 }
 
 /* Restore cursor pointer for interactive elements (Tailwind v4 removed this) */

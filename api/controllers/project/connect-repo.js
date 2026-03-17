@@ -1,7 +1,8 @@
 module.exports = {
   friendlyName: 'Connect repo',
 
-  description: 'Connect a GitHub repository to an existing app for push-to-deploy.',
+  description:
+    'Connect a GitHub repository to an existing app for push-to-deploy.',
 
   inputs: {
     slug: {
@@ -46,10 +47,16 @@ module.exports = {
     const project = await Project.findOne({ slug }).populate('team')
     if (!project || project.team.id !== user.team) throw { notFound: '/' }
 
-    const environment = await Environment.findOne({ project: project.id, slug: envSlug })
+    const environment = await Environment.findOne({
+      project: project.id,
+      slug: envSlug
+    })
     if (!environment) throw { notFound: `/projects/${slug}` }
 
-    const app = await App.findOne({ environment: environment.id, slug: appSlug })
+    const app = await App.findOne({
+      environment: environment.id,
+      slug: appSlug
+    })
     if (!app) throw { notFound: `/projects/${slug}/environments/${envSlug}` }
 
     // Find GitHub provider
@@ -60,20 +67,30 @@ module.exports = {
     }).decrypt()
 
     if (!provider) {
-      sails.inertia.flash('error', 'GitHub is not connected. Configure it in Settings > Git.')
+      sails.inertia.flash(
+        'error',
+        'GitHub is not connected. Configure it in Settings > Git.'
+      )
       return redirectUrl
     }
 
     // Check if already connected
-    const existing = await GitRepository.findOne({ externalId: repoId, provider: provider.id })
+    const existing = await GitRepository.findOne({
+      externalId: repoId,
+      provider: provider.id
+    })
     if (existing) {
       sails.inertia.flash('error', 'This repository is already connected')
       return redirectUrl
     }
 
     // Get repo details from GitHub
-    const repos = await sails.helpers.git.listGithubRepos(provider.clientSecret, 1, 100)
-    const repoInfo = repos.find(r => r.id === repoId)
+    const repos = await sails.helpers.git.listGithubRepos(
+      provider.clientSecret,
+      1,
+      100
+    )
+    const repoInfo = repos.find((r) => r.id === repoId)
 
     if (!repoInfo) {
       sails.inertia.flash('error', 'Repository not found on GitHub')
@@ -81,7 +98,9 @@ module.exports = {
     }
 
     // Generate deploy key
-    const { publicKey, privateKey } = await sails.helpers.git.generateDeployKey(repoInfo.name)
+    const { publicKey, privateKey } = await sails.helpers.git.generateDeployKey(
+      repoInfo.name
+    )
 
     // Add deploy key to GitHub
     let deployKeyId
@@ -143,7 +162,9 @@ module.exports = {
       app: app.id
     })
 
-    sails.log.info(`[git] Connected ${repoInfo.fullName} to app ${app.slug} (${project.slug}/${envSlug})`)
+    sails.log.info(
+      `[git] Connected ${repoInfo.fullName} to app ${app.slug} (${project.slug}/${envSlug})`
+    )
     sails.inertia.flash('success', 'Repository connected')
     return redirectUrl
   }
