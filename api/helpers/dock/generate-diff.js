@@ -25,7 +25,7 @@ module.exports = {
     dbType: {
       type: 'string',
       required: true,
-      isIn: ['postgresql', 'mysql', 'mongodb'],
+      isIn: ['postgresql', 'mysql', 'mongodb', 'sqlite'],
       description: 'Database type'
     }
   },
@@ -107,7 +107,7 @@ module.exports = {
       } else {
         // Table exists - check columns
         const existingColumns = new Map(
-          existingTable.columns.map(col => [col.name.toLowerCase(), col])
+          existingTable.columns.map((col) => [col.name.toLowerCase(), col])
         )
 
         for (const [attrName, attr] of Object.entries(model.attributes)) {
@@ -123,7 +123,12 @@ module.exports = {
             })
           } else {
             // Column exists - check for type differences
-            const expected = mapWaterlineToSql(attr, attrName, dbType, model.primaryKey)
+            const expected = mapWaterlineToSql(
+              attr,
+              attrName,
+              dbType,
+              model.primaryKey
+            )
             if (needsModification(existingCol, expected, dbType)) {
               diff.columnsToModify.push({
                 tableName,
@@ -205,7 +210,10 @@ function mapWaterlineToSql(attr, attrName, dbType, modelPrimaryKey) {
   // If explicit columnType is set, use it directly (adapters do this too)
   if (attr.columnType) {
     return {
-      sqlType: attr.columnType,
+      sqlType:
+        dbType === 'sqlite'
+          ? normalizeSqlitePhysicalType(attr.columnType)
+          : attr.columnType,
       nullable: !attr.required && attr.allowNull !== false,
       defaultValue: attr.defaultsTo,
       autoIncrement: attr.autoIncrement || false,
@@ -223,9 +231,29 @@ function mapWaterlineToSql(attr, attrName, dbType, modelPrimaryKey) {
   let sqlType
 
   if (dbType === 'postgresql') {
-    sqlType = getPostgresType(attr.type, isPrimaryKey, isAutoIncrement, isTimestamp, isForeignKey)
+    sqlType = getPostgresType(
+      attr.type,
+      isPrimaryKey,
+      isAutoIncrement,
+      isTimestamp,
+      isForeignKey
+    )
+  } else if (dbType === 'sqlite') {
+    sqlType = getSqliteType(
+      attr,
+      isPrimaryKey,
+      isAutoIncrement,
+      isTimestamp,
+      isForeignKey
+    )
   } else {
-    sqlType = getMysqlType(attr.type, isPrimaryKey, isAutoIncrement, isTimestamp, isForeignKey)
+    sqlType = getMysqlType(
+      attr.type,
+      isPrimaryKey,
+      isAutoIncrement,
+      isTimestamp,
+      isForeignKey
+    )
   }
 
   return {
@@ -239,9 +267,62 @@ function mapWaterlineToSql(attr, attrName, dbType, modelPrimaryKey) {
 }
 
 /**
+ * Get SQLite type for a Waterline attribute.
+ * Mirrors the physical types produced by sails-sqlite.
+ */
+function getSqliteType(
+  attr,
+  isPrimaryKey,
+  isAutoIncrement,
+  isTimestamp,
+  isForeignKey
+) {
+  const explicitType = attr.columnType
+  if (explicitType) {
+    return normalizeSqlitePhysicalType(explicitType)
+  }
+
+  if (isAutoIncrement) {
+    return 'INTEGER'
+  }
+
+  if (isTimestamp) {
+    return 'INTEGER'
+  }
+
+  switch (attr.type) {
+    case 'string':
+    case 'text':
+      return 'TEXT'
+
+    case 'number':
+      if (isPrimaryKey || isForeignKey) {
+        return 'INTEGER'
+      }
+      return 'INTEGER'
+
+    case 'boolean':
+      return 'INTEGER'
+
+    case 'json':
+    case 'ref':
+      return 'TEXT'
+
+    default:
+      return 'TEXT'
+  }
+}
+
+/**
  * Get PostgreSQL type for a Waterline type
  */
-function getPostgresType(waterlineType, isPrimaryKey, isAutoIncrement, isTimestamp, isForeignKey) {
+function getPostgresType(
+  waterlineType,
+  isPrimaryKey,
+  isAutoIncrement,
+  isTimestamp,
+  isForeignKey
+) {
   // Auto-increment primary keys use SERIAL
   if (isAutoIncrement) {
     return 'SERIAL'
@@ -265,7 +346,7 @@ function getPostgresType(waterlineType, isPrimaryKey, isAutoIncrement, isTimesta
     case 'number':
       // _number maps to REAL (floating point)
       // _numberkey (for PKs/FKs) maps to INTEGER
-      return (isPrimaryKey || isForeignKey) ? 'INTEGER' : 'REAL'
+      return isPrimaryKey || isForeignKey ? 'INTEGER' : 'REAL'
 
     case 'boolean':
       return 'BOOLEAN'
@@ -286,7 +367,13 @@ function getPostgresType(waterlineType, isPrimaryKey, isAutoIncrement, isTimesta
 /**
  * Get MySQL type for a Waterline type
  */
-function getMysqlType(waterlineType, isPrimaryKey, isAutoIncrement, isTimestamp, isForeignKey) {
+function getMysqlType(
+  waterlineType,
+  isPrimaryKey,
+  isAutoIncrement,
+  isTimestamp,
+  isForeignKey
+) {
   // Timestamps typically use BIGINT
   if (isTimestamp) {
     return 'BIGINT'
@@ -304,7 +391,7 @@ function getMysqlType(waterlineType, isPrimaryKey, isAutoIncrement, isTimestamp,
 
     case 'number':
       // _number maps to REAL, _numberkey to INTEGER
-      return (isPrimaryKey || isForeignKey) ? 'INTEGER' : 'REAL'
+      return isPrimaryKey || isForeignKey ? 'INTEGER' : 'REAL'
 
     case 'boolean':
       // MySQL BOOLEAN is actually TINYINT(1)
@@ -339,7 +426,10 @@ function needsModification(existing, expected, dbType) {
 function normalizeType(type) {
   if (!type) return ''
 
-  return type.toLowerCase().trim().replace(/\(\d+(?:,\s*\d+)?\)/, '')
+  return type
+    .toLowerCase()
+    .trim()
+    .replace(/\(\d+(?:,\s*\d+)?\)/, '')
 }
 
 /**
@@ -352,26 +442,75 @@ function typesMatch(existing, expected, dbType) {
   const pgAliases = {
     'character varying': 'varchar',
     'double precision': 'real',
-    'int4': 'integer',
-    'int8': 'bigint',
-    'float8': 'double precision',
-    'serial': 'integer', // SERIAL is essentially INTEGER with auto-increment
-    'bigserial': 'bigint',
+    int4: 'integer',
+    int8: 'bigint',
+    float8: 'double precision',
+    serial: 'integer', // SERIAL is essentially INTEGER with auto-increment
+    bigserial: 'bigint',
     'timestamp with time zone': 'timestamptz',
     'timestamp without time zone': 'timestamp'
   }
 
   // MySQL type aliases
   const mysqlAliases = {
-    'int': 'integer',
-    'bool': 'tinyint',
-    'boolean': 'tinyint'
+    int: 'integer',
+    bool: 'tinyint',
+    boolean: 'tinyint'
   }
 
-  const aliases = dbType === 'postgresql' ? pgAliases : mysqlAliases
+  const sqliteAliases = {
+    int: 'integer',
+    bool: 'integer',
+    boolean: 'integer',
+    varchar: 'text',
+    char: 'text',
+    character: 'text',
+    json: 'text'
+  }
+
+  const aliases =
+    dbType === 'postgresql'
+      ? pgAliases
+      : dbType === 'sqlite'
+      ? sqliteAliases
+      : mysqlAliases
 
   // Try to match via aliases
   const resolveAlias = (t) => aliases[t] || t
 
   return resolveAlias(existing) === resolveAlias(expected)
+}
+
+function normalizeSqlitePhysicalType(type) {
+  const normalized = normalizeType(type)
+
+  switch (normalized) {
+    case '_string':
+    case '_text':
+    case '_mediumtext':
+    case '_longtext':
+      return 'TEXT'
+    case '_number':
+    case '_numberkey':
+    case '_numbertimestamp':
+    case 'int':
+    case 'integer':
+      return 'INTEGER'
+    case '_json':
+      return 'TEXT'
+    case 'float':
+    case 'double':
+    case 'real':
+      return 'REAL'
+    case 'boolean':
+      return 'INTEGER'
+    case 'date':
+    case 'datetime':
+      return 'TEXT'
+    case 'binary':
+    case 'blob':
+      return 'BLOB'
+    default:
+      return normalized ? normalized.toUpperCase() : 'TEXT'
+  }
 }

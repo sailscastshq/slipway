@@ -1,8 +1,18 @@
 <script setup>
 import { Head } from '@inertiajs/vue3'
-import { ref, computed, inject, watch, nextTick, onMounted, onUnmounted, onBeforeUnmount } from 'vue'
+import {
+  ref,
+  computed,
+  inject,
+  watch,
+  nextTick,
+  onMounted,
+  onUnmounted,
+  onBeforeUnmount
+} from 'vue'
 import { useEventSource } from '@/composables/sse'
 import AppLayout from '@/layouts/AppLayout.vue'
+import ConfirmModal from '@/components/ConfirmModal.vue'
 import ToastContainer from '@/components/ToastContainer.vue'
 import Tooltip from '@/components/Tooltip.vue'
 import { highlightSQL } from '@/lib/highlightSQL'
@@ -28,13 +38,14 @@ const toggleSidebar = inject('toggleSidebar')
 const sidebarCollapsed = inject('sidebarCollapsed')
 
 // ─── Tab management (matches Dock pattern: init from URL, sync via watcher) ───
-const validTabs = ['overview', 'environment', 'console', 'activity']
+const validTabs = ['overview', 'environment', 'console', 'migrate', 'activity']
 const initialTab = new URLSearchParams(window.location.search).get('tab')
 const activeTab = ref(validTabs.includes(initialTab) ? initialTab : 'overview')
 const tabs = [
   { id: 'overview', name: 'Overview' },
   { id: 'environment', name: 'Environment' },
   { id: 'console', name: 'Console' },
+  { id: 'migrate', name: 'Migrate' },
   { id: 'activity', name: 'Activity' }
 ]
 
@@ -62,6 +73,10 @@ watch(selectedDatabase, (db) => {
   if (db === 'app') url.searchParams.delete('db')
   else url.searchParams.set('db', db)
   window.history.replaceState({}, '', url)
+
+  if (activeTab.value === 'migrate') {
+    fetchDiff()
+  }
 })
 
 watch(consoleMode, (mode) => {
@@ -76,6 +91,9 @@ function onTabChange(tabId) {
   if (tabId === 'activity' && activities.value.length === 0) {
     fetchActivity()
   }
+  if (tabId === 'migrate' && !diffLoading.value) {
+    fetchDiff()
+  }
 }
 const consoleResults = ref(null)
 const consoleError = ref(null)
@@ -83,6 +101,14 @@ const consoleLoading = ref(false)
 const queryHistory = ref([])
 const resultView = ref('table')
 const showExportMenu = ref(false)
+
+// ─── Migrate state ───
+const diff = ref(null)
+const diffError = ref(null)
+const diffLoading = ref(false)
+const migrateLoading = ref(false)
+const selectedModels = ref(new Set())
+const showMigrateConfirm = ref(false)
 
 // ─── Helm state ───
 const helmCode = ref('// Access Slipway models and helpers\nawait User.find()')
@@ -102,7 +128,7 @@ function showToast(message, type = 'success') {
 }
 
 function dismissToast(id) {
-  toasts.value = toasts.value.filter(t => t.id !== id)
+  toasts.value = toasts.value.filter((t) => t.id !== id)
 }
 
 // SQL syntax highlighting (shared utility)
@@ -156,7 +182,8 @@ async function executeQuery() {
     }
 
     if (!response.ok) {
-      consoleError.value = data?.message || data?.error || text || 'Query failed'
+      consoleError.value =
+        data?.message || data?.error || text || 'Query failed'
       consoleResults.value = null
       return
     }
@@ -202,7 +229,8 @@ async function executeHelm() {
     }
 
     if (!response.ok) {
-      helmError.value = data?.message || data?.error || text || 'Evaluation failed'
+      helmError.value =
+        data?.message || data?.error || text || 'Evaluation failed'
       return
     }
 
@@ -210,10 +238,10 @@ async function executeHelm() {
 
     // Add to history (deduplicate)
     const c = helmCode.value.trim()
-    helmHistory.value = [
-      c,
-      ...helmHistory.value.filter((h) => h !== c)
-    ].slice(0, 20)
+    helmHistory.value = [c, ...helmHistory.value.filter((h) => h !== c)].slice(
+      0,
+      20
+    )
   } catch (err) {
     helmError.value = err.message || 'Network error'
   } finally {
@@ -300,6 +328,137 @@ function downloadFile(content, filename, mimeType) {
 function exportAction(fn) {
   fn()
   showExportMenu.value = false
+}
+
+async function fetchDiff() {
+  diffLoading.value = true
+  diffError.value = null
+
+  try {
+    const params = new URLSearchParams({ database: selectedDatabase.value })
+    const response = await fetch(`/api/v1/bosun/diff?${params}`)
+    const data = await response.json()
+
+    if (!response.ok) {
+      diff.value = null
+      selectedModels.value = new Set()
+      diffError.value =
+        data.error || data.message || 'Failed to load schema diff'
+      return
+    }
+
+    diff.value = data
+
+    const models = new Set()
+    for (const statement of data.statements || []) {
+      if (statement.table) {
+        models.add(statement.table)
+      }
+    }
+    selectedModels.value = models
+  } catch (error) {
+    diff.value = null
+    selectedModels.value = new Set()
+    diffError.value = error.message || 'Failed to load schema diff'
+  } finally {
+    diffLoading.value = false
+  }
+}
+
+const diffModels = computed(() => {
+  if (!diff.value?.statements) return []
+
+  const models = new Set()
+  for (const statement of diff.value.statements) {
+    if (statement.table) {
+      models.add(statement.table)
+    }
+  }
+
+  return Array.from(models).sort()
+})
+
+const filteredStatements = computed(() => {
+  if (!diff.value?.statements) return []
+  if (diffModels.value.length === 0) return diff.value.statements
+
+  return diff.value.statements.filter(
+    (statement) => !statement.table || selectedModels.value.has(statement.table)
+  )
+})
+
+const diffSummary = computed(() => {
+  if (!diff.value?.diff) {
+    return {
+      tables: 0,
+      columnsToAdd: 0,
+      columnsToModify: 0,
+      indexes: 0
+    }
+  }
+
+  return {
+    tables: diff.value.diff.tablesToCreate.length,
+    columnsToAdd: diff.value.diff.columnsToAdd.length,
+    columnsToModify: diff.value.diff.columnsToModify.length,
+    indexes: diff.value.diff.indexesToCreate.length
+  }
+})
+
+function toggleModel(model) {
+  if (selectedModels.value.has(model)) {
+    selectedModels.value.delete(model)
+  } else {
+    selectedModels.value.add(model)
+  }
+
+  selectedModels.value = new Set(selectedModels.value)
+}
+
+function selectAllModels() {
+  selectedModels.value = new Set(diffModels.value)
+}
+
+function deselectAllModels() {
+  selectedModels.value = new Set()
+}
+
+function confirmMigration() {
+  if (!filteredStatements.value.length) return
+  showMigrateConfirm.value = true
+}
+
+async function applyMigration() {
+  showMigrateConfirm.value = false
+  migrateLoading.value = true
+
+  try {
+    const response = await fetch('/api/v1/bosun/migrate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        database: selectedDatabase.value,
+        statements: filteredStatements.value
+      })
+    })
+
+    const data = await response.json()
+
+    if (!response.ok || !data.success) {
+      showToast(data.error || data.message || 'Migration failed', 'error')
+      return
+    }
+
+    showToast(
+      `Migration applied: ${data.executed} statement(s) executed`,
+      'success'
+    )
+    await fetchDiff()
+  } catch (error) {
+    showToast(error.message || 'Migration failed', 'error')
+  } finally {
+    migrateLoading.value = false
+  }
 }
 
 // ─── Environment variables state ───
@@ -390,27 +549,24 @@ const {
   error: logsError,
   close: disconnectLogs,
   connect: connectLogs
-} = useEventSource(
-  '/api/v1/bosun/logs/stream?tail=200',
-  {
-    immediate: false,
-    onMessage(data) {
-      if (data.log) {
-        logLines.value.push(data.log)
-        if (logLines.value.length > 2000) {
-          logLines.value = logLines.value.slice(-1500)
-        }
-        if (autoScroll.value) {
-          nextTick(() => {
-            if (logContainer.value) {
-              logContainer.value.scrollTop = logContainer.value.scrollHeight
-            }
-          })
-        }
+} = useEventSource('/api/v1/bosun/logs/stream?tail=200', {
+  immediate: false,
+  onMessage(data) {
+    if (data.log) {
+      logLines.value.push(data.log)
+      if (logLines.value.length > 2000) {
+        logLines.value = logLines.value.slice(-1500)
+      }
+      if (autoScroll.value) {
+        nextTick(() => {
+          if (logContainer.value) {
+            logContainer.value.scrollTop = logContainer.value.scrollHeight
+          }
+        })
       }
     }
   }
-)
+})
 
 watch(logsOpen, (open) => {
   const url = new URL(window.location)
@@ -735,7 +891,9 @@ onUnmounted(() => {
       >
         <div class="flex items-center gap-4">
           <!-- Mode toggle pills -->
-          <div class="flex items-center gap-1 rounded-md border border-gray-200 p-0.5 dark:border-gray-700">
+          <div
+            class="flex items-center gap-1 rounded-md border border-gray-200 p-0.5 dark:border-gray-700"
+          >
             <button
               @click="consoleMode = 'sql'"
               :class="[
@@ -791,7 +949,11 @@ onUnmounted(() => {
         </div>
         <button
           @click="executeCurrentMode"
-          :disabled="consoleMode === 'sql' ? (consoleLoading || !sqlQuery.trim()) : (helmLoading || !helmCode.trim())"
+          :disabled="
+            consoleMode === 'sql'
+              ? consoleLoading || !sqlQuery.trim()
+              : helmLoading || !helmCode.trim()
+          "
           class="rounded-md bg-gray-900 px-4 py-1.5 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
         >
           <span v-if="consoleLoading || helmLoading">Running...</span>
@@ -851,8 +1013,16 @@ onUnmounted(() => {
                         class="text-gray-400 dark:text-gray-600"
                         >NULL</span
                       >
-                      <span v-else-if="typeof row[col] === 'number'" class="text-purple-600 dark:text-purple-400">{{ row[col] }}</span>
-                      <span v-else-if="typeof row[col] === 'boolean'" class="text-blue-600 dark:text-blue-400">{{ row[col] }}</span>
+                      <span
+                        v-else-if="typeof row[col] === 'number'"
+                        class="text-purple-600 dark:text-purple-400"
+                        >{{ row[col] }}</span
+                      >
+                      <span
+                        v-else-if="typeof row[col] === 'boolean'"
+                        class="text-blue-600 dark:text-blue-400"
+                        >{{ row[col] }}</span
+                      >
                       <span v-else>{{ row[col] }}</span>
                     </td>
                   </tr>
@@ -865,7 +1035,10 @@ onUnmounted(() => {
               v-else-if="consoleResults.columns && resultView === 'json'"
               class="flex-1 overflow-auto p-4"
             >
-              <pre class="font-mono text-xs text-gray-700 dark:text-gray-300" v-html="highlightJSON(consoleResults.rows)"></pre>
+              <pre
+                class="font-mono text-xs text-gray-700 dark:text-gray-300"
+                v-html="highlightJSON(consoleResults.rows)"
+              ></pre>
             </div>
 
             <!-- No columns result -->
@@ -889,7 +1062,10 @@ onUnmounted(() => {
         <!-- ─── Helm Results ─── -->
         <template v-else>
           <!-- Loading -->
-          <div v-if="helmLoading" class="flex h-full items-center justify-center">
+          <div
+            v-if="helmLoading"
+            class="flex h-full items-center justify-center"
+          >
             <SlippyLoader size="h-5 w-5" />
           </div>
 
@@ -898,14 +1074,24 @@ onUnmounted(() => {
             <div
               class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 dark:border-red-900/50 dark:bg-red-950/30"
             >
-              <pre class="whitespace-pre-wrap font-mono text-sm text-red-600 dark:text-red-400">{{ helmError }}</pre>
+              <pre
+                class="whitespace-pre-wrap font-mono text-sm text-red-600 dark:text-red-400"
+                >{{ helmError }}</pre
+              >
             </div>
-            <pre v-if="helmResults?.output" class="mt-3 whitespace-pre-wrap font-mono text-sm text-gray-700 dark:text-gray-300">{{ helmResults.output }}</pre>
+            <pre
+              v-if="helmResults?.output"
+              class="mt-3 whitespace-pre-wrap font-mono text-sm text-gray-700 dark:text-gray-300"
+              >{{ helmResults.output }}</pre
+            >
           </div>
 
           <!-- Results output -->
           <div v-else-if="helmResults" class="p-4">
-            <pre class="whitespace-pre-wrap font-mono text-sm text-gray-700 dark:text-gray-300" v-html="highlightedHelmOutput"></pre>
+            <pre
+              class="whitespace-pre-wrap font-mono text-sm text-gray-700 dark:text-gray-300"
+              v-html="highlightedHelmOutput"
+            ></pre>
           </div>
 
           <!-- Empty state -->
@@ -920,7 +1106,10 @@ onUnmounted(() => {
 
       <!-- Status bar -->
       <div
-        v-if="(consoleMode === 'sql' && consoleResults) || (consoleMode === 'helm' && helmResults)"
+        v-if="
+          (consoleMode === 'sql' && consoleResults) ||
+          (consoleMode === 'helm' && helmResults)
+        "
         class="flex items-center justify-between border-t border-gray-200 bg-gray-50 px-4 py-2 dark:border-gray-800 dark:bg-gray-900/50"
       >
         <!-- SQL status bar content -->
@@ -971,11 +1160,16 @@ onUnmounted(() => {
               </Tooltip>
             </div>
             <!-- Row info -->
-            <span v-if="consoleResults" class="text-xs text-gray-500 dark:text-gray-400">
+            <span
+              v-if="consoleResults"
+              class="text-xs text-gray-500 dark:text-gray-400"
+            >
               {{ consoleResults.rowCount }} row{{
                 consoleResults.rowCount !== 1 ? 's' : ''
               }}
-              <span v-if="consoleResults.truncated"> (showing first 1,000)</span>
+              <span v-if="consoleResults.truncated">
+                (showing first 1,000)</span
+              >
               &middot; {{ consoleResults.durationMs }}ms
             </span>
           </div>
@@ -1001,7 +1195,10 @@ onUnmounted(() => {
                 </svg>
               </button>
             </Tooltip>
-            <Tooltip :text="resultView === 'json' ? 'Copy as JSON' : 'Copy as CSV'" position="top">
+            <Tooltip
+              :text="resultView === 'json' ? 'Copy as JSON' : 'Copy as CSV'"
+              position="top"
+            >
               <button
                 @click="resultView === 'json' ? copyAsJSON() : copyAsCSV()"
                 class="rounded p-1.5 text-gray-500 hover:bg-gray-200 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-200"
@@ -1081,13 +1278,21 @@ onUnmounted(() => {
 
         <!-- Helm status bar content -->
         <template v-else>
-          <span v-if="helmResults" class="text-xs text-gray-500 dark:text-gray-400">
+          <span
+            v-if="helmResults"
+            class="text-xs text-gray-500 dark:text-gray-400"
+          >
             {{ helmResults.success ? 'Success' : 'Error' }}
             &middot; {{ helmResults.durationMs }}ms
           </span>
           <Tooltip v-if="helmResults" text="Copy output" position="top">
             <button
-              @click="navigator.clipboard.writeText(helmResults.output || helmResults.error || ''); showToast('Copied to clipboard')"
+              @click="
+                navigator.clipboard.writeText(
+                  helmResults.output || helmResults.error || ''
+                )
+                showToast('Copied to clipboard')
+              "
               class="rounded p-1.5 text-gray-500 hover:bg-gray-200 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-200"
             >
               <svg
@@ -1283,21 +1488,28 @@ onUnmounted(() => {
                 @click="logsOpen = !logsOpen"
                 class="flex flex-1 items-center space-x-3 text-left hover:opacity-80"
               >
-                <h2 class="text-sm font-medium text-gray-900 dark:text-white">Logs</h2>
+                <h2 class="text-sm font-medium text-gray-900 dark:text-white">
+                  Logs
+                </h2>
                 <span
                   v-if="logsConnected"
                   class="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-medium text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
                 >
-                  <span class="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-500"></span>
+                  <span
+                    class="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-500"
+                  ></span>
                   Live
                 </span>
               </button>
               <div class="flex items-center gap-2">
-                <label v-if="logsOpen" class="flex items-center gap-2 text-xs text-gray-400 dark:text-gray-500">
+                <label
+                  v-if="logsOpen"
+                  class="flex items-center gap-2 text-xs text-gray-400 dark:text-gray-500"
+                >
                   <input
                     v-model="autoScroll"
                     type="checkbox"
-                    class="h-3.5 w-3.5 rounded border-gray-300 text-brand focus:ring-brand dark:border-gray-600 dark:bg-gray-800"
+                    class="text-brand focus:ring-brand h-3.5 w-3.5 rounded border-gray-300 dark:border-gray-600 dark:bg-gray-800"
                   />
                   Auto-scroll
                 </label>
@@ -1306,12 +1518,20 @@ onUnmounted(() => {
                   class="rounded p-0.5 hover:bg-gray-100 dark:hover:bg-gray-800"
                 >
                   <svg
-                    :class="['h-4 w-4 text-gray-400 transition-transform duration-200', logsOpen ? 'rotate-90' : '']"
+                    :class="[
+                      'h-4 w-4 text-gray-400 transition-transform duration-200',
+                      logsOpen ? 'rotate-90' : ''
+                    ]"
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
                   >
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M9 5l7 7-7 7"
+                    />
                   </svg>
                 </button>
               </div>
@@ -1329,17 +1549,35 @@ onUnmounted(() => {
                 <div
                   ref="logContainer"
                   class="h-80 overflow-y-auto bg-gray-100 p-4 font-mono text-xs leading-5 text-gray-700 dark:bg-gray-950 dark:text-gray-300"
-                  @scroll="autoScroll = logContainer && (logContainer.scrollHeight - logContainer.scrollTop - logContainer.clientHeight < 40)"
+                  @scroll="
+                    autoScroll =
+                      logContainer &&
+                      logContainer.scrollHeight -
+                        logContainer.scrollTop -
+                        logContainer.clientHeight <
+                        40
+                  "
                 >
-                  <div v-if="!logsConnected && logLines.length === 0" class="flex h-full items-center justify-center text-gray-500">
+                  <div
+                    v-if="!logsConnected && logLines.length === 0"
+                    class="flex h-full items-center justify-center text-gray-500"
+                  >
                     <SlippyLoader size="h-4 w-4" class="mr-2" />
                     Connecting to logs...
                   </div>
-                  <div v-else-if="logLines.length === 0 && logsConnected" class="text-gray-500">
+                  <div
+                    v-else-if="logLines.length === 0 && logsConnected"
+                    class="text-gray-500"
+                  >
                     Waiting for output...
                   </div>
                   <template v-else>
-                    <div v-for="(line, i) in logLines" :key="i" class="whitespace-pre-wrap break-all hover:bg-gray-200/50 dark:hover:bg-gray-900/50" v-html="highlightLogLine(line)"></div>
+                    <div
+                      v-for="(line, i) in logLines"
+                      :key="i"
+                      class="whitespace-pre-wrap break-all hover:bg-gray-200/50 dark:hover:bg-gray-900/50"
+                      v-html="highlightLogLine(line)"
+                    ></div>
                   </template>
                 </div>
               </div>
@@ -1484,6 +1722,257 @@ onUnmounted(() => {
                 >
                   Add
                 </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ═══ Migrate Tab ═══ -->
+        <div v-if="activeTab === 'migrate'">
+          <div
+            class="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between"
+          >
+            <div>
+              <h1 class="text-xl font-semibold text-gray-900 dark:text-white">
+                Migrate
+              </h1>
+              <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                Review pending SQLite schema changes for Bosun and apply them
+                when you are ready.
+              </p>
+            </div>
+
+            <div
+              class="flex items-center space-x-1 rounded-md border border-gray-200 p-0.5 dark:border-gray-800"
+            >
+              <button
+                v-for="db in ['app', 'observability', 'cache']"
+                :key="db"
+                @click="selectedDatabase = db"
+                :class="[
+                  'rounded px-2.5 py-1 text-xs font-medium transition-colors',
+                  selectedDatabase === db
+                    ? 'bg-gray-900 text-white dark:bg-white dark:text-gray-900'
+                    : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
+                ]"
+              >
+                {{ db }}
+              </button>
+            </div>
+          </div>
+
+          <div v-if="diffLoading" class="py-16 text-center">
+            <SlippyLoader class="mx-auto text-gray-400 dark:text-gray-600" />
+          </div>
+
+          <div
+            v-else-if="diffError"
+            class="rounded-lg border border-red-200 bg-red-50 px-5 py-4 dark:border-red-900/50 dark:bg-red-950/30"
+          >
+            <p class="text-sm font-medium text-red-700 dark:text-red-300">
+              Migrate diff failed
+            </p>
+            <p class="mt-1 text-sm text-red-600 dark:text-red-400">
+              {{ diffError }}
+            </p>
+          </div>
+
+          <div
+            v-else-if="diff?.modelCount === 0"
+            class="rounded-lg border border-gray-200 bg-gray-50 px-6 py-8 text-center dark:border-gray-800 dark:bg-gray-900/50"
+          >
+            <h3 class="text-sm font-medium text-gray-900 dark:text-white">
+              Nothing to compare for {{ selectedDatabase }}
+            </h3>
+            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+              {{ diff?.message || 'No Waterline models use this datastore.' }}
+            </p>
+          </div>
+
+          <div
+            v-else-if="!diff?.hasPendingChanges"
+            class="rounded-lg border border-green-200 bg-green-50 px-6 py-8 text-center dark:border-green-900/50 dark:bg-green-950/30"
+          >
+            <h3 class="text-sm font-medium text-green-800 dark:text-green-300">
+              No pending schema changes
+            </h3>
+            <p class="mt-1 text-sm text-green-700 dark:text-green-400">
+              Bosun’s {{ selectedDatabase }} datastore matches the current
+              Waterline models.
+            </p>
+          </div>
+
+          <div v-else class="space-y-6">
+            <div class="rounded-lg border border-gray-200 dark:border-gray-800">
+              <div
+                class="flex flex-col gap-4 border-b border-gray-200 px-4 py-4 dark:border-gray-800 sm:flex-row sm:items-start sm:justify-between"
+              >
+                <div>
+                  <h2 class="text-sm font-medium text-gray-900 dark:text-white">
+                    Pending schema changes
+                  </h2>
+                  <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                    {{ filteredStatements.length }} statement{{
+                      filteredStatements.length !== 1 ? 's' : ''
+                    }}
+                    ready for the {{ selectedDatabase }} SQLite database.
+                  </p>
+                </div>
+
+                <button
+                  @click="confirmMigration"
+                  :disabled="migrateLoading || filteredStatements.length === 0"
+                  class="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
+                >
+                  {{ migrateLoading ? 'Applying...' : 'Apply migration' }}
+                </button>
+              </div>
+
+              <div class="grid gap-4 px-4 py-4 sm:grid-cols-4">
+                <div
+                  class="rounded-md bg-gray-50 px-3 py-3 dark:bg-gray-900/60"
+                >
+                  <div
+                    class="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400"
+                  >
+                    Tables
+                  </div>
+                  <div
+                    class="mt-1 text-lg font-semibold text-gray-900 dark:text-white"
+                  >
+                    {{ diffSummary.tables }}
+                  </div>
+                </div>
+                <div
+                  class="rounded-md bg-gray-50 px-3 py-3 dark:bg-gray-900/60"
+                >
+                  <div
+                    class="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400"
+                  >
+                    Add columns
+                  </div>
+                  <div
+                    class="mt-1 text-lg font-semibold text-gray-900 dark:text-white"
+                  >
+                    {{ diffSummary.columnsToAdd }}
+                  </div>
+                </div>
+                <div
+                  class="rounded-md bg-gray-50 px-3 py-3 dark:bg-gray-900/60"
+                >
+                  <div
+                    class="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400"
+                  >
+                    Alter columns
+                  </div>
+                  <div
+                    class="mt-1 text-lg font-semibold text-gray-900 dark:text-white"
+                  >
+                    {{ diffSummary.columnsToModify }}
+                  </div>
+                </div>
+                <div
+                  class="rounded-md bg-gray-50 px-3 py-3 dark:bg-gray-900/60"
+                >
+                  <div
+                    class="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400"
+                  >
+                    Indexes
+                  </div>
+                  <div
+                    class="mt-1 text-lg font-semibold text-gray-900 dark:text-white"
+                  >
+                    {{ diffSummary.indexes }}
+                  </div>
+                </div>
+              </div>
+
+              <div
+                v-if="diffModels.length > 0"
+                class="border-t border-gray-200 px-4 py-4 dark:border-gray-800"
+              >
+                <div class="mb-3 flex items-center justify-between">
+                  <div>
+                    <h3
+                      class="text-sm font-medium text-gray-900 dark:text-white"
+                    >
+                      Models
+                    </h3>
+                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                      Filter which tables are included before you apply.
+                    </p>
+                  </div>
+                  <div class="flex items-center gap-2 text-xs">
+                    <button
+                      @click="selectAllModels"
+                      class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                    >
+                      Select all
+                    </button>
+                    <button
+                      @click="deselectAllModels"
+                      class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                </div>
+
+                <div class="flex flex-wrap gap-2">
+                  <button
+                    v-for="model in diffModels"
+                    :key="model"
+                    @click="toggleModel(model)"
+                    :class="[
+                      'rounded-full border px-3 py-1 text-xs font-medium transition-colors',
+                      selectedModels.has(model)
+                        ? 'border-gray-900 bg-gray-900 text-white dark:border-white dark:bg-white dark:text-gray-900'
+                        : 'border-gray-200 text-gray-600 hover:border-gray-300 hover:text-gray-900 dark:border-gray-700 dark:text-gray-400 dark:hover:border-gray-600 dark:hover:text-white'
+                    ]"
+                  >
+                    {{ model }}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div class="space-y-4">
+              <div
+                v-for="(statement, index) in filteredStatements"
+                :key="`${statement.type}-${
+                  statement.table || 'global'
+                }-${index}`"
+                class="overflow-hidden rounded-lg border border-gray-200 dark:border-gray-800"
+              >
+                <div
+                  class="flex items-center justify-between border-b border-gray-200 bg-gray-50 px-4 py-3 dark:border-gray-800 dark:bg-gray-900/60"
+                >
+                  <div>
+                    <p
+                      class="text-sm font-medium text-gray-900 dark:text-white"
+                    >
+                      {{ statement.table || 'database' }}
+                    </p>
+                    <p
+                      class="mt-0.5 text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400"
+                    >
+                      {{ statement.type.replace(/_/g, ' ') }}
+                    </p>
+                  </div>
+                  <span
+                    v-if="statement.column"
+                    class="rounded bg-gray-100 px-2 py-1 font-mono text-xs text-gray-600 dark:bg-gray-800 dark:text-gray-300"
+                  >
+                    {{ statement.column }}
+                  </span>
+                </div>
+
+                <div class="overflow-x-auto bg-white dark:bg-gray-950">
+                  <pre
+                    class="min-w-full p-4 font-mono text-xs leading-6 text-gray-700 dark:text-gray-200"
+                    v-html="highlightSQL(statement.sql)"
+                  ></pre>
+                </div>
               </div>
             </div>
           </div>
@@ -1649,6 +2138,19 @@ onUnmounted(() => {
         </div>
       </div>
     </div>
+    <ConfirmModal
+      :show="showMigrateConfirm"
+      title="Apply migration?"
+      :message="`This will execute ${
+        filteredStatements.length
+      } SQLite statement${
+        filteredStatements.length !== 1 ? 's' : ''
+      } against Bosun's ${selectedDatabase} database.`"
+      confirmLabel="Apply"
+      :loading="migrateLoading"
+      @confirm="applyMigration"
+      @cancel="showMigrateConfirm = false"
+    />
     <ToastContainer :toasts="toasts" @dismiss="dismissToast" />
   </div>
 </template>
