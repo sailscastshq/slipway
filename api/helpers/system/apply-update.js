@@ -1,4 +1,4 @@
-const { execFile } = require('child_process')
+const { execFile, spawn } = require('child_process')
 const util = require('util')
 const execFileAsync = util.promisify(execFile)
 
@@ -26,6 +26,7 @@ module.exports = {
     const dockerPath = sails.config.docker?.binaryPath || 'docker'
     const image = 'ghcr.io/sailscastshq/slipway'
     const CACHE_KEY = 'slipway_update_progress'
+    const appsDir = sails.config.custom.slipwayAppsDir || '/var/slipway/apps'
 
     async function setProgress(phase, detail) {
       await sails.cache.set(CACHE_KEY, { phase, detail, updatedAt: Date.now() }, 300000)
@@ -71,8 +72,26 @@ module.exports = {
         throw 'pullFailed'
       }
 
+      // 4b. Make sure deployed source survives container replacement.
+      if (!hasMountDestination(containerInfo, appsDir)) {
+        await setProgress('inspecting', 'Migrating deployed source into persistent storage')
+        await migrateAppsDirectoryToBindMount({
+          dockerPath,
+          containerName: 'slipway',
+          appsDir
+        })
+      }
+
       // 5. Build base docker run arguments from current container config
-      const baseArgs = buildRunArgs(containerInfo)
+      const baseArgs = buildRunArgs(containerInfo, {
+        extraMounts: [
+          {
+            type: 'bind',
+            source: appsDir,
+            destination: appsDir
+          }
+        ]
+      })
 
       // 6. Start a validation container (slipway-next) on a temporary port
       await setProgress('validating', 'Starting temporary container for health check')
@@ -87,15 +106,13 @@ module.exports = {
         tempArgs.push('--network', networks[0])
       }
 
-      // Volumes (same mounts as the original)
-      for (const mount of containerInfo.Mounts || []) {
-        if (mount.Type === 'volume') {
-          tempArgs.push('-v', `${mount.Name}:${mount.Destination}`)
-        } else if (mount.Type === 'bind') {
-          const readOnly = mount.RW === false ? ':ro' : ''
-          tempArgs.push('-v', `${mount.Source}:${mount.Destination}${readOnly}`)
+      appendMountArgs(tempArgs, containerInfo.Mounts, [
+        {
+          type: 'bind',
+          source: appsDir,
+          destination: appsDir
         }
-      }
+      ])
 
       // Temp port binding (different from production port)
       tempArgs.push('-p', `${tempPort}:1337`)
@@ -226,7 +243,7 @@ module.exports = {
  * Returns an array of args (network, volumes, ports, env, labels) without
  * the `run -d --name ... --restart ...` prefix or the image suffix.
  */
-function buildRunArgs(containerInfo) {
+function buildRunArgs(containerInfo, { extraMounts = [] } = {}) {
   const args = []
 
   // Network
@@ -235,15 +252,7 @@ function buildRunArgs(containerInfo) {
     args.push('--network', networks[0])
   }
 
-  // Volumes
-  for (const mount of containerInfo.Mounts || []) {
-    if (mount.Type === 'volume') {
-      args.push('-v', `${mount.Name}:${mount.Destination}`)
-    } else if (mount.Type === 'bind') {
-      const readOnly = mount.RW === false ? ':ro' : ''
-      args.push('-v', `${mount.Source}:${mount.Destination}${readOnly}`)
-    }
-  }
+  appendMountArgs(args, containerInfo.Mounts, extraMounts)
 
   // Port bindings
   const portBindings = containerInfo.HostConfig?.PortBindings || {}
@@ -270,4 +279,158 @@ function buildRunArgs(containerInfo) {
   }
 
   return args
+}
+
+function appendMountArgs(args, mounts = [], extraMounts = []) {
+  const seenDestinations = new Set()
+
+  for (const mount of [...(mounts || []), ...(extraMounts || [])]) {
+    const type = mount.Type || mount.type
+    const destination = mount.Destination || mount.destination
+
+    if (!type || !destination || seenDestinations.has(destination)) {
+      continue
+    }
+
+    seenDestinations.add(destination)
+
+    if (type === 'volume') {
+      const source = mount.Name || mount.name || mount.Source || mount.source
+      if (source) {
+        args.push('-v', `${source}:${destination}`)
+      }
+      continue
+    }
+
+    if (type === 'bind') {
+      const source = mount.Source || mount.source
+      if (!source) {
+        continue
+      }
+
+      const readOnly = mount.RW === false || mount.readOnly === true ? ':ro' : ''
+      args.push('-v', `${source}:${destination}${readOnly}`)
+    }
+  }
+}
+
+function hasMountDestination(containerInfo, destination) {
+  return (containerInfo?.Mounts || []).some((mount) => mount.Destination === destination)
+}
+
+async function migrateAppsDirectoryToBindMount({ dockerPath, containerName, appsDir }) {
+  const hasSource = await containerDirectoryHasFiles({ dockerPath, containerName, appsDir })
+
+  if (!hasSource) {
+    return
+  }
+
+  await streamContainerDirectoryToBindMount({
+    dockerPath,
+    containerName,
+    appsDir
+  })
+}
+
+async function containerDirectoryHasFiles({ dockerPath, containerName, appsDir }) {
+  try {
+    const { stdout } = await execFileAsync(
+      dockerPath,
+      ['exec', containerName, 'sh', '-lc', `test -d ${appsDir} && [ "$(ls -A ${appsDir} 2>/dev/null)" ] && printf yes || true`],
+      { timeout: 10000 }
+    )
+
+    return stdout.trim() === 'yes'
+  } catch {
+    return false
+  }
+}
+
+function streamContainerDirectoryToBindMount({ dockerPath, containerName, appsDir }) {
+  return new Promise((resolve, reject) => {
+    const exportProc = spawn(dockerPath, ['exec', containerName, 'tar', 'cf', '-', '-C', appsDir, '.'])
+    const importProc = spawn(dockerPath, [
+      'run',
+      '--rm',
+      '-i',
+      '-v',
+      `${appsDir}:${appsDir}`,
+      'alpine',
+      'sh',
+      '-lc',
+      `mkdir -p ${appsDir} && tar xf - -C ${appsDir}`
+    ])
+
+    let exportStderr = ''
+    let importStderr = ''
+    let settled = false
+    let exportCode = null
+    let importCode = null
+
+    const finish = () => {
+      if (settled || exportCode === null || importCode === null) {
+        return
+      }
+
+      if (exportCode === 0 && importCode === 0) {
+        settled = true
+        resolve()
+        return
+      }
+
+      settled = true
+      reject(
+        new Error(
+          `Could not migrate ${appsDir} into a persistent bind mount. ` +
+            `${exportStderr.trim() || importStderr.trim() || 'Unknown Docker error.'}`
+        )
+      )
+    }
+
+    exportProc.stdout.pipe(importProc.stdin)
+
+    exportProc.stderr.on('data', (chunk) => {
+      exportStderr += chunk.toString()
+    })
+
+    importProc.stderr.on('data', (chunk) => {
+      importStderr += chunk.toString()
+    })
+
+    exportProc.on('error', (error) => {
+      if (settled) {
+        return
+      }
+
+      settled = true
+      importProc.kill('SIGTERM')
+      reject(error)
+    })
+
+    importProc.on('error', (error) => {
+      if (settled) {
+        return
+      }
+
+      settled = true
+      exportProc.kill('SIGTERM')
+      reject(error)
+    })
+
+    exportProc.on('close', (code) => {
+      exportCode = code
+      finish()
+    })
+
+    importProc.on('close', (code) => {
+      importCode = code
+      finish()
+    })
+  })
+}
+
+module.exports._private = {
+  appendMountArgs,
+  buildRunArgs,
+  hasMountDestination,
 }

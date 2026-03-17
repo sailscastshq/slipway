@@ -14,6 +14,7 @@ YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
 SLIPWAY_ENV_FILE="/etc/slipway/.env"
+SLIPWAY_APPS_DIR="/var/slipway/apps"
 IS_UPDATE=false
 
 # Check if running as root
@@ -102,6 +103,20 @@ echo "Pulling latest Slipway image..."
 docker pull ghcr.io/sailscastshq/slipway:latest
 docker pull alpine
 
+# 7b. Ensure deployed app source survives container replacement
+mkdir -p "$SLIPWAY_APPS_DIR"
+if docker inspect slipway >/dev/null 2>&1; then
+    HAS_APPS_MOUNT=$(docker inspect slipway --format '{{range .Mounts}}{{if eq .Destination "/var/slipway/apps"}}yes{{end}}{{end}}' 2>/dev/null || true)
+    if [ "$HAS_APPS_MOUNT" != "yes" ]; then
+        if docker exec slipway sh -lc 'test -d /var/slipway/apps && [ "$(ls -A /var/slipway/apps 2>/dev/null)" ]' >/dev/null 2>&1; then
+            echo "Migrating deployed source into persistent storage..."
+            docker exec slipway tar cf - -C /var/slipway/apps . \
+                | docker run --rm -i -v "$SLIPWAY_APPS_DIR:$SLIPWAY_APPS_DIR" alpine sh -lc 'mkdir -p /var/slipway/apps && tar xf - -C /var/slipway/apps'
+            echo -e "${GREEN}Source cache migrated${NC}"
+        fi
+    fi
+fi
+
 # 8. Start Slipway dashboard
 echo "Starting Slipway dashboard..."
 docker rm -f slipway 2>/dev/null || true
@@ -129,6 +144,7 @@ docker run -d \
     --restart unless-stopped \
     -p 1337:1337 \
     -v /var/run/docker.sock:/var/run/docker.sock \
+    -v "$SLIPWAY_APPS_DIR:$SLIPWAY_APPS_DIR" \
     -v slipway-db:/app/db \
     -e NODE_ENV=production \
     -e PORT=1337 \
