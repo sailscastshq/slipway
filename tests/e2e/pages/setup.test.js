@@ -1,4 +1,3 @@
-const assert = require('node:assert/strict')
 const { test } = require('sounding')
 
 test('the genesis user gets the setup path before Slipway is configured', async ({ visit, expect }) => {
@@ -19,14 +18,14 @@ test('setup creates the genesis owner and default team', async ({ post, expect, 
   expect(sails.config.custom.slipwayIsSetup).toBe(true)
 
   const founder = await sails.models.user.findOne({ email: 'founder@example.com' })
-  assert.ok(founder)
-  assert.equal(founder.isGenesisUser, true)
-  assert.equal(founder.teamRole, 'owner')
+  expect(Boolean(founder)).toBe(true)
+  expect(founder.isGenesisUser).toBe(true)
+  expect(founder.teamRole).toBe('owner')
 
   const team = await sails.models.team.findOne({ owner: founder.id })
-  assert.ok(team)
-  assert.equal(team.name, "Founder's Team")
-  assert.equal(founder.team, team.id)
+  expect(Boolean(team)).toBe(true)
+  expect(team.name).toBe("Founder's Team")
+  expect(founder.team).toBe(team.id)
 })
 
 test('setup path is blocked once the genesis owner exists', async ({ get, expect, sails }) => {

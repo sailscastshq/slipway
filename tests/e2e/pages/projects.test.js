@@ -1,4 +1,3 @@
-const assert = require('node:assert/strict')
 const { test } = require('sounding')
 
 const INERTIA_HEADERS = {
@@ -32,15 +31,15 @@ test('genesis user can create a project, environment, and app', async ({ sails, 
   expect(createProject).toRedirectTo('/projects/launch-pad')
 
   const project = await sails.models.project.findOne({ slug: 'launch-pad' })
-  assert.ok(project)
-  assert.equal(project.team, current.teams.genesisTeam.id)
+  expect(Boolean(project)).toBe(true)
+  expect(project.team).toBe(current.teams.genesisTeam.id)
 
   const production = await sails.models.environment.findOne({
     project: project.id,
     slug: 'production',
   })
-  assert.ok(production)
-  assert.equal(production.isProduction, true)
+  expect(Boolean(production)).toBe(true)
+  expect(production.isProduction).toBe(true)
 
   const createEnvironment = await request.post('/projects/launch-pad/environments', {
     name: 'Staging',
@@ -53,8 +52,8 @@ test('genesis user can create a project, environment, and app', async ({ sails, 
     project: project.id,
     slug: 'staging',
   })
-  assert.ok(staging)
-  assert.equal(staging.isProduction, false)
+  expect(Boolean(staging)).toBe(true)
+  expect(staging.isProduction).toBe(false)
 
   const createApp = await request.post('/projects/launch-pad/environments/staging/apps', {
     name: 'Web',
@@ -69,9 +68,9 @@ test('genesis user can create a project, environment, and app', async ({ sails, 
     environment: staging.id,
     slug: 'web',
   })
-  assert.ok(app)
-  assert.equal(app.name, 'Web')
-  assert.equal(app.isDefault, true)
+  expect(Boolean(app)).toBe(true)
+  expect(app.name).toBe('Web')
+  expect(app.isDefault).toBe(true)
 
   const environmentPage = await inertia.get('/projects/launch-pad/environments/staging')
   expect(environmentPage).toHaveStatus(200)
