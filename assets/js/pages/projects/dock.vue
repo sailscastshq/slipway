@@ -401,6 +401,12 @@ async function fetchDiff() {
     const data = await res.json()
 
     if (!res.ok) {
+      diff.value = null
+      selectedModels.value = new Set()
+      diffError.value = data.error || data.message || 'Failed to load diff'
+    } else if (!Array.isArray(data.statements)) {
+      diff.value = null
+      selectedModels.value = new Set()
       diffError.value = data.error || data.message || 'Failed to load diff'
     } else {
       diff.value = data

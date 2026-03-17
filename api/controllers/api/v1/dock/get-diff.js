@@ -77,10 +77,23 @@ module.exports = {
         modelsResult = await sails.helpers.dock.getModelsStatic(project.slug)
         modelsSource = 'static'
       } catch (err) {
-        // Neither method worked
-        sails.log.error('[dock] Could not read models:', err)
+        const normalizedError = normalizeModelsReadError(err)
+
+        if (normalizedError.code === 'modelsSourceNotFound') {
+          sails.log.warn('[dock] Could not read static models because the source directory is missing.')
+        } else {
+          sails.log.error('[dock] Could not read models:', err)
+        }
+
         this.res.status(400)
-        return { error: 'Could not read models. Push source code first.' }
+        return {
+          error: normalizedError.message,
+          code: normalizedError.code,
+          diff: emptyDiff(),
+          statements: [],
+          hasPendingChanges: false,
+          modelsSource
+        }
       }
     }
 
@@ -114,5 +127,30 @@ module.exports = {
       hasPendingChanges: statements.length > 0,
       modelsSource // 'runtime' or 'static'
     }
+  }
+}
+
+function normalizeModelsReadError(err) {
+  if (err?.code === 'notFound' || err?.exit === 'notFound' || err === 'notFound') {
+    return {
+      code: 'modelsSourceNotFound',
+      message: 'Could not read models because the source directory was not found. Push source code first.'
+    }
+  }
+
+  return {
+    code: 'modelsReadFailed',
+    message: 'Could not read models. Push source code first.'
+  }
+}
+
+function emptyDiff() {
+  return {
+    tablesToCreate: [],
+    tablesToDrop: [],
+    columnsToAdd: [],
+    columnsToModify: [],
+    columnsToDrop: [],
+    indexesToCreate: []
   }
 }
