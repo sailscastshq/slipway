@@ -1,5 +1,4 @@
-const { afterEach, describe, it } = require('node:test')
-const assert = require('node:assert/strict')
+const { test } = require('sounding')
 
 const environmentModel = require('../../../api/models/Environment')
 const generateRouteConfig = require('../../../api/helpers/caddy/generate-route-config')
@@ -38,14 +37,14 @@ function mockEnvironmentModel(environmentRecord, { wildcardDomain = null, slipwa
   return global.Environment
 }
 
-afterEach(() => {
+function restoreGlobals() {
   global.sails = originalGlobals.sails
   global.Environment = originalGlobals.Environment
   global.App = originalGlobals.App
-})
+}
 
-describe('Environment domain resolution', () => {
-  it('uses generated hostname as the primary domain when no custom domain is set', async () => {
+test('environment uses the generated hostname as the primary domain when no custom domain is set', async ({ expect }) => {
+  try {
     const Environment = mockEnvironmentModel(
       {
         id: 'env-1',
@@ -58,14 +57,18 @@ describe('Environment domain resolution', () => {
 
     const resolved = await Environment.resolveDomains('env-1')
 
-    assert.deepEqual(resolved, {
+    expect(resolved).toEqual({
       fullDomain: 'my-app-production.apps.example.com',
       generatedDomain: 'my-app-production.apps.example.com',
       domains: ['my-app-production.apps.example.com']
     })
-  })
+  } finally {
+    restoreGlobals()
+  }
+})
 
-  it('keeps the generated hostname as a fallback when a custom domain is present', async () => {
+test('environment keeps the generated hostname as a fallback when a custom domain is present', async ({ expect }) => {
+  try {
     const Environment = mockEnvironmentModel(
       {
         id: 'env-2',
@@ -78,14 +81,18 @@ describe('Environment domain resolution', () => {
 
     const resolved = await Environment.resolveDomains('env-2')
 
-    assert.deepEqual(resolved, {
+    expect(resolved).toEqual({
       fullDomain: 'app.example.com',
       generatedDomain: 'my-app-production.apps.example.com',
       domains: ['app.example.com', 'my-app-production.apps.example.com']
     })
-  })
+  } finally {
+    restoreGlobals()
+  }
+})
 
-  it('returns no hostname routes when neither wildcard nor slipwayDomain is available', async () => {
+test('environment returns no hostname routes when neither wildcard nor slipwayDomain is available', async ({ expect }) => {
+  try {
     const Environment = mockEnvironmentModel(
       {
         id: 'env-3',
@@ -98,16 +105,18 @@ describe('Environment domain resolution', () => {
 
     const resolved = await Environment.resolveDomains('env-3')
 
-    assert.deepEqual(resolved, {
+    expect(resolved).toEqual({
       fullDomain: null,
       generatedDomain: null,
       domains: []
     })
-  })
+  } finally {
+    restoreGlobals()
+  }
 })
 
-describe('Caddy route generation', () => {
-  it('matches both the custom and generated hostnames when both exist', async () => {
+test('caddy route generation matches both the custom and generated hostnames when both exist', async ({ expect }) => {
+  try {
     mockEnvironmentModel(
       {
         id: 'env-4',
@@ -130,8 +139,13 @@ describe('Caddy route generation', () => {
 
     const config = await generateRouteConfig.fn({ environmentId: 'env-4' })
 
-    assert.equal(config.domain, 'app.example.com')
-    assert.deepEqual(config.domains, ['app.example.com', 'my-app-production.apps.example.com'])
-    assert.deepEqual(config.route.match[0].host, ['app.example.com', 'my-app-production.apps.example.com'])
-  })
+    expect(config.domain).toBe('app.example.com')
+    expect(config.domains).toEqual(['app.example.com', 'my-app-production.apps.example.com'])
+    expect(config.route.match[0].host).toEqual([
+      'app.example.com',
+      'my-app-production.apps.example.com',
+    ])
+  } finally {
+    restoreGlobals()
+  }
 })

@@ -8,8 +8,8 @@
 // In-memory store for pending CLI auth sessions
 const sessions = new Map()
 
-// Clean up expired sessions periodically
-setInterval(() => {
+// Keep stale auth codes from piling up without pinning the test process open.
+const cleanupInterval = setInterval(() => {
   const now = Date.now()
   for (const [code, session] of sessions) {
     if (session.expiresAt < now) {
@@ -17,6 +17,10 @@ setInterval(() => {
     }
   }
 }, 60 * 1000) // Every minute
+
+if (typeof cleanupInterval.unref === 'function') {
+  cleanupInterval.unref()
+}
 
 module.exports = {
   friendlyName: 'CLI auth sessions',
