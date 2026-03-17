@@ -48,11 +48,13 @@ module.exports = function defineLookoutHook(sails) {
 
       // Pre-fetch all running apps and services for matching
       const apps = await App.find({ status: 'running' }).populate('environment')
-      const services = await Service.find({ status: 'running' }).populate('environment')
+      const services = await Service.find({ status: 'running' }).populate(
+        'environment'
+      )
       const now = Date.now()
 
       // Health check: detect containers that are in DB as 'running' but missing from docker stats
-      const runningContainerNames = new Set((stats || []).map(s => s.name))
+      const runningContainerNames = new Set((stats || []).map((s) => s.name))
       await checkHealth(apps, services, runningContainerNames, now)
 
       if (!stats || stats.length === 0) {
@@ -60,7 +62,9 @@ module.exports = function defineLookoutHook(sails) {
       }
 
       // Filter to slipway-managed containers only
-      const slipwayStats = stats.filter(s => s.name && s.name.startsWith('slipway-'))
+      const slipwayStats = stats.filter(
+        (s) => s.name && s.name.startsWith('slipway-')
+      )
 
       if (slipwayStats.length === 0) {
         return
@@ -70,7 +74,7 @@ module.exports = function defineLookoutHook(sails) {
 
       for (const stat of slipwayStats) {
         // Try to match to an app first
-        const matchedApp = apps.find(a => a.containerName === stat.name)
+        const matchedApp = apps.find((a) => a.containerName === stat.name)
         if (matchedApp) {
           records.push({
             containerName: stat.name,
@@ -91,7 +95,9 @@ module.exports = function defineLookoutHook(sails) {
         }
 
         // Try to match to a service
-        const matchedService = services.find(s => s.containerName === stat.name)
+        const matchedService = services.find(
+          (s) => s.containerName === stat.name
+        )
         if (matchedService) {
           records.push({
             containerName: stat.name,
@@ -142,18 +148,23 @@ module.exports = function defineLookoutHook(sails) {
       }
 
       // Prune container metrics older than 24 hours
-      const cutoff = now - (24 * 60 * 60 * 1000)
+      const cutoff = now - 24 * 60 * 60 * 1000
       await ContainerMetric.destroy({ recordedAt: { '<': cutoff } })
 
       // Prune telemetry data older than 7 days (runs alongside metric collection)
-      const telemetryCutoff = now - (7 * 24 * 60 * 60 * 1000)
-      await TelemetrySpan.destroy({ startedAt: { '<': telemetryCutoff } }).tolerate('error')
-      await TelemetryException.destroy({ occurredAt: { '<': telemetryCutoff } }).tolerate('error')
-      await TelemetryMetric.destroy({ recordedAt: { '<': telemetryCutoff } }).tolerate('error')
+      const telemetryCutoff = now - 7 * 24 * 60 * 60 * 1000
+      await TelemetrySpan.destroy({
+        startedAt: { '<': telemetryCutoff }
+      }).tolerate('error')
+      await TelemetryException.destroy({
+        occurredAt: { '<': telemetryCutoff }
+      }).tolerate('error')
+      await TelemetryMetric.destroy({
+        recordedAt: { '<': telemetryCutoff }
+      }).tolerate('error')
 
       // Check host disk space (every cycle, but alert on cooldown)
       await checkDiskSpace(now)
-
     } catch (err) {
       sails.log.warn('Lookout: Error collecting metrics:', err.message)
     }
@@ -166,7 +177,8 @@ module.exports = function defineLookoutHook(sails) {
   async function checkHealth(apps, services, runningContainerNames, now) {
     try {
       for (const app of apps) {
-        if (!app.containerName || runningContainerNames.has(app.containerName)) continue
+        if (!app.containerName || runningContainerNames.has(app.containerName))
+          continue
 
         // Container is not in docker stats — it's down
         sails.log.warn(`Lookout: Container down: ${app.containerName} (app)`)
@@ -175,7 +187,7 @@ module.exports = function defineLookoutHook(sails) {
         // Check cooldown before alerting
         const cooldownKey = `down:${app.containerName}`
         const lastAlert = alertCooldowns.get(cooldownKey)
-        if (lastAlert && (now - lastAlert) < ALERT_COOLDOWN_MS) continue
+        if (lastAlert && now - lastAlert < ALERT_COOLDOWN_MS) continue
         alertCooldowns.set(cooldownKey, now)
 
         try {
@@ -184,19 +196,28 @@ module.exports = function defineLookoutHook(sails) {
             resourceType: 'app'
           })
         } catch (alertErr) {
-          sails.log.verbose('Lookout: Failed to send container down alert:', alertErr.message)
+          sails.log.verbose(
+            'Lookout: Failed to send container down alert:',
+            alertErr.message
+          )
         }
       }
 
       for (const service of services) {
-        if (!service.containerName || runningContainerNames.has(service.containerName)) continue
+        if (
+          !service.containerName ||
+          runningContainerNames.has(service.containerName)
+        )
+          continue
 
-        sails.log.warn(`Lookout: Container down: ${service.containerName} (service)`)
+        sails.log.warn(
+          `Lookout: Container down: ${service.containerName} (service)`
+        )
         await Service.updateOne({ id: service.id }).set({ status: 'stopped' })
 
         const cooldownKey = `down:${service.containerName}`
         const lastAlert = alertCooldowns.get(cooldownKey)
-        if (lastAlert && (now - lastAlert) < ALERT_COOLDOWN_MS) continue
+        if (lastAlert && now - lastAlert < ALERT_COOLDOWN_MS) continue
         alertCooldowns.set(cooldownKey, now)
 
         try {
@@ -205,7 +226,10 @@ module.exports = function defineLookoutHook(sails) {
             resourceType: 'service'
           })
         } catch (alertErr) {
-          sails.log.verbose('Lookout: Failed to send container down alert:', alertErr.message)
+          sails.log.verbose(
+            'Lookout: Failed to send container down alert:',
+            alertErr.message
+          )
         }
       }
     } catch (err) {
@@ -225,7 +249,8 @@ module.exports = function defineLookoutHook(sails) {
       for (const app of apps) {
         if (!app.containerName) continue
 
-        const lastCollected = lastLogCollection.get(app.containerName) || (now - 5 * 60 * 1000)
+        const lastCollected =
+          lastLogCollection.get(app.containerName) || now - 5 * 60 * 1000
         const sinceSeconds = Math.floor((now - lastCollected) / 1000)
 
         const result = await sails.helpers.docker.collectLogs.with({
@@ -249,7 +274,7 @@ module.exports = function defineLookoutHook(sails) {
       }
 
       // Prune app logs older than 7 days
-      const logCutoff = now - (7 * 24 * 60 * 60 * 1000)
+      const logCutoff = now - 7 * 24 * 60 * 60 * 1000
       await AppLog.destroy({ endedAt: { '<': logCutoff } })
     } catch (err) {
       sails.log.verbose('Lookout: Error collecting logs:', err.message)
@@ -260,26 +285,22 @@ module.exports = function defineLookoutHook(sails) {
     try {
       const cooldownKey = 'disk:space'
       const lastAlert = alertCooldowns.get(cooldownKey)
-      if (lastAlert && (now - lastAlert) < ALERT_COOLDOWN_MS) return
+      if (lastAlert && now - lastAlert < ALERT_COOLDOWN_MS) return
 
-      const { execFile: execFileCb } = require('child_process')
-      const diskInfo = await new Promise((resolve, reject) => {
-        execFileCb('df', ['-h', '/'], (err, stdout) => {
-          if (err) return reject(err)
-          const lines = stdout.trim().split('\n')
-          if (lines.length < 2) return reject(new Error('Unexpected df output'))
-          const parts = lines[1].split(/\s+/)
-          resolve({ usedPercent: parseInt(parts[4], 10), available: parts[3] })
-        })
-      })
+      const diskInfo = await sails.helpers.lookout.getDiskSpace()
+      if (!diskInfo) return
 
       if (diskInfo.usedPercent >= 90) {
         alertCooldowns.set(cooldownKey, now)
-        sails.log.warn(`Lookout: Disk space critical — ${diskInfo.usedPercent}% used, ${diskInfo.available} available`)
-        await sails.helpers.notification.sendDiskSpaceAlert.with({
-          usedPercent: diskInfo.usedPercent,
-          availableGb: diskInfo.available
-        }).tolerate('error')
+        sails.log.warn(
+          `Lookout: Disk space critical — ${diskInfo.usedPercent}% used, ${diskInfo.available} available`
+        )
+        await sails.helpers.notification.sendDiskSpaceAlert
+          .with({
+            usedPercent: diskInfo.usedPercent,
+            availableGb: diskInfo.available
+          })
+          .tolerate('error')
       }
     } catch (err) {
       sails.log.verbose('Lookout: Disk space check error:', err.message)
@@ -296,7 +317,7 @@ module.exports = function defineLookoutHook(sails) {
 
     // Check cooldown
     const lastAlert = alertCooldowns.get(containerName)
-    if (lastAlert && (now - lastAlert) < ALERT_COOLDOWN_MS) {
+    if (lastAlert && now - lastAlert < ALERT_COOLDOWN_MS) {
       return
     }
 
@@ -314,8 +335,10 @@ module.exports = function defineLookoutHook(sails) {
       return
     }
 
-    const sustainedCpuHigh = cpuHigh && recentMetrics.every(m => m.cpuPercent > 90)
-    const sustainedMemHigh = memHigh && recentMetrics.every(m => m.memoryPercent > 90)
+    const sustainedCpuHigh =
+      cpuHigh && recentMetrics.every((m) => m.cpuPercent > 90)
+    const sustainedMemHigh =
+      memHigh && recentMetrics.every((m) => m.memoryPercent > 90)
 
     if (!sustainedCpuHigh && !sustainedMemHigh) {
       return
@@ -332,7 +355,10 @@ module.exports = function defineLookoutHook(sails) {
         memHigh: sustainedMemHigh
       })
     } catch (alertErr) {
-      sails.log.verbose('Lookout: Failed to send resource alert:', alertErr.message)
+      sails.log.verbose(
+        'Lookout: Failed to send resource alert:',
+        alertErr.message
+      )
     }
   }
 }

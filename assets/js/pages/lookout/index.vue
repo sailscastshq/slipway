@@ -12,6 +12,10 @@ const props = defineProps({
     type: Array,
     default: () => []
   },
+  hostDisk: {
+    type: Object,
+    default: null
+  },
   telemetrySummary: {
     type: Object,
     default: () => ({})
@@ -43,14 +47,15 @@ const projects = computed(() => {
 const filteredContainers = computed(() => {
   let result = props.containers
   if (selectedProject.value !== 'all') {
-    result = result.filter(c => c.project?.slug === selectedProject.value)
+    result = result.filter((c) => c.project?.slug === selectedProject.value)
   }
   if (searchQuery.value) {
     const q = searchQuery.value.toLowerCase()
-    result = result.filter(c =>
-      c.name.toLowerCase().includes(q) ||
-      c.project?.name?.toLowerCase().includes(q) ||
-      c.environment?.name?.toLowerCase().includes(q)
+    result = result.filter(
+      (c) =>
+        c.name.toLowerCase().includes(q) ||
+        c.project?.name?.toLowerCase().includes(q) ||
+        c.environment?.name?.toLowerCase().includes(q)
     )
   }
   return result
@@ -88,14 +93,18 @@ function selectProject(slug) {
 
 const selectedProjectName = computed(() => {
   if (selectedProject.value === 'all') return 'All projects'
-  return projects.value.find(p => p.slug === selectedProject.value)?.name || 'All projects'
+  return (
+    projects.value.find((p) => p.slug === selectedProject.value)?.name ||
+    'All projects'
+  )
 })
 
 function formatBytes(bytes) {
   if (!bytes) return '0 B'
   if (bytes < 1024) return `${bytes} B`
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+  if (bytes < 1024 * 1024 * 1024)
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`
 }
 
@@ -116,6 +125,26 @@ function memBarColor(percent) {
   if (percent > 70) return 'bg-yellow-500'
   return 'bg-blue-500'
 }
+
+function diskTextColor(percent) {
+  if (percent >= 90) return 'text-red-600 dark:text-red-400'
+  if (percent >= 75) return 'text-yellow-600 dark:text-yellow-400'
+  return 'text-emerald-600 dark:text-emerald-400'
+}
+
+function diskBarColor(percent) {
+  if (percent >= 90) return 'bg-red-500'
+  if (percent >= 75) return 'bg-yellow-500'
+  return 'bg-emerald-500'
+}
+
+const diskStatusLabel = computed(() => {
+  const usedPercent = props.hostDisk?.usedPercent ?? 0
+  if (!props.hostDisk) return 'Unavailable'
+  if (usedPercent >= 90) return 'Critical'
+  if (usedPercent >= 75) return 'Watching'
+  return 'Healthy'
+})
 
 function timeAgo(timestamp) {
   if (!timestamp) return ''
@@ -141,31 +170,95 @@ function envTelemetry(container) {
   <Head title="Lookout | Slipway"></Head>
   <div class="flex h-full flex-col">
     <!-- Header -->
-    <div class="flex items-center justify-between border-b border-gray-200 py-4 pl-4 pr-4 dark:border-gray-800 sm:pl-4 sm:pr-8">
+    <div
+      class="flex items-center justify-between border-b border-gray-200 py-4 pl-4 pr-4 dark:border-gray-800 sm:pl-4 sm:pr-8"
+    >
       <div class="flex items-center space-x-3">
         <button
           @click="toggleMobileMenu"
           class="rounded-md p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white md:hidden"
         >
-          <svg class="h-5 w-5" viewBox="-0.5 -0.5 16 16" fill="none" stroke="currentColor">
-            <path d="M12.777 14.285H2.223c-.833 0-1.508-.675-1.508-1.508V2.223c0-.833.675-1.508 1.508-1.508h10.554c.833 0 1.508.675 1.508 1.508v10.554c0 .833-.675 1.508-1.508 1.508Z" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
-            <path d="M5.615 14.285V.715" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
-            <path d="M2.6 5.992 3.919 7.5 2.6 9.008" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
+          <svg
+            class="h-5 w-5"
+            viewBox="-0.5 -0.5 16 16"
+            fill="none"
+            stroke="currentColor"
+          >
+            <path
+              d="M12.777 14.285H2.223c-.833 0-1.508-.675-1.508-1.508V2.223c0-.833.675-1.508 1.508-1.508h10.554c.833 0 1.508.675 1.508 1.508v10.554c0 .833-.675 1.508-1.508 1.508Z"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1"
+            />
+            <path
+              d="M5.615 14.285V.715"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1"
+            />
+            <path
+              d="M2.6 5.992 3.919 7.5 2.6 9.008"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1"
+            />
           </svg>
         </button>
         <button
           @click="toggleSidebar"
           class="hidden text-gray-400 dark:text-gray-500 md:block"
         >
-          <svg v-if="sidebarCollapsed" class="h-5 w-5" viewBox="-0.5 -0.5 16 16" fill="none" stroke="currentColor">
-            <path d="M12.777 14.285H2.223c-.833 0-1.508-.675-1.508-1.508V2.223c0-.833.675-1.508 1.508-1.508h10.554c.833 0 1.508.675 1.508 1.508v10.554c0 .833-.675 1.508-1.508 1.508Z" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
-            <path d="M5.615 14.285V.715" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
-            <path d="M2.6 5.992 3.919 7.5 2.6 9.008" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
+          <svg
+            v-if="sidebarCollapsed"
+            class="h-5 w-5"
+            viewBox="-0.5 -0.5 16 16"
+            fill="none"
+            stroke="currentColor"
+          >
+            <path
+              d="M12.777 14.285H2.223c-.833 0-1.508-.675-1.508-1.508V2.223c0-.833.675-1.508 1.508-1.508h10.554c.833 0 1.508.675 1.508 1.508v10.554c0 .833-.675 1.508-1.508 1.508Z"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1"
+            />
+            <path
+              d="M5.615 14.285V.715"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1"
+            />
+            <path
+              d="M2.6 5.992 3.919 7.5 2.6 9.008"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1"
+            />
           </svg>
-          <svg v-else class="h-5 w-5" viewBox="-0.5 -0.5 16 16" fill="none" stroke="currentColor">
-            <path d="M12.777 14.285H2.223c-.833 0-1.508-.675-1.508-1.508V2.223c0-.833.675-1.508 1.508-1.508h10.554c.833 0 1.508.675 1.508 1.508v10.554c0 .833-.675 1.508-1.508 1.508Z" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
-            <path d="M5.615 14.285V.715" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
-            <path d="M3.919 5.992 2.6 7.5l1.319 1.508" stroke-linecap="round" stroke-linejoin="round" stroke-width="1" />
+          <svg
+            v-else
+            class="h-5 w-5"
+            viewBox="-0.5 -0.5 16 16"
+            fill="none"
+            stroke="currentColor"
+          >
+            <path
+              d="M12.777 14.285H2.223c-.833 0-1.508-.675-1.508-1.508V2.223c0-.833.675-1.508 1.508-1.508h10.554c.833 0 1.508.675 1.508 1.508v10.554c0 .833-.675 1.508-1.508 1.508Z"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1"
+            />
+            <path
+              d="M5.615 14.285V.715"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1"
+            />
+            <path
+              d="M3.919 5.992 2.6 7.5l1.319 1.508"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1"
+            />
           </svg>
         </button>
         <span class="font-medium text-gray-900 dark:text-white">Lookout</span>
@@ -178,7 +271,9 @@ function envTelemetry(container) {
         <!-- Header -->
         <div class="mb-8 flex items-start justify-between">
           <div>
-            <h1 class="text-xl font-semibold text-gray-900 dark:text-white">Infrastructure</h1>
+            <h1 class="text-xl font-semibold text-gray-900 dark:text-white">
+              Infrastructure
+            </h1>
             <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
               Monitor resource usage across all running containers.
             </p>
@@ -190,15 +285,35 @@ function envTelemetry(container) {
               @click.stop="filterOpen = !filterOpen"
               class="flex items-center space-x-2 rounded-md border border-gray-200 bg-white px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
             >
-              <svg class="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+              <svg
+                class="h-4 w-4 text-gray-400"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"
+                />
               </svg>
               <span>{{ selectedProjectName }}</span>
               <svg
-                :class="['h-3.5 w-3.5 text-gray-400 transition-transform', filterOpen ? 'rotate-180' : '']"
-                fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                :class="[
+                  'h-3.5 w-3.5 text-gray-400 transition-transform',
+                  filterOpen ? 'rotate-180' : ''
+                ]"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
               >
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M19 9l-7 7-7-7"
+                />
               </svg>
             </button>
             <Transition
@@ -218,27 +333,55 @@ function envTelemetry(container) {
                   @click="selectProject('all')"
                   :class="[
                     'flex w-full items-center px-3 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-800',
-                    selectedProject === 'all' ? 'text-gray-900 dark:text-white' : 'text-gray-600 dark:text-gray-400'
+                    selectedProject === 'all'
+                      ? 'text-gray-900 dark:text-white'
+                      : 'text-gray-600 dark:text-gray-400'
                   ]"
                 >
                   All projects
-                  <svg v-if="selectedProject === 'all'" class="ml-auto h-4 w-4 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                  <svg
+                    v-if="selectedProject === 'all'"
+                    class="ml-auto h-4 w-4 text-emerald-500"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M5 13l4 4L19 7"
+                    />
                   </svg>
                 </button>
-                <div class="my-1 border-t border-gray-100 dark:border-gray-800"></div>
+                <div
+                  class="my-1 border-t border-gray-100 dark:border-gray-800"
+                ></div>
                 <button
                   v-for="p in projects"
                   :key="p.slug"
                   @click="selectProject(p.slug)"
                   :class="[
                     'flex w-full items-center px-3 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-800',
-                    selectedProject === p.slug ? 'text-gray-900 dark:text-white' : 'text-gray-600 dark:text-gray-400'
+                    selectedProject === p.slug
+                      ? 'text-gray-900 dark:text-white'
+                      : 'text-gray-600 dark:text-gray-400'
                   ]"
                 >
                   {{ p.name }}
-                  <svg v-if="selectedProject === p.slug" class="ml-auto h-4 w-4 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                  <svg
+                    v-if="selectedProject === p.slug"
+                    class="ml-auto h-4 w-4 text-emerald-500"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M5 13l4 4L19 7"
+                    />
                   </svg>
                 </button>
               </div>
@@ -246,44 +389,191 @@ function envTelemetry(container) {
           </div>
         </div>
 
+        <section
+          class="mb-6 overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900"
+        >
+          <div
+            class="border-b border-gray-100 bg-gray-50/80 px-4 py-3 dark:border-gray-800 dark:bg-gray-900/80 sm:px-5"
+          >
+            <div class="flex items-center justify-between gap-3">
+              <div>
+                <p class="text-sm font-medium text-gray-900 dark:text-white">
+                  Host disk
+                </p>
+                <p class="text-xs text-gray-500 dark:text-gray-400">
+                  Root volume usage across this Slipway host.
+                </p>
+              </div>
+              <span
+                :class="[
+                  'inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium',
+                  props.hostDisk
+                    ? 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300'
+                    : 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400'
+                ]"
+              >
+                {{ diskStatusLabel }}
+              </span>
+            </div>
+          </div>
+
+          <div class="px-4 py-4 sm:px-5">
+            <div
+              class="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between"
+            >
+              <div>
+                <div class="flex items-end gap-3">
+                  <span
+                    :class="[
+                      'text-3xl font-semibold tabular-nums sm:text-4xl',
+                      diskTextColor(props.hostDisk?.usedPercent ?? 0)
+                    ]"
+                  >
+                    {{
+                      props.hostDisk ? `${props.hostDisk.usedPercent}%` : '—'
+                    }}
+                  </span>
+                  <span class="pb-1 text-sm text-gray-500 dark:text-gray-400">
+                    used on {{ props.hostDisk?.mount || '/' }}
+                  </span>
+                </div>
+                <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">
+                  {{
+                    props.hostDisk
+                      ? `${props.hostDisk.used} used of ${props.hostDisk.total}`
+                      : 'Disk metrics are currently unavailable.'
+                  }}
+                </p>
+              </div>
+
+              <dl
+                class="grid grid-cols-2 gap-4 sm:flex sm:flex-wrap sm:justify-end sm:gap-6"
+              >
+                <div>
+                  <dt
+                    class="text-xs uppercase tracking-wide text-gray-400 dark:text-gray-500"
+                  >
+                    Available
+                  </dt>
+                  <dd
+                    class="mt-1 text-sm font-medium text-gray-900 dark:text-white"
+                  >
+                    {{ props.hostDisk?.available || 'Unavailable' }}
+                  </dd>
+                </div>
+                <div>
+                  <dt
+                    class="text-xs uppercase tracking-wide text-gray-400 dark:text-gray-500"
+                  >
+                    Total
+                  </dt>
+                  <dd
+                    class="mt-1 text-sm font-medium text-gray-900 dark:text-white"
+                  >
+                    {{ props.hostDisk?.total || 'Unavailable' }}
+                  </dd>
+                </div>
+                <div>
+                  <dt
+                    class="text-xs uppercase tracking-wide text-gray-400 dark:text-gray-500"
+                  >
+                    Alert
+                  </dt>
+                  <dd
+                    class="mt-1 text-sm font-medium text-gray-900 dark:text-white"
+                  >
+                    90%
+                  </dd>
+                </div>
+              </dl>
+            </div>
+
+            <div class="mt-4">
+              <div
+                class="mb-1 flex items-center justify-between text-xs text-gray-500 dark:text-gray-400"
+              >
+                <span>{{
+                  props.hostDisk ? 'Current usage' : 'Waiting for disk metrics'
+                }}</span>
+                <span v-if="props.hostDisk" class="tabular-nums"
+                  >{{ props.hostDisk.usedPercent }}%</span
+                >
+              </div>
+              <div
+                class="h-2 overflow-hidden rounded-full bg-gray-100 dark:bg-gray-800"
+              >
+                <div
+                  :class="[
+                    'h-full rounded-full transition-all',
+                    diskBarColor(props.hostDisk?.usedPercent ?? 0)
+                  ]"
+                  :style="{
+                    width: `${Math.min(props.hostDisk?.usedPercent ?? 0, 100)}%`
+                  }"
+                ></div>
+              </div>
+            </div>
+          </div>
+        </section>
+
         <!-- Search -->
         <div v-if="containers.length > 0" class="mb-6">
           <input
             v-model="searchQuery"
             type="text"
             placeholder="Filter containers..."
-            class="w-full max-w-xs border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:border-brand focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
+            class="focus:border-brand w-full max-w-xs border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
           />
         </div>
 
         <!-- Empty state -->
         <div v-if="containers.length === 0" class="py-20 text-center">
-          <svg class="mx-auto h-12 w-12 text-gray-300 dark:text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+          <svg
+            class="mx-auto h-12 w-12 text-gray-300 dark:text-gray-600"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1.5"
+              d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
+            />
           </svg>
-          <h3 class="mt-4 text-sm font-medium text-gray-900 dark:text-white">No running containers</h3>
+          <h3 class="mt-4 text-sm font-medium text-gray-900 dark:text-white">
+            No running containers
+          </h3>
           <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
             Deploy an application to start seeing infrastructure metrics.
           </p>
         </div>
 
         <!-- Grouped by project -->
-        <div v-for="group in groupedByProject" :key="group.project?.slug" class="mb-8">
+        <div
+          v-for="group in groupedByProject"
+          :key="group.project?.slug"
+          class="mb-8"
+        >
           <!-- Project heading -->
           <div class="mb-2 flex items-center space-x-2">
             <Link
               :href="`/projects/${group.project?.slug}`"
-              class="text-sm font-medium text-gray-900 underline decoration-dashed decoration-gray-300 underline-offset-2 hover:text-gray-700 dark:text-white dark:decoration-gray-600 dark:hover:text-gray-300"
+              class="text-sm font-medium text-gray-900 underline decoration-gray-300 decoration-dashed underline-offset-2 hover:text-gray-700 dark:text-white dark:decoration-gray-600 dark:hover:text-gray-300"
             >
               {{ group.project?.name }}
             </Link>
             <span class="text-xs text-gray-400 dark:text-gray-500">
-              {{ group.apps.length + group.services.length }} container{{ group.apps.length + group.services.length !== 1 ? 's' : '' }}
+              {{ group.apps.length + group.services.length }} container{{
+                group.apps.length + group.services.length !== 1 ? 's' : ''
+              }}
             </span>
           </div>
 
           <!-- Container rows -->
-          <div class="overflow-hidden rounded-lg border border-gray-200 dark:border-gray-800">
+          <div
+            class="overflow-hidden rounded-lg border border-gray-200 dark:border-gray-800"
+          >
             <Link
               v-for="(container, i) in [...group.apps, ...group.services]"
               :key="container.name"
@@ -296,73 +586,130 @@ function envTelemetry(container) {
               <!-- Type badge -->
               <span
                 v-if="container.type === 'app'"
-                class="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded bg-brand/10 text-[10px] font-bold text-brand"
-              >AP</span>
+                class="bg-brand/10 text-brand inline-flex h-7 w-7 shrink-0 items-center justify-center rounded text-[10px] font-bold"
+                >AP</span
+              >
               <span
                 v-else
                 class="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded bg-gray-100 text-[10px] font-bold text-gray-600 dark:bg-gray-800 dark:text-gray-300"
-              >{{ serviceIcon(container.serviceType) }}</span>
+                >{{ serviceIcon(container.serviceType) }}</span
+              >
 
               <!-- Name + environment -->
               <div class="min-w-0 flex-1">
-                <div class="truncate text-sm font-medium text-gray-900 dark:text-white">
-                  {{ container.type === 'app' ? (container.project?.name || container.name) : container.name }}
+                <div
+                  class="truncate text-sm font-medium text-gray-900 dark:text-white"
+                >
+                  {{
+                    container.type === 'app'
+                      ? container.project?.name || container.name
+                      : container.name
+                  }}
                 </div>
-                <div class="text-xs text-gray-500 dark:text-gray-400">{{ container.environment?.name }}</div>
+                <div class="text-xs text-gray-500 dark:text-gray-400">
+                  {{ container.environment?.name }}
+                </div>
               </div>
 
               <!-- Status dot -->
               <span class="h-2 w-2 shrink-0 rounded-full bg-emerald-500"></span>
 
               <!-- Telemetry badges (if app has telemetry data) -->
-              <div v-if="container.type === 'app' && envTelemetry(container)" class="hidden items-center space-x-1.5 lg:flex">
-                <span class="rounded bg-blue-50 px-1.5 py-0.5 text-[10px] font-medium text-blue-600 dark:bg-blue-900/20 dark:text-blue-400">
+              <div
+                v-if="container.type === 'app' && envTelemetry(container)"
+                class="hidden items-center space-x-1.5 lg:flex"
+              >
+                <span
+                  class="rounded bg-blue-50 px-1.5 py-0.5 text-[10px] font-medium text-blue-600 dark:bg-blue-900/20 dark:text-blue-400"
+                >
                   {{ envTelemetry(container).requests }} req
                 </span>
-                <span v-if="envTelemetry(container).exceptions > 0" class="rounded bg-red-50 px-1.5 py-0.5 text-[10px] font-medium text-red-600 dark:bg-red-900/20 dark:text-red-400">
+                <span
+                  v-if="envTelemetry(container).exceptions > 0"
+                  class="rounded bg-red-50 px-1.5 py-0.5 text-[10px] font-medium text-red-600 dark:bg-red-900/20 dark:text-red-400"
+                >
                   {{ envTelemetry(container).exceptions }} err
                 </span>
               </div>
 
               <!-- CPU -->
               <div class="hidden w-16 shrink-0 text-right sm:block">
-                <div class="text-[10px] text-gray-400 dark:text-gray-500">CPU</div>
-                <div v-if="container.metric" :class="['text-sm font-mono font-medium', cpuColor(container.metric.cpuPercent)]">
+                <div class="text-[10px] text-gray-400 dark:text-gray-500">
+                  CPU
+                </div>
+                <div
+                  v-if="container.metric"
+                  :class="[
+                    'font-mono text-sm font-medium',
+                    cpuColor(container.metric.cpuPercent)
+                  ]"
+                >
                   {{ container.metric.cpuPercent.toFixed(1) }}%
                 </div>
-                <div v-else class="text-xs text-gray-300 dark:text-gray-600">—</div>
+                <div v-else class="text-xs text-gray-300 dark:text-gray-600">
+                  —
+                </div>
               </div>
 
               <!-- Memory bar -->
               <div class="hidden w-36 shrink-0 sm:block">
                 <div class="flex items-center justify-between">
-                  <span class="text-[10px] text-gray-400 dark:text-gray-500">Mem</span>
-                  <span v-if="container.metric" :class="['text-xs font-mono font-medium', memColor(container.metric.memoryPercent)]">
+                  <span class="text-[10px] text-gray-400 dark:text-gray-500"
+                    >Mem</span
+                  >
+                  <span
+                    v-if="container.metric"
+                    :class="[
+                      'font-mono text-xs font-medium',
+                      memColor(container.metric.memoryPercent)
+                    ]"
+                  >
                     {{ container.metric.memoryPercent.toFixed(1) }}%
                   </span>
                 </div>
-                <div v-if="container.metric" class="mt-0.5 h-1.5 w-full overflow-hidden rounded-full bg-gray-100 dark:bg-gray-800">
+                <div
+                  v-if="container.metric"
+                  class="mt-0.5 h-1.5 w-full overflow-hidden rounded-full bg-gray-100 dark:bg-gray-800"
+                >
                   <div
-                    :class="['h-full rounded-full transition-all', memBarColor(container.metric.memoryPercent)]"
-                    :style="{ width: Math.min(container.metric.memoryPercent, 100) + '%' }"
+                    :class="[
+                      'h-full rounded-full transition-all',
+                      memBarColor(container.metric.memoryPercent)
+                    ]"
+                    :style="{
+                      width: Math.min(container.metric.memoryPercent, 100) + '%'
+                    }"
                   ></div>
                 </div>
-                <div v-if="container.metric" class="mt-0.5 flex justify-between text-[10px] text-gray-400 dark:text-gray-500">
+                <div
+                  v-if="container.metric"
+                  class="mt-0.5 flex justify-between text-[10px] text-gray-400 dark:text-gray-500"
+                >
                   <span>{{ formatBytes(container.metric.memoryUsage) }}</span>
                   <span>{{ formatBytes(container.metric.memoryLimit) }}</span>
                 </div>
-                <div v-else class="text-xs text-gray-300 dark:text-gray-600">—</div>
+                <div v-else class="text-xs text-gray-300 dark:text-gray-600">
+                  —
+                </div>
               </div>
 
               <!-- Net I/O -->
               <div class="hidden w-28 shrink-0 text-right lg:block">
-                <div class="text-[10px] text-gray-400 dark:text-gray-500">Net I/O</div>
-                <div class="text-xs text-gray-600 dark:text-gray-400">{{ container.metric?.netIO || '—' }}</div>
+                <div class="text-[10px] text-gray-400 dark:text-gray-500">
+                  Net I/O
+                </div>
+                <div class="text-xs text-gray-600 dark:text-gray-400">
+                  {{ container.metric?.netIO || '—' }}
+                </div>
               </div>
 
               <!-- Updated -->
               <div class="w-14 shrink-0 text-right">
-                <div class="text-[10px] text-gray-400 dark:text-gray-500">{{ container.metric ? timeAgo(container.metric.recordedAt) : '' }}</div>
+                <div class="text-[10px] text-gray-400 dark:text-gray-500">
+                  {{
+                    container.metric ? timeAgo(container.metric.recordedAt) : ''
+                  }}
+                </div>
               </div>
             </Link>
           </div>
