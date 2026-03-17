@@ -322,6 +322,8 @@ module.exports.routes = {
 
   // Bosun API (self-administration)
   'POST /api/v1/bosun/sql': 'api/v1/bosun/execute-sql',
+  'GET /api/v1/bosun/diff': 'api/v1/bosun/get-diff',
+  'POST /api/v1/bosun/migrate': 'api/v1/bosun/apply-migration',
   'POST /api/v1/bosun/eval': 'api/v1/bosun/eval',
   'GET /api/v1/bosun/activity': 'api/v1/bosun/get-activity',
   'PATCH /api/v1/bosun/env': 'api/v1/bosun/update-env',

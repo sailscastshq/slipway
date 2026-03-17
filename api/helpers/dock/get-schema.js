@@ -1,3 +1,6 @@
+const fs = require('fs')
+const Database = require('better-sqlite3')
+
 module.exports = {
   friendlyName: 'Get database schema',
 
@@ -20,6 +23,10 @@ module.exports = {
 
   fn: async function ({ service }) {
     let query
+
+    if (service.type === 'sqlite') {
+      return getSqliteSchema(service)
+    }
 
     if (service.type === 'postgresql') {
       query = `
@@ -111,11 +118,15 @@ module.exports = {
         const collName = col.collection
         let fields = col.fields
         if (typeof fields === 'string') {
-          try { fields = JSON.parse(fields) } catch (e) { fields = [] }
+          try {
+            fields = JSON.parse(fields)
+          } catch (e) {
+            fields = []
+          }
         }
         tables[collName] = {
           name: collName,
-          columns: (fields || []).map(f => ({
+          columns: (fields || []).map((f) => ({
             name: f.name,
             type: f.type,
             maxLength: null,
@@ -152,7 +163,9 @@ module.exports = {
       tables[tableName].columns.push({
         name: row.column_name,
         type: row.data_type,
-        maxLength: row.character_maximum_length ? parseInt(row.character_maximum_length) : null,
+        maxLength: row.character_maximum_length
+          ? parseInt(row.character_maximum_length)
+          : null,
         nullable: row.is_nullable === 'YES',
         defaultValue: row.column_default,
         primaryKey: row.is_primary_key === 'true' || row.is_primary_key === true
@@ -202,8 +215,8 @@ module.exports = {
 
         if (!indexMap[key]) {
           const isUnique = isPostgres
-            ? (row.is_unique === true || row.is_unique === 't')
-            : (row.non_unique === 0 || row.non_unique === '0')
+            ? row.is_unique === true || row.is_unique === 't'
+            : row.non_unique === 0 || row.non_unique === '0'
           indexMap[key] = {
             name: row.index_name,
             tableName: row.table_name,
@@ -228,4 +241,72 @@ module.exports = {
 
     return { tables }
   }
+}
+
+function getSqliteSchema(service) {
+  if (!service.path || !fs.existsSync(service.path)) {
+    return { tables: {}, error: 'Database file not found' }
+  }
+
+  let db
+
+  try {
+    db = new Database(service.path, { readonly: true })
+    const tableRows = db
+      .prepare(
+        `
+      SELECT name
+      FROM sqlite_master
+      WHERE type = 'table'
+        AND name NOT LIKE 'sqlite_%'
+      ORDER BY name
+    `
+      )
+      .all()
+
+    const tables = {}
+
+    for (const { name } of tableRows) {
+      const tableName = escapeSqliteIdentifier(name)
+      const columns = db.prepare(`PRAGMA table_info('${tableName}')`).all()
+      const indexes = db.prepare(`PRAGMA index_list('${tableName}')`).all()
+
+      tables[name] = {
+        name,
+        columns: columns.map((column) => ({
+          name: column.name,
+          type: column.type,
+          maxLength: null,
+          nullable: column.notnull === 0,
+          defaultValue: column.dflt_value,
+          primaryKey: column.pk > 0
+        })),
+        indexes: indexes
+          .filter((index) => index.origin !== 'pk')
+          .map((index) => {
+            const indexName = escapeSqliteIdentifier(index.name)
+            const indexColumns = db
+              .prepare(`PRAGMA index_info('${indexName}')`)
+              .all()
+            return {
+              name: index.name,
+              columns: indexColumns.map((column) => column.name),
+              unique: Boolean(index.unique)
+            }
+          })
+      }
+    }
+
+    return { tables }
+  } catch (error) {
+    return { tables: {}, error: error.message }
+  } finally {
+    if (db) {
+      db.close()
+    }
+  }
+}
+
+function escapeSqliteIdentifier(value) {
+  return String(value).replace(/'/g, "''")
 }
