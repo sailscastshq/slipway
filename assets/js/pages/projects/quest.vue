@@ -208,6 +208,15 @@ function formatSchedule(job) {
   return job.schedule || 'manual'
 }
 
+function toggleJobPause(job) {
+  if (job.paused) {
+    resumeJob(job.name)
+    return
+  }
+
+  pauseJob(job.name)
+}
+
 // eslint-disable-next-line no-control-regex
 const ANSI_RE = /\x1b\[[0-9;]*[A-Za-z]|\[\d+(?:;\d+)*m/g
 function stripAnsi(text) {
@@ -816,11 +825,7 @@ function refresh() {
                     <template v-if="job.scheduleType !== 'manual'">
                       <Tooltip :text="job.paused ? 'Resume' : 'Pause'">
                         <button
-                          @click="
-                            job.paused
-                              ? resumeJob(job.name)
-                              : pauseJob(job.name)
-                          "
+                          @click="toggleJobPause(job)"
                           :disabled="
                             pauseForm.processing || resumeForm.processing
                           "

@@ -610,6 +610,11 @@ function openImportModal() {
   window.history.replaceState({}, '', url)
 }
 
+function openImportModalFromExportActions() {
+  exportDropdownOpen.value = false
+  openImportModal()
+}
+
 function closeImportModal() {
   showImportModal.value = false
   importSql.value = ''
@@ -808,6 +813,16 @@ function exportAsCSV() {
     csvLines.push(values.join(','))
   }
   downloadFile(csvLines.join('\n'), 'query-result.csv', 'text/csv')
+}
+
+function downloadQueryResultAsJSON() {
+  showExportMenu.value = false
+  exportAsJSON()
+}
+
+function downloadQueryResultAsCSV() {
+  showExportMenu.value = false
+  exportAsCSV()
 }
 
 function copyAsJSON() {
@@ -1720,19 +1735,13 @@ onUnmounted(() => {
                     class="absolute bottom-full right-0 z-10 mb-1 w-40 rounded-md border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-800"
                   >
                     <button
-                      @click="
-                        exportAsJSON()
-                        showExportMenu = false
-                      "
+                      @click="downloadQueryResultAsJSON"
                       class="block w-full px-3 py-1.5 text-left text-xs text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
                     >
                       Download as JSON
                     </button>
                     <button
-                      @click="
-                        exportAsCSV()
-                        showExportMenu = false
-                      "
+                      @click="downloadQueryResultAsCSV"
                       class="block w-full px-3 py-1.5 text-left text-xs text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
                     >
                       Download as CSV
@@ -2411,10 +2420,7 @@ onUnmounted(() => {
         <!-- Import button -->
         <Tooltip text="Import" position="top">
           <button
-            @click="
-              exportDropdownOpen = false
-              openImportModal()
-            "
+            @click="openImportModalFromExportActions"
             class="flex h-8 w-8 items-center justify-center rounded-md text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white"
           >
             <svg

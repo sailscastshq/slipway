@@ -216,6 +216,10 @@ const activeMethods = computed(() => {
   return [...methods].sort()
 })
 
+function toggleRequestMethodFilter(method) {
+  requestMethodFilter.value = requestMethodFilter.value === method ? '' : method
+}
+
 // Request detail (durable via URL query param)
 const expandedRequest = useQueryState('request', '', { replace: true })
 
@@ -1469,9 +1473,7 @@ async function copyToken() {
                   <button
                     v-for="m in activeMethods"
                     :key="m"
-                    @click="
-                      requestMethodFilter = requestMethodFilter === m ? '' : m
-                    "
+                    @click="toggleRequestMethodFilter(m)"
                     :class="[
                       'rounded px-1.5 py-0.5 text-[10px] font-medium transition-colors',
                       requestMethodFilter === m

@@ -211,6 +211,34 @@ async function stopSingleApp(appItem) {
   }
 }
 
+function openAddAppFromMoreMenu() {
+  appsOpen.value = true
+  addAppOpen.value = true
+  moreMenuOpen.value = false
+}
+
+function openAddServiceFromMoreMenu() {
+  servicesOpen.value = true
+  addServiceOpen.value = true
+  moreMenuOpen.value = false
+}
+
+async function handleRestartSingleApp(appItem) {
+  appMenuOpen.value = null
+  await restartSingleApp(appItem)
+}
+
+async function handleStopSingleApp(appItem) {
+  appMenuOpen.value = null
+  await stopSingleApp(appItem)
+}
+
+function cancelAddApp() {
+  addAppOpen.value = false
+  createAppForm.reset()
+  clearRepo()
+}
+
 // --- SSE-powered deployment tracking (replaces usePoll) ---
 const activeDeploymentSources = ref(new Map())
 
@@ -1082,11 +1110,7 @@ onBeforeUnmount(() => {
                     class="border-b border-gray-100 pb-1 dark:border-gray-800"
                   >
                     <button
-                      @click="
-                        appsOpen = true
-                        addAppOpen = true
-                        moreMenuOpen = false
-                      "
+                      @click="openAddAppFromMoreMenu"
                       class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
                     >
                       <svg
@@ -1105,11 +1129,7 @@ onBeforeUnmount(() => {
                       Create app
                     </button>
                     <button
-                      @click="
-                        servicesOpen = true
-                        addServiceOpen = true
-                        moreMenuOpen = false
-                      "
+                      @click="openAddServiceFromMoreMenu"
                       class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
                     >
                       <svg
@@ -1425,10 +1445,7 @@ onBeforeUnmount(() => {
                           class="border-b border-gray-100 py-1 dark:border-gray-800"
                         >
                           <button
-                            @click="
-                              restartSingleApp(appItem)
-                              appMenuOpen = null
-                            "
+                            @click="handleRestartSingleApp(appItem)"
                             class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
                           >
                             <svg
@@ -1447,10 +1464,7 @@ onBeforeUnmount(() => {
                             Restart
                           </button>
                           <button
-                            @click="
-                              stopSingleApp(appItem)
-                              appMenuOpen = null
-                            "
+                            @click="handleStopSingleApp(appItem)"
                             class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20"
                           >
                             <svg
@@ -1749,11 +1763,7 @@ onBeforeUnmount(() => {
 
                   <div class="flex items-center justify-end space-x-2">
                     <button
-                      @click="
-                        addAppOpen = false
-                        createAppForm.reset()
-                        clearRepo()
-                      "
+                      @click="cancelAddApp"
                       class="rounded-md px-3 py-1.5 text-sm text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
                     >
                       Cancel

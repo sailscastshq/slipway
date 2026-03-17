@@ -112,6 +112,39 @@ function logout() {
   router.delete('/logout')
 }
 
+function closeUserMenuAndMobileMenu() {
+  userDropdownOpen.value = false
+  closeMobileMenu()
+}
+
+function handleMobileProfileClick() {
+  closeUserMenuAndMobileMenu()
+}
+
+function handleMobileSettingsClick() {
+  closeUserMenuAndMobileMenu()
+}
+
+function openUpdateModalFromMobileMenu() {
+  closeUserMenuAndMobileMenu()
+  showUpdateModal.value = true
+}
+
+function openCommandPaletteFromMobileMenu() {
+  closeUserMenuAndMobileMenu()
+  openCommandPalette()
+}
+
+function openUpdateModalFromUserMenu() {
+  userDropdownOpen.value = false
+  showUpdateModal.value = true
+}
+
+function openCommandPaletteFromUserMenu() {
+  userDropdownOpen.value = false
+  openCommandPalette()
+}
+
 function closeAllDropdowns() {
   teamDropdownOpen.value = false
   userDropdownOpen.value = false
@@ -524,10 +557,7 @@ onUnmounted(() => {
             >
               <Link
                 href="/profile"
-                @click="
-                  userDropdownOpen = false
-                  closeMobileMenu()
-                "
+                @click="handleMobileProfileClick"
                 class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
               >
                 <svg
@@ -547,10 +577,7 @@ onUnmounted(() => {
               </Link>
               <Link
                 href="/settings"
-                @click="
-                  userDropdownOpen = false
-                  closeMobileMenu()
-                "
+                @click="handleMobileSettingsClick"
                 class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
               >
                 <svg
@@ -571,11 +598,7 @@ onUnmounted(() => {
               <!-- Update available (conditional) -->
               <button
                 v-if="updateInfo?.updateAvailable"
-                @click="
-                  userDropdownOpen = false
-                  closeMobileMenu()
-                  showUpdateModal = true
-                "
+                @click="openUpdateModalFromMobileMenu"
                 class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
               >
                 <svg
@@ -598,11 +621,7 @@ onUnmounted(() => {
                 >
               </button>
               <button
-                @click="
-                  userDropdownOpen = false
-                  closeMobileMenu()
-                  openCommandPalette()
-                "
+                @click="openCommandPaletteFromMobileMenu"
                 class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
               >
                 <svg
@@ -1034,10 +1053,7 @@ onUnmounted(() => {
             <!-- Update available (conditional) -->
             <button
               v-if="updateInfo?.updateAvailable"
-              @click="
-                userDropdownOpen = false
-                showUpdateModal = true
-              "
+              @click="openUpdateModalFromUserMenu"
               class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
             >
               <svg
@@ -1060,10 +1076,7 @@ onUnmounted(() => {
               >
             </button>
             <button
-              @click="
-                userDropdownOpen = false
-                openCommandPalette()
-              "
+              @click="openCommandPaletteFromUserMenu"
               class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
             >
               <svg

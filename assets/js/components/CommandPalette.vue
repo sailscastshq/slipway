@@ -32,6 +32,12 @@ const navProjects = computed(() => page.props.navProjects || [])
 const navApps = computed(() => page.props.navApps || [])
 const navServices = computed(() => page.props.navServices || [])
 
+function returnToRootMode() {
+  mode.value = 'root'
+  parentCommand.value = null
+  query.value = ''
+}
+
 // ─── Register core commands ──────────────────────────────────────────
 
 register({
@@ -791,11 +797,7 @@ const icons = computed(() => ({
                 class="mb-1 flex items-center gap-1 px-2 py-1 text-xs text-gray-400 dark:text-gray-500"
               >
                 <button
-                  @click="
-                    mode = 'root'
-                    parentCommand = null
-                    query = ''
-                  "
+                  @click="returnToRootMode"
                   class="hover:text-gray-600 dark:hover:text-gray-300"
                 >
                   Commands

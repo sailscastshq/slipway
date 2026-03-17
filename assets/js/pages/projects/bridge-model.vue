@@ -44,6 +44,14 @@ const bulkDeleteModal = ref({ show: false })
 const deleteForm = useForm({})
 const bulkDeleteForm = useForm({ ids: [] })
 
+function openDeleteModal(record) {
+  deleteModal.value = {
+    show: true,
+    recordId: record[props.modelMeta.primaryKey],
+    loading: false
+  }
+}
+
 // Debounced search
 let searchTimeout = null
 watch(searchInput, (val) => {
@@ -656,13 +664,7 @@ function createUrl() {
                       </svg>
                     </Link>
                     <button
-                      @click="
-                        deleteModal = {
-                          show: true,
-                          recordId: record[modelMeta.primaryKey],
-                          loading: false
-                        }
-                      "
+                      @click="openDeleteModal(record)"
                       class="rounded p-1 text-gray-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400"
                       title="Delete"
                     >

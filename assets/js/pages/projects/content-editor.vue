@@ -120,6 +120,16 @@ function saveContent(triggerDeploy = false) {
   })
 }
 
+function saveOnlyAndCloseMenu() {
+  showSaveMenu.value = false
+  saveContent(false)
+}
+
+function saveAndDeployAndCloseMenu() {
+  showSaveMenu.value = false
+  saveContent(true)
+}
+
 // Delete content
 function deleteContent() {
   deleteForm.post(getActionPath('delete'), {
@@ -488,10 +498,7 @@ function handleKeydown(e) {
             class="absolute right-0 top-full z-10 mt-1 w-48 rounded-md border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-800"
           >
             <button
-              @click="
-                saveContent(false)
-                showSaveMenu = false
-              "
+              @click="saveOnlyAndCloseMenu"
               :disabled="!hasChanges"
               class="flex w-full items-center justify-between px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 disabled:opacity-50 dark:text-gray-200 dark:hover:bg-gray-700"
             >
@@ -499,10 +506,7 @@ function handleKeydown(e) {
               <span class="text-xs text-gray-400">⌘S</span>
             </button>
             <button
-              @click="
-                saveContent(true)
-                showSaveMenu = false
-              "
+              @click="saveAndDeployAndCloseMenu"
               class="flex w-full items-center justify-between px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700"
             >
               Save & Deploy

@@ -163,6 +163,16 @@ async function stopApp() {
   }
 }
 
+async function handleRestartAppClick() {
+  moreMenuOpen.value = false
+  await restartApp()
+}
+
+async function handleStopAppClick() {
+  moreMenuOpen.value = false
+  await stopApp()
+}
+
 // --- Domain display ---
 const domainDropdownOpen = ref(false)
 const copiedText = ref(null)
@@ -1127,10 +1137,7 @@ onBeforeUnmount(() => {
                     class="border-b border-gray-100 py-1 dark:border-gray-800"
                   >
                     <button
-                      @click="
-                        restartApp()
-                        moreMenuOpen = false
-                      "
+                      @click="handleRestartAppClick"
                       :disabled="restarting"
                       class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
                     >
@@ -1156,10 +1163,7 @@ onBeforeUnmount(() => {
                       Restart
                     </button>
                     <button
-                      @click="
-                        stopApp()
-                        moreMenuOpen = false
-                      "
+                      @click="handleStopAppClick"
                       :disabled="stopping"
                       class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20"
                     >

@@ -98,6 +98,10 @@ function saveSchedule() {
   })
 }
 
+function toggleBackupScheduleEnabled() {
+  scheduleForm.backupSchedule.enabled = !scheduleForm.backupSchedule.enabled
+}
+
 const providers = [
   {
     id: 'r2',
@@ -633,10 +637,7 @@ const providers = [
               </div>
               <button
                 type="button"
-                @click="
-                  scheduleForm.backupSchedule.enabled =
-                    !scheduleForm.backupSchedule.enabled
-                "
+                @click="toggleBackupScheduleEnabled"
                 :class="[
                   'relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none',
                   scheduleForm.backupSchedule.enabled

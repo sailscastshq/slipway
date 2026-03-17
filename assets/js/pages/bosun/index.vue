@@ -330,6 +330,13 @@ function exportAction(fn) {
   showExportMenu.value = false
 }
 
+function copyHelmOutput() {
+  navigator.clipboard.writeText(
+    helmResults.value?.output || helmResults.value?.error || ''
+  )
+  showToast('Copied to clipboard')
+}
+
 async function fetchDiff() {
   diffLoading.value = true
   diffError.value = null
@@ -1287,12 +1294,7 @@ onUnmounted(() => {
           </span>
           <Tooltip v-if="helmResults" text="Copy output" position="top">
             <button
-              @click="
-                navigator.clipboard.writeText(
-                  helmResults.output || helmResults.error || ''
-                )
-                showToast('Copied to clipboard')
-              "
+              @click="copyHelmOutput"
               class="rounded p-1.5 text-gray-500 hover:bg-gray-200 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-200"
             >
               <svg

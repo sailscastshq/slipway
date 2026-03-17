@@ -82,6 +82,11 @@ function loadFromHistory(entry) {
   code.value = entry.code
 }
 
+function clearExecutionOutput() {
+  output.value = ''
+  error.value = ''
+}
+
 function handleKeydown(e) {
   // Cmd/Ctrl + Enter to run
   if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
@@ -462,10 +467,7 @@ function highlightJSON(str) {
           <!-- Clear button (floating) -->
           <button
             v-if="output || error"
-            @click="
-              output = ''
-              error = ''
-            "
+            @click="clearExecutionOutput"
             class="absolute right-3 top-3 text-xs text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
           >
             clear
