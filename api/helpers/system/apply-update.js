@@ -19,6 +19,9 @@ module.exports = {
     },
     pullFailed: {
       description: 'Failed to pull the new image.'
+    },
+    validationFailed: {
+      description: 'The new image started but failed validation.'
     }
   },
 
@@ -155,7 +158,7 @@ module.exports = {
           `[slipway] Failed to start validation container: ${err.message}`
         )
         await setProgress('failed', 'New image failed to start')
-        throw 'pullFailed'
+        throw 'validationFailed'
       }
 
       // 7. Health-check the validation container
@@ -173,6 +176,15 @@ module.exports = {
         sails.log.error(
           `[slipway] Validation container failed health check: ${err.message}`
         )
+        const validationLogs = await getContainerLogs(
+          dockerPath,
+          'slipway-next'
+        )
+        if (validationLogs) {
+          sails.log.error(
+            `[slipway] Validation container logs:\n${validationLogs}`
+          )
+        }
         // Clean up the failed temp container
         try {
           await execFileAsync(dockerPath, ['rm', '-f', 'slipway-next'])
@@ -183,7 +195,7 @@ module.exports = {
           'failed',
           'New version failed health check — update aborted, current version untouched'
         )
-        throw 'pullFailed'
+        throw 'validationFailed'
       }
 
       sails.log.info('[slipway] Validation passed — new version is healthy')
@@ -514,8 +526,23 @@ function streamContainerDirectoryToBindMount({
   })
 }
 
+async function getContainerLogs(dockerPath, containerName) {
+  try {
+    const { stdout, stderr } = await execFileAsync(
+      dockerPath,
+      ['logs', '--tail', '200', containerName],
+      { timeout: 10000 }
+    )
+
+    return [stdout, stderr].filter(Boolean).join('').trim()
+  } catch (err) {
+    return err.stderr ? String(err.stderr).trim() : null
+  }
+}
+
 module.exports._private = {
   appendMountArgs,
   buildRunArgs,
+  getContainerLogs,
   hasMountDestination
 }
