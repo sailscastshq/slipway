@@ -289,6 +289,11 @@ function parseModelFile(content, filename, defaultAttrs = {}) {
     attributes[name] = attr
   }
 
+  // Explicitly disabled attributes like `updatedAt: false` should win over defaults.
+  for (const name of findDisabledAttributes(attributesBlock)) {
+    delete attributes[name]
+  }
+
   return {
     identity,
     tableName,
@@ -340,8 +345,7 @@ function stripComments(code) {
         i++
       }
       i += 2 // skip */
-    }
-    else {
+    } else {
       result += code[i]
       i++
     }
@@ -461,6 +465,81 @@ function parseAttributes(block) {
 }
 
 /**
+ * Find top-level model attributes explicitly disabled with `attrName: false`.
+ */
+function findDisabledAttributes(block) {
+  const disabled = new Set()
+
+  for (const entry of splitTopLevelEntries(block)) {
+    const match = entry.match(/^(\w+)\s*:\s*false\b/)
+    if (match) {
+      disabled.add(match[1])
+    }
+  }
+
+  return disabled
+}
+
+/**
+ * Split an attributes block into top-level entries while ignoring nested commas.
+ */
+function splitTopLevelEntries(block) {
+  const entries = []
+  let current = ''
+  let curlyDepth = 0
+  let squareDepth = 0
+  let parenDepth = 0
+
+  for (let i = 0; i < block.length; i++) {
+    const char = block[i]
+
+    if (char === "'" || char === '"') {
+      current += char
+      i++
+
+      while (i < block.length) {
+        current += block[i]
+        if (block[i] === '\\' && i + 1 < block.length) {
+          i++
+          current += block[i]
+          continue
+        }
+        if (block[i] === char) {
+          break
+        }
+        i++
+      }
+      continue
+    }
+
+    if (char === '{') curlyDepth++
+    else if (char === '}') curlyDepth--
+    else if (char === '[') squareDepth++
+    else if (char === ']') squareDepth--
+    else if (char === '(') parenDepth++
+    else if (char === ')') parenDepth--
+
+    if (char === ',' && curlyDepth === 0 && squareDepth === 0 && parenDepth === 0) {
+      const entry = current.trim()
+      if (entry) {
+        entries.push(entry)
+      }
+      current = ''
+      continue
+    }
+
+    current += char
+  }
+
+  const entry = current.trim()
+  if (entry) {
+    entries.push(entry)
+  }
+
+  return entries
+}
+
+/**
  * Extract common properties shared by all attribute types (regular and FK).
  * Parses columnName, required, unique, index, allowNull, and other boolean flags.
  */
@@ -477,7 +556,15 @@ function extractCommonProperties(block, name) {
   }
 
   // Extract boolean properties (all follow the same pattern)
-  const boolProps = ['required', 'unique', 'index', 'allowNull', 'autoIncrement', 'autoCreatedAt', 'autoUpdatedAt']
+  const boolProps = [
+    'required',
+    'unique',
+    'index',
+    'allowNull',
+    'autoIncrement',
+    'autoCreatedAt',
+    'autoUpdatedAt',
+  ]
   for (const prop of boolProps) {
     const match = block.match(new RegExp(`${prop}:\\s*(true|false)`))
     if (match) {
@@ -523,4 +610,10 @@ function parseAttribute(block, name) {
   }
 
   return attr
+}
+
+module.exports._private = {
+  findDisabledAttributes,
+  parseModelFile,
+  splitTopLevelEntries
 }
