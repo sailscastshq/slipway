@@ -1,7 +1,7 @@
 module.exports = {
   hooks: {
-    // The repo contains the published hook as a workspace package, but the
-    // Slipway dashboard app itself should not auto-load and instrument itself.
+    // If the published hook is ever installed here, do not instrument the
+    // Slipway dashboard app itself.
     slipway: false
   }
 }
