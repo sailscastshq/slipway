@@ -35,6 +35,50 @@ curl -fsSL https://raw.githubusercontent.com/sailscastshq/slipway/main/install.s
 
 This installs two containers (Slipway + Caddy proxy) and gives you a dashboard URL.
 
+### Run Slipway locally like production
+
+When you want a local run that mirrors the production installer more closely than host-side `npm run dev`, use:
+
+```bash
+npm run local
+```
+
+This runs [local.sh](/Users/koo/Gringotts/687/slipway/local.sh), the local counterpart to [install.sh](/Users/koo/Gringotts/687/slipway/install.sh). It:
+
+- builds the current checkout into a local Docker image
+- creates or reuses the `slipway` Docker network
+- persists local secrets under `.tmp/local/.env`
+- persists local app source and SQLite data under `.tmp/local/`
+- installs container dependencies into Docker volumes
+- runs Slipway in Docker with `npm run dev`
+- waits for `/health` before returning control
+
+That means you still get the normal Slipway development loop, but through a runtime that is much closer to production:
+
+- Docker-only runtime issues show up earlier
+- asset/compiler problems are caught before a production deploy
+- `/var/slipway/apps`, Docker socket access, and SQLite files behave like the real container setup
+- the startup flow mirrors the structure of `install.sh`
+
+Helpful companion commands:
+
+```bash
+npm run local:logs
+npm run local:status
+npm run local:shell
+npm run local:stop
+npm run local:down
+npm run local:destroy
+```
+
+Local Docker data is kept under `.tmp/local/`, and container dependencies are cached in Docker volumes so reruns stay fast.
+
+Command semantics:
+
+- `npm run local:stop` stops the running container but keeps it for restart/debugging
+- `npm run local:down` removes the local container
+- `npm run local:destroy` removes the local container, cached Docker volumes, and `.tmp/local/` state for a full reset
+
 ### Deploy your app
 
 ```bash
