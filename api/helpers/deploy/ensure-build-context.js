@@ -34,7 +34,10 @@ module.exports = {
   },
 
   fn: async function ({ project, environment, app, deploymentId, gitBranch }) {
-    const contextPath = path.join(sails.config.custom.slipwayAppsDir, project.slug)
+    const contextPath = path.join(
+      sails.config.custom.slipwayAppsDir,
+      project.slug
+    )
 
     if (fs.existsSync(contextPath)) {
       return {

@@ -44,7 +44,8 @@ test('missing build context is hydrated from a connected repository', async ({
               fullName: 'acme/sailscasts',
               cloneUrl: 'git@github.com:acme/sailscasts.git',
               defaultBranch: 'main',
-              deployKeyPrivate: '-----BEGIN TEST KEY-----\nabc\n-----END TEST KEY-----',
+              deployKeyPrivate:
+                '-----BEGIN TEST KEY-----\nabc\n-----END TEST KEY-----',
               branchMappings: {
                 production: 'production'
               }
@@ -75,7 +76,8 @@ test('missing build context is hydrated from a connected repository', async ({
         cloneUrl: 'git@github.com:acme/sailscasts.git',
         branch: 'production',
         targetDir: path.join(tempRoot, 'sailscasts'),
-        deployKeyPrivate: '-----BEGIN TEST KEY-----\nabc\n-----END TEST KEY-----',
+        deployKeyPrivate:
+          '-----BEGIN TEST KEY-----\nabc\n-----END TEST KEY-----',
         deploymentId: 'dep-1'
       }
     ])
