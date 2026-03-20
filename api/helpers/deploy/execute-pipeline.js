@@ -42,6 +42,8 @@ module.exports = {
     let deployHostPort = null
 
     try {
+      const deployment = await Deployment.findOne({ id: deploymentId })
+
       // 1. Set status to building
       await Deployment.updateOne({ id: deploymentId }).set({
         status: 'building'
@@ -76,10 +78,15 @@ module.exports = {
         deploymentId,
         appSlug
       )
-      const contextPath = require('path').join(
-        sails.config.custom.slipwayAppsDir,
-        project.slug
-      )
+
+      const { contextPath } =
+        await sails.helpers.deploy.ensureBuildContext.with({
+          project,
+          environment,
+          app: targetApp,
+          deploymentId,
+          gitBranch: deployment?.gitBranch
+        })
 
       // 4. Build the Docker image (use app's dockerfilePath, fall back to project's)
       const dockerfilePath =
