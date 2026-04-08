@@ -8,4 +8,3 @@ Slipway keeps three test lanes:
 
 When a test can be proven with request or Inertia helpers, it belongs in `functional`.
 When the browser itself matters, it belongs in `e2e`.
-Until Slipway has a stable browser-only flow worth keeping in CI, the `e2e` lane can stay intentionally empty.

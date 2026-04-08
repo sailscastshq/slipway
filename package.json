@@ -65,7 +65,7 @@
     "lint:fix": "prettier --write .",
     "test:unit": "node --test --test-concurrency=1 $(find tests/unit -type f -name '*.test.js' | sort)",
     "test:functional": "node --test --test-concurrency=1 $(find tests/functional/pages -type f -name '*.test.js' | sort)",
-    "test:e2e": "files=$(find tests/e2e/pages -type f -name '*.test.js' | sort); if [ -n \"$files\" ]; then node --test --test-concurrency=1 $files; else echo 'No browser e2e tests found'; fi",
+    "test:e2e": "files=$(find tests/e2e/pages -type f -name '*.test.js' | sort); if [ -n \"$files\" ]; then node scripts/build-e2e-assets.js && SLIPWAY_SKIP_INFRA_BOOTSTRAP=1 SLIPWAY_E2E_ASSETS_READY=1 node --test --test-concurrency=1 $files; else echo 'No browser e2e tests found'; fi",
     "test": "npm run test:unit && npm run test:functional && npm run test:e2e"
   },
   "main": "app.js",
