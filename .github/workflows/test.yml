@@ -45,5 +45,16 @@ jobs:
       - name: Run unit tests
         run: npm run test:unit
 
+      - name: Run functional tests
+        run: npm run test:functional
+
+      - name: Install Playwright browsers
+        run: |
+          if find tests/e2e/pages -type f -name '*.test.js' | grep -q .; then
+            npx playwright install --with-deps chromium
+          else
+            echo "No browser e2e tests found"
+          fi
+
       - name: Run E2E tests
         run: npm run test:e2e

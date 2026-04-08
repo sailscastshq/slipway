@@ -1,30 +1,32 @@
 const { test } = require('sounding')
 
-test('a guest is sent to login once Slipway is configured', async ({
-  visit,
-  expect,
-  sails
-}) => {
-  await sails.sounding.world.use('configured-slipway')
+test(
+  'genesis user can log in through the real browser and open the new project page',
+  { browser: true },
+  async ({ sails, login, page, expect }) => {
+    const current = await sails.sounding.world.use('configured-slipway')
 
-  const response = await visit('/')
+    await login.withPassword(current.users.genesisUser, page, {
+      password: current.auth.genesisUserPassword
+    })
 
-  expect(response).toHaveStatus(302)
-  expect(response).toRedirectTo('/login')
-})
+    await page.waitForURL(/\/$/)
 
-test('genesis user can authenticate with the real password flow', async ({
-  auth,
-  expect,
-  sails
-}) => {
-  const current = await sails.sounding.world.use('configured-slipway')
+    expect(
+      await page
+        .getByText(/get started by creating your first project/i)
+        .isVisible()
+    ).toBe(true)
 
-  const result = await auth.request.withPassword(current.users.genesisUser, {
-    password: current.auth.genesisUserPassword,
-    returnUrl: '/projects/new'
-  })
+    await page.goto('/projects/new')
+    await page.waitForURL(/\/projects\/new$/)
 
-  expect(result.response).toHaveStatus(302)
-  expect(result.response).toRedirectTo('/projects/new')
-})
+    expect(await page.title()).toMatch(/Create Project.*Slipway/i)
+    expect(await page.getByPlaceholder(/project name/i).isVisible()).toBe(true)
+    expect(
+      await page
+        .getByPlaceholder(/a brief description about your project/i)
+        .isVisible()
+    ).toBe(true)
+  }
+)

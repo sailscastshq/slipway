@@ -18,14 +18,15 @@ module.exports = {
   },
 
   fn: async function ({ skipCache }) {
-    const currentVersion = sails.config.slipway?.version || '0.1.0'
+    const sailsApp = globalThis.sails
+    const currentVersion = sailsApp?.config?.slipway?.version || '0.1.0'
     const githubRepo =
-      sails.config.slipway?.githubRepo || 'sailscastshq/slipway'
+      sailsApp?.config?.slipway?.githubRepo || 'sailscastshq/slipway'
 
     // Cache key for rate limiting - only check once per hour
     const cacheKey = 'slipway_update_check'
     if (!skipCache) {
-      const cached = await sails.cache.get(cacheKey)
+      const cached = await sailsApp.cache.get(cacheKey)
       if (cached) {
         return cached
       }
@@ -55,7 +56,7 @@ module.exports = {
         }
 
         // Log other errors (rate limiting, server errors, etc.)
-        sails.log.warn(
+        sailsApp.log.warn(
           `[slipway] Update check failed: ${response.status} ${response.statusText}`
         )
         return {
@@ -78,7 +79,7 @@ module.exports = {
       if (isNewer) {
         imageReady = await checkGhcrImage(githubRepo, latestVersion)
         if (!imageReady) {
-          sails.log.verbose(
+          sailsApp.log.verbose(
             `[slipway] v${latestVersion} released but Docker image not yet available on GHCR`
           )
         }
@@ -95,11 +96,11 @@ module.exports = {
       }
 
       // Cache for 1 hour (3600000ms)
-      await sails.cache.set(cacheKey, result, 3600000)
+      await sailsApp.cache.set(cacheKey, result, 3600000)
 
       return result
     } catch (err) {
-      sails.log.warn(`[slipway] Update check error: ${err.message}`)
+      sailsApp?.log?.warn?.(`[slipway] Update check error: ${err.message}`)
       return {
         currentVersion,
         latestVersion: currentVersion,
