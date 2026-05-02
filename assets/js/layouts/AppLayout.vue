@@ -16,6 +16,11 @@ import {
 } from '@/composables/service-actions'
 import { createCommandPalette } from '@/composables/useCommandPalette'
 import { useUpdateCheck } from '@/composables/useUpdateCheck'
+import {
+  LEGACY_LOCAL_STORAGE_KEYS,
+  LOCAL_STORAGE_KEYS,
+  readLocalStorageValue
+} from '@/lib/localStorageKeys'
 
 const page = usePage()
 const loggedInUser = page.props.loggedInUser
@@ -56,7 +61,10 @@ const sidebarCollapsed = ref(false)
 
 const toggleSidebar = () => {
   sidebarCollapsed.value = !sidebarCollapsed.value
-  localStorage.setItem('sidebarCollapsed', sidebarCollapsed.value)
+  localStorage.setItem(
+    LOCAL_STORAGE_KEYS.sidebarCollapsed,
+    String(sidebarCollapsed.value)
+  )
 }
 
 // Provide toggle functions to child components
@@ -207,7 +215,10 @@ function dismissDeployment(deploymentId) {
 // Initialize on mount
 onMounted(() => {
   // Restore sidebar state
-  const saved = localStorage.getItem('sidebarCollapsed')
+  const saved = readLocalStorageValue(
+    LOCAL_STORAGE_KEYS.sidebarCollapsed,
+    LEGACY_LOCAL_STORAGE_KEYS.sidebarCollapsed
+  )
   if (saved !== null) {
     sidebarCollapsed.value = saved === 'true'
   }

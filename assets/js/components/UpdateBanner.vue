@@ -3,6 +3,11 @@ import { ref, onMounted } from 'vue'
 import { Link } from '@inertiajs/vue3'
 import Tooltip from '@/components/Tooltip.vue'
 import { useUpdateCheck } from '@/composables/useUpdateCheck'
+import {
+  LEGACY_LOCAL_STORAGE_KEYS,
+  LOCAL_STORAGE_KEYS,
+  readLocalStorageValue
+} from '@/lib/localStorageKeys'
 
 const { updateInfo, check } = useUpdateCheck()
 const dismissed = ref(false)
@@ -12,7 +17,7 @@ function dismiss() {
   // Store dismissal in localStorage with version to not show again for same version
   if (updateInfo.value?.latestVersion) {
     localStorage.setItem(
-      'slipway_update_dismissed',
+      LOCAL_STORAGE_KEYS.updateDismissed,
       updateInfo.value.latestVersion
     )
   }
@@ -20,7 +25,10 @@ function dismiss() {
 
 onMounted(() => {
   // Check if this version was already dismissed
-  const dismissedVersion = localStorage.getItem('slipway_update_dismissed')
+  const dismissedVersion = readLocalStorageValue(
+    LOCAL_STORAGE_KEYS.updateDismissed,
+    LEGACY_LOCAL_STORAGE_KEYS.updateDismissed
+  )
 
   check().then(() => {
     if (updateInfo.value?.latestVersion === dismissedVersion) {
