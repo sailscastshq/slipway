@@ -1,4 +1,5 @@
 import { ref, provide, inject } from 'vue'
+import { LOCAL_STORAGE_KEYS } from '@/lib/localStorageKeys'
 
 const COMMAND_PALETTE_KEY = Symbol('commandPalette')
 
@@ -7,14 +8,19 @@ const commands = new Map()
 
 function loadHistory() {
   try {
-    return JSON.parse(localStorage.getItem('slipway:command-history') || '[]')
+    return JSON.parse(
+      localStorage.getItem(LOCAL_STORAGE_KEYS.commandHistory) || '[]'
+    )
   } catch {
     return []
   }
 }
 
 function saveHistory(history) {
-  localStorage.setItem('slipway:command-history', JSON.stringify(history))
+  localStorage.setItem(
+    LOCAL_STORAGE_KEYS.commandHistory,
+    JSON.stringify(history)
+  )
 }
 
 export function createCommandPalette() {

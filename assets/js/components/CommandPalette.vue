@@ -12,6 +12,7 @@ import { router, usePage } from '@inertiajs/vue3'
 import { useCommandPalette } from '@/composables/useCommandPalette'
 import { useToast } from '@/composables/toast'
 import { fuzzySearch } from '@/lib/fuzzySearch'
+import { LOCAL_STORAGE_KEYS } from '@/lib/localStorageKeys'
 
 const { isOpen, history, register, unregister, getAll, execute, close } =
   useCommandPalette()
@@ -618,7 +619,7 @@ function selectCommand(cmd) {
       ...history.value.filter((h) => h !== cmd.id)
     ].slice(0, 10)
     localStorage.setItem(
-      'slipway:command-history',
+      LOCAL_STORAGE_KEYS.commandHistory,
       JSON.stringify(history.value)
     )
     mode.value = 'submenu'
