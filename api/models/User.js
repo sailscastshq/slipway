@@ -37,7 +37,7 @@ module.exports = {
       isIn: ['unverified', 'verified', 'change-requested'],
       defaultsTo: 'unverified',
       description: "The verification status of the user's email address.",
-      extendedDescription: `Users might be created as "unverified" (e.g. normal signup) or as "verified" (e.g. hard-coded admin users). When email verification is complete, this becomes "verified".`,
+      extendedDescription: `Users might be created as "unverified" (e.g. team invites) or as "verified" (e.g. the genesis user). When email verification is complete, this becomes "verified".`,
       columnName: 'email_status'
     },
     emailChangeCandidate: {
