@@ -67,6 +67,18 @@ module.exports = {
     // SQL databases
     const quote = dbType === 'postgresql' ? '"' : '`'
 
+    // Generate RENAME COLUMN statements
+    for (const col of diff.columnsToRename || []) {
+      const sql = generateRenameColumn(col, dbType, quote)
+      statements.push({
+        type: 'rename_column',
+        table: col.tableName,
+        column: col.toColumnName,
+        fromColumn: col.fromColumnName,
+        sql
+      })
+    }
+
     // Generate CREATE TABLE statements
     for (const table of diff.tablesToCreate) {
       const sql = generateCreateTable(table, dbType, quote)
@@ -119,6 +131,7 @@ module.exports = {
 function generateSqliteStatements(diff, models, schema) {
   const statements = []
   const rebuiltTables = new Set()
+  const renameMap = createRenameMap(diff.columnsToRename || [])
 
   for (const table of diff.tablesToCreate) {
     statements.push({
@@ -149,7 +162,26 @@ function generateSqliteStatements(diff, models, schema) {
     statements.push({
       type: 'rebuild_table',
       table: tableName,
-      sql: generateSqliteTableRebuild(tableName, model, existingTable)
+      sql: generateSqliteTableRebuild(
+        tableName,
+        model,
+        existingTable,
+        renameMap.get(tableName) || new Map()
+      )
+    })
+  }
+
+  for (const column of diff.columnsToRename || []) {
+    if (rebuiltTables.has(column.tableName)) {
+      continue
+    }
+
+    statements.push({
+      type: 'rename_column',
+      table: column.tableName,
+      column: column.toColumnName,
+      fromColumn: column.fromColumnName,
+      sql: generateRenameColumn(column, 'sqlite', '`')
     })
   }
 
@@ -185,6 +217,22 @@ function generateSqliteStatements(diff, models, schema) {
   }
 
   return statements
+}
+
+function createRenameMap(columnsToRename) {
+  const renameMap = new Map()
+
+  for (const column of columnsToRename) {
+    if (!renameMap.has(column.tableName)) {
+      renameMap.set(column.tableName, new Map())
+    }
+
+    renameMap
+      .get(column.tableName)
+      .set(column.toColumnName.toLowerCase(), column.fromColumnName)
+  }
+
+  return renameMap
 }
 
 /**
@@ -286,6 +334,10 @@ function generateAddColumn(col, dbType, quote) {
   return sql + ';'
 }
 
+function generateRenameColumn(col, dbType, quote) {
+  return `ALTER TABLE ${quote}${col.tableName}${quote} RENAME COLUMN ${quote}${col.fromColumnName}${quote} TO ${quote}${col.toColumnName}${quote};`
+}
+
 /**
  * Generate MODIFY COLUMN statement
  */
@@ -367,7 +419,12 @@ function generateSqliteCreateTable(tableName, columns) {
   )}\n);`
 }
 
-function generateSqliteTableRebuild(tableName, model, existingTable) {
+function generateSqliteTableRebuild(
+  tableName,
+  model,
+  existingTable,
+  renamedColumns = new Map()
+) {
   const columns = []
 
   for (const [attrName, attr] of Object.entries(model.attributes)) {
@@ -384,14 +441,35 @@ function generateSqliteTableRebuild(tableName, model, existingTable) {
     (existingTable?.columns || []).map((column) => column.name.toLowerCase())
   )
   const copyableColumns = columns
-    .map((column) => column.name)
-    .filter((columnName) => existingColumnNames.has(columnName.toLowerCase()))
-  const quotedColumns = copyableColumns
-    .map((columnName) => `\`${columnName}\``)
+    .map((column) => {
+      const targetColumn = column.name
+      const sourceColumn =
+        existingColumnNames.has(targetColumn.toLowerCase()) && targetColumn
+
+      if (sourceColumn) {
+        return { targetColumn, sourceColumn }
+      }
+
+      const renamedSource = renamedColumns.get(targetColumn.toLowerCase())
+      if (
+        renamedSource &&
+        existingColumnNames.has(renamedSource.toLowerCase())
+      ) {
+        return { targetColumn, sourceColumn: renamedSource }
+      }
+
+      return null
+    })
+    .filter(Boolean)
+  const quotedTargetColumns = copyableColumns
+    .map(({ targetColumn }) => `\`${targetColumn}\``)
+    .join(', ')
+  const quotedSourceColumns = copyableColumns
+    .map(({ sourceColumn }) => `\`${sourceColumn}\``)
     .join(', ')
   const copySql =
     copyableColumns.length > 0
-      ? `INSERT INTO \`${tableName}\` (${quotedColumns}) SELECT ${quotedColumns} FROM \`${oldTableName}\`;`
+      ? `INSERT INTO \`${tableName}\` (${quotedTargetColumns}) SELECT ${quotedSourceColumns} FROM \`${oldTableName}\`;`
       : null
   const indexStatements = generateSqliteIndexStatements(tableName, model).map(
     (statement) => statement.sql
@@ -488,7 +566,7 @@ function mapSqliteType(
     case 'number':
       return isPrimaryKey || isForeignKey ? 'INTEGER' : 'INTEGER'
     case 'boolean':
-      return 'INTEGER'
+      return 'TEXT'
     case 'json':
     case 'ref':
       return 'TEXT'
@@ -516,6 +594,7 @@ function normalizeSqliteType(type) {
     case 'integer':
       return 'INTEGER'
     case '_json':
+    case '_boolean':
       return 'TEXT'
     case 'float':
     case 'double':

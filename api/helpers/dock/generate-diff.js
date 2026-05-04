@@ -41,6 +41,7 @@ module.exports = {
     const diff = {
       tablesToCreate: [],
       tablesToDrop: [],
+      columnsToRename: [],
       columnsToAdd: [],
       columnsToModify: [],
       columnsToDrop: [],
@@ -115,12 +116,26 @@ module.exports = {
           const existingCol = existingColumns.get(columnName.toLowerCase())
 
           if (!existingCol) {
-            // Column doesn't exist - needs to be added
-            diff.columnsToAdd.push({
-              tableName,
-              columnName,
-              ...mapWaterlineToSql(attr, attrName, dbType, model.primaryKey)
-            })
+            const renameFrom = findRenameSourceColumn(
+              existingColumns,
+              attrName,
+              columnName
+            )
+
+            if (renameFrom) {
+              diff.columnsToRename.push({
+                tableName,
+                fromColumnName: renameFrom.name,
+                toColumnName: columnName
+              })
+            } else {
+              // Column doesn't exist - needs to be added
+              diff.columnsToAdd.push({
+                tableName,
+                columnName,
+                ...mapWaterlineToSql(attr, attrName, dbType, model.primaryKey)
+              })
+            }
           } else {
             // Column exists - check for type differences
             const expected = mapWaterlineToSql(
@@ -149,6 +164,11 @@ module.exports = {
       if (!existingTable) continue // New tables handled above
 
       const existingIndexes = existingTable.indexes || []
+      const renamedColumns = new Set(
+        diff.columnsToRename
+          .filter((column) => column.tableName === tableName)
+          .map((column) => column.toColumnName.toLowerCase())
+      )
       // Build a set of indexed column names for quick lookup
       const indexedColumns = new Set()
       for (const idx of existingIndexes) {
@@ -161,6 +181,10 @@ module.exports = {
       for (const [attrName, attr] of Object.entries(model.attributes)) {
         const columnName = attr.columnName || attrName
         const needsIndex = attr.unique || attr.index
+
+        if (renamedColumns.has(columnName.toLowerCase())) {
+          continue
+        }
 
         if (needsIndex && !indexedColumns.has(columnName.toLowerCase())) {
           // Check it's not the primary key (PKs already have indexes)
@@ -178,6 +202,14 @@ module.exports = {
 
     return diff
   }
+}
+
+function findRenameSourceColumn(existingColumns, attrName, columnName) {
+  if (attrName === columnName) {
+    return null
+  }
+
+  return existingColumns.get(attrName.toLowerCase()) || null
 }
 
 /**
@@ -205,6 +237,10 @@ module.exports = {
  *   _boolean     -> BOOLEAN (-> TINYINT(1))
  *   _json        -> LONGTEXT
  *   _ref         -> LONGTEXT
+ *
+ * SQLite mappings mirror sails-sqlite's current physical model handling:
+ *   _boolean     -> TEXT
+ *   boolean      -> INTEGER when explicitly provided as a physical columnType
  */
 function mapWaterlineToSql(attr, attrName, dbType, modelPrimaryKey) {
   // If explicit columnType is set, use it directly (adapters do this too)
@@ -302,7 +338,7 @@ function getSqliteType(
       return 'INTEGER'
 
     case 'boolean':
-      return 'INTEGER'
+      return 'TEXT'
 
     case 'json':
     case 'ref':
@@ -497,6 +533,8 @@ function normalizeSqlitePhysicalType(type) {
     case 'integer':
       return 'INTEGER'
     case '_json':
+      return 'TEXT'
+    case '_boolean':
       return 'TEXT'
     case 'float':
     case 'double':

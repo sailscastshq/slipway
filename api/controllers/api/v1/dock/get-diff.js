@@ -24,6 +24,9 @@ module.exports = {
     },
     forbidden: {
       statusCode: 403
+    },
+    badRequest: {
+      statusCode: 400
     }
   },
 
@@ -59,8 +62,11 @@ module.exports = {
         serviceId
       )
     } catch (err) {
-      this.res.status(400)
-      return { error: 'No database service found for this environment.' }
+      throw {
+        badRequest: {
+          error: 'No database service found for this environment.'
+        }
+      }
     }
 
     const { service } = dbResult
@@ -99,14 +105,15 @@ module.exports = {
           sails.log.error('[dock] Could not read models:', err)
         }
 
-        this.res.status(400)
-        return {
-          error: normalizedError.message,
-          code: normalizedError.code,
-          diff: emptyDiff(),
-          statements: [],
-          hasPendingChanges: false,
-          modelsSource
+        throw {
+          badRequest: {
+            error: normalizedError.message,
+            code: normalizedError.code,
+            diff: emptyDiff(),
+            statements: [],
+            hasPendingChanges: false,
+            modelsSource
+          }
         }
       }
     }
@@ -115,13 +122,19 @@ module.exports = {
     const schemaResult = await sails.helpers.dock.getSchema(service)
 
     if (schemaResult.error) {
-      this.res.status(400)
-      return { error: `Failed to get schema: ${schemaResult.error}` }
+      throw {
+        badRequest: {
+          error: `Failed to get schema: ${schemaResult.error}`
+        }
+      }
     }
 
     if (modelsResult.error) {
-      this.res.status(400)
-      return { error: `Failed to get models: ${modelsResult.error}` }
+      throw {
+        badRequest: {
+          error: `Failed to get models: ${modelsResult.error}`
+        }
+      }
     }
 
     // Generate diff
@@ -134,7 +147,9 @@ module.exports = {
     // Generate SQL for the diff
     const { statements } = await sails.helpers.dock.generateMigrationSql(
       diff,
-      service.type
+      service.type,
+      modelsResult.models,
+      schemaResult.tables
     )
 
     return {
@@ -170,6 +185,7 @@ function emptyDiff() {
   return {
     tablesToCreate: [],
     tablesToDrop: [],
+    columnsToRename: [],
     columnsToAdd: [],
     columnsToModify: [],
     columnsToDrop: [],

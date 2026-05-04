@@ -66,13 +66,20 @@ function buildIntrospectionCode() {
       };
 
       for (const [attrName, attr] of Object.entries(model.attributes)) {
+        const schemaAttr = model.schema?.[attrName] || {};
+        const columnName = schemaAttr.columnName || attr.columnName || attrName;
+
         // Skip associations for now
         if (attr.collection || attr.model) continue;
 
         models[identity].attributes[attrName] = {
           type: attr.type,
-          columnType: attr.columnType,
-          columnName: attr.columnName || attrName,
+          columnType:
+            attr.columnType ||
+            schemaAttr.columnType ||
+            attr.autoMigrations?.columnType ||
+            schemaAttr.autoMigrations?.columnType,
+          columnName,
           required: attr.required || false,
           unique: attr.unique || false,
           defaultsTo: attr.defaultsTo,
