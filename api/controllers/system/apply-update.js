@@ -53,7 +53,8 @@ module.exports = {
     return {
       status: 'started',
       currentVersion: updateInfo.currentVersion,
-      targetVersion: updateInfo.latestVersion
+      targetVersion: updateInfo.latestVersion,
+      targetImage: updateInfo.imageRef
     }
   }
 }

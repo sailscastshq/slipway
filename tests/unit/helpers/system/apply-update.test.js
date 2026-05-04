@@ -1,10 +1,7 @@
 const { test } = require('sounding')
 
-const applyUpdate = require('../../../../api/helpers/system/apply-update')
-
-const { buildRunArgs, hasMountDestination } = applyUpdate._private
-
-test('buildRunArgs injects the Slipway apps bind mount when it is missing', async ({
+test('buildUpdateDockerArgs injects the Slipway apps bind mount when it is missing', async ({
+  sails,
   expect
 }) => {
   const containerInfo = {
@@ -31,7 +28,8 @@ test('buildRunArgs injects the Slipway apps bind mount when it is missing', asyn
     }
   }
 
-  const args = buildRunArgs(containerInfo, {
+  const { runArgs } = await sails.helpers.system.buildUpdateDockerArgs.with({
+    containerInfo,
     extraMounts: [
       {
         type: 'bind',
@@ -41,17 +39,18 @@ test('buildRunArgs injects the Slipway apps bind mount when it is missing', asyn
     ]
   })
 
-  expect(args.includes('--network')).toBe(true)
-  expect(args.includes('slipway')).toBe(true)
-  expect(args.includes('-v')).toBe(true)
-  expect(args.includes('/app/db')).toBe(false)
-  expect(args.includes('slipway-db:/app/db')).toBe(true)
-  expect(args.includes('/var/slipway/apps:/var/slipway/apps')).toBe(true)
-  expect(args.includes('-p')).toBe(true)
-  expect(args.includes('1337:1337')).toBe(true)
+  expect(runArgs.includes('--network')).toBe(true)
+  expect(runArgs.includes('slipway')).toBe(true)
+  expect(runArgs.includes('-v')).toBe(true)
+  expect(runArgs.includes('/app/db')).toBe(false)
+  expect(runArgs.includes('slipway-db:/app/db')).toBe(true)
+  expect(runArgs.includes('/var/slipway/apps:/var/slipway/apps')).toBe(true)
+  expect(runArgs.includes('-p')).toBe(true)
+  expect(runArgs.includes('1337:1337')).toBe(true)
 })
 
-test('buildRunArgs does not duplicate the apps bind mount when it already exists', async ({
+test('buildUpdateDockerArgs does not duplicate the apps bind mount when it already exists', async ({
+  sails,
   expect
 }) => {
   const containerInfo = {
@@ -75,7 +74,8 @@ test('buildRunArgs does not duplicate the apps bind mount when it already exists
     }
   }
 
-  const args = buildRunArgs(containerInfo, {
+  const { runArgs } = await sails.helpers.system.buildUpdateDockerArgs.with({
+    containerInfo,
     extraMounts: [
       {
         type: 'bind',
@@ -86,8 +86,20 @@ test('buildRunArgs does not duplicate the apps bind mount when it already exists
   })
 
   expect(
-    args.filter((value) => value === '/var/slipway/apps:/var/slipway/apps')
+    runArgs.filter((value) => value === '/var/slipway/apps:/var/slipway/apps')
       .length
   ).toBe(1)
-  expect(hasMountDestination(containerInfo, '/var/slipway/apps')).toBe(true)
+})
+
+test('getUpdateImageRef pins updates to the advertised release version', async ({
+  sails,
+  expect
+}) => {
+  const imageRef = await sails.helpers.system.getUpdateImageRef.with({
+    updateInfo: { latestVersion: 'v0.0.50' },
+    imageRepository: 'ghcr.io/sailscastshq/slipway'
+  })
+
+  expect(imageRef).toBe('ghcr.io/sailscastshq/slipway:0.0.50')
+  expect(imageRef.includes(':latest')).toBe(false)
 })

@@ -102,7 +102,7 @@ async function waitForHealthy(maxAttempts = 30) {
 const phaseLabels = {
   starting: 'Initiating update...',
   checking: 'Checking for updates...',
-  pulling: 'Pulling latest image...',
+  pulling: 'Pulling image...',
   'backing-up': 'Backing up database...',
   inspecting: 'Reading container configuration...',
   validating: 'Validating new version...',
@@ -275,7 +275,7 @@ function formatDate(dateString) {
                 {{ phaseLabels[updatePhase] || 'Updating...' }}
               </p>
               <p
-                v-if="updateDetail && !phaseLabels[updatePhase]"
+                v-if="updateDetail"
                 class="mt-0.5 text-xs text-gray-500 dark:text-gray-400"
               >
                 {{ updateDetail }}

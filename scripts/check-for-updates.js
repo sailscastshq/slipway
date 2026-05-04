@@ -18,7 +18,7 @@ module.exports = {
 
     if (result.updateAvailable) {
       sails.log.info(
-        `[slipway] Update available: ${result.currentVersion} → ${result.latestVersion}`
+        `[slipway] Update available: ${result.currentVersion} → ${result.latestVersion} (${result.imageRef})`
       )
     } else if (result.error) {
       sails.log.verbose(`[slipway] Update check: ${result.error}`)

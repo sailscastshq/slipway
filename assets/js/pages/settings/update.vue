@@ -127,7 +127,7 @@ async function waitForHealthy(maxAttempts = 30) {
 const phaseLabels = {
   starting: 'Initiating update...',
   checking: 'Checking for updates...',
-  pulling: 'Pulling latest image...',
+  pulling: 'Pulling image...',
   'backing-up': 'Backing up database...',
   inspecting: 'Reading container configuration...',
   validating: 'Validating new version...',
@@ -548,7 +548,7 @@ function formatDate(dateString) {
                 {{ phaseLabels[updatePhase] || 'Updating...' }}
               </p>
               <p
-                v-if="updateDetail && !phaseLabels[updatePhase]"
+                v-if="updateDetail"
                 class="mt-0.5 text-xs text-gray-500 dark:text-gray-400"
               >
                 {{ updateDetail }}
@@ -654,12 +654,12 @@ function formatDate(dateString) {
               <div class="mt-4 space-y-3">
                 <p class="text-sm text-gray-600 dark:text-gray-400">
                   SSH into your server and re-run the install script. It detects
-                  the existing installation, reuses your secrets, pulls the
-                  latest image, and restarts Slipway.
+                  the existing installation, reuses your secrets, pulls this
+                  release, and restarts Slipway.
                 </p>
                 <pre
                   class="overflow-x-auto rounded-lg bg-gray-900 p-3 text-sm text-gray-100 dark:bg-gray-950"
-                ><code>curl -fsSL https://raw.githubusercontent.com/sailscastshq/slipway/main/install.sh | bash</code></pre>
+                ><code>curl -fsSL https://raw.githubusercontent.com/sailscastshq/slipway/main/install.sh | bash -s -- {{ localUpdateInfo.latestVersion }}</code></pre>
                 <p class="text-xs text-gray-500 dark:text-gray-400">
                   Your data is stored on Docker volumes and is preserved across
                   updates.
