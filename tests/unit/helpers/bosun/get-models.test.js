@@ -1,55 +1,78 @@
 const { test } = require('sounding')
 
-const getModels = require('../../../../api/helpers/bosun/get-models')
-
-const originalSails = global.sails
-
 test('bosun model discovery only returns models for the selected datastore', async ({
+  sails,
   expect
 }) => {
+  const originalModels = sails.models
+  const originalGetDatabaseService = sails.helpers.bosun.getDatabaseService
+
   try {
-    global.sails = {
-      helpers: {
-        bosun: {
-          getDatabaseService: async () => ({ datastore: 'observability' })
+    sails.helpers.bosun.getDatabaseService = async () => ({
+      datastore: 'observability'
+    })
+
+    sails.models = {
+      user: {
+        identity: 'user',
+        tableName: 'users',
+        attributes: {
+          email: {
+            type: 'string'
+          }
         }
       },
-      models: {
-        user: {
-          identity: 'user',
-          tableName: 'users',
-          attributes: {
-            email: {
-              type: 'string'
-            }
+      telemetrymetric: {
+        identity: 'telemetrymetric',
+        datastore: 'observability',
+        tableName: 'telemetry_metrics',
+        primaryKey: 'id',
+        schema: {
+          id: {
+            columnName: 'id'
+          },
+          name: {
+            columnName: 'metric_name'
+          },
+          environment: {
+            columnName: 'environment'
+          },
+          recordedAt: {
+            columnName: 'recorded_at'
+          },
+          isPublished: {
+            columnName: 'is_published'
           }
         },
-        telemetrymetric: {
-          identity: 'telemetrymetric',
-          datastore: 'observability',
-          tableName: 'telemetry_metrics',
-          primaryKey: 'id',
-          attributes: {
-            id: {
-              type: 'number',
-              autoMigrations: { autoIncrement: true }
-            },
-            name: {
-              type: 'string'
-            },
-            environment: {
-              type: 'string'
-            },
-            spans: {
-              collection: 'telemetryspan',
-              via: 'metric'
-            }
+        attributes: {
+          id: {
+            type: 'number',
+            autoMigrations: { autoIncrement: true }
+          },
+          name: {
+            type: 'string'
+          },
+          environment: {
+            type: 'string'
+          },
+          recordedAt: {
+            type: 'number',
+            autoCreatedAt: true
+          },
+          isPublished: {
+            type: 'boolean',
+            autoMigrations: { columnType: '_boolean' },
+            defaultsTo: false
+          },
+          spans: {
+            collection: 'telemetryspan',
+            via: 'metric'
           }
         }
       }
     }
 
-    const result = await getModels.fn({ database: 'observability' })
+    const result = await sails.helpers.bosun.getModels('observability')
 
     expect(result.datastore).toBe('observability')
     expect(result.modelCount).toBe(1)
@@ -71,7 +94,7 @@ test('bosun model discovery only returns models for the selected datastore', asy
       name: {
         type: 'string',
         columnType: undefined,
-        columnName: 'name',
+        columnName: 'metric_name',
         required: false,
         unique: false,
         index: false,
@@ -93,9 +116,36 @@ test('bosun model discovery only returns models for the selected datastore', asy
         autoUpdatedAt: false,
         autoIncrement: false,
         allowNull: undefined
+      },
+      recordedAt: {
+        type: 'number',
+        columnType: undefined,
+        columnName: 'recorded_at',
+        required: false,
+        unique: false,
+        index: false,
+        defaultsTo: undefined,
+        autoCreatedAt: true,
+        autoUpdatedAt: false,
+        autoIncrement: false,
+        allowNull: undefined
+      },
+      isPublished: {
+        type: 'boolean',
+        columnType: '_boolean',
+        columnName: 'is_published',
+        required: false,
+        unique: false,
+        index: false,
+        defaultsTo: false,
+        autoCreatedAt: false,
+        autoUpdatedAt: false,
+        autoIncrement: false,
+        allowNull: undefined
       }
     })
   } finally {
-    global.sails = originalSails
+    sails.models = originalModels
+    sails.helpers.bosun.getDatabaseService = originalGetDatabaseService
   }
 })

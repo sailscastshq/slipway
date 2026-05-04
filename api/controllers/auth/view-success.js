@@ -14,28 +14,31 @@ module.exports = {
   },
 
   fn: async function ({ operation }) {
-    let message
-    const pageTitle = `${sails.helpers.capitalize(operation)}`
-    let pageHeading
-    switch (operation) {
-      case 'verify-email':
-        message = 'Email has been successfully verified'
-        pageHeading = 'Email verification successful'
-        break
-      case 'check-email':
-        message = 'An email has been sent to your inbox'
-        pageHeading = 'Please check your email'
-        break
-      case 'reset-password':
-        message = 'Password has been successfully reset'
-        pageHeading = 'Password reset successful'
-    }
+    const copy = {
+      'verify-email': {
+        pageTitle: 'Email verified',
+        pageHeading: 'Email verified',
+        message: 'Your email is confirmed. You can continue to Slipway.'
+      },
+      'check-email': {
+        pageTitle: 'Check your inbox',
+        pageHeading: 'Check your inbox',
+        message: 'We sent the link you need to continue.'
+      },
+      'reset-password': {
+        pageTitle: 'Password updated',
+        pageHeading: 'Password updated',
+        message:
+          'Your new password is saved. You are signed in and ready to continue.'
+      }
+    }[operation]
+
     return {
       page: 'auth/success',
       props: {
-        pageTitle,
-        pageHeading,
-        message
+        pageTitle: copy.pageTitle,
+        pageHeading: copy.pageHeading,
+        message: copy.message
       }
     }
   }

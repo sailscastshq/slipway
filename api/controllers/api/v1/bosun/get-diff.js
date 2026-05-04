@@ -18,6 +18,9 @@ module.exports = {
     },
     notFound: {
       statusCode: 404
+    },
+    badRequest: {
+      statusCode: 400
     }
   },
 
@@ -32,12 +35,13 @@ module.exports = {
 
     const schemaResult = await sails.helpers.dock.getSchema(service)
     if (schemaResult.error) {
-      this.res.status(400)
-      return {
-        error: `Failed to get schema: ${schemaResult.error}`,
-        diff: emptyDiff(),
-        statements: [],
-        hasPendingChanges: false
+      throw {
+        badRequest: {
+          error: `Failed to get schema: ${schemaResult.error}`,
+          diff: emptyDiff(),
+          statements: [],
+          hasPendingChanges: false
+        }
       }
     }
 
@@ -83,6 +87,7 @@ function emptyDiff() {
   return {
     tablesToCreate: [],
     tablesToDrop: [],
+    columnsToRename: [],
     columnsToAdd: [],
     columnsToModify: [],
     columnsToDrop: [],

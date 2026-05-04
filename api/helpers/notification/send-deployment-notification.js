@@ -177,7 +177,8 @@ module.exports = {
     if (smtpEnabled === 'true') {
       await sails.helpers.notification.sendEmail
         .with({
-          template: 'email-deployment-notification',
+          template: 'deployment-notification',
+          layout: 'mail',
           subject: `${slippyTitle} \u2014 ${appName} (${environment.name})`,
           templateData: {
             isSuccess,

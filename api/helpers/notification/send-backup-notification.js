@@ -197,7 +197,8 @@ module.exports = {
         : service.name
       await sails.helpers.notification.sendEmail
         .with({
-          template: 'email-backup-notification',
+          template: 'backup-notification',
+          layout: 'mail',
           subject: `${emoji} ${slippyTitle} \u2014 ${subjectSuffix}`,
           templateData: {
             isSuccess,

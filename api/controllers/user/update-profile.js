@@ -75,12 +75,15 @@ module.exports = {
     if (email !== user.email) {
       updatedData.emailChangeCandidate = email
       updatedData.emailStatus = 'change-requested'
-      const emailProofToken = sails.helpers.strings.random('url-friendly')
+      const emailProofToken = await sails.helpers.strings.random('url-friendly')
+      updatedData.emailProofToken = emailProofToken
+      updatedData.emailProofTokenExpiresAt =
+        Date.now() + sails.config.custom.emailProofTokenTTL
 
-      await sails.helpers.mail.send.with({
+      await sails.helpers.mail.sendConfigured.with({
         to: email,
         subject: 'Confirm your new email address',
-        template: 'email-verify-new-email',
+        template: 'verify-new-email',
         templateData: {
           fullName,
           token: emailProofToken

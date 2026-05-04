@@ -398,6 +398,7 @@ const diffSummary = computed(() => {
   if (!diff.value?.diff) {
     return {
       tables: 0,
+      columnsToRename: 0,
       columnsToAdd: 0,
       columnsToModify: 0,
       indexes: 0
@@ -406,6 +407,7 @@ const diffSummary = computed(() => {
 
   return {
     tables: diff.value.diff.tablesToCreate.length,
+    columnsToRename: diff.value.diff.columnsToRename?.length || 0,
     columnsToAdd: diff.value.diff.columnsToAdd.length,
     columnsToModify: diff.value.diff.columnsToModify.length,
     indexes: diff.value.diff.indexesToCreate.length
@@ -1843,6 +1845,20 @@ onUnmounted(() => {
                     class="mt-1 text-lg font-semibold text-gray-900 dark:text-white"
                   >
                     {{ diffSummary.tables }}
+                  </div>
+                </div>
+                <div
+                  class="rounded-md bg-gray-50 px-3 py-3 dark:bg-gray-900/60"
+                >
+                  <div
+                    class="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400"
+                  >
+                    Rename columns
+                  </div>
+                  <div
+                    class="mt-1 text-lg font-semibold text-gray-900 dark:text-white"
+                  >
+                    {{ diffSummary.columnsToRename }}
                   </div>
                 </div>
                 <div

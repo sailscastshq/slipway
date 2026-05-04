@@ -79,10 +79,10 @@ module.exports = {
 
     // Send invite email
     const team = await Team.findOne({ id: currentUser.team })
-    await sails.helpers.mail.send.with({
+    await sails.helpers.mail.sendConfigured.with({
       to: email.toLowerCase(),
       subject: `You've been invited to join ${team.name}`,
-      template: 'email-team-invite',
+      template: 'team-invite',
       templateData: {
         teamName: team.name,
         inviterName: currentUser.fullName,

@@ -1,32 +1,32 @@
 const { test } = require('sounding')
 
-const generateMigrationSql = require('../../../../api/helpers/dock/generate-migration-sql')
-
 test('sqlite migration SQL rebuilds tables for modified columns', async ({
+  sails,
   expect
 }) => {
-  const result = await generateMigrationSql.fn({
-    dbType: 'sqlite',
-    diff: {
+  const result = await sails.helpers.dock.generateMigrationSql(
+    {
       tablesToCreate: [],
       tablesToDrop: [],
+      columnsToRename: [],
       columnsToAdd: [],
       columnsToModify: [
         {
           tableName: 'users',
-          columnName: 'is_genesis_user',
+          columnName: 'email',
           current: {
-            type: 'text'
+            type: 'integer'
           },
           expected: {
-            sqlType: 'INTEGER'
+            sqlType: 'TEXT'
           }
         }
       ],
       columnsToDrop: [],
       indexesToCreate: []
     },
-    models: {
+    'sqlite',
+    {
       user: {
         identity: 'user',
         tableName: 'users',
@@ -58,7 +58,7 @@ test('sqlite migration SQL rebuilds tables for modified columns', async ({
         }
       }
     },
-    schema: {
+    {
       users: {
         columns: [
           { name: 'id' },
@@ -69,7 +69,7 @@ test('sqlite migration SQL rebuilds tables for modified columns', async ({
         ]
       }
     }
-  })
+  )
 
   expect(result.statements.length).toBe(1)
   expect(result.statements[0].type).toBe('rebuild_table')
@@ -79,13 +79,113 @@ test('sqlite migration SQL rebuilds tables for modified columns', async ({
   expect(result.statements[0].sql).toContain(
     'CREATE TABLE IF NOT EXISTS `users`'
   )
-  expect(result.statements[0].sql).toContain(
-    '`is_genesis_user` INTEGER DEFAULT 0'
-  )
+  expect(result.statements[0].sql).toContain('`is_genesis_user` TEXT DEFAULT 0')
   expect(result.statements[0].sql).toContain(
     'INSERT INTO `users` (`id`, `created_at`, `updated_at`, `email`, `is_genesis_user`)'
   )
   expect(result.statements[0].sql).toContain(
     'CREATE UNIQUE INDEX IF NOT EXISTS `idx_users_email`'
+  )
+})
+
+test('sqlite migration SQL renames camelCase columns without rebuilding tables', async ({
+  sails,
+  expect
+}) => {
+  const result = await sails.helpers.dock.generateMigrationSql(
+    {
+      tablesToCreate: [],
+      tablesToDrop: [],
+      columnsToRename: [
+        {
+          tableName: 'apps',
+          fromColumnName: 'dockerfilePath',
+          toColumnName: 'dockerfile_path'
+        }
+      ],
+      columnsToAdd: [],
+      columnsToModify: [],
+      columnsToDrop: [],
+      indexesToCreate: []
+    },
+    'sqlite',
+    {},
+    {}
+  )
+
+  expect(result.statements).toEqual([
+    {
+      type: 'rename_column',
+      table: 'apps',
+      column: 'dockerfile_path',
+      fromColumn: 'dockerfilePath',
+      sql: 'ALTER TABLE `apps` RENAME COLUMN `dockerfilePath` TO `dockerfile_path`;'
+    }
+  ])
+})
+
+test('sqlite table rebuild copies data from renamed source columns', async ({
+  sails,
+  expect
+}) => {
+  const result = await sails.helpers.dock.generateMigrationSql(
+    {
+      tablesToCreate: [],
+      tablesToDrop: [],
+      columnsToRename: [
+        {
+          tableName: 'apps',
+          fromColumnName: 'dockerfilePath',
+          toColumnName: 'dockerfile_path'
+        }
+      ],
+      columnsToAdd: [],
+      columnsToModify: [
+        {
+          tableName: 'apps',
+          columnName: 'name',
+          current: {
+            type: 'integer'
+          },
+          expected: {
+            sqlType: 'TEXT'
+          }
+        }
+      ],
+      columnsToDrop: [],
+      indexesToCreate: []
+    },
+    'sqlite',
+    {
+      app: {
+        identity: 'app',
+        tableName: 'apps',
+        primaryKey: 'id',
+        attributes: {
+          id: {
+            type: 'number',
+            autoIncrement: true
+          },
+          name: {
+            type: 'string'
+          },
+          dockerfilePath: {
+            type: 'string',
+            columnName: 'dockerfile_path'
+          }
+        }
+      }
+    },
+    {
+      apps: {
+        columns: [{ name: 'id' }, { name: 'name' }, { name: 'dockerfilePath' }]
+      }
+    }
+  )
+
+  expect(result.statements.length).toBe(1)
+  expect(result.statements[0].type).toBe('rebuild_table')
+  expect(result.statements[0].sql).toContain(
+    'INSERT INTO `apps` (`id`, `name`, `dockerfile_path`) SELECT `id`, `name`, `dockerfilePath` FROM `apps__old`;'
   )
 })

@@ -40,6 +40,9 @@ module.exports = {
       }
 
       for (const [attrName, attr] of Object.entries(model.attributes)) {
+        const schemaAttr = model.schema?.[attrName] || {}
+        const columnName = schemaAttr.columnName || attr.columnName || attrName
+
         if (attr.collection) {
           continue
         }
@@ -47,7 +50,7 @@ module.exports = {
         if (attr.model) {
           models[identity].attributes[attrName] = {
             type: 'number',
-            columnName: attr.columnName || attrName,
+            columnName,
             required: attr.required || false,
             unique: attr.unique || false,
             foreignKey: true,
@@ -58,8 +61,12 @@ module.exports = {
 
         models[identity].attributes[attrName] = {
           type: attr.type,
-          columnType: attr.columnType,
-          columnName: attr.columnName || attrName,
+          columnType:
+            attr.columnType ||
+            schemaAttr.columnType ||
+            attr.autoMigrations?.columnType ||
+            schemaAttr.autoMigrations?.columnType,
+          columnName,
           required: attr.required || false,
           unique: attr.unique || false,
           index: attr.index || false,
