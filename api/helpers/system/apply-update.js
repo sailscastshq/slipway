@@ -27,7 +27,9 @@ module.exports = {
 
   fn: async function () {
     const dockerPath = sails.config.docker?.binaryPath || 'docker'
-    const image = 'ghcr.io/sailscastshq/slipway'
+    const githubRepo =
+      sails.config.slipway?.githubRepo || 'sailscastshq/slipway'
+    const imageRepository = `ghcr.io/${githubRepo}`
     const CACHE_KEY = 'slipway_update_progress'
     const appsDir = sails.config.custom.slipwayAppsDir || '/var/slipway/apps'
 
@@ -51,17 +53,22 @@ module.exports = {
         throw 'noUpdate'
       }
 
-      const pullTarget = `${image}:latest`
+      const pullTarget = await sails.helpers.system.getUpdateImageRef.with({
+        updateInfo,
+        imageRepository
+      })
 
-      // 2. Pull the latest image
+      // 2. Pull the advertised image
       await setProgress('pulling', `Pulling ${pullTarget}`)
       try {
         await execFileAsync(dockerPath, ['pull', pullTarget], {
           timeout: 300000
         })
       } catch (err) {
-        sails.log.error(`[slipway] Failed to pull image: ${err.message}`)
-        await setProgress('failed', 'Failed to pull the latest image')
+        sails.log.error(
+          `[slipway] Failed to pull ${pullTarget}: ${err.message}`
+        )
+        await setProgress('failed', `Failed to pull ${pullTarget}`)
         throw 'pullFailed'
       }
 
@@ -97,8 +104,9 @@ module.exports = {
         })
       }
 
-      // 5. Build base docker run arguments from current container config
-      const baseArgs = buildRunArgs(containerInfo, {
+      // 5. Build reusable Docker arguments from current container config
+      const dockerArgs = await sails.helpers.system.buildUpdateDockerArgs.with({
+        containerInfo,
         extraMounts: [
           {
             type: 'bind',
@@ -107,6 +115,7 @@ module.exports = {
           }
         ]
       })
+      const baseArgs = dockerArgs.runArgs
 
       // 6. Start a validation container (slipway-next) on a temporary port
       await setProgress(
@@ -126,13 +135,7 @@ module.exports = {
         tempArgs.push('--network', networks[0])
       }
 
-      appendMountArgs(tempArgs, containerInfo.Mounts, [
-        {
-          type: 'bind',
-          source: appsDir,
-          destination: appsDir
-        }
-      ])
+      tempArgs.push(...dockerArgs.mountArgs)
 
       // Temp port binding (different from production port)
       tempArgs.push('-p', `${tempPort}:1337`)
@@ -281,95 +284,14 @@ module.exports = {
       return {
         status: 'updating',
         currentVersion: updateInfo.currentVersion,
-        targetVersion: updateInfo.latestVersion
+        targetVersion: updateInfo.latestVersion,
+        targetImage: pullTarget
       }
     } catch (err) {
       // Re-throw Sails exit signals
       if (typeof err === 'string') throw err
       await setProgress('failed', err.message)
       throw 'pullFailed'
-    }
-  }
-}
-
-/**
- * Extract reusable docker run arguments from a container's inspect output.
- * Returns an array of args (network, volumes, ports, env, labels) without
- * the `run -d --name ... --restart ...` prefix or the image suffix.
- */
-function buildRunArgs(containerInfo, { extraMounts = [] } = {}) {
-  const args = []
-
-  // Network
-  const networks = Object.keys(containerInfo.NetworkSettings?.Networks || {})
-  if (networks.length > 0) {
-    args.push('--network', networks[0])
-  }
-
-  appendMountArgs(args, containerInfo.Mounts, extraMounts)
-
-  // Port bindings
-  const portBindings = containerInfo.HostConfig?.PortBindings || {}
-  for (const [containerPort, bindings] of Object.entries(portBindings)) {
-    for (const binding of bindings || []) {
-      const hostPort = binding.HostPort || ''
-      if (hostPort) {
-        args.push('-p', `${hostPort}:${containerPort.replace('/tcp', '')}`)
-      }
-    }
-  }
-
-  // Environment variables
-  for (const envVar of containerInfo.Config?.Env || []) {
-    args.push('-e', envVar)
-  }
-
-  // Labels (skip internal Docker labels)
-  for (const [key, value] of Object.entries(
-    containerInfo.Config?.Labels || {}
-  )) {
-    if (
-      key.startsWith('org.opencontainers.') ||
-      key.startsWith('com.docker.')
-    ) {
-      continue
-    }
-    args.push('-l', `${key}=${value}`)
-  }
-
-  return args
-}
-
-function appendMountArgs(args, mounts = [], extraMounts = []) {
-  const seenDestinations = new Set()
-
-  for (const mount of [...(mounts || []), ...(extraMounts || [])]) {
-    const type = mount.Type || mount.type
-    const destination = mount.Destination || mount.destination
-
-    if (!type || !destination || seenDestinations.has(destination)) {
-      continue
-    }
-
-    seenDestinations.add(destination)
-
-    if (type === 'volume') {
-      const source = mount.Name || mount.name || mount.Source || mount.source
-      if (source) {
-        args.push('-v', `${source}:${destination}`)
-      }
-      continue
-    }
-
-    if (type === 'bind') {
-      const source = mount.Source || mount.source
-      if (!source) {
-        continue
-      }
-
-      const readOnly =
-        mount.RW === false || mount.readOnly === true ? ':ro' : ''
-      args.push('-v', `${source}:${destination}${readOnly}`)
     }
   }
 }
@@ -538,11 +460,4 @@ async function getContainerLogs(dockerPath, containerName) {
   } catch (err) {
     return err.stderr ? String(err.stderr).trim() : null
   }
-}
-
-module.exports._private = {
-  appendMountArgs,
-  buildRunArgs,
-  getContainerLogs,
-  hasMountDestination
 }

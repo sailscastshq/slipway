@@ -22,6 +22,7 @@ module.exports = {
     const currentVersion = sailsApp?.config?.slipway?.version || '0.1.0'
     const githubRepo =
       sailsApp?.config?.slipway?.githubRepo || 'sailscastshq/slipway'
+    const imageRepository = `ghcr.io/${githubRepo}`
 
     // Cache key for rate limiting - only check once per hour
     const cacheKey = 'slipway_update_check'
@@ -70,6 +71,7 @@ module.exports = {
       const release = await response.json()
       const latestVersion =
         release.tag_name?.replace(/^v/, '') || currentVersion
+      const imageRef = `${imageRepository}:${latestVersion}`
 
       // Simple semver comparison (major.minor.patch)
       const isNewer = compareVersions(latestVersion, currentVersion) > 0
@@ -89,6 +91,7 @@ module.exports = {
         currentVersion,
         latestVersion,
         updateAvailable: isNewer && imageReady,
+        imageRef,
         releaseUrl: release.html_url,
         releaseNotes: release.body?.substring(0, 500) || '',
         publishedAt: release.published_at,
