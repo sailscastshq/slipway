@@ -231,11 +231,6 @@ module.exports = {
           )
         }
 
-        // Sync saved settings into sails.config.mail
-        await sails.helpers.setting.syncSmtpConfig()
-        const fromAddress = sails.config.mail.from.address
-        const fromName = sails.config.mail.from.name
-
         const emails = notificationEmails
           .split(',')
           .map((e) => e.trim())
@@ -246,12 +241,10 @@ module.exports = {
         )
 
         for (const to of emails) {
-          await sails.helpers.mail.send.with({
+          await sails.helpers.mail.sendConfigured.with({
             to,
-            from: fromAddress,
-            fromName,
             subject: 'Slipway Test Notification',
-            template: 'email-test-notification',
+            template: 'test-notification',
             templateData: { instanceName }
           })
         }

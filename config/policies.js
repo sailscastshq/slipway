@@ -24,6 +24,9 @@ module.exports.policies = {
   'auth/login': ['is-guest', 'rate-limit-auth'],
   'auth/forgot-password': ['is-guest', 'rate-limit-auth'],
   'auth/reset-password': ['is-guest', 'rate-limit-auth'],
+  'auth/verify-email': true,
+  'auth/resend-link': true,
+  'auth/view-link-expired': true,
   'auth/view-success': true,
 
   // GitHub OAuth requires authentication (account-linking, not login)

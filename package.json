@@ -23,7 +23,7 @@
     "nodemailer": "^6.9.15",
     "sails": "^1.5.14",
     "sails-flash": "^0.0.1",
-    "sails-hook-mail": "^0.2.0",
+    "sails-hook-mail": "^0.2.2",
     "sails-hook-organics": "^3.0.0",
     "sails-hook-orm": "^4.0.3",
     "sails-hook-quest": "^0.0.4",

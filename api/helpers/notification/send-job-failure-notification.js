@@ -116,7 +116,8 @@ module.exports = {
     if (smtpEnabled === 'true') {
       await sails.helpers.notification.sendEmail
         .with({
-          template: 'email-job-failure',
+          template: 'job-failure',
+          layout: 'mail',
           subject: `\u274C A job didn't finish \u2014 ${jobName}`,
           templateData: {
             jobName,

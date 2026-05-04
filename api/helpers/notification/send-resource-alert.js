@@ -152,7 +152,8 @@ module.exports = {
     if (smtpEnabled === 'true') {
       await sails.helpers.notification.sendEmail
         .with({
-          template: 'email-resource-alert',
+          template: 'resource-alert',
+          layout: 'mail',
           subject: `\u26A0\uFE0F Things are heating up \u2014 ${containerName}`,
           templateData: {
             containerName,

@@ -61,7 +61,10 @@ module.exports.custom = {
   slipwayPortRange: { start: 1338, end: 1500 },
 
   // API version (used for building API URLs)
-  apiVersion: 'v1'
+  apiVersion: 'v1',
+
+  // How long users must wait before requesting another auth email link.
+  emailLinkResendCooldown: 30 * 1000
 
   /***************************************************************************
    *                                                                          *

@@ -24,23 +24,24 @@ module.exports = {
   },
 
   fn: async function ({ email }) {
-    const userExists = await User.count({ email: this.req.session.userEmail })
-    if (!userExists) {
+    const normalizedEmail = email.toLowerCase()
+    const token = await sails.helpers.strings.random('url-friendly')
+    const now = Date.now()
+
+    const user = await User.updateOne({ email: normalizedEmail }).set({
+      passwordResetToken: token,
+      passwordResetTokenExpiresAt:
+        now + sails.config.custom.passwordResetTokenTTL
+    })
+
+    if (!user) {
       return '/check-email'
     }
 
-    const token = await sails.helpers.strings.random('url-friendly')
-
-    const user = await User.updateOne({ email }).set({
-      passwordResetToken: token,
-      passwordResetTokenExpiresAt:
-        Date.now() + sails.config.custom.passwordResetTokenTTL
-    })
-
-    await sails.helpers.mail.send.with({
+    await sails.helpers.mail.sendConfigured.with({
       to: user.email,
       subject: 'Password reset instructions',
-      template: 'email-reset-password',
+      template: 'reset-password',
       templateData: {
         fullName: user.fullName,
         token
@@ -48,6 +49,8 @@ module.exports = {
     })
 
     this.req.session.userEmail = user.email
+    this.req.session.emailLinkResendAvailableAt =
+      now + sails.config.custom.emailLinkResendCooldown
     return '/check-email'
   }
 }
