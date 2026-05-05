@@ -4,7 +4,7 @@ const path = require('path')
 
 const { test } = require('sounding')
 
-test('static model parsing removes default timestamp attributes explicitly set to false', async ({
+test('model discovery omits default timestamp columns explicitly disabled by the app', async ({
   sails,
   expect
 }) => {
@@ -43,7 +43,7 @@ test('static model parsing removes default timestamp attributes explicitly set t
   })
 })
 
-test('static model parsing only treats top-level false attributes as disabled columns', async ({
+test('model discovery only treats top-level false attributes as disabled columns', async ({
   sails,
   expect
 }) => {
@@ -76,7 +76,7 @@ test('static model parsing only treats top-level false attributes as disabled co
   expect(models.profile.attributes.updatedAt).toBe(undefined)
 })
 
-test('static model parsing preserves configured snake_case timestamp and column names', async ({
+test('model discovery preserves configured snake_case timestamp and column names', async ({
   sails,
   expect
 }) => {

@@ -73,7 +73,9 @@ test('configured mail syncs UI SMTP settings before delegating', async ({
   }
 })
 
-test('app mail sends go through configured mail helper', async ({ expect }) => {
+test('outgoing app mail goes through the configured mail helper', async ({
+  expect
+}) => {
   const root = process.cwd()
   const apiDir = path.join(root, 'api')
   const configuredHelper = path.join(

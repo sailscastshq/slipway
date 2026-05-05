@@ -4,7 +4,7 @@ const getDiskSpace = require('../../../../api/helpers/lookout/get-disk-space')
 
 const { parseDiskSpaceOutput, formatBytes } = getDiskSpace._private
 
-test('disk space parser reads the root volume stats from df output', async ({
+test('disk usage reads the root volume stats from df output', async ({
   expect
 }) => {
   const disk =
@@ -19,9 +19,7 @@ test('disk space parser reads the root volume stats from df output', async ({
   expect(disk.total).toBe('39 GB')
 })
 
-test('disk space formatter keeps smaller byte values readable', async ({
-  expect
-}) => {
+test('disk usage keeps smaller byte values readable', async ({ expect }) => {
   expect(formatBytes(0)).toBe('0 B')
   expect(formatBytes(1536)).toBe('1.5 KB')
   expect(formatBytes(5 * 1024 * 1024)).toBe('5.0 MB')
