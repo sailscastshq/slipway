@@ -26,6 +26,7 @@ const updatePhase = ref('')
 const updateDetail = ref('')
 const localUpdateInfo = ref(props.updateInfo)
 const lastChecked = ref(new Date())
+const updateTargetVersion = ref(props.updateInfo.latestVersion || null)
 
 const {
   connected: sseConnected,
@@ -57,14 +58,15 @@ watch(sseConnected, (isConnected, wasConnected) => {
   ) {
     updatePhase.value = 'waiting'
     updateDetail.value = ''
-    waitForHealthy()
+    waitForHealthy(updateTargetVersion.value)
       .then(() => {
         updatePhase.value = 'success'
         updateDetail.value = ''
         setTimeout(() => window.location.reload(), 1500)
       })
-      .catch(() => {
-        updateError.value = 'Slipway did not come back up. Check your server.'
+      .catch((err) => {
+        updateError.value =
+          err.message || 'Slipway did not come back up. Check your server.'
         updating.value = false
         updatePhase.value = ''
       })
@@ -103,6 +105,9 @@ async function applyUpdate() {
       throw new Error(data.message || 'Failed to initiate update')
     }
 
+    const data = await response.json().catch(() => ({}))
+    updateTargetVersion.value =
+      data.targetVersion || localUpdateInfo.value.latestVersion || null
     connectSSE()
   } catch (err) {
     updateError.value = err.message
@@ -111,15 +116,31 @@ async function applyUpdate() {
   }
 }
 
-async function waitForHealthy(maxAttempts = 30) {
+async function waitForHealthy(expectedVersion, maxAttempts = 30) {
   for (let i = 0; i < maxAttempts; i++) {
     await new Promise((resolve) => setTimeout(resolve, 2000))
+    let res
     try {
-      const res = await fetch('/health')
-      if (res.ok) return
+      res = await fetch('/health')
     } catch {
-      // Still down — keep polling
+      // Still down — keep polling.
+      continue
     }
+
+    if (!res.ok) continue
+
+    const health = await res.json().catch(() => ({}))
+    if (!expectedVersion || health.version === expectedVersion) return
+
+    if (health.version) {
+      throw new Error(
+        `Slipway came back on v${health.version}, so the update likely rolled back before v${expectedVersion} finished.`
+      )
+    }
+
+    throw new Error(
+      `Slipway came back without version metadata, so v${expectedVersion} could not be confirmed.`
+    )
   }
   throw new Error('timeout')
 }

@@ -225,30 +225,12 @@ module.exports = {
       // 10. Spawn the bosun sidecar to perform the swap
       await setProgress(
         'swapping',
-        'Swapping containers — Slipway will restart momentarily'
+        'Swapping containers — previous version will be kept until the new one is healthy'
       )
 
-      const argsJson = JSON.stringify(runArgs)
-      const script =
-        'const{execFileSync}=require("child_process");' +
-        'setTimeout(()=>{' +
-        'try{' +
-        'console.log("Stopping old Slipway container...");' +
-        'execFileSync("docker",["rm","-f","slipway"]);' +
-        'console.log("Starting new Slipway container...");' +
-        'execFileSync("docker",' +
-        argsJson +
-        ');' +
-        'console.log("Update complete!");' +
-        '}catch(e){' +
-        'console.error("Update failed:",e.message);' +
-        'try{console.log("Attempting recovery...");' +
-        'execFileSync("docker",' +
-        argsJson +
-        ');}catch(e2){console.error("Recovery failed:",e2.message)}' +
-        'process.exit(1)' +
-        '}' +
-        '},3000)'
+      const script = await sails.helpers.system.buildUpdateSwapScript.with({
+        runArgs
+      })
 
       // Remove any leftover bosun container from a previous attempt
       try {

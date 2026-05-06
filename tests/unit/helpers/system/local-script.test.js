@@ -5,7 +5,7 @@ const { test } = require('sounding')
 
 const appRoot = path.resolve(__dirname, '../../../../')
 
-test('local installer is wired into package scripts with production-like Docker assumptions', async ({
+test('local dev scripts preserve production-like Docker assumptions', async ({
   expect
 }) => {
   const packageJson = JSON.parse(

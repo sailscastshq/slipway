@@ -1,6 +1,8 @@
+const vm = require('node:vm')
+
 const { test } = require('sounding')
 
-test('buildUpdateDockerArgs injects the Slipway apps bind mount when it is missing', async ({
+test('self-update docker args include the persistent apps mount when it is missing', async ({
   sails,
   expect
 }) => {
@@ -49,7 +51,7 @@ test('buildUpdateDockerArgs injects the Slipway apps bind mount when it is missi
   expect(runArgs.includes('1337:1337')).toBe(true)
 })
 
-test('buildUpdateDockerArgs does not duplicate the apps bind mount when it already exists', async ({
+test('self-update docker args keep an existing apps mount without duplicating it', async ({
   sails,
   expect
 }) => {
@@ -91,7 +93,7 @@ test('buildUpdateDockerArgs does not duplicate the apps bind mount when it alrea
   ).toBe(1)
 })
 
-test('getUpdateImageRef pins updates to the advertised release version', async ({
+test('self-update image refs use the advertised release tag instead of latest', async ({
   sails,
   expect
 }) => {
@@ -102,4 +104,35 @@ test('getUpdateImageRef pins updates to the advertised release version', async (
 
   expect(imageRef).toBe('ghcr.io/sailscastshq/slipway:0.0.50')
   expect(imageRef.includes(':latest')).toBe(false)
+})
+
+test('self-update swap keeps the previous container available for rollback', async ({
+  sails,
+  expect
+}) => {
+  const targetImage = 'ghcr.io/sailscastshq/slipway:test-target'
+  const script = await sails.helpers.system.buildUpdateSwapScript.with({
+    runArgs: ['run', '-d', '--name', 'slipway', targetImage]
+  })
+
+  expect(script.includes(targetImage)).toBe(true)
+  expect(script.includes('docker(["rename", containerName, backupName])')).toBe(
+    true
+  )
+  expect(script.includes('docker(["stop", backupName])')).toBe(true)
+  expect(script.includes('tryDocker(["rm", "-f", containerName])')).toBe(true)
+  expect(script.includes('docker(["rename", backupName, containerName])')).toBe(
+    true
+  )
+  expect(script.includes('waitForHealth()')).toBe(true)
+  expect(script.includes('Rollback complete')).toBe(true)
+  expect((script.match(/docker\(runArgs\)/g) || []).length).toBe(1)
+
+  let syntaxError
+  try {
+    new vm.Script(script)
+  } catch (error) {
+    syntaxError = error
+  }
+  expect(syntaxError).toBe(undefined)
 })

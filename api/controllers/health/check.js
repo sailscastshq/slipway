@@ -10,6 +10,9 @@ module.exports = {
   },
 
   fn: async function () {
-    return { status: 'ok' }
+    return {
+      status: 'ok',
+      version: sails.config.slipway?.version || 'unknown'
+    }
   }
 }
