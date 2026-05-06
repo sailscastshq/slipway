@@ -6,7 +6,7 @@ module.exports = {
   friendlyName: 'Update app',
 
   description:
-    'Update app settings (name, dockerfilePath, routePath, envVars, resourceLimits).',
+    'Update app settings (name, dockerfilePath, routePath, healthPath, envVars, resourceLimits).',
 
   inputs: {
     projectSlug: {
@@ -31,6 +31,9 @@ module.exports = {
       type: 'string',
       allowNull: true
     },
+    healthPath: {
+      type: 'string'
+    },
     envVars: {
       type: 'json'
     },
@@ -52,6 +55,7 @@ module.exports = {
     name,
     dockerfilePath,
     routePath,
+    healthPath,
     envVars,
     resourceLimits
   }) {
@@ -78,6 +82,7 @@ module.exports = {
     if (name !== undefined) updates.name = name
     if (dockerfilePath !== undefined) updates.dockerfilePath = dockerfilePath
     if (routePath !== undefined) updates.routePath = routePath
+    if (healthPath !== undefined) updates.healthPath = healthPath
     if (envVars !== undefined) updates.envVars = envVars
     if (resourceLimits !== undefined) {
       updates.resourceLimits = resourceLimits

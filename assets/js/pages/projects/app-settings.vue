@@ -34,6 +34,7 @@ const basePath = computed(
 // --- Form state ---
 const name = ref(props.app.name)
 const dockerfilePath = ref(props.app.dockerfilePath || 'Dockerfile')
+const healthPath = ref(props.app.healthPath || '/health')
 const routePath = ref(
   props.app.routePath === null ? 'none' : props.app.routePath || '/'
 )
@@ -46,6 +47,7 @@ const isDirty = computed(
   () =>
     name.value !== props.app.name ||
     dockerfilePath.value !== (props.app.dockerfilePath || 'Dockerfile') ||
+    healthPath.value !== (props.app.healthPath || '/health') ||
     routePath.value !==
       (props.app.routePath === null ? 'none' : props.app.routePath || '/') ||
     cpus.value !== (props.app.resourceLimits?.cpus || '1') ||
@@ -70,6 +72,7 @@ async function saveSettings({ restart = false } = {}) {
         body: JSON.stringify({
           name: name.value,
           dockerfilePath: dockerfilePath.value,
+          healthPath: healthPath.value,
           routePath: routePath.value === 'none' ? null : routePath.value,
           resourceLimits: { cpus: cpus.value, memory: memory.value }
         })
@@ -382,7 +385,8 @@ async function deleteApp() {
             {{ app.name }} settings
           </h1>
           <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            Configure this app's Dockerfile, routing, and resource limits.
+            Configure this app's Dockerfile, readiness, routing, and resource
+            limits.
           </p>
         </div>
 
@@ -401,6 +405,25 @@ async function deleteApp() {
               type="text"
               class="focus:border-brand w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
             />
+          </div>
+
+          <div>
+            <label
+              for="healthPath"
+              class="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
+            >
+              Health path
+            </label>
+            <input
+              id="healthPath"
+              v-model="healthPath"
+              type="text"
+              placeholder="/health"
+              class="focus:border-brand w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
+            />
+            <p class="mt-1 text-xs text-gray-400 dark:text-gray-500">
+              Deployment waits for this path to return a 2xx response.
+            </p>
           </div>
 
           <div>

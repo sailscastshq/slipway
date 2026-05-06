@@ -56,6 +56,7 @@ const addAppOpen = ref(false)
 const createAppForm = useForm({
   name: '',
   dockerfilePath: 'Dockerfile',
+  healthPath: '/health',
   routePath: '/',
   repoId: null,
   branch: null
@@ -1524,6 +1525,12 @@ onBeforeUnmount(() => {
                       v-model="createAppForm.dockerfilePath"
                       placeholder="Dockerfile"
                       class="focus:border-brand w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500 sm:w-32"
+                      @keydown.enter="createApp"
+                    />
+                    <input
+                      v-model="createAppForm.healthPath"
+                      placeholder="/health"
+                      class="focus:border-brand w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500 sm:w-28"
                       @keydown.enter="createApp"
                     />
                     <select
