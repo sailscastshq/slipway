@@ -25,7 +25,7 @@ module.exports = {
     },
     path: {
       type: 'string',
-      defaultsTo: '/',
+      defaultsTo: '/health',
       description: 'HTTP path to check'
     },
     timeout: {
@@ -62,6 +62,7 @@ module.exports = {
     interval,
     deploymentId
   }) {
+    const healthPath = normalizePath(path)
     const startTime = Date.now()
     let lastError = null
     let attempts = 0
@@ -70,7 +71,7 @@ module.exports = {
     if (deploymentId) {
       await Deployment.appendDeployLog(
         deploymentId,
-        `Health check: polling http://${containerName}:${port}${path} (timeout: ${Math.round(
+        `Health check: polling http://${containerName}:${port}${healthPath} (timeout: ${Math.round(
           timeout / 1000
         )}s)\n`
       )
@@ -81,24 +82,25 @@ module.exports = {
 
       const checkHost = usingFallback ? 'localhost' : containerName
       const checkPort = usingFallback ? hostPort : port
+      const endpoint = `http://${checkHost}:${checkPort}${healthPath}`
 
       try {
-        const statusCode = await httpGet(checkHost, checkPort, path)
+        const statusCode = await httpGet(checkHost, checkPort, healthPath)
 
-        if (statusCode < 500) {
+        if (statusCode >= 200 && statusCode < 300) {
           sails.log.info(
-            `Health check passed on ${checkHost}:${checkPort} (HTTP ${statusCode}, attempt ${attempts})`
+            `Health check passed: ${endpoint} returned HTTP ${statusCode} (attempt ${attempts})`
           )
           if (deploymentId) {
             await Deployment.appendDeployLog(
               deploymentId,
-              `Health check passed (HTTP ${statusCode}, attempt ${attempts})\n`
+              `Health check passed: ${endpoint} returned HTTP ${statusCode} (attempt ${attempts})\n`
             )
           }
           return { statusCode, attempts }
         }
 
-        lastError = `HTTP ${statusCode}`
+        lastError = `${endpoint} returned HTTP ${statusCode}`
       } catch (err) {
         // If Docker DNS can't resolve the container name, fall back to localhost:hostPort
         // EAI_AGAIN is a transient DNS failure that also indicates Docker DNS is unavailable
@@ -158,4 +160,10 @@ function httpGet(hostname, port, path) {
       reject(new Error('Request timed out'))
     })
   })
+}
+
+function normalizePath(path) {
+  const normalized = String(path || '/health').trim()
+  if (!normalized) return '/health'
+  return normalized.startsWith('/') ? normalized : `/${normalized}`
 }

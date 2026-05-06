@@ -30,6 +30,11 @@ module.exports = {
       defaultsTo: '/',
       description: 'Caddy route path (/, /api, or null for workers)'
     },
+    healthPath: {
+      type: 'string',
+      defaultsTo: '/health',
+      description: 'HTTP path to probe before this app receives traffic'
+    },
     repoId: {
       type: 'string',
       description: 'GitHub repository ID to connect (optional)'
@@ -55,6 +60,7 @@ module.exports = {
     name,
     dockerfilePath,
     routePath,
+    healthPath,
     repoId,
     branch
   }) {
@@ -75,6 +81,7 @@ module.exports = {
         name,
         dockerfilePath,
         routePath,
+        healthPath,
         environment: environment.id,
         isDefault: false
       }).fetch()

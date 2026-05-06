@@ -160,6 +160,10 @@ module.exports = {
         targetApp ||
         (await App.findOne({ environment: environment.id, isDefault: true })) ||
         (await App.findOne({ environment: environment.id }))
+      const healthPath = App.normalizeHealthPath(
+        (targetApp && targetApp.healthPath) ||
+          (existingApp && existingApp.healthPath)
+      )
       const resourceLimits = (existingApp && existingApp.resourceLimits) || {
         cpus: '1',
         memory: '1.5g'
@@ -182,6 +186,7 @@ module.exports = {
         containerName: deployContainerName,
         port: 1337,
         hostPort: deployHostPort,
+        path: healthPath,
         deploymentId
       })
 
@@ -213,6 +218,7 @@ module.exports = {
           currentDeployment: deploymentId,
           slug: appSlug || 'app',
           name: appSlug || 'app',
+          healthPath,
           isDefault: true
         })
       }

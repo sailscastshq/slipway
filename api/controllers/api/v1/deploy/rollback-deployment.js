@@ -190,6 +190,10 @@ async function executeRollback(
       targetApp ||
       (await App.findOne({ environment: environment.id, isDefault: true })) ||
       (await App.findOne({ environment: environment.id }))
+    const healthPath = App.normalizeHealthPath(
+      (targetApp && targetApp.healthPath) ||
+        (existingApp && existingApp.healthPath)
+    )
 
     // 7. Run the container with the existing image
     const containerResult = await sails.helpers.docker.runContainer.with({
@@ -201,7 +205,16 @@ async function executeRollback(
       deploymentId: rollbackId
     })
 
-    // 8. Create or update the App record
+    // 8. HTTP health check before switching traffic to the rollback image
+    await sails.helpers.docker.healthCheck.with({
+      containerName: containerResult.containerName,
+      port: 1337,
+      hostPort: containerResult.hostPort,
+      path: healthPath,
+      deploymentId: rollbackId
+    })
+
+    // 9. Create or update the App record
     if (existingApp) {
       await App.updateOne({ id: existingApp.id }).set({
         status: 'running',
@@ -227,11 +240,12 @@ async function executeRollback(
         currentDeployment: rollbackId,
         slug: appSlugForName || 'app',
         name: appSlugForName || 'app',
+        healthPath,
         isDefault: true
       })
     }
 
-    // 9. Update Caddy reverse proxy route
+    // 10. Update Caddy reverse proxy route
     try {
       await sails.helpers.caddy.updateRoute(environment.id)
     } catch (caddyErr) {
@@ -244,7 +258,7 @@ async function executeRollback(
       )
     }
 
-    // 10. Mark previous running deployments as stopped (scoped to app)
+    // 11. Mark previous running deployments as stopped (scoped to app)
     const stopCriteria = {
       environment: environment.id,
       status: 'running',
@@ -253,7 +267,7 @@ async function executeRollback(
     if (existingApp) stopCriteria.app = existingApp.id
     await Deployment.update(stopCriteria).set({ status: 'stopped' })
 
-    // 11. Mark deployment as running
+    // 12. Mark deployment as running
     await Deployment.updateOne({ id: rollbackId }).set({
       status: 'running',
       finishedAt: Date.now()

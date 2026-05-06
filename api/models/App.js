@@ -52,6 +52,13 @@ module.exports = {
       columnName: 'route_path'
     },
 
+    healthPath: {
+      type: 'string',
+      defaultsTo: '/health',
+      description: 'HTTP path probed before deployment traffic switches',
+      columnName: 'health_path'
+    },
+
     envVars: {
       type: 'json',
       defaultsTo: {},
@@ -148,6 +155,8 @@ module.exports = {
    * Enforce compound uniqueness (environment + slug) and auto-set isDefault.
    */
   beforeCreate: async function (values, proceed) {
+    values.healthPath = App.normalizeHealthPath(values.healthPath)
+
     // Auto-generate slug from name if name was provided but slug wasn't explicitly set
     if (
       values.name &&
@@ -190,6 +199,20 @@ module.exports = {
     }
 
     return proceed()
+  },
+
+  beforeUpdate: async function (values, proceed) {
+    if (values.healthPath !== undefined) {
+      values.healthPath = App.normalizeHealthPath(values.healthPath)
+    }
+
+    return proceed()
+  },
+
+  normalizeHealthPath: function (healthPath) {
+    const path = String(healthPath || '/health').trim()
+    if (!path) return '/health'
+    return path.startsWith('/') ? path : `/${path}`
   },
 
   /**
