@@ -14,11 +14,145 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
-SLIPWAY_ENV_FILE="/etc/slipway/.env"
-SLIPWAY_APPS_DIR="/var/slipway/apps"
+SLIPWAY_ENV_FILE="${SLIPWAY_ENV_FILE:-/etc/slipway/.env}"
+SLIPWAY_APPS_DIR="${SLIPWAY_APPS_DIR:-/var/slipway/apps}"
 SLIPWAY_IMAGE_REPOSITORY="${SLIPWAY_IMAGE_REPOSITORY:-ghcr.io/sailscastshq/slipway}"
 SLIPWAY_VERSION="${SLIPWAY_VERSION:-${1:-}}"
+SLIPWAY_CONTAINER="${SLIPWAY_CONTAINER:-slipway}"
+SLIPWAY_VALIDATION_CONTAINER="${SLIPWAY_VALIDATION_CONTAINER:-slipway-next}"
+SLIPWAY_PREVIOUS_CONTAINER="${SLIPWAY_PREVIOUS_CONTAINER:-slipway-previous}"
+SLIPWAY_PROXY_CONTAINER="${SLIPWAY_PROXY_CONTAINER:-slipway-proxy}"
+SLIPWAY_NETWORK="${SLIPWAY_NETWORK:-slipway}"
+SLIPWAY_DB_VOLUME="${SLIPWAY_DB_VOLUME:-slipway-db}"
+SLIPWAY_CERTS_VOLUME="${SLIPWAY_CERTS_VOLUME:-slipway-certs}"
+SLIPWAY_PORT="${SLIPWAY_PORT:-1337}"
+SLIPWAY_HTTP_PORT="${SLIPWAY_HTTP_PORT:-80}"
+SLIPWAY_HTTPS_PORT="${SLIPWAY_HTTPS_PORT:-443}"
+SLIPWAY_HEALTH_ATTEMPTS="${SLIPWAY_HEALTH_ATTEMPTS:-30}"
+SLIPWAY_SKIP_PULL="${SLIPWAY_SKIP_PULL:-false}"
 IS_UPDATE=false
+
+container_exists() {
+    docker container inspect "$1" >/dev/null 2>&1
+}
+
+remove_container() {
+    docker rm -f "$1" >/dev/null 2>&1 || true
+}
+
+run_slipway_container() {
+    local container_name="$1"
+    local host_port="${2:-}"
+    local port_args=()
+    local restart_args=()
+
+    if [ -n "$host_port" ]; then
+        port_args=(-p "$host_port:1337")
+        restart_args=(--restart unless-stopped)
+    fi
+
+    docker run -d \
+        --name "$container_name" \
+        --network "$SLIPWAY_NETWORK" \
+        "${restart_args[@]}" \
+        "${port_args[@]}" \
+        -v /var/run/docker.sock:/var/run/docker.sock \
+        -v "$SLIPWAY_APPS_DIR:$SLIPWAY_APPS_DIR" \
+        -v "$SLIPWAY_DB_VOLUME:/app/db" \
+        -e NODE_ENV=production \
+        -e PORT=1337 \
+        -e SLIPWAY_URL="$SLIPWAY_URL" \
+        -e SESSION_SECRET="$SESSION_SECRET" \
+        -e DATA_ENCRYPTION_KEY="$DATA_ENCRYPTION_KEY" \
+        "$SLIPWAY_IMAGE"
+}
+
+wait_for_container_health() {
+    local container_name="$1"
+    local attempts="${2:-$SLIPWAY_HEALTH_ATTEMPTS}"
+
+    for _ in $(seq 1 "$attempts"); do
+        if docker exec "$container_name" curl -fsS http://localhost:1337/health >/dev/null 2>&1; then
+            echo -e "${GREEN}${container_name} passed health check${NC}"
+            return 0
+        fi
+        sleep 2
+    done
+
+    echo -e "${RED}${container_name} did not pass health check. Recent logs:${NC}" >&2
+    docker logs --tail 200 "$container_name" >&2 || true
+    return 1
+}
+
+validate_slipway_image() {
+    echo "Validating Slipway image before replacing the live container..."
+    remove_container "$SLIPWAY_VALIDATION_CONTAINER"
+
+    if ! run_slipway_container "$SLIPWAY_VALIDATION_CONTAINER"; then
+        echo -e "${RED}Failed to start validation container.${NC}" >&2
+        remove_container "$SLIPWAY_VALIDATION_CONTAINER"
+        exit 1
+    fi
+
+    if ! wait_for_container_health "$SLIPWAY_VALIDATION_CONTAINER"; then
+        remove_container "$SLIPWAY_VALIDATION_CONTAINER"
+        exit 1
+    fi
+
+    remove_container "$SLIPWAY_VALIDATION_CONTAINER"
+    echo -e "${GREEN}Slipway image validated${NC}"
+}
+
+restore_previous_container() {
+    if ! container_exists "$SLIPWAY_PREVIOUS_CONTAINER"; then
+        return 1
+    fi
+
+    echo "Restoring previous Slipway container..."
+    remove_container "$SLIPWAY_CONTAINER"
+    docker rename "$SLIPWAY_PREVIOUS_CONTAINER" "$SLIPWAY_CONTAINER"
+    docker start "$SLIPWAY_CONTAINER" >/dev/null
+
+    if wait_for_container_health "$SLIPWAY_CONTAINER"; then
+        echo -e "${GREEN}Previous Slipway container restored${NC}"
+        return 0
+    fi
+
+    echo -e "${RED}Previous Slipway container was restored but did not pass health check.${NC}" >&2
+    return 1
+}
+
+replace_live_container() {
+    local had_previous=false
+
+    if container_exists "$SLIPWAY_CONTAINER"; then
+        had_previous=true
+        echo "Preparing rollback target..."
+        remove_container "$SLIPWAY_PREVIOUS_CONTAINER"
+        docker rename "$SLIPWAY_CONTAINER" "$SLIPWAY_PREVIOUS_CONTAINER"
+        docker stop "$SLIPWAY_PREVIOUS_CONTAINER" >/dev/null
+    fi
+
+    echo "Starting Slipway dashboard..."
+    if ! run_slipway_container "$SLIPWAY_CONTAINER" "$SLIPWAY_PORT"; then
+        echo -e "${RED}Failed to start Slipway dashboard.${NC}" >&2
+        if [ "$had_previous" = true ]; then
+            restore_previous_container || true
+        fi
+        exit 1
+    fi
+
+    if ! wait_for_container_health "$SLIPWAY_CONTAINER"; then
+        if [ "$had_previous" = true ]; then
+            restore_previous_container || true
+        fi
+        exit 1
+    fi
+
+    if [ "$had_previous" = true ]; then
+        remove_container "$SLIPWAY_PREVIOUS_CONTAINER"
+    fi
+}
 
 # Check if running as root
 if [ "$EUID" -ne 0 ]; then
@@ -52,7 +186,7 @@ fi
 
 # 3. Create network for Slipway and apps
 echo "Creating Docker network..."
-docker network create slipway 2>/dev/null || true
+docker network create "$SLIPWAY_NETWORK" 2>/dev/null || true
 echo -e "${GREEN}Network ready${NC}"
 
 # 4. Detect server's public IPv4 address
@@ -62,7 +196,7 @@ if [ -z "$IP" ]; then
     echo -e "${YELLOW}Could not detect public IP. Using localhost.${NC}"
     IP="localhost"
 fi
-SLIPWAY_URL="http://$IP:1337"
+SLIPWAY_URL="${SLIPWAY_URL:-http://$IP:$SLIPWAY_PORT}"
 echo -e "${GREEN}Server URL: $SLIPWAY_URL${NC}"
 
 # 5. Load or generate secrets
@@ -77,7 +211,7 @@ else
     SESSION_SECRET=$(openssl rand -hex 32)
     DATA_ENCRYPTION_KEY=$(openssl rand -base64 32)
 
-    mkdir -p /etc/slipway
+    mkdir -p "$(dirname "$SLIPWAY_ENV_FILE")"
     cat > "$SLIPWAY_ENV_FILE" <<EOF
 SESSION_SECRET=$SESSION_SECRET
 DATA_ENCRYPTION_KEY=$DATA_ENCRYPTION_KEY
@@ -88,16 +222,16 @@ fi
 
 # 6. Start Caddy (reverse proxy with automatic HTTPS)
 echo "Starting Caddy proxy..."
-docker rm -f slipway-proxy 2>/dev/null || true
+remove_container "$SLIPWAY_PROXY_CONTAINER"
 docker run -d \
-    --name slipway-proxy \
-    --network slipway \
+    --name "$SLIPWAY_PROXY_CONTAINER" \
+    --network "$SLIPWAY_NETWORK" \
     --restart unless-stopped \
-    -p 80:80 \
-    -p 443:443 \
+    -p "$SLIPWAY_HTTP_PORT:80" \
+    -p "$SLIPWAY_HTTPS_PORT:443" \
     -v /var/run/docker.sock:/var/run/docker.sock:ro \
-    -v slipway-certs:/data \
-    -e CADDY_INGRESS_NETWORKS=slipway \
+    -v "$SLIPWAY_CERTS_VOLUME:/data" \
+    -e CADDY_INGRESS_NETWORKS="$SLIPWAY_NETWORK" \
     lucaslorentz/caddy-docker-proxy:latest
 echo -e "${GREEN}Caddy proxy running${NC}"
 
@@ -120,38 +254,38 @@ if [ "$SLIPWAY_VERSION" != "latest" ]; then
 fi
 
 SLIPWAY_IMAGE="$SLIPWAY_IMAGE_REPOSITORY:$SLIPWAY_VERSION"
-echo "Pulling Slipway image $SLIPWAY_IMAGE..."
-docker pull "$SLIPWAY_IMAGE"
+if [ "$SLIPWAY_SKIP_PULL" = true ]; then
+    echo "Using local Slipway image $SLIPWAY_IMAGE"
+else
+    echo "Pulling Slipway image $SLIPWAY_IMAGE..."
+    docker pull "$SLIPWAY_IMAGE"
+fi
 docker pull alpine
 
 # 7b. Ensure deployed app source survives container replacement
 mkdir -p "$SLIPWAY_APPS_DIR"
-if docker inspect slipway >/dev/null 2>&1; then
-    HAS_APPS_MOUNT=$(docker inspect slipway --format '{{range .Mounts}}{{if eq .Destination "/var/slipway/apps"}}yes{{end}}{{end}}' 2>/dev/null || true)
+if container_exists "$SLIPWAY_CONTAINER"; then
+    HAS_APPS_MOUNT=$(docker inspect "$SLIPWAY_CONTAINER" --format '{{range .Mounts}}{{if eq .Destination "/var/slipway/apps"}}yes{{end}}{{end}}' 2>/dev/null || true)
     if [ "$HAS_APPS_MOUNT" != "yes" ]; then
-        if docker exec slipway sh -lc 'test -d /var/slipway/apps && [ "$(ls -A /var/slipway/apps 2>/dev/null)" ]' >/dev/null 2>&1; then
+        if docker exec "$SLIPWAY_CONTAINER" sh -lc 'test -d /var/slipway/apps && [ "$(ls -A /var/slipway/apps 2>/dev/null)" ]' >/dev/null 2>&1; then
             echo "Migrating deployed source into persistent storage..."
-            docker exec slipway tar cf - -C /var/slipway/apps . \
+            docker exec "$SLIPWAY_CONTAINER" tar cf - -C /var/slipway/apps . \
                 | docker run --rm -i -v "$SLIPWAY_APPS_DIR:$SLIPWAY_APPS_DIR" alpine sh -lc 'mkdir -p /var/slipway/apps && tar xf - -C /var/slipway/apps'
             echo -e "${GREEN}Source cache migrated${NC}"
         fi
     fi
 fi
 
-# 8. Start Slipway dashboard
-echo "Starting Slipway dashboard..."
-docker rm -f slipway 2>/dev/null || true
-
-# Check if database needs initial table creation
+# 8. Prepare the database before validating a fresh first install
 NEEDS_MIGRATION=$(docker run --rm \
-    -v slipway-db:/app/db \
+    -v "$SLIPWAY_DB_VOLUME:/app/db" \
     "$SLIPWAY_IMAGE" \
     node -e "try { const D = require('better-sqlite3'); const db = new D('/app/db/app.db'); const r = db.prepare(\"SELECT count(*) as c FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'\").get(); console.log(r.c > 0 ? 'no' : 'yes'); db.close(); } catch(e) { console.log('yes'); }" 2>/dev/null)
 
 if [ "$NEEDS_MIGRATION" = "yes" ]; then
     echo "Running database migration..."
     docker run --rm \
-        -v slipway-db:/app/db \
+        -v "$SLIPWAY_DB_VOLUME:/app/db" \
         "$SLIPWAY_IMAGE" \
         node -e "const sails = require('sails'); sails.lift({ port: 0 }, (err) => { if (err) { console.error(err); process.exit(1); } console.log('Migration complete'); sails.lower(() => process.exit(0)); })"
     echo -e "${GREEN}Database migrated${NC}"
@@ -159,28 +293,14 @@ else
     echo -e "${GREEN}Database already initialized${NC}"
 fi
 
-docker run -d \
-    --name slipway \
-    --network slipway \
-    --restart unless-stopped \
-    -p 1337:1337 \
-    -v /var/run/docker.sock:/var/run/docker.sock \
-    -v "$SLIPWAY_APPS_DIR:$SLIPWAY_APPS_DIR" \
-    -v slipway-db:/app/db \
-    -e NODE_ENV=production \
-    -e PORT=1337 \
-    -e SLIPWAY_URL="$SLIPWAY_URL" \
-    -e SESSION_SECRET="$SESSION_SECRET" \
-    -e DATA_ENCRYPTION_KEY="$DATA_ENCRYPTION_KEY" \
-    "$SLIPWAY_IMAGE"
+# 9. Validate target image before touching the live dashboard
+validate_slipway_image
+
+# 10. Replace the live dashboard only after validation succeeds
+replace_live_container
 echo -e "${GREEN}Slipway dashboard running${NC}"
 
-# 9. Wait for startup
-echo ""
-echo "Waiting for Slipway to start..."
-sleep 5
-
-# 10. Show access info
+# 11. Show access info
 echo ""
 echo -e "${GREEN}========================================================${NC}"
 if [ "$IS_UPDATE" = true ]; then
