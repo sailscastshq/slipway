@@ -93,6 +93,31 @@ test('self-update docker args keep an existing apps mount without duplicating it
   ).toBe(1)
 })
 
+test('self-update docker args force production node environment', async ({
+  sails,
+  expect
+}) => {
+  const { runArgs, envArgs } =
+    await sails.helpers.system.buildUpdateDockerArgs.with({
+      containerInfo: {
+        Mounts: [],
+        NetworkSettings: { Networks: {} },
+        HostConfig: { PortBindings: {} },
+        Config: {
+          Env: ['NODE_ENV=development', 'PORT=1337', 'SLIPWAY_URL=https://x'],
+          Labels: {}
+        }
+      }
+    })
+
+  expect(envArgs.includes('NODE_ENV=development')).toBe(false)
+  expect(envArgs.includes('NODE_ENV=production')).toBe(true)
+  expect(runArgs.includes('NODE_ENV=development')).toBe(false)
+  expect(runArgs.includes('NODE_ENV=production')).toBe(true)
+  expect(runArgs.includes('PORT=1337')).toBe(true)
+  expect(runArgs.includes('SLIPWAY_URL=https://x')).toBe(true)
+})
+
 test('self-update image refs use the advertised release tag instead of latest', async ({
   sails,
   expect
