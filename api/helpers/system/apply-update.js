@@ -147,10 +147,7 @@ module.exports = {
       // Temp port binding (different from production port)
       tempArgs.push('-p', formatPortBinding(portHost, tempPort, 1337))
 
-      // Environment variables (same as original)
-      for (const envVar of containerInfo.Config?.Env || []) {
-        tempArgs.push('-e', envVar)
-      }
+      tempArgs.push(...dockerArgs.envArgs)
 
       tempArgs.push(pullTarget)
 

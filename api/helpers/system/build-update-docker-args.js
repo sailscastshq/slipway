@@ -45,9 +45,8 @@ module.exports = {
       }
     }
 
-    for (const envVar of containerInfo.Config?.Env || []) {
-      runArgs.push('-e', envVar)
-    }
+    const envArgs = buildEnvArgs(containerInfo.Config?.Env)
+    runArgs.push(...envArgs)
 
     for (const [key, value] of Object.entries(
       containerInfo.Config?.Labels || {}
@@ -61,8 +60,27 @@ module.exports = {
       runArgs.push('-l', `${key}=${value}`)
     }
 
-    return { runArgs, mountArgs }
+    return { runArgs, mountArgs, envArgs }
   }
+}
+
+function buildEnvArgs(envVars = []) {
+  const normalized = []
+
+  for (const envVar of envVars || []) {
+    const value = String(envVar)
+    const key = value.split('=')[0]
+
+    if (key === 'NODE_ENV') {
+      continue
+    }
+
+    normalized.push(value)
+  }
+
+  normalized.push('NODE_ENV=production')
+
+  return normalized.flatMap((envVar) => ['-e', envVar])
 }
 
 function appendMountArgs(args, mounts = [], extraMounts = []) {
