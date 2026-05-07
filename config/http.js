@@ -9,6 +9,9 @@
  * https://sailsjs.com/config/http
  */
 
+const Tokens = require('csrf')
+const csrfTokens = new Tokens()
+
 module.exports.http = {
   /****************************************************************************
    *                                                                           *
@@ -26,16 +29,30 @@ module.exports.http = {
      * (This Sails app's routes are handled by the "router" middleware below.)  *
      *                                                                          *
      ***************************************************************************/
-    // order: [
-    //   'cookieParser',
-    //   'session',
-    //   'bodyParser',
-    //   'compress',
-    //   'poweredBy',
-    //   'router',
-    //   'www',
-    //   'favicon',
-    // ],
+    order: [
+      'cookieParser',
+      'session',
+      'bodyParser',
+      'bearerTokenCsrfBridge',
+      'compress',
+      'poweredBy',
+      'router',
+      'www',
+      'favicon'
+    ],
+    // CLI calls authenticate with Bearer tokens, not browser pages. Sails runs
+    // CSRF before policies, so give those non-browser requests a valid token
+    // without exempting the shared /api/v1 routes used by the dashboard.
+    bearerTokenCsrfBridge: function (req, _res, next) {
+      if (!hasUnsafeMethod(req) || !hasBearerToken(req) || !req.session) {
+        return next()
+      }
+
+      req.session.csrfSecret ||= csrfTokens.secretSync()
+      req.headers['x-csrf-token'] ||= csrfTokens.create(req.session.csrfSecret)
+
+      return next()
+    }
     /***************************************************************************
      *                                                                          *
      * The body parser that will handle incoming multipart HTTP requests.       *
@@ -49,4 +66,12 @@ module.exports.http = {
     //   return middlewareFn;
     // })(),
   }
+}
+
+function hasUnsafeMethod(req) {
+  return !['GET', 'HEAD', 'OPTIONS'].includes(String(req.method).toUpperCase())
+}
+
+function hasBearerToken(req) {
+  return /^Bearer\s+\S+/i.test(req.headers.authorization || '')
 }

@@ -24,6 +24,19 @@ module.exports = {
       sailsApp?.config?.slipway?.githubRepo || 'sailscastshq/slipway'
     const imageRepository = `ghcr.io/${githubRepo}`
 
+    if (sailsApp?.config?.slipway?.showUpdateNotifications === false) {
+      return {
+        currentVersion,
+        latestVersion: currentVersion,
+        updateAvailable: false,
+        imageRef: `${imageRepository}:${currentVersion}`,
+        releaseUrl: null,
+        releaseNotes: '',
+        publishedAt: null,
+        error: null
+      }
+    }
+
     // Cache key for rate limiting - only check once per hour
     const cacheKey = 'slipway_update_check'
     if (!skipCache) {

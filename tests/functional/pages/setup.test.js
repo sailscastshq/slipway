@@ -11,11 +11,13 @@ test('the genesis user gets the setup path before Slipway is configured', async 
 })
 
 test('setup creates the genesis owner and default team', async ({
-  post,
   expect,
   sails
 }) => {
-  const response = await post('/setup', {
+  const current = await sails.sounding.world.use('csrf-guest')
+  const request = await current.guest.requestFor('/setup')
+
+  const response = await request.post('/setup', {
     email: 'founder@example.com',
     password: 'secret123'
   })

@@ -197,8 +197,14 @@ module.exports.routes = {
   'GET /api/v1/audit-logs': 'api/v1/audit-log/list-audit-logs',
 
   // CLI Authentication (browser-based login flow)
-  'POST /api/v1/cli/auth/init': 'api/v1/cli/init-auth',
-  'POST /api/v1/cli/auth/check': 'api/v1/cli/check-auth',
+  'POST /api/v1/cli/auth/init': {
+    action: 'api/v1/cli/init-auth',
+    csrf: false
+  },
+  'POST /api/v1/cli/auth/check': {
+    action: 'api/v1/cli/check-auth',
+    csrf: false
+  },
   'POST /api/v1/cli/auth/confirm': 'api/v1/cli/confirm-auth',
   'GET /api/v1/cli/auth/stream': 'api/v1/cli/stream-auth',
   'GET /cli/authorize': 'cli/view-authorize',
@@ -231,7 +237,10 @@ module.exports.routes = {
     'api/v1/app/execute-code',
 
   // Webhooks (public — signature-verified in controller)
-  'POST /api/v1/webhooks/github/:projectSlug': 'api/v1/webhook/github',
+  'POST /api/v1/webhooks/github/:projectSlug': {
+    action: 'api/v1/webhook/github',
+    csrf: false
+  },
 
   // Historical logs (web-only, fetched inline from dashboard)
   'GET /projects/:projectSlug/environments/:environmentSlug/logs/history':
@@ -415,7 +424,10 @@ module.exports.routes = {
     'api/v1/lookout/stream-metrics',
 
   // Telemetry API (app observability)
-  'POST /api/v1/telemetry/ingest': 'api/v1/telemetry/ingest',
+  'POST /api/v1/telemetry/ingest': {
+    action: 'api/v1/telemetry/ingest',
+    csrf: false
+  },
   'GET /api/v1/projects/:projectSlug/telemetry/spans':
     'api/v1/telemetry/get-spans',
   'GET /api/v1/projects/:projectSlug/environments/:environmentSlug/telemetry/spans':
@@ -430,5 +442,8 @@ module.exports.routes = {
     'api/v1/telemetry/get-metrics',
 
   // Webhooks (public endpoints - signature verified in controller)
-  'POST /webhook/github': 'webhook/github'
+  'POST /webhook/github': {
+    action: 'webhook/github',
+    csrf: false
+  }
 }

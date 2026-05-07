@@ -31,6 +31,12 @@ password attempt.`,
       description: 'URL to redirect to after successful login.',
       type: 'string',
       allowNull: true
+    },
+
+    returnUrl: {
+      description: 'Alternative URL to redirect to after successful login.',
+      type: 'string',
+      allowNull: true
     }
   },
 
@@ -51,7 +57,7 @@ and exposed as a shared data via loggedInUser prop.)`,
     }
   },
 
-  fn: async function ({ email, password, rememberMe, redirect }) {
+  fn: async function ({ email, password, rememberMe, redirect, returnUrl }) {
     const user = await User.findOne({
       email: email.toLowerCase()
     })
@@ -84,8 +90,13 @@ and exposed as a shared data via loggedInUser prop.)`,
 
     // Support redirect after login (e.g., for CLI auth flow)
     // Only allow relative URLs to prevent open redirect vulnerabilities
-    if (redirect && redirect.startsWith('/') && !redirect.startsWith('//')) {
-      return redirect
+    const redirectPath = redirect || returnUrl
+    if (
+      redirectPath &&
+      redirectPath.startsWith('/') &&
+      !redirectPath.startsWith('//')
+    ) {
+      return redirectPath
     }
 
     return '/'

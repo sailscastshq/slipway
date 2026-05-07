@@ -8,6 +8,10 @@ module.exports = {
       type: 'string',
       description: 'URL to redirect to after successful login.'
     },
+    returnUrl: {
+      type: 'string',
+      description: 'Alternative URL to redirect to after successful login.'
+    },
     error: {
       type: 'string',
       description: 'Error code to display.'
@@ -20,7 +24,7 @@ module.exports = {
     }
   },
 
-  fn: async function ({ redirect, error }) {
+  fn: async function ({ redirect, returnUrl, error }) {
     // Map error codes to user-friendly messages
     const errorMessages = {
       invalid_cli_code: 'The CLI authorization code is invalid or has expired.'
@@ -28,7 +32,7 @@ module.exports = {
 
     return {
       page: 'auth/login',
-      redirect: redirect || null,
+      redirect: redirect || returnUrl || null,
       error: error ? errorMessages[error] || error : null
     }
   }

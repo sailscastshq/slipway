@@ -19,10 +19,13 @@ test('genesis user can authenticate with the real password flow', async ({
   sails
 }) => {
   const current = await sails.sounding.world.use('configured-slipway')
+  const guest = await sails.sounding.world.use('csrf-guest')
+  const loginRequest = await guest.guest.requestFor('/login')
 
   const result = await auth.request.withPassword(current.users.genesisUser, {
     password: current.auth.genesisUserPassword,
-    returnUrl: '/projects/new'
+    returnUrl: '/projects/new',
+    request: loginRequest
   })
 
   expect(result.response).toHaveStatus(302)
@@ -32,10 +35,11 @@ test('genesis user can authenticate with the real password flow', async ({
 test('forgot password sends a reset email through the real mail helper', async ({
   expect,
   mailbox,
-  post,
   sails
 }) => {
   const current = await sails.sounding.world.use('configured-slipway')
+  const guest = await sails.sounding.world.use('csrf-guest')
+  const request = await guest.guest.requestFor('/forgot-password')
   const previousMailConfig = sails.config.sounding.mail
   sails.config.sounding.mail = {
     ...(previousMailConfig || {}),
@@ -43,7 +47,7 @@ test('forgot password sends a reset email through the real mail helper', async (
   }
 
   try {
-    const response = await post('/forgot-password', {
+    const response = await request.post('/forgot-password', {
       email: current.users.genesisUser.email.toUpperCase()
     })
 

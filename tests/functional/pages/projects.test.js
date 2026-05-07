@@ -24,11 +24,10 @@ test('genesis user can create a project, environment, and app', async ({
   sails,
   expect
 }) => {
-  const current = await sails.sounding.world.use('configured-slipway')
-  const request = sails.sounding.request.as(current.users.genesisUser)
-  const inertia = request.withHeaders(INERTIA_HEADERS)
+  const current = await sails.sounding.world.use('csrf-protected-dashboard')
+  const inertia = current.dashboard.withHeaders(INERTIA_HEADERS)
 
-  const createProject = await request.post('/projects', {
+  const createProject = await current.dashboard.post('/projects', {
     name: 'Launch Pad',
     description: 'Critical path app'
   })
@@ -47,7 +46,7 @@ test('genesis user can create a project, environment, and app', async ({
   expect(Boolean(production)).toBe(true)
   expect(production.isProduction).toBe(true)
 
-  const createEnvironment = await request.post(
+  const createEnvironment = await current.dashboard.post(
     '/projects/launch-pad/environments',
     {
       name: 'Staging'
@@ -64,7 +63,7 @@ test('genesis user can create a project, environment, and app', async ({
   expect(Boolean(staging)).toBe(true)
   expect(staging.isProduction).toBe(false)
 
-  const createApp = await request.post(
+  const createApp = await current.dashboard.post(
     '/projects/launch-pad/environments/staging/apps',
     {
       name: 'Web',

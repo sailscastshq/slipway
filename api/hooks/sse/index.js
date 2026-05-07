@@ -12,8 +12,18 @@
  */
 
 module.exports = function defineSseHook(sails) {
+  // Every res.sse() stream, including raw controller-managed streams.
+  const activeStreams = new Set()
   // Level 2: channel → Set<SseStream>
   const channels = new Map()
+
+  function closeAllStreams() {
+    for (const stream of Array.from(activeStreams)) {
+      stream.close()
+    }
+    activeStreams.clear()
+    channels.clear()
+  }
 
   return {
     initialize: async function () {
@@ -66,6 +76,8 @@ module.exports = function defineSseHook(sails) {
           }
         }
       }
+
+      sails.on('lower', closeAllStreams)
     },
 
     routes: {
@@ -110,10 +122,14 @@ module.exports = function defineSseHook(sails) {
               let closed = false
               const cleanupFns = []
               let resolveWait = null
+              let stream = null
 
               function runCleanup() {
                 if (closed) return
                 closed = true
+                if (stream) {
+                  activeStreams.delete(stream)
+                }
                 for (const fn of cleanupFns) {
                   try {
                     fn()
@@ -129,7 +145,7 @@ module.exports = function defineSseHook(sails) {
               // Handle response errors (e.g. client disconnect during gzip)
               res.on('error', runCleanup)
 
-              const stream = {
+              stream = {
                 /**
                  * Whether the stream has been closed.
                  */
@@ -223,6 +239,7 @@ module.exports = function defineSseHook(sails) {
                 }
               }
 
+              activeStreams.add(stream)
               _sseStream = stream
               return stream
             }
@@ -234,13 +251,8 @@ module.exports = function defineSseHook(sails) {
     },
 
     teardown: function (done) {
-      // Close all active streams on shutdown
-      for (const [, subs] of channels) {
-        for (const stream of subs) {
-          stream.close()
-        }
-      }
-      channels.clear()
+      sails.removeListener('lower', closeAllStreams)
+      closeAllStreams()
       done()
     }
   }

@@ -4,7 +4,6 @@ module.exports = {
     lookout: false,
     quest: false,
     sockets: false,
-    sse: false,
     pubsub: false
   },
   log: {
@@ -30,6 +29,9 @@ module.exports = {
       adapter: 'sails-sqlite',
       url: ':memory:'
     }
+  },
+  slipway: {
+    showUpdateNotifications: false
   },
   mail: {
     default: 'log',
