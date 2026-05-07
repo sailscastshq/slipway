@@ -28,6 +28,11 @@ module.exports = {
       required: true,
       description: 'Host port to map to'
     },
+    host: {
+      type: 'string',
+      description:
+        'Host interface to bind. Defaults to the Slipway host bind address.'
+    },
     envVars: {
       type: 'ref',
       defaultsTo: {},
@@ -63,6 +68,7 @@ module.exports = {
     containerName,
     port,
     hostPort,
+    host,
     envVars,
     network,
     deploymentId,
@@ -70,6 +76,9 @@ module.exports = {
   }) {
     const networkName =
       network || sails.config.custom.slipwayNetwork || 'slipway'
+    const bindHost = normalizeHost(
+      host || sails.config.custom.slipwayPortHost || '0.0.0.0'
+    )
 
     // Build docker run args array (no shell — safe from injection)
     const args = [
@@ -80,7 +89,7 @@ module.exports = {
       '--network',
       networkName,
       '-p',
-      hostPort + ':' + port
+      formatPortBinding(bindHost, hostPort, port)
     ]
 
     // Add environment variables
@@ -147,4 +156,14 @@ module.exports = {
       throw 'runFailed'
     }
   }
+}
+
+function normalizeHost(host) {
+  return String(host || '0.0.0.0').trim() || '0.0.0.0'
+}
+
+function formatPortBinding(host, hostPort, containerPort) {
+  return host === '0.0.0.0'
+    ? `${hostPort}:${containerPort}`
+    : `${host}:${hostPort}:${containerPort}`
 }

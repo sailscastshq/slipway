@@ -32,6 +32,9 @@ module.exports = {
     const imageRepository = `ghcr.io/${githubRepo}`
     const CACHE_KEY = 'slipway_update_progress'
     const appsDir = sails.config.custom.slipwayAppsDir || '/var/slipway/apps'
+    const portHost = sails.config.custom.slipwayPortHost || '0.0.0.0'
+    let tempPort = null
+    let tempPortReserved = false
 
     async function setProgress(phase, detail) {
       await sails.cache.set(
@@ -122,7 +125,11 @@ module.exports = {
         'validating',
         'Starting temporary container for health check'
       )
-      const tempPort = await sails.helpers.docker.allocatePort()
+      tempPort = await sails.helpers.docker.allocatePort.with({
+        ownerType: 'system-update',
+        ownerId: 'slipway-next'
+      })
+      tempPortReserved = true
 
       // Build temp container args: same config but different name + temp port
       const tempArgs = ['run', '-d', '--name', 'slipway-next']
@@ -138,7 +145,7 @@ module.exports = {
       tempArgs.push(...dockerArgs.mountArgs)
 
       // Temp port binding (different from production port)
-      tempArgs.push('-p', `${tempPort}:1337`)
+      tempArgs.push('-p', formatPortBinding(portHost, tempPort, 1337))
 
       // Environment variables (same as original)
       for (const envVar of containerInfo.Config?.Env || []) {
@@ -194,6 +201,8 @@ module.exports = {
         } catch {
           /* ignore */
         }
+        await releaseTempPort(tempPort)
+        tempPortReserved = false
         await setProgress(
           'failed',
           'New version failed health check — update aborted, current version untouched'
@@ -209,6 +218,8 @@ module.exports = {
       } catch {
         /* ignore */
       }
+      await releaseTempPort(tempPort)
+      tempPortReserved = false
 
       // 9. Build final run args for the production container
       const runArgs = [
@@ -270,6 +281,11 @@ module.exports = {
         targetImage: pullTarget
       }
     } catch (err) {
+      if (tempPortReserved && tempPort) {
+        await releaseTempPort(tempPort)
+        tempPortReserved = false
+      }
+
       // Re-throw Sails exit signals
       if (typeof err === 'string') throw err
       await setProgress('failed', err.message)
@@ -278,10 +294,34 @@ module.exports = {
   }
 }
 
+async function releaseTempPort(hostPort) {
+  try {
+    await sails.helpers.docker.releasePort.with({
+      hostPort,
+      ownerType: 'system-update',
+      ownerId: 'slipway-next'
+    })
+  } catch (err) {
+    sails.log.warn(
+      `Could not release update port reservation ${hostPort}: ${
+        err.message || err
+      }`
+    )
+  }
+}
+
 function hasMountDestination(containerInfo, destination) {
   return (containerInfo?.Mounts || []).some(
     (mount) => mount.Destination === destination
   )
+}
+
+function formatPortBinding(host, hostPort, containerPort) {
+  const normalizedHost = String(host || '0.0.0.0').trim() || '0.0.0.0'
+
+  return normalizedHost === '0.0.0.0'
+    ? `${hostPort}:${containerPort}`
+    : `${normalizedHost}:${hostPort}:${containerPort}`
 }
 
 async function migrateAppsDirectoryToBindMount({
