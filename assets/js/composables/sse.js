@@ -30,6 +30,7 @@ export function useEventSource(url, options = {}) {
   let es = null
   let reconnectTimer = null
   let unmounted = false
+  let disposed = false
 
   function connect() {
     close()
@@ -100,10 +101,23 @@ export function useEventSource(url, options = {}) {
     connect()
   }
 
-  onUnmounted(() => {
+  function dispose() {
+    if (disposed) return
+    disposed = true
     unmounted = true
     close()
-  })
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('pagehide', dispose)
+      window.removeEventListener('beforeunload', dispose)
+    }
+  }
+
+  if (typeof window !== 'undefined') {
+    window.addEventListener('pagehide', dispose)
+    window.addEventListener('beforeunload', dispose)
+  }
+
+  onUnmounted(dispose)
 
   return { data, connected, error, close, connect }
 }
