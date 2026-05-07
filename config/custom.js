@@ -60,6 +60,9 @@ module.exports.custom = {
   // Port range for app containers (Slipway allocates from this range)
   slipwayPortRange: { start: 1338, end: 1500 },
 
+  // Host interface used when checking and reserving app container ports
+  slipwayPortHost: '0.0.0.0',
+
   // API version (used for building API URLs)
   apiVersion: 'v1',
 

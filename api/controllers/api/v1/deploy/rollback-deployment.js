@@ -137,6 +137,9 @@ async function executeRollback(
   environment,
   targetApp
 ) {
+  let hostPort = null
+  let hostPortReserved = false
+
   try {
     // 1. Set status to deploying (no build needed)
     await Deployment.updateOne({ id: rollbackId }).set({
@@ -164,7 +167,11 @@ async function executeRollback(
     )
 
     // 4. Allocate a host port
-    const hostPort = await sails.helpers.docker.allocatePort()
+    hostPort = await sails.helpers.docker.allocatePort.with({
+      ownerType: 'deployment',
+      ownerId: String(rollbackId)
+    })
+    hostPortReserved = true
 
     // 5. Get env vars (3-tier merge: global < environment < app)
     let globalEnvVars = {}
@@ -244,6 +251,8 @@ async function executeRollback(
         isDefault: true
       })
     }
+    await releaseDeployPort({ hostPort, deploymentId: rollbackId })
+    hostPortReserved = false
 
     // 10. Update Caddy reverse proxy route
     try {
@@ -306,6 +315,11 @@ async function executeRollback(
   } catch (err) {
     sails.log.error(`Rollback ${rollbackId} failed: ${err.message}`)
 
+    if (hostPortReserved && hostPort) {
+      await releaseDeployPort({ hostPort, deploymentId: rollbackId })
+      hostPortReserved = false
+    }
+
     const current = await Deployment.findOne({ id: rollbackId })
     if (current && current.status !== 'failed') {
       await Deployment.updateOne({ id: rollbackId }).set({
@@ -314,5 +328,19 @@ async function executeRollback(
         finishedAt: Date.now()
       })
     }
+  }
+}
+
+async function releaseDeployPort({ hostPort, deploymentId }) {
+  try {
+    await sails.helpers.docker.releasePort.with({
+      hostPort,
+      ownerType: 'deployment',
+      ownerId: String(deploymentId)
+    })
+  } catch (err) {
+    sails.log.warn(
+      `Could not release port reservation ${hostPort}: ${err.message || err}`
+    )
   }
 }

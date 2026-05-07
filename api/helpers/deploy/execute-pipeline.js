@@ -40,6 +40,7 @@ module.exports = {
   fn: async function ({ deploymentId, project, environment, app: appInput }) {
     let deployContainerName = null
     let deployHostPort = null
+    let deployHostPortReserved = false
 
     try {
       const deployment = await Deployment.findOne({ id: deploymentId })
@@ -121,7 +122,11 @@ module.exports = {
       })
 
       // 6. Allocate a host port
-      deployHostPort = await sails.helpers.docker.allocatePort()
+      deployHostPort = await sails.helpers.docker.allocatePort.with({
+        ownerType: 'deployment',
+        ownerId: String(deploymentId)
+      })
+      deployHostPortReserved = true
 
       // 7. 3-tier env var merge: global < environment < app-specific
       let globalEnvVars = {}
@@ -222,6 +227,8 @@ module.exports = {
           isDefault: true
         })
       }
+      await releaseDeployPort({ hostPort: deployHostPort, deploymentId })
+      deployHostPortReserved = false
 
       // 12. Update Caddy reverse proxy route — traffic now goes to new container
       try {
@@ -377,6 +384,11 @@ module.exports = {
         }
       }
 
+      if (deployHostPortReserved && deployHostPort) {
+        await releaseDeployPort({ hostPort: deployHostPort, deploymentId })
+        deployHostPortReserved = false
+      }
+
       // Mark deployment as failed (only if not already marked by build-image)
       const current = await Deployment.findOne({ id: deploymentId })
       if (current && current.status !== 'failed') {
@@ -404,5 +416,19 @@ module.exports = {
 
       throw err
     }
+  }
+}
+
+async function releaseDeployPort({ hostPort, deploymentId }) {
+  try {
+    await sails.helpers.docker.releasePort.with({
+      hostPort,
+      ownerType: 'deployment',
+      ownerId: String(deploymentId)
+    })
+  } catch (err) {
+    sails.log.warn(
+      `Could not release port reservation ${hostPort}: ${err.message || err}`
+    )
   }
 }
