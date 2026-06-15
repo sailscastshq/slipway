@@ -2,6 +2,7 @@
 packages/
 
 # Development and testing
+node_modules/
 tests/
 playwright.config.js
 playwright-report/
@@ -19,7 +20,8 @@ RESEARCH.md
 .vscode/
 .idea/
 *.iml
-.DS_STORE
+.DS_Store
+**/.DS_Store
 
 # Development config
 .eslintrc
