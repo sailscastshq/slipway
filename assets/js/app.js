@@ -89,7 +89,6 @@ configureInertiaCsrf()
 configureFetchCsrf()
 
 createInertiaApp({
-  resolve: (name) => require(`./pages/${name}`),
   setup({ el, App, props, plugin }) {
     setCsrfToken(props.initialPage?.props?._csrf)
 
