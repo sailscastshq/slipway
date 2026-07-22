@@ -2,6 +2,7 @@
 import { Link, Head } from '@inertiajs/vue3'
 import { inject } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
+import DeploymentHistory from '@/components/DeploymentHistory.vue'
 
 defineOptions({
   layout: AppLayout
@@ -10,7 +11,7 @@ defineOptions({
 const props = defineProps({
   project: Object,
   environments: Array,
-  recentDeployments: Array
+  deploymentHistory: Object
 })
 
 const toggleMobileMenu = inject('toggleMobileMenu')
@@ -254,9 +255,9 @@ function timeAgo(date) {
             v-for="env in environments"
             :key="env.id"
             :href="`/projects/${project.slug}/environments/${env.slug}`"
-            class="flex items-center justify-between px-6 py-4 hover:bg-gray-50 dark:hover:bg-gray-900/50"
+            class="flex flex-col items-start gap-3 px-5 py-4 hover:bg-gray-50 dark:hover:bg-gray-900/50 sm:flex-row sm:items-center sm:justify-between sm:px-6"
           >
-            <div class="flex items-center space-x-3">
+            <div class="flex flex-wrap items-center gap-2 sm:gap-3">
               <span class="font-medium text-gray-900 dark:text-white">{{
                 env.name
               }}</span>
@@ -275,7 +276,9 @@ function timeAgo(date) {
                 {{ statusBadge(env).label }}
               </span>
             </div>
-            <div class="flex items-center space-x-4">
+            <div
+              class="flex w-full items-center justify-between gap-4 sm:w-auto sm:justify-end"
+            >
               <span class="text-sm text-gray-500 dark:text-gray-400">
                 {{
                   env.app?.lastDeployedAt
@@ -317,66 +320,13 @@ function timeAgo(date) {
           </p>
         </div>
 
-        <!-- Recent Deployments -->
-        <div v-if="recentDeployments.length > 0" class="mt-10">
-          <h2 class="mb-4 text-sm font-medium text-gray-900 dark:text-white">
-            Recent deployments
-          </h2>
-          <div class="rounded-lg border border-gray-200 dark:border-gray-800">
-            <div
-              class="divide-y divide-gray-200 rounded-lg bg-white dark:divide-gray-800 dark:bg-gray-950"
-            >
-              <Link
-                v-for="dep in recentDeployments"
-                :key="dep.id"
-                :href="`/projects/${project.slug}/deployments/${dep.id}`"
-                class="flex items-center justify-between px-6 py-3 hover:bg-gray-50 dark:hover:bg-gray-900/50"
-              >
-                <div class="flex items-center space-x-3">
-                  <span
-                    :class="[
-                      'h-2 w-2 rounded-full',
-                      dep.status === 'running'
-                        ? 'bg-green-500'
-                        : dep.status === 'failed'
-                        ? 'bg-red-500'
-                        : dep.status === 'building' ||
-                          dep.status === 'deploying'
-                        ? 'bg-blue-500'
-                        : 'bg-gray-400'
-                    ]"
-                  ></span>
-                  <span class="text-sm text-gray-900 dark:text-white">{{
-                    dep.environment?.name || 'Unknown'
-                  }}</span>
-                  <span
-                    v-if="dep.app && dep.app.name"
-                    class="inline-flex rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-500 dark:bg-gray-800 dark:text-gray-400"
-                  >
-                    {{ dep.app.name }}
-                  </span>
-                  <span
-                    v-if="dep.gitBranch"
-                    class="text-xs text-gray-500 dark:text-gray-400"
-                  >
-                    {{ dep.gitBranch }}
-                  </span>
-                </div>
-                <div class="flex items-center space-x-4">
-                  <span class="text-xs text-gray-500 dark:text-gray-400">
-                    {{
-                      dep.triggeredBy?.fullName ||
-                      (dep.triggerType === 'webhook' ? 'Git' : 'System')
-                    }}
-                  </span>
-                  <span class="text-xs text-gray-400 dark:text-gray-500">
-                    {{ timeAgo(dep.createdAt) }}
-                  </span>
-                </div>
-              </Link>
-            </div>
-          </div>
-        </div>
+        <DeploymentHistory
+          class="mt-10"
+          :history="deploymentHistory"
+          :base-url="`/projects/${project.slug}`"
+          current-title="Current production release"
+          current-empty="Deploy an app to production to establish the current release."
+        />
       </div>
     </div>
   </div>

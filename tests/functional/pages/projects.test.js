@@ -88,3 +88,175 @@ test(
     expect(environmentPage).toHaveInertiaProp('app.slug', 'web')
   }
 )
+
+test(
+  'deployment history sorts before limiting and uses a stable cursor',
+  {
+    world: {
+      name: 'configured-slipway',
+      context: {
+        deploymentTarget: {
+          slug: 'ordered-history',
+          name: 'Ordered History'
+        }
+      }
+    }
+  },
+  async ({ sails, world, visit, expect }) => {
+    const current = world.current
+    const environment = current.environments.production
+    const app = current.apps.web
+    const baseTime = Date.now() - 100000
+
+    for (let index = 0; index < 27; index += 1) {
+      await world.create('deployment').with({
+        status: 'stopped',
+        environment: environment.id,
+        app: app.id,
+        gitMessage: `Release ${String(index).padStart(2, '0')}`,
+        createdAt: baseTime + index * 1000,
+        startedAt: baseTime + index * 1000,
+        finishedAt: baseTime + index * 1000 + 500
+      })
+    }
+
+    const tiedAt = baseTime + 200000
+    const firstTie = await world.create('deployment').with({
+      status: 'stopped',
+      environment: environment.id,
+      app: app.id,
+      gitMessage: 'Tie A',
+      createdAt: tiedAt,
+      startedAt: tiedAt,
+      finishedAt: tiedAt + 500
+    })
+    const secondTie = await world.create('deployment').with({
+      status: 'running',
+      environment: environment.id,
+      app: app.id,
+      gitMessage: 'Tie B',
+      createdAt: tiedAt,
+      startedAt: tiedAt,
+      finishedAt: tiedAt + 500
+    })
+
+    await sails.models.app.updateOne({ id: app.id }).set({
+      status: 'running',
+      currentDeployment: secondTie.id,
+      lastDeployedAt: tiedAt
+    })
+
+    const firstPage = await visit.as('genesisUser')(
+      `/projects/${current.projects.deploymentTarget.slug}`
+    )
+    expect(firstPage).toHaveStatus(200)
+    expect(firstPage).toHaveInertiaPropCount('deploymentHistory.items', 25)
+    expect(firstPage).toHaveInertiaProp(
+      'deploymentHistory.items.0.id',
+      secondTie.id
+    )
+    expect(firstPage).toHaveInertiaProp(
+      'deploymentHistory.items.1.id',
+      firstTie.id
+    )
+    expect(firstPage).toHaveInertiaProp(
+      'deploymentHistory.items.0.outcomeLabel',
+      'Current'
+    )
+    expect(firstPage).toHaveInertiaProp(
+      'deploymentHistory.items.2.outcomeLabel',
+      'Succeeded'
+    )
+    expect(firstPage).toHaveInertiaProp(
+      'deploymentHistory.currentReleases.0.id',
+      secondTie.id
+    )
+
+    const firstItems = firstPage.data.props.deploymentHistory.items
+    const cursor = firstPage.data.props.deploymentHistory.nextCursor
+    expect(Boolean(cursor)).toBe(true)
+
+    const secondPage = await visit.as('genesisUser')(
+      `/projects/${
+        current.projects.deploymentTarget.slug
+      }?deploymentCursor=${encodeURIComponent(cursor)}`
+    )
+    expect(secondPage).toHaveStatus(200)
+    expect(secondPage).toHaveInertiaPropCount('deploymentHistory.items', 4)
+    expect(secondPage).toHaveInertiaProp(
+      'deploymentHistory.items.0.title',
+      'Release 03'
+    )
+    expect(secondPage).toHaveInertiaProp(
+      'deploymentHistory.items.3.title',
+      'Release 00'
+    )
+
+    const firstIds = new Set(firstItems.map((deployment) => deployment.id))
+    const secondItems = secondPage.data.props.deploymentHistory.items
+    expect(secondItems.some((deployment) => firstIds.has(deployment.id))).toBe(
+      false
+    )
+  }
+)
+
+test(
+  'deployment history filters outcomes and sources without hiding active work',
+  {
+    world: {
+      name: 'configured-slipway',
+      context: {
+        deploymentTarget: {
+          slug: 'filtered-history',
+          name: 'Filtered History'
+        }
+      }
+    }
+  },
+  async ({ world, visit, expect }) => {
+    const current = world.current
+    const target = {
+      environment: current.environments.production.id,
+      app: current.apps.web.id
+    }
+
+    const failure = await world.create('deployment').with({
+      ...target,
+      status: 'failed',
+      triggerType: 'cli',
+      gitMessage: 'Broken CLI release',
+      finishedAt: Date.now()
+    })
+    await world.create('deployment').with({
+      ...target,
+      status: 'stopped',
+      triggerType: 'webhook',
+      gitMessage: 'Successful Git release',
+      finishedAt: Date.now()
+    })
+    const active = await world.create('deployment').with({
+      ...target,
+      status: 'pushing',
+      triggerType: 'manual',
+      gitMessage: 'Publishing release'
+    })
+
+    const page = await visit.as('genesisUser')(
+      `/projects/${current.projects.deploymentTarget.slug}?deploymentStatus=failed&deploymentSource=cli`
+    )
+
+    expect(page).toHaveStatus(200)
+    expect(page).toHaveInertiaPropCount('deploymentHistory.items', 1)
+    expect(page).toHaveInertiaProp('deploymentHistory.items.0.id', failure.id)
+    expect(page).toHaveInertiaProp('deploymentHistory.filters.status', 'failed')
+    expect(page).toHaveInertiaProp('deploymentHistory.filters.source', 'cli')
+    expect(page).toHaveInertiaProp(
+      'deploymentHistory.activeDeployments.0.id',
+      active.id
+    )
+    expect(page).toHaveInertiaProp(
+      'deploymentHistory.activeDeployments.0.outcomeLabel',
+      'Publishing'
+    )
+  }
+)

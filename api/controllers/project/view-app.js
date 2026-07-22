@@ -19,6 +19,15 @@ module.exports = {
       type: 'string',
       required: true,
       description: 'App slug'
+    },
+    deploymentStatus: {
+      type: 'string'
+    },
+    deploymentSource: {
+      type: 'string'
+    },
+    deploymentCursor: {
+      type: 'string'
     }
   },
 
@@ -31,7 +40,14 @@ module.exports = {
     }
   },
 
-  fn: async function ({ slug, envSlug, appSlug }) {
+  fn: async function ({
+    slug,
+    envSlug,
+    appSlug,
+    deploymentStatus,
+    deploymentSource,
+    deploymentCursor
+  }) {
     const user = await User.findOne({ id: this.req.session.userId }).populate(
       'team'
     )
@@ -80,26 +96,22 @@ module.exports = {
         ? `http://${serverIp}:${app.hostPort}`
         : null
 
-    // Fetch deployments filtered to this app (include legacy deployments without app for default app)
-    let deployments
-    if (app.isDefault) {
-      deployments = await Deployment.find({
-        or: [
-          { environment: environment.id, app: app.id },
-          { environment: environment.id, app: null }
-        ]
-      })
-        .limit(20)
-        .populate('triggeredBy')
-    } else {
-      deployments = await Deployment.find({
-        environment: environment.id,
-        app: app.id
-      })
-        .limit(20)
-        .populate('triggeredBy')
-    }
-    deployments.sort((a, b) => b.id - a.id)
+    const appWithHealth = { ...app, containerHealth }
+    const deploymentHistory = await sails.helpers.deployment.getHistory.with({
+      projectSlug: project.slug,
+      environments: [environment],
+      apps: [appWithHealth],
+      currentApps: [appWithHealth],
+      scopedApp: appWithHealth,
+      includeLegacy: app.isDefault,
+      filters: {
+        status: deploymentStatus,
+        environment: '',
+        app: '',
+        source: deploymentSource
+      },
+      cursor: deploymentCursor || null
+    })
 
     // Enrich services with connection URLs and last backup
     const services = await Promise.all(
@@ -170,7 +182,7 @@ module.exports = {
         app: { ...app, containerHealth, directUrl },
         appEnvVars: decryptedApp.envVars || {},
         inheritedVars,
-        deployments,
+        deploymentHistory,
         services,
         backupConfigured,
         checklist,
