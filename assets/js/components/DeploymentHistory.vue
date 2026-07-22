@@ -33,7 +33,29 @@ const props = defineProps({
   }
 })
 
-const deployments = ref([...(props.history.items || [])])
+function orderedDeployments(history) {
+  const seen = new Set()
+  const ordered = []
+  const newestFirst = (left, right) =>
+    Number(right.createdAt) - Number(left.createdAt) ||
+    Number(right.id) - Number(left.id)
+
+  for (const group of [
+    history.activeDeployments || [],
+    history.currentReleases || [],
+    history.items || []
+  ]) {
+    for (const deployment of [...group].sort(newestFirst)) {
+      if (seen.has(deployment.id)) continue
+      seen.add(deployment.id)
+      ordered.push(deployment)
+    }
+  }
+
+  return ordered
+}
+
+const deployments = ref(orderedDeployments(props.history))
 const activeDeployments = ref([...(props.history.activeDeployments || [])])
 const activeSources = new Map()
 
@@ -105,7 +127,7 @@ function connectActiveDeployments() {
 watch(
   () => props.history,
   (history) => {
-    deployments.value = [...(history.items || [])]
+    deployments.value = orderedDeployments(history)
     activeDeployments.value = [...(history.activeDeployments || [])]
     connectActiveDeployments()
   },

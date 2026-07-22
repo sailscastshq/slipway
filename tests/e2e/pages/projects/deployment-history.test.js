@@ -14,9 +14,9 @@ async function seedHistory({ sails, world }) {
     gitBranch: 'main',
     gitCommit: 'c0ffee123456789',
     gitMessage: 'Ship deployment history',
-    startedAt: now - 20000,
-    finishedAt: now - 5000,
-    createdAt: now - 20000
+    startedAt: now - 100000,
+    finishedAt: now - 90000,
+    createdAt: now - 100000
   })
   await world.create('deployment').with({
     ...target,
@@ -41,8 +41,8 @@ async function seedHistory({ sails, world }) {
     status: 'building',
     triggerType: 'manual',
     gitMessage: 'Build in progress',
-    startedAt: now - 3000,
-    createdAt: now - 3000
+    startedAt: now - 120000,
+    createdAt: now - 120000
   })
 
   await sails.models.app.updateOne({ id: current.apps.web.id }).set({
@@ -71,7 +71,7 @@ function historyWorld(slug) {
 }
 
 test(
-  'deployment history keeps the compact deployment list on desktop',
+  'deployment history prioritizes active and current compact rows on desktop',
   { browser: true, world: historyWorld('deployment-history-desktop') },
   async ({ sails, world, login, page, expect }) => {
     const target = await seedHistory({ sails, world })
@@ -92,6 +92,17 @@ test(
     await expect(page).toSee('Stopped')
     await expect(page).toSee('main')
     await expect(page).toSee('c0ffee1')
+
+    const rows = await page.script(() =>
+      [...document.querySelectorAll('[data-testid="deployment-row"]')].map(
+        (row) => row.textContent
+      )
+    )
+    expect(rows.length).toBe(4)
+    expect(rows[0].includes('Building')).toBe(true)
+    expect(rows[1].includes('Running')).toBe(true)
+    expect(rows[2].includes('Failed')).toBe(true)
+    expect(rows[3].includes('Stopped')).toBe(true)
 
     expect(page).toHaveNoJavascriptErrors()
   }
