@@ -268,27 +268,31 @@ onUnmounted(() => {
       >
         <!-- Header with Team Selector -->
         <div class="flex items-center justify-between px-3 py-4">
-          <div class="relative flex-1">
+          <div class="relative min-w-0 flex-1">
             <button
+              data-test="mobile-team-selector"
               @click.stop="teamDropdownOpen = !teamDropdownOpen"
-              class="flex w-full items-center justify-between rounded-md px-2 py-1.5 text-sm text-gray-700 hover:bg-gray-200 dark:text-gray-200 dark:hover:bg-gray-800"
+              class="flex w-full min-w-0 items-center justify-between gap-2 rounded-md px-2 py-1.5 text-sm text-gray-700 hover:bg-gray-200 dark:text-gray-200 dark:hover:bg-gray-800"
             >
-              <div class="flex items-center space-x-2">
+              <div class="flex min-w-0 flex-1 items-center space-x-2">
                 <img
                   v-if="loggedInUser.team?.logoUrl"
                   :src="loggedInUser.team.logoUrl"
                   alt=""
-                  class="h-6 w-6 rounded object-cover"
+                  class="h-6 w-6 shrink-0 rounded object-cover"
                 />
                 <span
                   v-else
-                  class="bg-brand flex h-6 w-6 items-center justify-center rounded text-xs font-medium text-white"
+                  class="bg-brand flex h-6 w-6 shrink-0 items-center justify-center rounded text-xs font-medium text-white"
                 >
                   {{ loggedInUser.team?.name?.charAt(0)?.toUpperCase() || 'T' }}
                 </span>
-                <span class="truncate font-medium">{{
-                  loggedInUser.team?.name || 'Team'
-                }}</span>
+                <span
+                  data-test="mobile-team-name"
+                  class="truncate font-medium"
+                  :title="loggedInUser.team?.name || 'Team'"
+                  >{{ loggedInUser.team?.name || 'Team' }}</span
+                >
               </div>
               <svg
                 :class="[
@@ -391,6 +395,7 @@ onUnmounted(() => {
             </Transition>
           </div>
           <button
+            data-test="mobile-menu-close"
             @click="closeMobileMenu"
             class="ml-2 rounded-md p-1.5 text-gray-500 hover:bg-gray-200 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200"
           >
@@ -747,26 +752,28 @@ onUnmounted(() => {
     >
       <!-- Team Selector + Collapse -->
       <div class="flex items-center justify-between px-3 py-4">
-        <div class="relative flex-1">
+        <div class="relative min-w-0 flex-1">
           <button
             @click.stop="teamDropdownOpen = !teamDropdownOpen"
-            class="flex w-full items-center space-x-2 rounded-md px-2 py-1.5 text-sm text-gray-700 hover:bg-gray-200 dark:text-gray-200 dark:hover:bg-gray-800"
+            class="flex w-full min-w-0 items-center space-x-2 rounded-md px-2 py-1.5 text-sm text-gray-700 hover:bg-gray-200 dark:text-gray-200 dark:hover:bg-gray-800"
           >
             <img
               v-if="loggedInUser.team?.logoUrl"
               :src="loggedInUser.team.logoUrl"
               alt=""
-              class="h-6 w-6 rounded object-cover"
+              class="h-6 w-6 shrink-0 rounded object-cover"
             />
             <span
               v-else
-              class="bg-brand flex h-6 w-6 items-center justify-center rounded text-xs font-medium text-white"
+              class="bg-brand flex h-6 w-6 shrink-0 items-center justify-center rounded text-xs font-medium text-white"
             >
               {{ loggedInUser.team?.name?.charAt(0)?.toUpperCase() || 'T' }}
             </span>
-            <span class="flex-1 truncate text-left font-medium">{{
-              loggedInUser.team?.name || 'Team'
-            }}</span>
+            <span
+              class="min-w-0 flex-1 truncate text-left font-medium"
+              :title="loggedInUser.team?.name || 'Team'"
+              >{{ loggedInUser.team?.name || 'Team' }}</span
+            >
             <svg
               :class="[
                 'h-4 w-4 shrink-0 text-gray-400 transition-transform dark:text-gray-500',

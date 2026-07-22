@@ -150,5 +150,33 @@ test(
     expect(layout.outputScrollHeight > layout.outputClientHeight).toBe(true)
 
     await proveOutputScrollsAndEditorStillRuns({ page, expect })
+
+    await page.click('@helm-mobile-menu')
+    await page.wait('@mobile-team-name')
+    await page.wait(350)
+    const teamSelector = await page.script(() => {
+      const label = document.querySelector('[data-test="mobile-team-name"]')
+      const closeButton = document.querySelector(
+        '[data-test="mobile-menu-close"]'
+      )
+      const labelBox = label.getBoundingClientRect()
+      const closeButtonBox = closeButton.getBoundingClientRect()
+
+      return {
+        clientWidth: label.clientWidth,
+        scrollWidth: label.scrollWidth,
+        textOverflow: getComputedStyle(label).textOverflow,
+        labelRight: labelBox.right,
+        closeButtonLeft: closeButtonBox.left,
+        title: label.title,
+        text: label.textContent.trim()
+      }
+    })
+
+    expect(teamSelector.scrollWidth > teamSelector.clientWidth).toBe(true)
+    expect(teamSelector.textOverflow).toBe('ellipsis')
+    expect(teamSelector.labelRight <= teamSelector.closeButtonLeft).toBe(true)
+    expect(teamSelector.title).toBe(teamSelector.text)
+    expect(page).toHaveNoSmoke()
   }
 )
