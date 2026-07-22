@@ -952,6 +952,7 @@ onBeforeUnmount(() => {
             <!-- More menu -->
             <div class="relative">
               <button
+                data-test="app-more-menu"
                 @click.stop="moreMenuOpen = !moreMenuOpen"
                 class="rounded-md p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-800 dark:hover:text-gray-200"
               >
@@ -1072,7 +1073,7 @@ onBeforeUnmount(() => {
                         environment.features &&
                         environment.features['sails-content']
                       "
-                      :href="`/projects/${project.slug}/environments/${environment.slug}/content`"
+                      :href="`/projects/${project.slug}/environments/${environment.slug}/content?appSlug=${app.slug}`"
                       class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
                     >
                       <svg

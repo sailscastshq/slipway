@@ -2,6 +2,7 @@ const crypto = require('crypto')
 const { execFileSync } = require('child_process')
 const fs = require('fs')
 const path = require('path')
+const { isContentCommit } = require('../../../../lib/content-commit')
 
 module.exports = {
   friendlyName: 'GitHub webhook',
@@ -79,6 +80,10 @@ module.exports = {
 
     if (event !== 'push') {
       return { message: `Ignored event: ${event}` }
+    }
+
+    if (isContentCommit(body.head_commit?.message)) {
+      return { message: 'Content Manager commit handled by Slipway' }
     }
 
     // Check branch

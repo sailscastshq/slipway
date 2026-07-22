@@ -128,6 +128,7 @@ module.exports = {
           app: targetApp,
           deploymentId,
           gitBranch: deployment?.gitBranch,
+          gitCommit: deployment?.gitCommit,
           refreshRepository: true
         })
 

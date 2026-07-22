@@ -144,6 +144,7 @@ test('connected repository refreshes an existing source cache before a manual de
       project: { slug: 'sailscasts' },
       environment: { id: 1, slug: 'production' },
       app: { id: 1 },
+      gitCommit: '1234567890abcdef1234567890abcdef12345678',
       refreshRepository: true
     })
 
@@ -151,6 +152,9 @@ test('connected repository refreshes an existing source cache before a manual de
     expect(result.sourceMode).toBe('repository')
     expect(cloneCalls.length).toBe(1)
     expect(cloneCalls[0].branch).toBe('main')
+    expect(cloneCalls[0].commit).toBe(
+      '1234567890abcdef1234567890abcdef12345678'
+    )
   } finally {
     global.sails = originalSails
     global.GitRepository = originalGitRepository

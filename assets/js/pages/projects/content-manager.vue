@@ -14,7 +14,8 @@ const props = defineProps({
   hasContentFeature: Boolean,
   contentFeature: Object,
   collections: Array,
-  collectionsError: String
+  collectionsError: String,
+  app: Object
 })
 
 const toggleMobileMenu = inject('toggleMobileMenu')
@@ -28,7 +29,8 @@ const selectedCollection = ref(null)
 // Create form
 const createForm = useForm({
   contentSlug: '',
-  title: ''
+  title: '',
+  appSlug: props.app.slug
 })
 
 function openCreateModal(collection) {
@@ -82,7 +84,7 @@ function getEditorPath(collection, file) {
     props.environment.slug !== 'production'
       ? `/projects/${props.project.slug}/environments/${props.environment.slug}/content`
       : `/projects/${props.project.slug}/content`
-  return `${basePath}/${collection}/${file}`
+  return `${basePath}/${collection}/${file}?appSlug=${props.app.slug}`
 }
 
 function refresh() {
@@ -341,6 +343,7 @@ function refresh() {
                 </span>
               </div>
               <button
+                data-test="content-new-button"
                 @click="openCreateModal(collection)"
                 class="flex items-center space-x-1 rounded-md px-2 py-1 text-sm text-gray-500 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white"
               >
@@ -457,6 +460,7 @@ function refresh() {
     >
       <div class="fixed inset-0 bg-black/50" @click="closeCreateModal" />
       <div
+        data-test="content-create-modal"
         class="relative w-full max-w-md rounded-lg bg-white p-6 shadow-xl dark:bg-gray-900"
       >
         <h3 class="text-lg font-semibold text-gray-900 dark:text-white">
@@ -476,6 +480,12 @@ function refresh() {
             />
             <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
               Will be used as the filename
+            </p>
+            <p
+              v-if="createForm.errors.contentSlug"
+              class="mt-1 text-xs text-red-600 dark:text-red-400"
+            >
+              {{ createForm.errors.contentSlug }}
             </p>
           </div>
           <div>
@@ -503,7 +513,7 @@ function refresh() {
               :disabled="
                 !createForm.contentSlug.trim() || createForm.processing
               "
-              class="rounded-md bg-violet-600 px-4 py-2 text-sm font-medium text-white hover:bg-violet-500 disabled:opacity-50"
+              class="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
             >
               {{ createForm.processing ? 'Creating...' : 'Create' }}
             </button>

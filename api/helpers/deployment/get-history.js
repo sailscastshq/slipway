@@ -7,7 +7,7 @@ const VALID_STATUS_FILTERS = [
   'failed',
   'cancelled'
 ]
-const VALID_SOURCES = ['manual', 'cli', 'webhook', 'api']
+const VALID_SOURCES = ['manual', 'cli', 'webhook', 'api', 'content']
 
 function encodeCursor(deployment) {
   return Buffer.from(
@@ -63,6 +63,7 @@ function titleFor(deployment) {
   if (deployment.triggerType === 'webhook') return 'Git deployment'
   if (deployment.triggerType === 'cli') return 'Pushed source deployment'
   if (deployment.triggerType === 'api') return 'API deployment'
+  if (deployment.triggerType === 'content') return 'Content deployment'
   return 'Manual deployment'
 }
 
@@ -71,7 +72,8 @@ function sourceLabel(triggerType) {
     webhook: 'Git',
     cli: 'CLI',
     api: 'API',
-    manual: 'Manual'
+    manual: 'Manual',
+    content: 'Content'
   }[triggerType]
 }
 

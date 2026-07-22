@@ -17,11 +17,21 @@ module.exports = {
     },
     collection: {
       type: 'string',
-      required: true
+      required: true,
+      regex: /^[a-zA-Z0-9][a-zA-Z0-9._-]*$/
     },
     file: {
       type: 'string',
-      required: true
+      required: true,
+      regex: /^[a-zA-Z0-9][a-zA-Z0-9._-]*$/
+    },
+    appSlug: {
+      type: 'string',
+      description: 'App whose source repository owns this content file'
+    },
+    sourceSha: {
+      type: 'string',
+      description: 'Git blob SHA loaded by the editor'
     }
   },
 
@@ -37,7 +47,7 @@ module.exports = {
     }
   },
 
-  fn: async function ({ slug, envSlug, collection, file }) {
+  fn: async function ({ slug, envSlug, collection, file, appSlug, sourceSha }) {
     const user = await User.findOne({ id: this.req.session.userId }).populate(
       'team'
     )
@@ -65,6 +75,13 @@ module.exports = {
     const contentFeature = environment.features['sails-content']
     const contentDir = contentFeature.contentDir || 'content'
     const appPath = `${sails.config.custom.slipwayAppsDir}/${project.slug}`
+    const resolved = await sails.helpers.deploy.resolveTargetApp
+      .with({ environment, appSlug })
+      .intercept('appNotFound', () => ({
+        badRequest: {
+          problems: [{ appSlug: 'Choose an app that still exists.' }]
+        }
+      }))
 
     // Try .md first, then .json
     let filePath = path.join(appPath, contentDir, collection, `${file}.md`)
@@ -77,13 +94,41 @@ module.exports = {
       throw { badRequest: { error: 'Content file not found' } }
     }
 
-    // Delete the file
+    const extension = path.extname(filePath).slice(1)
+    const relativeFilePath = path.posix.join(
+      String(contentDir).replace(/\\/g, '/'),
+      collection,
+      `${file}.${extension}`
+    )
+    await sails.helpers.git.commitContentFile
+      .with({
+        environment,
+        app: resolved.app,
+        user,
+        filePath: relativeFilePath,
+        operation: 'delete',
+        expectedSha: sourceSha,
+        message: `chore(content): delete ${collection}/${file}`
+      })
+      .intercept('conflict', (error) => ({
+        badRequest: {
+          problems: [{ content: (error.raw || error).message }]
+        }
+      }))
+      .intercept('writeUnavailable', (error) => ({
+        badRequest: {
+          problems: [{ content: (error.raw || error).message }]
+        }
+      }))
+
     fs.unlinkSync(filePath)
 
     sails.log.info(`[content] Deleted ${collection}/${file} in ${slug}`)
 
     // Redirect to content manager
     const envPath = envSlug !== 'production' ? `/environments/${envSlug}` : ''
-    return `/projects/${slug}${envPath}/content`
+    return `/projects/${slug}${envPath}/content?appSlug=${encodeURIComponent(
+      resolved.app.slug
+    )}`
   }
 }

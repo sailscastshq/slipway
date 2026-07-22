@@ -17,7 +17,8 @@ module.exports = {
     },
     collection: {
       type: 'string',
-      required: true
+      required: true,
+      regex: /^[a-zA-Z0-9][a-zA-Z0-9._-]*$/
     },
     contentSlug: {
       type: 'string',
@@ -25,6 +26,10 @@ module.exports = {
     },
     title: {
       type: 'string'
+    },
+    appSlug: {
+      type: 'string',
+      description: 'App whose source repository owns this content file'
     }
   },
 
@@ -40,7 +45,14 @@ module.exports = {
     }
   },
 
-  fn: async function ({ slug, envSlug, collection, contentSlug, title }) {
+  fn: async function ({
+    slug,
+    envSlug,
+    collection,
+    contentSlug,
+    title,
+    appSlug
+  }) {
     const user = await User.findOne({ id: this.req.session.userId }).populate(
       'team'
     )
@@ -68,6 +80,13 @@ module.exports = {
     const contentFeature = environment.features['sails-content']
     const contentDir = contentFeature.contentDir || 'content'
     const appPath = `${sails.config.custom.slipwayAppsDir}/${project.slug}`
+    const resolved = await sails.helpers.deploy.resolveTargetApp
+      .with({ environment, appSlug })
+      .intercept('appNotFound', () => ({
+        badRequest: {
+          problems: [{ appSlug: 'Choose an app that still exists.' }]
+        }
+      }))
 
     // Sanitize slug
     const safeSlug = contentSlug
@@ -75,6 +94,14 @@ module.exports = {
       .replace(/[^a-z0-9-]/g, '-')
       .replace(/-+/g, '-')
       .replace(/^-|-$/g, '')
+
+    if (!safeSlug) {
+      throw {
+        badRequest: {
+          problems: [{ contentSlug: 'Enter a valid content slug.' }]
+        }
+      }
+    }
 
     const collectionPath = path.join(appPath, contentDir, collection)
     const filePath = path.join(collectionPath, `${safeSlug}.md`)
@@ -84,11 +111,6 @@ module.exports = {
       throw {
         badRequest: { error: `Content file "${safeSlug}.md" already exists` }
       }
-    }
-
-    // Ensure collection directory exists
-    if (!fs.existsSync(collectionPath)) {
-      fs.mkdirSync(collectionPath, { recursive: true })
     }
 
     // Build frontmatter
@@ -111,13 +133,43 @@ module.exports = {
     content += '---\n\n'
     content += `# ${title || safeSlug}\n\nStart writing your content here.\n`
 
-    // Write file
+    const relativeFilePath = path.posix.join(
+      String(contentDir).replace(/\\/g, '/'),
+      collection,
+      `${safeSlug}.md`
+    )
+    await sails.helpers.git.commitContentFile
+      .with({
+        environment,
+        app: resolved.app,
+        user,
+        filePath: relativeFilePath,
+        content,
+        operation: 'create',
+        message: `chore(content): create ${collection}/${safeSlug}`
+      })
+      .intercept('conflict', (error) => ({
+        badRequest: {
+          problems: [{ contentSlug: (error.raw || error).message }]
+        }
+      }))
+      .intercept('writeUnavailable', (error) => ({
+        badRequest: {
+          problems: [{ contentSlug: (error.raw || error).message }]
+        }
+      }))
+
+    if (!fs.existsSync(collectionPath)) {
+      fs.mkdirSync(collectionPath, { recursive: true })
+    }
     fs.writeFileSync(filePath, content, 'utf8')
 
     sails.log.info(`[content] Created ${collection}/${safeSlug}.md in ${slug}`)
 
     // Redirect to editor
     const envPath = envSlug !== 'production' ? `/environments/${envSlug}` : ''
-    return `/projects/${slug}${envPath}/content/${collection}/${safeSlug}`
+    return `/projects/${slug}${envPath}/content/${collection}/${safeSlug}?appSlug=${encodeURIComponent(
+      resolved.app.slug
+    )}`
   }
 }

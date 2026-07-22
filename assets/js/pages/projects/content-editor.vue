@@ -16,7 +16,8 @@ const props = defineProps({
   file: String,
   contentFeature: Object,
   content: Object,
-  contentError: String
+  contentError: String,
+  app: Object
 })
 
 const toggleMobileMenu = inject('toggleMobileMenu')
@@ -44,10 +45,15 @@ const saveForm = useForm({
   frontmatter: {},
   body: '',
   raw: '',
-  deploy: false
+  deploy: false,
+  appSlug: props.app.slug,
+  sourceSha: props.content?.sourceSha || ''
 })
 
-const deleteForm = useForm({})
+const deleteForm = useForm({
+  appSlug: props.app.slug,
+  sourceSha: props.content?.sourceSha || ''
+})
 
 // Preview
 const previewHtml = computed(() => {
@@ -84,9 +90,11 @@ const envPath = computed(() => {
 })
 
 function getContentManagerPath() {
-  return props.environment.slug !== 'production'
-    ? `/projects/${props.project.slug}/environments/${props.environment.slug}/content`
-    : `/projects/${props.project.slug}/content`
+  const path =
+    props.environment.slug !== 'production'
+      ? `/projects/${props.project.slug}/environments/${props.environment.slug}/content`
+      : `/projects/${props.project.slug}/content`
+  return `${path}?appSlug=${props.app.slug}`
 }
 
 function getActionPath(action) {
@@ -107,15 +115,20 @@ function saveContent(triggerDeploy = false) {
     saveForm.raw = ''
   }
   saveForm.deploy = triggerDeploy
+  saveForm.clearErrors()
 
   saveForm.post(getActionPath('update'), {
     preserveScroll: true,
-    onSuccess: () => {
+    onSuccess: (page) => {
       hasChanges.value = false
       // Update updatedAt from refreshed props
-      if (props.content) {
-        updatedAt.value = props.content.updatedAt
+      if (page.props.content) {
+        updatedAt.value = page.props.content.updatedAt
+        saveForm.sourceSha = page.props.content.sourceSha
       }
+    },
+    onError: () => {
+      showSaveMenu.value = true
     }
   })
 }
@@ -131,10 +144,23 @@ function saveAndDeployAndCloseMenu() {
 }
 
 // Delete content
+function openDeleteModal() {
+  deleteModalOpen.value = true
+}
+
 function deleteContent() {
+  deleteForm.appSlug = saveForm.appSlug
+  deleteForm.sourceSha = saveForm.sourceSha
   deleteForm.post(getActionPath('delete'), {
     onSuccess: () => {
       deleteModalOpen.value = false
+    },
+    onError: (errors) => {
+      deleteModalOpen.value = false
+      for (const [field, message] of Object.entries(errors)) {
+        saveForm.setError(field, message)
+      }
+      showSaveMenu.value = true
     }
   })
 }
@@ -439,7 +465,7 @@ function handleKeydown(e) {
         <!-- Delete (hidden on mobile) -->
         <Tooltip text="Delete">
           <button
-            @click="deleteModalOpen = true"
+            @click="openDeleteModal"
             class="hidden rounded-md p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400 sm:block"
           >
             <svg
@@ -474,6 +500,7 @@ function handleKeydown(e) {
             }}
           </button>
           <button
+            data-test="content-save-menu-toggle"
             @click="showSaveMenu = !showSaveMenu"
             :disabled="saveForm.processing"
             class="rounded-r-md border-l border-gray-700 bg-gray-900 px-2 py-1.5 text-white hover:bg-gray-800 disabled:opacity-50 dark:border-gray-300 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
@@ -495,7 +522,8 @@ function handleKeydown(e) {
           <!-- Dropdown -->
           <div
             v-if="showSaveMenu"
-            class="absolute right-0 top-full z-10 mt-1 w-48 rounded-md border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-800"
+            data-test="content-save-menu"
+            class="absolute right-0 top-full z-10 mt-1 w-64 rounded-md border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-800"
           >
             <button
               @click="saveOnlyAndCloseMenu"
@@ -511,6 +539,21 @@ function handleKeydown(e) {
             >
               Save & Deploy
             </button>
+            <p
+              v-if="
+                saveForm.errors.content ||
+                saveForm.errors.deploy ||
+                saveForm.errors.appSlug
+              "
+              role="alert"
+              class="border-t border-gray-100 px-3 py-2 text-xs leading-5 text-red-600 dark:border-gray-700 dark:text-red-400"
+            >
+              {{
+                saveForm.errors.content ||
+                saveForm.errors.deploy ||
+                saveForm.errors.appSlug
+              }}
+            </p>
           </div>
         </div>
       </div>
@@ -570,6 +613,7 @@ function handleKeydown(e) {
           <!-- Body editor -->
           <textarea
             v-model="body"
+            data-test="content-body"
             class="flex-1 resize-none bg-white p-4 font-mono text-sm text-gray-900 focus:outline-none dark:bg-gray-950 dark:text-white"
             placeholder="Write your markdown content here..."
             spellcheck="false"
