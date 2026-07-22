@@ -148,6 +148,21 @@ test(
       expect(deployment.gitCommit).toBe(null)
       expect(deployment.gitBranch).toBe(null)
       expect(deployment.gitMessage).toBe(null)
+
+      // The HTTP response intentionally returns before the durable worker
+      // finishes its bookkeeping. Wait for that boundary so test teardown
+      // cannot lower Sails while the coordinator is releasing its lease.
+      await waitFor(async () => {
+        const [job, leaseCount] = await Promise.all([
+          sails.models.deploymentjob.findOne({
+            deployment: deployment.id
+          }),
+          sails.models.deploymentlease.count({
+            deployment: deployment.id
+          })
+        ])
+        return job?.stage === 'complete' && leaseCount === 0
+      })
     } finally {
       sails.helpers.deploy.executePipeline = originalExecutePipeline
       sails.helpers.deploy.ensureBuildContext = originalEnsureBuildContext
@@ -160,7 +175,7 @@ test(
 
 async function waitFor(predicate, timeout = 2000) {
   const deadline = Date.now() + timeout
-  while (!predicate()) {
+  while (!(await predicate())) {
     if (Date.now() >= deadline) throw new Error('Timed out waiting for state.')
     await new Promise((resolve) => setTimeout(resolve, 10))
   }
