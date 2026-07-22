@@ -43,53 +43,33 @@ module.exports = {
 
   fn: async function ({ projectSlug, environmentSlug, deploymentId, appSlug }) {
     const user = await User.findOne({ id: this.req.session.userId })
-
     const project = await Project.findOne({ slug: projectSlug }).populate(
       'team'
     )
 
-    if (!project) {
-      throw 'notFound'
-    }
-
-    if (project.team.id !== user.team) {
-      throw 'forbidden'
-    }
+    if (!project) throw 'notFound'
+    if (project.team.id !== user.team) throw 'forbidden'
 
     const environment = await Environment.findOne({
       project: project.id,
       slug: environmentSlug
     })
+    if (!environment) throw 'notFound'
 
-    if (!environment) {
-      throw 'notFound'
-    }
+    const targetApp = appSlug
+      ? await App.findOne({ environment: environment.id, slug: appSlug })
+      : (await App.findOne({
+          environment: environment.id,
+          isDefault: true
+        })) || (await App.findOne({ environment: environment.id }))
 
-    // Resolve target app
-    let targetApp
-    if (appSlug) {
-      targetApp = await App.findOne({
-        environment: environment.id,
-        slug: appSlug
-      })
-    } else {
-      targetApp =
-        (await App.findOne({ environment: environment.id, isDefault: true })) ||
-        (await App.findOne({ environment: environment.id }))
-    }
-
-    // Find the target deployment to roll back to
     const targetDeployment = await Deployment.findOne({
       id: deploymentId,
       environment: environment.id,
       status: 'running'
     })
+    if (!targetDeployment?.imageName) throw 'badRequest'
 
-    if (!targetDeployment || !targetDeployment.imageName) {
-      throw 'badRequest'
-    }
-
-    // Create a new deployment record for the rollback
     const rollback = await Deployment.create({
       status: 'pending',
       gitCommit: targetDeployment.gitCommit,
@@ -98,7 +78,7 @@ module.exports = {
       triggeredBy: user.id,
       triggerType: 'api',
       environment: environment.id,
-      app: targetApp ? targetApp.id : undefined,
+      app: targetApp?.id,
       startedAt: Date.now()
     }).fetch()
 
@@ -106,15 +86,19 @@ module.exports = {
       `Rollback ${rollback.id} triggered for ${project.slug}/${environment.slug} → deployment ${deploymentId}`
     )
 
-    // Kick off the async rollback pipeline
-    process.nextTick(() => {
-      executeRollback(
-        rollback.id,
-        targetDeployment,
-        project,
-        environment,
-        targetApp
-      )
+    process.nextTick(async () => {
+      try {
+        await sails.helpers.deploy.executeRollback.with({
+          rollbackId: rollback.id,
+          targetDeployment,
+          environment,
+          app: targetApp
+        })
+      } catch (error) {
+        sails.log.error(
+          `Rollback ${rollback.id} failed: ${error.message || error}`
+        )
+      }
     })
 
     return {
@@ -124,248 +108,5 @@ module.exports = {
         message: 'Rollback started'
       }
     }
-  }
-}
-
-/**
- * Async rollback pipeline. Skips the build step — reuses an existing image.
- */
-async function executeRollback(
-  rollbackId,
-  targetDeployment,
-  project,
-  environment,
-  targetApp
-) {
-  let hostPort = null
-  let hostPortReserved = false
-
-  try {
-    // 1. Set status to deploying (no build needed)
-    await Deployment.updateOne({ id: rollbackId }).set({
-      status: 'deploying',
-      imageName: targetDeployment.imageName
-    })
-
-    await Deployment.appendBuildLog(
-      rollbackId,
-      `Rolling back to deployment ${targetDeployment.id}\n`
-    )
-    await Deployment.appendBuildLog(
-      rollbackId,
-      `Reusing image: ${targetDeployment.imageName}\n`
-    )
-
-    // 2. Ensure Docker network exists
-    await sails.helpers.docker.ensureNetwork()
-
-    // 3. Generate container name
-    const appSlugForName = targetApp ? targetApp.slug : undefined
-    const isPubliclyRoutable = !targetApp || targetApp.routePath !== null
-    const appBindHost = isPubliclyRoutable
-      ? sails.config.custom.slipwayPortHost || '0.0.0.0'
-      : '127.0.0.1'
-    const containerName = await App.generateContainerName(
-      environment.id,
-      appSlugForName
-    )
-
-    // 4. Allocate a host port
-    hostPort = await sails.helpers.docker.allocatePort.with({
-      ownerType: 'deployment',
-      ownerId: String(rollbackId)
-    })
-    hostPortReserved = true
-
-    // 5. Get env vars (3-tier merge: global < environment < app)
-    let globalEnvVars = {}
-    try {
-      const globalJson = await sails.helpers.setting.get('globalEnvVars', '{}')
-      globalEnvVars = JSON.parse(globalJson)
-    } catch {
-      /* ignore */
-    }
-
-    const envRecord = await Environment.findOne({
-      id: environment.id
-    }).decrypt()
-    const appEnvVars = (targetApp && targetApp.envVars) || {}
-    const envVars = {
-      ...globalEnvVars,
-      ...(envRecord.envVars || {}),
-      ...appEnvVars
-    }
-
-    // 6. Check for existing app
-    const existingApp =
-      targetApp ||
-      (await App.findOne({ environment: environment.id, isDefault: true })) ||
-      (await App.findOne({ environment: environment.id }))
-    const healthPath = App.normalizeHealthPath(
-      (targetApp && targetApp.healthPath) ||
-        (existingApp && existingApp.healthPath)
-    )
-
-    // 7. Run the container with the existing image
-    const containerResult = await sails.helpers.docker.runContainer.with({
-      imageName: targetDeployment.imageName,
-      containerName,
-      port: 1337,
-      hostPort,
-      host: appBindHost,
-      envVars,
-      deploymentId: rollbackId
-    })
-
-    // 8. HTTP health check before switching traffic to the rollback image
-    await sails.helpers.docker.healthCheck.with({
-      containerName: containerResult.containerName,
-      port: 1337,
-      hostPort: containerResult.hostPort,
-      path: healthPath,
-      deploymentId: rollbackId
-    })
-
-    // 9. Create or update the App record
-    if (existingApp) {
-      await App.updateOne({ id: existingApp.id }).set({
-        status: 'running',
-        containerId: containerResult.containerId,
-        containerName: containerResult.containerName,
-        imageId: null,
-        imageName: targetDeployment.imageName,
-        port: 1337,
-        hostPort: containerResult.hostPort,
-        lastDeployedAt: Date.now(),
-        currentDeployment: rollbackId
-      })
-    } else {
-      await App.create({
-        status: 'running',
-        containerId: containerResult.containerId,
-        containerName: containerResult.containerName,
-        imageName: targetDeployment.imageName,
-        port: 1337,
-        hostPort: containerResult.hostPort,
-        lastDeployedAt: Date.now(),
-        environment: environment.id,
-        currentDeployment: rollbackId,
-        slug: appSlugForName || 'app',
-        name: appSlugForName || 'app',
-        healthPath,
-        isDefault: true
-      })
-    }
-    await releaseDeployPort({ hostPort, deploymentId: rollbackId })
-    hostPortReserved = false
-
-    // 10. Update Caddy reverse proxy route
-    try {
-      await sails.helpers.caddy.updateRoute(environment.id)
-    } catch (caddyErr) {
-      sails.log.warn(
-        `Caddy route update failed (non-fatal): ${caddyErr.message}`
-      )
-      await Deployment.appendDeployLog(
-        rollbackId,
-        `Warning: Caddy route update failed: ${caddyErr.message}\n`
-      )
-    }
-
-    // 11. Mark previous running deployments as stopped (scoped to app)
-    const stopCriteria = {
-      environment: environment.id,
-      status: 'running',
-      id: { '!=': rollbackId }
-    }
-    if (existingApp) stopCriteria.app = existingApp.id
-    await Deployment.update(stopCriteria).set({ status: 'stopped' })
-
-    // 12. Mark deployment as running
-    await Deployment.updateOne({ id: rollbackId }).set({
-      status: 'running',
-      finishedAt: Date.now()
-    })
-
-    const { fullDomain, generatedDomain } = await Environment.resolveDomains(
-      environment.id
-    )
-    const directAccess = await sails.helpers.deploy.getDirectAccess.with({
-      serverIp: await sails.helpers.getServerIp(),
-      hostPort: containerResult.hostPort,
-      routePath: targetApp ? targetApp.routePath : '/',
-      containerRunning: true,
-      portBinding: containerResult.portBinding
-    })
-    const directUrl = directAccess.url
-    await Deployment.appendDeployLog(rollbackId, `Rollback complete.\n`)
-    if (fullDomain) {
-      await Deployment.appendDeployLog(
-        rollbackId,
-        `  URL:       https://${fullDomain}\n`
-      )
-    }
-    if (generatedDomain && generatedDomain !== fullDomain) {
-      await Deployment.appendDeployLog(
-        rollbackId,
-        `  Fallback:  https://${generatedDomain}\n`
-      )
-    }
-    if (directUrl) {
-      await Deployment.appendDeployLog(
-        rollbackId,
-        `  Direct:    ${directUrl}\n`
-      )
-      await Deployment.appendDeployLog(
-        rollbackId,
-        `  Network:   Container healthy; ${containerResult.portBinding.diagnostic}\n`
-      )
-      await Deployment.appendDeployLog(
-        rollbackId,
-        `  Firewall:  ${directAccess.firewallHint}\n`
-      )
-    } else if (!isPubliclyRoutable) {
-      await Deployment.appendDeployLog(
-        rollbackId,
-        `  Network:   Worker port is bound to 127.0.0.1 and is not publicly exposed.\n`
-      )
-    } else if (directAccess.message) {
-      await Deployment.appendDeployLog(
-        rollbackId,
-        `  Network:   ${directAccess.message}\n`
-      )
-    }
-
-    sails.log.info(`Rollback ${rollbackId} completed successfully`)
-  } catch (err) {
-    sails.log.error(`Rollback ${rollbackId} failed: ${err.message}`)
-
-    if (hostPortReserved && hostPort) {
-      await releaseDeployPort({ hostPort, deploymentId: rollbackId })
-      hostPortReserved = false
-    }
-
-    const current = await Deployment.findOne({ id: rollbackId })
-    if (current && current.status !== 'failed') {
-      await Deployment.updateOne({ id: rollbackId }).set({
-        status: 'failed',
-        errorMessage: err.message,
-        finishedAt: Date.now()
-      })
-    }
-  }
-}
-
-async function releaseDeployPort({ hostPort, deploymentId }) {
-  try {
-    await sails.helpers.docker.releasePort.with({
-      hostPort,
-      ownerType: 'deployment',
-      ownerId: String(deploymentId)
-    })
-  } catch (err) {
-    sails.log.warn(
-      `Could not release port reservation ${hostPort}: ${err.message || err}`
-    )
   }
 }

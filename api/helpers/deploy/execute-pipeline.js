@@ -1,7 +1,3 @@
-const { execFile } = require('child_process')
-const util = require('util')
-const execFileAsync = util.promisify(execFile)
-
 module.exports = {
   friendlyName: 'Execute deployment pipeline',
 
@@ -73,10 +69,6 @@ module.exports = {
       const imageName = await App.generateImageName(
         environment.id,
         deploymentId,
-        appSlug
-      )
-      const canonicalName = await App.generateContainerName(
-        environment.id,
         appSlug
       )
       deployContainerName = await App.generateDeployContainerName(
@@ -208,56 +200,36 @@ module.exports = {
 
       // === Health check passed — switch traffic ===
 
-      // 11. Update App record (Caddy reads from this, so traffic switches after updateRoute)
+      // 11. Verify the candidate route before committing App state.
       currentStage = 'traffic cutover'
-      if (existingApp) {
-        await App.updateOne({ id: existingApp.id }).set({
-          status: 'running',
+      await sails.helpers.deploy.cutoverTraffic.with({
+        deploymentId,
+        environmentId: environment.id,
+        appId: existingApp?.id,
+        candidate: {
           containerId: containerResult.containerId,
-          containerName: canonicalName,
-          imageId: null,
+          containerName: deployContainerName,
           imageName,
           port: 1337,
           hostPort: deployHostPort,
-          lastDeployedAt: Date.now(),
-          currentDeployment: deploymentId
-        })
-      } else {
-        await App.create({
-          status: 'running',
-          containerId: containerResult.containerId,
-          containerName: canonicalName,
-          imageName,
-          port: 1337,
-          hostPort: deployHostPort,
-          lastDeployedAt: Date.now(),
-          environment: environment.id,
-          currentDeployment: deploymentId,
           slug: appSlug || 'app',
-          name: appSlug || 'app',
+          name: existingApp?.name || appSlug || 'app',
           healthPath,
-          isDefault: true
-        })
-      }
+          routePath: existingApp?.routePath,
+          isDefault: existingApp?.isDefault
+        }
+      })
       await releaseDeployPort({ hostPort: deployHostPort, deploymentId })
       deployHostPortReserved = false
+      deployContainerName = null
 
-      // 12. Update Caddy reverse proxy route — traffic now goes to new container
-      try {
-        await sails.helpers.caddy.updateRoute(environment.id)
-      } catch (caddyErr) {
-        sails.log.warn(
-          `Caddy route update failed (non-fatal): ${caddyErr.message}`
-        )
-        await Deployment.appendDeployLog(
-          deploymentId,
-          `Warning: Caddy route update failed: ${caddyErr.message}\n`
-        )
-      }
-
-      // 13. Stop old container (the one with the previous App.containerName)
+      // 12. Only retire the previous container after route verification and
+      // App state commit have both succeeded.
       currentStage = 'cleanup'
-      if (oldContainerName && oldContainerName !== deployContainerName) {
+      if (
+        oldContainerName &&
+        oldContainerName !== containerResult.containerName
+      ) {
         try {
           await sails.helpers.docker.stopContainer.with({
             containerName: oldContainerName
@@ -276,21 +248,7 @@ module.exports = {
         }
       }
 
-      // 14. Rename deploy-scoped container to canonical name
-      if (deployContainerName !== canonicalName) {
-        try {
-          await execFileAsync('docker', [
-            'rename',
-            deployContainerName,
-            canonicalName
-          ])
-          deployContainerName = null // Renamed, no longer needs cleanup
-        } catch (renameErr) {
-          sails.log.warn(`Could not rename container: ${renameErr.message}`)
-        }
-      }
-
-      // 15. Mark previous running deployments as stopped (scoped to this app)
+      // 13. Mark previous running deployments as stopped (scoped to this app)
       const stopCriteria = {
         environment: environment.id,
         status: 'running',
@@ -301,7 +259,7 @@ module.exports = {
       }
       await Deployment.update(stopCriteria).set({ status: 'stopped' })
 
-      // 16. Mark this deployment as running
+      // 14. Mark this deployment as running
       await Deployment.updateOne({ id: deploymentId }).set({
         status: 'running',
         finishedAt: Date.now()

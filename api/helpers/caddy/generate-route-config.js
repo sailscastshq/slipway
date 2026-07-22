@@ -9,6 +9,11 @@ module.exports = {
       type: 'string',
       required: true,
       description: 'Environment ID'
+    },
+    apps: {
+      type: 'ref',
+      description:
+        'Optional app snapshot to render instead of reading the current App records.'
     }
   },
 
@@ -22,7 +27,7 @@ module.exports = {
     }
   },
 
-  fn: async function ({ environmentId }) {
+  fn: async function ({ environmentId, apps }) {
     const environment = await Environment.findOne({
       id: environmentId
     }).populate('project')
@@ -32,10 +37,12 @@ module.exports = {
     }
 
     // Fetch all apps in this environment
-    const apps = await App.find({ environment: environmentId })
+    const environmentApps = Array.isArray(apps)
+      ? apps
+      : await App.find({ environment: environmentId })
 
     // Filter to apps with a hostPort (deployed) and a routePath (not workers)
-    const routableApps = apps.filter(
+    const routableApps = environmentApps.filter(
       (app) => app.hostPort && app.routePath !== null
     )
 

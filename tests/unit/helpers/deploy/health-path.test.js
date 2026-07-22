@@ -18,22 +18,22 @@ test('deploy pipeline probes the app readiness path before switching traffic', a
   const healthCheckIndex = source.indexOf(
     'await sails.helpers.docker.healthCheck.with({'
   )
-  const appRecordIndex = source.indexOf('// 11. Update App record')
-  const routeIndex = source.indexOf('// 12. Update Caddy reverse proxy route')
+  const cutoverIndex = source.indexOf(
+    'await sails.helpers.deploy.cutoverTraffic.with({'
+  )
 
   expect(healthPathIndex > -1).toBe(true)
   expect(source.includes('path: healthPath')).toBe(true)
   expect(source.includes('healthPath,')).toBe(true)
   expect(healthPathIndex < healthCheckIndex).toBe(true)
-  expect(healthCheckIndex < appRecordIndex).toBe(true)
-  expect(appRecordIndex < routeIndex).toBe(true)
+  expect(healthCheckIndex < cutoverIndex).toBe(true)
 })
 
 test('rollback probes the app readiness path before switching traffic', async ({
   expect
 }) => {
   const source = fs.readFileSync(
-    path.join(appRoot, 'api/controllers/api/v1/deploy/rollback-deployment.js'),
+    path.join(appRoot, 'api/helpers/deploy/execute-rollback.js'),
     'utf8'
   )
   const healthPathIndex = source.indexOf(
@@ -42,13 +42,13 @@ test('rollback probes the app readiness path before switching traffic', async ({
   const healthCheckIndex = source.indexOf(
     'await sails.helpers.docker.healthCheck.with({'
   )
-  const appRecordIndex = source.indexOf('// 9. Create or update the App record')
-  const routeIndex = source.indexOf('// 10. Update Caddy reverse proxy route')
+  const cutoverIndex = source.indexOf(
+    'await sails.helpers.deploy.cutoverTraffic.with({'
+  )
 
   expect(healthPathIndex > -1).toBe(true)
   expect(source.includes('path: healthPath')).toBe(true)
   expect(source.includes('healthPath,')).toBe(true)
   expect(healthPathIndex < healthCheckIndex).toBe(true)
-  expect(healthCheckIndex < appRecordIndex).toBe(true)
-  expect(appRecordIndex < routeIndex).toBe(true)
+  expect(healthCheckIndex < cutoverIndex).toBe(true)
 })
