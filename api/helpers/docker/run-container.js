@@ -57,9 +57,6 @@ module.exports = {
     success: {
       description: 'Container is running',
       outputType: 'ref'
-    },
-    runFailed: {
-      description: 'Failed to run container'
     }
   },
 
@@ -79,6 +76,13 @@ module.exports = {
     const bindHost = normalizeHost(
       host || sails.config.custom.slipwayPortHost || '0.0.0.0'
     )
+    const portBindingArgument =
+      await sails.helpers.docker.formatPortBinding.with({
+        host: bindHost,
+        hostPort,
+        containerPort: port
+      })
+    const dockerPath = sails.config.docker?.binaryPath || 'docker'
 
     // Build docker run args array (no shell — safe from injection)
     const args = [
@@ -89,7 +93,7 @@ module.exports = {
       '--network',
       networkName,
       '-p',
-      formatPortBinding(bindHost, hostPort, port)
+      portBindingArgument
     ]
 
     // Add environment variables
@@ -123,7 +127,7 @@ module.exports = {
     }
 
     try {
-      const { stdout } = await execFileAsync('docker', args)
+      const { stdout } = await execFileAsync(dockerPath, args)
       const containerId = stdout.trim()
 
       sails.log.info(
@@ -137,33 +141,49 @@ module.exports = {
         )
       }
 
-      return {
-        containerId,
+      const portBinding = await sails.helpers.docker.getPortBinding.with({
         containerName,
+        containerPort: port,
         hostPort,
-        network: networkName
+        host: bindHost
+      })
+
+      if (!portBinding.valid) {
+        throw new Error(
+          `Host binding verification failed: ${portBinding.diagnostic}`
+        )
       }
-    } catch (error) {
-      sails.log.error(`Failed to run container: ${error.message}`)
 
       if (deploymentId) {
         await Deployment.appendDeployLog(
           deploymentId,
-          `Error starting container: ${error.message}\n`
+          `Host binding verified: ${portBinding.host}:${hostPort} -> ${port}/tcp\n`
         )
       }
 
-      throw 'runFailed'
+      return {
+        containerId,
+        containerName,
+        hostPort,
+        network: networkName,
+        portBinding
+      }
+    } catch (error) {
+      const errorMessage = error.message || String(error)
+      sails.log.error(`Failed to run container: ${errorMessage}`)
+
+      if (deploymentId) {
+        await Deployment.appendDeployLog(
+          deploymentId,
+          `Container startup or host binding failed: ${errorMessage}\n`
+        )
+      }
+
+      throw error
     }
   }
 }
 
 function normalizeHost(host) {
   return String(host || '0.0.0.0').trim() || '0.0.0.0'
-}
-
-function formatPortBinding(host, hostPort, containerPort) {
-  return host === '0.0.0.0'
-    ? `${hostPort}:${containerPort}`
-    : `${host}:${hostPort}:${containerPort}`
 }

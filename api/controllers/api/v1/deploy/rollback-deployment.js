@@ -161,6 +161,10 @@ async function executeRollback(
 
     // 3. Generate container name
     const appSlugForName = targetApp ? targetApp.slug : undefined
+    const isPubliclyRoutable = !targetApp || targetApp.routePath !== null
+    const appBindHost = isPubliclyRoutable
+      ? sails.config.custom.slipwayPortHost || '0.0.0.0'
+      : '127.0.0.1'
     const containerName = await App.generateContainerName(
       environment.id,
       appSlugForName
@@ -208,6 +212,7 @@ async function executeRollback(
       containerName,
       port: 1337,
       hostPort,
+      host: appBindHost,
       envVars,
       deploymentId: rollbackId
     })
@@ -285,12 +290,14 @@ async function executeRollback(
     const { fullDomain, generatedDomain } = await Environment.resolveDomains(
       environment.id
     )
-    const directUrl =
-      targetApp && targetApp.routePath === null
-        ? null
-        : `http://${await sails.helpers.getServerIp()}:${
-            containerResult.hostPort
-          }`
+    const directAccess = await sails.helpers.deploy.getDirectAccess.with({
+      serverIp: await sails.helpers.getServerIp(),
+      hostPort: containerResult.hostPort,
+      routePath: targetApp ? targetApp.routePath : '/',
+      containerRunning: true,
+      portBinding: containerResult.portBinding
+    })
+    const directUrl = directAccess.url
     await Deployment.appendDeployLog(rollbackId, `Rollback complete.\n`)
     if (fullDomain) {
       await Deployment.appendDeployLog(
@@ -308,6 +315,24 @@ async function executeRollback(
       await Deployment.appendDeployLog(
         rollbackId,
         `  Direct:    ${directUrl}\n`
+      )
+      await Deployment.appendDeployLog(
+        rollbackId,
+        `  Network:   Container healthy; ${containerResult.portBinding.diagnostic}\n`
+      )
+      await Deployment.appendDeployLog(
+        rollbackId,
+        `  Firewall:  ${directAccess.firewallHint}\n`
+      )
+    } else if (!isPubliclyRoutable) {
+      await Deployment.appendDeployLog(
+        rollbackId,
+        `  Network:   Worker port is bound to 127.0.0.1 and is not publicly exposed.\n`
+      )
+    } else if (directAccess.message) {
+      await Deployment.appendDeployLog(
+        rollbackId,
+        `  Network:   ${directAccess.message}\n`
       )
     }
 
