@@ -217,14 +217,18 @@ function highlightJSON(str) {
   <Head
     :title="`Helm - ${project.name} / ${environment.name} | Slipway`"
   ></Head>
-  <div class="flex h-full flex-col">
+  <div
+    data-test="helm-page"
+    class="flex h-full min-h-0 flex-col overflow-hidden"
+  >
     <!-- Header -->
     <div
-      class="flex items-center justify-between border-b border-gray-200 px-4 py-3 dark:border-gray-800 sm:px-8 sm:py-4"
+      class="flex shrink-0 items-center justify-between border-b border-gray-200 px-4 py-3 dark:border-gray-800 sm:px-8 sm:py-4"
     >
       <div class="flex items-center space-x-3">
         <!-- Mobile menu toggle -->
         <button
+          data-test="helm-mobile-menu"
           @click="toggleMobileMenu"
           class="rounded-md p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white md:hidden"
         >
@@ -368,6 +372,7 @@ function highlightJSON(str) {
 
         <!-- Run button -->
         <button
+          data-test="helm-run"
           @click="execute"
           :disabled="running || !isRunning"
           class="flex items-center space-x-1.5 rounded-md bg-gray-900 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-gray-800 disabled:opacity-50 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100 sm:px-3"
@@ -411,13 +416,19 @@ function highlightJSON(str) {
     </div>
 
     <!-- Main content - Tinkerwell style -->
-    <div class="flex flex-1 flex-col overflow-hidden lg:flex-row">
+    <div
+      data-test="helm-workspace"
+      class="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden lg:flex-row"
+    >
       <!-- Editor panel -->
       <div
-        class="flex flex-1 flex-col border-b border-gray-100 dark:border-gray-800 lg:border-b-0 lg:border-r"
+        data-test="helm-editor-panel"
+        class="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden border-b border-gray-100 dark:border-gray-800 lg:border-b-0 lg:border-r"
       >
         <!-- Code editor with syntax highlighting -->
-        <div class="relative flex-1 overflow-hidden bg-white dark:bg-gray-950">
+        <div
+          class="relative min-h-0 min-w-0 flex-1 overflow-hidden bg-white dark:bg-gray-950"
+        >
           <!-- Editor area -->
           <div class="relative h-full overflow-auto">
             <!-- Highlighted layer -->
@@ -428,6 +439,7 @@ function highlightJSON(str) {
             ></pre>
             <!-- Textarea -->
             <textarea
+              data-test="helm-editor"
               v-model="code"
               @keydown="handleKeydown"
               :disabled="!isRunning"
@@ -440,13 +452,18 @@ function highlightJSON(str) {
       </div>
 
       <!-- Output panel -->
-      <div class="flex flex-1 flex-col bg-white dark:bg-gray-950">
+      <div
+        data-test="helm-output-panel"
+        class="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-white dark:bg-gray-950"
+      >
         <div
-          class="relative flex-1 overflow-y-auto p-4 font-mono text-sm leading-6"
+          data-test="helm-output-scroll"
+          class="relative min-h-0 min-w-0 flex-1 overflow-auto p-4 font-mono text-sm leading-6"
         >
           <!-- Output -->
           <pre
             v-if="output"
+            data-test="helm-output"
             class="whitespace-pre-wrap"
             v-html="highlightedOutput"
           ></pre>
@@ -477,7 +494,7 @@ function highlightJSON(str) {
         <!-- History (collapsible at bottom) -->
         <div
           v-if="history.length > 0"
-          class="border-t border-gray-100 dark:border-gray-800"
+          class="shrink-0 border-t border-gray-100 dark:border-gray-800"
         >
           <div class="max-h-32 overflow-y-auto">
             <button
