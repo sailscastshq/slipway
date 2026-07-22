@@ -1233,40 +1233,42 @@ onBeforeUnmount(() => {
           data-test="deployment-source-warning"
           class="mb-4 rounded-lg border border-amber-200 bg-amber-50/50 dark:border-amber-900/50 dark:bg-amber-950/20"
         >
-          <div class="flex items-start gap-3 px-4 py-3">
-            <svg
-              class="mt-0.5 h-4 w-4 shrink-0 text-amber-500"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-              aria-hidden="true"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"
-              />
-            </svg>
-            <div class="min-w-0">
-              <h2
-                id="deployment-source-warning-title"
-                class="text-sm font-medium text-amber-800 dark:text-amber-300"
+          <div class="flex items-start justify-between gap-3 px-4 py-3">
+            <div class="flex min-w-0 items-start gap-3">
+              <svg
+                class="mt-0.5 h-4 w-4 shrink-0 text-amber-500"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+                aria-hidden="true"
               >
-                Deployment source required
-              </h2>
-              <p
-                class="mt-1 text-xs leading-5 text-gray-600 dark:text-gray-400"
-              >
-                {{ sourceReadiness?.message }}
-              </p>
-              <Link
-                :href="`/projects/${project.slug}/environments/${environment.slug}/apps/${app.slug}/settings`"
-                class="min-h-11 mt-2 inline-flex items-center text-xs font-medium text-amber-700 underline underline-offset-2 dark:text-amber-400"
-              >
-                Connect or repair repository settings
-              </Link>
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"
+                />
+              </svg>
+              <div class="min-w-0">
+                <h2
+                  id="deployment-source-warning-title"
+                  class="text-sm font-medium text-amber-800 dark:text-amber-300"
+                >
+                  Deployment source required
+                </h2>
+                <p
+                  class="mt-1 text-xs leading-5 text-gray-600 dark:text-gray-400"
+                >
+                  {{ sourceReadiness?.message }}
+                </p>
+              </div>
             </div>
+            <Link
+              :href="`/projects/${project.slug}/environments/${environment.slug}/apps/${app.slug}/settings`"
+              class="shrink-0 rounded-md border border-amber-300 bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700 hover:bg-amber-100 dark:border-amber-800 dark:bg-amber-900/30 dark:text-amber-400 dark:hover:bg-amber-900/50"
+            >
+              Configure source
+            </Link>
           </div>
         </section>
 

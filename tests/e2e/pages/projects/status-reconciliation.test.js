@@ -37,6 +37,7 @@ test(
       )
 
       await page.wait('@deployment-source-warning')
+      await expect(page).toSee('Configure source')
       const warningWidths = await page.script(() => {
         const warning = document.querySelector(
           '[data-test="deployment-source-warning"]'
