@@ -51,7 +51,11 @@ async function seedHistory({ sails, world }) {
     lastDeployedAt: currentRelease.finishedAt
   })
 
-  return current.projects.deploymentTarget.slug
+  return {
+    projectSlug: current.projects.deploymentTarget.slug,
+    environmentSlug: current.environments.production.slug,
+    appSlug: current.apps.web.slug
+  }
 }
 
 function historyWorld(slug) {
@@ -67,44 +71,51 @@ function historyWorld(slug) {
 }
 
 test(
-  'deployment history is clear and keyboard-filterable on desktop',
+  'deployment history keeps the compact deployment list on desktop',
   { browser: true, world: historyWorld('deployment-history-desktop') },
   async ({ sails, world, login, page, expect }) => {
-    const slug = await seedHistory({ sails, world })
+    const target = await seedHistory({ sails, world })
     await login.withPassword('genesisUser', page, {
       password: world.current.auth.genesisUserPassword
     })
-    await page.goto(`/projects/${slug}`)
+    await page.goto(
+      `/projects/${target.projectSlug}/environments/${target.environmentSlug}/apps/${target.appSlug}`
+    )
 
-    await page.wait('@current-release')
-    await page.wait('@active-deployment')
-    await page.wait('@deployment-row')
-    await expect(page).toSee('Current production release')
-    await expect(page).toSee('Ship deployment history')
-    await expect(page).toSee('Build in progress')
-    await expect(page).toSee('Succeeded')
+    await page.wait('@deployment-history')
+    await page.wait('@active-deployment-row')
+    await page.wait('@failed-deployment-row')
+    await expect(page).toSee('Deployments')
+    await expect(page).toSee('Running')
+    await expect(page).toSee('Building')
+    await expect(page).toSee('Failed')
+    await expect(page).toSee('Stopped')
+    await expect(page).toSee('main')
+    await expect(page).toSee('c0ffee1')
 
-    await page.press('@deployment-filter-failed', 'Enter')
-    await expect(page).toSee('Failed release for filtering')
     expect(page).toHaveNoJavascriptErrors()
   }
 )
 
 test(
-  'deployment history prioritizes readable cards on mobile',
+  'deployment history keeps the compact deployment list on mobile',
   { browser: 'mobile', world: historyWorld('deployment-history-mobile') },
   async ({ sails, world, login, page, expect }) => {
-    const slug = await seedHistory({ sails, world })
+    const target = await seedHistory({ sails, world })
     await login.withPassword('genesisUser', page, {
       password: world.current.auth.genesisUserPassword
     })
-    await page.goto(`/projects/${slug}`)
+    await page.goto(
+      `/projects/${target.projectSlug}/environments/${target.environmentSlug}/apps/${target.appSlug}`
+    )
 
-    await page.wait('@current-release')
-    await page.wait('@deployment-card')
-    await expect(page).toSee('Deployment history')
-    await expect(page).toSee('Ship deployment history')
-    await expect(page).toSee('Previous successful release')
+    await page.wait('@deployment-history')
+    await page.wait('@active-deployment-row')
+    await expect(page).toSee('Deployments')
+    await expect(page).toSee('Running')
+    await expect(page).toSee('Building')
+    await expect(page).toSee('Failed')
+    await expect(page).toSee('Stopped')
     expect(page).toHaveNoJavascriptErrors()
   }
 )

@@ -1813,8 +1813,7 @@ onBeforeUnmount(() => {
 
         <DeploymentHistory
           :history="deploymentHistory"
-          :base-url="`/projects/${project.slug}/environments/${environment.slug}/apps/${app.slug}`"
-          current-empty="Deploy this app to establish its current release."
+          empty-help="Slide to deploy your first version."
         />
       </div>
     </div>

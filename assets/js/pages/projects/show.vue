@@ -255,9 +255,9 @@ function timeAgo(date) {
             v-for="env in environments"
             :key="env.id"
             :href="`/projects/${project.slug}/environments/${env.slug}`"
-            class="flex flex-col items-start gap-3 px-5 py-4 hover:bg-gray-50 dark:hover:bg-gray-900/50 sm:flex-row sm:items-center sm:justify-between sm:px-6"
+            class="flex items-center justify-between px-6 py-4 hover:bg-gray-50 dark:hover:bg-gray-900/50"
           >
-            <div class="flex flex-wrap items-center gap-2 sm:gap-3">
+            <div class="flex items-center space-x-3">
               <span class="font-medium text-gray-900 dark:text-white">{{
                 env.name
               }}</span>
@@ -276,9 +276,7 @@ function timeAgo(date) {
                 {{ statusBadge(env).label }}
               </span>
             </div>
-            <div
-              class="flex w-full items-center justify-between gap-4 sm:w-auto sm:justify-end"
-            >
+            <div class="flex items-center space-x-4">
               <span class="text-sm text-gray-500 dark:text-gray-400">
                 {{
                   env.app?.lastDeployedAt
@@ -323,9 +321,10 @@ function timeAgo(date) {
         <DeploymentHistory
           class="mt-10"
           :history="deploymentHistory"
-          :base-url="`/projects/${project.slug}`"
-          current-title="Current production release"
-          current-empty="Deploy an app to production to establish the current release."
+          title="Recent deployments"
+          show-environment
+          :show-status="false"
+          hide-when-empty
         />
       </div>
     </div>

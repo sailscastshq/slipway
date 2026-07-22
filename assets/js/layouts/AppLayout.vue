@@ -747,10 +747,10 @@ onUnmounted(() => {
     >
       <!-- Team Selector + Collapse -->
       <div class="flex items-center justify-between px-3 py-4">
-        <div class="relative min-w-0 flex-1">
+        <div class="relative flex-1">
           <button
             @click.stop="teamDropdownOpen = !teamDropdownOpen"
-            class="flex w-full min-w-0 items-center space-x-2 rounded-md px-2 py-1.5 text-sm text-gray-700 hover:bg-gray-200 dark:text-gray-200 dark:hover:bg-gray-800"
+            class="flex w-full items-center space-x-2 rounded-md px-2 py-1.5 text-sm text-gray-700 hover:bg-gray-200 dark:text-gray-200 dark:hover:bg-gray-800"
           >
             <img
               v-if="loggedInUser.team?.logoUrl"
@@ -1212,14 +1212,12 @@ onUnmounted(() => {
         :action="action"
         @dismiss="dismissAction"
       />
-      <template v-if="!page.props.deploymentHistory">
-        <DeploymentToast
-          v-for="deployment in activeDeployments"
-          :key="'deploy-' + deployment.id"
-          :deployment="deployment"
-          @dismiss="dismissDeployment"
-        />
-      </template>
+      <DeploymentToast
+        v-for="deployment in activeDeployments"
+        :key="'deploy-' + deployment.id"
+        :deployment="deployment"
+        @dismiss="dismissDeployment"
+      />
     </div>
 
     <!-- Command Palette (Cmd+K) -->
