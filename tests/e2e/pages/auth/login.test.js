@@ -1,32 +1,24 @@
 const { test } = require('sounding')
 
-test(
-  'genesis user can log in through the real browser and open the new project page',
-  { browser: true },
-  async ({ sails, login, page, expect }) => {
-    const current = await sails.sounding.world.use('configured-slipway')
+for (const browserProject of ['desktop', 'mobile']) {
+  test(
+    `genesis user can log in and open the new project page on ${browserProject}`,
+    { browser: browserProject, world: 'configured-slipway' },
+    async ({ world, login, page, expect }) => {
+      await login.withPassword('genesisUser', page, {
+        password: world.current.auth.genesisUserPassword
+      })
 
-    await login.withPassword(current.users.genesisUser, page, {
-      password: current.auth.genesisUserPassword
-    })
+      await page.wait('text=Get started by creating your first project')
+      await expect(page).toHavePath('/')
+      await expect(page).toSee('Get started by creating your first project')
 
-    await page.waitForURL(/\/$/)
+      await page.goto('/projects/new')
+      await page.wait('#name')
 
-    expect(
-      await page
-        .getByText(/get started by creating your first project/i)
-        .isVisible()
-    ).toBe(true)
-
-    await page.goto('/projects/new')
-    await page.waitForURL(/\/projects\/new$/)
-
-    expect(await page.title()).toMatch(/Create Project.*Slipway/i)
-    expect(await page.getByPlaceholder(/project name/i).isVisible()).toBe(true)
-    expect(
-      await page
-        .getByPlaceholder(/a brief description about your project/i)
-        .isVisible()
-    ).toBe(true)
-  }
-)
+      await expect(page).toHavePath('/projects/new')
+      await expect(page).toHaveTitle(/Create Project.*Slipway/i)
+      expect(page).toHaveNoSmoke()
+    }
+  )
+}

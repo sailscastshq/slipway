@@ -37,6 +37,7 @@
     "vue": "^3.5.8"
   },
   "devDependencies": {
+    "@playwright/test": "^1.61.1",
     "@rsbuild/plugin-vue": "^1.0.1",
     "@tailwindcss/postcss": "^4.1.16",
     "create-sails-generator": "^1.0.0",
@@ -47,7 +48,7 @@
     "sails-hook-shipwright": "^1.4.0",
     "sails.io.js": "^1.2.1",
     "socket.io-client": "^4.7.5",
-    "sounding": "^0.0.3",
+    "sounding": "^0.2.0",
     "tailwindcss": "^4.1.16"
   },
   "scripts": {
@@ -65,9 +66,9 @@
     "start": "NODE_ENV=production node app.js",
     "lint": "prettier --check .",
     "lint:fix": "prettier --write .",
-    "test:unit": "node --test --test-concurrency=1 $(find tests/unit -type f -name '*.test.js' | sort)",
-    "test:functional": "node --test --test-concurrency=1 $(find tests/functional -type f -name '*.test.js' | sort)",
-    "test:e2e": "node --test --test-concurrency=1 tests/e2e/pages/**/*.test.js",
+    "test:unit": "sounding test --lane unit --test-concurrency=1",
+    "test:functional": "sounding test --lane functional --test-concurrency=1",
+    "test:e2e": "sounding test --lane e2e --test-concurrency=1",
     "test": "npm run test:unit && npm run test:functional && npm run test:e2e"
   },
   "main": "app.js",

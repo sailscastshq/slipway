@@ -1,4 +1,5 @@
 const { test } = require('sounding')
+const { withCsrfFromPage } = require('../../support/csrf-request')
 
 test('the genesis user gets the setup path before Slipway is configured', async ({
   visit,
@@ -12,12 +13,12 @@ test('the genesis user gets the setup path before Slipway is configured', async 
 
 test('setup creates the genesis owner and default team', async ({
   expect,
-  sails
+  sails,
+  request
 }) => {
-  const current = await sails.sounding.world.use('csrf-guest')
-  const request = await current.guest.requestFor('/setup')
+  const guest = await withCsrfFromPage(request, '/setup')
 
-  const response = await request.post('/setup', {
+  const response = await guest.request.post('/setup', {
     email: 'founder@example.com',
     password: 'secret123'
   })
@@ -39,14 +40,12 @@ test('setup creates the genesis owner and default team', async ({
   expect(founder.team).toBe(team.id)
 })
 
-test('setup path is blocked once the genesis owner exists', async ({
-  get,
-  expect,
-  sails
-}) => {
-  await sails.sounding.world.use('configured-slipway')
+test(
+  'setup path is blocked once the genesis owner exists',
+  { world: 'configured-slipway' },
+  async ({ get, expect }) => {
+    const response = await get('/setup')
 
-  const response = await get('/setup')
-
-  expect(response).toHaveStatus(403)
-})
+    expect(response).toHaveStatus(403)
+  }
+)

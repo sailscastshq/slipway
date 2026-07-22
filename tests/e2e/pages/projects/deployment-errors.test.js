@@ -2,49 +2,33 @@ const { test } = require('sounding')
 
 test(
   'failed deployment explains an early error even when no logs exist',
-  { browser: true },
-  async ({ sails, login, page, expect }) => {
-    const current = await sails.sounding.world.use('configured-slipway')
-    const project = await sails.models.project
-      .create({
-        name: 'Visible Failures',
-        slug: 'visible-failures',
-        team: current.teams.genesisTeam.id,
-        createdBy: current.users.genesisUser.id
-      })
-      .fetch()
-    const environment = await sails.models.environment
-      .create({
-        name: 'Production',
-        slug: 'production',
-        project: project.id,
-        isProduction: true
-      })
-      .fetch()
-    const deployment = await sails.models.deployment
-      .create({
-        status: 'failed',
-        environment: environment.id,
-        errorMessage:
-          'No deployable source is available. Push source or connect a repository.',
-        startedAt: Date.now(),
-        finishedAt: Date.now()
-      })
-      .fetch()
+  {
+    browser: true,
+    world: {
+      name: 'configured-slipway',
+      context: {
+        deploymentTarget: {
+          slug: 'visible-failures',
+          name: 'Visible Failures',
+          failure:
+            'No deployable source is available. Push source or connect a repository.'
+        }
+      }
+    }
+  },
+  async ({ world, login, page, expect }) => {
+    const current = world.current
 
-    await login.withPassword(current.users.genesisUser, page, {
+    await login.withPassword('genesisUser', page, {
       password: current.auth.genesisUserPassword
     })
-    await page.goto(`/projects/visible-failures/deployments/${deployment.id}`)
+    await page.goto(
+      `/projects/${current.projects.deploymentTarget.slug}/deployments/${current.deployments.failed.id}`
+    )
 
-    const alert = page.getByRole('alert')
-    expect(await alert.isVisible()).toBe(true)
-    expect(await alert.getByText('Deployment failed').isVisible()).toBe(true)
-    expect(
-      await alert.getByText(/No deployable source is available/).isVisible()
-    ).toBe(true)
-    expect(
-      await page.getByText('No additional logs were captured.').isVisible()
-    ).toBe(true)
+    await expect(page).toSee('Deployment failed')
+    await expect(page).toSee('No deployable source is available')
+    await expect(page).toSee('No additional logs were captured.')
+    expect(page).toHaveNoSmoke()
   }
 )

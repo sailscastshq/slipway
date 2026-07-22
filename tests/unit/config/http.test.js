@@ -1,11 +1,12 @@
-const assert = require('node:assert/strict')
-const { test } = require('node:test')
+const { test } = require('sounding')
 
 const Tokens = require('csrf')
 
 const { http } = require('../../../config/http')
 
-test('bearer csrf bridge gives unsafe cli requests a valid csrf header', async () => {
+test('bearer csrf bridge gives unsafe cli requests a valid csrf header', async ({
+  expect
+}) => {
   const req = {
     method: 'POST',
     headers: {
@@ -16,15 +17,16 @@ test('bearer csrf bridge gives unsafe cli requests a valid csrf header', async (
 
   await runBearerBridge(req)
 
-  assert.ok(req.session.csrfSecret)
-  assert.ok(req.headers['x-csrf-token'])
-  assert.equal(
-    new Tokens().verify(req.session.csrfSecret, req.headers['x-csrf-token']),
-    true
-  )
+  expect(req.session.csrfSecret).toBeTruthy()
+  expect(req.headers['x-csrf-token']).toBeTruthy()
+  expect(
+    new Tokens().verify(req.session.csrfSecret, req.headers['x-csrf-token'])
+  ).toBe(true)
 })
 
-test('bearer csrf bridge leaves normal browser requests alone', async () => {
+test('bearer csrf bridge leaves normal browser requests alone', async ({
+  expect
+}) => {
   const req = {
     method: 'POST',
     headers: {},
@@ -33,8 +35,8 @@ test('bearer csrf bridge leaves normal browser requests alone', async () => {
 
   await runBearerBridge(req)
 
-  assert.equal(req.session.csrfSecret, undefined)
-  assert.equal(req.headers['x-csrf-token'], undefined)
+  expect(req.session.csrfSecret).toBe(undefined)
+  expect(req.headers['x-csrf-token']).toBe(undefined)
 })
 
 function runBearerBridge(req) {
