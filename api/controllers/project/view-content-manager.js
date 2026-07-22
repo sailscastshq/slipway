@@ -16,6 +16,10 @@ module.exports = {
       type: 'string',
       defaultsTo: 'production',
       description: 'Environment slug'
+    },
+    appSlug: {
+      type: 'string',
+      description: 'App that owns this content workspace'
     }
   },
 
@@ -28,7 +32,7 @@ module.exports = {
     }
   },
 
-  fn: async function ({ slug, envSlug }) {
+  fn: async function ({ slug, envSlug, appSlug }) {
     const user = await User.findOne({ id: this.req.session.userId }).populate(
       'team'
     )
@@ -59,11 +63,12 @@ module.exports = {
     const contentFeature = hasContentFeature
       ? environment.features['sails-content']
       : null
-    const apps = await App.find({ environment: environment.id }).sort([
-      'isDefault DESC',
-      'name ASC',
-      'id ASC'
-    ])
+    const resolved = await sails.helpers.deploy.resolveTargetApp
+      .with({ environment, appSlug })
+      .intercept('appNotFound', () => ({
+        notFound: `/projects/${slug}/environments/${envSlug}`
+      }))
+    const app = resolved.app
 
     // Load collections if feature is available
     let collections = []
@@ -120,12 +125,12 @@ module.exports = {
         contentFeature,
         collections,
         collectionsError,
-        apps: apps.map((app) => ({
+        app: {
           id: app.id,
           name: app.name,
           slug: app.slug,
           isDefault: app.isDefault
-        }))
+        }
       }
     }
   }

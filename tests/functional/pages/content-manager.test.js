@@ -106,7 +106,7 @@ test(
         `${workspace.editorPath}?appSlug=${workspace.app.slug}`,
         'genesisUser'
       )
-      expect(editor.page).toHaveInertiaPropCount('apps', 2)
+      expect(editor.page).toHaveInertiaProp('app.slug', workspace.app.slug)
       const response = await editor.request.post(workspace.updatePath, {
         raw: '# Published from Slipway\n',
         deploy: true,
@@ -307,7 +307,7 @@ test(
 
       expect(response).toHaveStatus(302)
       expect(response).toRedirectTo(
-        `/projects/${workspace.project.slug}/content`
+        `/projects/${workspace.project.slug}/content?appSlug=${workspace.app.slug}`
       )
       expect(commitCalls.length).toBe(1)
       expect(commitCalls[0].options.method).toBe('DELETE')
@@ -372,11 +372,11 @@ test(
 )
 
 test(
-  'Content Manager requires an app choice in a multi-app environment',
+  'Content Manager inherits its app scope in a multi-app environment',
   { world: contentWorld('content-multi-app') },
   async ({ sails, world, request, expect }) => {
     const workspace = await prepareContentWorkspace({ sails, world })
-    await world.create('app').with({
+    const worker = await world.create('app').with({
       name: 'Worker',
       slug: 'worker',
       environment: workspace.environment.id,
@@ -387,24 +387,23 @@ test(
     try {
       const editor = await withCsrfFromPage(
         request,
-        workspace.editorPath,
+        `${workspace.editorPath}?appSlug=${worker.slug}`,
         'genesisUser'
       )
-      expect(editor.page).toHaveInertiaPropCount('apps', 2)
+      expect(editor.page).toHaveInertiaProp('app.slug', worker.slug)
       const response = await editor.request.post(workspace.updatePath, {
-        raw: '# Ambiguous target\n',
-        deploy: true,
+        raw: '# Worker-owned content\n',
+        deploy: false,
+        appSlug: worker.slug,
         sourceSha: editor.page.data.props.content.sourceSha
       })
 
-      expect(response).toHaveStatus(303)
-      expect(fs.readFileSync(workspace.filePath, 'utf8')).toBe(
-        workspace.originalContent
+      expect(response).toHaveStatus(302)
+      expect(response).toRedirectTo(
+        `${workspace.editorPath}?appSlug=${worker.slug}`
       )
-      const page = await editor.request.get(workspace.editorPath)
-      expect(page).toHaveInertiaError(
-        'appSlug',
-        'Choose which app owns this content'
+      expect(fs.readFileSync(workspace.filePath, 'utf8')).toBe(
+        '# Worker-owned content\n'
       )
     } finally {
       workspace.restore()

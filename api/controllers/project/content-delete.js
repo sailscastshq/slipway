@@ -76,15 +76,10 @@ module.exports = {
     const contentDir = contentFeature.contentDir || 'content'
     const appPath = `${sails.config.custom.slipwayAppsDir}/${project.slug}`
     const resolved = await sails.helpers.deploy.resolveTargetApp
-      .with({ environment, appSlug, requireExplicit: true })
+      .with({ environment, appSlug })
       .intercept('appNotFound', () => ({
         badRequest: {
           problems: [{ appSlug: 'Choose an app that still exists.' }]
-        }
-      }))
-      .intercept('appSelectionRequired', () => ({
-        badRequest: {
-          problems: [{ appSlug: 'Choose which app owns this content.' }]
         }
       }))
 
@@ -132,6 +127,8 @@ module.exports = {
 
     // Redirect to content manager
     const envPath = envSlug !== 'production' ? `/environments/${envSlug}` : ''
-    return `/projects/${slug}${envPath}/content`
+    return `/projects/${slug}${envPath}/content?appSlug=${encodeURIComponent(
+      resolved.app.slug
+    )}`
   }
 }

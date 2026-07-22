@@ -23,10 +23,6 @@ module.exports = {
     appSlug: {
       type: 'string'
     },
-    requireExplicitApp: {
-      type: 'boolean',
-      defaultsTo: false
-    },
     gitCommit: {
       type: 'string'
     },
@@ -51,7 +47,6 @@ module.exports = {
       outputType: 'ref'
     },
     appNotFound: {},
-    appSelectionRequired: {},
     sourceUnavailable: {
       outputType: 'ref'
     }
@@ -63,7 +58,6 @@ module.exports = {
     user,
     app,
     appSlug,
-    requireExplicitApp,
     gitCommit,
     gitBranch,
     gitMessage,
@@ -74,11 +68,9 @@ module.exports = {
       .with({
         environment,
         app,
-        appSlug,
-        requireExplicit: requireExplicitApp
+        appSlug
       })
       .intercept('appNotFound', 'appNotFound')
-      .intercept('appSelectionRequired', 'appSelectionRequired')
     const targetApp = resolved.app
     const sourceReadiness = await sails.helpers.deploy.getSourceReadiness.with({
       project,

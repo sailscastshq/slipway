@@ -107,17 +107,11 @@ module.exports = {
     const resolved = await sails.helpers.deploy.resolveTargetApp
       .with({
         environment,
-        appSlug,
-        requireExplicit: true
+        appSlug
       })
       .intercept('appNotFound', () => ({
         badRequest: {
           problems: [{ appSlug: 'Choose an app that still exists.' }]
-        }
-      }))
-      .intercept('appSelectionRequired', () => ({
-        badRequest: {
-          problems: [{ appSlug: 'Choose which app owns this content.' }]
         }
       }))
     const targetApp = resolved.app

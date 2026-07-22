@@ -17,8 +17,7 @@ const props = defineProps({
   contentFeature: Object,
   content: Object,
   contentError: String,
-  selectedAppSlug: String,
-  apps: Array
+  app: Object
 })
 
 const toggleMobileMenu = inject('toggleMobileMenu')
@@ -47,16 +46,12 @@ const saveForm = useForm({
   body: '',
   raw: '',
   deploy: false,
-  appSlug:
-    props.selectedAppSlug ||
-    (props.apps?.length === 1 ? props.apps[0].slug : ''),
+  appSlug: props.app.slug,
   sourceSha: props.content?.sourceSha || ''
 })
 
 const deleteForm = useForm({
-  appSlug:
-    props.selectedAppSlug ||
-    (props.apps?.length === 1 ? props.apps[0].slug : ''),
+  appSlug: props.app.slug,
   sourceSha: props.content?.sourceSha || ''
 })
 
@@ -95,9 +90,11 @@ const envPath = computed(() => {
 })
 
 function getContentManagerPath() {
-  return props.environment.slug !== 'production'
-    ? `/projects/${props.project.slug}/environments/${props.environment.slug}/content`
-    : `/projects/${props.project.slug}/content`
+  const path =
+    props.environment.slug !== 'production'
+      ? `/projects/${props.project.slug}/environments/${props.environment.slug}/content`
+      : `/projects/${props.project.slug}/content`
+  return `${path}?appSlug=${props.app.slug}`
 }
 
 function getActionPath(action) {
@@ -107,12 +104,6 @@ function getActionPath(action) {
 // Save content
 function saveContent(triggerDeploy = false) {
   if (saveForm.processing) return
-
-  if (props.apps?.length > 1 && !saveForm.appSlug) {
-    saveForm.setError('appSlug', 'Choose which app owns this content.')
-    showSaveMenu.value = true
-    return
-  }
 
   if (editingRaw.value) {
     saveForm.raw = raw.value
@@ -152,26 +143,8 @@ function saveAndDeployAndCloseMenu() {
   saveContent(true)
 }
 
-function selectTargetApp() {
-  saveForm.clearErrors('appSlug')
-
-  const url = new URL(window.location.href)
-  if (saveForm.appSlug) {
-    url.searchParams.set('appSlug', saveForm.appSlug)
-  } else {
-    url.searchParams.delete('appSlug')
-  }
-  window.history.replaceState({}, '', url)
-}
-
 // Delete content
 function openDeleteModal() {
-  if (props.apps?.length > 1 && !saveForm.appSlug) {
-    saveForm.setError('appSlug', 'Choose which app owns this content.')
-    showSaveMenu.value = true
-    return
-  }
-
   deleteModalOpen.value = true
 }
 
@@ -552,40 +525,6 @@ function handleKeydown(e) {
             data-test="content-save-menu"
             class="absolute right-0 top-full z-10 mt-1 w-64 rounded-md border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-800"
           >
-            <div
-              v-if="apps?.length > 1"
-              class="border-b border-gray-100 px-3 py-2 dark:border-gray-700"
-            >
-              <label
-                for="content-target-app"
-                class="block text-xs font-medium text-gray-500 dark:text-gray-400"
-              >
-                Target app
-              </label>
-              <select
-                id="content-target-app"
-                data-test="content-target-app"
-                v-model="saveForm.appSlug"
-                :aria-invalid="Boolean(saveForm.errors.appSlug)"
-                :aria-describedby="
-                  saveForm.errors.appSlug ? 'content-target-app-error' : null
-                "
-                class="mt-1 block w-full rounded-md border border-gray-200 bg-white px-2 py-1.5 text-sm text-gray-900 focus:border-gray-400 focus:outline-none dark:border-gray-600 dark:bg-gray-800 dark:text-white"
-                @change="selectTargetApp"
-              >
-                <option value="" disabled>Choose an app</option>
-                <option v-for="app in apps" :key="app.id" :value="app.slug">
-                  {{ app.name }}
-                </option>
-              </select>
-              <p
-                v-if="saveForm.errors.appSlug"
-                id="content-target-app-error"
-                class="mt-1 text-xs text-red-600 dark:text-red-400"
-              >
-                {{ saveForm.errors.appSlug }}
-              </p>
-            </div>
             <button
               @click="saveOnlyAndCloseMenu"
               :disabled="!hasChanges"
@@ -601,11 +540,19 @@ function handleKeydown(e) {
               Save & Deploy
             </button>
             <p
-              v-if="saveForm.errors.content || saveForm.errors.deploy"
+              v-if="
+                saveForm.errors.content ||
+                saveForm.errors.deploy ||
+                saveForm.errors.appSlug
+              "
               role="alert"
               class="border-t border-gray-100 px-3 py-2 text-xs leading-5 text-red-600 dark:border-gray-700 dark:text-red-400"
             >
-              {{ saveForm.errors.content || saveForm.errors.deploy }}
+              {{
+                saveForm.errors.content ||
+                saveForm.errors.deploy ||
+                saveForm.errors.appSlug
+              }}
             </p>
           </div>
         </div>

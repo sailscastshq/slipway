@@ -2,7 +2,7 @@ module.exports = {
   friendlyName: 'Resolve target app',
 
   description:
-    'Resolve an environment deployment target and optionally require an explicit choice for multi-app environments.',
+    'Resolve an app-scoped deployment target, falling back to the default app.',
 
   inputs: {
     environment: {
@@ -14,10 +14,6 @@ module.exports = {
     },
     appSlug: {
       type: 'string'
-    },
-    requireExplicit: {
-      type: 'boolean',
-      defaultsTo: false
     }
   },
 
@@ -27,13 +23,10 @@ module.exports = {
     },
     appNotFound: {
       description: 'No matching app exists in the environment.'
-    },
-    appSelectionRequired: {
-      description: 'The environment has multiple apps and needs a choice.'
     }
   },
 
-  fn: async function ({ environment, app, appSlug, requireExplicit }) {
+  fn: async function ({ environment, app, appSlug }) {
     const apps = await App.find({ environment: environment.id }).sort([
       'isDefault DESC',
       'name ASC',
@@ -47,14 +40,12 @@ module.exports = {
       )
     } else if (appSlug) {
       targetApp = apps.find((candidate) => candidate.slug === appSlug)
-    } else if (requireExplicit && apps.length > 1) {
-      throw 'appSelectionRequired'
     } else {
       targetApp = apps.find((candidate) => candidate.isDefault) || apps[0]
     }
 
     if (!targetApp) throw 'appNotFound'
 
-    return { app: targetApp, apps }
+    return { app: targetApp }
   }
 }

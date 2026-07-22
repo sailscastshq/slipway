@@ -78,16 +78,12 @@ module.exports = {
     const contentFeature = environment.features['sails-content']
     const contentDir = contentFeature.contentDir || 'content'
     const appPath = `${sails.config.custom.slipwayAppsDir}/${project.slug}`
-    const apps = await App.find({ environment: environment.id }).sort([
-      'isDefault DESC',
-      'name ASC',
-      'id ASC'
-    ])
-    const selectedApp = appSlug
-      ? apps.find((app) => app.slug === appSlug)
-      : apps.length === 1
-      ? apps[0]
-      : null
+    const resolved = await sails.helpers.deploy.resolveTargetApp
+      .with({ environment, appSlug })
+      .intercept('appNotFound', () => ({
+        notFound: `/projects/${slug}/environments/${envSlug}`
+      }))
+    const selectedApp = resolved.app
 
     // Load the content file
     let content = null
@@ -112,32 +108,30 @@ module.exports = {
       let sourceSha = gitBlobSha(rawContent)
       let sourceMode = 'local'
       let repository = null
-      if (selectedApp) {
-        const relativeFilePath = path.posix.join(
-          String(contentDir).replace(/\\/g, '/'),
-          collection,
-          `${file}.${fileType === 'json' ? 'json' : 'md'}`
+      const relativeFilePath = path.posix.join(
+        String(contentDir).replace(/\\/g, '/'),
+        collection,
+        `${file}.${fileType === 'json' ? 'json' : 'md'}`
+      )
+      const remote = await sails.helpers.git.readContentFile
+        .with({
+          environment,
+          app: selectedApp,
+          filePath: relativeFilePath
+        })
+        .intercept(
+          'notFound',
+          (error) => new Error((error.raw || error).message)
         )
-        const remote = await sails.helpers.git.readContentFile
-          .with({
-            environment,
-            app: selectedApp,
-            filePath: relativeFilePath
-          })
-          .intercept(
-            'notFound',
-            (error) => new Error((error.raw || error).message)
-          )
-          .intercept(
-            'unavailable',
-            (error) => new Error((error.raw || error).message)
-          )
-        if (remote.mode === 'repository') {
-          rawContent = remote.content
-          sourceSha = remote.sha
-          sourceMode = 'repository'
-          repository = remote.repository
-        }
+        .intercept(
+          'unavailable',
+          (error) => new Error((error.raw || error).message)
+        )
+      if (remote.mode === 'repository') {
+        rawContent = remote.content
+        sourceSha = remote.sha
+        sourceMode = 'repository'
+        repository = remote.repository
       }
 
       // Parse frontmatter for markdown files
@@ -191,13 +185,12 @@ module.exports = {
         contentFeature,
         content,
         contentError,
-        selectedAppSlug: selectedApp?.slug || '',
-        apps: apps.map((app) => ({
-          id: app.id,
-          name: app.name,
-          slug: app.slug,
-          isDefault: app.isDefault
-        }))
+        app: {
+          id: selectedApp.id,
+          name: selectedApp.name,
+          slug: selectedApp.slug,
+          isDefault: selectedApp.isDefault
+        }
       }
     }
   }

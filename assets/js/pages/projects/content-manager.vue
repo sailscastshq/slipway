@@ -15,7 +15,7 @@ const props = defineProps({
   contentFeature: Object,
   collections: Array,
   collectionsError: String,
-  apps: Array
+  app: Object
 })
 
 const toggleMobileMenu = inject('toggleMobileMenu')
@@ -30,7 +30,7 @@ const selectedCollection = ref(null)
 const createForm = useForm({
   contentSlug: '',
   title: '',
-  appSlug: props.apps?.length === 1 ? props.apps[0].slug : ''
+  appSlug: props.app.slug
 })
 
 function openCreateModal(collection) {
@@ -84,7 +84,7 @@ function getEditorPath(collection, file) {
     props.environment.slug !== 'production'
       ? `/projects/${props.project.slug}/environments/${props.environment.slug}/content`
       : `/projects/${props.project.slug}/content`
-  return `${basePath}/${collection}/${file}`
+  return `${basePath}/${collection}/${file}?appSlug=${props.app.slug}`
 }
 
 function refresh() {
@@ -500,38 +500,6 @@ function refresh() {
               class="focus:border-brand mt-1 block w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-2 text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
             />
           </div>
-          <div v-if="apps?.length > 1">
-            <label
-              for="content-create-target-app"
-              class="block text-sm font-medium text-gray-700 dark:text-gray-300"
-            >
-              Target app
-            </label>
-            <select
-              id="content-create-target-app"
-              v-model="createForm.appSlug"
-              :aria-invalid="Boolean(createForm.errors.appSlug)"
-              :aria-describedby="
-                createForm.errors.appSlug
-                  ? 'content-create-target-app-error'
-                  : null
-              "
-              class="mt-1 block w-full rounded-md border border-gray-200 bg-white px-2 py-2 text-sm text-gray-900 focus:border-gray-400 focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-white"
-              @change="createForm.clearErrors('appSlug')"
-            >
-              <option value="" disabled>Choose an app</option>
-              <option v-for="app in apps" :key="app.id" :value="app.slug">
-                {{ app.name }}
-              </option>
-            </select>
-            <p
-              v-if="createForm.errors.appSlug"
-              id="content-create-target-app-error"
-              class="mt-1 text-xs text-red-600 dark:text-red-400"
-            >
-              {{ createForm.errors.appSlug }}
-            </p>
-          </div>
           <div class="flex items-center justify-end space-x-3 pt-2">
             <button
               type="button"
@@ -545,7 +513,7 @@ function refresh() {
               :disabled="
                 !createForm.contentSlug.trim() || createForm.processing
               "
-              class="rounded-md bg-violet-600 px-4 py-2 text-sm font-medium text-white hover:bg-violet-500 disabled:opacity-50"
+              class="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
             >
               {{ createForm.processing ? 'Creating...' : 'Create' }}
             </button>
