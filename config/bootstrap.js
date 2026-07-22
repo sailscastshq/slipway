@@ -10,6 +10,10 @@
  */
 
 module.exports.bootstrap = async function () {
+  // Production uses `migrate: safe`; create coordinator tables before any
+  // deployment job queries run on an existing installation.
+  await sails.helpers.deploy.ensureQueueSchema()
+
   // Initialize CLI tokens map for Bearer token authentication
   sails.cliTokens = new Map()
 
@@ -26,6 +30,7 @@ module.exports.bootstrap = async function () {
   }
 
   const skipInfraBootstrap = sails.config.environment === 'test'
+  const isQuestWorker = sails.config.environment === 'console'
 
   // One-time migration: backfill multi-app fields on existing App/Deployment records
   const migrationDone = await sails.helpers.setting.get('multiAppMigrationDone')
@@ -98,6 +103,25 @@ module.exports.bootstrap = async function () {
       sails.log.verbose(
         'Could not configure Caddy dashboard route:',
         error.message
+      )
+    }
+  }
+
+  // Quest child processes run the same bootstrap. Only the long-lived web
+  // process performs startup recovery; the watchdog script handles console.
+  if (!isQuestWorker) {
+    try {
+      await sails.helpers.deploy.reconcileDeployments()
+      process.nextTick(() => {
+        sails.helpers.deploy.runQueuedDeployments().catch((error) => {
+          sails.log.error(
+            `Could not dispatch queued deployments: ${error.message || error}`
+          )
+        })
+      })
+    } catch (error) {
+      sails.log.warn(
+        `Could not reconcile deployment pipelines: ${error.message || error}`
       )
     }
   }

@@ -53,6 +53,7 @@ module.exports = {
     }
 
     const duration = Deployment.getDuration(deployment)
+    const queuePosition = await DeploymentJob.getQueuePosition(deployment.id)
 
     // Check if this is the currently active deployment
     const app =
@@ -70,6 +71,7 @@ module.exports = {
         deployment: {
           ...deployment,
           duration,
+          queuePosition,
           isCurrentDeployment,
           triggeredBy: deployment.triggeredBy
             ? {

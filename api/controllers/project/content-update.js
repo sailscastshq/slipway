@@ -131,27 +131,25 @@ module.exports = {
 
     // Trigger deploy if requested
     if (deploy) {
-      const deployment = await Deployment.create({
-        status: 'pending',
-        gitMessage: `Content update: ${collection}/${file}`,
-        triggeredBy: user.id,
-        triggerType: 'manual',
-        environment: environment.id,
-        startedAt: Date.now()
-      }).fetch()
+      const app =
+        (await App.findOne({
+          environment: environment.id,
+          isDefault: true
+        })) || (await App.findOne({ environment: environment.id }))
+      const queued = await sails.helpers.deploy.queueDeployment.with({
+        values: {
+          gitMessage: `Content update: ${collection}/${file}`,
+          triggeredBy: user.id,
+          triggerType: 'manual',
+          environment: environment.id
+        },
+        app
+      })
+      const deployment = queued.deployment
 
       sails.log.info(
         `[content] Deployment ${deployment.id} triggered for content change`
       )
-
-      // Kick off the async deployment pipeline
-      process.nextTick(async () => {
-        try {
-          await sails.helpers.deploy.execute(deployment.id)
-        } catch (err) {
-          sails.log.error(`Content deploy failed: ${err.message}`)
-        }
-      })
 
       // Redirect to deployment page
       return `/projects/${slug}/deployments/${deployment.id}`

@@ -70,42 +70,31 @@ module.exports = {
     })
     if (!targetDeployment?.imageName) throw 'badRequest'
 
-    const rollback = await Deployment.create({
-      status: 'pending',
-      gitCommit: targetDeployment.gitCommit,
-      gitBranch: targetDeployment.gitBranch,
-      gitMessage: `Rollback to deployment ${targetDeployment.id}`,
-      triggeredBy: user.id,
-      triggerType: 'api',
-      environment: environment.id,
-      app: targetApp?.id,
-      startedAt: Date.now()
-    }).fetch()
+    const queued = await sails.helpers.deploy.queueDeployment.with({
+      values: {
+        gitCommit: targetDeployment.gitCommit,
+        gitBranch: targetDeployment.gitBranch,
+        gitMessage: `Rollback to deployment ${targetDeployment.id}`,
+        triggeredBy: user.id,
+        triggerType: 'api',
+        environment: environment.id
+      },
+      app: targetApp,
+      kind: 'rollback',
+      targetDeploymentId: targetDeployment.id
+    })
+    const rollback = queued.deployment
 
     sails.log.info(
       `Rollback ${rollback.id} triggered for ${project.slug}/${environment.slug} → deployment ${deploymentId}`
     )
 
-    process.nextTick(async () => {
-      try {
-        await sails.helpers.deploy.executeRollback.with({
-          rollbackId: rollback.id,
-          targetDeployment,
-          environment,
-          app: targetApp
-        })
-      } catch (error) {
-        sails.log.error(
-          `Rollback ${rollback.id} failed: ${error.message || error}`
-        )
-      }
-    })
-
     return {
       deployment: {
         id: rollback.id,
         status: 'pending',
-        message: 'Rollback started'
+        message: 'Rollback queued',
+        queuePosition: queued.queuePosition
       }
     }
   }

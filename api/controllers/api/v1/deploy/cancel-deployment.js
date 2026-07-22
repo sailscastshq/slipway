@@ -56,11 +56,17 @@ module.exports = {
       }
     }
 
-    // Mark as cancelled
+    const lease = await DeploymentLease.findOne({ deployment: deploymentId })
+
+    // Mark as cancelled. An active worker keeps the lease while it unwinds so
+    // the next queued deployment cannot overlap its resource cleanup.
     await Deployment.updateOne({ id: deploymentId }).set({
       status: 'cancelled',
       errorMessage: `Cancelled by ${user.fullName || user.email}`,
       finishedAt: Date.now()
+    })
+    await DeploymentJob.updateOne({ deployment: deploymentId }).set({
+      stage: lease ? 'cancel_requested' : 'cancelled'
     })
 
     await Deployment.appendBuildLog(

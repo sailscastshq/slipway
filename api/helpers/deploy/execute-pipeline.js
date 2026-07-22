@@ -24,6 +24,10 @@ module.exports = {
       type: 'ref',
       description:
         'Target App record (if omitted, resolves default app in environment)'
+    },
+    leaseToken: {
+      type: 'string',
+      description: 'Fencing token held by the durable deployment worker.'
     }
   },
 
@@ -33,19 +37,54 @@ module.exports = {
     }
   },
 
-  fn: async function ({ deploymentId, project, environment, app: appInput }) {
+  fn: async function ({
+    deploymentId,
+    project,
+    environment,
+    app: appInput,
+    leaseToken
+  }) {
     let deployContainerName = null
+    let deployImageName = null
     let deployHostPort = null
     let deployHostPortReserved = false
     let currentStage = 'initialization'
+
+    const recordStage = async (stage, resources = {}) => {
+      currentStage = stage.replace(/_/g, ' ')
+      const result = await sails.helpers.deploy.recordDeploymentStage.with({
+        deploymentId,
+        leaseToken,
+        stage,
+        ...resources
+      })
+      requireValidCoordinatorResult(result)
+    }
+
+    const assertLease = async () => {
+      const result = await sails.helpers.deploy.assertDeploymentLease.with({
+        deploymentId,
+        leaseToken
+      })
+      requireValidCoordinatorResult(result)
+    }
+
+    const updateDeployment = async (values) => {
+      const result = await sails.helpers.deploy.updateDeploymentForLease.with({
+        deploymentId,
+        leaseToken,
+        values
+      })
+      requireValidCoordinatorResult(result)
+      return result.deployment
+    }
 
     try {
       const deployment = await Deployment.findOne({ id: deploymentId })
 
       // 1. Set status to building
-      await Deployment.updateOne({ id: deploymentId }).set({
-        status: 'building'
-      })
+      await recordStage('initialization')
+      await updateDeployment({ status: 'building' })
 
       // 2. Ensure Docker network exists
       await sails.helpers.docker.ensureNetwork()
@@ -71,13 +110,17 @@ module.exports = {
         deploymentId,
         appSlug
       )
+      deployImageName = imageName
       deployContainerName = await App.generateDeployContainerName(
         environment.id,
         deploymentId,
         appSlug
       )
 
-      currentStage = 'source preparation'
+      await recordStage('source_preparation', {
+        candidateContainerName: deployContainerName,
+        imageName
+      })
       const { contextPath } =
         await sails.helpers.deploy.ensureBuildContext.with({
           project,
@@ -93,7 +136,7 @@ module.exports = {
         (targetApp && targetApp.dockerfilePath) ||
         project.dockerfilePath ||
         'Dockerfile'
-      currentStage = 'image build'
+      await recordStage('image_build', { buildContextPath: contextPath })
       await sails.helpers.docker.buildImage.with({
         contextPath,
         imageName,
@@ -102,6 +145,7 @@ module.exports = {
       })
 
       // 4b. Detect Sails features (sails-content, sails-quest, etc.)
+      await assertLease()
       const detectedFeatures = await sails.helpers.sails.detectFeatures(
         contextPath
       )
@@ -116,10 +160,8 @@ module.exports = {
       }
 
       // 5. Set status to deploying
-      await Deployment.updateOne({ id: deploymentId }).set({
-        imageName,
-        status: 'deploying'
-      })
+      await recordStage('container_startup')
+      await updateDeployment({ imageName, status: 'deploying' })
 
       // 6. Allocate a host port
       deployHostPort = await sails.helpers.docker.allocatePort.with({
@@ -127,6 +169,7 @@ module.exports = {
         ownerId: String(deploymentId)
       })
       deployHostPortReserved = true
+      await recordStage('container_startup', { hostPort: deployHostPort })
 
       // 7. 3-tier env var merge: global < environment < app-specific
       let globalEnvVars = {}
@@ -174,9 +217,11 @@ module.exports = {
         memory: '1.5g'
       }
       const oldContainerName = existingApp ? existingApp.containerName : null
+      await recordStage('container_startup', {
+        previousContainerName: oldContainerName || undefined
+      })
 
       // 9. Run the new container with deploy-scoped name (old container still running)
-      currentStage = 'container startup'
       const containerResult = await sails.helpers.docker.runContainer.with({
         imageName,
         containerName: deployContainerName,
@@ -189,7 +234,7 @@ module.exports = {
       })
 
       // 10. HTTP health check on the new container (Docker DNS, with localhost fallback for local dev)
-      currentStage = 'health check'
+      await recordStage('health_check')
       await sails.helpers.docker.healthCheck.with({
         containerName: deployContainerName,
         port: 1337,
@@ -201,9 +246,10 @@ module.exports = {
       // === Health check passed — switch traffic ===
 
       // 11. Verify the candidate route before committing App state.
-      currentStage = 'traffic cutover'
+      await recordStage('traffic_cutover')
       await sails.helpers.deploy.cutoverTraffic.with({
         deploymentId,
+        leaseToken,
         environmentId: environment.id,
         appId: existingApp?.id,
         candidate: {
@@ -219,13 +265,16 @@ module.exports = {
           isDefault: existingApp?.isDefault
         }
       })
+      // The candidate is now canonical. Never remove it from the generic
+      // failure cleanup if this worker loses its lease after cutover.
+      deployContainerName = null
+
+      await recordStage('cleanup')
       await releaseDeployPort({ hostPort: deployHostPort, deploymentId })
       deployHostPortReserved = false
-      deployContainerName = null
 
       // 12. Only retire the previous container after route verification and
       // App state commit have both succeeded.
-      currentStage = 'cleanup'
       if (
         oldContainerName &&
         oldContainerName !== containerResult.containerName
@@ -249,10 +298,11 @@ module.exports = {
       }
 
       // 13. Mark previous running deployments as stopped (scoped to this app)
+      await assertLease()
       const stopCriteria = {
         environment: environment.id,
         status: 'running',
-        id: { '!=': deploymentId }
+        id: { '<': deploymentId }
       }
       if (existingApp) {
         stopCriteria.app = existingApp.id
@@ -260,10 +310,8 @@ module.exports = {
       await Deployment.update(stopCriteria).set({ status: 'stopped' })
 
       // 14. Mark this deployment as running
-      await Deployment.updateOne({ id: deploymentId }).set({
-        status: 'running',
-        finishedAt: Date.now()
-      })
+      await updateDeployment({ status: 'running', finishedAt: Date.now() })
+      await recordStage('complete')
 
       const { fullDomain, generatedDomain } = await Environment.resolveDomains(
         environment.id
@@ -394,10 +442,35 @@ module.exports = {
         deployHostPortReserved = false
       }
 
-      // Mark deployment as failed (only if not already marked by build-image)
+      if (deployImageName && deployContainerName) {
+        try {
+          await sails.helpers.docker.removeImage.with({
+            imageName: deployImageName
+          })
+        } catch (cleanupError) {
+          sails.log.verbose(
+            `Could not remove failed image ${deployImageName}: ${
+              cleanupError.message || cleanupError
+            }`
+          )
+        }
+      }
+
+      // Mark deployment as failed only while this worker still owns the
+      // fenced lease. A stale worker must not overwrite recovery state.
       const current = await Deployment.findOne({ id: deploymentId })
-      if (current && current.status !== 'failed') {
-        await Deployment.updateOne({ id: deploymentId }).set({
+      let ownsLease = true
+      try {
+        await assertLease()
+      } catch {
+        ownsLease = false
+      }
+      if (
+        current &&
+        ownsLease &&
+        !['running', 'failed', 'cancelled'].includes(current.status)
+      ) {
+        await updateDeployment({
           status: 'failed',
           errorMessage,
           finishedAt: Date.now()
@@ -422,6 +495,13 @@ module.exports = {
       throw err
     }
   }
+}
+
+function requireValidCoordinatorResult(result) {
+  if (!result || result.valid !== false) return
+  const error = new Error(result.message)
+  error.code = result.code
+  throw error
 }
 
 async function releaseDeployPort({ hostPort, deploymentId }) {

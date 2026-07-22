@@ -48,6 +48,7 @@ module.exports = {
     }
 
     const duration = Deployment.getDuration(deployment)
+    const queuePosition = await DeploymentJob.getQueuePosition(deployment.id)
 
     return {
       deployment: {
@@ -66,6 +67,7 @@ module.exports = {
         startedAt: deployment.startedAt,
         finishedAt: deployment.finishedAt,
         duration,
+        queuePosition,
         errorMessage: deployment.errorMessage,
         environment: {
           id: deployment.environment.id,

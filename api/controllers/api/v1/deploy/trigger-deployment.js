@@ -143,18 +143,18 @@ module.exports = {
       }
     }
 
-    // Create deployment record
-    const deployment = await Deployment.create({
-      status: 'pending',
-      gitCommit: finalGitCommit,
-      gitBranch: finalGitBranch,
-      gitMessage: finalGitMessage,
-      triggeredBy: user.id,
-      triggerType: 'api',
-      environment: environment.id,
-      app: targetApp ? targetApp.id : undefined,
-      startedAt: Date.now()
-    }).fetch()
+    const queued = await sails.helpers.deploy.queueDeployment.with({
+      values: {
+        gitCommit: finalGitCommit,
+        gitBranch: finalGitBranch,
+        gitMessage: finalGitMessage,
+        triggeredBy: user.id,
+        triggerType: 'api',
+        environment: environment.id
+      },
+      app: targetApp
+    })
+    const deployment = queued.deployment
 
     sails.log.info(
       `Deployment ${deployment.id} triggered for ${project.slug}/${environment.slug}`
@@ -173,27 +173,12 @@ module.exports = {
       })
       .exec(() => {})
 
-    // Kick off the async deployment pipeline after returning the response
-    process.nextTick(async () => {
-      try {
-        await sails.helpers.deploy.executePipeline.with({
-          deploymentId: deployment.id,
-          project,
-          environment,
-          app: targetApp
-        })
-      } catch (err) {
-        sails.log.error(
-          `Deployment ${deployment.id} failed: ${err.message || err}`
-        )
-      }
-    })
-
     return {
       deployment: {
         id: deployment.id,
         status: 'pending',
-        message: 'Deployment started'
+        message: 'Deployment queued',
+        queuePosition: queued.queuePosition
       }
     }
   }
