@@ -38,6 +38,7 @@ async function openHelmWithMockedExecution({ sails, world, login, page }) {
   await login.withPassword('genesisUser', page, {
     password: current.auth.genesisUserPassword
   })
+  await page.wait('text=Helm Layout')
 
   await page.raw.route(
     `**/api/v1/projects/${projectSlug}/environments/${environmentSlug}/execute`,
