@@ -44,6 +44,14 @@ async function seedHistory({ sails, world }) {
     startedAt: now - 120000,
     createdAt: now - 120000
   })
+  await world.create('deployment').with({
+    ...target,
+    status: 'pending',
+    triggerType: 'manual',
+    gitMessage: 'Queued behind active build',
+    startedAt: null,
+    createdAt: now - 1000
+  })
 
   await sails.models.app.updateOne({ id: current.apps.web.id }).set({
     status: 'running',
@@ -88,6 +96,7 @@ test(
     await expect(page).toSee('Deployments')
     await expect(page).toSee('Running')
     await expect(page).toSee('Building')
+    await expect(page).toSee('Queued')
     await expect(page).toSee('Failed')
     await expect(page).toSee('Stopped')
     await expect(page).toSee('main')
@@ -98,12 +107,23 @@ test(
         (row) => row.textContent
       )
     )
-    expect(rows.length).toBe(4)
+    expect(rows.length).toBe(5)
     expect(rows[0].includes('Building')).toBe(true)
     expect(rows[1].includes('Running')).toBe(true)
-    expect(rows[2].includes('Failed')).toBe(true)
-    expect(rows[3].includes('Stopped')).toBe(true)
+    expect(rows[2].includes('Queued')).toBe(true)
+    expect(rows[3].includes('Failed')).toBe(true)
+    expect(rows[4].includes('Stopped')).toBe(true)
 
+    const deploymentToasts = await page.raw
+      .locator('.pointer-events-none.fixed.bottom-4.right-4')
+      .textContent()
+    expect(
+      deploymentToasts.indexOf('Building') < deploymentToasts.indexOf('Queued')
+    ).toBe(true)
+
+    await page.screenshot('.tmp/deployment-queue-order.png', {
+      fullPage: true
+    })
     expect(page).toHaveNoJavascriptErrors()
   }
 )
@@ -125,6 +145,7 @@ test(
     await expect(page).toSee('Deployments')
     await expect(page).toSee('Running')
     await expect(page).toSee('Building')
+    await expect(page).toSee('Queued')
     await expect(page).toSee('Failed')
     await expect(page).toSee('Stopped')
     expect(page).toHaveNoJavascriptErrors()

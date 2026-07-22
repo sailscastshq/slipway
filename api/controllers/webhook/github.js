@@ -170,35 +170,19 @@ async function handlePush(repo, payload) {
     const deploymentIds = []
 
     for (const app of apps.length > 0 ? apps : [null]) {
-      const deployment = await Deployment.create({
-        status: 'pending',
-        triggerType: 'webhook',
-        gitCommit: commit,
-        gitMessage: payload.head_commit?.message?.substring(0, 200),
-        gitBranch: branch,
-        environment: environment.id,
-        app: app ? app.id : undefined,
-        startedAt: Date.now()
-      }).fetch()
+      const queued = await sails.helpers.deploy.queueDeployment.with({
+        values: {
+          triggerType: 'webhook',
+          gitCommit: commit,
+          gitMessage: payload.head_commit?.message?.substring(0, 200),
+          gitBranch: branch,
+          environment: environment.id
+        },
+        app
+      })
+      const deployment = queued.deployment
 
       deploymentIds.push(deployment.id)
-
-      process.nextTick(async () => {
-        try {
-          await sails.helpers.deploy.executePipeline.with({
-            deploymentId: deployment.id,
-            project,
-            environment,
-            app
-          })
-        } catch (err) {
-          sails.log.error(
-            `[webhook] Deployment ${deployment.id} failed: ${
-              err.message || err
-            }`
-          )
-        }
-      })
     }
 
     return {

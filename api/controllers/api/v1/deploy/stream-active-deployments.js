@@ -80,6 +80,12 @@ async function fetchActiveDeployments(teamId) {
     environment: environmentIds,
     status: ['pending', 'building', 'pushing', 'deploying']
   }).sort('createdAt DESC')
+  activeDeployments.sort(
+    (left, right) =>
+      Number(left.status === 'pending') - Number(right.status === 'pending') ||
+      Number(right.createdAt) - Number(left.createdAt) ||
+      Number(right.id) - Number(left.id)
+  )
 
   if (activeDeployments.length === 0) return []
 

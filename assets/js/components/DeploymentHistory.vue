@@ -39,13 +39,20 @@ function orderedDeployments(history) {
   const newestFirst = (left, right) =>
     Number(right.createdAt) - Number(left.createdAt) ||
     Number(right.id) - Number(left.id)
+  const oldestFirst = (left, right) =>
+    Number(left.createdAt) - Number(right.createdAt) ||
+    Number(left.id) - Number(right.id)
+  const active = history.activeDeployments || []
+  const executing = active.filter((item) => item.status !== 'pending')
+  const queued = active.filter((item) => item.status === 'pending')
 
-  for (const group of [
-    history.activeDeployments || [],
-    history.currentReleases || [],
-    history.items || []
+  for (const [group, sort] of [
+    [executing, newestFirst],
+    [history.currentReleases || [], newestFirst],
+    [queued, oldestFirst],
+    [history.items || [], newestFirst]
   ]) {
-    for (const deployment of [...group].sort(newestFirst)) {
+    for (const deployment of [...group].sort(sort)) {
       if (seen.has(deployment.id)) continue
       seen.add(deployment.id)
       ordered.push(deployment)
@@ -170,7 +177,7 @@ function statusBadge(status) {
         'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
     },
     pending: {
-      label: 'Pending',
+      label: 'Queued',
       classes:
         'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'
     },

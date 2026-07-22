@@ -80,7 +80,12 @@ test(
       }
     }
     sails.helpers.deploy.executePipeline = {
-      with: async (options) => pipelineCalls.push(options)
+      with: async (options) => {
+        pipelineCalls.push(options)
+        await sails.models.deployment
+          .updateOne({ id: options.deploymentId })
+          .set({ status: 'running', finishedAt: Date.now() })
+      }
     }
 
     try {
@@ -129,15 +134,17 @@ test(
       const response = await request
         .as('genesisUser')
         .post(deployPath(current.projects.deploymentTarget.slug), {})
-      await new Promise((resolve) => setImmediate(resolve))
+      await waitFor(() => pipelineCalls.length === 1)
 
       expect(response).toHaveStatus(202)
       expect(Boolean(response.data?.deployment?.id)).toBe(true)
+      expect(response.data.deployment.message).toBe('Deployment queued')
+      expect(response.data.deployment.queuePosition).toBe(1)
       expect(pipelineCalls.length).toBe(1)
       const deployment = await sails.models.deployment.findOne({
         id: response.data.deployment.id
       })
-      expect(deployment.status).toBe('pending')
+      expect(deployment.status).toBe('running')
       expect(deployment.gitCommit).toBe(null)
       expect(deployment.gitBranch).toBe(null)
       expect(deployment.gitMessage).toBe(null)
@@ -150,3 +157,11 @@ test(
     }
   }
 )
+
+async function waitFor(predicate, timeout = 2000) {
+  const deadline = Date.now() + timeout
+  while (!predicate()) {
+    if (Date.now() >= deadline) throw new Error('Timed out waiting for state.')
+    await new Promise((resolve) => setTimeout(resolve, 10))
+  }
+}

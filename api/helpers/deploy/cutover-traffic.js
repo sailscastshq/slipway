@@ -10,6 +10,10 @@ module.exports = {
       required: true,
       description: 'Deployment that owns this cutover.'
     },
+    leaseToken: {
+      type: 'string',
+      description: 'Fencing token held by the durable deployment worker.'
+    },
     environmentId: {
       type: 'string',
       required: true,
@@ -33,7 +37,13 @@ module.exports = {
     }
   },
 
-  fn: async function ({ deploymentId, environmentId, appId, candidate }) {
+  fn: async function ({
+    deploymentId,
+    leaseToken,
+    environmentId,
+    appId,
+    candidate
+  }) {
     const previousApp = appId ? await App.findOne({ id: appId }) : null
     if (appId && !previousApp) {
       throw new Error(`Cannot cut over missing app ${appId}.`)
@@ -93,6 +103,7 @@ module.exports = {
     })
 
     try {
+      await assertLease(deploymentId, leaseToken)
       const route = requiresRouteCutover
         ? await sails.helpers.caddy.updateRoute.with({
             environmentId,
@@ -104,6 +115,9 @@ module.exports = {
       candidateRouteApplied = requiresRouteCutover
       stagedRoute = route.transaction || null
 
+      // The route has been staged but App state has not changed yet. Recheck
+      // ownership so a newer worker can never inherit this candidate.
+      await assertLease(deploymentId, leaseToken)
       committedApp = previousApp
         ? await App.updateOne({ id: previousApp.id }).set(
             appValues(candidateApp)
@@ -117,6 +131,9 @@ module.exports = {
       }
       appStateCommitted = true
 
+      // Fence the final route commit independently from the App write. If the
+      // lease was lost, the catch path restores both pieces of state.
+      await assertLease(deploymentId, leaseToken)
       if (stagedRoute) {
         await sails.helpers.caddy.finishRouteUpdate.with({
           action: 'commit',
@@ -249,6 +266,18 @@ module.exports = {
   }
 }
 
+async function assertLease(deploymentId, leaseToken) {
+  const result = await sails.helpers.deploy.assertDeploymentLease.with({
+    deploymentId,
+    leaseToken
+  })
+  if (result?.valid === false) {
+    const error = new Error(result.message)
+    error.code = result.code
+    throw error
+  }
+}
+
 function appValues(app) {
   return {
     status: 'running',
@@ -291,15 +320,18 @@ async function getAuditContext(deploymentId, environmentId) {
     Environment.findOne({ id: environmentId }).populate('project')
   ])
 
+  const triggeredBy =
+    deployment?.triggeredBy && typeof deployment.triggeredBy === 'object'
+      ? deployment.triggeredBy.id
+      : deployment?.triggeredBy
+  const team =
+    environment?.project?.team && typeof environment.project.team === 'object'
+      ? environment.project.team.id
+      : environment?.project?.team
+
   return {
-    userId:
-      typeof deployment?.triggeredBy === 'object'
-        ? deployment.triggeredBy.id
-        : deployment?.triggeredBy,
-    teamId:
-      typeof environment?.project?.team === 'object'
-        ? environment.project.team.id
-        : environment?.project?.team
+    userId: triggeredBy || undefined,
+    teamId: team || undefined
   }
 }
 

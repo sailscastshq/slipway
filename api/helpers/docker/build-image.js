@@ -115,11 +115,6 @@ module.exports = {
 
         if (deploymentId) {
           await Deployment.appendBuildLog(deploymentId, `\n⚠️ ${errorMsg}\n`)
-          await Deployment.updateOne({ id: deploymentId }).set({
-            status: 'failed',
-            errorMessage: errorMsg,
-            finishedAt: Date.now()
-          })
         }
         reject(new Error(errorMsg))
       }, timeout)
@@ -160,13 +155,6 @@ module.exports = {
           })
         } else {
           sails.log.error(`Docker build failed with code ${code}`)
-          if (deploymentId) {
-            await Deployment.updateOne({ id: deploymentId }).set({
-              status: 'failed',
-              errorMessage: `Build failed with exit code ${code}`,
-              finishedAt: Date.now()
-            })
-          }
           reject(
             new Error(`Docker build failed with exit code ${code}\n${stderr}`)
           )
@@ -179,13 +167,6 @@ module.exports = {
         if (killed) return // Already handled by timeout
 
         sails.log.error(`Docker build error: ${error.message}`)
-        if (deploymentId) {
-          await Deployment.updateOne({ id: deploymentId }).set({
-            status: 'failed',
-            errorMessage: error.message,
-            finishedAt: Date.now()
-          })
-        }
         reject(error)
       })
     })

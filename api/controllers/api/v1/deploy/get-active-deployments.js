@@ -39,6 +39,13 @@ module.exports = {
       environment: environmentIds,
       status: ['pending', 'building', 'pushing', 'deploying']
     }).sort('createdAt DESC')
+    activeDeployments.sort(
+      (left, right) =>
+        Number(left.status === 'pending') -
+          Number(right.status === 'pending') ||
+        Number(right.createdAt) - Number(left.createdAt) ||
+        Number(right.id) - Number(left.id)
+    )
 
     // Get all apps for these environments (for app name enrichment)
     const apps = await App.find({ environment: environmentIds })
@@ -68,6 +75,7 @@ module.exports = {
             ? deployment.gitCommit.slice(0, 7)
             : null,
           startedAt: deployment.startedAt,
+          queuePosition: await DeploymentJob.getQueuePosition(deployment.id),
           project: {
             id: proj.id,
             name: proj.name,

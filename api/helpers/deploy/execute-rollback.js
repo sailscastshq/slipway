@@ -19,6 +19,10 @@ module.exports = {
     },
     app: {
       type: 'ref'
+    },
+    leaseToken: {
+      type: 'string',
+      description: 'Fencing token held by the durable deployment worker.'
     }
   },
 
@@ -26,15 +30,48 @@ module.exports = {
     rollbackId,
     targetDeployment,
     environment,
-    app: appInput
+    app: appInput,
+    leaseToken
   }) {
     let candidateContainerName = null
     let hostPort = null
     let hostPortReserved = false
     let currentStage = 'initialization'
 
+    const recordStage = async (stage, resources = {}) => {
+      currentStage = stage.replace(/_/g, ' ')
+      const result = await sails.helpers.deploy.recordDeploymentStage.with({
+        deploymentId: rollbackId,
+        leaseToken,
+        stage,
+        ...resources
+      })
+      requireValidCoordinatorResult(result)
+    }
+
+    const assertLease = async () => {
+      const result = await sails.helpers.deploy.assertDeploymentLease.with({
+        deploymentId: rollbackId,
+        leaseToken
+      })
+      requireValidCoordinatorResult(result)
+    }
+
+    const updateDeployment = async (values) => {
+      const result = await sails.helpers.deploy.updateDeploymentForLease.with({
+        deploymentId: rollbackId,
+        leaseToken,
+        values
+      })
+      requireValidCoordinatorResult(result)
+      return result.deployment
+    }
+
     try {
-      await Deployment.updateOne({ id: rollbackId }).set({
+      await recordStage('initialization', {
+        imageName: targetDeployment.imageName
+      })
+      await updateDeployment({
         status: 'deploying',
         imageName: targetDeployment.imageName
       })
@@ -69,12 +106,17 @@ module.exports = {
         rollbackId,
         appSlug
       )
+      await recordStage('container_startup', {
+        candidateContainerName,
+        previousContainerName: oldContainerName || undefined
+      })
 
       hostPort = await sails.helpers.docker.allocatePort.with({
         ownerType: 'deployment',
         ownerId: String(rollbackId)
       })
       hostPortReserved = true
+      await recordStage('container_startup', { hostPort })
 
       let globalEnvVars = {}
       try {
@@ -96,7 +138,6 @@ module.exports = {
         ...(existingApp?.envVars || {})
       }
 
-      currentStage = 'container startup'
       const containerResult = await sails.helpers.docker.runContainer.with({
         imageName: targetDeployment.imageName,
         containerName: candidateContainerName,
@@ -108,7 +149,7 @@ module.exports = {
         resourceLimits: existingApp?.resourceLimits
       })
 
-      currentStage = 'health check'
+      await recordStage('health_check')
       await sails.helpers.docker.healthCheck.with({
         containerName: candidateContainerName,
         port: 1337,
@@ -117,9 +158,10 @@ module.exports = {
         deploymentId: rollbackId
       })
 
-      currentStage = 'traffic cutover'
+      await recordStage('traffic_cutover')
       await sails.helpers.deploy.cutoverTraffic.with({
         deploymentId: rollbackId,
+        leaseToken,
         environmentId: environment.id,
         appId: existingApp?.id,
         candidate: {
@@ -136,11 +178,11 @@ module.exports = {
         }
       })
 
+      candidateContainerName = null
+      await recordStage('cleanup')
       await releaseDeployPort({ hostPort, deploymentId: rollbackId })
       hostPortReserved = false
-      candidateContainerName = null
 
-      currentStage = 'cleanup'
       if (
         oldContainerName &&
         oldContainerName !== containerResult.containerName
@@ -162,18 +204,17 @@ module.exports = {
         }
       }
 
+      await assertLease()
       const stopCriteria = {
         environment: environment.id,
         status: 'running',
-        id: { '!=': rollbackId }
+        id: { '<': rollbackId }
       }
       if (existingApp) stopCriteria.app = existingApp.id
       await Deployment.update(stopCriteria).set({ status: 'stopped' })
 
-      await Deployment.updateOne({ id: rollbackId }).set({
-        status: 'running',
-        finishedAt: Date.now()
-      })
+      await updateDeployment({ status: 'running', finishedAt: Date.now() })
+      await recordStage('complete')
 
       const { fullDomain, generatedDomain } = await Environment.resolveDomains(
         environment.id
@@ -254,8 +295,18 @@ module.exports = {
       }
 
       const current = await Deployment.findOne({ id: rollbackId })
-      if (current && current.status !== 'failed') {
-        await Deployment.updateOne({ id: rollbackId }).set({
+      let ownsLease = true
+      try {
+        await assertLease()
+      } catch {
+        ownsLease = false
+      }
+      if (
+        current &&
+        ownsLease &&
+        !['running', 'failed', 'cancelled'].includes(current.status)
+      ) {
+        await updateDeployment({
           status: 'failed',
           errorMessage,
           finishedAt: Date.now()
@@ -265,6 +316,13 @@ module.exports = {
       throw error
     }
   }
+}
+
+function requireValidCoordinatorResult(result) {
+  if (!result || result.valid !== false) return
+  const error = new Error(result.message)
+  error.code = result.code
+  throw error
 }
 
 async function releaseDeployPort({ hostPort, deploymentId }) {

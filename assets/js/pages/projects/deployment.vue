@@ -178,7 +178,7 @@ function statusBadge(status) {
         'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
     },
     pending: {
-      label: 'Pending',
+      label: 'Queued',
       classes:
         'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'
     },
