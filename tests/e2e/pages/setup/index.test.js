@@ -6,20 +6,15 @@ test(
   async ({ page, expect }) => {
     await page.goto('/setup')
 
-    await page
-      .getByPlaceholder(/enter your email address/i)
-      .fill('founder@example.com')
-    await page.getByPlaceholder(/create a password/i).fill('secret123!')
-    await page.getByPlaceholder(/confirm password/i).fill('secret123!')
-    await page.getByRole('button', { name: /create account/i }).click()
+    await page.fill('#email', 'founder@example.com')
+    await page.fill('#password', 'secret123!')
+    await page.fill('#confirmPassword', 'secret123!')
+    await page.click('Create account')
 
-    await page.waitForURL(/\/$/)
-
-    expect(await page.title()).toMatch(/Slipway/i)
-    expect(
-      await page
-        .getByText(/get started by creating your first project/i)
-        .isVisible()
-    ).toBe(true)
+    await page.wait('text=Get started by creating your first project')
+    await expect(page).toHavePath('/')
+    await expect(page).toHaveTitle(/Slipway/i)
+    await expect(page).toSee('Get started by creating your first project')
+    expect(page).toHaveNoSmoke()
   }
 )

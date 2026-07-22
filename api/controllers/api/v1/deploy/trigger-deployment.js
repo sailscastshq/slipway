@@ -85,22 +85,53 @@ module.exports = {
         environment: environment.id,
         slug: appSlug
       })
+      if (!targetApp) {
+        throw 'notFound'
+      }
     } else {
       targetApp =
         (await App.findOne({ environment: environment.id, isDefault: true })) ||
         (await App.findOne({ environment: environment.id }))
     }
 
-    // If git info not provided, get from most recent deployment
+    // Source availability is a request precondition. Keep this check fast and
+    // side-effect free; repository synchronization belongs in the recorded
+    // deployment pipeline so failures have durable logs and status.
+    const sourceReadiness = await sails.helpers.deploy.getSourceReadiness.with({
+      project,
+      environment,
+      app: targetApp
+    })
+
+    if (!sourceReadiness.available) {
+      throw {
+        badRequest: {
+          code: 'deploymentSourceUnavailable',
+          message: sourceReadiness.message,
+          guidance:
+            'Run `slipway slide` from your project or connect a repository, then try again.'
+        }
+      }
+    }
+
+    // Repository deployments may reuse metadata from the most recent deploy
+    // for this app. Pushed-source deploys must not inherit stale Git metadata.
     let finalGitCommit = gitCommit
     let finalGitBranch = gitBranch
     let finalGitMessage = gitMessage
 
-    if (!gitCommit || !gitBranch) {
-      const lastDeployments = await Deployment.find({
+    if (sourceReadiness.mode === 'repository' && (!gitCommit || !gitBranch)) {
+      const previousDeploymentCriteria = {
         environment: environment.id,
         gitCommit: { '!=': null }
-      })
+      }
+      if (targetApp) {
+        previousDeploymentCriteria.or = targetApp.isDefault
+          ? [{ app: targetApp.id }, { app: null }]
+          : [{ app: targetApp.id }]
+      }
+
+      const lastDeployments = await Deployment.find(previousDeploymentCriteria)
         .sort('id DESC')
         .limit(1)
 

@@ -25,9 +25,7 @@ module.exports.bootstrap = async function () {
     sails.log.info('Slipway needs initial setup. Visit /setup to configure.')
   }
 
-  const skipInfraBootstrap =
-    sails.config.environment === 'test' &&
-    process.env.SLIPWAY_SKIP_INFRA_BOOTSTRAP === '1'
+  const skipInfraBootstrap = sails.config.environment === 'test'
 
   // One-time migration: backfill multi-app fields on existing App/Deployment records
   const migrationDone = await sails.helpers.setting.get('multiAppMigrationDone')

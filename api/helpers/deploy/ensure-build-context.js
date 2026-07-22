@@ -24,6 +24,12 @@ module.exports = {
     },
     gitBranch: {
       type: 'string'
+    },
+    refreshRepository: {
+      type: 'boolean',
+      defaultsTo: false,
+      description:
+        'Sync a connected repository even when a local source cache already exists.'
     }
   },
 
@@ -33,29 +39,38 @@ module.exports = {
     }
   },
 
-  fn: async function ({ project, environment, app, deploymentId, gitBranch }) {
-    const contextPath = path.join(
-      sails.config.custom.slipwayAppsDir,
-      project.slug
-    )
+  fn: async function ({
+    project,
+    environment,
+    app,
+    deploymentId,
+    gitBranch,
+    refreshRepository
+  }) {
+    const readiness = await inspectBuildContext({
+      project,
+      environment,
+      app
+    })
+    const { contextPath, repository: repo } = readiness
 
-    if (fs.existsSync(contextPath)) {
+    if (readiness.hasSource && (!refreshRepository || !readiness.canHydrate)) {
       return {
         contextPath,
-        hydrated: false
+        hydrated: false,
+        sourceMode: readiness.sourceMode
       }
     }
 
-    const repo = await findConnectedRepository(app, environment)
-    if (repo && repo.cloneUrl && repo.deployKeyPrivate) {
+    if (readiness.canHydrate) {
       const branch = resolveDeployBranch(repo, environment.slug, gitBranch)
+      const sourceState = readiness.hasSource
+        ? `Refreshing source from ${repo.fullName || repo.cloneUrl}`
+        : `Build context missing at ${contextPath}. Syncing source from ${
+            repo.fullName || repo.cloneUrl
+          }`
 
-      await appendBuildLog(
-        deploymentId,
-        `Build context missing at ${contextPath}. Syncing source from ${
-          repo.fullName || repo.cloneUrl
-        } (${branch})...\n`
-      )
+      await appendBuildLog(deploymentId, `${sourceState} (${branch})...\n`)
 
       try {
         await sails.helpers.git.cloneOrPull.with({
@@ -73,16 +88,17 @@ module.exports = {
         throw new Error(errorMessage)
       }
 
-      if (fs.existsSync(contextPath)) {
+      if (hasSourceFiles(contextPath)) {
         return {
           contextPath,
           hydrated: true,
-          branch
+          branch,
+          sourceMode: 'repository'
         }
       }
     }
 
-    const guidance = repo
+    const guidance = readiness.hasConnectedRepository
       ? 'A repository is connected, but Slipway could not use it to restore source. Reconnect the repository or push source before deploying.'
       : 'Push source to Slipway or connect a repository before deploying.'
     const errorMessage = `Build context missing at ${contextPath}. ${guidance}`
@@ -94,7 +110,50 @@ module.exports = {
 
 module.exports._private = {
   resolveDeployBranch,
-  findConnectedRepository
+  findConnectedRepository,
+  hasSourceFiles,
+  inspectBuildContext
+}
+
+async function inspectBuildContext({ project, environment, app }) {
+  const contextPath = path.join(
+    sails.config.custom.slipwayAppsDir,
+    project.slug
+  )
+  const hasSource = hasSourceFiles(contextPath)
+  const repository = await findConnectedRepository(app, environment)
+  const hasConnectedRepository = Boolean(repository)
+  const canHydrate = Boolean(
+    repository && repository.cloneUrl && repository.deployKeyPrivate
+  )
+
+  let sourceMode = 'none'
+  if (canHydrate) {
+    sourceMode = 'repository'
+  } else if (hasSource) {
+    sourceMode = 'pushed'
+  }
+
+  return {
+    contextPath,
+    hasSource,
+    repository,
+    hasConnectedRepository,
+    canHydrate,
+    available: hasSource || canHydrate,
+    sourceMode
+  }
+}
+
+function hasSourceFiles(contextPath) {
+  try {
+    if (!fs.statSync(contextPath).isDirectory()) return false
+    return fs
+      .readdirSync(contextPath)
+      .some((entry) => entry !== '.git' && entry !== '.DS_Store')
+  } catch {
+    return false
+  }
 }
 
 async function appendBuildLog(deploymentId, message) {

@@ -149,6 +149,11 @@ module.exports = {
     const checklist = await sails.helpers.environment.generateChecklist(
       environment.id
     )
+    const sourceReadiness = await sails.helpers.deploy.getSourceReadiness.with({
+      project,
+      environment,
+      app
+    })
 
     return {
       page: 'projects/app',
@@ -168,7 +173,8 @@ module.exports = {
         deployments,
         services,
         backupConfigured,
-        checklist
+        checklist,
+        sourceReadiness
       }
     }
   }

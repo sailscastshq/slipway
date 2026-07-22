@@ -31,7 +31,8 @@ const props = defineProps({
   deployments: Array,
   checklist: Array,
   backupConfigured: Boolean,
-  githubConnected: Boolean
+  githubConnected: Boolean,
+  sourceReadinessByApp: Object
 })
 
 const toggleMobileMenu = inject('toggleMobileMenu')
@@ -51,6 +52,7 @@ const sortedApps = computed(() => {
 const appMenuOpen = ref(null)
 const appSlideRefs = ref({})
 const addAppOpen = ref(false)
+const deployingAppId = ref(null)
 
 // --- Create app form (Inertia) ---
 const createAppForm = useForm({
@@ -163,6 +165,21 @@ function createApp() {
 }
 
 async function deployApp(appItem) {
+  if (deployingAppId.value) return
+  const readiness = props.sourceReadinessByApp?.[appItem.id]
+  if (!readiness?.available) {
+    toast({
+      message:
+        readiness?.message ||
+        'No deployable source is available. Push source or connect a repository first.',
+      type: 'error',
+      duration: 8000
+    })
+    appSlideRefs.value[appItem.id]?.reset()
+    return
+  }
+
+  deployingAppId.value = appItem.id
   try {
     const res = await fetch(
       `/api/v1/projects/${props.project.slug}/environments/${props.environment.slug}/apps/${appItem.slug}/deploy`,
@@ -171,14 +188,31 @@ async function deployApp(appItem) {
         headers: { 'Content-Type': 'application/json' }
       }
     )
-    const data = await res.json()
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) {
+      toast({
+        message:
+          data.message ||
+          'Slipway could not start this deployment. Check the source configuration and try again.',
+        type: 'error',
+        duration: 8000
+      })
+      appSlideRefs.value[appItem.id]?.reset()
+      return
+    }
     if (data.deployment) {
       router.visit(
         `/projects/${props.project.slug}/deployments/${data.deployment.id}`
       )
     }
   } catch {
-    /* ignore */
+    toast({
+      message: 'Slipway could not reach the deployment service. Try again.',
+      type: 'error'
+    })
+    appSlideRefs.value[appItem.id]?.reset()
+  } finally {
+    deployingAppId.value = null
   }
 }
 
@@ -1429,6 +1463,7 @@ onBeforeUnmount(() => {
                           class="border-b border-gray-100 px-3 py-2.5 dark:border-gray-800"
                         >
                           <SlideToDeploy
+                            v-if="sourceReadinessByApp?.[appItem.id]?.available"
                             :ref="
                               (el) => {
                                 if (el) appSlideRefs[appItem.id] = el
@@ -1436,9 +1471,31 @@ onBeforeUnmount(() => {
                             "
                             :is-production="environment.isProduction"
                             :environment-name="environment.name"
-                            :disabled="deploying"
+                            :disabled="deployingAppId === appItem.id"
                             @deploy="deployApp(appItem)"
                           />
+                          <div
+                            v-else
+                            role="alert"
+                            class="rounded-md bg-amber-50 p-3 dark:bg-amber-950/30"
+                          >
+                            <p
+                              class="text-xs font-medium text-amber-900 dark:text-amber-200"
+                            >
+                              Deployment source required
+                            </p>
+                            <p
+                              class="mt-1 text-xs leading-5 text-amber-800 dark:text-amber-300"
+                            >
+                              {{ sourceReadinessByApp?.[appItem.id]?.message }}
+                            </p>
+                            <Link
+                              :href="`/projects/${project.slug}/environments/${environment.slug}/apps/${appItem.slug}/settings`"
+                              class="min-h-11 mt-2 inline-flex items-center text-xs font-medium text-amber-900 underline underline-offset-2 dark:text-amber-200"
+                            >
+                              Repository settings
+                            </Link>
+                          </div>
                         </div>
                         <!-- Actions -->
                         <div

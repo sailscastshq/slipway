@@ -32,7 +32,8 @@ const props = defineProps({
   deployments: Array,
   services: Array,
   backupConfigured: Boolean,
-  checklist: Array
+  checklist: Array,
+  sourceReadiness: Object
 })
 
 const toggleMobileMenu = inject('toggleMobileMenu')
@@ -101,6 +102,8 @@ const checklistAllGood = computed(() => {
   )
 })
 
+const sourceIsReady = computed(() => props.sourceReadiness?.available === true)
+
 async function triggerDeploy() {
   if (deploying.value) return
   deploying.value = true
@@ -112,7 +115,19 @@ async function triggerDeploy() {
         headers: { 'Content-Type': 'application/json' }
       }
     )
-    const data = await res.json()
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) {
+      toast({
+        message:
+          data.message ||
+          'Slipway could not start this deployment. Check the source configuration and try again.',
+        type: 'error',
+        duration: 8000
+      })
+      slideRef.value?.reset()
+      deploying.value = false
+      return
+    }
     if (data.deployment) {
       router.visit(
         `/projects/${props.project.slug}/deployments/${data.deployment.id}`
@@ -122,6 +137,10 @@ async function triggerDeploy() {
       deploying.value = false
     }
   } catch {
+    toast({
+      message: 'Slipway could not reach the deployment service. Try again.',
+      type: 'error'
+    })
     slideRef.value?.reset()
     deploying.value = false
   }
@@ -1249,14 +1268,36 @@ onBeforeUnmount(() => {
 
         <!-- Slide to Deploy -->
         <div class="mb-10 flex justify-end">
-          <div class="w-56">
-            <SlideToDeploy
-              ref="slideRef"
-              :is-production="environment.isProduction"
-              :environment-name="environment.name"
-              :disabled="deploying || !checklistAllGood"
-              @deploy="triggerDeploy"
-            />
+          <div class="w-full max-w-md sm:w-auto sm:max-w-none">
+            <div
+              v-if="!sourceIsReady"
+              role="alert"
+              class="mb-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-left dark:border-amber-900/60 dark:bg-amber-950/30"
+            >
+              <p class="text-sm font-medium text-amber-900 dark:text-amber-200">
+                Deployment source required
+              </p>
+              <p
+                class="mt-1 text-xs leading-5 text-amber-800 dark:text-amber-300"
+              >
+                {{ sourceReadiness?.message }}
+              </p>
+              <Link
+                :href="`/projects/${project.slug}/environments/${environment.slug}/apps/${app.slug}/settings`"
+                class="min-h-11 mt-2 inline-flex items-center text-xs font-medium text-amber-900 underline underline-offset-2 dark:text-amber-200"
+              >
+                Connect or repair repository settings
+              </Link>
+            </div>
+            <div class="ml-auto w-56">
+              <SlideToDeploy
+                ref="slideRef"
+                :is-production="environment.isProduction"
+                :environment-name="environment.name"
+                :disabled="deploying || !checklistAllGood || !sourceIsReady"
+                @deploy="triggerDeploy"
+              />
+            </div>
           </div>
         </div>
 

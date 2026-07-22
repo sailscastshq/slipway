@@ -41,6 +41,7 @@ module.exports = {
     let deployContainerName = null
     let deployHostPort = null
     let deployHostPortReserved = false
+    let currentStage = 'initialization'
 
     try {
       const deployment = await Deployment.findOne({ id: deploymentId })
@@ -80,13 +81,15 @@ module.exports = {
         appSlug
       )
 
+      currentStage = 'source preparation'
       const { contextPath } =
         await sails.helpers.deploy.ensureBuildContext.with({
           project,
           environment,
           app: targetApp,
           deploymentId,
-          gitBranch: deployment?.gitBranch
+          gitBranch: deployment?.gitBranch,
+          refreshRepository: true
         })
 
       // 4. Build the Docker image (use app's dockerfilePath, fall back to project's)
@@ -94,6 +97,7 @@ module.exports = {
         (targetApp && targetApp.dockerfilePath) ||
         project.dockerfilePath ||
         'Dockerfile'
+      currentStage = 'image build'
       await sails.helpers.docker.buildImage.with({
         contextPath,
         imageName,
@@ -176,6 +180,7 @@ module.exports = {
       const oldContainerName = existingApp ? existingApp.containerName : null
 
       // 9. Run the new container with deploy-scoped name (old container still running)
+      currentStage = 'container startup'
       const containerResult = await sails.helpers.docker.runContainer.with({
         imageName,
         containerName: deployContainerName,
@@ -187,6 +192,7 @@ module.exports = {
       })
 
       // 10. HTTP health check on the new container (Docker DNS, with localhost fallback for local dev)
+      currentStage = 'health check'
       await sails.helpers.docker.healthCheck.with({
         containerName: deployContainerName,
         port: 1337,
@@ -198,6 +204,7 @@ module.exports = {
       // === Health check passed — switch traffic ===
 
       // 11. Update App record (Caddy reads from this, so traffic switches after updateRoute)
+      currentStage = 'traffic cutover'
       if (existingApp) {
         await App.updateOne({ id: existingApp.id }).set({
           status: 'running',
@@ -244,6 +251,7 @@ module.exports = {
       }
 
       // 13. Stop old container (the one with the previous App.containerName)
+      currentStage = 'cleanup'
       if (oldContainerName && oldContainerName !== deployContainerName) {
         try {
           await sails.helpers.docker.stopContainer.with({
@@ -346,9 +354,21 @@ module.exports = {
           sails.log.debug('Deployment notification failed:', err.message || err)
         })
     } catch (err) {
+      const errorMessage = err.message || String(err)
       sails.log.error(
-        `Deployment ${deploymentId} failed: ${err.message || err}`
+        `Deployment ${deploymentId} failed during ${currentStage}: ${errorMessage}`
       )
+
+      // Preserve a useful failure line even when the failing command did not
+      // produce stream output (for example source or startup failures).
+      try {
+        await Deployment.appendDeployLog(
+          deploymentId,
+          `\nERROR [${currentStage}]: ${errorMessage}\n`
+        )
+      } catch {
+        /* best-effort; the original failure still wins */
+      }
 
       // Capture container logs before removing — shows the actual crash reason
       if (deployContainerName) {
@@ -394,7 +414,7 @@ module.exports = {
       if (current && current.status !== 'failed') {
         await Deployment.updateOne({ id: deploymentId }).set({
           status: 'failed',
-          errorMessage: err.message || String(err),
+          errorMessage,
           finishedAt: Date.now()
         })
       }

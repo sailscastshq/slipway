@@ -627,6 +627,48 @@ function executeRollback() {
           </div>
         </div>
 
+        <!-- Failure summary remains visible even when the pipeline failed before logs started. -->
+        <section
+          v-if="deployment.errorMessage"
+          role="alert"
+          aria-labelledby="deployment-error-title"
+          class="mb-6 rounded-lg border border-red-200 bg-red-50 p-4 dark:border-red-900/60 dark:bg-red-950/30"
+        >
+          <div class="flex items-start gap-3">
+            <svg
+              class="mt-0.5 h-5 w-5 shrink-0 text-red-600 dark:text-red-400"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+              aria-hidden="true"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M12 9v2m0 4h.01M5.07 19h13.86c1.54 0 2.5-1.67 1.73-3L13.73 4c-.77-1.33-2.69-1.33-3.46 0L3.34 16c-.77 1.33.19 3 1.73 3z"
+              />
+            </svg>
+            <div class="min-w-0">
+              <h2
+                id="deployment-error-title"
+                class="text-sm font-semibold text-red-900 dark:text-red-200"
+              >
+                Deployment failed
+              </h2>
+              <p
+                class="mt-1 break-words text-sm leading-6 text-red-800 dark:text-red-300"
+              >
+                {{ deployment.errorMessage }}
+              </p>
+              <p class="mt-2 text-xs text-red-700 dark:text-red-400">
+                Review the stage logs below, correct the problem, and deploy
+                again.
+              </p>
+            </div>
+          </div>
+        </section>
+
         <!-- Log Viewer -->
         <div
           class="flex flex-1 flex-col overflow-hidden rounded-lg border border-gray-200 dark:border-gray-800"
@@ -654,7 +696,9 @@ function executeRollback() {
               <SlippyLoader size="h-4 w-4" />
               <span>Waiting for logs...</span>
             </div>
-            <span v-else class="text-gray-500">No logs available.</span>
+            <span v-else class="text-gray-500"
+              >No additional logs were captured.</span
+            >
           </div>
         </div>
       </div>
