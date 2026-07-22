@@ -1,18 +1,24 @@
-const fs = require('fs')
-const path = require('path')
-const os = require('os')
-const { spawn } = require('child_process')
+const fs = require('node:fs')
+const fsPromises = require('node:fs/promises')
+const os = require('node:os')
+const path = require('node:path')
+
+const verifyDatabaseDump = require('../../lib/verify-database-dump')
 
 module.exports = {
   friendlyName: 'Restore backup',
 
   description:
-    'Download a backup from S3 and restore it into the database service.',
+    'Download a backup and stream it into a database after a verified safety snapshot.',
 
   inputs: {
     backupId: {
       type: 'string',
       required: true
+    },
+    signal: {
+      type: 'ref',
+      description: 'Optional AbortSignal.'
     }
   },
 
@@ -22,183 +28,78 @@ module.exports = {
     }
   },
 
-  fn: async function ({ backupId }) {
+  fn: async function ({ backupId, signal }) {
     const backup = await Backup.findOne({ id: backupId })
     if (!backup || !backup.service) {
       throw new Error('Backup or service not found')
     }
 
-    if (!backup.s3Key) {
-      throw new Error('Backup has no S3 key — cannot restore')
+    if (backup.status !== 'completed' || !backup.s3Key) {
+      throw new Error(
+        'Only a completed backup with a storage key can be restored'
+      )
     }
 
     const service = await Service.findOne({ id: backup.service }).decrypt()
+    if (!service) throw new Error('Backup service not found')
 
-    // Create a safety snapshot before restoring so the current state is recoverable
-    try {
-      sails.log.info(
-        `Creating pre-restore snapshot for service ${service.name}`
-      )
-      const snapshot = await Backup.create({
-        status: 'pending',
-        type: 'manual',
-        service: service.id
-      }).fetch()
-      await sails.helpers.backup.runBackup(snapshot.id)
-      sails.log.info(`Pre-restore snapshot completed: ${snapshot.id}`)
-    } catch (err) {
-      sails.log.warn(
-        `Pre-restore snapshot failed (proceeding with restore): ${err.message}`
-      )
+    const storageConfig = await sails.helpers.backup.getStorageConfig()
+    const limits = sails.config.custom.databaseOperations
+    const restoreArgs = getRestoreArgs(service)
+    const capacityInputs = {
+      directory: os.tmpdir(),
+      maxBytes: limits.restoreMaxBytes,
+      reserveBytes: limits.minFreeDiskBytes
     }
+    if (backup.sizeBytes) capacityInputs.expectedBytes = backup.sizeBytes
 
-    // Read S3 config (same pattern as run-backup.js)
-    let globalEnvVars = {}
-    try {
-      const globalJson = await sails.helpers.setting.get('globalEnvVars', '{}')
-      globalEnvVars = JSON.parse(globalJson)
-    } catch {
-      /* ignore */
-    }
+    const capacity = await sails.helpers.streams.getDiskCapacity.with(
+      capacityInputs
+    )
+    await createVerifiedSafetySnapshot({ service, signal })
 
-    const uploadsConfig = {
-      key:
-        globalEnvVars.R2_ACCESS_KEY ||
-        globalEnvVars.S3_ACCESS_KEY ||
-        globalEnvVars.SPACES_ACCESS_KEY ||
-        (sails.config.uploads || {}).key,
-      secret:
-        globalEnvVars.R2_SECRET_KEY ||
-        globalEnvVars.S3_SECRET_KEY ||
-        globalEnvVars.SPACES_SECRET_KEY ||
-        (sails.config.uploads || {}).secret,
-      bucket:
-        globalEnvVars.R2_BUCKET ||
-        globalEnvVars.S3_BUCKET ||
-        globalEnvVars.SPACES_BUCKET ||
-        (sails.config.uploads || {}).bucket,
-      endpoint:
-        globalEnvVars.R2_ENDPOINT ||
-        globalEnvVars.S3_ENDPOINT ||
-        globalEnvVars.SPACES_ENDPOINT ||
-        (sails.config.uploads || {}).endpoint,
-      region:
-        globalEnvVars.S3_REGION ||
-        globalEnvVars.SPACES_REGION ||
-        (sails.config.uploads || {}).region
-    }
-
-    if (!uploadsConfig.key || !uploadsConfig.secret || !uploadsConfig.bucket) {
-      throw new Error('Backup storage not configured')
-    }
-
-    const ext =
-      { postgresql: 'dmp', mysql: 'sql', mongodb: 'gz' }[service.type] || 'sql'
-    const tmpFile = path.join(os.tmpdir(), `slipway-restore-${backupId}.${ext}`)
+    const extension = getExtension(service.type)
+    const tmpDirectory = await fsPromises.mkdtemp(
+      path.join(os.tmpdir(), 'slipway-restore-')
+    )
+    const tmpFile = path.join(tmpDirectory, `database.${extension}`)
 
     try {
-      // 1. Download from S3 using skipper-s3's read() method
       sails.log.info(
         `Restoring backup ${backupId}: downloading ${backup.s3Key}`
       )
-
-      const skipperS3 = require('skipper-s3')
-      const adapterOpts = {
-        key: uploadsConfig.key,
-        secret: uploadsConfig.secret,
-        bucket: uploadsConfig.bucket,
-        s3ForcePathStyle: true
-      }
-      if (uploadsConfig.endpoint) adapterOpts.endpoint = uploadsConfig.endpoint
-      if (uploadsConfig.region) adapterOpts.region = uploadsConfig.region
-      const adapter = skipperS3(adapterOpts)
-
-      await new Promise((resolve, reject) => {
-        const readable = adapter.read(backup.s3Key)
-        const writable = fs.createWriteStream(tmpFile)
-
-        readable.on('error', (err) =>
-          reject(new Error(`S3 download failed: ${err.message}`))
-        )
-        writable.on('error', (err) =>
-          reject(new Error(`File write failed: ${err.message}`))
-        )
-        writable.on('finish', resolve)
-
-        readable.pipe(writable)
+      const transfer = await sails.helpers.backup.downloadObject.with({
+        s3Key: backup.s3Key,
+        destinationPath: tmpFile,
+        storageConfig,
+        maxBytes: capacity.allowedBytes,
+        signal,
+        timeoutMs: limits.restoreTimeoutMs
       })
 
-      const stats = fs.statSync(tmpFile)
-      if (stats.size === 0) {
+      if (transfer.bytes === 0) {
         throw new Error('Downloaded backup file is empty')
       }
-
-      sails.log.info(`Backup downloaded: ${stats.size} bytes`)
-
-      // 2. Restore into database container
-      const dockerPath = sails.config.docker?.binaryPath || 'docker'
-      const fileContent = fs.readFileSync(tmpFile)
-
-      if (service.type === 'mongodb') {
-        // MongoDB: pipe gzip archive through mongorestore via docker exec
-        const mongoUri = `mongodb://${service.username}:${service.password}@localhost:27017/${service.database}?authSource=admin`
-        await execRestore(
-          dockerPath,
-          [
-            'exec',
-            '-i',
-            service.containerName,
-            'mongorestore',
-            '--uri',
-            mongoUri,
-            '--archive',
-            '--gzip',
-            '--drop'
-          ],
-          fileContent
-        )
-      } else if (service.type === 'postgresql') {
-        // PostgreSQL: pipe custom-format dump through pg_restore
-        await execRestore(
-          dockerPath,
-          [
-            'exec',
-            '-i',
-            '-e',
-            `PGPASSWORD=${service.password}`,
-            service.containerName,
-            'pg_restore',
-            '-U',
-            service.username,
-            '-d',
-            service.database,
-            '--no-owner',
-            '--clean',
-            '--if-exists'
-          ],
-          fileContent
-        )
-      } else if (service.type === 'mysql') {
-        // MySQL: pipe SQL through mysql
-        await execRestore(
-          dockerPath,
-          [
-            'exec',
-            '-i',
-            service.containerName,
-            'mysql',
-            '-u',
-            service.username,
-            `-p${service.password}`,
-            service.database
-          ],
-          fileContent
-        )
-      } else {
+      if (backup.sizeBytes && transfer.bytes !== backup.sizeBytes) {
         throw new Error(
-          `Restore not supported for service type: ${service.type}`
+          `Downloaded backup size does not match its recorded size (${transfer.bytes} of ${backup.sizeBytes} bytes).`
         )
       }
+
+      await verifyDatabaseDump(tmpFile, service.type)
+      sails.log.info(`Backup downloaded: ${transfer.bytes} bytes`)
+
+      await sails.helpers.streams.runProcess.with({
+        command: sails.config.docker?.binaryPath || 'docker',
+        args: restoreArgs,
+        input: fs.createReadStream(tmpFile),
+        timeoutMs: limits.restoreTimeoutMs,
+        maxInputBytes: limits.restoreMaxBytes,
+        maxOutputBytes: limits.maxProcessOutputBytes,
+        maxStderrBytes: limits.maxProcessStderrBytes,
+        signal,
+        killGraceMs: limits.killGraceMs
+      })
 
       sails.log.info(
         `Backup ${backupId} restored successfully to ${service.containerName}`
@@ -206,41 +107,112 @@ module.exports = {
 
       return { success: true, backupId, serviceName: service.name }
     } finally {
-      // Clean up temp file
       try {
-        fs.unlinkSync(tmpFile)
-      } catch {
-        /* ignore */
+        await fsPromises.rm(tmpDirectory, { recursive: true, force: true })
+      } catch (error) {
+        sails.log.warn(
+          `Could not remove restore temporary directory: ${error.message}`
+        )
       }
     }
   }
 }
 
-/**
- * Execute a docker restore command, piping file content to stdin.
- */
-function execRestore(dockerPath, args, inputBuffer) {
-  return new Promise((resolve, reject) => {
-    const proc = spawn(dockerPath, args, { timeout: 300000 })
+async function createVerifiedSafetySnapshot({ service, signal }) {
+  sails.log.info(`Creating pre-restore snapshot for service ${service.name}`)
 
-    let stderr = ''
-    proc.stderr.on('data', (data) => {
-      stderr += data.toString()
+  let snapshot
+  try {
+    snapshot = await Backup.create({
+      status: 'pending',
+      type: 'manual',
+      service: service.id
+    }).fetch()
+
+    await sails.helpers.backup.runBackup.with({
+      backupId: snapshot.id,
+      signal
     })
+  } catch (cause) {
+    throw createSafetySnapshotError(cause.message, snapshot?.id, cause)
+  }
 
-    proc.on('close', (code) => {
-      if (code !== 0) {
-        reject(new Error(`Restore failed (exit ${code}): ${stderr.trim()}`))
-      } else {
-        resolve()
-      }
-    })
+  const verified = await Backup.findOne({ id: snapshot.id })
+  if (
+    verified?.status !== 'completed' ||
+    !verified.s3Key ||
+    !verified.sizeBytes
+  ) {
+    const reason = verified?.errorMessage || 'snapshot was not verified'
+    throw createSafetySnapshotError(reason, snapshot.id)
+  }
 
-    proc.on('error', (err) => {
-      reject(new Error(`Restore process error: ${err.message}`))
-    })
+  sails.log.info(`Pre-restore snapshot verified: ${snapshot.id}`)
+  return verified
+}
 
-    proc.stdin.write(inputBuffer)
-    proc.stdin.end()
-  })
+function createSafetySnapshotError(reason, snapshotId, cause) {
+  const error = new Error(
+    `Restore stopped because the pre-restore safety snapshot failed: ${reason}`,
+    cause ? { cause } : undefined
+  )
+  error.code = 'SAFETY_SNAPSHOT_FAILED'
+  if (snapshotId) error.snapshotId = snapshotId
+  return error
+}
+
+function getRestoreArgs(service) {
+  if (service.type === 'mongodb') {
+    const mongoUri = `mongodb://${service.username}:${service.password}@localhost:27017/${service.database}?authSource=admin`
+    return [
+      'exec',
+      '-i',
+      service.containerName,
+      'mongorestore',
+      '--uri',
+      mongoUri,
+      '--archive',
+      '--gzip',
+      '--drop'
+    ]
+  }
+
+  if (service.type === 'postgresql') {
+    return [
+      'exec',
+      '-i',
+      '-e',
+      `PGPASSWORD=${service.password}`,
+      service.containerName,
+      'pg_restore',
+      '-U',
+      service.username,
+      '-d',
+      service.database,
+      '--no-owner',
+      '--clean',
+      '--if-exists'
+    ]
+  }
+
+  if (service.type === 'mysql') {
+    return [
+      'exec',
+      '-i',
+      service.containerName,
+      'mysql',
+      '-u',
+      service.username,
+      `-p${service.password}`,
+      service.database
+    ]
+  }
+
+  throw new Error(`Restore not supported for service type: ${service.type}`)
+}
+
+function getExtension(serviceType) {
+  return (
+    { postgresql: 'dmp', mysql: 'sql', mongodb: 'gz' }[serviceType] || 'sql'
+  )
 }

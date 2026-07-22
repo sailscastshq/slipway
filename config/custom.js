@@ -63,6 +63,20 @@ module.exports.custom = {
   // Host interface used when checking and reserving app container ports
   slipwayPortHost: '0.0.0.0',
 
+  // Keep database transfers bounded on memory-constrained VPS hosts.
+  databaseOperations: {
+    backupMaxBytes: 50 * 1024 * 1024 * 1024,
+    restoreMaxBytes: 50 * 1024 * 1024 * 1024,
+    sqlImportMaxBytes: 500 * 1024 * 1024,
+    minFreeDiskBytes: 512 * 1024 * 1024,
+    backupTimeoutMs: 60 * 60 * 1000,
+    restoreTimeoutMs: 60 * 60 * 1000,
+    sqlImportTimeoutMs: 30 * 60 * 1000,
+    maxProcessOutputBytes: 64 * 1024,
+    maxProcessStderrBytes: 64 * 1024,
+    killGraceMs: 5000
+  },
+
   // API version (used for building API URLs)
   apiVersion: 'v1',
 
