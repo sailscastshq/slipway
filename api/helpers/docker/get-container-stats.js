@@ -56,12 +56,13 @@ module.exports = {
     } catch (err) {
       if (err.code === 'ENOENT') {
         sails.log.warn('Lookout: Docker binary not found at', dockerPath)
-        return []
+      } else {
+        sails.log.verbose('Lookout: docker stats error:', err.message)
       }
-      // No running containers returns exit code 0 with empty output,
-      // but some Docker versions may error — treat gracefully
-      sails.log.verbose('Lookout: docker stats error:', err.message)
-      return []
+
+      // A command failure is not an authoritative empty sample. Let the caller
+      // skip this metrics cycle without changing lifecycle state.
+      throw err
     }
   }
 }

@@ -6,7 +6,7 @@
  * Triggers resource alerts when CPU or memory exceeds 90% for 3 consecutive samples (~90s).
  *
  * Also:
- * - Health checks: detects containers that should be running but aren't
+ * - Lifecycle reconciliation: converges app/service status with Docker state
  * - Log persistence: collects container logs every 5 minutes, prunes after 7 days
  */
 
@@ -26,9 +26,9 @@ module.exports = function defineLookoutHook(sails) {
       sails.log.info('Initializing hook (`lookout`)')
 
       sails.after('hook:orm:loaded', () => {
-        // Main 30-second interval: metrics + health checks + backup schedule check
-        pollInterval = setInterval(collectMetrics, 30000)
-        collectMetrics()
+        // Main 30-second interval: lifecycle reconciliation + metrics.
+        pollInterval = setInterval(runLookoutCycle, 30000)
+        runLookoutCycle()
 
         // Separate 5-minute interval for log collection
         logInterval = setInterval(collectLogs, 5 * 60 * 1000)
@@ -42,20 +42,67 @@ module.exports = function defineLookoutHook(sails) {
     }
   }
 
+  async function runLookoutCycle() {
+    await reconcileLifecycleStatuses()
+    await collectMetrics()
+  }
+
+  async function reconcileLifecycleStatuses() {
+    try {
+      const transitions =
+        await sails.helpers.lookout.reconcileContainerStatuses()
+
+      for (const transition of transitions) {
+        const cooldownKey = `down:${transition.containerName}`
+
+        if (transition.to === 'running') {
+          alertCooldowns.delete(cooldownKey)
+          sails.log.info(
+            `Lookout: Container recovered: ${transition.containerName} (${transition.resourceType})`
+          )
+          continue
+        }
+
+        sails.log.warn(
+          `Lookout: Container down: ${transition.containerName} (${transition.resourceType})`
+        )
+
+        const now = Date.now()
+        const lastAlert = alertCooldowns.get(cooldownKey)
+        if (lastAlert && now - lastAlert < ALERT_COOLDOWN_MS) continue
+        alertCooldowns.set(cooldownKey, now)
+
+        try {
+          await sails.helpers.notification.sendContainerDownAlert.with({
+            containerName: transition.containerName,
+            resourceType: transition.resourceType
+          })
+        } catch (alertErr) {
+          sails.log.verbose(
+            'Lookout: Failed to send container down alert:',
+            alertErr.message
+          )
+        }
+      }
+    } catch (err) {
+      sails.log.warn(
+        'Lookout: Could not reconcile container lifecycle state:',
+        err.message
+      )
+    }
+  }
+
   async function collectMetrics() {
     try {
       const stats = await sails.helpers.docker.getContainerStats()
 
-      // Pre-fetch all running apps and services for matching
+      // Pre-fetch currently running apps and services for metric matching.
+      // Lifecycle truth is reconciled separately from this stats sample.
       const apps = await App.find({ status: 'running' }).populate('environment')
       const services = await Service.find({ status: 'running' }).populate(
         'environment'
       )
       const now = Date.now()
-
-      // Health check: detect containers that are in DB as 'running' but missing from docker stats
-      const runningContainerNames = new Set((stats || []).map((s) => s.name))
-      await checkHealth(apps, services, runningContainerNames, now)
 
       if (!stats || stats.length === 0) {
         return
@@ -167,73 +214,6 @@ module.exports = function defineLookoutHook(sails) {
       await checkDiskSpace(now)
     } catch (err) {
       sails.log.warn('Lookout: Error collecting metrics:', err.message)
-    }
-  }
-
-  /**
-   * Health check: compare DB 'running' state against actual docker stats.
-   * Any app/service marked running but not in docker stats is down.
-   */
-  async function checkHealth(apps, services, runningContainerNames, now) {
-    try {
-      for (const app of apps) {
-        if (!app.containerName || runningContainerNames.has(app.containerName))
-          continue
-
-        // Container is not in docker stats — it's down
-        sails.log.warn(`Lookout: Container down: ${app.containerName} (app)`)
-        await App.updateOne({ id: app.id }).set({ status: 'stopped' })
-
-        // Check cooldown before alerting
-        const cooldownKey = `down:${app.containerName}`
-        const lastAlert = alertCooldowns.get(cooldownKey)
-        if (lastAlert && now - lastAlert < ALERT_COOLDOWN_MS) continue
-        alertCooldowns.set(cooldownKey, now)
-
-        try {
-          await sails.helpers.notification.sendContainerDownAlert.with({
-            containerName: app.containerName,
-            resourceType: 'app'
-          })
-        } catch (alertErr) {
-          sails.log.verbose(
-            'Lookout: Failed to send container down alert:',
-            alertErr.message
-          )
-        }
-      }
-
-      for (const service of services) {
-        if (
-          !service.containerName ||
-          runningContainerNames.has(service.containerName)
-        )
-          continue
-
-        sails.log.warn(
-          `Lookout: Container down: ${service.containerName} (service)`
-        )
-        await Service.updateOne({ id: service.id }).set({ status: 'stopped' })
-
-        const cooldownKey = `down:${service.containerName}`
-        const lastAlert = alertCooldowns.get(cooldownKey)
-        if (lastAlert && now - lastAlert < ALERT_COOLDOWN_MS) continue
-        alertCooldowns.set(cooldownKey, now)
-
-        try {
-          await sails.helpers.notification.sendContainerDownAlert.with({
-            containerName: service.containerName,
-            resourceType: 'service'
-          })
-        } catch (alertErr) {
-          sails.log.verbose(
-            'Lookout: Failed to send container down alert:',
-            alertErr.message
-          )
-        }
-      }
-    } catch (err) {
-      sails.log.verbose('Lookout: Health check error:', err.message)
     }
   }
 
