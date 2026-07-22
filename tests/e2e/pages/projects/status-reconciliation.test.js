@@ -36,6 +36,20 @@ test(
         `/projects/${current.projects.deploymentTarget.slug}/environments/${current.environments.production.slug}/apps/${current.apps.web.slug}`
       )
 
+      await page.wait('@deployment-source-warning')
+      const warningWidths = await page.script(() => {
+        const warning = document.querySelector(
+          '[data-test="deployment-source-warning"]'
+        )
+        return {
+          warning: Math.round(warning.getBoundingClientRect().width),
+          content: Math.round(
+            warning.parentElement.getBoundingClientRect().width
+          )
+        }
+      })
+
+      expect(warningWidths.warning).toBe(warningWidths.content)
       await expect(page).toSee('Stopped')
       await page.screenshot('.tmp/status-recovery-before.png', {
         fullPage: true
