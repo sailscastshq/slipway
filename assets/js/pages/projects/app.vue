@@ -181,7 +181,8 @@ const accessUrls = computed(() => {
       label: 'Direct',
       display: props.app.directUrl.replace(/^https?:\/\//, ''),
       value: props.app.directUrl,
-      href: props.app.directUrl
+      href: props.app.directUrl,
+      hint: props.app.directAccess?.firewallHint
     })
   }
   return list
@@ -817,6 +818,7 @@ onBeforeUnmount(() => {
               <div class="group flex items-center gap-2">
                 <a
                   :href="primaryAccessUrl.href"
+                  :title="primaryAccessUrl.hint"
                   target="_blank"
                   class="text-sm text-gray-500 underline decoration-gray-300 decoration-dashed underline-offset-2 hover:text-gray-900 dark:text-gray-400 dark:decoration-gray-600 dark:hover:text-white"
                 >
@@ -896,6 +898,7 @@ onBeforeUnmount(() => {
                   >
                   <a
                     :href="d.href"
+                    :title="d.hint"
                     target="_blank"
                     class="text-sm text-gray-700 underline decoration-gray-300 decoration-dashed underline-offset-2 hover:text-gray-900 dark:text-gray-300 dark:decoration-gray-600 dark:hover:text-white"
                   >
@@ -937,6 +940,13 @@ onBeforeUnmount(() => {
                 </div>
               </div>
             </div>
+            <p
+              v-if="app.directAccess?.status === 'unavailable'"
+              data-test="direct-access-diagnostic"
+              class="mt-1 max-w-2xl text-xs text-amber-700 dark:text-amber-400"
+            >
+              {{ app.directAccess.message }}
+            </p>
           </div>
           <div class="flex items-center space-x-2">
             <!-- More menu -->

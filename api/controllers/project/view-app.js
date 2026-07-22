@@ -74,9 +74,10 @@ module.exports = {
 
     // Check container health for this app
     let containerHealth = null
+    let containerStatus = null
     if (app.containerName) {
       try {
-        const containerStatus = await sails.helpers.docker.getContainerStatus(
+        containerStatus = await sails.helpers.docker.getContainerStatus(
           app.containerName
         )
         containerHealth = containerStatus.health
@@ -91,10 +92,36 @@ module.exports = {
     const { fullDomain, generatedDomain, domains } =
       await Environment.resolveDomains(environment.id)
     const serverIp = await sails.helpers.getServerIp()
-    const directUrl =
-      app.hostPort && app.routePath !== null
-        ? `http://${serverIp}:${app.hostPort}`
-        : null
+    let directAccess = null
+    if (app.hostPort && app.routePath !== null) {
+      let portBinding = null
+      if (app.containerName && containerStatus?.running) {
+        try {
+          portBinding = await sails.helpers.docker.getPortBinding.with({
+            containerName: app.containerName,
+            containerPort: app.port || 1337,
+            hostPort: app.hostPort,
+            host: sails.config.custom.slipwayPortHost || '0.0.0.0'
+          })
+        } catch (error) {
+          portBinding = {
+            valid: false,
+            diagnostic: error.message || String(error)
+          }
+        }
+      }
+
+      directAccess = await sails.helpers.deploy.getDirectAccess.with({
+        serverIp,
+        hostPort: app.hostPort,
+        routePath: app.routePath,
+        containerRunning: containerStatus
+          ? Boolean(containerStatus.running)
+          : app.status === 'running',
+        portBinding
+      })
+    }
+    const directUrl = directAccess?.url || null
 
     const appWithHealth = { ...app, containerHealth }
     const deploymentHistory = await sails.helpers.deployment.getHistory.with({
@@ -179,7 +206,7 @@ module.exports = {
           serverIp,
           services
         },
-        app: { ...app, containerHealth, directUrl },
+        app: { ...app, containerHealth, directUrl, directAccess },
         appEnvVars: decryptedApp.envVars || {},
         inheritedVars,
         deploymentHistory,

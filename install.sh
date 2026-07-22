@@ -28,6 +28,9 @@ SLIPWAY_CERTS_VOLUME="${SLIPWAY_CERTS_VOLUME:-slipway-certs}"
 SLIPWAY_PORT="${SLIPWAY_PORT:-1337}"
 SLIPWAY_HTTP_PORT="${SLIPWAY_HTTP_PORT:-80}"
 SLIPWAY_HTTPS_PORT="${SLIPWAY_HTTPS_PORT:-443}"
+SLIPWAY_APP_PORT_START="${SLIPWAY_APP_PORT_START:-1338}"
+SLIPWAY_APP_PORT_END="${SLIPWAY_APP_PORT_END:-1500}"
+SLIPWAY_CONFIGURE_FIREWALL="${SLIPWAY_CONFIGURE_FIREWALL:-true}"
 SLIPWAY_HEALTH_ATTEMPTS="${SLIPWAY_HEALTH_ATTEMPTS:-30}"
 SLIPWAY_SKIP_PULL="${SLIPWAY_SKIP_PULL:-false}"
 IS_UPDATE=false
@@ -62,6 +65,8 @@ run_slipway_container() {
         -e NODE_ENV=production \
         -e PORT=1337 \
         -e SLIPWAY_URL="$SLIPWAY_URL" \
+        -e SLIPWAY_APP_PORT_START="$SLIPWAY_APP_PORT_START" \
+        -e SLIPWAY_APP_PORT_END="$SLIPWAY_APP_PORT_END" \
         -e SESSION_SECRET="$SESSION_SECRET" \
         -e DATA_ENCRYPTION_KEY="$DATA_ENCRYPTION_KEY" \
         "$SLIPWAY_IMAGE"
@@ -154,6 +159,42 @@ replace_live_container() {
     fi
 }
 
+configure_host_firewall() {
+    if [ "$SLIPWAY_CONFIGURE_FIREWALL" != true ]; then
+        echo -e "${YELLOW}Host firewall configuration skipped (SLIPWAY_CONFIGURE_FIREWALL=$SLIPWAY_CONFIGURE_FIREWALL).${NC}"
+        return
+    fi
+
+    if command -v ufw >/dev/null 2>&1 && ufw status 2>/dev/null | grep -q '^Status: active'; then
+        echo "Allowing Slipway ports through UFW..."
+        if ufw allow "$SLIPWAY_PORT/tcp" comment 'Slipway dashboard' >/dev/null \
+            && ufw allow "$SLIPWAY_HTTP_PORT/tcp" comment 'Slipway HTTP' >/dev/null \
+            && ufw allow "$SLIPWAY_HTTPS_PORT/tcp" comment 'Slipway HTTPS' >/dev/null \
+            && ufw allow "$SLIPWAY_APP_PORT_START:$SLIPWAY_APP_PORT_END/tcp" comment 'Slipway direct app access' >/dev/null; then
+            echo -e "${GREEN}UFW allows the dashboard, proxy, and direct app port range${NC}"
+        else
+            echo -e "${YELLOW}Slipway could not update every UFW rule. Review 'ufw status' before using direct app URLs.${NC}"
+        fi
+        return
+    fi
+
+    if command -v firewall-cmd >/dev/null 2>&1 && firewall-cmd --state >/dev/null 2>&1; then
+        echo "Allowing Slipway ports through firewalld..."
+        if firewall-cmd --permanent --add-port="$SLIPWAY_PORT/tcp" >/dev/null \
+            && firewall-cmd --permanent --add-port="$SLIPWAY_HTTP_PORT/tcp" >/dev/null \
+            && firewall-cmd --permanent --add-port="$SLIPWAY_HTTPS_PORT/tcp" >/dev/null \
+            && firewall-cmd --permanent --add-port="$SLIPWAY_APP_PORT_START-$SLIPWAY_APP_PORT_END/tcp" >/dev/null \
+            && firewall-cmd --reload >/dev/null; then
+            echo -e "${GREEN}firewalld allows the dashboard, proxy, and direct app port range${NC}"
+        else
+            echo -e "${YELLOW}Slipway could not update every firewalld rule. Review 'firewall-cmd --list-ports' before using direct app URLs.${NC}"
+        fi
+        return
+    fi
+
+    echo -e "${GREEN}No active UFW or firewalld host firewall detected${NC}"
+}
+
 # Check if running as root
 if [ "$EUID" -ne 0 ]; then
     echo -e "${YELLOW}Warning: Not running as root. You may need sudo for Docker commands.${NC}"
@@ -215,6 +256,8 @@ else
     cat > "$SLIPWAY_ENV_FILE" <<EOF
 SESSION_SECRET=$SESSION_SECRET
 DATA_ENCRYPTION_KEY=$DATA_ENCRYPTION_KEY
+SLIPWAY_APP_PORT_START=$SLIPWAY_APP_PORT_START
+SLIPWAY_APP_PORT_END=$SLIPWAY_APP_PORT_END
 EOF
     chmod 600 "$SLIPWAY_ENV_FILE"
     echo -e "${GREEN}Secrets generated and saved to $SLIPWAY_ENV_FILE${NC}"
@@ -300,7 +343,10 @@ validate_slipway_image
 replace_live_container
 echo -e "${GREEN}Slipway dashboard running${NC}"
 
-# 11. Show access info
+# 11. Keep host firewall rules aligned with Slipway's published ports
+configure_host_firewall
+
+# 12. Show access info
 echo ""
 echo -e "${GREEN}========================================================${NC}"
 if [ "$IS_UPDATE" = true ]; then
@@ -311,6 +357,9 @@ fi
 echo -e "${GREEN}========================================================${NC}"
 echo ""
 echo "  Dashboard: $SLIPWAY_URL"
+echo "  Direct app ports: TCP $SLIPWAY_APP_PORT_START-$SLIPWAY_APP_PORT_END"
+echo "  If your VPS provider has a network firewall, allow inbound TCP $SLIPWAY_APP_PORT_START-$SLIPWAY_APP_PORT_END for direct app URLs."
+echo "  Domains proxied through Caddy only require TCP $SLIPWAY_HTTP_PORT and $SLIPWAY_HTTPS_PORT."
 echo ""
 if [ "$IS_UPDATE" = false ]; then
     echo "  Next steps:"

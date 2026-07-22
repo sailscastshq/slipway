@@ -64,6 +64,10 @@ module.exports = {
           })) || (await App.findOne({ environment: environment.id }))
       }
       const appSlug = targetApp ? targetApp.slug : undefined
+      const isPubliclyRoutable = !targetApp || targetApp.routePath !== null
+      const appBindHost = isPubliclyRoutable
+        ? sails.config.custom.slipwayPortHost || '0.0.0.0'
+        : '127.0.0.1'
 
       // 3. Generate image name and container names
       const imageName = await App.generateImageName(
@@ -186,6 +190,7 @@ module.exports = {
         containerName: deployContainerName,
         port: 1337,
         hostPort: deployHostPort,
+        host: appBindHost,
         envVars,
         deploymentId,
         resourceLimits
@@ -305,10 +310,14 @@ module.exports = {
       const { fullDomain, generatedDomain } = await Environment.resolveDomains(
         environment.id
       )
-      const directUrl =
-        targetApp && targetApp.routePath === null
-          ? null
-          : `http://${await sails.helpers.getServerIp()}:${deployHostPort}`
+      const directAccess = await sails.helpers.deploy.getDirectAccess.with({
+        serverIp: await sails.helpers.getServerIp(),
+        hostPort: deployHostPort,
+        routePath: targetApp ? targetApp.routePath : '/',
+        containerRunning: true,
+        portBinding: containerResult.portBinding
+      })
+      const directUrl = directAccess.url
       await Deployment.appendDeployLog(deploymentId, `Deployment complete.\n`)
       if (fullDomain) {
         await Deployment.appendDeployLog(
@@ -326,6 +335,24 @@ module.exports = {
         await Deployment.appendDeployLog(
           deploymentId,
           `  Direct:    ${directUrl}\n`
+        )
+        await Deployment.appendDeployLog(
+          deploymentId,
+          `  Network:   Container healthy; ${containerResult.portBinding.diagnostic}\n`
+        )
+        await Deployment.appendDeployLog(
+          deploymentId,
+          `  Firewall:  ${directAccess.firewallHint}\n`
+        )
+      } else if (!isPubliclyRoutable) {
+        await Deployment.appendDeployLog(
+          deploymentId,
+          `  Network:   Worker port is bound to 127.0.0.1 and is not publicly exposed.\n`
+        )
+      } else if (directAccess.message) {
+        await Deployment.appendDeployLog(
+          deploymentId,
+          `  Network:   ${directAccess.message}\n`
         )
       }
 

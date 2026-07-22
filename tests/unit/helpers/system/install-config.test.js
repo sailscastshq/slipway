@@ -119,4 +119,32 @@ test('installer keeps production defaults overridable for isolated rehearsals', 
   expect(script.includes('-v "$SLIPWAY_DB_VOLUME:/app/db"')).toBe(true)
   expect(script.includes('-p "$SLIPWAY_HTTP_PORT:80"')).toBe(true)
   expect(script.includes('-p "$SLIPWAY_HTTPS_PORT:443"')).toBe(true)
+  expect(
+    script.includes('SLIPWAY_APP_PORT_START="${SLIPWAY_APP_PORT_START:-1338}"')
+  ).toBe(true)
+  expect(
+    script.includes('SLIPWAY_APP_PORT_END="${SLIPWAY_APP_PORT_END:-1500}"')
+  ).toBe(true)
+  expect(
+    script.includes('SLIPWAY_APP_PORT_START=$SLIPWAY_APP_PORT_START')
+  ).toBe(true)
+  expect(script.includes('SLIPWAY_APP_PORT_END=$SLIPWAY_APP_PORT_END')).toBe(
+    true
+  )
+  expect(script.includes('configure_host_firewall()')).toBe(true)
+  expect(
+    script.includes(
+      'ufw allow "$SLIPWAY_APP_PORT_START:$SLIPWAY_APP_PORT_END/tcp"'
+    )
+  ).toBe(true)
+  expect(
+    script.includes(
+      'firewall-cmd --permanent --add-port="$SLIPWAY_APP_PORT_START-$SLIPWAY_APP_PORT_END/tcp"'
+    )
+  ).toBe(true)
+  expect(
+    script.includes(
+      'If your VPS provider has a network firewall, allow inbound TCP'
+    )
+  ).toBe(true)
 })

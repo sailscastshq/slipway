@@ -23,7 +23,16 @@ module.exports = {
   hookTimeout: 80000,
 
   custom: {
-    baseUrl: process.env.SLIPWAY_URL
+    baseUrl: process.env.SLIPWAY_URL,
+
+    // Production app hostnames come from a configured wildcard or custom domain.
+    slipwayDomain: null,
+
+    // Keep Docker's allocator aligned with the range opened by install.sh.
+    slipwayPortRange: {
+      start: Number(process.env.SLIPWAY_APP_PORT_START) || 1338,
+      end: Number(process.env.SLIPWAY_APP_PORT_END) || 1500
+    }
   },
   /**************************************************************************
    *                                                                         *
@@ -194,7 +203,7 @@ module.exports = {
      *                                                                          *
      ***************************************************************************/
     trustProxy: true
-  },
+  }
 
   /**************************************************************************
    *                                                                         *
@@ -225,27 +234,4 @@ module.exports = {
    *                                                                         *
    **************************************************************************/
   // ssl: undefined,
-
-  /**************************************************************************
-   *                                                                         *
-   * Overrides for any custom configuration specifically for your app.       *
-   * (for example, production API keys)                                      *
-   *                                                                         *
-   ***************************************************************************/
-  custom: {
-    // Disable slipwayDomain so production requires wildcardDomain setting or custom domains
-    slipwayDomain: null
-    // mailgunApiKey: 'key-prod_fake_bd32301385130a0bafe030c',
-    // stripeSecret: 'sk_prod__fake_Nfgh82401348jaDa3lkZ0d9Hm',
-    //--------------------------------------------------------------------------
-    // /\   OR, to avoid checking them in to version control, you might opt to
-    // ||   set sensitive credentials like these using environment variables.
-    //
-    // For example:
-    // ```
-    // sails_custom__mailgunApiKey=key-prod_fake_bd32301385130a0bafe030c
-    // sails_custom__stripeSecret=sk_prod__fake_Nfgh82401348jaDa3lkZ0d9Hm
-    // ```
-    //--------------------------------------------------------------------------
-  }
 }
