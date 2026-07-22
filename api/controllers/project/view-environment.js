@@ -168,6 +168,15 @@ module.exports = {
       isActive: true
     })
     const githubConnected = !!gitProvider
+    const sourceReadinessByApp = {}
+    for (const appRecord of appsWithHealth) {
+      sourceReadinessByApp[appRecord.id] =
+        await sails.helpers.deploy.getSourceReadiness.with({
+          project,
+          environment,
+          app: appRecord
+        })
+    }
 
     return {
       page: 'projects/environment',
@@ -187,7 +196,8 @@ module.exports = {
         deployments,
         checklist,
         backupConfigured,
-        githubConnected
+        githubConnected,
+        sourceReadinessByApp
       }
     }
   }
