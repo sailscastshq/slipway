@@ -1,4 +1,4 @@
-const fs = require('fs')
+const fs = require('node:fs/promises')
 
 module.exports = {
   friendlyName: 'Import SQL',
@@ -79,33 +79,22 @@ module.exports = {
     const { service } = dbResult
 
     // Check for binary dump file upload
+    const maxImportBytes =
+      sails.config.custom.databaseOperations.sqlImportMaxBytes
     const uploadedFiles = await new Promise((resolve, reject) => {
       this.req
         .file('dump')
-        .upload({ maxBytes: 500 * 1024 * 1024 }, (err, files) => {
+        .upload({ maxBytes: maxImportBytes }, (err, files) => {
           if (err) reject(err)
           else resolve(files)
         })
     })
 
     if (uploadedFiles.length > 0) {
-      // Binary dump import
-      const dumpBuffer = fs.readFileSync(uploadedFiles[0].fd)
-      // Clean up temp file
-      try {
-        fs.unlinkSync(uploadedFiles[0].fd)
-      } catch {
-        /* ignore */
-      }
-
-      if (dumpBuffer.length === 0) {
-        throw { badRequest: 'Uploaded dump file is empty.' }
-      }
-
       try {
         const result = await sails.helpers.dock.importSql.with({
           service,
-          dump: dumpBuffer
+          dumpPath: uploadedFiles[0].fd
         })
         sails.log.info(
           `[dock] Binary dump restored into ${project.slug}/${environmentSlug} by ${user.fullName}`
@@ -116,6 +105,14 @@ module.exports = {
           return { success: false, error: error.importFailed.message }
         }
         throw error
+      } finally {
+        try {
+          await fs.rm(uploadedFiles[0].fd, { force: true })
+        } catch (error) {
+          sails.log.warn(
+            `[dock] Could not remove temporary import file: ${error.message}`
+          )
+        }
       }
     }
 

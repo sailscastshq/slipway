@@ -1,7 +1,9 @@
-const { execFile } = require('child_process')
-const fs = require('fs')
-const path = require('path')
-const os = require('os')
+const fs = require('node:fs')
+const fsPromises = require('node:fs/promises')
+const os = require('node:os')
+const path = require('node:path')
+
+const verifyDatabaseDump = require('../../lib/verify-database-dump')
 
 module.exports = {
   friendlyName: 'Run backup',
@@ -12,6 +14,10 @@ module.exports = {
     backupId: {
       type: 'string',
       required: true
+    },
+    signal: {
+      type: 'ref',
+      description: 'Optional AbortSignal.'
     }
   },
 
@@ -21,223 +27,151 @@ module.exports = {
     }
   },
 
-  fn: async function ({ backupId }) {
+  fn: async function ({ backupId, signal }) {
     const backup = await Backup.findOne({ id: backupId })
     if (!backup || !backup.service) {
       throw new Error('Backup or service not found')
     }
 
-    const service = await Service.findOne({ id: backup.service }).decrypt()
     const startedAt = Date.now()
+    let service
+    let tmpDirectory
+    let s3Key
+    let uploadAttempted = false
 
     await Backup.updateOne({ id: backupId }).set({
       status: 'running',
+      errorMessage: null,
       startedAt
     })
     sails.sse.publish(`backup:${backupId}`, { status: 'running' })
 
-    // Read S3 config from global env vars (stored in Settings), fall back to sails.config.uploads
-    let globalEnvVars = {}
     try {
-      const globalJson = await sails.helpers.setting.get('globalEnvVars', '{}')
-      globalEnvVars = JSON.parse(globalJson)
-    } catch {
-      /* ignore */
-    }
+      service = await Service.findOne({ id: backup.service }).decrypt()
+      if (!service) throw new Error('Backup service not found')
 
-    const uploadsConfig = {
-      key:
-        globalEnvVars.R2_ACCESS_KEY ||
-        globalEnvVars.S3_ACCESS_KEY ||
-        globalEnvVars.SPACES_ACCESS_KEY ||
-        (sails.config.uploads || {}).key,
-      secret:
-        globalEnvVars.R2_SECRET_KEY ||
-        globalEnvVars.S3_SECRET_KEY ||
-        globalEnvVars.SPACES_SECRET_KEY ||
-        (sails.config.uploads || {}).secret,
-      bucket:
-        globalEnvVars.R2_BUCKET ||
-        globalEnvVars.S3_BUCKET ||
-        globalEnvVars.SPACES_BUCKET ||
-        (sails.config.uploads || {}).bucket,
-      endpoint:
-        globalEnvVars.R2_ENDPOINT ||
-        globalEnvVars.S3_ENDPOINT ||
-        globalEnvVars.SPACES_ENDPOINT ||
-        (sails.config.uploads || {}).endpoint,
-      region:
-        globalEnvVars.S3_REGION ||
-        globalEnvVars.SPACES_REGION ||
-        (sails.config.uploads || {}).region
-    }
+      const storageConfig = await sails.helpers.backup.getStorageConfig()
+      const dumpArgs = getDumpArgs(service)
+      if (!dumpArgs) {
+        throw new Error(
+          `Backup not supported for service type: ${service.type}`
+        )
+      }
 
-    if (!uploadsConfig.key || !uploadsConfig.secret || !uploadsConfig.bucket) {
-      await Backup.updateOne({ id: backupId }).set({
-        status: 'failed',
-        errorMessage:
-          'Backup storage not configured. Go to Settings > Global Environment and set R2_ACCESS_KEY, R2_SECRET_KEY, R2_BUCKET, and R2_ENDPOINT.',
-        completedAt: Date.now(),
-        durationMs: Date.now() - startedAt
+      const environment = await Environment.findOne({
+        id: service.environment
+      }).populate('project')
+      if (!environment?.project) {
+        throw new Error('Backup environment or project not found')
+      }
+
+      const extension = getExtension(service.type)
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
+      s3Key = `backups/${environment.project.slug}/${environment.slug}/${service.name}/${timestamp}.${extension}`
+
+      const limits = sails.config.custom.databaseOperations
+      const capacity = await sails.helpers.streams.getDiskCapacity.with({
+        directory: os.tmpdir(),
+        maxBytes: limits.backupMaxBytes,
+        reserveBytes: limits.minFreeDiskBytes
       })
-      sails.sse.publish(`backup:${backupId}`, { status: 'failed' })
-      return backup
-    }
 
-    // Build the dump command args per service type
-    const dumpArgs = getDumpArgs(service)
-    if (!dumpArgs) {
-      await Backup.updateOne({ id: backupId }).set({
-        status: 'failed',
-        errorMessage: `Backup not supported for service type: ${service.type}`,
-        completedAt: Date.now(),
-        durationMs: Date.now() - startedAt
-      })
-      sails.sse.publish(`backup:${backupId}`, { status: 'failed' })
-      return backup
-    }
-
-    // Generate S3 key path
-    const env = await Environment.findOne({ id: service.environment }).populate(
-      'project'
-    )
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
-    const ext =
-      { postgresql: 'dmp', mysql: 'sql', mongodb: 'gz' }[service.type] || 'sql'
-    const s3Key = `backups/${env.project.slug}/${env.slug}/${service.name}/${timestamp}.${ext}`
-
-    // Temp file for the dump
-    const tmpFile = path.join(os.tmpdir(), `slipway-backup-${backupId}.${ext}`)
-
-    try {
-      // Run docker exec to dump database, stream stdout to temp file
+      tmpDirectory = await fsPromises.mkdtemp(
+        path.join(os.tmpdir(), 'slipway-backup-')
+      )
+      const tmpFile = path.join(tmpDirectory, `database.${extension}`)
       const dockerBinary = sails.config.docker?.binaryPath || 'docker'
-      const dockerArgs = ['exec', service.containerName, ...dumpArgs]
 
-      await new Promise((resolve, reject) => {
-        const child = execFile(
-          dockerBinary,
-          dockerArgs,
-          {
-            maxBuffer: 1024 * 1024 * 512,
-            encoding: 'buffer'
-          },
-          (err, stdout, stderr) => {
-            if (err)
-              return reject(
-                new Error(
-                  `Dump failed: ${stderr ? stderr.toString() : err.message}`
-                )
-              )
-            try {
-              fs.writeFileSync(tmpFile, stdout)
-              resolve()
-            } catch (writeErr) {
-              reject(writeErr)
-            }
-          }
-        )
+      await sails.helpers.streams.runProcess.with({
+        command: dockerBinary,
+        args: ['exec', service.containerName, ...dumpArgs],
+        output: fs.createWriteStream(tmpFile, { flags: 'wx' }),
+        timeoutMs: limits.backupTimeoutMs,
+        maxOutputBytes: capacity.allowedBytes,
+        maxStderrBytes: limits.maxProcessStderrBytes,
+        signal,
+        killGraceMs: limits.killGraceMs
       })
 
-      // Get file size
-      const stats = fs.statSync(tmpFile)
-      const sizeBytes = stats.size
+      const stats = await fsPromises.stat(tmpFile)
+      if (stats.size === 0) throw new Error('Dump produced an empty file')
+      await verifyDatabaseDump(tmpFile, service.type)
 
-      if (sizeBytes === 0) {
-        throw new Error('Dump produced an empty file')
-      }
+      uploadAttempted = true
 
-      // Verify dump file integrity by checking format-specific headers
-      const header = Buffer.alloc(5)
-      const fd = fs.openSync(tmpFile, 'r')
-      fs.readSync(fd, header, 0, 5, 0)
-      fs.closeSync(fd)
-      if (
-        service.type === 'postgresql' &&
-        header.toString('ascii', 0, 5) !== 'PGDMP'
-      ) {
-        throw new Error(
-          'PostgreSQL dump has invalid header — expected PGDMP format'
-        )
-      }
-      if (
-        service.type === 'mongodb' &&
-        (header[0] !== 0x1f || header[1] !== 0x8b)
-      ) {
-        throw new Error(
-          'MongoDB dump has invalid header — expected gzip format'
-        )
-      }
-
-      // Upload to S3 via sails-hook-uploads (uses skipper-s3 under the hood)
-      const readStream = fs.createReadStream(tmpFile)
-      readStream.filename = path.basename(s3Key)
-
-      await sails.uploadOne(readStream, {
-        adapter: require('skipper-s3'),
-        key: uploadsConfig.key,
-        secret: uploadsConfig.secret,
-        bucket: uploadsConfig.bucket,
-        endpoint: uploadsConfig.endpoint,
-        region: uploadsConfig.region,
-        s3ForcePathStyle: true,
-        saveAs: s3Key
+      await sails.helpers.backup.uploadObject.with({
+        sourcePath: tmpFile,
+        s3Key,
+        sizeBytes: stats.size,
+        storageConfig,
+        maxBytes: capacity.allowedBytes,
+        timeoutMs: limits.backupTimeoutMs,
+        signal
       })
 
-      // Update backup record
       const completedAt = Date.now()
       await Backup.updateOne({ id: backupId }).set({
         status: 'completed',
         s3Key,
-        sizeBytes,
+        sizeBytes: stats.size,
         completedAt,
         durationMs: completedAt - startedAt
       })
 
       sails.log.info(
-        `Backup completed: ${s3Key} (${formatBytes(sizeBytes)} in ${
+        `Backup completed: ${s3Key} (${formatBytes(stats.size)} in ${
           completedAt - startedAt
         }ms)`
       )
       sails.sse.publish(`backup:${backupId}`, { status: 'completed' })
+    } catch (error) {
+      if (uploadAttempted && s3Key) {
+        try {
+          await sails.helpers.backup.deleteBackupObject(s3Key)
+        } catch (cleanupError) {
+          sails.log.warn(
+            `Could not clean up partial backup ${s3Key}: ${cleanupError.message}`
+          )
+        }
+      }
 
-      // Send backup success notification
-      await sails.helpers.notification.sendBackupNotification
-        .with({
-          backup: await Backup.findOne({ id: backupId }),
-          service
-        })
-        .tolerate('error')
-    } catch (err) {
       const completedAt = Date.now()
       await Backup.updateOne({ id: backupId }).set({
         status: 'failed',
-        errorMessage: err.message,
+        s3Key: null,
+        sizeBytes: null,
+        errorMessage: error.message,
         completedAt,
         durationMs: completedAt - startedAt
       })
       sails.log.error(
-        `Backup failed for service ${service.name}: ${err.message}`
+        `Backup failed for service ${service?.name || backup.service}: ${
+          error.message
+        }`
       )
       sails.sse.publish(`backup:${backupId}`, { status: 'failed' })
-
-      // Send backup failure notification
-      await sails.helpers.notification.sendBackupNotification
-        .with({
-          backup: await Backup.findOne({ id: backupId }),
-          service
-        })
-        .tolerate('error')
     } finally {
-      // Clean up temp file
-      try {
-        fs.unlinkSync(tmpFile)
-      } catch {
-        /* ignore */
+      if (tmpDirectory) {
+        try {
+          await fsPromises.rm(tmpDirectory, { recursive: true, force: true })
+        } catch (error) {
+          sails.log.warn(
+            `Could not remove backup temporary directory: ${error.message}`
+          )
+        }
+      }
+
+      if (service) {
+        await sails.helpers.notification.sendBackupNotification
+          .with({
+            backup: await Backup.findOne({ id: backupId }),
+            service
+          })
+          .tolerate('error')
       }
     }
 
-    return await Backup.findOne({ id: backupId })
+    return Backup.findOne({ id: backupId })
   }
 }
 
@@ -280,8 +214,21 @@ function getDumpArgs(service) {
   }
 }
 
+function getExtension(serviceType) {
+  return (
+    { postgresql: 'dmp', mysql: 'sql', mongodb: 'gz' }[serviceType] || 'sql'
+  )
+}
+
 function formatBytes(bytes) {
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+  const units = ['B', 'KB', 'MB', 'GB', 'TB']
+  let value = bytes
+  let unit = 0
+
+  while (value >= 1024 && unit < units.length - 1) {
+    value /= 1024
+    unit += 1
+  }
+
+  return `${value.toFixed(unit === 0 ? 0 : 1)} ${units[unit]}`
 }
