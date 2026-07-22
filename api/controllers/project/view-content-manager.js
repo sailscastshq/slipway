@@ -59,6 +59,11 @@ module.exports = {
     const contentFeature = hasContentFeature
       ? environment.features['sails-content']
       : null
+    const apps = await App.find({ environment: environment.id }).sort([
+      'isDefault DESC',
+      'name ASC',
+      'id ASC'
+    ])
 
     // Load collections if feature is available
     let collections = []
@@ -114,7 +119,13 @@ module.exports = {
         hasContentFeature,
         contentFeature,
         collections,
-        collectionsError
+        collectionsError,
+        apps: apps.map((app) => ({
+          id: app.id,
+          name: app.name,
+          slug: app.slug,
+          isDefault: app.isDefault
+        }))
       }
     }
   }

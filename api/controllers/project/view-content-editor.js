@@ -1,5 +1,6 @@
 const fs = require('fs')
 const path = require('path')
+const crypto = require('crypto')
 
 module.exports = {
   friendlyName: 'View content editor',
@@ -21,12 +22,18 @@ module.exports = {
     collection: {
       type: 'string',
       required: true,
+      regex: /^[a-zA-Z0-9][a-zA-Z0-9._-]*$/,
       description: 'Collection name'
     },
     file: {
       type: 'string',
       required: true,
+      regex: /^[a-zA-Z0-9][a-zA-Z0-9._-]*$/,
       description: 'File slug'
+    },
+    appSlug: {
+      type: 'string',
+      description: 'App whose source repository owns this content file'
     }
   },
 
@@ -39,7 +46,7 @@ module.exports = {
     }
   },
 
-  fn: async function ({ slug, envSlug, collection, file }) {
+  fn: async function ({ slug, envSlug, collection, file, appSlug }) {
     const user = await User.findOne({ id: this.req.session.userId }).populate(
       'team'
     )
@@ -71,6 +78,16 @@ module.exports = {
     const contentFeature = environment.features['sails-content']
     const contentDir = contentFeature.contentDir || 'content'
     const appPath = `${sails.config.custom.slipwayAppsDir}/${project.slug}`
+    const apps = await App.find({ environment: environment.id }).sort([
+      'isDefault DESC',
+      'name ASC',
+      'id ASC'
+    ])
+    const selectedApp = appSlug
+      ? apps.find((app) => app.slug === appSlug)
+      : apps.length === 1
+      ? apps[0]
+      : null
 
     // Load the content file
     let content = null
@@ -90,8 +107,38 @@ module.exports = {
         throw new Error('Content file not found')
       }
 
-      const rawContent = fs.readFileSync(filePath, 'utf8')
+      let rawContent = fs.readFileSync(filePath, 'utf8')
       const stats = fs.statSync(filePath)
+      let sourceSha = gitBlobSha(rawContent)
+      let sourceMode = 'local'
+      let repository = null
+      if (selectedApp) {
+        const relativeFilePath = path.posix.join(
+          String(contentDir).replace(/\\/g, '/'),
+          collection,
+          `${file}.${fileType === 'json' ? 'json' : 'md'}`
+        )
+        const remote = await sails.helpers.git.readContentFile
+          .with({
+            environment,
+            app: selectedApp,
+            filePath: relativeFilePath
+          })
+          .intercept(
+            'notFound',
+            (error) => new Error((error.raw || error).message)
+          )
+          .intercept(
+            'unavailable',
+            (error) => new Error((error.raw || error).message)
+          )
+        if (remote.mode === 'repository') {
+          rawContent = remote.content
+          sourceSha = remote.sha
+          sourceMode = 'repository'
+          repository = remote.repository
+        }
+      }
 
       // Parse frontmatter for markdown files
       let frontmatter = {}
@@ -116,6 +163,9 @@ module.exports = {
         frontmatter,
         body,
         raw: rawContent,
+        sourceSha,
+        sourceMode,
+        repository,
         updatedAt: stats.mtime.toISOString()
       }
     } catch (err) {
@@ -140,10 +190,26 @@ module.exports = {
         file,
         contentFeature,
         content,
-        contentError
+        contentError,
+        selectedAppSlug: selectedApp?.slug || '',
+        apps: apps.map((app) => ({
+          id: app.id,
+          name: app.name,
+          slug: app.slug,
+          isDefault: app.isDefault
+        }))
       }
     }
   }
+}
+
+function gitBlobSha(content) {
+  const value = Buffer.from(content, 'utf8')
+  return crypto
+    .createHash('sha1')
+    .update(`blob ${value.length}\0`)
+    .update(value)
+    .digest('hex')
 }
 
 /**

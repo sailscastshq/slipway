@@ -25,6 +25,10 @@ module.exports = {
     gitBranch: {
       type: 'string'
     },
+    gitCommit: {
+      type: 'string',
+      description: 'Exact repository commit to build when one was recorded.'
+    },
     refreshRepository: {
       type: 'boolean',
       defaultsTo: false,
@@ -45,6 +49,7 @@ module.exports = {
     app,
     deploymentId,
     gitBranch,
+    gitCommit,
     refreshRepository
   }) {
     const readiness = await inspectBuildContext({
@@ -76,6 +81,7 @@ module.exports = {
         await sails.helpers.git.cloneOrPull.with({
           cloneUrl: repo.cloneUrl,
           branch,
+          ...(gitCommit ? { commit: gitCommit } : {}),
           targetDir: contextPath,
           deployKeyPrivate: repo.deployKeyPrivate,
           deploymentId

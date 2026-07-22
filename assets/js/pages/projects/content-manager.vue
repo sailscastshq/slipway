@@ -14,7 +14,8 @@ const props = defineProps({
   hasContentFeature: Boolean,
   contentFeature: Object,
   collections: Array,
-  collectionsError: String
+  collectionsError: String,
+  apps: Array
 })
 
 const toggleMobileMenu = inject('toggleMobileMenu')
@@ -28,7 +29,8 @@ const selectedCollection = ref(null)
 // Create form
 const createForm = useForm({
   contentSlug: '',
-  title: ''
+  title: '',
+  appSlug: props.apps?.length === 1 ? props.apps[0].slug : ''
 })
 
 function openCreateModal(collection) {
@@ -341,6 +343,7 @@ function refresh() {
                 </span>
               </div>
               <button
+                data-test="content-new-button"
                 @click="openCreateModal(collection)"
                 class="flex items-center space-x-1 rounded-md px-2 py-1 text-sm text-gray-500 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white"
               >
@@ -457,6 +460,7 @@ function refresh() {
     >
       <div class="fixed inset-0 bg-black/50" @click="closeCreateModal" />
       <div
+        data-test="content-create-modal"
         class="relative w-full max-w-md rounded-lg bg-white p-6 shadow-xl dark:bg-gray-900"
       >
         <h3 class="text-lg font-semibold text-gray-900 dark:text-white">
@@ -477,6 +481,12 @@ function refresh() {
             <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
               Will be used as the filename
             </p>
+            <p
+              v-if="createForm.errors.contentSlug"
+              class="mt-1 text-xs text-red-600 dark:text-red-400"
+            >
+              {{ createForm.errors.contentSlug }}
+            </p>
           </div>
           <div>
             <label
@@ -489,6 +499,38 @@ function refresh() {
               placeholder="My New Post"
               class="focus:border-brand mt-1 block w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-2 text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
             />
+          </div>
+          <div v-if="apps?.length > 1">
+            <label
+              for="content-create-target-app"
+              class="block text-sm font-medium text-gray-700 dark:text-gray-300"
+            >
+              Target app
+            </label>
+            <select
+              id="content-create-target-app"
+              v-model="createForm.appSlug"
+              :aria-invalid="Boolean(createForm.errors.appSlug)"
+              :aria-describedby="
+                createForm.errors.appSlug
+                  ? 'content-create-target-app-error'
+                  : null
+              "
+              class="mt-1 block w-full rounded-md border border-gray-200 bg-white px-2 py-2 text-sm text-gray-900 focus:border-gray-400 focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+              @change="createForm.clearErrors('appSlug')"
+            >
+              <option value="" disabled>Choose an app</option>
+              <option v-for="app in apps" :key="app.id" :value="app.slug">
+                {{ app.name }}
+              </option>
+            </select>
+            <p
+              v-if="createForm.errors.appSlug"
+              id="content-create-target-app-error"
+              class="mt-1 text-xs text-red-600 dark:text-red-400"
+            >
+              {{ createForm.errors.appSlug }}
+            </p>
           </div>
           <div class="flex items-center justify-end space-x-3 pt-2">
             <button

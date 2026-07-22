@@ -1,4 +1,5 @@
 const path = require('path')
+const { isContentCommit } = require('../../lib/content-commit')
 
 /**
  * GitHub Webhook Handler
@@ -92,6 +93,16 @@ async function handlePush(repo, payload) {
   const branch = payload.ref?.replace('refs/heads/', '')
   const commit = payload.after
   const pusher = payload.pusher?.name
+
+  // Content Manager owns deployment orchestration for its commits. Skipping
+  // here keeps Save as commit-only and Save & Deploy to exactly one pipeline.
+  if (isContentCommit(payload.head_commit?.message)) {
+    return {
+      received: true,
+      action: 'skipped',
+      reason: 'content_manager_commit'
+    }
+  }
 
   sails.log.info(`[webhook] Push to ${repo.fullName}/${branch} by ${pusher}`)
 

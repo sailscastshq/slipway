@@ -110,7 +110,7 @@ module.exports = {
 
     triggerType: {
       type: 'string',
-      isIn: ['manual', 'cli', 'webhook', 'api'],
+      isIn: ['manual', 'cli', 'webhook', 'api', 'content'],
       defaultsTo: 'manual',
       description: 'How the deployment was triggered',
       columnName: 'trigger_type'

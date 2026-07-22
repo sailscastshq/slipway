@@ -21,6 +21,10 @@ module.exports = {
       required: true,
       description: 'Branch to checkout'
     },
+    commit: {
+      type: 'string',
+      description: 'Exact commit SHA to checkout after fetching the branch.'
+    },
     targetDir: {
       type: 'string',
       required: true,
@@ -40,10 +44,12 @@ module.exports = {
   fn: async function ({
     cloneUrl,
     branch,
+    commit,
     targetDir,
     deployKeyPrivate,
     deploymentId
   }) {
+    const exactCommit = isCommitSha(commit) ? commit : null
     // Normalize the key: fix escaped newlines and ensure trailing newline
     let key = deployKeyPrivate.replace(/\\n/g, '\n')
     if (!key.endsWith('\n')) {
@@ -95,17 +101,14 @@ module.exports = {
           env,
           timeout
         })
-        await execFileAsync(
-          'git',
-          ['checkout', '-B', branch, `origin/${branch}`],
-          { cwd: targetDir, env, timeout: 30_000 }
-        )
-        await execFileAsync('git', ['clean', '-fd'], {
-          cwd: targetDir,
+        await checkoutSource({
+          targetDir,
+          branch,
+          commit: exactCommit,
           env,
-          timeout: 30_000
+          timeout,
+          log
         })
-        await log(`Updated to latest ${branch}`)
       } else {
         // Fresh clone
         if (fs.existsSync(targetDir)) {
@@ -127,6 +130,14 @@ module.exports = {
           { env, timeout }
         )
         await log(`Cloned successfully`)
+        await checkoutSource({
+          targetDir,
+          branch,
+          commit: exactCommit,
+          env,
+          timeout,
+          log
+        })
       }
 
       // Log the HEAD commit for traceability
@@ -146,3 +157,56 @@ module.exports = {
     }
   }
 }
+
+async function checkoutSource({
+  targetDir,
+  branch,
+  commit,
+  env,
+  timeout,
+  log
+}) {
+  if (commit) {
+    await log(`Fetching exact commit ${commit.slice(0, 12)}...`)
+    await execFileAsync('git', ['fetch', '--depth', '1', 'origin', commit], {
+      cwd: targetDir,
+      env,
+      timeout
+    })
+    await execFileAsync('git', ['checkout', '--detach', commit], {
+      cwd: targetDir,
+      env,
+      timeout: 30_000
+    })
+    await execFileAsync('git', ['reset', '--hard', commit], {
+      cwd: targetDir,
+      env,
+      timeout: 30_000
+    })
+    await log(`Checked out exact commit ${commit.slice(0, 12)}`)
+  } else {
+    await execFileAsync('git', ['checkout', '-B', branch, `origin/${branch}`], {
+      cwd: targetDir,
+      env,
+      timeout: 30_000
+    })
+    await execFileAsync('git', ['reset', '--hard', `origin/${branch}`], {
+      cwd: targetDir,
+      env,
+      timeout: 30_000
+    })
+    await log(`Updated to latest ${branch}`)
+  }
+
+  await execFileAsync('git', ['clean', '-fd'], {
+    cwd: targetDir,
+    env,
+    timeout: 30_000
+  })
+}
+
+function isCommitSha(value) {
+  return typeof value === 'string' && /^[a-f0-9]{40,64}$/i.test(value)
+}
+
+module.exports._private = { checkoutSource, isCommitSha }
