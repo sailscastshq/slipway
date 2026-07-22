@@ -14,6 +14,18 @@ module.exports = {
       type: 'string',
       required: true,
       description: 'Environment slug'
+    },
+    deploymentStatus: {
+      type: 'string'
+    },
+    deploymentApp: {
+      type: 'string'
+    },
+    deploymentSource: {
+      type: 'string'
+    },
+    deploymentCursor: {
+      type: 'string'
     }
   },
 
@@ -26,7 +38,14 @@ module.exports = {
     }
   },
 
-  fn: async function ({ slug, envSlug }) {
+  fn: async function ({
+    slug,
+    envSlug,
+    deploymentStatus,
+    deploymentApp,
+    deploymentSource,
+    deploymentCursor
+  }) {
     const user = await User.findOne({ id: this.req.session.userId }).populate(
       'team'
     )
@@ -42,7 +61,6 @@ module.exports = {
       project: project.id
     })
       .populate('services')
-      .populate('deployments')
       .decrypt()
 
     if (!environment) {
@@ -122,39 +140,19 @@ module.exports = {
     // Update default app reference after potential status changes
     app = appsWithHealth.find((a) => a.isDefault) || appsWithHealth[0] || null
 
-    // Fix stale running deployments
-    const runningAppDeploymentIds = appsWithHealth
-      .filter((a) => a.containerExists && a.currentDeployment)
-      .map((a) => a.currentDeployment)
-
-    if (runningAppDeploymentIds.length === 0) {
-      await Deployment.update({
-        environment: environment.id,
-        status: 'running'
-      }).set({ status: 'stopped' })
-    } else {
-      await Deployment.update({
-        environment: environment.id,
-        status: 'running',
-        id: { '!=': runningAppDeploymentIds }
-      }).set({ status: 'stopped' })
-    }
-
-    // Get deployments sorted by most recent first
-    const deployments = await Deployment.find({ environment: environment.id })
-      .limit(20)
-      .populate('triggeredBy')
-      .populate('app')
-
-    // Sort by id descending (newest first) - explicit JS sort for reliability
-    deployments.sort((a, b) => b.id - a.id)
-
-    // Backfill app name for legacy deployments (created before multi-app)
-    for (const dep of deployments) {
-      if (!dep.app && app) {
-        dep.app = { id: app.id, name: app.name, slug: app.slug }
-      }
-    }
+    const deploymentHistory = await sails.helpers.deployment.getHistory.with({
+      projectSlug: project.slug,
+      environments: [environment],
+      apps: appsWithHealth,
+      currentApps: appsWithHealth,
+      filters: {
+        status: deploymentStatus,
+        environment: '',
+        app: deploymentApp,
+        source: deploymentSource
+      },
+      cursor: deploymentCursor || null
+    })
 
     // Generate deployment checklist
     const checklist = await sails.helpers.environment.generateChecklist(
@@ -193,7 +191,7 @@ module.exports = {
         app: app || null,
         apps: appsWithHealth,
         envVars: environment.envVars || {},
-        deployments,
+        deploymentHistory,
         checklist,
         backupConfigured,
         githubConnected,

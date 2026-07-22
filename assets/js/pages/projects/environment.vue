@@ -14,6 +14,7 @@ import Breadcrumb from '@/components/Breadcrumb.vue'
 import ConfirmModal from '@/components/ConfirmModal.vue'
 import SlideToDeploy from '@/components/SlideToDeploy.vue'
 import Tooltip from '@/components/Tooltip.vue'
+import DeploymentHistory from '@/components/DeploymentHistory.vue'
 import { useToast } from '@/composables/toast'
 import { useServiceActions } from '@/composables/service-actions'
 import { useEventSource } from '@/composables/sse'
@@ -28,7 +29,7 @@ const props = defineProps({
   app: Object,
   apps: Array,
   envVars: Object,
-  deployments: Array,
+  deploymentHistory: Object,
   checklist: Array,
   backupConfigured: Boolean,
   githubConnected: Boolean,
@@ -273,56 +274,6 @@ function cancelAddApp() {
   createAppForm.reset()
   clearRepo()
 }
-
-// --- SSE-powered deployment tracking (replaces usePoll) ---
-const activeDeploymentSources = ref(new Map())
-
-function connectActiveDeployments() {
-  const activeStatuses = ['pending', 'building', 'deploying']
-  const active = props.deployments.filter((d) =>
-    activeStatuses.includes(d.status)
-  )
-
-  for (const dep of active) {
-    if (activeDeploymentSources.value.has(dep.id)) continue
-
-    const es = new EventSource(`/api/v1/deployments/${dep.id}/stream`)
-    es.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data)
-        if (
-          data.status &&
-          ['running', 'failed', 'cancelled'].includes(data.status)
-        ) {
-          es.close()
-          activeDeploymentSources.value.delete(dep.id)
-          router.reload()
-        }
-      } catch {
-        /* ignore */
-      }
-    }
-    es.onerror = () => {
-      /* auto-reconnects */
-    }
-    activeDeploymentSources.value.set(dep.id, es)
-  }
-}
-
-function disconnectActiveDeployments() {
-  for (const es of activeDeploymentSources.value.values()) {
-    es.close()
-  }
-  activeDeploymentSources.value.clear()
-}
-
-watch(
-  () => props.deployments,
-  () => {
-    connectActiveDeployments()
-  },
-  { immediate: true }
-)
 
 // --- Env vars management ---
 const localVars = reactive({ ...props.envVars })
@@ -961,7 +912,6 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
-  disconnectActiveDeployments()
   document.removeEventListener('keydown', handleEscapeKey)
 })
 </script>
@@ -2559,95 +2509,10 @@ onBeforeUnmount(() => {
           </div>
         </div>
 
-        <!-- Deployments -->
-        <div>
-          <h2 class="mb-4 text-sm font-medium text-gray-900 dark:text-white">
-            Deployments
-          </h2>
-
-          <div
-            v-if="deployments.length > 0"
-            class="rounded-lg border border-gray-200 dark:border-gray-800"
-          >
-            <div
-              class="divide-y divide-gray-200 rounded-lg bg-white dark:divide-gray-800 dark:bg-gray-950"
-            >
-              <Link
-                v-for="dep in deployments"
-                :key="dep.id"
-                :href="`/projects/${project.slug}/deployments/${dep.id}`"
-                class="flex items-center justify-between px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-900/50"
-              >
-                <div class="flex items-center space-x-3">
-                  <span
-                    :class="[
-                      'h-2 w-2 rounded-full',
-                      dep.status === 'running'
-                        ? 'bg-green-500'
-                        : dep.status === 'failed'
-                        ? 'bg-red-500'
-                        : dep.status === 'building' ||
-                          dep.status === 'deploying'
-                        ? 'bg-blue-500'
-                        : dep.status === 'cancelled' || dep.status === 'stopped'
-                        ? 'bg-gray-400'
-                        : 'bg-yellow-500'
-                    ]"
-                  ></span>
-                  <span
-                    :class="[
-                      'inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium',
-                      statusBadge(dep.status).classes
-                    ]"
-                  >
-                    {{ statusBadge(dep.status).label }}
-                  </span>
-                  <span
-                    v-if="dep.app && dep.app.name"
-                    class="inline-flex rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-500 dark:bg-gray-800 dark:text-gray-400"
-                  >
-                    {{ dep.app.name }}
-                  </span>
-                  <span
-                    v-if="dep.gitBranch"
-                    class="text-xs text-gray-500 dark:text-gray-400"
-                  >
-                    {{ dep.gitBranch }}
-                  </span>
-                  <span
-                    v-if="dep.gitCommit"
-                    class="font-mono text-xs text-gray-400 dark:text-gray-500"
-                  >
-                    {{ dep.gitCommit.slice(0, 7) }}
-                  </span>
-                </div>
-                <div class="flex items-center space-x-4">
-                  <span class="text-xs text-gray-500 dark:text-gray-400">
-                    {{
-                      dep.triggeredBy?.fullName ||
-                      (dep.triggerType === 'webhook' ? 'Git' : 'System')
-                    }}
-                  </span>
-                  <span class="text-xs text-gray-400 dark:text-gray-500">
-                    {{ timeAgo(dep.createdAt) }}
-                  </span>
-                </div>
-              </Link>
-            </div>
-          </div>
-
-          <div
-            v-else
-            class="rounded-lg border border-dashed border-gray-300 px-6 py-8 text-center dark:border-gray-700"
-          >
-            <p class="text-sm text-gray-500 dark:text-gray-400">
-              No deployments yet.
-            </p>
-            <p class="mt-1 text-sm text-gray-400 dark:text-gray-500">
-              Slide to deploy your first version.
-            </p>
-          </div>
-        </div>
+        <DeploymentHistory
+          :history="deploymentHistory"
+          empty-help="Slide to deploy your first version."
+        />
       </div>
     </div>
 

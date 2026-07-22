@@ -8,6 +8,21 @@ module.exports = {
       type: 'string',
       required: true,
       description: 'Project slug'
+    },
+    deploymentStatus: {
+      type: 'string'
+    },
+    deploymentEnvironment: {
+      type: 'string'
+    },
+    deploymentApp: {
+      type: 'string'
+    },
+    deploymentSource: {
+      type: 'string'
+    },
+    deploymentCursor: {
+      type: 'string'
     }
   },
 
@@ -20,7 +35,14 @@ module.exports = {
     }
   },
 
-  fn: async function ({ slug }) {
+  fn: async function ({
+    slug,
+    deploymentStatus,
+    deploymentEnvironment,
+    deploymentApp,
+    deploymentSource,
+    deploymentCursor
+  }) {
     const user = await User.findOne({ id: this.req.session.userId }).populate(
       'team'
     )
@@ -34,32 +56,17 @@ module.exports = {
       throw { notFound: '/' }
     }
 
-    // For each environment, get app status and recent deployments
+    const allApps = await App.find({
+      environment: project.environments.map((environment) => environment.id)
+    })
+
+    // Enrich each environment with its apps and resolved domain.
     const environments = await Promise.all(
       project.environments.map(async (env) => {
-        const apps = await App.find({ environment: env.id })
+        const apps = allApps.filter(
+          (candidate) => candidate.environment === env.id
+        )
         const app = apps.find((a) => a.isDefault) || apps[0] || null
-
-        // Fix stale running deployments
-        if (app && app.currentDeployment) {
-          await Deployment.update({
-            environment: env.id,
-            status: 'running',
-            id: { '!=': app.currentDeployment }
-          }).set({ status: 'stopped' })
-        }
-
-        const deployments = await Deployment.find({ environment: env.id })
-          .sort('id DESC')
-          .limit(5)
-          .populate('triggeredBy')
-
-        // Running deployment always first
-        deployments.sort((a, b) => {
-          if (a.status === 'running' && b.status !== 'running') return -1
-          if (a.status !== 'running' && b.status === 'running') return 1
-          return 0
-        })
 
         const fullDomain = await Environment.getFullDomain(env.id)
 
@@ -67,71 +74,38 @@ module.exports = {
           ...env,
           app: app || null,
           apps,
-          deployments,
           fullDomain
         }
       })
     )
 
-    // Get recent deployments across all environments
-    // First get any running/building/deploying deployments to ensure they're included
-    const activeDeployments = await Deployment.find({
-      environment: project.environments.map((e) => e.id),
-      status: ['running', 'building', 'deploying']
+    const productionEnvironmentIds = new Set(
+      project.environments
+        .filter((environment) => environment.isProduction)
+        .map((environment) => environment.id)
+    )
+    const deploymentHistory = await sails.helpers.deployment.getHistory.with({
+      projectSlug: project.slug,
+      environments: project.environments,
+      apps: allApps,
+      currentApps: allApps.filter((app) =>
+        productionEnvironmentIds.has(app.environment)
+      ),
+      filters: {
+        status: deploymentStatus,
+        environment: deploymentEnvironment,
+        app: deploymentApp,
+        source: deploymentSource
+      },
+      cursor: deploymentCursor || null
     })
-      .populate('triggeredBy')
-      .populate('environment')
-      .populate('app')
-
-    // Then get recent deployments by date
-    const latestDeployments = await Deployment.find({
-      environment: project.environments.map((e) => e.id)
-    })
-      .sort('createdAt DESC')
-      .limit(10)
-      .populate('triggeredBy')
-      .populate('environment')
-      .populate('app')
-
-    // Merge and dedupe, prioritizing active deployments
-    const seenIds = new Set()
-    const recentDeployments = []
-
-    // Add active deployments first
-    for (const dep of activeDeployments) {
-      if (!seenIds.has(dep.id)) {
-        seenIds.add(dep.id)
-        recentDeployments.push(dep)
-      }
-    }
-
-    // Add latest deployments (sorted by date, newest first)
-    for (const dep of latestDeployments) {
-      if (!seenIds.has(dep.id)) {
-        seenIds.add(dep.id)
-        recentDeployments.push(dep)
-      }
-    }
-
-    // Keep only top 5
-    recentDeployments.splice(5)
-
-    // Backfill app name for legacy deployments (created before multi-app)
-    for (const dep of recentDeployments) {
-      if (!dep.app && dep.environment) {
-        const env = environments.find((e) => e.id === dep.environment.id)
-        if (env && env.app) {
-          dep.app = { id: env.app.id, name: env.app.name, slug: env.app.slug }
-        }
-      }
-    }
 
     return {
       page: 'projects/show',
       props: {
         project,
         environments,
-        recentDeployments
+        deploymentHistory
       }
     }
   }
