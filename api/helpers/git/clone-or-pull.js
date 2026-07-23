@@ -4,6 +4,7 @@ const fs = require('fs')
 const path = require('path')
 const os = require('os')
 const execFileAsync = util.promisify(execFile)
+const deploymentCancellation = require('../../lib/deployment-cancellation')
 
 module.exports = {
   friendlyName: 'Clone or pull',
@@ -38,6 +39,10 @@ module.exports = {
     deploymentId: {
       type: 'string',
       description: 'Deployment ID for logging'
+    },
+    signal: {
+      type: 'ref',
+      description: 'Abort signal for an operator-requested cancellation.'
     }
   },
 
@@ -47,8 +52,10 @@ module.exports = {
     commit,
     targetDir,
     deployKeyPrivate,
-    deploymentId
+    deploymentId,
+    signal
   }) {
+    deploymentCancellation.throwIfCancelled(signal, deploymentId)
     const exactCommit = isCommitSha(commit) ? commit : null
     // Normalize the key: fix escaped newlines and ensure trailing newline
     let key = deployKeyPrivate.replace(/\\n/g, '\n')
@@ -99,7 +106,8 @@ module.exports = {
         await execFileAsync('git', ['fetch', 'origin', branch], {
           cwd: targetDir,
           env,
-          timeout
+          timeout,
+          signal
         })
         await checkoutSource({
           targetDir,
@@ -107,7 +115,8 @@ module.exports = {
           commit: exactCommit,
           env,
           timeout,
-          log
+          log,
+          signal
         })
       } else {
         // Fresh clone
@@ -127,7 +136,7 @@ module.exports = {
             cloneUrl,
             targetDir
           ],
-          { env, timeout }
+          { env, timeout, signal }
         )
         await log(`Cloned successfully`)
         await checkoutSource({
@@ -136,7 +145,8 @@ module.exports = {
           commit: exactCommit,
           env,
           timeout,
-          log
+          log,
+          signal
         })
       }
 
@@ -144,9 +154,14 @@ module.exports = {
       const { stdout: headSha } = await execFileAsync(
         'git',
         ['rev-parse', '--short', 'HEAD'],
-        { cwd: targetDir, env, timeout: 5_000 }
+        { cwd: targetDir, env, timeout: 5_000, signal }
       )
       await log(`HEAD is now at ${headSha.trim()}`)
+    } catch (error) {
+      if (signal?.aborted) {
+        throw deploymentCancellation.cancellationError(signal, deploymentId)
+      }
+      throw error
     } finally {
       // Always clean up the key file
       try {
@@ -164,36 +179,42 @@ async function checkoutSource({
   commit,
   env,
   timeout,
-  log
+  log,
+  signal
 }) {
   if (commit) {
     await log(`Fetching exact commit ${commit.slice(0, 12)}...`)
     await execFileAsync('git', ['fetch', '--depth', '1', 'origin', commit], {
       cwd: targetDir,
       env,
-      timeout
+      timeout,
+      signal
     })
     await execFileAsync('git', ['checkout', '--detach', commit], {
       cwd: targetDir,
       env,
-      timeout: 30_000
+      timeout: 30_000,
+      signal
     })
     await execFileAsync('git', ['reset', '--hard', commit], {
       cwd: targetDir,
       env,
-      timeout: 30_000
+      timeout: 30_000,
+      signal
     })
     await log(`Checked out exact commit ${commit.slice(0, 12)}`)
   } else {
     await execFileAsync('git', ['checkout', '-B', branch, `origin/${branch}`], {
       cwd: targetDir,
       env,
-      timeout: 30_000
+      timeout: 30_000,
+      signal
     })
     await execFileAsync('git', ['reset', '--hard', `origin/${branch}`], {
       cwd: targetDir,
       env,
-      timeout: 30_000
+      timeout: 30_000,
+      signal
     })
     await log(`Updated to latest ${branch}`)
   }
@@ -201,7 +222,8 @@ async function checkoutSource({
   await execFileAsync('git', ['clean', '-fd'], {
     cwd: targetDir,
     env,
-    timeout: 30_000
+    timeout: 30_000,
+    signal
   })
 }
 

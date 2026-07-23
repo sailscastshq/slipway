@@ -85,7 +85,22 @@ module.exports = {
     if (buildContextPath !== undefined)
       updates.buildContextPath = buildContextPath
 
-    await DeploymentJob.updateOne({ deployment: deploymentId }).set(updates)
+    const updatedJob = await DeploymentJob.updateOne({
+      deployment: deploymentId,
+      stage: { nin: ['cancel_requested', 'cancelled'] }
+    }).set(updates)
+
+    if (!updatedJob) {
+      const job = await DeploymentJob.findOne({ deployment: deploymentId })
+      if (['cancel_requested', 'cancelled'].includes(job?.stage)) {
+        return {
+          valid: false,
+          code: 'DEPLOYMENT_CANCELLED',
+          message: `Deployment ${deploymentId} was cancelled.`
+        }
+      }
+    }
+
     return { valid: true }
   }
 }

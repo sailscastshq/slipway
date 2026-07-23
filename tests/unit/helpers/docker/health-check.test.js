@@ -93,6 +93,36 @@ test('docker health check rejects non-2xx responses from the configured path', a
   }
 })
 
+test('docker health check stops polling when its deployment is cancelled', async ({
+  sails,
+  expect
+}) => {
+  const controller = new AbortController()
+  const cancellation = new Error('Cancelled by Builder')
+  cancellation.code = 'DEPLOYMENT_CANCELLED'
+  const startedAt = Date.now()
+  const check = sails.helpers.docker.healthCheck.with({
+    containerName: '127.0.0.1',
+    port: 1,
+    path: '/health',
+    timeout: 10_000,
+    interval: 5_000,
+    signal: controller.signal
+  })
+
+  setTimeout(() => controller.abort(cancellation), 20)
+
+  let error
+  try {
+    await check
+  } catch (err) {
+    error = err
+  }
+
+  expect(error.code).toBe('DEPLOYMENT_CANCELLED')
+  expect(Date.now() - startedAt < 1000).toBe(true)
+})
+
 function listen(server) {
   return new Promise((resolve, reject) => {
     server.once('error', reject)
@@ -104,6 +134,8 @@ function listen(server) {
 }
 
 function close(server) {
+  if (!server.listening) return Promise.resolve()
+
   return new Promise((resolve, reject) => {
     server.close((err) => (err ? reject(err) : resolve()))
   })

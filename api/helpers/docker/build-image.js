@@ -1,5 +1,6 @@
 const { spawn } = require('child_process')
 const path = require('path')
+const deploymentCancellation = require('../../lib/deployment-cancellation')
 
 module.exports = {
   friendlyName: 'Build image',
@@ -42,6 +43,10 @@ module.exports = {
       defaultsTo: false,
       description:
         'Disable Docker layer caching (slower but ensures fresh build)'
+    },
+    signal: {
+      type: 'ref',
+      description: 'Abort signal for an operator-requested cancellation.'
     }
   },
 
@@ -62,8 +67,11 @@ module.exports = {
     deploymentId,
     buildArgs,
     timeout,
-    noCache
+    noCache,
+    signal
   }) {
+    deploymentCancellation.throwIfCancelled(signal, deploymentId)
+
     return new Promise((resolve, reject) => {
       const dockerPath = sails.config.docker?.binaryPath || 'docker'
       const fullDockerfilePath = path.resolve(contextPath, dockerfilePath)
@@ -95,29 +103,67 @@ module.exports = {
       })
       let stdout = ''
       let stderr = ''
-      let killed = false
+      let settled = false
+      let terminationError = null
+      let forceKillId
 
-      // Set up timeout
-      const timeoutId = setTimeout(async () => {
-        killed = true
-        buildProcess.kill('SIGTERM')
+      const cleanup = () => {
+        clearTimeout(timeoutId)
+        clearTimeout(forceKillId)
+        signal?.removeEventListener('abort', abort)
+      }
 
-        // Give it 5 seconds to terminate gracefully, then force kill
-        setTimeout(() => {
-          if (!buildProcess.killed) {
-            buildProcess.kill('SIGKILL')
+      const settle = (done, value) => {
+        if (settled) return
+        settled = true
+        cleanup()
+        done(value)
+      }
+
+      const terminate = (error) => {
+        if (terminationError || settled) return
+        terminationError = error
+
+        try {
+          buildProcess.kill('SIGTERM')
+        } catch {
+          // The process may have exited between the cancellation and signal.
+        }
+
+        forceKillId = setTimeout(() => {
+          if (buildProcess.exitCode === null) {
+            try {
+              buildProcess.kill('SIGKILL')
+            } catch {
+              // The process has already stopped.
+            }
           }
         }, 5000)
+        if (typeof forceKillId.unref === 'function') forceKillId.unref()
+      }
 
+      const abort = () => {
+        terminate(
+          deploymentCancellation.cancellationError(signal, deploymentId)
+        )
+      }
+
+      // Set up timeout
+      const timeoutId = setTimeout(() => {
         const timeoutMinutes = Math.round(timeout / 60000)
         const errorMsg = `Build timed out after ${timeoutMinutes} minutes`
         sails.log.error(errorMsg)
 
         if (deploymentId) {
-          await Deployment.appendBuildLog(deploymentId, `\n⚠️ ${errorMsg}\n`)
+          Deployment.appendBuildLog(deploymentId, `\n⚠️ ${errorMsg}\n`).catch(
+            () => {}
+          )
         }
-        reject(new Error(errorMsg))
+        terminate(new Error(errorMsg))
       }, timeout)
+
+      signal?.addEventListener('abort', abort, { once: true })
+      if (signal?.aborted) abort()
 
       buildProcess.stdout.on('data', async (data) => {
         const chunk = data.toString()
@@ -142,32 +188,33 @@ module.exports = {
       })
 
       buildProcess.on('close', async (code) => {
-        clearTimeout(timeoutId)
-
-        if (killed) return // Already handled by timeout
+        if (terminationError) {
+          settle(reject, terminationError)
+          return
+        }
 
         if (code === 0) {
           sails.log.info(`Successfully built image: ${imageName}`)
-          resolve({
+          settle(resolve, {
             success: true,
             imageName,
             output: stdout
           })
         } else {
           sails.log.error(`Docker build failed with code ${code}`)
-          reject(
+          settle(
+            reject,
             new Error(`Docker build failed with exit code ${code}\n${stderr}`)
           )
         }
       })
 
       buildProcess.on('error', async (error) => {
-        clearTimeout(timeoutId)
-
-        if (killed) return // Already handled by timeout
-
-        sails.log.error(`Docker build error: ${error.message}`)
-        reject(error)
+        const failure = terminationError || error
+        if (!terminationError) {
+          sails.log.error(`Docker build error: ${error.message}`)
+        }
+        settle(reject, failure)
       })
     })
   }

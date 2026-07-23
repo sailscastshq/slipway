@@ -1,6 +1,7 @@
 const { execFile } = require('child_process')
 const util = require('util')
 const execFileAsync = util.promisify(execFile)
+const deploymentCancellation = require('../../lib/deployment-cancellation')
 
 module.exports = {
   friendlyName: 'Run container',
@@ -50,6 +51,10 @@ module.exports = {
       type: 'ref',
       defaultsTo: {},
       description: 'Docker resource limits (cpus, memory)'
+    },
+    signal: {
+      type: 'ref',
+      description: 'Abort signal for an operator-requested cancellation.'
     }
   },
 
@@ -69,8 +74,10 @@ module.exports = {
     envVars,
     network,
     deploymentId,
-    resourceLimits
+    resourceLimits,
+    signal
   }) {
+    deploymentCancellation.throwIfCancelled(signal, deploymentId)
     const networkName =
       network || sails.config.custom.slipwayNetwork || 'slipway'
     const bindHost = normalizeHost(
@@ -127,7 +134,8 @@ module.exports = {
     }
 
     try {
-      const { stdout } = await execFileAsync(dockerPath, args)
+      const { stdout } = await execFileAsync(dockerPath, args, { signal })
+      deploymentCancellation.throwIfCancelled(signal, deploymentId)
       const containerId = stdout.trim()
 
       sails.log.info(
@@ -147,6 +155,7 @@ module.exports = {
         hostPort,
         host: bindHost
       })
+      deploymentCancellation.throwIfCancelled(signal, deploymentId)
 
       if (!portBinding.valid) {
         throw new Error(
@@ -169,6 +178,9 @@ module.exports = {
         portBinding
       }
     } catch (error) {
+      if (signal?.aborted) {
+        throw deploymentCancellation.cancellationError(signal, deploymentId)
+      }
       const errorMessage = error.message || String(error)
       sails.log.error(`Failed to run container: ${errorMessage}`)
 

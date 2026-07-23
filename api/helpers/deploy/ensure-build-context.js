@@ -1,5 +1,6 @@
 const fs = require('fs')
 const path = require('path')
+const deploymentCancellation = require('../../lib/deployment-cancellation')
 
 module.exports = {
   friendlyName: 'Ensure build context',
@@ -34,6 +35,10 @@ module.exports = {
       defaultsTo: false,
       description:
         'Sync a connected repository even when a local source cache already exists.'
+    },
+    signal: {
+      type: 'ref',
+      description: 'Abort signal for an operator-requested cancellation.'
     }
   },
 
@@ -50,8 +55,10 @@ module.exports = {
     deploymentId,
     gitBranch,
     gitCommit,
-    refreshRepository
+    refreshRepository,
+    signal
   }) {
+    deploymentCancellation.throwIfCancelled(signal, deploymentId)
     const readiness = await inspectBuildContext({
       project,
       environment,
@@ -84,9 +91,13 @@ module.exports = {
           ...(gitCommit ? { commit: gitCommit } : {}),
           targetDir: contextPath,
           deployKeyPrivate: repo.deployKeyPrivate,
-          deploymentId
+          deploymentId,
+          ...(signal ? { signal } : {})
         })
       } catch (err) {
+        if (signal?.aborted) {
+          throw deploymentCancellation.cancellationError(signal, deploymentId)
+        }
         const errorMessage = `Source sync failed for ${project.slug}: ${
           err.message || err
         }`
@@ -94,6 +105,7 @@ module.exports = {
         throw new Error(errorMessage)
       }
 
+      deploymentCancellation.throwIfCancelled(signal, deploymentId)
       if (hasSourceFiles(contextPath)) {
         return {
           contextPath,

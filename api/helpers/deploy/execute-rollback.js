@@ -1,3 +1,5 @@
+const deploymentCancellation = require('../../lib/deployment-cancellation')
+
 module.exports = {
   friendlyName: 'Execute rollback',
 
@@ -23,6 +25,10 @@ module.exports = {
     leaseToken: {
       type: 'string',
       description: 'Fencing token held by the durable deployment worker.'
+    },
+    signal: {
+      type: 'ref',
+      description: 'Abort signal for an operator-requested cancellation.'
     }
   },
 
@@ -31,7 +37,8 @@ module.exports = {
     targetDeployment,
     environment,
     app: appInput,
-    leaseToken
+    leaseToken,
+    signal
   }) {
     let candidateContainerName = null
     let hostPort = null
@@ -39,6 +46,7 @@ module.exports = {
     let currentStage = 'initialization'
 
     const recordStage = async (stage, resources = {}) => {
+      deploymentCancellation.throwIfCancelled(signal, rollbackId)
       currentStage = stage.replace(/_/g, ' ')
       const result = await sails.helpers.deploy.recordDeploymentStage.with({
         deploymentId: rollbackId,
@@ -47,23 +55,28 @@ module.exports = {
         ...resources
       })
       requireValidCoordinatorResult(result)
+      deploymentCancellation.throwIfCancelled(signal, rollbackId)
     }
 
     const assertLease = async () => {
+      deploymentCancellation.throwIfCancelled(signal, rollbackId)
       const result = await sails.helpers.deploy.assertDeploymentLease.with({
         deploymentId: rollbackId,
         leaseToken
       })
       requireValidCoordinatorResult(result)
+      deploymentCancellation.throwIfCancelled(signal, rollbackId)
     }
 
     const updateDeployment = async (values) => {
+      deploymentCancellation.throwIfCancelled(signal, rollbackId)
       const result = await sails.helpers.deploy.updateDeploymentForLease.with({
         deploymentId: rollbackId,
         leaseToken,
         values
       })
       requireValidCoordinatorResult(result)
+      deploymentCancellation.throwIfCancelled(signal, rollbackId)
       return result.deployment
     }
 
@@ -146,7 +159,8 @@ module.exports = {
         host: appBindHost,
         envVars,
         deploymentId: rollbackId,
-        resourceLimits: existingApp?.resourceLimits
+        resourceLimits: existingApp?.resourceLimits,
+        signal
       })
 
       await recordStage('health_check')
@@ -155,7 +169,8 @@ module.exports = {
         port: 1337,
         hostPort,
         path: healthPath,
-        deploymentId: rollbackId
+        deploymentId: rollbackId,
+        signal
       })
 
       await recordStage('traffic_cutover')
@@ -266,15 +281,28 @@ module.exports = {
 
       sails.log.info(`Rollback ${rollbackId} completed successfully`)
     } catch (error) {
-      const errorMessage = error.message || String(error)
-      sails.log.error(
-        `Rollback ${rollbackId} failed during ${currentStage}: ${errorMessage}`
-      )
+      const cancelled =
+        deploymentCancellation.isCancellationError(error) || signal?.aborted
+      const failure = cancelled
+        ? deploymentCancellation.cancellationError(signal, rollbackId)
+        : error
+      const errorMessage = failure.message || String(failure)
+      if (cancelled) {
+        sails.log.info(
+          `Rollback ${rollbackId} cancelled during ${currentStage}: ${errorMessage}`
+        )
+      } else {
+        sails.log.error(
+          `Rollback ${rollbackId} failed during ${currentStage}: ${errorMessage}`
+        )
+      }
 
       try {
         await Deployment.appendDeployLog(
           rollbackId,
-          `\nERROR [${currentStage}]: ${errorMessage}\n`
+          cancelled
+            ? `\nCancellation acknowledged during ${currentStage}. Cleaning up the candidate release...\n`
+            : `\nERROR [${currentStage}]: ${errorMessage}\n`
         )
       } catch {
         /* preserve the original failure */
@@ -313,7 +341,7 @@ module.exports = {
         })
       }
 
-      throw error
+      throw failure
     }
   }
 }

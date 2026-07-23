@@ -1,3 +1,5 @@
+const deploymentCancellation = require('../../lib/deployment-cancellation')
+
 module.exports = {
   friendlyName: 'Execute deployment pipeline',
 
@@ -28,6 +30,10 @@ module.exports = {
     leaseToken: {
       type: 'string',
       description: 'Fencing token held by the durable deployment worker.'
+    },
+    signal: {
+      type: 'ref',
+      description: 'Abort signal for an operator-requested cancellation.'
     }
   },
 
@@ -42,15 +48,18 @@ module.exports = {
     project,
     environment,
     app: appInput,
-    leaseToken
+    leaseToken,
+    signal
   }) {
     let deployContainerName = null
     let deployImageName = null
     let deployHostPort = null
     let deployHostPortReserved = false
+    let deployBuildContextPath = null
     let currentStage = 'initialization'
 
     const recordStage = async (stage, resources = {}) => {
+      deploymentCancellation.throwIfCancelled(signal, deploymentId)
       currentStage = stage.replace(/_/g, ' ')
       const result = await sails.helpers.deploy.recordDeploymentStage.with({
         deploymentId,
@@ -59,23 +68,28 @@ module.exports = {
         ...resources
       })
       requireValidCoordinatorResult(result)
+      deploymentCancellation.throwIfCancelled(signal, deploymentId)
     }
 
     const assertLease = async () => {
+      deploymentCancellation.throwIfCancelled(signal, deploymentId)
       const result = await sails.helpers.deploy.assertDeploymentLease.with({
         deploymentId,
         leaseToken
       })
       requireValidCoordinatorResult(result)
+      deploymentCancellation.throwIfCancelled(signal, deploymentId)
     }
 
     const updateDeployment = async (values) => {
+      deploymentCancellation.throwIfCancelled(signal, deploymentId)
       const result = await sails.helpers.deploy.updateDeploymentForLease.with({
         deploymentId,
         leaseToken,
         values
       })
       requireValidCoordinatorResult(result)
+      deploymentCancellation.throwIfCancelled(signal, deploymentId)
       return result.deployment
     }
 
@@ -129,8 +143,10 @@ module.exports = {
           deploymentId,
           gitBranch: deployment?.gitBranch,
           gitCommit: deployment?.gitCommit,
-          refreshRepository: true
+          refreshRepository: true,
+          signal
         })
+      deployBuildContextPath = contextPath
 
       // 4. Build the Docker image (use app's dockerfilePath, fall back to project's)
       const dockerfilePath =
@@ -142,7 +158,8 @@ module.exports = {
         contextPath,
         imageName,
         dockerfilePath,
-        deploymentId
+        deploymentId,
+        signal
       })
 
       // 4b. Detect Sails features (sails-content, sails-quest, etc.)
@@ -231,7 +248,8 @@ module.exports = {
         host: appBindHost,
         envVars,
         deploymentId,
-        resourceLimits
+        resourceLimits,
+        signal
       })
 
       // 10. HTTP health check on the new container (Docker DNS, with localhost fallback for local dev)
@@ -241,7 +259,8 @@ module.exports = {
         port: 1337,
         hostPort: deployHostPort,
         path: healthPath,
-        deploymentId
+        deploymentId,
+        signal
       })
 
       // === Health check passed — switch traffic ===
@@ -388,24 +407,37 @@ module.exports = {
           sails.log.debug('Deployment notification failed:', err.message || err)
         })
     } catch (err) {
-      const errorMessage = err.message || String(err)
-      sails.log.error(
-        `Deployment ${deploymentId} failed during ${currentStage}: ${errorMessage}`
-      )
+      const cancelled =
+        deploymentCancellation.isCancellationError(err) || signal?.aborted
+      const failure = cancelled
+        ? deploymentCancellation.cancellationError(signal, deploymentId)
+        : err
+      const errorMessage = failure.message || String(failure)
+      if (cancelled) {
+        sails.log.info(
+          `Deployment ${deploymentId} cancelled during ${currentStage}: ${errorMessage}`
+        )
+      } else {
+        sails.log.error(
+          `Deployment ${deploymentId} failed during ${currentStage}: ${errorMessage}`
+        )
+      }
 
       // Preserve a useful failure line even when the failing command did not
       // produce stream output (for example source or startup failures).
       try {
         await Deployment.appendDeployLog(
           deploymentId,
-          `\nERROR [${currentStage}]: ${errorMessage}\n`
+          cancelled
+            ? `\nCancellation acknowledged during ${currentStage}. Cleaning up the candidate release...\n`
+            : `\nERROR [${currentStage}]: ${errorMessage}\n`
         )
       } catch {
         /* best-effort; the original failure still wins */
       }
 
       // Capture container logs before removing — shows the actual crash reason
-      if (deployContainerName) {
+      if (deployContainerName && !cancelled) {
         try {
           const containerLogs =
             await sails.helpers.docker.getContainerLogs.with({
@@ -457,6 +489,21 @@ module.exports = {
         }
       }
 
+      if (deployBuildContextPath) {
+        try {
+          await sails.helpers.deploy.cleanupBuildContext.with({
+            contextPath: deployBuildContextPath,
+            deploymentId
+          })
+        } catch (cleanupError) {
+          sails.log.verbose(
+            `Could not remove temporary build context ${deployBuildContextPath}: ${
+              cleanupError.message || cleanupError
+            }`
+          )
+        }
+      }
+
       // Mark deployment as failed only while this worker still owns the
       // fenced lease. A stale worker must not overwrite recovery state.
       const current = await Deployment.findOne({ id: deploymentId })
@@ -479,21 +526,23 @@ module.exports = {
       }
 
       // Send failure notification (fire and forget)
-      const failedDeployment = await Deployment.findOne({ id: deploymentId })
-      sails.helpers.notification.sendDeploymentNotification
-        .with({
-          deployment: failedDeployment,
-          project,
-          environment
-        })
-        .catch((notifyErr) => {
-          sails.log.debug(
-            'Deployment notification failed:',
-            notifyErr.message || notifyErr
-          )
-        })
+      if (!cancelled) {
+        const failedDeployment = await Deployment.findOne({ id: deploymentId })
+        sails.helpers.notification.sendDeploymentNotification
+          .with({
+            deployment: failedDeployment,
+            project,
+            environment
+          })
+          .catch((notifyErr) => {
+            sails.log.debug(
+              'Deployment notification failed:',
+              notifyErr.message || notifyErr
+            )
+          })
+      }
 
-      throw err
+      throw failure
     }
   }
 }
