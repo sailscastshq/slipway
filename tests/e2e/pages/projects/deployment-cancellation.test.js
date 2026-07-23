@@ -42,19 +42,21 @@ test(
     await expect(page).toSee('Building')
     await expect(page).toSee('In progress')
     await expect(page).toSee('Cancel')
+    const cancelButtonClasses = await page.raw
+      .locator('[data-test="cancel-deployment"]')
+      .getAttribute('class')
+    expect(cancelButtonClasses).toContain('bg-red-600')
+    expect(cancelButtonClasses).toContain('text-white')
+    expect(cancelButtonClasses).toContain('hover:bg-red-700')
     await page.screenshot('.tmp/deployment-cancellation-active.png', {
       fullPage: true
     })
 
     await page.click('@cancel-deployment')
     await page.raw
-      .getByRole('heading', { name: 'Deployment cancelled' })
+      .getByText('Cancelled', { exact: true })
       .waitFor({ state: 'visible' })
     await expect(page).toSee('Cancelled')
-    await expect(page).toSee('Deployment cancelled')
-    await expect(page).toSee(
-      'Any candidate release was cleaned up before traffic changed.'
-    )
     await page.raw
       .locator('.pointer-events-none.fixed.bottom-4.right-4')
       .getByText('Cancelled', { exact: true })

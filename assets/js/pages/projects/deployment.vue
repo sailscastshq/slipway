@@ -522,7 +522,7 @@ function executeRollback() {
             data-test="cancel-deployment"
             @click="cancelDeployment"
             :disabled="cancelling"
-            class="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+            class="rounded-md bg-red-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {{ cancelling ? 'Cancelling...' : 'Cancel' }}
           </button>
@@ -632,24 +632,14 @@ function executeRollback() {
 
         <!-- Failure summary remains visible even when the pipeline failed before logs started. -->
         <section
-          v-if="deployment.errorMessage"
+          v-if="deployment.errorMessage && deployment.status !== 'cancelled'"
           role="alert"
           aria-labelledby="deployment-error-title"
-          :class="[
-            'mb-6 rounded-lg border p-4',
-            deployment.status === 'cancelled'
-              ? 'border-gray-200 bg-gray-50 dark:border-gray-800 dark:bg-gray-900'
-              : 'border-red-200 bg-red-50 dark:border-red-900/60 dark:bg-red-950/30'
-          ]"
+          class="mb-6 rounded-lg border border-red-200 bg-red-50 p-4 dark:border-red-900/60 dark:bg-red-950/30"
         >
           <div class="flex items-start gap-3">
             <svg
-              :class="[
-                'mt-0.5 h-5 w-5 shrink-0',
-                deployment.status === 'cancelled'
-                  ? 'text-gray-500 dark:text-gray-400'
-                  : 'text-red-600 dark:text-red-400'
-              ]"
+              class="mt-0.5 h-5 w-5 shrink-0 text-red-600 dark:text-red-400"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -665,42 +655,18 @@ function executeRollback() {
             <div class="min-w-0">
               <h2
                 id="deployment-error-title"
-                :class="[
-                  'text-sm font-semibold',
-                  deployment.status === 'cancelled'
-                    ? 'text-gray-900 dark:text-gray-100'
-                    : 'text-red-900 dark:text-red-200'
-                ]"
+                class="text-sm font-semibold text-red-900 dark:text-red-200"
               >
-                {{
-                  deployment.status === 'cancelled'
-                    ? 'Deployment cancelled'
-                    : 'Deployment failed'
-                }}
+                Deployment failed
               </h2>
               <p
-                :class="[
-                  'mt-1 break-words text-sm leading-6',
-                  deployment.status === 'cancelled'
-                    ? 'text-gray-700 dark:text-gray-300'
-                    : 'text-red-800 dark:text-red-300'
-                ]"
+                class="mt-1 break-words text-sm leading-6 text-red-800 dark:text-red-300"
               >
                 {{ deployment.errorMessage }}
               </p>
-              <p
-                :class="[
-                  'mt-2 text-xs',
-                  deployment.status === 'cancelled'
-                    ? 'text-gray-600 dark:text-gray-400'
-                    : 'text-red-700 dark:text-red-400'
-                ]"
-              >
-                {{
-                  deployment.status === 'cancelled'
-                    ? 'Any candidate release was cleaned up before traffic changed.'
-                    : 'Review the stage logs below, correct the problem, and deploy again.'
-                }}
+              <p class="mt-2 text-xs text-red-700 dark:text-red-400">
+                Review the stage logs below, correct the problem, and deploy
+                again.
               </p>
             </div>
           </div>
