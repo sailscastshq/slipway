@@ -83,7 +83,7 @@ function getActionPath(action) {
 }
 
 function getUploadPath() {
-  return getActionPath('images')
+  return `/api/v1/projects/${props.project.slug}${envPath.value}/content/${props.collection}/${props.file}/images`
 }
 
 // Save content

@@ -13,13 +13,7 @@ module.exports = {
 
   exits: {
     success: {
-      statusCode: 202
-    },
-    notFound: {
-      statusCode: 404
-    },
-    forbidden: {
-      statusCode: 403
+      responseType: 'inertiaRedirect'
     },
     badRequest: {
       responseType: 'badRequest'
@@ -31,7 +25,11 @@ module.exports = {
 
     const backup = await Backup.findOne({ id: backupId }).populate('service')
     if (!backup) {
-      throw 'notFound'
+      throw {
+        badRequest: {
+          problems: [{ backupId: 'That backup is no longer available.' }]
+        }
+      }
     }
 
     if (!backup.service) {
@@ -51,7 +49,11 @@ module.exports = {
     }).populate('team')
 
     if (project.team.id !== user.team) {
-      throw 'forbidden'
+      throw {
+        badRequest: {
+          problems: [{ backupId: 'You do not have access to that backup.' }]
+        }
+      }
     }
 
     if (backup.status !== 'completed') {
@@ -92,9 +94,7 @@ module.exports = {
       .then(() => sails.log.info(`Backup ${backup.id} restored successfully`))
       .catch((err) => sails.log.error(`Backup restore failed: ${err.message}`))
 
-    return {
-      message: 'Restore started',
-      backupId: backup.id
-    }
+    sails.inertia.flash('success', 'Restore started.')
+    return `/projects/${project.slug}/environments/${environment.slug}/services/${backup.service.id}`
   }
 }

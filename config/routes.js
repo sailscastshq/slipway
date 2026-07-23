@@ -242,10 +242,6 @@ module.exports.routes = {
     csrf: false
   },
 
-  // Historical logs (web-only, fetched inline from dashboard)
-  'GET /projects/:projectSlug/environments/:environmentSlug/logs/history':
-    'project/get-historical-logs',
-
   // SSE Streams
   'GET /api/v1/deployments/active/stream':
     'api/v1/deploy/stream-active-deployments',
@@ -270,9 +266,10 @@ module.exports.routes = {
     'project/content-update',
   'POST /projects/:slug/environments/:envSlug/content/:collection/:file/update':
     'project/content-update',
-  'POST /projects/:slug/content/:collection/:file/images':
+  // Content editor transport (returns the uploaded image URL immediately)
+  'POST /api/v1/projects/:slug/content/:collection/:file/images':
     'project/content-upload-image',
-  'POST /projects/:slug/environments/:envSlug/content/:collection/:file/images':
+  'POST /api/v1/projects/:slug/environments/:envSlug/content/:collection/:file/images':
     'project/content-upload-image',
   'POST /projects/:slug/content/:collection/:file/delete':
     'project/content-delete',

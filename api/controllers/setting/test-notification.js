@@ -26,15 +26,22 @@ module.exports = {
 
   exits: {
     success: {
-      statusCode: 200
+      responseType: 'redirect'
     },
-    error: {
-      statusCode: 500
+    invalid: {
+      responseType: 'badRequest'
     }
   },
 
   fn: async function (inputs) {
     const { channel } = inputs
+    const fail = (message) => {
+      throw new Error(message)
+    }
+    const succeed = (message) => {
+      sails.inertia.flash('success', message)
+      return '/settings/notifications'
+    }
 
     try {
       if (channel === 'telegram') {
@@ -46,10 +53,7 @@ module.exports = {
           (await sails.helpers.setting.get('telegramChatId', ''))
 
         if (!botToken || !chatId) {
-          return this.res.status(400).json({
-            success: false,
-            message: 'Telegram bot token and chat ID are required'
-          })
+          return fail('Telegram bot token and chat ID are required')
         }
 
         const threadId =
@@ -79,13 +83,12 @@ module.exports = {
 
         const data = await response.json()
         if (!data.ok) {
-          return this.res.status(400).json({
-            success: false,
-            message: data.description || 'Failed to send Telegram message'
-          })
+          return fail(
+            data.description || 'Failed to send Telegram test message'
+          )
         }
 
-        return { success: true, message: 'Test message sent to Telegram' }
+        return succeed('Test message sent to Telegram.')
       }
 
       if (channel === 'discord') {
@@ -94,10 +97,7 @@ module.exports = {
           (await sails.helpers.setting.get('discordWebhookUrl', ''))
 
         if (!webhookUrl) {
-          return this.res.status(400).json({
-            success: false,
-            message: 'Discord webhook URL is required'
-          })
+          return fail('Discord webhook URL is required')
         }
 
         const response = await fetch(webhookUrl, {
@@ -121,13 +121,10 @@ module.exports = {
 
         if (!response.ok) {
           const text = await response.text()
-          return this.res.status(400).json({
-            success: false,
-            message: text || 'Failed to send Discord message'
-          })
+          return fail(text || 'Failed to send Discord test message')
         }
 
-        return { success: true, message: 'Test message sent to Discord' }
+        return succeed('Test message sent to Discord.')
       }
 
       if (channel === 'slack') {
@@ -136,10 +133,7 @@ module.exports = {
           (await sails.helpers.setting.get('slackWebhookUrl', ''))
 
         if (!webhookUrl) {
-          return this.res.status(400).json({
-            success: false,
-            message: 'Slack webhook URL is required'
-          })
+          return fail('Slack webhook URL is required')
         }
 
         const response = await fetch(webhookUrl, {
@@ -152,13 +146,10 @@ module.exports = {
 
         if (!response.ok) {
           const text = await response.text()
-          return this.res.status(400).json({
-            success: false,
-            message: text || 'Failed to send Slack message'
-          })
+          return fail(text || 'Failed to send Slack test message')
         }
 
-        return { success: true, message: 'Test message sent to Slack' }
+        return succeed('Test message sent to Slack.')
       }
 
       if (channel === 'webhook') {
@@ -167,10 +158,7 @@ module.exports = {
           (await sails.helpers.setting.get('webhookUrl', ''))
 
         if (!url) {
-          return this.res.status(400).json({
-            success: false,
-            message: 'Webhook URL is required'
-          })
+          return fail('Webhook URL is required')
         }
 
         const response = await fetch(url, {
@@ -187,13 +175,10 @@ module.exports = {
 
         if (!response.ok) {
           const text = await response.text()
-          return this.res.status(400).json({
-            success: false,
-            message: text || 'Failed to send webhook'
-          })
+          return fail(text || 'Failed to send test webhook')
         }
 
-        return { success: true, message: 'Test webhook sent' }
+        return succeed('Test webhook sent.')
       }
 
       if (channel === 'email') {
@@ -202,10 +187,7 @@ module.exports = {
           (await sails.helpers.setting.get('notificationEmails', ''))
 
         if (!notificationEmails) {
-          return this.res.status(400).json({
-            success: false,
-            message: 'Notification email addresses are required'
-          })
+          return fail('Notification email addresses are required')
         }
 
         // Save SMTP settings first so sails-hook-mail can use them
@@ -249,14 +231,19 @@ module.exports = {
           })
         }
 
-        return { success: true, message: 'Test email sent' }
+        return succeed('Test email sent.')
       }
     } catch (err) {
-      sails.log.error('Test notification failed:', err)
-      return this.res.status(500).json({
-        success: false,
-        message: err.message || 'Failed to send test notification'
-      })
+      sails.log.warn('Test notification failed:', err)
+      throw {
+        invalid: {
+          problems: [
+            {
+              [channel]: err.message || 'Failed to send test notification'
+            }
+          ]
+        }
+      }
     }
   }
 }
