@@ -52,6 +52,39 @@ test(
 )
 
 test(
+  'Content Manager persists Markdown serialized by the visual editor',
+  { world: contentWorld('content-visual-save') },
+  async ({ sails, world, request, expect }) => {
+    const workspace = await prepareContentWorkspace({ sails, world })
+
+    try {
+      const editor = await withCsrfFromPage(
+        request,
+        workspace.editorPath,
+        'genesisUser'
+      )
+      const response = await editor.request.post(workspace.updatePath, {
+        frontmatter: {
+          title: 'A calmer release',
+          description: 'Written visually'
+        },
+        body: '# A calmer release\n\nThis was **formatted** without changing the storage format.\n',
+        deploy: false,
+        appSlug: workspace.app.slug,
+        sourceSha: editor.page.data.props.content.sourceSha
+      })
+
+      expect(response).toHaveStatus(302)
+      expect(fs.readFileSync(workspace.filePath, 'utf8')).toBe(
+        '---\ntitle: A calmer release\ndescription: Written visually\n---\n\n# A calmer release\n\nThis was **formatted** without changing the storage format.\n'
+      )
+    } finally {
+      workspace.restore()
+    }
+  }
+)
+
+test(
   'Content Manager commits and queues one targeted deployment',
   { world: contentWorld('content-save-deploy') },
   async ({ sails, world, request, expect }) => {
