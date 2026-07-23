@@ -31,6 +31,11 @@ module.exports = {
   },
 
   fn: async function ({ slug, envSlug, serviceId }) {
+    const {
+      getPolicy,
+      getUpgradePlan,
+      inspectVersion
+    } = require('../../lib/service-image-policy')
     const user = await User.findOne({ id: this.req.session.userId }).populate(
       'team'
     )
@@ -51,6 +56,36 @@ module.exports = {
     if (!service)
       throw { notFound: `/projects/${slug}/environments/${envSlug}` }
 
+    const policy = getPolicy(service.type)
+    let versionSupport = 'unresolved'
+    try {
+      versionSupport = inspectVersion(service.type, service.version, {
+        useDefault: false
+      }).supported
+        ? 'supported'
+        : 'custom'
+    } catch {
+      /* Legacy mutable records stay visibly unresolved. */
+    }
+
+    const availableUpgrades = (policy?.versions || [])
+      .map((entry) => {
+        try {
+          return getUpgradePlan(service.type, service.version, entry.version)
+        } catch {
+          return null
+        }
+      })
+      .filter(Boolean)
+
+    let backupConfigured = false
+    try {
+      await sails.helpers.backup.getStorageConfig()
+      backupConfigured = true
+    } catch {
+      /* The page shows the storage prerequisite. */
+    }
+
     return {
       page: 'projects/service-settings',
       props: {
@@ -68,9 +103,23 @@ module.exports = {
           id: service.id,
           name: service.name,
           type: service.type,
+          version: service.version,
+          versionSupport,
+          imageReference: service.imageReference,
+          imageMetadata: service.imageMetadata,
+          upgradeState: service.upgradeState,
           status: service.status,
           resourceLimits: service.resourceLimits
-        }
+        },
+        versionPolicy: policy
+          ? {
+              label: policy.label,
+              defaultVersion: policy.defaultVersion,
+              versions: policy.versions.map((entry) => ({ ...entry }))
+            }
+          : null,
+        availableUpgrades,
+        backupConfigured
       }
     }
   }

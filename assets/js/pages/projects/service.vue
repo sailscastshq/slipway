@@ -100,6 +100,11 @@ const statusClasses = computed(() => {
       dot: 'bg-blue-500',
       text: 'text-blue-700 dark:text-blue-400'
     },
+    upgrading: {
+      bg: 'bg-blue-100 dark:bg-blue-900/30',
+      dot: 'bg-blue-500',
+      text: 'text-blue-700 dark:text-blue-400'
+    },
     failed: {
       bg: 'bg-red-100 dark:bg-red-900/30',
       dot: 'bg-red-500',
@@ -114,6 +119,7 @@ const statusLabel = computed(() => {
     running: 'Running',
     stopped: 'Stopped',
     creating: 'Creating',
+    upgrading: 'Upgrading',
     failed: 'Failed'
   }
   return labels[serviceStatus.value] || serviceStatus.value

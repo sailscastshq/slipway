@@ -19,6 +19,16 @@ module.exports = {
     signal: {
       type: 'ref',
       description: 'Optional AbortSignal.'
+    },
+    targetContainerName: {
+      type: 'string',
+      description: 'Optional fresh container to restore into.'
+    },
+    skipSafetySnapshot: {
+      type: 'boolean',
+      defaultsTo: false,
+      description:
+        'Skip a second safety snapshot when restoring a verified upgrade backup into an empty candidate.'
     }
   },
 
@@ -28,7 +38,12 @@ module.exports = {
     }
   },
 
-  fn: async function ({ backupId, signal }) {
+  fn: async function ({
+    backupId,
+    signal,
+    targetContainerName,
+    skipSafetySnapshot
+  }) {
     const backup = await Backup.findOne({ id: backupId })
     if (!backup || !backup.service) {
       throw new Error('Backup or service not found')
@@ -45,7 +60,11 @@ module.exports = {
 
     const storageConfig = await sails.helpers.backup.getStorageConfig()
     const limits = sails.config.custom.databaseOperations
-    const restoreArgs = getRestoreArgs(service)
+    const restoreTarget = {
+      ...service,
+      containerName: targetContainerName || service.containerName
+    }
+    const restoreArgs = getRestoreArgs(restoreTarget)
     const capacityInputs = {
       directory: os.tmpdir(),
       maxBytes: limits.restoreMaxBytes,
@@ -56,7 +75,9 @@ module.exports = {
     const capacity = await sails.helpers.streams.getDiskCapacity.with(
       capacityInputs
     )
-    await createVerifiedSafetySnapshot({ service, signal })
+    if (!skipSafetySnapshot) {
+      await createVerifiedSafetySnapshot({ service, signal })
+    }
 
     const extension = getExtension(service.type)
     const tmpDirectory = await fsPromises.mkdtemp(
@@ -102,7 +123,7 @@ module.exports = {
       })
 
       sails.log.info(
-        `Backup ${backupId} restored successfully to ${service.containerName}`
+        `Backup ${backupId} restored successfully to ${restoreTarget.containerName}`
       )
 
       return { success: true, backupId, serviceName: service.name }

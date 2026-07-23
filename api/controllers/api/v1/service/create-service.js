@@ -30,7 +30,6 @@ module.exports = {
     },
     version: {
       type: 'string',
-      defaultsTo: 'latest',
       description: 'Docker image version/tag'
     }
   },
@@ -51,6 +50,7 @@ module.exports = {
   },
 
   fn: async function ({ projectSlug, environmentSlug, name, type, version }) {
+    const { inspectVersion } = require('../../../../lib/service-image-policy')
     const user = await User.findOne({ id: this.req.session.userId })
 
     const project = await Project.findOne({ slug: projectSlug }).populate(
@@ -92,6 +92,17 @@ module.exports = {
       }
     }
 
+    let versionSelection
+    try {
+      versionSelection = inspectVersion(type, version)
+    } catch (error) {
+      throw {
+        badRequest: {
+          problems: [{ version: error.message }]
+        }
+      }
+    }
+
     // Generate credentials
     const password = await sails.helpers.strings.random('url-friendly')
     const username = `slipway_${name.replace(/-/g, '_')}`
@@ -105,7 +116,7 @@ module.exports = {
     const service = await Service.create({
       name,
       type,
-      version,
+      version: versionSelection.version,
       status: 'creating',
       containerName,
       internalHost,
@@ -117,7 +128,21 @@ module.exports = {
     }).fetch()
 
     // Create the Docker container
-    await sails.helpers.docker.createService(service.id)
+    try {
+      await sails.helpers.docker.createService(service.id)
+    } catch (error) {
+      throw {
+        badRequest: {
+          problems: [
+            {
+              service:
+                error?.message ||
+                'Docker could not create the service container.'
+            }
+          ]
+        }
+      }
+    }
 
     // Get connection URL
     const connectionUrl = await Service.getConnectionUrl(service.id)
@@ -158,6 +183,9 @@ module.exports = {
         name: service.name,
         type: service.type,
         version: service.version,
+        versionSupport: versionSelection.supported ? 'supported' : 'custom',
+        imageReference: (await Service.findOne({ id: service.id }))
+          .imageReference,
         status: 'running',
         connectionUrl,
         internalHost: service.internalHost,

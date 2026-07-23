@@ -13,6 +13,7 @@ module.exports.bootstrap = async function () {
   // Production uses `migrate: safe`; create coordinator tables before any
   // deployment job queries run on an existing installation.
   await sails.helpers.deploy.ensureQueueSchema()
+  await sails.helpers.service.ensureVersionSchema()
 
   // Initialize CLI tokens map for Bearer token authentication
   sails.cliTokens = new Map()
@@ -31,6 +32,10 @@ module.exports.bootstrap = async function () {
 
   const skipInfraBootstrap = sails.config.environment === 'test'
   const isQuestWorker = sails.config.environment === 'console'
+
+  if (!skipInfraBootstrap) {
+    await sails.helpers.service.migrateLegacyVersions()
+  }
 
   // One-time migration: backfill multi-app fields on existing App/Deployment records
   const migrationDone = await sails.helpers.setting.get('multiAppMigrationDone')
