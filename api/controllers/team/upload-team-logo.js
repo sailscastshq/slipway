@@ -23,60 +23,30 @@ module.exports = {
 
   exits: {
     success: {
+      responseType: 'inertiaRedirect',
       description: 'Logo uploaded successfully.'
     },
     badRequest: {
       responseType: 'badRequest'
-    },
-    notConfigured: {
-      statusCode: 400,
-      description: 'File uploads not configured.'
     }
   },
 
-  fn: async function (inputs) {
+  fn: async function () {
     const req = this.req
 
-    // Get S3 config from global env vars
-    let globalEnvVars = {}
+    let storage
     try {
-      const globalJson = await sails.helpers.setting.get('globalEnvVars', '{}')
-      globalEnvVars = JSON.parse(globalJson)
+      storage = await sails.helpers.uploads.getStorageConfig()
     } catch {
-      /* ignore */
-    }
-
-    // Determine S3 config
-    const s3Config = {
-      key:
-        globalEnvVars.R2_ACCESS_KEY ||
-        globalEnvVars.S3_ACCESS_KEY ||
-        globalEnvVars.SPACES_ACCESS_KEY ||
-        sails.config.uploads?.key,
-      secret:
-        globalEnvVars.R2_SECRET_KEY ||
-        globalEnvVars.S3_SECRET_KEY ||
-        globalEnvVars.SPACES_SECRET_KEY ||
-        sails.config.uploads?.secret,
-      bucket:
-        globalEnvVars.R2_BUCKET ||
-        globalEnvVars.S3_BUCKET ||
-        globalEnvVars.SPACES_BUCKET ||
-        sails.config.uploads?.bucket,
-      endpoint:
-        globalEnvVars.R2_ENDPOINT ||
-        globalEnvVars.S3_ENDPOINT ||
-        globalEnvVars.SPACES_ENDPOINT ||
-        sails.config.uploads?.endpoint,
-      region:
-        globalEnvVars.S3_REGION ||
-        globalEnvVars.SPACES_REGION ||
-        sails.config.uploads?.region ||
-        'auto'
-    }
-
-    if (!s3Config.key || !s3Config.secret || !s3Config.bucket) {
-      throw 'notConfigured'
+      throw {
+        badRequest: {
+          problems: [
+            {
+              logo: 'Image uploads are not configured. Add a public upload provider in Settings.'
+            }
+          ]
+        }
+      }
     }
 
     const user = await User.findOne({ id: req.session.userId }).populate('team')
@@ -90,11 +60,11 @@ module.exports = {
       req.file('logo').upload(
         {
           adapter: require('skipper-s3'),
-          key: s3Config.key,
-          secret: s3Config.secret,
-          bucket: s3Config.bucket,
-          endpoint: s3Config.endpoint,
-          region: s3Config.region,
+          key: storage.key,
+          secret: storage.secret,
+          bucket: storage.bucket,
+          endpoint: storage.endpoint,
+          region: storage.region || 'auto',
           dirname,
           saveAs: (file, cb) => {
             const ext = file.filename.split('.').pop() || 'png'
@@ -107,29 +77,44 @@ module.exports = {
           else resolve(files)
         }
       )
+    }).catch((error) => {
+      throw {
+        badRequest: {
+          problems: [
+            {
+              logo:
+                error.code === 'E_EXCEEDS_UPLOAD_LIMIT'
+                  ? 'Image must be smaller than 5MB.'
+                  : error.message || 'The image could not be uploaded.'
+            }
+          ]
+        }
+      }
     })
 
     if (!uploadedFiles || uploadedFiles.length === 0) {
-      throw 'badRequest'
+      throw {
+        badRequest: {
+          problems: [{ logo: 'Choose an image to upload.' }]
+        }
+      }
     }
 
     const uploadedFile = uploadedFiles[0]
 
     // Construct the public URL using the configured public URL base
-    const publicUrl =
-      globalEnvVars.R2_PUBLIC_URL ||
-      globalEnvVars.S3_PUBLIC_URL ||
-      globalEnvVars.SPACES_PUBLIC_URL
     const fileName = uploadedFile.fd.split('/').pop()
     let logoUrl
-    if (publicUrl) {
-      const baseUrl = publicUrl.replace(/\/$/, '')
+    if (storage.publicUrl) {
+      const baseUrl = storage.publicUrl.replace(/\/$/, '')
       logoUrl = `${baseUrl}/${dirname}/${fileName}`
-    } else if (s3Config.endpoint) {
-      const endpointClean = s3Config.endpoint.replace(/\/$/, '')
+    } else if (storage.endpoint) {
+      const endpointClean = storage.endpoint.replace(/\/$/, '')
       logoUrl = `${endpointClean}/${dirname}/${fileName}`
     } else {
-      logoUrl = `https://${s3Config.bucket}.s3.${s3Config.region}.amazonaws.com/${dirname}/${fileName}`
+      logoUrl = `https://${storage.bucket}.s3.${
+        storage.region || 'auto'
+      }.amazonaws.com/${dirname}/${fileName}`
     }
 
     // Update team with new logo URL
@@ -137,6 +122,8 @@ module.exports = {
       logoUrl
     })
 
-    return { logoUrl }
+    sails.inertia.refreshOnce('loggedInUser')
+    sails.inertia.flash('success', 'Team logo updated.')
+    return '/settings/team-profile'
   }
 }

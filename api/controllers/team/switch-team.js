@@ -13,13 +13,10 @@ module.exports = {
 
   exits: {
     success: {
-      statusCode: 200
+      responseType: 'inertiaRedirect'
     },
-    notFound: {
-      statusCode: 404
-    },
-    forbidden: {
-      statusCode: 403
+    invalid: {
+      responseType: 'badRequest'
     }
   },
 
@@ -29,7 +26,11 @@ module.exports = {
     // Check if user is a member of the target team or owns it
     const team = await Team.findOne({ id: teamId })
     if (!team) {
-      throw 'notFound'
+      throw {
+        invalid: {
+          problems: [{ teamId: 'That team is no longer available.' }]
+        }
+      }
     }
 
     // Check if user is owner or member
@@ -37,12 +38,18 @@ module.exports = {
     const isMember = await User.findOne({ id: userId, team: teamId })
 
     if (!isOwner && !isMember) {
-      throw 'forbidden'
+      throw {
+        invalid: {
+          problems: [{ teamId: 'You do not have access to that team.' }]
+        }
+      }
     }
 
     // Update user's current team
     await User.updateOne({ id: userId }).set({ team: teamId })
 
-    return { success: true }
+    sails.inertia.refreshOnce('loggedInUser')
+    sails.inertia.flash('success', `Switched to ${team.name}.`)
+    return '/'
   }
 }

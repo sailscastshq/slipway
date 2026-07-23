@@ -1,7 +1,6 @@
 <script setup>
 import { Link, Head, useForm } from '@inertiajs/vue3'
 import { inject, ref, computed } from 'vue'
-import { useToast } from '@/composables/toast'
 import AppLayout from '@/layouts/AppLayout.vue'
 
 defineOptions({
@@ -18,7 +17,6 @@ const props = defineProps({
   preferences: Object
 })
 
-const toast = useToast()
 const toggleMobileMenu = inject('toggleMobileMenu')
 const toggleSidebar = inject('toggleSidebar')
 const sidebarCollapsed = inject('sidebarCollapsed')
@@ -57,55 +55,47 @@ const form = useForm({
 })
 
 const testing = ref(null)
-const testResult = ref(null)
+const testForm = useForm({
+  channel: ''
+})
 
 function save() {
   form.patch('/settings/notifications', { preserveScroll: true })
 }
 
-async function testChannel(channel) {
+function testChannel(channel) {
   testing.value = channel
-  testResult.value = null
+  testForm.clearErrors()
+  testForm.channel = channel
+  const payload = { channel }
 
-  try {
-    // Send form values so test works even before saving
-    const payload = { channel }
-    if (channel === 'telegram') {
-      payload.telegramBotToken = form.telegramBotToken
-      payload.telegramChatId = form.telegramChatId
-      payload.telegramThreadId = form.telegramThreadId
-    } else if (channel === 'discord') {
-      payload.discordWebhookUrl = form.discordWebhookUrl
-    } else if (channel === 'slack') {
-      payload.slackWebhookUrl = form.slackWebhookUrl
-    } else if (channel === 'webhook') {
-      payload.webhookUrl = form.webhookUrl
-    } else if (channel === 'email') {
-      payload.smtpHost = form.smtpHost
-      payload.smtpPort = form.smtpPort
-      payload.smtpUser = form.smtpUser
-      payload.smtpPassword = form.smtpPassword
-      payload.smtpFrom = form.smtpFrom
-      payload.notificationEmails = form.notificationEmails
-    }
-
-    const response = await fetch('/settings/notifications/test', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    })
-    const data = await response.json()
-    if (data.success) {
-      toast({ message: data.message, type: 'success' })
-      testResult.value = null
-    } else {
-      testResult.value = { channel, success: false, message: data.message }
-    }
-  } catch (err) {
-    testResult.value = { channel, success: false, message: err.message }
-  } finally {
-    testing.value = null
+  if (channel === 'telegram') {
+    payload.telegramBotToken = form.telegramBotToken
+    payload.telegramChatId = form.telegramChatId
+    payload.telegramThreadId = form.telegramThreadId
+  } else if (channel === 'discord') {
+    payload.discordWebhookUrl = form.discordWebhookUrl
+  } else if (channel === 'slack') {
+    payload.slackWebhookUrl = form.slackWebhookUrl
+  } else if (channel === 'webhook') {
+    payload.webhookUrl = form.webhookUrl
+  } else if (channel === 'email') {
+    payload.notificationEmails = form.notificationEmails
+    payload.smtpHost = form.smtpHost
+    payload.smtpPort = form.smtpPort
+    payload.smtpUser = form.smtpUser
+    payload.smtpPassword = form.smtpPassword
+    payload.smtpFrom = form.smtpFrom
   }
+
+  testForm
+    .transform(() => payload)
+    .post('/settings/notifications/test', {
+      preserveScroll: true,
+      onFinish: () => {
+        testing.value = null
+      }
+    })
 }
 
 const revealToken = ref(false)
@@ -520,10 +510,10 @@ const categoryIcons = {
                       }}
                     </button>
                     <p
-                      v-if="testResult?.channel === 'discord'"
+                      v-if="testForm.errors.discord"
                       class="mt-2 text-sm text-red-600 dark:text-red-400"
                     >
-                      {{ testResult.message }}
+                      {{ testForm.errors.discord }}
                     </p>
                   </div>
                 </div>
@@ -601,10 +591,10 @@ const categoryIcons = {
                       }}
                     </button>
                     <p
-                      v-if="testResult?.channel === 'slack'"
+                      v-if="testForm.errors.slack"
                       class="mt-2 text-sm text-red-600 dark:text-red-400"
                     >
-                      {{ testResult.message }}
+                      {{ testForm.errors.slack }}
                     </p>
                   </div>
                 </div>
@@ -769,10 +759,10 @@ const categoryIcons = {
                       }}
                     </button>
                     <p
-                      v-if="testResult?.channel === 'telegram'"
+                      v-if="testForm.errors.telegram"
                       class="mt-2 text-sm text-red-600 dark:text-red-400"
                     >
-                      {{ testResult.message }}
+                      {{ testForm.errors.telegram }}
                     </p>
                   </div>
                 </div>
@@ -950,10 +940,10 @@ const categoryIcons = {
                       }}
                     </button>
                     <p
-                      v-if="testResult?.channel === 'email'"
+                      v-if="testForm.errors.email"
                       class="mt-2 text-sm text-red-600 dark:text-red-400"
                     >
-                      {{ testResult.message }}
+                      {{ testForm.errors.email }}
                     </p>
                   </div>
                 </div>
@@ -1037,10 +1027,10 @@ const categoryIcons = {
                       }}
                     </button>
                     <p
-                      v-if="testResult?.channel === 'webhook'"
+                      v-if="testForm.errors.webhook"
                       class="mt-2 text-sm text-red-600 dark:text-red-400"
                     >
-                      {{ testResult.message }}
+                      {{ testForm.errors.webhook }}
                     </p>
                   </div>
                 </div>

@@ -94,20 +94,20 @@ const userTeams = computed(() => {
   return teams
 })
 
-async function switchTeam(teamId) {
+function switchTeam(teamId) {
   teamDropdownOpen.value = false
-  try {
-    const res = await fetch('/switch-team', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ teamId })
-    })
-    if (res.ok) {
-      window.location.reload()
+  router.post(
+    '/switch-team',
+    { teamId },
+    {
+      onError: (errors) => {
+        toast({
+          message: errors.teamId || 'Slipway could not switch teams.',
+          type: 'error'
+        })
+      }
     }
-  } catch (e) {
-    console.error('Failed to switch team:', e)
-  }
+  )
 }
 
 function createNewTeam() {
@@ -754,6 +754,7 @@ onUnmounted(() => {
       <div class="flex items-center justify-between px-3 py-4">
         <div class="relative min-w-0 flex-1">
           <button
+            data-test="desktop-team-selector"
             @click.stop="teamDropdownOpen = !teamDropdownOpen"
             class="flex w-full min-w-0 items-center space-x-2 rounded-md px-2 py-1.5 text-sm text-gray-700 hover:bg-gray-200 dark:text-gray-200 dark:hover:bg-gray-800"
           >
@@ -770,6 +771,7 @@ onUnmounted(() => {
               {{ loggedInUser.team?.name?.charAt(0)?.toUpperCase() || 'T' }}
             </span>
             <span
+              data-test="desktop-team-name"
               class="min-w-0 flex-1 truncate text-left font-medium"
               :title="loggedInUser.team?.name || 'Team'"
               >{{ loggedInUser.team?.name || 'Team' }}</span

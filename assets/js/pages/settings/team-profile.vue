@@ -1,8 +1,7 @@
 <script setup>
-import { Link, Head, useForm, router } from '@inertiajs/vue3'
+import { Link, Head, useForm } from '@inertiajs/vue3'
 import { inject, ref, computed } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
-import { useToast } from '@/composables/toast'
 import SlippyLoader from '@/components/SlippyLoader.vue'
 
 defineOptions({
@@ -17,15 +16,22 @@ const props = defineProps({
 const toggleMobileMenu = inject('toggleMobileMenu')
 const toggleSidebar = inject('toggleSidebar')
 const sidebarCollapsed = inject('sidebarCollapsed')
-const toast = useToast()
 
 const form = useForm({
   name: props.team.name
 })
 
-const uploading = ref(false)
-const uploadError = ref('')
+const logoForm = useForm({
+  logo: null
+})
+const removeLogoForm = useForm({})
 const logoPreview = ref(props.team.logoUrl)
+const uploading = computed(
+  () => logoForm.processing || removeLogoForm.processing
+)
+const uploadError = computed(
+  () => logoForm.errors.logo || removeLogoForm.errors.logo
+)
 
 function save() {
   form.patch('/settings/team-profile', {
@@ -33,75 +39,52 @@ function save() {
   })
 }
 
-async function handleLogoUpload(event) {
+function handleLogoUpload(event) {
   const file = event.target.files?.[0]
   if (!file) return
 
-  // Validate file type
+  logoForm.clearErrors()
+  removeLogoForm.clearErrors()
+
   if (!file.type.startsWith('image/')) {
-    uploadError.value = 'Please select an image file'
+    logoForm.setError('logo', 'Please select an image file')
     return
   }
 
-  // Validate file size (5MB max)
   if (file.size > 5 * 1024 * 1024) {
-    uploadError.value = 'Image must be smaller than 5MB'
+    logoForm.setError('logo', 'Image must be smaller than 5MB')
     return
   }
 
-  uploadError.value = ''
-  uploading.value = true
-
-  // Preview immediately
   const reader = new FileReader()
   reader.onload = (e) => {
     logoPreview.value = e.target.result
   }
   reader.readAsDataURL(file)
 
-  // Upload
-  const formData = new FormData()
-  formData.append('logo', file)
-
-  try {
-    const res = await fetch('/settings/team-profile/logo', {
-      method: 'POST',
-      body: formData
-    })
-
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({}))
-      throw new Error(data.message || 'Upload failed')
+  logoForm.logo = file
+  logoForm.post('/settings/team-profile/logo', {
+    forceFormData: true,
+    preserveScroll: true,
+    onError: () => {
+      logoPreview.value = props.team.logoUrl
+    },
+    onFinish: () => {
+      logoForm.logo = null
+      event.target.value = ''
     }
-
-    const data = await res.json()
-    logoPreview.value = data.logoUrl
-    router.reload({ only: ['team'] })
-    toast({ message: 'Team logo updated', type: 'success' })
-  } catch (err) {
-    uploadError.value = err.message || 'Failed to upload logo'
-    logoPreview.value = props.team.logoUrl
-    toast({ message: err.message || 'Failed to upload logo', type: 'error' })
-  } finally {
-    uploading.value = false
-  }
+  })
 }
 
-async function removeLogo() {
-  uploading.value = true
-  try {
-    await fetch('/settings/team-profile/logo', {
-      method: 'DELETE'
-    })
-    logoPreview.value = null
-    router.reload({ only: ['team'] })
-    toast({ message: 'Team logo removed', type: 'success' })
-  } catch (err) {
-    uploadError.value = 'Failed to remove logo'
-    toast({ message: 'Failed to remove logo', type: 'error' })
-  } finally {
-    uploading.value = false
-  }
+function removeLogo() {
+  logoForm.clearErrors()
+  removeLogoForm.clearErrors()
+  removeLogoForm.delete('/settings/team-profile/logo', {
+    preserveScroll: true,
+    onSuccess: () => {
+      logoPreview.value = null
+    }
+  })
 }
 
 const initials = computed(() => {

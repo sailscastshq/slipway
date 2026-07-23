@@ -5,6 +5,7 @@ module.exports = {
 
   exits: {
     success: {
+      responseType: 'inertiaRedirect',
       description: 'Logo removed.'
     }
   },
@@ -15,9 +16,11 @@ module.exports = {
     )
 
     await Team.updateOne({ id: user.team.id }).set({
-      logoUrl: null
+      logoUrl: ''
     })
 
-    return { success: true }
+    sails.inertia.refreshOnce('loggedInUser')
+    sails.inertia.flash('success', 'Team logo removed.')
+    return '/settings/team-profile'
   }
 }
