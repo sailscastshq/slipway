@@ -233,6 +233,8 @@ async function cancelDeployment() {
     )
 
     if (res.ok) {
+      disconnectDeploymentStream()
+      sseStatus.value = 'cancelled'
       router.reload()
     } else {
       const data = await res.json()
@@ -517,9 +519,10 @@ function executeRollback() {
           <!-- Cancel button (for in-progress deployments) -->
           <button
             v-if="isInProgress"
+            data-test="cancel-deployment"
             @click="cancelDeployment"
             :disabled="cancelling"
-            class="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+            class="rounded-md bg-red-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {{ cancelling ? 'Cancelling...' : 'Cancel' }}
           </button>
@@ -629,7 +632,7 @@ function executeRollback() {
 
         <!-- Failure summary remains visible even when the pipeline failed before logs started. -->
         <section
-          v-if="deployment.errorMessage"
+          v-if="deployment.errorMessage && deployment.status !== 'cancelled'"
           role="alert"
           aria-labelledby="deployment-error-title"
           class="mb-6 rounded-lg border border-red-200 bg-red-50 p-4 dark:border-red-900/60 dark:bg-red-950/30"

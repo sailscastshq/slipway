@@ -1,7 +1,5 @@
 const crypto = require('node:crypto')
-const fs = require('node:fs')
 const os = require('node:os')
-const path = require('node:path')
 
 const RECOVERY_LEASE_TTL = 30 * 1000
 const ACTIVE_STATUSES = ['pending', 'building', 'pushing', 'deploying']
@@ -187,7 +185,12 @@ async function recoverLease(lease) {
   if (job.kind === 'deploy') {
     await removeImage(job.imageName || deployment.imageName)
   }
-  cleanupTemporaryBuildContext(job.buildContextPath, deployment.id)
+  if (job.buildContextPath) {
+    await sails.helpers.deploy.cleanupBuildContext.with({
+      contextPath: job.buildContextPath,
+      deploymentId: deployment.id
+    })
+  }
 
   const wasCancelled = deployment.status === 'cancelled'
   const errorMessage = `Slipway restarted during ${humanizeStage(
@@ -355,20 +358,6 @@ async function markOtherDeploymentsStopped(deployment, app) {
   await Deployment.update(criteria).set({ status: 'stopped' })
 }
 
-function cleanupTemporaryBuildContext(contextPath, deploymentId) {
-  if (!contextPath) return
-  const ownedRoot = path.join(
-    os.tmpdir(),
-    'slipway',
-    'deployments',
-    String(deploymentId)
-  )
-  const resolved = path.resolve(contextPath)
-  if (resolved !== ownedRoot && !resolved.startsWith(`${ownedRoot}${path.sep}`))
-    return
-  fs.rmSync(resolved, { recursive: true, force: true })
-}
-
 function humanizeStage(stage) {
   return String(stage || 'an unknown deployment stage').replace(/_/g, ' ')
 }
@@ -376,6 +365,5 @@ function humanizeStage(stage) {
 module.exports._private = {
   claimForRecovery,
   createRecoveryLease,
-  recoverLease,
-  cleanupTemporaryBuildContext
+  recoverLease
 }

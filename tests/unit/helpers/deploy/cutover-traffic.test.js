@@ -448,6 +448,123 @@ test(
 )
 
 test(
+  'cancellation before cutover removes the candidate release and preserves the live app',
+  { world: cutoverWorld('cancel-before-cutover') },
+  async ({ sails, world, expect }) => {
+    const setup = await prepareCutover({ sails, world })
+    const originals = {
+      ensureNetwork: sails.helpers.docker.ensureNetwork,
+      ensureBuildContext: sails.helpers.deploy.ensureBuildContext,
+      buildImage: sails.helpers.docker.buildImage,
+      detectFeatures: sails.helpers.sails.detectFeatures,
+      allocatePort: sails.helpers.docker.allocatePort,
+      runContainer: sails.helpers.docker.runContainer,
+      healthCheck: sails.helpers.docker.healthCheck,
+      cutoverTraffic: sails.helpers.deploy.cutoverTraffic,
+      releasePort: sails.helpers.docker.releasePort,
+      stopContainer: sails.helpers.docker.stopContainer,
+      removeImage: sails.helpers.docker.removeImage
+    }
+    const controller = new AbortController()
+    const cancellation = new Error('Cancelled by Builder')
+    cancellation.code = 'DEPLOYMENT_CANCELLED'
+    const sequence = []
+    let candidateName
+    let candidateImage
+
+    sails.helpers.docker.ensureNetwork = machineStub(async () => {})
+    sails.helpers.deploy.ensureBuildContext = machineStub(async () => ({
+      contextPath: '/tmp/slipway-cancel-before-cutover'
+    }))
+    sails.helpers.docker.buildImage = machineStub(async ({ imageName }) => {
+      candidateImage = imageName
+      sequence.push('image-built')
+    })
+    sails.helpers.sails.detectFeatures = machineStub(async () => ({}))
+    sails.helpers.docker.allocatePort = machineStub(async () => 1405)
+    sails.helpers.docker.runContainer = machineStub(async (inputs) => {
+      candidateName = inputs.containerName
+      sequence.push(`started:${candidateName}`)
+      return {
+        containerId: 'cancelled-candidate-id',
+        containerName: candidateName,
+        hostPort: inputs.hostPort,
+        portBinding: { diagnostic: 'verified' }
+      }
+    })
+    sails.helpers.docker.healthCheck = machineStub(async ({ signal }) => {
+      sequence.push('health-check-started')
+      await sails.models.deployment.updateOne({ id: setup.deployment.id }).set({
+        status: 'cancelled',
+        errorMessage: cancellation.message,
+        finishedAt: Date.now()
+      })
+      controller.abort(cancellation)
+      throw signal.reason
+    })
+    sails.helpers.deploy.cutoverTraffic = machineStub(async () => {
+      sequence.push('cutover')
+    })
+    sails.helpers.docker.stopContainer = machineStub(
+      async ({ containerName }) => {
+        sequence.push(`stopped:${containerName}`)
+      }
+    )
+    sails.helpers.docker.releasePort = machineStub(async () => {
+      sequence.push('port-released')
+      return { released: 1 }
+    })
+    sails.helpers.docker.removeImage = machineStub(async ({ imageName }) => {
+      sequence.push(`removed:${imageName}`)
+    })
+
+    try {
+      const error = await captureError(
+        sails.helpers.deploy.executePipeline.with({
+          deploymentId: setup.deployment.id,
+          project: world.current.projects.deploymentTarget,
+          environment: setup.environment,
+          app: setup.app,
+          signal: controller.signal
+        })
+      )
+      const [app, deployment] = await Promise.all([
+        sails.models.app.findOne({ id: setup.app.id }),
+        sails.models.deployment.findOne({ id: setup.deployment.id })
+      ])
+
+      expect(error.code).toBe('DEPLOYMENT_CANCELLED')
+      expect(deployment.status).toBe('cancelled')
+      expect(app.containerName).toBe('slipway-web-previous')
+      expect(app.hostPort).toBe(1401)
+      expect(sequence).toEqual([
+        'image-built',
+        `started:${candidateName}`,
+        'health-check-started',
+        `stopped:${candidateName}`,
+        'port-released',
+        `removed:${candidateImage}`
+      ])
+      expect(deployment.deployLogs).toContain(
+        'Cancellation acknowledged during health check'
+      )
+    } finally {
+      sails.helpers.docker.ensureNetwork = originals.ensureNetwork
+      sails.helpers.deploy.ensureBuildContext = originals.ensureBuildContext
+      sails.helpers.docker.buildImage = originals.buildImage
+      sails.helpers.sails.detectFeatures = originals.detectFeatures
+      sails.helpers.docker.allocatePort = originals.allocatePort
+      sails.helpers.docker.runContainer = originals.runContainer
+      sails.helpers.docker.healthCheck = originals.healthCheck
+      sails.helpers.deploy.cutoverTraffic = originals.cutoverTraffic
+      sails.helpers.docker.releasePort = originals.releasePort
+      sails.helpers.docker.stopContainer = originals.stopContainer
+      sails.helpers.docker.removeImage = originals.removeImage
+    }
+  }
+)
+
+test(
   'rollback uses a deployment-scoped candidate and retires the old container only after cutover',
   { world: cutoverWorld('transactional-rollback') },
   async ({ sails, world, expect }) => {

@@ -173,6 +173,156 @@ test(
   }
 )
 
+test(
+  'queued deployment cancellation is idempotent and recorded once',
+  { transport: 'http', world: deploymentWorld('cancel-queued-deployment') },
+  async ({ sails, world, request, expect }) => {
+    const current = world.current
+    const queued = await sails.helpers.deploy.queueDeployment.with({
+      values: {
+        triggerType: 'manual',
+        environment: current.environments.production.id
+      },
+      app: current.apps.web,
+      dispatch: false
+    })
+    const cancelPath = `/api/v1/deployments/${queued.deployment.id}/cancel`
+
+    const first = await request.as('genesisUser').post(cancelPath, {})
+    const second = await request.as('genesisUser').post(cancelPath, {})
+    const [deployment, job, leaseCount] = await Promise.all([
+      sails.models.deployment.findOne({ id: queued.deployment.id }),
+      sails.models.deploymentjob.findOne({ id: queued.job.id }),
+      sails.models.deploymentlease.count({
+        deployment: queued.deployment.id
+      })
+    ])
+
+    expect(first).toHaveStatus(200)
+    expect(first).toHaveJsonPath('status', 'cancelled')
+    expect(second).toHaveStatus(200)
+    expect(second).toHaveJsonPath('status', 'cancelled')
+    expect(deployment.status).toBe('cancelled')
+    expect(job.stage).toBe('cancelled')
+    expect(leaseCount).toBe(0)
+    expect(deployment.buildLogs.match(/Deployment cancelled by/g)?.length).toBe(
+      1
+    )
+  }
+)
+
+test(
+  'active deployment cancellation aborts its worker and preserves the cancelled terminal state',
+  { transport: 'http', world: deploymentWorld('cancel-active-deployment') },
+  async ({ sails, world, request, expect }) => {
+    const current = world.current
+    const originalExecutePipeline = sails.helpers.deploy.executePipeline
+    let workerStarted = false
+    let workerAborted = false
+
+    sails.helpers.deploy.executePipeline = {
+      with: async ({ deploymentId, leaseToken, signal }) => {
+        const stage = await sails.helpers.deploy.recordDeploymentStage.with({
+          deploymentId,
+          leaseToken,
+          stage: 'image_build'
+        })
+        expect(stage.valid).toBe(true)
+        const building =
+          await sails.helpers.deploy.updateDeploymentForLease.with({
+            deploymentId,
+            leaseToken,
+            values: { status: 'building' }
+          })
+        expect(building.valid).toBe(true)
+        workerStarted = true
+
+        await new Promise((resolve, reject) => {
+          const abort = () => {
+            workerAborted = true
+            reject(signal.reason)
+          }
+          signal.addEventListener('abort', abort, { once: true })
+          if (signal.aborted) abort()
+        })
+      }
+    }
+
+    try {
+      const queued = await sails.helpers.deploy.queueDeployment.with({
+        values: {
+          triggerType: 'manual',
+          environment: current.environments.production.id
+        },
+        app: current.apps.web,
+        dispatch: false
+      })
+      const drain = sails.helpers.deploy.runQueuedDeployments
+        .with({
+          targetKey: queued.job.targetKey
+        })
+        .then((result) => result)
+      await waitFor(() => workerStarted)
+
+      const response = await request
+        .as('genesisUser')
+        .post(`/api/v1/deployments/${queued.deployment.id}/cancel`, {})
+      await drain
+
+      const [deployment, job, leaseCount] = await Promise.all([
+        sails.models.deployment.findOne({ id: queued.deployment.id }),
+        sails.models.deploymentjob.findOne({ id: queued.job.id }),
+        sails.models.deploymentlease.count({
+          deployment: queued.deployment.id
+        })
+      ])
+
+      expect(response).toHaveStatus(200)
+      expect(workerAborted).toBe(true)
+      expect(deployment.status).toBe('cancelled')
+      expect(job.stage).toBe('cancelled')
+      expect(leaseCount).toBe(0)
+      expect(deployment.errorMessage).toContain('Cancelled by')
+    } finally {
+      sails.helpers.deploy.executePipeline = originalExecutePipeline
+    }
+  }
+)
+
+test(
+  'deployment cancellation is refused after traffic cutover begins',
+  { transport: 'http', world: deploymentWorld('cancel-after-cutover') },
+  async ({ sails, world, request, expect }) => {
+    const current = world.current
+    const queued = await sails.helpers.deploy.queueDeployment.with({
+      values: {
+        triggerType: 'manual',
+        environment: current.environments.production.id
+      },
+      app: current.apps.web,
+      dispatch: false
+    })
+    await Promise.all([
+      sails.models.deployment
+        .updateOne({ id: queued.deployment.id })
+        .set({ status: 'deploying' }),
+      sails.models.deploymentjob
+        .updateOne({ id: queued.job.id })
+        .set({ stage: 'traffic_cutover' })
+    ])
+
+    const response = await request
+      .as('genesisUser')
+      .post(`/api/v1/deployments/${queued.deployment.id}/cancel`, {})
+    const deployment = await sails.models.deployment.findOne({
+      id: queued.deployment.id
+    })
+
+    expect(response).toHaveStatus(400)
+    expect(deployment.status).toBe('deploying')
+  }
+)
+
 async function waitFor(predicate, timeout = 2000) {
   const deadline = Date.now() + timeout
   while (!(await predicate())) {

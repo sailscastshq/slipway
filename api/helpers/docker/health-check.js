@@ -1,4 +1,5 @@
 const http = require('http')
+const deploymentCancellation = require('../../lib/deployment-cancellation')
 
 module.exports = {
   friendlyName: 'Health check',
@@ -41,6 +42,10 @@ module.exports = {
     deploymentId: {
       type: 'string',
       description: 'Deployment ID for logging progress'
+    },
+    signal: {
+      type: 'ref',
+      description: 'Abort signal for an operator-requested cancellation.'
     }
   },
 
@@ -60,8 +65,10 @@ module.exports = {
     path,
     timeout,
     interval,
-    deploymentId
+    deploymentId,
+    signal
   }) {
+    deploymentCancellation.throwIfCancelled(signal, deploymentId)
     const healthPath = normalizePath(path)
     const startTime = Date.now()
     let lastError = null
@@ -78,6 +85,7 @@ module.exports = {
     }
 
     while (Date.now() - startTime < timeout) {
+      deploymentCancellation.throwIfCancelled(signal, deploymentId)
       attempts++
 
       const checkHost = usingFallback ? 'localhost' : containerName
@@ -85,7 +93,13 @@ module.exports = {
       const endpoint = `http://${checkHost}:${checkPort}${healthPath}`
 
       try {
-        const statusCode = await httpGet(checkHost, checkPort, healthPath)
+        const statusCode = await httpGet(
+          checkHost,
+          checkPort,
+          healthPath,
+          signal,
+          deploymentId
+        )
 
         if (statusCode >= 200 && statusCode < 300) {
           sails.log.info(
@@ -102,6 +116,9 @@ module.exports = {
 
         lastError = `${endpoint} returned HTTP ${statusCode}`
       } catch (err) {
+        if (signal?.aborted) {
+          throw deploymentCancellation.cancellationError(signal, deploymentId)
+        }
         // If Docker DNS can't resolve the container name, fall back to localhost:hostPort
         // EAI_AGAIN is a transient DNS failure that also indicates Docker DNS is unavailable
         if (
@@ -127,7 +144,7 @@ module.exports = {
       sails.log.verbose(`Health check attempt ${attempts} failed: ${lastError}`)
 
       // Wait before next attempt
-      await new Promise((resolve) => setTimeout(resolve, interval))
+      await wait(interval, signal, deploymentId)
     }
 
     const elapsed = Math.round((Date.now() - startTime) / 1000)
@@ -146,19 +163,57 @@ module.exports = {
  * Make an HTTP GET request and return the status code.
  * Resolves with the status code, rejects on connection errors.
  */
-function httpGet(hostname, port, path) {
+function httpGet(hostname, port, path, signal, deploymentId) {
   return new Promise((resolve, reject) => {
+    let settled = false
     const req = http.get({ hostname, port, path, timeout: 5000 }, (res) => {
       // Consume response data to free up memory
       res.resume()
-      resolve(res.statusCode)
+      settle(resolve, res.statusCode)
     })
 
-    req.on('error', reject)
+    const abort = () => {
+      req.destroy()
+      settle(
+        reject,
+        deploymentCancellation.cancellationError(signal, deploymentId)
+      )
+    }
+
+    const settle = (done, value) => {
+      if (settled) return
+      settled = true
+      signal?.removeEventListener('abort', abort)
+      done(value)
+    }
+
+    signal?.addEventListener('abort', abort, { once: true })
+    if (signal?.aborted) abort()
+
+    req.on('error', (error) => settle(reject, error))
     req.on('timeout', () => {
       req.destroy()
-      reject(new Error('Request timed out'))
+      settle(reject, new Error('Request timed out'))
     })
+  })
+}
+
+function wait(duration, signal, deploymentId) {
+  return new Promise((resolve, reject) => {
+    let timeoutId
+    const abort = () => {
+      clearTimeout(timeoutId)
+      signal?.removeEventListener('abort', abort)
+      reject(deploymentCancellation.cancellationError(signal, deploymentId))
+    }
+
+    signal?.addEventListener('abort', abort, { once: true })
+    if (signal?.aborted) return abort()
+
+    timeoutId = setTimeout(() => {
+      signal?.removeEventListener('abort', abort)
+      resolve()
+    }, duration)
   })
 }
 

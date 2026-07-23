@@ -1,8 +1,10 @@
 const crypto = require('node:crypto')
 const os = require('node:os')
+const deploymentCancellation = require('../../lib/deployment-cancellation')
 
 const LEASE_TTL = 30 * 1000
 const HEARTBEAT_INTERVAL = 10 * 1000
+const CANCELLATION_POLL_INTERVAL = 250
 
 module.exports = {
   friendlyName: 'Run queued deployments',
@@ -107,6 +109,8 @@ async function claimNextJob(targetKey) {
 }
 
 async function runClaimedJob({ job, deployment, lease }) {
+  const cancellation = deploymentCancellation.register(deployment.id)
+  let cancellationCheckInFlight = false
   const heartbeat = setInterval(async () => {
     try {
       const now = Date.now()
@@ -128,6 +132,30 @@ async function runClaimedJob({ job, deployment, lease }) {
   }, HEARTBEAT_INTERVAL)
 
   if (typeof heartbeat.unref === 'function') heartbeat.unref()
+
+  const cancellationMonitor = setInterval(async () => {
+    if (cancellationCheckInFlight || cancellation.signal.aborted) return
+    cancellationCheckInFlight = true
+    try {
+      const current = await Deployment.findOne({ id: deployment.id })
+      if (current?.status === 'cancelled') {
+        cancellation.abort(
+          current.errorMessage || `Deployment ${deployment.id} was cancelled.`
+        )
+      }
+    } catch (error) {
+      sails.log.verbose(
+        `Could not check cancellation for deployment ${deployment.id}: ${
+          error.message || error
+        }`
+      )
+    } finally {
+      cancellationCheckInFlight = false
+    }
+  }, CANCELLATION_POLL_INTERVAL)
+  if (typeof cancellationMonitor.unref === 'function') {
+    cancellationMonitor.unref()
+  }
 
   try {
     const environment = await Environment.findOne({
@@ -165,7 +193,8 @@ async function runClaimedJob({ job, deployment, lease }) {
         targetDeployment,
         environment,
         app,
-        leaseToken: lease.token
+        leaseToken: lease.token,
+        signal: cancellation.signal
       })
     } else {
       await sails.helpers.deploy.executePipeline.with({
@@ -173,14 +202,22 @@ async function runClaimedJob({ job, deployment, lease }) {
         project: environment.project,
         environment,
         app,
-        leaseToken: lease.token
+        leaseToken: lease.token,
+        signal: cancellation.signal
       })
     }
   } catch (error) {
     const errorMessage = error.message || String(error)
-    sails.log.error(
-      `Deployment worker ${deployment.id} stopped: ${errorMessage}`
-    )
+    const cancelled = deploymentCancellation.isCancellationError(error)
+    if (cancelled) {
+      sails.log.info(
+        `Deployment worker ${deployment.id} stopped: ${errorMessage}`
+      )
+    } else {
+      sails.log.error(
+        `Deployment worker ${deployment.id} stopped: ${errorMessage}`
+      )
+    }
 
     // Pipeline helpers persist their own failures, but coordinator preflight
     // can also fail (for example, a deleted environment or rollback source).
@@ -213,24 +250,29 @@ async function runClaimedJob({ job, deployment, lease }) {
     }
   } finally {
     clearInterval(heartbeat)
+    clearInterval(cancellationMonitor)
 
-    const ownedLease = await DeploymentLease.findOne({
-      id: lease.id,
-      token: lease.token
-    })
+    try {
+      const ownedLease = await DeploymentLease.findOne({
+        id: lease.id,
+        token: lease.token
+      })
 
-    if (!ownedLease) return
+      if (ownedLease) {
+        const current = await Deployment.findOne({ id: deployment.id })
+        const stage =
+          current?.status === 'running'
+            ? 'complete'
+            : current?.status === 'cancelled'
+            ? 'cancelled'
+            : 'failed'
 
-    const current = await Deployment.findOne({ id: deployment.id })
-    const stage =
-      current?.status === 'running'
-        ? 'complete'
-        : current?.status === 'cancelled'
-        ? 'cancelled'
-        : 'failed'
-
-    await DeploymentJob.updateOne({ id: job.id }).set({ stage })
-    await DeploymentLease.destroyOne({ id: lease.id, token: lease.token })
+        await DeploymentJob.updateOne({ id: job.id }).set({ stage })
+        await DeploymentLease.destroyOne({ id: lease.id, token: lease.token })
+      }
+    } finally {
+      cancellation.release()
+    }
   }
 }
 
