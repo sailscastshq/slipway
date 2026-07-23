@@ -1,5 +1,5 @@
 <script setup>
-import { computed, nextTick, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { EditorContent, useEditor } from '@tiptap/vue-3'
 import { BubbleMenu } from '@tiptap/vue-3/menus'
 import StarterKit from '@tiptap/starter-kit'
@@ -49,6 +49,8 @@ const linkError = ref('')
 const imageAlt = ref('')
 const uploading = ref(false)
 const uploadMessage = ref('')
+const uploadKind = ref('status')
+let uploadMessageTimeout
 
 const sourcePlaceholder =
   'Write Markdown here. Visual mode becomes available when every construct can be preserved safely.'
@@ -181,9 +183,11 @@ const editor = useEditor({
   }
 })
 
-const issueLabels = computed(() =>
-  compatibility.value.issues.map(({ label }) => label).join(', ')
-)
+const issueLabels = computed(() => listIssueLabels(compatibility.value.issues))
+
+function listIssueLabels(issues) {
+  return issues.map(({ label }) => label).join(', ')
+}
 
 function loadMarkdown(markdown, currentEditor = editor.value) {
   sourceValue.value = markdown
@@ -192,11 +196,9 @@ function loadMarkdown(markdown, currentEditor = editor.value) {
   if (!inspection.supported) {
     setCompatibility({
       ...inspection,
-      message: `Visual mode is unavailable because this file contains ${inspection.issues
-        .map(({ label }) => label)
-        .join(
-          ', '
-        )}. Edit the Markdown source to preserve those constructs exactly.`
+      message: `Visual mode is unavailable because this file contains ${listIssueLabels(
+        inspection.issues
+      )}. Edit the Markdown source to preserve those constructs exactly.`
     })
     setModeValue('source')
     return false
@@ -205,11 +207,23 @@ function loadMarkdown(markdown, currentEditor = editor.value) {
   if (!currentEditor) return false
 
   syncing.value = true
-  currentEditor.commands.setContent(markdown, {
-    contentType: 'markdown',
-    emitUpdate: false
-  })
-  syncing.value = false
+  try {
+    currentEditor.commands.setContent(markdown, {
+      contentType: 'markdown',
+      emitUpdate: false
+    })
+  } catch {
+    setCompatibility({
+      supported: false,
+      issues: [{ code: 'parse', label: 'syntax Visual mode cannot read' }],
+      message:
+        'Visual mode could not read this Markdown safely. Keep editing the source so the file remains unchanged.'
+    })
+    setModeValue('source')
+    return false
+  } finally {
+    syncing.value = false
+  }
 
   const serialized = preserveMarkdownEnvelope(
     currentEditor.getMarkdown(),
@@ -269,9 +283,9 @@ function updateSource(event) {
       ? { supported: true, issues: [], message: '' }
       : {
           ...inspection,
-          message: `Visual mode is unavailable because this file contains ${inspection.issues
-            .map(({ label }) => label)
-            .join(', ')}.`
+          message: `Visual mode is unavailable because this file contains ${listIssueLabels(
+            inspection.issues
+          )}.`
         }
   )
 }
@@ -333,6 +347,18 @@ function updateImageAlt() {
     .run()
 }
 
+function showUploadMessage(message, { kind = 'status', timeout = 0 } = {}) {
+  clearTimeout(uploadMessageTimeout)
+  uploadMessage.value = message
+  uploadKind.value = kind
+
+  if (timeout) {
+    uploadMessageTimeout = setTimeout(() => {
+      uploadMessage.value = ''
+    }, timeout)
+  }
+}
+
 async function uploadImages(files, position, currentEditor) {
   const images = Array.from(files || []).filter((file) =>
     file.type.startsWith('image/')
@@ -340,8 +366,10 @@ async function uploadImages(files, position, currentEditor) {
   if (images.length === 0) return
 
   if (!props.uploadsConfigured || !props.uploadUrl) {
-    uploadMessage.value =
-      'Image uploads are not configured. Paste a public image URL or configure uploads in Settings.'
+    showUploadMessage(
+      'Image uploads are not configured. Paste a public image URL or configure uploads in Settings.',
+      { kind: 'alert', timeout: 5000 }
+    )
     return
   }
 
@@ -350,7 +378,7 @@ async function uploadImages(files, position, currentEditor) {
   }
 
   uploading.value = true
-  uploadMessage.value = 'Uploading image…'
+  showUploadMessage('Uploading image…')
 
   try {
     for (const file of images) {
@@ -380,14 +408,23 @@ async function uploadImages(files, position, currentEditor) {
         .run()
     }
 
-    uploadMessage.value =
-      images.length === 1 ? 'Image added.' : `${images.length} images added.`
+    showUploadMessage(
+      images.length === 1 ? 'Image added.' : `${images.length} images added.`,
+      { timeout: 3000 }
+    )
   } catch (error) {
-    uploadMessage.value = error.message || 'The image could not be uploaded.'
+    showUploadMessage(error.message || 'The image could not be uploaded.', {
+      kind: 'alert',
+      timeout: 5000
+    })
   } finally {
     uploading.value = false
   }
 }
+
+onBeforeUnmount(() => {
+  clearTimeout(uploadMessageTimeout)
+})
 
 watch(
   () => props.modelValue,
@@ -589,6 +626,7 @@ defineExpose({
             placeholder="https://"
             class="h-8 w-48 rounded-md border-0 bg-white/10 px-2 text-sm text-white outline-none placeholder:text-gray-400 focus:ring-1 focus:ring-white/50 dark:bg-gray-900/5 dark:text-gray-900 dark:placeholder:text-gray-500 dark:focus:ring-gray-900/30"
             :aria-invalid="Boolean(linkError)"
+            :aria-describedby="linkError ? 'content-link-error' : undefined"
           />
           <button
             type="submit"
@@ -604,7 +642,14 @@ defineExpose({
           >
             Remove
           </button>
-          <p v-if="linkError" class="sr-only" role="alert">{{ linkError }}</p>
+          <p
+            v-if="linkError"
+            id="content-link-error"
+            class="sr-only"
+            role="alert"
+          >
+            {{ linkError }}
+          </p>
         </form>
       </div>
     </BubbleMenu>
@@ -641,8 +686,8 @@ defineExpose({
     <p
       v-if="uploadMessage"
       class="pointer-events-none fixed bottom-5 left-1/2 z-20 -translate-x-1/2 rounded-full bg-gray-900 px-3 py-1.5 text-xs font-medium text-white shadow-lg dark:bg-white dark:text-gray-900"
-      :role="uploading ? 'status' : 'alert'"
-      aria-live="polite"
+      :role="uploadKind"
+      :aria-live="uploadKind === 'alert' ? 'assertive' : 'polite'"
     >
       {{ uploadMessage }}
     </p>

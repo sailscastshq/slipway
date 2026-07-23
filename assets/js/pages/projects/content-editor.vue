@@ -29,6 +29,7 @@ const sidebarCollapsed = inject('sidebarCollapsed')
 // State
 const deleteModalOpen = ref(false)
 const showSaveMenu = ref(false)
+const saveMenuRoot = ref(null)
 
 // Content (initialized from props)
 const fileType = ref(props.content?.fileType || 'markdown')
@@ -173,7 +174,11 @@ function updateEditorCompatibility(nextCompatibility) {
 
 // Click outside handler
 function handleClickOutside(e) {
-  if (showSaveMenu.value && !e.target.closest('.relative.flex')) {
+  if (
+    showSaveMenu.value &&
+    saveMenuRoot.value &&
+    !saveMenuRoot.value.contains(e.target)
+  ) {
     showSaveMenu.value = false
   }
 }
@@ -207,6 +212,8 @@ function handleKeydown(e) {
     >
       <div class="flex min-w-0 items-center gap-2">
         <button
+          type="button"
+          aria-label="Open navigation"
           @click="toggleMobileMenu"
           class="shrink-0 rounded-md p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white md:hidden"
         >
@@ -215,6 +222,7 @@ function handleKeydown(e) {
             viewBox="-0.5 -0.5 16 16"
             fill="none"
             stroke="currentColor"
+            aria-hidden="true"
           >
             <path
               d="M12.777 14.285H2.223c-.833 0-1.508-.675-1.508-1.508V2.223c0-.833.675-1.508 1.508-1.508h10.554c.833 0 1.508.675 1.508 1.508v10.554c0 .833-.675 1.508-1.508 1.508Z"
@@ -238,6 +246,8 @@ function handleKeydown(e) {
         </button>
         <!-- Desktop sidebar toggle -->
         <button
+          type="button"
+          :aria-label="sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'"
           @click="toggleSidebar"
           class="hidden text-gray-400 dark:text-gray-500 md:block"
         >
@@ -247,6 +257,7 @@ function handleKeydown(e) {
             viewBox="-0.5 -0.5 16 16"
             fill="none"
             stroke="currentColor"
+            aria-hidden="true"
           >
             <path
               d="M12.777 14.285H2.223c-.833 0-1.508-.675-1.508-1.508V2.223c0-.833.675-1.508 1.508-1.508h10.554c.833 0 1.508.675 1.508 1.508v10.554c0 .833-.675 1.508-1.508 1.508Z"
@@ -273,6 +284,7 @@ function handleKeydown(e) {
             viewBox="-0.5 -0.5 16 16"
             fill="none"
             stroke="currentColor"
+            aria-hidden="true"
           >
             <path
               d="M12.777 14.285H2.223c-.833 0-1.508-.675-1.508-1.508V2.223c0-.833.675-1.508 1.508-1.508h10.554c.833 0 1.508.675 1.508 1.508v10.554c0 .833-.675 1.508-1.508 1.508Z"
@@ -295,9 +307,13 @@ function handleKeydown(e) {
           </svg>
         </button>
         <!-- Mobile: condensed breadcrumb -->
-        <nav class="flex min-w-0 items-center gap-1.5 text-sm sm:hidden">
+        <nav
+          aria-label="Breadcrumb"
+          class="flex min-w-0 items-center gap-1.5 text-sm sm:hidden"
+        >
           <Link
             :href="getContentManagerPath()"
+            aria-label="Back to content manager"
             class="shrink-0 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
           >
             <svg
@@ -305,6 +321,7 @@ function handleKeydown(e) {
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
+              aria-hidden="true"
             >
               <path
                 stroke-linecap="round"
@@ -320,7 +337,10 @@ function handleKeydown(e) {
         </nav>
 
         <!-- Desktop: full breadcrumb -->
-        <nav class="hidden items-center gap-2 text-sm sm:flex">
+        <nav
+          aria-label="Breadcrumb"
+          class="hidden items-center gap-2 text-sm sm:flex"
+        >
           <Link
             href="/"
             class="text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
@@ -367,17 +387,21 @@ function handleKeydown(e) {
         <span
           v-if="hasChanges"
           class="h-2 w-2 rounded-full bg-amber-500 sm:hidden"
-        ></span>
+        >
+          <span class="sr-only">Unsaved changes</span>
+        </span>
 
         <!-- Markdown mode toggle -->
         <div
           v-if="fileType === 'markdown'"
           class="flex rounded-lg bg-gray-100 p-0.5 dark:bg-gray-800"
+          role="group"
           aria-label="Editor mode"
         >
           <button
             data-test="content-visual-mode"
             type="button"
+            :aria-pressed="editorMode === 'visual'"
             :disabled="!editorCompatibility.supported"
             @click="setEditorMode('visual')"
             :class="[
@@ -392,6 +416,7 @@ function handleKeydown(e) {
           <button
             data-test="content-source-mode"
             type="button"
+            :aria-pressed="editorMode === 'source'"
             @click="setEditorMode('source')"
             :class="[
               'rounded-md px-2.5 py-1 text-xs font-medium transition-colors',
@@ -407,6 +432,8 @@ function handleKeydown(e) {
         <!-- Delete (hidden on mobile) -->
         <Tooltip text="Delete">
           <button
+            type="button"
+            aria-label="Delete content"
             @click="openDeleteModal"
             class="hidden rounded-md p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400 sm:block"
           >
@@ -415,6 +442,7 @@ function handleKeydown(e) {
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
+              aria-hidden="true"
             >
               <path
                 stroke-linecap="round"
@@ -427,8 +455,9 @@ function handleKeydown(e) {
         </Tooltip>
 
         <!-- Split Save Button -->
-        <div class="relative flex">
+        <div ref="saveMenuRoot" class="relative flex">
           <button
+            type="button"
             @click="saveContent(false)"
             :disabled="saveForm.processing || !hasChanges"
             class="rounded-l-md bg-gray-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
@@ -443,6 +472,10 @@ function handleKeydown(e) {
           </button>
           <button
             data-test="content-save-menu-toggle"
+            type="button"
+            aria-label="Open save options"
+            :aria-expanded="showSaveMenu"
+            aria-controls="content-save-menu"
             @click="showSaveMenu = !showSaveMenu"
             :disabled="saveForm.processing"
             class="rounded-r-md border-l border-gray-700 bg-gray-900 px-2 py-1.5 text-white hover:bg-gray-800 disabled:opacity-50 dark:border-gray-300 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
@@ -453,6 +486,7 @@ function handleKeydown(e) {
               viewBox="0 0 24 24"
               stroke="currentColor"
               stroke-width="2"
+              aria-hidden="true"
             >
               <path
                 stroke-linecap="round"
@@ -464,10 +498,12 @@ function handleKeydown(e) {
           <!-- Dropdown -->
           <div
             v-if="showSaveMenu"
+            id="content-save-menu"
             data-test="content-save-menu"
             class="absolute right-0 top-full z-10 mt-1 w-64 rounded-md border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-800"
           >
             <button
+              type="button"
               @click="saveOnlyAndCloseMenu"
               :disabled="!hasChanges"
               class="flex w-full items-center justify-between px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 disabled:opacity-50 dark:text-gray-200 dark:hover:bg-gray-700"
@@ -476,6 +512,7 @@ function handleKeydown(e) {
               <span class="text-xs text-gray-400">⌘S</span>
             </button>
             <button
+              type="button"
               @click="saveAndDeployAndCloseMenu"
               class="flex w-full items-center justify-between px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700"
             >
