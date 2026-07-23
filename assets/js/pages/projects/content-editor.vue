@@ -1,8 +1,9 @@
 <script setup>
 import { Link, Head, useForm } from '@inertiajs/vue3'
-import { inject, ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import { computed, inject, onMounted, onUnmounted, ref, watch } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
 import ConfirmModal from '@/components/ConfirmModal.vue'
+import MarkdownEditor from '@/components/content/MarkdownEditor.vue'
 import Tooltip from '@/components/Tooltip.vue'
 
 defineOptions({
@@ -17,7 +18,8 @@ const props = defineProps({
   contentFeature: Object,
   content: Object,
   contentError: String,
-  app: Object
+  app: Object,
+  uploadsConfigured: Boolean
 })
 
 const toggleMobileMenu = inject('toggleMobileMenu')
@@ -27,6 +29,7 @@ const sidebarCollapsed = inject('sidebarCollapsed')
 // State
 const deleteModalOpen = ref(false)
 const showSaveMenu = ref(false)
+const saveMenuRoot = ref(null)
 
 // Content (initialized from props)
 const fileType = ref(props.content?.fileType || 'markdown')
@@ -37,8 +40,13 @@ const updatedAt = ref(props.content?.updatedAt || '')
 const hasChanges = ref(false)
 
 // Editor mode
-const editorMode = ref('split') // 'edit', 'preview', 'split'
-const editingRaw = ref(false)
+const editorMode = ref(fileType.value === 'markdown' ? 'visual' : 'source')
+const markdownEditor = ref(null)
+const editorCompatibility = ref({
+  supported: true,
+  issues: [],
+  message: ''
+})
 
 // Forms
 const saveForm = useForm({
@@ -53,33 +61,6 @@ const saveForm = useForm({
 const deleteForm = useForm({
   appSlug: props.app.slug,
   sourceSha: props.content?.sourceSha || ''
-})
-
-// Preview
-const previewHtml = computed(() => {
-  // Simple markdown to HTML conversion for preview
-  // In production, use a proper markdown parser
-  let html = body.value
-    // Headers
-    .replace(/^### (.*$)/gim, '<h3>$1</h3>')
-    .replace(/^## (.*$)/gim, '<h2>$1</h2>')
-    .replace(/^# (.*$)/gim, '<h1>$1</h1>')
-    // Bold and italic
-    .replace(/\*\*\*(.*?)\*\*\*/gim, '<strong><em>$1</em></strong>')
-    .replace(/\*\*(.*?)\*\*/gim, '<strong>$1</strong>')
-    .replace(/\*(.*?)\*/gim, '<em>$1</em>')
-    // Links
-    .replace(/\[([^\]]+)\]\(([^)]+)\)/gim, '<a href="$2">$1</a>')
-    // Code blocks
-    .replace(/```([^`]+)```/gim, '<pre><code>$1</code></pre>')
-    // Inline code
-    .replace(/`([^`]+)`/gim, '<code>$1</code>')
-    // Lists
-    .replace(/^\s*-\s+(.*$)/gim, '<li>$1</li>')
-    // Paragraphs
-    .replace(/\n\n/gim, '</p><p>')
-
-  return `<p>${html}</p>`
 })
 
 // Path helpers
@@ -101,11 +82,15 @@ function getActionPath(action) {
   return `/projects/${props.project.slug}${envPath.value}/content/${props.collection}/${props.file}/${action}`
 }
 
+function getUploadPath() {
+  return getActionPath('images')
+}
+
 // Save content
 function saveContent(triggerDeploy = false) {
   if (saveForm.processing) return
 
-  if (editingRaw.value) {
+  if (fileType.value === 'json') {
     saveForm.raw = raw.value
     saveForm.frontmatter = {}
     saveForm.body = ''
@@ -167,40 +152,33 @@ function deleteContent() {
 
 // Track changes
 watch(
-  [frontmatter, body],
+  [frontmatter, body, raw],
   () => {
     hasChanges.value = true
   },
   { deep: true }
 )
 
-// Update raw when frontmatter/body change (for raw mode toggle)
-watch(
-  [frontmatter, body],
-  () => {
-    if (!editingRaw.value) {
-      let content = '---\n'
-      for (const [key, value] of Object.entries(frontmatter.value)) {
-        if (
-          typeof value === 'string' &&
-          (value.includes(':') || value.includes('#'))
-        ) {
-          content += `${key}: '${value}'\n`
-        } else {
-          content += `${key}: ${value}\n`
-        }
-      }
-      content += '---\n\n'
-      content += body.value
-      raw.value = content
-    }
-  },
-  { deep: true }
-)
+function setEditorMode(nextMode) {
+  if (fileType.value !== 'markdown') return
+  markdownEditor.value?.setMode(nextMode)
+}
+
+function updateEditorMode(nextMode) {
+  editorMode.value = nextMode
+}
+
+function updateEditorCompatibility(nextCompatibility) {
+  editorCompatibility.value = nextCompatibility
+}
 
 // Click outside handler
 function handleClickOutside(e) {
-  if (showSaveMenu.value && !e.target.closest('.relative.flex')) {
+  if (
+    showSaveMenu.value &&
+    saveMenuRoot.value &&
+    !saveMenuRoot.value.contains(e.target)
+  ) {
     showSaveMenu.value = false
   }
 }
@@ -234,6 +212,8 @@ function handleKeydown(e) {
     >
       <div class="flex min-w-0 items-center gap-2">
         <button
+          type="button"
+          aria-label="Open navigation"
           @click="toggleMobileMenu"
           class="shrink-0 rounded-md p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white md:hidden"
         >
@@ -242,6 +222,7 @@ function handleKeydown(e) {
             viewBox="-0.5 -0.5 16 16"
             fill="none"
             stroke="currentColor"
+            aria-hidden="true"
           >
             <path
               d="M12.777 14.285H2.223c-.833 0-1.508-.675-1.508-1.508V2.223c0-.833.675-1.508 1.508-1.508h10.554c.833 0 1.508.675 1.508 1.508v10.554c0 .833-.675 1.508-1.508 1.508Z"
@@ -265,6 +246,8 @@ function handleKeydown(e) {
         </button>
         <!-- Desktop sidebar toggle -->
         <button
+          type="button"
+          :aria-label="sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'"
           @click="toggleSidebar"
           class="hidden text-gray-400 dark:text-gray-500 md:block"
         >
@@ -274,6 +257,7 @@ function handleKeydown(e) {
             viewBox="-0.5 -0.5 16 16"
             fill="none"
             stroke="currentColor"
+            aria-hidden="true"
           >
             <path
               d="M12.777 14.285H2.223c-.833 0-1.508-.675-1.508-1.508V2.223c0-.833.675-1.508 1.508-1.508h10.554c.833 0 1.508.675 1.508 1.508v10.554c0 .833-.675 1.508-1.508 1.508Z"
@@ -300,6 +284,7 @@ function handleKeydown(e) {
             viewBox="-0.5 -0.5 16 16"
             fill="none"
             stroke="currentColor"
+            aria-hidden="true"
           >
             <path
               d="M12.777 14.285H2.223c-.833 0-1.508-.675-1.508-1.508V2.223c0-.833.675-1.508 1.508-1.508h10.554c.833 0 1.508.675 1.508 1.508v10.554c0 .833-.675 1.508-1.508 1.508Z"
@@ -322,9 +307,13 @@ function handleKeydown(e) {
           </svg>
         </button>
         <!-- Mobile: condensed breadcrumb -->
-        <nav class="flex min-w-0 items-center gap-1.5 text-sm sm:hidden">
+        <nav
+          aria-label="Breadcrumb"
+          class="flex min-w-0 items-center gap-1.5 text-sm sm:hidden"
+        >
           <Link
             :href="getContentManagerPath()"
+            aria-label="Back to content manager"
             class="shrink-0 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
           >
             <svg
@@ -332,6 +321,7 @@ function handleKeydown(e) {
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
+              aria-hidden="true"
             >
               <path
                 stroke-linecap="round"
@@ -347,7 +337,10 @@ function handleKeydown(e) {
         </nav>
 
         <!-- Desktop: full breadcrumb -->
-        <nav class="hidden items-center gap-2 text-sm sm:flex">
+        <nav
+          aria-label="Breadcrumb"
+          class="hidden items-center gap-2 text-sm sm:flex"
+        >
           <Link
             href="/"
             class="text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
@@ -394,77 +387,53 @@ function handleKeydown(e) {
         <span
           v-if="hasChanges"
           class="h-2 w-2 rounded-full bg-amber-500 sm:hidden"
-        ></span>
+        >
+          <span class="sr-only">Unsaved changes</span>
+        </span>
 
-        <!-- View mode toggle -->
+        <!-- Markdown mode toggle -->
         <div
-          class="hidden rounded-lg border border-gray-200 p-0.5 dark:border-gray-700 sm:flex"
+          v-if="fileType === 'markdown'"
+          class="flex rounded-lg bg-gray-100 p-0.5 dark:bg-gray-800"
+          role="group"
+          aria-label="Editor mode"
         >
           <button
-            @click="editorMode = 'edit'"
+            data-test="content-visual-mode"
+            type="button"
+            :aria-pressed="editorMode === 'visual'"
+            :disabled="!editorCompatibility.supported"
+            @click="setEditorMode('visual')"
             :class="[
-              'rounded-md px-2 py-1 text-xs font-medium transition-colors',
-              editorMode === 'edit'
-                ? 'bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-white'
-                : 'text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white'
+              'rounded-md px-2.5 py-1 text-xs font-medium transition-colors',
+              editorMode === 'visual'
+                ? 'bg-white text-gray-900 shadow-sm dark:bg-gray-700 dark:text-white'
+                : 'text-gray-500 hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-40 dark:text-gray-400 dark:hover:text-white'
             ]"
           >
-            Edit
+            Visual
           </button>
           <button
-            @click="editorMode = 'split'"
+            data-test="content-source-mode"
+            type="button"
+            :aria-pressed="editorMode === 'source'"
+            @click="setEditorMode('source')"
             :class="[
-              'rounded-md px-2 py-1 text-xs font-medium transition-colors',
-              editorMode === 'split'
-                ? 'bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-white'
+              'rounded-md px-2.5 py-1 text-xs font-medium transition-colors',
+              editorMode === 'source'
+                ? 'bg-white text-gray-900 shadow-sm dark:bg-gray-700 dark:text-white'
                 : 'text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white'
             ]"
           >
-            Split
-          </button>
-          <button
-            @click="editorMode = 'preview'"
-            :class="[
-              'rounded-md px-2 py-1 text-xs font-medium transition-colors',
-              editorMode === 'preview'
-                ? 'bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-white'
-                : 'text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white'
-            ]"
-          >
-            Preview
+            Markdown
           </button>
         </div>
-
-        <!-- Raw mode toggle -->
-        <Tooltip text="Raw mode">
-          <button
-            @click="editingRaw = !editingRaw"
-            :class="[
-              'rounded-md p-1.5 transition-colors',
-              editingRaw
-                ? 'bg-gray-200 text-gray-900 dark:bg-gray-700 dark:text-white'
-                : 'text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-800 dark:hover:text-gray-200'
-            ]"
-          >
-            <svg
-              class="h-4 w-4"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"
-              />
-            </svg>
-          </button>
-        </Tooltip>
 
         <!-- Delete (hidden on mobile) -->
         <Tooltip text="Delete">
           <button
+            type="button"
+            aria-label="Delete content"
             @click="openDeleteModal"
             class="hidden rounded-md p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400 sm:block"
           >
@@ -473,6 +442,7 @@ function handleKeydown(e) {
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
+              aria-hidden="true"
             >
               <path
                 stroke-linecap="round"
@@ -485,8 +455,9 @@ function handleKeydown(e) {
         </Tooltip>
 
         <!-- Split Save Button -->
-        <div class="relative flex">
+        <div ref="saveMenuRoot" class="relative flex">
           <button
+            type="button"
             @click="saveContent(false)"
             :disabled="saveForm.processing || !hasChanges"
             class="rounded-l-md bg-gray-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
@@ -501,6 +472,10 @@ function handleKeydown(e) {
           </button>
           <button
             data-test="content-save-menu-toggle"
+            type="button"
+            aria-label="Open save options"
+            :aria-expanded="showSaveMenu"
+            aria-controls="content-save-menu"
             @click="showSaveMenu = !showSaveMenu"
             :disabled="saveForm.processing"
             class="rounded-r-md border-l border-gray-700 bg-gray-900 px-2 py-1.5 text-white hover:bg-gray-800 disabled:opacity-50 dark:border-gray-300 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
@@ -511,6 +486,7 @@ function handleKeydown(e) {
               viewBox="0 0 24 24"
               stroke="currentColor"
               stroke-width="2"
+              aria-hidden="true"
             >
               <path
                 stroke-linecap="round"
@@ -522,10 +498,12 @@ function handleKeydown(e) {
           <!-- Dropdown -->
           <div
             v-if="showSaveMenu"
+            id="content-save-menu"
             data-test="content-save-menu"
             class="absolute right-0 top-full z-10 mt-1 w-64 rounded-md border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-800"
           >
             <button
+              type="button"
               @click="saveOnlyAndCloseMenu"
               :disabled="!hasChanges"
               class="flex w-full items-center justify-between px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 disabled:opacity-50 dark:text-gray-200 dark:hover:bg-gray-700"
@@ -534,6 +512,7 @@ function handleKeydown(e) {
               <span class="text-xs text-gray-400">⌘S</span>
             </button>
             <button
+              type="button"
               @click="saveAndDeployAndCloseMenu"
               class="flex w-full items-center justify-between px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700"
             >
@@ -576,81 +555,86 @@ function handleKeydown(e) {
         </div>
       </div>
 
-      <!-- Raw mode editor -->
-      <template v-else-if="editingRaw">
-        <div class="flex flex-1 flex-col overflow-hidden">
-          <textarea
-            v-model="raw"
-            class="flex-1 resize-none bg-gray-50 p-4 font-mono text-sm text-gray-900 focus:outline-none dark:bg-gray-950 dark:text-white"
-            spellcheck="false"
-            @input="hasChanges = true"
-          />
-        </div>
-      </template>
+      <!-- JSON source editor -->
+      <div
+        v-else-if="fileType === 'json'"
+        class="flex flex-1 flex-col overflow-hidden bg-gray-50 dark:bg-gray-950"
+      >
+        <label class="sr-only" for="content-json-source">JSON source</label>
+        <textarea
+          id="content-json-source"
+          v-model="raw"
+          data-test="content-json-source"
+          class="flex-1 resize-none bg-transparent p-5 font-mono text-sm leading-7 text-gray-900 outline-none dark:text-white"
+          spellcheck="false"
+        ></textarea>
+      </div>
 
-      <!-- Split/Edit/Preview mode -->
-      <template v-else>
-        <!-- Editor pane -->
-        <div
-          v-show="editorMode !== 'preview'"
-          :class="[
-            'flex flex-col overflow-hidden border-r border-gray-200 dark:border-gray-800',
-            editorMode === 'split' ? 'w-1/2' : 'flex-1'
-          ]"
+      <!-- Markdown document workspace -->
+      <main
+        v-else
+        class="flex-1 overflow-y-auto bg-white dark:bg-gray-950"
+        aria-label="Markdown document"
+      >
+        <details
+          v-if="Object.keys(frontmatter).length > 0"
+          class="group mx-auto w-full max-w-3xl px-5 pt-6 sm:px-8"
         >
-          <!-- Frontmatter -->
-          <div class="space-y-1 px-4 py-3">
-            <input
-              v-for="(value, key) in frontmatter"
-              :key="key"
-              v-model="frontmatter[key]"
-              type="text"
-              :placeholder="key"
-              class="block w-full border-0 border-b border-dashed border-gray-200 bg-transparent px-0 py-1 text-sm text-gray-900 placeholder-gray-300 focus:border-gray-400 focus:outline-none focus:ring-0 dark:border-gray-700 dark:text-white dark:placeholder-gray-600 dark:focus:border-gray-500"
-            />
-          </div>
-
-          <!-- Body editor -->
-          <textarea
-            v-model="body"
-            data-test="content-body"
-            class="flex-1 resize-none bg-white p-4 font-mono text-sm text-gray-900 focus:outline-none dark:bg-gray-950 dark:text-white"
-            placeholder="Write your markdown content here..."
-            spellcheck="false"
-          />
-        </div>
-
-        <!-- Preview pane -->
-        <div
-          v-show="editorMode !== 'edit'"
-          :class="[
-            'overflow-y-auto bg-white p-6 dark:bg-gray-950',
-            editorMode === 'split' ? 'w-1/2' : 'flex-1'
-          ]"
-        >
-          <div class="mx-auto max-w-2xl">
-            <!-- Frontmatter display -->
-            <div
-              v-if="Object.keys(frontmatter).length > 0"
-              class="mb-8 space-y-1 border-b border-dashed border-gray-200 pb-6 dark:border-gray-700"
+          <summary
+            class="flex list-none items-center gap-2 text-xs font-medium text-gray-500 marker:hidden hover:text-gray-900 dark:text-gray-500 dark:hover:text-gray-200"
+          >
+            <svg
+              class="h-3.5 w-3.5 transition-transform group-open:rotate-90"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              aria-hidden="true"
             >
-              <p
-                v-for="(value, key) in frontmatter"
-                :key="key"
-                class="text-sm text-gray-900 dark:text-white"
-              >
-                {{ value }}
-              </p>
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="1.75"
+                d="m9 18 6-6-6-6"
+              />
+            </svg>
+            Metadata
+            <span class="font-normal text-gray-400 dark:text-gray-600">
+              {{ Object.keys(frontmatter).length }}
+              {{ Object.keys(frontmatter).length === 1 ? 'field' : 'fields' }}
+            </span>
+          </summary>
+          <dl
+            class="mt-4 grid gap-x-6 gap-y-4 rounded-lg bg-gray-50 px-4 py-4 dark:bg-gray-900/60 sm:grid-cols-2"
+          >
+            <div v-for="(_value, key) in frontmatter" :key="key">
+              <dt>
+                <label
+                  :for="`content-metadata-${key}`"
+                  class="text-xs font-medium text-gray-500 dark:text-gray-400"
+                  >{{ key }}</label
+                >
+              </dt>
+              <dd class="mt-1">
+                <input
+                  :id="`content-metadata-${key}`"
+                  v-model="frontmatter[key]"
+                  type="text"
+                  class="focus:border-brand dark:focus:border-brand-400 w-full border-0 border-b border-gray-200 bg-transparent px-0 py-1.5 text-sm text-gray-900 outline-none transition-colors dark:border-gray-700 dark:text-white"
+                />
+              </dd>
             </div>
+          </dl>
+        </details>
 
-            <!-- Body preview -->
-            <article
-              v-html="previewHtml"
-              class="prose prose-headings:font-bold prose-headings:text-gray-900 dark:prose-headings:text-white prose-p:text-gray-700 dark:prose-p:text-gray-300 prose-strong:text-gray-900 dark:prose-strong:text-white prose-a:font-semibold prose-a:text-gray-900 dark:prose-a:text-white prose-a:no-underline hover:prose-a:underline prose-code:rounded-md prose-code:bg-gray-100 dark:prose-code:bg-gray-800 prose-code:text-gray-800 dark:prose-code:text-gray-200 prose-code:px-1.5 prose-code:py-0.5 prose-code:font-medium prose-li:text-gray-700 dark:prose-li:text-gray-300 prose-ul:text-gray-700 dark:prose-ul:text-gray-300 prose-ol:text-gray-700 dark:prose-ol:text-gray-300 max-w-none text-gray-700 dark:text-gray-300"
-            ></article>
-          </div>
-        </div>
-      </template>
+        <MarkdownEditor
+          ref="markdownEditor"
+          v-model="body"
+          :uploads-configured="uploadsConfigured"
+          :upload-url="getUploadPath()"
+          @mode-change="updateEditorMode"
+          @compatibility-change="updateEditorCompatibility"
+        />
+      </main>
     </div>
 
     <!-- Footer -->

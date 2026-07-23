@@ -84,6 +84,13 @@ module.exports = {
         notFound: `/projects/${slug}/environments/${envSlug}`
       }))
     const selectedApp = resolved.app
+    let uploadsConfigured = true
+
+    try {
+      await sails.helpers.uploads.getStorageConfig()
+    } catch {
+      uploadsConfigured = false
+    }
 
     // Load the content file
     let content = null
@@ -185,6 +192,7 @@ module.exports = {
         contentFeature,
         content,
         contentError,
+        uploadsConfigured,
         app: {
           id: selectedApp.id,
           name: selectedApp.name,
@@ -217,7 +225,7 @@ function parseFrontmatter(content) {
   }
 
   const frontmatterStr = match[1]
-  const body = match[2]
+  const body = match[2].replace(/^\r?\n/, '')
 
   // Simple YAML parsing (key: value pairs)
   const frontmatter = {}

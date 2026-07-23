@@ -270,6 +270,10 @@ module.exports.routes = {
     'project/content-update',
   'POST /projects/:slug/environments/:envSlug/content/:collection/:file/update':
     'project/content-update',
+  'POST /projects/:slug/content/:collection/:file/images':
+    'project/content-upload-image',
+  'POST /projects/:slug/environments/:envSlug/content/:collection/:file/images':
+    'project/content-upload-image',
   'POST /projects/:slug/content/:collection/:file/delete':
     'project/content-delete',
   'POST /projects/:slug/environments/:envSlug/content/:collection/:file/delete':
