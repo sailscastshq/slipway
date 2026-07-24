@@ -24,6 +24,7 @@ module.exports = {
   },
 
   fn: async function ({ id }) {
+    const { inspectVersion } = require('../../../../lib/service-image-policy')
     const user = await User.findOne({ id: this.req.session.userId })
 
     const service = await Service.findOne(id).populate('environment')
@@ -46,6 +47,16 @@ module.exports = {
     }
 
     const connectionUrl = await Service.getConnectionUrl(service.id)
+    let versionSupport = 'unresolved'
+    try {
+      versionSupport = inspectVersion(service.type, service.version, {
+        useDefault: false
+      }).supported
+        ? 'supported'
+        : 'custom'
+    } catch {
+      /* Legacy mutable records stay visibly unresolved. */
+    }
 
     return {
       service: {
@@ -53,6 +64,8 @@ module.exports = {
         name: service.name,
         type: service.type,
         version: service.version,
+        versionSupport,
+        imageReference: service.imageReference,
         status: service.status,
         connectionUrl,
         internalHost: service.internalHost,

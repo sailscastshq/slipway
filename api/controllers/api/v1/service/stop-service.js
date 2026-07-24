@@ -21,6 +21,9 @@ module.exports = {
     },
     notFound: {
       statusCode: 404
+    },
+    conflict: {
+      statusCode: 409
     }
   },
 
@@ -43,6 +46,9 @@ module.exports = {
     if (!project || project.team !== user.team.id) throw 'notFound'
 
     if (!service.containerName) throw 'notFound'
+    if (service.status === 'upgrading') {
+      throw { conflict: { message: 'The service is currently upgrading.' } }
+    }
 
     try {
       const dockerPath = sails.config.docker?.binaryPath || 'docker'

@@ -115,7 +115,7 @@ const commands = {
     args: '<name>',
     options: {
       type: { type: 'string', short: 't', default: 'postgresql' },
-      version: { type: 'string', short: 'v', default: 'latest' },
+      version: { type: 'string', short: 'v' },
       env: { type: 'string', short: 'e', default: 'production' }
     }
   },

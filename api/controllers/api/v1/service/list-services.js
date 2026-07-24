@@ -29,6 +29,7 @@ module.exports = {
   },
 
   fn: async function ({ projectSlug, environmentSlug }) {
+    const { inspectVersion } = require('../../../../lib/service-image-policy')
     const user = await User.findOne({ id: this.req.session.userId })
 
     const project = await Project.findOne({ slug: projectSlug }).populate(
@@ -57,17 +58,32 @@ module.exports = {
     )
 
     // Add connection URLs (without exposing passwords in list)
-    const servicesWithInfo = services.map((service) => ({
-      id: service.id,
-      name: service.name,
-      type: service.type,
-      version: service.version,
-      status: service.status,
-      internalHost: service.internalHost,
-      internalPort: service.internalPort,
-      database: service.database,
-      createdAt: service.createdAt
-    }))
+    const servicesWithInfo = services.map((service) => {
+      let versionSupport = 'unresolved'
+      try {
+        versionSupport = inspectVersion(service.type, service.version, {
+          useDefault: false
+        }).supported
+          ? 'supported'
+          : 'custom'
+      } catch {
+        /* Legacy mutable records stay visibly unresolved. */
+      }
+
+      return {
+        id: service.id,
+        name: service.name,
+        type: service.type,
+        version: service.version,
+        versionSupport,
+        imageReference: service.imageReference,
+        status: service.status,
+        internalHost: service.internalHost,
+        internalPort: service.internalPort,
+        database: service.database,
+        createdAt: service.createdAt
+      }
+    })
 
     return { services: servicesWithInfo }
   }

@@ -25,14 +25,35 @@ module.exports = {
 
     version: {
       type: 'string',
-      defaultsTo: 'latest',
-      description: 'Docker image version/tag',
-      example: '16'
+      required: true,
+      description: 'Pinned Docker image version line',
+      example: '17'
+    },
+
+    imageReference: {
+      type: 'string',
+      allowNull: true,
+      description:
+        'Immutable Docker digest or image ID used to create the service',
+      columnName: 'image_reference'
+    },
+
+    imageMetadata: {
+      type: 'json',
+      description:
+        'Resolution provenance and retained recovery details for the service image',
+      columnName: 'image_metadata'
+    },
+
+    upgradeState: {
+      type: 'json',
+      description: 'Current or most recent service version upgrade state',
+      columnName: 'upgrade_state'
     },
 
     status: {
       type: 'string',
-      isIn: ['creating', 'running', 'stopped', 'failed'],
+      isIn: ['creating', 'running', 'stopped', 'upgrading', 'failed'],
       defaultsTo: 'creating',
       description: 'Current status of the service'
     },
@@ -152,16 +173,18 @@ module.exports = {
   },
 
   /**
+   * Get the durable Docker volume name for a service container
+   */
+  getDataVolumeName: function (containerName) {
+    return `slipway-${containerName}-data`
+  },
+
+  /**
    * Get Docker image for service type
    */
-  getDockerImage: function (type, version = 'latest') {
-    const images = {
-      postgresql: `postgres:${version}`,
-      mysql: `mysql:${version}`,
-      redis: `redis:${version}`,
-      mongodb: `mongo:${version}`
-    }
-    return images[type] || `postgres:${version}`
+  getDockerImage: function (type, version) {
+    const { inspectVersion } = require('../lib/service-image-policy')
+    return inspectVersion(type, version).imageTag
   },
 
   /**

@@ -18,7 +18,7 @@ Slipway is an open-source, self-hosted platform purpose-built for **Sails.js** a
 - **Self-hosted** — Runs on any Linux VPS you control. Your code, your data, your servers
 - **Sails-native** — Understands your models, helpers, hooks, and config out of the box
 - **Automatic HTTPS** — SSL certificates provisioned automatically via Caddy
-- **Database management** — Provision PostgreSQL, MySQL, or Redis with one click. Connection URLs auto-injected
+- **Database management** — Provision PostgreSQL, MySQL, Redis, or MongoDB from [pinned, tested image versions](docs/service-versions.md). Connection URLs auto-injected
 - **Built-in platform** — Helm (production REPL), Bridge (data management), Dock (SQL console), Quest (job scheduler), Content (CMS)
 - **Backups** — Database backups to S3-compatible storage with one-click restore
 - **Team collaboration** — Multi-user access with team management

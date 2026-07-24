@@ -169,6 +169,7 @@ module.exports.routes = {
   'GET /api/v1/deployments/:id/logs': 'api/v1/deploy/get-deployment-logs',
 
   // Services
+  'GET /api/v1/service-versions': 'api/v1/service/list-versions',
   'GET /api/v1/projects/:projectSlug/services': 'api/v1/service/list-services',
   'GET /api/v1/projects/:projectSlug/environments/:environmentSlug/services':
     'api/v1/service/list-services',
@@ -184,6 +185,9 @@ module.exports.routes = {
   'POST /api/v1/services/:serviceId/stop': 'api/v1/service/stop-service',
   'POST /api/v1/services/:serviceId/start': 'api/v1/service/restart-service',
   'POST /api/v1/services/:serviceId/restart': 'api/v1/service/restart-service',
+  'POST /api/v1/services/:serviceId/upgrade': 'api/v1/service/upgrade-service',
+  'GET /api/v1/services/:serviceId/upgrade/stream':
+    'api/v1/service/stream-upgrade',
   'PATCH /api/v1/services/:serviceId': 'api/v1/service/update-service',
 
   // Backups

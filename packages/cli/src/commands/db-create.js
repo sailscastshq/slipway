@@ -16,7 +16,7 @@ export default async function dbCreate(options, positionals) {
   const project = requireProject()
   const environment = options.env || 'production'
   const dbType = options.type || 'postgresql'
-  const version = options.version || 'latest'
+  const version = options.version
 
   console.log()
   console.log(`  ${c.bold(c.highlight('Create Database'))}`)
@@ -31,7 +31,7 @@ export default async function dbCreate(options, positionals) {
       {
         name,
         type: dbType,
-        version
+        ...(version ? { version } : {})
       }
     )
 
@@ -40,6 +40,13 @@ export default async function dbCreate(options, positionals) {
     console.log(`  ${c.dim('Name:')} ${service.name}`)
     console.log(`  ${c.dim('Type:')} ${service.type}`)
     console.log(`  ${c.dim('Version:')} ${service.version}`)
+    if (service.versionSupport === 'custom') {
+      console.log(
+        `  ${c.dim('Support:')} ${c.warn(
+          'Custom version — outside Slipway’s tested matrix'
+        )}`
+      )
+    }
     console.log(`  ${c.dim('Environment:')} ${environment}`)
     console.log()
 

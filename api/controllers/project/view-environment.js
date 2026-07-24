@@ -46,6 +46,10 @@ module.exports = {
     deploymentSource,
     deploymentCursor
   }) {
+    const {
+      getPublicMatrix,
+      inspectVersion
+    } = require('../../lib/service-image-policy')
     const user = await User.findOne({ id: this.req.session.userId }).populate(
       'team'
     )
@@ -90,7 +94,8 @@ module.exports = {
           ...service,
           connectionUrl,
           lastBackup,
-          backupSupported: Service.isBackupSupported(service.type)
+          backupSupported: Service.isBackupSupported(service.type),
+          versionSupport: getVersionSupport(service)
         }
       })
     )
@@ -193,9 +198,22 @@ module.exports = {
         envVars: environment.envVars || {},
         deploymentHistory,
         checklist,
+        serviceVersions: getPublicMatrix(),
         backupConfigured,
         githubConnected,
         sourceReadinessByApp
+      }
+    }
+
+    function getVersionSupport(service) {
+      try {
+        return inspectVersion(service.type, service.version, {
+          useDefault: false
+        }).supported
+          ? 'supported'
+          : 'custom'
+      } catch {
+        return 'unresolved'
       }
     }
   }

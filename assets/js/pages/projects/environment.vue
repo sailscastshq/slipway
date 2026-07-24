@@ -31,6 +31,7 @@ const props = defineProps({
   envVars: Object,
   deploymentHistory: Object,
   checklist: Array,
+  serviceVersions: Object,
   backupConfigured: Boolean,
   githubConnected: Boolean,
   sourceReadinessByApp: Object
@@ -531,7 +532,10 @@ watch(servicesOpen, (open) => {
 const addServiceOpen = ref(false)
 const newServiceName = ref('')
 const newServiceType = ref('postgresql')
-const newServiceVersion = ref('latest')
+const newServiceVersion = ref(
+  props.serviceVersions?.postgresql?.defaultVersion || '17'
+)
+const customServiceVersion = ref(false)
 const creatingService = ref(false)
 const deletingServiceId = ref(null)
 const serviceMenuOpen = ref(null)
@@ -545,6 +549,32 @@ const serviceTypes = [
   { value: 'redis', label: 'Redis' },
   { value: 'mongodb', label: 'MongoDB' }
 ]
+
+const selectedServicePolicy = computed(
+  () => props.serviceVersions?.[newServiceType.value] || null
+)
+const selectedVersionSupported = computed(() =>
+  (selectedServicePolicy.value?.versions || []).some(
+    ({ version }) => version === newServiceVersion.value
+  )
+)
+
+watch(newServiceType, (type) => {
+  newServiceVersion.value = props.serviceVersions?.[type]?.defaultVersion || ''
+  customServiceVersion.value = false
+})
+
+function handleServiceVersionChange() {
+  if (newServiceVersion.value === '__custom__') {
+    customServiceVersion.value = true
+    newServiceVersion.value = ''
+  }
+}
+
+function useTestedServiceVersion() {
+  customServiceVersion.value = false
+  newServiceVersion.value = selectedServicePolicy.value?.defaultVersion || ''
+}
 
 function serviceIcon(type) {
   const icons = { postgresql: 'PG', mysql: 'My', redis: 'Rd', mongodb: 'Mg' }
@@ -586,17 +616,30 @@ async function createService() {
         body: JSON.stringify({
           name: serviceName,
           type: serviceType,
-          version: newServiceVersion.value || 'latest'
+          version: newServiceVersion.value
         })
       }
     )
+    if (!res.ok) {
+      const data = await res.json()
+      const message =
+        data.problems?.[0]?.version ||
+        data.message ||
+        'Could not create the service.'
+      throw new Error(message)
+    }
     completeAction(actionId, res.ok)
     newServiceName.value = ''
-    newServiceVersion.value = 'latest'
+    newServiceVersion.value = selectedServicePolicy.value?.defaultVersion || ''
+    customServiceVersion.value = false
     addServiceOpen.value = false
     router.reload({ only: ['environment', 'envVars', 'checklist'] })
   } catch (err) {
     completeAction(actionId, false)
+    toast({
+      message: err.message || 'Could not create the service.',
+      type: 'error'
+    })
   } finally {
     creatingService.value = false
   }
@@ -818,6 +861,11 @@ function statusBadge(status) {
     },
     creating: {
       label: 'Creating',
+      classes:
+        'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+    },
+    upgrading: {
+      label: 'Upgrading',
       classes:
         'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
     }
@@ -1864,13 +1912,14 @@ onBeforeUnmount(() => {
                         >
                         <span
                           class="ml-2 text-xs text-gray-400 dark:text-gray-500"
-                          >{{ service.type
-                          }}{{
-                            service.version !== 'latest'
-                              ? ` ${service.version}`
-                              : ''
-                          }}</span
+                          >{{ service.type }} {{ service.version }}</span
                         >
+                        <span
+                          v-if="service.versionSupport === 'unresolved'"
+                          class="ml-2 text-[10px] font-medium text-amber-600 dark:text-amber-400"
+                        >
+                          Version unresolved
+                        </span>
                       </div>
                     </div>
                     <div class="flex items-center space-x-2">
@@ -2222,13 +2271,48 @@ onBeforeUnmount(() => {
                         {{ st.label }}
                       </option>
                     </select>
-                    <input
+                    <select
+                      v-if="!customServiceVersion"
                       v-model="newServiceVersion"
-                      type="text"
-                      placeholder="version"
-                      class="focus:border-brand w-20 border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
-                    />
+                      aria-label="Service version"
+                      class="focus:border-brand rounded-md border border-gray-200 bg-white px-2 py-1.5 text-sm text-gray-900 focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+                      @change="handleServiceVersionChange"
+                    >
+                      <option
+                        v-for="entry in selectedServicePolicy?.versions || []"
+                        :key="entry.version"
+                        :value="entry.version"
+                      >
+                        {{ entry.version
+                        }}{{ entry.recommended ? ' · recommended' : '' }}
+                      </option>
+                      <option value="__custom__">Custom version…</option>
+                    </select>
+                    <div v-else class="flex items-center gap-2">
+                      <input
+                        v-model="newServiceVersion"
+                        type="text"
+                        inputmode="decimal"
+                        aria-label="Custom service version"
+                        placeholder="e.g. 17.4"
+                        class="focus:border-brand w-24 border-b border-dashed border-amber-300 bg-transparent px-1 py-1.5 font-mono text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:border-amber-800 dark:text-white dark:placeholder-gray-500"
+                      />
+                      <button
+                        type="button"
+                        class="text-xs text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+                        @click="useTestedServiceVersion"
+                      >
+                        Use tested
+                      </button>
+                    </div>
                   </div>
+                  <p
+                    v-if="customServiceVersion && !selectedVersionSupported"
+                    class="text-xs text-amber-700 dark:text-amber-400"
+                  >
+                    Custom versions are outside Slipway's tested matrix. The
+                    numeric tag will be pinned exactly after Docker resolves it.
+                  </p>
                   <div class="flex items-center justify-end space-x-2">
                     <button
                       @click="addServiceOpen = false"
@@ -2238,7 +2322,11 @@ onBeforeUnmount(() => {
                     </button>
                     <button
                       @click="createService"
-                      :disabled="!newServiceName.trim() || creatingService"
+                      :disabled="
+                        !newServiceName.trim() ||
+                        !newServiceVersion.trim() ||
+                        creatingService
+                      "
                       class="rounded-md bg-gray-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
                     >
                       {{ creatingService ? 'Creating...' : 'Create' }}
