@@ -5,6 +5,7 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 import { c } from './lib/colors.js'
+import { assertSupportedNodeVersion } from './lib/runtime.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const pkg = JSON.parse(readFileSync(join(__dirname, '../package.json'), 'utf8'))
@@ -250,6 +251,8 @@ function showVersion() {
 }
 
 async function main() {
+  assertSupportedNodeVersion()
+
   // Parse global options first
   const { values: globalValues, positionals } = parseArgs({
     allowPositionals: true,

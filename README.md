@@ -4,7 +4,7 @@
 <br><br>
 <p>The complete platform for Sails.js — deploy, manage, monitor, and debug your apps on your own infrastructure.</p>
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE.md)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 </div>
 
@@ -61,7 +61,8 @@ When you want a local run that mirrors the production installer more closely tha
 npm run local
 ```
 
-This runs [local.sh](/Users/koo/Gringotts/687/slipway/local.sh), the local counterpart to [install.sh](/Users/koo/Gringotts/687/slipway/install.sh). It:
+This runs [local.sh](local.sh), the local counterpart to
+[install.sh](install.sh). It:
 
 - builds the current checkout into a local Docker image
 - creates or reuses the `slipway` Docker network
@@ -184,4 +185,4 @@ This repo is a monorepo containing:
 
 ## License
 
-Slipway is open-source software licensed under the [MIT license](LICENSE.md).
+Slipway is open-source software licensed under the [MIT license](LICENSE).
