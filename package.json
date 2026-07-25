@@ -74,6 +74,7 @@
     "start": "NODE_ENV=production node app.js",
     "lint": "prettier --check .",
     "lint:fix": "prettier --write .",
+    "check:consistency": "node scripts/check-docs-config-consistency.js",
     "test:unit": "sounding test --lane unit --test-concurrency=1",
     "test:functional": "sounding test --lane functional --test-concurrency=1",
     "test:e2e": "sounding test --lane e2e --test-concurrency=1",
@@ -81,6 +82,6 @@
   },
   "main": "app.js",
   "engines": {
-    "node": ">=18.0"
+    "node": ">=22.0.0"
   }
 }

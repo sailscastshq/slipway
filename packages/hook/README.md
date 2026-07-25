@@ -44,6 +44,8 @@ The Slipway Dashboard proxies requests, providing single sign-on across all apps
 
 ## Installation
 
+Requires Node.js 22 or newer.
+
 ```bash
 npm install sails-hook-slipway
 ```
