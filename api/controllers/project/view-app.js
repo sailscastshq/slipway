@@ -89,8 +89,6 @@ module.exports = {
       }
     }
 
-    const { fullDomain, generatedDomain, domains } =
-      await Environment.resolveDomains(environment.id)
     const serverIp = await sails.helpers.getServerIp()
     let directAccess = null
     if (app.hostPort && app.routePath !== null) {
@@ -122,6 +120,11 @@ module.exports = {
       })
     }
     const directUrl = directAccess?.url || null
+    const { fullDomain, generatedDomain, domains, primaryUrl, accessUrls } =
+      await Environment.resolveAppUrls(environment.id, {
+        directUrl,
+        directHint: directAccess?.firewallHint || null
+      })
 
     const appWithHealth = { ...app, containerHealth }
     const deploymentHistory = await sails.helpers.deployment.getHistory.with({
@@ -206,7 +209,13 @@ module.exports = {
           serverIp,
           services
         },
-        app: { ...app, containerHealth, directUrl, directAccess },
+        app: {
+          ...app,
+          containerHealth,
+          directAccess,
+          primaryUrl,
+          accessUrls
+        },
         appEnvVars: decryptedApp.envVars || {},
         inheritedVars,
         deploymentHistory,

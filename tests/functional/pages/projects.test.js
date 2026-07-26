@@ -90,6 +90,41 @@ test(
 )
 
 test(
+  'app page uses the custom domain as the primary URL',
+  {
+    world: {
+      name: 'configured-slipway',
+      context: {
+        deploymentTarget: {
+          slug: 'custom-domain-priority',
+          name: 'Custom Domain Priority'
+        }
+      }
+    }
+  },
+  async ({ sails, world, visit, expect }) => {
+    const current = world.current
+    await sails.models.environment
+      .updateOne({ id: current.environments.production.id })
+      .set({ domain: 'app.example.com' })
+
+    const page = await visit.as('genesisUser')(
+      `/projects/${current.projects.deploymentTarget.slug}/environments/${current.environments.production.slug}/apps/${current.apps.web.slug}`
+    )
+
+    expect(page).toHaveStatus(200)
+    expect(page).toBeInertiaPage('projects/app')
+    expect(page).toHaveInertiaProp('app.primaryUrl', 'https://app.example.com')
+    expect(page).toHaveInertiaProp(
+      'app.accessUrls.0.value',
+      'https://app.example.com'
+    )
+    expect(page).toHaveInertiaProp('app.accessUrls.0.kind', 'custom')
+    expect(page).toHaveInertiaProp('app.accessUrls.1.kind', 'generated')
+  }
+)
+
+test(
   'deployment history sorts before limiting and uses a stable cursor',
   {
     world: {

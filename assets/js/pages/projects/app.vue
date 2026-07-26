@@ -148,45 +148,7 @@ const domainDropdownOpen = ref(false)
 const copiedText = ref(null)
 const moreMenuOpen = ref(false)
 
-const accessUrls = computed(() => {
-  const list = []
-  if (props.environment.domain) {
-    list.push({
-      label: 'Custom',
-      display: props.environment.domain,
-      value: `https://${props.environment.domain}`,
-      href: `https://${props.environment.domain}`
-    })
-  }
-  if (
-    props.environment.generatedDomain &&
-    props.environment.generatedDomain !== props.environment.domain
-  ) {
-    list.push({
-      label: 'Generated',
-      display: props.environment.generatedDomain,
-      value: `https://${props.environment.generatedDomain}`,
-      href: `https://${props.environment.generatedDomain}`
-    })
-  } else if (!props.environment.domain && props.environment.generatedDomain) {
-    list.push({
-      label: 'Generated',
-      display: props.environment.generatedDomain,
-      value: `https://${props.environment.generatedDomain}`,
-      href: `https://${props.environment.generatedDomain}`
-    })
-  }
-  if (props.app.directUrl) {
-    list.push({
-      label: 'Direct',
-      display: props.app.directUrl.replace(/^https?:\/\//, ''),
-      value: props.app.directUrl,
-      href: props.app.directUrl,
-      hint: props.app.directAccess?.firewallHint
-    })
-  }
-  return list
-})
+const accessUrls = computed(() => props.app.accessUrls || [])
 
 const primaryAccessUrl = computed(() => accessUrls.value[0] || null)
 const hasMultipleAccessUrls = computed(() => accessUrls.value.length > 1)
@@ -813,6 +775,7 @@ onBeforeUnmount(() => {
             <!-- Domain display -->
             <div
               v-if="primaryAccessUrl"
+              data-test="app-access-urls"
               class="relative mt-1 inline-flex items-center"
             >
               <div class="group flex items-center gap-2">
@@ -859,6 +822,7 @@ onBeforeUnmount(() => {
                 </button>
                 <button
                   v-if="hasMultipleAccessUrls"
+                  data-test="app-access-urls-toggle"
                   @click.stop="domainDropdownOpen = !domainDropdownOpen"
                   class="rounded p-0.5 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
                 >
@@ -884,12 +848,14 @@ onBeforeUnmount(() => {
               <!-- Domain dropdown -->
               <div
                 v-if="domainDropdownOpen && hasMultipleAccessUrls"
+                data-test="app-access-urls-menu"
                 @click.stop
                 class="absolute left-0 top-full z-20 mt-1.5 w-max rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-900"
               >
                 <div
                   v-for="d in accessUrls"
                   :key="d.value"
+                  :data-test="`app-access-url-${d.kind}`"
                   class="group/item flex items-center gap-2 px-3 py-2"
                 >
                   <span

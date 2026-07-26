@@ -140,10 +140,11 @@ module.exports = {
   /**
    * Resolve the primary, generated, and fallback domains for this environment.
    */
-  resolveDomains: async function (environmentId) {
-    const env = await Environment.findOne({ id: environmentId }).populate(
-      'project'
-    )
+  resolveDomains: async function (environmentOrId, options = {}) {
+    const env =
+      typeof environmentOrId === 'object' && environmentOrId !== null
+        ? environmentOrId
+        : await Environment.findOne({ id: environmentOrId }).populate('project')
     if (!env) {
       return {
         fullDomain: null,
@@ -159,13 +160,35 @@ module.exports = {
       domains.push(env.domain)
     }
 
-    const subdomain = `${env.project.slug}-${env.slug}`
+    const project =
+      env.project && typeof env.project === 'object'
+        ? env.project
+        : options.project || (await Project.findOne({ id: env.project }))
+    if (!project) {
+      return {
+        fullDomain: domains[0] || null,
+        generatedDomain: null,
+        domains
+      }
+    }
 
-    const wildcardDomain = await sails.helpers.setting.get('wildcardDomain')
+    const subdomain = `${project.slug}-${env.slug}`
+
+    const wildcardDomain = Object.prototype.hasOwnProperty.call(
+      options,
+      'wildcardDomain'
+    )
+      ? options.wildcardDomain
+      : await sails.helpers.setting.get('wildcardDomain')
     if (wildcardDomain) {
       generatedDomain = `${subdomain}.${wildcardDomain}`
     } else {
-      const slipwayDomain = sails.config.custom.slipwayDomain
+      const slipwayDomain = Object.prototype.hasOwnProperty.call(
+        options,
+        'slipwayDomain'
+      )
+        ? options.slipwayDomain
+        : sails.config.custom.slipwayDomain
       if (slipwayDomain) {
         generatedDomain = `${subdomain}.${slipwayDomain}`
       }
@@ -179,6 +202,51 @@ module.exports = {
       fullDomain: domains[0] || null,
       generatedDomain,
       domains
+    }
+  },
+
+  /**
+   * Resolve every user-facing URL for an app in canonical priority order.
+   *
+   * 1. Custom domain
+   * 2. Generated Slipway/wildcard domain
+   * 3. Verified raw IP:port URL
+   */
+  resolveAppUrls: async function (environmentOrId, options = {}) {
+    const { directUrl = null, directHint = null, ...domainOptions } = options
+    const resolved = await Environment.resolveDomains(
+      environmentOrId,
+      domainOptions
+    )
+
+    const accessUrls = resolved.domains.map((domain, index) => {
+      const isGenerated = domain === resolved.generatedDomain
+      return {
+        kind: isGenerated ? 'generated' : 'custom',
+        label: isGenerated ? 'Generated' : 'Custom',
+        display: domain,
+        value: `https://${domain}`,
+        href: `https://${domain}`,
+        logLabel: index === 0 ? 'URL' : 'Fallback'
+      }
+    })
+
+    if (directUrl && !accessUrls.some((entry) => entry.value === directUrl)) {
+      accessUrls.push({
+        kind: 'direct',
+        label: 'Direct',
+        display: directUrl.replace(/^https?:\/\//, ''),
+        value: directUrl,
+        href: directUrl,
+        hint: directHint,
+        logLabel: 'Direct'
+      })
+    }
+
+    return {
+      ...resolved,
+      primaryUrl: accessUrls[0]?.value || null,
+      accessUrls
     }
   },
 

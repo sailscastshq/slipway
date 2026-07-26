@@ -333,9 +333,6 @@ module.exports = {
       await updateDeployment({ status: 'running', finishedAt: Date.now() })
       await recordStage('complete')
 
-      const { fullDomain, generatedDomain } = await Environment.resolveDomains(
-        environment.id
-      )
       const directAccess = await sails.helpers.deploy.getDirectAccess.with({
         serverIp: await sails.helpers.getServerIp(),
         hostPort: deployHostPort,
@@ -344,24 +341,21 @@ module.exports = {
         portBinding: containerResult.portBinding
       })
       const directUrl = directAccess.url
+      const { accessUrls, primaryUrl } = await Environment.resolveAppUrls(
+        environment.id,
+        {
+          directUrl,
+          directHint: directAccess.firewallHint
+        }
+      )
       await Deployment.appendDeployLog(deploymentId, `Deployment complete.\n`)
-      if (fullDomain) {
+      for (const accessUrl of accessUrls) {
         await Deployment.appendDeployLog(
           deploymentId,
-          `  URL:       https://${fullDomain}\n`
-        )
-      }
-      if (generatedDomain && generatedDomain !== fullDomain) {
-        await Deployment.appendDeployLog(
-          deploymentId,
-          `  Fallback:  https://${generatedDomain}\n`
+          `  ${`${accessUrl.logLabel}:`.padEnd(11)}${accessUrl.value}\n`
         )
       }
       if (directUrl) {
-        await Deployment.appendDeployLog(
-          deploymentId,
-          `  Direct:    ${directUrl}\n`
-        )
         await Deployment.appendDeployLog(
           deploymentId,
           `  Network:   Container healthy; ${containerResult.portBinding.diagnostic}\n`
@@ -384,7 +378,7 @@ module.exports = {
 
       sails.log.info(
         `Deployment ${deploymentId} completed successfully${
-          directUrl ? ` — ${directUrl}` : ''
+          primaryUrl ? ` — ${primaryUrl}` : ''
         }`
       )
 
