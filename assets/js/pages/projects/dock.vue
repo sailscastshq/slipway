@@ -101,6 +101,17 @@ const queryLoading = ref(false)
 const queryHistory = ref([])
 const resultView = ref('table') // 'table' or 'json'
 const showExportMenu = ref(false)
+const activeQueryResultIndex = ref(0)
+
+const queryResults = computed(() => {
+  if (!queryResult.value) return []
+  if (queryResult.value.results?.length) return queryResult.value.results
+  return [queryResult.value]
+})
+const activeQueryResult = computed(
+  () => queryResults.value[activeQueryResultIndex.value] || null
+)
+const hasMultipleQueryResults = computed(() => queryResults.value.length > 1)
 
 // Redis console state
 const redisCommand = ref('')
@@ -288,15 +299,25 @@ async function executeQuery() {
       return
     }
 
-    if (!res.ok || !data.success) {
+    if (data.results?.length) {
+      queryResult.value = data
+      const failedResultIndex = data.results.findIndex(
+        (result) => result.status === 'error'
+      )
+      activeQueryResultIndex.value =
+        failedResultIndex === -1 ? 0 : failedResultIndex
+      resultView.value = 'table'
+    } else if (!res.ok || !data.success) {
       queryError.value = data?.error || data?.message || text || 'Query failed'
     } else {
       queryResult.value = data
-      // Add to history
-      if (!queryHistory.value.includes(query.value)) {
-        queryHistory.value.unshift(query.value)
-        if (queryHistory.value.length > 20) queryHistory.value.pop()
-      }
+      activeQueryResultIndex.value = 0
+      resultView.value = 'table'
+    }
+
+    if (queryResult.value && !queryHistory.value.includes(query.value)) {
+      queryHistory.value.unshift(query.value)
+      if (queryHistory.value.length > 20) queryHistory.value.pop()
     }
   } catch (e) {
     queryError.value = e.message
@@ -784,16 +805,62 @@ function formatRowCount(count) {
   return count
 }
 
+function selectQueryResult(index) {
+  activeQueryResultIndex.value = index
+  showExportMenu.value = false
+}
+
+function handleQueryResultKeydown(event, index) {
+  let nextIndex = index
+
+  if (event.key === 'ArrowRight') {
+    nextIndex = (index + 1) % queryResults.value.length
+  } else if (event.key === 'ArrowLeft') {
+    nextIndex =
+      (index - 1 + queryResults.value.length) % queryResults.value.length
+  } else if (event.key === 'Home') {
+    nextIndex = 0
+  } else if (event.key === 'End') {
+    nextIndex = queryResults.value.length - 1
+  } else {
+    return
+  }
+
+  event.preventDefault()
+  selectQueryResult(nextIndex)
+  nextTick(() => {
+    document.getElementById(`dock-query-result-tab-${nextIndex}`)?.focus()
+  })
+}
+
+function queryResultAriaLabel(result, index) {
+  return `${index + 1}. ${
+    result.statementPreview || result.commandTag || 'SQL statement'
+  }. ${result.status || 'success'}`
+}
+
+function queryResultCountLabel(result) {
+  if (result.status === 'error') return 'Failed'
+  if (result.columns?.length) {
+    return `${result.rowCount} row${result.rowCount === 1 ? '' : 's'}`
+  }
+  if (result.affected !== null && result.affected !== undefined) {
+    return `${result.affected} row${result.affected === 1 ? '' : 's'} affected`
+  }
+  return result.commandTag || 'Completed'
+}
+
 // Export functions
 function exportAsJSON() {
-  if (!queryResult.value?.rows) return
-  const json = JSON.stringify(queryResult.value.rows, null, 2)
-  downloadFile(json, 'query-result.json', 'application/json')
+  if (!activeQueryResult.value?.rows) return
+  const json = JSON.stringify(activeQueryResult.value.rows, null, 2)
+  downloadFile(json, queryResultFilename('json'), 'application/json')
 }
 
 function exportAsCSV() {
-  if (!queryResult.value?.rows || !queryResult.value?.columns) return
-  const { columns, rows } = queryResult.value
+  if (!activeQueryResult.value?.rows || !activeQueryResult.value?.columns)
+    return
+  const { columns, rows } = activeQueryResult.value
   const csvLines = [columns.join(',')]
   for (const row of rows) {
     const values = columns.map((col) => {
@@ -808,7 +875,7 @@ function exportAsCSV() {
     })
     csvLines.push(values.join(','))
   }
-  downloadFile(csvLines.join('\n'), 'query-result.csv', 'text/csv')
+  downloadFile(csvLines.join('\n'), queryResultFilename('csv'), 'text/csv')
 }
 
 function downloadQueryResultAsJSON() {
@@ -822,15 +889,16 @@ function downloadQueryResultAsCSV() {
 }
 
 function copyAsJSON() {
-  if (!queryResult.value?.rows) return
-  const json = JSON.stringify(queryResult.value.rows, null, 2)
+  if (!activeQueryResult.value?.rows) return
+  const json = JSON.stringify(activeQueryResult.value.rows, null, 2)
   navigator.clipboard.writeText(json)
   showToast('Copied JSON to clipboard')
 }
 
 function copyAsCSV() {
-  if (!queryResult.value?.rows || !queryResult.value?.columns) return
-  const { columns, rows } = queryResult.value
+  if (!activeQueryResult.value?.rows || !activeQueryResult.value?.columns)
+    return
+  const { columns, rows } = activeQueryResult.value
   const csvLines = [columns.join(',')]
   for (const row of rows) {
     const values = columns.map((col) => {
@@ -846,6 +914,13 @@ function copyAsCSV() {
   }
   navigator.clipboard.writeText(csvLines.join('\n'))
   showToast('Copied CSV to clipboard')
+}
+
+function queryResultFilename(extension) {
+  const suffix = hasMultipleQueryResults.value
+    ? `-${activeQueryResultIndex.value + 1}`
+    : ''
+  return `query-result${suffix}.${extension}`
 }
 
 function downloadFile(content, filename, mimeType) {
@@ -1510,83 +1585,164 @@ onUnmounted(() => {
 
           <!-- Results -->
           <div v-else-if="queryResult" class="flex h-full min-h-0 flex-col">
-            <!-- Table view -->
             <div
-              v-if="
-                queryResult.columns &&
-                queryResult.columns.length > 0 &&
-                resultView === 'table'
-              "
-              class="flex-1 overflow-auto"
+              v-if="hasMultipleQueryResults"
+              role="tablist"
+              aria-label="Query results"
+              class="flex shrink-0 items-center gap-1 overflow-x-auto border-b border-gray-200 px-2 py-1.5 dark:border-gray-800"
             >
-              <table class="min-w-full">
-                <thead class="sticky top-0">
-                  <tr
-                    class="border-b border-gray-200 bg-gray-50 dark:border-gray-800 dark:bg-gray-900"
-                  >
-                    <th
-                      v-for="col in queryResult.columns"
-                      :key="col"
-                      class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400"
-                    >
-                      {{ col }}
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr
-                    v-for="(row, i) in queryResult.rows"
-                    :key="i"
-                    class="border-b border-gray-100 hover:bg-gray-50 dark:border-gray-800/50 dark:hover:bg-gray-900/30"
-                  >
-                    <td
-                      v-for="col in queryResult.columns"
-                      :key="col"
-                      class="whitespace-nowrap px-4 py-2 font-mono text-sm text-gray-700 dark:text-gray-300"
-                    >
-                      <span
-                        v-if="row[col] === null"
-                        class="text-gray-400 dark:text-gray-600"
-                        >NULL</span
-                      >
-                      <span
-                        v-else-if="typeof row[col] === 'number'"
-                        class="text-purple-600 dark:text-purple-400"
-                        >{{ row[col] }}</span
-                      >
-                      <span
-                        v-else-if="typeof row[col] === 'boolean'"
-                        class="text-blue-600 dark:text-blue-400"
-                        >{{ row[col] }}</span
-                      >
-                      <span v-else>{{ row[col] }}</span>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
+              <button
+                v-for="(result, index) in queryResults"
+                :id="`dock-query-result-tab-${index}`"
+                :key="index"
+                role="tab"
+                :aria-selected="index === activeQueryResultIndex"
+                aria-controls="dock-query-result-panel"
+                :aria-label="queryResultAriaLabel(result, index)"
+                :tabindex="index === activeQueryResultIndex ? 0 : -1"
+                :data-test="`dock-query-result-${index + 1}`"
+                :title="result.statementSql"
+                :class="[
+                  'min-h-8 max-w-64 flex shrink-0 items-center gap-2 rounded-md px-2.5 py-1 text-left text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-400 dark:focus-visible:ring-gray-600',
+                  index === activeQueryResultIndex
+                    ? 'bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-white'
+                    : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-900 dark:hover:text-gray-200'
+                ]"
+                @click="selectQueryResult(index)"
+                @keydown="handleQueryResultKeydown($event, index)"
+              >
+                <span
+                  v-if="result.status === 'error'"
+                  class="h-1.5 w-1.5 shrink-0 rounded-full bg-red-500"
+                  aria-hidden="true"
+                ></span>
+                <span class="shrink-0 font-medium tabular-nums">{{
+                  index + 1
+                }}</span>
+                <span class="truncate font-mono">
+                  {{
+                    result.statementPreview ||
+                    result.commandTag ||
+                    'SQL statement'
+                  }}
+                </span>
+              </button>
             </div>
 
-            <!-- JSON view -->
             <div
-              v-else-if="
-                queryResult.columns &&
-                queryResult.columns.length > 0 &&
-                resultView === 'json'
+              id="dock-query-result-panel"
+              data-test="dock-query-result-panel"
+              role="tabpanel"
+              :aria-labelledby="
+                hasMultipleQueryResults
+                  ? `dock-query-result-tab-${activeQueryResultIndex}`
+                  : undefined
               "
-              class="flex-1 overflow-auto p-4"
+              class="flex min-h-0 flex-1 flex-col"
             >
-              <pre
-                class="font-mono text-xs text-gray-700 dark:text-gray-300"
-                v-html="highlightJSON(queryResult.rows)"
-              ></pre>
-            </div>
+              <!-- Table view -->
+              <div
+                v-if="
+                  activeQueryResult.columns &&
+                  activeQueryResult.columns.length > 0 &&
+                  resultView === 'table'
+                "
+                class="flex-1 overflow-auto"
+              >
+                <table class="min-w-full">
+                  <caption class="sr-only">
+                    Query result
+                    {{
+                      activeQueryResultIndex + 1
+                    }}
+                    for
+                    {{
+                      activeQueryResult.statementPreview ||
+                      activeQueryResult.commandTag ||
+                      'SQL statement'
+                    }}
+                  </caption>
+                  <thead class="sticky top-0">
+                    <tr
+                      class="border-b border-gray-200 bg-gray-50 dark:border-gray-800 dark:bg-gray-900"
+                    >
+                      <th
+                        v-for="col in activeQueryResult.columns"
+                        :key="col"
+                        scope="col"
+                        class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400"
+                      >
+                        {{ col }}
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr
+                      v-for="(row, i) in activeQueryResult.rows"
+                      :key="i"
+                      class="border-b border-gray-100 hover:bg-gray-50 dark:border-gray-800/50 dark:hover:bg-gray-900/30"
+                    >
+                      <td
+                        v-for="col in activeQueryResult.columns"
+                        :key="col"
+                        class="whitespace-nowrap px-4 py-2 font-mono text-sm text-gray-700 dark:text-gray-300"
+                      >
+                        <span
+                          v-if="row[col] === null"
+                          class="text-gray-400 dark:text-gray-600"
+                          >NULL</span
+                        >
+                        <span
+                          v-else-if="typeof row[col] === 'number'"
+                          class="text-purple-600 dark:text-purple-400"
+                          >{{ row[col] }}</span
+                        >
+                        <span
+                          v-else-if="typeof row[col] === 'boolean'"
+                          class="text-blue-600 dark:text-blue-400"
+                          >{{ row[col] }}</span
+                        >
+                        <span v-else>{{ row[col] }}</span>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
 
-            <!-- No columns (DDL result) -->
-            <div
-              v-else
-              class="flex flex-1 items-center justify-center text-sm text-gray-500 dark:text-gray-400"
-            >
-              {{ queryResult.message || 'Query executed successfully' }}
+              <!-- JSON view -->
+              <div
+                v-else-if="
+                  activeQueryResult.columns &&
+                  activeQueryResult.columns.length > 0 &&
+                  resultView === 'json'
+                "
+                class="flex-1 overflow-auto p-4"
+              >
+                <pre
+                  class="font-mono text-xs text-gray-700 dark:text-gray-300"
+                  v-html="highlightJSON(activeQueryResult.rows)"
+                ></pre>
+              </div>
+
+              <!-- Command or error result -->
+              <div
+                v-else
+                class="flex flex-1 items-center justify-center p-4 text-sm"
+              >
+                <p
+                  :class="
+                    activeQueryResult.status === 'error'
+                      ? 'font-mono text-red-600 dark:text-red-400'
+                      : 'text-gray-500 dark:text-gray-400'
+                  "
+                >
+                  {{
+                    activeQueryResult.message ||
+                    activeQueryResult.error ||
+                    'Query executed successfully'
+                  }}
+                </p>
+              </div>
             </div>
 
             <!-- Bottom status bar -->
@@ -1596,12 +1752,16 @@ onUnmounted(() => {
               <div class="flex items-center gap-4">
                 <!-- View toggle -->
                 <div
-                  v-if="queryResult.columns && queryResult.columns.length > 0"
+                  v-if="
+                    activeQueryResult.columns &&
+                    activeQueryResult.columns.length > 0
+                  "
                   class="flex overflow-hidden rounded-md border border-gray-300 dark:border-gray-700"
                 >
                   <Tooltip text="Table view" position="top">
                     <button
                       @click="resultView = 'table'"
+                      aria-label="Table view"
                       :class="[
                         'p-1.5',
                         resultView === 'table'
@@ -1627,6 +1787,7 @@ onUnmounted(() => {
                   <Tooltip text="JSON view" position="top">
                     <button
                       @click="resultView = 'json'"
+                      aria-label="JSON view"
                       :class="[
                         'border-l border-gray-300 px-1.5 py-1 font-mono text-sm font-bold dark:border-gray-700',
                         resultView === 'json'
@@ -1640,18 +1801,24 @@ onUnmounted(() => {
                 </div>
                 <!-- Row info -->
                 <span class="text-xs text-gray-500 dark:text-gray-400">
-                  {{ queryResult.rowCount }} row(s) •
-                  {{ queryResult.duration }}ms
+                  {{ queryResultCountLabel(activeQueryResult) }}
+                  <template v-if="activeQueryResult.duration != null">
+                    • {{ activeQueryResult.duration }}ms
+                  </template>
                 </span>
               </div>
               <!-- Actions -->
               <div
-                v-if="queryResult.columns && queryResult.columns.length > 0"
+                v-if="
+                  activeQueryResult.columns &&
+                  activeQueryResult.columns.length > 0
+                "
                 class="flex items-center gap-1"
               >
                 <Tooltip text="Re-run query" position="top">
                   <button
                     @click="executeQuery"
+                    aria-label="Re-run query"
                     class="rounded p-1.5 text-gray-500 hover:bg-gray-200 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-200"
                   >
                     <svg
@@ -1675,6 +1842,10 @@ onUnmounted(() => {
                 >
                   <button
                     @click="resultView === 'json' ? copyAsJSON() : copyAsCSV()"
+                    data-test="dock-copy-query-result"
+                    :aria-label="
+                      resultView === 'json' ? 'Copy as JSON' : 'Copy as CSV'
+                    "
                     class="rounded p-1.5 text-gray-500 hover:bg-gray-200 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-200"
                   >
                     <svg
@@ -1702,6 +1873,9 @@ onUnmounted(() => {
                   >
                     <button
                       @click="showExportMenu = !showExportMenu"
+                      :aria-label="
+                        resultView === 'json' ? 'Download JSON' : 'Download CSV'
+                      "
                       class="rounded p-1.5 text-gray-500 hover:bg-gray-200 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-200"
                     >
                       <svg
