@@ -19,6 +19,13 @@ const props = defineProps({
   telemetrySummary: {
     type: Object,
     default: () => ({})
+  },
+  observabilityHealth: {
+    type: Object,
+    default: () => ({
+      collector: { status: 'waiting', rowCount: 0 },
+      retention: { status: 'waiting', rowCount: 0 }
+    })
   }
 })
 
@@ -153,6 +160,30 @@ function timeAgo(timestamp) {
   if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`
   if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`
   return `${Math.floor(seconds / 86400)}d ago`
+}
+
+function healthLabel(name, label) {
+  const health = props.observabilityHealth?.[name]
+  if (!health || health.status === 'waiting') return `${label} waiting`
+  if (health.status === 'failed') return `${label} failed`
+  if (health.status === 'stale') {
+    return `${label} stale · ${timeAgo(health.lastSuccessAt)}`
+  }
+  return `${label} ${timeAgo(health.lastSuccessAt)}`
+}
+
+function healthDot(name) {
+  const status = props.observabilityHealth?.[name]?.status
+  if (status === 'failed') return 'bg-red-500'
+  if (status === 'stale') return 'bg-yellow-500'
+  if (status === 'healthy') return 'bg-emerald-500'
+  return 'bg-gray-300 dark:bg-gray-600'
+}
+
+function compactNumber(number) {
+  if (number < 1000) return String(number || 0)
+  if (number < 1000000) return `${(number / 1000).toFixed(1)}k`
+  return `${(number / 1000000).toFixed(1)}m`
 }
 
 function serviceIcon(type) {
@@ -512,6 +543,32 @@ function envTelemetry(container) {
                   }"
                 ></div>
               </div>
+            </div>
+
+            <div
+              data-test="lookout-observability-health"
+              class="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-gray-100 pt-3 text-xs text-gray-500 dark:border-gray-800 dark:text-gray-400"
+            >
+              <span class="inline-flex items-center gap-1.5">
+                <span
+                  :class="['h-1.5 w-1.5 rounded-full', healthDot('collector')]"
+                ></span>
+                {{ healthLabel('collector', 'Collector') }}
+              </span>
+              <span class="inline-flex items-center gap-1.5">
+                <span
+                  :class="['h-1.5 w-1.5 rounded-full', healthDot('retention')]"
+                ></span>
+                {{ healthLabel('retention', 'Retention') }}
+              </span>
+              <span class="sm:ml-auto">
+                {{
+                  compactNumber(
+                    props.observabilityHealth?.retention?.rowCount || 0
+                  )
+                }}
+                retained rows
+              </span>
             </div>
           </div>
         </section>

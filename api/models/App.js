@@ -143,11 +143,6 @@ module.exports = {
     deployments: {
       collection: 'deployment',
       via: 'app'
-    },
-
-    metrics: {
-      collection: 'containermetric',
-      via: 'app'
     }
   },
 

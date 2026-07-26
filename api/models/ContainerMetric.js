@@ -2,10 +2,12 @@
  * ContainerMetric.js
  *
  * Stores periodic CPU/memory snapshots for running containers (apps + services).
- * Collected by the Lookout hook every 30 seconds. Pruned after 24 hours.
+ * Collected by the Lookout hook every 30 seconds. Retention is managed by the
+ * independent observability maintenance job.
  */
 
 module.exports = {
+  datastore: 'observability',
   tableName: 'container_metrics',
 
   attributes: {
@@ -79,20 +81,31 @@ module.exports = {
       columnName: 'recorded_at'
     },
 
-    // Associations
+    legacySourceId: {
+      type: 'number',
+      allowNull: true,
+      description:
+        'Original ID from the default datastore during the one-time migration',
+      columnName: 'legacy_source_id'
+    },
+
+    // These IDs refer to records in the default datastore. They intentionally
+    // are not Waterline associations because cross-datastore joins are unsafe.
     environment: {
-      model: 'environment',
+      type: 'number',
       required: true
     },
 
     app: {
-      model: 'app',
+      type: 'number',
+      allowNull: true,
       description:
         'The app this metric belongs to (null for service containers)'
     },
 
     service: {
-      model: 'service',
+      type: 'number',
+      allowNull: true,
       description:
         'The service this metric belongs to (null for app containers)'
     }

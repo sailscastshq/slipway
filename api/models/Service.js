@@ -131,11 +131,6 @@ module.exports = {
     backups: {
       collection: 'backup',
       via: 'service'
-    },
-
-    metrics: {
-      collection: 'containermetric',
-      via: 'service'
     }
   },
 
