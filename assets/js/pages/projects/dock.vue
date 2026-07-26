@@ -13,6 +13,7 @@ import AppLayout from '@/layouts/AppLayout.vue'
 import ConfirmModal from '@/components/ConfirmModal.vue'
 import ToastContainer from '@/components/ToastContainer.vue'
 import Tooltip from '@/components/Tooltip.vue'
+import CodeEditor from '@/components/CodeEditor.vue'
 import { highlightSQL } from '@/lib/highlightSQL'
 import { highlightJSON } from '@/lib/highlightJSON'
 import SlippyLoader from '@/components/SlippyLoader.vue'
@@ -262,11 +263,6 @@ function apiUrl(endpoint, extraParams = '') {
       : '')
   return `${apiBasePath.value}${endpoint}${queryPart}`
 }
-
-// SQL syntax highlighting (shared utility)
-const highlightedQuery = computed(() => {
-  return highlightSQL(query.value)
-})
 
 // Execute SQL query
 async function executeQuery() {
@@ -1460,23 +1456,16 @@ onUnmounted(() => {
         <div
           class="flex-1 overflow-hidden border-b border-gray-200 dark:border-gray-800"
         >
-          <div class="relative h-full">
-            <!-- Highlighted layer -->
-            <pre
-              class="pointer-events-none absolute inset-0 overflow-auto whitespace-pre-wrap break-words p-4 font-mono text-sm leading-6 text-gray-900 dark:text-gray-100"
-              aria-hidden="true"
-              v-html="highlightedQuery"
-            ></pre>
-            <!-- Textarea -->
-            <textarea
-              v-model="query"
-              class="absolute inset-0 h-full w-full resize-none bg-transparent p-4 font-mono text-sm leading-6 text-transparent placeholder-gray-400 caret-gray-900 focus:outline-none dark:placeholder-gray-600 dark:caret-white"
-              :placeholder="defaultQuery"
-              spellcheck="false"
-              @keydown.ctrl.enter="executeQuery"
-              @keydown.meta.enter="executeQuery"
-            ></textarea>
-          </div>
+          <CodeEditor
+            v-model="query"
+            :language="isMongoDB ? 'javascript' : 'sql'"
+            :placeholder="defaultQuery"
+            aria-label="Database query"
+            test-id="dock-query-editor"
+            height="fill"
+            submit-on-mod-enter
+            @submit="executeQuery"
+          />
         </div>
 
         <!-- Actions bar -->
@@ -2504,24 +2493,16 @@ onUnmounted(() => {
 
           <!-- Paste mode -->
           <div v-if="importMode === 'paste'">
-            <div class="relative max-h-[400px] min-h-[200px] overflow-auto">
-              <!-- Highlighted layer -->
-              <pre
-                class="pointer-events-none absolute inset-0 overflow-hidden whitespace-pre-wrap break-words p-3 font-mono text-sm leading-6 text-gray-900 dark:text-gray-100"
-                aria-hidden="true"
-                v-html="
-                  highlightSQL(importSql) ||
-                  '<span class=\'text-gray-400 dark:text-gray-500\'>Paste your SQL statements here...</span>'
-                "
-              ></pre>
-              <!-- Textarea -->
-              <textarea
-                v-model="importSql"
-                class="field-sizing-content relative min-h-[200px] w-full resize-none bg-transparent p-3 font-mono text-sm leading-6 text-transparent placeholder-transparent caret-gray-900 focus:outline-none dark:caret-white"
-                placeholder="Paste your SQL statements here..."
-                spellcheck="false"
-              ></textarea>
-            </div>
+            <CodeEditor
+              v-model="importSql"
+              language="sql"
+              placeholder="Paste your SQL statements here..."
+              aria-label="SQL import"
+              test-id="dock-import-editor"
+              min-height="200px"
+              max-height="400px"
+              padding="compact"
+            />
           </div>
 
           <!-- Upload mode -->

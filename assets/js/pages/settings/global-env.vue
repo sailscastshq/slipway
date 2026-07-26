@@ -3,6 +3,7 @@ import { Link, Head, useForm } from '@inertiajs/vue3'
 import { inject, ref, reactive, computed, watch, onMounted } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
 import Tooltip from '@/components/Tooltip.vue'
+import CodeEditor from '@/components/CodeEditor.vue'
 import { useToast } from '@/composables/toast'
 
 defineOptions({
@@ -127,29 +128,6 @@ const bulkHasChanges = computed(() => {
   if (keys.length !== currentKeys.length) return true
   return keys.some(
     (k, i) => k !== currentKeys[i] || vars[k] !== localVars[currentKeys[i]]
-  )
-})
-
-const bulkHighlighted = computed(() => {
-  const text = bulkText.value || ''
-  return (
-    text
-      .split('\n')
-      .map((line) => {
-        const escaped = line
-          .replace(/&/g, '&amp;')
-          .replace(/</g, '&lt;')
-          .replace(/>/g, '&gt;')
-        if (escaped.trimStart().startsWith('#')) {
-          return `<span class="text-gray-500 dark:text-gray-600">${escaped}</span>`
-        }
-        const eqIdx = escaped.indexOf('=')
-        if (eqIdx === -1) return escaped
-        const key = escaped.slice(0, eqIdx)
-        const value = escaped.slice(eqIdx + 1)
-        return `<span class="text-amber-600 dark:text-amber-400">${key}</span><span class="text-gray-400 dark:text-gray-600">=</span><span class="text-gray-800 dark:text-gray-300">${value}</span>`
-      })
-      .join('\n') + '\n'
   )
 })
 
@@ -468,21 +446,15 @@ onMounted(() => {
           <!-- Bulk edit mode -->
           <template v-if="bulkMode">
             <div class="border-t border-gray-200 dark:border-gray-800">
-              <div class="relative">
-                <pre
-                  class="pointer-events-none absolute inset-0 overflow-auto whitespace-pre-wrap break-all bg-gray-50 px-4 py-3 font-mono text-sm leading-relaxed dark:bg-gray-900"
-                  aria-hidden="true"
-                  v-html="bulkHighlighted"
-                ></pre>
-                <textarea
-                  v-model="bulkText"
-                  rows="3"
-                  placeholder="KEY=value&#10;R2_ACCESS_KEY=abc123&#10;# Comments are ignored"
-                  class="relative block w-full resize-none bg-transparent px-4 py-3 font-mono text-sm leading-relaxed text-transparent placeholder-gray-400 caret-gray-900 focus:outline-none dark:placeholder-gray-500 dark:caret-white"
-                  style="field-sizing: content"
-                  spellcheck="false"
-                />
-              </div>
+              <CodeEditor
+                v-model="bulkText"
+                language="env"
+                aria-label="Global environment variables"
+                test-id="global-env-editor"
+                class="bg-gray-50 dark:bg-gray-900"
+                placeholder="KEY=value&#10;R2_ACCESS_KEY=abc123&#10;# Comments are ignored"
+                padding="compact"
+              />
               <div
                 class="flex items-center justify-between border-t border-gray-200 px-4 py-3 dark:border-gray-800"
               >

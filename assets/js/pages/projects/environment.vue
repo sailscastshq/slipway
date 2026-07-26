@@ -14,6 +14,7 @@ import Breadcrumb from '@/components/Breadcrumb.vue'
 import ConfirmModal from '@/components/ConfirmModal.vue'
 import SlideToDeploy from '@/components/SlideToDeploy.vue'
 import Tooltip from '@/components/Tooltip.vue'
+import CodeEditor from '@/components/CodeEditor.vue'
 import DeploymentHistory from '@/components/DeploymentHistory.vue'
 import { useToast } from '@/composables/toast'
 import { useServiceActions } from '@/composables/service-actions'
@@ -310,29 +311,6 @@ const bulkHasChanges = computed(() => {
   if (keys.length !== currentKeys.length) return true
   return keys.some(
     (k, i) => k !== currentKeys[i] || vars[k] !== localVars[currentKeys[i]]
-  )
-})
-
-const bulkHighlighted = computed(() => {
-  const text = bulkText.value || ''
-  return (
-    text
-      .split('\n')
-      .map((line) => {
-        const escaped = line
-          .replace(/&/g, '&amp;')
-          .replace(/</g, '&lt;')
-          .replace(/>/g, '&gt;')
-        if (escaped.trimStart().startsWith('#')) {
-          return `<span class="text-gray-500 dark:text-gray-600">${escaped}</span>`
-        }
-        const eqIdx = escaped.indexOf('=')
-        if (eqIdx === -1) return escaped
-        const key = escaped.slice(0, eqIdx)
-        const value = escaped.slice(eqIdx + 1)
-        return `<span class="text-amber-600 dark:text-amber-400">${key}</span><span class="text-gray-400 dark:text-gray-600">=</span><span class="text-gray-800 dark:text-gray-300">${value}</span>`
-      })
-      .join('\n') + '\n'
   )
 })
 
@@ -2446,21 +2424,14 @@ onBeforeUnmount(() => {
             <div v-show="envVarsOpen">
               <template v-if="bulkMode">
                 <div class="border-t border-gray-200 dark:border-gray-800">
-                  <div class="relative">
-                    <pre
-                      class="pointer-events-none absolute inset-0 overflow-auto whitespace-pre-wrap break-all bg-gray-50 px-4 py-4 font-mono text-sm leading-relaxed dark:bg-gray-950"
-                      aria-hidden="true"
-                      v-html="bulkHighlighted"
-                    ></pre>
-                    <textarea
-                      v-model="bulkText"
-                      rows="3"
-                      placeholder="KEY=value&#10;DATABASE_URL=postgres://localhost:5432/db&#10;# Comments are ignored"
-                      class="relative block w-full resize-none bg-transparent px-4 py-4 font-mono text-sm leading-relaxed text-transparent placeholder-gray-400 caret-gray-900 focus:outline-none dark:placeholder-gray-500 dark:caret-white"
-                      style="field-sizing: content"
-                      spellcheck="false"
-                    />
-                  </div>
+                  <CodeEditor
+                    v-model="bulkText"
+                    language="env"
+                    aria-label="Environment variables"
+                    test-id="environment-env-editor"
+                    class="bg-gray-50 dark:bg-gray-950"
+                    placeholder="KEY=value&#10;DATABASE_URL=postgres://localhost:5432/db&#10;# Comments are ignored"
+                  />
                   <div
                     class="flex items-center justify-between border-t border-gray-200 px-4 py-3 dark:border-gray-800"
                   >

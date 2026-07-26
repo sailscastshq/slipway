@@ -15,6 +15,7 @@ import AppLayout from '@/layouts/AppLayout.vue'
 import ConfirmModal from '@/components/ConfirmModal.vue'
 import ToastContainer from '@/components/ToastContainer.vue'
 import Tooltip from '@/components/Tooltip.vue'
+import CodeEditor from '@/components/CodeEditor.vue'
 import { highlightSQL } from '@/lib/highlightSQL'
 import { highlightJSON } from '@/lib/highlightJSON'
 import { highlightJS } from '@/lib/highlightJS'
@@ -130,12 +131,6 @@ function showToast(message, type = 'success') {
 function dismissToast(id) {
   toasts.value = toasts.value.filter((t) => t.id !== id)
 }
-
-// SQL syntax highlighting (shared utility)
-const highlightedQuery = computed(() => highlightSQL(sqlQuery.value))
-
-// Helm JS syntax highlighting
-const highlightedHelmCode = computed(() => highlightJS(helmCode.value))
 
 // Format Helm output — try to parse as JSON for syntax highlighting, fall back to plain text
 const highlightedHelmOutput = computed(() => {
@@ -861,37 +856,29 @@ onUnmounted(() => {
         class="flex-1 overflow-hidden border-b border-gray-200 dark:border-gray-800"
       >
         <!-- SQL editor -->
-        <div v-if="consoleMode === 'sql'" class="relative h-full">
-          <pre
-            class="wrap-break-word pointer-events-none absolute inset-0 overflow-auto whitespace-pre-wrap p-4 font-mono text-sm leading-6 text-gray-900 dark:text-gray-100"
-            aria-hidden="true"
-            v-html="highlightedQuery"
-          ></pre>
-          <textarea
-            v-model="sqlQuery"
-            class="absolute inset-0 h-full w-full resize-none bg-transparent p-4 font-mono text-sm leading-6 text-transparent placeholder-gray-400 caret-gray-900 focus:outline-none dark:placeholder-gray-600 dark:caret-white"
-            placeholder="SELECT * FROM ..."
-            spellcheck="false"
-            @keydown.ctrl.enter="executeQuery"
-            @keydown.meta.enter="executeQuery"
-          ></textarea>
-        </div>
+        <CodeEditor
+          v-if="consoleMode === 'sql'"
+          v-model="sqlQuery"
+          language="sql"
+          aria-label="Bosun SQL query"
+          test-id="bosun-sql-editor"
+          height="fill"
+          submit-on-mod-enter
+          placeholder="SELECT * FROM ..."
+          @submit="executeQuery"
+        />
         <!-- Helm editor -->
-        <div v-else class="relative h-full">
-          <pre
-            class="wrap-break-word pointer-events-none absolute inset-0 overflow-auto whitespace-pre-wrap p-4 font-mono text-sm leading-6 text-gray-900 dark:text-gray-100"
-            aria-hidden="true"
-            v-html="highlightedHelmCode"
-          ></pre>
-          <textarea
-            v-model="helmCode"
-            class="absolute inset-0 h-full w-full resize-none bg-transparent p-4 font-mono text-sm leading-6 text-transparent placeholder-gray-400 caret-gray-900 focus:outline-none dark:placeholder-gray-600 dark:caret-white"
-            placeholder="// Access Slipway models and helpers&#10;await User.find()"
-            spellcheck="false"
-            @keydown.ctrl.enter="executeHelm"
-            @keydown.meta.enter="executeHelm"
-          ></textarea>
-        </div>
+        <CodeEditor
+          v-else
+          v-model="helmCode"
+          language="javascript"
+          aria-label="Bosun Helm code"
+          test-id="bosun-helm-editor"
+          height="fill"
+          submit-on-mod-enter
+          placeholder="// Access Slipway models and helpers&#10;await User.find()"
+          @submit="executeHelm"
+        />
       </div>
 
       <!-- Actions bar -->

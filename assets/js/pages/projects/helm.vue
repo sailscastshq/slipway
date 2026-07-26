@@ -3,7 +3,7 @@ import { Link, Head, usePage } from '@inertiajs/vue3'
 import { inject, ref, computed, onMounted } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
 import SlippyLoader from '@/components/SlippyLoader.vue'
-import { highlightJS } from '@/lib/highlightJS'
+import CodeEditor from '@/components/CodeEditor.vue'
 
 defineOptions({
   layout: AppLayout
@@ -86,32 +86,6 @@ function clearExecutionOutput() {
   output.value = ''
   error.value = ''
 }
-
-function handleKeydown(e) {
-  // Cmd/Ctrl + Enter to run
-  if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
-    e.preventDefault()
-    execute()
-  }
-  // Tab to insert spaces
-  if (e.key === 'Tab') {
-    e.preventDefault()
-    const target = e.target
-    const start = target.selectionStart
-    const end = target.selectionEnd
-    code.value =
-      code.value.substring(0, start) + '  ' + code.value.substring(end)
-    // Restore cursor position after Vue updates
-    requestAnimationFrame(() => {
-      target.selectionStart = target.selectionEnd = start + 2
-    })
-  }
-}
-
-// JavaScript syntax highlighting
-const highlightedCode = computed(() => {
-  return highlightJS(code.value)
-})
 
 // JSON/output syntax highlighting
 const highlightedOutput = computed(() => {
@@ -430,24 +404,17 @@ function highlightJSON(str) {
           class="relative min-h-0 min-w-0 flex-1 overflow-hidden bg-white dark:bg-gray-950"
         >
           <!-- Editor area -->
-          <div class="relative h-full overflow-auto">
-            <!-- Highlighted layer -->
-            <pre
-              class="pointer-events-none absolute inset-0 whitespace-pre-wrap break-words py-4 pl-4 pr-4 font-mono text-sm leading-6"
-              aria-hidden="true"
-              v-html="highlightedCode"
-            ></pre>
-            <!-- Textarea -->
-            <textarea
-              data-test="helm-editor"
-              v-model="code"
-              @keydown="handleKeydown"
-              :disabled="!isRunning"
-              spellcheck="false"
-              class="absolute inset-0 h-full w-full resize-none border-0 bg-transparent py-4 pl-4 pr-4 font-mono text-sm leading-6 text-transparent placeholder-gray-400 caret-gray-900 focus:outline-none focus:ring-0 dark:placeholder-gray-600 dark:caret-gray-100"
-              placeholder="// Enter JavaScript code..."
-            ></textarea>
-          </div>
+          <CodeEditor
+            v-model="code"
+            language="javascript"
+            aria-label="Helm JavaScript"
+            test-id="helm-editor"
+            height="fill"
+            :disabled="!isRunning"
+            submit-on-mod-enter
+            placeholder="// Enter JavaScript code..."
+            @submit="execute"
+          />
         </div>
       </div>
 
