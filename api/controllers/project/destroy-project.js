@@ -1,13 +1,20 @@
 module.exports = {
   friendlyName: 'Destroy project',
 
-  description: 'Delete a project and all associated resources.',
+  description:
+    'Run the shared, resumable cleanup for a project and its resources.',
 
   inputs: {
     slug: {
       type: 'string',
       required: true,
       description: 'Project slug'
+    },
+    purgeData: {
+      type: 'boolean',
+      defaultsTo: false,
+      description:
+        'Also purge retained volumes, backups, source, and Docker images.'
     }
   },
 
@@ -20,79 +27,52 @@ module.exports = {
     }
   },
 
-  fn: async function ({ slug }) {
+  fn: async function ({ slug, purgeData }) {
     const user = await User.findOne({ id: this.req.session.userId }).populate(
       'team'
     )
+    const requestKey = `project:${slug}`
+    const project = await Project.findOne({ slug, team: user.team.id })
+    const targetKey = project ? `project:${project.id}` : undefined
+    const existingOperation = await sails.helpers.cleanup.findOperation.with({
+      targetKey,
+      requestKey
+    })
 
-    const project = await Project.findOne({
-      slug,
-      team: user.team.id
-    }).populate('environments')
-
-    if (!project) {
+    if (
+      !project &&
+      (!existingOperation ||
+        Number(existingOperation.team) !== Number(user.team.id))
+    ) {
       throw { notFound: '/' }
     }
 
-    // Delete all associated resources for each environment
-    for (const env of project.environments) {
-      // Stop and remove ALL app containers
-      const apps = await App.find({ environment: env.id })
-      for (const app of apps) {
-        if (app.containerName) {
-          try {
-            await sails.helpers.docker.stopContainer(app.containerName)
-          } catch (err) {
-            sails.log.warn(
-              `Failed to stop container ${app.containerName}: ${err.message}`
-            )
-          }
-        }
-      }
+    try {
+      const cleanup = await sails.helpers.cleanup.run.with({
+        targetKey: targetKey || existingOperation.targetKey,
+        requestKey,
+        scopeType: 'project',
+        resourceId: project?.id || existingOperation.resourceId,
+        retentionPolicy: purgeData ? 'purge' : 'retain',
+        userId: user.id,
+        teamId: user.team.id,
+        ipAddress: this.req.ip
+      })
+      const projectName = project?.name || cleanup.label || slug
 
-      // Stop and remove service containers
-      const services = await Service.find({ environment: env.id })
-      for (const service of services) {
-        try {
-          await sails.helpers.docker.destroyService(service.id)
-        } catch (err) {
-          sails.log.warn(
-            `Failed to destroy service ${service.name}: ${err.message}`
-          )
-        }
-      }
-
-      // Remove Caddy route
-      try {
-        await sails.helpers.caddy.removeRoute.with({
-          projectSlug: project.slug,
-          environmentSlug: env.slug
-        })
-      } catch (err) {
-        sails.log.warn(`Failed to remove Caddy route: ${err.message}`)
-      }
-
-      // Delete database records
-      await Deployment.destroy({ environment: env.id })
-      await App.destroy({ environment: env.id })
-      await Service.destroy({ environment: env.id })
-      await Environment.destroyOne({ id: env.id })
+      sails.inertia.flash({
+        success: `Project "${projectName}" deleted.`,
+        cleanup
+      })
+      return '/'
+    } catch (error) {
+      sails.inertia.flash({
+        error:
+          error.message ||
+          'Project cleanup paused. Try deleting the project again to resume.',
+        cleanup: error.cleanup || null
+      })
+      return project ? `/projects/${slug}/settings` : '/'
     }
-
-    // Audit log
-    await sails.helpers.audit.log.with({
-      action: 'project.destroyed',
-      resourceType: 'project',
-      resourceId: project.id,
-      details: { name: project.name, slug },
-      userId: user.id,
-      teamId: user.team.id,
-      ipAddress: this.req.ip
-    })
-
-    await Project.destroyOne({ id: project.id })
-
-    sails.inertia.flash('success', `Project "${project.name}" deleted.`)
-    return '/'
   }
 }

@@ -1,8 +1,9 @@
 <script setup>
-import { Link, Head, useForm, router } from '@inertiajs/vue3'
+import { Link, Head, useForm } from '@inertiajs/vue3'
 import { inject, ref } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
 import Breadcrumb from '@/components/Breadcrumb.vue'
+import ConfirmModal from '@/components/ConfirmModal.vue'
 
 defineOptions({
   layout: AppLayout
@@ -30,6 +31,9 @@ const deployForm = useForm({
 })
 
 const showDeleteConfirm = ref(false)
+const deleteProjectForm = useForm({
+  purgeData: false
+})
 const copiedWebhook = ref(false)
 const copiedSecret = ref(false)
 
@@ -66,7 +70,16 @@ function copyText(text, field) {
 }
 
 function deleteProject() {
-  router.delete(`/projects/${props.project.slug}`)
+  deleteProjectForm.delete(`/projects/${props.project.slug}`, {
+    onFinish: () => {
+      showDeleteConfirm.value = false
+    }
+  })
+}
+
+function openDeleteProject() {
+  deleteProjectForm.reset()
+  showDeleteConfirm.value = true
 }
 </script>
 <template>
@@ -394,34 +407,48 @@ function deleteProject() {
             Danger zone
           </h3>
           <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">
-            Permanently delete this project and all of its environments,
-            deployments, and services. This action cannot be undone.
+            Delete this project and stop all of its environments, apps, and
+            services.
           </p>
           <div class="mt-4">
             <button
-              v-if="!showDeleteConfirm"
-              @click="showDeleteConfirm = true"
+              @click="openDeleteProject"
               class="rounded-md border border-red-300 px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-900/20"
             >
               Delete project
             </button>
-            <div v-else class="flex items-center space-x-3">
-              <button
-                @click="deleteProject"
-                class="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700"
-              >
-                Yes, delete "{{ project.name }}"
-              </button>
-              <button
-                @click="showDeleteConfirm = false"
-                class="rounded-md px-3 py-2 text-sm text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
-              >
-                Cancel
-              </button>
-            </div>
           </div>
         </div>
       </div>
     </div>
+
+    <ConfirmModal
+      :show="showDeleteConfirm"
+      title="Delete project"
+      :message="`Are you sure you want to delete '${project.name}'? Recovery data is retained unless you choose to purge it.`"
+      confirm-label="Delete project"
+      :destructive="true"
+      :loading="deleteProjectForm.processing"
+      @confirm="deleteProject"
+      @cancel="showDeleteConfirm = false"
+    >
+      <template #form>
+        <label class="mt-4 flex cursor-pointer items-start gap-3">
+          <input
+            v-model="deleteProjectForm.purgeData"
+            type="checkbox"
+            class="mt-0.5 h-4 w-4 rounded border-gray-300 text-red-600 focus:ring-red-500 dark:border-gray-600 dark:bg-gray-800"
+          />
+          <span>
+            <span class="block text-sm text-gray-700 dark:text-gray-300">
+              Also permanently delete retained data
+            </span>
+            <span class="mt-0.5 block text-xs text-gray-500 dark:text-gray-400">
+              Purges service volumes, backups, source, and Docker images.
+            </span>
+          </span>
+        </label>
+      </template>
+    </ConfirmModal>
   </div>
 </template>

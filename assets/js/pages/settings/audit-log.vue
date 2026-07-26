@@ -23,6 +23,10 @@ const actionLabels = {
   'service.destroyed': 'Destroyed service',
   'environment.updated': 'Updated environment',
   'project.destroyed': 'Destroyed project',
+  'cleanup.started': 'Started cleanup',
+  'cleanup.stage.completed': 'Completed cleanup stage',
+  'cleanup.stage.failed': 'Cleanup stage failed',
+  'cleanup.completed': 'Completed cleanup',
   'settings.updated': 'Updated settings'
 }
 
@@ -31,8 +35,13 @@ function actionLabel(action) {
 }
 
 function actionColor(action) {
-  if (action.includes('destroy')) return 'text-red-600 dark:text-red-400'
-  if (action.includes('created') || action.includes('triggered'))
+  if (action.includes('destroy') || action.includes('failed'))
+    return 'text-red-600 dark:text-red-400'
+  if (
+    action.includes('created') ||
+    action.includes('triggered') ||
+    action.includes('completed')
+  )
     return 'text-green-600 dark:text-green-400'
   return 'text-blue-600 dark:text-blue-400'
 }

@@ -73,7 +73,10 @@ onUnmounted(() => {
         v-if="show"
         class="fixed inset-0 z-50 flex items-center justify-center"
       >
-        <div class="fixed inset-0 bg-black/50" @click="emit('cancel')" />
+        <div
+          class="fixed inset-0 bg-black/50"
+          @click="!loading && emit('cancel')"
+        />
         <Transition
           enter-active-class="transition duration-200 ease-out"
           enter-from-class="scale-95 opacity-0"
@@ -84,14 +87,22 @@ onUnmounted(() => {
         >
           <div
             v-if="show"
+            data-test="confirm-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="confirm-modal-title"
             class="relative w-full max-w-sm rounded-lg border border-gray-200 bg-white p-6 shadow-xl dark:border-gray-700 dark:bg-gray-900"
           >
-            <h3 class="text-lg font-semibold text-gray-900 dark:text-white">
+            <h3
+              id="confirm-modal-title"
+              class="text-lg font-semibold text-gray-900 dark:text-white"
+            >
               {{ title }}
             </h3>
             <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">
               {{ message }}
             </p>
+            <slot name="form" />
             <div class="mt-4 flex justify-end space-x-3">
               <button
                 @click="emit('cancel')"

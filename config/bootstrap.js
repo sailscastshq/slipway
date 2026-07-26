@@ -12,6 +12,7 @@
 module.exports.bootstrap = async function () {
   // Production uses `migrate: safe`; create coordinator tables before any
   // deployment job queries run on an existing installation.
+  await sails.helpers.cleanup.ensureSchema()
   await sails.helpers.deploy.ensureQueueSchema()
   await sails.helpers.service.ensureVersionSchema()
   await sails.helpers.lookout.ensureObservabilitySchema()

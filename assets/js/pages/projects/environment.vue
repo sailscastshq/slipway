@@ -538,6 +538,8 @@ const newServiceVersion = ref(
 const customServiceVersion = ref(false)
 const creatingService = ref(false)
 const deletingServiceId = ref(null)
+const deletingService = ref(false)
+const purgeServiceData = ref(false)
 const serviceMenuOpen = ref(null)
 const stoppingServiceId = ref(null)
 const startingServiceId = ref(null)
@@ -655,6 +657,7 @@ function closeServiceMenu() {
 
 function confirmDeleteService(service) {
   serviceMenuOpen.value = null
+  purgeServiceData.value = false
   deletingServiceId.value = service.id
 }
 
@@ -707,20 +710,38 @@ async function startService(service) {
 }
 
 async function executeDeleteService() {
-  const res = await fetch(`/api/v1/services/${deletingServiceId.value}`, {
-    method: 'DELETE',
-    headers: { 'Content-Type': 'application/json' }
-  })
-  deletingServiceId.value = null
-  if (res.ok) {
-    toast({ message: 'Service deleted', type: 'success' })
-  } else {
-    toast({ message: 'Failed to delete service', type: 'error' })
+  if (deletingService.value) return
+  deletingService.value = true
+
+  try {
+    const res = await fetch(`/api/v1/services/${deletingServiceId.value}`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ purgeData: purgeServiceData.value })
+    })
+    deletingServiceId.value = null
+    if (res.ok) {
+      toast({ message: 'Service deleted', type: 'success' })
+    } else {
+      const data = await res.json().catch(() => null)
+      toast({
+        message: data?.message || 'Failed to delete service',
+        type: 'error'
+      })
+    }
+    router.reload({ only: ['environment', 'envVars', 'checklist'] })
+  } catch (error) {
+    toast({
+      message: error.message || 'Failed to delete service',
+      type: 'error'
+    })
+  } finally {
+    deletingService.value = false
   }
-  router.reload({ only: ['environment', 'envVars', 'checklist'] })
 }
 
 function cancelDeleteService() {
+  purgeServiceData.value = false
   deletingServiceId.value = null
 }
 
@@ -2608,11 +2629,25 @@ onBeforeUnmount(() => {
     <ConfirmModal
       :show="!!deletingServiceId"
       title="Delete service"
-      message="This will stop the service container and permanently delete all data. This action cannot be undone."
+      message="The service and its container will be removed. Its data volume and backups are retained by default for recovery."
       confirm-label="Delete service"
       :destructive="true"
+      :loading="deletingService"
       @confirm="executeDeleteService"
       @cancel="cancelDeleteService"
-    />
+    >
+      <template #form>
+        <label class="mt-4 flex cursor-pointer items-start gap-3">
+          <input
+            v-model="purgeServiceData"
+            type="checkbox"
+            class="mt-0.5 h-4 w-4 rounded border-gray-300 text-red-600 focus:ring-red-500 dark:border-gray-600 dark:bg-gray-800"
+          />
+          <span class="text-sm text-gray-700 dark:text-gray-300">
+            Also permanently delete the data volume and backups
+          </span>
+        </label>
+      </template>
+    </ConfirmModal>
   </div>
 </template>

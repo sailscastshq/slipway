@@ -1,94 +1,89 @@
 module.exports = {
   friendlyName: 'Delete service',
 
-  description: 'Delete a service and its Docker container.',
+  description: 'Run the shared, resumable cleanup for a service.',
 
   inputs: {
     id: {
       type: 'string',
       required: true,
       description: 'Service ID'
+    },
+    purgeData: {
+      type: 'boolean',
+      defaultsTo: false
     }
   },
 
   exits: {
-    success: {
-      statusCode: 200
-    },
-    notFound: {
-      statusCode: 404
-    },
-    forbidden: {
-      statusCode: 403
+    success: { statusCode: 200 },
+    notFound: { statusCode: 404 },
+    forbidden: { statusCode: 403 },
+    cleanupFailed: {
+      statusCode: 409,
+      description: 'Cleanup paused and can be resumed'
     }
   },
 
-  fn: async function ({ id }) {
+  fn: async function ({ id, purgeData }) {
     const user = await User.findOne({ id: this.req.session.userId })
+    const requestKey = `service:${id}`
+    const targetKey = `service:${id}`
+    const [service, existingOperation] = await Promise.all([
+      Service.findOne({ id }),
+      sails.helpers.cleanup.findOperation.with({ targetKey, requestKey })
+    ])
+    if (!service && !existingOperation) throw 'notFound'
 
-    const service = await Service.findOne(id).populate('environment')
-
-    if (!service) {
-      throw 'notFound'
+    let project
+    let environment
+    if (service) {
+      environment = await Environment.findOne({
+        id: service.environment
+      }).populate('project')
+      project = await Project.findOne({
+        id: environment.project.id
+      }).populate('team')
+    } else {
+      project = await Project.findOne({
+        id: existingOperation.projectId
+      }).populate('team')
     }
 
-    // Get project to check access
-    const environment = await Environment.findOne({
-      id: service.environment.id
-    })
-      .populate('project')
-      .decrypt()
-
-    const project = await Project.findOne({
-      id: environment.project.id
-    }).populate('team')
-
-    if (project.team.id !== user.team) {
-      throw 'forbidden'
-    }
-
-    // Only owner/admin can delete services
+    const teamId = project?.team?.id || existingOperation.team
+    if (Number(teamId) !== Number(user.team)) throw 'forbidden'
     if (user.teamRole !== 'owner' && user.teamRole !== 'admin') {
       throw 'forbidden'
     }
 
-    // Remove auto-managed env var
-    if (service.envVarKey) {
-      const currentVars = environment.envVars || {}
-      const { [service.envVarKey]: _, ...remainingVars } = currentVars
-      await Environment.updateOne({ id: environment.id }).set({
-        envVars: remainingVars
-      })
-    }
-
-    // Stop and remove Docker container
     try {
-      await sails.helpers.docker.destroyService(service.id)
-    } catch (err) {
-      sails.log.warn(`Failed to destroy service container: ${err.message}`)
+      const cleanup = await sails.helpers.cleanup.run.with({
+        targetKey,
+        requestKey,
+        scopeType: 'service',
+        resourceId: service?.id || existingOperation.resourceId,
+        retentionPolicy: purgeData ? 'purge' : 'retain',
+        userId: user.id,
+        teamId,
+        ipAddress: this.req.ip
+      })
+
+      sails.log.info(
+        `Service ${service?.name || cleanup.label} deleted from ${
+          project?.slug || cleanup.targetKey
+        }`
+      )
+      return {
+        message: 'Service deleted successfully',
+        cleanup
+      }
+    } catch (error) {
+      throw {
+        cleanupFailed: {
+          message: error.message,
+          cleanup: error.cleanup || null
+        }
+      }
     }
-
-    sails.log.info(
-      `Service ${service.name} deleted from ${project.slug}/${environment.slug}`
-    )
-
-    // Audit log
-    await sails.helpers.audit.log.with({
-      action: 'service.destroyed',
-      resourceType: 'service',
-      resourceId: service.id,
-      details: {
-        name: service.name,
-        type: service.type,
-        projectSlug: project.slug
-      },
-      userId: user.id,
-      teamId: project.team.id,
-      ipAddress: this.req.ip
-    })
-
-    await Service.destroyOne({ id: service.id })
-
-    return { message: 'Service deleted successfully' }
   }
 }
