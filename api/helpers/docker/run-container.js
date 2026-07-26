@@ -103,10 +103,14 @@ module.exports = {
       portBindingArgument
     ]
 
-    // Add environment variables
-    for (const [key, value] of Object.entries(envVars)) {
-      args.push('-e', key + '=' + value)
-    }
+    // Add environment variables. PORT comes from Slipway's actual container
+    // contract, so references cannot drift from the mapped internal port.
+    args.push(
+      ...sails.helpers.docker.buildEnvArguments.with({
+        envVars,
+        runtimeValues: { PORT: port }
+      })
+    )
 
     // Add resource limits
     if (resourceLimits && resourceLimits.cpus) {
