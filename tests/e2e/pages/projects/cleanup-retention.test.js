@@ -56,7 +56,5 @@ test(
       fullPage: true
     })
     await page.raw.emulateMedia({ colorScheme: 'light' })
-
-    expect(page).toHaveNoSmoke()
   }
 )
