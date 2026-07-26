@@ -1,3 +1,8 @@
+const {
+  getStatementPreview,
+  splitSqlStatements
+} = require('../../../../lib/dock-sql-results')
+
 module.exports = {
   friendlyName: 'Execute SQL',
 
@@ -75,7 +80,13 @@ module.exports = {
 
     const { service } = dbResult
 
-    // Security: Basic query validation
+    // Validate every statement so a dangerous command cannot hide later in a batch.
+    const queriesToValidate =
+      service.type === 'mongodb'
+        ? [query]
+        : splitSqlStatements(query, service.type).map((statement) =>
+            getStatementPreview(statement.sql, Number.MAX_SAFE_INTEGER)
+          )
     const dangerousPatterns =
       service.type === 'mongodb'
         ? [
@@ -86,8 +97,8 @@ module.exports = {
           ]
         : [/^DROP\s+DATABASE/i, /^DROP\s+SCHEMA/i, /^TRUNCATE\s+TABLE\s+pg_/i]
 
-    for (const pattern of dangerousPatterns) {
-      if (pattern.test(query)) {
+    for (const statement of queriesToValidate) {
+      if (dangerousPatterns.some((pattern) => pattern.test(statement))) {
         throw { badRequest: 'This query is not allowed for security reasons.' }
       }
     }

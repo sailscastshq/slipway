@@ -1,12 +1,23 @@
-const { execFile } = require('child_process')
+const crypto = require('crypto')
+const { execFile, spawn } = require('child_process')
 const util = require('util')
+const {
+  getStatementCommand,
+  getStatementPreview,
+  parseMysqlResults,
+  parsePostgresResults,
+  splitSqlStatements
+} = require('../../lib/dock-sql-results')
+
 const execFileAsync = util.promisify(execFile)
+const maximumOutputBytes = 10 * 1024 * 1024
+const queryTimeout = 30000
 
 module.exports = {
   friendlyName: 'Execute SQL',
 
   description:
-    'Execute a SQL query against a database service via docker exec.',
+    'Execute a database query and return a labeled result for every statement.',
 
   inputs: {
     service: {
@@ -29,11 +40,8 @@ module.exports = {
 
   exits: {
     success: {
-      description: 'Query executed successfully',
+      description: 'Query execution completed',
       outputType: 'ref'
-    },
-    queryFailed: {
-      description: 'Query execution failed'
     }
   },
 
@@ -41,318 +49,408 @@ module.exports = {
     const dockerPath = sails.config.docker?.binaryPath || 'docker'
     const startTime = Date.now()
 
-    let args
-    let parseOutput
-
-    if (service.type === 'postgresql') {
-      // PostgreSQL: use psql with CSV output for reliable parsing
-      args = [
-        'exec',
-        '-i',
-        service.containerName,
-        'psql',
-        '-U',
-        service.username,
-        '-d',
-        service.database,
-        '-c',
-        query,
-        '--no-psqlrc',
-        '--csv'
-      ]
-
-      parseOutput = (stdout, stderr) =>
-        parsePostgresOutput(stdout, stderr, format)
-    } else if (service.type === 'mysql') {
-      // MySQL: use mysql client
-      args = [
-        'exec',
-        '-i',
-        service.containerName,
-        'mysql',
-        '-u',
-        service.username,
-        `-p${service.password}`,
-        service.database,
-        '-e',
-        query
-      ]
-
-      if (format === 'json') {
-        args.push('--batch') // Tab-separated output
-      }
-
-      parseOutput = (stdout, stderr) => parseMysqlOutput(stdout, stderr, format)
-    } else if (service.type === 'mongodb') {
-      // MongoDB: use mongosh with JSON output
-      // Connect to localhost inside container, authenticate against admin db
-      const mongoUri = `mongodb://${encodeURIComponent(
-        service.username
-      )}:${encodeURIComponent(service.password)}@localhost:27017/${
-        service.database
-      }?authSource=admin`
-
-      // Wrap query to output JSON, with error handling
-      const wrappedQuery = `
-        try {
-          var result = ${query};
-          print(JSON.stringify(result));
-        } catch (e) {
-          print(JSON.stringify({ __error: true, message: e.message }));
-        }
-      `.replace(/\n\s*/g, ' ')
-
-      args = [
-        'exec',
-        '-i',
-        service.containerName,
-        'mongosh',
-        mongoUri,
-        '--quiet',
-        '--eval',
-        wrappedQuery
-      ]
-
-      parseOutput = (stdout, stderr) => parseMongoOutput(stdout, stderr, format)
-    } else {
-      throw new Error(`Unsupported database type: ${service.type}`)
-    }
+    sails.log.verbose(`[dock] Executing query on ${service.containerName}`)
 
     try {
-      sails.log.verbose(`[dock] Executing SQL on ${service.containerName}`)
-
-      const { stdout, stderr } = await execFileAsync(dockerPath, args, {
-        timeout: 30000, // 30 second timeout
-        maxBuffer: 10 * 1024 * 1024, // 10MB buffer for large results
-        env: {
-          ...process.env,
-          PGPASSWORD: service.password // PostgreSQL password via env
-        }
-      })
-
-      const duration = Date.now() - startTime
-
-      const result = parseOutput(stdout, stderr)
-
-      return {
-        success: true,
-        ...result,
-        duration
+      if (service.type === 'postgresql') {
+        return await executePostgres({
+          dockerPath,
+          service,
+          query,
+          startTime
+        })
       }
+
+      if (service.type === 'mysql') {
+        return await executeMysql({
+          dockerPath,
+          service,
+          query,
+          startTime
+        })
+      }
+
+      if (service.type === 'mongodb') {
+        return await executeMongo({
+          dockerPath,
+          service,
+          query,
+          format,
+          startTime
+        })
+      }
+
+      throw new Error(`Unsupported database type: ${service.type}`)
     } catch (error) {
-      sails.log.error(`[dock] SQL execution failed: ${error.message}`)
-
-      // Extract useful error message
-      let errorMessage = error.message
-      if (error.stderr) {
-        errorMessage = error.stderr.trim()
+      sails.log.error(`[dock] Query execution failed: ${error.message}`)
+      const duration = Date.now() - startTime
+      const message = getProcessErrorMessage(error)
+      const statement = {
+        sql: query.trim(),
+        command: getStatementCommand(query),
+        preview: getStatementPreview(query)
+      }
+      const result = {
+        statementIndex: 0,
+        statementSql: statement.sql,
+        statementPreview: statement.preview,
+        commandTag: statement.command,
+        status: 'error',
+        duration,
+        rowCount: 0,
+        affected: null,
+        columns: [],
+        rows: [],
+        message,
+        error: message,
+        raw: ''
       }
 
-      return {
-        success: false,
-        error: errorMessage,
-        duration: Date.now() - startTime
-      }
+      return aggregateResults([result], duration, error.stderr)
     }
   }
 }
 
-/**
- * Parse PostgreSQL CSV output into structured format
- */
-function parsePostgresOutput(stdout, stderr, format) {
-  const output = stdout.trim()
+async function executePostgres({ dockerPath, service, query, startTime }) {
+  const statements = splitSqlStatements(query, 'postgresql')
+  if (statements.length === 0) return noStatementsResult(startTime)
 
-  if (!output) {
-    return { columns: [], rows: [], rowCount: 0 }
-  }
+  const marker = createMarker()
+  const args = [
+    'exec',
+    '-i',
+    service.containerName,
+    'psql',
+    '-U',
+    service.username,
+    '-d',
+    service.database,
+    '--no-psqlrc',
+    '--csv',
+    '-v',
+    'ON_ERROR_STOP=0',
+    '-c',
+    '\\timing on'
+  ]
 
-  // Check for non-SELECT queries (INSERT, UPDATE, DELETE)
-  // Use word boundary \b to avoid matching column names like "created_at"
-  if (output.match(/^(INSERT|UPDATE|DELETE|CREATE|ALTER|DROP)\b/i)) {
-    return {
-      message: output,
-      columns: [],
-      rows: [],
-      rowCount: 0
-    }
-  }
+  statements.forEach((statement, index) => {
+    args.push(
+      '-c',
+      `\\echo ${marker} START ${index}`,
+      '-c',
+      statement.sql,
+      '-c',
+      `\\echo ${marker} END ${index} :SQLSTATE :ROW_COUNT :LAST_ERROR_MESSAGE`
+    )
+  })
 
-  // Parse CSV output (--csv flag)
-  // Handle both \n and \r\n line endings
-  const lines = output.split(/\r?\n/).filter((line) => line.length > 0)
+  let stdout = ''
+  let stderr = ''
+  let processError = null
 
-  if (lines.length === 0) {
-    return { columns: [], rows: [], rowCount: 0 }
-  }
-
-  // First line is headers - trim any whitespace/carriage returns
-  const headerLine = lines[0].trim()
-
-  if (!headerLine) {
-    return { columns: [], rows: [], rowCount: 0 }
-  }
-
-  // Check if this looks like CSV (contains commas)
-  if (!headerLine.includes(',')) {
-    // Single column or non-CSV output
-    if (headerLine.match(/^[a-z_][a-z0-9_]*$/i)) {
-      // Looks like a single column name
-      return {
-        columns: [headerLine],
-        rows: lines
-          .slice(1)
-          .filter((l) => l.trim())
-          .map((l) => ({ [headerLine]: l.trim() || null })),
-        rowCount: lines.length - 1
+  try {
+    const output = await execFileAsync(dockerPath, args, {
+      timeout: queryTimeout,
+      maxBuffer: maximumOutputBytes,
+      env: {
+        ...process.env,
+        PGPASSWORD: service.password
       }
-    }
-    // Not CSV format - return as message
-    return {
-      message: output,
-      columns: [],
-      rows: [],
-      rowCount: 0
-    }
-  }
-
-  const columns = parseCSVLine(headerLine)
-
-  if (columns.length === 0) {
-    return {
-      message: output,
-      columns: [],
-      rows: [],
-      rowCount: 0
-    }
-  }
-
-  // Rest are data rows
-  const rows = []
-  for (let i = 1; i < lines.length; i++) {
-    const line = lines[i].trim()
-    if (!line) continue
-
-    const values = parseCSVLine(line)
-    const row = {}
-    columns.forEach((col, idx) => {
-      const val = values[idx]
-      // Handle empty strings as null for consistency
-      row[col] = val === '' ? null : val
     })
-    rows.push(row)
+    stdout = output.stdout
+    stderr = output.stderr
+  } catch (error) {
+    processError = error
+    stdout = error.stdout || ''
+    stderr = error.stderr || error.message
   }
 
-  return {
-    columns,
-    rows,
-    rowCount: rows.length
+  const duration = Date.now() - startTime
+  const results = parsePostgresResults({
+    stdout,
+    stderr,
+    statements,
+    marker,
+    totalDuration: duration
+  })
+
+  if (processError && results.every((result) => result.status === 'success')) {
+    throw processError
   }
+
+  return aggregateResults(results, duration, stderr)
 }
 
-/**
- * Parse a single CSV line, handling quoted fields
- */
-function parseCSVLine(line) {
-  const result = []
-  let current = ''
-  let inQuotes = false
+async function executeMysql({ dockerPath, service, query, startTime }) {
+  const statements = splitSqlStatements(query, 'mysql')
+  if (statements.length === 0) return noStatementsResult(startTime)
 
-  for (let i = 0; i < line.length; i++) {
-    const char = line[i]
-    const nextChar = line[i + 1]
+  const marker = createMarker()
+  const timerVariable = `slipway_${marker
+    .replace(/[^A-Za-z0-9_]/g, '')
+    .toLowerCase()}_started_at`
+  const { payload, lineRanges } = buildMysqlPayload({
+    statements,
+    marker,
+    timerVariable
+  })
+  const args = [
+    'exec',
+    '-i',
+    service.containerName,
+    'mysql',
+    '-u',
+    service.username,
+    `-p${service.password}`,
+    service.database,
+    '--batch',
+    '--force'
+  ]
 
-    if (inQuotes) {
-      if (char === '"' && nextChar === '"') {
-        // Escaped quote
-        current += '"'
-        i++
-      } else if (char === '"') {
-        // End of quoted field
-        inQuotes = false
-      } else {
-        current += char
-      }
-    } else {
-      if (char === '"') {
-        // Start of quoted field
-        inQuotes = true
-      } else if (char === ',') {
-        // Field separator
-        result.push(current)
-        current = ''
-      } else {
-        current += char
-      }
-    }
-  }
+  let stdout = ''
+  let stderr = ''
+  let processError = null
 
-  // Don't forget the last field
-  result.push(current)
-
-  return result
-}
-
-/**
- * Parse MySQL output into structured format
- */
-function parseMysqlOutput(stdout, stderr, format) {
-  const output = stdout.trim()
-
-  if (!output) {
-    return { columns: [], rows: [], rowCount: 0 }
-  }
-
-  // Check for non-SELECT queries
-  if (output.match(/^Query OK/)) {
-    return {
-      message: output,
-      columns: [],
-      rows: [],
-      rowCount: 0
-    }
-  }
-
-  // Parse tab-separated output (--batch mode)
-  const lines = output.split('\n').filter((line) => line.trim())
-
-  if (lines.length === 0) {
-    return { columns: [], rows: [], rowCount: 0 }
-  }
-
-  // First line is headers
-  const columns = lines[0].split('\t')
-  const rows = lines.slice(1).map((line) => {
-    const values = line.split('\t')
-    const row = {}
-    columns.forEach((col, i) => {
-      row[col] = values[i] === 'NULL' ? null : values[i]
+  try {
+    const output = await execFileWithInput(dockerPath, args, payload, {
+      timeout: queryTimeout,
+      maxBuffer: maximumOutputBytes
     })
-    return row
+    stdout = output.stdout
+    stderr = output.stderr
+  } catch (error) {
+    processError = error
+    stdout = error.stdout || ''
+    stderr = error.stderr || error.message
+  }
+
+  const duration = Date.now() - startTime
+  const results = parseMysqlResults({
+    stdout,
+    stderr,
+    statements,
+    marker,
+    lineRanges,
+    totalDuration: duration
+  })
+
+  if (processError && results.every((result) => result.status === 'success')) {
+    throw processError
+  }
+
+  return aggregateResults(results, duration, stderr)
+}
+
+async function executeMongo({ dockerPath, service, query, format, startTime }) {
+  const mongoUri = `mongodb://${encodeURIComponent(
+    service.username
+  )}:${encodeURIComponent(service.password)}@localhost:27017/${
+    service.database
+  }?authSource=admin`
+  const wrappedQuery = `
+    try {
+      var result = ${query};
+      print(JSON.stringify(result));
+    } catch (e) {
+      print(JSON.stringify({ __error: true, message: e.message }));
+    }
+  `.replace(/\n\s*/g, ' ')
+  const { stdout, stderr } = await execFileAsync(
+    dockerPath,
+    [
+      'exec',
+      '-i',
+      service.containerName,
+      'mongosh',
+      mongoUri,
+      '--quiet',
+      '--eval',
+      wrappedQuery
+    ],
+    {
+      timeout: queryTimeout,
+      maxBuffer: maximumOutputBytes
+    }
+  )
+  const parsed = parseMongoOutput(stdout, stderr, format)
+  const duration = Date.now() - startTime
+  const error = parsed.error || null
+  const result = {
+    statementIndex: 0,
+    statementSql: query.trim(),
+    statementPreview: getStatementPreview(query),
+    commandTag: 'MONGODB',
+    status: error ? 'error' : 'success',
+    duration,
+    rowCount: parsed.rowCount,
+    affected: null,
+    columns: parsed.columns,
+    rows: parsed.rows,
+    message: error || parsed.message || null,
+    error,
+    raw: stdout.trim()
+  }
+
+  return aggregateResults([result], duration, stderr)
+}
+
+function buildMysqlPayload({ statements, marker, timerVariable }) {
+  const lines = []
+  const lineRanges = []
+
+  statements.forEach((statement, index) => {
+    lines.push(`SET @${timerVariable} = NOW(6);`)
+    lines.push(`SELECT '${marker}:start:${index}' AS __slipway_marker__;`)
+
+    const statementLines = statement.sql.split(/\r?\n/)
+    if (!statementLines.at(-1).trimEnd().endsWith(';')) {
+      statementLines[statementLines.length - 1] += ';'
+    }
+
+    const start = lines.length + 1
+    lines.push(...statementLines)
+    const end = lines.length
+    lineRanges.push({ start, end })
+
+    lines.push(
+      `SELECT '${marker}:end:${index}' AS __slipway_marker__, ROW_COUNT() AS __slipway_row_count__, ROUND(TIMESTAMPDIFF(MICROSECOND, @${timerVariable}, NOW(6)) / 1000, 3) AS __slipway_duration_ms__;`
+    )
   })
 
   return {
-    columns,
-    rows,
-    rowCount: rows.length
+    payload: `${lines.join('\n')}\n`,
+    lineRanges
   }
 }
 
-/**
- * Parse MongoDB mongosh JSON output into structured format
- */
-function parseMongoOutput(stdout, stderr, format) {
+function aggregateResults(results, duration, rawMessages = '') {
+  const firstResult = results[0] || {
+    columns: [],
+    rows: [],
+    rowCount: 0,
+    message: 'Query executed successfully'
+  }
+  const failedResult = results.find((result) => result.status === 'error')
+  const success = Boolean(results.length) && !failedResult
+
+  return {
+    success,
+    ...firstResult,
+    duration,
+    results,
+    error: failedResult?.error || undefined,
+    messages: String(rawMessages || '').trim()
+  }
+}
+
+function noStatementsResult(startTime) {
+  const message = 'No executable SQL statements were found.'
+
+  return {
+    success: false,
+    columns: [],
+    rows: [],
+    rowCount: 0,
+    duration: Date.now() - startTime,
+    results: [],
+    error: message,
+    message,
+    messages: ''
+  }
+}
+
+function createMarker() {
+  return `__SLIPWAY_RESULT_${crypto.randomBytes(12).toString('hex')}__`
+}
+
+function getProcessErrorMessage(error) {
+  return String(error.stderr || error.message || 'Query failed')
+    .trim()
+    .split(/\r?\n/)
+    .pop()
+}
+
+function execFileWithInput(command, args, input, options) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, args, {
+      env: options.env || process.env,
+      stdio: ['pipe', 'pipe', 'pipe']
+    })
+    let stdout = ''
+    let stderr = ''
+    let outputBytes = 0
+    let settled = false
+    const timeout = setTimeout(() => {
+      const error = new Error(`Query timed out after ${options.timeout}ms`)
+      error.code = 'ETIMEDOUT'
+      child.kill('SIGTERM')
+      settle(error)
+    }, options.timeout)
+
+    function collect(chunk, stream) {
+      outputBytes += chunk.length
+      if (outputBytes > options.maxBuffer) {
+        const error = new Error('Query output exceeded the 10MB limit')
+        error.code = 'ERR_CHILD_PROCESS_STDIO_MAXBUFFER'
+        child.kill('SIGTERM')
+        settle(error)
+        return
+      }
+
+      if (stream === 'stdout') stdout += chunk.toString()
+      else stderr += chunk.toString()
+    }
+
+    function settle(error) {
+      if (settled) return
+      settled = true
+      clearTimeout(timeout)
+
+      if (error) {
+        error.stdout = stdout
+        error.stderr = stderr || error.stderr
+        reject(error)
+      } else {
+        resolve({ stdout, stderr })
+      }
+    }
+
+    child.stdout.on('data', (chunk) => collect(chunk, 'stdout'))
+    child.stderr.on('data', (chunk) => collect(chunk, 'stderr'))
+    child.on('error', settle)
+    child.on('close', (code, signal) => {
+      if (code === 0) {
+        settle()
+        return
+      }
+
+      const error = new Error(
+        signal
+          ? `Database client stopped with signal ${signal}`
+          : `Database client exited with code ${code}`
+      )
+      error.code = code
+      error.signal = signal
+      settle(error)
+    })
+
+    child.stdin.on('error', (error) => {
+      if (error.code !== 'EPIPE') settle(error)
+    })
+    child.stdin.end(input)
+  })
+}
+
+function parseMongoOutput(stdout) {
   const output = stdout.trim()
 
   if (!output) {
     return { columns: [], rows: [], rowCount: 0 }
   }
 
-  // Try to parse as JSON (our query wraps result in JSON.stringify)
   try {
     const data = JSON.parse(output)
 
-    // Check for wrapped error
     if (data && data.__error) {
       return {
         message: data.message || 'MongoDB query failed',
@@ -363,69 +461,34 @@ function parseMongoOutput(stdout, stderr, format) {
       }
     }
 
-    // Handle array results (find queries)
     if (Array.isArray(data)) {
       if (data.length === 0) {
         return { columns: [], rows: [], rowCount: 0 }
       }
 
-      // Extract columns from first document
-      const columns = Object.keys(data[0])
-
-      // Convert _id to string for display
-      const rows = data.map((doc) => {
-        const row = {}
-        columns.forEach((col) => {
-          const val = doc[col]
-          if (col === '_id' && val && typeof val === 'object') {
-            row[col] = val.$oid || JSON.stringify(val)
-          } else if (val && typeof val === 'object') {
-            row[col] = JSON.stringify(val)
-          } else {
-            row[col] = val
-          }
-        })
-        return row
-      })
-
-      return {
-        columns,
-        rows,
-        rowCount: rows.length
-      }
+      const columns = Array.from(
+        new Set(data.flatMap((document) => Object.keys(document)))
+      )
+      const rows = data.map((document) => normalizeMongoDocument(document))
+      return { columns, rows, rowCount: rows.length }
     }
 
-    // Handle single document result
     if (typeof data === 'object' && data !== null) {
-      const columns = Object.keys(data)
-      const row = {}
-      columns.forEach((col) => {
-        const val = data[col]
-        if (col === '_id' && val && typeof val === 'object') {
-          row[col] = val.$oid || JSON.stringify(val)
-        } else if (val && typeof val === 'object') {
-          row[col] = JSON.stringify(val)
-        } else {
-          row[col] = val
-        }
-      })
-
+      const row = normalizeMongoDocument(data)
       return {
-        columns,
+        columns: Object.keys(row),
         rows: [row],
         rowCount: 1
       }
     }
 
-    // Handle primitive results (count, etc)
     return {
       message: String(data),
       columns: [],
       rows: [],
       rowCount: 0
     }
-  } catch (e) {
-    // Not JSON - return as message
+  } catch {
     return {
       message: output,
       columns: [],
@@ -433,4 +496,20 @@ function parseMongoOutput(stdout, stderr, format) {
       rowCount: 0
     }
   }
+}
+
+function normalizeMongoDocument(document) {
+  const row = {}
+
+  Object.entries(document).forEach(([column, value]) => {
+    if (column === '_id' && value && typeof value === 'object') {
+      row[column] = value.$oid || JSON.stringify(value)
+    } else if (value && typeof value === 'object') {
+      row[column] = JSON.stringify(value)
+    } else {
+      row[column] = value
+    }
+  })
+
+  return row
 }
