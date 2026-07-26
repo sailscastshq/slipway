@@ -1,5 +1,5 @@
 <script setup>
-import { Link, Head, router } from '@inertiajs/vue3'
+import { Link, Head, useForm } from '@inertiajs/vue3'
 import { inject, ref, computed, onMounted, onUnmounted } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
 import ConfirmModal from '@/components/ConfirmModal.vue'
@@ -76,21 +76,29 @@ function copySlug(e, slug) {
 }
 
 const deletingProject = ref(null)
+const deleteProjectForm = useForm({
+  purgeData: false
+})
 
 function deleteProject(e, project) {
   e.preventDefault()
   e.stopPropagation()
   deletingProject.value = project
+  deleteProjectForm.reset()
   closeMenu()
 }
 
 function executeDeleteProject() {
   if (!deletingProject.value) return
-  router.delete(`/projects/${deletingProject.value.slug}`)
-  deletingProject.value = null
+  deleteProjectForm.delete(`/projects/${deletingProject.value.slug}`, {
+    onFinish: () => {
+      deletingProject.value = null
+    }
+  })
 }
 
 function cancelDeleteProject() {
+  deleteProjectForm.reset()
   deletingProject.value = null
 }
 
@@ -543,11 +551,30 @@ onUnmounted(() => {
     <ConfirmModal
       :show="!!deletingProject"
       title="Delete project"
-      :message="`Are you sure you want to delete &quot;${deletingProject?.name}&quot;? This action cannot be undone.`"
+      :message="`Are you sure you want to delete &quot;${deletingProject?.name}&quot;? Recovery data is retained unless you choose to purge it.`"
       confirm-label="Delete"
       :destructive="true"
+      :loading="deleteProjectForm.processing"
       @confirm="executeDeleteProject"
       @cancel="cancelDeleteProject"
-    />
+    >
+      <template #form>
+        <label class="mt-4 flex cursor-pointer items-start gap-3">
+          <input
+            v-model="deleteProjectForm.purgeData"
+            type="checkbox"
+            class="mt-0.5 h-4 w-4 rounded border-gray-300 text-red-600 focus:ring-red-500 dark:border-gray-600 dark:bg-gray-800"
+          />
+          <span>
+            <span class="block text-sm text-gray-700 dark:text-gray-300">
+              Also permanently delete retained data
+            </span>
+            <span class="mt-0.5 block text-xs text-gray-500 dark:text-gray-400">
+              Purges service volumes, backups, source, and Docker images.
+            </span>
+          </span>
+        </label>
+      </template>
+    </ConfirmModal>
   </div>
 </template>

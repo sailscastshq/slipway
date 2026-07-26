@@ -1,4 +1,7 @@
 const { execFile } = require('child_process')
+const { promisify } = require('node:util')
+
+const execFileAsync = promisify(execFile)
 
 module.exports = {
   friendlyName: 'Remove route',
@@ -34,13 +37,15 @@ module.exports = {
     const dockerPath = sails.config.docker?.binaryPath || 'docker'
     const routeContainerName = `slipway-route-${projectSlug}-${environmentSlug}`
 
-    return new Promise((resolve) => {
-      execFile(dockerPath, ['rm', '-f', routeContainerName], (err) => {
-        if (!err) {
-          sails.log.info(`Caddy route container removed: ${routeContainerName}`)
-        }
-        resolve({ removed: true, routeId: routeContainerName })
-      })
-    })
+    try {
+      await execFileAsync(dockerPath, ['rm', '-f', routeContainerName])
+      sails.log.info(`Caddy route container removed: ${routeContainerName}`)
+      return { removed: true, routeId: routeContainerName }
+    } catch (error) {
+      if (/no such container/i.test(error.message || '')) {
+        return { removed: false, routeId: routeContainerName }
+      }
+      throw error
+    }
   }
 }

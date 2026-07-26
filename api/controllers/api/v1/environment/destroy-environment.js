@@ -1,7 +1,8 @@
 module.exports = {
   friendlyName: 'Delete environment',
 
-  description: 'Delete an environment and all its resources.',
+  description:
+    'Run the shared, resumable cleanup for an environment and its resources.',
 
   inputs: {
     projectSlug: {
@@ -13,52 +14,49 @@ module.exports = {
       type: 'string',
       required: true,
       description: 'Environment slug'
+    },
+    purgeData: {
+      type: 'boolean',
+      defaultsTo: false
     }
   },
 
   exits: {
-    success: {
-      statusCode: 200
-    },
-    notFound: {
-      statusCode: 404
-    },
-    forbidden: {
-      statusCode: 403
-    },
-    badRequest: {
-      responseType: 'badRequest'
+    success: { statusCode: 200 },
+    notFound: { statusCode: 404 },
+    forbidden: { statusCode: 403 },
+    badRequest: { responseType: 'badRequest' },
+    cleanupFailed: {
+      statusCode: 409,
+      description: 'Cleanup paused and can be resumed'
     }
   },
 
-  fn: async function ({ projectSlug, slug }) {
+  fn: async function ({ projectSlug, slug, purgeData }) {
     const user = await User.findOne({ id: this.req.session.userId })
-
     const project = await Project.findOne({ slug: projectSlug }).populate(
       'team'
     )
 
-    if (!project) {
-      throw 'notFound'
-    }
-
-    if (project.team.id !== user.team) {
-      throw 'forbidden'
-    }
-
-    // Only owner/admin can delete environments
+    if (!project) throw 'notFound'
+    if (Number(project.team.id) !== Number(user.team)) throw 'forbidden'
     if (user.teamRole !== 'owner' && user.teamRole !== 'admin') {
       throw 'forbidden'
     }
 
-    const environment = await Environment.findOne({ project: project.id, slug })
+    const requestKey = `environment:${projectSlug}/${slug}`
+    const environment = await Environment.findOne({
+      project: project.id,
+      slug
+    })
+    const targetKey = environment ? `environment:${environment.id}` : undefined
+    const existingOperation = await sails.helpers.cleanup.findOperation.with({
+      targetKey,
+      requestKey
+    })
+    if (!environment && !existingOperation) throw 'notFound'
 
-    if (!environment) {
-      throw 'notFound'
-    }
-
-    // Prevent deleting production environment if it's the only one
-    if (environment.isProduction) {
+    if (environment?.isProduction) {
       const envCount = await Environment.count({ project: project.id })
       if (envCount === 1) {
         throw {
@@ -71,47 +69,29 @@ module.exports = {
       }
     }
 
-    // Stop and remove ALL app containers
-    const apps = await App.find({ environment: environment.id })
-    for (const app of apps) {
-      if (app.containerName) {
-        try {
-          await sails.helpers.docker.stopContainer(app.containerName)
-        } catch (err) {
-          sails.log.warn(
-            `Failed to stop app container ${app.containerName}: ${err.message}`
-          )
+    try {
+      const cleanup = await sails.helpers.cleanup.run.with({
+        targetKey: targetKey || existingOperation.targetKey,
+        requestKey,
+        scopeType: 'environment',
+        resourceId: environment?.id || existingOperation.resourceId,
+        retentionPolicy: purgeData ? 'purge' : 'retain',
+        userId: user.id,
+        teamId: project.team.id,
+        ipAddress: this.req.ip
+      })
+
+      return {
+        message: 'Environment deleted successfully',
+        cleanup
+      }
+    } catch (error) {
+      throw {
+        cleanupFailed: {
+          message: error.message,
+          cleanup: error.cleanup || null
         }
       }
     }
-
-    const services = await Service.find({ environment: environment.id })
-    for (const service of services) {
-      try {
-        await sails.helpers.docker.destroyService(service.id)
-      } catch (err) {
-        sails.log.warn(
-          `Failed to destroy service ${service.name}: ${err.message}`
-        )
-      }
-    }
-
-    // Remove Caddy route
-    try {
-      await sails.helpers.caddy.removeRoute.with({
-        projectSlug: project.slug,
-        environmentSlug: slug
-      })
-    } catch (err) {
-      sails.log.warn(`Failed to remove Caddy route: ${err.message}`)
-    }
-
-    // Delete database records
-    await Deployment.destroy({ environment: environment.id })
-    await App.destroy({ environment: environment.id })
-    await Service.destroy({ environment: environment.id })
-    await Environment.destroyOne({ id: environment.id })
-
-    return { message: 'Environment deleted successfully' }
   }
 }

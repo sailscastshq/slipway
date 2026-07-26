@@ -35,9 +35,11 @@ module.exports = {
   },
 
   fn: async function ({ containerName, remove, timeout }) {
+    const dockerPath = sails.config.docker?.binaryPath || 'docker'
+
     try {
       // Check if container exists
-      await execFileAsync('docker', ['inspect', containerName])
+      await execFileAsync(dockerPath, ['inspect', containerName])
     } catch {
       sails.log.verbose(`Container ${containerName} not found`)
       throw 'notFound'
@@ -45,7 +47,7 @@ module.exports = {
 
     try {
       // Stop the container
-      await execFileAsync('docker', [
+      await execFileAsync(dockerPath, [
         'stop',
         '-t',
         String(timeout),
@@ -54,7 +56,7 @@ module.exports = {
       sails.log.info(`Stopped container: ${containerName}`)
 
       if (remove) {
-        await execFileAsync('docker', ['rm', containerName])
+        await execFileAsync(dockerPath, ['rm', containerName])
         sails.log.info(`Removed container: ${containerName}`)
       }
 

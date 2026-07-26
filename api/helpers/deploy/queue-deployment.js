@@ -35,6 +35,9 @@ module.exports = {
   exits: {
     success: {
       outputType: 'ref'
+    },
+    cleanupInProgress: {
+      outputType: 'ref'
     }
   },
 
@@ -43,6 +46,18 @@ module.exports = {
     if (!environmentId) {
       throw new Error('A queued deployment requires an environment.')
     }
+
+    const environment = await Environment.findOne({ id: environmentId })
+    if (!environment) {
+      throw new Error(`Environment ${environmentId} no longer exists.`)
+    }
+    const cleanupScope = {
+      projectId: normalizeId(environment.project),
+      environmentId,
+      appId: normalizeId(app)
+    }
+    const initialCleanup = await findBlockingCleanup(cleanupScope)
+    if (initialCleanup) throw { cleanupInProgress: initialCleanup }
 
     const appSlug = app?.slug || 'app'
     // The source cache and Caddy route are environment-wide resources. Keep
@@ -74,6 +89,15 @@ module.exports = {
         .usingConnection(db)
     })
 
+    const racedCleanup = await findBlockingCleanup(cleanupScope)
+    if (racedCleanup) {
+      await withDatastoreTransaction(async (db) => {
+        await DeploymentJob.destroyOne({ id: job.id }).usingConnection(db)
+        await Deployment.destroyOne({ id: deployment.id }).usingConnection(db)
+      })
+      throw { cleanupInProgress: racedCleanup }
+    }
+
     const queuePosition = await getQueuePosition(job)
 
     if (dispatch) {
@@ -100,6 +124,12 @@ module.exports = {
 function normalizeId(value) {
   if (value && typeof value === 'object') return value.id
   return value
+}
+
+async function findBlockingCleanup(scope) {
+  return sails.helpers.cleanup.assertAvailable
+    .with(scope)
+    .tolerate('blocked', (error) => error.raw || error)
 }
 
 async function getQueuePosition(job) {

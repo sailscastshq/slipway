@@ -2,7 +2,7 @@ module.exports = {
   friendlyName: 'Destroy preview environment',
 
   description:
-    'Stop containers, remove routes, and delete a preview environment.',
+    'Use shared cleanup to purge an automatically-created preview environment.',
 
   inputs: {
     project: {
@@ -19,67 +19,46 @@ module.exports = {
 
   exits: {
     success: {
-      description: 'Preview environment destroyed'
+      description: 'Preview environment destroyed',
+      outputType: 'ref'
     }
   },
 
   fn: async function ({ project, prNumber }) {
     const slug = `pr-${prNumber}`
-
+    const requestKey = `environment:${project.slug}/${slug}`
     const environment = await Environment.findOne({
       project: project.id,
       slug
     })
+    const targetKey = environment ? `environment:${environment.id}` : undefined
+    const existingOperation = await sails.helpers.cleanup.findOperation.with({
+      targetKey,
+      requestKey
+    })
 
-    if (!environment) {
+    if (!environment && !existingOperation) {
       sails.log.verbose(
         `No preview environment ${slug} found for ${project.slug}`
       )
-      return
+      return { status: 'not_found' }
     }
 
-    // Stop app container
-    const app =
-      (await App.findOne({ environment: environment.id, isDefault: true })) ||
-      (await App.findOne({ environment: environment.id }))
-    if (app && app.containerName) {
-      try {
-        await sails.helpers.docker.stopContainer(app.containerName)
-      } catch (err) {
-        sails.log.warn(`Failed to stop preview app container: ${err.message}`)
-      }
-    }
-
-    // Stop and remove service containers
-    const services = await Service.find({ environment: environment.id })
-    for (const service of services) {
-      try {
-        await sails.helpers.docker.destroyService(service.id)
-      } catch (err) {
-        sails.log.warn(
-          `Failed to destroy preview service ${service.name}: ${err.message}`
-        )
-      }
-    }
-
-    // Remove Caddy route
-    try {
-      await sails.helpers.caddy.removeRoute.with({
-        projectSlug: project.slug,
-        environmentSlug: slug
-      })
-    } catch (err) {
-      sails.log.verbose(
-        `Failed to remove Caddy route for preview: ${err.message}`
-      )
-    }
-
-    // Delete database records
-    await Deployment.destroy({ environment: environment.id })
-    await App.destroy({ environment: environment.id })
-    await Service.destroy({ environment: environment.id })
-    await Environment.destroyOne({ id: environment.id })
+    const cleanup = await sails.helpers.cleanup.run.with({
+      targetKey: targetKey || existingOperation.targetKey,
+      requestKey,
+      scopeType: 'environment',
+      resourceId: environment?.id || existingOperation.resourceId,
+      retentionPolicy: 'purge',
+      teamId: normalizeId(project.team) || normalizeId(existingOperation.team),
+      ipAddress: null
+    })
 
     sails.log.info(`Preview environment destroyed: ${project.slug}/${slug}`)
+    return cleanup
   }
+}
+
+function normalizeId(value) {
+  return value && typeof value === 'object' ? value.id : value
 }

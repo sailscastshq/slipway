@@ -206,3 +206,109 @@ test(
     }
   }
 )
+
+test(
+  'web and API deletion expose the same durable cleanup result',
+  {
+    world: {
+      name: 'configured-slipway',
+      context: {
+        deploymentTarget: {
+          slug: 'web-cleanup-contract',
+          name: 'Web cleanup contract'
+        }
+      }
+    }
+  },
+  async ({ sails, world, request, expect }) => {
+    const current = world.current
+    const webProject = current.projects.deploymentTarget
+    const apiProject = await world.create('project').with({
+      name: 'API cleanup contract',
+      slug: 'api-cleanup-contract',
+      team: current.teams.genesisTeam.id,
+      createdBy: current.users.genesisUser.id
+    })
+    const apiEnvironment = await world.create('environment').with({
+      project: apiProject.id,
+      name: 'Production',
+      slug: 'production',
+      isProduction: true
+    })
+    await world.create('app').with({
+      environment: apiEnvironment.id,
+      name: 'Web',
+      slug: 'web'
+    })
+
+    const originalRemoveRoute = sails.helpers.caddy.removeRoute
+    const removeRoute = async (inputs) => ({
+      removed: true,
+      routeId: `${inputs.projectSlug}/${inputs.environmentSlug}`
+    })
+    removeRoute.with = removeRoute
+    sails.helpers.caddy.removeRoute = removeRoute
+
+    try {
+      const browser = await withCsrfFromPage(
+        request,
+        `/projects/${webProject.slug}/settings`,
+        'genesisUser'
+      )
+      const webResponse = await browser.request.delete(
+        `/projects/${webProject.slug}`,
+        { purgeData: false }
+      )
+
+      expect(webResponse).toHaveStatus(409)
+      expect(webResponse).toHaveHeader('x-inertia-location', '/')
+
+      const dashboard = await browser.request.get('/')
+      const webCleanup = dashboard.data.props.flash.cleanup
+      expect(webCleanup.status).toBe('complete')
+      expect(webCleanup.retentionPolicy).toBe('retain')
+      expect(webCleanup.warnings).toEqual([])
+
+      const recreatedProject = await world.create('project').with({
+        name: 'Recreated web cleanup contract',
+        slug: webProject.slug,
+        team: current.teams.genesisTeam.id,
+        createdBy: current.users.genesisUser.id
+      })
+      const recreatedEnvironment = await world.create('environment').with({
+        project: recreatedProject.id,
+        name: 'Production',
+        slug: 'production',
+        isProduction: true
+      })
+      await world.create('app').with({
+        environment: recreatedEnvironment.id,
+        name: 'Web',
+        slug: 'web'
+      })
+      const recreatedResponse = await browser.request.delete(
+        `/api/v1/projects/${recreatedProject.slug}`,
+        { purgeData: false }
+      )
+      expect(recreatedResponse).toHaveStatus(200)
+      expect(recreatedResponse.data.cleanup.id === webCleanup.id).toBe(false)
+
+      const apiResponse = await browser.request.delete(
+        `/api/v1/projects/${apiProject.slug}`,
+        { purgeData: false }
+      )
+      expect(apiResponse).toHaveStatus(200)
+      expect(apiResponse).toHaveJsonPath('cleanup.status', webCleanup.status)
+      expect(apiResponse).toHaveJsonPath(
+        'cleanup.retentionPolicy',
+        webCleanup.retentionPolicy
+      )
+      expect(apiResponse).toHaveJsonPath(
+        'cleanup.warnings',
+        webCleanup.warnings
+      )
+    } finally {
+      sails.helpers.caddy.removeRoute = originalRemoveRoute
+    }
+  }
+)

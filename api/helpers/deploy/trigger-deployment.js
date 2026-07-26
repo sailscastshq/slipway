@@ -49,6 +49,9 @@ module.exports = {
     appNotFound: {},
     sourceUnavailable: {
       outputType: 'ref'
+    },
+    cleanupInProgress: {
+      outputType: 'ref'
     }
   },
 
@@ -112,17 +115,19 @@ module.exports = {
       }
     }
 
-    const queued = await sails.helpers.deploy.queueDeployment.with({
-      values: {
-        gitCommit: finalGitCommit,
-        gitBranch: finalGitBranch,
-        gitMessage: finalGitMessage,
-        triggeredBy: user.id,
-        triggerType,
-        environment: environment.id
-      },
-      app: targetApp
-    })
+    const queued = await sails.helpers.deploy.queueDeployment
+      .with({
+        values: {
+          gitCommit: finalGitCommit,
+          gitBranch: finalGitBranch,
+          gitMessage: finalGitMessage,
+          triggeredBy: user.id,
+          triggerType,
+          environment: environment.id
+        },
+        app: targetApp
+      })
+      .intercept('cleanupInProgress', 'cleanupInProgress')
 
     sails.helpers.audit.log
       .with({

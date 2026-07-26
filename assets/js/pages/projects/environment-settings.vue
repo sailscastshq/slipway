@@ -13,10 +13,7 @@ defineOptions({
 const props = defineProps({
   project: Object,
   environment: Object,
-  canDelete: Boolean,
-  isOnlyEnvironment: Boolean,
-  hasApp: Boolean,
-  serviceCount: Number
+  isOnlyEnvironment: Boolean
 })
 
 const toggleMobileMenu = inject('toggleMobileMenu')
@@ -35,6 +32,7 @@ const isDirty = computed(
 )
 const showDeleteConfirm = ref(false)
 const deleting = ref(false)
+const purgeData = ref(false)
 
 async function save() {
   if (saving.value) return
@@ -87,7 +85,8 @@ async function deleteEnvironment() {
       `/api/v1/projects/${props.project.slug}/environments/${props.environment.slug}`,
       {
         method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' }
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ purgeData: purgeData.value })
       }
     )
 
@@ -103,22 +102,19 @@ async function deleteEnvironment() {
       deleting.value = false
       showDeleteConfirm.value = false
     }
-  } catch {
+  } catch (error) {
+    toast({
+      message: error.message || 'Failed to delete environment',
+      type: 'error'
+    })
     deleting.value = false
     showDeleteConfirm.value = false
   }
 }
 
-// Build reason why deletion is blocked
-const deleteBlockedReason = ref('')
-if (!props.canDelete) {
-  const reasons = []
-  if (props.hasApp) reasons.push('has a deployed app')
-  if (props.serviceCount > 0)
-    reasons.push(
-      `has ${props.serviceCount} service${props.serviceCount > 1 ? 's' : ''}`
-    )
-  deleteBlockedReason.value = `This environment ${reasons.join(' and ')}.`
+function openDeleteEnvironment() {
+  purgeData.value = false
+  showDeleteConfirm.value = true
 }
 </script>
 
@@ -339,17 +335,12 @@ if (!props.canDelete) {
                   Delete environment
                 </p>
                 <p class="text-sm text-gray-500 dark:text-gray-400">
-                  <template v-if="canDelete">
-                    Permanently delete this environment and all its data.
-                  </template>
-                  <template v-else>
-                    {{ deleteBlockedReason }} Remove them first to delete.
-                  </template>
+                  Delete this environment and stop its apps and services.
                 </p>
               </div>
               <button
-                @click="showDeleteConfirm = true"
-                :disabled="!canDelete || isOnlyEnvironment"
+                @click="openDeleteEnvironment"
+                :disabled="isOnlyEnvironment"
                 class="rounded-md bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 Delete
@@ -370,12 +361,30 @@ if (!props.canDelete) {
     <ConfirmModal
       :show="showDeleteConfirm"
       title="Delete environment"
-      :message="`Are you sure you want to delete '${environment.name}'? This action cannot be undone.`"
+      :message="`Are you sure you want to delete '${environment.name}'? Recovery data is retained unless you choose to purge it.`"
       confirm-label="Delete environment"
       :destructive="true"
       :loading="deleting"
       @confirm="deleteEnvironment"
       @cancel="showDeleteConfirm = false"
-    />
+    >
+      <template #form>
+        <label class="mt-4 flex cursor-pointer items-start gap-3">
+          <input
+            v-model="purgeData"
+            type="checkbox"
+            class="mt-0.5 h-4 w-4 rounded border-gray-300 text-red-600 focus:ring-red-500 dark:border-gray-600 dark:bg-gray-800"
+          />
+          <span>
+            <span class="block text-sm text-gray-700 dark:text-gray-300">
+              Also permanently delete retained data
+            </span>
+            <span class="mt-0.5 block text-xs text-gray-500 dark:text-gray-400">
+              Purges service volumes, backups, and Docker images.
+            </span>
+          </span>
+        </label>
+      </template>
+    </ConfirmModal>
   </div>
 </template>

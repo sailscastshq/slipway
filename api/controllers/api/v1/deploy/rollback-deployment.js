@@ -70,19 +70,23 @@ module.exports = {
     })
     if (!targetDeployment?.imageName) throw 'badRequest'
 
-    const queued = await sails.helpers.deploy.queueDeployment.with({
-      values: {
-        gitCommit: targetDeployment.gitCommit,
-        gitBranch: targetDeployment.gitBranch,
-        gitMessage: `Rollback to deployment ${targetDeployment.id}`,
-        triggeredBy: user.id,
-        triggerType: 'api',
-        environment: environment.id
-      },
-      app: targetApp,
-      kind: 'rollback',
-      targetDeploymentId: targetDeployment.id
-    })
+    const queued = await sails.helpers.deploy.queueDeployment
+      .with({
+        values: {
+          gitCommit: targetDeployment.gitCommit,
+          gitBranch: targetDeployment.gitBranch,
+          gitMessage: `Rollback to deployment ${targetDeployment.id}`,
+          triggeredBy: user.id,
+          triggerType: 'api',
+          environment: environment.id
+        },
+        app: targetApp,
+        kind: 'rollback',
+        targetDeploymentId: targetDeployment.id
+      })
+      .intercept('cleanupInProgress', (error) => ({
+        badRequest: error.raw || error
+      }))
     const rollback = queued.deployment
 
     sails.log.info(

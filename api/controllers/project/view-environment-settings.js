@@ -45,17 +45,8 @@ module.exports = {
       throw { notFound: `/projects/${slug}` }
     }
 
-    // Check if environment has app or services
-    const app =
-      (await App.findOne({ environment: environment.id, isDefault: true })) ||
-      (await App.findOne({ environment: environment.id }))
-    const services = await Service.find({ environment: environment.id })
-
     // Count environments in project (can't delete if only one)
     const envCount = await Environment.count({ project: project.id })
-
-    // Determine if deletion is allowed
-    const canDelete = !app && services.length === 0
     const isOnlyEnvironment = envCount === 1
 
     return {
@@ -63,10 +54,7 @@ module.exports = {
       props: {
         project,
         environment,
-        canDelete,
-        isOnlyEnvironment,
-        hasApp: !!app,
-        serviceCount: services.length
+        isOnlyEnvironment
       }
     }
   }

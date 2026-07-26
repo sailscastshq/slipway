@@ -94,6 +94,9 @@ module.exports = {
       .intercept('sourceUnavailable', (error) => ({
         badRequest: error.raw || error
       }))
+      .intercept('cleanupInProgress', (error) => ({
+        badRequest: error.raw || error
+      }))
     const deployment = queued.deployment
 
     sails.log.info(

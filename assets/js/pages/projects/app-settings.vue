@@ -220,6 +220,12 @@ onMounted(() => {
 // --- Delete ---
 const deleteConfirm = ref(false)
 const deleting = ref(false)
+const purgeAppData = ref(false)
+
+function openDeleteApp() {
+  purgeAppData.value = false
+  deleteConfirm.value = true
+}
 
 async function deleteApp() {
   deleting.value = true
@@ -228,7 +234,8 @@ async function deleteApp() {
       `/api/v1/projects/${props.project.slug}/environments/${props.environment.slug}/apps/${props.app.slug}`,
       {
         method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' }
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ purgeData: purgeAppData.value })
       }
     )
     if (res.ok) {
@@ -238,10 +245,16 @@ async function deleteApp() {
     } else {
       const data = await res.json()
       toast({
-        message: data.problems?.[0]?.app || 'Failed to delete app',
+        message:
+          data.problems?.[0]?.app || data.message || 'Failed to delete app',
         type: 'error'
       })
     }
+  } catch (error) {
+    toast({
+      message: error.message || 'Failed to delete app',
+      type: 'error'
+    })
   } finally {
     deleting.value = false
     deleteConfirm.value = false
@@ -967,7 +980,7 @@ async function deleteApp() {
           </p>
           <div class="mt-4">
             <button
-              @click="deleteConfirm = true"
+              @click="openDeleteApp"
               class="rounded-md border border-red-300 px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-900/20"
             >
               Delete app
@@ -981,13 +994,26 @@ async function deleteApp() {
     <ConfirmModal
       :show="deleteConfirm"
       title="Delete app"
-      :message="`Are you sure you want to delete '${app.name}'? This will stop the container and cannot be undone.`"
+      :message="`Are you sure you want to delete '${app.name}'? Its Docker images are retained by default for recovery.`"
       confirm-label="Delete"
       :destructive="true"
       :loading="deleting"
       @confirm="deleteApp"
       @cancel="deleteConfirm = false"
-    />
+    >
+      <template #form>
+        <label class="mt-4 flex cursor-pointer items-start gap-3">
+          <input
+            v-model="purgeAppData"
+            type="checkbox"
+            class="mt-0.5 h-4 w-4 rounded border-gray-300 text-red-600 focus:ring-red-500 dark:border-gray-600 dark:bg-gray-800"
+          />
+          <span class="text-sm text-gray-700 dark:text-gray-300">
+            Also permanently delete retained Docker images
+          </span>
+        </label>
+      </template>
+    </ConfirmModal>
 
     <!-- Disconnect Confirm Modal -->
     <ConfirmModal
