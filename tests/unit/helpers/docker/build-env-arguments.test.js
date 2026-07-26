@@ -150,7 +150,14 @@ test('runContainer gives Docker expanded environment arguments for its actual in
   const capturedArgumentsPath = path.join(temporaryDirectory, 'arguments.json')
   const previousDockerConfig = sails.config.docker
   const previousCapturePath = process.env.SLIPWAY_FAKE_DOCKER_ARGS_PATH
+  const previousFailureFlag = process.env.SLIPWAY_FAKE_DOCKER_SHOULD_FAIL
   const originalGetPortBinding = sails.helpers.docker.getPortBinding
+  const originalLoggers = {
+    error: sails.log.error,
+    info: sails.log.info,
+    verbose: sails.log.verbose
+  }
+  const logMessages = []
 
   await fs.writeFile(
     fakeDockerPath,
@@ -161,6 +168,11 @@ test('runContainer gives Docker expanded environment arguments for its actual in
       '  process.env.SLIPWAY_FAKE_DOCKER_ARGS_PATH,',
       '  JSON.stringify(process.argv.slice(2))',
       ')',
+      "if (process.env.SLIPWAY_FAKE_DOCKER_SHOULD_FAIL === 'true') {",
+      "  const secret = process.argv.find((value) => value.startsWith('SECRET_TOKEN='))",
+      '  process.stderr.write(`Docker rejected ${secret}\\n`)',
+      '  process.exit(1)',
+      '}',
       "process.stdout.write('0123456789abcdef\\n')"
     ].join('\n'),
     { mode: 0o755 }
@@ -171,6 +183,7 @@ test('runContainer gives Docker expanded environment arguments for its actual in
     binaryPath: fakeDockerPath
   }
   process.env.SLIPWAY_FAKE_DOCKER_ARGS_PATH = capturedArgumentsPath
+  delete process.env.SLIPWAY_FAKE_DOCKER_SHOULD_FAIL
   sails.helpers.docker.getPortBinding = {
     with: async ({ host, hostPort, containerPort }) => ({
       valid: true,
@@ -180,6 +193,9 @@ test('runContainer gives Docker expanded environment arguments for its actual in
       diagnostic: `${host}:${hostPort} -> ${containerPort}/tcp`
     })
   }
+  sails.log.error = (...values) => logMessages.push(values.join(' '))
+  sails.log.info = (...values) => logMessages.push(values.join(' '))
+  sails.log.verbose = (...values) => logMessages.push(values.join(' '))
 
   try {
     await sails.helpers.docker.runContainer.with({
@@ -190,7 +206,8 @@ test('runContainer gives Docker expanded environment arguments for its actual in
       host: '127.0.0.1',
       envVars: {
         PDF_BASE_URL: 'http://127.0.0.1:$PORT',
-        HEALTH_URL: 'http://127.0.0.1:${PORT}/health'
+        HEALTH_URL: 'http://127.0.0.1:${PORT}/health',
+        SECRET_TOKEN: 'should-reach-docker-but-never-logs'
       }
     })
 
@@ -201,16 +218,58 @@ test('runContainer gives Docker expanded environment arguments for its actual in
 
     expect(environmentArguments).toEqual([
       'PDF_BASE_URL=http://127.0.0.1:1337',
-      'HEALTH_URL=http://127.0.0.1:1337/health'
+      'HEALTH_URL=http://127.0.0.1:1337/health',
+      'SECRET_TOKEN=should-reach-docker-but-never-logs'
     ])
+    expect(logMessages.join('\n')).toMatch(
+      /Running container: example-app-test/
+    )
+    expect(logMessages.join('\n').includes('SECRET_TOKEN=')).toBe(false)
+    expect(
+      logMessages.join('\n').includes('should-reach-docker-but-never-logs')
+    ).toBe(false)
+
+    process.env.SLIPWAY_FAKE_DOCKER_SHOULD_FAIL = 'true'
+    let startupError
+    try {
+      await sails.helpers.docker.runContainer.with({
+        imageName: 'example/app:test',
+        containerName: 'example-app-failing',
+        port: 1337,
+        hostPort: 1401,
+        host: '127.0.0.1',
+        envVars: {
+          SHORT_SECRET: 'failure-secret',
+          SECRET_TOKEN: 'failure-secret-that-must-be-redacted'
+        }
+      })
+    } catch (error) {
+      startupError = error
+    }
+
+    expect(startupError).toBeDefined()
+    expect(startupError.message).toMatch(
+      /Docker rejected SECRET_TOKEN=<redacted>/
+    )
+    expect(startupError.message.includes('failure-secret')).toBe(false)
+    expect(logMessages.join('\n').includes('failure-secret')).toBe(false)
   } finally {
     sails.helpers.docker.getPortBinding = originalGetPortBinding
     sails.config.docker = previousDockerConfig
+    sails.log.error = originalLoggers.error
+    sails.log.info = originalLoggers.info
+    sails.log.verbose = originalLoggers.verbose
 
     if (previousCapturePath === undefined) {
       delete process.env.SLIPWAY_FAKE_DOCKER_ARGS_PATH
     } else {
       process.env.SLIPWAY_FAKE_DOCKER_ARGS_PATH = previousCapturePath
+    }
+
+    if (previousFailureFlag === undefined) {
+      delete process.env.SLIPWAY_FAKE_DOCKER_SHOULD_FAIL
+    } else {
+      process.env.SLIPWAY_FAKE_DOCKER_SHOULD_FAIL = previousFailureFlag
     }
 
     await fs.rm(temporaryDirectory, { recursive: true, force: true })

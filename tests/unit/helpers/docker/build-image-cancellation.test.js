@@ -15,6 +15,8 @@ test('docker image build terminates its process when the deployment is cancelled
   const readyPath = path.join(tempRoot, 'ready')
   const terminatedPath = path.join(tempRoot, 'terminated')
   const originalDockerPath = sails.config.docker?.binaryPath
+  const originalInfoLogger = sails.log.info
+  const logMessages = []
   fs.writeFileSync(
     dockerPath,
     [
@@ -32,6 +34,7 @@ test('docker image build terminates its process when the deployment is cancelled
   fs.chmodSync(dockerPath, 0o755)
   sails.config.docker = sails.config.docker || {}
   sails.config.docker.binaryPath = dockerPath
+  sails.log.info = (...values) => logMessages.push(values.join(' '))
 
   const controller = new AbortController()
   const cancellation = new Error('Cancelled by Builder')
@@ -44,6 +47,9 @@ test('docker image build terminates its process when the deployment is cancelled
       .with({
         contextPath: tempRoot,
         imageName: 'slipway/cancelled:latest',
+        buildArgs: {
+          NPM_TOKEN: 'should-reach-docker-but-never-logs'
+        },
         timeout: 10_000,
         signal: controller.signal
       })
@@ -56,6 +62,13 @@ test('docker image build terminates its process when the deployment is cancelled
 
     expect(buildError.code).toBe('DEPLOYMENT_CANCELLED')
     expect(fs.readFileSync(terminatedPath, 'utf8')).toBe('SIGTERM')
+    expect(logMessages.join('\n')).toMatch(
+      /Building image: slipway\/cancelled:latest/
+    )
+    expect(logMessages.join('\n').includes('NPM_TOKEN=')).toBe(false)
+    expect(
+      logMessages.join('\n').includes('should-reach-docker-but-never-logs')
+    ).toBe(false)
   } finally {
     if (!controller.signal.aborted) controller.abort(cancellation)
     if (build) await build
@@ -64,6 +77,7 @@ test('docker image build terminates its process when the deployment is cancelled
     } else {
       sails.config.docker.binaryPath = originalDockerPath
     }
+    sails.log.info = originalInfoLogger
     fs.rmSync(tempRoot, { recursive: true, force: true })
   }
 })

@@ -128,7 +128,6 @@ module.exports = {
     args.push(imageName)
 
     sails.log.info(`Running container: ${containerName}`)
-    sails.log.verbose(`Command: docker ${args.join(' ')}`)
 
     if (deploymentId) {
       await Deployment.appendDeployLog(
@@ -185,7 +184,7 @@ module.exports = {
       if (signal?.aborted) {
         throw deploymentCancellation.cancellationError(signal, deploymentId)
       }
-      const errorMessage = error.message || String(error)
+      const errorMessage = sanitizeDockerError(error, args)
       sails.log.error(`Failed to run container: ${errorMessage}`)
 
       if (deploymentId) {
@@ -195,11 +194,50 @@ module.exports = {
         )
       }
 
-      throw error
+      const safeError = new Error(errorMessage)
+      if (error.code !== undefined) safeError.code = error.code
+      throw safeError
     }
   }
 }
 
 function normalizeHost(host) {
   return String(host || '0.0.0.0').trim() || '0.0.0.0'
+}
+
+function sanitizeDockerError(error, args) {
+  let message =
+    String(error.stderr || '').trim() ||
+    String(error.message || error || 'Docker failed to start the container.')
+  const environmentAssignments = []
+
+  for (let index = 0; index < args.length; index++) {
+    if (args[index] !== '-e') continue
+
+    const assignment = String(args[index + 1] || '')
+    const separatorIndex = assignment.indexOf('=')
+    if (separatorIndex === -1) continue
+
+    environmentAssignments.push({
+      assignment,
+      key: assignment.slice(0, separatorIndex),
+      value: assignment.slice(separatorIndex + 1)
+    })
+    index += 1
+  }
+
+  for (const { assignment, key } of environmentAssignments) {
+    message = message.split(assignment).join(`${key}=<redacted>`)
+  }
+
+  const values = environmentAssignments
+    .map(({ value }) => value)
+    .filter(Boolean)
+    .sort((left, right) => right.length - left.length)
+
+  for (const value of values) {
+    message = message.split(value).join('<redacted>')
+  }
+
+  return message
 }
