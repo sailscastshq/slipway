@@ -92,22 +92,30 @@ module.exports = function defineCustomHook(sails) {
                     'wildcardDomain'
                   )
                   const slipwayDomain = sails.config.custom.slipwayDomain
+                  const accessByEnvironment = new Map(
+                    await Promise.all(
+                      environments.map(async (environment) => {
+                        const project = projects.find(
+                          (candidate) => candidate.id === environment.project
+                        )
+                        const access = project
+                          ? await Environment.resolveAppUrls(
+                              { ...environment, project },
+                              { wildcardDomain, slipwayDomain }
+                            )
+                          : { primaryUrl: null }
+                        return [environment.id, access]
+                      })
+                    )
+                  )
                   return apps.map((app) => {
                     const env = environments.find(
                       (e) => e.id === app.environment
                     )
                     const project = projects.find((p) => p.id === env?.project)
-                    let domain = null
-                    if (env?.domain) {
-                      domain = env.domain
-                    } else if (project && env) {
-                      const subdomain = `${project.slug}-${env.slug}`
-                      domain = wildcardDomain
-                        ? `${subdomain}.${wildcardDomain}`
-                        : slipwayDomain
-                        ? `${subdomain}.${slipwayDomain}`
-                        : null
-                    }
+                    const url =
+                      accessByEnvironment.get(app.environment)?.primaryUrl ||
+                      null
                     return {
                       name: app.name,
                       slug: app.slug,
@@ -115,7 +123,7 @@ module.exports = function defineCustomHook(sails) {
                       projectSlug: project?.slug,
                       envName: env?.name,
                       envSlug: env?.slug,
-                      domain
+                      url
                     }
                   })
                 } catch (err) {

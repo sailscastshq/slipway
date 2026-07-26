@@ -376,17 +376,17 @@ register({
   icon: 'clipboard',
   children: () =>
     navApps.value
-      .filter((app) => app.domain)
+      .filter((app) => app.url)
       .map((app) => ({
         id: `action.copy-url.${app.projectSlug}.${app.envSlug}.${app.slug}`,
         title: app.name,
-        subtitle: `https://${app.domain}`,
-        keywords: [app.slug, app.projectName, app.envName, app.domain],
+        subtitle: app.url,
+        keywords: [app.slug, app.projectName, app.envName, app.url],
         group: `${app.projectName} / ${app.envName}`,
         icon: 'clipboard',
         action: async () => {
           try {
-            await navigator.clipboard.writeText(`https://${app.domain}`)
+            await navigator.clipboard.writeText(app.url)
             toast({ message: `Copied URL for ${app.name}`, type: 'success' })
           } catch {
             toast({ message: 'Failed to copy URL', type: 'error' })
