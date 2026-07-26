@@ -28,3 +28,39 @@ test('production custom config keeps the public URL and domain settings together
     }
   }
 })
+
+test('production observability retention has documented defaults and positive overrides', ({
+  expect
+}) => {
+  const names = [
+    'SLIPWAY_CONTAINER_METRICS_RETENTION_HOURS',
+    'SLIPWAY_APPLICATION_TELEMETRY_RETENTION_DAYS',
+    'SLIPWAY_OBSERVABILITY_PRUNE_BATCH_SIZE',
+    'SLIPWAY_OBSERVABILITY_MAX_PRUNE_BATCHES'
+  ]
+  const original = Object.fromEntries(
+    names.map((name) => [name, process.env[name]])
+  )
+
+  try {
+    process.env.SLIPWAY_CONTAINER_METRICS_RETENTION_HOURS = '12'
+    process.env.SLIPWAY_APPLICATION_TELEMETRY_RETENTION_DAYS = '3'
+    process.env.SLIPWAY_OBSERVABILITY_PRUNE_BATCH_SIZE = '250'
+    process.env.SLIPWAY_OBSERVABILITY_MAX_PRUNE_BATCHES = '8'
+    delete require.cache[productionConfigPath]
+
+    const productionConfig = require(productionConfigPath)
+    expect(productionConfig.custom.observability).toEqual({
+      containerMetricsRetentionMs: 12 * 60 * 60 * 1000,
+      applicationTelemetryRetentionMs: 3 * 24 * 60 * 60 * 1000,
+      pruneBatchSize: 250,
+      maxPruneBatchesPerRun: 8
+    })
+  } finally {
+    delete require.cache[productionConfigPath]
+    for (const name of names) {
+      if (original[name] === undefined) delete process.env[name]
+      else process.env[name] = original[name]
+    }
+  }
+})

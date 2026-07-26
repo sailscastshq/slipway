@@ -77,6 +77,16 @@ module.exports.custom = {
     killGraceMs: 5000
   },
 
+  // Lookout keeps infrastructure samples for 24 hours and application
+  // telemetry for 7 days. Maintenance uses bounded batches so pruning cannot
+  // hold a long SQLite write lock on a busy host.
+  observability: {
+    containerMetricsRetentionMs: 24 * 60 * 60 * 1000,
+    applicationTelemetryRetentionMs: 7 * 24 * 60 * 60 * 1000,
+    pruneBatchSize: 500,
+    maxPruneBatchesPerRun: 20
+  },
+
   // API version (used for building API URLs)
   apiVersion: 'v1',
 

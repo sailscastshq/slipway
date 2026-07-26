@@ -24,16 +24,22 @@ module.exports = {
     if (!user) return { containers: [], hostDisk: null }
 
     const hostDisk = await sails.helpers.lookout.getDiskSpace()
+    const observabilityHealth =
+      await sails.helpers.lookout.getObservabilityHealth()
 
     // Get all projects for the user's team
     const projects = await Project.find({ team: user.team.id })
     const projectIds = projects.map((p) => p.id)
-    if (projectIds.length === 0) return { containers: [], hostDisk }
+    if (projectIds.length === 0) {
+      return { containers: [], hostDisk, observabilityHealth }
+    }
 
     // Get all environments for these projects
     const environments = await Environment.find({ project: projectIds })
     const environmentIds = environments.map((e) => e.id)
-    if (environmentIds.length === 0) return { containers: [], hostDisk }
+    if (environmentIds.length === 0) {
+      return { containers: [], hostDisk, observabilityHealth }
+    }
 
     // Get all running apps and services
     const apps = await App.find({
@@ -51,7 +57,9 @@ module.exports = {
       ...services.map((s) => s.containerName)
     ].filter(Boolean)
 
-    if (containerNames.length === 0) return { containers: [], hostDisk }
+    if (containerNames.length === 0) {
+      return { containers: [], hostDisk, observabilityHealth }
+    }
 
     // Get latest metric for each container (most recent recordedAt)
     const latestMetrics = await ContainerMetric.find({
@@ -131,6 +139,6 @@ module.exports = {
       })
     }
 
-    return { containers, hostDisk }
+    return { containers, hostDisk, observabilityHealth }
   }
 }

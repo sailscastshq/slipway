@@ -2,7 +2,7 @@
  * Lookout hook
  *
  * Collects Docker container resource metrics on a 30-second interval.
- * Stores snapshots in the ContainerMetric model and prunes data older than 24h.
+ * Stores snapshots in the ContainerMetric model.
  * Triggers resource alerts when CPU or memory exceeds 90% for 3 consecutive samples (~90s).
  *
  * Also:
@@ -13,6 +13,7 @@
 module.exports = function defineLookoutHook(sails) {
   let pollInterval = null
   let logInterval = null
+  let cycleRunning = false
 
   // Track alert cooldowns: containerName → last alert timestamp
   const alertCooldowns = new Map()
@@ -25,7 +26,15 @@ module.exports = function defineLookoutHook(sails) {
     initialize: async function () {
       sails.log.info('Initializing hook (`lookout`)')
 
-      sails.after('hook:orm:loaded', () => {
+      sails.after('hook:orm:loaded', async () => {
+        try {
+          await sails.helpers.lookout.ensureObservabilitySchema()
+        } catch (error) {
+          sails.log.warn(
+            `Lookout: Could not prepare observability storage: ${error.message}`
+          )
+        }
+
         // Main 30-second interval: lifecycle reconciliation + metrics.
         pollInterval = setInterval(runLookoutCycle, 30000)
         runLookoutCycle()
@@ -43,8 +52,14 @@ module.exports = function defineLookoutHook(sails) {
   }
 
   async function runLookoutCycle() {
-    await reconcileLifecycleStatuses()
-    await collectMetrics()
+    if (cycleRunning) return
+    cycleRunning = true
+    try {
+      await reconcileLifecycleStatuses()
+      await collectMetrics()
+    } finally {
+      cycleRunning = false
+    }
   }
 
   async function reconcileLifecycleStatuses() {
@@ -94,124 +109,10 @@ module.exports = function defineLookoutHook(sails) {
 
   async function collectMetrics() {
     try {
-      const stats = await sails.helpers.docker.getContainerStats()
-
-      // Pre-fetch currently running apps and services for metric matching.
-      // Lifecycle truth is reconciled separately from this stats sample.
-      const apps = await App.find({ status: 'running' }).populate('environment')
-      const services = await Service.find({ status: 'running' }).populate(
-        'environment'
-      )
-      const now = Date.now()
-
-      if (!stats || stats.length === 0) {
-        return
+      const result = await sails.helpers.lookout.collectContainerMetrics()
+      for (const sample of result.alertSamples) {
+        await checkResourceAlert(sample.stat, sample.containerName, Date.now())
       }
-
-      // Filter to slipway-managed containers only
-      const slipwayStats = stats.filter(
-        (s) => s.name && s.name.startsWith('slipway-')
-      )
-
-      if (slipwayStats.length === 0) {
-        return
-      }
-
-      const records = []
-
-      for (const stat of slipwayStats) {
-        // Try to match to an app first
-        const matchedApp = apps.find((a) => a.containerName === stat.name)
-        if (matchedApp) {
-          records.push({
-            containerName: stat.name,
-            containerType: 'app',
-            cpuPercent: stat.cpuPercent,
-            memoryUsage: stat.memUsage,
-            memoryLimit: stat.memLimit,
-            memoryPercent: stat.memPercent,
-            netIO: stat.netIO,
-            blockIO: stat.blockIO,
-            pids: stat.pids,
-            recordedAt: now,
-            environment: matchedApp.environment.id,
-            app: matchedApp.id
-          })
-          await checkResourceAlert(stat, matchedApp.containerName, now)
-          continue
-        }
-
-        // Try to match to a service
-        const matchedService = services.find(
-          (s) => s.containerName === stat.name
-        )
-        if (matchedService) {
-          records.push({
-            containerName: stat.name,
-            containerType: 'service',
-            cpuPercent: stat.cpuPercent,
-            memoryUsage: stat.memUsage,
-            memoryLimit: stat.memLimit,
-            memoryPercent: stat.memPercent,
-            netIO: stat.netIO,
-            blockIO: stat.blockIO,
-            pids: stat.pids,
-            recordedAt: now,
-            environment: matchedService.environment.id,
-            service: matchedService.id
-          })
-          await checkResourceAlert(stat, matchedService.containerName, now)
-          continue
-        }
-
-        // Unknown slipway container — skip (orphaned container)
-        sails.log.verbose('Lookout: Unmatched container:', stat.name)
-      }
-
-      // Bulk create metrics
-      if (records.length > 0) {
-        await ContainerMetric.createEach(records)
-
-        // Publish new data points to SSE channels (one message per environment)
-        const byEnv = {}
-        for (const r of records) {
-          if (!byEnv[r.environment]) byEnv[r.environment] = []
-          byEnv[r.environment].push({
-            containerName: r.containerName,
-            containerType: r.containerType,
-            cpuPercent: r.cpuPercent,
-            memoryUsage: r.memoryUsage,
-            memoryLimit: r.memoryLimit,
-            memoryPercent: r.memoryPercent,
-            netIO: r.netIO,
-            blockIO: r.blockIO,
-            pids: r.pids,
-            recordedAt: r.recordedAt
-          })
-        }
-        for (const envId of Object.keys(byEnv)) {
-          sails.sse.publish(`lookout:env:${envId}`, { metrics: byEnv[envId] })
-        }
-      }
-
-      // Prune container metrics older than 24 hours
-      const cutoff = now - 24 * 60 * 60 * 1000
-      await ContainerMetric.destroy({ recordedAt: { '<': cutoff } })
-
-      // Prune telemetry data older than 7 days (runs alongside metric collection)
-      const telemetryCutoff = now - 7 * 24 * 60 * 60 * 1000
-      await TelemetrySpan.destroy({
-        startedAt: { '<': telemetryCutoff }
-      }).tolerate('error')
-      await TelemetryException.destroy({
-        occurredAt: { '<': telemetryCutoff }
-      }).tolerate('error')
-      await TelemetryMetric.destroy({
-        recordedAt: { '<': telemetryCutoff }
-      }).tolerate('error')
-
-      // Check host disk space (every cycle, but alert on cooldown)
-      await checkDiskSpace(now)
     } catch (err) {
       sails.log.warn('Lookout: Error collecting metrics:', err.message)
     }
@@ -258,32 +159,6 @@ module.exports = function defineLookoutHook(sails) {
       await AppLog.destroy({ endedAt: { '<': logCutoff } })
     } catch (err) {
       sails.log.verbose('Lookout: Error collecting logs:', err.message)
-    }
-  }
-
-  async function checkDiskSpace(now) {
-    try {
-      const cooldownKey = 'disk:space'
-      const lastAlert = alertCooldowns.get(cooldownKey)
-      if (lastAlert && now - lastAlert < ALERT_COOLDOWN_MS) return
-
-      const diskInfo = await sails.helpers.lookout.getDiskSpace()
-      if (!diskInfo) return
-
-      if (diskInfo.usedPercent >= 90) {
-        alertCooldowns.set(cooldownKey, now)
-        sails.log.warn(
-          `Lookout: Disk space critical — ${diskInfo.usedPercent}% used, ${diskInfo.available} available`
-        )
-        await sails.helpers.notification.sendDiskSpaceAlert
-          .with({
-            usedPercent: diskInfo.usedPercent,
-            availableGb: diskInfo.available
-          })
-          .tolerate('error')
-      }
-    } catch (err) {
-      sails.log.verbose('Lookout: Disk space check error:', err.message)
     }
   }
 

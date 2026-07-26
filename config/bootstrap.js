@@ -14,6 +14,7 @@ module.exports.bootstrap = async function () {
   // deployment job queries run on an existing installation.
   await sails.helpers.deploy.ensureQueueSchema()
   await sails.helpers.service.ensureVersionSchema()
+  await sails.helpers.lookout.ensureObservabilitySchema()
 
   // Initialize CLI tokens map for Bearer token authentication
   sails.cliTokens = new Map()

@@ -28,6 +28,8 @@ module.exports = {
     }
 
     const hostDisk = await sails.helpers.lookout.getDiskSpace()
+    const observabilityHealth =
+      await sails.helpers.lookout.getObservabilityHealth()
 
     // Get all projects for the user's team
     const projects = await Project.find({ team: user.team.id })
@@ -36,7 +38,12 @@ module.exports = {
     if (projectIds.length === 0) {
       return {
         page: 'lookout/index',
-        props: { containers: [], telemetrySummary: {}, hostDisk }
+        props: {
+          containers: [],
+          telemetrySummary: {},
+          hostDisk,
+          observabilityHealth
+        }
       }
     }
 
@@ -47,7 +54,12 @@ module.exports = {
     if (environmentIds.length === 0) {
       return {
         page: 'lookout/index',
-        props: { containers: [], telemetrySummary: {}, hostDisk }
+        props: {
+          containers: [],
+          telemetrySummary: {},
+          hostDisk,
+          observabilityHealth
+        }
       }
     }
 
@@ -171,7 +183,12 @@ module.exports = {
 
     return {
       page: 'lookout/index',
-      props: { containers, telemetrySummary, hostDisk }
+      props: {
+        containers,
+        telemetrySummary,
+        hostDisk,
+        observabilityHealth
+      }
     }
   }
 }
