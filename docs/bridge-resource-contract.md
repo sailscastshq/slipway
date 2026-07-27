@@ -265,9 +265,156 @@ context (`id`, `email`, `fullName`, team role, and current project/environment
 identifiers). The target app remains responsible for mapping that identity to
 its own user and roles.
 
-Custom action names may be declared in `actions`. They pass through the same
-authorization helper even when their executor is supplied by a later Bridge
-feature.
+Custom actions use the same authorization helper. A denied action is removed
+from the effective contract sent to the UI and the execution endpoint repeats
+authorization immediately before calling the target helper.
+
+For a record action, the authorization helper receives `recordId`. A bulk
+action receives `recordIds` during execution. Resource actions receive neither.
+This keeps a helper from accidentally treating a resource-level permission as
+a record-level decision.
+
+## Custom actions
+
+Bridge actions connect a small, declarative UI contract to a Sails helper in
+the target application. The configuration is data only: JavaScript functions
+cannot cross the Bridge boundary.
+
+```js
+course: {
+  authorization: 'bridge.authorize',
+  actions: {
+    bulkDelete: false,
+
+    syncCatalog: {
+      scope: 'resource',
+      helper: 'bridge.syncCatalog',
+      label: 'Sync catalog',
+      success: 'Catalog synchronized.'
+    },
+
+    publish: {
+      scope: 'record',
+      helper: 'bridge.publishCourse',
+      label: 'Publish course',
+      description: 'Make this course available to students.',
+      confirm: 'Publish this course now?',
+      success: 'Course published.',
+      fields: {
+        notifyStudents: {
+          type: 'boolean',
+          label: 'Notify students',
+          default: true
+        },
+        releaseNote: {
+          type: 'textarea',
+          label: 'Release note',
+          help: 'Included in the student notification.',
+          required: true,
+          minLength: 3,
+          maxLength: 280
+        }
+      }
+    },
+
+    regenerateLicenses: {
+      scope: 'bulk',
+      helper: 'bridge.regenerateLicenses',
+      label: 'Regenerate licenses',
+      destructive: true,
+      confirm: 'Existing license links will stop working.',
+      fields: {
+        reason: {
+          type: 'select',
+          required: true,
+          default: 'security',
+          options: [
+            { label: 'Security rotation', value: 'security' },
+            { label: 'Content update', value: 'content' }
+          ]
+        }
+      }
+    }
+  }
+}
+```
+
+The three scopes determine where the action appears and which identifiers the
+helper receives:
+
+| Scope      | UI location                             | Helper context |
+| ---------- | --------------------------------------- | -------------- |
+| `resource` | Resource list toolbar                   | No record IDs  |
+| `record`   | Record detail action menu               | `recordId`     |
+| `bulk`     | Selected-record action menu on the list | `recordIds`    |
+
+Bulk actions accept at most 100 selected IDs per execution. Slipway normalizes
+and deduplicates every identifier against the resource primary-key contract
+before authorization or helper execution.
+
+Actions without fields, confirmation, or destructive behavior execute
+directly from the menu. An action with fields or confirmation opens one focused
+dialog. `destructive: true` supplies a safe confirmation message when none is
+configured and uses the existing destructive button treatment.
+
+Action fields reuse Bridge input, browser validation, and server validation.
+They support:
+
+```text
+text, textarea, richtext, email, url, number, currency, boolean,
+select, json, date, datetime, timestamp
+```
+
+Fields may define `label`, `help`, `placeholder`, `required`, `default`,
+`options`, `min`, `max`, `minLength`, `maxLength`, `format`, and `currency`.
+Defaults and option values are validated when the resource contract is
+normalized. Rich text supports the explicit Markdown format and repeats the
+raw-HTML denial on the server. Relationship and upload fields are not action
+inputs; use record forms for those workflows.
+
+The configured helper runs inside the target Sails application:
+
+```js
+// api/helpers/bridge/publish-course.js
+module.exports = {
+  friendlyName: 'Publish course',
+
+  inputs: {
+    actor: { type: 'ref', required: true },
+    resource: { type: 'ref', required: true },
+    values: { type: 'ref', required: true },
+    recordId: { type: 'ref', required: true }
+  },
+
+  fn: async function ({ actor, values, recordId }) {
+    await Course.updateOne({ id: recordId }).set({ published: true })
+
+    if (values.notifyStudents) {
+      await sails.helpers.course.notifyStudents.with({
+        courseId: recordId,
+        note: values.releaseNote,
+        triggeredBy: actor.email
+      })
+    }
+
+    return { message: 'Course published and students notified.' }
+  }
+}
+```
+
+Resource helpers omit `recordId`. Bulk helpers declare
+`recordIds: { type: 'ref', required: true }`. A helper may return a string or
+`{ message }`; Slipway normalizes the message to plain text and limits it to
+500 characters. Other return data stays inside the target application.
+
+Custom actions execute synchronously with Bridge's existing target-container
+timeout. Use Quest or another background job from the helper for long-running
+work, and return a message that the job was queued.
+
+Every completed or failed helper execution creates a Slipway audit event with
+the actor, project, environment, resource, action, scope, and affected record
+identifiers. Submitted field values and helper return data are deliberately not
+written to the audit log.
 
 Set `type: 'richtext'` and `format: 'markdown'` to use Bridge's TipTap editor:
 
