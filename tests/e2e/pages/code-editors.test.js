@@ -74,6 +74,14 @@ async function screenshotAroundEditor(page, selector, path) {
   await page.screenshot(path)
 }
 
+async function navigateAfterUpdateCheck(page, target) {
+  const updateCheckFinished = page.raw.waitForResponse(
+    '**/api/v1/system/check-update'
+  )
+  await page.goto(target)
+  await updateCheckFinished
+}
+
 test(
   'Slipway code editors provide native selection and exact copy behavior everywhere',
   {
@@ -161,9 +169,13 @@ test(
       })
     })
 
+    const loginUpdateCheckFinished = page.raw.waitForResponse(
+      '**/api/v1/system/check-update'
+    )
     await login.withPassword('genesisUser', page, {
       password: current.auth.genesisUserPassword
     })
+    await loginUpdateCheckFinished
     await page.raw
       .context()
       .grantPermissions(['clipboard-read', 'clipboard-write'])
@@ -171,7 +183,7 @@ test(
     await page.inLightMode()
 
     const dockPath = `/projects/${projectSlug}/environments/${environmentSlug}/dock/${database.id}`
-    await page.goto(dockPath)
+    await navigateAfterUpdateCheck(page, dockPath)
     await verifyRealEditor({
       page,
       expect,
@@ -192,7 +204,7 @@ test(
     await page.wait(350)
     await page.screenshot('.tmp/issue-212-dock-query-dark.png')
 
-    await page.goto(`${dockPath}?import=1`)
+    await navigateAfterUpdateCheck(page, `${dockPath}?import=1`)
     await verifyRealEditor({
       page,
       expect,
@@ -203,7 +215,7 @@ test(
     await page.screenshot('.tmp/issue-212-dock-import-dark.png')
 
     await page.inLightMode()
-    await page.goto('/bosun?tab=console')
+    await navigateAfterUpdateCheck(page, '/bosun?tab=console')
     await verifyRealEditor({
       page,
       expect,
@@ -226,7 +238,8 @@ test(
     await page.screenshot('.tmp/issue-212-bosun-helm-dark.png')
 
     await page.inLightMode()
-    await page.goto(
+    await navigateAfterUpdateCheck(
+      page,
       `/projects/${projectSlug}/environments/${environmentSlug}/helm`
     )
     await verifyRealEditor({
@@ -242,7 +255,8 @@ test(
     await page.screenshot('.tmp/issue-212-project-helm-dark.png')
 
     await page.inLightMode()
-    await page.goto(
+    await navigateAfterUpdateCheck(
+      page,
       `/projects/${projectSlug}/environments/${environmentSlug}/apps/${appSlug}?bulk=1`
     )
     await verifyRealEditor({
@@ -259,7 +273,8 @@ test(
     )
 
     await page.inDarkMode()
-    await page.goto(
+    await navigateAfterUpdateCheck(
+      page,
       `/projects/${projectSlug}/environments/${environmentSlug}?bulk=1`
     )
     await verifyRealEditor({
@@ -276,7 +291,7 @@ test(
     )
 
     await page.inLightMode()
-    await page.goto('/settings/global-env?bulk=1')
+    await navigateAfterUpdateCheck(page, '/settings/global-env?bulk=1')
     await verifyRealEditor({
       page,
       expect,
