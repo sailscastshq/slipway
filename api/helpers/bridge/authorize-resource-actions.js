@@ -18,6 +18,9 @@ module.exports = {
     },
     recordId: {
       type: 'ref'
+    },
+    recordIds: {
+      type: 'ref'
     }
   },
 
@@ -27,7 +30,13 @@ module.exports = {
     }
   },
 
-  fn: async function ({ containerName, resources, actor, recordId }) {
+  fn: async function ({
+    containerName,
+    resources,
+    actor,
+    recordId,
+    recordIds
+  }) {
     const effectiveResources = cloneResources(resources)
     const requests = []
 
@@ -59,6 +68,7 @@ module.exports = {
           key,
           action,
           helperIdentity,
+          scope: resource.actionDefinitions?.[action]?.scope || null,
           resource: {
             identity: resource.identity,
             primaryKey: resource.primaryKey,
@@ -82,6 +92,7 @@ module.exports = {
       const requests = ${JSON.stringify(requests)};
       const actor = ${JSON.stringify(actor)};
       const recordId = ${JSON.stringify(recordId)};
+      const recordIds = ${JSON.stringify(recordIds)};
       const decisions = Object.create(null);
 
       function resolveHelper(identity) {
@@ -106,8 +117,24 @@ module.exports = {
           action: request.action,
           resource: request.resource
         };
-        if (recordId !== undefined && recordId !== null) {
+        if (
+          recordId !== undefined &&
+          recordId !== null &&
+          (
+            request.scope === 'record' ||
+            ['view', 'update', 'delete'].includes(request.action)
+          )
+        ) {
           inputs.recordId = recordId;
+        }
+        if (
+          Array.isArray(recordIds) &&
+          (
+            request.scope === 'bulk' ||
+            request.action === 'bulkDelete'
+          )
+        ) {
+          inputs.recordIds = recordIds;
         }
 
         const result = await helper.with(inputs);
@@ -155,6 +182,7 @@ module.exports = {
       effectiveResources[request.key].actions[request.action] =
         decisions?.[request.key]?.[request.action] === true
     }
+    removeDeniedDefinitions(effectiveResources)
 
     return effectiveResources
   }
@@ -183,4 +211,14 @@ function isSafeHelperIdentity(value) {
     typeof value === 'string' &&
     value.split('.').every((part) => isSafeIdentifier(part))
   )
+}
+
+function removeDeniedDefinitions(resources) {
+  for (const resource of Object.values(resources)) {
+    for (const action of Object.keys(resource.actionDefinitions || {})) {
+      if (resource.actions?.[action] !== true) {
+        delete resource.actionDefinitions[action]
+      }
+    }
+  }
 }

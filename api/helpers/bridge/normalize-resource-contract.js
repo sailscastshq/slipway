@@ -42,6 +42,47 @@ function normalizeBridgeResourceContract({ models, config = {} }) {
     'delete',
     'bulkDelete'
   ]
+  const CUSTOM_ACTION_SCOPES = ['resource', 'record', 'bulk']
+  const CUSTOM_ACTION_FIELD_TYPES = [
+    'text',
+    'textarea',
+    'richtext',
+    'email',
+    'url',
+    'number',
+    'currency',
+    'boolean',
+    'select',
+    'json',
+    'date',
+    'datetime',
+    'timestamp'
+  ]
+  const CUSTOM_ACTION_OPTION_KEYS = [
+    'scope',
+    'helper',
+    'label',
+    'description',
+    'confirm',
+    'success',
+    'destructive',
+    'fields'
+  ]
+  const CUSTOM_ACTION_FIELD_OPTION_KEYS = [
+    'type',
+    'label',
+    'help',
+    'placeholder',
+    'required',
+    'default',
+    'options',
+    'min',
+    'max',
+    'minLength',
+    'maxLength',
+    'format',
+    'currency'
+  ]
   const FIELD_VISIBILITY_SURFACES = ['list', 'show', 'create', 'edit', 'filter']
   const FIELD_TYPES = [
     'text',
@@ -289,6 +330,7 @@ function normalizeBridgeResourceContract({ models, config = {} }) {
     const singularLabel =
       readString(raw.singularLabel) || singularizeLabel(label)
 
+    const normalizedActions = normalizeActions(identity, raw.actions)
     const resource = {
       identity: model.identity || identity,
       globalId: model.globalId,
@@ -347,7 +389,8 @@ function normalizeBridgeResourceContract({ models, config = {} }) {
       ),
       hidden: raw.hidden === true,
       configured,
-      actions: normalizeActions(identity, raw.actions),
+      actions: normalizedActions.permissions,
+      actionDefinitions: normalizedActions.definitions,
       authorization: normalizeAuthorization(identity, raw.authorization),
       attributes,
       associations
@@ -850,19 +893,355 @@ function normalizeBridgeResourceContract({ models, config = {} }) {
       }
     }
 
-    const actions = {}
+    const permissions = {}
+    const definitions = {}
     for (const action of Array.from(
       new Set([...DEFAULT_RESOURCE_ACTIONS, ...Object.keys(rawActions || {})])
     )) {
       const value = rawActions?.[action]
-      if (value !== undefined && typeof value !== 'boolean') {
+      const isBuiltIn = DEFAULT_RESOURCE_ACTIONS.includes(action)
+      if (
+        value !== undefined &&
+        typeof value !== 'boolean' &&
+        !isPlainObject(value)
+      ) {
         throw new Error(
-          `Bridge action "${identity}.${action}" must be a boolean.`
+          `Bridge action "${identity}.${action}" must be a boolean or an action definition.`
         )
       }
-      actions[action] = value !== false
+      if (isBuiltIn && isPlainObject(value)) {
+        throw new Error(
+          `Built-in Bridge action "${identity}.${action}" must be a boolean.`
+        )
+      }
+
+      permissions[action] = value !== false
+      if (!isBuiltIn && isPlainObject(value)) {
+        definitions[action] = normalizeCustomAction(identity, action, value)
+      }
     }
-    return actions
+    return { permissions, definitions }
+  }
+
+  function normalizeCustomAction(identity, name, rawAction) {
+    const path = `Bridge action "${identity}.${name}"`
+    rejectUnknownKeys(rawAction, CUSTOM_ACTION_OPTION_KEYS, path)
+
+    if (!CUSTOM_ACTION_SCOPES.includes(rawAction.scope)) {
+      throw new Error(
+        `${path}.scope must be one of: ${CUSTOM_ACTION_SCOPES.join(', ')}.`
+      )
+    }
+    if (!isSafeHelperIdentity(rawAction.helper)) {
+      throw new Error(`${path}.helper must be a safe Sails helper identity.`)
+    }
+    for (const option of ['label', 'description', 'confirm', 'success']) {
+      assertOptionalString(rawAction[option], `${path}.${option}`)
+    }
+    assertOptionalBoolean(rawAction.destructive, `${path}.destructive`)
+
+    if (rawAction.fields !== undefined && !isPlainObject(rawAction.fields)) {
+      throw new Error(`${path}.fields must be an object.`)
+    }
+
+    const fields = {}
+    for (const [fieldName, rawField] of Object.entries(
+      rawAction.fields || {}
+    )) {
+      if (!isSafeIdentifier(fieldName)) {
+        throw new Error(
+          `${path}.fields must use safe JavaScript-style field names.`
+        )
+      }
+      fields[fieldName] = normalizeCustomActionField(
+        identity,
+        name,
+        fieldName,
+        rawField
+      )
+    }
+
+    const label = readString(rawAction.label) || humanize(name)
+    const destructive = rawAction.destructive === true
+    return {
+      name,
+      scope: rawAction.scope,
+      helper: rawAction.helper,
+      label,
+      description: readString(rawAction.description),
+      confirm:
+        readString(rawAction.confirm) ||
+        (destructive
+          ? `This will run ${label.toLowerCase()}. This action may not be reversible.`
+          : null),
+      success:
+        readString(rawAction.success) || `${label} completed successfully.`,
+      destructive,
+      fields
+    }
+  }
+
+  function normalizeCustomActionField(
+    resourceIdentity,
+    actionName,
+    fieldName,
+    rawField
+  ) {
+    const path = `Bridge action field "${resourceIdentity}.${actionName}.${fieldName}"`
+    if (!isPlainObject(rawField)) {
+      throw new Error(`${path} must be an object.`)
+    }
+    rejectUnknownKeys(rawField, CUSTOM_ACTION_FIELD_OPTION_KEYS, path)
+
+    const type = normalizeFieldType(rawField.type || 'text')
+    if (!CUSTOM_ACTION_FIELD_TYPES.includes(type)) {
+      throw new Error(
+        `${path}.type must be one of: ${CUSTOM_ACTION_FIELD_TYPES.join(', ')}.`
+      )
+    }
+    for (const option of ['label', 'help', 'placeholder', 'format']) {
+      assertOptionalString(rawField[option], `${path}.${option}`)
+    }
+    assertOptionalBoolean(rawField.required, `${path}.required`)
+
+    for (const option of ['min', 'max']) {
+      if (
+        rawField[option] !== undefined &&
+        (typeof rawField[option] !== 'number' ||
+          !Number.isFinite(rawField[option]))
+      ) {
+        throw new Error(`${path}.${option} must be a finite number.`)
+      }
+    }
+    for (const option of ['minLength', 'maxLength']) {
+      if (
+        rawField[option] !== undefined &&
+        (!Number.isSafeInteger(rawField[option]) || rawField[option] < 0)
+      ) {
+        throw new Error(`${path}.${option} must be a non-negative integer.`)
+      }
+    }
+    if (
+      rawField.min !== undefined &&
+      rawField.max !== undefined &&
+      rawField.max < rawField.min
+    ) {
+      throw new Error(`${path}.max cannot be smaller than min.`)
+    }
+    if (
+      rawField.minLength !== undefined &&
+      rawField.maxLength !== undefined &&
+      rawField.maxLength < rawField.minLength
+    ) {
+      throw new Error(`${path}.maxLength cannot be smaller than minLength.`)
+    }
+    if (
+      (rawField.min !== undefined || rawField.max !== undefined) &&
+      !['number', 'currency'].includes(type)
+    ) {
+      throw new Error(`${path}.min and max require a numeric field type.`)
+    }
+    if (
+      (rawField.minLength !== undefined || rawField.maxLength !== undefined) &&
+      !['text', 'textarea', 'richtext'].includes(type)
+    ) {
+      throw new Error(
+        `${path}.minLength and maxLength require a text field type.`
+      )
+    }
+
+    if (rawField.options !== undefined && !Array.isArray(rawField.options)) {
+      throw new Error(`${path}.options must be an array.`)
+    }
+    if (rawField.options !== undefined && type !== 'select') {
+      throw new Error(`${path}.options requires type "select".`)
+    }
+    validateFieldOptions(
+      `${resourceIdentity}.${actionName}`,
+      fieldName,
+      rawField.options
+    )
+    validateCurrency(
+      `${resourceIdentity}.${actionName}`,
+      fieldName,
+      rawField.currency
+    )
+    if (type === 'select' && !Array.isArray(rawField.options)) {
+      throw new Error(`${path}.options is required for select fields.`)
+    }
+    if (
+      rawField.format !== undefined &&
+      !(type === 'richtext' && rawField.format.toLowerCase() === 'markdown')
+    ) {
+      throw new Error(
+        `${path}.format currently supports only "markdown" on richtext fields.`
+      )
+    }
+    if (rawField.currency !== undefined && type !== 'currency') {
+      throw new Error(`${path}.currency requires type "currency".`)
+    }
+    if (rawField.default !== undefined) {
+      assertSerializable(rawField.default, `${path}.default`)
+    }
+
+    const field = {
+      type,
+      ...(readString(rawField.help) ? { help: rawField.help.trim() } : {}),
+      ...(readString(rawField.placeholder)
+        ? { placeholder: rawField.placeholder.trim() }
+        : {}),
+      ...(readString(rawField.format)
+        ? { format: rawField.format.trim().toLowerCase() }
+        : {}),
+      ...(rawField.default !== undefined
+        ? { default: cloneSerializable(rawField.default, `${path}.default`) }
+        : {}),
+      ...(rawField.options
+        ? { options: normalizeFieldOptions(rawField.options) }
+        : {}),
+      ...(type === 'currency'
+        ? { currency: normalizeCurrency(rawField.currency) }
+        : {})
+    }
+    validateCustomActionFieldDefault({
+      path,
+      type,
+      rawField,
+      field
+    })
+
+    return {
+      type:
+        type === 'number' || type === 'currency'
+          ? 'number'
+          : type === 'boolean'
+          ? 'boolean'
+          : type === 'json'
+          ? 'json'
+          : 'string',
+      label: readString(rawField.label) || humanize(fieldName),
+      required: rawField.required === true,
+      ...(rawField.min !== undefined ? { min: rawField.min } : {}),
+      ...(rawField.max !== undefined ? { max: rawField.max } : {}),
+      ...(rawField.minLength !== undefined
+        ? { minLength: rawField.minLength }
+        : {}),
+      ...(rawField.maxLength !== undefined
+        ? { maxLength: rawField.maxLength }
+        : {}),
+      field
+    }
+  }
+
+  function validateCustomActionFieldDefault({ path, type, rawField, field }) {
+    if (rawField.default === undefined) return
+    const value = rawField.default
+
+    if (type === 'boolean' && typeof value !== 'boolean') {
+      throw new Error(`${path}.default must be true or false.`)
+    }
+    if (
+      ['number', 'currency'].includes(type) &&
+      (typeof value !== 'number' || !Number.isFinite(value))
+    ) {
+      throw new Error(`${path}.default must be a finite number.`)
+    }
+    if (
+      ['number', 'currency'].includes(type) &&
+      rawField.min !== undefined &&
+      value < rawField.min
+    ) {
+      throw new Error(`${path}.default must be at least ${rawField.min}.`)
+    }
+    if (
+      ['number', 'currency'].includes(type) &&
+      rawField.max !== undefined &&
+      value > rawField.max
+    ) {
+      throw new Error(`${path}.default must be at most ${rawField.max}.`)
+    }
+    if (
+      [
+        'text',
+        'textarea',
+        'richtext',
+        'email',
+        'url',
+        'date',
+        'datetime',
+        'timestamp'
+      ].includes(type) &&
+      typeof value !== 'string'
+    ) {
+      throw new Error(`${path}.default must be a string.`)
+    }
+    if (
+      type === 'select' &&
+      !field.options.some(
+        (option) =>
+          option.disabled !== true && Object.is(option.value, rawField.default)
+      )
+    ) {
+      throw new Error(
+        `${path}.default must use one of the enabled select options.`
+      )
+    }
+    if (type === 'email' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
+      throw new Error(`${path}.default must be a valid email address.`)
+    }
+    if (type === 'url') {
+      let url
+      try {
+        url = new URL(value)
+      } catch {
+        throw new Error(`${path}.default must be a valid URL.`)
+      }
+      if (!['http:', 'https:'].includes(url.protocol)) {
+        throw new Error(`${path}.default must use HTTP or HTTPS.`)
+      }
+    }
+    if (
+      ['datetime', 'timestamp'].includes(type) &&
+      Number.isNaN(new Date(value).getTime())
+    ) {
+      throw new Error(`${path}.default must be a valid date and time.`)
+    }
+    if (type === 'date' && !isValidDateOnly(value)) {
+      throw new Error(`${path}.default must be a valid date.`)
+    }
+    if (
+      ['text', 'textarea', 'richtext'].includes(type) &&
+      rawField.minLength !== undefined &&
+      value.length < rawField.minLength
+    ) {
+      throw new Error(
+        `${path}.default must contain at least ${rawField.minLength} characters.`
+      )
+    }
+    if (
+      ['text', 'textarea', 'richtext'].includes(type) &&
+      rawField.maxLength !== undefined &&
+      value.length > rawField.maxLength
+    ) {
+      throw new Error(
+        `${path}.default must contain at most ${rawField.maxLength} characters.`
+      )
+    }
+    if (
+      type === 'richtext' &&
+      field.format === 'markdown' &&
+      containsRawHtml(value)
+    ) {
+      throw new Error(`${path}.default cannot contain raw HTML.`)
+    }
+    if (type === 'json') {
+      try {
+        const parsed = typeof value === 'string' ? JSON.parse(value) : value
+        JSON.stringify(parsed)
+      } catch {
+        throw new Error(`${path}.default must contain valid JSON.`)
+      }
+    }
   }
 
   function normalizeAuthorization(identity, rawAuthorization) {
@@ -1414,6 +1793,29 @@ function normalizeBridgeResourceContract({ models, config = {} }) {
     if (value !== undefined && typeof value !== 'boolean') {
       throw new Error(`${path} must be a boolean.`)
     }
+  }
+
+  function isValidDateOnly(value) {
+    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value)
+    if (!match) return false
+    const [, year, month, day] = match.map(Number)
+    const date = new Date(0)
+    date.setUTCFullYear(year, month - 1, day)
+    return (
+      date.getUTCFullYear() === year &&
+      date.getUTCMonth() === month - 1 &&
+      date.getUTCDate() === day
+    )
+  }
+
+  function containsRawHtml(value) {
+    const withoutAutolinks = value.replace(
+      /<[a-z][a-z\d+.-]{1,31}:[^<>\s]*>|<[a-z\d.!#$%&'*+/=?^_`{|}~-]+@[a-z\d](?:[a-z\d-]{0,61}[a-z\d])?(?:\.[a-z\d](?:[a-z\d-]{0,61}[a-z\d])?)+>/gi,
+      ''
+    )
+    return /<!--[\s\S]*?-->|<\/?[a-z][^<>]*>|<![A-Z][^>]*>|<\?[\s\S]*?\?>/i.test(
+      withoutAutolinks
+    )
   }
 
   function readString(value) {

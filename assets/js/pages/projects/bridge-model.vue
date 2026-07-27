@@ -6,6 +6,8 @@ import ConfirmModal from '@/components/ConfirmModal.vue'
 import ToastContainer from '@/components/ToastContainer.vue'
 import { createToast } from '@/composables/toast'
 import BridgeFieldValue from '@/components/bridge/BridgeFieldValue.vue'
+import BridgeActionMenu from '@/components/bridge/BridgeActionMenu.vue'
+import BridgeActionDialog from '@/components/bridge/BridgeActionDialog.vue'
 
 defineOptions({
   layout: AppLayout
@@ -41,6 +43,7 @@ const selectAll = ref(false)
 const deleteModal = ref({ show: false, recordId: null })
 const bulkDeleteModal = ref({ show: false })
 const openActionMenu = ref(null)
+const actionDialog = ref({ show: false, action: null, recordIds: [] })
 
 const hasRecordActions = computed(() => {
   const actions = props.modelMeta?.actions || {}
@@ -50,6 +53,39 @@ const hasRecordActions = computed(() => {
     actions.delete !== false
   )
 })
+const customActions = computed(() =>
+  Object.values(props.modelMeta?.actionDefinitions || {}).filter(
+    (action) => props.modelMeta?.actions?.[action.name] === true
+  )
+)
+const resourceActions = computed(() =>
+  customActions.value.filter((action) => action.scope === 'resource')
+)
+const bulkActions = computed(() =>
+  customActions.value.filter((action) => action.scope === 'bulk')
+)
+const hasBulkActions = computed(
+  () =>
+    Boolean(props.modelMeta) &&
+    (props.modelMeta.actions?.bulkDelete !== false ||
+      bulkActions.value.length > 0)
+)
+const resourceMenuItems = computed(() =>
+  resourceActions.value.map(actionMenuItem)
+)
+const bulkMenuItems = computed(() => [
+  ...bulkActions.value.map(actionMenuItem),
+  ...(props.modelMeta?.actions?.bulkDelete !== false
+    ? [
+        {
+          key: 'bulkDelete',
+          label: 'Delete selected',
+          destructive: true,
+          builtIn: true
+        }
+      ]
+    : [])
+])
 
 function encodePathSegment(value) {
   return encodeURIComponent(String(value))
@@ -116,6 +152,7 @@ function handleActionMenuKeydown(event) {
 // Forms for delete actions
 const deleteForm = useForm({})
 const bulkDeleteForm = useForm({ ids: [] })
+const quickActionForm = useForm({})
 
 function openDeleteModal(record) {
   closeActionMenu()
@@ -257,6 +294,82 @@ function confirmBulkDelete() {
       }
     }
   )
+}
+
+function actionMenuItem(action) {
+  return {
+    key: action.name,
+    label: action.label,
+    destructive: action.destructive === true,
+    action
+  }
+}
+
+function customActionUrl(action) {
+  return `/projects/${props.project.slug}/environments/${
+    props.environment.slug
+  }/bridge/${props.modelIdentity}/actions/${encodePathSegment(action.name)}`
+}
+
+function actionNeedsDialog(action) {
+  return (
+    action.destructive === true ||
+    Boolean(action.confirm) ||
+    Object.keys(action.fields || {}).length > 0
+  )
+}
+
+function runCustomAction(action, { recordIds = [] } = {}) {
+  if (actionNeedsDialog(action)) {
+    actionDialog.value = {
+      show: true,
+      action,
+      recordIds
+    }
+    return
+  }
+
+  quickActionForm
+    .transform(() => ({
+      values: {},
+      ...(action.scope === 'bulk' ? { recordIds } : {})
+    }))
+    .post(customActionUrl(action), {
+      preserveScroll: true,
+      onSuccess: () => {
+        if (action.scope === 'bulk') clearSelection()
+      },
+      onError: (errors) => {
+        toast({
+          message: errors.error || `${action.label} failed.`,
+          type: 'error'
+        })
+      }
+    })
+}
+
+function handleResourceAction(item) {
+  runCustomAction(item.action)
+}
+
+function handleBulkAction(item) {
+  if (item.builtIn) {
+    bulkDeleteModal.value = { show: true }
+    return
+  }
+  runCustomAction(item.action, {
+    recordIds: Array.from(selectedIds.value)
+  })
+}
+
+function clearSelection() {
+  selectedIds.value = new Set()
+  selectAll.value = false
+}
+
+function completeCustomAction() {
+  if (actionDialog.value.action?.scope === 'bulk') clearSelection()
+  actionDialog.value = { show: false, action: null, recordIds: [] }
 }
 
 // Pagination
@@ -450,33 +563,19 @@ function createUrl() {
             leave-to-class="opacity-0"
           >
             <div
-              v-if="
-                selectedIds.size > 0 && modelMeta?.actions?.bulkDelete !== false
-              "
+              v-if="selectedIds.size > 0 && hasBulkActions"
               class="flex items-center space-x-2"
             >
               <span class="text-xs text-gray-500 dark:text-gray-400"
                 >{{ selectedIds.size }} selected</span
               >
-              <button
-                @click="bulkDeleteModal.show = true"
-                class="inline-flex items-center rounded-md bg-red-50 px-2 py-1 text-xs font-medium text-red-700 hover:bg-red-100 dark:bg-red-900/20 dark:text-red-400 dark:hover:bg-red-900/30"
-              >
-                <svg
-                  class="mr-1 h-3.5 w-3.5"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                  />
-                </svg>
-                Delete
-              </button>
+              <BridgeActionMenu
+                :items="bulkMenuItems"
+                :disabled="quickActionForm.processing"
+                label="Actions for selected records"
+                test-id="bridge-bulk-action-menu"
+                @select="handleBulkAction"
+              />
             </div>
           </Transition>
         </div>
@@ -486,6 +585,13 @@ function createUrl() {
             class="text-xs text-gray-500 dark:text-gray-400"
             >{{ total.toLocaleString() }} records</span
           >
+          <BridgeActionMenu
+            :items="resourceMenuItems"
+            :disabled="quickActionForm.processing"
+            :label="`Actions for ${modelMeta?.label || modelIdentity}`"
+            test-id="bridge-resource-action-menu"
+            @select="handleResourceAction"
+          />
           <Link
             v-if="modelMeta?.actions?.create !== false"
             :href="createUrl()"
@@ -538,10 +644,7 @@ function createUrl() {
               class="border-b border-gray-200 bg-gray-50/50 dark:border-gray-800 dark:bg-gray-900/50"
             >
               <tr>
-                <th
-                  v-if="modelMeta?.actions?.bulkDelete !== false"
-                  class="w-10 px-4 py-2"
-                >
+                <th v-if="hasBulkActions" class="w-10 px-4 py-2">
                   <input
                     type="checkbox"
                     :checked="selectAll"
@@ -599,7 +702,7 @@ function createUrl() {
                 <td
                   :colspan="
                     visibleColumns.length +
-                    (modelMeta?.actions?.bulkDelete !== false ? 1 : 0) +
+                    (hasBulkActions ? 1 : 0) +
                     (hasRecordActions ? 1 : 0)
                   "
                   class="px-4 py-12 text-center text-sm text-gray-500 dark:text-gray-400"
@@ -617,10 +720,7 @@ function createUrl() {
                 :key="record[modelMeta.primaryKey]"
                 class="group hover:bg-gray-50 dark:hover:bg-gray-900/30"
               >
-                <td
-                  v-if="modelMeta?.actions?.bulkDelete !== false"
-                  class="px-4 py-2"
-                >
+                <td v-if="hasBulkActions" class="px-4 py-2">
                   <input
                     type="checkbox"
                     :checked="selectedIds.has(record[modelMeta.primaryKey])"
@@ -773,5 +873,17 @@ function createUrl() {
     :loading="bulkDeleteForm.processing"
     @confirm="confirmBulkDelete"
     @cancel="bulkDeleteModal = { show: false }"
+  />
+
+  <BridgeActionDialog
+    :show="actionDialog.show"
+    :action="actionDialog.action"
+    :submit-url="
+      actionDialog.action ? customActionUrl(actionDialog.action) : ''
+    "
+    :model-identity="modelIdentity"
+    :record-ids="actionDialog.recordIds"
+    @cancel="actionDialog = { show: false, action: null, recordIds: [] }"
+    @complete="completeCustomAction"
   />
 </template>

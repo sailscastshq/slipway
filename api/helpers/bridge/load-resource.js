@@ -25,6 +25,9 @@ module.exports = {
     },
     recordId: {
       type: 'ref'
+    },
+    recordIds: {
+      type: 'ref'
     }
   },
 
@@ -40,7 +43,8 @@ module.exports = {
     modelIdentity,
     action,
     actor,
-    recordId
+    recordId,
+    recordIds
   }) {
     const contract = await sails.helpers.bridge.introspectModels(
       containerName,
@@ -78,6 +82,16 @@ module.exports = {
       throw error
     }
 
+    const actionDefinition = action
+      ? resource.actionDefinitions?.[action]
+      : null
+    validateCustomActionContext({
+      resource,
+      action: actionDefinition,
+      recordId,
+      recordIds
+    })
+
     let normalizedRecordId
     if (recordId !== undefined && recordId !== null) {
       normalizedRecordId = await sails.helpers.bridge.normalizeIdentifier.with({
@@ -86,6 +100,24 @@ module.exports = {
         label: `${resource.singularLabel || modelIdentity} identifier`
       })
     }
+    let normalizedRecordIds
+    if (Array.isArray(recordIds)) {
+      normalizedRecordIds = []
+      for (const value of recordIds) {
+        const normalized = await sails.helpers.bridge.normalizeIdentifier.with({
+          value,
+          resource,
+          label: `${resource.singularLabel || modelIdentity} identifier`
+        })
+        if (
+          !normalizedRecordIds.some((candidate) =>
+            Object.is(candidate, normalized)
+          )
+        ) {
+          normalizedRecordIds.push(normalized)
+        }
+      }
+    }
 
     const effective = await sails.helpers.bridge.authorizeResourceActions.with({
       containerName,
@@ -93,6 +125,9 @@ module.exports = {
       actor,
       ...(normalizedRecordId !== undefined
         ? { recordId: normalizedRecordId }
+        : {}),
+      ...(normalizedRecordIds !== undefined
+        ? { recordIds: normalizedRecordIds }
         : {})
     })
     resource = effective.resource
@@ -119,9 +154,63 @@ module.exports = {
         }
       },
       resource,
+      ...(actionDefinition
+        ? { actionDefinition: resource.actionDefinitions[action] }
+        : {}),
       ...(normalizedRecordId !== undefined
         ? { recordId: normalizedRecordId }
+        : {}),
+      ...(normalizedRecordIds !== undefined
+        ? { recordIds: normalizedRecordIds }
         : {})
     }
   }
+}
+
+function validateCustomActionContext({
+  resource,
+  action,
+  recordId,
+  recordIds
+}) {
+  if (!action) return
+
+  if (action.scope === 'record') {
+    if (recordId === undefined || recordId === null || recordId === '') {
+      throw actionContextError(
+        `${resource.singularLabel} identifier is required for this action.`
+      )
+    }
+    if (recordIds !== undefined) {
+      throw actionContextError('This record action accepts one record only.')
+    }
+    return
+  }
+
+  if (action.scope === 'bulk') {
+    if (!Array.isArray(recordIds) || recordIds.length === 0) {
+      throw actionContextError('Select at least one record for this action.')
+    }
+    if (recordIds.length > 100) {
+      throw actionContextError(
+        'Select no more than 100 records for a custom action.'
+      )
+    }
+    if (recordId !== undefined) {
+      throw actionContextError('This bulk action requires a record selection.')
+    }
+    return
+  }
+
+  if (recordId !== undefined || recordIds !== undefined) {
+    throw actionContextError(
+      'This resource action does not accept record identifiers.'
+    )
+  }
+}
+
+function actionContextError(message) {
+  const error = new Error(message)
+  error.code = 'BRIDGE_ACTION_CONTEXT_INVALID'
+  return error
 }

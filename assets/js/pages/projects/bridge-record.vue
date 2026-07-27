@@ -1,5 +1,5 @@
 <script setup>
-import { Link, Head, useForm } from '@inertiajs/vue3'
+import { Link, Head, router, useForm } from '@inertiajs/vue3'
 import { inject, ref, computed } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
 import ConfirmModal from '@/components/ConfirmModal.vue'
@@ -7,6 +7,8 @@ import ToastContainer from '@/components/ToastContainer.vue'
 import { createToast } from '@/composables/toast'
 import BridgeFieldValue from '@/components/bridge/BridgeFieldValue.vue'
 import BridgeCollectionManager from '@/components/bridge/BridgeCollectionManager.vue'
+import BridgeActionMenu from '@/components/bridge/BridgeActionMenu.vue'
+import BridgeActionDialog from '@/components/bridge/BridgeActionDialog.vue'
 
 defineOptions({
   layout: AppLayout
@@ -31,6 +33,37 @@ const { toasts, toast, dismiss } = createToast()
 
 const deleteModal = ref({ show: false })
 const deleteForm = useForm({})
+const quickActionForm = useForm({})
+const actionDialog = ref({ show: false, action: null })
+
+const customRecordActions = computed(() =>
+  Object.values(props.modelMeta?.actionDefinitions || {}).filter(
+    (action) =>
+      action.scope === 'record' &&
+      props.modelMeta?.actions?.[action.name] === true
+  )
+)
+const recordMenuItems = computed(() => [
+  ...(props.modelMeta?.actions?.update !== false
+    ? [{ key: 'edit', label: 'Edit record', builtIn: true }]
+    : []),
+  ...customRecordActions.value.map((action) => ({
+    key: action.name,
+    label: action.label,
+    destructive: action.destructive === true,
+    action
+  })),
+  ...(props.modelMeta?.actions?.delete !== false
+    ? [
+        {
+          key: 'delete',
+          label: 'Delete record',
+          destructive: true,
+          builtIn: true
+        }
+      ]
+    : [])
+])
 
 function encodePathSegment(value) {
   return encodeURIComponent(String(value))
@@ -85,6 +118,54 @@ function confirmDelete() {
       }
     }
   )
+}
+
+function customActionUrl(action) {
+  return `/projects/${props.project.slug}/environments/${
+    props.environment.slug
+  }/bridge/${props.modelIdentity}/actions/${encodePathSegment(action.name)}`
+}
+
+function actionNeedsDialog(action) {
+  return (
+    action.destructive === true ||
+    Boolean(action.confirm) ||
+    Object.keys(action.fields || {}).length > 0
+  )
+}
+
+function runCustomAction(action) {
+  if (actionNeedsDialog(action)) {
+    actionDialog.value = { show: true, action }
+    return
+  }
+
+  quickActionForm
+    .transform(() => ({
+      values: {},
+      recordId: props.recordId
+    }))
+    .post(customActionUrl(action), {
+      preserveScroll: true,
+      onError: (errors) => {
+        toast({
+          message: errors.error || `${action.label} failed.`,
+          type: 'error'
+        })
+      }
+    })
+}
+
+function handleRecordAction(item) {
+  if (item.key === 'edit') {
+    router.visit(editUrl())
+    return
+  }
+  if (item.key === 'delete') {
+    deleteModal.value = { show: true }
+    return
+  }
+  runCustomAction(item.action)
 }
 
 function bridgeUrl() {
@@ -270,48 +351,16 @@ function relationshipMutationBaseUrl(relationship) {
           >
         </nav>
       </div>
-      <div v-if="record" class="flex items-center space-x-2">
-        <Link
-          v-if="modelMeta?.actions?.update !== false"
-          :href="editUrl()"
-          class="inline-flex items-center rounded-md border border-gray-200 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
-        >
-          <svg
-            class="mr-1.5 h-4 w-4"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-            />
-          </svg>
-          Edit
-        </Link>
-        <button
-          v-if="modelMeta?.actions?.delete !== false"
-          @click="deleteModal.show = true"
-          class="inline-flex items-center rounded-md border border-red-200 px-3 py-1.5 text-sm font-medium text-red-700 hover:bg-red-50 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-900/20"
-        >
-          <svg
-            class="mr-1.5 h-4 w-4"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-            />
-          </svg>
-          Delete
-        </button>
-      </div>
+      <BridgeActionMenu
+        v-if="record"
+        :items="recordMenuItems"
+        :disabled="quickActionForm.processing"
+        :label="`Actions for ${
+          record[modelMeta?.title] || modelMeta?.singularLabel || modelIdentity
+        }`"
+        test-id="bridge-record-action-menu"
+        @select="handleRecordAction"
+      />
     </div>
 
     <!-- Content -->
@@ -491,5 +540,17 @@ function relationshipMutationBaseUrl(relationship) {
     :loading="deleteForm.processing"
     @confirm="confirmDelete"
     @cancel="deleteModal = { show: false }"
+  />
+
+  <BridgeActionDialog
+    :show="actionDialog.show"
+    :action="actionDialog.action"
+    :submit-url="
+      actionDialog.action ? customActionUrl(actionDialog.action) : ''
+    "
+    :model-identity="modelIdentity"
+    :record-id="recordId"
+    @cancel="actionDialog = { show: false, action: null }"
+    @complete="actionDialog = { show: false, action: null }"
   />
 </template>

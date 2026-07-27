@@ -40,12 +40,16 @@ test(
     const relationshipScreenshotRoot = path.resolve(
       '.tmp/screenshots/issue-220-bridge-relationships'
     )
+    const actionScreenshotRoot = path.resolve(
+      '.tmp/screenshots/issue-221-bridge-actions'
+    )
 
     fs.mkdirSync(screenshotRoot, { recursive: true })
     fs.mkdirSync(identifierScreenshotRoot, { recursive: true })
     fs.mkdirSync(authorizationScreenshotRoot, { recursive: true })
     fs.mkdirSync(fieldEngineScreenshotRoot, { recursive: true })
     fs.mkdirSync(relationshipScreenshotRoot, { recursive: true })
+    fs.mkdirSync(actionScreenshotRoot, { recursive: true })
 
     const contract = await sails.helpers.bridge.normalizeResourceContract.with({
       models: resourceMetadata(),
@@ -279,6 +283,17 @@ test(
         }
         return successfulResult({ record: persistedCourseRecord })
       }
+      if (code.includes('const helperIdentity =')) {
+        const helperIdentity = readEmbeddedValue(code, 'helperIdentity')
+        return successfulResult({
+          message:
+            helperIdentity === 'bridge.syncCatalog'
+              ? 'Catalog synchronized.'
+              : helperIdentity === 'bridge.publishCourse'
+              ? 'Course published.'
+              : 'Licenses regenerated.'
+        })
+      }
       if (code.includes('const record = await model.findOne(criteria)')) {
         if (code.includes('const identity = "user";')) {
           return successfulResult({
@@ -371,7 +386,7 @@ test(
       await page.wait('text=Build a production Sails app')
       await expect(page).toSee('Course title')
       await expect(page).toSee('$34.99')
-      expect(await page.raw.locator('input[type="checkbox"]').count()).toBe(0)
+      expect(await page.raw.locator('input[type="checkbox"]').count()).toBe(4)
       await page.screenshot(
         path.join(screenshotRoot, 'course-list-light.png'),
         {
@@ -388,6 +403,72 @@ test(
         { fullPage: true }
       )
       await page.raw.emulateMedia({ colorScheme: 'light' })
+
+      const resourceActionsButton = page.raw.getByRole('button', {
+        name: 'Actions for Courses'
+      })
+      await resourceActionsButton.click()
+      await expect(page).toSee('Sync catalog')
+      await page.screenshot(
+        path.join(actionScreenshotRoot, 'resource-actions-light.png'),
+        { fullPage: true }
+      )
+      await page.raw.emulateMedia({ colorScheme: 'dark' })
+      await page.screenshot(
+        path.join(actionScreenshotRoot, 'resource-actions-dark.png'),
+        { fullPage: true }
+      )
+      await page.raw.emulateMedia({ colorScheme: 'light' })
+      await page.raw
+        .getByRole('menuitem', { name: 'Sync catalog', exact: true })
+        .click()
+      await page.wait('text=Catalog synchronized.')
+      await page.raw
+        .getByText('Catalog synchronized.', { exact: true })
+        .locator('..')
+        .getByRole('button')
+        .click()
+
+      const rowCheckboxes = page.raw.locator('tbody input[type="checkbox"]')
+      await rowCheckboxes.nth(0).click()
+      await rowCheckboxes.nth(1).click()
+      await page.raw
+        .getByRole('button', { name: 'Actions for selected records' })
+        .click()
+      await expect(page).toSee('Regenerate licenses')
+      await page.screenshot(
+        path.join(actionScreenshotRoot, 'bulk-actions-menu-light.png'),
+        { fullPage: true }
+      )
+      await page.raw.emulateMedia({ colorScheme: 'dark' })
+      await page.screenshot(
+        path.join(actionScreenshotRoot, 'bulk-actions-menu-dark.png'),
+        { fullPage: true }
+      )
+      await page.raw.emulateMedia({ colorScheme: 'light' })
+      await page.raw
+        .getByRole('menuitem', {
+          name: 'Regenerate licenses',
+          exact: true
+        })
+        .click()
+      await page.raw
+        .locator('[data-test="bridge-action-dialog-regenerateLicenses"]')
+        .waitFor({ state: 'visible' })
+      await page.wait(250)
+      await page.screenshot(
+        path.join(actionScreenshotRoot, 'bulk-action-dialog-light.png'),
+        { fullPage: true }
+      )
+      await page.raw.emulateMedia({ colorScheme: 'dark' })
+      await page.screenshot(
+        path.join(actionScreenshotRoot, 'bulk-action-dialog-dark.png'),
+        { fullPage: true }
+      )
+      await page.raw.emulateMedia({ colorScheme: 'light' })
+      await page.raw.getByRole('button', { name: 'Cancel' }).click()
+      await rowCheckboxes.nth(0).click()
+      await rowCheckboxes.nth(1).click()
 
       const actionsButton = page.raw.getByRole('button', {
         name: 'Actions for Build a production Sails app'
@@ -646,6 +727,50 @@ test(
       await expect(page).toSee('Ada Lovelace')
       await expect(page).toSee('The deployment path')
       await expect(page).toSee('Deploy with confidence')
+
+      const recordActionsButton = page.raw.getByRole('button', {
+        name: 'Actions for Build a production Sails app'
+      })
+      await recordActionsButton.click()
+      await expect(page).toSee('Publish course')
+      await page.screenshot(
+        path.join(actionScreenshotRoot, 'record-actions-menu-light.png'),
+        { fullPage: true }
+      )
+      await page.raw.emulateMedia({ colorScheme: 'dark' })
+      await page.screenshot(
+        path.join(actionScreenshotRoot, 'record-actions-menu-dark.png'),
+        { fullPage: true }
+      )
+      await page.raw.emulateMedia({ colorScheme: 'light' })
+      await page.raw
+        .getByRole('menuitem', { name: 'Publish course', exact: true })
+        .click()
+      await page.raw
+        .locator('[data-test="bridge-action-dialog-publish"]')
+        .waitFor({ state: 'visible' })
+      await page.wait(250)
+      await expect(page).toSee('Publish this course now?')
+      const publishButton = page.raw.getByRole('button', {
+        name: 'Publish course',
+        exact: true
+      })
+      expect(await publishButton.isDisabled()).toBe(true)
+      await page.screenshot(
+        path.join(actionScreenshotRoot, 'record-action-dialog-light.png'),
+        { fullPage: true }
+      )
+      await page.raw.getByLabel('Release note').fill('Ready for students.')
+      expect(await publishButton.isEnabled()).toBe(true)
+      await page.raw.emulateMedia({ colorScheme: 'dark' })
+      await page.screenshot(
+        path.join(actionScreenshotRoot, 'record-action-dialog-dark.png'),
+        { fullPage: true }
+      )
+      await page.raw.emulateMedia({ colorScheme: 'light' })
+      await publishButton.click()
+      await page.wait('text=Course published.')
+
       await page.screenshot(
         path.join(fieldEngineScreenshotRoot, 'typed-record-light.png'),
         { fullPage: true }
@@ -791,7 +916,58 @@ function resourceConfig() {
           direction: 'DESC'
         },
         actions: {
-          bulkDelete: false
+          bulkDelete: false,
+          syncCatalog: {
+            scope: 'resource',
+            helper: 'bridge.syncCatalog',
+            label: 'Sync catalog',
+            success: 'Catalog synchronized.'
+          },
+          publish: {
+            scope: 'record',
+            helper: 'bridge.publishCourse',
+            label: 'Publish course',
+            description: 'Make this course available to students.',
+            confirm: 'Publish this course now?',
+            success: 'Course published.',
+            fields: {
+              notifyStudents: {
+                type: 'boolean',
+                label: 'Notify students',
+                default: true
+              },
+              releaseNote: {
+                type: 'textarea',
+                label: 'Release note',
+                help: 'Included in the student notification.',
+                required: true,
+                minLength: 3,
+                maxLength: 280
+              }
+            }
+          },
+          regenerateLicenses: {
+            scope: 'bulk',
+            helper: 'bridge.regenerateLicenses',
+            label: 'Regenerate licenses',
+            description: 'Issue fresh license files for the selected courses.',
+            confirm:
+              'Existing license download links for these courses will stop working.',
+            success: 'Licenses regenerated.',
+            destructive: true,
+            fields: {
+              reason: {
+                type: 'select',
+                label: 'Reason',
+                required: true,
+                default: 'security',
+                options: [
+                  { label: 'Security rotation', value: 'security' },
+                  { label: 'Content update', value: 'content' }
+                ]
+              }
+            }
+          }
         },
         relationships: {
           chapters: {
