@@ -8,7 +8,7 @@ const props = defineProps({
   deployment: Object
 })
 
-const emit = defineEmits(['complete', 'dismiss'])
+const emit = defineEmits(['status-change', 'dismiss'])
 
 const status = ref(props.deployment.status)
 const startTime = ref(props.deployment.startedAt || Date.now())
@@ -141,6 +141,10 @@ const { close: closeStream, connect: connectToStream } = useEventSource(
     onMessage(data) {
       if (data.status) {
         status.value = data.status
+        emit('status-change', {
+          deploymentId: props.deployment.id,
+          status: data.status
+        })
         if (['running', 'failed', 'cancelled'].includes(data.status)) {
           closeStream()
           setTimeout(() => dismiss(), 5000)

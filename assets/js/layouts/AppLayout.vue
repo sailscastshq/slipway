@@ -2,6 +2,7 @@
 import { Link, usePage, router } from '@inertiajs/vue3'
 import { computed, ref, provide, onMounted, onUnmounted } from 'vue'
 import { useEventSource } from '@/composables/sse'
+import { createDeploymentFaviconManager } from '@/lib/deployment-favicon.mjs'
 import ToastContainer from '@/components/ToastContainer.vue'
 import UpdateBanner from '@/components/UpdateBanner.vue'
 import UpdateModal from '@/components/UpdateModal.vue'
@@ -117,6 +118,7 @@ function createNewTeam() {
 
 function logout() {
   userDropdownOpen.value = false
+  deploymentFavicon.reset()
   router.delete('/logout')
 }
 
@@ -187,6 +189,7 @@ const showUpdateModal = ref(false)
 
 // Active deployments tracking (SSE-based — no polling)
 const activeDeployments = ref([])
+const deploymentFavicon = createDeploymentFaviconManager()
 
 const { close: disconnectDeploymentStream } = useEventSource(
   loggedInUser ? '/api/v1/deployments/active/stream' : null,
@@ -194,6 +197,8 @@ const { close: disconnectDeploymentStream } = useEventSource(
     immediate: !!loggedInUser,
     onMessage(data) {
       if (data.deployments) {
+        deploymentFavicon.replaceActiveDeployments(data.deployments)
+
         // Only add new deployments, don't remove ones we're already tracking
         // (DeploymentToast handles its own lifecycle via per-deployment SSE)
         for (const dep of data.deployments) {
@@ -206,10 +211,25 @@ const { close: disconnectDeploymentStream } = useEventSource(
   }
 )
 
+function updateDeploymentStatus({ deploymentId, status }) {
+  const deployment = activeDeployments.value.find(
+    ({ id }) => String(id) === String(deploymentId)
+  )
+  if (deployment) deployment.status = status
+
+  deploymentFavicon.noteDeploymentStatus(deploymentId, status)
+}
+
 function dismissDeployment(deploymentId) {
   activeDeployments.value = activeDeployments.value.filter(
     (d) => d.id !== deploymentId
   )
+}
+
+function acknowledgeDeploymentFavicon() {
+  if (document.visibilityState === 'visible') {
+    deploymentFavicon.acknowledgeTerminalStates()
+  }
 }
 
 // Initialize on mount
@@ -225,10 +245,18 @@ onMounted(() => {
 
   // Listen for escape key to close dropdowns
   document.addEventListener('keydown', handleEscapeKey)
+  document.addEventListener('visibilitychange', acknowledgeDeploymentFavicon)
+  window.addEventListener('focus', acknowledgeDeploymentFavicon)
+  window.addEventListener('pagehide', deploymentFavicon.reset)
 })
 
 onUnmounted(() => {
+  disconnectDeploymentStream()
+  deploymentFavicon.destroy()
   document.removeEventListener('keydown', handleEscapeKey)
+  document.removeEventListener('visibilitychange', acknowledgeDeploymentFavicon)
+  window.removeEventListener('focus', acknowledgeDeploymentFavicon)
+  window.removeEventListener('pagehide', deploymentFavicon.reset)
 })
 </script>
 
@@ -1225,6 +1253,7 @@ onUnmounted(() => {
         v-for="deployment in activeDeployments"
         :key="'deploy-' + deployment.id"
         :deployment="deployment"
+        @status-change="updateDeploymentStatus"
         @dismiss="dismissDeployment"
       />
     </div>
