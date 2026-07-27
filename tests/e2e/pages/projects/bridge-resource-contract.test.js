@@ -296,8 +296,6 @@ test(
           name: 'Edit Course description as Visual'
         })
         .click()
-      await page.raw.keyboard.press('Shift+Home')
-      await page.wait('@bridge-course-description-format-menu')
       await page.raw.emulateMedia({ colorScheme: 'dark' })
       await page.screenshot(
         path.join(screenshotRoot, 'course-richtext-dark.png'),
