@@ -94,8 +94,24 @@ module.exports = {
       throw { badRequest: { error: error.message } }
     }
 
+    let normalizedIds
+    try {
+      normalizedIds = []
+      for (const id of ids) {
+        normalizedIds.push(
+          await sails.helpers.bridge.normalizeIdentifier.with({
+            value: id,
+            resource,
+            label: `${resource.singularLabel} identifier`
+          })
+        )
+      }
+    } catch (error) {
+      throw { badRequest: { error: error.message } }
+    }
+
     const criteria = {
-      [resource.primaryKey]: { in: ids }
+      [resource.primaryKey]: { in: normalizedIds }
     }
     const deleteCode = `
       const identity = ${JSON.stringify(resource.identity)};

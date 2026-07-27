@@ -63,6 +63,7 @@ module.exports = {
     }
 
     let resource
+    let normalizedRecordId
     try {
       const loaded = await sails.helpers.bridge.loadResource.with({
         containerName: app.containerName,
@@ -71,12 +72,17 @@ module.exports = {
         action: 'delete'
       })
       resource = loaded.resource
+      normalizedRecordId = await sails.helpers.bridge.normalizeIdentifier.with({
+        value: recordId,
+        resource,
+        label: `${resource.singularLabel} identifier`
+      })
     } catch (error) {
       throw { badRequest: { error: error.message } }
     }
 
     const criteria = {
-      [resource.primaryKey]: recordId
+      [resource.primaryKey]: normalizedRecordId
     }
     const deleteCode = `
       const identity = ${JSON.stringify(resource.identity)};

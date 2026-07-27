@@ -81,42 +81,23 @@ module.exports = {
       throw { badRequest: { error: error.message } }
     }
 
-    // Execute the allowlisted create in the target container.
-    const createCode = `
-      const identity = ${JSON.stringify(loaded.resource.identity)};
-      const values = ${JSON.stringify(allowedValues)};
-      const model = sails.models[identity];
-      if (!model) throw new Error('Configured Bridge model is unavailable.');
-
-      const record = await model.create(values).fetch();
-      return { record };
-    `
-    const wrappedCode = await sails.helpers.bridge.buildSailsWrapper(createCode)
-    const result = await sails.helpers.bridge.executeInContainer(
-      app.containerName,
-      wrappedCode
-    )
-
-    if (!result.success) {
-      throw { badRequest: { error: result.error || 'Failed to create record' } }
-    }
-
-    // Parse the created record to get its ID
-    let recordId
     try {
-      const data = JSON.parse(result.output)
-      recordId = data.record?.[loaded.resource.primaryKey]
-    } catch {
-      // Fallback to model list
-    }
+      const record = await sails.helpers.bridge.createRecord.with({
+        containerName: app.containerName,
+        resource: loaded.resource,
+        values: allowedValues
+      })
+      const recordId = record?.[loaded.resource.primaryKey]
 
-    // Redirect to the new record or model list
-    const envPath = envSlug !== 'production' ? `/environments/${envSlug}` : ''
-    if (recordId !== undefined && recordId !== null) {
-      return `/projects/${slug}${envPath}/bridge/${modelIdentity}/${encodeURIComponent(
-        String(recordId)
-      )}`
+      const envPath = envSlug !== 'production' ? `/environments/${envSlug}` : ''
+      if (recordId !== undefined && recordId !== null) {
+        return `/projects/${slug}${envPath}/bridge/${
+          loaded.resource.identity
+        }/${encodeURIComponent(String(recordId))}`
+      }
+      return `/projects/${slug}${envPath}/bridge/${loaded.resource.identity}`
+    } catch (error) {
+      throw { badRequest: { error: error.message } }
     }
-    return `/projects/${slug}${envPath}/bridge/${modelIdentity}`
   }
 }

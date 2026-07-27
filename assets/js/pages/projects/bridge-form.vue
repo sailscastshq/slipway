@@ -667,6 +667,7 @@ function recordUrl() {
                     :id="field.name"
                     v-model="formValues[field.name]"
                     :disabled="field.readOnly"
+                    :required="field.attr.required"
                     class="focus:border-brand h-11 w-full border-b border-dashed border-gray-200 bg-transparent px-1 text-sm text-gray-900 focus:outline-none disabled:cursor-not-allowed disabled:text-gray-400 dark:border-gray-700 dark:text-white"
                   >
                     <option value="">None</option>

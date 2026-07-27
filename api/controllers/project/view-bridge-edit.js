@@ -75,8 +75,14 @@ module.exports = {
         })
         modelMeta = loaded.resource
 
+        const normalizedRecordId =
+          await sails.helpers.bridge.normalizeIdentifier.with({
+            value: recordId,
+            resource: modelMeta,
+            label: `${modelMeta.singularLabel} identifier`
+          })
         const criteria = {
-          [modelMeta.primaryKey]: recordId
+          [modelMeta.primaryKey]: normalizedRecordId
         }
         const fields = Array.from(
           new Set([modelMeta.primaryKey, ...modelMeta.edit])

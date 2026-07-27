@@ -123,7 +123,7 @@ Every field may define serializable UI metadata:
 | `readOnly`    | Render without submitting changes            |
 | `sortable`    | Allow or prevent table sorting               |
 | `options`     | Values for a select-style field              |
-| `default`     | Bridge form default                          |
+| `default`     | Literal form default or primary-key helper   |
 | `currency`    | Currency display and hydration metadata      |
 | `relation`    | Relationship display metadata                |
 | `upload`      | Upload constraints and canonical URL storage |
@@ -150,6 +150,44 @@ renderer because stored content remains untrusted at the rendering boundary.
 
 Uploads, currency hydration, and other specialized renderers build on the same
 field contract in their respective Bridge features.
+
+## Primary keys and belongs-to fields
+
+Bridge derives every belongs-to value from the related model's primary key
+metadata. Numeric foreign keys are normalized to numbers. UUIDs and other
+string identifiers remain opaque strings through form submission, record
+queries, updates, and deletes.
+
+Auto-incrementing primary keys and model-level `defaultsTo` values remain
+server-managed. A required primary key without either default appears on the
+create form so Bridge never invents an application identifier format.
+
+Applications that generate IDs with a Sails helper can keep the primary key
+out of the form:
+
+```js
+module.exports.slipway = {
+  bridge: {
+    resources: {
+      course: {
+        fields: {
+          id: {
+            default: {
+              helper: 'getUuid'
+            }
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+The helper identity may use a namespace such as `ids.getUuid`. Slipway resolves
+and runs it inside the target application, then asks the target Waterline model
+to validate the generated value before creating the record. Helper defaults are
+currently supported only for primary keys and receive no client-controlled
+inputs.
 
 ## Upload configuration boundary
 

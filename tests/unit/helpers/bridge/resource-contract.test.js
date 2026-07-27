@@ -43,6 +43,60 @@ test('Bridge derives a usable resource contract with zero config', async ({
   ])
 })
 
+test('Bridge normalizes target metadata through its public Sails helper', async ({
+  sails,
+  expect
+}) => {
+  const originalBuildSailsWrapper = sails.helpers.bridge.buildSailsWrapper
+  const originalExecuteInContainer = sails.helpers.bridge.executeInContainer
+
+  try {
+    sails.helpers.bridge.buildSailsWrapper = async (code) => code
+    sails.helpers.bridge.executeInContainer = async (containerName, code) => {
+      expect(containerName).toBe('bridge-app-web')
+      expect(code).toContain(
+        'const bridgeConfig = sails.config.slipway?.bridge || {}'
+      )
+      expect(code).toContain('config: JSON.parse(serializedBridgeConfig)')
+      expect(code.includes('packages/hook')).toBe(false)
+      const run = new Function('sails', `return (async () => {${code}})();`)
+      const output = await run({
+        models: modelMetadata(),
+        config: {
+          slipway: {
+            bridge: {
+              resources: {
+                course: {
+                  label: 'Learning paths'
+                }
+              }
+            }
+          }
+        }
+      })
+
+      return {
+        success: true,
+        output: JSON.stringify(output),
+        error: null,
+        exitCode: 0
+      }
+    }
+
+    const introspection = await sails.helpers.bridge.introspectModels.with({
+      containerName: 'bridge-app-web',
+      environmentId: 217,
+      skipCache: true
+    })
+
+    expect(introspection.models.course.label).toBe('Learning paths')
+    expect(introspection.models.course.primaryKey).toBe('id')
+  } finally {
+    sails.helpers.bridge.buildSailsWrapper = originalBuildSailsWrapper
+    sails.helpers.bridge.executeInContainer = originalExecuteInContainer
+  }
+})
+
 test('Bridge merges a partial resource config over discovered metadata', async ({
   sails,
   expect
@@ -158,6 +212,238 @@ test('Bridge represents a fully configured content resource', async ({
     directory: 'courses/thumbnails',
     store: 'url'
   })
+})
+
+test('Bridge preserves UUID primary keys and derives belongs-to identifier types', async ({
+  sails,
+  expect
+}) => {
+  const uuid = '018f2a5c-7b34-7f8a-9c12-4a73b9d80211'
+  const authorId = '018f2a5c-7b34-7f8a-9c12-4a73b9d80212'
+  const contract = await sails.helpers.bridge.normalizeResourceContract.with({
+    models: uuidModelMetadata(),
+    config: {
+      resources: {
+        article: {
+          create: ['title', 'author']
+        }
+      }
+    }
+  })
+  const article = contract.resources.article
+
+  expect(article.create).toEqual(['id', 'title', 'author'])
+  expect(article.edit.includes('id')).toBe(false)
+  expect(article.attributes.author.type).toBe('string')
+  expect(article.associations[0]).toEqual({
+    alias: 'author',
+    type: 'model',
+    model: 'author',
+    primaryKey: 'id',
+    primaryKeyType: 'string'
+  })
+
+  const values = await sails.helpers.bridge.allowResourceValues.with({
+    resource: article,
+    surface: 'create',
+    values: {
+      id: uuid,
+      title: 'UUIDs stay opaque',
+      author: authorId
+    }
+  })
+
+  expect(values.id).toBe(uuid)
+  expect(values.author).toBe(authorId)
+})
+
+test('Bridge applies configured target helpers to generated primary keys', async ({
+  sails,
+  expect
+}) => {
+  const generatedId = '018f2a5c-7b34-7f8a-9c12-4a73b9d80213'
+  const contract = await sails.helpers.bridge.normalizeResourceContract.with({
+    models: uuidModelMetadata(),
+    config: {
+      resources: {
+        article: {
+          fields: {
+            id: {
+              default: {
+                helper: 'getUuid'
+              }
+            }
+          }
+        }
+      }
+    }
+  })
+  const article = contract.resources.article
+  const getUuid = async () => generatedId
+  getUuid.with = async () => generatedId
+
+  expect(article.create.includes('id')).toBe(false)
+  expect(article.attributes.id.field.default).toEqual({
+    helper: 'getUuid'
+  })
+
+  let forgedPrimaryKeyError
+  try {
+    await sails.helpers.bridge.allowResourceValues.with({
+      resource: article,
+      surface: 'create',
+      values: {
+        id: generatedId,
+        title: 'Forged identifier'
+      }
+    })
+  } catch (error) {
+    forgedPrimaryKeyError = error
+  }
+  expect(forgedPrimaryKeyError.code).toBe('BRIDGE_FIELD_NOT_ALLOWED')
+
+  const originalBuildSailsWrapper = sails.helpers.bridge.buildSailsWrapper
+  const originalExecuteInContainer = sails.helpers.bridge.executeInContainer
+
+  try {
+    sails.helpers.bridge.buildSailsWrapper = async (code) => code
+    sails.helpers.bridge.executeInContainer = async (containerName, code) => {
+      expect(containerName).toBe('article-web')
+      const run = new Function('sails', `return (async () => {${code}})();`)
+      const output = await run({
+        models: {
+          article: {
+            validate(attribute, value) {
+              expect(attribute).toBe('id')
+              return value
+            },
+            create(values) {
+              return {
+                async fetch() {
+                  return values
+                }
+              }
+            }
+          }
+        },
+        helpers: {
+          getUuid
+        }
+      })
+
+      return {
+        success: true,
+        output: JSON.stringify(output),
+        error: null,
+        exitCode: 0
+      }
+    }
+
+    const record = await sails.helpers.bridge.createRecord.with({
+      containerName: 'article-web',
+      resource: article,
+      values: {
+        title: 'Generated on the target app'
+      }
+    })
+
+    expect(record).toEqual({
+      id: generatedId,
+      title: 'Generated on the target app'
+    })
+  } finally {
+    sails.helpers.bridge.buildSailsWrapper = originalBuildSailsWrapper
+    sails.helpers.bridge.executeInContainer = originalExecuteInContainer
+  }
+})
+
+test('Bridge only coerces identifiers when their primary key is numeric', async ({
+  sails,
+  expect
+}) => {
+  const numericContract =
+    await sails.helpers.bridge.normalizeResourceContract.with({
+      models: modelMetadata(),
+      config: {}
+    })
+  const course = numericContract.resources.course
+  const numericValues = await sails.helpers.bridge.allowResourceValues.with({
+    resource: course,
+    surface: 'create',
+    values: {
+      title: 'Numeric relationships',
+      creator: '7'
+    }
+  })
+
+  expect(course.attributes.creator.type).toBe('number')
+  expect(numericValues.creator).toBe(7)
+
+  const numericId = await sails.helpers.bridge.normalizeIdentifier.with({
+    value: '42',
+    resource: numericContract.resources.user
+  })
+  expect(numericId).toBe(42)
+
+  const uuidContract =
+    await sails.helpers.bridge.normalizeResourceContract.with({
+      models: uuidModelMetadata(),
+      config: {}
+    })
+  const uuid = '018f2a5c-7b34-7f8a-9c12-4a73b9d80214'
+  const stringId = await sails.helpers.bridge.normalizeIdentifier.with({
+    value: uuid,
+    resource: uuidContract.resources.author
+  })
+  expect(stringId).toBe(uuid)
+
+  let stringAssociationError
+  try {
+    await sails.helpers.bridge.allowResourceValues.with({
+      resource: uuidContract.resources.article,
+      surface: 'create',
+      values: {
+        id: uuid,
+        title: 'Do not coerce string relationships',
+        author: 42
+      }
+    })
+  } catch (error) {
+    stringAssociationError = error
+  }
+  expect(stringAssociationError.code).toBe('BRIDGE_INVALID_IDENTIFIER')
+})
+
+test('Bridge rejects unsafe generated primary key helper identities', async ({
+  sails,
+  expect
+}) => {
+  let receivedError
+
+  try {
+    await sails.helpers.bridge.normalizeResourceContract.with({
+      models: uuidModelMetadata(),
+      config: {
+        resources: {
+          article: {
+            fields: {
+              id: {
+                default: {
+                  helper: '__proto__.getUuid'
+                }
+              }
+            }
+          }
+        }
+      }
+    })
+  } catch (error) {
+    receivedError = error
+  }
+
+  expect(receivedError.message).toBe(
+    'Bridge field "article.id".default.helper must be a safe Sails helper identity.'
+  )
 })
 
 test('Bridge rejects unknown fields and unsupported config options', async ({
@@ -462,6 +748,23 @@ function modelMetadata() {
         }
       ]
     },
+    user: {
+      identity: 'user',
+      globalId: 'User',
+      tableName: 'users',
+      primaryKey: 'id',
+      attributes: {
+        id: {
+          type: 'number',
+          autoIncrement: true
+        },
+        fullName: {
+          type: 'string',
+          required: true
+        }
+      },
+      associations: []
+    },
     auditLog: {
       identity: 'auditLog',
       globalId: 'AuditLog',
@@ -473,6 +776,58 @@ function modelMetadata() {
         },
         event: {
           type: 'string'
+        }
+      },
+      associations: []
+    }
+  }
+}
+
+function uuidModelMetadata() {
+  return {
+    article: {
+      identity: 'article',
+      globalId: 'Article',
+      tableName: 'articles',
+      primaryKey: 'id',
+      attributes: {
+        id: {
+          type: 'string',
+          required: true,
+          isUUID: true
+        },
+        title: {
+          type: 'string',
+          required: true
+        },
+        author: {
+          type: 'number',
+          model: 'author',
+          required: true
+        }
+      },
+      associations: [
+        {
+          alias: 'author',
+          type: 'model',
+          model: 'author'
+        }
+      ]
+    },
+    author: {
+      identity: 'author',
+      globalId: 'Author',
+      tableName: 'authors',
+      primaryKey: 'id',
+      attributes: {
+        id: {
+          type: 'string',
+          required: true,
+          isUUID: true
+        },
+        fullName: {
+          type: 'string',
+          required: true
         }
       },
       associations: []
