@@ -40,6 +40,9 @@ module.exports.slipway = {
         actions: {
           bulkDelete: false
         },
+        authorization: {
+          helper: 'bridge.authorize'
+        },
         fields: {
           description: {
             label: 'Course description',
@@ -99,10 +102,14 @@ operation. List, show, create, and edit field lists are enforced on the server:
 
 - list queries select only `list` fields;
 - record queries select only `show` or `edit` fields;
+- parsed records are redacted again before they become Inertia props;
 - create and update payloads reject fields absent from their configured
   surface;
 - hidden resources and disabled actions cannot be reached by calling the
   endpoint directly;
+- target app authorization helpers resolve the effective actions for the
+  current actor, and denied actions are rejected by the same server path that
+  hides them in the UI;
 - sort and search inputs are validated and serialized as data before entering
   the target app container.
 
@@ -113,20 +120,114 @@ cannot silently expose the wrong surface.
 
 Every field may define serializable UI metadata:
 
-| Option        | Purpose                                      |
-| ------------- | -------------------------------------------- |
-| `label`       | Human-readable field name                    |
-| `type`        | Explicit field renderer                      |
-| `format`      | Stored value format, such as `markdown`      |
-| `help`        | Short guidance shown with the field          |
-| `placeholder` | Empty input hint                             |
-| `readOnly`    | Render without submitting changes            |
-| `sortable`    | Allow or prevent table sorting               |
-| `options`     | Values for a select-style field              |
-| `default`     | Literal form default or primary-key helper   |
-| `currency`    | Currency display and hydration metadata      |
-| `relation`    | Relationship display metadata                |
-| `upload`      | Upload constraints and canonical URL storage |
+| Option        | Purpose                                                |
+| ------------- | ------------------------------------------------------ |
+| `label`       | Human-readable field name                              |
+| `type`        | Explicit field renderer                                |
+| `format`      | Stored value format, such as `markdown`                |
+| `help`        | Short guidance shown with the field                    |
+| `placeholder` | Empty input hint                                       |
+| `readOnly`    | Render without submitting changes                      |
+| `sortable`    | Allow or prevent table sorting                         |
+| `options`     | Values for a select-style field                        |
+| `default`     | Literal form default or primary-key helper             |
+| `sensitive`   | Mark an additional field as hidden by default          |
+| `visibility`  | Per-surface `list`, `show`, `create`, `edit`, `filter` |
+| `currency`    | Currency display and hydration metadata                |
+| `relation`    | Relationship display metadata                          |
+| `upload`      | Upload constraints and canonical URL storage           |
+
+Sensitive names such as password, token, secret, API key, credential, recovery
+code, `emailChangeCandidate`, `planCode`, and `subscriptionCode` are omitted
+from every generated surface. Encrypted and protected fields receive the same
+safe treatment.
+
+An explicit resource array is an opt-in. Field-level visibility is useful when
+the resource should mostly use generated defaults:
+
+```js
+fields: {
+  internalNote: {
+    sensitive: true,
+    visibility: {
+      show: true,
+      edit: true
+    }
+  },
+  githubAccessToken: {
+    visibility: {
+      list: false,
+      show: false,
+      create: false,
+      edit: false,
+      filter: false
+    }
+  }
+}
+```
+
+Setting a surface to `false` is a hard deny for that surface, including forged
+payloads. Setting it to `true` explicitly opts a sensitive-name field into that
+surface. Protected values are never readable through Bridge.
+
+## Target app authorization
+
+Static `actions` remain useful for permanently disabling operations. Add an
+authorization helper when the decision depends on the signed-in actor:
+
+```js
+course: {
+  authorization: {
+    helper: 'bridge.authorize'
+  }
+}
+```
+
+The helper runs inside the target Sails application. It receives `actor`,
+`action`, `resource`, and `recordId` when a record is in scope. It must return
+`true` (or `{ allowed: true }`) to allow the action; falsey values, missing
+helpers, malformed results, and helper errors fail closed.
+
+```js
+// api/helpers/bridge/authorize.js
+const levels = {
+  user: 0,
+  editor: 1,
+  admin: 2
+}
+
+module.exports = {
+  friendlyName: 'Authorize Bridge',
+
+  inputs: {
+    actor: { type: 'ref', required: true },
+    action: { type: 'string', required: true },
+    resource: { type: 'ref', required: true },
+    recordId: { type: 'ref' }
+  },
+
+  fn: async function ({ actor, action }) {
+    const user = await User.findOne({ email: actor.email })
+    if (!user) return false
+
+    const requiredLevel = ['update', 'delete', 'bulkDelete'].includes(action)
+      ? levels.admin
+      : levels.editor
+
+    return (levels[user.role] ?? -1) >= requiredLevel
+  }
+}
+```
+
+This matches the current Nexus split: editors can discover, read, and create;
+admins can also update and delete. The actor contains a small Slipway identity
+context (`id`, `email`, `fullName`, team role, and current project/environment
+identifiers). The target app remains responsible for mapping that identity to
+its own user and roles.
+
+Custom action names may be declared in `actions`. They pass through the same
+authorization helper even when their executor is supplied by a later Bridge
+feature.
 
 Set `type: 'richtext'` and `format: 'markdown'` to use Bridge's TipTap editor:
 

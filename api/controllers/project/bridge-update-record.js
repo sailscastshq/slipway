@@ -69,30 +69,31 @@ module.exports = {
 
     let loaded
     let allowedValues
-    let normalizedRecordId
     try {
+      const actor = await sails.helpers.bridge.buildActor.with({
+        user,
+        project,
+        environment
+      })
       loaded = await sails.helpers.bridge.loadResource.with({
         containerName: app.containerName,
         environmentId: environment.id,
         modelIdentity,
-        action: 'update'
+        action: 'update',
+        actor,
+        recordId
       })
       allowedValues = await sails.helpers.bridge.allowResourceValues.with({
         values,
         resource: loaded.resource,
         surface: 'edit'
       })
-      normalizedRecordId = await sails.helpers.bridge.normalizeIdentifier.with({
-        value: recordId,
-        resource: loaded.resource,
-        label: `${loaded.resource.singularLabel} identifier`
-      })
     } catch (error) {
       throw { badRequest: { error: error.message } }
     }
 
     const criteria = {
-      [loaded.resource.primaryKey]: normalizedRecordId
+      [loaded.resource.primaryKey]: loaded.recordId
     }
     const updateCode = `
       const identity = ${JSON.stringify(loaded.resource.identity)};

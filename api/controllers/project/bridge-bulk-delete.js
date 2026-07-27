@@ -83,11 +83,17 @@ module.exports = {
 
     let resource
     try {
+      const actor = await sails.helpers.bridge.buildActor.with({
+        user,
+        project,
+        environment
+      })
       const loaded = await sails.helpers.bridge.loadResource.with({
         containerName: app.containerName,
         environmentId: environment.id,
         modelIdentity,
-        action: 'bulkDelete'
+        action: 'bulkDelete',
+        actor
       })
       resource = loaded.resource
     } catch (error) {

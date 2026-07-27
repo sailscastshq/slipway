@@ -62,11 +62,17 @@ module.exports = {
 
     if (appRunning) {
       try {
+        const actor = await sails.helpers.bridge.buildActor.with({
+          user,
+          project,
+          environment
+        })
         const loaded = await sails.helpers.bridge.loadResource.with({
           containerName: app.containerName,
           environmentId: environment.id,
           modelIdentity,
-          action: 'create'
+          action: 'create',
+          actor
         })
         modelMeta = loaded.resource
         assocOptions = await sails.helpers.bridge.loadAssociationOptions.with({

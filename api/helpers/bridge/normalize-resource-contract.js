@@ -34,7 +34,7 @@ module.exports = {
  */
 function normalizeBridgeResourceContract({ models, config = {} }) {
   const SCHEMA_VERSION = 1
-  const RESOURCE_ACTIONS = [
+  const DEFAULT_RESOURCE_ACTIONS = [
     'viewAny',
     'view',
     'create',
@@ -42,6 +42,7 @@ function normalizeBridgeResourceContract({ models, config = {} }) {
     'delete',
     'bulkDelete'
   ]
+  const FIELD_VISIBILITY_SURFACES = ['list', 'show', 'create', 'edit', 'filter']
   const RESOURCE_OPTION_KEYS = [
     'label',
     'singularLabel',
@@ -56,6 +57,7 @@ function normalizeBridgeResourceContract({ models, config = {} }) {
     'sort',
     'hidden',
     'actions',
+    'authorization',
     'fields'
   ]
   const FIELD_OPTION_KEYS = [
@@ -68,6 +70,8 @@ function normalizeBridgeResourceContract({ models, config = {} }) {
     'sortable',
     'options',
     'default',
+    'sensitive',
+    'visibility',
     'currency',
     'relation',
     'upload'
@@ -170,8 +174,27 @@ function normalizeBridgeResourceContract({ models, config = {} }) {
       raw
     )
     const fieldNames = Object.keys(attributes)
-    const visibleFields = fieldNames.filter(
+    const readableFields = fieldNames.filter(
       (name) => !attributes[name].encrypt && !attributes[name].protect
+    )
+    const allowedListFields = readableFields.filter(
+      (name) =>
+        name === primaryKey || isAllowedOnSurface(attributes[name], 'list')
+    )
+    const allowedShowFields = readableFields.filter(
+      (name) =>
+        name === primaryKey || isAllowedOnSurface(attributes[name], 'show')
+    )
+    const allowedFilterFields = readableFields.filter((name) =>
+      isAllowedOnSurface(attributes[name], 'filter')
+    )
+    const defaultListFields = allowedListFields.filter(
+      (name) =>
+        name === primaryKey || isVisibleByDefault(attributes[name], 'list')
+    )
+    const defaultShowFields = allowedShowFields.filter(
+      (name) =>
+        name === primaryKey || isVisibleByDefault(attributes[name], 'show')
     )
     const requiresPrimaryKeyInput = needsPrimaryKeyInput(attributes[primaryKey])
     const writableCreateFields = fieldNames.filter((name) => {
@@ -181,16 +204,42 @@ function normalizeBridgeResourceContract({ models, config = {} }) {
         !attribute.autoCreatedAt &&
         !attribute.autoUpdatedAt &&
         attribute.field?.readOnly !== true &&
+        isAllowedOnSurface(attribute, 'create') &&
         (name !== primaryKey || requiresPrimaryKeyInput)
       )
     })
-    const writableEditFields = writableCreateFields.filter(
-      (name) => name !== primaryKey
+    const writableEditFields = fieldNames.filter((name) => {
+      const attribute = attributes[name]
+      return (
+        name !== primaryKey &&
+        !attribute.protect &&
+        !attribute.autoCreatedAt &&
+        !attribute.autoUpdatedAt &&
+        attribute.field?.readOnly !== true &&
+        isAllowedOnSurface(attribute, 'edit')
+      )
+    })
+    const defaultCreateFields = writableCreateFields.filter((name) =>
+      isVisibleByDefault(attributes[name], 'create')
     )
-    const defaultList = inferListFields(primaryKey, visibleFields, attributes)
-    const defaultTitle = inferTitleField(primaryKey, visibleFields)
-    const defaultSearch = visibleFields.filter(
+    const defaultEditFields = writableEditFields.filter((name) =>
+      isVisibleByDefault(attributes[name], 'edit')
+    )
+    const explicitlyListedFields = allowedListFields.filter(
+      (name) => attributes[name].field?.visibility?.list === true
+    )
+    const defaultList = Array.from(
+      new Set([
+        ...inferListFields(primaryKey, defaultListFields, attributes),
+        ...explicitlyListedFields
+      ])
+    )
+    const defaultTitle = inferTitleField(primaryKey, defaultShowFields)
+    const defaultSearch = defaultListFields.filter(
       (name) => attributes[name].type === 'string' && !attributes[name].encrypt
+    )
+    const defaultFilters = allowedFilterFields.filter(
+      (name) => attributes[name].field?.visibility?.filter === true
     )
     const defaultSortField = attributes.createdAt ? 'createdAt' : primaryKey
     const label = readString(raw.label) || pluralizeLabel(humanize(identity))
@@ -209,48 +258,54 @@ function normalizeBridgeResourceContract({ models, config = {} }) {
         identity,
         'title',
         raw.title ?? defaultTitle,
-        visibleFields
+        allowedShowFields
       ),
       search: normalizeFieldList(
         identity,
         'search',
         raw.search ?? defaultSearch,
-        visibleFields
+        allowedListFields
       ),
       list: normalizeFieldList(
         identity,
         'list',
         raw.list ?? defaultList,
-        visibleFields
+        allowedListFields
       ),
       show: normalizeFieldList(
         identity,
         'show',
-        raw.show ?? visibleFields,
-        visibleFields
+        raw.show ?? defaultShowFields,
+        allowedShowFields
       ),
       create: normalizeFieldList(
         identity,
         'create',
-        raw.create ?? writableCreateFields,
+        raw.create ?? defaultCreateFields,
         writableCreateFields
       ),
       edit: normalizeFieldList(
         identity,
         'edit',
-        raw.edit ?? writableEditFields,
+        raw.edit ?? defaultEditFields,
         writableEditFields
       ),
       filters: normalizeFieldList(
         identity,
         'filters',
-        raw.filters ?? [],
-        visibleFields
+        raw.filters ?? defaultFilters,
+        allowedFilterFields
       ),
-      sort: normalizeSort(identity, raw.sort, defaultSortField, visibleFields),
+      sort: normalizeSort(
+        identity,
+        raw.sort,
+        defaultSortField,
+        allowedListFields
+      ),
       hidden: raw.hidden === true,
       configured,
       actions: normalizeActions(identity, raw.actions),
+      authorization: normalizeAuthorization(identity, raw.authorization),
       attributes,
       associations
     }
@@ -320,6 +375,11 @@ function normalizeBridgeResourceContract({ models, config = {} }) {
           `Bridge field "${identity}.${name}".${option}`
         )
       }
+      assertOptionalBoolean(
+        fieldOptions[name].sensitive,
+        `Bridge field "${identity}.${name}".sensitive`
+      )
+      validateFieldVisibility(identity, name, fieldOptions[name].visibility)
       if (
         fieldOptions[name].options !== undefined &&
         !Array.isArray(fieldOptions[name].options)
@@ -369,6 +429,11 @@ function normalizeBridgeResourceContract({ models, config = {} }) {
           ? { type: association.primaryKeyType }
           : {}),
         label: readString(rawField.label) || humanize(name),
+        sensitive:
+          attribute.protect === true ||
+          attribute.encrypt === true ||
+          rawField.sensitive === true ||
+          (rawField.sensitive !== false && hasSensitiveName(name)),
         field: safeField
       }
     }
@@ -457,14 +522,18 @@ function normalizeBridgeResourceContract({ models, config = {} }) {
       )
     }
 
-    rejectUnknownKeys(
-      rawActions || {},
-      RESOURCE_ACTIONS,
-      `Bridge resource "${identity}".actions`
-    )
+    for (const action of Object.keys(rawActions || {})) {
+      if (!isSafeIdentifier(action)) {
+        throw new Error(
+          `Bridge action "${identity}.${action}" must use a safe action name.`
+        )
+      }
+    }
 
     const actions = {}
-    for (const action of RESOURCE_ACTIONS) {
+    for (const action of Array.from(
+      new Set([...DEFAULT_RESOURCE_ACTIONS, ...Object.keys(rawActions || {})])
+    )) {
       const value = rawActions?.[action]
       if (value !== undefined && typeof value !== 'boolean') {
         throw new Error(
@@ -474,6 +543,92 @@ function normalizeBridgeResourceContract({ models, config = {} }) {
       actions[action] = value !== false
     }
     return actions
+  }
+
+  function normalizeAuthorization(identity, rawAuthorization) {
+    if (rawAuthorization === undefined) return null
+
+    const authorization =
+      typeof rawAuthorization === 'string'
+        ? { helper: rawAuthorization }
+        : rawAuthorization
+    if (!isPlainObject(authorization)) {
+      throw new Error(
+        `Bridge resource "${identity}".authorization must be a helper identity or an object.`
+      )
+    }
+    rejectUnknownKeys(
+      authorization,
+      ['helper'],
+      `Bridge resource "${identity}".authorization`
+    )
+    if (!isSafeHelperIdentity(authorization.helper)) {
+      throw new Error(
+        `Bridge resource "${identity}".authorization.helper must be a safe Sails helper identity.`
+      )
+    }
+    return { helper: authorization.helper }
+  }
+
+  function validateFieldVisibility(identity, name, visibility) {
+    if (visibility === undefined) return
+    if (!isPlainObject(visibility)) {
+      throw new Error(
+        `Bridge field "${identity}.${name}".visibility must be an object.`
+      )
+    }
+    rejectUnknownKeys(
+      visibility,
+      FIELD_VISIBILITY_SURFACES,
+      `Bridge field "${identity}.${name}".visibility`
+    )
+    for (const surface of FIELD_VISIBILITY_SURFACES) {
+      assertOptionalBoolean(
+        visibility[surface],
+        `Bridge field "${identity}.${name}".visibility.${surface}`
+      )
+    }
+  }
+
+  function isAllowedOnSurface(attribute, surface) {
+    return attribute.field?.visibility?.[surface] !== false
+  }
+
+  function isVisibleByDefault(attribute, surface) {
+    const configuredVisibility = attribute.field?.visibility?.[surface]
+    if (configuredVisibility !== undefined) return configuredVisibility
+    return attribute.sensitive !== true
+  }
+
+  function hasSensitiveName(name) {
+    const normalized = String(name)
+      .replace(/[^A-Za-z0-9]/g, '')
+      .toLowerCase()
+    if (
+      ['emailchangecandidate', 'plancode', 'subscriptioncode'].includes(
+        normalized
+      )
+    ) {
+      return true
+    }
+    return /(password|passwd|passphrase|secret|token|apikey|privatekey|signingkey|credential|totp|otp|recoverycode|backupcode|verificationcode|authcode)/.test(
+      normalized
+    )
+  }
+
+  function isSafeIdentifier(value) {
+    return (
+      typeof value === 'string' &&
+      /^[A-Za-z][A-Za-z0-9]*$/.test(value) &&
+      !['__proto__', 'constructor', 'prototype'].includes(value)
+    )
+  }
+
+  function isSafeHelperIdentity(value) {
+    return (
+      typeof value === 'string' &&
+      value.split('.').every((part) => isSafeIdentifier(part))
+    )
   }
 
   function normalizeSort(identity, rawSort, defaultField, fieldNames) {

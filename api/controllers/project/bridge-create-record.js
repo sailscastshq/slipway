@@ -66,11 +66,17 @@ module.exports = {
     let loaded
     let allowedValues
     try {
+      const actor = await sails.helpers.bridge.buildActor.with({
+        user,
+        project,
+        environment
+      })
       loaded = await sails.helpers.bridge.loadResource.with({
         containerName: app.containerName,
         environmentId: environment.id,
         modelIdentity,
-        action: 'create'
+        action: 'create',
+        actor
       })
       allowedValues = await sails.helpers.bridge.allowResourceValues.with({
         values,
