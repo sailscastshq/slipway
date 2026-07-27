@@ -1,6 +1,7 @@
 <script setup>
 import { computed, ref } from 'vue'
 import MarkdownEditor from '@/components/content/MarkdownEditor.vue'
+import BridgeRelationshipSelect from '@/components/bridge/BridgeRelationshipSelect.vue'
 import {
   bridgeFieldType,
   bridgeSelectOptions,
@@ -34,6 +35,10 @@ const props = defineProps({
   associationOptions: {
     type: Array,
     default: () => []
+  },
+  associationSearchUrl: {
+    type: String,
+    default: ''
   },
   uploadUrl: {
     type: String,
@@ -450,31 +455,21 @@ function defaultPlaceholder(fieldType) {
         </option>
       </select>
 
-      <select
+      <BridgeRelationshipSelect
         v-else-if="type === 'belongsTo'"
         :id="fieldId"
-        :value="modelValue"
+        :label="label"
+        :model-value="modelValue"
+        :options="associationOptions"
+        :search-url="associationSearchUrl"
+        :searchable="attribute.field?.relation?.searchable !== false"
         :disabled="field.readOnly"
         :required="attribute.required"
-        :aria-invalid="visibleError ? 'true' : undefined"
-        :aria-describedby="describedBy"
-        :data-test="`${fieldId}-input`"
-        :class="inputClass"
-        @change="
-          update(associationOptions[$event.target.selectedIndex - 1]?.id ?? '')
-        "
+        :invalid="Boolean(visibleError)"
+        :described-by="describedBy"
+        @update:model-value="update"
         @blur="handleBlur"
-      >
-        <option value="">{{ attribute.required ? 'Select…' : 'None' }}</option>
-        <option
-          v-for="option in associationOptions"
-          :key="String(option.id)"
-          :value="String(option.id)"
-          :selected="String(option.id) === String(modelValue)"
-        >
-          {{ option.label }}
-        </option>
-      </select>
+      />
 
       <MarkdownEditor
         v-else-if="

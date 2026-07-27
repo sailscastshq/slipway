@@ -21,6 +21,10 @@ module.exports = {
       type: 'string',
       required: true,
       isIn: ['create', 'edit']
+    },
+    values: {
+      type: 'ref',
+      defaultsTo: {}
     }
   },
 
@@ -30,7 +34,7 @@ module.exports = {
     }
   },
 
-  fn: async function ({ containerName, resources, resource, surface }) {
+  fn: async function ({ containerName, resources, resource, surface, values }) {
     const surfaceFields = new Set(resource[surface] || [])
     const definitions = []
 
@@ -49,12 +53,16 @@ module.exports = {
         ? resources[association.model]
         : null
       if (!relatedResource || relatedResource.hidden) continue
+      const relationship = resource.relationships?.[association.alias]
+      if (!relationship) continue
 
       definitions.push({
         alias: association.alias,
         identity: relatedResource.identity,
         primaryKey: relatedResource.primaryKey,
-        title: relatedResource.title
+        title: relatedResource.title,
+        limit: relationship.limit,
+        selectedId: values?.[association.alias]
       })
     }
 
@@ -75,7 +83,28 @@ module.exports = {
           definition.primaryKey,
           definition.title
         ].filter(Boolean)));
-        const records = await model.find({ limit: 100 }).select(fields);
+        const records = await model
+          .find({
+            sort: definition.title + ' ASC',
+            limit: definition.limit
+          })
+          .select(fields);
+        if (
+          definition.selectedId !== undefined &&
+          definition.selectedId !== null &&
+          !records.some(
+            (record) =>
+              String(record[definition.primaryKey]) ===
+              String(definition.selectedId)
+          )
+        ) {
+          const selected = await model
+            .findOne({
+              [definition.primaryKey]: definition.selectedId
+            })
+            .select(fields);
+          if (selected) records.unshift(selected);
+        }
         options[definition.alias] = records.map((record) => ({
           id: record[definition.primaryKey],
           label: record[definition.title] == null

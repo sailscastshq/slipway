@@ -62,6 +62,7 @@ module.exports = {
 
     let modelMeta = null
     let record = null
+    let relationships = {}
     let error = null
 
     if (appRunning) {
@@ -119,6 +120,36 @@ module.exports = {
         } else {
           error = result.error || 'Failed to fetch record'
         }
+
+        if (!error) {
+          const authorizedResources = {
+            [modelMeta.identity]: modelMeta
+          }
+          for (const relationship of Object.values(
+            modelMeta.relationships || {}
+          )) {
+            if (relationship.show !== true) continue
+            try {
+              const related = await sails.helpers.bridge.loadResource.with({
+                containerName: app.containerName,
+                environmentId: environment.id,
+                modelIdentity: relationship.resource,
+                action: 'viewAny',
+                actor
+              })
+              authorizedResources[relationship.resource] = related.resource
+            } catch (relationshipAuthorizationError) {
+              delete authorizedResources[relationship.resource]
+            }
+          }
+          relationships =
+            await sails.helpers.bridge.loadResourceRelationships.with({
+              containerName: app.containerName,
+              resources: authorizedResources,
+              resource: modelMeta,
+              recordId: loaded.recordId
+            })
+        }
       } catch (err) {
         error = err.message
       }
@@ -142,6 +173,7 @@ module.exports = {
         appRunning,
         modelMeta,
         record,
+        relationships,
         error
       }
     }

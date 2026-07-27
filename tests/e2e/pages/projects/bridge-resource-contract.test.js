@@ -37,11 +37,15 @@ test(
     const fieldEngineScreenshotRoot = path.resolve(
       '.tmp/screenshots/issue-219-bridge-field-engine'
     )
+    const relationshipScreenshotRoot = path.resolve(
+      '.tmp/screenshots/issue-220-bridge-relationships'
+    )
 
     fs.mkdirSync(screenshotRoot, { recursive: true })
     fs.mkdirSync(identifierScreenshotRoot, { recursive: true })
     fs.mkdirSync(authorizationScreenshotRoot, { recursive: true })
     fs.mkdirSync(fieldEngineScreenshotRoot, { recursive: true })
+    fs.mkdirSync(relationshipScreenshotRoot, { recursive: true })
 
     const contract = await sails.helpers.bridge.normalizeResourceContract.with({
       models: resourceMetadata(),
@@ -50,6 +54,8 @@ test(
     const courseRecordId = '018f2a5c-7b34-7f8a-9c12-4a73b9d80211'
     const createdCourseRecordId = '018f2a5c-7b34-7f8a-9c12-4a73b9d80212'
     const creatorId = '018f2a5c-7b34-7f8a-9c12-4a73b9d80213'
+    const chapterId = '018f2a5c-7b34-7f8a-9c12-4a73b9d80214'
+    const lessonId = '018f2a5c-7b34-7f8a-9c12-4a73b9d80215'
     const records = [
       {
         id: courseRecordId,
@@ -128,6 +134,116 @@ test(
       if (code.includes('const options = {};')) {
         return successfulResult({
           creator: [{ id: creatorId, label: 'Ada Lovelace' }]
+        })
+      }
+      if (code.includes('const missing = [];')) {
+        return successfulResult({ missing: [] })
+      }
+      if (code.includes('const where = definition.query')) {
+        const definition = readEmbeddedValue(code, 'definition')
+        if (definition.identity === 'user') {
+          return successfulResult({
+            options: [
+              {
+                id: creatorId,
+                label: 'Ada Lovelace',
+                attached: false
+              }
+            ],
+            page: definition.page,
+            limit: definition.limit,
+            hasMore: false
+          })
+        }
+        return successfulResult({
+          options: [
+            {
+              id: lessonId,
+              label: 'Deploy with confidence',
+              attached: true
+            },
+            {
+              id: '018f2a5c-7b34-7f8a-9c12-4a73b9d80216',
+              label: 'Operate the boring path',
+              attached: false
+            }
+          ],
+          page: definition.page,
+          limit: definition.limit,
+          hasMore: false
+        })
+      }
+      if (
+        code.includes('const parentIdentity =') &&
+        code.includes('function present')
+      ) {
+        return successfulResult({
+          creator: {
+            alias: 'creator',
+            type: 'model',
+            label: 'Creator',
+            identity: 'user',
+            primaryKey: 'id',
+            title: 'fullName',
+            fields: ['id', 'fullName'],
+            limit: 20,
+            canAttach: false,
+            canDetach: false,
+            record: {
+              id: creatorId,
+              label: 'Ada Lovelace',
+              values: {
+                id: creatorId,
+                fullName: 'Ada Lovelace'
+              }
+            }
+          },
+          chapters: {
+            alias: 'chapters',
+            type: 'collection',
+            label: 'Chapters',
+            identity: 'chapter',
+            primaryKey: 'id',
+            title: 'title',
+            fields: ['id', 'title'],
+            limit: 5,
+            canAttach: false,
+            canDetach: false,
+            records: [
+              {
+                id: chapterId,
+                label: 'The deployment path',
+                values: {
+                  id: chapterId,
+                  title: 'The deployment path'
+                }
+              }
+            ],
+            hasMore: false
+          },
+          lessons: {
+            alias: 'lessons',
+            type: 'collection',
+            label: 'Lessons',
+            identity: 'lesson',
+            primaryKey: 'id',
+            title: 'title',
+            fields: ['id', 'title'],
+            limit: 5,
+            canAttach: true,
+            canDetach: true,
+            records: [
+              {
+                id: lessonId,
+                label: 'Deploy with confidence',
+                values: {
+                  id: lessonId,
+                  title: 'Deploy with confidence'
+                }
+              }
+            ],
+            hasMore: false
+          }
         })
       }
       if (code.includes('const total = await model.count(where);')) {
@@ -239,7 +355,7 @@ test(
       await page.wait('text=Courses')
       await expect(page).toSee('Content')
       await expect(page).toSee('People')
-      await expect(page).toSee('2 resources')
+      await expect(page).toSee('4 resources')
       expect(await page.raw.getByText('Model Settings').count()).toBe(0)
       await page.screenshot(path.join(screenshotRoot, 'resources-light.png'), {
         fullPage: true
@@ -324,7 +440,35 @@ test(
       )
       await page.raw.getByLabel('Course title').fill('Ship a durable course')
       await page.raw.getByLabel('Price').fill('49')
-      await page.raw.getByLabel('Creator').selectOption(creatorId)
+      await page.raw.setViewportSize({ width: 1440, height: 1100 })
+      const creatorRelationshipSelect = page.raw.getByRole('combobox', {
+        name: 'Creator'
+      })
+      await creatorRelationshipSelect.evaluate((element) => {
+        element.scrollIntoView({ block: 'center' })
+      })
+      await creatorRelationshipSelect.click()
+      await page.wait('text=Ada Lovelace')
+      await page.screenshot(
+        path.join(
+          relationshipScreenshotRoot,
+          'searchable-creator-select-light.png'
+        ),
+        { fullPage: true }
+      )
+      await page.raw.emulateMedia({ colorScheme: 'dark' })
+      await page.screenshot(
+        path.join(
+          relationshipScreenshotRoot,
+          'searchable-creator-select-dark.png'
+        ),
+        { fullPage: true }
+      )
+      await page.raw.emulateMedia({ colorScheme: 'light' })
+      await page.raw
+        .getByRole('option', { name: 'Ada Lovelace', exact: true })
+        .click()
+      await page.raw.setViewportSize({ width: 1440, height: 900 })
       expect(await createRecordButton.isEnabled()).toBe(true)
       await createRecordButton.scrollIntoViewIfNeeded()
       await page.screenshot(
@@ -499,8 +643,15 @@ test(
       await expect(page).toSee('$34.99')
       await expect(page).toSee('https://sailsjs.com')
       await expect(page).toSee('"lessons": 12')
+      await expect(page).toSee('Ada Lovelace')
+      await expect(page).toSee('The deployment path')
+      await expect(page).toSee('Deploy with confidence')
       await page.screenshot(
         path.join(fieldEngineScreenshotRoot, 'typed-record-light.png'),
+        { fullPage: true }
+      )
+      await page.screenshot(
+        path.join(relationshipScreenshotRoot, 'course-relations-light.png'),
         { fullPage: true }
       )
       await page.raw.emulateMedia({ colorScheme: 'dark' })
@@ -514,6 +665,30 @@ test(
         path.join(fieldEngineScreenshotRoot, 'typed-record-dark.png'),
         { fullPage: true }
       )
+      await page.screenshot(
+        path.join(relationshipScreenshotRoot, 'course-relations-dark.png'),
+        { fullPage: true }
+      )
+
+      await page.raw.emulateMedia({ colorScheme: 'light' })
+      await page.raw
+        .getByRole('button', { name: 'Manage lessons', exact: true })
+        .click()
+      await page.wait('text=Operate the boring path')
+      await expect(page).toSee('Remove')
+      await expect(page).toSee('Attach')
+      await page.screenshot(
+        path.join(relationshipScreenshotRoot, 'manage-lessons-light.png'),
+        { fullPage: true }
+      )
+      await page.raw.emulateMedia({ colorScheme: 'dark' })
+      await page.screenshot(
+        path.join(relationshipScreenshotRoot, 'manage-lessons-dark.png'),
+        { fullPage: true }
+      )
+      await page.raw
+        .getByRole('button', { name: 'Close relationship manager' })
+        .click()
 
       await page.raw.emulateMedia({ colorScheme: 'light' })
       await page.goto(`${bridgePath}/user/${creatorId}`)
@@ -618,6 +793,20 @@ function resourceConfig() {
         actions: {
           bulkDelete: false
         },
+        relationships: {
+          chapters: {
+            fields: ['id', 'title'],
+            search: ['title'],
+            limit: 5
+          },
+          lessons: {
+            fields: ['id', 'title'],
+            search: ['title'],
+            limit: 5,
+            attach: true,
+            detach: true
+          }
+        },
         fields: {
           id: {
             default: {
@@ -682,6 +871,22 @@ function resourceConfig() {
         actions: {
           bulkDelete: false
         }
+      },
+      chapter: {
+        label: 'Chapters',
+        singularLabel: 'Chapter',
+        group: 'Content',
+        title: 'title',
+        search: ['title'],
+        list: ['title']
+      },
+      lesson: {
+        label: 'Lessons',
+        singularLabel: 'Lesson',
+        group: 'Content',
+        title: 'title',
+        search: ['title'],
+        list: ['title']
       }
     }
   }
@@ -744,6 +949,18 @@ function resourceMetadata() {
           alias: 'creator',
           type: 'model',
           model: 'user'
+        },
+        {
+          alias: 'chapters',
+          type: 'collection',
+          collection: 'chapter',
+          via: 'course'
+        },
+        {
+          alias: 'lessons',
+          type: 'collection',
+          collection: 'lesson',
+          via: 'course'
         }
       ]
     },
@@ -785,6 +1002,62 @@ function resourceMetadata() {
         }
       },
       associations: []
+    },
+    chapter: {
+      identity: 'chapter',
+      globalId: 'Chapter',
+      tableName: 'chapter',
+      primaryKey: 'id',
+      attributes: {
+        id: {
+          type: 'string',
+          required: true,
+          isUUID: true
+        },
+        title: {
+          type: 'string',
+          required: true
+        },
+        course: {
+          type: 'string',
+          model: 'course'
+        }
+      },
+      associations: [
+        {
+          alias: 'course',
+          type: 'model',
+          model: 'course'
+        }
+      ]
+    },
+    lesson: {
+      identity: 'lesson',
+      globalId: 'Lesson',
+      tableName: 'lesson',
+      primaryKey: 'id',
+      attributes: {
+        id: {
+          type: 'string',
+          required: true,
+          isUUID: true
+        },
+        title: {
+          type: 'string',
+          required: true
+        },
+        course: {
+          type: 'string',
+          model: 'course'
+        }
+      },
+      associations: [
+        {
+          alias: 'course',
+          type: 'model',
+          model: 'course'
+        }
+      ]
     }
   }
 }

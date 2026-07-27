@@ -144,7 +144,9 @@ function buildIntrospectionCode() {
             alias: attrName,
             type: 'collection',
             collection: attr.collection,
-            via: attr.via || null
+            via: attr.via || null,
+            dominant: attr.dominant === true,
+            on: attr.on || null
           });
           continue;
         }

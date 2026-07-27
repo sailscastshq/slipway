@@ -52,6 +52,20 @@ module.exports.slipway = {
         authorization: {
           helper: 'bridge.authorize'
         },
+        relationships: {
+          chapters: {
+            fields: ['id', 'title'],
+            search: ['title'],
+            limit: 8
+          },
+          lessons: {
+            fields: ['id', 'title'],
+            search: ['title'],
+            limit: 12,
+            attach: true,
+            detach: true
+          }
+        },
         fields: {
           price: {
             label: 'Price',
@@ -76,6 +90,13 @@ module.exports.slipway = {
               storage: 'bridge',
               directory: 'courses/thumbnails',
               store: 'url'
+            }
+          },
+          creator: {
+            relation: {
+              label: 'Creator',
+              search: ['fullName', 'email'],
+              limit: 20
             }
           }
         }
@@ -371,6 +392,92 @@ and runs it inside the target application, then asks the target Waterline model
 to validate the generated value before creating the record. Helper defaults are
 currently supported only for primary keys and receive no client-controlled
 inputs.
+
+## Relationships
+
+Bridge treats Waterline `model` and `collection` associations as first-class
+resource metadata.
+
+Belongs-to fields derive their label, primary-key type, title field, and search
+fields from the related resource. Use the field's `relation` option only when
+the generated behavior needs an override:
+
+```js
+lesson: {
+  fields: {
+    chapter: {
+      relation: {
+        label: 'Chapter',
+        search: ['title', 'slug'],
+        limit: 20
+      }
+    },
+    creator: {
+      relation: {
+        search: ['fullName', 'email']
+      }
+    }
+  }
+}
+```
+
+The form receives only the first bounded page. Its combobox searches through a
+dedicated JSON transport and loads additional pages on demand, so a large user
+or course table is never serialized into an Inertia page.
+
+Create and update requests repeat the related resource's `viewAny`
+authorization and verify that every submitted belongs-to ID still exists.
+Hiding a selector therefore cannot be bypassed with a forged form payload.
+
+Collection associations appear as compact related-record lists on the detail
+page. Values are selected only from the related resource's safe `show` fields.
+The primary key and title field are always included; additional fields must be
+explicit:
+
+```js
+course: {
+  relationships: {
+    chapters: {
+      label: 'Chapters',
+      fields: ['id', 'title', 'position'],
+      search: ['title'],
+      limit: 8
+    }
+  }
+}
+```
+
+`limit` must be between 1 and 50. `search` and `fields` may reference only
+fields already allowed by the related resource contract. A hidden related
+resource, a denied `viewAny` decision, or an unavailable association fails
+closed.
+
+Collection mutation is disabled by default. Enable the exact operations a
+resource needs:
+
+```js
+course: {
+  relationships: {
+    lessons: {
+      attach: true,
+      detach: true
+    }
+  }
+}
+```
+
+Attach and detach use Waterline's `addToCollection()` and
+`removeFromCollection()` methods. Bridge never deletes the related record.
+Every mutation requires all three gates:
+
+1. the operation is explicitly enabled on the collection relationship;
+2. the current actor is allowed to `update` the parent resource; and
+3. the current actor is allowed to `viewAny` on the related resource.
+
+This keeps existing target-app authorization helpers authoritative. A
+one-to-many detach can still be rejected by Waterline when the related foreign
+key is required; Bridge returns that model error instead of forcing an invalid
+state.
 
 ## Upload configuration boundary
 

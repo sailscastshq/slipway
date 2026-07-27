@@ -79,7 +79,18 @@ function normalizeBridgeResourceContract({ models, config = {} }) {
     'hidden',
     'actions',
     'authorization',
-    'fields'
+    'fields',
+    'relationships'
+  ]
+  const RELATIONSHIP_OPTION_KEYS = [
+    'label',
+    'show',
+    'searchable',
+    'search',
+    'fields',
+    'limit',
+    'attach',
+    'detach'
   ]
   const FIELD_OPTION_KEYS = [
     'label',
@@ -164,6 +175,16 @@ function normalizeBridgeResourceContract({ models, config = {} }) {
       model,
       rawResource === false ? { hidden: true } : rawResource || {},
       rawResource !== undefined
+    )
+  }
+
+  for (const [identity, resource] of Object.entries(resources)) {
+    const rawResource = configuredResources[identity]
+    resource.relationships = normalizeRelationships(
+      identity,
+      resource,
+      isPlainObject(rawResource) ? rawResource.relationships : undefined,
+      resources
     )
   }
 
@@ -430,6 +451,14 @@ function normalizeBridgeResourceContract({ models, config = {} }) {
       validateFieldOptions(identity, name, fieldOptions[name].options)
       validateCurrency(identity, name, fieldOptions[name].currency)
       validateUpload(identity, name, fieldOptions[name].upload)
+      validateRelationshipOptions(
+        identity,
+        name,
+        fieldOptions[name].relation,
+        associations.find(
+          (candidate) => candidate.type === 'model' && candidate.alias === name
+        )
+      )
       if (
         fieldOptions[name].component !== undefined &&
         !isSafeComponentName(fieldOptions[name].component)
@@ -532,6 +561,229 @@ function normalizeBridgeResourceContract({ models, config = {} }) {
         ...(primaryKeyType ? { primaryKeyType } : {})
       }
     })
+  }
+
+  function normalizeRelationships(
+    identity,
+    resource,
+    rawRelationships,
+    normalizedResources
+  ) {
+    if (rawRelationships !== undefined && !isPlainObject(rawRelationships)) {
+      throw new Error(
+        `Bridge resource "${identity}".relationships must be an object.`
+      )
+    }
+
+    const associationsByAlias = new Map(
+      resource.associations.map((association) => [
+        association.alias,
+        association
+      ])
+    )
+    for (const alias of Object.keys(rawRelationships || {})) {
+      if (!associationsByAlias.has(alias)) {
+        throw new Error(
+          `Bridge resource "${identity}".relationships references unknown association "${alias}".`
+        )
+      }
+    }
+
+    const relationships = {}
+    for (const association of resource.associations) {
+      const fieldRelation =
+        association.type === 'model'
+          ? resource.attributes[association.alias]?.field?.relation
+          : undefined
+      const configuredRelationship = rawRelationships?.[association.alias]
+      const raw =
+        configuredRelationship === undefined
+          ? fieldRelation
+          : configuredRelationship
+
+      if (raw !== undefined && raw !== false && !isPlainObject(raw)) {
+        throw new Error(
+          `Bridge relationship "${identity}.${association.alias}" must be an object or false.`
+        )
+      }
+      if (isPlainObject(raw)) {
+        validateRelationshipOptions(
+          identity,
+          association.alias,
+          raw,
+          association
+        )
+      }
+
+      const relatedIdentity =
+        association.type === 'model'
+          ? association.model
+          : association.collection
+      const relatedResource = normalizedResources[relatedIdentity]
+      const hidden = !relatedResource || relatedResource.hidden === true
+      const disabled = raw === false
+      const defaultFields = relatedResource
+        ? Array.from(
+            new Set([relatedResource.primaryKey, relatedResource.title])
+          ).filter((field) => relatedResource.show.includes(field))
+        : []
+      const searchFields = normalizeRelationshipFieldList({
+        identity,
+        alias: association.alias,
+        option: 'search',
+        value: raw?.search,
+        allowed: relatedResource?.search || []
+      })
+      const configuredFields = normalizeRelationshipFieldList({
+        identity,
+        alias: association.alias,
+        option: 'fields',
+        value: raw?.fields,
+        allowed: relatedResource?.show || [],
+        defaults: defaultFields
+      })
+      const fields = relatedResource
+        ? Array.from(
+            new Set([
+              relatedResource.primaryKey,
+              relatedResource.title,
+              ...configuredFields
+            ])
+          )
+        : configuredFields
+      const defaultLimit = association.type === 'model' ? 20 : 5
+      const limit = raw?.limit ?? defaultLimit
+      const showByDefault =
+        association.type === 'collection'
+          ? true
+          : resource.show.includes(association.alias)
+      const relationship = {
+        alias: association.alias,
+        type: association.type,
+        resource: relatedIdentity,
+        label:
+          readString(raw?.label) ||
+          (association.type === 'collection'
+            ? relatedResource?.label
+            : resource.attributes[association.alias]?.label ||
+              relatedResource?.singularLabel) ||
+          humanize(association.alias),
+        primaryKey:
+          relatedResource?.primaryKey || association.primaryKey || 'id',
+        title:
+          relatedResource?.title ||
+          relatedResource?.primaryKey ||
+          association.primaryKey ||
+          'id',
+        show: !hidden && !disabled && (raw?.show ?? showByDefault),
+        searchable:
+          !hidden && !disabled && (raw?.searchable ?? searchFields.length > 0),
+        search: searchFields,
+        fields,
+        limit,
+        attach:
+          association.type === 'collection' &&
+          !hidden &&
+          !disabled &&
+          raw?.attach === true,
+        detach:
+          association.type === 'collection' &&
+          !hidden &&
+          !disabled &&
+          raw?.detach === true,
+        ...(association.via ? { via: association.via } : {}),
+        ...(association.dominant !== undefined
+          ? { dominant: association.dominant === true }
+          : {})
+      }
+
+      relationships[association.alias] = relationship
+      if (
+        association.type === 'model' &&
+        resource.attributes[association.alias]
+      ) {
+        resource.attributes[association.alias].field.relation = relationship
+      }
+    }
+
+    return relationships
+  }
+
+  function validateRelationshipOptions(identity, alias, relation, association) {
+    if (relation === undefined) return
+    if (!association) {
+      throw new Error(
+        `Bridge field "${identity}.${alias}".relation requires a belongs-to association.`
+      )
+    }
+    if (!isPlainObject(relation)) {
+      throw new Error(
+        `Bridge relationship "${identity}.${alias}" must be an object.`
+      )
+    }
+    rejectUnknownKeys(
+      relation,
+      RELATIONSHIP_OPTION_KEYS,
+      `Bridge relationship "${identity}.${alias}"`
+    )
+    assertOptionalString(
+      relation.label,
+      `Bridge relationship "${identity}.${alias}".label`
+    )
+    for (const option of ['show', 'searchable', 'attach', 'detach']) {
+      assertOptionalBoolean(
+        relation[option],
+        `Bridge relationship "${identity}.${alias}".${option}`
+      )
+    }
+    for (const option of ['search', 'fields']) {
+      if (
+        relation[option] !== undefined &&
+        (!Array.isArray(relation[option]) ||
+          relation[option].some((value) => typeof value !== 'string'))
+      ) {
+        throw new Error(
+          `Bridge relationship "${identity}.${alias}".${option} must be an array of field names.`
+        )
+      }
+    }
+    if (
+      relation.limit !== undefined &&
+      (!Number.isInteger(relation.limit) ||
+        relation.limit < 1 ||
+        relation.limit > 50)
+    ) {
+      throw new Error(
+        `Bridge relationship "${identity}.${alias}".limit must be an integer from 1 to 50.`
+      )
+    }
+    if (
+      association?.type === 'model' &&
+      (relation.attach !== undefined || relation.detach !== undefined)
+    ) {
+      throw new Error(
+        `Bridge relationship "${identity}.${alias}" can enable attach or detach only for a collection association.`
+      )
+    }
+  }
+
+  function normalizeRelationshipFieldList({
+    identity,
+    alias,
+    option,
+    value,
+    allowed,
+    defaults = allowed
+  }) {
+    const selected = value === undefined ? defaults : value
+    for (const field of selected) {
+      if (!allowed.includes(field)) {
+        throw new Error(
+          `Bridge relationship "${identity}.${alias}".${option} references unavailable field "${field}".`
+        )
+      }
+    }
+    return Array.from(new Set(selected))
   }
 
   function hasGeneratedPrimaryKey(attribute) {
@@ -1080,8 +1332,8 @@ function normalizeBridgeResourceContract({ models, config = {} }) {
 
   function inferTitleField(primaryKey, visibleFields) {
     return (
-      ['name', 'title', 'email', 'slug'].find((name) =>
-        visibleFields.includes(name)
+      ['name', 'title', 'fullName', 'displayName', 'email', 'slug'].find(
+        (name) => visibleFields.includes(name)
       ) || (visibleFields.includes(primaryKey) ? primaryKey : visibleFields[0])
     )
   }

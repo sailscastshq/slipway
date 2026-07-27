@@ -198,6 +198,21 @@ function uploadUrl(field) {
   return `/projects/${props.project.slug}/environments/${props.environment.slug}/bridge/${props.modelIdentity}/${field.name}/upload`
 }
 
+function relationshipSearchUrl(field) {
+  if (!field.attr.isBelongsTo) return ''
+  const params = new URLSearchParams({
+    surface: isEdit.value ? 'edit' : 'create'
+  })
+  if (isEdit.value && props.recordId !== null) {
+    params.set('recordId', String(props.recordId))
+  }
+  return `/api/v1/projects/${props.project.slug}/environments/${
+    props.environment.slug
+  }/bridge/${props.modelIdentity}/relationships/${encodePathSegment(
+    field.name
+  )}/options?${params.toString()}`
+}
+
 function bridgeUrl() {
   return `/projects/${props.project.slug}/environments/${props.environment.slug}/bridge`
 }
@@ -413,6 +428,7 @@ function recordUrl() {
               :model-identity="modelIdentity"
               :record-id="recordId"
               :association-options="assocOptions[field.name] || []"
+              :association-search-url="relationshipSearchUrl(field)"
               :upload-url="uploadUrl(field)"
               @update:model-value="updateField(field, $event)"
               @blur="validateAndRemember(field)"

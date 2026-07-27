@@ -88,6 +88,13 @@ module.exports = {
           environmentId: environment.id
         }
       })
+      await sails.helpers.bridge.authorizeRelationshipValues.with({
+        containerName: app.containerName,
+        environmentId: environment.id,
+        resource: loaded.resource,
+        actor,
+        values: allowedValues
+      })
     } catch (error) {
       throw { badRequest: toBadRequest(error) }
     }
