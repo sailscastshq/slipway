@@ -65,18 +65,21 @@ module.exports = {
     let resource
     let normalizedRecordId
     try {
+      const actor = await sails.helpers.bridge.buildActor.with({
+        user,
+        project,
+        environment
+      })
       const loaded = await sails.helpers.bridge.loadResource.with({
         containerName: app.containerName,
         environmentId: environment.id,
         modelIdentity,
-        action: 'delete'
+        action: 'delete',
+        actor,
+        recordId
       })
       resource = loaded.resource
-      normalizedRecordId = await sails.helpers.bridge.normalizeIdentifier.with({
-        value: recordId,
-        resource,
-        label: `${resource.singularLabel} identifier`
-      })
+      normalizedRecordId = loaded.recordId
     } catch (error) {
       throw { badRequest: { error: error.message } }
     }

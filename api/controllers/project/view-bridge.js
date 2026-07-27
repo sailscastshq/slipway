@@ -58,6 +58,11 @@ module.exports = {
 
     if (appRunning) {
       try {
+        const actor = await sails.helpers.bridge.buildActor.with({
+          user,
+          project,
+          environment
+        })
         const introspection = await sails.helpers.bridge.introspectModels(
           app.containerName,
           environment.id
@@ -66,8 +71,14 @@ module.exports = {
         if (introspection.error) {
           modelsError = introspection.error
         } else {
+          const authorizedModels =
+            await sails.helpers.bridge.authorizeResourceActions.with({
+              containerName: app.containerName,
+              resources: introspection.models || {},
+              actor
+            })
           models = Object.fromEntries(
-            Object.entries(introspection.models || {}).filter(
+            Object.entries(authorizedModels).filter(
               ([, resource]) =>
                 !resource.hidden && resource.actions?.viewAny !== false
             )

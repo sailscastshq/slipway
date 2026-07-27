@@ -38,7 +38,6 @@ test('Bridge derives a usable resource contract with zero config', async ({
     'description',
     'thumbnailUrl',
     'published',
-    'password',
     'creator'
   ])
 })
@@ -125,7 +124,6 @@ test('Bridge merges a partial resource config over discovered metadata', async (
     'description',
     'thumbnailUrl',
     'published',
-    'password',
     'creator'
   ])
   expect(contract.resources.auditLog.hidden).toBe(true)
@@ -564,6 +562,199 @@ test('Bridge rejects forged mutation fields before container execution', async (
   expect(receivedError.fields).toEqual(['isAdmin'])
 })
 
+test('Bridge hides sensitive fields by default and honors per-surface visibility', async ({
+  sails,
+  expect
+}) => {
+  const contract = await sails.helpers.bridge.normalizeResourceContract.with({
+    models: sensitiveModelMetadata(),
+    config: {
+      resources: {
+        user: {
+          fields: {
+            emailChangeCandidate: {
+              visibility: {
+                show: true
+              }
+            },
+            internalNote: {
+              sensitive: true,
+              visibility: {
+                edit: true
+              }
+            }
+          }
+        }
+      }
+    }
+  })
+  const user = contract.resources.user
+
+  expect(user.list).toEqual(['id', 'email', 'fullName', 'postalCode'])
+  expect(user.show).toEqual([
+    'id',
+    'fullName',
+    'email',
+    'emailChangeCandidate',
+    'postalCode'
+  ])
+  expect(user.create).toEqual(['fullName', 'email', 'postalCode'])
+  expect(user.edit).toEqual(['fullName', 'email', 'internalNote', 'postalCode'])
+  expect(user.search).toEqual(['fullName', 'email', 'postalCode'])
+  expect(user.attributes.githubAccessToken.sensitive).toBe(true)
+  expect(user.attributes.planCode.sensitive).toBe(true)
+  expect(user.attributes.subscriptionCode.sensitive).toBe(true)
+  expect(user.attributes.postalCode.sensitive).toBe(false)
+
+  const redactedList = await sails.helpers.bridge.redactResourceRecords.with({
+    records: [
+      {
+        id: 7,
+        fullName: 'Editor',
+        email: 'editor@example.com',
+        postalCode: '101001',
+        githubAccessToken: 'gho_secret',
+        planCode: 'enterprise',
+        unexpected: 'serializer leak'
+      }
+    ],
+    resource: user,
+    surface: 'list'
+  })
+  expect(redactedList).toEqual([
+    {
+      id: 7,
+      fullName: 'Editor',
+      email: 'editor@example.com',
+      postalCode: '101001'
+    }
+  ])
+
+  let forgedFieldError
+  try {
+    await sails.helpers.bridge.allowResourceValues.with({
+      resource: user,
+      surface: 'edit',
+      values: {
+        fullName: 'Forged editor',
+        githubAccessToken: 'gho_forged'
+      }
+    })
+  } catch (error) {
+    forgedFieldError = error
+  }
+
+  expect(forgedFieldError.code).toBe('BRIDGE_FIELD_NOT_ALLOWED')
+  expect(forgedFieldError.fields).toEqual(['githubAccessToken'])
+})
+
+test('Bridge resolves target app action authorization and fails closed', async ({
+  sails,
+  expect
+}) => {
+  const contract = await sails.helpers.bridge.normalizeResourceContract.with({
+    models: modelMetadata(),
+    config: {
+      resources: {
+        course: {
+          authorization: 'bridge.authorize',
+          actions: {
+            publish: true
+          }
+        }
+      }
+    }
+  })
+  const originalIntrospectModels = sails.helpers.bridge.introspectModels
+  const originalBuildSailsWrapper = sails.helpers.bridge.buildSailsWrapper
+  const originalExecuteInContainer = sails.helpers.bridge.executeInContainer
+  const targetAuthorize = async ({ actor, action }) => {
+    if (!['editor', 'admin'].includes(actor.targetRole)) return false
+    if (['update', 'delete', 'bulkDelete', 'publish'].includes(action)) {
+      return actor.targetRole === 'admin'
+    }
+    return true
+  }
+  targetAuthorize.with = targetAuthorize
+
+  try {
+    sails.helpers.bridge.introspectModels = async () => ({
+      schemaVersion: contract.schemaVersion,
+      discover: contract.discover,
+      configured: contract.configured,
+      models: contract.resources
+    })
+    sails.helpers.bridge.buildSailsWrapper = async (code) => code
+    sails.helpers.bridge.executeInContainer = async (containerName, code) => {
+      expect(containerName).toBe('bridge-app-web')
+      const run = new Function('sails', `return (async () => {${code}})();`)
+      const output = await run({
+        helpers: {
+          bridge: {
+            authorize: targetAuthorize
+          }
+        }
+      })
+      return successfulResult(output)
+    }
+
+    const editorResources =
+      await sails.helpers.bridge.authorizeResourceActions.with({
+        containerName: 'bridge-app-web',
+        resources: contract.resources,
+        actor: {
+          id: '7',
+          email: 'editor@example.com',
+          targetRole: 'editor'
+        }
+      })
+    expect(editorResources.course.actions.viewAny).toBe(true)
+    expect(editorResources.course.actions.view).toBe(true)
+    expect(editorResources.course.actions.create).toBe(true)
+    expect(editorResources.course.actions.update).toBe(false)
+    expect(editorResources.course.actions.delete).toBe(false)
+    expect(editorResources.course.actions.publish).toBe(false)
+
+    const adminResources =
+      await sails.helpers.bridge.authorizeResourceActions.with({
+        containerName: 'bridge-app-web',
+        resources: contract.resources,
+        actor: {
+          id: '8',
+          email: 'admin@example.com',
+          targetRole: 'admin'
+        },
+        recordId: 42
+      })
+    expect(adminResources.course.actions.update).toBe(true)
+    expect(adminResources.course.actions.delete).toBe(true)
+    expect(adminResources.course.actions.publish).toBe(true)
+
+    let deniedUpdateError
+    try {
+      await sails.helpers.bridge.loadResource.with({
+        containerName: 'bridge-app-web',
+        environmentId: 218,
+        modelIdentity: 'course',
+        action: 'update',
+        actor: {
+          id: '7',
+          email: 'editor@example.com',
+          targetRole: 'editor'
+        },
+        recordId: '42'
+      })
+    } catch (error) {
+      deniedUpdateError = error
+    }
+    expect(deniedUpdateError.code).toBe('BRIDGE_ACTION_NOT_ALLOWED')
+  } finally {
+    sails.helpers.bridge.introspectModels = originalIntrospectModels
+    sails.helpers.bridge.buildSailsWrapper = originalBuildSailsWrapper
+    sails.helpers.bridge.executeInContainer = originalExecuteInContainer
+  }
+})
+
 test('Bridge denies raw HTML in Markdown fields by default', async ({
   sails,
   expect
@@ -832,5 +1023,63 @@ function uuidModelMetadata() {
       },
       associations: []
     }
+  }
+}
+
+function sensitiveModelMetadata() {
+  return {
+    user: {
+      identity: 'user',
+      globalId: 'User',
+      tableName: 'users',
+      primaryKey: 'id',
+      attributes: {
+        id: {
+          type: 'number',
+          autoIncrement: true
+        },
+        fullName: {
+          type: 'string',
+          required: true
+        },
+        email: {
+          type: 'string',
+          required: true,
+          isEmail: true
+        },
+        githubAccessToken: {
+          type: 'string'
+        },
+        emailChangeCandidate: {
+          type: 'string'
+        },
+        planCode: {
+          type: 'string'
+        },
+        subscriptionCode: {
+          type: 'string'
+        },
+        password: {
+          type: 'string',
+          encrypt: true
+        },
+        internalNote: {
+          type: 'string'
+        },
+        postalCode: {
+          type: 'string'
+        }
+      },
+      associations: []
+    }
+  }
+}
+
+function successfulResult(output) {
+  return {
+    success: true,
+    output: JSON.stringify(output),
+    error: null,
+    exitCode: 0
   }
 }

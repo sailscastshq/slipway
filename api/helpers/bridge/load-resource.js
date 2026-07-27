@@ -18,8 +18,13 @@ module.exports = {
       required: true
     },
     action: {
-      type: 'string',
-      isIn: ['viewAny', 'view', 'create', 'update', 'delete', 'bulkDelete']
+      type: 'string'
+    },
+    actor: {
+      type: 'ref'
+    },
+    recordId: {
+      type: 'ref'
     }
   },
 
@@ -29,7 +34,14 @@ module.exports = {
     }
   },
 
-  fn: async function ({ containerName, environmentId, modelIdentity, action }) {
+  fn: async function ({
+    containerName,
+    environmentId,
+    modelIdentity,
+    action,
+    actor,
+    recordId
+  }) {
     const contract = await sails.helpers.bridge.introspectModels(
       containerName,
       environmentId
@@ -45,7 +57,7 @@ module.exports = {
       contract.models || {},
       modelIdentity
     )
-    const resource = hasResource ? contract.models[modelIdentity] : null
+    let resource = hasResource ? contract.models[modelIdentity] : null
 
     if (!resource || resource.hidden) {
       const error = new Error(
@@ -55,7 +67,41 @@ module.exports = {
       throw error
     }
 
-    if (action && resource.actions?.[action] === false) {
+    if (
+      action &&
+      (!/^[A-Za-z][A-Za-z0-9]*$/.test(action) ||
+        ['__proto__', 'constructor', 'prototype'].includes(action))
+    ) {
+      const error = new Error(`Bridge action "${action}" is invalid.`)
+      error.code = 'BRIDGE_ACTION_NOT_ALLOWED'
+      error.action = action
+      throw error
+    }
+
+    let normalizedRecordId
+    if (recordId !== undefined && recordId !== null) {
+      normalizedRecordId = await sails.helpers.bridge.normalizeIdentifier.with({
+        value: recordId,
+        resource,
+        label: `${resource.singularLabel || modelIdentity} identifier`
+      })
+    }
+
+    const effective = await sails.helpers.bridge.authorizeResourceActions.with({
+      containerName,
+      resources: { resource },
+      actor,
+      ...(normalizedRecordId !== undefined
+        ? { recordId: normalizedRecordId }
+        : {})
+    })
+    resource = effective.resource
+
+    if (
+      action &&
+      (!Object.prototype.hasOwnProperty.call(resource.actions || {}, action) ||
+        resource.actions[action] !== true)
+    ) {
       const error = new Error(
         `${resource.singularLabel || modelIdentity} does not allow this action.`
       )
@@ -64,6 +110,18 @@ module.exports = {
       throw error
     }
 
-    return { contract, resource }
+    return {
+      contract: {
+        ...contract,
+        models: {
+          ...contract.models,
+          [modelIdentity]: resource
+        }
+      },
+      resource,
+      ...(normalizedRecordId !== undefined
+        ? { recordId: normalizedRecordId }
+        : {})
+    }
   }
 }

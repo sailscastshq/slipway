@@ -66,22 +66,23 @@ module.exports = {
 
     if (appRunning) {
       try {
+        const actor = await sails.helpers.bridge.buildActor.with({
+          user,
+          project,
+          environment
+        })
         const loaded = await sails.helpers.bridge.loadResource.with({
           containerName: app.containerName,
           environmentId: environment.id,
           modelIdentity,
-          action: 'view'
+          action: 'view',
+          actor,
+          recordId
         })
         modelMeta = loaded.resource
 
-        const normalizedRecordId =
-          await sails.helpers.bridge.normalizeIdentifier.with({
-            value: recordId,
-            resource: modelMeta,
-            label: `${modelMeta.singularLabel} identifier`
-          })
         const criteria = {
-          [modelMeta.primaryKey]: normalizedRecordId
+          [modelMeta.primaryKey]: loaded.recordId
         }
         const queryCode = `
           const identity = ${JSON.stringify(modelMeta.identity)};
@@ -104,7 +105,11 @@ module.exports = {
         if (result.success) {
           try {
             const data = JSON.parse(result.output)
-            record = data.record
+            record = await sails.helpers.bridge.redactResourceRecords.with({
+              records: data.record,
+              resource: modelMeta,
+              surface: 'show'
+            })
             if (!record) {
               error = `Record with ID "${recordId}" not found.`
             }

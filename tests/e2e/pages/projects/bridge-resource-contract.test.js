@@ -31,9 +31,13 @@ test(
     const identifierScreenshotRoot = path.resolve(
       '.tmp/screenshots/issue-217-uuid-identifiers'
     )
+    const authorizationScreenshotRoot = path.resolve(
+      '.tmp/screenshots/issue-218-bridge-authorization'
+    )
 
     fs.mkdirSync(screenshotRoot, { recursive: true })
     fs.mkdirSync(identifierScreenshotRoot, { recursive: true })
+    fs.mkdirSync(authorizationScreenshotRoot, { recursive: true })
 
     const contract = await sails.helpers.bridge.normalizeResourceContract.with({
       models: resourceMetadata(),
@@ -89,6 +93,19 @@ test(
     sails.helpers.bridge.executeInContainer = async (containerName, code) => {
       expect(containerName).toBe('bridge-contract-ui-web')
 
+      if (code.includes('const decisions = Object.create(null);')) {
+        const requests = readEmbeddedValue(code, 'requests')
+        const decisions = {}
+        for (const request of requests) {
+          decisions[request.key] = decisions[request.key] || {}
+          decisions[request.key][request.action] = [
+            'viewAny',
+            'view',
+            'create'
+          ].includes(request.action)
+        }
+        return successfulResult(decisions)
+      }
       if (code.includes('const counts = {};')) {
         return successfulResult({
           course: records.length,
@@ -135,7 +152,12 @@ test(
             record: {
               id: creatorId,
               fullName: 'Ada Lovelace',
-              email: 'ada@example.com'
+              email: 'ada@example.com',
+              githubAccessToken: 'gho_never-render-this',
+              emailChangeCandidate: 'private-candidate@example.com',
+              planCode: 'private-plan',
+              subscriptionCode: 'private-subscription',
+              unexpectedSerializerValue: 'never-render-this-either'
             }
           })
         }
@@ -411,6 +433,33 @@ test(
       await page.goto(`${bridgePath}/user/${creatorId}`)
       await page.wait('text=Ada Lovelace')
       await expect(page).toSee('ada@example.com')
+      await expect(page).not.toSee('gho_never-render-this')
+      await expect(page).not.toSee('private-candidate@example.com')
+      await expect(page).not.toSee('private-plan')
+      await expect(page).not.toSee('private-subscription')
+      expect(
+        await page.raw.getByRole('link', { name: 'Edit', exact: true }).count()
+      ).toBe(0)
+      expect(
+        await page.raw
+          .getByRole('button', { name: 'Delete', exact: true })
+          .count()
+      ).toBe(0)
+      await page.screenshot(
+        path.join(
+          authorizationScreenshotRoot,
+          'editor-record-redacted-light.png'
+        ),
+        { fullPage: true }
+      )
+      await page.raw.emulateMedia({ colorScheme: 'dark' })
+      await page.screenshot(
+        path.join(
+          authorizationScreenshotRoot,
+          'editor-record-redacted-dark.png'
+        ),
+        { fullPage: true }
+      )
     } finally {
       sails.helpers.bridge.introspectModels = originalIntrospectModels
       sails.helpers.bridge.buildSailsWrapper = originalBuildSailsWrapper
@@ -507,11 +556,10 @@ function resourceConfig() {
         title: 'fullName',
         search: ['fullName', 'email'],
         list: ['fullName', 'email'],
-        show: ['id', 'fullName', 'email'],
-        create: ['fullName', 'email'],
-        edit: ['fullName', 'email'],
+        authorization: {
+          helper: 'bridge.authorize'
+        },
         actions: {
-          delete: false,
           bulkDelete: false
         }
       }
@@ -587,6 +635,18 @@ function resourceMetadata() {
           type: 'string',
           isEmail: true,
           required: true
+        },
+        githubAccessToken: {
+          type: 'string'
+        },
+        emailChangeCandidate: {
+          type: 'string'
+        },
+        planCode: {
+          type: 'string'
+        },
+        subscriptionCode: {
+          type: 'string'
         },
         createdAt: {
           type: 'number',
