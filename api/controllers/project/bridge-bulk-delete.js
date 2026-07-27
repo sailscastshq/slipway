@@ -66,12 +66,44 @@ module.exports = {
     if (!Array.isArray(ids) || ids.length === 0) {
       throw { badRequest: { error: 'No records selected' } }
     }
+    if (ids.length > 500) {
+      throw {
+        badRequest: { error: 'Select no more than 500 records at a time.' }
+      }
+    }
+    if (
+      ids.some(
+        (id) =>
+          !['string', 'number'].includes(typeof id) ||
+          (typeof id === 'string' && id.length > 200)
+      )
+    ) {
+      throw { badRequest: { error: 'Record selection is invalid.' } }
+    }
 
-    // Execute bulk delete in container
+    let resource
+    try {
+      const loaded = await sails.helpers.bridge.loadResource.with({
+        containerName: app.containerName,
+        environmentId: environment.id,
+        modelIdentity,
+        action: 'bulkDelete'
+      })
+      resource = loaded.resource
+    } catch (error) {
+      throw { badRequest: { error: error.message } }
+    }
+
+    const criteria = {
+      [resource.primaryKey]: { in: ids }
+    }
     const deleteCode = `
-      const deleted = await sails.models['${modelIdentity}'].destroy({ id: { in: ${JSON.stringify(
-      ids
-    )} } }).fetch();
+      const identity = ${JSON.stringify(resource.identity)};
+      const criteria = ${JSON.stringify(criteria)};
+      const model = sails.models[identity];
+      if (!model) throw new Error('Configured Bridge model is unavailable.');
+
+      const deleted = await model.destroy(criteria).fetch();
       return { count: deleted.length };
     `
     const wrappedCode = await sails.helpers.bridge.buildSailsWrapper(deleteCode)

@@ -67,11 +67,35 @@ module.exports = {
       throw { badRequest: { error: 'App is not running' } }
     }
 
-    // Execute update in container
+    let loaded
+    let allowedValues
+    try {
+      loaded = await sails.helpers.bridge.loadResource.with({
+        containerName: app.containerName,
+        environmentId: environment.id,
+        modelIdentity,
+        action: 'update'
+      })
+      allowedValues = await sails.helpers.bridge.allowResourceValues.with({
+        values,
+        resource: loaded.resource,
+        surface: 'edit'
+      })
+    } catch (error) {
+      throw { badRequest: { error: error.message } }
+    }
+
+    const criteria = {
+      [loaded.resource.primaryKey]: recordId
+    }
     const updateCode = `
-      const record = await sails.models['${modelIdentity}'].updateOne({ id: ${JSON.stringify(
-      recordId
-    )} }).set(${JSON.stringify(values)});
+      const identity = ${JSON.stringify(loaded.resource.identity)};
+      const criteria = ${JSON.stringify(criteria)};
+      const values = ${JSON.stringify(allowedValues)};
+      const model = sails.models[identity];
+      if (!model) throw new Error('Configured Bridge model is unavailable.');
+
+      const record = await model.updateOne(criteria).set(values);
       return { record };
     `
     const wrappedCode = await sails.helpers.bridge.buildSailsWrapper(updateCode)
@@ -86,6 +110,8 @@ module.exports = {
 
     // Redirect back to record view
     const envPath = envSlug !== 'production' ? `/environments/${envSlug}` : ''
-    return `/projects/${slug}${envPath}/bridge/${modelIdentity}/${recordId}`
+    return `/projects/${slug}${envPath}/bridge/${modelIdentity}/${encodeURIComponent(
+      String(recordId)
+    )}`
   }
 }

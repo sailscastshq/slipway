@@ -149,14 +149,14 @@ slipway slide
 
 Slipway includes integrated tools that work with your deployed Sails apps:
 
-| Tool        | What it does                                                                                                                          |
-| ----------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| **Helm**    | Production REPL — query models, run helpers, inspect config from the browser                                                          |
-| **Bridge**  | Auto-generated data management UI from your Waterline models                                                                          |
-| **Dock**    | SQL console, schema diff, and migration tool for your databases                                                                       |
-| **Quest**   | Job scheduler dashboard for [sails-hook-quest](https://docs.sailscasts.com/quest)                                                     |
-| **Content** | CMS for [sails-content](https://docs.sailscasts.com/content) markdown files                                                           |
-| **Lookout** | Infrastructure monitoring via [sails-hook-slipway](packages/hook) telemetry with [bounded retention](docs/observability-retention.md) |
+| Tool        | What it does                                                                                                                             |
+| ----------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| **Helm**    | Production REPL — query models, run helpers, inspect config from the browser                                                             |
+| **Bridge**  | Configurable data management UI from your Waterline models, with a [server-enforced resource contract](docs/bridge-resource-contract.md) |
+| **Dock**    | SQL console, schema diff, and migration tool for your databases                                                                          |
+| **Quest**   | Job scheduler dashboard for [sails-hook-quest](https://docs.sailscasts.com/quest)                                                        |
+| **Content** | CMS for [sails-content](https://docs.sailscasts.com/content) markdown files                                                              |
+| **Lookout** | Infrastructure monitoring via [sails-hook-slipway](packages/hook) telemetry with [bounded retention](docs/observability-retention.md)    |
 
 ## Requirements
 

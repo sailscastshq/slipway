@@ -1,10 +1,14 @@
-// Module-level cache: Map<environmentId, { data, expiresAt }>
+// Module-level cache: Map<environmentId:containerName, { data, expiresAt }>
 const cache = new Map()
 const CACHE_TTL = 10 * 60 * 1000 // 10 minutes
+const normalizeBridgeResourceContract = require('../../../packages/hook/lib/bridge/normalize-resource-contract')
 
 function clearCache(environmentId) {
   if (environmentId) {
-    cache.delete(environmentId)
+    const prefix = `${environmentId}:`
+    for (const key of cache.keys()) {
+      if (key.startsWith(prefix)) cache.delete(key)
+    }
   } else {
     cache.clear()
   }
@@ -39,9 +43,11 @@ module.exports = {
   },
 
   fn: async function ({ containerName, environmentId, skipCache }) {
+    const cacheKey = `${environmentId}:${containerName}`
+
     // Check cache
     if (!skipCache) {
-      const cached = cache.get(environmentId)
+      const cached = cache.get(cacheKey)
       if (cached && Date.now() < cached.expiresAt) {
         return cached.data
       }
@@ -59,11 +65,16 @@ module.exports = {
     }
 
     try {
-      const models = JSON.parse(result.output)
-      const data = { models }
+      const contract = JSON.parse(result.output)
+      const data = {
+        schemaVersion: contract.schemaVersion,
+        discover: contract.discover,
+        configured: contract.configured,
+        models: contract.resources || {}
+      }
 
       // Store in cache
-      cache.set(environmentId, {
+      cache.set(cacheKey, {
         data,
         expiresAt: Date.now() + CACHE_TTL
       })
@@ -78,7 +89,11 @@ module.exports = {
 }
 
 function buildIntrospectionCode() {
+  const normalizeResourceContractSource =
+    normalizeBridgeResourceContract.toString()
+
   return `
+    const normalizeBridgeResourceContract = ${normalizeResourceContractSource};
     const models = {};
     for (const [identity, model] of Object.entries(sails.models)) {
       if (identity.startsWith('_') || !model.attributes) continue;
@@ -133,6 +148,7 @@ function buildIntrospectionCode() {
           isIn: attr.isIn || null,
           maxLength: attr.maxLength || null,
           encrypt: !!attr.encrypt,
+          protect: !!attr.protect,
           validations: {}
         };
 
@@ -145,6 +161,9 @@ function buildIntrospectionCode() {
       }
     }
 
-    return models;
+    return normalizeBridgeResourceContract({
+      models,
+      config: sails.config.slipway?.bridge || {}
+    });
   `
 }

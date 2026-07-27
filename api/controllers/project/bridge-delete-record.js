@@ -62,11 +62,29 @@ module.exports = {
       throw { badRequest: { error: 'App is not running' } }
     }
 
-    // Execute delete in container
+    let resource
+    try {
+      const loaded = await sails.helpers.bridge.loadResource.with({
+        containerName: app.containerName,
+        environmentId: environment.id,
+        modelIdentity,
+        action: 'delete'
+      })
+      resource = loaded.resource
+    } catch (error) {
+      throw { badRequest: { error: error.message } }
+    }
+
+    const criteria = {
+      [resource.primaryKey]: recordId
+    }
     const deleteCode = `
-      const record = await sails.models['${modelIdentity}'].destroyOne({ id: ${JSON.stringify(
-      recordId
-    )} });
+      const identity = ${JSON.stringify(resource.identity)};
+      const criteria = ${JSON.stringify(criteria)};
+      const model = sails.models[identity];
+      if (!model) throw new Error('Configured Bridge model is unavailable.');
+
+      const record = await model.destroyOne(criteria);
       return { success: !!record };
     `
     const wrappedCode = await sails.helpers.bridge.buildSailsWrapper(deleteCode)

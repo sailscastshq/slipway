@@ -67,85 +67,66 @@ module.exports = {
 
     if (appRunning) {
       try {
-        const introspection = await sails.helpers.bridge.introspectModels(
+        const loaded = await sails.helpers.bridge.loadResource.with({
+          containerName: app.containerName,
+          environmentId: environment.id,
+          modelIdentity,
+          action: 'update'
+        })
+        modelMeta = loaded.resource
+
+        const criteria = {
+          [modelMeta.primaryKey]: recordId
+        }
+        const fields = Array.from(
+          new Set([modelMeta.primaryKey, ...modelMeta.edit])
+        ).filter(
+          (field) =>
+            field === modelMeta.primaryKey ||
+            (!modelMeta.attributes[field].encrypt &&
+              !modelMeta.attributes[field].protect)
+        )
+        const queryCode = `
+          const identity = ${JSON.stringify(modelMeta.identity)};
+          const criteria = ${JSON.stringify(criteria)};
+          const fields = ${JSON.stringify(fields)};
+          const model = sails.models[identity];
+          if (!model) throw new Error('Configured Bridge model is unavailable.');
+
+          const record = await model.findOne(criteria).select(fields);
+          return { record };
+        `
+        const wrappedCode = await sails.helpers.bridge.buildSailsWrapper(
+          queryCode
+        )
+        const result = await sails.helpers.bridge.executeInContainer(
           app.containerName,
-          environment.id
+          wrappedCode
         )
 
-        if (introspection.error) {
-          error = introspection.error
-        } else {
-          modelMeta = introspection.models[modelIdentity]
-
-          if (!modelMeta) {
-            error = `Model "${modelIdentity}" not found.`
-          } else {
-            // Fetch the record
-            const queryCode = `
-              const record = await sails.models['${modelIdentity}'].findOne({ id: ${JSON.stringify(
-              recordId
-            )} });
-              return { record };
-            `
-            const wrappedCode = await sails.helpers.bridge.buildSailsWrapper(
-              queryCode
-            )
-            const result = await sails.helpers.bridge.executeInContainer(
-              app.containerName,
-              wrappedCode
-            )
-
-            if (result.success) {
-              try {
-                const data = JSON.parse(result.output)
-                record = data.record
-                if (!record) {
-                  error = `Record with ID "${recordId}" not found.`
-                }
-              } catch (e) {
-                error = 'Failed to parse record: ' + e.message
-              }
-            } else {
-              error = result.error || 'Failed to fetch record'
+        if (result.success) {
+          try {
+            const data = JSON.parse(result.output)
+            record = data.record
+            if (!record) {
+              error = `Record with ID "${recordId}" not found.`
             }
-
-            // Load association options for belongsTo relationships
-            if (!error) {
-              const modelAssocs = (modelMeta.associations || []).filter(
-                (a) => a.type === 'model'
-              )
-              for (const assoc of modelAssocs) {
-                try {
-                  const assocQueryCode = `
-                    const records = await sails.models['${assoc.model}'].find({ limit: 100 });
-                    return records.map(r => ({
-                      id: r.id,
-                      label: r.name || r.title || r.email || \`#\${r.id}\`
-                    }));
-                  `
-                  const assocWrappedCode =
-                    await sails.helpers.bridge.buildSailsWrapper(assocQueryCode)
-                  const assocResult =
-                    await sails.helpers.bridge.executeInContainer(
-                      app.containerName,
-                      assocWrappedCode
-                    )
-
-                  if (assocResult.success) {
-                    try {
-                      assocOptions[assoc.alias] = JSON.parse(assocResult.output)
-                    } catch {
-                      assocOptions[assoc.alias] = []
-                    }
-                  } else {
-                    assocOptions[assoc.alias] = []
-                  }
-                } catch {
-                  assocOptions[assoc.alias] = []
-                }
-              }
-            }
+          } catch (parseError) {
+            error = 'Failed to parse record: ' + parseError.message
           }
+        } else {
+          error = result.error || 'Failed to fetch record'
+        }
+
+        if (!error) {
+          assocOptions = await sails.helpers.bridge.loadAssociationOptions.with(
+            {
+              containerName: app.containerName,
+              resources: loaded.contract.models,
+              resource: modelMeta,
+              surface: 'edit'
+            }
+          )
         }
       } catch (err) {
         error = err.message

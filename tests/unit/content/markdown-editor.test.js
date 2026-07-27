@@ -53,7 +53,7 @@ test('Content Manager keeps unsupported Markdown in source mode', async ({
 test('Content Manager rejects unsafe links and image sources', async ({
   expect
 }) => {
-  const { normalizeImageUrl, normalizeLinkUrl } = await import(
+  const { containsRawHtml, normalizeImageUrl, normalizeLinkUrl } = await import(
     '../../../assets/js/lib/content/markdown.mjs'
   )
 
@@ -73,6 +73,15 @@ test('Content Manager rejects unsafe links and image sources', async ({
   expect(normalizeImageUrl('https://cdn.test/cover.webp')).toBe(
     'https://cdn.test/cover.webp'
   )
+
+  expect(containsRawHtml('A normal **Markdown** paragraph.')).toBe(false)
+  expect(containsRawHtml('Visit <https://sailsjs.com>.')).toBe(false)
+  expect(containsRawHtml('Email <hello@sailsjs.com>.')).toBe(false)
+  expect(containsRawHtml('Two is < three.')).toBe(false)
+  expect(containsRawHtml('Before <script>alert(1)</script> after.')).toBe(true)
+  expect(containsRawHtml('<svg/onload=alert(1)>')).toBe(true)
+  expect(containsRawHtml('<FeatureCard title="Slipway" />')).toBe(true)
+  expect(containsRawHtml('<!-- hidden markup -->')).toBe(true)
 })
 
 function createMarkdownEditor(content) {

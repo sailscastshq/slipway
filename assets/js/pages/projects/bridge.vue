@@ -22,26 +22,10 @@ const sidebarCollapsed = inject('sidebarCollapsed')
 // Search
 const searchQuery = ref('')
 
-// Settings modal
-const settingsModalOpen = ref(false)
-const selectedModel = ref(null)
-
-function openSettings(model, e) {
-  e.preventDefault()
-  e.stopPropagation()
-  selectedModel.value = model
-  settingsModalOpen.value = true
-}
-
-function closeSettings() {
-  settingsModalOpen.value = false
-  selectedModel.value = null
-}
-
 // Sorted model list
 const modelList = computed(() => {
-  return Object.values(props.models || {}).sort((a, b) =>
-    a.identity.localeCompare(b.identity)
+  return Object.values(props.models || {}).sort(
+    (a, b) => a.group.localeCompare(b.group) || a.label.localeCompare(b.label)
   )
 })
 
@@ -51,23 +35,17 @@ const filteredModels = computed(() => {
   const query = searchQuery.value.toLowerCase()
   return modelList.value.filter(
     (model) =>
+      model.label.toLowerCase().includes(query) ||
+      model.singularLabel.toLowerCase().includes(query) ||
+      model.group.toLowerCase().includes(query) ||
       model.identity.toLowerCase().includes(query) ||
       (model.globalId && model.globalId.toLowerCase().includes(query)) ||
       (model.tableName && model.tableName.toLowerCase().includes(query))
   )
 })
 
-// Stats
+// Resource count
 const totalModels = computed(() => modelList.value.length)
-const totalRecords = computed(() => {
-  return modelList.value.reduce((sum, m) => sum + (m.count || 0), 0)
-})
-const totalAttributes = computed(() => {
-  return modelList.value.reduce(
-    (sum, m) => sum + Object.keys(m.attributes || {}).length,
-    0
-  )
-})
 
 function attrCount(model) {
   return Object.keys(model.attributes || {}).length
@@ -83,13 +61,6 @@ function bridgeModelUrl(identity) {
 
 function refresh() {
   router.reload({ only: ['models', 'modelsError'] })
-}
-
-// Format large numbers
-function formatNumber(num) {
-  if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M'
-  if (num >= 1000) return (num / 1000).toFixed(1) + 'K'
-  return num.toLocaleString()
 }
 </script>
 
@@ -357,56 +328,39 @@ function formatNumber(num) {
             </svg>
           </div>
           <h3 class="mt-4 text-sm font-medium text-gray-900 dark:text-white">
-            No models found
+            No resources available
           </h3>
           <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            Your app doesn't have any Waterline models.
+            No Waterline resources are currently exposed to Bridge.
           </p>
         </div>
       </div>
 
       <!-- Models dashboard -->
       <div v-else class="mx-auto max-w-6xl px-4 py-6 sm:px-8">
-        <!-- Toolbar: Search + Stats -->
+        <!-- Toolbar -->
         <div class="mb-4 flex items-center justify-between">
           <input
             v-model="searchQuery"
             type="text"
-            placeholder="Search models..."
+            placeholder="Search resources..."
             class="w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:border-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500 dark:focus:border-gray-600 sm:w-64"
           />
-          <div class="hidden items-center gap-6 text-sm sm:flex">
-            <div class="flex items-center gap-2">
-              <span class="text-gray-500 dark:text-gray-400">Models</span>
-              <span
-                class="font-medium tabular-nums text-gray-900 dark:text-white"
-                >{{ totalModels }}</span
-              >
-            </div>
-            <div class="flex items-center gap-2">
-              <span class="text-gray-500 dark:text-gray-400">Records</span>
-              <span
-                class="font-medium tabular-nums text-gray-900 dark:text-white"
-                >{{ formatNumber(totalRecords) }}</span
-              >
-            </div>
-            <div class="flex items-center gap-2">
-              <span class="text-gray-500 dark:text-gray-400">Attributes</span>
-              <span
-                class="font-medium tabular-nums text-gray-900 dark:text-white"
-                >{{ totalAttributes }}</span
-              >
-            </div>
-          </div>
+          <span
+            class="hidden text-xs tabular-nums text-gray-500 dark:text-gray-400 sm:block"
+          >
+            {{ totalModels }}
+            {{ totalModels === 1 ? 'resource' : 'resources' }}
+          </span>
         </div>
 
-        <!-- Models table -->
+        <!-- Resources table -->
         <div class="rounded-lg border border-gray-200 dark:border-gray-800">
           <!-- Table Header -->
           <div
             class="grid grid-cols-12 gap-4 rounded-t-lg border-b border-gray-200 bg-gray-50/50 px-6 py-2 text-xs font-medium text-gray-500 dark:border-gray-800 dark:bg-gray-900/50"
           >
-            <div class="col-span-5">Model</div>
+            <div class="col-span-5">Resource</div>
             <div class="col-span-2 text-right">Records</div>
             <div class="col-span-2 text-right">Attributes</div>
             <div class="col-span-2 text-right">Associations</div>
@@ -449,10 +403,10 @@ function formatNumber(num) {
                     <div
                       class="font-medium text-gray-900 underline decoration-gray-300 decoration-dashed underline-offset-2 hover:text-gray-700 dark:text-white dark:decoration-gray-600 dark:hover:text-gray-300"
                     >
-                      {{ model.globalId || model.identity }}
+                      {{ model.label }}
                     </div>
                     <div class="text-xs text-gray-500 dark:text-gray-500">
-                      {{ model.tableName || model.identity }}
+                      {{ model.group }}
                     </div>
                   </div>
                 </Link>
@@ -478,10 +432,10 @@ function formatNumber(num) {
                 <span v-else class="text-gray-300 dark:text-gray-700">—</span>
               </div>
               <div class="col-span-1 flex items-center justify-end">
-                <button
-                  @click="openSettings(model, $event)"
-                  class="rounded p-1 text-gray-400 opacity-0 transition-opacity hover:bg-gray-100 hover:text-gray-600 group-hover:opacity-100 dark:hover:bg-gray-800 dark:hover:text-gray-300"
-                  title="Model settings"
+                <Link
+                  :href="bridgeModelUrl(model.identity)"
+                  class="rounded p-1 text-gray-400 opacity-0 transition-opacity group-hover:opacity-100 dark:text-gray-500"
+                  :aria-label="`Open ${model.label}`"
                 >
                   <svg
                     class="h-4 w-4"
@@ -492,17 +446,11 @@ function formatNumber(num) {
                     <path
                       stroke-linecap="round"
                       stroke-linejoin="round"
-                      stroke-width="1.5"
-                      d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
-                    />
-                    <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="1.5"
-                      d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                      stroke-width="2"
+                      d="m9 18 6-6-6-6"
                     />
                   </svg>
-                </button>
+                </Link>
               </div>
             </div>
 
@@ -511,245 +459,11 @@ function formatNumber(num) {
               v-if="filteredModels.length === 0"
               class="px-6 py-8 text-center text-sm text-gray-500"
             >
-              No models found matching "{{ searchQuery }}"
+              No resources found matching "{{ searchQuery }}"
             </div>
           </div>
         </div>
       </div>
     </div>
-
-    <!-- Settings Modal -->
-    <Teleport to="body">
-      <Transition
-        enter-active-class="transition duration-200 ease-out"
-        enter-from-class="opacity-0"
-        enter-to-class="opacity-100"
-        leave-active-class="transition duration-150 ease-in"
-        leave-from-class="opacity-100"
-        leave-to-class="opacity-0"
-      >
-        <div
-          v-if="settingsModalOpen"
-          class="fixed inset-0 z-50 flex items-center justify-center p-4"
-        >
-          <div
-            class="fixed inset-0 bg-black/50 backdrop-blur-sm"
-            @click="closeSettings"
-          />
-          <Transition
-            enter-active-class="transition duration-200 ease-out"
-            enter-from-class="scale-95 opacity-0"
-            enter-to-class="scale-100 opacity-100"
-            leave-active-class="transition duration-150 ease-in"
-            leave-from-class="scale-100 opacity-100"
-            leave-to-class="scale-95 opacity-0"
-          >
-            <div
-              v-if="settingsModalOpen && selectedModel"
-              class="relative flex max-h-[85vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-2xl dark:border-gray-800 dark:bg-gray-900"
-            >
-              <!-- Modal header -->
-              <div
-                class="shrink-0 border-b border-gray-200 px-6 py-4 dark:border-gray-800"
-              >
-                <div class="flex items-center justify-between">
-                  <div class="flex items-center gap-3">
-                    <div
-                      class="flex h-10 w-10 items-center justify-center rounded-xl bg-gray-100 dark:bg-gray-800"
-                    >
-                      <svg
-                        class="h-5 w-5 text-gray-600 dark:text-gray-400"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                          stroke-width="1.5"
-                          d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4"
-                        />
-                      </svg>
-                    </div>
-                    <div>
-                      <h3
-                        class="text-lg font-semibold text-gray-900 dark:text-white"
-                      >
-                        {{ selectedModel.globalId || selectedModel.identity }}
-                      </h3>
-                      <p class="text-sm text-gray-500 dark:text-gray-400">
-                        Model Settings
-                      </p>
-                    </div>
-                  </div>
-                  <button
-                    @click="closeSettings"
-                    class="rounded-lg p-2 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-800 dark:hover:text-gray-300"
-                  >
-                    <svg
-                      class="h-5 w-5"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        stroke-width="2"
-                        d="M6 18L18 6M6 6l12 12"
-                      />
-                    </svg>
-                  </button>
-                </div>
-              </div>
-
-              <!-- Modal body -->
-              <div class="flex-1 overflow-y-auto p-6">
-                <!-- Model info -->
-                <div class="mb-6 grid grid-cols-3 gap-4">
-                  <div class="rounded-lg bg-gray-50 p-3 dark:bg-gray-800/50">
-                    <p
-                      class="text-xs font-medium text-gray-500 dark:text-gray-400"
-                    >
-                      Records
-                    </p>
-                    <p
-                      class="mt-1 text-lg font-semibold tabular-nums text-gray-900 dark:text-white"
-                    >
-                      {{ (selectedModel.count || 0).toLocaleString() }}
-                    </p>
-                  </div>
-                  <div class="rounded-lg bg-gray-50 p-3 dark:bg-gray-800/50">
-                    <p
-                      class="text-xs font-medium text-gray-500 dark:text-gray-400"
-                    >
-                      Attributes
-                    </p>
-                    <p
-                      class="mt-1 text-lg font-semibold tabular-nums text-gray-900 dark:text-white"
-                    >
-                      {{ attrCount(selectedModel) }}
-                    </p>
-                  </div>
-                  <div class="rounded-lg bg-gray-50 p-3 dark:bg-gray-800/50">
-                    <p
-                      class="text-xs font-medium text-gray-500 dark:text-gray-400"
-                    >
-                      Associations
-                    </p>
-                    <p
-                      class="mt-1 text-lg font-semibold tabular-nums text-gray-900 dark:text-white"
-                    >
-                      {{ assocCount(selectedModel) }}
-                    </p>
-                  </div>
-                </div>
-
-                <!-- Settings options -->
-                <div class="space-y-4">
-                  <div>
-                    <label
-                      class="text-sm font-medium text-gray-900 dark:text-white"
-                      >Display Columns</label
-                    >
-                    <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                      Select which columns to display in the table view.
-                    </p>
-                    <div class="mt-3 flex flex-wrap gap-2">
-                      <span
-                        v-for="attr in Object.keys(
-                          selectedModel.attributes || {}
-                        )"
-                        :key="attr"
-                        class="inline-flex items-center gap-1.5 rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-700 dark:bg-gray-800 dark:text-gray-300"
-                      >
-                        {{ attr }}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div
-                    class="border-t border-gray-200 pt-4 dark:border-gray-800"
-                  >
-                    <label
-                      class="text-sm font-medium text-gray-900 dark:text-white"
-                      >Primary Display Field</label
-                    >
-                    <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                      Choose the field to use as the main identifier in lists.
-                    </p>
-                    <select
-                      class="mt-3 block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-gray-500 focus:outline-none focus:ring-1 focus:ring-gray-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
-                    >
-                      <option value="">Auto-detect</option>
-                      <option
-                        v-for="attr in Object.keys(
-                          selectedModel.attributes || {}
-                        )"
-                        :key="attr"
-                        :value="attr"
-                      >
-                        {{ attr }}
-                      </option>
-                    </select>
-                  </div>
-
-                  <div
-                    class="border-t border-gray-200 pt-4 dark:border-gray-800"
-                  >
-                    <label
-                      class="text-sm font-medium text-gray-900 dark:text-white"
-                      >Default Sort</label
-                    >
-                    <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                      Set the default sorting for this model.
-                    </p>
-                    <div class="mt-3 flex gap-3">
-                      <select
-                        class="block flex-1 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-gray-500 focus:outline-none focus:ring-1 focus:ring-gray-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
-                      >
-                        <option value="createdAt">createdAt</option>
-                        <option
-                          v-for="attr in Object.keys(
-                            selectedModel.attributes || {}
-                          )"
-                          :key="attr"
-                          :value="attr"
-                        >
-                          {{ attr }}
-                        </option>
-                      </select>
-                      <select
-                        class="block w-32 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-gray-500 focus:outline-none focus:ring-1 focus:ring-gray-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
-                      >
-                        <option value="DESC">Descending</option>
-                        <option value="ASC">Ascending</option>
-                      </select>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Modal footer -->
-              <div
-                class="flex shrink-0 items-center justify-end gap-3 border-t border-gray-200 bg-gray-50/50 px-6 py-4 dark:border-gray-800 dark:bg-gray-900/50"
-              >
-                <button
-                  @click="closeSettings"
-                  class="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
-                >
-                  Cancel
-                </button>
-                <button
-                  class="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-800 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
-                >
-                  Save Settings
-                </button>
-              </div>
-            </div>
-          </Transition>
-        </div>
-      </Transition>
-    </Teleport>
   </div>
 </template>

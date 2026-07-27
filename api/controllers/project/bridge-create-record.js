@@ -63,11 +63,32 @@ module.exports = {
       throw { badRequest: { error: 'App is not running' } }
     }
 
-    // Execute create in container
+    let loaded
+    let allowedValues
+    try {
+      loaded = await sails.helpers.bridge.loadResource.with({
+        containerName: app.containerName,
+        environmentId: environment.id,
+        modelIdentity,
+        action: 'create'
+      })
+      allowedValues = await sails.helpers.bridge.allowResourceValues.with({
+        values,
+        resource: loaded.resource,
+        surface: 'create'
+      })
+    } catch (error) {
+      throw { badRequest: { error: error.message } }
+    }
+
+    // Execute the allowlisted create in the target container.
     const createCode = `
-      const record = await sails.models['${modelIdentity}'].create(${JSON.stringify(
-      values
-    )}).fetch();
+      const identity = ${JSON.stringify(loaded.resource.identity)};
+      const values = ${JSON.stringify(allowedValues)};
+      const model = sails.models[identity];
+      if (!model) throw new Error('Configured Bridge model is unavailable.');
+
+      const record = await model.create(values).fetch();
       return { record };
     `
     const wrappedCode = await sails.helpers.bridge.buildSailsWrapper(createCode)
@@ -84,15 +105,17 @@ module.exports = {
     let recordId
     try {
       const data = JSON.parse(result.output)
-      recordId = data.record?.id
+      recordId = data.record?.[loaded.resource.primaryKey]
     } catch {
       // Fallback to model list
     }
 
     // Redirect to the new record or model list
     const envPath = envSlug !== 'production' ? `/environments/${envSlug}` : ''
-    if (recordId) {
-      return `/projects/${slug}${envPath}/bridge/${modelIdentity}/${recordId}`
+    if (recordId !== undefined && recordId !== null) {
+      return `/projects/${slug}${envPath}/bridge/${modelIdentity}/${encodeURIComponent(
+        String(recordId)
+      )}`
     }
     return `/projects/${slug}${envPath}/bridge/${modelIdentity}`
   }
