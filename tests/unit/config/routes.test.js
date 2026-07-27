@@ -27,6 +27,16 @@ test('browser actions and JSON transports have explicit route contracts', ({
       'POST /api/v1/projects/:slug/environments/:envSlug/content/:collection/:file/images'
     ]
   ).toBe('project/content-upload-image')
+  expect(
+    routes[
+      'GET /api/v1/projects/:slug/environments/:envSlug/bridge/:modelIdentity/relationships/:relationshipAlias/options'
+    ]
+  ).toBe('project/bridge-relationship-options')
+  expect(
+    routes[
+      'POST /projects/:slug/environments/:envSlug/bridge/:modelIdentity/:recordId/relationships/:relationshipAlias/:operation'
+    ]
+  ).toBe('project/bridge-update-relationship')
   expect(routes['POST /switch-team']).toBe('team/switch-team')
   expect(routes['POST /settings/notifications/test']).toBe(
     'setting/test-notification'

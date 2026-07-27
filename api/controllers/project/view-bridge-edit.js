@@ -130,12 +130,42 @@ module.exports = {
         }
 
         if (!error) {
+          const authorizedResources = {
+            [modelMeta.identity]: modelMeta
+          }
+          for (const relationship of Object.values(
+            modelMeta.relationships || {}
+          )) {
+            if (
+              relationship.type !== 'model' ||
+              !modelMeta.edit.includes(relationship.alias)
+            ) {
+              continue
+            }
+            try {
+              const related = await sails.helpers.bridge.loadResource.with({
+                containerName: app.containerName,
+                environmentId: environment.id,
+                modelIdentity: relationship.resource,
+                action: 'viewAny',
+                actor
+              })
+              authorizedResources[relationship.resource] = related.resource
+            } catch (relationshipAuthorizationError) {
+              delete authorizedResources[relationship.resource]
+              modelMeta.edit = modelMeta.edit.filter(
+                (field) => field !== relationship.alias
+              )
+              modelMeta.relationships[relationship.alias].show = false
+            }
+          }
           assocOptions = await sails.helpers.bridge.loadAssociationOptions.with(
             {
               containerName: app.containerName,
-              resources: loaded.contract.models,
+              resources: authorizedResources,
               resource: modelMeta,
-              surface: 'edit'
+              surface: 'edit',
+              values: record
             }
           )
         }

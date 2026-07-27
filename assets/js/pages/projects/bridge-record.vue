@@ -6,6 +6,7 @@ import ConfirmModal from '@/components/ConfirmModal.vue'
 import ToastContainer from '@/components/ToastContainer.vue'
 import { createToast } from '@/composables/toast'
 import BridgeFieldValue from '@/components/bridge/BridgeFieldValue.vue'
+import BridgeCollectionManager from '@/components/bridge/BridgeCollectionManager.vue'
 
 defineOptions({
   layout: AppLayout
@@ -19,6 +20,7 @@ const props = defineProps({
   appRunning: Boolean,
   modelMeta: Object,
   record: Object,
+  relationships: Object,
   error: String
 })
 
@@ -40,11 +42,6 @@ function displayIdentifier(value) {
   return `${identifier.slice(0, 10)}…${identifier.slice(-6)}`
 }
 
-function relatedIdentifier(record) {
-  if (!record) return ''
-  return record.id ?? record[Object.keys(record)[0]]
-}
-
 // Categorize attributes
 const regularAttrs = computed(() => {
   if (!props.modelMeta) return []
@@ -54,37 +51,19 @@ const regularAttrs = computed(() => {
 })
 
 const modelAssociations = computed(() => {
-  if (!props.modelMeta) return []
-  const visibleFields = new Set(props.modelMeta.show || [])
-  return (props.modelMeta.associations || []).filter(
-    (association) =>
-      association.type === 'model' && visibleFields.has(association.alias)
+  return Object.values(props.relationships || {}).filter(
+    (relationship) => relationship.type === 'model'
   )
 })
 
 const collectionAssociations = computed(() => {
-  if (!props.modelMeta) return []
-  const visibleFields = new Set(props.modelMeta.show || [])
-  return (props.modelMeta.associations || []).filter(
-    (association) =>
-      association.type === 'collection' && visibleFields.has(association.alias)
+  return Object.values(props.relationships || {}).filter(
+    (relationship) => relationship.type === 'collection'
   )
 })
 
 function fieldLabel(name) {
   return props.modelMeta?.attributes[name]?.label || name
-}
-
-function collectionRecords(alias) {
-  if (!props.record || !props.record[alias]) return []
-  const data = props.record[alias]
-  return Array.isArray(data) ? data.slice(0, 5) : []
-}
-
-function collectionCount(alias) {
-  if (!props.record || !props.record[alias]) return 0
-  const data = props.record[alias]
-  return Array.isArray(data) ? data.length : 0
 }
 
 function confirmDelete() {
@@ -123,6 +102,26 @@ function relatedRecordUrl(model, id) {
   return `/projects/${props.project.slug}/environments/${
     props.environment.slug
   }/bridge/${model}/${encodePathSegment(id)}`
+}
+
+function relationshipOptionsUrl(relationship) {
+  const params = new URLSearchParams({
+    surface: 'manage',
+    recordId: String(props.recordId)
+  })
+  return `/api/v1/projects/${props.project.slug}/environments/${
+    props.environment.slug
+  }/bridge/${props.modelIdentity}/relationships/${encodePathSegment(
+    relationship.alias
+  )}/options?${params.toString()}`
+}
+
+function relationshipMutationBaseUrl(relationship) {
+  return `/projects/${props.project.slug}/environments/${
+    props.environment.slug
+  }/bridge/${props.modelIdentity}/${encodePathSegment(
+    props.recordId
+  )}/relationships/${encodePathSegment(relationship.alias)}`
 }
 </script>
 
@@ -396,28 +395,19 @@ function relatedRecordUrl(model, id) {
                   <dt
                     class="w-40 shrink-0 text-sm font-medium text-gray-500 dark:text-gray-400"
                   >
-                    {{ fieldLabel(assoc.alias) }}
-                    <span
-                      class="block text-xs font-normal text-gray-400 dark:text-gray-500"
-                      >→ {{ assoc.model }}</span
-                    >
+                    {{ assoc.label }}
                   </dt>
                   <dd class="min-w-0 flex-1 text-sm">
-                    <template
-                      v-if="
-                        record[assoc.alias] === null ||
-                        record[assoc.alias] === undefined
-                      "
-                    >
+                    <template v-if="!assoc.record">
                       <span class="text-gray-300 dark:text-gray-600">null</span>
                     </template>
                     <Link
                       v-else
-                      :href="relatedRecordUrl(assoc.model, record[assoc.alias])"
+                      :href="relatedRecordUrl(assoc.resource, assoc.record.id)"
+                      :title="String(assoc.record.id)"
                       class="font-medium text-gray-900 hover:underline dark:text-white"
                     >
-                      {{ assoc.model }}
-                      {{ displayIdentifier(record[assoc.alias]) }}
+                      {{ assoc.record.label }}
                     </Link>
                   </dd>
                 </div>
@@ -426,63 +416,66 @@ function relatedRecordUrl(model, id) {
           </div>
 
           <!-- Right: Collection associations -->
-          <div v-if="collectionAssociations.length > 0" class="space-y-4">
-            <div
+          <div
+            v-if="collectionAssociations.length > 0"
+            class="self-start overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900"
+          >
+            <div class="px-4 py-3">
+              <h2 class="text-sm font-semibold text-gray-900 dark:text-white">
+                Relationships
+              </h2>
+            </div>
+            <section
               v-for="assoc in collectionAssociations"
               :key="assoc.alias"
-              class="overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900"
+              class="border-t border-gray-100 dark:border-gray-800"
             >
               <div
-                class="flex items-center justify-between border-b border-gray-200 px-4 py-3 dark:border-gray-800"
+                class="flex items-center justify-between gap-3 px-4 pb-2 pt-3"
               >
-                <h3 class="text-sm font-semibold text-gray-900 dark:text-white">
-                  {{ assoc.alias }}
+                <h3 class="text-sm font-medium text-gray-900 dark:text-white">
+                  {{ assoc.label }}
                   <span
                     class="ml-1 text-xs font-normal text-gray-400 dark:text-gray-500"
-                    >({{ collectionCount(assoc.alias) }})</span
+                    >{{ assoc.records.length
+                    }}{{ assoc.hasMore ? '+' : '' }}</span
                   >
                 </h3>
-                <Link
-                  v-if="collectionCount(assoc.alias) > 0"
-                  :href="`${bridgeUrl()}/${assoc.collection}`"
-                  class="text-xs text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
-                >
-                  View all
-                </Link>
+                <BridgeCollectionManager
+                  :relationship="assoc"
+                  :options-url="relationshipOptionsUrl(assoc)"
+                  :mutation-base-url="relationshipMutationBaseUrl(assoc)"
+                />
               </div>
               <div
-                v-if="collectionRecords(assoc.alias).length === 0"
-                class="px-4 py-6 text-center text-xs text-gray-400 dark:text-gray-500"
+                v-if="assoc.records.length === 0"
+                class="px-4 pb-4 text-xs text-gray-400 dark:text-gray-500"
               >
                 No related records
               </div>
-              <ul v-else class="divide-y divide-gray-100 dark:divide-gray-800">
+              <ul v-else class="pb-2">
                 <li
-                  v-for="(related, i) in collectionRecords(assoc.alias)"
-                  :key="i"
-                  class="px-4 py-2"
+                  v-for="related in assoc.records"
+                  :key="String(related.id)"
+                  class="px-4 py-1.5"
                 >
                   <Link
-                    :href="
-                      relatedRecordUrl(
-                        assoc.collection,
-                        relatedIdentifier(related)
-                      )
-                    "
-                    :title="String(relatedIdentifier(related))"
-                    class="text-sm font-medium text-gray-900 hover:underline dark:text-white"
+                    :href="relatedRecordUrl(assoc.identity, related.id)"
+                    :title="String(related.id)"
+                    class="block min-w-0"
                   >
-                    {{ displayIdentifier(relatedIdentifier(related)) }}
+                    <span
+                      class="block truncate text-sm font-medium text-gray-900 hover:underline dark:text-white"
+                      >{{ related.label }}</span
+                    >
+                    <span
+                      class="block truncate font-mono text-[11px] text-gray-400 dark:text-gray-500"
+                      >{{ displayIdentifier(related.id) }}</span
+                    >
                   </Link>
-                  <span
-                    v-if="related.name || related.title || related.email"
-                    class="ml-2 text-xs text-gray-500 dark:text-gray-400"
-                  >
-                    {{ related.name || related.title || related.email }}
-                  </span>
                 </li>
               </ul>
-            </div>
+            </section>
           </div>
         </div>
       </div>

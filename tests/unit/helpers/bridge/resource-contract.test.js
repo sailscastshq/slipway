@@ -263,6 +263,223 @@ test('Bridge preserves UUID primary keys and derives belongs-to identifier types
   expect(values.author).toBe(authorId)
 })
 
+test('Bridge normalizes bounded relationships and keeps collection mutations opt-in', async ({
+  sails,
+  expect
+}) => {
+  const contract = await sails.helpers.bridge.normalizeResourceContract.with({
+    models: relationshipModelMetadata(),
+    config: {
+      resources: {
+        lesson: {
+          show: ['id', 'title', 'chapter', 'course', 'creator'],
+          fields: {
+            chapter: {
+              relation: {
+                label: 'Chapter',
+                search: ['title'],
+                limit: 12
+              }
+            }
+          }
+        },
+        course: {
+          relationships: {
+            chapters: {
+              label: 'Course chapters',
+              fields: ['id', 'title'],
+              search: ['title'],
+              limit: 8,
+              attach: true,
+              detach: true
+            },
+            lessons: {
+              limit: 6
+            }
+          }
+        }
+      }
+    }
+  })
+
+  const lesson = contract.resources.lesson
+  expect(lesson.relationships.chapter).toEqual({
+    alias: 'chapter',
+    type: 'model',
+    resource: 'chapter',
+    label: 'Chapter',
+    primaryKey: 'id',
+    title: 'title',
+    show: true,
+    searchable: true,
+    search: ['title'],
+    fields: ['id', 'title'],
+    limit: 12,
+    attach: false,
+    detach: false
+  })
+  expect(lesson.attributes.chapter.field.relation).toEqual(
+    lesson.relationships.chapter
+  )
+  expect(lesson.relationships.course.primaryKey).toBe('id')
+  expect(lesson.relationships.creator.title).toBe('fullName')
+
+  const course = contract.resources.course
+  expect(course.relationships.chapters).toEqual({
+    alias: 'chapters',
+    type: 'collection',
+    resource: 'chapter',
+    label: 'Course chapters',
+    primaryKey: 'id',
+    title: 'title',
+    show: true,
+    searchable: true,
+    search: ['title'],
+    fields: ['id', 'title'],
+    limit: 8,
+    attach: true,
+    detach: true,
+    via: 'course'
+  })
+  expect(course.relationships.lessons.attach).toBe(false)
+  expect(course.relationships.lessons.detach).toBe(false)
+  expect(course.relationships.lessons.limit).toBe(6)
+})
+
+test('Bridge rejects unsafe relationship configuration', async ({
+  sails,
+  expect
+}) => {
+  let mutationError
+  try {
+    await sails.helpers.bridge.normalizeResourceContract.with({
+      models: relationshipModelMetadata(),
+      config: {
+        resources: {
+          lesson: {
+            fields: {
+              chapter: {
+                relation: {
+                  attach: true
+                }
+              }
+            }
+          }
+        }
+      }
+    })
+  } catch (error) {
+    mutationError = error
+  }
+  expect(mutationError.message).toContain(
+    'can enable attach or detach only for a collection association'
+  )
+
+  let fieldError
+  try {
+    await sails.helpers.bridge.normalizeResourceContract.with({
+      models: relationshipModelMetadata(),
+      config: {
+        resources: {
+          course: {
+            relationships: {
+              chapters: {
+                fields: ['internalNotes']
+              }
+            }
+          }
+        }
+      }
+    })
+  } catch (error) {
+    fieldError = error
+  }
+  expect(fieldError.message).toContain(
+    'fields references unavailable field "internalNotes"'
+  )
+})
+
+test('Bridge authorizes and verifies submitted belongs-to values', async ({
+  sails,
+  expect
+}) => {
+  const contract = await sails.helpers.bridge.normalizeResourceContract.with({
+    models: relationshipModelMetadata(),
+    config: {}
+  })
+  const originalIntrospectModels = sails.helpers.bridge.introspectModels
+  const originalBuildSailsWrapper = sails.helpers.bridge.buildSailsWrapper
+  const originalExecuteInContainer = sails.helpers.bridge.executeInContainer
+  const chapterId = '018f2a5c-7b34-7f8a-9c12-4a73b9d80241'
+  let missing = []
+
+  try {
+    sails.helpers.bridge.introspectModels = async () => ({
+      schemaVersion: contract.schemaVersion,
+      discover: contract.discover,
+      configured: contract.configured,
+      models: contract.resources
+    })
+    sails.helpers.bridge.buildSailsWrapper = async (code) => code
+    sails.helpers.bridge.executeInContainer = async (containerName, code) => {
+      expect(containerName).toBe('bridge-app-web')
+      expect(code).toContain('const missing = [];')
+      const definitions = readEmbeddedValue(code, 'definitions')
+      expect(definitions).toEqual([
+        {
+          alias: 'chapter',
+          identity: 'chapter',
+          primaryKey: 'id',
+          id: chapterId
+        }
+      ])
+      return successfulResult({ missing })
+    }
+
+    const values = await sails.helpers.bridge.authorizeRelationshipValues.with({
+      containerName: 'bridge-app-web',
+      environmentId: 220,
+      resource: contract.resources.lesson,
+      actor: {
+        id: '7',
+        email: 'editor@example.com'
+      },
+      values: {
+        title: 'A safe lesson',
+        chapter: chapterId
+      }
+    })
+    expect(values.chapter).toBe(chapterId)
+
+    missing = ['chapter']
+    let missingError
+    try {
+      await sails.helpers.bridge.authorizeRelationshipValues.with({
+        containerName: 'bridge-app-web',
+        environmentId: 220,
+        resource: contract.resources.lesson,
+        actor: {
+          id: '7',
+          email: 'editor@example.com'
+        },
+        values: {
+          chapter: chapterId
+        }
+      })
+    } catch (error) {
+      missingError = error
+    }
+    expect(missingError.code).toBe('BRIDGE_RELATIONSHIP_NOT_FOUND')
+    expect(missingError.fieldErrors).toEqual({
+      chapter: 'Chapter no longer exists.'
+    })
+  } finally {
+    sails.helpers.bridge.introspectModels = originalIntrospectModels
+    sails.helpers.bridge.buildSailsWrapper = originalBuildSailsWrapper
+    sails.helpers.bridge.executeInContainer = originalExecuteInContainer
+  }
+})
+
 test('Bridge applies configured target helpers to generated primary keys', async ({
   sails,
   expect
@@ -1034,6 +1251,83 @@ function uuidModelMetadata() {
   }
 }
 
+function relationshipModelMetadata() {
+  return {
+    course: {
+      identity: 'course',
+      globalId: 'Course',
+      tableName: 'course',
+      primaryKey: 'id',
+      attributes: {
+        id: { type: 'string', required: true, isUUID: true },
+        title: { type: 'string', required: true }
+      },
+      associations: [
+        {
+          alias: 'chapters',
+          type: 'collection',
+          collection: 'chapter',
+          via: 'course'
+        },
+        {
+          alias: 'lessons',
+          type: 'collection',
+          collection: 'lesson',
+          via: 'course'
+        }
+      ]
+    },
+    chapter: {
+      identity: 'chapter',
+      globalId: 'Chapter',
+      tableName: 'chapter',
+      primaryKey: 'id',
+      attributes: {
+        id: { type: 'string', required: true, isUUID: true },
+        title: { type: 'string', required: true },
+        internalNotes: { type: 'string', protect: true },
+        course: { type: 'string', model: 'course' }
+      },
+      associations: [
+        {
+          alias: 'course',
+          type: 'model',
+          model: 'course'
+        }
+      ]
+    },
+    lesson: {
+      identity: 'lesson',
+      globalId: 'Lesson',
+      tableName: 'lesson',
+      primaryKey: 'id',
+      attributes: {
+        id: { type: 'string', required: true, isUUID: true },
+        title: { type: 'string', required: true },
+        chapter: { type: 'string', model: 'chapter' },
+        course: { type: 'string', model: 'course' },
+        creator: { type: 'string', model: 'user' }
+      },
+      associations: [
+        { alias: 'chapter', type: 'model', model: 'chapter' },
+        { alias: 'course', type: 'model', model: 'course' },
+        { alias: 'creator', type: 'model', model: 'user' }
+      ]
+    },
+    user: {
+      identity: 'user',
+      globalId: 'User',
+      tableName: 'user',
+      primaryKey: 'id',
+      attributes: {
+        id: { type: 'string', required: true, isUUID: true },
+        fullName: { type: 'string', required: true }
+      },
+      associations: []
+    }
+  }
+}
+
 function sensitiveModelMetadata() {
   return {
     user: {
@@ -1090,4 +1384,10 @@ function successfulResult(output) {
     error: null,
     exitCode: 0
   }
+}
+
+function readEmbeddedValue(code, name) {
+  const match = code.match(new RegExp(`const ${name} = (.*);`))
+  if (!match) throw new Error(`Missing ${name} declaration in Bridge query.`)
+  return JSON.parse(match[1])
 }
