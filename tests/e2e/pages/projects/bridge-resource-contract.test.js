@@ -28,8 +28,12 @@ test(
     const screenshotRoot = path.resolve(
       '.tmp/screenshots/issue-216-resource-contract'
     )
+    const identifierScreenshotRoot = path.resolve(
+      '.tmp/screenshots/issue-217-uuid-identifiers'
+    )
 
     fs.mkdirSync(screenshotRoot, { recursive: true })
+    fs.mkdirSync(identifierScreenshotRoot, { recursive: true })
 
     const contract = await sails.helpers.bridge.normalizeResourceContract.with({
       models: resourceMetadata(),
@@ -37,6 +41,7 @@ test(
     })
     const courseRecordId = '018f2a5c-7b34-7f8a-9c12-4a73b9d80211'
     const createdCourseRecordId = '018f2a5c-7b34-7f8a-9c12-4a73b9d80212'
+    const creatorId = '018f2a5c-7b34-7f8a-9c12-4a73b9d80213'
     const records = [
       {
         id: courseRecordId,
@@ -64,7 +69,7 @@ test(
         'A practical path from a Waterline model to a calm production release.',
       thumbnailUrl: 'https://cdn.example.com/courses/production-sails.webp',
       published: true,
-      creator: 7
+      creator: creatorId
     }
     let persistedCourseRecord = record
     let createdValues
@@ -92,7 +97,7 @@ test(
       }
       if (code.includes('const options = {};')) {
         return successfulResult({
-          creator: [{ id: 7, label: 'Ada Lovelace' }]
+          creator: [{ id: creatorId, label: 'Ada Lovelace' }]
         })
       }
       if (code.includes('const total = await model.count(where);')) {
@@ -102,9 +107,16 @@ test(
         })
       }
       if (code.includes('await model.create(values).fetch();')) {
-        createdValues = readEmbeddedValue(code, 'values')
-        persistedCourseRecord = {
+        const submittedValues = readEmbeddedValue(code, 'submittedValues')
+        const createResource = readEmbeddedValue(code, 'resource')
+        expect(createResource.attributes.id.field.default).toEqual({
+          helper: 'getUuid'
+        })
+        createdValues = {
           id: createdCourseRecordId,
+          ...submittedValues
+        }
+        persistedCourseRecord = {
           ...createdValues
         }
         return successfulResult({ record: persistedCourseRecord })
@@ -121,7 +133,7 @@ test(
         if (code.includes('const identity = "user";')) {
           return successfulResult({
             record: {
-              id: 7,
+              id: creatorId,
               fullName: 'Ada Lovelace',
               email: 'ada@example.com'
             }
@@ -218,6 +230,7 @@ test(
       await expect(page).toSee('Course description')
       await expect(page).toSee('Thumbnail')
       await expect(page).toSee('Creator')
+      expect(await page.raw.getByLabel('Id').count()).toBe(0)
       const createRecordButton = page.raw.getByRole('button', {
         name: 'Create record'
       })
@@ -227,7 +240,24 @@ test(
         { fullPage: true }
       )
       await page.raw.getByLabel('Course title').fill('Ship a durable course')
+      await page.raw.getByLabel('Creator').selectOption(creatorId)
       expect(await createRecordButton.isEnabled()).toBe(true)
+      await page.screenshot(
+        path.join(
+          identifierScreenshotRoot,
+          'course-create-uuid-association-light.png'
+        ),
+        { fullPage: true }
+      )
+      await page.raw.emulateMedia({ colorScheme: 'dark' })
+      await page.screenshot(
+        path.join(
+          identifierScreenshotRoot,
+          'course-create-uuid-association-dark.png'
+        ),
+        { fullPage: true }
+      )
+      await page.raw.emulateMedia({ colorScheme: 'light' })
 
       const descriptionEditor = page.raw.locator(
         '[data-test="bridge-course-description-visual-editor"]'
@@ -309,6 +339,8 @@ test(
         { timeout: 10000 }
       )
       expect(createdValues.description).toBe(createdMarkdown)
+      expect(createdValues.id).toBe(createdCourseRecordId)
+      expect(createdValues.creator).toBe(creatorId)
       await expect(page).toSee('Ship a durable course')
 
       await page.goto(`${coursePath}/${createdCourseRecordId}/edit`)
@@ -376,7 +408,7 @@ test(
       )
 
       await page.raw.emulateMedia({ colorScheme: 'light' })
-      await page.goto(`${bridgePath}/user/7`)
+      await page.goto(`${bridgePath}/user/${creatorId}`)
       await page.wait('text=Ada Lovelace')
       await expect(page).toSee('ada@example.com')
     } finally {
@@ -437,6 +469,11 @@ function resourceConfig() {
           bulkDelete: false
         },
         fields: {
+          id: {
+            default: {
+              helper: 'getUuid'
+            }
+          },
           title: {
             label: 'Course title',
             placeholder: 'A clear, specific course title'
@@ -492,7 +529,8 @@ function resourceMetadata() {
       attributes: {
         id: {
           type: 'string',
-          required: true
+          required: true,
+          isUUID: true
         },
         title: {
           type: 'string',
@@ -537,8 +575,9 @@ function resourceMetadata() {
       primaryKey: 'id',
       attributes: {
         id: {
-          type: 'number',
-          autoIncrement: true
+          type: 'string',
+          required: true,
+          isUUID: true
         },
         fullName: {
           type: 'string',

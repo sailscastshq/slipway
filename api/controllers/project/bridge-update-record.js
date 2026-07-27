@@ -69,6 +69,7 @@ module.exports = {
 
     let loaded
     let allowedValues
+    let normalizedRecordId
     try {
       loaded = await sails.helpers.bridge.loadResource.with({
         containerName: app.containerName,
@@ -81,12 +82,17 @@ module.exports = {
         resource: loaded.resource,
         surface: 'edit'
       })
+      normalizedRecordId = await sails.helpers.bridge.normalizeIdentifier.with({
+        value: recordId,
+        resource: loaded.resource,
+        label: `${loaded.resource.singularLabel} identifier`
+      })
     } catch (error) {
       throw { badRequest: { error: error.message } }
     }
 
     const criteria = {
-      [loaded.resource.primaryKey]: recordId
+      [loaded.resource.primaryKey]: normalizedRecordId
     }
     const updateCode = `
       const identity = ${JSON.stringify(loaded.resource.identity)};

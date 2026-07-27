@@ -1,7 +1,6 @@
 // Module-level cache: Map<environmentId:containerName, { data, expiresAt }>
 const cache = new Map()
 const CACHE_TTL = 10 * 60 * 1000 // 10 minutes
-const normalizeBridgeResourceContract = require('../../../packages/hook/lib/bridge/normalize-resource-contract')
 
 function clearCache(environmentId) {
   if (environmentId) {
@@ -65,7 +64,12 @@ module.exports = {
     }
 
     try {
-      const contract = JSON.parse(result.output)
+      const introspection = JSON.parse(result.output)
+      const contract =
+        await sails.helpers.bridge.normalizeResourceContract.with({
+          models: introspection.models,
+          config: introspection.config
+        })
       const data = {
         schemaVersion: contract.schemaVersion,
         discover: contract.discover,
@@ -89,11 +93,7 @@ module.exports = {
 }
 
 function buildIntrospectionCode() {
-  const normalizeResourceContractSource =
-    normalizeBridgeResourceContract.toString()
-
   return `
-    const normalizeBridgeResourceContract = ${normalizeResourceContractSource};
     const models = {};
     for (const [identity, model] of Object.entries(sails.models)) {
       if (identity.startsWith('_') || !model.attributes) continue;
@@ -110,16 +110,31 @@ function buildIntrospectionCode() {
       for (const [attrName, attr] of Object.entries(model.attributes)) {
         // Handle associations
         if (attr.model) {
+          const relatedModel = sails.models[attr.model];
+          const relatedPrimaryKey = relatedModel?.primaryKey || 'id';
+          const relatedPrimaryKeyAttribute =
+            relatedModel?.attributes?.[relatedPrimaryKey] || {};
+          const relatedPrimaryKeyType =
+            relatedPrimaryKeyAttribute.type || attr.type || 'number';
+
           models[identity].associations.push({
             alias: attrName,
             type: 'model',
-            model: attr.model
+            model: attr.model,
+            primaryKey: relatedPrimaryKey,
+            primaryKeyType: relatedPrimaryKeyType
           });
           models[identity].attributes[attrName] = {
-            type: 'number',
+            type: relatedPrimaryKeyType,
             model: attr.model,
             columnName: attr.columnName || attrName,
-            required: attr.required || false
+            required: attr.required || false,
+            allowNull: attr.allowNull || false,
+            isUUID: relatedPrimaryKeyAttribute.isUUID || false,
+            maxLength: relatedPrimaryKeyAttribute.maxLength || null,
+            validations: {
+              isUUID: relatedPrimaryKeyAttribute.isUUID || false
+            }
           };
           continue;
         }
@@ -142,9 +157,13 @@ function buildIntrospectionCode() {
           defaultsTo: attr.defaultsTo,
           autoCreatedAt: attr.autoCreatedAt || false,
           autoUpdatedAt: attr.autoUpdatedAt || false,
-          autoIncrement: attr.autoMigrations?.autoIncrement || false,
+          autoIncrement:
+            attr.autoIncrement ||
+            attr.autoMigrations?.autoIncrement ||
+            false,
           allowNull: attr.allowNull || false,
           isEmail: attr.isEmail || false,
+          isUUID: attr.isUUID || false,
           isIn: attr.isIn || null,
           maxLength: attr.maxLength || null,
           encrypt: !!attr.encrypt,
@@ -154,6 +173,7 @@ function buildIntrospectionCode() {
 
         // Collect validation rules
         if (attr.isEmail) models[identity].attributes[attrName].validations.isEmail = true;
+        if (attr.isUUID) models[identity].attributes[attrName].validations.isUUID = true;
         if (attr.isIn) models[identity].attributes[attrName].validations.isIn = attr.isIn;
         if (attr.maxLength) models[identity].attributes[attrName].validations.maxLength = attr.maxLength;
         if (attr.minLength) models[identity].attributes[attrName].validations.minLength = attr.minLength;
@@ -161,9 +181,25 @@ function buildIntrospectionCode() {
       }
     }
 
-    return normalizeBridgeResourceContract({
+    const bridgeConfig = sails.config.slipway?.bridge || {};
+    const serializedBridgeConfig = JSON.stringify(
+      bridgeConfig,
+      function rejectUnsupportedBridgeConfig(_key, value) {
+        if (
+          value === undefined ||
+          ['function', 'symbol', 'bigint'].includes(typeof value)
+        ) {
+          throw new Error(
+            'sails.config.slipway.bridge must contain only serializable values.'
+          );
+        }
+        return value;
+      }
+    );
+
+    return {
       models,
-      config: sails.config.slipway?.bridge || {}
-    });
+      config: JSON.parse(serializedBridgeConfig)
+    };
   `
 }

@@ -43,7 +43,7 @@ module.exports = {
         const attribute = resource?.attributes?.[field]
         return (
           attribute &&
-          field !== resource.primaryKey &&
+          (field !== resource.primaryKey || surface === 'create') &&
           !attribute.protect &&
           !attribute.autoCreatedAt &&
           !attribute.autoUpdatedAt &&
@@ -65,6 +65,9 @@ module.exports = {
       }
 
       const attribute = resource.attributes[key]
+      const association = (resource.associations || []).find(
+        (candidate) => candidate.type === 'model' && candidate.alias === key
+      )
       if (
         attribute.field?.type === 'richtext' &&
         attribute.field?.format?.toLowerCase() === 'markdown' &&
@@ -74,7 +77,17 @@ module.exports = {
         continue
       }
 
-      allowedValues[key] = values[key]
+      allowedValues[key] = association
+        ? await sails.helpers.bridge.normalizeIdentifier.with({
+            value: values[key],
+            attribute: {
+              type: association.primaryKeyType || attribute.type,
+              maxLength: attribute.maxLength
+            },
+            allowNull: !attribute.required,
+            label: `Bridge field "${resource.identity}.${key}"`
+          })
+        : values[key]
     }
 
     if (rejectedFields.length > 0) {
