@@ -74,7 +74,8 @@ module.exports = {
         schemaVersion: contract.schemaVersion,
         discover: contract.discover,
         configured: contract.configured,
-        models: contract.resources || {}
+        models: contract.resources || {},
+        dashboards: contract.dashboards || {}
       }
 
       // Store in cache

@@ -11,6 +11,10 @@ module.exports = {
     envSlug: {
       type: 'string',
       defaultsTo: 'production'
+    },
+    dashboard: {
+      type: 'string',
+      defaultsTo: ''
     }
   },
 
@@ -23,7 +27,7 @@ module.exports = {
     }
   },
 
-  fn: async function ({ slug, envSlug }) {
+  fn: async function ({ slug, envSlug, dashboard }) {
     const user = await User.findOne({ id: this.req.session.userId }).populate(
       'team'
     )
@@ -55,6 +59,8 @@ module.exports = {
     // Load models server-side if app is running
     let models = {}
     let modelsError = null
+    let dashboards = []
+    let activeDashboard = null
 
     if (appRunning) {
       try {
@@ -77,12 +83,41 @@ module.exports = {
               resources: introspection.models || {},
               actor
             })
+          const dashboardResources = Object.fromEntries(
+            Object.entries(authorizedModels).filter(
+              ([, resource]) => !resource.hidden
+            )
+          )
           models = Object.fromEntries(
             Object.entries(authorizedModels).filter(
               ([, resource]) =>
                 !resource.hidden && resource.actions?.viewAny !== false
             )
           )
+
+          const dashboardDefinitions = Object.values(
+            introspection.dashboards || {}
+          ).filter((definition) => definition.scope !== 'resource')
+          dashboards = dashboardDefinitions.map((definition) => ({
+            id: definition.id,
+            label: definition.label,
+            scope: definition.scope
+          }))
+          const selectedDashboard =
+            dashboardDefinitions.find(
+              (definition) => definition.id === dashboard
+            ) ||
+            dashboardDefinitions.find((definition) => definition.default) ||
+            dashboardDefinitions[0]
+
+          if (selectedDashboard) {
+            activeDashboard = await sails.helpers.bridge.resolveDashboard.with({
+              containerName: app.containerName,
+              dashboard: selectedDashboard,
+              resources: dashboardResources,
+              actor
+            })
+          }
 
           // Get record counts for all models
           const definitions = Object.entries(models).map(([key, resource]) => ({
@@ -143,7 +178,9 @@ module.exports = {
         },
         appRunning,
         models,
-        modelsError
+        modelsError,
+        dashboards,
+        activeDashboard
       }
     }
   }

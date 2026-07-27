@@ -1,5 +1,6 @@
 <script setup>
 import { nextTick, onMounted, onUnmounted, ref } from 'vue'
+import { Link } from '@inertiajs/vue3'
 
 const props = defineProps({
   items: {
@@ -9,6 +10,11 @@ const props = defineProps({
   label: {
     type: String,
     default: 'Actions'
+  },
+  orientation: {
+    type: String,
+    default: 'horizontal',
+    validator: (value) => ['horizontal', 'vertical'].includes(value)
   },
   disabled: Boolean,
   testId: {
@@ -23,13 +29,22 @@ const trigger = ref(null)
 const menu = ref(null)
 const open = ref(false)
 
-async function toggle() {
+async function toggle(event) {
   if (props.disabled) return
   open.value = !open.value
-  if (open.value) {
+  if (open.value && event?.detail === 0) {
     await nextTick()
     menu.value?.querySelector('[role="menuitem"]')?.focus()
   }
+}
+
+async function openFromTrigger(position) {
+  if (props.disabled) return
+  open.value = true
+  await nextTick()
+  const items = menu.value?.querySelectorAll('[role="menuitem"]')
+  const item = position === 'last' ? items?.[items.length - 1] : items?.[0]
+  item?.focus()
 }
 
 function close({ restoreFocus = false } = {}) {
@@ -42,6 +57,15 @@ function select(item) {
   trigger.value?.focus()
   close()
   emit('select', item)
+}
+
+function itemClasses(item) {
+  return [
+    'flex w-full px-3 py-2 text-left text-sm focus:outline-none disabled:cursor-not-allowed disabled:opacity-40',
+    item.destructive
+      ? 'text-red-600 hover:bg-red-50 focus:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20 dark:focus:bg-red-900/20'
+      : 'text-gray-700 hover:bg-gray-50 focus:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-800 dark:focus:bg-gray-800'
+  ]
 }
 
 function handleKeydown(event) {
@@ -98,6 +122,9 @@ onUnmounted(() =>
       aria-haspopup="menu"
       :aria-expanded="open"
       @click.stop="toggle"
+      @keydown.down.prevent="openFromTrigger('first')"
+      @keydown.up.prevent="openFromTrigger('last')"
+      @keydown.escape.prevent="close({ restoreFocus: true })"
     >
       <svg
         class="h-4 w-4"
@@ -106,6 +133,11 @@ onUnmounted(() =>
         aria-hidden="true"
       >
         <path
+          v-if="orientation === 'vertical'"
+          d="M10 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm0 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm0 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z"
+        />
+        <path
+          v-else
           d="M6 10a2 2 0 1 1-4 0 2 2 0 0 1 4 0Zm6 0a2 2 0 1 1-4 0 2 2 0 0 1 4 0Zm6 0a2 2 0 1 1-4 0 2 2 0 0 1 4 0Z"
         />
       </svg>
@@ -120,23 +152,29 @@ onUnmounted(() =>
       @click.stop
       @keydown="handleKeydown"
     >
-      <button
-        v-for="item in items"
-        :key="item.key"
-        type="button"
-        role="menuitem"
-        :disabled="item.disabled"
-        :data-test="`${testId}-${item.key}`"
-        :class="[
-          'flex w-full px-3 py-2 text-left text-sm focus:outline-none disabled:cursor-not-allowed disabled:opacity-40',
-          item.destructive
-            ? 'text-red-600 hover:bg-red-50 focus:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20 dark:focus:bg-red-900/20'
-            : 'text-gray-700 hover:bg-gray-50 focus:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-800 dark:focus:bg-gray-800'
-        ]"
-        @click="select(item)"
-      >
-        {{ item.label }}
-      </button>
+      <template v-for="item in items" :key="item.key">
+        <Link
+          v-if="item.href && !item.disabled"
+          :href="item.href"
+          role="menuitem"
+          :data-test="`${testId}-${item.key}`"
+          :class="itemClasses(item)"
+          @click="select(item)"
+        >
+          {{ item.label }}
+        </Link>
+        <button
+          v-else
+          type="button"
+          role="menuitem"
+          :disabled="item.disabled"
+          :data-test="`${testId}-${item.key}`"
+          :class="itemClasses(item)"
+          @click="select(item)"
+        >
+          {{ item.label }}
+        </button>
+      </template>
     </div>
   </div>
 </template>

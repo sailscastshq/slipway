@@ -2,6 +2,7 @@
 import { Link, Head, router } from '@inertiajs/vue3'
 import { inject, computed, ref } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
+import BridgeDashboard from '@/components/bridge/BridgeDashboard.vue'
 
 defineOptions({
   layout: AppLayout
@@ -12,7 +13,9 @@ const props = defineProps({
   environment: Object,
   appRunning: Boolean,
   models: Object,
-  modelsError: String
+  modelsError: String,
+  dashboards: Array,
+  activeDashboard: Object
 })
 
 const toggleMobileMenu = inject('toggleMobileMenu')
@@ -60,7 +63,20 @@ function bridgeModelUrl(identity) {
 }
 
 function refresh() {
-  router.reload({ only: ['models', 'modelsError'] })
+  router.reload({ only: ['models', 'modelsError', 'activeDashboard'] })
+}
+
+function switchDashboard(event) {
+  const id = event.target.value
+  router.get(
+    `/projects/${props.project.slug}/environments/${props.environment.slug}/bridge`,
+    id ? { dashboard: id } : {},
+    {
+      preserveState: true,
+      preserveScroll: true,
+      replace: true
+    }
+  )
 }
 </script>
 
@@ -193,27 +209,44 @@ function refresh() {
           <span class="font-medium text-gray-900 dark:text-white">bridge</span>
         </nav>
       </div>
-      <!-- Refresh button -->
-      <button
-        v-if="appRunning && modelList.length > 0"
-        @click="refresh"
-        class="rounded-md p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-800 dark:hover:text-gray-300"
-        title="Refresh models"
-      >
-        <svg
-          class="h-4 w-4"
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
+      <div class="flex items-center gap-2">
+        <select
+          v-if="dashboards?.length > 1"
+          :value="activeDashboard?.id"
+          @change="switchDashboard"
+          aria-label="Bridge dashboard"
+          class="rounded-md border-0 bg-transparent py-1 pl-2 pr-7 text-sm text-gray-600 focus:ring-1 focus:ring-gray-300 dark:bg-gray-950 dark:text-gray-300 dark:focus:ring-gray-700"
         >
-          <path
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            stroke-width="2"
-            d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-          />
-        </svg>
-      </button>
+          <option
+            v-for="dashboard in dashboards"
+            :key="dashboard.id"
+            :value="dashboard.id"
+          >
+            {{ dashboard.label }}
+          </option>
+        </select>
+        <button
+          v-if="appRunning && (modelList.length > 0 || activeDashboard)"
+          @click="refresh"
+          class="rounded-md p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-800 dark:hover:text-gray-300"
+          title="Refresh Bridge"
+          aria-label="Refresh Bridge"
+        >
+          <svg
+            class="h-4 w-4"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+            />
+          </svg>
+        </button>
+      </div>
     </div>
 
     <!-- Content -->
@@ -306,7 +339,7 @@ function refresh() {
 
       <!-- No models -->
       <div
-        v-else-if="modelList.length === 0"
+        v-else-if="modelList.length === 0 && !activeDashboard"
         class="flex h-full items-center justify-center"
       >
         <div class="text-center">
@@ -336,10 +369,24 @@ function refresh() {
         </div>
       </div>
 
-      <!-- Models dashboard -->
+      <!-- Bridge dashboard and resources -->
       <div v-else class="mx-auto max-w-6xl px-4 py-6 sm:px-8">
+        <BridgeDashboard
+          v-if="activeDashboard"
+          :dashboard="activeDashboard"
+          :resources="models"
+          :project="project"
+          :environment="environment"
+        />
+
         <!-- Toolbar -->
-        <div class="mb-4 flex items-center justify-between">
+        <div
+          v-if="modelList.length > 0"
+          :class="[
+            'mb-4 flex items-center justify-between',
+            activeDashboard ? 'mt-12' : ''
+          ]"
+        >
           <input
             v-model="searchQuery"
             type="text"
@@ -355,7 +402,10 @@ function refresh() {
         </div>
 
         <!-- Resources table -->
-        <div class="rounded-lg border border-gray-200 dark:border-gray-800">
+        <div
+          v-if="modelList.length > 0"
+          class="rounded-lg border border-gray-200 dark:border-gray-800"
+        >
           <!-- Table Header -->
           <div
             class="grid grid-cols-12 gap-4 rounded-t-lg border-b border-gray-200 bg-gray-50/50 px-6 py-2 text-xs font-medium text-gray-500 dark:border-gray-800 dark:bg-gray-900/50"

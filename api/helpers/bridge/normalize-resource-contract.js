@@ -24,7 +24,14 @@ module.exports = {
   },
 
   fn: async function ({ models, config }) {
-    return normalizeBridgeResourceContract({ models, config })
+    const contract = normalizeBridgeResourceContract({ models, config })
+    contract.dashboards =
+      await sails.helpers.bridge.normalizeDashboardContract.with({
+        dashboard: config.dashboard,
+        dashboards: config.dashboards,
+        resources: contract.resources
+      })
+    return contract
   }
 }
 
