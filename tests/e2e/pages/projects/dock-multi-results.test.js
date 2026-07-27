@@ -65,9 +65,13 @@ test(
       })
     })
 
+    const updateCheckFinished = page.raw.waitForResponse(
+      '**/api/v1/system/check-update'
+    )
     await login.withPassword('genesisUser', page, {
       password: current.auth.genesisUserPassword
     })
+    await updateCheckFinished
     await page.raw
       .context()
       .grantPermissions(['clipboard-read', 'clipboard-write'])
