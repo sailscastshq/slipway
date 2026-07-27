@@ -34,10 +34,14 @@ test(
     const authorizationScreenshotRoot = path.resolve(
       '.tmp/screenshots/issue-218-bridge-authorization'
     )
+    const fieldEngineScreenshotRoot = path.resolve(
+      '.tmp/screenshots/issue-219-bridge-field-engine'
+    )
 
     fs.mkdirSync(screenshotRoot, { recursive: true })
     fs.mkdirSync(identifierScreenshotRoot, { recursive: true })
     fs.mkdirSync(authorizationScreenshotRoot, { recursive: true })
+    fs.mkdirSync(fieldEngineScreenshotRoot, { recursive: true })
 
     const contract = await sails.helpers.bridge.normalizeResourceContract.with({
       models: resourceMetadata(),
@@ -50,18 +54,21 @@ test(
       {
         id: courseRecordId,
         title: 'Build a production Sails app',
+        price: 3499,
         published: true,
         createdAt: Date.UTC(2026, 6, 21, 9, 30)
       },
       {
         id: '018f2a5c-7b34-7f8a-9c12-4a73b9d80210',
         title: 'Own the deployment path',
+        price: 2900,
         published: true,
         createdAt: Date.UTC(2026, 6, 18, 15, 10)
       },
       {
         id: '018f2a5c-7b34-7f8a-9c12-4a73b9d8020f',
         title: 'A legible cloud on one server',
+        price: 1900,
         published: false,
         createdAt: Date.UTC(2026, 6, 12, 11, 5)
       }
@@ -72,6 +79,12 @@ test(
       description:
         'A practical path from a Waterline model to a calm production release.',
       thumbnailUrl: 'https://cdn.example.com/courses/production-sails.webp',
+      price: 3499,
+      website: 'https://sailsjs.com',
+      metadata: {
+        level: 'production',
+        lessons: 12
+      },
       published: true,
       creator: creatorId
     }
@@ -134,7 +147,8 @@ test(
           ...submittedValues
         }
         persistedCourseRecord = {
-          ...createdValues
+          ...createdValues,
+          price: submittedValues.price * 100
         }
         return successfulResult({ record: persistedCourseRecord })
       }
@@ -142,7 +156,10 @@ test(
         updatedValues = readEmbeddedValue(code, 'values')
         persistedCourseRecord = {
           ...persistedCourseRecord,
-          ...updatedValues
+          ...updatedValues,
+          ...(updatedValues.price !== undefined
+            ? { price: updatedValues.price * 100 }
+            : {})
         }
         return successfulResult({ record: persistedCourseRecord })
       }
@@ -185,6 +202,28 @@ test(
           body: JSON.stringify({ updateAvailable: false })
         })
       })
+      await page.raw.route(
+        'https://cdn.example.com/courses/**',
+        async (route) => {
+          await route.fulfill({
+            status: 200,
+            contentType: 'image/svg+xml',
+            body: `
+              <svg xmlns="http://www.w3.org/2000/svg" width="640" height="400" viewBox="0 0 640 400">
+                <defs>
+                  <linearGradient id="sea" x1="0" x2="1" y1="0" y2="1">
+                    <stop stop-color="#0ea5e9"/>
+                    <stop offset="1" stop-color="#0f172a"/>
+                  </linearGradient>
+                </defs>
+                <rect width="640" height="400" fill="url(#sea)"/>
+                <path d="M0 290 C140 230 250 360 390 285 S550 245 640 300 V400 H0Z" fill="#fff" fill-opacity=".16"/>
+                <text x="48" y="90" fill="#fff" font-family="system-ui" font-size="24" font-weight="600">Build a production Sails app</text>
+              </svg>
+            `
+          })
+        }
+      )
       await login.withPassword('genesisUser', page, {
         password: current.auth.genesisUserPassword
       })
@@ -215,6 +254,7 @@ test(
       await page.goto(coursePath)
       await page.wait('text=Build a production Sails app')
       await expect(page).toSee('Course title')
+      await expect(page).toSee('$34.99')
       expect(await page.raw.locator('input[type="checkbox"]').count()).toBe(0)
       await page.screenshot(
         path.join(screenshotRoot, 'course-list-light.png'),
@@ -222,6 +262,16 @@ test(
           fullPage: true
         }
       )
+      await page.screenshot(
+        path.join(fieldEngineScreenshotRoot, 'typed-list-light.png'),
+        { fullPage: true }
+      )
+      await page.raw.emulateMedia({ colorScheme: 'dark' })
+      await page.screenshot(
+        path.join(fieldEngineScreenshotRoot, 'typed-list-dark.png'),
+        { fullPage: true }
+      )
+      await page.raw.emulateMedia({ colorScheme: 'light' })
 
       const actionsButton = page.raw.getByRole('button', {
         name: 'Actions for Build a production Sails app'
@@ -251,6 +301,9 @@ test(
       await page.wait('text=Create Course')
       await expect(page).toSee('Course description')
       await expect(page).toSee('Thumbnail')
+      await expect(page).toSee('Price')
+      await expect(page).toSee('Website')
+      await expect(page).toSee('Metadata')
       await expect(page).toSee('Creator')
       expect(await page.raw.getByLabel('Id').count()).toBe(0)
       const createRecordButton = page.raw.getByRole('button', {
@@ -258,12 +311,32 @@ test(
       })
       expect(await createRecordButton.isDisabled()).toBe(true)
       await page.screenshot(
-        path.join(screenshotRoot, 'course-create-light.png'),
+        path.join(fieldEngineScreenshotRoot, 'typed-create-light.png'),
+        { fullPage: true }
+      )
+      await createRecordButton.scrollIntoViewIfNeeded()
+      await page.screenshot(
+        path.join(
+          fieldEngineScreenshotRoot,
+          'typed-create-required-fields-light.png'
+        ),
         { fullPage: true }
       )
       await page.raw.getByLabel('Course title').fill('Ship a durable course')
+      await page.raw.getByLabel('Price').fill('49')
       await page.raw.getByLabel('Creator').selectOption(creatorId)
       expect(await createRecordButton.isEnabled()).toBe(true)
+      await createRecordButton.scrollIntoViewIfNeeded()
+      await page.screenshot(
+        path.join(fieldEngineScreenshotRoot, 'typed-create-ready-light.png'),
+        { fullPage: true }
+      )
+      await page.raw.emulateMedia({ colorScheme: 'dark' })
+      await page.screenshot(
+        path.join(fieldEngineScreenshotRoot, 'typed-create-ready-dark.png'),
+        { fullPage: true }
+      )
+      await page.raw.emulateMedia({ colorScheme: 'light' })
       await page.screenshot(
         path.join(
           identifierScreenshotRoot,
@@ -363,6 +436,7 @@ test(
       expect(createdValues.description).toBe(createdMarkdown)
       expect(createdValues.id).toBe(createdCourseRecordId)
       expect(createdValues.creator).toBe(creatorId)
+      expect(createdValues.price).toBe(49)
       await expect(page).toSee('Ship a durable course')
 
       await page.goto(`${coursePath}/${createdCourseRecordId}/edit`)
@@ -402,6 +476,7 @@ test(
         { timeout: 10000 }
       )
       expect(updatedValues.description).toBe(updatedMarkdown)
+      expect(updatedValues.price).toBe(49)
 
       await page.raw.setViewportSize({ width: 1440, height: 900 })
       await page.goto(`${coursePath}/${createdCourseRecordId}/edit`)
@@ -421,12 +496,23 @@ test(
       await page.wait('text=A practical path')
       await expect(page).toSee('Course description')
       await expect(page).toSee('Thumbnail')
+      await expect(page).toSee('$34.99')
+      await expect(page).toSee('https://sailsjs.com')
+      await expect(page).toSee('"lessons": 12')
+      await page.screenshot(
+        path.join(fieldEngineScreenshotRoot, 'typed-record-light.png'),
+        { fullPage: true }
+      )
       await page.raw.emulateMedia({ colorScheme: 'dark' })
       await page.screenshot(
         path.join(screenshotRoot, 'course-record-dark.png'),
         {
           fullPage: true
         }
+      )
+      await page.screenshot(
+        path.join(fieldEngineScreenshotRoot, 'typed-record-dark.png'),
+        { fullPage: true }
       )
 
       await page.raw.emulateMedia({ colorScheme: 'light' })
@@ -493,12 +579,15 @@ function resourceConfig() {
         group: 'Content',
         title: 'title',
         search: ['title'],
-        list: ['title', 'published', 'createdAt'],
+        list: ['title', 'price', 'published', 'createdAt'],
         show: [
           'id',
           'title',
           'description',
           'thumbnailUrl',
+          'price',
+          'website',
+          'metadata',
           'published',
           'creator'
         ],
@@ -506,10 +595,22 @@ function resourceConfig() {
           'title',
           'description',
           'thumbnailUrl',
+          'price',
+          'website',
+          'metadata',
           'published',
           'creator'
         ],
-        edit: ['title', 'description', 'thumbnailUrl', 'published', 'creator'],
+        edit: [
+          'title',
+          'description',
+          'thumbnailUrl',
+          'price',
+          'website',
+          'metadata',
+          'published',
+          'creator'
+        ],
         sort: {
           field: 'createdAt',
           direction: 'DESC'
@@ -543,6 +644,25 @@ function resourceConfig() {
               directory: 'courses/thumbnails',
               store: 'url'
             }
+          },
+          price: {
+            label: 'Price',
+            type: 'currency',
+            currency: {
+              code: 'USD',
+              storage: 'minor',
+              submit: 'major'
+            }
+          },
+          website: {
+            label: 'Website',
+            type: 'url',
+            placeholder: 'https://example.com/course'
+          },
+          metadata: {
+            label: 'Metadata',
+            type: 'json',
+            help: 'Structured course metadata stored as JSON.'
           },
           creator: {
             label: 'Creator'
@@ -590,6 +710,17 @@ function resourceMetadata() {
         },
         thumbnailUrl: {
           type: 'string'
+        },
+        price: {
+          type: 'number',
+          required: true
+        },
+        website: {
+          type: 'string',
+          isURL: true
+        },
+        metadata: {
+          type: 'json'
         },
         published: {
           type: 'boolean',

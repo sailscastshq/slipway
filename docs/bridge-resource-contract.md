@@ -15,12 +15,13 @@ module.exports.slipway = {
         group: 'Content',
         title: 'title',
         search: ['title'],
-        list: ['title', 'published', 'createdAt'],
+        list: ['title', 'price', 'published', 'createdAt'],
         show: [
           'id',
           'title',
           'description',
           'thumbnailUrl',
+          'price',
           'published',
           'creator'
         ],
@@ -28,10 +29,18 @@ module.exports.slipway = {
           'title',
           'description',
           'thumbnailUrl',
+          'price',
           'published',
           'creator'
         ],
-        edit: ['title', 'description', 'thumbnailUrl', 'published', 'creator'],
+        edit: [
+          'title',
+          'description',
+          'thumbnailUrl',
+          'price',
+          'published',
+          'creator'
+        ],
         filters: ['published'],
         sort: {
           field: 'createdAt',
@@ -44,6 +53,15 @@ module.exports.slipway = {
           helper: 'bridge.authorize'
         },
         fields: {
+          price: {
+            label: 'Price',
+            type: 'currency',
+            currency: {
+              code: 'USD',
+              storage: 'minor',
+              submit: 'major'
+            }
+          },
           description: {
             label: 'Course description',
             type: 'richtext',
@@ -136,6 +154,7 @@ Every field may define serializable UI metadata:
 | `currency`    | Currency display and hydration metadata                |
 | `relation`    | Relationship display metadata                          |
 | `upload`      | Upload constraints and canonical URL storage           |
+| `component`   | Registered Slipway field component extension point     |
 
 Sensitive names such as password, token, secret, API key, credential, recovery
 code, `emailChangeCandidate`, `planCode`, and `subscriptionCode` are omitted
@@ -249,8 +268,71 @@ executing the mutation in the target app. Normal Markdown and autolinks continue
 to work. Applications must still sanitize the HTML produced by their Markdown
 renderer because stored content remains untrusted at the rendering boundary.
 
-Uploads, currency hydration, and other specialized renderers build on the same
-field contract in their respective Bridge features.
+## Typed fields and hydration
+
+Bridge normalizes Waterline metadata and explicit field overrides into one
+field contract. The same contract drives form input, validation, mutation
+hydration, list display, and record display.
+
+Supported field types are:
+
+```text
+text, textarea, richtext, email, url, number, currency, boolean,
+select, belongsTo, json, date, datetime, timestamp, password,
+secret, file, image, upload
+```
+
+Email, URL, boolean, JSON, enums, relationships, timestamps, encrypted values,
+and long text are inferred from Waterline metadata. Use an explicit `type` when
+the stored Waterline type does not communicate the intended editor.
+
+JSON is validated in the browser and again by Slipway, then submitted to the
+target model as an object. Email and URL fields use their native browser input
+types and server validation; URL values are restricted to HTTP and HTTPS.
+Select values support primitives or labeled option objects:
+
+```js
+status: {
+  type: 'select',
+  options: [
+    { label: 'Draft', value: 'draft' },
+    { label: 'Published', value: 'published' }
+  ]
+}
+```
+
+### Currency and lifecycle callbacks
+
+Currency fields distinguish the value stored in the database from the value
+submitted to the target Waterline model:
+
+```js
+price: {
+  type: 'currency',
+  currency: {
+    code: 'USD',
+    locale: 'en-US',
+    storage: 'minor',
+    submit: 'major'
+  }
+}
+```
+
+With this configuration, a stored value of `3499` is displayed and edited as
+`$34.99`. Bridge submits `34.99`, so an existing `beforeCreate` or
+`beforeUpdate` lifecycle callback can continue converting dollars to cents.
+Set `submit: 'minor'` when the target model expects Bridge itself to submit
+`3499`. Set `storage: 'major'` when the database already stores `34.99`.
+
+`minimumFractionDigits` and `maximumFractionDigits` default to `2` and may be
+overridden for currencies with a different precision.
+
+### Custom components
+
+The optional `component` value names a component registered with Slipway's
+Bridge field registry. A registration may provide separate `form`, `list`, and
+`show` components. Application configuration contains only the safe,
+serializable name; it never ships executable target-app code into Slipway.
 
 ## Primary keys and belongs-to fields
 
@@ -297,9 +379,9 @@ Upload fields describe behavior only. Never put R2 or S3 credentials in
 to the Bridge UI.
 
 Bridge storage credentials use `BRIDGE_`-prefixed environment variables. The
-upload field engine will resolve the effective values from the current app
-first, then its environment, then instance-global defaults. This lets one app
-use its own R2 bucket while other apps inherit a shared provider configuration.
+upload field engine resolves the effective values from the current app first,
+then its environment, then instance-global defaults. This lets one app use its
+own R2 bucket while other apps inherit a shared provider configuration.
 
 The R2 provider contract is:
 
@@ -313,7 +395,33 @@ BRIDGE_R2_PUBLIC_URL=https://cdn.example.com
 BRIDGE_R2_REGION=auto
 ```
 
-The planned upload flow returns the canonical public URL and a short-lived,
-server-verifiable upload receipt. The model mutation stores the URL, while the
-receipt prevents a client from claiming an arbitrary object was uploaded by
-Bridge.
+The S3 provider uses the same names with `BRIDGE_S3_`:
+
+```text
+BRIDGE_STORAGE_PROVIDER=s3
+BRIDGE_S3_ACCESS_KEY=...
+BRIDGE_S3_SECRET_KEY=...
+BRIDGE_S3_BUCKET=...
+BRIDGE_S3_ENDPOINT=https://objects.example.com
+BRIDGE_S3_PUBLIC_URL=https://cdn.example.com
+BRIDGE_S3_REGION=us-east-1
+```
+
+Only `BRIDGE_` variables are considered. App values override environment
+values, and environment values override instance-global values.
+
+The upload endpoint:
+
+- authorizes the current actor against the target resource and create/edit
+  action before accepting bytes;
+- enforces the field's MIME allowlist and `maxBytes`;
+- streams directly to the configured object store instead of buffering the
+  entire file in Slipway memory;
+- scopes the object key to the team, project, environment, resource, and field;
+  and
+- returns the canonical public URL plus a short-lived, signed receipt.
+
+The subsequent create or update accepts the URL only when its receipt matches
+the current actor, project, environment, resource, and field. The target model
+stores only the URL. A browser therefore cannot forge a different remote URL
+or reuse a receipt across apps or fields.

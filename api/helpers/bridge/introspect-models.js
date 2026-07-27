@@ -132,6 +132,7 @@ function buildIntrospectionCode() {
             allowNull: attr.allowNull || false,
             isUUID: relatedPrimaryKeyAttribute.isUUID || false,
             maxLength: relatedPrimaryKeyAttribute.maxLength || null,
+            description: attr.description || null,
             validations: {
               isUUID: relatedPrimaryKeyAttribute.isUUID || false
             }
@@ -163,9 +164,14 @@ function buildIntrospectionCode() {
             false,
           allowNull: attr.allowNull || false,
           isEmail: attr.isEmail || false,
+          isURL: attr.isURL || false,
           isUUID: attr.isUUID || false,
           isIn: attr.isIn || null,
+          min: attr.min ?? null,
+          max: attr.max ?? null,
+          minLength: attr.minLength || null,
           maxLength: attr.maxLength || null,
+          description: attr.description || null,
           encrypt: !!attr.encrypt,
           protect: !!attr.protect,
           validations: {}
@@ -173,8 +179,11 @@ function buildIntrospectionCode() {
 
         // Collect validation rules
         if (attr.isEmail) models[identity].attributes[attrName].validations.isEmail = true;
+        if (attr.isURL) models[identity].attributes[attrName].validations.isURL = true;
         if (attr.isUUID) models[identity].attributes[attrName].validations.isUUID = true;
         if (attr.isIn) models[identity].attributes[attrName].validations.isIn = attr.isIn;
+        if (attr.min !== undefined) models[identity].attributes[attrName].validations.min = attr.min;
+        if (attr.max !== undefined) models[identity].attributes[attrName].validations.max = attr.max;
         if (attr.maxLength) models[identity].attributes[attrName].validations.maxLength = attr.maxLength;
         if (attr.minLength) models[identity].attributes[attrName].validations.minLength = attr.minLength;
         if (attr.regex) models[identity].attributes[attrName].validations.regex = String(attr.regex);

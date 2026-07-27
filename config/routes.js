@@ -363,6 +363,10 @@ module.exports.routes = {
     'project/bridge-create-record',
   'POST /projects/:slug/environments/:envSlug/bridge/:modelIdentity/create':
     'project/bridge-create-record',
+  'POST /projects/:slug/bridge/:modelIdentity/:fieldName/upload':
+    'project/bridge-upload-field',
+  'POST /projects/:slug/environments/:envSlug/bridge/:modelIdentity/:fieldName/upload':
+    'project/bridge-upload-field',
   'POST /projects/:slug/bridge/:modelIdentity/:recordId/update':
     'project/bridge-update-record',
   'POST /projects/:slug/environments/:envSlug/bridge/:modelIdentity/:recordId/update':

@@ -2,7 +2,7 @@ module.exports = {
   friendlyName: 'Redact Bridge resource records',
 
   description:
-    'Strip record properties that are outside the normalized Bridge field surface.',
+    'Strip unavailable properties and resolve stored field values for a Bridge surface.',
 
   inputs: {
     records: {
@@ -43,7 +43,10 @@ module.exports = {
           !['__proto__', 'constructor', 'prototype'].includes(field) &&
           Object.prototype.hasOwnProperty.call(record, field)
         ) {
-          safeRecord[field] = record[field]
+          safeRecord[field] = resolveFieldValue(
+            record[field],
+            resource.attributes?.[field]
+          )
         }
       }
       return safeRecord
@@ -51,4 +54,18 @@ module.exports = {
 
     return Array.isArray(records) ? records.map(redact) : redact(records)
   }
+}
+
+function resolveFieldValue(value, attribute) {
+  if (value === null || value === undefined) return value
+  if (
+    attribute?.field?.type === 'currency' &&
+    attribute.field.currency?.storage === 'minor'
+  ) {
+    const number = Number(value)
+    if (!Number.isFinite(number)) return value
+    const digits = attribute.field.currency.maximumFractionDigits ?? 2
+    return number / 10 ** digits
+  }
+  return value
 }

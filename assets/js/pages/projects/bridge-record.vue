@@ -5,6 +5,7 @@ import AppLayout from '@/layouts/AppLayout.vue'
 import ConfirmModal from '@/components/ConfirmModal.vue'
 import ToastContainer from '@/components/ToastContainer.vue'
 import { createToast } from '@/composables/toast'
+import BridgeFieldValue from '@/components/bridge/BridgeFieldValue.vue'
 
 defineOptions({
   layout: AppLayout
@@ -72,37 +73,6 @@ const collectionAssociations = computed(() => {
 
 function fieldLabel(name) {
   return props.modelMeta?.attributes[name]?.label || name
-}
-
-function formatValue(value, attr) {
-  if (value === null || value === undefined)
-    return { display: 'null', isNull: true }
-  if (attr?.autoCreatedAt || attr?.autoUpdatedAt) {
-    try {
-      const d = new Date(value)
-      return {
-        display: d.toLocaleString(undefined, {
-          dateStyle: 'long',
-          timeStyle: 'medium'
-        }),
-        isNull: false
-      }
-    } catch {
-      /* fall through */
-    }
-  }
-  if (attr?.type === 'boolean')
-    return { display: value, isBoolean: true, isNull: false }
-  if (attr?.encrypt)
-    return { display: '(encrypted)', isEncrypted: true, isNull: false }
-  if (attr?.type === 'json' || typeof value === 'object') {
-    return {
-      display: JSON.stringify(value, null, 2),
-      isJson: true,
-      isNull: false
-    }
-  }
-  return { display: String(value), isNull: false }
 }
 
 function collectionRecords(alias) {
@@ -408,45 +378,12 @@ function relatedRecordUrl(model, id) {
                   <dd
                     class="min-w-0 flex-1 text-sm text-gray-900 dark:text-white"
                   >
-                    <template v-if="formatValue(record[name], attr).isNull">
-                      <span class="text-gray-300 dark:text-gray-600">null</span>
-                    </template>
-                    <template
-                      v-else-if="formatValue(record[name], attr).isBoolean"
-                    >
-                      <span
-                        :class="[
-                          'inline-flex rounded-full px-2 py-0.5 text-xs font-medium',
-                          record[name]
-                            ? 'bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-400'
-                            : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'
-                        ]"
-                      >
-                        {{ record[name] }}
-                      </span>
-                    </template>
-                    <template
-                      v-else-if="formatValue(record[name], attr).isEncrypted"
-                    >
-                      <span
-                        class="inline-flex rounded-full bg-yellow-50 px-2 py-0.5 text-xs font-medium text-yellow-700 dark:bg-yellow-900/20 dark:text-yellow-400"
-                      >
-                        encrypted
-                      </span>
-                    </template>
-                    <template
-                      v-else-if="formatValue(record[name], attr).isJson"
-                    >
-                      <pre
-                        class="max-h-40 overflow-auto rounded-lg bg-gray-50 p-2 font-mono text-xs dark:bg-gray-950"
-                        >{{ formatValue(record[name], attr).display }}</pre
-                      >
-                    </template>
-                    <template v-else>
-                      <span class="break-all">{{
-                        formatValue(record[name], attr).display
-                      }}</span>
-                    </template>
+                    <BridgeFieldValue
+                      :name="name"
+                      :attribute="attr"
+                      :value="record[name]"
+                      context="show"
+                    />
                   </dd>
                 </div>
 

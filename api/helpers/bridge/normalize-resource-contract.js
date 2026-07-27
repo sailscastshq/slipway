@@ -43,6 +43,27 @@ function normalizeBridgeResourceContract({ models, config = {} }) {
     'bulkDelete'
   ]
   const FIELD_VISIBILITY_SURFACES = ['list', 'show', 'create', 'edit', 'filter']
+  const FIELD_TYPES = [
+    'text',
+    'textarea',
+    'richtext',
+    'email',
+    'url',
+    'number',
+    'currency',
+    'boolean',
+    'select',
+    'belongsTo',
+    'json',
+    'date',
+    'datetime',
+    'timestamp',
+    'password',
+    'secret',
+    'file',
+    'image',
+    'upload'
+  ]
   const RESOURCE_OPTION_KEYS = [
     'label',
     'singularLabel',
@@ -74,7 +95,8 @@ function normalizeBridgeResourceContract({ models, config = {} }) {
     'visibility',
     'currency',
     'relation',
-    'upload'
+    'upload',
+    'component'
   ]
 
   if (!isPlainObject(models)) {
@@ -363,7 +385,14 @@ function normalizeBridgeResourceContract({ models, config = {} }) {
         FIELD_OPTION_KEYS,
         `Bridge field "${identity}.${name}"`
       )
-      for (const option of ['label', 'type', 'format', 'help', 'placeholder']) {
+      for (const option of [
+        'label',
+        'type',
+        'format',
+        'help',
+        'placeholder',
+        'component'
+      ]) {
         assertOptionalString(
           fieldOptions[name][option],
           `Bridge field "${identity}.${name}".${option}`
@@ -386,6 +415,27 @@ function normalizeBridgeResourceContract({ models, config = {} }) {
       ) {
         throw new Error(
           `Bridge field "${identity}.${name}".options must be an array.`
+        )
+      }
+      if (fieldOptions[name].type !== undefined) {
+        const normalizedType = normalizeFieldType(fieldOptions[name].type)
+        if (!FIELD_TYPES.includes(normalizedType)) {
+          throw new Error(
+            `Bridge field "${identity}.${name}".type must be one of: ${FIELD_TYPES.join(
+              ', '
+            )}.`
+          )
+        }
+      }
+      validateFieldOptions(identity, name, fieldOptions[name].options)
+      validateCurrency(identity, name, fieldOptions[name].currency)
+      validateUpload(identity, name, fieldOptions[name].upload)
+      if (
+        fieldOptions[name].component !== undefined &&
+        !isSafeComponentName(fieldOptions[name].component)
+      ) {
+        throw new Error(
+          `Bridge field "${identity}.${name}".component must be a safe registered component name.`
         )
       }
       for (const option of ['relation', 'upload']) {
@@ -421,6 +471,24 @@ function normalizeBridgeResourceContract({ models, config = {} }) {
             `${identity}.${name}`
           )
         }
+      }
+
+      safeField.type = inferFieldType({
+        name,
+        attribute,
+        association,
+        configuredType: rawField.type
+      })
+      const optionSource =
+        rawField.options ?? attribute.isIn ?? attribute.validations?.isIn
+      if (optionSource !== undefined) {
+        safeField.options = normalizeFieldOptions(optionSource)
+      }
+      if (safeField.type === 'currency') {
+        safeField.currency = normalizeCurrency(rawField.currency)
+      }
+      if (['file', 'image', 'upload'].includes(safeField.type)) {
+        safeField.upload = normalizeUpload(safeField.type, rawField.upload)
       }
 
       attributes[name] = {
@@ -588,6 +656,299 @@ function normalizeBridgeResourceContract({ models, config = {} }) {
         `Bridge field "${identity}.${name}".visibility.${surface}`
       )
     }
+  }
+
+  function inferFieldType({ name, attribute, association, configuredType }) {
+    if (configuredType) return normalizeFieldType(configuredType)
+    if (association) return 'belongsTo'
+    if (attribute.encrypt || attribute.protect) return 'password'
+    if (attribute.isEmail || attribute.validations?.isEmail) return 'email'
+    if (attribute.isURL || attribute.validations?.isURL) return 'url'
+    if (
+      Array.isArray(attribute.isIn) ||
+      Array.isArray(attribute.validations?.isIn)
+    ) {
+      return 'select'
+    }
+    if (attribute.type === 'boolean') return 'boolean'
+    if (attribute.type === 'json' || attribute.type === 'ref') return 'json'
+    if (attribute.autoCreatedAt || attribute.autoUpdatedAt) return 'timestamp'
+    if (attribute.type === 'number') return 'number'
+    const dateFieldType = inferDateFieldType(attribute.columnType)
+    if (dateFieldType) return dateFieldType
+    if (attribute.type === 'string' && looksLikeLongText(name, attribute)) {
+      return 'textarea'
+    }
+    return 'text'
+  }
+
+  function normalizeFieldType(type) {
+    const normalized = String(type).trim()
+    if (normalized === 'toggle') return 'boolean'
+    if (normalized === 'string') return 'text'
+    return normalized
+  }
+
+  function inferDateFieldType(columnType) {
+    if (typeof columnType !== 'string') return null
+    if (/^\s*date\s*$/i.test(columnType)) return 'date'
+    if (/(date|time|timestamp)/i.test(columnType)) return 'datetime'
+    return null
+  }
+
+  function looksLikeLongText(name, attribute) {
+    if (
+      typeof attribute.columnType === 'string' &&
+      /(text|clob)/i.test(attribute.columnType)
+    ) {
+      return true
+    }
+    return /(content|body|description|bio|about|summary|notes|markdown|html)/i.test(
+      name
+    )
+  }
+
+  function validateFieldOptions(identity, name, options) {
+    if (options === undefined) return
+    for (const [index, option] of options.entries()) {
+      if (
+        ['string', 'number', 'boolean'].includes(typeof option) ||
+        option === null
+      ) {
+        continue
+      }
+      if (!isPlainObject(option)) {
+        throw new Error(
+          `Bridge field "${identity}.${name}".options[${index}] must be a primitive or an option object.`
+        )
+      }
+      rejectUnknownKeys(
+        option,
+        ['label', 'value', 'disabled'],
+        `Bridge field "${identity}.${name}".options[${index}]`
+      )
+      if (!Object.prototype.hasOwnProperty.call(option, 'value')) {
+        throw new Error(
+          `Bridge field "${identity}.${name}".options[${index}].value is required.`
+        )
+      }
+      if (
+        !['string', 'number', 'boolean'].includes(typeof option.value) &&
+        option.value !== null
+      ) {
+        throw new Error(
+          `Bridge field "${identity}.${name}".options[${index}].value must be a string, number, boolean, or null.`
+        )
+      }
+      assertOptionalString(
+        option.label,
+        `Bridge field "${identity}.${name}".options[${index}].label`
+      )
+      assertOptionalBoolean(
+        option.disabled,
+        `Bridge field "${identity}.${name}".options[${index}].disabled`
+      )
+    }
+  }
+
+  function normalizeFieldOptions(options) {
+    return options.map((option) => {
+      if (isPlainObject(option)) {
+        return {
+          label:
+            readString(option.label) ||
+            (option.value === null ? 'None' : String(option.value)),
+          value: option.value,
+          disabled: option.disabled === true
+        }
+      }
+      return {
+        label: option === null ? 'None' : String(option),
+        value: option,
+        disabled: false
+      }
+    })
+  }
+
+  function validateCurrency(identity, name, currency) {
+    if (currency === undefined) return
+    if (!isPlainObject(currency)) {
+      throw new Error(
+        `Bridge field "${identity}.${name}".currency must be an object.`
+      )
+    }
+    rejectUnknownKeys(
+      currency,
+      [
+        'code',
+        'locale',
+        'storage',
+        'submit',
+        'minimumFractionDigits',
+        'maximumFractionDigits'
+      ],
+      `Bridge field "${identity}.${name}".currency`
+    )
+    assertOptionalString(
+      currency.code,
+      `Bridge field "${identity}.${name}".currency.code`
+    )
+    assertOptionalString(
+      currency.locale,
+      `Bridge field "${identity}.${name}".currency.locale`
+    )
+    for (const option of ['storage', 'submit']) {
+      if (
+        currency[option] !== undefined &&
+        !['major', 'minor'].includes(currency[option])
+      ) {
+        throw new Error(
+          `Bridge field "${identity}.${name}".currency.${option} must be "major" or "minor".`
+        )
+      }
+    }
+    for (const option of ['minimumFractionDigits', 'maximumFractionDigits']) {
+      const value = currency[option]
+      if (
+        value !== undefined &&
+        (!Number.isInteger(value) || value < 0 || value > 20)
+      ) {
+        throw new Error(
+          `Bridge field "${identity}.${name}".currency.${option} must be an integer from 0 to 20.`
+        )
+      }
+    }
+  }
+
+  function normalizeCurrency(currency = {}) {
+    const code = readString(currency.code) || 'USD'
+    if (!/^[A-Za-z]{3}$/.test(code)) {
+      throw new Error(
+        'Bridge currency codes must use a three-letter ISO 4217 code.'
+      )
+    }
+    const minimumFractionDigits = currency.minimumFractionDigits ?? 2
+    const maximumFractionDigits =
+      currency.maximumFractionDigits ?? minimumFractionDigits
+    if (maximumFractionDigits < minimumFractionDigits) {
+      throw new Error(
+        'Bridge currency maximumFractionDigits cannot be smaller than minimumFractionDigits.'
+      )
+    }
+    return {
+      code: code.toUpperCase(),
+      locale: readString(currency.locale) || 'en-US',
+      storage: currency.storage || 'major',
+      submit: currency.submit || 'major',
+      minimumFractionDigits,
+      maximumFractionDigits
+    }
+  }
+
+  function validateUpload(identity, name, upload) {
+    if (upload === undefined) return
+    if (!isPlainObject(upload)) {
+      throw new Error(
+        `Bridge field "${identity}.${name}".upload must be an object.`
+      )
+    }
+    rejectUnknownKeys(
+      upload,
+      ['kind', 'storage', 'directory', 'store', 'accept', 'maxBytes'],
+      `Bridge field "${identity}.${name}".upload`
+    )
+    for (const option of ['kind', 'storage', 'directory', 'store']) {
+      assertOptionalString(
+        upload[option],
+        `Bridge field "${identity}.${name}".upload.${option}`
+      )
+    }
+    if (upload.kind !== undefined && !['image', 'file'].includes(upload.kind)) {
+      throw new Error(
+        `Bridge field "${identity}.${name}".upload.kind must be "image" or "file".`
+      )
+    }
+    if (upload.storage !== undefined && upload.storage !== 'bridge') {
+      throw new Error(
+        `Bridge field "${identity}.${name}".upload.storage must be "bridge".`
+      )
+    }
+    if (upload.store !== undefined && upload.store !== 'url') {
+      throw new Error(
+        `Bridge field "${identity}.${name}".upload.store must be "url".`
+      )
+    }
+    if (
+      upload.directory !== undefined &&
+      !/^[A-Za-z0-9](?:[A-Za-z0-9_-]|\/(?=[A-Za-z0-9]))*$/.test(
+        upload.directory
+      )
+    ) {
+      throw new Error(
+        `Bridge field "${identity}.${name}".upload.directory must be a safe relative object path.`
+      )
+    }
+    if (
+      upload.accept !== undefined &&
+      !(
+        typeof upload.accept === 'string' ||
+        (Array.isArray(upload.accept) &&
+          upload.accept.every(
+            (value) => typeof value === 'string' && value.trim()
+          ))
+      )
+    ) {
+      throw new Error(
+        `Bridge field "${identity}.${name}".upload.accept must be a MIME type string or array.`
+      )
+    }
+    if (
+      upload.maxBytes !== undefined &&
+      (!Number.isSafeInteger(upload.maxBytes) ||
+        upload.maxBytes < 1 ||
+        upload.maxBytes > 2 * 1024 * 1024 * 1024)
+    ) {
+      throw new Error(
+        `Bridge field "${identity}.${name}".upload.maxBytes must be between 1 byte and 2 GiB.`
+      )
+    }
+  }
+
+  function normalizeUpload(type, upload = {}) {
+    const kind = upload.kind || (type === 'image' ? 'image' : 'file')
+    const accept = Array.isArray(upload.accept)
+      ? upload.accept.map((value) => value.trim())
+      : typeof upload.accept === 'string'
+      ? upload.accept
+          .split(',')
+          .map((value) => value.trim())
+          .filter(Boolean)
+      : kind === 'image'
+      ? ['image/avif', 'image/gif', 'image/jpeg', 'image/png', 'image/webp']
+      : []
+
+    return {
+      kind,
+      storage: upload.storage || 'bridge',
+      directory: readString(upload.directory) || '',
+      store: upload.store || 'url',
+      accept,
+      maxBytes:
+        upload.maxBytes ||
+        (kind === 'image' ? 5 * 1024 * 1024 : 100 * 1024 * 1024)
+    }
+  }
+
+  function isSafeComponentName(value) {
+    return (
+      typeof value === 'string' &&
+      /^[A-Za-z][A-Za-z0-9]*(?:[./-][A-Za-z0-9]+)*$/.test(value) &&
+      !value
+        .split(/[./-]/)
+        .some((part) =>
+          ['__proto__', 'constructor', 'prototype'].includes(part)
+        )
+    )
   }
 
   function isAllowedOnSurface(attribute, surface) {

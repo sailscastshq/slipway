@@ -208,7 +208,15 @@ test('Bridge represents a fully configured content resource', async ({
     kind: 'image',
     storage: 'bridge',
     directory: 'courses/thumbnails',
-    store: 'url'
+    store: 'url',
+    accept: [
+      'image/avif',
+      'image/gif',
+      'image/jpeg',
+      'image/png',
+      'image/webp'
+    ],
+    maxBytes: 5 * 1024 * 1024
   })
 })
 
