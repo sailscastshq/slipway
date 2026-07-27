@@ -26,6 +26,39 @@ const props = defineProps({
   uploadUrl: {
     type: String,
     default: ''
+  },
+  variant: {
+    type: String,
+    default: 'document',
+    validator: (value) => ['document', 'field'].includes(value)
+  },
+  editorId: {
+    type: String,
+    default: 'content'
+  },
+  placeholder: {
+    type: String,
+    default: 'Start writing…'
+  },
+  ariaLabel: {
+    type: String,
+    default: 'Document body'
+  },
+  ariaLabelledby: {
+    type: String,
+    default: ''
+  },
+  ariaDescribedby: {
+    type: String,
+    default: ''
+  },
+  required: {
+    type: Boolean,
+    default: false
+  },
+  denyRawHtml: {
+    type: Boolean,
+    default: false
   }
 })
 
@@ -52,8 +85,35 @@ const uploadMessage = ref('')
 const uploadKind = ref('status')
 let uploadMessageTimeout
 
-const sourcePlaceholder =
-  'Write Markdown here. Visual mode becomes available when every construct can be preserved safely.'
+const isField = computed(() => props.variant === 'field')
+const sourcePlaceholder = computed(() =>
+  isField.value
+    ? 'Write Markdown…'
+    : 'Write Markdown here. Visual mode becomes available when every construct can be preserved safely.'
+)
+const compatibilityTitle = computed(() =>
+  isField.value
+    ? 'This value is safest in Markdown'
+    : 'This document is safest in Markdown'
+)
+const shouldShowCompatibilityWarning = computed(
+  () =>
+    compatibility.value.message &&
+    !(
+      props.denyRawHtml &&
+      compatibility.value.issues.some(({ code }) =>
+        ['html-comments', 'raw-html', 'mdx'].includes(code)
+      )
+    )
+)
+
+function elementId(suffix) {
+  return `${props.editorId}-${suffix}`
+}
+
+function testHandle(suffix) {
+  return `${props.editorId}-${suffix}`
+}
 
 const editor = useEditor({
   content: '',
@@ -84,7 +144,7 @@ const editor = useEditor({
       }
     }),
     Placeholder.configure({
-      placeholder: 'Start writing…'
+      placeholder: props.placeholder
     }),
     FileHandler.configure({
       allowedMimeTypes: [
@@ -110,8 +170,11 @@ const editor = useEditor({
   ],
   editorProps: {
     attributes: {
-      'aria-label': 'Document body',
-      'data-test': 'content-visual-editor',
+      'aria-label': props.ariaLabelledby ? undefined : props.ariaLabel,
+      'aria-labelledby': props.ariaLabelledby || undefined,
+      'aria-describedby': props.ariaDescribedby || undefined,
+      'aria-required': props.required ? 'true' : undefined,
+      'data-test': testHandle('visual-editor'),
       spellcheck: 'true'
     },
     transformPastedHTML: (html) =>
@@ -312,7 +375,7 @@ function openLinkEditor() {
   linkUrl.value = editor.value?.getAttributes('link').href || ''
   linkEditorOpen.value = true
   void nextTick(() => {
-    document.querySelector('[data-test="content-link-input"]')?.focus()
+    document.querySelector(`[data-test="${testHandle('link-input')}"]`)?.focus()
   })
 }
 
@@ -444,14 +507,22 @@ defineExpose({
 
 <template>
   <section
-    class="relative flex min-h-full flex-col"
-    aria-label="Content editor"
+    :class="[
+      'relative flex flex-col',
+      isField ? 'markdown-editor--field' : 'min-h-full'
+    ]"
+    :aria-label="isField ? undefined : 'Content editor'"
   >
     <div
-      v-if="mode === 'source' && compatibility.message"
-      data-test="content-source-warning"
+      v-if="mode === 'source' && shouldShowCompatibilityWarning"
+      :data-test="testHandle('source-warning')"
       role="note"
-      class="mx-auto mt-6 flex w-full max-w-3xl gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950 dark:border-amber-900/70 dark:bg-amber-950/40 dark:text-amber-100"
+      :class="[
+        'flex w-full gap-3 rounded-lg text-sm text-amber-950 dark:text-amber-100',
+        isField
+          ? 'mb-3 bg-amber-50 px-3 py-2 dark:bg-amber-950/40'
+          : 'mx-auto mt-6 max-w-3xl border border-amber-200 bg-amber-50 px-4 py-3 dark:border-amber-900/70 dark:bg-amber-950/40'
+      ]"
     >
       <svg
         class="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400"
@@ -468,7 +539,7 @@ defineExpose({
         />
       </svg>
       <div>
-        <p class="font-medium">This document is safest in Markdown</p>
+        <p class="font-medium">{{ compatibilityTitle }}</p>
         <p class="mt-0.5 leading-5 text-amber-800 dark:text-amber-200">
           {{ compatibility.message }}
         </p>
@@ -480,27 +551,46 @@ defineExpose({
 
     <div
       v-show="mode === 'visual'"
-      class="mx-auto flex w-full max-w-3xl flex-1 px-5 pb-28 pt-10 sm:px-8 sm:pt-14"
+      :class="[
+        'flex w-full flex-1',
+        isField
+          ? 'focus-within:border-brand border-b border-dashed border-gray-200 px-1 py-2 dark:border-gray-700'
+          : 'mx-auto max-w-3xl px-5 pb-28 pt-10 sm:px-8 sm:pt-14'
+      ]"
     >
       <EditorContent
         :editor="editor"
-        class="content-editor-canvas min-h-[34rem] w-full"
+        :class="[
+          'content-editor-canvas w-full',
+          isField ? 'min-h-40' : 'min-h-[34rem]'
+        ]"
       />
     </div>
 
     <div
       v-if="mode === 'source'"
-      class="mx-auto flex w-full max-w-4xl flex-1 px-4 pb-24 pt-6 sm:px-8"
+      :class="[
+        'flex w-full flex-1',
+        isField
+          ? 'focus-within:border-brand border-b border-dashed border-gray-200 px-1 py-2 dark:border-gray-700'
+          : 'mx-auto max-w-4xl px-4 pb-24 pt-6 sm:px-8'
+      ]"
     >
-      <label class="sr-only" for="content-markdown-source"
-        >Markdown source</label
+      <label class="sr-only" :for="elementId('markdown-source')"
+        >{{ ariaLabel }} Markdown source</label
       >
       <textarea
-        id="content-markdown-source"
+        :id="elementId('markdown-source')"
         :value="sourceValue"
-        data-test="content-markdown-source"
-        class="min-h-[34rem] w-full resize-none bg-transparent px-1 py-4 font-mono text-[15px] leading-7 text-gray-800 outline-none placeholder:text-gray-400 focus-visible:ring-0 dark:text-gray-200 dark:placeholder:text-gray-600"
+        :data-test="testHandle('markdown-source')"
+        :class="[
+          'w-full resize-none bg-transparent px-1 font-mono text-[15px] leading-7 text-gray-800 outline-none placeholder:text-gray-400 focus-visible:ring-0 dark:text-gray-200 dark:placeholder:text-gray-600',
+          isField ? 'min-h-40 py-2' : 'min-h-[34rem] py-4'
+        ]"
         :placeholder="sourcePlaceholder"
+        :required="required"
+        :aria-labelledby="ariaLabelledby || undefined"
+        :aria-describedby="ariaDescribedby || undefined"
         spellcheck="false"
         @input="updateSource"
       ></textarea>
@@ -511,10 +601,10 @@ defineExpose({
       :editor="editor"
       :should-show="shouldShowTextMenu"
       :options="{ placement: 'top', offset: 10 }"
-      plugin-key="content-text-menu"
+      :plugin-key="elementId('text-menu')"
     >
       <div
-        data-test="content-format-menu"
+        :data-test="testHandle('format-menu')"
         class="flex items-center gap-0.5 rounded-lg bg-gray-900 p-1 text-white shadow-xl ring-1 ring-black/10 dark:bg-white dark:text-gray-900 dark:ring-white/10"
         role="toolbar"
         aria-label="Text formatting"
@@ -615,18 +705,18 @@ defineExpose({
           class="flex items-center gap-1"
           @submit.prevent="applyLink"
         >
-          <label class="sr-only" for="content-link-url">Link URL</label>
+          <label class="sr-only" :for="elementId('link-url')">Link URL</label>
           <input
-            id="content-link-url"
+            :id="elementId('link-url')"
             v-model="linkUrl"
-            data-test="content-link-input"
+            :data-test="testHandle('link-input')"
             type="text"
             inputmode="url"
             autocomplete="off"
             placeholder="https://"
             class="h-8 w-48 rounded-md border-0 bg-white/10 px-2 text-sm text-white outline-none placeholder:text-gray-400 focus:ring-1 focus:ring-white/50 dark:bg-gray-900/5 dark:text-gray-900 dark:placeholder:text-gray-500 dark:focus:ring-gray-900/30"
             :aria-invalid="Boolean(linkError)"
-            :aria-describedby="linkError ? 'content-link-error' : undefined"
+            :aria-describedby="linkError ? elementId('link-error') : undefined"
           />
           <button
             type="submit"
@@ -644,7 +734,7 @@ defineExpose({
           </button>
           <p
             v-if="linkError"
-            id="content-link-error"
+            :id="elementId('link-error')"
             class="sr-only"
             role="alert"
           >
@@ -659,16 +749,18 @@ defineExpose({
       :editor="editor"
       :should-show="shouldShowImageMenu"
       :options="{ placement: 'top', offset: 10 }"
-      plugin-key="content-image-menu"
+      :plugin-key="elementId('image-menu')"
     >
       <form
-        data-test="content-image-menu"
+        :data-test="testHandle('image-menu')"
         class="flex items-center gap-1 rounded-lg bg-gray-900 p-1 text-white shadow-xl ring-1 ring-black/10 dark:bg-white dark:text-gray-900 dark:ring-white/10"
         @submit.prevent="updateImageAlt"
       >
-        <label class="sr-only" for="content-image-alt">Image alt text</label>
+        <label class="sr-only" :for="elementId('image-alt')"
+          >Image alt text</label
+        >
         <input
-          id="content-image-alt"
+          :id="elementId('image-alt')"
           v-model="imageAlt"
           type="text"
           placeholder="Describe this image"
@@ -838,7 +930,48 @@ defineExpose({
   float: left;
   height: 0;
   color: var(--color-gray-400);
-  content: 'Start writing…';
+  content: attr(data-placeholder);
+}
+
+.markdown-editor--field :deep(.tiptap) {
+  min-height: 10rem;
+  font-size: 0.9375rem;
+  line-height: 1.7;
+}
+
+.markdown-editor--field :deep(.tiptap p) {
+  margin: 0.65em 0;
+}
+
+.markdown-editor--field :deep(.tiptap h1) {
+  margin: 0.7em 0 0.4em;
+  font-size: 1.5rem;
+}
+
+.markdown-editor--field :deep(.tiptap h2) {
+  margin: 1.1em 0 0.45em;
+  font-size: 1.25rem;
+}
+
+.markdown-editor--field :deep(.tiptap h3) {
+  margin: 1em 0 0.4em;
+  font-size: 1.125rem;
+}
+
+.markdown-editor--field :deep(.tiptap h4) {
+  margin: 0.9em 0 0.35em;
+  font-size: 1rem;
+}
+
+.markdown-editor--field :deep(.tiptap ul),
+.markdown-editor--field :deep(.tiptap ol),
+.markdown-editor--field :deep(.tiptap blockquote),
+.markdown-editor--field :deep(.tiptap pre) {
+  margin: 0.9em 0;
+}
+
+.markdown-editor--field :deep(.tiptap hr) {
+  margin: 1.5rem auto;
 }
 
 @media (prefers-color-scheme: dark) {

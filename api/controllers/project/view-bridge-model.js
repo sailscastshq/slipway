@@ -26,7 +26,7 @@ module.exports = {
     },
     sort: {
       type: 'string',
-      defaultsTo: 'createdAt DESC'
+      defaultsTo: ''
     },
     search: {
       type: 'string',
@@ -86,100 +86,64 @@ module.exports = {
     let total = 0
     let totalPages = 0
     let error = null
+    let normalizedPage = page
+    let normalizedPerPage = perPage
+    let normalizedSort = sort
+    let normalizedSearch = search
 
     if (appRunning) {
       try {
-        // Get model introspection
-        const introspection = await sails.helpers.bridge.introspectModels(
+        const loaded = await sails.helpers.bridge.loadResource.with({
+          containerName: app.containerName,
+          environmentId: environment.id,
+          modelIdentity,
+          action: 'viewAny'
+        })
+        modelMeta = loaded.resource
+        const normalizedQuery =
+          await sails.helpers.bridge.normalizeResourceQuery.with({
+            resource: modelMeta,
+            page,
+            perPage,
+            sort,
+            search
+          })
+
+        normalizedPage = normalizedQuery.page
+        normalizedPerPage = normalizedQuery.perPage
+        normalizedSort = normalizedQuery.sort
+        normalizedSearch = normalizedQuery.search
+
+        const queryCode = `
+          const identity = ${JSON.stringify(modelMeta.identity)};
+          const where = ${JSON.stringify(normalizedQuery.where)};
+          const criteria = ${JSON.stringify(normalizedQuery.criteria)};
+          const model = sails.models[identity];
+          if (!model) throw new Error('Configured Bridge model is unavailable.');
+
+          const total = await model.count(where);
+          const records = await model.find(criteria);
+          return { records, total };
+        `
+        const wrappedCode = await sails.helpers.bridge.buildSailsWrapper(
+          queryCode
+        )
+        const result = await sails.helpers.bridge.executeInContainer(
           app.containerName,
-          environment.id
+          wrappedCode
         )
 
-        if (introspection.error) {
-          error = introspection.error
-        } else {
-          modelMeta = introspection.models[modelIdentity]
-
-          if (!modelMeta) {
-            error = `Model "${modelIdentity}" not found.`
-          } else {
-            // Fetch records
-            const pk = modelMeta.primaryKey || 'id'
-            const skip = (page - 1) * perPage
-
-            // Build query code
-            let queryCode
-            if (search) {
-              // Simple search: look for string fields containing the search term
-              const stringAttrs = Object.entries(modelMeta.attributes)
-                .filter(([, attr]) => attr.type === 'string' && !attr.encrypt)
-                .map(([name]) => name)
-
-              if (stringAttrs.length > 0) {
-                const orClauses = stringAttrs
-                  .map(
-                    (attr) =>
-                      `{ ${attr}: { contains: '${search.replace(
-                        /'/g,
-                        "\\'"
-                      )}' } }`
-                  )
-                  .join(', ')
-
-                queryCode = `
-                  const total = await sails.models['${modelIdentity}'].count({ or: [${orClauses}] });
-                  const records = await sails.models['${modelIdentity}'].find({
-                    where: { or: [${orClauses}] },
-                    skip: ${skip},
-                    limit: ${perPage},
-                    sort: '${sort}'
-                  });
-                  return { records, total };
-                `
-              } else {
-                queryCode = `
-                  const total = await sails.models['${modelIdentity}'].count();
-                  const records = await sails.models['${modelIdentity}'].find({
-                    skip: ${skip},
-                    limit: ${perPage},
-                    sort: '${sort}'
-                  });
-                  return { records, total };
-                `
-              }
-            } else {
-              queryCode = `
-                const total = await sails.models['${modelIdentity}'].count();
-                const records = await sails.models['${modelIdentity}'].find({
-                  skip: ${skip},
-                  limit: ${perPage},
-                  sort: '${sort}'
-                });
-                return { records, total };
-              `
-            }
-
-            const wrappedCode = await sails.helpers.bridge.buildSailsWrapper(
-              queryCode
-            )
-            const result = await sails.helpers.bridge.executeInContainer(
-              app.containerName,
-              wrappedCode
-            )
-
-            if (result.success) {
-              try {
-                const data = JSON.parse(result.output)
-                records = data.records || []
-                total = data.total || 0
-                totalPages = Math.ceil(total / perPage)
-              } catch (e) {
-                error = 'Failed to parse records: ' + e.message
-              }
-            } else {
-              error = result.error || 'Failed to fetch records'
-            }
+        if (result.success) {
+          try {
+            const data = JSON.parse(result.output)
+            records = data.records || []
+            total = data.total || 0
+            totalPages = Math.ceil(total / normalizedPerPage)
+          } catch (parseError) {
+            error = 'Failed to parse records: ' + parseError.message
           }
+        } else {
+          error = result.error || 'Failed to fetch records'
         }
       } catch (err) {
         error = err.message
@@ -205,10 +169,10 @@ module.exports = {
         records,
         total,
         totalPages,
-        currentPage: page,
-        perPage,
-        sort,
-        search,
+        currentPage: normalizedPage,
+        perPage: normalizedPerPage,
+        sort: normalizedSort,
+        search: normalizedSearch,
         error
       }
     }

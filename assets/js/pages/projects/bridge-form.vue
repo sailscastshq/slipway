@@ -5,6 +5,8 @@ import AppLayout from '@/layouts/AppLayout.vue'
 import ToastContainer from '@/components/ToastContainer.vue'
 import { createToast } from '@/composables/toast'
 import SlippyLoader from '@/components/SlippyLoader.vue'
+import MarkdownEditor from '@/components/content/MarkdownEditor.vue'
+import { containsRawHtml } from '@/lib/content/markdown.mjs'
 
 defineOptions({
   layout: AppLayout
@@ -30,25 +32,39 @@ const { toasts, toast, dismiss } = createToast()
 
 const isEdit = computed(() => props.mode === 'edit')
 
+function encodePathSegment(value) {
+  return encodeURIComponent(String(value))
+}
+
+function displayIdentifier(value) {
+  const identifier = String(value ?? '')
+  if (identifier.length <= 24) return identifier
+  return `${identifier.slice(0, 10)}…${identifier.slice(-6)}`
+}
+
 // Form state
 const formValues = ref({})
 const formErrors = ref({})
 const form = useForm({ values: {} })
+const richTextEditors = ref({})
+const richTextModes = ref({})
+const richTextCompatibility = ref({})
 
 // Initialize form values from props
 onMounted(() => {
   if (!props.modelMeta) return
 
   const values = {}
-  for (const [name, attr] of Object.entries(props.modelMeta.attributes)) {
-    if (attr.autoIncrement) continue
-    if (attr.type === 'boolean') values[name] = attr.defaultsTo ?? false
+  const surface = isEdit.value ? props.modelMeta.edit : props.modelMeta.create
+  for (const name of surface || []) {
+    const attr = props.modelMeta.attributes[name]
+    if (!attr) continue
+    const defaultValue = attr.field?.default ?? attr.defaultsTo
+    if (attr.type === 'boolean') values[name] = defaultValue ?? false
     else if (attr.type === 'json')
       values[name] =
-        attr.defaultsTo !== undefined
-          ? JSON.stringify(attr.defaultsTo, null, 2)
-          : ''
-    else values[name] = attr.defaultsTo ?? ''
+        defaultValue !== undefined ? JSON.stringify(defaultValue, null, 2) : ''
+    else values[name] = defaultValue ?? ''
   }
 
   // Load record values in edit mode
@@ -73,34 +89,67 @@ onMounted(() => {
 // Editable fields
 const editableFields = computed(() => {
   if (!props.modelMeta) return []
-  const fields = []
+  const surface = isEdit.value ? props.modelMeta.edit : props.modelMeta.create
 
-  for (const [name, attr] of Object.entries(props.modelMeta.attributes)) {
-    // Skip auto-generated fields
-    if (attr.autoIncrement) continue
-    if (name === 'id') continue // Primary key
-    if (!isEdit.value && (attr.autoCreatedAt || attr.autoUpdatedAt)) continue
+  return (surface || [])
+    .map((name) => {
+      const attribute = props.modelMeta.attributes[name]
+      if (!attribute) return null
+      const association = (props.modelMeta.associations || []).find(
+        (candidate) => candidate.type === 'model' && candidate.alias === name
+      )
 
-    fields.push({
-      name,
-      attr,
-      readOnly: attr.autoCreatedAt || attr.autoUpdatedAt
+      return {
+        name,
+        attr: association
+          ? {
+              ...attribute,
+              isBelongsTo: true,
+              relatedModel: association.model
+            }
+          : attribute,
+        readOnly:
+          attribute.field?.readOnly === true ||
+          attribute.autoCreatedAt ||
+          attribute.autoUpdatedAt
+      }
     })
-  }
-
-  // Add model associations (belongsTo)
-  for (const assoc of props.modelMeta.associations || []) {
-    if (assoc.type !== 'model') continue
-    const attr = props.modelMeta.attributes[assoc.alias]
-    fields.push({
-      name: assoc.alias,
-      attr: { ...attr, isBelongsTo: true, relatedModel: assoc.model },
-      readOnly: false
-    })
-  }
-
-  return fields
+    .filter(Boolean)
 })
+
+function hasRequiredValue(field) {
+  if (field.readOnly || !field.attr.required) return true
+
+  const value = formValues.value[field.name]
+  if (isEdit.value && field.attr.encrypt && value === '') return true
+  if (inputType(field) === 'toggle') return typeof value === 'boolean'
+  if (inputType(field) === 'number') {
+    return (
+      value !== '' &&
+      value !== null &&
+      value !== undefined &&
+      Number.isFinite(Number(value))
+    )
+  }
+  if (inputType(field) === 'json') {
+    if (typeof value !== 'string' || value.trim() === '') return false
+    try {
+      JSON.parse(value)
+      return true
+    } catch {
+      return false
+    }
+  }
+  if (typeof value === 'string') return value.trim().length > 0
+  return value !== null && value !== undefined
+}
+
+const isFormReady = computed(
+  () =>
+    editableFields.value.every(hasRequiredValue) &&
+    editableFields.value.every((field) => !richTextSecurityError(field)) &&
+    Object.keys(formErrors.value).length === 0
+)
 
 // Rich text field names (detect by name pattern)
 const richTextPatterns = [
@@ -121,6 +170,20 @@ function inputType(field) {
   const name = field.name.toLowerCase()
 
   if (attr.isBelongsTo) return 'belongsTo'
+  if (
+    [
+      'text',
+      'email',
+      'password',
+      'number',
+      'select',
+      'toggle',
+      'json',
+      'richtext'
+    ].includes(attr.field?.type)
+  ) {
+    return attr.field.type
+  }
   if (attr.encrypt) return 'password'
   if (attr.isEmail) return 'email'
   if (attr.isIn && attr.isIn.length > 0) return 'select'
@@ -137,21 +200,87 @@ function inputType(field) {
   return 'text'
 }
 
+function isMarkdownRichText(field) {
+  return (
+    inputType(field) === 'richtext' &&
+    field.attr.field?.format?.toLowerCase() === 'markdown'
+  )
+}
+
+function richTextEditorId(field) {
+  return `bridge-${props.modelIdentity}-${field.name}`.replace(
+    /[^a-zA-Z0-9_-]/g,
+    '-'
+  )
+}
+
+function richTextLabelId(field) {
+  return `${richTextEditorId(field)}-label`
+}
+
+function richTextHelpId(field) {
+  return fieldDescription(field) ? `${richTextEditorId(field)}-help` : undefined
+}
+
+function richTextErrorId(field) {
+  return `${richTextEditorId(field)}-error`
+}
+
+function richTextDescribedBy(field) {
+  return (
+    [
+      richTextHelpId(field),
+      richTextSecurityError(field) && richTextErrorId(field)
+    ]
+      .filter(Boolean)
+      .join(' ') || undefined
+  )
+}
+
+function richTextSecurityError(field) {
+  if (!isMarkdownRichText(field)) return ''
+  if (!containsRawHtml(formValues.value[field.name] || '')) return ''
+  return 'Raw HTML is not allowed in Bridge Markdown fields.'
+}
+
+function registerRichTextEditor(field, editor) {
+  if (editor) richTextEditors.value[field.name] = editor
+  else delete richTextEditors.value[field.name]
+}
+
+function updateRichTextMode(field, mode) {
+  richTextModes.value[field.name] = mode
+}
+
+function updateRichTextCompatibility(field, compatibility) {
+  richTextCompatibility.value[field.name] = compatibility
+}
+
+function toggleRichTextMode(field) {
+  const nextMode =
+    richTextModes.value[field.name] === 'source' ? 'visual' : 'source'
+  richTextEditors.value[field.name]?.setMode(nextMode)
+}
+
+function canUseRichTextVisual(field) {
+  return richTextCompatibility.value[field.name]?.supported !== false
+}
+
 // Get field description based on type/validations
 function fieldDescription(field) {
-  const attr = field.attr
-  const parts = []
+  return field.attr.field?.help || ''
+}
 
-  if (attr.type) parts.push(attr.type)
-  if (attr.columnType && attr.columnType !== attr.type)
-    parts.push(attr.columnType)
-  if (attr.encrypt) parts.push('encrypted')
-  if (attr.unique) parts.push('unique')
-  if (attr.maxLength) parts.push(`max ${attr.maxLength} chars`)
-  if (attr.isBelongsTo) parts.push(`belongs to ${attr.relatedModel}`)
-  if (attr.isIn) parts.push(`options: ${attr.isIn.join(', ')}`)
+function fieldLabel(field) {
+  return field.attr.label || field.name
+}
 
-  return parts.join(' \u00b7 ')
+function fieldPlaceholder(field, fallback = '') {
+  return field.attr.field?.placeholder || fallback
+}
+
+function selectOptions(field) {
+  return field.attr.field?.options || field.attr.isIn || []
 }
 
 // JSON validation
@@ -170,6 +299,11 @@ function validateJson(name) {
 }
 
 function handleSubmit() {
+  if (!isFormReady.value) {
+    toast({ message: 'Complete the required fields first.', type: 'error' })
+    return
+  }
+
   if (Object.keys(formErrors.value).length > 0) {
     toast({ message: 'Please fix validation errors.', type: 'error' })
     return
@@ -205,7 +339,11 @@ function handleSubmit() {
 
   form.values = values
   const actionUrl = isEdit.value
-    ? `/projects/${props.project.slug}/environments/${props.environment.slug}/bridge/${props.modelIdentity}/${props.recordId}/update`
+    ? `/projects/${props.project.slug}/environments/${
+        props.environment.slug
+      }/bridge/${props.modelIdentity}/${encodePathSegment(
+        props.recordId
+      )}/update`
     : `/projects/${props.project.slug}/environments/${props.environment.slug}/bridge/${props.modelIdentity}/create`
 
   form.post(actionUrl, {
@@ -228,13 +366,17 @@ function modelUrl() {
   return `/projects/${props.project.slug}/environments/${props.environment.slug}/bridge/${props.modelIdentity}`
 }
 function recordUrl() {
-  return `/projects/${props.project.slug}/environments/${props.environment.slug}/bridge/${props.modelIdentity}/${props.recordId}`
+  return `/projects/${props.project.slug}/environments/${
+    props.environment.slug
+  }/bridge/${props.modelIdentity}/${encodePathSegment(props.recordId)}`
 }
 </script>
 
 <template>
   <Head
-    :title="`${isEdit ? 'Edit' : 'Create'} ${modelIdentity} - Bridge | Slipway`"
+    :title="`${isEdit ? 'Edit' : 'Create'} ${
+      modelMeta?.singularLabel || modelIdentity
+    } - Bridge | Slipway`"
   ></Head>
   <ToastContainer :toasts="toasts" @dismiss="dismiss" />
 
@@ -333,7 +475,7 @@ function recordUrl() {
         </button>
         <nav class="flex items-center space-x-2 text-sm sm:hidden">
           <Link :href="modelUrl()" class="text-gray-500 dark:text-gray-400">{{
-            modelIdentity
+            modelMeta?.label || modelIdentity
           }}</Link>
           <span class="text-gray-400 dark:text-gray-600">/</span>
           <span class="font-medium text-gray-900 dark:text-white">{{
@@ -363,11 +505,11 @@ function recordUrl() {
           <Link
             :href="modelUrl()"
             class="text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
-            >{{ modelIdentity }}</Link
+            >{{ modelMeta?.label || modelIdentity }}</Link
           >
           <span class="text-gray-400 dark:text-gray-600">/</span>
           <span class="font-medium text-gray-900 dark:text-white">{{
-            isEdit ? `#${recordId}` : 'new'
+            isEdit ? displayIdentifier(recordId) : 'new'
           }}</span>
         </nav>
       </div>
@@ -400,31 +542,29 @@ function recordUrl() {
       </div>
 
       <!-- Form -->
-      <div v-else-if="modelMeta" class="mx-auto max-w-2xl">
+      <div v-else-if="modelMeta" class="mx-auto max-w-xl">
         <!-- Description -->
         <div class="mb-6">
           <h1 class="text-xl font-semibold text-gray-900 dark:text-white">
             {{ isEdit ? 'Edit' : 'Create' }}
-            {{ modelMeta.globalId || modelIdentity }}
+            {{ modelMeta.singularLabel || modelIdentity }}
           </h1>
           <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
             {{
               isEdit
-                ? `Editing record #${recordId}`
-                : `Add a new record to ${modelMeta.tableName || modelIdentity}`
+                ? `Update this ${(
+                    modelMeta.singularLabel || modelIdentity
+                  ).toLowerCase()}`
+                : `Add a new ${(
+                    modelMeta.singularLabel || modelIdentity
+                  ).toLowerCase()}`
             }}
           </p>
         </div>
 
-        <form @submit.prevent="handleSubmit">
-          <div class="rounded-lg border border-gray-200 dark:border-gray-800">
-            <div
-              v-for="(field, index) in editableFields"
-              :key="field.name"
-              :class="
-                index > 0 ? 'border-t border-gray-200 dark:border-gray-800' : ''
-              "
-            >
+        <form @submit.prevent="handleSubmit" class="space-y-7">
+          <div class="space-y-7">
+            <div v-for="field in editableFields" :key="field.name">
               <!-- Simple fields (text, email, password, number, select) -->
               <div
                 v-if="
@@ -437,13 +577,13 @@ function recordUrl() {
                     'belongsTo'
                   ].includes(inputType(field))
                 "
-                class="flex items-center gap-4 px-4 py-3"
+                class="space-y-2"
               >
                 <label
                   :for="field.name"
-                  class="w-40 shrink-0 text-sm font-medium text-gray-700 dark:text-gray-300"
+                  class="block text-sm font-medium text-gray-700 dark:text-gray-300"
                 >
-                  {{ field.name }}
+                  {{ fieldLabel(field) }}
                   <span v-if="field.attr.required" class="text-red-500">*</span>
                 </label>
                 <div class="flex-1">
@@ -457,11 +597,14 @@ function recordUrl() {
                     :required="field.attr.required"
                     :maxlength="field.attr.maxLength || undefined"
                     :placeholder="
-                      field.attr.defaultsTo !== undefined
-                        ? String(field.attr.defaultsTo)
-                        : ''
+                      fieldPlaceholder(
+                        field,
+                        field.attr.defaultsTo !== undefined
+                          ? String(field.attr.defaultsTo)
+                          : ''
+                      )
                     "
-                    class="focus:border-brand w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none disabled:cursor-not-allowed disabled:text-gray-400 dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
+                    class="focus:border-brand h-11 w-full border-b border-dashed border-gray-200 bg-transparent px-1 text-sm text-gray-900 placeholder-gray-400 focus:outline-none disabled:cursor-not-allowed disabled:text-gray-400 dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
                   />
                   <!-- Email -->
                   <input
@@ -471,8 +614,8 @@ function recordUrl() {
                     type="email"
                     :disabled="field.readOnly"
                     :required="field.attr.required"
-                    placeholder="email@example.com"
-                    class="focus:border-brand w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none disabled:cursor-not-allowed disabled:text-gray-400 dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
+                    :placeholder="fieldPlaceholder(field, 'email@example.com')"
+                    class="focus:border-brand h-11 w-full border-b border-dashed border-gray-200 bg-transparent px-1 text-sm text-gray-900 placeholder-gray-400 focus:outline-none disabled:cursor-not-allowed disabled:text-gray-400 dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
                   />
                   <!-- Password -->
                   <input
@@ -481,8 +624,13 @@ function recordUrl() {
                     v-model="formValues[field.name]"
                     type="password"
                     :disabled="field.readOnly"
-                    :placeholder="isEdit ? 'Leave blank to keep current' : ''"
-                    class="focus:border-brand w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
+                    :placeholder="
+                      fieldPlaceholder(
+                        field,
+                        isEdit ? 'Leave blank to keep current' : ''
+                      )
+                    "
+                    class="focus:border-brand h-11 w-full border-b border-dashed border-gray-200 bg-transparent px-1 text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
                   />
                   <!-- Number -->
                   <input
@@ -492,8 +640,8 @@ function recordUrl() {
                     type="number"
                     :disabled="field.readOnly"
                     :required="field.attr.required"
-                    placeholder="0"
-                    class="focus:border-brand w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none disabled:cursor-not-allowed disabled:text-gray-400 dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
+                    :placeholder="fieldPlaceholder(field, '0')"
+                    class="focus:border-brand h-11 w-full border-b border-dashed border-gray-200 bg-transparent px-1 text-sm text-gray-900 placeholder-gray-400 focus:outline-none disabled:cursor-not-allowed disabled:text-gray-400 dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
                   />
                   <!-- Select (isIn) -->
                   <select
@@ -502,11 +650,11 @@ function recordUrl() {
                     v-model="formValues[field.name]"
                     :disabled="field.readOnly"
                     :required="field.attr.required"
-                    class="focus:border-brand w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 focus:outline-none disabled:cursor-not-allowed disabled:text-gray-400 dark:border-gray-700 dark:text-white"
+                    class="focus:border-brand h-11 w-full border-b border-dashed border-gray-200 bg-transparent px-1 text-sm text-gray-900 focus:outline-none disabled:cursor-not-allowed disabled:text-gray-400 dark:border-gray-700 dark:text-white"
                   >
                     <option value="">Select...</option>
                     <option
-                      v-for="opt in field.attr.isIn"
+                      v-for="opt in selectOptions(field)"
                       :key="opt"
                       :value="opt"
                     >
@@ -519,7 +667,7 @@ function recordUrl() {
                     :id="field.name"
                     v-model="formValues[field.name]"
                     :disabled="field.readOnly"
-                    class="focus:border-brand w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 focus:outline-none disabled:cursor-not-allowed disabled:text-gray-400 dark:border-gray-700 dark:text-white"
+                    class="focus:border-brand h-11 w-full border-b border-dashed border-gray-200 bg-transparent px-1 text-sm text-gray-900 focus:outline-none disabled:cursor-not-allowed disabled:text-gray-400 dark:border-gray-700 dark:text-white"
                   >
                     <option value="">None</option>
                     <option
@@ -530,23 +678,29 @@ function recordUrl() {
                       {{ opt.label }}
                     </option>
                   </select>
+                  <p
+                    v-if="fieldDescription(field)"
+                    class="mt-1.5 text-xs text-gray-400 dark:text-gray-500"
+                  >
+                    {{ fieldDescription(field) }}
+                  </p>
                 </div>
               </div>
 
               <!-- Toggle (boolean) -->
-              <div
-                v-else-if="inputType(field) === 'toggle'"
-                class="flex items-center gap-4 px-4 py-3"
-              >
+              <div v-else-if="inputType(field) === 'toggle'" class="space-y-3">
                 <label
                   :for="field.name"
-                  class="w-40 shrink-0 text-sm font-medium text-gray-700 dark:text-gray-300"
+                  class="block text-sm font-medium text-gray-700 dark:text-gray-300"
                 >
-                  {{ field.name }}
+                  {{ fieldLabel(field) }}
                 </label>
                 <div class="flex items-center gap-3">
                   <button
+                    :id="field.name"
                     type="button"
+                    role="switch"
+                    :aria-checked="Boolean(formValues[field.name])"
                     :disabled="field.readOnly"
                     @click="formValues[field.name] = !formValues[field.name]"
                     :class="[
@@ -572,16 +726,85 @@ function recordUrl() {
                 </div>
               </div>
 
-              <!-- Rich text / Long text -->
+              <!-- Markdown-backed rich text -->
+              <div v-else-if="isMarkdownRichText(field)" class="space-y-2">
+                <div class="flex items-center justify-between gap-3">
+                  <span
+                    :id="richTextLabelId(field)"
+                    class="block text-sm font-medium text-gray-700 dark:text-gray-300"
+                  >
+                    {{ fieldLabel(field) }}
+                    <span v-if="field.attr.required" class="text-red-500"
+                      >*</span
+                    >
+                  </span>
+                  <button
+                    type="button"
+                    :data-test="`${richTextEditorId(field)}-mode-toggle`"
+                    :aria-label="`Edit ${fieldLabel(field)} as ${
+                      richTextModes[field.name] === 'source'
+                        ? 'Visual'
+                        : 'Markdown'
+                    }`"
+                    :disabled="
+                      richTextModes[field.name] === 'source' &&
+                      !canUseRichTextVisual(field)
+                    "
+                    class="text-xs font-medium text-gray-400 hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-40 dark:text-gray-500 dark:hover:text-white"
+                    @click="toggleRichTextMode(field)"
+                  >
+                    {{
+                      richTextModes[field.name] === 'source'
+                        ? 'Visual'
+                        : 'Markdown'
+                    }}
+                  </button>
+                </div>
+                <MarkdownEditor
+                  :ref="(editor) => registerRichTextEditor(field, editor)"
+                  v-model="formValues[field.name]"
+                  variant="field"
+                  :editor-id="richTextEditorId(field)"
+                  :placeholder="
+                    fieldPlaceholder(field, 'Write your content here...')
+                  "
+                  :aria-label="fieldLabel(field)"
+                  :aria-labelledby="richTextLabelId(field)"
+                  :aria-describedby="richTextDescribedBy(field)"
+                  :required="field.attr.required"
+                  deny-raw-html
+                  @mode-change="updateRichTextMode(field, $event)"
+                  @compatibility-change="
+                    updateRichTextCompatibility(field, $event)
+                  "
+                />
+                <p
+                  v-if="richTextSecurityError(field)"
+                  :id="richTextErrorId(field)"
+                  class="text-xs text-red-600 dark:text-red-400"
+                  role="alert"
+                >
+                  {{ richTextSecurityError(field) }}
+                </p>
+                <p
+                  v-if="fieldDescription(field)"
+                  :id="richTextHelpId(field)"
+                  class="mt-1.5 text-xs text-gray-400 dark:text-gray-500"
+                >
+                  {{ fieldDescription(field) }}
+                </p>
+              </div>
+
+              <!-- Long text -->
               <div
                 v-else-if="inputType(field) === 'richtext'"
-                class="px-4 py-3"
+                class="space-y-2"
               >
                 <label
                   :for="field.name"
                   class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
                 >
-                  {{ field.name }}
+                  {{ fieldLabel(field) }}
                   <span v-if="field.attr.required" class="text-red-500">*</span>
                 </label>
                 <textarea
@@ -589,19 +812,27 @@ function recordUrl() {
                   v-model="formValues[field.name]"
                   :disabled="field.readOnly"
                   :required="field.attr.required"
-                  placeholder="Write your content here..."
-                  class="focus:border-brand w-full resize-none border-b border-dashed border-gray-200 bg-transparent px-1 py-2 text-sm text-gray-900 placeholder-gray-400 focus:outline-none disabled:cursor-not-allowed disabled:text-gray-400 dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
+                  :placeholder="
+                    fieldPlaceholder(field, 'Write your content here...')
+                  "
+                  class="focus:border-brand min-h-28 w-full resize-none border-b border-dashed border-gray-200 bg-transparent px-1 py-2 text-sm leading-6 text-gray-900 placeholder-gray-400 focus:outline-none disabled:cursor-not-allowed disabled:text-gray-400 dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
                   style="field-sizing: content"
                 ></textarea>
+                <p
+                  v-if="fieldDescription(field)"
+                  class="mt-1.5 text-xs text-gray-400 dark:text-gray-500"
+                >
+                  {{ fieldDescription(field) }}
+                </p>
               </div>
 
               <!-- JSON -->
-              <div v-else-if="inputType(field) === 'json'" class="px-4 py-3">
+              <div v-else-if="inputType(field) === 'json'" class="space-y-2">
                 <label
                   :for="field.name"
                   class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
                 >
-                  {{ field.name }}
+                  {{ fieldLabel(field) }}
                   <span class="ml-1 text-xs font-normal text-gray-400"
                     >JSON</span
                   >
@@ -611,8 +842,8 @@ function recordUrl() {
                   v-model="formValues[field.name]"
                   :disabled="field.readOnly"
                   @blur="validateJson(field.name)"
-                  placeholder="{}"
-                  class="focus:border-brand w-full resize-none border-b border-dashed border-gray-200 bg-transparent px-1 py-2 font-mono text-sm text-gray-900 placeholder-gray-400 focus:outline-none disabled:cursor-not-allowed disabled:text-gray-400 dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
+                  :placeholder="fieldPlaceholder(field, '{}')"
+                  class="focus:border-brand min-h-28 w-full resize-none border-b border-dashed border-gray-200 bg-transparent px-1 py-2 font-mono text-sm leading-6 text-gray-900 placeholder-gray-400 focus:outline-none disabled:cursor-not-allowed disabled:text-gray-400 dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
                   style="field-sizing: content"
                 ></textarea>
                 <p
@@ -624,25 +855,26 @@ function recordUrl() {
               </div>
 
               <!-- Fallback -->
-              <div v-else class="flex items-center gap-4 px-4 py-3">
+              <div v-else class="space-y-2">
                 <label
                   :for="field.name"
-                  class="w-40 shrink-0 text-sm font-medium text-gray-700 dark:text-gray-300"
-                  >{{ field.name }}</label
+                  class="block text-sm font-medium text-gray-700 dark:text-gray-300"
+                  >{{ fieldLabel(field) }}</label
                 >
                 <input
                   :id="field.name"
                   v-model="formValues[field.name]"
                   type="text"
                   :disabled="field.readOnly"
-                  class="focus:border-brand w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none disabled:cursor-not-allowed disabled:text-gray-400 dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
+                  :placeholder="fieldPlaceholder(field)"
+                  class="focus:border-brand h-11 w-full border-b border-dashed border-gray-200 bg-transparent px-1 text-sm text-gray-900 placeholder-gray-400 focus:outline-none disabled:cursor-not-allowed disabled:text-gray-400 dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
                 />
               </div>
             </div>
           </div>
 
           <!-- Actions -->
-          <div class="mt-6 flex items-center justify-end gap-3">
+          <div class="flex items-center justify-end gap-3 pt-1">
             <Link
               :href="isEdit ? recordUrl() : modelUrl()"
               class="rounded-md px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
@@ -651,8 +883,15 @@ function recordUrl() {
             </Link>
             <button
               type="submit"
-              :disabled="form.processing"
-              class="inline-flex items-center rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
+              :disabled="form.processing || !isFormReady"
+              :title="
+                !isFormReady
+                  ? isEdit
+                    ? 'Complete the required fields to save this record'
+                    : 'Complete the required fields to create this record'
+                  : undefined
+              "
+              class="inline-flex items-center rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-40 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
             >
               <SlippyLoader
                 v-if="form.processing"

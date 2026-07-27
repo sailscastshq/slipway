@@ -66,22 +66,30 @@ module.exports = {
         if (introspection.error) {
           modelsError = introspection.error
         } else {
-          models = introspection.models || {}
+          models = Object.fromEntries(
+            Object.entries(introspection.models || {}).filter(
+              ([, resource]) =>
+                !resource.hidden && resource.actions?.viewAny !== false
+            )
+          )
 
           // Get record counts for all models
-          const identities = Object.keys(models)
-          if (identities.length > 0) {
+          const definitions = Object.entries(models).map(([key, resource]) => ({
+            key,
+            identity: resource.identity
+          }))
+          if (definitions.length > 0) {
             const countCode = `
+              const definitions = ${JSON.stringify(definitions)};
               const counts = {};
-              ${identities
-                .map(
-                  (id) => `
+              for (const definition of definitions) {
                 try {
-                  counts['${id}'] = await sails.models['${id}'].count();
-                } catch(e) { counts['${id}'] = 0; }
-              `
-                )
-                .join('\n')}
+                  counts[definition.key] =
+                    await sails.models[definition.identity].count();
+                } catch (error) {
+                  counts[definition.key] = 0;
+                }
+              }
               return counts;
             `
             const wrappedCode = await sails.helpers.bridge.buildSailsWrapper(
@@ -95,8 +103,8 @@ module.exports = {
             if (countResult.success) {
               try {
                 const counts = JSON.parse(countResult.output)
-                for (const id of identities) {
-                  models[id].count = counts[id] || 0
+                for (const definition of definitions) {
+                  models[definition.key].count = counts[definition.key] || 0
                 }
               } catch {
                 /* counts remain undefined */

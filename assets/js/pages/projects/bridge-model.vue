@@ -39,12 +39,85 @@ const selectedIds = ref(new Set())
 const selectAll = ref(false)
 const deleteModal = ref({ show: false, recordId: null })
 const bulkDeleteModal = ref({ show: false })
+const openActionMenu = ref(null)
+
+const hasRecordActions = computed(() => {
+  const actions = props.modelMeta?.actions || {}
+  return (
+    actions.view !== false ||
+    actions.update !== false ||
+    actions.delete !== false
+  )
+})
+
+function encodePathSegment(value) {
+  return encodeURIComponent(String(value))
+}
+
+function recordKey(record) {
+  return String(record[props.modelMeta.primaryKey])
+}
+
+function displayIdentifier(value) {
+  const identifier = String(value ?? '')
+  if (identifier.length <= 24) return identifier
+  return `${identifier.slice(0, 10)}…${identifier.slice(-6)}`
+}
+
+function actionLabel(record) {
+  const titleField = props.modelMeta?.title
+  const title = titleField ? record[titleField] : null
+  return String(title || displayIdentifier(record[props.modelMeta.primaryKey]))
+}
+
+function toggleActionMenu(record) {
+  const key = recordKey(record)
+  openActionMenu.value = openActionMenu.value === key ? null : key
+}
+
+function closeActionMenu() {
+  openActionMenu.value = null
+}
+
+function handleActionMenuKeydown(event) {
+  const items = Array.from(
+    event.currentTarget.querySelectorAll('[role="menuitem"]')
+  )
+  const currentIndex = items.indexOf(document.activeElement)
+
+  if (event.key === 'Escape') {
+    event.preventDefault()
+    closeActionMenu()
+    event.currentTarget.previousElementSibling?.focus()
+    return
+  }
+
+  let nextIndex
+  if (event.key === 'ArrowDown') {
+    nextIndex = currentIndex < 0 ? 0 : (currentIndex + 1) % items.length
+  } else if (event.key === 'ArrowUp') {
+    nextIndex =
+      currentIndex < 0
+        ? items.length - 1
+        : (currentIndex - 1 + items.length) % items.length
+  } else if (event.key === 'Home') {
+    nextIndex = 0
+  } else if (event.key === 'End') {
+    nextIndex = items.length - 1
+  } else {
+    return
+  }
+
+  event.preventDefault()
+  items[nextIndex]?.focus()
+}
 
 // Forms for delete actions
 const deleteForm = useForm({})
 const bulkDeleteForm = useForm({ ids: [] })
 
 function openDeleteModal(record) {
+  closeActionMenu()
   deleteModal.value = {
     show: true,
     recordId: record[props.modelMeta.primaryKey],
@@ -71,7 +144,10 @@ function navigateWithParams(updates) {
 
   // Clean up defaults
   if (params.page === 1) delete params.page
-  if (params.sort === 'createdAt DESC') delete params.sort
+  const defaultSort = props.modelMeta
+    ? `${props.modelMeta.sort.field} ${props.modelMeta.sort.direction}`
+    : ''
+  if (params.sort === defaultSort) delete params.sort
   if (!params.search) delete params.search
 
   const query = new URLSearchParams(params).toString()
@@ -86,32 +162,7 @@ function navigateWithParams(updates) {
 // Visible columns
 const visibleColumns = computed(() => {
   if (!props.modelMeta) return []
-  const attrs = props.modelMeta.attributes
-  const pk = props.modelMeta.primaryKey
-  const cols = [pk]
-
-  const candidates = Object.entries(attrs).filter(([name, attr]) => {
-    if (name === pk) return false
-    if (attr.autoCreatedAt || attr.autoUpdatedAt || attr.autoIncrement)
-      return false
-    if (attr.encrypt) return false
-    return true
-  })
-
-  candidates.sort((a, b) => {
-    const order = { string: 0, number: 1, boolean: 2, json: 3, ref: 4 }
-    return (order[a[1].type] ?? 5) - (order[b[1].type] ?? 5)
-  })
-
-  for (const [name] of candidates.slice(0, 5)) {
-    cols.push(name)
-  }
-
-  if (attrs.createdAt && !cols.includes('createdAt')) {
-    cols.push('createdAt')
-  }
-
-  return cols
+  return props.modelMeta.list || []
 })
 
 // Sort handling
@@ -119,6 +170,7 @@ const sortAttr = computed(() => sortValue.value.split(' ')[0])
 const sortDir = computed(() => sortValue.value.split(' ')[1] || 'ASC')
 
 function toggleSort(attr) {
+  if (props.modelMeta?.attributes[attr]?.field?.sortable === false) return
   let newSort
   if (sortAttr.value === attr) {
     newSort = `${attr} ${sortDir.value === 'ASC' ? 'DESC' : 'ASC'}`
@@ -127,6 +179,10 @@ function toggleSort(attr) {
   }
   sortValue.value = newSort
   navigateWithParams({ sort: newSort, page: 1 })
+}
+
+function fieldLabel(name) {
+  return props.modelMeta?.attributes[name]?.label || name
 }
 
 // Selection
@@ -192,7 +248,11 @@ function isTimestamp(attrName) {
 // Delete single record
 function confirmDelete() {
   deleteForm.post(
-    `/projects/${props.project.slug}/environments/${props.environment.slug}/bridge/${props.modelIdentity}/${deleteModal.value.recordId}/delete`,
+    `/projects/${props.project.slug}/environments/${
+      props.environment.slug
+    }/bridge/${props.modelIdentity}/${encodePathSegment(
+      deleteModal.value.recordId
+    )}/delete`,
     {
       preserveScroll: true,
       onSuccess: () => {
@@ -248,10 +308,14 @@ function bridgeUrl() {
   return `/projects/${props.project.slug}/environments/${props.environment.slug}/bridge`
 }
 function recordUrl(id) {
-  return `/projects/${props.project.slug}/environments/${props.environment.slug}/bridge/${props.modelIdentity}/${id}`
+  return `/projects/${props.project.slug}/environments/${
+    props.environment.slug
+  }/bridge/${props.modelIdentity}/${encodePathSegment(id)}`
 }
 function editUrl(id) {
-  return `/projects/${props.project.slug}/environments/${props.environment.slug}/bridge/${props.modelIdentity}/${id}/edit`
+  return `/projects/${props.project.slug}/environments/${
+    props.environment.slug
+  }/bridge/${props.modelIdentity}/${encodePathSegment(id)}/edit`
 }
 function createUrl() {
   return `/projects/${props.project.slug}/environments/${props.environment.slug}/bridge/${props.modelIdentity}/new`
@@ -259,10 +323,16 @@ function createUrl() {
 </script>
 
 <template>
-  <Head :title="`${modelIdentity} - Bridge | Slipway`"></Head>
+  <Head
+    :title="`${modelMeta?.label || modelIdentity} - Bridge | Slipway`"
+  ></Head>
   <ToastContainer :toasts="toasts" @dismiss="dismiss" />
 
-  <div class="flex h-full flex-col">
+  <div
+    class="flex h-full flex-col"
+    @click="closeActionMenu"
+    @keydown.esc="closeActionMenu"
+  >
     <!-- Header -->
     <div
       class="flex items-center justify-between border-b border-gray-200 px-4 py-3 dark:border-gray-800 sm:px-6"
@@ -361,7 +431,7 @@ function createUrl() {
           >
           <span class="text-gray-400 dark:text-gray-600">/</span>
           <span class="font-medium text-gray-900 dark:text-white">{{
-            modelIdentity
+            modelMeta?.label || modelIdentity
           }}</span>
         </nav>
         <nav class="hidden items-center space-x-2 text-sm sm:flex">
@@ -392,7 +462,7 @@ function createUrl() {
           >
           <span class="text-gray-400 dark:text-gray-600">/</span>
           <span class="font-medium text-gray-900 dark:text-white">{{
-            modelIdentity
+            modelMeta?.label || modelIdentity
           }}</span>
         </nav>
       </div>
@@ -403,6 +473,7 @@ function createUrl() {
       <div class="mx-auto flex max-w-6xl items-center justify-between">
         <div class="flex items-center space-x-3">
           <input
+            v-if="(modelMeta?.search || []).length > 0"
             v-model="searchInput"
             type="text"
             placeholder="Search records..."
@@ -417,7 +488,9 @@ function createUrl() {
             leave-to-class="opacity-0"
           >
             <div
-              v-if="selectedIds.size > 0"
+              v-if="
+                selectedIds.size > 0 && modelMeta?.actions?.bulkDelete !== false
+              "
               class="flex items-center space-x-2"
             >
               <span class="text-xs text-gray-500 dark:text-gray-400"
@@ -452,6 +525,7 @@ function createUrl() {
             >{{ total.toLocaleString() }} records</span
           >
           <Link
+            v-if="modelMeta?.actions?.create !== false"
             :href="createUrl()"
             prefetch
             class="inline-flex items-center rounded-md bg-gray-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-gray-800 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
@@ -495,14 +569,17 @@ function createUrl() {
         <!-- Table -->
         <div
           v-else-if="modelMeta"
-          class="overflow-hidden rounded-lg border border-gray-200 dark:border-gray-800"
+          class="rounded-lg border border-gray-200 dark:border-gray-800"
         >
           <table class="w-full text-left text-sm">
             <thead
               class="border-b border-gray-200 bg-gray-50/50 dark:border-gray-800 dark:bg-gray-900/50"
             >
               <tr>
-                <th class="w-10 px-4 py-2">
+                <th
+                  v-if="modelMeta?.actions?.bulkDelete !== false"
+                  class="w-10 px-4 py-2"
+                >
                   <input
                     type="checkbox"
                     :checked="selectAll"
@@ -514,10 +591,15 @@ function createUrl() {
                   v-for="col in visibleColumns"
                   :key="col"
                   @click="toggleSort(col)"
-                  class="cursor-pointer select-none whitespace-nowrap px-4 py-2 text-xs font-medium uppercase tracking-wider text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
+                  :class="[
+                    'select-none whitespace-nowrap px-4 py-2 text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400',
+                    modelMeta.attributes[col]?.field?.sortable === false
+                      ? ''
+                      : 'cursor-pointer hover:text-gray-900 dark:hover:text-white'
+                  ]"
                 >
                   <span class="flex items-center space-x-1">
-                    <span>{{ col }}</span>
+                    <span>{{ fieldLabel(col) }}</span>
                     <svg
                       v-if="sortAttr === col"
                       class="h-3.5 w-3.5"
@@ -542,7 +624,9 @@ function createUrl() {
                     </svg>
                   </span>
                 </th>
-                <th class="w-20 px-4 py-2"></th>
+                <th v-if="hasRecordActions" class="w-12 px-4 py-2">
+                  <span class="sr-only">Actions</span>
+                </th>
               </tr>
             </thead>
             <tbody
@@ -551,7 +635,11 @@ function createUrl() {
             >
               <tr>
                 <td
-                  :colspan="visibleColumns.length + 2"
+                  :colspan="
+                    visibleColumns.length +
+                    (modelMeta?.actions?.bulkDelete !== false ? 1 : 0) +
+                    (hasRecordActions ? 1 : 0)
+                  "
                   class="px-4 py-12 text-center text-sm text-gray-500 dark:text-gray-400"
                 >
                   {{ search ? 'No matching records.' : 'No records yet.' }}
@@ -563,11 +651,14 @@ function createUrl() {
               class="divide-y divide-gray-200 bg-white dark:divide-gray-800 dark:bg-gray-950"
             >
               <tr
-                v-for="record in records"
+                v-for="(record, recordIndex) in records"
                 :key="record[modelMeta.primaryKey]"
-                class="hover:bg-gray-50 dark:hover:bg-gray-900/30"
+                class="group hover:bg-gray-50 dark:hover:bg-gray-900/30"
               >
-                <td class="px-4 py-2">
+                <td
+                  v-if="modelMeta?.actions?.bulkDelete !== false"
+                  class="px-4 py-2"
+                >
                   <input
                     type="checkbox"
                     :checked="selectedIds.has(record[modelMeta.primaryKey])"
@@ -605,83 +696,82 @@ function createUrl() {
                     null
                   </span>
                   <Link
-                    v-else-if="col === modelMeta.primaryKey"
+                    v-else-if="
+                      col === modelMeta.primaryKey &&
+                      modelMeta.actions?.view !== false
+                    "
                     :href="recordUrl(record[col])"
+                    :title="String(record[col])"
                     class="font-medium text-gray-900 hover:underline dark:text-white"
                   >
-                    {{ record[col] }}
+                    {{ displayIdentifier(record[col]) }}
                   </Link>
                   <span v-else class="text-gray-700 dark:text-gray-300">
                     {{ formatCell(record[col], col) }}
                   </span>
                 </td>
-                <td class="px-4 py-2">
-                  <div class="flex items-center justify-end space-x-1">
-                    <Link
-                      :href="recordUrl(record[modelMeta.primaryKey])"
-                      prefetch
-                      class="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-900 dark:hover:bg-gray-800 dark:hover:text-white"
-                      title="View"
-                    >
-                      <svg
-                        class="h-4 w-4"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                          stroke-width="2"
-                          d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-                        />
-                        <path
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                          stroke-width="2"
-                          d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
-                        />
-                      </svg>
-                    </Link>
-                    <Link
-                      :href="editUrl(record[modelMeta.primaryKey])"
-                      prefetch
-                      class="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-900 dark:hover:bg-gray-800 dark:hover:text-white"
-                      title="Edit"
-                    >
-                      <svg
-                        class="h-4 w-4"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                          stroke-width="2"
-                          d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-                        />
-                      </svg>
-                    </Link>
+                <td v-if="hasRecordActions" class="px-4 py-2">
+                  <div class="relative flex justify-end" @click.stop>
                     <button
-                      @click="openDeleteModal(record)"
-                      class="rounded p-1 text-gray-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400"
-                      title="Delete"
+                      type="button"
+                      class="rounded-md p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 dark:text-gray-500 dark:hover:bg-gray-800 dark:hover:text-gray-200 dark:focus-visible:ring-gray-700"
+                      :aria-label="`Actions for ${actionLabel(record)}`"
+                      aria-haspopup="menu"
+                      :aria-expanded="openActionMenu === recordKey(record)"
+                      @click="toggleActionMenu(record)"
                     >
                       <svg
                         class="h-4 w-4"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
+                        fill="currentColor"
+                        viewBox="0 0 20 20"
+                        aria-hidden="true"
                       >
                         <path
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                          stroke-width="2"
-                          d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                          d="M6 10a2 2 0 1 1-4 0 2 2 0 0 1 4 0Zm6 0a2 2 0 1 1-4 0 2 2 0 0 1 4 0Zm6 0a2 2 0 1 1-4 0 2 2 0 0 1 4 0Z"
                         />
                       </svg>
                     </button>
+
+                    <div
+                      v-if="openActionMenu === recordKey(record)"
+                      role="menu"
+                      :class="[
+                        'absolute right-0 z-20 w-36 rounded-md border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-900',
+                        recordIndex >= records.length - 2
+                          ? 'bottom-full mb-1'
+                          : 'top-full mt-1'
+                      ]"
+                      @keydown="handleActionMenuKeydown"
+                    >
+                      <Link
+                        v-if="modelMeta.actions?.view !== false"
+                        :href="recordUrl(record[modelMeta.primaryKey])"
+                        prefetch
+                        role="menuitem"
+                        class="flex w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 focus:bg-gray-50 focus:outline-none dark:text-gray-300 dark:hover:bg-gray-800 dark:focus:bg-gray-800"
+                        @click="closeActionMenu"
+                      >
+                        View record
+                      </Link>
+                      <Link
+                        v-if="modelMeta.actions?.update !== false"
+                        :href="editUrl(record[modelMeta.primaryKey])"
+                        prefetch
+                        role="menuitem"
+                        class="flex w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 focus:bg-gray-50 focus:outline-none dark:text-gray-300 dark:hover:bg-gray-800 dark:focus:bg-gray-800"
+                        @click="closeActionMenu"
+                      >
+                        Edit record
+                      </Link>
+                      <button
+                        v-if="modelMeta.actions?.delete !== false"
+                        @click="openDeleteModal(record)"
+                        role="menuitem"
+                        class="flex w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50 focus:bg-red-50 focus:outline-none dark:text-red-400 dark:hover:bg-red-900/20 dark:focus:bg-red-900/20"
+                      >
+                        Delete record
+                      </button>
+                    </div>
                   </div>
                 </td>
               </tr>

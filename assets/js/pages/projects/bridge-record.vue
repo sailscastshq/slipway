@@ -29,25 +29,50 @@ const { toasts, toast, dismiss } = createToast()
 const deleteModal = ref({ show: false })
 const deleteForm = useForm({})
 
+function encodePathSegment(value) {
+  return encodeURIComponent(String(value))
+}
+
+function displayIdentifier(value) {
+  const identifier = String(value ?? '')
+  if (identifier.length <= 24) return identifier
+  return `${identifier.slice(0, 10)}…${identifier.slice(-6)}`
+}
+
+function relatedIdentifier(record) {
+  if (!record) return ''
+  return record.id ?? record[Object.keys(record)[0]]
+}
+
 // Categorize attributes
 const regularAttrs = computed(() => {
   if (!props.modelMeta) return []
-  return Object.entries(props.modelMeta.attributes).filter(
-    ([, attr]) => !attr.model
-  )
+  return (props.modelMeta.show || [])
+    .map((name) => [name, props.modelMeta.attributes[name]])
+    .filter(([, attr]) => attr && !attr.model)
 })
 
 const modelAssociations = computed(() => {
   if (!props.modelMeta) return []
-  return (props.modelMeta.associations || []).filter((a) => a.type === 'model')
+  const visibleFields = new Set(props.modelMeta.show || [])
+  return (props.modelMeta.associations || []).filter(
+    (association) =>
+      association.type === 'model' && visibleFields.has(association.alias)
+  )
 })
 
 const collectionAssociations = computed(() => {
   if (!props.modelMeta) return []
+  const visibleFields = new Set(props.modelMeta.show || [])
   return (props.modelMeta.associations || []).filter(
-    (a) => a.type === 'collection'
+    (association) =>
+      association.type === 'collection' && visibleFields.has(association.alias)
   )
 })
+
+function fieldLabel(name) {
+  return props.modelMeta?.attributes[name]?.label || name
+}
 
 function formatValue(value, attr) {
   if (value === null || value === undefined)
@@ -94,7 +119,11 @@ function collectionCount(alias) {
 
 function confirmDelete() {
   deleteForm.post(
-    `/projects/${props.project.slug}/environments/${props.environment.slug}/bridge/${props.modelIdentity}/${props.recordId}/delete`,
+    `/projects/${props.project.slug}/environments/${
+      props.environment.slug
+    }/bridge/${props.modelIdentity}/${encodePathSegment(
+      props.recordId
+    )}/delete`,
     {
       onSuccess: () => {
         toast({ message: 'Record deleted.', type: 'success' })
@@ -116,15 +145,23 @@ function modelUrl() {
   return `/projects/${props.project.slug}/environments/${props.environment.slug}/bridge/${props.modelIdentity}`
 }
 function editUrl() {
-  return `/projects/${props.project.slug}/environments/${props.environment.slug}/bridge/${props.modelIdentity}/${props.recordId}/edit`
+  return `/projects/${props.project.slug}/environments/${
+    props.environment.slug
+  }/bridge/${props.modelIdentity}/${encodePathSegment(props.recordId)}/edit`
 }
 function relatedRecordUrl(model, id) {
-  return `/projects/${props.project.slug}/environments/${props.environment.slug}/bridge/${model}/${id}`
+  return `/projects/${props.project.slug}/environments/${
+    props.environment.slug
+  }/bridge/${model}/${encodePathSegment(id)}`
 }
 </script>
 
 <template>
-  <Head :title="`${modelIdentity} #${recordId} - Bridge | Slipway`"></Head>
+  <Head
+    :title="`${
+      modelMeta?.singularLabel || modelIdentity
+    } ${recordId} - Bridge | Slipway`"
+  ></Head>
   <ToastContainer :toasts="toasts" @dismiss="dismiss" />
 
   <div class="flex h-full flex-col">
@@ -222,11 +259,13 @@ function relatedRecordUrl(model, id) {
         </button>
         <nav class="flex items-center space-x-2 text-sm sm:hidden">
           <Link :href="modelUrl()" class="text-gray-500 dark:text-gray-400">{{
-            modelIdentity
+            modelMeta?.label || modelIdentity
           }}</Link>
           <span class="text-gray-400 dark:text-gray-600">/</span>
-          <span class="font-medium text-gray-900 dark:text-white"
-            >#{{ recordId }}</span
+          <span
+            class="max-w-40 truncate font-medium text-gray-900 dark:text-white"
+            :title="String(recordId)"
+            >{{ displayIdentifier(recordId) }}</span
           >
         </nav>
         <nav class="hidden items-center space-x-2 text-sm sm:flex">
@@ -252,16 +291,19 @@ function relatedRecordUrl(model, id) {
           <Link
             :href="modelUrl()"
             class="text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
-            >{{ modelIdentity }}</Link
+            >{{ modelMeta?.label || modelIdentity }}</Link
           >
           <span class="text-gray-400 dark:text-gray-600">/</span>
-          <span class="font-medium text-gray-900 dark:text-white"
-            >#{{ recordId }}</span
+          <span
+            class="max-w-48 truncate font-medium text-gray-900 dark:text-white"
+            :title="String(recordId)"
+            >{{ displayIdentifier(recordId) }}</span
           >
         </nav>
       </div>
       <div v-if="record" class="flex items-center space-x-2">
         <Link
+          v-if="modelMeta?.actions?.update !== false"
           :href="editUrl()"
           class="inline-flex items-center rounded-md border border-gray-200 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
         >
@@ -281,6 +323,7 @@ function relatedRecordUrl(model, id) {
           Edit
         </Link>
         <button
+          v-if="modelMeta?.actions?.delete !== false"
           @click="deleteModal.show = true"
           class="inline-flex items-center rounded-md border border-red-200 px-3 py-1.5 text-sm font-medium text-red-700 hover:bg-red-50 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-900/20"
         >
@@ -330,9 +373,16 @@ function relatedRecordUrl(model, id) {
 
       <!-- Record detail -->
       <div v-else-if="record && modelMeta" class="p-4 sm:p-6">
-        <div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        <div
+          :class="[
+            'mx-auto grid max-w-6xl grid-cols-1 gap-6',
+            collectionAssociations.length > 0 ? 'lg:grid-cols-3' : ''
+          ]"
+        >
           <!-- Left: Attributes -->
-          <div class="lg:col-span-2">
+          <div
+            :class="collectionAssociations.length > 0 ? 'lg:col-span-2' : ''"
+          >
             <div
               class="overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900"
             >
@@ -353,7 +403,7 @@ function relatedRecordUrl(model, id) {
                   <dt
                     class="w-40 shrink-0 text-sm font-medium text-gray-500 dark:text-gray-400"
                   >
-                    {{ name }}
+                    {{ fieldLabel(name) }}
                   </dt>
                   <dd
                     class="min-w-0 flex-1 text-sm text-gray-900 dark:text-white"
@@ -409,7 +459,7 @@ function relatedRecordUrl(model, id) {
                   <dt
                     class="w-40 shrink-0 text-sm font-medium text-gray-500 dark:text-gray-400"
                   >
-                    {{ assoc.alias }}
+                    {{ fieldLabel(assoc.alias) }}
                     <span
                       class="block text-xs font-normal text-gray-400 dark:text-gray-500"
                       >→ {{ assoc.model }}</span
@@ -429,7 +479,8 @@ function relatedRecordUrl(model, id) {
                       :href="relatedRecordUrl(assoc.model, record[assoc.alias])"
                       class="font-medium text-gray-900 hover:underline dark:text-white"
                     >
-                      {{ assoc.model }} #{{ record[assoc.alias] }}
+                      {{ assoc.model }}
+                      {{ displayIdentifier(record[assoc.alias]) }}
                     </Link>
                   </dd>
                 </div>
@@ -438,7 +489,7 @@ function relatedRecordUrl(model, id) {
           </div>
 
           <!-- Right: Collection associations -->
-          <div class="space-y-4">
+          <div v-if="collectionAssociations.length > 0" class="space-y-4">
             <div
               v-for="assoc in collectionAssociations"
               :key="assoc.alias"
@@ -478,12 +529,13 @@ function relatedRecordUrl(model, id) {
                     :href="
                       relatedRecordUrl(
                         assoc.collection,
-                        related.id || related[Object.keys(related)[0]]
+                        relatedIdentifier(related)
                       )
                     "
+                    :title="String(relatedIdentifier(related))"
                     class="text-sm font-medium text-gray-900 hover:underline dark:text-white"
                   >
-                    #{{ related.id || related[Object.keys(related)[0]] }}
+                    {{ displayIdentifier(relatedIdentifier(related)) }}
                   </Link>
                   <span
                     v-if="related.name || related.title || related.email"
@@ -493,16 +545,6 @@ function relatedRecordUrl(model, id) {
                   </span>
                 </li>
               </ul>
-            </div>
-
-            <!-- Empty state for no associations -->
-            <div
-              v-if="collectionAssociations.length === 0"
-              class="rounded-xl border border-dashed border-gray-200 px-4 py-8 text-center dark:border-gray-800"
-            >
-              <p class="text-xs text-gray-400 dark:text-gray-500">
-                No collection associations
-              </p>
             </div>
           </div>
         </div>

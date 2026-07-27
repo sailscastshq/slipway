@@ -7,7 +7,8 @@ const UNSUPPORTED_MARKDOWN = [
   {
     code: 'raw-html',
     label: 'embedded HTML',
-    pattern: /(^|\n)\s*<\/?[a-z][^>\n]*>/i
+    pattern:
+      /<\/?[a-z][a-z\d-]*(?:\s[^<>]*?)?\s*\/?>|<![A-Z][^>]*>|<\?[\s\S]*?\?>/i
   },
   {
     code: 'footnotes',
@@ -46,6 +47,10 @@ const UNSUPPORTED_MARKDOWN = [
 const BLOCKED_PROTOCOL = /^[a-z][a-z\d+.-]*:/i
 const SAFE_LINK_PROTOCOLS = new Set(['http:', 'https:', 'mailto:', 'tel:'])
 const SAFE_IMAGE_PROTOCOLS = new Set(['http:', 'https:'])
+const MARKDOWN_AUTOLINK =
+  /<[a-z][a-z\d+.-]{1,31}:[^<>\s]*>|<[a-z\d.!#$%&'*+/=?^_`{|}~-]+@[a-z\d](?:[a-z\d-]{0,61}[a-z\d])?(?:\.[a-z\d](?:[a-z\d-]{0,61}[a-z\d])?)+>/gi
+const RAW_HTML =
+  /<!--[\s\S]*?-->|<\/?[a-z][^<>]*>|<![A-Z][^>]*>|<\?[\s\S]*?\?>/i
 
 export function inspectMarkdown(markdown = '') {
   const issues = UNSUPPORTED_MARKDOWN.filter(({ pattern }) =>
@@ -56,6 +61,10 @@ export function inspectMarkdown(markdown = '') {
     supported: issues.length === 0,
     issues
   }
+}
+
+export function containsRawHtml(markdown = '') {
+  return RAW_HTML.test(String(markdown).replace(MARKDOWN_AUTOLINK, ''))
 }
 
 export function normalizeMarkdownBoundary(markdown = '') {

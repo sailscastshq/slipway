@@ -66,59 +66,47 @@ module.exports = {
 
     if (appRunning) {
       try {
-        // Get model introspection
-        const introspection = await sails.helpers.bridge.introspectModels(
+        const loaded = await sails.helpers.bridge.loadResource.with({
+          containerName: app.containerName,
+          environmentId: environment.id,
+          modelIdentity,
+          action: 'view'
+        })
+        modelMeta = loaded.resource
+
+        const criteria = {
+          [modelMeta.primaryKey]: recordId
+        }
+        const queryCode = `
+          const identity = ${JSON.stringify(modelMeta.identity)};
+          const criteria = ${JSON.stringify(criteria)};
+          const fields = ${JSON.stringify(modelMeta.show)};
+          const model = sails.models[identity];
+          if (!model) throw new Error('Configured Bridge model is unavailable.');
+
+          const record = await model.findOne(criteria).select(fields);
+          return { record };
+        `
+        const wrappedCode = await sails.helpers.bridge.buildSailsWrapper(
+          queryCode
+        )
+        const result = await sails.helpers.bridge.executeInContainer(
           app.containerName,
-          environment.id
+          wrappedCode
         )
 
-        if (introspection.error) {
-          error = introspection.error
-        } else {
-          modelMeta = introspection.models[modelIdentity]
-
-          if (!modelMeta) {
-            error = `Model "${modelIdentity}" not found.`
-          } else {
-            // Build populate clause for associations
-            const collectionAssocs = (modelMeta.associations || [])
-              .filter((a) => a.type === 'collection')
-              .map((a) => `'${a.alias}'`)
-
-            const populateChain =
-              collectionAssocs.length > 0
-                ? `.populate([${collectionAssocs.join(', ')}])`
-                : ''
-
-            // Fetch the record
-            const queryCode = `
-              const record = await sails.models['${modelIdentity}'].findOne({ id: ${JSON.stringify(
-              recordId
-            )} })${populateChain};
-              return { record };
-            `
-            const wrappedCode = await sails.helpers.bridge.buildSailsWrapper(
-              queryCode
-            )
-            const result = await sails.helpers.bridge.executeInContainer(
-              app.containerName,
-              wrappedCode
-            )
-
-            if (result.success) {
-              try {
-                const data = JSON.parse(result.output)
-                record = data.record
-                if (!record) {
-                  error = `Record with ID "${recordId}" not found.`
-                }
-              } catch (e) {
-                error = 'Failed to parse record: ' + e.message
-              }
-            } else {
-              error = result.error || 'Failed to fetch record'
+        if (result.success) {
+          try {
+            const data = JSON.parse(result.output)
+            record = data.record
+            if (!record) {
+              error = `Record with ID "${recordId}" not found.`
             }
+          } catch (parseError) {
+            error = 'Failed to parse record: ' + parseError.message
           }
+        } else {
+          error = result.error || 'Failed to fetch record'
         }
       } catch (err) {
         error = err.message
