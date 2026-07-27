@@ -5,6 +5,7 @@ import AppLayout from '@/layouts/AppLayout.vue'
 import ConfirmModal from '@/components/ConfirmModal.vue'
 import ToastContainer from '@/components/ToastContainer.vue'
 import { createToast } from '@/composables/toast'
+import BridgeFieldValue from '@/components/bridge/BridgeFieldValue.vue'
 
 defineOptions({
   layout: AppLayout
@@ -204,45 +205,6 @@ function toggleSelect(id) {
   else s.add(id)
   selectedIds.value = s
   selectAll.value = s.size === props.records.length
-}
-
-// Cell rendering
-function formatCell(value, attrName) {
-  if (value === null || value === undefined) return null
-  const attr = props.modelMeta?.attributes[attrName]
-  if (!attr) return String(value)
-
-  if (attr.autoCreatedAt || attr.autoUpdatedAt) {
-    return formatDate(value)
-  }
-  if (attr.type === 'boolean') return value
-  if (attr.type === 'json' || typeof value === 'object')
-    return JSON.stringify(value)
-  if (typeof value === 'string' && value.length > 60)
-    return value.slice(0, 60) + '...'
-  return String(value)
-}
-
-function formatDate(value) {
-  if (!value) return ''
-  try {
-    const d = new Date(value)
-    return d.toLocaleString(undefined, {
-      dateStyle: 'medium',
-      timeStyle: 'short'
-    })
-  } catch {
-    return String(value)
-  }
-}
-
-function isBooleanAttr(attrName) {
-  return props.modelMeta?.attributes[attrName]?.type === 'boolean'
-}
-
-function isTimestamp(attrName) {
-  const attr = props.modelMeta?.attributes[attrName]
-  return attr?.autoCreatedAt || attr?.autoUpdatedAt
 }
 
 // Delete single record
@@ -671,32 +633,8 @@ function createUrl() {
                   :key="col"
                   class="whitespace-nowrap px-4 py-2"
                 >
-                  <span v-if="isBooleanAttr(col)" class="flex items-center">
-                    <span
-                      :class="[
-                        'inline-block h-2 w-2 rounded-full',
-                        record[col]
-                          ? 'bg-green-500'
-                          : 'bg-gray-300 dark:bg-gray-600'
-                      ]"
-                    ></span>
-                  </span>
-                  <span
-                    v-else-if="isTimestamp(col)"
-                    class="text-gray-500 dark:text-gray-400"
-                  >
-                    {{ formatDate(record[col]) }}
-                  </span>
-                  <span
-                    v-else-if="
-                      record[col] === null || record[col] === undefined
-                    "
-                    class="text-gray-300 dark:text-gray-600"
-                  >
-                    null
-                  </span>
                   <Link
-                    v-else-if="
+                    v-if="
                       col === modelMeta.primaryKey &&
                       modelMeta.actions?.view !== false
                     "
@@ -706,9 +644,14 @@ function createUrl() {
                   >
                     {{ displayIdentifier(record[col]) }}
                   </Link>
-                  <span v-else class="text-gray-700 dark:text-gray-300">
-                    {{ formatCell(record[col], col) }}
-                  </span>
+                  <BridgeFieldValue
+                    v-else
+                    :name="col"
+                    :attribute="modelMeta.attributes[col]"
+                    :value="record[col]"
+                    context="list"
+                    class="text-gray-700 dark:text-gray-300"
+                  />
                 </td>
                 <td v-if="hasRecordActions" class="px-4 py-2">
                   <div class="relative flex justify-end" @click.stop>

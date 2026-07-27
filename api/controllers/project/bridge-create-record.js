@@ -81,10 +81,15 @@ module.exports = {
       allowedValues = await sails.helpers.bridge.allowResourceValues.with({
         values,
         resource: loaded.resource,
-        surface: 'create'
+        surface: 'create',
+        uploadContext: {
+          actorId: user.id,
+          projectId: project.id,
+          environmentId: environment.id
+        }
       })
     } catch (error) {
-      throw { badRequest: { error: error.message } }
+      throw { badRequest: toBadRequest(error) }
     }
 
     try {
@@ -103,7 +108,17 @@ module.exports = {
       }
       return `/projects/${slug}${envPath}/bridge/${loaded.resource.identity}`
     } catch (error) {
-      throw { badRequest: { error: error.message } }
+      throw { badRequest: toBadRequest(error) }
     }
+  }
+}
+
+function toBadRequest(error) {
+  if (!error?.fieldErrors) return { error: error.message }
+  return {
+    error: error.message,
+    problems: Object.entries(error.fieldErrors).map(([field, message]) => ({
+      [field]: message
+    }))
   }
 }
