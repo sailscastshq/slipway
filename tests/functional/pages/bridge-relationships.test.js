@@ -85,7 +85,7 @@ test(
 
       const browser = await withCsrfFromPage(
         request,
-        `/projects/${project.slug}/environments/${environment.slug}`,
+        '/projects/new',
         'genesisUser'
       )
       const optionsPath =
@@ -190,7 +190,7 @@ test(
 
       const browser = await withCsrfFromPage(
         request,
-        `/projects/${project.slug}/environments/${environment.slug}`,
+        '/projects/new',
         'genesisUser'
       )
       const mutationPath =
