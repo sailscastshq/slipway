@@ -1,12 +1,15 @@
 const crypto = require('node:crypto')
 const path = require('node:path')
 
-const IMAGE_EXTENSIONS = {
+const MIME_EXTENSIONS = {
   'image/avif': '.avif',
   'image/gif': '.gif',
   'image/jpeg': '.jpg',
   'image/png': '.png',
-  'image/webp': '.webp'
+  'image/webp': '.webp',
+  'video/mp4': '.mp4',
+  'video/quicktime': '.mov',
+  'video/webm': '.webm'
 }
 
 module.exports = {
@@ -40,6 +43,10 @@ module.exports = {
     recordId: {
       type: 'string'
     },
+    values: {
+      type: 'string',
+      defaultsTo: '{}'
+    },
     file: {
       type: 'ref',
       required: true
@@ -67,7 +74,8 @@ module.exports = {
     appSlug,
     modelIdentity,
     fieldName,
-    recordId
+    recordId,
+    values
   }) {
     let resolved
     try {
@@ -109,7 +117,12 @@ module.exports = {
     const fieldType = attribute?.field?.type
     if (
       !loaded.resource[surface]?.includes(fieldName) ||
-      !['file', 'image', 'upload'].includes(fieldType) ||
+      !(
+        ['file', 'image', 'upload'].includes(fieldType) ||
+        (fieldType === 'richtext' &&
+          attribute.field.format?.toLowerCase() === 'markdown' &&
+          attribute.field.upload?.kind === 'image')
+      ) ||
       attribute.field.upload?.storage !== 'bridge'
     ) {
       throw {
@@ -128,15 +141,44 @@ module.exports = {
     }
 
     const upload = attribute.field.upload
-    const directory = [
-      'bridge',
-      `teams/${safeSegment(project.team)}`,
-      `projects/${safeSegment(project.id)}`,
-      `environments/${safeSegment(environment.id)}`,
-      safeSegment(modelIdentity),
-      safeSegment(fieldName),
-      upload.directory
-    ]
+    let uploadValues
+    let objectPathConfig
+    try {
+      uploadValues = parseUploadValues(values)
+      await sails.helpers.bridge.authorizeRelationshipValues.with({
+        containerName: app.containerName,
+        environmentId: environment.id,
+        resource: loaded.resource,
+        actor,
+        values: uploadValues
+      })
+      objectPathConfig =
+        await sails.helpers.bridge.resolveUploadObjectPath.with({
+          containerName: app.containerName,
+          resource: loaded.resource,
+          resources: loaded.contract?.models || {
+            [loaded.resource.identity]: loaded.resource
+          },
+          upload,
+          values: uploadValues,
+          ...(recordId ? { recordId: loaded.recordId } : {})
+        })
+    } catch (error) {
+      throw { badRequest: { message: error.message } }
+    }
+
+    const namespace =
+      upload.scope === 'bucket'
+        ? []
+        : [
+            'bridge',
+            `teams/${safeSegment(project.team)}`,
+            `projects/${safeSegment(project.id)}`,
+            `environments/${safeSegment(environment.id)}`,
+            safeSegment(modelIdentity),
+            safeSegment(fieldName)
+          ]
+    const directory = [...namespace, objectPathConfig.directory]
       .filter(Boolean)
       .join('/')
     const objectId = crypto.randomUUID()
@@ -162,9 +204,12 @@ module.exports = {
               return
             }
             const extension =
-              IMAGE_EXTENSIONS[incoming.type] ||
+              MIME_EXTENSIONS[incoming.type] ||
               safeExtension(incoming.filename || '')
-            proceed(null, `${objectId}${extension}`)
+            proceed(
+              null,
+              `${objectPathConfig.filename || objectId}${extension}`
+            )
           }
         },
         (error, files) => {
@@ -190,7 +235,7 @@ module.exports = {
     }
 
     const fileName = String(uploadedFiles[0].fd).split('/').pop()
-    const objectPath = `${directory}/${fileName}`
+    const objectPath = [directory, fileName].filter(Boolean).join('/')
     const url = `${storage.publicUrl.replace(/\/$/, '')}/${objectPath}`
     const receipt = await sails.helpers.bridge.createUploadReceipt.with({
       url,
@@ -232,6 +277,29 @@ function safeExtension(filename) {
 
 function safeSegment(value) {
   return String(value).replace(/[^A-Za-z0-9._-]/g, '-')
+}
+
+function parseUploadValues(value) {
+  if (value === undefined || value === null || value === '') value = '{}'
+  if (typeof value !== 'string' || value.length > 64 * 1024) {
+    throw new Error('Bridge upload context is invalid.')
+  }
+
+  let parsed
+  try {
+    parsed = JSON.parse(value || '{}')
+  } catch {
+    throw new Error('Bridge upload context is invalid.')
+  }
+  if (
+    !parsed ||
+    typeof parsed !== 'object' ||
+    Array.isArray(parsed) ||
+    ![Object.prototype, null].includes(Object.getPrototypeOf(parsed))
+  ) {
+    throw new Error('Bridge upload context is invalid.')
+  }
+  return parsed
 }
 
 function formatBytes(bytes) {

@@ -438,6 +438,7 @@ function recordUrl() {
               :association-options="assocOptions[field.name] || []"
               :association-search-url="relationshipSearchUrl(field)"
               :upload-url="uploadUrl(field)"
+              :upload-values="formValues"
               @update:model-value="updateField(field, $event)"
               @blur="validateAndRemember(field)"
               @clear-error="clearFieldError(field)"

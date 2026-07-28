@@ -46,6 +46,9 @@ test(
     const filterScreenshotRoot = path.resolve(
       '.tmp/screenshots/issue-224-bridge-filters'
     )
+    const sailscastsScreenshotRoot = path.resolve(
+      '.tmp/screenshots/issue-225-sailscasts-bridge-parity'
+    )
 
     fs.mkdirSync(screenshotRoot, { recursive: true })
     fs.mkdirSync(identifierScreenshotRoot, { recursive: true })
@@ -54,6 +57,7 @@ test(
     fs.mkdirSync(relationshipScreenshotRoot, { recursive: true })
     fs.mkdirSync(actionScreenshotRoot, { recursive: true })
     fs.mkdirSync(filterScreenshotRoot, { recursive: true })
+    fs.mkdirSync(sailscastsScreenshotRoot, { recursive: true })
 
     const contract = await sails.helpers.bridge.normalizeResourceContract.with({
       models: resourceMetadata(),
@@ -105,6 +109,7 @@ test(
     let persistedCourseRecord = record
     let createdValues
     let updatedValues
+    let inlineUploadRequestBody = ''
     const resourceQueries = []
 
     await sails.models.app
@@ -372,6 +377,25 @@ test(
                 <text x="48" y="90" fill="#fff" font-family="system-ui" font-size="24" font-weight="600">Build a production Sails app</text>
               </svg>
             `
+          })
+        }
+      )
+      await page.raw.route(
+        '**/bridge/course/description/upload',
+        async (route) => {
+          inlineUploadRequestBody = route.request().postData() || ''
+          await route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({
+              url: 'https://cdn.example.com/courses/descriptions/release-diagram.png',
+              receipt: 'signed-inline-image-receipt',
+              file: {
+                name: 'release-diagram.png',
+                size: 68,
+                type: 'image/png'
+              }
+            })
           })
         }
       )
@@ -714,6 +738,65 @@ test(
       )
       expect(await descriptionSource.inputValue()).toContain(
         '**Boring releases are good.**'
+      )
+      await page.raw
+        .getByRole('button', {
+          name: 'Edit Course description as Visual'
+        })
+        .click()
+      await descriptionEditor.click()
+      await page.raw.keyboard.press('ControlOrMeta+End')
+      await page.raw.keyboard.press('Enter')
+      await descriptionEditor.evaluate((element) => {
+        const bytes = Uint8Array.from(
+          atob(
+            'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADElEQVR42mNk+M/wHwAF/gL+Xhc4VQAAAABJRU5ErkJggg=='
+          ),
+          (character) => character.charCodeAt(0)
+        )
+        const clipboard = new DataTransfer()
+        clipboard.items.add(
+          new File([bytes], 'release-diagram.png', { type: 'image/png' })
+        )
+        element.dispatchEvent(
+          new ClipboardEvent('paste', {
+            bubbles: true,
+            cancelable: true,
+            clipboardData: clipboard
+          })
+        )
+      })
+      const inlineImage = descriptionEditor.locator(
+        'img[src="https://cdn.example.com/courses/descriptions/release-diagram.png"]'
+      )
+      await inlineImage.waitFor({ state: 'visible' })
+      expect(inlineUploadRequestBody).toContain('Ship a durable course')
+      await page.screenshot(
+        path.join(
+          sailscastsScreenshotRoot,
+          'richtext-inline-image-upload-light.png'
+        ),
+        { fullPage: true }
+      )
+      await page.raw.emulateMedia({ colorScheme: 'dark' })
+      await page.screenshot(
+        path.join(
+          sailscastsScreenshotRoot,
+          'richtext-inline-image-upload-dark.png'
+        ),
+        { fullPage: true }
+      )
+      await page.raw.emulateMedia({ colorScheme: 'light' })
+      await page.raw
+        .getByRole('button', {
+          name: 'Edit Course description as Markdown'
+        })
+        .click()
+      expect(await descriptionSource.inputValue()).toContain(
+        '**Boring releases are good.**'
+      )
+      expect(await descriptionSource.inputValue()).toContain(
+        'https://cdn.example.com/courses/descriptions/release-diagram.png'
       )
       const createdMarkdown = await descriptionSource.inputValue()
       await descriptionSource.fill(
@@ -1123,7 +1206,15 @@ function resourceConfig() {
             label: 'Course description',
             type: 'richtext',
             format: 'markdown',
-            help: 'The public description shown on the course page.'
+            help: 'The public description shown on the course page.',
+            upload: {
+              kind: 'image',
+              storage: 'bridge',
+              directory: '{title|slug}/descriptions',
+              store: 'url',
+              accept: ['image/png'],
+              maxBytes: 10 * 1024 * 1024
+            }
           },
           thumbnailUrl: {
             label: 'Thumbnail',

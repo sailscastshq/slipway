@@ -31,27 +31,28 @@ module.exports = {
       // A malformed optional global setting must not expose or replace scoped values.
     }
 
-    const values = {
-      ...onlyBridgeValues(globalEnvVars),
-      ...onlyBridgeValues(environment.envVars),
-      ...onlyBridgeValues(app.envVars)
-    }
-    const provider = String(values.BRIDGE_STORAGE_PROVIDER || '').toLowerCase()
+    const scopes = [
+      storageValues(globalEnvVars),
+      storageValues(environment.envVars),
+      storageValues(app.envVars)
+    ]
+    const provider = resolveProvider(scopes)
     if (!['r2', 's3'].includes(provider)) {
       throw storageError(
-        'Set BRIDGE_STORAGE_PROVIDER to "r2" or "s3" for this app, environment, or Slipway instance.'
+        'Set BRIDGE_STORAGE_PROVIDER to "r2" or "s3", or configure a complete conventional R2_ or S3_ credential set.'
       )
     }
 
-    const prefix = provider === 'r2' ? 'BRIDGE_R2_' : 'BRIDGE_S3_'
     const config = {
       provider,
-      key: values[`${prefix}ACCESS_KEY`],
-      secret: values[`${prefix}SECRET_KEY`],
-      bucket: values[`${prefix}BUCKET`],
-      endpoint: values[`${prefix}ENDPOINT`],
-      publicUrl: values[`${prefix}PUBLIC_URL`],
-      region: values[`${prefix}REGION`] || (provider === 'r2' ? 'auto' : null)
+      key: resolveStorageValue(scopes, provider, 'ACCESS_KEY'),
+      secret: resolveStorageValue(scopes, provider, 'SECRET_KEY'),
+      bucket: resolveStorageValue(scopes, provider, 'BUCKET'),
+      endpoint: resolveStorageValue(scopes, provider, 'ENDPOINT'),
+      publicUrl: resolveStorageValue(scopes, provider, 'PUBLIC_URL'),
+      region:
+        resolveStorageValue(scopes, provider, 'REGION') ||
+        (provider === 'r2' ? 'auto' : null)
     }
 
     const missing = ['key', 'secret', 'bucket'].filter(
@@ -82,11 +83,60 @@ module.exports = {
   }
 }
 
-function onlyBridgeValues(value) {
+function storageValues(value) {
   if (!isPlainObject(value)) return {}
   return Object.fromEntries(
-    Object.entries(value).filter(([key]) => key.startsWith('BRIDGE_'))
+    Object.entries(value).filter(
+      ([key]) =>
+        key.startsWith('BRIDGE_') ||
+        key.startsWith('R2_') ||
+        key.startsWith('S3_')
+    )
   )
+}
+
+function resolveProvider(scopes) {
+  const configured = String(
+    resolveScopedValue(scopes, ['BRIDGE_STORAGE_PROVIDER']) || ''
+  ).toLowerCase()
+  if (configured) return configured
+
+  const hasR2 = hasCredentials(scopes, 'r2')
+  const hasS3 = hasCredentials(scopes, 's3')
+  if (hasR2 && hasS3) {
+    throw storageError(
+      'Both R2 and S3 credentials are configured. Set BRIDGE_STORAGE_PROVIDER explicitly.'
+    )
+  }
+  if (hasR2) return 'r2'
+  if (hasS3) return 's3'
+  return ''
+}
+
+function hasCredentials(scopes, provider) {
+  const required = ['ACCESS_KEY', 'SECRET_KEY', 'BUCKET']
+  if (provider === 'r2') required.push('ENDPOINT')
+  return required.every((name) =>
+    readString(resolveStorageValue(scopes, provider, name))
+  )
+}
+
+function resolveStorageValue(scopes, provider, suffix) {
+  const name = provider === 'r2' ? 'R2' : 'S3'
+  return resolveScopedValue(scopes, [
+    `BRIDGE_${name}_${suffix}`,
+    `${name}_${suffix}`
+  ])
+}
+
+function resolveScopedValue(scopes, names) {
+  for (let index = scopes.length - 1; index >= 0; index--) {
+    for (const name of names) {
+      const value = scopes[index][name]
+      if (readString(value)) return value
+    }
+  }
+  return undefined
 }
 
 function storageError(message) {

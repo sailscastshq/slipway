@@ -207,7 +207,9 @@ test('Bridge represents a fully configured content resource', async ({
   expect(resource.attributes.thumbnailUrl.field.upload).toEqual({
     kind: 'image',
     storage: 'bridge',
+    scope: 'environment',
     directory: 'courses/thumbnails',
+    filename: '',
     store: 'url',
     accept: [
       'image/avif',
@@ -218,6 +220,179 @@ test('Bridge represents a fully configured content resource', async ({
     ],
     maxBytes: 5 * 1024 * 1024
   })
+})
+
+test('Bridge gives Markdown rich text an app-scoped inline image upload contract', async ({
+  sails,
+  expect
+}) => {
+  const contract = await sails.helpers.bridge.normalizeResourceContract.with({
+    models: modelMetadata(),
+    config: {
+      resources: {
+        course: {
+          create: ['title', 'description'],
+          edit: ['title', 'description'],
+          fields: {
+            description: {
+              type: 'richtext',
+              format: 'markdown',
+              upload: {
+                kind: 'image',
+                storage: 'bridge',
+                directory: 'courses/descriptions',
+                store: 'url',
+                accept: ['image/jpeg', 'image/png', 'image/webp'],
+                maxBytes: 10 * 1024 * 1024
+              }
+            }
+          }
+        }
+      }
+    }
+  })
+
+  expect(contract.resources.course.attributes.description.field.upload).toEqual(
+    {
+      kind: 'image',
+      storage: 'bridge',
+      scope: 'environment',
+      directory: 'courses/descriptions',
+      filename: '',
+      store: 'url',
+      accept: ['image/jpeg', 'image/png', 'image/webp'],
+      maxBytes: 10 * 1024 * 1024
+    }
+  )
+
+  let fileKindError
+  try {
+    await sails.helpers.bridge.normalizeResourceContract.with({
+      models: modelMetadata(),
+      config: {
+        resources: {
+          course: {
+            fields: {
+              description: {
+                type: 'richtext',
+                format: 'markdown',
+                upload: {
+                  kind: 'file'
+                }
+              }
+            }
+          }
+        }
+      }
+    })
+  } catch (error) {
+    fileKindError = error
+  }
+
+  expect(fileKindError.message).toContain(
+    'upload.kind must be "image" for Markdown rich text'
+  )
+})
+
+test('Bridge normalizes generic bucket-root upload path templates', async ({
+  sails,
+  expect
+}) => {
+  const contract = await sails.helpers.bridge.normalizeResourceContract.with({
+    models: modelMetadata(),
+    config: {
+      resources: {
+        course: {
+          create: ['title', 'thumbnailUrl', 'creator'],
+          edit: ['title', 'thumbnailUrl', 'creator'],
+          fields: {
+            thumbnailUrl: {
+              type: 'upload',
+              upload: {
+                kind: 'image',
+                scope: 'bucket',
+                directory: '{creator.fullName|slug}/{title|slug}',
+                filename: '{title|slug}'
+              }
+            }
+          }
+        }
+      }
+    }
+  })
+
+  expect(
+    contract.resources.course.attributes.thumbnailUrl.field.upload
+  ).toEqual({
+    kind: 'image',
+    storage: 'bridge',
+    scope: 'bucket',
+    directory: '{creator.fullName|slug}/{title|slug}',
+    filename: '{title|slug}',
+    store: 'url',
+    accept: [
+      'image/avif',
+      'image/gif',
+      'image/jpeg',
+      'image/png',
+      'image/webp'
+    ],
+    maxBytes: 5 * 1024 * 1024
+  })
+
+  let traversalError
+  try {
+    await sails.helpers.bridge.normalizeResourceContract.with({
+      models: modelMetadata(),
+      config: {
+        resources: {
+          course: {
+            fields: {
+              thumbnailUrl: {
+                type: 'upload',
+                upload: {
+                  directory: '../{title|slug}'
+                }
+              }
+            }
+          }
+        }
+      }
+    })
+  } catch (error) {
+    traversalError = error
+  }
+
+  expect(traversalError.message).toContain(
+    'must be a safe relative object-path template'
+  )
+
+  let referenceError
+  try {
+    await sails.helpers.bridge.normalizeResourceContract.with({
+      models: modelMetadata(),
+      config: {
+        resources: {
+          course: {
+            fields: {
+              thumbnailUrl: {
+                type: 'upload',
+                upload: {
+                  directory: '{missing.slug}'
+                }
+              }
+            }
+          }
+        }
+      }
+    })
+  } catch (error) {
+    referenceError = error
+  }
+
+  expect(referenceError.message).toContain(
+    'path reference "{missing.slug}" must use an available, non-sensitive scalar field'
+  )
 })
 
 test('Bridge preserves UUID primary keys and derives belongs-to identifier types', async ({
