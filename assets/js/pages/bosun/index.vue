@@ -128,6 +128,17 @@ function showToast(message, type = 'success') {
   setTimeout(() => dismissToast(id), 5000)
 }
 
+function formatHelmError(error) {
+  if (!error) return 'Evaluation failed'
+  if (typeof error === 'string') return error
+
+  const location =
+    error.line && error.column ? ` (${error.line}:${error.column})` : ''
+  return `${error.name || 'Error'}: ${
+    error.message || 'Evaluation failed'
+  }${location}`
+}
+
 function dismissToast(id) {
   toasts.value = toasts.value.filter((t) => t.id !== id)
 }
@@ -225,11 +236,15 @@ async function executeHelm() {
 
     if (!response.ok) {
       helmError.value =
-        data?.message || data?.error || text || 'Evaluation failed'
+        data?.message ||
+        (data?.error ? formatHelmError(data.error) : null) ||
+        text ||
+        'Evaluation failed'
       return
     }
 
     helmResults.value = data
+    if (!data.success) helmError.value = formatHelmError(data.error)
 
     // Add to history (deduplicate)
     const c = helmCode.value.trim()
@@ -327,7 +342,7 @@ function exportAction(fn) {
 
 function copyHelmOutput() {
   navigator.clipboard.writeText(
-    helmResults.value?.output || helmResults.value?.error || ''
+    helmResults.value?.output || formatHelmError(helmResults.value?.error) || ''
   )
   showToast('Copied to clipboard')
 }
