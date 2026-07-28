@@ -1,6 +1,6 @@
 <script setup>
 import { Link, Head, usePage } from '@inertiajs/vue3'
-import { inject, ref, computed, onMounted } from 'vue'
+import { inject, ref, computed } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
 import SlippyLoader from '@/components/SlippyLoader.vue'
 import CodeEditor from '@/components/CodeEditor.vue'
@@ -25,12 +25,30 @@ const output = ref('')
 const error = ref('')
 const running = ref(false)
 const history = ref([])
+const editor = ref(null)
+const editorSelection = ref({
+  hasSelection: false,
+  hasExecutableSelection: false
+})
 
 const isRunning = computed(() => props.appStatus === 'running')
+const runLabel = computed(() =>
+  editorSelection.value.hasSelection ? 'Run selection' : 'Run'
+)
+const canExecute = computed(() => {
+  if (!isRunning.value || running.value) return false
+  if (editorSelection.value.hasSelection) {
+    return editorSelection.value.hasExecutableSelection
+  }
+  return Boolean(code.value.trim())
+})
 
 async function execute() {
-  if (!code.value.trim() || running.value) return
+  const execution = editor.value?.getExecutionSnapshot()
+  if (!execution?.hasExecutableSource || !canExecute.value) return
 
+  editor.value.highlightExecution(execution)
+  editor.value.focus()
   running.value = true
   output.value = ''
   error.value = ''
@@ -44,7 +62,11 @@ async function execute() {
           'Content-Type': 'application/json',
           'x-csrf-token': page.props._csrf || ''
         },
-        body: JSON.stringify({ code: code.value })
+        body: JSON.stringify({
+          code: execution.source,
+          sourceStartLine: execution.startLine,
+          sourceStartColumn: execution.startColumn
+        })
       }
     )
 
@@ -62,7 +84,7 @@ async function execute() {
 
     // Add to history
     history.value.unshift({
-      code: code.value,
+      code: execution.source,
       output: output.value,
       error: error.value,
       success: result.success,
@@ -363,11 +385,11 @@ function highlightJSON(str) {
         <button
           data-test="helm-run"
           @click="execute"
-          :disabled="running || !isRunning"
+          :disabled="!canExecute"
           class="flex items-center space-x-1.5 rounded-md bg-gray-900 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-gray-800 disabled:opacity-50 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100 sm:px-3"
-          :title="
-            (navigator?.platform?.includes('Mac') ? '⌘' : 'Ctrl') + '+Enter'
-          "
+          :title="`${runLabel} · ${
+            navigator?.platform?.includes('Mac') ? '⌘' : 'Ctrl'
+          }+Enter`"
         >
           <SlippyLoader v-if="running" size="h-3 w-3" />
           <svg v-else class="h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
@@ -376,7 +398,7 @@ function highlightJSON(str) {
             />
           </svg>
           <span class="hidden sm:inline">{{
-            running ? 'Running' : 'Run'
+            running ? 'Running' : runLabel
           }}</span>
         </button>
 
@@ -420,6 +442,7 @@ function highlightJSON(str) {
         >
           <!-- Editor area -->
           <CodeEditor
+            ref="editor"
             v-model="code"
             language="javascript"
             aria-label="Helm JavaScript"
@@ -428,6 +451,7 @@ function highlightJSON(str) {
             :disabled="!isRunning"
             submit-on-mod-enter
             placeholder="// Enter JavaScript code..."
+            @selection-change="editorSelection = $event"
             @submit="execute"
           />
         </div>
@@ -483,6 +507,7 @@ function highlightJSON(str) {
             <button
               v-for="(entry, i) in history"
               :key="i"
+              data-test="helm-history-entry"
               @click="loadFromHistory(entry)"
               class="flex w-full items-center justify-between border-b border-gray-100 px-4 py-2 text-left hover:bg-gray-50 dark:border-gray-800/50 dark:hover:bg-gray-800/50"
             >

@@ -8,6 +8,18 @@ module.exports = {
     source: {
       type: 'string',
       required: true
+    },
+    sourceStartLine: {
+      type: 'number',
+      defaultsTo: 1,
+      min: 1,
+      max: 1000000
+    },
+    sourceStartColumn: {
+      type: 'number',
+      defaultsTo: 1,
+      min: 1,
+      max: 1000000
     }
   },
 
@@ -17,10 +29,12 @@ module.exports = {
     }
   },
 
-  fn: async function ({ source }) {
+  fn: async function ({ source, sourceStartLine, sourceStartColumn }) {
     return sails.helpers.helm.run.with({
       command: process.execPath,
       source,
+      sourceStartLine,
+      sourceStartColumn,
       bootstrapSails: true
     })
   }

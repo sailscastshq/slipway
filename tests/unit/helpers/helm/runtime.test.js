@@ -229,6 +229,42 @@ test('Helm maps syntax and runtime failures to helm-input.js', async ({
   expect(rejectedPromise.error.line).toBe(1)
 })
 
+test('Helm maps selected source failures back to the original editor', async ({
+  sails,
+  expect
+}) => {
+  const firstLineFailure = await runHelm(sails, 'null.publicId', {
+    sourceStartLine: 12,
+    sourceStartColumn: 5
+  })
+  expect(firstLineFailure.success).toBe(false)
+  expect(firstLineFailure.error.line).toBe(12)
+  expect(firstLineFailure.error.column).toBe(10)
+  expect(firstLineFailure.error.stack).toContain('helm-input.js:12:10')
+
+  const laterLineFailure = await runHelm(
+    sails,
+    'const creator = null\ncreator.publicId',
+    {
+      sourceStartLine: 20,
+      sourceStartColumn: 7
+    }
+  )
+  expect(laterLineFailure.success).toBe(false)
+  expect(laterLineFailure.error.line).toBe(21)
+  expect(laterLineFailure.error.column).toBe(9)
+  expect(laterLineFailure.error.stack).toContain('helm-input.js:21:9')
+
+  const syntaxFailure = await runHelm(sails, 'const = 1', {
+    sourceStartLine: 30,
+    sourceStartColumn: 4
+  })
+  expect(syntaxFailure.success).toBe(false)
+  expect(syntaxFailure.error.line).toBe(30)
+  expect(syntaxFailure.error.column).toBe(10)
+  expect(syntaxFailure.error.stack).toContain('helm-input.js:30:10')
+})
+
 test('Helm enforces synchronous, asynchronous, source, and output bounds', async ({
   sails,
   expect
@@ -271,19 +307,25 @@ test('project Helm and Bosun Helm delegate to the same bounded runner', async ({
   sails.helpers.helm.run = fakeRun
 
   try {
-    const bosunResult = await sails.helpers.helm.evaluate('1 + 1')
+    const bosunResult = await sails.helpers.helm.evaluate('1 + 1', 4, 2)
     const projectResult = await sails.helpers.helm.executeInContainer(
       'web-production',
-      '1 + 1'
+      '1 + 1',
+      8,
+      3
     )
 
     expect(bosunResult.output).toBe('ready')
     expect(projectResult.output).toBe('ready')
     expect(calls[0].command).toBe(process.execPath)
     expect(calls[0].source).toBe('1 + 1')
+    expect(calls[0].sourceStartLine).toBe(4)
+    expect(calls[0].sourceStartColumn).toBe(2)
     expect(calls[0].bootstrapSails).toBe(true)
     expect(calls[1].args).toEqual(['exec', '-i', 'web-production', 'node'])
     expect(calls[1].source).toBe('1 + 1')
+    expect(calls[1].sourceStartLine).toBe(8)
+    expect(calls[1].sourceStartColumn).toBe(3)
     expect(calls[1].bootstrapSails).toBe(true)
   } finally {
     sails.helpers.helm.run = originalRun

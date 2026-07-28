@@ -15,8 +15,14 @@ import {
   indentOnInput,
   syntaxHighlighting
 } from '@codemirror/language'
-import { Compartment, EditorState } from '@codemirror/state'
 import {
+  Compartment,
+  EditorState,
+  StateEffect,
+  StateField
+} from '@codemirror/state'
+import {
+  Decoration,
   EditorView,
   drawSelection,
   keymap,
@@ -50,15 +56,40 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['update:modelValue', 'submit'])
+const emit = defineEmits(['update:modelValue', 'submit', 'selection-change'])
 
 const editorHost = ref(null)
 const languageCompartment = new Compartment()
 const appearanceCompartment = new Compartment()
 const editableCompartment = new Compartment()
+const setExecutedRange = StateEffect.define()
+const executedRangeMark = Decoration.mark({ class: 'cm-executed-range' })
+const executedRangeField = StateField.define({
+  create() {
+    return Decoration.none
+  },
+  update(decorations, transaction) {
+    let nextDecorations = decorations.map(transaction.changes)
+
+    for (const effect of transaction.effects) {
+      if (!effect.is(setExecutedRange)) continue
+      const range = effect.value
+      nextDecorations =
+        range && range.from < range.to
+          ? Decoration.set([executedRangeMark.range(range.from, range.to)])
+          : Decoration.none
+    }
+
+    return nextDecorations
+  },
+  provide(field) {
+    return EditorView.decorations.from(field)
+  }
+})
 let view
 let darkModeQuery
 let applyingExternalValue = false
+let executedRangeTimer
 
 const editorStyle = computed(() => ({
   '--code-editor-min-height': props.minHeight,
@@ -259,6 +290,58 @@ function submitKeymap() {
   ]
 }
 
+function getExecutionSnapshot(state = view?.state) {
+  if (!state) return null
+
+  const selection = state.selection.main
+  const hasSelection = !selection.empty
+  const from = hasSelection ? selection.from : 0
+  const to = hasSelection ? selection.to : state.doc.length
+  const source = state.sliceDoc(from, to)
+  const startLine = hasSelection ? state.doc.lineAt(from) : state.doc.line(1)
+
+  return {
+    source,
+    from,
+    to,
+    hasSelection,
+    hasExecutableSource: Boolean(source.trim()),
+    startLine: startLine.number,
+    startColumn: hasSelection ? from - startLine.from + 1 : 1
+  }
+}
+
+function emitSelectionChange(state) {
+  const snapshot = getExecutionSnapshot(state)
+  if (!snapshot) return
+
+  emit('selection-change', {
+    hasSelection: snapshot.hasSelection,
+    hasExecutableSelection:
+      snapshot.hasSelection && snapshot.hasExecutableSource
+  })
+}
+
+function highlightExecution(snapshot = getExecutionSnapshot()) {
+  if (!view || !snapshot) return
+
+  window.clearTimeout(executedRangeTimer)
+  view.dispatch({
+    effects: setExecutedRange.of({
+      from: snapshot.from,
+      to: snapshot.to
+    })
+  })
+  executedRangeTimer = window.setTimeout(() => {
+    if (!view) return
+    view.dispatch({ effects: setExecutedRange.of(null) })
+  }, 700)
+}
+
+function focus() {
+  view?.focus()
+}
+
 function handleColorSchemeChange() {
   if (!view) return
   view.dispatch({
@@ -277,6 +360,7 @@ onMounted(() => {
       extensions: [
         history(),
         drawSelection(),
+        executedRangeField,
         indentOnInput(),
         bracketMatching(),
         EditorView.lineWrapping,
@@ -291,12 +375,17 @@ onMounted(() => {
         appearanceCompartment.of(appearanceExtension()),
         editableCompartment.of(editableExtension()),
         EditorView.updateListener.of((update) => {
-          if (!update.docChanged || applyingExternalValue) return
-          emit('update:modelValue', update.state.doc.toString())
+          if (update.docChanged && !applyingExternalValue) {
+            emit('update:modelValue', update.state.doc.toString())
+          }
+          if (update.docChanged || update.selectionSet) {
+            emitSelectionChange(update.state)
+          }
         })
       ]
     })
   })
+  emitSelectionChange(view.state)
 })
 
 watch(
@@ -336,7 +425,14 @@ watch(
 
 onBeforeUnmount(() => {
   darkModeQuery?.removeEventListener('change', handleColorSchemeChange)
+  window.clearTimeout(executedRangeTimer)
   view?.destroy()
+})
+
+defineExpose({
+  focus,
+  getExecutionSnapshot,
+  highlightExecution
 })
 </script>
 
@@ -377,6 +473,11 @@ onBeforeUnmount(() => {
 
 .code-editor :deep(.cm-content:focus-visible) {
   outline: none;
+}
+
+.code-editor :deep(.cm-executed-range) {
+  background: color-mix(in srgb, var(--color-brand-500) 14%, transparent);
+  box-shadow: inset 0 -1px color-mix(in srgb, var(--color-brand-500) 45%, transparent);
 }
 
 @media (prefers-color-scheme: dark) {
