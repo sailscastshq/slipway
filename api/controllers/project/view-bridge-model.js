@@ -31,6 +31,10 @@ module.exports = {
     search: {
       type: 'string',
       defaultsTo: ''
+    },
+    dashboard: {
+      type: 'string',
+      defaultsTo: ''
     }
   },
 
@@ -50,7 +54,8 @@ module.exports = {
     page,
     perPage,
     sort,
-    search
+    search,
+    dashboard
   }) {
     const user = await User.findOne({ id: this.req.session.userId }).populate(
       'team'
@@ -90,6 +95,9 @@ module.exports = {
     let normalizedPerPage = perPage
     let normalizedSort = sort
     let normalizedSearch = search
+    let dashboards = []
+    let dashboardResources = {}
+    let activeDashboard = null
 
     if (appRunning) {
       try {
@@ -106,6 +114,50 @@ module.exports = {
           actor
         })
         modelMeta = loaded.resource
+        const dashboardDefinitions = Object.values(
+          loaded.contract.dashboards || {}
+        ).filter(
+          (definition) =>
+            definition.scope === 'resource' &&
+            definition.resource === modelIdentity
+        )
+        dashboards = dashboardDefinitions.map((definition) => ({
+          id: definition.id,
+          label: definition.label,
+          scope: definition.scope
+        }))
+        const selectedDashboard =
+          dashboardDefinitions.find(
+            (definition) => definition.id === dashboard
+          ) ||
+          dashboardDefinitions.find((definition) => definition.default) ||
+          dashboardDefinitions[0]
+
+        if (selectedDashboard) {
+          const authorizedResources =
+            await sails.helpers.bridge.authorizeResourceActions.with({
+              containerName: app.containerName,
+              resources: loaded.contract.models,
+              actor
+            })
+          const authorizedDashboardResources = Object.fromEntries(
+            Object.entries(authorizedResources).filter(
+              ([, resource]) => !resource.hidden
+            )
+          )
+          dashboardResources = Object.fromEntries(
+            Object.entries(authorizedResources).filter(
+              ([, resource]) =>
+                !resource.hidden && resource.actions?.viewAny !== false
+            )
+          )
+          activeDashboard = await sails.helpers.bridge.resolveDashboard.with({
+            containerName: app.containerName,
+            dashboard: selectedDashboard,
+            resources: authorizedDashboardResources,
+            actor
+          })
+        }
         const normalizedQuery =
           await sails.helpers.bridge.normalizeResourceQuery.with({
             resource: modelMeta,
@@ -183,7 +235,10 @@ module.exports = {
         perPage: normalizedPerPage,
         sort: normalizedSort,
         search: normalizedSearch,
-        error
+        error,
+        dashboards,
+        dashboardResources,
+        activeDashboard
       }
     }
   }

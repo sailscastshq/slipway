@@ -133,6 +133,153 @@ module.exports.slipway = {
 
 A resource can also be removed from Bridge with `false` or `hidden: true`.
 
+## Dashboards
+
+Bridge can turn the resource directory into an application-specific dashboard
+without adding a second analytics service. Dashboard cards are configured in
+the target application's `config/slipway.js`, resolved through Waterline or
+target-app helpers, and returned as ordinary server-rendered Inertia props.
+
+Use `dashboard` for one dashboard:
+
+```js
+module.exports.slipway = {
+  bridge: {
+    dashboard: {
+      label: 'Content overview',
+      description: 'The content and audience signals that need attention.',
+      cards: {
+        users: {
+          type: 'metric',
+          label: 'Total users',
+          resource: 'user',
+          aggregate: 'count'
+        },
+        courses: {
+          type: 'metric',
+          resource: 'course',
+          aggregate: 'count',
+          where: { published: true }
+        },
+        recentLessons: {
+          type: 'recent',
+          resource: 'lesson',
+          fields: ['title', 'createdAt'],
+          limit: 5
+        },
+        recentSignups: {
+          type: 'recent',
+          resource: 'user',
+          fields: ['fullName', 'email', 'createdAt'],
+          limit: 5
+        },
+        newCourse: {
+          type: 'action',
+          resource: 'course'
+        },
+        newChapter: {
+          type: 'action',
+          resource: 'chapter'
+        },
+        newLesson: {
+          type: 'action',
+          resource: 'lesson'
+        }
+      }
+    }
+  }
+}
+```
+
+Use `dashboards` when an application needs more than one:
+
+```js
+bridge: {
+  dashboards: {
+    overview: {
+      default: true,
+      scope: 'environment',
+      cards: {
+        users: {
+          type: 'metric',
+          resource: 'user'
+        }
+      }
+    },
+    courseHealth: {
+      scope: 'resource',
+      resource: 'course',
+      cards: {
+        published: {
+          type: 'metric',
+          resource: 'course',
+          aggregate: 'count',
+          where: { published: true }
+        }
+      }
+    }
+  }
+}
+```
+
+Dashboard scope may be `global`, `project`, `environment`, or `resource`.
+Global, project, and environment dashboards appear on the Bridge landing page.
+A resource-scoped dashboard appears above that resource's record table and
+requires its `resource` identity. A contract may contain up to 12 dashboards
+and 24 cards per dashboard.
+
+### Card types
+
+| Type        | Source                  | Result                                |
+| ----------- | ----------------------- | ------------------------------------- |
+| `metric`    | Waterline               | Count, sum, average, minimum, maximum |
+| `recent`    | Waterline               | Up to 10 recent records               |
+| `action`    | Bridge resource action  | A link to create a record             |
+| `trend`     | Target-app Sails helper | Up to 31 labelled points              |
+| `partition` | Target-app Sails helper | Up to 12 labelled segments            |
+| `custom`    | Target-app Sails helper | A value and optional detail           |
+
+`metric.aggregate` accepts `count`, `sum`, `average`, `min`, or `max`.
+Non-count metrics require a numeric `field`. `format` accepts `number`,
+`compact`, `currency`, or `percent`; currency cards also require a three-letter
+`currency` code. `where` may use only fields already available on the
+resource's list or filter surface.
+
+Trend, partition, and custom helpers receive the current `actor`, a small
+`dashboard` description, and the configured `card`:
+
+```js
+// api/helpers/bridge/dashboard/signups.js
+module.exports = {
+  friendlyName: 'Bridge signup trend',
+
+  inputs: {
+    actor: { type: 'ref', required: true },
+    dashboard: { type: 'ref', required: true },
+    card: { type: 'ref', required: true }
+  },
+
+  fn: async function () {
+    return {
+      points: [
+        { label: 'Mon', value: 18 },
+        { label: 'Tue', value: 26 },
+        { label: 'Wed', value: 21 }
+      ]
+    }
+  }
+}
+```
+
+Custom cards return `{ value, detail }`. Partition helpers return
+`{ segments: [{ label, value }] }`. Helper results are length-limited and
+re-normalized before becoming Inertia props.
+
+Dashboard cards use the same authorization boundary as their resources.
+Metrics and recent records require `viewAny`; create actions require `create`;
+hidden and denied resources remove their cards entirely. Recent records are
+selected from configured fields and redacted again before rendering.
+
 ## Server enforcement
 
 The contract is an authorization boundary, not presentation-only metadata.

@@ -8,6 +8,7 @@ import { createToast } from '@/composables/toast'
 import BridgeFieldValue from '@/components/bridge/BridgeFieldValue.vue'
 import BridgeActionMenu from '@/components/bridge/BridgeActionMenu.vue'
 import BridgeActionDialog from '@/components/bridge/BridgeActionDialog.vue'
+import BridgeDashboard from '@/components/bridge/BridgeDashboard.vue'
 
 defineOptions({
   layout: AppLayout
@@ -26,7 +27,10 @@ const props = defineProps({
   perPage: Number,
   sort: String,
   search: String,
-  error: String
+  error: String,
+  dashboards: Array,
+  dashboardResources: Object,
+  activeDashboard: Object
 })
 
 const toggleMobileMenu = inject('toggleMobileMenu')
@@ -177,7 +181,10 @@ function navigateWithParams(updates) {
   const params = {
     page: updates.page ?? page.value,
     sort: updates.sort ?? sortValue.value,
-    search: updates.search ?? searchInput.value
+    search: updates.search ?? searchInput.value,
+    dashboard:
+      updates.dashboard ??
+      (props.dashboards?.length > 1 ? props.activeDashboard?.id : '')
   }
 
   // Clean up defaults
@@ -187,6 +194,7 @@ function navigateWithParams(updates) {
     : ''
   if (params.sort === defaultSort) delete params.sort
   if (!params.search) delete params.search
+  if (!params.dashboard) delete params.dashboard
 
   const query = new URLSearchParams(params).toString()
   const basePath = `/projects/${props.project.slug}/environments/${props.environment.slug}/bridge/${props.modelIdentity}`
@@ -376,6 +384,10 @@ function completeCustomAction() {
 function goToPage(newPage) {
   page.value = newPage
   navigateWithParams({ page: newPage })
+}
+
+function switchDashboard(event) {
+  navigateWithParams({ dashboard: event.target.value, page: 1 })
 }
 
 // URL builders
@@ -580,6 +592,21 @@ function createUrl() {
           </Transition>
         </div>
         <div class="flex items-center space-x-4">
+          <select
+            v-if="dashboards?.length > 1"
+            :value="activeDashboard?.id"
+            @change="switchDashboard"
+            aria-label="Bridge dashboard"
+            class="rounded-md border-0 bg-transparent py-1 pl-2 pr-7 text-sm text-gray-600 focus:ring-1 focus:ring-gray-300 dark:bg-gray-950 dark:text-gray-300 dark:focus:ring-gray-700"
+          >
+            <option
+              v-for="dashboard in dashboards"
+              :key="dashboard.id"
+              :value="dashboard.id"
+            >
+              {{ dashboard.label }}
+            </option>
+          </select>
           <span
             v-if="total > 0"
             class="text-xs text-gray-500 dark:text-gray-400"
@@ -608,6 +635,15 @@ function createUrl() {
     <!-- Content -->
     <div class="flex-1 overflow-auto px-4 py-4 sm:px-8">
       <div class="mx-auto max-w-6xl">
+        <BridgeDashboard
+          v-if="activeDashboard"
+          :dashboard="activeDashboard"
+          :resources="dashboardResources"
+          :project="project"
+          :environment="environment"
+          class="mb-10"
+        />
+
         <!-- Error -->
         <div v-if="error" class="flex h-full items-center justify-center">
           <div class="text-center">
