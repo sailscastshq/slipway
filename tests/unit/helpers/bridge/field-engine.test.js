@@ -35,7 +35,9 @@ test('Bridge normalizes typed fields and resolves currency for display', async (
   expect(course.attributes.thumbnailUrl.field.upload).toEqual({
     kind: 'image',
     storage: 'bridge',
+    scope: 'environment',
     directory: 'courses/thumbnails',
+    filename: '',
     store: 'url',
     accept: [
       'image/avif',
@@ -220,7 +222,7 @@ test('Bridge upload receipts bind URLs to the actor and field', async ({
   }
 })
 
-test('Bridge upload storage uses only scoped BRIDGE_ settings', async ({
+test('Bridge upload storage applies app scope before credential aliases', async ({
   sails,
   expect
 }) => {
@@ -245,7 +247,8 @@ test('Bridge upload storage uses only scoped BRIDGE_ settings', async ({
       },
       app: {
         envVars: {
-          BRIDGE_R2_ACCESS_KEY: 'app-key'
+          BRIDGE_R2_ACCESS_KEY: 'app-key',
+          R2_SECRET_KEY: 'app-conventional-secret'
         }
       }
     })
@@ -253,10 +256,45 @@ test('Bridge upload storage uses only scoped BRIDGE_ settings', async ({
     expect(storage).toEqual({
       provider: 'r2',
       key: 'app-key',
-      secret: 'global-secret',
+      secret: 'app-conventional-secret',
       bucket: 'environment-bucket',
       endpoint: 'https://account.r2.cloudflarestorage.com',
       publicUrl: 'https://cdn.example.com',
+      region: 'auto'
+    })
+  } finally {
+    sails.helpers.setting.get = originalSettingGet
+  }
+})
+
+test('Bridge detects conventional app-scoped R2 credentials and only needs its public URL', async ({
+  sails,
+  expect
+}) => {
+  const originalSettingGet = sails.helpers.setting.get
+  sails.helpers.setting.get = async () => '{}'
+
+  try {
+    const storage = await sails.helpers.bridge.getUploadStorageConfig.with({
+      environment: { envVars: {} },
+      app: {
+        envVars: {
+          R2_ACCESS_KEY: 'sailscasts-key',
+          R2_SECRET_KEY: 'sailscasts-secret',
+          R2_BUCKET: 'sailscasts',
+          R2_ENDPOINT: 'https://account.r2.cloudflarestorage.com',
+          BRIDGE_R2_PUBLIC_URL: 'https://assets.sailscasts.com'
+        }
+      }
+    })
+
+    expect(storage).toEqual({
+      provider: 'r2',
+      key: 'sailscasts-key',
+      secret: 'sailscasts-secret',
+      bucket: 'sailscasts',
+      endpoint: 'https://account.r2.cloudflarestorage.com',
+      publicUrl: 'https://assets.sailscasts.com',
       region: 'auto'
     })
   } finally {

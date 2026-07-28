@@ -250,6 +250,9 @@ function normalizeBridgeResourceContract({ models, config = {} }) {
       resources
     )
   }
+  for (const [identity, resource] of Object.entries(resources)) {
+    validateUploadTemplateReferences(identity, resource, resources)
+  }
 
   return {
     schemaVersion: SCHEMA_VERSION,
@@ -512,6 +515,32 @@ function normalizeBridgeResourceContract({ models, config = {} }) {
             )}.`
           )
         }
+        if (
+          fieldOptions[name].upload !== undefined &&
+          !['file', 'image', 'upload', 'richtext'].includes(normalizedType)
+        ) {
+          throw new Error(
+            `Bridge field "${identity}.${name}".upload requires a file, image, upload, or Markdown rich-text field.`
+          )
+        }
+        if (
+          normalizedType === 'richtext' &&
+          fieldOptions[name].upload !== undefined &&
+          String(fieldOptions[name].format || '').toLowerCase() !== 'markdown'
+        ) {
+          throw new Error(
+            `Bridge field "${identity}.${name}".upload requires rich-text format "markdown".`
+          )
+        }
+        if (
+          normalizedType === 'richtext' &&
+          fieldOptions[name].upload?.kind !== undefined &&
+          fieldOptions[name].upload.kind !== 'image'
+        ) {
+          throw new Error(
+            `Bridge field "${identity}.${name}".upload.kind must be "image" for Markdown rich text.`
+          )
+        }
       }
       validateFieldOptions(identity, name, fieldOptions[name].options)
       validateCurrency(identity, name, fieldOptions[name].currency)
@@ -583,6 +612,15 @@ function normalizeBridgeResourceContract({ models, config = {} }) {
       }
       if (['file', 'image', 'upload'].includes(safeField.type)) {
         safeField.upload = normalizeUpload(safeField.type, rawField.upload)
+      } else if (
+        safeField.type === 'richtext' &&
+        safeField.format?.toLowerCase() === 'markdown' &&
+        rawField.upload
+      ) {
+        safeField.upload = normalizeUpload('image', {
+          ...rawField.upload,
+          kind: 'image'
+        })
       }
 
       attributes[name] = {
@@ -1507,10 +1545,26 @@ function normalizeBridgeResourceContract({ models, config = {} }) {
     }
     rejectUnknownKeys(
       upload,
-      ['kind', 'storage', 'directory', 'store', 'accept', 'maxBytes'],
+      [
+        'kind',
+        'storage',
+        'scope',
+        'directory',
+        'filename',
+        'store',
+        'accept',
+        'maxBytes'
+      ],
       `Bridge field "${identity}.${name}".upload`
     )
-    for (const option of ['kind', 'storage', 'directory', 'store']) {
+    for (const option of [
+      'kind',
+      'storage',
+      'scope',
+      'directory',
+      'filename',
+      'store'
+    ]) {
       assertOptionalString(
         upload[option],
         `Bridge field "${identity}.${name}".upload.${option}`
@@ -1526,6 +1580,14 @@ function normalizeBridgeResourceContract({ models, config = {} }) {
         `Bridge field "${identity}.${name}".upload.storage must be "bridge".`
       )
     }
+    if (
+      upload.scope !== undefined &&
+      !['environment', 'bucket'].includes(upload.scope)
+    ) {
+      throw new Error(
+        `Bridge field "${identity}.${name}".upload.scope must be "environment" or "bucket".`
+      )
+    }
     if (upload.store !== undefined && upload.store !== 'url') {
       throw new Error(
         `Bridge field "${identity}.${name}".upload.store must be "url".`
@@ -1533,12 +1595,18 @@ function normalizeBridgeResourceContract({ models, config = {} }) {
     }
     if (
       upload.directory !== undefined &&
-      !/^[A-Za-z0-9](?:[A-Za-z0-9_-]|\/(?=[A-Za-z0-9]))*$/.test(
-        upload.directory
-      )
+      !isSafeUploadPathTemplate(upload.directory, { allowSlash: true })
     ) {
       throw new Error(
-        `Bridge field "${identity}.${name}".upload.directory must be a safe relative object path.`
+        `Bridge field "${identity}.${name}".upload.directory must be a safe relative object-path template.`
+      )
+    }
+    if (
+      upload.filename !== undefined &&
+      !isSafeUploadPathTemplate(upload.filename, { allowSlash: false })
+    ) {
+      throw new Error(
+        `Bridge field "${identity}.${name}".upload.filename must be a safe filename template without an extension.`
       )
     }
     if (
@@ -1583,13 +1651,92 @@ function normalizeBridgeResourceContract({ models, config = {} }) {
     return {
       kind,
       storage: upload.storage || 'bridge',
+      scope: upload.scope || 'environment',
       directory: readString(upload.directory) || '',
+      filename: readString(upload.filename) || '',
       store: upload.store || 'url',
       accept,
       maxBytes:
         upload.maxBytes ||
         (kind === 'image' ? 5 * 1024 * 1024 : 100 * 1024 * 1024)
     }
+  }
+
+  function isSafeUploadPathTemplate(value, { allowSlash }) {
+    if (
+      typeof value !== 'string' ||
+      !value.trim() ||
+      value.length > 512 ||
+      value.startsWith('/') ||
+      value.endsWith('/') ||
+      value.includes('..') ||
+      (!allowSlash && value.includes('/'))
+    ) {
+      return false
+    }
+
+    const tokens = value.match(/\{[^{}]+\}/g) || []
+    if (
+      tokens.some(
+        (token) =>
+          !/^\{[A-Za-z][A-Za-z0-9]*(?:\.[A-Za-z][A-Za-z0-9]*)?(?:\|slug)?\}$/.test(
+            token
+          )
+      )
+    ) {
+      return false
+    }
+
+    const withoutTokens = value.replace(/\{[^{}]+\}/g, 'value')
+    if (/[{}]/.test(withoutTokens)) return false
+
+    return allowSlash
+      ? /^[A-Za-z0-9._-]+(?:\/[A-Za-z0-9._-]+)*$/.test(withoutTokens)
+      : /^[A-Za-z0-9_-]+$/.test(withoutTokens)
+  }
+
+  function validateUploadTemplateReferences(identity, resource, resources) {
+    for (const [name, attribute] of Object.entries(resource.attributes)) {
+      const upload = attribute.field?.upload
+      if (!upload) continue
+
+      for (const template of [upload.directory, upload.filename]) {
+        for (const match of String(template || '').matchAll(
+          /\{([A-Za-z][A-Za-z0-9]*)(?:\.([A-Za-z][A-Za-z0-9]*))?(?:\|slug)?\}/g
+        )) {
+          const root = match[1]
+          const nestedField = match[2]
+          let referencedAttribute
+
+          if (nestedField) {
+            const relationship = resource.relationships?.[root]
+            const related = relationship
+              ? resources[relationship.resource]
+              : null
+            referencedAttribute = related?.attributes?.[nestedField]
+          } else {
+            referencedAttribute = resource.attributes?.[root]
+          }
+
+          if (!isSafeUploadPathAttribute(referencedAttribute)) {
+            throw new Error(
+              `Bridge field "${identity}.${name}".upload path reference "${match[0]}" must use an available, non-sensitive scalar field.`
+            )
+          }
+        }
+      }
+    }
+  }
+
+  function isSafeUploadPathAttribute(attribute) {
+    return Boolean(
+      attribute &&
+        attribute.sensitive !== true &&
+        attribute.encrypt !== true &&
+        attribute.protect !== true &&
+        !attribute.field?.relation &&
+        !['json', 'ref'].includes(attribute.type)
+    )
   }
 
   function isSafeComponentName(value) {

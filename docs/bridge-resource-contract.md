@@ -80,7 +80,14 @@ module.exports.slipway = {
             label: 'Course description',
             type: 'richtext',
             format: 'markdown',
-            help: 'The public course description.'
+            help: 'The public course description.',
+            upload: {
+              kind: 'image',
+              storage: 'bridge',
+              directory: 'courses/descriptions',
+              store: 'url',
+              maxBytes: 10485760
+            }
           },
           thumbnailUrl: {
             label: 'Thumbnail',
@@ -666,7 +673,9 @@ Set `type: 'richtext'` and `format: 'markdown'` to use Bridge's TipTap editor:
 - Markdown shortcuts such as `## ` and `- ` format as the editor types;
 - selecting text opens the minimal bold, italic, link, strikethrough, and
   inline-code menu;
-- the **Markdown** control exposes the source directly; and
+- the **Markdown** control exposes the source directly;
+- an optional image upload contract lets paste and drop stream images through
+  the same app-scoped R2/S3 boundary used by ordinary upload fields; and
 - unsupported Markdown stays in source mode rather than being silently
   rewritten.
 
@@ -893,6 +902,21 @@ BRIDGE_R2_PUBLIC_URL=https://cdn.example.com
 BRIDGE_R2_REGION=auto
 ```
 
+When an app already has a complete conventional R2 configuration, Bridge
+detects and reuses `R2_ACCESS_KEY`, `R2_SECRET_KEY`, `R2_BUCKET`, and
+`R2_ENDPOINT`. R2 region defaults to `auto`, so the app only needs to add its
+canonical public origin:
+
+```text
+BRIDGE_R2_PUBLIC_URL=https://cdn.example.com
+```
+
+App values override environment values, which override instance-global
+values. Within each scope, explicit `BRIDGE_R2_*` values take precedence when
+Bridge should use a different bucket. The same fallback is available for a
+complete conventional `S3_` credential set. If both conventional providers
+are present, set `BRIDGE_STORAGE_PROVIDER` explicitly.
+
 The S3 provider uses the same names with `BRIDGE_S3_`:
 
 ```text
@@ -923,3 +947,29 @@ The subsequent create or update accepts the URL only when its receipt matches
 the current actor, project, environment, resource, and field. The target model
 stores only the URL. A browser therefore cannot forge a different remote URL
 or reuse a receipt across apps or fields.
+
+Uploads use an environment-scoped namespace by default. An app that owns a
+dedicated bucket can opt into its established bucket-root layout with safe
+field templates:
+
+```js
+upload: {
+  kind: 'file',
+  storage: 'bridge',
+  scope: 'bucket',
+  directory: '{course.slug}/{chapter.title|slug}',
+  filename: '{title|slug}',
+  store: 'url',
+  accept: ['video/mp4'],
+  maxBytes: 2 * 1024 * 1024 * 1024
+}
+```
+
+`directory` may reference a scalar field such as `{title}` or a scalar field
+on a belongs-to relationship such as `{course.slug}`. Add `|slug` to normalize
+a value into a lowercase URL-safe segment. `filename` is an extension-free
+stem; Bridge derives the extension from the accepted file type. Every
+reference is validated against the resource contract, related records are
+loaded from the target app, missing context blocks the upload, and the final
+path is sanitized against traversal. `scope: 'bucket'` is explicit because it
+intentionally omits Slipway's default team/project/environment namespace.

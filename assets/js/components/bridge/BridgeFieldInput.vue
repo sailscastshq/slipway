@@ -43,6 +43,10 @@ const props = defineProps({
   uploadUrl: {
     type: String,
     default: ''
+  },
+  uploadValues: {
+    type: Object,
+    default: () => ({})
   }
 })
 
@@ -120,6 +124,33 @@ const accept = computed(() =>
 const maxBytes = computed(
   () => attribute.value.field?.upload?.maxBytes || 5 * 1024 * 1024
 )
+const uploadPathValues = computed(() => {
+  const upload = attribute.value.field?.upload || {}
+  const templates = [upload.directory, upload.filename]
+    .filter(Boolean)
+    .join('/')
+  const roots = Array.from(
+    templates.matchAll(
+      /\{([A-Za-z][A-Za-z0-9]*)(?:\.[A-Za-z][A-Za-z0-9]*)?(?:\|slug)?\}/g
+    ),
+    (match) => match[1]
+  )
+  return Object.fromEntries(
+    Array.from(new Set(roots))
+      .filter((name) =>
+        Object.prototype.hasOwnProperty.call(props.uploadValues, name)
+      )
+      .map((name) => [name, props.uploadValues[name]])
+  )
+})
+const richTextUploadsConfigured = computed(
+  () =>
+    type.value === 'richtext' &&
+    attribute.value.field?.format?.toLowerCase() === 'markdown' &&
+    attribute.value.field?.upload?.kind === 'image' &&
+    attribute.value.field?.upload?.storage === 'bridge' &&
+    Boolean(props.uploadUrl)
+)
 const uploadHint = computed(() => {
   const accepted = attribute.value.field?.upload?.accept || []
   const labels = accepted.map((value) => {
@@ -193,6 +224,7 @@ async function uploadFile(event) {
   try {
     const data = new FormData()
     data.append('file', file)
+    data.append('values', JSON.stringify(uploadPathValues.value))
     if (props.isEdit && props.recordId !== null) {
       data.append('recordId', String(props.recordId))
     }
@@ -485,6 +517,12 @@ function defaultPlaceholder(fieldType) {
         :aria-labelledby="`${fieldId}-label`"
         :aria-describedby="describedBy"
         :required="attribute.required"
+        :uploads-configured="richTextUploadsConfigured"
+        :upload-url="uploadUrl"
+        upload-field-name="file"
+        :upload-accept="attribute.field?.upload?.accept || []"
+        :max-upload-bytes="attribute.field?.upload?.maxBytes"
+        :upload-values="uploadPathValues"
         deny-raw-html
         @update:model-value="update"
         @blur="handleBlur"

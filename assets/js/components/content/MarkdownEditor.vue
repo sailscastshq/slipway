@@ -27,6 +27,28 @@ const props = defineProps({
     type: String,
     default: ''
   },
+  uploadFieldName: {
+    type: String,
+    default: 'image'
+  },
+  uploadAccept: {
+    type: Array,
+    default: () => [
+      'image/avif',
+      'image/gif',
+      'image/jpeg',
+      'image/png',
+      'image/webp'
+    ]
+  },
+  maxUploadBytes: {
+    type: Number,
+    default: 5 * 1024 * 1024
+  },
+  uploadValues: {
+    type: Object,
+    default: () => ({})
+  },
   variant: {
     type: String,
     default: 'document',
@@ -147,13 +169,7 @@ const editor = useEditor({
       placeholder: props.placeholder
     }),
     FileHandler.configure({
-      allowedMimeTypes: [
-        'image/avif',
-        'image/gif',
-        'image/jpeg',
-        'image/png',
-        'image/webp'
-      ],
+      allowedMimeTypes: props.uploadAccept,
       consumePasteEvent: true,
       onPaste: (currentEditor, files) => {
         void uploadImages(files, null, currentEditor)
@@ -423,8 +439,11 @@ function showUploadMessage(message, { kind = 'status', timeout = 0 } = {}) {
 }
 
 async function uploadImages(files, position, currentEditor) {
-  const images = Array.from(files || []).filter((file) =>
-    file.type.startsWith('image/')
+  const images = Array.from(files || []).filter(
+    (file) =>
+      file.type.startsWith('image/') &&
+      (props.uploadAccept.length === 0 ||
+        props.uploadAccept.includes(file.type))
   )
   if (images.length === 0) return
 
@@ -445,12 +464,17 @@ async function uploadImages(files, position, currentEditor) {
 
   try {
     for (const file of images) {
-      if (file.size > 5 * 1024 * 1024) {
-        throw new Error(`${file.name} is larger than 5 MB.`)
+      if (file.size > props.maxUploadBytes) {
+        throw new Error(
+          `${file.name} is larger than ${formatUploadBytes(
+            props.maxUploadBytes
+          )}.`
+        )
       }
 
       const formData = new FormData()
-      formData.append('image', file)
+      formData.append(props.uploadFieldName, file)
+      formData.append('values', JSON.stringify(props.uploadValues))
       const response = await fetch(props.uploadUrl, {
         method: 'POST',
         body: formData
@@ -461,7 +485,7 @@ async function uploadImages(files, position, currentEditor) {
         throw new Error(result.message || 'The image could not be uploaded.')
       }
 
-      const imageUrl = normalizeImageUrl(result.imageUrl)
+      const imageUrl = normalizeImageUrl(result.imageUrl || result.url)
       if (!imageUrl) throw new Error('The upload returned an unsafe image URL.')
 
       currentEditor
@@ -483,6 +507,13 @@ async function uploadImages(files, position, currentEditor) {
   } finally {
     uploading.value = false
   }
+}
+
+function formatUploadBytes(bytes) {
+  if (bytes >= 1024 * 1024) {
+    return `${Math.round(bytes / (1024 * 1024))} MB`
+  }
+  return `${Math.round(bytes / 1024)} KB`
 }
 
 onBeforeUnmount(() => {
