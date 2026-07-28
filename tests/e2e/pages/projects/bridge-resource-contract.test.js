@@ -43,6 +43,9 @@ test(
     const actionScreenshotRoot = path.resolve(
       '.tmp/screenshots/issue-221-bridge-actions'
     )
+    const filterScreenshotRoot = path.resolve(
+      '.tmp/screenshots/issue-224-bridge-filters'
+    )
 
     fs.mkdirSync(screenshotRoot, { recursive: true })
     fs.mkdirSync(identifierScreenshotRoot, { recursive: true })
@@ -50,6 +53,7 @@ test(
     fs.mkdirSync(fieldEngineScreenshotRoot, { recursive: true })
     fs.mkdirSync(relationshipScreenshotRoot, { recursive: true })
     fs.mkdirSync(actionScreenshotRoot, { recursive: true })
+    fs.mkdirSync(filterScreenshotRoot, { recursive: true })
 
     const contract = await sails.helpers.bridge.normalizeResourceContract.with({
       models: resourceMetadata(),
@@ -101,6 +105,7 @@ test(
     let persistedCourseRecord = record
     let createdValues
     let updatedValues
+    const resourceQueries = []
 
     await sails.models.app
       .updateOne({ id: app.id })
@@ -251,6 +256,10 @@ test(
         })
       }
       if (code.includes('const total = await model.count(where);')) {
+        resourceQueries.push({
+          where: readEmbeddedValue(code, 'where'),
+          criteria: readEmbeddedValue(code, 'criteria')
+        })
         return successfulResult({
           records,
           total: records.length
@@ -282,6 +291,17 @@ test(
             : {})
         }
         return successfulResult({ record: persistedCourseRecord })
+      }
+      if (
+        code.includes('const helperIdentity =') &&
+        code.includes('A Bridge lens helper must return')
+      ) {
+        const query = readEmbeddedValue(code, 'query')
+        expect(query.columns).toEqual(['title', 'price', 'createdAt'])
+        return successfulResult({
+          records,
+          total: records.length
+        })
       }
       if (code.includes('const helperIdentity =')) {
         const helperIdentity = readEmbeddedValue(code, 'helperIdentity')
@@ -403,6 +423,82 @@ test(
         { fullPage: true }
       )
       await page.raw.emulateMedia({ colorScheme: 'light' })
+
+      await page.raw.locator('[data-test="bridge-filter-toggle"]').click()
+      await page.raw
+        .locator('[data-test="bridge-filter-panel"]')
+        .waitFor({ state: 'visible' })
+      await page.screenshot(
+        path.join(filterScreenshotRoot, 'filter-menu-light.png'),
+        { fullPage: true }
+      )
+      await page.raw.emulateMedia({ colorScheme: 'dark' })
+      await page.screenshot(
+        path.join(filterScreenshotRoot, 'filter-menu-dark.png'),
+        { fullPage: true }
+      )
+      await page.raw.emulateMedia({ colorScheme: 'light' })
+      await page.raw.locator('#bridge-filter-title-value').fill('production')
+      await page.raw
+        .locator('#bridge-filter-published-value')
+        .selectOption('true')
+      await page.raw.locator('#bridge-filter-creator-value').click()
+      await page.wait('text=Ada Lovelace')
+      await page.screenshot(
+        path.join(filterScreenshotRoot, 'belongs-to-filter-light.png'),
+        { fullPage: true }
+      )
+      await page.raw
+        .getByRole('option', { name: 'Ada Lovelace', exact: true })
+        .click()
+      await page.raw.getByRole('button', { name: 'Apply' }).click()
+      await page.raw.waitForURL((url) => url.searchParams.has('filters'))
+      expect(
+        JSON.parse(new URL(page.raw.url()).searchParams.get('filters'))
+      ).toEqual({
+        title: { operator: 'contains', value: 'production' },
+        published: { operator: 'equals', value: 'true' },
+        creator: { operator: 'equals', value: creatorId }
+      })
+      expect(resourceQueries.at(-1).where).toEqual({
+        and: [
+          { title: { contains: 'production' } },
+          { published: true },
+          { creator: creatorId }
+        ]
+      })
+      expect(
+        await page.raw
+          .locator('[data-test="bridge-filter-toggle"] span')
+          .textContent()
+      ).toBe('3')
+      await page.screenshot(
+        path.join(filterScreenshotRoot, 'active-filters-light.png'),
+        { fullPage: true }
+      )
+
+      await page.raw
+        .locator('[data-test="bridge-lens-select"]')
+        .selectOption('recent')
+      await page.raw.waitForURL(
+        (url) => url.searchParams.get('lens') === 'recent'
+      )
+      expect(new URL(page.raw.url()).searchParams.has('filters')).toBe(false)
+      await expect(page).toSee('Recently active')
+      await page.screenshot(
+        path.join(filterScreenshotRoot, 'saved-lens-light.png'),
+        { fullPage: true }
+      )
+      await page.raw.emulateMedia({ colorScheme: 'dark' })
+      await page.screenshot(
+        path.join(filterScreenshotRoot, 'saved-lens-dark.png'),
+        { fullPage: true }
+      )
+      await page.raw.emulateMedia({ colorScheme: 'light' })
+      await page.raw
+        .locator('[data-test="bridge-lens-select"]')
+        .selectOption('')
+      await page.raw.waitForURL((url) => !url.searchParams.has('lens'))
 
       const resourceActionsButton = page.raw.getByRole('button', {
         name: 'Actions for Courses'
@@ -911,6 +1007,36 @@ function resourceConfig() {
           'published',
           'creator'
         ],
+        filters: ['title', 'price', 'published', 'creator', 'createdAt'],
+        lenses: {
+          published: {
+            label: 'Published courses',
+            filters: { published: true },
+            columns: ['title', 'price', 'published', 'createdAt'],
+            sort: {
+              field: 'createdAt',
+              direction: 'DESC'
+            }
+          },
+          drafts: {
+            label: 'Draft courses',
+            filters: { published: false },
+            columns: ['title', 'price', 'createdAt'],
+            sort: {
+              field: 'createdAt',
+              direction: 'DESC'
+            }
+          },
+          recent: {
+            label: 'Recently active',
+            columns: ['title', 'price', 'createdAt'],
+            sort: {
+              field: 'createdAt',
+              direction: 'DESC'
+            },
+            helper: 'bridge.lenses.recentCourses'
+          }
+        },
         sort: {
           field: 'createdAt',
           direction: 'DESC'

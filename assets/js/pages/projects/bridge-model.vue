@@ -9,6 +9,7 @@ import BridgeFieldValue from '@/components/bridge/BridgeFieldValue.vue'
 import BridgeActionMenu from '@/components/bridge/BridgeActionMenu.vue'
 import BridgeActionDialog from '@/components/bridge/BridgeActionDialog.vue'
 import BridgeDashboard from '@/components/bridge/BridgeDashboard.vue'
+import BridgeFilterMenu from '@/components/bridge/BridgeFilterMenu.vue'
 
 defineOptions({
   layout: AppLayout
@@ -29,6 +30,11 @@ const props = defineProps({
   perPage: Number,
   sort: String,
   search: String,
+  filterState: Object,
+  filterDefinitions: Object,
+  columns: Array,
+  lenses: Array,
+  activeLens: Object,
   error: String,
   dashboards: Array,
   dashboardResources: Object,
@@ -44,11 +50,22 @@ const bridgeBasePath = computed(() =>
     ? `/projects/${props.project.slug}/environments/${props.environment.slug}/apps/${props.app.slug}/bridge`
     : `/projects/${props.project.slug}/environments/${props.environment.slug}/bridge`
 )
+const relationshipBaseUrl = computed(() => {
+  const appPath =
+    props.appScoped && props.app?.slug ? `/apps/${props.app.slug}` : ''
+  return `/api/v1/projects/${props.project.slug}/environments/${props.environment.slug}${appPath}/bridge/${props.modelIdentity}/relationships`
+})
+const defaultLens = computed(() =>
+  (props.lenses || []).find((definition) => definition.default)
+)
+const allRecordsLensValue = computed(() => (defaultLens.value ? '__all' : ''))
 
 // Local state for UI
 const page = ref(props.currentPage)
 const sortValue = ref(props.sort)
 const searchInput = ref(props.search)
+const filtersValue = ref(props.filterState || {})
+const lensValue = ref(props.activeLens?.id || allRecordsLensValue.value)
 const selectedIds = ref(new Set())
 const selectAll = ref(false)
 const deleteModal = ref({ show: false, recordId: null })
@@ -182,6 +199,31 @@ watch(searchInput, (val) => {
     navigateWithParams({ search: val, page: 1 })
   }, 300)
 })
+watch(
+  () => props.filterState,
+  (value) => {
+    filtersValue.value = value || {}
+  },
+  { deep: true }
+)
+watch(
+  () => props.activeLens,
+  (value) => {
+    lensValue.value = value?.id || allRecordsLensValue.value
+  }
+)
+watch(
+  () => props.sort,
+  (value) => {
+    sortValue.value = value
+  }
+)
+watch(
+  () => props.currentPage,
+  (value) => {
+    page.value = value
+  }
+)
 
 // Navigate with updated params
 function navigateWithParams(updates) {
@@ -189,6 +231,8 @@ function navigateWithParams(updates) {
     page: updates.page ?? page.value,
     sort: updates.sort ?? sortValue.value,
     search: updates.search ?? searchInput.value,
+    filters: JSON.stringify(updates.filters ?? filtersValue.value),
+    lens: updates.lens ?? lensValue.value,
     dashboard:
       updates.dashboard ??
       (props.dashboards?.length > 1 ? props.activeDashboard?.id : '')
@@ -199,8 +243,16 @@ function navigateWithParams(updates) {
   const defaultSort = props.modelMeta
     ? `${props.modelMeta.sort.field} ${props.modelMeta.sort.direction}`
     : ''
-  if (params.sort === defaultSort) delete params.sort
+  if (!params.sort || params.sort === defaultSort) delete params.sort
   if (!params.search) delete params.search
+  if (params.filters === '{}') delete params.filters
+  if (
+    !params.lens ||
+    params.lens === defaultLens.value?.id ||
+    (params.lens === '__all' && !defaultLens.value)
+  ) {
+    delete params.lens
+  }
   if (!params.dashboard) delete params.dashboard
 
   const query = new URLSearchParams(params).toString()
@@ -215,8 +267,29 @@ function navigateWithParams(updates) {
 // Visible columns
 const visibleColumns = computed(() => {
   if (!props.modelMeta) return []
-  return props.modelMeta.list || []
+  return props.columns || props.modelMeta.list || []
 })
+const hasScopedQuery = computed(
+  () =>
+    Boolean(props.search) ||
+    Object.keys(props.filterState || {}).length > 0 ||
+    Boolean(props.activeLens)
+)
+
+function applyFilters(filters) {
+  filtersValue.value = filters
+  page.value = 1
+  navigateWithParams({ filters, page: 1 })
+}
+
+function switchLens(event) {
+  const lens = event.target.value
+  lensValue.value = lens
+  filtersValue.value = {}
+  sortValue.value = ''
+  page.value = 1
+  navigateWithParams({ lens, filters: {}, sort: '', page: 1 })
+}
 
 // Sort handling
 const sortAttr = computed(() => sortValue.value.split(' ')[0])
@@ -568,8 +641,29 @@ function createUrl() {
             v-if="(modelMeta?.search || []).length > 0"
             v-model="searchInput"
             type="text"
+            aria-label="Search records"
             placeholder="Search records..."
             class="w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:border-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500 dark:focus:border-gray-600 sm:w-64"
+          />
+          <select
+            v-if="lenses?.length > 0"
+            :value="lensValue"
+            aria-label="Saved view"
+            class="rounded-md border-0 bg-transparent py-1 pl-2 pr-7 text-sm text-gray-600 focus:ring-1 focus:ring-gray-300 dark:bg-gray-950 dark:text-gray-300 dark:focus:ring-gray-700"
+            data-test="bridge-lens-select"
+            @change="switchLens"
+          >
+            <option :value="allRecordsLensValue">All records</option>
+            <option v-for="lens in lenses" :key="lens.id" :value="lens.id">
+              {{ lens.label }}
+            </option>
+          </select>
+          <BridgeFilterMenu
+            v-if="Object.keys(filterDefinitions || {}).length > 0"
+            :definitions="filterDefinitions"
+            :model-value="filtersValue"
+            :relationship-base-url="relationshipBaseUrl"
+            @apply="applyFilters"
           />
           <Transition
             enter-active-class="transition ease-out duration-150"
@@ -750,7 +844,9 @@ function createUrl() {
                   "
                   class="px-4 py-12 text-center text-sm text-gray-500 dark:text-gray-400"
                 >
-                  {{ search ? 'No matching records.' : 'No records yet.' }}
+                  {{
+                    hasScopedQuery ? 'No matching records.' : 'No records yet.'
+                  }}
                 </td>
               </tr>
             </tbody>

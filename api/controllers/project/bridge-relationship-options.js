@@ -27,7 +27,7 @@ module.exports = {
     surface: {
       type: 'string',
       defaultsTo: 'create',
-      isIn: ['create', 'edit', 'manage']
+      isIn: ['create', 'edit', 'filter', 'manage']
     },
     recordId: {
       type: 'string'
@@ -75,7 +75,7 @@ module.exports = {
         projectSlug: slug,
         environmentSlug: envSlug,
         ...(appSlug ? { appSlug } : {}),
-        requiredRole: 'editor',
+        requiredRole: surface === 'filter' ? 'viewer' : 'editor',
         requireRunning: true
       })
     } catch (error) {
@@ -84,7 +84,7 @@ module.exports = {
       throw { badRequest: { error: 'App is not running' } }
     }
     const { environment, app, actor } = resolved
-    if (surface !== 'create' && !recordId) {
+    if (['edit', 'manage'].includes(surface) && !recordId) {
       throw {
         badRequest: {
           error: 'A record identifier is required for this relationship.'
@@ -97,14 +97,23 @@ module.exports = {
         containerName: app.containerName,
         environmentId: environment.id,
         modelIdentity,
-        action: surface === 'create' ? 'create' : 'update',
+        action:
+          surface === 'create'
+            ? 'create'
+            : surface === 'filter'
+            ? 'viewAny'
+            : 'update',
         actor,
         ...(recordId ? { recordId } : {})
       })
       const relationship = loaded.resource.relationships?.[relationshipAlias]
       if (
         !relationship ||
-        (surface !== 'manage' &&
+        (surface === 'filter' &&
+          (relationship.type !== 'model' ||
+            !loaded.resource.filters.includes(relationshipAlias))) ||
+        (surface !== 'filter' &&
+          surface !== 'manage' &&
           (relationship.type !== 'model' ||
             !loaded.resource[surface].includes(relationshipAlias))) ||
         (surface === 'manage' &&

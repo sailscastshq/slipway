@@ -35,6 +35,14 @@ module.exports = {
       type: 'string',
       defaultsTo: ''
     },
+    filters: {
+      type: 'string',
+      defaultsTo: ''
+    },
+    lens: {
+      type: 'string',
+      defaultsTo: ''
+    },
     dashboard: {
       type: 'string',
       defaultsTo: ''
@@ -62,6 +70,8 @@ module.exports = {
     perPage,
     sort,
     search,
+    filters,
+    lens,
     dashboard
   }) {
     let resolved
@@ -90,6 +100,11 @@ module.exports = {
     let normalizedPerPage = perPage
     let normalizedSort = sort
     let normalizedSearch = search
+    let normalizedFilters = {}
+    let columns = []
+    let lenses = []
+    let activeLens = null
+    let filterDefinitions = {}
     let dashboards = []
     let dashboardResources = {}
     let activeDashboard = null
@@ -154,49 +169,41 @@ module.exports = {
             page,
             perPage,
             sort,
-            search
+            search,
+            filters,
+            lens
           })
 
         normalizedPage = normalizedQuery.page
         normalizedPerPage = normalizedQuery.perPage
         normalizedSort = normalizedQuery.sort
         normalizedSearch = normalizedQuery.search
+        normalizedFilters = normalizedQuery.filters
+        columns = normalizedQuery.columns
+        activeLens = normalizedQuery.lens
+        filterDefinitions = normalizedQuery.filterDefinitions
+        lenses = Object.values(modelMeta.lenses || {}).map((definition) => ({
+          id: definition.id,
+          label: definition.label,
+          default: definition.default
+        }))
 
-        const queryCode = `
-          const identity = ${JSON.stringify(modelMeta.identity)};
-          const where = ${JSON.stringify(normalizedQuery.where)};
-          const criteria = ${JSON.stringify(normalizedQuery.criteria)};
-          const model = sails.models[identity];
-          if (!model) throw new Error('Configured Bridge model is unavailable.');
-
-          const total = await model.count(where);
-          const records = await model.find(criteria);
-          return { records, total };
-        `
-        const wrappedCode = await sails.helpers.bridge.buildSailsWrapper(
-          queryCode
-        )
-        const result = await sails.helpers.bridge.executeInContainer(
-          app.containerName,
-          wrappedCode
-        )
-
-        if (result.success) {
-          try {
-            const data = JSON.parse(result.output)
-            records = await sails.helpers.bridge.redactResourceRecords.with({
-              records: data.records || [],
-              resource: modelMeta,
-              surface: 'list'
-            })
-            total = data.total || 0
-            totalPages = Math.ceil(total / normalizedPerPage)
-          } catch (parseError) {
-            error = 'Failed to parse records: ' + parseError.message
-          }
-        } else {
-          error = result.error || 'Failed to fetch records'
-        }
+        const data = await sails.helpers.bridge.queryResource.with({
+          containerName: app.containerName,
+          resource: modelMeta,
+          query: normalizedQuery,
+          actor
+        })
+        records = await sails.helpers.bridge.redactResourceRecords.with({
+          records: data.records || [],
+          resource: {
+            ...modelMeta,
+            list: normalizedQuery.select
+          },
+          surface: 'list'
+        })
+        total = data.total || 0
+        totalPages = Math.ceil(total / normalizedPerPage)
       } catch (err) {
         error = err.message
       }
@@ -227,6 +234,17 @@ module.exports = {
         perPage: normalizedPerPage,
         sort: normalizedSort,
         search: normalizedSearch,
+        filterState: normalizedFilters,
+        filterDefinitions,
+        columns,
+        lenses,
+        activeLens: activeLens
+          ? {
+              id: activeLens.id,
+              label: activeLens.label,
+              default: activeLens.default
+            }
+          : null,
         error,
         dashboards,
         dashboardResources,

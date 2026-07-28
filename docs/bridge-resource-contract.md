@@ -133,6 +133,103 @@ module.exports.slipway = {
 
 A resource can also be removed from Bridge with `false` or `hidden: true`.
 
+## Filters and saved lenses
+
+Bridge exposes filters only when a resource opts fields into its `filters`
+array. The field contract determines the control and the Waterline operator:
+
+| Field type                         | Bridge filter                        |
+| ---------------------------------- | ------------------------------------ |
+| text, textarea, rich text, URL     | contains or exact match              |
+| boolean and select                 | exact match                          |
+| number and currency                | exact value or range                 |
+| date, datetime, and timestamp      | exact value or range                 |
+| belongs-to relationship            | authorized, searchable record picker |
+| nullable fields of supported types | is empty or is not empty             |
+
+```js
+module.exports.slipway = {
+  bridge: {
+    resources: {
+      lesson: {
+        search: ['title', 'slug'],
+        filters: ['title', 'published', 'creator', 'createdAt'],
+        lenses: {
+          published: {
+            label: 'Published lessons',
+            filters: {
+              published: true
+            },
+            columns: ['title', 'creator', 'published', 'createdAt'],
+            sort: {
+              field: 'createdAt',
+              direction: 'DESC'
+            }
+          },
+          drafts: {
+            label: 'Draft lessons',
+            filters: {
+              published: false
+            },
+            columns: ['title', 'creator', 'createdAt'],
+            sort: {
+              field: 'createdAt',
+              direction: 'DESC'
+            }
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+A lens is a named resource view. It can fix filters, choose columns, and set a
+default sort while still allowing a Bridge user to add another filter or
+search. Filter, lens, search, sort, and page state are encoded in the URL, so a
+view can be bookmarked or shared with another authorized Bridge user.
+
+For a specialized view that cannot be represented with ordinary Waterline
+criteria, configure a target-app helper:
+
+```js
+recentSignups: {
+  label: 'Recent signups',
+  columns: ['fullName', 'email', 'createdAt'],
+  helper: 'bridge.lenses.recentSignups'
+}
+```
+
+```js
+// api/helpers/bridge/lenses/recent-signups.js
+module.exports = {
+  friendlyName: 'Load recent Bridge signups',
+
+  inputs: {
+    actor: { type: 'ref', required: true },
+    resource: { type: 'ref', required: true },
+    query: { type: 'ref', required: true }
+  },
+
+  fn: async function ({ query }) {
+    const records = await User.find(query.criteria)
+    const total = await User.count(query.where)
+    return { records, total }
+  }
+}
+```
+
+The helper runs inside the target application and receives the authenticated
+actor plus a normalized, bounded query. It must return `{ records, total }`.
+Bridge still applies the resource's visible-column allowlist before rendering
+the result.
+
+Search, filter, and lens input is never interpolated into executable code.
+Bridge validates configured fields, operators, values, relationship access,
+columns, sorting, and helper identities before serializing criteria for the
+target app. Fields hidden from the list or filter surfaces cannot be requested
+through a lens or a forged URL.
+
 ## Dashboards
 
 Bridge can turn the resource directory into an application-specific dashboard
