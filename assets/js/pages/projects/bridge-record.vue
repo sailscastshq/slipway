@@ -17,6 +17,8 @@ defineOptions({
 const props = defineProps({
   project: Object,
   environment: Object,
+  app: Object,
+  appScoped: Boolean,
   modelIdentity: String,
   recordId: String,
   appRunning: Boolean,
@@ -30,6 +32,16 @@ const toggleMobileMenu = inject('toggleMobileMenu')
 const toggleSidebar = inject('toggleSidebar')
 const sidebarCollapsed = inject('sidebarCollapsed')
 const { toasts, toast, dismiss } = createToast()
+const bridgeBasePath = computed(() =>
+  props.appScoped && props.app?.slug
+    ? `/projects/${props.project.slug}/environments/${props.environment.slug}/apps/${props.app.slug}/bridge`
+    : `/projects/${props.project.slug}/environments/${props.environment.slug}/bridge`
+)
+const bridgeApiBasePath = computed(() =>
+  props.appScoped && props.app?.slug
+    ? `/api/v1/projects/${props.project.slug}/environments/${props.environment.slug}/apps/${props.app.slug}/bridge`
+    : `/api/v1/projects/${props.project.slug}/environments/${props.environment.slug}/bridge`
+)
 
 const deleteModal = ref({ show: false })
 const deleteForm = useForm({})
@@ -101,9 +113,7 @@ function fieldLabel(name) {
 
 function confirmDelete() {
   deleteForm.post(
-    `/projects/${props.project.slug}/environments/${
-      props.environment.slug
-    }/bridge/${props.modelIdentity}/${encodePathSegment(
+    `${bridgeBasePath.value}/${props.modelIdentity}/${encodePathSegment(
       props.recordId
     )}/delete`,
     {
@@ -121,9 +131,9 @@ function confirmDelete() {
 }
 
 function customActionUrl(action) {
-  return `/projects/${props.project.slug}/environments/${
-    props.environment.slug
-  }/bridge/${props.modelIdentity}/actions/${encodePathSegment(action.name)}`
+  return `${bridgeBasePath.value}/${
+    props.modelIdentity
+  }/actions/${encodePathSegment(action.name)}`
 }
 
 function actionNeedsDialog(action) {
@@ -169,20 +179,18 @@ function handleRecordAction(item) {
 }
 
 function bridgeUrl() {
-  return `/projects/${props.project.slug}/environments/${props.environment.slug}/bridge`
+  return bridgeBasePath.value
 }
 function modelUrl() {
-  return `/projects/${props.project.slug}/environments/${props.environment.slug}/bridge/${props.modelIdentity}`
+  return `${bridgeBasePath.value}/${props.modelIdentity}`
 }
 function editUrl() {
-  return `/projects/${props.project.slug}/environments/${
-    props.environment.slug
-  }/bridge/${props.modelIdentity}/${encodePathSegment(props.recordId)}/edit`
+  return `${bridgeBasePath.value}/${props.modelIdentity}/${encodePathSegment(
+    props.recordId
+  )}/edit`
 }
 function relatedRecordUrl(model, id) {
-  return `/projects/${props.project.slug}/environments/${
-    props.environment.slug
-  }/bridge/${model}/${encodePathSegment(id)}`
+  return `${bridgeBasePath.value}/${model}/${encodePathSegment(id)}`
 }
 
 function relationshipOptionsUrl(relationship) {
@@ -190,17 +198,15 @@ function relationshipOptionsUrl(relationship) {
     surface: 'manage',
     recordId: String(props.recordId)
   })
-  return `/api/v1/projects/${props.project.slug}/environments/${
-    props.environment.slug
-  }/bridge/${props.modelIdentity}/relationships/${encodePathSegment(
+  return `${bridgeApiBasePath.value}/${
+    props.modelIdentity
+  }/relationships/${encodePathSegment(
     relationship.alias
   )}/options?${params.toString()}`
 }
 
 function relationshipMutationBaseUrl(relationship) {
-  return `/projects/${props.project.slug}/environments/${
-    props.environment.slug
-  }/bridge/${props.modelIdentity}/${encodePathSegment(
+  return `${bridgeBasePath.value}/${props.modelIdentity}/${encodePathSegment(
     props.recordId
   )}/relationships/${encodePathSegment(relationship.alias)}`
 }

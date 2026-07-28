@@ -79,6 +79,15 @@ module.exports = {
       sails.log.info(`[sails/detect-features] Detected sails-hook-uploads`)
     }
 
+    // Detect the Sails-native Slipway runtime. Bridge can only expose the
+    // app-local /bridge entry point when this hook is installed.
+    if (deps['sails-hook-slipway']) {
+      features['sails-hook-slipway'] = {
+        version: deps['sails-hook-slipway']
+      }
+      sails.log.info('[sails/detect-features] Detected sails-hook-slipway')
+    }
+
     // Detect sails-stash (caching)
     if (deps['sails-stash']) {
       features['sails-stash'] = {

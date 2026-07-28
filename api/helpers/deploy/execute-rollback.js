@@ -151,6 +151,18 @@ module.exports = {
         ...(existingApp?.envVars || {})
       }
 
+      if (existingApp?.bridgeEnabled) {
+        const bridgeHost =
+          sails.config.environment === 'production'
+            ? 'slipway'
+            : 'host.docker.internal'
+        envVars.SLIPWAY_BRIDGE_ENABLED = 'true'
+        envVars.SLIPWAY_BRIDGE_EXCHANGE_URL = `http://${bridgeHost}:1337/api/v1/bridge/exchange`
+        envVars.SLIPWAY_BRIDGE_APP_ID = String(existingApp.id)
+        envVars.SLIPWAY_BRIDGE_SECRET =
+          await sails.helpers.bridge.ensureAppSecret(String(existingApp.id))
+      }
+
       const containerResult = await sails.helpers.docker.runContainer.with({
         imageName: targetDeployment.imageName,
         containerName: candidateContainerName,

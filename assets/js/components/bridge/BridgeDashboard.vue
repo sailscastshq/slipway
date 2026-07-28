@@ -20,6 +20,13 @@ const props = defineProps({
   environment: {
     type: Object,
     required: true
+  },
+  app: {
+    type: Object
+  },
+  appScoped: {
+    type: Boolean,
+    default: false
   }
 })
 
@@ -45,7 +52,11 @@ const detailCards = computed(() =>
 )
 
 function resourceUrl(identity) {
-  return `/projects/${props.project.slug}/environments/${props.environment.slug}/bridge/${identity}`
+  const base =
+    props.appScoped && props.app?.slug
+      ? `/projects/${props.project.slug}/environments/${props.environment.slug}/apps/${props.app.slug}/bridge`
+      : `/projects/${props.project.slug}/environments/${props.environment.slug}/bridge`
+  return `${base}/${identity}`
 }
 
 function actionUrl(card) {

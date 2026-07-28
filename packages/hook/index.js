@@ -37,10 +37,24 @@ module.exports = function defineSlipwayHook(sails) {
 
   // Config (populated in initialize)
   let config = {}
+  let bridgeConfig = {}
 
   return {
     defaults: {
       slipway: {
+        bridge: {
+          enabled: false,
+          loginPath: '/login',
+          identity: {
+            model: 'user',
+            sessionKey: 'userId',
+            emailAttribute: 'email',
+            nameAttribute: 'fullName',
+            emailStatusAttribute: 'emailStatus',
+            emailVerifiedAttribute: 'emailVerified',
+            verifiedEmailStatuses: ['verified', 'confirmed']
+          }
+        },
         lookout: {
           enabled: true,
           batchSize: 50,
@@ -61,10 +75,25 @@ module.exports = function defineSlipwayHook(sails) {
 
       if (envUrl) sails.config.slipway.lookout.telemetryUrl = envUrl
       if (envToken) sails.config.slipway.lookout.telemetryToken = envToken
+
+      if (process.env.SLIPWAY_BRIDGE_ENABLED === 'true') {
+        sails.config.slipway.bridge.enabled = true
+      }
+      if (process.env.SLIPWAY_BRIDGE_EXCHANGE_URL) {
+        sails.config.slipway.bridge.exchangeUrl =
+          process.env.SLIPWAY_BRIDGE_EXCHANGE_URL
+      }
+      if (process.env.SLIPWAY_BRIDGE_APP_ID) {
+        sails.config.slipway.bridge.appId = process.env.SLIPWAY_BRIDGE_APP_ID
+      }
+      if (process.env.SLIPWAY_BRIDGE_SECRET) {
+        sails.config.slipway.bridge.secret = process.env.SLIPWAY_BRIDGE_SECRET
+      }
     },
 
     initialize: function (done) {
       config = sails.config.slipway.lookout
+      bridgeConfig = sails.config.slipway.bridge
 
       // Skip if not configured
       if (!config.telemetryUrl || !config.telemetryToken) {
@@ -207,6 +236,90 @@ module.exports = function defineSlipwayHook(sails) {
           }
 
           next()
+        }
+      },
+      after: {
+        'GET /bridge': async function (req, res) {
+          if (!bridgeConfig.enabled) {
+            return res.notFound()
+          }
+
+          if (
+            !bridgeConfig.exchangeUrl ||
+            !bridgeConfig.appId ||
+            !bridgeConfig.secret
+          ) {
+            sails.log.warn(
+              'sails-hook-slipway: Bridge is enabled but its Slipway exchange credentials are unavailable.'
+            )
+            return res.serverError(
+              'Bridge is not configured for this deployment. Redeploy the app from Slipway.'
+            )
+          }
+
+          let identity
+          try {
+            identity = await resolveBridgeIdentity(req)
+          } catch (error) {
+            sails.log.warn(
+              `sails-hook-slipway: Could not resolve the Bridge user: ${
+                error.message || error
+              }`
+            )
+            return res.forbidden(
+              'Bridge could not verify your host-app account.'
+            )
+          }
+
+          if (!identity) {
+            const loginPath = safeLocalPath(bridgeConfig.loginPath, '/login')
+            const returnUrl = safeLocalPath(req.originalUrl, '/bridge')
+            return res.redirect(
+              `${loginPath}?redirect=${encodeURIComponent(returnUrl)}`
+            )
+          }
+
+          if (!identity.emailVerified) {
+            return res.forbidden(
+              'Verify your host-app email address before opening Bridge.'
+            )
+          }
+
+          try {
+            const response = await requestJson({
+              url: bridgeConfig.exchangeUrl,
+              token: bridgeConfig.secret,
+              body: {
+                appId: String(bridgeConfig.appId),
+                hostUser: identity,
+                inviteToken:
+                  typeof req.query?.invite === 'string'
+                    ? req.query.invite
+                    : undefined
+              }
+            })
+
+            if (!response.launchUrl) {
+              throw new Error('Slipway did not return a Bridge launch URL.')
+            }
+
+            return res.redirect(response.launchUrl)
+          } catch (error) {
+            if (error.statusCode === 403) {
+              return res.forbidden(
+                `Your host-app account (${identity.email}) has not been invited to Bridge.`
+              )
+            }
+
+            sails.log.warn(
+              `sails-hook-slipway: Bridge exchange failed: ${
+                error.message || error
+              }`
+            )
+            return res.serverError(
+              'Bridge could not contact Slipway. Try again in a moment.'
+            )
+          }
         }
       }
     },
@@ -545,5 +658,160 @@ module.exports = function defineSlipwayHook(sails) {
     } catch {
       // Silently fail
     }
+  }
+
+  async function resolveBridgeIdentity(req) {
+    const identityConfig = bridgeConfig.identity || {}
+    if (identityConfig.helper) {
+      const helper = resolveHelper(identityConfig.helper)
+      if (!helper) {
+        throw new Error(
+          `Configured Bridge identity helper "${identityConfig.helper}" is unavailable.`
+        )
+      }
+      const resolved = await helper.with({ req })
+      return normalizeBridgeIdentity(resolved)
+    }
+
+    const sessionKey = identityConfig.sessionKey || 'userId'
+    const userId = req.session && req.session[sessionKey]
+    if (!userId) return null
+
+    const modelIdentity = String(identityConfig.model || 'user').toLowerCase()
+    const model = sails.models[modelIdentity]
+    if (!model) {
+      throw new Error(
+        `Bridge identity model "${modelIdentity}" is unavailable.`
+      )
+    }
+
+    const user = await model.findOne({ id: userId })
+    if (!user) return null
+
+    const emailAttribute = identityConfig.emailAttribute || 'email'
+    const nameAttribute = identityConfig.nameAttribute || 'fullName'
+    const statusAttribute = identityConfig.emailStatusAttribute || 'emailStatus'
+    const verifiedAttribute =
+      identityConfig.emailVerifiedAttribute || 'emailVerified'
+    const hasStatusAttribute = Boolean(model.attributes?.[statusAttribute])
+    const hasVerifiedAttribute = Boolean(model.attributes?.[verifiedAttribute])
+    const acceptedStatuses = identityConfig.verifiedEmailStatuses || [
+      'verified',
+      'confirmed'
+    ]
+    if (!hasStatusAttribute && !hasVerifiedAttribute) {
+      throw new Error(
+        `Bridge cannot prove email verification from "${modelIdentity}". Configure slipway.bridge.identity.helper.`
+      )
+    }
+
+    return normalizeBridgeIdentity({
+      id: user.id,
+      email: user[emailAttribute],
+      fullName: user[nameAttribute],
+      emailVerified:
+        (hasStatusAttribute &&
+          acceptedStatuses.includes(user[statusAttribute])) ||
+        (hasVerifiedAttribute && user[verifiedAttribute] === true)
+    })
+  }
+
+  function resolveHelper(identity) {
+    return String(identity)
+      .split('.')
+      .reduce((cursor, segment) => cursor && cursor[segment], sails.helpers)
+  }
+
+  function normalizeBridgeIdentity(identity) {
+    if (!identity || identity.id === undefined || identity.id === null) {
+      return null
+    }
+
+    const email = String(identity.email || '')
+      .trim()
+      .toLowerCase()
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      throw new Error('The Bridge identity helper returned an invalid email.')
+    }
+
+    return {
+      id: String(identity.id),
+      email,
+      fullName:
+        String(identity.fullName || '')
+          .trim()
+          .slice(0, 200) || null,
+      emailVerified: identity.emailVerified === true
+    }
+  }
+
+  function safeLocalPath(value, fallback) {
+    const path = String(value || fallback)
+    return path.startsWith('/') && !path.startsWith('//') ? path : fallback
+  }
+
+  function requestJson({ url, token, body }) {
+    return new Promise((resolve, reject) => {
+      let endpoint
+      try {
+        endpoint = new URL(url)
+      } catch {
+        return reject(new Error('The Bridge exchange URL is invalid.'))
+      }
+
+      const payload = JSON.stringify(body)
+      const transport = endpoint.protocol === 'https:' ? https : http
+      const request = transport.request(
+        {
+          hostname: endpoint.hostname,
+          port: endpoint.port,
+          path: `${endpoint.pathname}${endpoint.search}`,
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Content-Length': Buffer.byteLength(payload),
+            Authorization: `Bearer ${token}`
+          },
+          timeout: 5000
+        },
+        (response) => {
+          let responseBody = ''
+          response.on('data', (chunk) => {
+            responseBody += chunk
+            if (responseBody.length > 64 * 1024) {
+              response.destroy(
+                new Error('The Bridge exchange response was too large.')
+              )
+            }
+          })
+          response.on('end', () => {
+            let parsed = {}
+            try {
+              parsed = responseBody ? JSON.parse(responseBody) : {}
+            } catch {
+              /* handled by the status-aware error below */
+            }
+
+            if (response.statusCode < 200 || response.statusCode >= 300) {
+              const error = new Error(
+                parsed.message ||
+                  parsed.error ||
+                  `Bridge exchange returned HTTP ${response.statusCode}.`
+              )
+              error.statusCode = response.statusCode
+              return reject(error)
+            }
+            return resolve(parsed)
+          })
+        }
+      )
+
+      request.on('error', reject)
+      request.on('timeout', () => {
+        request.destroy(new Error('Bridge exchange timed out.'))
+      })
+      request.write(payload)
+      request.end()
+    })
   }
 }

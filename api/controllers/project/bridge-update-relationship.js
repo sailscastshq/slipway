@@ -13,6 +13,9 @@ module.exports = {
       type: 'string',
       defaultsTo: 'production'
     },
+    appSlug: {
+      type: 'string'
+    },
     modelIdentity: {
       type: 'string',
       required: true
@@ -43,6 +46,9 @@ module.exports = {
     notFound: {
       responseType: 'redirect'
     },
+    forbidden: {
+      statusCode: 403
+    },
     badRequest: {
       responseType: 'badRequest'
     }
@@ -51,39 +57,31 @@ module.exports = {
   fn: async function ({
     slug,
     envSlug,
+    appSlug,
     modelIdentity,
     recordId,
     relationshipAlias,
     operation,
     relatedId
   }) {
-    const user = await User.findOne({ id: this.req.session.userId }).populate(
-      'team'
-    )
-    if (!user) throw { notFound: '/login' }
-
-    const project = await Project.findOne({ slug, team: user.team.id })
-    if (!project) throw { notFound: '/' }
-
-    const environment = await Environment.findOne({
-      project: project.id,
-      slug: envSlug
-    })
-    if (!environment) throw { notFound: `/projects/${slug}` }
-
-    const app =
-      (await App.findOne({ environment: environment.id, isDefault: true })) ||
-      (await App.findOne({ environment: environment.id }))
-    if (!app || app.status !== 'running' || !app.containerName) {
+    let resolved
+    try {
+      resolved = await sails.helpers.bridge.resolveRequest.with({
+        req: this.req,
+        projectSlug: slug,
+        environmentSlug: envSlug,
+        ...(appSlug ? { appSlug } : {}),
+        requiredRole: 'editor',
+        requireRunning: true
+      })
+    } catch (error) {
+      if (error.code === 'forbidden') throw 'forbidden'
+      if (error.code === 'notFound') throw { notFound: '/' }
       throw { badRequest: { error: 'App is not running' } }
     }
+    const { environment, app, actor } = resolved
 
     try {
-      const actor = await sails.helpers.bridge.buildActor.with({
-        user,
-        project,
-        environment
-      })
       const loaded = await sails.helpers.bridge.loadResource.with({
         containerName: app.containerName,
         environmentId: environment.id,
@@ -177,8 +175,10 @@ module.exports = {
       throw { badRequest: { error: error.message } }
     }
 
-    const envPath = envSlug !== 'production' ? `/environments/${envSlug}` : ''
-    return `/projects/${slug}${envPath}/bridge/${modelIdentity}/${encodeURIComponent(
+    const bridgeBasePath = appSlug
+      ? `/projects/${slug}/environments/${envSlug}/apps/${app.slug}/bridge`
+      : `/projects/${slug}/environments/${envSlug}/bridge`
+    return `${bridgeBasePath}/${modelIdentity}/${encodeURIComponent(
       String(recordId)
     )}`
   }

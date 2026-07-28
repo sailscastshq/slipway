@@ -20,6 +20,8 @@ defineOptions({
 const props = defineProps({
   project: Object,
   environment: Object,
+  app: Object,
+  appScoped: Boolean,
   mode: String,
   modelIdentity: String,
   recordId: String,
@@ -34,6 +36,16 @@ const toggleMobileMenu = inject('toggleMobileMenu')
 const toggleSidebar = inject('toggleSidebar')
 const sidebarCollapsed = inject('sidebarCollapsed')
 const { toasts, toast, dismiss } = createToast()
+const bridgeBasePath = computed(() =>
+  props.appScoped && props.app?.slug
+    ? `/projects/${props.project.slug}/environments/${props.environment.slug}/apps/${props.app.slug}/bridge`
+    : `/projects/${props.project.slug}/environments/${props.environment.slug}/bridge`
+)
+const bridgeApiBasePath = computed(() =>
+  props.appScoped && props.app?.slug
+    ? `/api/v1/projects/${props.project.slug}/environments/${props.environment.slug}/apps/${props.app.slug}/bridge`
+    : `/api/v1/projects/${props.project.slug}/environments/${props.environment.slug}/bridge`
+)
 
 const isEdit = computed(() => props.mode === 'edit')
 
@@ -174,12 +186,10 @@ function handleSubmit() {
 
   form.values = values
   const actionUrl = isEdit.value
-    ? `/projects/${props.project.slug}/environments/${
-        props.environment.slug
-      }/bridge/${props.modelIdentity}/${encodePathSegment(
+    ? `${bridgeBasePath.value}/${props.modelIdentity}/${encodePathSegment(
         props.recordId
       )}/update`
-    : `/projects/${props.project.slug}/environments/${props.environment.slug}/bridge/${props.modelIdentity}/create`
+    : `${bridgeBasePath.value}/${props.modelIdentity}/create`
 
   form.post(actionUrl, {
     onSuccess: () => {
@@ -195,7 +205,7 @@ function handleSubmit() {
 }
 
 function uploadUrl(field) {
-  return `/projects/${props.project.slug}/environments/${props.environment.slug}/bridge/${props.modelIdentity}/${field.name}/upload`
+  return `${bridgeBasePath.value}/${props.modelIdentity}/${field.name}/upload`
 }
 
 function relationshipSearchUrl(field) {
@@ -206,23 +216,21 @@ function relationshipSearchUrl(field) {
   if (isEdit.value && props.recordId !== null) {
     params.set('recordId', String(props.recordId))
   }
-  return `/api/v1/projects/${props.project.slug}/environments/${
-    props.environment.slug
-  }/bridge/${props.modelIdentity}/relationships/${encodePathSegment(
-    field.name
-  )}/options?${params.toString()}`
+  return `${bridgeApiBasePath.value}/${
+    props.modelIdentity
+  }/relationships/${encodePathSegment(field.name)}/options?${params.toString()}`
 }
 
 function bridgeUrl() {
-  return `/projects/${props.project.slug}/environments/${props.environment.slug}/bridge`
+  return bridgeBasePath.value
 }
 function modelUrl() {
-  return `/projects/${props.project.slug}/environments/${props.environment.slug}/bridge/${props.modelIdentity}`
+  return `${bridgeBasePath.value}/${props.modelIdentity}`
 }
 function recordUrl() {
-  return `/projects/${props.project.slug}/environments/${
-    props.environment.slug
-  }/bridge/${props.modelIdentity}/${encodePathSegment(props.recordId)}`
+  return `${bridgeBasePath.value}/${props.modelIdentity}/${encodePathSegment(
+    props.recordId
+  )}`
 }
 </script>
 

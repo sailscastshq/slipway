@@ -33,6 +33,16 @@ module.exports = {
       }
 
       if (target.scopeType === 'app') {
+        removed.default.bridgeLaunchCodes = await destroyCriteriaCount(
+          BridgeLaunchCode,
+          { app: { in: records.appIds } },
+          db
+        )
+        removed.default.bridgeAccess = await destroyCriteriaCount(
+          BridgeAccess,
+          { app: { in: records.appIds } },
+          db
+        )
         removed.default.repositories = await destroyCount(
           GitRepository,
           records.repositoryIds,
@@ -63,6 +73,16 @@ module.exports = {
       }
 
       await updateCount(App, records.appIds, { currentDeployment: null }, db)
+      removed.default.bridgeLaunchCodes = await destroyCriteriaCount(
+        BridgeLaunchCode,
+        { app: { in: records.appIds } },
+        db
+      )
+      removed.default.bridgeAccess = await destroyCriteriaCount(
+        BridgeAccess,
+        { app: { in: records.appIds } },
+        db
+      )
       removed.default.deploymentLeases = await destroyCount(
         DeploymentLease,
         records.deploymentLeaseIds,
@@ -202,6 +222,18 @@ async function destroyCount(model, ids, db) {
     .destroy({ id: { in: ids } })
     .fetch()
     .usingConnection(db)
+  return destroyed.length
+}
+
+async function destroyCriteriaCount(model, criteria, db) {
+  if (
+    Object.values(criteria).some(
+      (value) => value && Array.isArray(value.in) && value.in.length === 0
+    )
+  ) {
+    return 0
+  }
+  const destroyed = await model.destroy(criteria).fetch().usingConnection(db)
   return destroyed.length
 }
 

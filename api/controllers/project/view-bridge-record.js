@@ -12,6 +12,9 @@ module.exports = {
       type: 'string',
       defaultsTo: 'production'
     },
+    appSlug: {
+      type: 'string'
+    },
     modelIdentity: {
       type: 'string',
       required: true
@@ -28,36 +31,27 @@ module.exports = {
     },
     notFound: {
       responseType: 'redirect'
+    },
+    forbidden: {
+      statusCode: 403
     }
   },
 
-  fn: async function ({ slug, envSlug, modelIdentity, recordId }) {
-    const user = await User.findOne({ id: this.req.session.userId }).populate(
-      'team'
-    )
-
-    if (!user) {
+  fn: async function ({ slug, envSlug, appSlug, modelIdentity, recordId }) {
+    let resolved
+    try {
+      resolved = await sails.helpers.bridge.resolveRequest.with({
+        req: this.req,
+        projectSlug: slug,
+        environmentSlug: envSlug,
+        ...(appSlug ? { appSlug } : {}),
+        requiredRole: 'viewer'
+      })
+    } catch (error) {
+      if (error.code === 'forbidden') throw 'forbidden'
       throw { notFound: '/login' }
     }
-
-    const project = await Project.findOne({ slug, team: user.team.id })
-
-    if (!project) {
-      throw { notFound: '/' }
-    }
-
-    const environment = await Environment.findOne({
-      project: project.id,
-      slug: envSlug
-    })
-
-    if (!environment) {
-      throw { notFound: `/projects/${slug}` }
-    }
-
-    const app =
-      (await App.findOne({ environment: environment.id, isDefault: true })) ||
-      (await App.findOne({ environment: environment.id }))
+    const { project, environment, app, actor } = resolved
     const appRunning = app && app.status === 'running'
 
     let modelMeta = null
@@ -67,11 +61,6 @@ module.exports = {
 
     if (appRunning) {
       try {
-        const actor = await sails.helpers.bridge.buildActor.with({
-          user,
-          project,
-          environment
-        })
         const loaded = await sails.helpers.bridge.loadResource.with({
           containerName: app.containerName,
           environmentId: environment.id,
@@ -168,6 +157,8 @@ module.exports = {
           name: environment.name,
           slug: environment.slug
         },
+        app: { id: app.id, name: app.name, slug: app.slug },
+        appScoped: Boolean(appSlug),
         modelIdentity,
         recordId,
         appRunning,

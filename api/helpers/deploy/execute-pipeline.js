@@ -221,6 +221,20 @@ module.exports = {
         envVars.SLIPWAY_TELEMETRY_TOKEN = envRecord.telemetryToken
       }
 
+      // 7c. App-local Bridge is an explicit, app-scoped capability. Its
+      // credential is separate from telemetry and never reaches the browser.
+      if (targetApp?.bridgeEnabled) {
+        const bridgeHost =
+          sails.config.environment === 'production'
+            ? 'slipway'
+            : 'host.docker.internal'
+        envVars.SLIPWAY_BRIDGE_ENABLED = 'true'
+        envVars.SLIPWAY_BRIDGE_EXCHANGE_URL = `http://${bridgeHost}:1337/api/v1/bridge/exchange`
+        envVars.SLIPWAY_BRIDGE_APP_ID = String(targetApp.id)
+        envVars.SLIPWAY_BRIDGE_SECRET =
+          await sails.helpers.bridge.ensureAppSecret(String(targetApp.id))
+      }
+
       // 8. Get resource limits from existing app
       const existingApp =
         targetApp ||

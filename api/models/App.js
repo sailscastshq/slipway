@@ -129,6 +129,23 @@ module.exports = {
       columnName: 'resource_limits'
     },
 
+    bridgeEnabled: {
+      type: 'boolean',
+      defaultsTo: false,
+      description: 'Whether the app-local Bridge entry point is enabled',
+      columnName: 'bridge_enabled'
+    },
+
+    bridgeSecret: {
+      type: 'string',
+      allowNull: true,
+      encrypt: true,
+      protect: true,
+      description:
+        'App-specific credential used for the host-to-Slipway Bridge exchange',
+      columnName: 'bridge_secret'
+    },
+
     // Associations
     environment: {
       model: 'environment',

@@ -341,6 +341,47 @@ module.exports.routes = {
     'project/view-dock',
 
   // Bridge UI
+  'GET /bridge/launch': 'bridge/launch',
+  'POST /api/v1/bridge/exchange': {
+    action: 'api/v1/bridge/exchange',
+    csrf: false
+  },
+  'GET /projects/:slug/environments/:envSlug/apps/:appSlug/bridge/access':
+    'project/view-bridge-access',
+  'PATCH /projects/:slug/environments/:envSlug/apps/:appSlug/bridge/access':
+    'project/update-bridge-settings',
+  'POST /projects/:slug/environments/:envSlug/apps/:appSlug/bridge/access/invitations':
+    'project/invite-bridge-user',
+  'PATCH /projects/:slug/environments/:envSlug/apps/:appSlug/bridge/access/:accessId':
+    'project/update-bridge-access',
+  'DELETE /projects/:slug/environments/:envSlug/apps/:appSlug/bridge/access/:accessId':
+    'project/revoke-bridge-access',
+  'GET /projects/:slug/environments/:envSlug/apps/:appSlug/bridge':
+    'project/view-bridge',
+  'GET /projects/:slug/environments/:envSlug/apps/:appSlug/bridge/:modelIdentity':
+    'project/view-bridge-model',
+  'GET /projects/:slug/environments/:envSlug/apps/:appSlug/bridge/:modelIdentity/new':
+    'project/view-bridge-create',
+  'GET /projects/:slug/environments/:envSlug/apps/:appSlug/bridge/:modelIdentity/:recordId':
+    'project/view-bridge-record',
+  'GET /projects/:slug/environments/:envSlug/apps/:appSlug/bridge/:modelIdentity/:recordId/edit':
+    'project/view-bridge-edit',
+  'POST /projects/:slug/environments/:envSlug/apps/:appSlug/bridge/:modelIdentity/create':
+    'project/bridge-create-record',
+  'POST /projects/:slug/environments/:envSlug/apps/:appSlug/bridge/:modelIdentity/:fieldName/upload':
+    'project/bridge-upload-field',
+  'POST /projects/:slug/environments/:envSlug/apps/:appSlug/bridge/:modelIdentity/:recordId/update':
+    'project/bridge-update-record',
+  'POST /projects/:slug/environments/:envSlug/apps/:appSlug/bridge/:modelIdentity/:recordId/delete':
+    'project/bridge-delete-record',
+  'POST /projects/:slug/environments/:envSlug/apps/:appSlug/bridge/:modelIdentity/bulk-delete':
+    'project/bridge-bulk-delete',
+  'POST /projects/:slug/environments/:envSlug/apps/:appSlug/bridge/:modelIdentity/actions/:actionName':
+    'project/bridge-execute-action',
+  'GET /api/v1/projects/:slug/environments/:envSlug/apps/:appSlug/bridge/:modelIdentity/relationships/:relationshipAlias/options':
+    'project/bridge-relationship-options',
+  'POST /projects/:slug/environments/:envSlug/apps/:appSlug/bridge/:modelIdentity/:recordId/relationships/:relationshipAlias/:operation':
+    'project/bridge-update-relationship',
   'GET /projects/:slug/bridge': 'project/view-bridge',
   'GET /projects/:slug/environments/:envSlug/bridge': 'project/view-bridge',
   'GET /projects/:slug/bridge/:modelIdentity': 'project/view-bridge-model',

@@ -35,7 +35,8 @@ const props = defineProps({
   services: Array,
   backupConfigured: Boolean,
   checklist: Array,
-  sourceReadiness: Object
+  sourceReadiness: Object,
+  canManageBridge: Boolean
 })
 
 const toggleMobileMenu = inject('toggleMobileMenu')
@@ -944,8 +945,31 @@ onBeforeUnmount(() => {
                       </svg>
                       Helm
                     </Link>
+                    <a
+                      v-if="app.bridgeEnabled && app.bridgeUrl"
+                      :href="app.bridgeUrl"
+                      target="_blank"
+                      rel="noopener"
+                      class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+                    >
+                      <svg
+                        class="h-4 w-4 text-gray-400"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          stroke-width="2"
+                          d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"
+                        />
+                      </svg>
+                      Bridge
+                    </a>
                     <Link
-                      :href="`/projects/${project.slug}/environments/${environment.slug}/bridge`"
+                      v-else
+                      :href="`/projects/${project.slug}/environments/${environment.slug}/apps/${app.slug}/bridge`"
                       class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
                     >
                       <svg
@@ -1126,6 +1150,26 @@ onBeforeUnmount(() => {
                         class="ml-auto h-1.5 w-1.5 rounded-full bg-emerald-500"
                       ></span>
                     </button>
+                    <Link
+                      v-if="canManageBridge"
+                      :href="`/projects/${project.slug}/environments/${environment.slug}/apps/${app.slug}/bridge/access`"
+                      class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+                    >
+                      <svg
+                        class="h-4 w-4 text-gray-400"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          stroke-width="2"
+                          d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2m7-10a4 4 0 100-8 4 4 0 000 8zm13 10v-2a4 4 0 00-3-3.87m-1-8a4 4 0 010 7.75"
+                        />
+                      </svg>
+                      Bridge access
+                    </Link>
                     <Link
                       :href="`/projects/${project.slug}/environments/${environment.slug}/apps/${app.slug}/settings`"
                       class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"

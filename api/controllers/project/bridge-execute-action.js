@@ -13,6 +13,9 @@ module.exports = {
       type: 'string',
       defaultsTo: 'production'
     },
+    appSlug: {
+      type: 'string'
+    },
     modelIdentity: {
       type: 'string',
       required: true
@@ -40,6 +43,9 @@ module.exports = {
     notFound: {
       responseType: 'redirect'
     },
+    forbidden: {
+      statusCode: 403
+    },
     badRequest: {
       responseType: 'badRequest'
     }
@@ -48,48 +54,33 @@ module.exports = {
   fn: async function ({
     slug,
     envSlug,
+    appSlug,
     modelIdentity,
     actionName,
     values,
     recordId,
     recordIds
   }) {
-    const user = await User.findOne({ id: this.req.session.userId }).populate(
-      'team'
-    )
-    if (!user) {
-      throw { notFound: '/login' }
-    }
-
-    const project = await Project.findOne({ slug, team: user.team.id })
-    if (!project) {
-      throw { notFound: '/' }
-    }
-
-    const environment = await Environment.findOne({
-      project: project.id,
-      slug: envSlug
-    })
-    if (!environment) {
-      throw { notFound: `/projects/${slug}` }
-    }
-
-    const app =
-      (await App.findOne({ environment: environment.id, isDefault: true })) ||
-      (await App.findOne({ environment: environment.id }))
-    if (!app || app.status !== 'running') {
+    let resolved
+    try {
+      resolved = await sails.helpers.bridge.resolveRequest.with({
+        req: this.req,
+        projectSlug: slug,
+        environmentSlug: envSlug,
+        ...(appSlug ? { appSlug } : {}),
+        requiredRole: 'editor',
+        requireRunning: true
+      })
+    } catch (error) {
+      if (error.code === 'forbidden') throw 'forbidden'
+      if (error.code === 'notFound') throw { notFound: '/' }
       throw { badRequest: { error: 'App is not running' } }
     }
+    const { project, environment, app, actor, auditUserId } = resolved
 
-    let actor
     let loaded
     let allowedValues
     try {
-      actor = await sails.helpers.bridge.buildActor.with({
-        user,
-        project,
-        environment
-      })
       loaded = await sails.helpers.bridge.loadResource.with({
         containerName: app.containerName,
         environmentId: environment.id,
@@ -158,8 +149,8 @@ module.exports = {
           ...auditDetails,
           error: safeAuditError(error.message)
         },
-        userId: user.id,
-        teamId: user.team.id,
+        ...(auditUserId ? { userId: auditUserId } : {}),
+        teamId: auditTeamId(project),
         ipAddress: this.req.ip
       })
       throw { badRequest: { error: error.message } }
@@ -170,8 +161,8 @@ module.exports = {
       resourceType: 'bridgeAction',
       resourceId: auditResourceId(loaded.resource, action, loaded),
       details: auditDetails,
-      userId: user.id,
-      teamId: user.team.id,
+      ...(auditUserId ? { userId: auditUserId } : {}),
+      teamId: auditTeamId(project),
       ipAddress: this.req.ip
     })
 
@@ -179,13 +170,21 @@ module.exports = {
       'success',
       outcome.message || action.success || `${action.label} completed.`
     )
-    return actionRedirect({ slug, envSlug, resource: loaded.resource, loaded })
+    return actionRedirect({
+      slug,
+      envSlug,
+      appSlug: appSlug ? app.slug : null,
+      resource: loaded.resource,
+      loaded
+    })
   }
 }
 
-function actionRedirect({ slug, envSlug, resource, loaded }) {
-  const envPath = envSlug !== 'production' ? `/environments/${envSlug}` : ''
-  const modelPath = `/projects/${slug}${envPath}/bridge/${resource.identity}`
+function actionRedirect({ slug, envSlug, appSlug, resource, loaded }) {
+  const bridgeBasePath = appSlug
+    ? `/projects/${slug}/environments/${envSlug}/apps/${appSlug}/bridge`
+    : `/projects/${slug}/environments/${envSlug}/bridge`
+  const modelPath = `${bridgeBasePath}/${resource.identity}`
   if (loaded.actionDefinition.scope !== 'record') return modelPath
   return `${modelPath}/${encodeURIComponent(String(loaded.recordId))}`
 }
@@ -200,6 +199,14 @@ function safeAuditError(message) {
     .replace(/\s+/g, ' ')
     .trim()
     .slice(0, 500)
+}
+
+function auditTeamId(project) {
+  return String(
+    project.team && typeof project.team === 'object'
+      ? project.team.id
+      : project.team
+  )
 }
 
 function toBadRequest(error) {
