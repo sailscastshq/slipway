@@ -25,6 +25,20 @@ module.exports = {
 
   fn: async function ({ models, config }) {
     const contract = normalizeBridgeResourceContract({ models, config })
+    for (const [identity, resource] of Object.entries(contract.resources)) {
+      const filterContract =
+        await sails.helpers.bridge.normalizeResourceFilters.with({
+          resource,
+          filters: {}
+        })
+      resource.filterDefinitions = filterContract.definitions
+      resource.lenses = await sails.helpers.bridge.normalizeResourceLenses.with(
+        {
+          resource,
+          lenses: config.resources?.[identity]?.lenses
+        }
+      )
+    }
     contract.dashboards =
       await sails.helpers.bridge.normalizeDashboardContract.with({
         dashboard: config.dashboard,
@@ -123,6 +137,7 @@ function normalizeBridgeResourceContract({ models, config = {} }) {
     'create',
     'edit',
     'filters',
+    'lenses',
     'sort',
     'hidden',
     'actions',

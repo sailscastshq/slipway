@@ -754,6 +754,183 @@ test('Bridge query normalization treats sort and search as data', async ({
   })
 })
 
+test('Bridge compiles type-aware filters and saved lenses into safe criteria', async ({
+  sails,
+  expect
+}) => {
+  const contract = await sails.helpers.bridge.normalizeResourceContract.with({
+    models: modelMetadata(),
+    config: {
+      resources: {
+        course: {
+          search: ['title'],
+          list: ['title', 'published', 'creator', 'createdAt'],
+          filters: ['title', 'published', 'creator', 'createdAt'],
+          lenses: {
+            published: {
+              label: 'Published courses',
+              filters: { published: true },
+              columns: ['title', 'creator', 'published', 'createdAt'],
+              sort: { field: 'createdAt', direction: 'DESC' },
+              default: true
+            },
+            recent: {
+              label: 'Recent courses',
+              columns: ['title', 'createdAt'],
+              sort: { field: 'createdAt', direction: 'DESC' },
+              helper: 'bridge.lenses.recentCourses'
+            }
+          }
+        }
+      }
+    }
+  })
+  const resource = contract.resources.course
+
+  expect(resource.filterDefinitions.title.type).toBe('text')
+  expect(resource.filterDefinitions.published.type).toBe('boolean')
+  expect(resource.filterDefinitions.creator.type).toBe('belongsTo')
+  expect(resource.filterDefinitions.createdAt.type).toBe('timestamp')
+  expect(resource.lenses.published.filters).toEqual({
+    published: { operator: 'equals', value: true }
+  })
+  expect(resource.lenses.recent.helper).toBe('bridge.lenses.recentCourses')
+
+  const query = await sails.helpers.bridge.normalizeResourceQuery.with({
+    resource,
+    page: 2,
+    perPage: 25,
+    lens: 'published',
+    search: 'Sails',
+    filters: JSON.stringify({
+      title: { operator: 'contains', value: 'production' },
+      creator: { operator: 'equals', value: '42' },
+      createdAt: {
+        operator: 'between',
+        from: '2026-07-01T00:00',
+        to: '2026-07-31T23:59'
+      }
+    })
+  })
+
+  expect(query.lens.id).toBe('published')
+  expect(query.columns).toEqual(['title', 'creator', 'published', 'createdAt'])
+  expect(query.sort).toBe('createdAt DESC')
+  expect(query.select).toEqual([
+    'id',
+    'title',
+    'creator',
+    'published',
+    'createdAt'
+  ])
+  expect(query.where).toEqual({
+    and: [
+      { or: [{ title: { contains: 'Sails' } }] },
+      { published: true },
+      {
+        and: [
+          { title: { contains: 'production' } },
+          { creator: 42 },
+          {
+            createdAt: {
+              '>=': Date.parse('2026-07-01T00:00'),
+              '<=': Date.parse('2026-07-31T23:59') + 59_999
+            }
+          }
+        ]
+      }
+    ]
+  })
+  expect(query.criteria.skip).toBe(25)
+})
+
+test('Bridge filters preserve false values and support null checks', async ({
+  sails,
+  expect
+}) => {
+  const contract = await sails.helpers.bridge.normalizeResourceContract.with({
+    models: modelMetadata(),
+    config: {
+      resources: {
+        course: {
+          filters: ['published', 'description']
+        }
+      }
+    }
+  })
+  const resource = contract.resources.course
+  const query = await sails.helpers.bridge.normalizeResourceQuery.with({
+    resource,
+    filters: {
+      published: { operator: 'equals', value: false },
+      description: { operator: 'isNotNull' }
+    }
+  })
+
+  expect(query.filters).toEqual({
+    published: { operator: 'equals', value: false },
+    description: { operator: 'isNotNull' }
+  })
+  expect(query.where).toEqual({
+    and: [{ published: false }, { description: { '!=': null } }]
+  })
+})
+
+test('Bridge rejects forged filters and invalid lens configuration', async ({
+  sails,
+  expect
+}) => {
+  const contract = await sails.helpers.bridge.normalizeResourceContract.with({
+    models: modelMetadata(),
+    config: {
+      resources: {
+        course: {
+          filters: ['published']
+        }
+      }
+    }
+  })
+  let forgedFilterError
+  let invalidLensError
+
+  try {
+    await sails.helpers.bridge.normalizeResourceQuery.with({
+      resource: contract.resources.course,
+      filters: {
+        password: { operator: 'equals', value: 'secret' }
+      }
+    })
+  } catch (error) {
+    forgedFilterError = error
+  }
+
+  try {
+    await sails.helpers.bridge.normalizeResourceContract.with({
+      models: modelMetadata(),
+      config: {
+        resources: {
+          course: {
+            filters: ['published'],
+            lenses: {
+              unsafe: {
+                filters: { password: 'secret' }
+              }
+            }
+          }
+        }
+      }
+    })
+  } catch (error) {
+    invalidLensError = error
+  }
+
+  expect(forgedFilterError.code).toBe('BRIDGE_FILTER_INVALID')
+  expect(forgedFilterError.message).toBe(
+    'Bridge filter "password" is unavailable.'
+  )
+  expect(invalidLensError.code).toBe('BRIDGE_FILTER_INVALID')
+})
+
 test('Bridge rejects forged mutation fields before container execution', async ({
   sails,
   expect

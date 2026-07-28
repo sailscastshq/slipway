@@ -24,6 +24,14 @@ module.exports = {
     search: {
       type: 'string',
       defaultsTo: ''
+    },
+    filters: {
+      type: 'ref',
+      defaultsTo: {}
+    },
+    lens: {
+      type: 'string',
+      defaultsTo: ''
     }
   },
 
@@ -33,21 +41,47 @@ module.exports = {
     }
   },
 
-  fn: async function ({ resource, page, perPage, sort, search }) {
+  fn: async function ({
+    resource,
+    page,
+    perPage,
+    sort,
+    search,
+    filters,
+    lens
+  }) {
     const safePage = Math.max(1, Math.floor(page || 1))
     const safePerPage = Math.min(100, Math.max(1, Math.floor(perPage || 20)))
     const primaryKey = resource.primaryKey || 'id'
-    const selectable = Array.from(
-      new Set([primaryKey, ...(resource.list || [])])
-    ).filter((field) => resource.attributes?.[field])
+    const requestedLens = String(lens || '').trim()
+    const defaultLens = Object.values(resource.lenses || {}).find(
+      (definition) => definition.default
+    )
+    const activeLens =
+      requestedLens === '__all'
+        ? null
+        : requestedLens
+        ? resource.lenses?.[requestedLens]
+        : defaultLens || null
+    if (requestedLens && requestedLens !== '__all' && !activeLens) {
+      const error = new Error(`Bridge lens "${requestedLens}" is unavailable.`)
+      error.code = 'BRIDGE_LENS_INVALID'
+      throw error
+    }
+
+    const columns = activeLens?.columns || resource.list || []
+    const selectable = Array.from(new Set([primaryKey, ...columns])).filter(
+      (field) => resource.attributes?.[field]
+    )
     const sortable = new Set(
-      selectable.filter(
+      columns.filter(
         (field) => resource.attributes[field]?.field?.sortable !== false
       )
     )
 
-    let sortField = resource.sort?.field || primaryKey
-    let sortDirection = resource.sort?.direction || 'DESC'
+    const defaultSort = activeLens?.sort || resource.sort
+    let sortField = defaultSort?.field || primaryKey
+    let sortDirection = defaultSort?.direction || 'DESC'
     const requestedSort = String(sort || '').trim()
     if (requestedSort) {
       const match = requestedSort.match(
@@ -68,7 +102,7 @@ module.exports = {
         !resource.attributes[field].encrypt &&
         !resource.attributes[field].protect
     )
-    const where =
+    const searchWhere =
       searchValue && searchFields.length > 0
         ? {
             or: searchFields.map((field) => ({
@@ -76,6 +110,21 @@ module.exports = {
             }))
           }
         : {}
+    const fixedFilters =
+      await sails.helpers.bridge.normalizeResourceFilters.with({
+        resource,
+        filters: activeLens?.filters || {}
+      })
+    const activeFilters =
+      await sails.helpers.bridge.normalizeResourceFilters.with({
+        resource,
+        filters
+      })
+    const where = combineWhere([
+      searchWhere,
+      fixedFilters.where,
+      activeFilters.where
+    ])
 
     return {
       page: safePage,
@@ -83,6 +132,10 @@ module.exports = {
       search: searchValue,
       sort: `${sortField} ${sortDirection}`,
       select: selectable,
+      columns,
+      filters: activeFilters.filters,
+      filterDefinitions: activeFilters.definitions,
+      lens: activeLens,
       where,
       criteria: {
         where,
@@ -93,4 +146,13 @@ module.exports = {
       }
     }
   }
+}
+
+function combineWhere(clauses) {
+  const present = clauses.filter(
+    (clause) => clause && Object.keys(clause).length > 0
+  )
+  if (present.length === 0) return {}
+  if (present.length === 1) return present[0]
+  return { and: present }
 }
