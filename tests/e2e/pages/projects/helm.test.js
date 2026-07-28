@@ -181,3 +181,65 @@ test(
     expect(page).toHaveNoSmoke()
   }
 )
+
+test(
+  'Helm renders structured runtime errors as source-oriented text',
+  {
+    browser: true,
+    world: helmWorld('helm-structured-error')
+  },
+  async ({ sails, world, login, page, expect }) => {
+    const current = world.current
+    const projectSlug = current.projects.deploymentTarget.slug
+    const environmentSlug = current.environments.production.slug
+
+    await sails.models.app.updateOne({ id: current.apps.web.id }).set({
+      status: 'running',
+      containerName: 'sounding-helm-error-app'
+    })
+    await login.withPassword('genesisUser', page, {
+      password: current.auth.genesisUserPassword
+    })
+    await page.raw.route(
+      `**/api/v1/projects/${projectSlug}/environments/${environmentSlug}/execute`,
+      async (route) => {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            success: false,
+            value: null,
+            logs: ['checking creator'],
+            output: 'checking creator',
+            error: {
+              name: 'TypeError',
+              message: "Cannot read properties of null (reading 'publicId')",
+              stack: 'TypeError at helm-input.js:2:9',
+              line: 2,
+              column: 9
+            },
+            durationMs: 4,
+            truncated: false
+          })
+        })
+      }
+    )
+
+    await page.goto(
+      `/projects/${projectSlug}/environments/${environmentSlug}/helm`
+    )
+    await page.fill('@helm-editor', 'const creator = null\ncreator.publicId')
+    await page.click('@helm-run')
+    await page.wait('@helm-error')
+
+    const errorText = await page.raw
+      .locator('[data-test="helm-error"]')
+      .textContent()
+    expect(errorText).toContain('checking creator')
+    expect(errorText).toContain(
+      "TypeError: Cannot read properties of null (reading 'publicId') (2:9)"
+    )
+    expect(errorText.includes('[object Object]')).toBe(false)
+    expect(page).toHaveNoSmoke()
+  }
+)

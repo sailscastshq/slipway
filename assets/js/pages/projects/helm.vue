@@ -54,8 +54,10 @@ async function execute() {
       output.value = result.output || '(no output)'
       error.value = ''
     } else {
-      output.value = result.output || ''
-      error.value = result.error || 'Execution failed'
+      output.value = ''
+      error.value = [result.output, formatHelmError(result.error)]
+        .filter(Boolean)
+        .join('\n')
     }
 
     // Add to history
@@ -76,6 +78,19 @@ async function execute() {
   } finally {
     running.value = false
   }
+}
+
+function formatHelmError(executionError) {
+  if (!executionError) return 'Execution failed'
+  if (typeof executionError === 'string') return executionError
+
+  const location =
+    executionError.line && executionError.column
+      ? ` (${executionError.line}:${executionError.column})`
+      : ''
+  return `${executionError.name || 'Error'}: ${
+    executionError.message || 'Execution failed'
+  }${location}`
 }
 
 function loadFromHistory(entry) {
@@ -437,6 +452,7 @@ function highlightJSON(str) {
           <!-- Error -->
           <pre
             v-else-if="error"
+            data-test="helm-error"
             class="whitespace-pre-wrap text-red-600 dark:text-red-400"
             >{{ error }}</pre
           >

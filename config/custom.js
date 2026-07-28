@@ -77,6 +77,18 @@ module.exports.custom = {
     killGraceMs: 5000
   },
 
+  // Helm runs application-aware JavaScript in isolated, bounded processes.
+  helm: {
+    timeoutMs: 30 * 1000,
+    processGraceMs: 2 * 1000,
+    maxSourceBytes: 64 * 1024,
+    maxLogBytes: 64 * 1024,
+    maxResultBytes: 128 * 1024,
+    maxProcessOutputBytes: 256 * 1024,
+    maxProcessStderrBytes: 64 * 1024,
+    killGraceMs: 250
+  },
+
   // Lookout keeps infrastructure samples for 24 hours and application
   // telemetry for 7 days. Maintenance uses bounded batches so pruning cannot
   // hold a long SQLite write lock on a busy host.

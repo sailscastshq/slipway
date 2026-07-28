@@ -34,6 +34,19 @@ module.exports = {
         process.env.SLIPWAY_OBSERVABILITY_MAX_PRUNE_BATCHES,
         20
       )
+    },
+    helm: {
+      timeoutMs: positiveInteger(
+        process.env.SLIPWAY_HELM_TIMEOUT_MS,
+        30 * 1000
+      ),
+      processGraceMs: 2 * 1000,
+      maxSourceBytes: 64 * 1024,
+      maxLogBytes: 64 * 1024,
+      maxResultBytes: 128 * 1024,
+      maxProcessOutputBytes: 256 * 1024,
+      maxProcessStderrBytes: 64 * 1024,
+      killGraceMs: 250
     }
   },
 
