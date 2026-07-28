@@ -16,6 +16,7 @@ module.exports.bootstrap = async function () {
   await sails.helpers.deploy.ensureQueueSchema()
   await sails.helpers.service.ensureVersionSchema()
   await sails.helpers.lookout.ensureObservabilitySchema()
+  await sails.helpers.bridge.ensureSchema()
 
   // Initialize CLI tokens map for Bearer token authentication
   sails.cliTokens = new Map()

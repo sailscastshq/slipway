@@ -196,6 +196,11 @@ module.exports = {
       environment,
       app
     })
+    const bridgeUrl = await sails.helpers.bridge.getAppUrl.with({
+      app,
+      environment,
+      project
+    })
 
     return {
       page: 'projects/app',
@@ -214,7 +219,8 @@ module.exports = {
           containerHealth,
           directAccess,
           primaryUrl,
-          accessUrls
+          accessUrls,
+          bridgeUrl: bridgeUrl ? `${bridgeUrl}/bridge` : null
         },
         appEnvVars: decryptedApp.envVars || {},
         inheritedVars,
@@ -222,7 +228,8 @@ module.exports = {
         services,
         backupConfigured,
         checklist,
-        sourceReadiness
+        sourceReadiness,
+        canManageBridge: ['owner', 'admin'].includes(user.teamRole)
       }
     }
   }

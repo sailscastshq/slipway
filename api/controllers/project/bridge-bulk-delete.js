@@ -12,6 +12,9 @@ module.exports = {
       type: 'string',
       defaultsTo: 'production'
     },
+    appSlug: {
+      type: 'string'
+    },
     modelIdentity: {
       type: 'string',
       required: true
@@ -30,38 +33,31 @@ module.exports = {
     notFound: {
       responseType: 'redirect'
     },
+    forbidden: {
+      statusCode: 403
+    },
     badRequest: {
       responseType: 'badRequest'
     }
   },
 
-  fn: async function ({ slug, envSlug, modelIdentity, ids }) {
-    const user = await User.findOne({ id: this.req.session.userId }).populate(
-      'team'
-    )
-    if (!user) {
-      throw { notFound: '/login' }
-    }
-
-    const project = await Project.findOne({ slug, team: user.team.id })
-    if (!project) {
-      throw { notFound: '/' }
-    }
-
-    const environment = await Environment.findOne({
-      project: project.id,
-      slug: envSlug
-    })
-    if (!environment) {
-      throw { notFound: `/projects/${slug}` }
-    }
-
-    const app =
-      (await App.findOne({ environment: environment.id, isDefault: true })) ||
-      (await App.findOne({ environment: environment.id }))
-    if (!app || app.status !== 'running') {
+  fn: async function ({ slug, envSlug, appSlug, modelIdentity, ids }) {
+    let resolved
+    try {
+      resolved = await sails.helpers.bridge.resolveRequest.with({
+        req: this.req,
+        projectSlug: slug,
+        environmentSlug: envSlug,
+        ...(appSlug ? { appSlug } : {}),
+        requiredRole: 'administrator',
+        requireRunning: true
+      })
+    } catch (error) {
+      if (error.code === 'forbidden') throw 'forbidden'
+      if (error.code === 'notFound') throw { notFound: '/' }
       throw { badRequest: { error: 'App is not running' } }
     }
+    const { project, environment, app, actor } = resolved
 
     if (!Array.isArray(ids) || ids.length === 0) {
       throw { badRequest: { error: 'No records selected' } }
@@ -83,11 +79,6 @@ module.exports = {
 
     let resource
     try {
-      const actor = await sails.helpers.bridge.buildActor.with({
-        user,
-        project,
-        environment
-      })
       const loaded = await sails.helpers.bridge.loadResource.with({
         containerName: app.containerName,
         environmentId: environment.id,
@@ -141,7 +132,9 @@ module.exports = {
     }
 
     // Redirect back to model list
-    const envPath = envSlug !== 'production' ? `/environments/${envSlug}` : ''
-    return `/projects/${slug}${envPath}/bridge/${modelIdentity}`
+    const bridgeBasePath = appSlug
+      ? `/projects/${slug}/environments/${envSlug}/apps/${app.slug}/bridge`
+      : `/projects/${slug}/environments/${envSlug}/bridge`
+    return `${bridgeBasePath}/${modelIdentity}`
   }
 }

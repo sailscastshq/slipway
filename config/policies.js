@@ -75,6 +75,27 @@ module.exports.policies = {
   // Telemetry ingest is public (token-verified in controller)
   'api/v1/telemetry/ingest': true,
 
+  // Bridge handoff endpoints authenticate with a dedicated app credential or
+  // a short-lived, single-use launch code.
+  'api/v1/bridge/exchange': 'rate-limit-bridge-exchange',
+  'bridge/launch': true,
+
+  // Bridge pages accept either a Slipway operator session or the dedicated,
+  // app-scoped host-user session created by bridge/launch.
+  'project/view-bridge': 'is-bridge-authenticated',
+  'project/view-bridge-model': 'is-bridge-authenticated',
+  'project/view-bridge-create': 'is-bridge-authenticated',
+  'project/view-bridge-edit': 'is-bridge-authenticated',
+  'project/view-bridge-record': 'is-bridge-authenticated',
+  'project/bridge-create-record': 'is-bridge-authenticated',
+  'project/bridge-update-record': 'is-bridge-authenticated',
+  'project/bridge-delete-record': 'is-bridge-authenticated',
+  'project/bridge-bulk-delete': 'is-bridge-authenticated',
+  'project/bridge-execute-action': 'is-bridge-authenticated',
+  'project/bridge-relationship-options': 'is-bridge-authenticated',
+  'project/bridge-update-relationship': 'is-bridge-authenticated',
+  'project/bridge-upload-field': 'is-bridge-authenticated',
+
   // Webhooks are public (signature-verified in controller)
   'api/v1/webhook/github': true,
 

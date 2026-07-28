@@ -17,6 +17,8 @@ defineOptions({
 const props = defineProps({
   project: Object,
   environment: Object,
+  app: Object,
+  appScoped: Boolean,
   modelIdentity: String,
   appRunning: Boolean,
   modelMeta: Object,
@@ -37,6 +39,11 @@ const toggleMobileMenu = inject('toggleMobileMenu')
 const toggleSidebar = inject('toggleSidebar')
 const sidebarCollapsed = inject('sidebarCollapsed')
 const { toasts, toast, dismiss } = createToast()
+const bridgeBasePath = computed(() =>
+  props.appScoped && props.app?.slug
+    ? `/projects/${props.project.slug}/environments/${props.environment.slug}/apps/${props.app.slug}/bridge`
+    : `/projects/${props.project.slug}/environments/${props.environment.slug}/bridge`
+)
 
 // Local state for UI
 const page = ref(props.currentPage)
@@ -197,7 +204,7 @@ function navigateWithParams(updates) {
   if (!params.dashboard) delete params.dashboard
 
   const query = new URLSearchParams(params).toString()
-  const basePath = `/projects/${props.project.slug}/environments/${props.environment.slug}/bridge/${props.modelIdentity}`
+  const basePath = `${bridgeBasePath.value}/${props.modelIdentity}`
 
   router.visit(query ? `${basePath}?${query}` : basePath, {
     preserveState: true,
@@ -255,9 +262,7 @@ function toggleSelect(id) {
 // Delete single record
 function confirmDelete() {
   deleteForm.post(
-    `/projects/${props.project.slug}/environments/${
-      props.environment.slug
-    }/bridge/${props.modelIdentity}/${encodePathSegment(
+    `${bridgeBasePath.value}/${props.modelIdentity}/${encodePathSegment(
       deleteModal.value.recordId
     )}/delete`,
     {
@@ -282,7 +287,7 @@ function confirmDelete() {
 function confirmBulkDelete() {
   bulkDeleteForm.ids = Array.from(selectedIds.value)
   bulkDeleteForm.post(
-    `/projects/${props.project.slug}/environments/${props.environment.slug}/bridge/${props.modelIdentity}/bulk-delete`,
+    `${bridgeBasePath.value}/${props.modelIdentity}/bulk-delete`,
     {
       preserveScroll: true,
       onSuccess: () => {
@@ -314,9 +319,9 @@ function actionMenuItem(action) {
 }
 
 function customActionUrl(action) {
-  return `/projects/${props.project.slug}/environments/${
-    props.environment.slug
-  }/bridge/${props.modelIdentity}/actions/${encodePathSegment(action.name)}`
+  return `${bridgeBasePath.value}/${
+    props.modelIdentity
+  }/actions/${encodePathSegment(action.name)}`
 }
 
 function actionNeedsDialog(action) {
@@ -392,20 +397,20 @@ function switchDashboard(event) {
 
 // URL builders
 function bridgeUrl() {
-  return `/projects/${props.project.slug}/environments/${props.environment.slug}/bridge`
+  return bridgeBasePath.value
 }
 function recordUrl(id) {
-  return `/projects/${props.project.slug}/environments/${
-    props.environment.slug
-  }/bridge/${props.modelIdentity}/${encodePathSegment(id)}`
+  return `${bridgeBasePath.value}/${props.modelIdentity}/${encodePathSegment(
+    id
+  )}`
 }
 function editUrl(id) {
-  return `/projects/${props.project.slug}/environments/${
-    props.environment.slug
-  }/bridge/${props.modelIdentity}/${encodePathSegment(id)}/edit`
+  return `${bridgeBasePath.value}/${props.modelIdentity}/${encodePathSegment(
+    id
+  )}/edit`
 }
 function createUrl() {
-  return `/projects/${props.project.slug}/environments/${props.environment.slug}/bridge/${props.modelIdentity}/new`
+  return `${bridgeBasePath.value}/${props.modelIdentity}/new`
 }
 </script>
 
@@ -641,6 +646,8 @@ function createUrl() {
           :resources="dashboardResources"
           :project="project"
           :environment="environment"
+          :app="app"
+          :app-scoped="appScoped"
           class="mb-10"
         />
 

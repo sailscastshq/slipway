@@ -1,7 +1,7 @@
 {
   "name": "sails-hook-slipway",
-  "version": "0.0.3",
-  "description": "Auto-instrumentation hook for Sails.js apps deployed on Slipway. Sends request traces, exceptions, and database query metrics to your Slipway Lookout dashboard.",
+  "version": "0.1.0",
+  "description": "Connect Sails apps to Slipway with Lookout telemetry and secure app-local Bridge access.",
   "main": "index.js",
   "keywords": [
     "sails",

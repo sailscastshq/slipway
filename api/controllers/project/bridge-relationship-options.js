@@ -13,6 +13,9 @@ module.exports = {
       type: 'string',
       defaultsTo: 'production'
     },
+    appSlug: {
+      type: 'string'
+    },
     modelIdentity: {
       type: 'string',
       required: true
@@ -57,6 +60,7 @@ module.exports = {
   fn: async function ({
     slug,
     envSlug,
+    appSlug,
     modelIdentity,
     relationshipAlias,
     surface,
@@ -64,26 +68,22 @@ module.exports = {
     q,
     page
   }) {
-    const user = await User.findOne({ id: this.req.session.userId }).populate(
-      'team'
-    )
-    if (!user) throw 'forbidden'
-
-    const project = await Project.findOne({ slug, team: user.team.id })
-    if (!project) throw 'notFound'
-
-    const environment = await Environment.findOne({
-      project: project.id,
-      slug: envSlug
-    })
-    if (!environment) throw 'notFound'
-
-    const app =
-      (await App.findOne({ environment: environment.id, isDefault: true })) ||
-      (await App.findOne({ environment: environment.id }))
-    if (!app || app.status !== 'running' || !app.containerName) {
+    let resolved
+    try {
+      resolved = await sails.helpers.bridge.resolveRequest.with({
+        req: this.req,
+        projectSlug: slug,
+        environmentSlug: envSlug,
+        ...(appSlug ? { appSlug } : {}),
+        requiredRole: 'editor',
+        requireRunning: true
+      })
+    } catch (error) {
+      if (error.code === 'forbidden') throw 'forbidden'
+      if (error.code === 'notFound') throw 'notFound'
       throw { badRequest: { error: 'App is not running' } }
     }
+    const { environment, app, actor } = resolved
     if (surface !== 'create' && !recordId) {
       throw {
         badRequest: {
@@ -93,11 +93,6 @@ module.exports = {
     }
 
     try {
-      const actor = await sails.helpers.bridge.buildActor.with({
-        user,
-        project,
-        environment
-      })
       const loaded = await sails.helpers.bridge.loadResource.with({
         containerName: app.containerName,
         environmentId: environment.id,

@@ -12,6 +12,9 @@ module.exports = {
       type: 'string',
       defaultsTo: 'production'
     },
+    appSlug: {
+      type: 'string'
+    },
     modelIdentity: {
       type: 'string',
       required: true
@@ -30,47 +33,35 @@ module.exports = {
     notFound: {
       responseType: 'redirect'
     },
+    forbidden: {
+      statusCode: 403
+    },
     badRequest: {
       responseType: 'badRequest'
     }
   },
 
-  fn: async function ({ slug, envSlug, modelIdentity, values }) {
-    const user = await User.findOne({ id: this.req.session.userId }).populate(
-      'team'
-    )
-    if (!user) {
-      throw { notFound: '/login' }
-    }
-
-    const project = await Project.findOne({ slug, team: user.team.id })
-    if (!project) {
-      throw { notFound: '/' }
-    }
-
-    const environment = await Environment.findOne({
-      project: project.id,
-      slug: envSlug
-    })
-    if (!environment) {
-      throw { notFound: `/projects/${slug}` }
-    }
-
-    const app =
-      (await App.findOne({ environment: environment.id, isDefault: true })) ||
-      (await App.findOne({ environment: environment.id }))
-    if (!app || app.status !== 'running') {
+  fn: async function ({ slug, envSlug, appSlug, modelIdentity, values }) {
+    let resolved
+    try {
+      resolved = await sails.helpers.bridge.resolveRequest.with({
+        req: this.req,
+        projectSlug: slug,
+        environmentSlug: envSlug,
+        ...(appSlug ? { appSlug } : {}),
+        requiredRole: 'editor',
+        requireRunning: true
+      })
+    } catch (error) {
+      if (error.code === 'forbidden') throw 'forbidden'
+      if (error.code === 'notFound') throw { notFound: '/' }
       throw { badRequest: { error: 'App is not running' } }
     }
+    const { project, environment, app, actor, actorId } = resolved
 
     let loaded
     let allowedValues
     try {
-      const actor = await sails.helpers.bridge.buildActor.with({
-        user,
-        project,
-        environment
-      })
       loaded = await sails.helpers.bridge.loadResource.with({
         containerName: app.containerName,
         environmentId: environment.id,
@@ -83,7 +74,7 @@ module.exports = {
         resource: loaded.resource,
         surface: 'create',
         uploadContext: {
-          actorId: user.id,
+          actorId,
           projectId: project.id,
           environmentId: environment.id
         }
@@ -107,13 +98,15 @@ module.exports = {
       })
       const recordId = record?.[loaded.resource.primaryKey]
 
-      const envPath = envSlug !== 'production' ? `/environments/${envSlug}` : ''
+      const bridgeBasePath = appSlug
+        ? `/projects/${slug}/environments/${envSlug}/apps/${app.slug}/bridge`
+        : `/projects/${slug}/environments/${envSlug}/bridge`
       if (recordId !== undefined && recordId !== null) {
-        return `/projects/${slug}${envPath}/bridge/${
+        return `${bridgeBasePath}/${
           loaded.resource.identity
         }/${encodeURIComponent(String(recordId))}`
       }
-      return `/projects/${slug}${envPath}/bridge/${loaded.resource.identity}`
+      return `${bridgeBasePath}/${loaded.resource.identity}`
     } catch (error) {
       throw { badRequest: toBadRequest(error) }
     }

@@ -11,6 +11,8 @@ defineOptions({
 const props = defineProps({
   project: Object,
   environment: Object,
+  app: Object,
+  appScoped: Boolean,
   appRunning: Boolean,
   models: Object,
   modelsError: String,
@@ -21,6 +23,11 @@ const props = defineProps({
 const toggleMobileMenu = inject('toggleMobileMenu')
 const toggleSidebar = inject('toggleSidebar')
 const sidebarCollapsed = inject('sidebarCollapsed')
+const bridgeBasePath = computed(() =>
+  props.appScoped && props.app?.slug
+    ? `/projects/${props.project.slug}/environments/${props.environment.slug}/apps/${props.app.slug}/bridge`
+    : `/projects/${props.project.slug}/environments/${props.environment.slug}/bridge`
+)
 
 // Search
 const searchQuery = ref('')
@@ -59,7 +66,7 @@ function assocCount(model) {
 }
 
 function bridgeModelUrl(identity) {
-  return `/projects/${props.project.slug}/environments/${props.environment.slug}/bridge/${identity}`
+  return `${bridgeBasePath.value}/${identity}`
 }
 
 function refresh() {
@@ -68,15 +75,11 @@ function refresh() {
 
 function switchDashboard(event) {
   const id = event.target.value
-  router.get(
-    `/projects/${props.project.slug}/environments/${props.environment.slug}/bridge`,
-    id ? { dashboard: id } : {},
-    {
-      preserveState: true,
-      preserveScroll: true,
-      replace: true
-    }
-  )
+  router.get(bridgeBasePath.value, id ? { dashboard: id } : {}, {
+    preserveState: true,
+    preserveScroll: true,
+    replace: true
+  })
 }
 </script>
 
@@ -377,6 +380,8 @@ function switchDashboard(event) {
           :resources="models"
           :project="project"
           :environment="environment"
+          :app="app"
+          :app-scoped="appScoped"
         />
 
         <!-- Toolbar -->

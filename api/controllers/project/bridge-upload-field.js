@@ -26,6 +26,9 @@ module.exports = {
       type: 'string',
       defaultsTo: 'production'
     },
+    appSlug: {
+      type: 'string'
+    },
     modelIdentity: {
       type: 'string',
       required: true
@@ -58,39 +61,37 @@ module.exports = {
     }
   },
 
-  fn: async function ({ slug, envSlug, modelIdentity, fieldName, recordId }) {
-    const user = await User.findOne({
-      id: this.req.session.userId
-    }).populate('team')
-    if (!user) {
-      throw { forbidden: { message: 'Sign in before uploading a file.' } }
-    }
-
-    const project = await Project.findOne({ slug, team: user.team.id })
-    if (!project) {
-      throw { notFound: { message: 'Project not found.' } }
-    }
-    const environment = await Environment.findOne({
-      project: project.id,
-      slug: envSlug
-    })
-    if (!environment) {
-      throw { notFound: { message: 'Environment not found.' } }
-    }
-    const app =
-      (await App.findOne({ environment: environment.id, isDefault: true })) ||
-      (await App.findOne({ environment: environment.id }))
-    if (!app || app.status !== 'running') {
+  fn: async function ({
+    slug,
+    envSlug,
+    appSlug,
+    modelIdentity,
+    fieldName,
+    recordId
+  }) {
+    let resolved
+    try {
+      resolved = await sails.helpers.bridge.resolveRequest.with({
+        req: this.req,
+        projectSlug: slug,
+        environmentSlug: envSlug,
+        ...(appSlug ? { appSlug } : {}),
+        requiredRole: 'editor',
+        requireRunning: true
+      })
+    } catch (error) {
+      if (error.code === 'forbidden') {
+        throw {
+          forbidden: { message: 'Your Bridge role cannot upload files.' }
+        }
+      }
+      if (error.code === 'notFound') throw 'notFound'
       throw { badRequest: { message: 'The target app is not running.' } }
     }
+    const { project, environment, app, actor, actorId } = resolved
 
     let loaded
     try {
-      const actor = await sails.helpers.bridge.buildActor.with({
-        user,
-        project,
-        environment
-      })
       loaded = await sails.helpers.bridge.loadResource.with({
         containerName: app.containerName,
         environmentId: environment.id,
@@ -129,7 +130,7 @@ module.exports = {
     const upload = attribute.field.upload
     const directory = [
       'bridge',
-      `teams/${safeSegment(user.team.id)}`,
+      `teams/${safeSegment(project.team)}`,
       `projects/${safeSegment(project.id)}`,
       `environments/${safeSegment(environment.id)}`,
       safeSegment(modelIdentity),
@@ -194,7 +195,7 @@ module.exports = {
     const receipt = await sails.helpers.bridge.createUploadReceipt.with({
       url,
       context: {
-        actorId: user.id,
+        actorId,
         projectId: project.id,
         environmentId: environment.id,
         resource: loaded.resource.identity,
