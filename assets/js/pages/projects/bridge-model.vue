@@ -6,7 +6,7 @@ import ConfirmModal from '@/components/ConfirmModal.vue'
 import ToastContainer from '@/components/ToastContainer.vue'
 import { createToast } from '@/composables/toast'
 import BridgeFieldValue from '@/components/bridge/BridgeFieldValue.vue'
-import BridgeActionMenu from '@/components/bridge/BridgeActionMenu.vue'
+import ActionMenu from '@/components/ActionMenu.vue'
 import BridgeActionDialog from '@/components/bridge/BridgeActionDialog.vue'
 import BridgeDashboard from '@/components/bridge/BridgeDashboard.vue'
 import BridgeFilterMenu from '@/components/bridge/BridgeFilterMenu.vue'
@@ -680,7 +680,7 @@ function createUrl() {
               <span class="text-xs text-gray-500 dark:text-gray-400"
                 >{{ selectedIds.size }} selected</span
               >
-              <BridgeActionMenu
+              <ActionMenu
                 :items="bulkMenuItems"
                 :disabled="quickActionForm.processing"
                 label="Actions for selected records"
@@ -711,7 +711,7 @@ function createUrl() {
             class="text-xs text-gray-500 dark:text-gray-400"
             >{{ total.toLocaleString() }} records</span
           >
-          <BridgeActionMenu
+          <ActionMenu
             :items="resourceMenuItems"
             :disabled="quickActionForm.processing"
             :label="`Actions for ${modelMeta?.label || modelIdentity}`"

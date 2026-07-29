@@ -7,7 +7,7 @@ import ToastContainer from '@/components/ToastContainer.vue'
 import { createToast } from '@/composables/toast'
 import BridgeFieldValue from '@/components/bridge/BridgeFieldValue.vue'
 import BridgeCollectionManager from '@/components/bridge/BridgeCollectionManager.vue'
-import BridgeActionMenu from '@/components/bridge/BridgeActionMenu.vue'
+import ActionMenu from '@/components/ActionMenu.vue'
 import BridgeActionDialog from '@/components/bridge/BridgeActionDialog.vue'
 
 defineOptions({
@@ -357,7 +357,7 @@ function relationshipMutationBaseUrl(relationship) {
           >
         </nav>
       </div>
-      <BridgeActionMenu
+      <ActionMenu
         v-if="record"
         :items="recordMenuItems"
         :disabled="quickActionForm.processing"

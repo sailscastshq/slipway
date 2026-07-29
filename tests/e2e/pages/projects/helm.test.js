@@ -1,4 +1,5 @@
 const { test } = require('sounding')
+const { readFile } = require('node:fs/promises')
 
 function helmWorld(slug) {
   return {
@@ -47,13 +48,27 @@ async function openHelmWithMockedExecution({ sails, world, login, page }) {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify({
-          success: true,
-          output:
-            executionCount === 1
-              ? oversizedOutput()
-              : JSON.stringify({ ready: true }, null, 2)
-        })
+        body: JSON.stringify(
+          executionCount === 1
+            ? {
+                success: true,
+                value: JSON.parse(oversizedOutput()),
+                logs: [],
+                output: oversizedOutput(),
+                error: null,
+                durationMs: 14,
+                truncated: false
+              }
+            : {
+                success: true,
+                value: { ready: true },
+                logs: [],
+                output: JSON.stringify({ ready: true }, null, 2),
+                error: null,
+                durationMs: 3,
+                truncated: false
+              }
+        )
       })
     }
   )
@@ -117,7 +132,12 @@ async function proveOutputScrollsAndEditorStillRuns({ page, expect }) {
   expect(
     (
       await page.raw.locator('[data-test="helm-output"]').textContent()
-    ).includes('"ready": true')
+    ).includes('ready')
+  ).toBe(true)
+  expect(
+    (
+      await page.raw.locator('[data-test="helm-output"]').textContent()
+    ).includes('true')
   ).toBe(true)
   expect(page).toHaveNoSmoke()
 }
@@ -253,11 +273,205 @@ test(
     const errorText = await page.raw
       .locator('[data-test="helm-error"]')
       .textContent()
-    expect(errorText).toContain('checking creator')
     expect(errorText).toContain(
       "TypeError: Cannot read properties of null (reading 'publicId') (2:9)"
     )
     expect(errorText.includes('[object Object]')).toBe(false)
+    expect(
+      await page.raw.locator('[data-test="helm-logs"]').textContent()
+    ).toContain('checking creator')
+    expect(page).toHaveNoSmoke()
+  }
+)
+
+test(
+  'Helm presents structured values as minimal table, tree, and raw views',
+  {
+    browser: true,
+    world: helmWorld('helm-structured-results')
+  },
+  async ({ sails, world, login, page, expect }) => {
+    const current = world.current
+    const projectSlug = current.projects.deploymentTarget.slug
+    const environmentSlug = current.environments.production.slug
+    const endpoint = `/api/v1/projects/${projectSlug}/environments/${environmentSlug}/execute`
+
+    await sails.models.app.updateOne({ id: current.apps.web.id }).set({
+      status: 'running',
+      containerName: 'sounding-helm-structured-app'
+    })
+    const updateCheckFinished = page.raw.waitForResponse(
+      '**/api/v1/system/check-update'
+    )
+    await login.withPassword('genesisUser', page, {
+      password: current.auth.genesisUserPassword
+    })
+    await updateCheckFinished
+    await page.raw
+      .context()
+      .grantPermissions(['clipboard-read', 'clipboard-write'])
+    await page.raw.route(`**${endpoint}`, async (route) => {
+      const { code } = route.request().postDataJSON()
+      const result = code.includes('nested')
+        ? nestedHelmResult()
+        : {
+            ...flatHelmResult(),
+            logs: []
+          }
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(result)
+      })
+    })
+
+    await page.resize(1440, 900)
+    await page.inLightMode()
+    await page.goto(
+      `/projects/${projectSlug}/environments/${environmentSlug}/helm`
+    )
+    await page.fill('@helm-editor', 'await Creator.find().limit(3)')
+    await page.click('@helm-run')
+    await page.wait('@helm-result-table')
+
+    expect(
+      await page.raw.locator('[data-test="helm-result-table"] tbody tr').count()
+    ).toBe(3)
+    expect(
+      await page.raw.locator('[data-test="helm-result-status"]').textContent()
+    ).toContain('3 rows')
+    expect(
+      await page.raw
+        .locator('[data-test="helm-view-table"]')
+        .getAttribute('aria-pressed')
+    ).toBe('true')
+    expect(
+      await page.raw
+        .locator('[data-test="helm-view-table"]')
+        .getAttribute('aria-label')
+    ).toBe('Table view')
+    expect(await page.raw.locator('[data-test="helm-logs"]').count()).toBe(0)
+    await page.screenshot('.tmp/issue-269-project-table-light.png')
+    await page.hover('@helm-view-table')
+    await page.wait(200)
+    expect(page).toSee('Table view')
+    await page.screenshot('.tmp/issue-269-project-view-tooltip-light.png')
+    await page.hover('@helm-editor')
+
+    await page.click('@helm-result-actions-trigger')
+    await page.screenshot('.tmp/issue-269-project-actions-light.png')
+    await page.click('@helm-result-actions-copy-json')
+    expect(await page.script(() => navigator.clipboard.readText())).toBe(
+      JSON.stringify(flatHelmResult().value, null, 2)
+    )
+    await page.raw
+      .getByText('Copied JSON to clipboard', { exact: true })
+      .locator('..')
+      .getByRole('button')
+      .click()
+
+    await page.click('@helm-result-actions-trigger')
+    const downloadStarted = page.raw.waitForEvent('download')
+    await page.click('@helm-result-actions-export-csv')
+    const download = await downloadStarted
+    expect(download.suggestedFilename()).toBe('helm-result.csv')
+    const csv = await readFile(await download.path(), 'utf8')
+    expect(csv.replace(/^\uFEFF/, '')).toContain("3,Grace Hopper,false,,,'=2+2")
+    await page.raw
+      .getByText('Exported helm-result.csv', { exact: true })
+      .locator('..')
+      .getByRole('button')
+      .click()
+    await page.wait(100)
+
+    await page.inDarkMode()
+    await page.click('@helm-editor')
+    await page.key('ControlOrMeta+a')
+    await page.raw.keyboard.type(
+      "console.log('Loaded the course and its chapters.')\n// Return nested course data\nawait Course.findOne().populate('chapters')"
+    )
+    await page.click('@helm-run')
+    await page.wait('@helm-result-tree')
+
+    const tree = page.raw.locator('[data-test="helm-result-tree"]')
+    await tree.locator('summary').filter({ hasText: 'course' }).click()
+    await tree.locator('summary').filter({ hasText: 'chapters' }).click()
+    await tree.locator('summary').filter({ hasText: '0' }).click()
+    expect(
+      await page.raw.locator('[data-test="helm-result-status"]').textContent()
+    ).toContain('Truncated')
+    await page.screenshot('.tmp/issue-269-project-tree-dark.png')
+
+    await page.click('@helm-view-raw')
+    await page.raw.locator('[data-test="helm-logs"] summary').click()
+    expect(
+      (await page.raw
+        .locator('[data-test="helm-logs"]')
+        .getAttribute('open')) === null
+    ).toBe(false)
+    const consoleBox = await page.raw
+      .locator('[data-test="helm-logs"]')
+      .boundingBox()
+    const statusBox = await page.raw
+      .locator('[data-test="helm-result-status"]')
+      .boundingBox()
+    expect(consoleBox.y < statusBox.y).toBe(true)
+    expect(consoleBox.height < 200).toBe(true)
+    expect(await page.raw.locator('[data-helm-xss]').count()).toBe(0)
+    expect(
+      await page.raw.locator('[data-test="helm-result-raw"]').textContent()
+    ).toContain('<img data-helm-xss')
+    await page.screenshot('.tmp/issue-269-project-raw-console-dark.png')
+    expect(
+      await page.raw.locator('[data-test="helm-history-entry"]').count()
+    ).toBe(2)
+    await page.click('@helm-clear-history')
+    expect(await page.raw.locator('[data-test="helm-history"]').count()).toBe(0)
+    expect(page).toHaveNoSmoke()
+  }
+)
+
+test(
+  'Bosun Helm uses the same structured result viewer in dark mode',
+  {
+    browser: true,
+    world: helmWorld('helm-structured-bosun')
+  },
+  async ({ world, login, page, expect }) => {
+    const current = world.current
+    const updateCheckFinished = page.raw.waitForResponse(
+      '**/api/v1/system/check-update'
+    )
+    await login.withPassword('genesisUser', page, {
+      password: current.auth.genesisUserPassword
+    })
+    await updateCheckFinished
+    await page.raw.route('**/api/v1/bosun/eval', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(flatHelmResult())
+      })
+    })
+
+    await page.resize(1440, 900)
+    await page.inDarkMode()
+    await page.goto('/bosun?tab=console&mode=helm')
+    await page.fill('@bosun-helm-editor', 'await User.find().limit(3)')
+    await page.click('@bosun-console-run')
+    await page.wait('@bosun-helm-result-table')
+
+    expect(
+      await page.raw
+        .locator('[data-test="bosun-helm-result-table"] tbody tr')
+        .count()
+    ).toBe(3)
+    expect(
+      await page.raw
+        .locator('[data-test="bosun-helm-result-status"]')
+        .textContent()
+    ).toContain('3 rows')
+    await page.screenshot('.tmp/issue-269-bosun-table-dark.png')
     expect(page).toHaveNoSmoke()
   }
 )
@@ -388,6 +602,87 @@ test(
     expect(page).toHaveNoSmoke()
   }
 )
+
+function flatHelmResult() {
+  return {
+    success: true,
+    value: [
+      {
+        id: 1,
+        name: 'Ada Lovelace',
+        active: true,
+        lastSeenAt: {
+          type: 'Date',
+          value: '2026-07-29T09:24:00.000Z'
+        },
+        bio: null,
+        formula: 'plain text'
+      },
+      {
+        id: 2,
+        name: 'Linus Torvalds',
+        active: true,
+        lastSeenAt: {
+          type: 'Date',
+          value: '2026-07-29T10:16:00.000Z'
+        },
+        bio: 'Maintains a carefully bounded result viewer.',
+        formula: 'also plain'
+      },
+      {
+        id: 3,
+        name: 'Grace Hopper',
+        active: false,
+        lastSeenAt: null,
+        bio: null,
+        formula: '=2+2'
+      }
+    ],
+    logs: ['Fetched creators from the primary datastore.'],
+    output: 'Fetched creators from the primary datastore.',
+    error: null,
+    durationMs: 18,
+    truncated: false
+  }
+}
+
+function nestedHelmResult() {
+  return {
+    success: true,
+    value: {
+      course: {
+        title: 'Building production Sails applications',
+        published: true,
+        chapters: [
+          {
+            title: 'A reliable deployment path',
+            lessons: 6,
+            description:
+              '<img data-helm-xss src=x onerror="document.body.dataset.pwned=true">'
+          },
+          {
+            title: 'Making failures boring',
+            lessons: 4,
+            description: 'Logs, health checks, cutover, and rollback.'
+          }
+        ],
+        updatedAt: {
+          type: 'Date',
+          value: '2026-07-29T12:00:00.000Z'
+        }
+      },
+      release: {
+        version: '0.0.52',
+        ready: true
+      }
+    },
+    logs: ['Loaded the course and its chapters.'],
+    output: 'Loaded the course and its chapters.',
+    error: null,
+    durationMs: 23,
+    truncated: true
+  }
+}
 
 test(
   'Bosun Helm applies the same selection contract in dark mode',

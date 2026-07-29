@@ -16,10 +16,11 @@ import ConfirmModal from '@/components/ConfirmModal.vue'
 import ToastContainer from '@/components/ToastContainer.vue'
 import Tooltip from '@/components/Tooltip.vue'
 import CodeEditor from '@/components/CodeEditor.vue'
+import HelmResultViewer from '@/components/HelmResultViewer.vue'
 import { highlightSQL } from '@/lib/highlightSQL'
 import { highlightJSON } from '@/lib/highlightJSON'
-import { highlightJS } from '@/lib/highlightJS'
 import { highlightLogLine } from '@/lib/highlightLog'
+import { formatHelmError } from '@/lib/helmResult'
 import SlippyLoader from '@/components/SlippyLoader.vue'
 
 defineOptions({
@@ -143,36 +144,9 @@ function showToast(message, type = 'success') {
   setTimeout(() => dismissToast(id), 5000)
 }
 
-function formatHelmError(error) {
-  if (!error) return 'Evaluation failed'
-  if (typeof error === 'string') return error
-
-  const location =
-    error.line && error.column ? ` (${error.line}:${error.column})` : ''
-  return `${error.name || 'Error'}: ${
-    error.message || 'Evaluation failed'
-  }${location}`
-}
-
 function dismissToast(id) {
   toasts.value = toasts.value.filter((t) => t.id !== id)
 }
-
-// Format Helm output — try to parse as JSON for syntax highlighting, fall back to plain text
-const highlightedHelmOutput = computed(() => {
-  if (!helmResults.value?.output) return ''
-  const raw = helmResults.value.output
-  try {
-    const parsed = JSON.parse(raw)
-    // Only highlight objects/arrays — primitives display as plain text
-    if (typeof parsed === 'object' && parsed !== null) {
-      return highlightJSON(parsed)
-    }
-  } catch {
-    // Not valid JSON — highlight as JS (handles util.inspect output too)
-  }
-  return highlightJS(raw)
-})
 
 async function executeQuery() {
   if (!sqlQuery.value.trim() || consoleLoading.value) return
@@ -360,13 +334,6 @@ function downloadFile(content, filename, mimeType) {
 function exportAction(fn) {
   fn()
   showExportMenu.value = false
-}
-
-function copyHelmOutput() {
-  navigator.clipboard.writeText(
-    helmResults.value?.output || formatHelmError(helmResults.value?.error) || ''
-  )
-  showToast('Copied to clipboard')
 }
 
 async function fetchDiff() {
@@ -1007,7 +974,7 @@ onUnmounted(() => {
       </div>
 
       <!-- Results -->
-      <div class="flex-1 overflow-auto">
+      <div class="flex min-h-0 flex-1 flex-col overflow-hidden">
         <!-- ─── SQL Results ─── -->
         <template v-if="consoleMode === 'sql'">
           <!-- Error -->
@@ -1105,56 +1072,18 @@ onUnmounted(() => {
         </template>
 
         <!-- ─── Helm Results ─── -->
-        <template v-else>
-          <!-- Loading -->
-          <div
-            v-if="helmLoading"
-            class="flex h-full items-center justify-center"
-          >
-            <SlippyLoader size="h-5 w-5" />
-          </div>
-
-          <!-- Error -->
-          <div v-else-if="helmError" class="p-4">
-            <div
-              class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 dark:border-red-900/50 dark:bg-red-950/30"
-            >
-              <pre
-                class="whitespace-pre-wrap font-mono text-sm text-red-600 dark:text-red-400"
-                >{{ helmError }}</pre
-              >
-            </div>
-            <pre
-              v-if="helmResults?.output"
-              class="mt-3 whitespace-pre-wrap font-mono text-sm text-gray-700 dark:text-gray-300"
-              >{{ helmResults.output }}</pre
-            >
-          </div>
-
-          <!-- Results output -->
-          <div v-else-if="helmResults" class="p-4">
-            <pre
-              class="whitespace-pre-wrap font-mono text-sm text-gray-700 dark:text-gray-300"
-              v-html="highlightedHelmOutput"
-            ></pre>
-          </div>
-
-          <!-- Empty state -->
-          <div
-            v-else
-            class="flex h-full items-center justify-center text-sm text-gray-500 dark:text-gray-400"
-          >
-            Run JavaScript to see results
-          </div>
-        </template>
+        <HelmResultViewer
+          v-else
+          :result="helmResults"
+          :error="helmError || ''"
+          :loading="helmLoading"
+          test-id="bosun-helm"
+        />
       </div>
 
       <!-- Status bar -->
       <div
-        v-if="
-          (consoleMode === 'sql' && consoleResults) ||
-          (consoleMode === 'helm' && helmResults)
-        "
+        v-if="consoleMode === 'sql' && consoleResults"
         class="flex items-center justify-between border-t border-gray-200 bg-gray-50 px-4 py-2 dark:border-gray-800 dark:bg-gray-900/50"
       >
         <!-- SQL status bar content -->
@@ -1319,37 +1248,6 @@ onUnmounted(() => {
               </div>
             </div>
           </div>
-        </template>
-
-        <!-- Helm status bar content -->
-        <template v-else>
-          <span
-            v-if="helmResults"
-            class="text-xs text-gray-500 dark:text-gray-400"
-          >
-            {{ helmResults.success ? 'Success' : 'Error' }}
-            &middot; {{ helmResults.durationMs }}ms
-          </span>
-          <Tooltip v-if="helmResults" text="Copy output" position="top">
-            <button
-              @click="copyHelmOutput"
-              class="rounded p-1.5 text-gray-500 hover:bg-gray-200 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-200"
-            >
-              <svg
-                class="h-4 w-4"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                stroke-width="1.5"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  d="M15.666 3.888A2.25 2.25 0 0013.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 01-.75.75H9.75a.75.75 0 01-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 01-2.25 2.25H6.75A2.25 2.25 0 014.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 011.927-.184"
-                />
-              </svg>
-            </button>
-          </Tooltip>
         </template>
       </div>
     </div>

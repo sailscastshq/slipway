@@ -4,6 +4,7 @@ import { inject, ref, computed } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
 import SlippyLoader from '@/components/SlippyLoader.vue'
 import CodeEditor from '@/components/CodeEditor.vue'
+import HelmResultViewer from '@/components/HelmResultViewer.vue'
 
 defineOptions({
   layout: AppLayout
@@ -21,8 +22,8 @@ const toggleSidebar = inject('toggleSidebar')
 const sidebarCollapsed = inject('sidebarCollapsed')
 
 const code = ref('// Access your Sails models, helpers, and config\n')
-const output = ref('')
-const error = ref('')
+const executionResult = ref(null)
+const requestError = ref('')
 const running = ref(false)
 const history = ref([])
 const editor = ref(null)
@@ -50,8 +51,8 @@ async function execute() {
   editor.value.highlightExecution(execution)
   editor.value.focus()
   running.value = true
-  output.value = ''
-  error.value = ''
+  executionResult.value = null
+  requestError.value = ''
 
   try {
     const response = await fetch(
@@ -70,23 +71,27 @@ async function execute() {
       }
     )
 
-    const result = await response.json()
-
-    if (result.success) {
-      output.value = result.output || '(no output)'
-      error.value = ''
-    } else {
-      output.value = ''
-      error.value = [result.output, formatHelmError(result.error)]
-        .filter(Boolean)
-        .join('\n')
+    const responseText = await response.text()
+    let result
+    try {
+      result = JSON.parse(responseText)
+    } catch {
+      throw new Error(responseText || 'Execution failed')
     }
+
+    if (!response.ok) {
+      throw new Error(
+        result.message ||
+          result.error?.message ||
+          result.error ||
+          'Execution failed'
+      )
+    }
+    executionResult.value = result
 
     // Add to history
     history.value.unshift({
       code: execution.source,
-      output: output.value,
-      error: error.value,
       success: result.success,
       time: new Date()
     })
@@ -96,23 +101,10 @@ async function execute() {
       history.value = history.value.slice(0, 20)
     }
   } catch (err) {
-    error.value = err.message
+    requestError.value = err.message || 'Network error'
   } finally {
     running.value = false
   }
-}
-
-function formatHelmError(executionError) {
-  if (!executionError) return 'Execution failed'
-  if (typeof executionError === 'string') return executionError
-
-  const location =
-    executionError.line && executionError.column
-      ? ` (${executionError.line}:${executionError.column})`
-      : ''
-  return `${executionError.name || 'Error'}: ${
-    executionError.message || 'Execution failed'
-  }${location}`
 }
 
 function loadFromHistory(entry) {
@@ -120,108 +112,12 @@ function loadFromHistory(entry) {
 }
 
 function clearExecutionOutput() {
-  output.value = ''
-  error.value = ''
+  executionResult.value = null
+  requestError.value = ''
 }
 
-// JSON/output syntax highlighting
-const highlightedOutput = computed(() => {
-  if (!output.value) return ''
-  return highlightJSON(output.value)
-})
-
-function highlightJSON(str) {
-  const escapeHtml = (s) =>
-    s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-
-  // Simple JSON tokenizer
-  const tokens = []
-  let i = 0
-
-  while (i < str.length) {
-    // String
-    if (str[i] === '"') {
-      let end = i + 1
-      while (end < str.length && str[end] !== '"') {
-        if (str[end] === '\\') end++
-        end++
-      }
-      if (end < str.length) end++
-      tokens.push({ type: 'string', value: str.slice(i, end) })
-      i = end
-      continue
-    }
-
-    // Number
-    if (/[-\d]/.test(str[i])) {
-      let end = i
-      if (str[end] === '-') end++
-      while (end < str.length && /[\d.eE+-]/.test(str[end])) end++
-      if (end > i) {
-        tokens.push({ type: 'number', value: str.slice(i, end) })
-        i = end
-        continue
-      }
-    }
-
-    // Boolean/null
-    if (str.slice(i, i + 4) === 'true') {
-      tokens.push({ type: 'boolean', value: 'true' })
-      i += 4
-      continue
-    }
-    if (str.slice(i, i + 5) === 'false') {
-      tokens.push({ type: 'boolean', value: 'false' })
-      i += 5
-      continue
-    }
-    if (str.slice(i, i + 4) === 'null') {
-      tokens.push({ type: 'null', value: 'null' })
-      i += 4
-      continue
-    }
-
-    // Punctuation
-    if (/[{}\[\]:,]/.test(str[i])) {
-      tokens.push({ type: 'punctuation', value: str[i] })
-      i++
-      continue
-    }
-
-    // Whitespace
-    if (/\s/.test(str[i])) {
-      let end = i
-      while (end < str.length && /\s/.test(str[end])) end++
-      tokens.push({ type: 'whitespace', value: str.slice(i, end) })
-      i = end
-      continue
-    }
-
-    // Other
-    tokens.push({ type: 'other', value: str[i] })
-    i++
-  }
-
-  return tokens
-    .map((t) => {
-      const escaped = escapeHtml(t.value)
-      switch (t.type) {
-        case 'string':
-          // Check if it's a key (followed by colon after whitespace)
-          return `<span class="text-cyan-600 dark:text-cyan-400">${escaped}</span>`
-        case 'number':
-          return `<span class="text-orange-600 dark:text-orange-400">${escaped}</span>`
-        case 'boolean':
-          return `<span class="text-purple-600 dark:text-purple-400">${escaped}</span>`
-        case 'null':
-          return `<span class="text-gray-400 dark:text-gray-500">${escaped}</span>`
-        case 'punctuation':
-          return `<span class="text-gray-500 dark:text-gray-400">${escaped}</span>`
-        default:
-          return escaped
-      }
-    })
-    .join('')
+function clearHistory() {
+  history.value = []
 }
 </script>
 <template>
@@ -462,47 +358,34 @@ function highlightJSON(str) {
         data-test="helm-output-panel"
         class="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-white dark:bg-gray-950"
       >
-        <div
-          data-test="helm-output-scroll"
-          class="relative min-h-0 min-w-0 flex-1 overflow-auto p-4 font-mono text-sm leading-6"
-        >
-          <!-- Output -->
-          <pre
-            v-if="output"
-            data-test="helm-output"
-            class="whitespace-pre-wrap"
-            v-html="highlightedOutput"
-          ></pre>
-          <!-- Error -->
-          <pre
-            v-else-if="error"
-            data-test="helm-error"
-            class="whitespace-pre-wrap text-red-600 dark:text-red-400"
-            >{{ error }}</pre
-          >
-          <!-- Running indicator -->
-          <div
-            v-else-if="running"
-            class="flex items-center space-x-2 text-gray-400 dark:text-gray-500"
-          >
-            <SlippyLoader size="h-4 w-4" />
-          </div>
-
-          <!-- Clear button (floating) -->
-          <button
-            v-if="output || error"
-            @click="clearExecutionOutput"
-            class="absolute right-3 top-3 text-xs text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
-          >
-            clear
-          </button>
-        </div>
+        <HelmResultViewer
+          :result="executionResult"
+          :error="requestError"
+          :loading="running"
+          clearable
+          test-id="helm"
+          @clear="clearExecutionOutput"
+        />
 
         <!-- History (collapsible at bottom) -->
         <div
           v-if="history.length > 0"
+          data-test="helm-history"
           class="shrink-0 border-t border-gray-100 dark:border-gray-800"
         >
+          <div class="flex items-center justify-between px-4 py-1.5">
+            <span class="text-xs text-gray-400 dark:text-gray-500"
+              >Recent runs</span
+            >
+            <button
+              type="button"
+              data-test="helm-clear-history"
+              class="text-xs text-gray-500 outline-none hover:text-gray-900 focus-visible:rounded focus-visible:ring-2 focus-visible:ring-gray-300 dark:text-gray-400 dark:hover:text-white dark:focus-visible:ring-gray-700"
+              @click="clearHistory"
+            >
+              Clear
+            </button>
+          </div>
           <div class="max-h-32 overflow-y-auto">
             <button
               v-for="(entry, i) in history"

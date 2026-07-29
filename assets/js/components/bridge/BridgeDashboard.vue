@@ -1,7 +1,7 @@
 <script setup>
 import { computed } from 'vue'
 import { Link } from '@inertiajs/vue3'
-import BridgeActionMenu from '@/components/bridge/BridgeActionMenu.vue'
+import ActionMenu from '@/components/ActionMenu.vue'
 import BridgeFieldValue from '@/components/bridge/BridgeFieldValue.vue'
 
 const props = defineProps({
@@ -165,7 +165,7 @@ function partitionWidth(card, value) {
         </p>
       </div>
 
-      <BridgeActionMenu
+      <ActionMenu
         :items="quickActions"
         label="Quick actions"
         orientation="vertical"
