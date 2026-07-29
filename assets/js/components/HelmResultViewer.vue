@@ -7,7 +7,6 @@ import ToastContainer from '@/components/ToastContainer.vue'
 import Tooltip from '@/components/Tooltip.vue'
 import { highlightJSON } from '@/lib/highlightJSON'
 import {
-  formatHelmError,
   helmRowsToCsv,
   helmScalarPresentation,
   helmTableColumns,
@@ -88,12 +87,30 @@ const rawHighlighted = computed(() =>
 const treeEntries = computed(() =>
   structured.value ? Object.entries(value.value) : []
 )
+const structuredError = computed(() =>
+  props.result && !props.result.success && props.result.error
+    ? props.result.error
+    : null
+)
 const errorText = computed(
   () =>
     props.error ||
-    (props.result && !props.result.success
-      ? formatHelmError(props.result.error)
+    (structuredError.value
+      ? `${structuredError.value.name || 'Error'}: ${
+          structuredError.value.message || 'Execution failed'
+        }`
       : '')
+)
+const errorLocation = computed(() => {
+  const line = structuredError.value?.line
+  const column = structuredError.value?.column
+  if (!Number.isSafeInteger(line) || !Number.isSafeInteger(column)) return ''
+  return `Line ${line}, column ${column}`
+})
+const errorStack = computed(() =>
+  typeof structuredError.value?.stack === 'string'
+    ? structuredError.value.stack
+    : ''
 )
 const logs = computed(() =>
   Array.isArray(props.result?.logs) ? props.result.logs : []
@@ -208,12 +225,42 @@ function dismissToast(id) {
       </div>
 
       <template v-else-if="result || errorText">
-        <pre
+        <div
           v-if="errorText"
           :data-test="`${testId}-error`"
-          class="m-4 whitespace-pre-wrap rounded-md bg-red-50 px-3 py-2 font-mono text-sm leading-6 text-red-700 dark:bg-red-950/30 dark:text-red-400"
-          >{{ errorText }}</pre
+          class="px-4 py-3"
+          role="alert"
         >
+          <p
+            :data-test="`${testId}-error-summary`"
+            class="text-sm font-medium leading-5 text-red-700 dark:text-red-400"
+          >
+            {{ errorText }}
+          </p>
+          <p
+            v-if="errorLocation"
+            :data-test="`${testId}-error-location`"
+            class="mt-1 font-mono text-xs text-gray-500 dark:text-gray-400"
+          >
+            {{ errorLocation }}
+          </p>
+          <details
+            v-if="errorStack"
+            :data-test="`${testId}-error-stack`"
+            class="mt-3 text-xs"
+          >
+            <summary
+              class="w-fit cursor-pointer text-gray-500 outline-none hover:text-gray-700 focus-visible:ring-2 focus-visible:ring-gray-300 dark:text-gray-400 dark:hover:text-gray-200 dark:focus-visible:ring-gray-700"
+            >
+              Stack trace
+            </summary>
+            <pre
+              :data-test="`${testId}-error-stack-content`"
+              class="mt-2 max-h-52 overflow-auto whitespace-pre-wrap font-mono leading-5 text-gray-600 dark:text-gray-400"
+              >{{ errorStack }}</pre
+            >
+          </details>
+        </div>
 
         <div
           v-else-if="activeView === 'table'"

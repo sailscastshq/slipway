@@ -206,6 +206,7 @@ test('Helm maps syntax and runtime failures to helm-input.js', async ({
   const syntaxFailure = await runHelm(sails, 'const broken =\n')
   expect(syntaxFailure.success).toBe(false)
   expect(syntaxFailure.error.name).toBe('SyntaxError')
+  expect(syntaxFailure.error.filename).toBe('helm-input.js')
   expect(syntaxFailure.error.line).toBe(2)
   expect(syntaxFailure.error.column).toBe(1)
   expect(syntaxFailure.error.stack).toContain('helm-input.js:2:1')
@@ -216,6 +217,7 @@ test('Helm maps syntax and runtime failures to helm-input.js', async ({
   )
   expect(runtimeFailure.success).toBe(false)
   expect(runtimeFailure.error.name).toBe('TypeError')
+  expect(runtimeFailure.error.filename).toBe('helm-input.js')
   expect(runtimeFailure.error.line).toBe(2)
   expect(runtimeFailure.error.column).toBe(9)
   expect(runtimeFailure.error.stack).toContain('helm-input.js:2:9')
@@ -226,6 +228,7 @@ test('Helm maps syntax and runtime failures to helm-input.js', async ({
   )
   expect(rejectedPromise.success).toBe(false)
   expect(rejectedPromise.error.message).toBe('rejected')
+  expect(rejectedPromise.error.filename).toBe('helm-input.js')
   expect(rejectedPromise.error.line).toBe(1)
 })
 
@@ -238,6 +241,7 @@ test('Helm maps selected source failures back to the original editor', async ({
     sourceStartColumn: 5
   })
   expect(firstLineFailure.success).toBe(false)
+  expect(firstLineFailure.error.filename).toBe('helm-input.js')
   expect(firstLineFailure.error.line).toBe(12)
   expect(firstLineFailure.error.column).toBe(10)
   expect(firstLineFailure.error.stack).toContain('helm-input.js:12:10')
@@ -251,6 +255,7 @@ test('Helm maps selected source failures back to the original editor', async ({
     }
   )
   expect(laterLineFailure.success).toBe(false)
+  expect(laterLineFailure.error.filename).toBe('helm-input.js')
   expect(laterLineFailure.error.line).toBe(21)
   expect(laterLineFailure.error.column).toBe(9)
   expect(laterLineFailure.error.stack).toContain('helm-input.js:21:9')
@@ -260,6 +265,7 @@ test('Helm maps selected source failures back to the original editor', async ({
     sourceStartColumn: 4
   })
   expect(syntaxFailure.success).toBe(false)
+  expect(syntaxFailure.error.filename).toBe('helm-input.js')
   expect(syntaxFailure.error.line).toBe(30)
   expect(syntaxFailure.error.column).toBe(10)
   expect(syntaxFailure.error.stack).toContain('helm-input.js:30:10')

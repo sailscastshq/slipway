@@ -20,7 +20,7 @@ import HelmResultViewer from '@/components/HelmResultViewer.vue'
 import { highlightSQL } from '@/lib/highlightSQL'
 import { highlightJSON } from '@/lib/highlightJSON'
 import { highlightLogLine } from '@/lib/highlightLog'
-import { formatHelmError } from '@/lib/helmResult'
+import { formatHelmError, helmEditorDiagnostic } from '@/lib/helmResult'
 import SlippyLoader from '@/components/SlippyLoader.vue'
 
 defineOptions({
@@ -203,6 +203,7 @@ async function executeHelm() {
   if (!execution?.hasExecutableSource || !canExecuteHelm.value) return
 
   helmEditor.value.highlightExecution(execution)
+  helmEditor.value.clearDiagnostics()
   helmEditor.value.focus()
   helmLoading.value = true
   helmError.value = null
@@ -231,6 +232,8 @@ async function executeHelm() {
     }
 
     if (!response.ok) {
+      const diagnostic = helmEditorDiagnostic(data?.error)
+      if (diagnostic) helmEditor.value.showDiagnostic(diagnostic)
       helmError.value =
         data?.message ||
         (data?.error ? formatHelmError(data.error) : null) ||
@@ -240,7 +243,8 @@ async function executeHelm() {
     }
 
     helmResults.value = data
-    if (!data.success) helmError.value = formatHelmError(data.error)
+    const diagnostic = helmEditorDiagnostic(data.error)
+    if (diagnostic) helmEditor.value.showDiagnostic(diagnostic)
 
     // Add to history (deduplicate)
     const executedSource = execution.source
@@ -254,6 +258,8 @@ async function executeHelm() {
     helmLoading.value = false
   }
 }
+
+watch(helmCode, () => helmEditor.value?.clearDiagnostics())
 
 function executeCurrentMode() {
   if (consoleMode.value === 'helm') {

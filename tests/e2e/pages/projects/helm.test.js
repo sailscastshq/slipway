@@ -217,15 +217,18 @@ test(
 )
 
 test(
-  'Helm renders structured runtime errors as source-oriented text',
+  'project Helm pins syntax and selected runtime failures to their source',
   {
     browser: true,
-    world: helmWorld('helm-structured-error')
+    world: helmWorld('helm-inline-diagnostics')
   },
   async ({ sails, world, login, page, expect }) => {
     const current = world.current
     const projectSlug = current.projects.deploymentTarget.slug
     const environmentSlug = current.environments.production.slug
+    const endpoint = `/api/v1/projects/${projectSlug}/environments/${environmentSlug}/execute`
+    const submitted = []
+    let runtimeAttempts = 0
 
     await sails.models.app.updateOne({ id: current.apps.web.id }).set({
       status: 'running',
@@ -238,48 +241,231 @@ test(
       password: current.auth.genesisUserPassword
     })
     await updateCheckFinished
-    await page.raw.route(
-      `**/api/v1/projects/${projectSlug}/environments/${environmentSlug}/execute`,
-      async (route) => {
-        await route.fulfill({
-          status: 200,
-          contentType: 'application/json',
-          body: JSON.stringify({
-            success: false,
-            value: null,
-            logs: ['checking creator'],
-            output: 'checking creator',
-            error: {
-              name: 'TypeError',
-              message: "Cannot read properties of null (reading 'publicId')",
-              stack: 'TypeError at helm-input.js:2:9',
-              line: 2,
-              column: 9
-            },
-            durationMs: 4,
-            truncated: false
-          })
-        })
-      }
-    )
+    await page.raw.route(`**${endpoint}`, async (route) => {
+      const request = route.request().postDataJSON()
+      submitted.push(request)
 
+      let result
+      if (request.code.includes('const broken =')) {
+        result = failedHelmResult({
+          name: 'SyntaxError',
+          message: 'Unexpected end of input',
+          line: 2,
+          column: 1,
+          frames: ['    at new Script (node:vm:117:7)'],
+          durationMs: 2
+        })
+      } else if (request.code.includes('creator.publicId')) {
+        runtimeAttempts += 1
+        result =
+          runtimeAttempts === 1
+            ? failedHelmResult({
+                name: 'TypeError',
+                message: "Cannot read properties of null (reading 'publicId')",
+                line: 3,
+                column: 9,
+                logs: ['checking creator'],
+                frames: ['    at node:vm:134:12'],
+                durationMs: 4
+              })
+            : {
+                success: true,
+                value: { recovered: true },
+                logs: [],
+                output: JSON.stringify({ recovered: true }, null, 2),
+                error: null,
+                durationMs: 3,
+                truncated: false
+              }
+      } else {
+        result = flatHelmResult()
+      }
+
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(result)
+      })
+    })
+
+    await page.resize(1440, 900)
+    await page.inLightMode()
     await page.goto(
       `/projects/${projectSlug}/environments/${environmentSlug}/helm`
     )
-    await page.fill('@helm-editor', 'const creator = null\ncreator.publicId')
+    await page.fill('@helm-editor', 'const broken =\n')
     await page.click('@helm-run')
     await page.wait('@helm-error')
 
-    const errorText = await page.raw
-      .locator('[data-test="helm-error"]')
-      .textContent()
-    expect(errorText).toContain(
-      "TypeError: Cannot read properties of null (reading 'publicId') (2:9)"
+    expect(
+      await page.raw.locator('[data-test="helm-error-summary"]').textContent()
+    ).toBe('SyntaxError: Unexpected end of input')
+    expect(
+      await page.raw.locator('[data-test="helm-error-location"]').textContent()
+    ).toBe('Line 2, column 1')
+    expect(await page.raw.locator('.cm-inline-diagnostic').textContent()).toBe(
+      'SyntaxError: Unexpected end of input'
     )
-    expect(errorText.includes('[object Object]')).toBe(false)
+    expect(await page.raw.locator('.cm-lintRange-error').textContent()).toBe(
+      '='
+    )
+    expect(
+      await page.raw
+        .locator('[data-test="helm-error-stack"]')
+        .getAttribute('open')
+    ).toBe(null)
+    expect(
+      await page.raw
+        .locator('[data-test="helm-error-stack-content"]')
+        .isVisible()
+    ).toBe(false)
+    await page.screenshot('.tmp/issue-270-project-syntax-light.png')
+
+    await page.raw.locator('[data-test="helm-error-stack"] summary').click()
+    expect(
+      await page.raw
+        .locator('[data-test="helm-error-stack-content"]')
+        .isVisible()
+    ).toBe(true)
+    expect(
+      await page.raw
+        .locator('[data-test="helm-error-stack-content"]')
+        .textContent()
+    ).toContain('node:vm:117:7')
+    await page.screenshot('.tmp/issue-270-project-stack-light.png')
+
+    const documentSource = [
+      'const outsideSelection = true',
+      'const creator = null',
+      'creator.publicId'
+    ].join('\n')
+    const selectedSource = ['const creator = null', 'creator.publicId'].join(
+      '\n'
+    )
+    await page.fill('@helm-editor', documentSource)
+    expect(await page.raw.locator('.cm-lintRange-error').count()).toBe(0)
+    expect(await page.raw.locator('.cm-inline-diagnostic').count()).toBe(0)
+    await selectFromSecondLine(page)
+    await page.inDarkMode()
+    await page.click('@helm-run')
+    await page.wait('@helm-error')
+
+    expect(submitted[1]).toEqual({
+      code: selectedSource,
+      sourceStartLine: 2,
+      sourceStartColumn: 1
+    })
+    expect(await page.raw.locator('.cm-lintRange-error').textContent()).toBe(
+      'publicId'
+    )
+    expect(
+      await page.raw.locator('[data-test="helm-error-location"]').textContent()
+    ).toBe('Line 3, column 9')
     expect(
       await page.raw.locator('[data-test="helm-logs"]').textContent()
     ).toContain('checking creator')
+    await page.screenshot('.tmp/issue-270-project-selection-runtime-dark.png')
+
+    await page.key('ControlOrMeta+Enter')
+    await page.wait('@helm-output')
+    expect(submitted[2]).toEqual({
+      code: selectedSource,
+      sourceStartLine: 2,
+      sourceStartColumn: 1
+    })
+    expect(await page.raw.locator('.cm-lintRange-error').count()).toBe(0)
+    expect(await page.raw.locator('.cm-inline-diagnostic').count()).toBe(0)
+    expect(
+      await page.raw.locator('[data-test="helm-output"]').textContent()
+    ).toContain('recovered')
+    expect(page).toHaveNoSmoke()
+  }
+)
+
+test(
+  'Bosun Helm uses the same inline diagnostics for rejected promises',
+  {
+    browser: true,
+    world: helmWorld('helm-inline-diagnostics-bosun')
+  },
+  async ({ world, login, page, expect }) => {
+    const current = world.current
+    const submitted = []
+
+    const updateCheckFinished = page.raw.waitForResponse(
+      '**/api/v1/system/check-update'
+    )
+    await login.withPassword('genesisUser', page, {
+      password: current.auth.genesisUserPassword
+    })
+    await updateCheckFinished
+    await page.raw.route('**/api/v1/bosun/eval', async (route) => {
+      const request = route.request().postDataJSON()
+      submitted.push(request)
+      const rejected = request.code.includes('Promise.reject')
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(
+          rejected
+            ? failedHelmResult({
+                message: 'No user',
+                line: 1,
+                column: 26,
+                frames: ['    at node:vm:134:12']
+              })
+            : {
+                success: true,
+                value: { ready: true },
+                logs: [],
+                output: JSON.stringify({ ready: true }, null, 2),
+                error: null,
+                durationMs: 2,
+                truncated: false
+              }
+        )
+      })
+    })
+
+    await page.resize(1440, 900)
+    await page.inDarkMode()
+    await page.goto('/bosun?tab=console&mode=helm')
+    await page.fill(
+      '@bosun-helm-editor',
+      "await Promise.reject(new Error('No user'))"
+    )
+    await page.click('@bosun-console-run')
+    await page.wait('@bosun-helm-error')
+
+    expect(submitted[0]).toEqual({
+      code: "await Promise.reject(new Error('No user'))",
+      sourceStartLine: 1,
+      sourceStartColumn: 1
+    })
+    expect(await page.raw.locator('.cm-lintRange-error').textContent()).toBe(
+      'Error'
+    )
+    expect(await page.raw.locator('.cm-inline-diagnostic').textContent()).toBe(
+      'Error: No user'
+    )
+    expect(
+      await page.raw
+        .locator('[data-test="bosun-helm-error-summary"]')
+        .textContent()
+    ).toBe('Error: No user')
+    expect(
+      await page.raw
+        .locator('[data-test="bosun-helm-error-stack"]')
+        .getAttribute('open')
+    ).toBe(null)
+    await page.screenshot('.tmp/issue-270-bosun-rejection-dark.png')
+
+    await page.fill('@bosun-helm-editor', 'return { ready: true }')
+    expect(await page.raw.locator('.cm-lintRange-error').count()).toBe(0)
+    expect(await page.raw.locator('.cm-inline-diagnostic').count()).toBe(0)
+    await page.click('@bosun-console-run')
+    await page.wait('@bosun-helm-output')
+    expect(await page.raw.locator('.cm-lintRange-error').count()).toBe(0)
     expect(page).toHaveNoSmoke()
   }
 )
@@ -642,6 +828,37 @@ function flatHelmResult() {
     output: 'Fetched creators from the primary datastore.',
     error: null,
     durationMs: 18,
+    truncated: false
+  }
+}
+
+function failedHelmResult({
+  name = 'Error',
+  message,
+  line,
+  column,
+  logs = [],
+  frames = [],
+  durationMs = 3
+}) {
+  return {
+    success: false,
+    value: null,
+    logs,
+    output: logs.join('\n') || null,
+    error: {
+      name,
+      message,
+      stack: [
+        `${name}: ${message}`,
+        `    at helm-input.js:${line}:${column}`,
+        ...frames
+      ].join('\n'),
+      filename: 'helm-input.js',
+      line,
+      column
+    },
+    durationMs,
     truncated: false
   }
 }
