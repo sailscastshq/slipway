@@ -36,6 +36,9 @@ await Creator.find({
     'subscriptionProvider',
     'subscriptionStatus'
   ])
+  expect(result.status).toBe('success')
+  expect(result.rowCount).toBe(1)
+  expect(result.outputBytes).toBe(Buffer.byteLength(result.output))
 })
 
 test('Helm understands normal JavaScript syntax around return words', async ({
@@ -281,6 +284,8 @@ test('Helm enforces synchronous, asynchronous, source, and output bounds', async
 
     expect(result.success).toBe(false)
     expect(result.error.name).toBe('TimeoutError')
+    expect(result.error.code).toBe('HELM_TIMEOUT')
+    expect(result.status).toBe('timeout')
     expect(Date.now() - startedAt < 2000).toBe(true)
   }
 
@@ -297,6 +302,61 @@ test('Helm enforces synchronous, asynchronous, source, and output bounds', async
   expect(oversized.truncated).toBe(true)
   expect(oversized.value.type).toBe('truncated')
   expect(Buffer.byteLength(oversized.output) < 128 * 1024).toBe(true)
+  expect(oversized.outputBytes).toBe(Buffer.byteLength(oversized.output))
+})
+
+test('Helm cancellation stops work and preserves bounded partial console output', async ({
+  sails,
+  expect
+}) => {
+  const controller = new AbortController()
+  const operation = runHelm(
+    sails,
+    `
+console.log('before cancellation')
+await new Promise(() => {})
+`,
+    { signal: controller.signal, timeoutMs: 5000 }
+  )
+
+  setTimeout(() => {
+    const error = new Error('Helm execution was cancelled by the user.')
+    error.name = 'CancelledError'
+    error.code = 'HELM_CANCELLED'
+    controller.abort(error)
+  }, 100)
+
+  const result = await operation
+
+  expect(result.success).toBe(false)
+  expect(result.status).toBe('cancelled')
+  expect(result.error.code).toBe('HELM_CANCELLED')
+  expect(result.logs).toEqual(['before cancellation'])
+  expect(result.logsPartial).toBe(true)
+  expect(result.output).toBe('before cancellation')
+  expect(result.outputBytes).toBe(Buffer.byteLength(result.output))
+  expect(result.durationMs < 2000).toBe(true)
+
+  const synchronousController = new AbortController()
+  const synchronousOperation = runHelm(
+    sails,
+    "console.log('before loop')\nwhile (true) {}",
+    {
+      signal: synchronousController.signal,
+      timeoutMs: 5000
+    }
+  )
+  setTimeout(() => {
+    const error = new Error('Helm execution was cancelled by the user.')
+    error.name = 'CancelledError'
+    error.code = 'HELM_CANCELLED'
+    synchronousController.abort(error)
+  }, 100)
+
+  const synchronousResult = await synchronousOperation
+  expect(synchronousResult.status).toBe('cancelled')
+  expect(synchronousResult.logs).toEqual(['before loop'])
+  expect(synchronousResult.durationMs < 2000).toBe(true)
 })
 
 test('project Helm and Bosun Helm delegate to the same bounded runner', async ({
@@ -318,7 +378,8 @@ test('project Helm and Bosun Helm delegate to the same bounded runner', async ({
       'web-production',
       '1 + 1',
       8,
-      3
+      3,
+      '3f759945-d02c-4e39-a468-189462be6a87'
     )
 
     expect(bosunResult.output).toBe('ready')
@@ -328,13 +389,71 @@ test('project Helm and Bosun Helm delegate to the same bounded runner', async ({
     expect(calls[0].sourceStartLine).toBe(4)
     expect(calls[0].sourceStartColumn).toBe(2)
     expect(calls[0].bootstrapSails).toBe(true)
-    expect(calls[1].args).toEqual(['exec', '-i', 'web-production', 'node'])
+    expect(calls[1].args).toEqual([
+      'exec',
+      '-i',
+      '-e',
+      'SLIPWAY_HELM_EXECUTION_ID=3f759945-d02c-4e39-a468-189462be6a87',
+      'web-production',
+      'node'
+    ])
     expect(calls[1].source).toBe('1 + 1')
     expect(calls[1].sourceStartLine).toBe(8)
     expect(calls[1].sourceStartColumn).toBe(3)
     expect(calls[1].bootstrapSails).toBe(true)
   } finally {
     sails.helpers.helm.run = originalRun
+  }
+})
+
+test('project Helm cancellation also stops the exact container execution', async ({
+  sails,
+  expect
+}) => {
+  const originalRun = sails.helpers.helm.run
+  const originalStop = sails.helpers.helm.stopContainerExecution
+  const runCalls = []
+  const stopCalls = []
+  const fakeRun = async (options) => {
+    runCalls.push(options)
+    return {
+      success: false,
+      status: 'cancelled',
+      error: { code: 'HELM_CANCELLED' }
+    }
+  }
+  const fakeStop = async (options) => {
+    stopCalls.push(options)
+    return true
+  }
+  fakeRun.with = fakeRun
+  fakeStop.with = fakeStop
+  sails.helpers.helm.run = fakeRun
+  sails.helpers.helm.stopContainerExecution = fakeStop
+  const controller = new AbortController()
+  const error = new Error('cancelled')
+  error.code = 'HELM_CANCELLED'
+  controller.abort(error)
+
+  try {
+    const result = await sails.helpers.helm.executeInContainer.with({
+      containerName: 'web-production',
+      source: 'while (true) {}',
+      executionId: 'e8788ac1-6bda-4226-953d-4842423a9516',
+      signal: controller.signal
+    })
+
+    expect(result.status).toBe('cancelled')
+    expect(runCalls[0].signal).toBe(controller.signal)
+    expect(stopCalls).toEqual([
+      {
+        containerName: 'web-production',
+        executionId: 'e8788ac1-6bda-4226-953d-4842423a9516'
+      }
+    ])
+  } finally {
+    sails.helpers.helm.run = originalRun
+    sails.helpers.helm.stopContainerExecution = originalStop
   }
 })
 

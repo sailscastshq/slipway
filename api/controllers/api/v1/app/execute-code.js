@@ -18,6 +18,12 @@ module.exports = {
       required: true,
       description: 'JavaScript code to execute'
     },
+    executionId: {
+      type: 'string',
+      required: true,
+      regex:
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+    },
     sourceStartLine: {
       type: 'number',
       defaultsTo: 1,
@@ -55,6 +61,7 @@ module.exports = {
     projectSlug,
     environmentSlug,
     code,
+    executionId,
     sourceStartLine,
     sourceStartColumn,
     appSlug
@@ -90,11 +97,23 @@ module.exports = {
       throw { badRequest: 'App is not running.' }
     }
 
-    return sails.helpers.helm.executeInContainer(
-      app.containerName,
-      code,
-      sourceStartLine,
-      sourceStartColumn
+    const execution = sails.helpers.helm.beginExecution(
+      executionId,
+      this.req,
+      this.res
     )
+
+    try {
+      return await sails.helpers.helm.executeInContainer(
+        app.containerName,
+        code,
+        sourceStartLine,
+        sourceStartColumn,
+        executionId,
+        execution.signal
+      )
+    } finally {
+      execution.release()
+    }
   }
 }

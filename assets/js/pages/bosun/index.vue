@@ -1,5 +1,5 @@
 <script setup>
-import { Head } from '@inertiajs/vue3'
+import { Head, usePage } from '@inertiajs/vue3'
 import {
   ref,
   computed,
@@ -22,6 +22,7 @@ import { highlightJSON } from '@/lib/highlightJSON'
 import { highlightLogLine } from '@/lib/highlightLog'
 import { formatHelmError, helmEditorDiagnostic } from '@/lib/helmResult'
 import SlippyLoader from '@/components/SlippyLoader.vue'
+import { cancelHelmExecution, cancelledHelmResult } from '@/lib/helmExecution'
 
 defineOptions({
   layout: AppLayout
@@ -38,6 +39,7 @@ const props = defineProps({
 const toggleMobileMenu = inject('toggleMobileMenu')
 const toggleSidebar = inject('toggleSidebar')
 const sidebarCollapsed = inject('sidebarCollapsed')
+const page = usePage()
 
 // ─── Tab management (matches Dock pattern: init from URL, sync via watcher) ───
 const validTabs = ['overview', 'environment', 'console', 'migrate', 'activity']
@@ -117,12 +119,15 @@ const helmCode = ref('// Access Slipway models and helpers\nawait User.find()')
 const helmResults = ref(null)
 const helmError = ref(null)
 const helmLoading = ref(false)
+const helmStopping = ref(false)
 const helmHistory = ref([])
 const helmEditor = ref(null)
 const helmSelection = ref({
   hasSelection: false,
   hasExecutableSelection: false
 })
+let helmExecutionSequence = 0
+let activeHelmExecution = null
 const helmRunLabel = computed(() =>
   helmSelection.value.hasSelection ? 'Run selection' : 'Run'
 )
@@ -205,7 +210,14 @@ async function executeHelm() {
   helmEditor.value.highlightExecution(execution)
   helmEditor.value.clearDiagnostics()
   helmEditor.value.focus()
+  const currentExecution = {
+    id: crypto.randomUUID(),
+    sequence: ++helmExecutionSequence,
+    startedAt: performance.now()
+  }
+  activeHelmExecution = currentExecution
   helmLoading.value = true
+  helmStopping.value = false
   helmError.value = null
   helmResults.value = null
 
@@ -214,6 +226,7 @@ async function executeHelm() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
+        executionId: currentExecution.id,
         code: execution.source,
         sourceStartLine: execution.startLine,
         sourceStartColumn: execution.startColumn
@@ -232,6 +245,7 @@ async function executeHelm() {
     }
 
     if (!response.ok) {
+      if (activeHelmExecution?.sequence !== currentExecution.sequence) return
       const diagnostic = helmEditorDiagnostic(data?.error)
       if (diagnostic) helmEditor.value.showDiagnostic(diagnostic)
       helmError.value =
@@ -241,6 +255,8 @@ async function executeHelm() {
         'Evaluation failed'
       return
     }
+
+    if (activeHelmExecution?.sequence !== currentExecution.sequence) return
 
     helmResults.value = data
     const diagnostic = helmEditorDiagnostic(data.error)
@@ -253,9 +269,45 @@ async function executeHelm() {
       ...helmHistory.value.filter((source) => source !== executedSource)
     ].slice(0, 20)
   } catch (err) {
+    if (activeHelmExecution?.sequence !== currentExecution.sequence) return
     helmError.value = err.message || 'Network error'
   } finally {
+    if (activeHelmExecution?.sequence === currentExecution.sequence) {
+      helmLoading.value = false
+      helmStopping.value = false
+    }
+  }
+}
+
+async function stopHelmExecution() {
+  const currentExecution = activeHelmExecution
+  if (!currentExecution || !helmLoading.value || helmStopping.value) return
+
+  helmStopping.value = true
+  helmError.value = null
+
+  try {
+    const cancelled = await cancelHelmExecution(
+      currentExecution.id,
+      page.props._csrf || ''
+    )
+    if (!cancelled) {
+      throw new Error('This Helm execution has already finished.')
+    }
+    if (activeHelmExecution?.sequence !== currentExecution.sequence) return
+    if (!helmLoading.value && helmResults.value?.status === 'cancelled') return
+
+    helmResults.value = cancelledHelmResult(
+      Math.round(performance.now() - currentExecution.startedAt)
+    )
     helmLoading.value = false
+  } catch (error) {
+    if (activeHelmExecution?.sequence !== currentExecution.sequence) return
+    helmError.value = error.message || 'Could not stop Helm execution.'
+  } finally {
+    if (activeHelmExecution?.sequence === currentExecution.sequence) {
+      helmStopping.value = false
+    }
   }
 }
 
@@ -263,7 +315,8 @@ watch(helmCode, () => helmEditor.value?.clearDiagnostics())
 
 function executeCurrentMode() {
   if (consoleMode.value === 'helm') {
-    executeHelm()
+    if (helmLoading.value) stopHelmExecution()
+    else executeHelm()
   } else {
     executeQuery()
   }
@@ -904,8 +957,9 @@ onUnmounted(() => {
           >
             <button
               @click="consoleMode = 'sql'"
+              :disabled="consoleLoading || helmLoading"
               :class="[
-                'rounded px-2 py-0.5 text-xs font-medium transition-colors',
+                'rounded px-2 py-0.5 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50',
                 consoleMode === 'sql'
                   ? 'bg-gray-900 text-white dark:bg-white dark:text-gray-900'
                   : 'text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800'
@@ -915,8 +969,9 @@ onUnmounted(() => {
             </button>
             <button
               @click="consoleMode = 'helm'"
+              :disabled="consoleLoading || helmLoading"
               :class="[
-                'rounded px-2 py-0.5 text-xs font-medium transition-colors',
+                'rounded px-2 py-0.5 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50',
                 consoleMode === 'helm'
                   ? 'bg-gray-900 text-white dark:bg-white dark:text-gray-900'
                   : 'text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800'
@@ -961,6 +1016,8 @@ onUnmounted(() => {
           :disabled="
             consoleMode === 'sql'
               ? consoleLoading || !sqlQuery.trim()
+              : helmLoading
+              ? helmStopping
               : !canExecuteHelm
           "
           :title="
@@ -970,9 +1027,29 @@ onUnmounted(() => {
                 }+Enter`
               : 'Run · ⌘+Enter'
           "
-          class="rounded-md bg-gray-900 px-4 py-1.5 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
+          :class="[
+            'flex items-center gap-1.5 rounded-md px-4 py-1.5 text-sm font-medium text-white disabled:opacity-50',
+            consoleMode === 'helm' && helmLoading
+              ? 'bg-red-600 hover:bg-red-700 dark:bg-red-600 dark:hover:bg-red-500'
+              : 'bg-gray-900 hover:bg-gray-800 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100'
+          ]"
         >
-          <span v-if="consoleLoading || helmLoading">Running...</span>
+          <SlippyLoader
+            v-if="consoleLoading || helmStopping"
+            size="h-3.5 w-3.5"
+          />
+          <svg
+            v-else-if="consoleMode === 'helm' && helmLoading"
+            class="h-3.5 w-3.5"
+            fill="currentColor"
+            viewBox="0 0 20 20"
+            aria-hidden="true"
+          >
+            <rect x="5" y="5" width="10" height="10" rx="1" />
+          </svg>
+          <span v-if="consoleLoading">Running...</span>
+          <span v-else-if="helmStopping">Stopping...</span>
+          <span v-else-if="consoleMode === 'helm' && helmLoading">Stop</span>
           <span v-else>{{
             consoleMode === 'helm' ? helmRunLabel : 'Run'
           }}</span>
