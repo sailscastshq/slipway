@@ -648,11 +648,6 @@ test(
       await page.raw.locator('[data-test="helm-result-raw"]').textContent()
     ).toContain('<img data-helm-xss')
     await page.screenshot('.tmp/issue-269-project-raw-console-dark.png')
-    expect(
-      await page.raw.locator('[data-test="helm-history-entry"]').count()
-    ).toBe(2)
-    await page.click('@helm-clear-history')
-    expect(await page.raw.locator('[data-test="helm-history"]').count()).toBe(0)
     expect(page).toHaveNoSmoke()
   }
 )
@@ -789,13 +784,6 @@ test(
           document.activeElement?.matches('[data-test="helm-editor"]') === true
       )
     ).toBe(true)
-    const historyText = await page.raw
-      .locator('[data-test="helm-history-entry"]')
-      .first()
-      .textContent()
-    expect(historyText).toContain('await Creator.find()')
-    expect(historyText.includes('outsideSelection')).toBe(false)
-
     const rerun = page.raw.waitForRequest(
       (request) =>
         request.method() === 'POST' && request.url().includes(endpoint)
@@ -1136,12 +1124,6 @@ test(
     expect(
       await page.raw.locator('[data-test="helm-result-status"]').textContent()
     ).toContain('Cancelled')
-    expect(
-      await page.raw
-        .locator('[data-test="helm-history-entry"] span')
-        .last()
-        .getAttribute('class')
-    ).toContain('bg-gray-400')
     await page.screenshot('.tmp/issue-271-project-cancelled-light.png')
 
     await page.fill('@helm-editor', "'newer result'")
@@ -1155,6 +1137,209 @@ test(
       await page.raw.locator('[data-test="helm-output"]').textContent()
     ).toContain('newer result')
     expect(executionCount).toBe(2)
+    expect(page).toHaveNoSmoke()
+  }
+)
+
+test(
+  'project Helm presents durable searchable history and inert reusable snippets',
+  {
+    browser: true,
+    world: helmWorld('helm-durable-workspace')
+  },
+  async ({ sails, world, login, page, expect }) => {
+    const current = world.current
+    const project = current.projects.deploymentTarget
+    const environment = current.environments.production
+    const app = current.apps.web
+    const user = current.users.genesisUser
+    const commonHistory = {
+      status: 'success',
+      target: app.slug,
+      user: user.id,
+      team: current.teams.genesisTeam.id,
+      project: project.id,
+      environment: environment.id,
+      app: app.id
+    }
+    const pinned = await sails.models.helmhistoryentry
+      .create({
+        ...commonHistory,
+        source: 'await Creator.find({ isActive: true }).limit(10)',
+        durationMs: 18,
+        executedAt: Date.now() - 60_000,
+        pinned: true
+      })
+      .fetch()
+    await sails.models.helmhistoryentry.create({
+      ...commonHistory,
+      source: 'await Course.find().populate("chapters")',
+      durationMs: 42,
+      executedAt: Date.now() - 5_000
+    })
+    await sails.models.helmsnippet.create({
+      name: 'Active creators',
+      source: 'await Creator.find({ isActive: true })',
+      scope: 'personal',
+      owner: user.id,
+      team: current.teams.genesisTeam.id,
+      project: project.id
+    })
+    await sails.models.helmsnippet.create({
+      name: 'Published courses',
+      source: 'await Course.find({ published: true })',
+      scope: 'project',
+      owner: user.id,
+      team: current.teams.genesisTeam.id,
+      project: project.id
+    })
+    await sails.models.app.updateOne({ id: app.id }).set({
+      status: 'running',
+      containerName: 'sounding-helm-library-app'
+    })
+
+    const updateCheckFinished = page.raw.waitForResponse(
+      '**/api/v1/system/check-update'
+    )
+    await login.withPassword('genesisUser', page, {
+      password: current.auth.genesisUserPassword
+    })
+    await updateCheckFinished
+    await page.resize(1440, 900)
+    await page.inLightMode()
+    await page.goto(
+      `/projects/${project.slug}/environments/${environment.slug}/helm`
+    )
+
+    await page.click('@helm-history-toggle')
+    await page.raw.locator('[data-test="helm-history-entry"]').first().waitFor()
+    expect(
+      await page.raw.locator('[data-test="helm-history-entry"]').count()
+    ).toBe(2)
+    expect(
+      await page.raw
+        .locator('[data-test="helm-library-history"]')
+        .getAttribute('aria-label')
+    ).toBe('History, 2 runs')
+    await page.screenshot('.tmp/issue-273-helm-history-light.png')
+
+    await page.raw
+      .locator('[data-test="helm-library-history"]')
+      .press('ArrowRight')
+    expect(
+      await page.raw
+        .locator('[data-test="helm-library-snippets"]')
+        .getAttribute('aria-selected')
+    ).toBe('true')
+    await page.raw
+      .locator('[data-test="helm-library-snippets"]')
+      .press('ArrowLeft')
+    expect(
+      await page.raw
+        .locator('[data-test="helm-library-history"]')
+        .getAttribute('aria-selected')
+    ).toBe('true')
+    expect(
+      await page.raw
+        .locator(`[data-test="helm-history-actions-${pinned.id}-trigger"]`)
+        .count()
+    ).toBe(1)
+
+    await page.fill('@helm-library-search', 'Course.find')
+    await page.wait(250)
+    expect(
+      await page.raw.locator('[data-test="helm-history-entry"]').count()
+    ).toBe(1)
+    expect(
+      await page.raw.locator('[data-test="helm-history-entry"]').textContent()
+    ).toContain('Course.find')
+    await page.fill('@helm-library-search', '')
+    await page.wait(250)
+
+    await page.click('@helm-clear-history')
+    await page.raw.locator('[data-test="confirm-modal"]').waitFor()
+    await page.raw
+      .getByRole('button', { name: 'Clear history', exact: true })
+      .click()
+    await page.raw
+      .locator('[data-test="confirm-modal"]')
+      .waitFor({ state: 'detached' })
+    await page.raw.locator('[data-test="helm-history-entry"]').first().waitFor()
+    expect(
+      await page.raw.locator('[data-test="helm-history-entry"]').count()
+    ).toBe(1)
+    expect(
+      await page.raw.locator('[data-test="helm-history-entry"]').textContent()
+    ).toContain('Creator.find')
+    await page.raw
+      .getByText('Recent history cleared', { exact: true })
+      .locator('..')
+      .getByRole('button')
+      .click()
+    await page.raw
+      .getByText('Recent history cleared', { exact: true })
+      .waitFor({ state: 'detached' })
+
+    await page.inDarkMode()
+    await page.click('@helm-library-snippets')
+    await page.raw.locator('[data-test="helm-snippet-entry"]').first().waitFor()
+    await page.wait(250)
+    expect(
+      await page.raw
+        .locator('[data-test="helm-library-snippets"]')
+        .getAttribute('aria-selected')
+    ).toBe('true')
+    expect(
+      await page.raw
+        .locator('[data-test="helm-library-snippets"]')
+        .getAttribute('aria-label')
+    ).toBe('Snippets, 2 snippets')
+    expect(
+      await page.raw.locator('[data-test="helm-snippet-entry"]').count()
+    ).toBe(2)
+    await page.screenshot('.tmp/issue-273-helm-snippets-dark.png')
+
+    let executionRequests = 0
+    page.raw.on('request', (request) => {
+      if (
+        request.method() === 'POST' &&
+        request
+          .url()
+          .endsWith(
+            `/api/v1/projects/${project.slug}/environments/${environment.slug}/execute`
+          )
+      ) {
+        executionRequests += 1
+      }
+    })
+    await page.raw
+      .locator('[data-test="helm-snippet-entry"]')
+      .filter({ hasText: 'Published courses' })
+      .getByRole('button')
+      .first()
+      .click()
+    await page.wait(100)
+    expect(executionRequests).toBe(0)
+    expect(
+      await page.raw.locator('[data-test="helm-editor"]').textContent()
+    ).toContain('Course.find({ published: true })')
+
+    await page.click('@helm-new-snippet')
+    await page.raw.locator('[data-test="helm-snippet-dialog"]').waitFor()
+    await page.resize(390, 844)
+    await page.wait(200)
+    await page.screenshot('.tmp/issue-273-helm-snippet-dialog-mobile-dark.png')
+    await page.fill('@helm-snippet-name', 'Published course check')
+    await page.click('@helm-snippet-save')
+    await page.resize(1440, 900)
+    await page.raw
+      .locator('[data-test="helm-snippet-entry"]')
+      .filter({ hasText: 'Published course check' })
+      .waitFor()
+    expect(
+      await page.raw.locator('[data-test="helm-snippet-entry"]').count()
+    ).toBe(3)
+    expect(executionRequests).toBe(0)
     expect(page).toHaveNoSmoke()
   }
 )

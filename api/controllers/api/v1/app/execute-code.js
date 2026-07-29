@@ -66,32 +66,16 @@ module.exports = {
     sourceStartColumn,
     appSlug
   }) {
-    const user = await User.findOne({ id: this.req.session.userId })
-
-    const project = await Project.findOne({ slug: projectSlug }).populate(
-      'team'
-    )
-
-    if (!project) {
-      throw 'notFound'
-    }
-
-    if (project.team.id !== user.team) {
-      throw 'forbidden'
-    }
-
-    const environment = await Environment.findOne({
-      project: project.id,
-      slug: environmentSlug
-    })
-
-    if (!environment) {
-      throw 'notFound'
-    }
-
-    const app =
-      (await App.findOne({ environment: environment.id, isDefault: true })) ||
-      (await App.findOne({ environment: environment.id }))
+    const scope = await sails.helpers.helm
+      .resolveProjectScope(
+        this.req.session.userId,
+        projectSlug,
+        environmentSlug,
+        appSlug
+      )
+      .intercept('notFound', 'notFound')
+      .intercept('forbidden', 'forbidden')
+    const app = scope.app
 
     if (!app || app.status !== 'running' || !app.containerName) {
       throw { badRequest: 'App is not running.' }
@@ -102,9 +86,10 @@ module.exports = {
       this.req,
       this.res
     )
+    const startedAt = Date.now()
 
     try {
-      return await sails.helpers.helm.executeInContainer(
+      const result = await sails.helpers.helm.executeInContainer(
         app.containerName,
         code,
         sourceStartLine,
@@ -112,6 +97,25 @@ module.exports = {
         executionId,
         execution.signal
       )
+      await sails.helpers.helm.recordExecution.with({
+        scope,
+        source: code,
+        result,
+        ipAddress: this.req.ip
+      })
+      return result
+    } catch (error) {
+      await sails.helpers.helm.recordExecution.with({
+        scope,
+        source: code,
+        result: {
+          status: 'error',
+          success: false,
+          durationMs: Date.now() - startedAt
+        },
+        ipAddress: this.req.ip
+      })
+      throw error
     } finally {
       execution.release()
     }

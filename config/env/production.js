@@ -46,7 +46,17 @@ module.exports = {
       maxResultBytes: 128 * 1024,
       maxProcessOutputBytes: 256 * 1024,
       maxProcessStderrBytes: 64 * 1024,
-      killGraceMs: 250
+      killGraceMs: 250,
+      historyRetentionMs:
+        positiveInteger(process.env.SLIPWAY_HELM_HISTORY_RETENTION_DAYS, 30) *
+        24 *
+        60 *
+        60 *
+        1000,
+      historyMaxEntriesPerScope: positiveInteger(
+        process.env.SLIPWAY_HELM_HISTORY_MAX_ENTRIES,
+        200
+      )
     }
   },
 

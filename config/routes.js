@@ -241,6 +241,22 @@ module.exports.routes = {
     'api/v1/app/execute-code',
   'GET /api/v1/projects/:projectSlug/environments/:environmentSlug/helm/completions':
     'api/v1/helm/get-project-completions',
+  'GET /api/v1/projects/:projectSlug/environments/:environmentSlug/helm/history':
+    'api/v1/helm/list-history',
+  'PATCH /api/v1/projects/:projectSlug/environments/:environmentSlug/helm/history/:id':
+    'api/v1/helm/update-history-entry',
+  'DELETE /api/v1/projects/:projectSlug/environments/:environmentSlug/helm/history/:id':
+    'api/v1/helm/delete-history-entry',
+  'DELETE /api/v1/projects/:projectSlug/environments/:environmentSlug/helm/history':
+    'api/v1/helm/clear-history',
+  'GET /api/v1/projects/:projectSlug/environments/:environmentSlug/helm/snippets':
+    'api/v1/helm/list-snippets',
+  'POST /api/v1/projects/:projectSlug/environments/:environmentSlug/helm/snippets':
+    'api/v1/helm/create-snippet',
+  'PATCH /api/v1/projects/:projectSlug/environments/:environmentSlug/helm/snippets/:id':
+    'api/v1/helm/update-snippet',
+  'DELETE /api/v1/projects/:projectSlug/environments/:environmentSlug/helm/snippets/:id':
+    'api/v1/helm/delete-snippet',
 
   // Webhooks (public — signature-verified in controller)
   'POST /api/v1/webhooks/github/:projectSlug': {

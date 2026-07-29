@@ -141,9 +141,216 @@ test(
       expect(response).toHaveJsonPath('logs.0', 'querying')
       expect(response).toHaveJsonPath('durationMs', 12)
       expect(response).toHaveJsonPath('truncated', false)
+
+      const history = await sails.models.helmhistoryentry.findOne({
+        user: current.users.genesisUser.id,
+        project: current.projects.deploymentTarget.id,
+        environment: current.environments.production.id
+      })
+      expect(history.source).toBe('await Creator.find()')
+      expect(history.status).toBe('success')
+      expect(history.durationMs).toBe(12)
+      expect(history.target).toBe(current.apps.web.slug)
+      expect(JSON.stringify(history).includes('querying')).toBe(false)
+      expect(JSON.stringify(history).includes('"value"')).toBe(false)
+
+      const audit = await sails.models.auditlog.findOne({
+        action: 'helm.executed',
+        resourceId: String(current.apps.web.id)
+      })
+      expect(audit.details.status).toBe('success')
+      expect(audit.details.sourceBytes).toBe(
+        Buffer.byteLength('await Creator.find()')
+      )
+      expect(JSON.stringify(audit).includes('await Creator.find()')).toBe(false)
+      expect(JSON.stringify(audit).includes('querying')).toBe(false)
     } finally {
       sails.helpers.helm.executeInContainer = originalExecute
     }
+  }
+)
+
+test(
+  'project Helm history is durable, searchable, scoped, and preserves pins when cleared',
+  {
+    world: {
+      name: 'configured-slipway',
+      context: {
+        deploymentTarget: {
+          slug: 'durable-helm-history',
+          name: 'Durable Helm History'
+        }
+      }
+    }
+  },
+  async ({ sails, world, request, expect }) => {
+    const current = world.current
+    const project = current.projects.deploymentTarget
+    const environment = current.environments.production
+    const app = current.apps.web
+    const user = current.users.genesisUser
+    const otherUser = await world.create('user').with({
+      fullName: 'Other Builder',
+      email: 'other-helm-builder@example.com',
+      team: current.teams.genesisTeam.id,
+      teamRole: 'member'
+    })
+    const common = {
+      status: 'success',
+      durationMs: 8,
+      executedAt: Date.now(),
+      target: app.slug,
+      team: current.teams.genesisTeam.id,
+      project: project.id,
+      environment: environment.id,
+      app: app.id
+    }
+    const pinned = await sails.models.helmhistoryentry
+      .create({
+        ...common,
+        source: 'await Creator.find({ pinned: true })',
+        pinned: true,
+        user: user.id
+      })
+      .fetch()
+    await sails.models.helmhistoryentry.create({
+      ...common,
+      source: 'await Creator.find({ recent: true })',
+      user: user.id
+    })
+    await sails.models.helmhistoryentry.create({
+      ...common,
+      source: 'await Creator.find({ private: true })',
+      user: otherUser.id
+    })
+
+    const helmPath = `/projects/${project.slug}/environments/${environment.slug}/helm`
+    const apiPath = `/api/v1/projects/${project.slug}/environments/${environment.slug}/helm/history`
+    const browser = await withCsrfFromPage(request, helmPath, 'genesisUser')
+
+    const search = await browser.request.get(`${apiPath}?q=pinned`)
+    expect(search).toHaveStatus(200)
+    expect(search.data.entries.length).toBe(1)
+    expect(search).toHaveJsonPath('entries.0.id', pinned.id)
+    expect(search.data.entries[0].source.includes('private')).toBe(false)
+    expect(search.header('cache-control')).toMatch('private')
+    expect(search.header('cache-control')).toMatch('no-store')
+
+    const unpin = await browser.request.patch(`${apiPath}/${pinned.id}`, {
+      pinned: false
+    })
+    expect(unpin).toHaveStatus(200)
+    expect(unpin).toHaveJsonPath('entry.pinned', false)
+    await browser.request.patch(`${apiPath}/${pinned.id}`, { pinned: true })
+
+    const cleared = await browser.request.delete(apiPath, {})
+    expect(cleared).toHaveStatus(200)
+    expect(cleared).toHaveJsonPath('deletedCount', 1)
+    expect(
+      Boolean(
+        await sails.models.helmhistoryentry.findOne({
+          id: pinned.id,
+          pinned: true
+        })
+      )
+    ).toBe(true)
+    expect(
+      Boolean(
+        await sails.models.helmhistoryentry.findOne({
+          user: otherUser.id
+        })
+      )
+    ).toBe(true)
+    expect(
+      Boolean(
+        await sails.models.auditlog.findOne({
+          action: 'helm.history.cleared',
+          user: user.id
+        })
+      )
+    ).toBe(true)
+  }
+)
+
+test(
+  'Helm snippets keep personal source private and shared source owner-managed',
+  {
+    world: {
+      name: 'configured-slipway',
+      context: {
+        deploymentTarget: {
+          slug: 'helm-snippet-permissions',
+          name: 'Helm Snippet Permissions'
+        }
+      }
+    }
+  },
+  async ({ sails, world, request, expect }) => {
+    const current = world.current
+    const project = current.projects.deploymentTarget
+    const environment = current.environments.production
+    const helmPath = `/projects/${project.slug}/environments/${environment.slug}/helm`
+    const apiPath = `/api/v1/projects/${project.slug}/environments/${environment.slug}/helm/snippets`
+    const ownerBrowser = await withCsrfFromPage(
+      request,
+      helmPath,
+      'genesisUser'
+    )
+    const personal = await ownerBrowser.request.post(apiPath, {
+      name: 'My creators',
+      source: 'await Creator.find().limit(10)',
+      scope: 'personal'
+    })
+    const shared = await ownerBrowser.request.post(apiPath, {
+      name: 'Active creators',
+      source: 'await Creator.find({ isActive: true })',
+      scope: 'project'
+    })
+
+    expect(personal).toHaveStatus(201)
+    expect(personal).toHaveJsonPath('snippet.scope', 'personal')
+    expect(shared).toHaveStatus(201)
+    expect(shared).toHaveJsonPath('snippet.canManage', true)
+
+    const member = await world.create('user').with({
+      fullName: 'Snippet Reader',
+      email: 'snippet-reader@example.com',
+      team: current.teams.genesisTeam.id,
+      teamRole: 'member'
+    })
+    const memberBrowser = await withCsrfFromPage(request, helmPath, member)
+    const visible = await memberBrowser.request.get(apiPath)
+    expect(visible).toHaveStatus(200)
+    expect(visible.data.snippets.length).toBe(1)
+    expect(visible).toHaveJsonPath('snippets.0.name', 'Active creators')
+    expect(visible).toHaveJsonPath('snippets.0.canManage', false)
+
+    const forbidden = await memberBrowser.request.patch(
+      `${apiPath}/${shared.data.snippet.id}`,
+      { name: 'Overwritten by somebody else' }
+    )
+    expect(forbidden).toHaveStatus(403)
+
+    const updated = await ownerBrowser.request.patch(
+      `${apiPath}/${shared.data.snippet.id}`,
+      { name: 'Current creators' }
+    )
+    expect(updated).toHaveStatus(200)
+    expect(updated).toHaveJsonPath('snippet.name', 'Current creators')
+
+    const removed = await ownerBrowser.request.delete(
+      `${apiPath}/${personal.data.snippet.id}`,
+      {}
+    )
+    expect(removed).toHaveStatus(200)
+    expect(removed).toHaveJsonPath('deleted', true)
+
+    const audit = await sails.models.auditlog.findOne({
+      action: 'helm.snippet.created',
+      resourceId: String(shared.data.snippet.id)
+    })
+    expect(audit.details.name).toBe('Active creators')
+    expect(JSON.stringify(audit).includes('await Creator.find')).toBe(false)
   }
 )
 

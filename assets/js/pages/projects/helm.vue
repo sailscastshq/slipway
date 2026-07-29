@@ -1,10 +1,20 @@
 <script setup>
 import { Link, Head, usePage } from '@inertiajs/vue3'
-import { inject, ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
+import {
+  inject,
+  ref,
+  computed,
+  watch,
+  onMounted,
+  onBeforeUnmount,
+  nextTick
+} from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
 import SlippyLoader from '@/components/SlippyLoader.vue'
 import CodeEditor from '@/components/CodeEditor.vue'
 import HelmResultViewer from '@/components/HelmResultViewer.vue'
+import HelmWorkspaceLibrary from '@/components/HelmWorkspaceLibrary.vue'
+import Tooltip from '@/components/Tooltip.vue'
 import { helmEditorDiagnostic } from '@/lib/helmResult'
 import { cancelHelmExecution, cancelledHelmResult } from '@/lib/helmExecution'
 
@@ -28,12 +38,15 @@ const executionResult = ref(null)
 const requestError = ref('')
 const running = ref(false)
 const stopping = ref(false)
-const history = ref([])
 const editor = ref(null)
+const library = ref(null)
+const libraryOpen = ref(false)
+const libraryTab = ref('history')
 const completionMetadata = ref(null)
 const editorSelection = ref({
   hasSelection: false,
-  hasExecutableSelection: false
+  hasExecutableSelection: false,
+  source: code.value
 })
 let executionSequence = 0
 let activeExecution = null
@@ -50,10 +63,29 @@ const canExecute = computed(() => {
   }
   return Boolean(code.value.trim())
 })
+const helmLibraryUrl = computed(
+  () =>
+    `/api/v1/projects/${props.project.slug}/environments/${props.environment.slug}/helm`
+)
 
-async function execute() {
-  const execution = editor.value?.getExecutionSnapshot()
-  if (!execution?.hasExecutableSource || !canExecute.value) return
+async function execute(sourceOverride) {
+  let execution
+  if (typeof sourceOverride === 'string') {
+    if (!sourceOverride.trim() || !isRunning.value || running.value) return
+    code.value = sourceOverride
+    await nextTick()
+    execution = {
+      source: sourceOverride,
+      from: 0,
+      to: sourceOverride.length,
+      hasExecutableSource: true,
+      startLine: 1,
+      startColumn: 1
+    }
+  } else {
+    execution = editor.value?.getExecutionSnapshot()
+    if (!execution?.hasExecutableSource || !canExecute.value) return
+  }
 
   editor.value.highlightExecution(execution)
   editor.value.clearDiagnostics()
@@ -62,8 +94,7 @@ async function execute() {
     id: crypto.randomUUID(),
     sequence: ++executionSequence,
     startedAt: performance.now(),
-    source: execution.source,
-    historyRecorded: false
+    source: execution.source
   }
   activeExecution = currentExecution
   running.value = true
@@ -113,7 +144,7 @@ async function execute() {
     const diagnostic = helmEditorDiagnostic(result.error)
     if (diagnostic) editor.value.showDiagnostic(diagnostic)
 
-    recordHistory(currentExecution, result)
+    await revealHistory()
   } catch (err) {
     if (activeExecution?.sequence !== currentExecution.sequence) return
     requestError.value = err.message || 'Network error'
@@ -147,7 +178,6 @@ async function stopExecution() {
       Math.round(performance.now() - currentExecution.startedAt)
     )
     executionResult.value = result
-    recordHistory(currentExecution, result)
     running.value = false
   } catch (error) {
     if (activeExecution?.sequence !== currentExecution.sequence) return
@@ -164,37 +194,32 @@ function runOrStop() {
   else execute()
 }
 
-function historyStatusClass(entry) {
-  if (entry.status === 'cancelled') return 'bg-gray-400'
-  if (entry.status === 'timeout' || entry.truncated) return 'bg-amber-500'
-  return entry.success ? 'bg-green-500' : 'bg-red-500'
+async function revealHistory() {
+  libraryTab.value = 'history'
+  libraryOpen.value = true
+  await nextTick()
+  await library.value?.refreshHistory()
 }
 
-function recordHistory(execution, result) {
-  if (execution.historyRecorded) return
-  execution.historyRecorded = true
-  history.value.unshift({
-    code: execution.source,
-    success: result.success,
-    status: result.status,
-    truncated: result.truncated,
-    time: new Date()
-  })
-  history.value = history.value.slice(0, 20)
+function toggleLibrary(tab) {
+  if (libraryOpen.value && libraryTab.value === tab) {
+    libraryOpen.value = false
+    return
+  }
+  libraryTab.value = tab
+  libraryOpen.value = true
 }
 
-function loadFromHistory(entry) {
-  code.value = entry.code
+async function loadSource(source) {
+  code.value = source
+  await nextTick()
+  editor.value?.focus()
 }
 
 function clearExecutionOutput() {
   executionResult.value = null
   requestError.value = ''
   editor.value?.clearDiagnostics()
-}
-
-function clearHistory() {
-  history.value = []
 }
 
 async function loadCompletionMetadata() {
@@ -391,6 +416,69 @@ watch(code, () => editor.value?.clearDiagnostics())
           <span class="hidden sm:inline">not running</span>
         </span>
 
+        <div class="flex items-center">
+          <Tooltip text="History" position="bottom">
+            <button
+              type="button"
+              data-test="helm-history-toggle"
+              :aria-pressed="libraryOpen && libraryTab === 'history'"
+              :class="[
+                'rounded-md p-1.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 dark:focus-visible:ring-gray-700',
+                libraryOpen && libraryTab === 'history'
+                  ? 'bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-white'
+                  : 'text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-500 dark:hover:bg-gray-800 dark:hover:text-gray-200'
+              ]"
+              @click="toggleLibrary('history')"
+            >
+              <svg
+                class="h-4 w-4"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="1.75"
+                  d="M12 8v4l2.5 1.5M3.5 12a8.5 8.5 0 1 0 2.1-5.6M3.5 4.5v4h4"
+                />
+              </svg>
+              <span class="sr-only">History</span>
+            </button>
+          </Tooltip>
+          <Tooltip text="Snippets" position="bottom">
+            <button
+              type="button"
+              data-test="helm-snippets-toggle"
+              :aria-pressed="libraryOpen && libraryTab === 'snippets'"
+              :class="[
+                'rounded-md p-1.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 dark:focus-visible:ring-gray-700',
+                libraryOpen && libraryTab === 'snippets'
+                  ? 'bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-white'
+                  : 'text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-500 dark:hover:bg-gray-800 dark:hover:text-gray-200'
+              ]"
+              @click="toggleLibrary('snippets')"
+            >
+              <svg
+                class="h-4 w-4"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="1.75"
+                  d="M6.5 4.5h11v15L12 16l-5.5 3.5v-15Z"
+                />
+              </svg>
+              <span class="sr-only">Snippets</span>
+            </button>
+          </Tooltip>
+        </div>
+
         <!-- Run button -->
         <button
           data-test="helm-run"
@@ -500,52 +588,18 @@ watch(code, () => editor.value?.clearDiagnostics())
           @clear="clearExecutionOutput"
         />
 
-        <!-- History (collapsible at bottom) -->
-        <div
-          v-if="history.length > 0"
-          data-test="helm-history"
-          class="shrink-0 border-t border-gray-100 dark:border-gray-800"
-        >
-          <div class="flex items-center justify-between px-4 py-1.5">
-            <span class="text-xs text-gray-400 dark:text-gray-500"
-              >Recent runs</span
-            >
-            <button
-              type="button"
-              data-test="helm-clear-history"
-              class="text-xs text-gray-500 outline-none hover:text-gray-900 focus-visible:rounded focus-visible:ring-2 focus-visible:ring-gray-300 dark:text-gray-400 dark:hover:text-white dark:focus-visible:ring-gray-700"
-              @click="clearHistory"
-            >
-              Clear
-            </button>
-          </div>
-          <div class="max-h-32 overflow-y-auto">
-            <button
-              v-for="(entry, i) in history"
-              :key="i"
-              data-test="helm-history-entry"
-              @click="loadFromHistory(entry)"
-              class="flex w-full items-center justify-between border-b border-gray-100 px-4 py-2 text-left hover:bg-gray-50 dark:border-gray-800/50 dark:hover:bg-gray-800/50"
-            >
-              <code
-                class="truncate font-mono text-xs text-gray-500 dark:text-gray-400"
-                >{{
-                  entry.code
-                    .split('\n')
-                    .filter((l) => !l.trim().startsWith('//'))
-                    .join(' ')
-                    .slice(0, 50)
-                }}</code
-              >
-              <span
-                :class="[
-                  'ml-2 h-1.5 w-1.5 shrink-0 rounded-full',
-                  historyStatusClass(entry)
-                ]"
-              ></span>
-            </button>
-          </div>
-        </div>
+        <HelmWorkspaceLibrary
+          v-if="libraryOpen"
+          ref="library"
+          v-model:tab="libraryTab"
+          :base-url="helmLibraryUrl"
+          :csrf="page.props._csrf || ''"
+          :current-source="editorSelection.source || code"
+          @close="libraryOpen = false"
+          @load="loadSource"
+          @insert="loadSource"
+          @rerun="execute"
+        />
       </div>
     </div>
 
