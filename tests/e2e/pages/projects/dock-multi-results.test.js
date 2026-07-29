@@ -96,7 +96,7 @@ test(
       `/projects/${current.projects.deploymentTarget.slug}/environments/production/dock/${database.id}`
     )
 
-    await page.fill('@dock-query-editor', successfulQuery)
+    await replaceQuery(page, expect, successfulQuery)
     await page.raw.getByRole('button', { name: 'Run', exact: true }).click()
     await page.wait('@dock-query-result-1')
 
@@ -123,7 +123,7 @@ test(
     await page.key('ArrowRight')
     expect(await tabs.nth(1).getAttribute('aria-selected')).toBe('true')
 
-    await page.fill('@dock-query-editor', commandOnlyQuery)
+    await replaceQuery(page, expect, commandOnlyQuery)
     await page.raw.getByRole('button', { name: 'Run', exact: true }).click()
     await page.wait('@dock-command-summary')
 
@@ -144,7 +144,7 @@ test(
     await page.screenshot('.tmp/issue-293-command-summary-light.png')
 
     await page.inDarkMode()
-    await page.fill('@dock-query-editor', partiallyFailedQuery)
+    await replaceQuery(page, expect, partiallyFailedQuery)
     await page.raw.getByRole('button', { name: 'Run', exact: true }).click()
     await page.wait('@dock-command-summary')
 
@@ -153,7 +153,7 @@ test(
     await expect(page).toSee('1 of 2 statements completed · 1 failed · 5ms')
     await page.screenshot('.tmp/issue-293-partial-failure-dark.png')
 
-    await page.fill('@dock-query-editor', mixedQuery)
+    await replaceQuery(page, expect, mixedQuery)
     await page.raw.getByRole('button', { name: 'Run', exact: true }).click()
     await page.wait('@dock-query-result-1')
 
@@ -171,6 +171,16 @@ test(
     expect(page).toHaveNoSmoke()
   }
 )
+
+async function replaceQuery(page, expect, value) {
+  const editor = page.raw.locator('[data-test="dock-query-editor"]')
+
+  await editor.click()
+  await editor.press('ControlOrMeta+A')
+  await page.raw.keyboard.insertText(value)
+
+  expect(await editor.innerText()).toBe(value)
+}
 
 function successfulResponse() {
   const results = [
