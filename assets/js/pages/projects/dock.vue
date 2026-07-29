@@ -14,6 +14,7 @@ import ConfirmModal from '@/components/ConfirmModal.vue'
 import ToastContainer from '@/components/ToastContainer.vue'
 import Tooltip from '@/components/Tooltip.vue'
 import CodeEditor from '@/components/CodeEditor.vue'
+import DockResultStatusIcon from '@/components/DockResultStatusIcon.vue'
 import { highlightSQL } from '@/lib/highlightSQL'
 import { highlightJSON } from '@/lib/highlightJSON'
 import SlippyLoader from '@/components/SlippyLoader.vue'
@@ -112,6 +113,28 @@ const activeQueryResult = computed(
   () => queryResults.value[activeQueryResultIndex.value] || null
 )
 const hasMultipleQueryResults = computed(() => queryResults.value.length > 1)
+const hasOnlyCommandResults = computed(
+  () =>
+    isSQL.value &&
+    queryResults.value.length > 0 &&
+    queryResults.value.every((result) => !result.columns?.length)
+)
+const commandBatchSummary = computed(() => {
+  const total = queryResults.value.length
+  const failed = queryResults.value.filter(
+    (result) => result.status === 'error'
+  ).length
+  const completed = total - failed
+  const statements = total === 1 ? 'statement' : 'statements'
+  const duration = formatQueryDuration(queryResult.value?.duration)
+
+  const summary =
+    failed > 0
+      ? `${completed} of ${total} ${statements} completed · ${failed} failed`
+      : `${total} ${statements} completed`
+
+  return duration ? `${summary} · ${duration}` : summary
+})
 
 // Redis console state
 const redisCommand = ref('')
@@ -850,6 +873,23 @@ function queryResultCountLabel(result) {
   return result.commandTag || 'Completed'
 }
 
+function formatQueryDuration(duration) {
+  if (duration === null || duration === undefined || duration === '') return ''
+
+  const value = Number(duration)
+  if (!Number.isFinite(value)) return ''
+
+  const rounded =
+    value >= 100 ? Math.round(value) : Math.round(value * 100) / 100
+  return `${rounded}ms`
+}
+
+function queryResultStatementLabel(result) {
+  return (
+    result.statementPreview || result.statementSql || result.commandTag || 'SQL'
+  )
+}
+
 // Export functions
 function exportAsJSON() {
   if (!activeQueryResult.value?.rows) return
@@ -1529,6 +1569,7 @@ onUnmounted(() => {
       >
         <!-- Editor -->
         <div
+          data-test="dock-query-editor-pane"
           class="flex-1 overflow-hidden border-b border-gray-200 dark:border-gray-800"
         >
           <CodeEditor
@@ -1571,7 +1612,15 @@ onUnmounted(() => {
         </div>
 
         <!-- Results -->
-        <div class="flex-1 overflow-auto">
+        <div
+          data-test="dock-query-results"
+          :class="[
+            'overflow-auto',
+            queryResult && hasOnlyCommandResults
+              ? 'max-h-[45%] shrink-0'
+              : 'min-h-0 flex-1'
+          ]"
+        >
           <!-- Error -->
           <div v-if="queryError" class="p-4">
             <div
@@ -1583,7 +1632,98 @@ onUnmounted(() => {
             </div>
           </div>
 
-          <!-- Results -->
+          <!-- Compact command-only results -->
+          <section
+            v-else-if="queryResult && hasOnlyCommandResults"
+            aria-labelledby="dock-command-summary-heading"
+            aria-live="polite"
+            data-test="dock-command-summary"
+            class="px-4 py-4 sm:px-6"
+          >
+            <h2 id="dock-command-summary-heading" class="sr-only">
+              SQL statement results
+            </h2>
+            <ol class="space-y-1.5">
+              <li
+                v-for="(result, index) in queryResults"
+                :key="index"
+                :data-test="`dock-command-result-${index + 1}`"
+                class="rounded-lg bg-gray-50 px-3 py-2.5 dark:bg-gray-900/60"
+              >
+                <div class="flex items-start gap-3">
+                  <DockResultStatusIcon
+                    :status="result.status"
+                    contained
+                    class="mt-0.5"
+                  />
+                  <span
+                    class="mt-0.5 w-4 shrink-0 text-right text-xs font-medium tabular-nums text-gray-400 dark:text-gray-600"
+                  >
+                    {{ index + 1 }}
+                  </span>
+                  <div class="min-w-0 flex-1">
+                    <div class="flex items-start gap-3">
+                      <p
+                        class="min-w-0 flex-1 truncate font-mono text-sm text-gray-800 dark:text-gray-200"
+                        :title="
+                          result.statementSql ||
+                          queryResultStatementLabel(result)
+                        "
+                      >
+                        {{ queryResultStatementLabel(result) }}
+                      </p>
+                      <span
+                        v-if="formatQueryDuration(result.duration)"
+                        class="shrink-0 text-xs tabular-nums text-gray-400 dark:text-gray-500"
+                      >
+                        {{ formatQueryDuration(result.duration) }}
+                      </span>
+                    </div>
+                    <div
+                      class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs"
+                    >
+                      <span
+                        :class="
+                          result.status === 'error'
+                            ? 'font-medium text-red-600 dark:text-red-400'
+                            : 'font-medium text-green-700 dark:text-green-400'
+                        "
+                      >
+                        {{ result.status === 'error' ? 'Failed' : 'Completed' }}
+                      </span>
+                      <span
+                        v-if="
+                          result.status !== 'error' &&
+                          queryResultCountLabel(result) !== 'Completed'
+                        "
+                        class="text-gray-500 dark:text-gray-400"
+                      >
+                        {{ queryResultCountLabel(result) }}
+                      </span>
+                    </div>
+                    <p
+                      v-if="result.status === 'error'"
+                      class="mt-1.5 break-words font-mono text-xs leading-5 text-red-600 dark:text-red-400"
+                    >
+                      {{
+                        result.error ||
+                        result.message ||
+                        'The statement could not be completed.'
+                      }}
+                    </p>
+                  </div>
+                </div>
+              </li>
+            </ol>
+            <p
+              data-test="dock-command-summary-total"
+              class="mt-3 text-right text-xs tabular-nums text-gray-500 dark:text-gray-400"
+            >
+              {{ commandBatchSummary }}
+            </p>
+          </section>
+
+          <!-- Row-returning and mixed results -->
           <div v-else-if="queryResult" class="flex h-full min-h-0 flex-col">
             <div
               v-if="hasMultipleQueryResults"
@@ -1611,11 +1751,7 @@ onUnmounted(() => {
                 @click="selectQueryResult(index)"
                 @keydown="handleQueryResultKeydown($event, index)"
               >
-                <span
-                  v-if="result.status === 'error'"
-                  class="h-1.5 w-1.5 shrink-0 rounded-full bg-red-500"
-                  aria-hidden="true"
-                ></span>
+                <DockResultStatusIcon :status="result.status" />
                 <span class="shrink-0 font-medium tabular-nums">{{
                   index + 1
                 }}</span>
@@ -1725,23 +1861,42 @@ onUnmounted(() => {
               </div>
 
               <!-- Command or error result -->
-              <div
-                v-else
-                class="flex flex-1 items-center justify-center p-4 text-sm"
-              >
-                <p
-                  :class="
-                    activeQueryResult.status === 'error'
-                      ? 'font-mono text-red-600 dark:text-red-400'
-                      : 'text-gray-500 dark:text-gray-400'
-                  "
-                >
-                  {{
-                    activeQueryResult.message ||
-                    activeQueryResult.error ||
-                    'Query executed successfully'
-                  }}
-                </p>
+              <div v-else class="flex flex-1 items-start p-4 text-sm sm:p-6">
+                <div class="flex min-w-0 items-start gap-3">
+                  <DockResultStatusIcon
+                    :status="activeQueryResult.status"
+                    contained
+                    class="mt-0.5"
+                  />
+                  <div class="min-w-0">
+                    <p
+                      :class="
+                        activeQueryResult.status === 'error'
+                          ? 'font-medium text-red-600 dark:text-red-400'
+                          : 'font-medium text-green-700 dark:text-green-400'
+                      "
+                    >
+                      {{
+                        activeQueryResult.status === 'error'
+                          ? 'Statement failed'
+                          : 'Statement completed'
+                      }}
+                    </p>
+                    <p
+                      v-if="
+                        activeQueryResult.message || activeQueryResult.error
+                      "
+                      :class="[
+                        'mt-1 break-words text-xs leading-5',
+                        activeQueryResult.status === 'error'
+                          ? 'font-mono text-red-600 dark:text-red-400'
+                          : 'text-gray-500 dark:text-gray-400'
+                      ]"
+                    >
+                      {{ activeQueryResult.message || activeQueryResult.error }}
+                    </p>
+                  </div>
+                </div>
               </div>
             </div>
 

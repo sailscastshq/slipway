@@ -4,13 +4,22 @@ const successfulQuery = [
   'SELECT count(*) AS creators FROM creators;',
   'SELECT count(*) AS teams FROM teams;'
 ].join('\n')
+const commandOnlyQuery = [
+  'ALTER TABLE invoices ADD COLUMN IF NOT EXISTS recurring_anchor_date VARCHAR(10);',
+  'UPDATE invoices SET recurring_anchor_date = next_recurring_date WHERE recurring_enabled = TRUE;',
+  'CREATE UNIQUE INDEX IF NOT EXISTS invoices_recurring_occurrence_unique ON invoices (template_invoice, recurring_occurrence_date);'
+].join('\n')
 const partiallyFailedQuery = [
   'DROP TABLE audit_events;',
   'SELECT * FROM missing_table;'
 ].join('\n')
+const mixedQuery = [
+  'SELECT count(*) AS creators FROM creators;',
+  'UPDATE missing_table SET active = TRUE;'
+].join('\n')
 
 test(
-  'Dock keeps every SQL result labeled, navigable, and independently copyable',
+  'Dock presents row, command, failure, and mixed SQL batches clearly',
   {
     browser: true,
     world: {
@@ -54,9 +63,15 @@ test(
     })
     await page.raw.route('**/dock/sql?**', async (route) => {
       const { query } = route.request().postDataJSON()
-      const response = query.includes('missing_table')
-        ? partiallyFailedResponse()
-        : successfulResponse()
+      let response = successfulResponse()
+
+      if (query.includes('ALTER TABLE invoices')) {
+        response = commandOnlyResponse()
+      } else if (query.includes('UPDATE missing_table')) {
+        response = mixedResponse()
+      } else if (query.includes('missing_table')) {
+        response = partiallyFailedResponse()
+      }
 
       await route.fulfill({
         status: 200,
@@ -108,21 +123,51 @@ test(
     await page.key('ArrowRight')
     expect(await tabs.nth(1).getAttribute('aria-selected')).toBe('true')
 
+    await page.fill('@dock-query-editor', commandOnlyQuery)
+    await page.raw.getByRole('button', { name: 'Run', exact: true }).click()
+    await page.wait('@dock-command-summary')
+
+    expect(await tabs.count()).toBe(0)
+    expect(
+      await page.raw.locator('[data-test^="dock-command-result-"]').count()
+    ).toBe(3)
+    await expect(page).toSee('4 rows affected')
+    await expect(page).toSee('3 statements completed · 195ms')
+
+    const editorBounds = await page.raw
+      .locator('[data-test="dock-query-editor-pane"]')
+      .boundingBox()
+    const commandResultBounds = await page.raw
+      .locator('[data-test="dock-query-results"]')
+      .boundingBox()
+    expect(commandResultBounds.height < editorBounds.height).toBe(true)
+    await page.screenshot('.tmp/issue-293-command-summary-light.png')
+
     await page.inDarkMode()
     await page.fill('@dock-query-editor', partiallyFailedQuery)
     await page.raw.getByRole('button', { name: 'Run', exact: true }).click()
-    await page.wait(100)
+    await page.wait('@dock-command-summary')
+
+    expect(await tabs.count()).toBe(0)
+    await expect(page).toSee('relation "missing_table" does not exist')
+    await expect(page).toSee('1 of 2 statements completed · 1 failed · 5ms')
+    await page.screenshot('.tmp/issue-293-partial-failure-dark.png')
+
+    await page.fill('@dock-query-editor', mixedQuery)
+    await page.raw.getByRole('button', { name: 'Run', exact: true }).click()
+    await page.wait('@dock-query-result-1')
 
     expect(await tabs.count()).toBe(2)
     expect(await tabs.nth(1).getAttribute('aria-selected')).toBe('true')
-    await expect(page).toSee('relation "missing_table" does not exist')
-    await page.screenshot('.tmp/issue-213-partial-failure-dark.png')
+    await expect(page).toSee('Statement failed')
+    await expect(page).not.toSee('@dock-copy-query-result')
 
     await page.click('@dock-query-result-1')
-    await expect(page).toSee('DROP TABLE completed')
+    await expect(page).toSee('24873')
+    await page.wait('@dock-copy-query-result')
 
     await page.resize(390, 844)
-    await page.screenshot('.tmp/issue-213-multi-results-mobile-dark.png')
+    await page.screenshot('.tmp/issue-293-mixed-results-mobile-dark.png')
     expect(page).toHaveNoSmoke()
   }
 )
@@ -198,6 +243,110 @@ function partiallyFailedResponse() {
     results,
     error: results[1].error,
     messages: 'ERROR: relation "missing_table" does not exist'
+  }
+}
+
+function commandOnlyResponse() {
+  const results = [
+    commandResult({
+      statementIndex: 0,
+      statementSql:
+        'ALTER TABLE invoices ADD COLUMN IF NOT EXISTS recurring_anchor_date VARCHAR(10);',
+      statementPreview:
+        'ALTER TABLE invoices ADD COLUMN IF NOT EXISTS recurring_anchor_date VARCHAR(10)',
+      commandTag: 'ALTER TABLE',
+      duration: 82
+    }),
+    commandResult({
+      statementIndex: 1,
+      statementSql:
+        'UPDATE invoices SET recurring_anchor_date = next_recurring_date WHERE recurring_enabled = TRUE;',
+      statementPreview:
+        'UPDATE invoices SET recurring_anchor_date = next_recurring_date WHERE recurring_enabled = TRUE',
+      commandTag: 'UPDATE',
+      duration: 61,
+      affected: 4
+    }),
+    commandResult({
+      statementIndex: 2,
+      statementSql:
+        'CREATE UNIQUE INDEX IF NOT EXISTS invoices_recurring_occurrence_unique ON invoices (template_invoice, recurring_occurrence_date);',
+      statementPreview:
+        'CREATE UNIQUE INDEX IF NOT EXISTS invoices_recurring_occurrence_unique ON invoices (template_invoice, recurring_occurrence_date)',
+      commandTag: 'CREATE INDEX',
+      duration: 52
+    })
+  ]
+
+  return {
+    success: true,
+    ...results[0],
+    duration: 195,
+    results,
+    messages: ''
+  }
+}
+
+function mixedResponse() {
+  const results = [
+    queryResult({
+      statementIndex: 0,
+      statementSql: 'SELECT count(*) AS creators FROM creators;',
+      statementPreview: 'SELECT count(*) AS creators FROM creators',
+      duration: 2.4,
+      columns: ['creators'],
+      rows: [{ creators: 24873 }]
+    }),
+    {
+      statementIndex: 1,
+      statementSql: 'UPDATE missing_table SET active = TRUE;',
+      statementPreview: 'UPDATE missing_table SET active = TRUE',
+      commandTag: 'UPDATE',
+      status: 'error',
+      duration: 1.2,
+      rowCount: 0,
+      affected: null,
+      columns: [],
+      rows: [],
+      message: 'relation "missing_table" does not exist',
+      error: 'relation "missing_table" does not exist',
+      sqlState: '42P01',
+      raw: ''
+    }
+  ]
+
+  return {
+    success: false,
+    ...results[0],
+    duration: 4,
+    results,
+    error: results[1].error,
+    messages: 'ERROR: relation "missing_table" does not exist'
+  }
+}
+
+function commandResult({
+  statementIndex,
+  statementSql,
+  statementPreview,
+  commandTag,
+  duration,
+  affected = null
+}) {
+  return {
+    statementIndex,
+    statementSql,
+    statementPreview,
+    commandTag,
+    status: 'success',
+    duration,
+    rowCount: 0,
+    affected,
+    columns: [],
+    rows: [],
+    message: null,
+    error: null,
+    raw: commandTag
   }
 }
 
