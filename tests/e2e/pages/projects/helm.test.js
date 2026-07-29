@@ -765,9 +765,7 @@ test(
     await page.screenshot('.tmp/issue-268-project-helm-selection-light.png')
 
     await page.click('@helm-run')
-    expect((await page.raw.locator('.cm-executed-range').count()) > 0).toBe(
-      true
-    )
+    await page.wait('.cm-executed-range')
     await page.wait('@helm-output')
 
     expectHelmSubmission(expect, submitted[0], {
