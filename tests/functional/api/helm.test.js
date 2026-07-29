@@ -15,6 +15,20 @@ const RESULT = {
   logsPartial: false
 }
 
+const COMPLETIONS = {
+  available: true,
+  version: 1,
+  models: [
+    {
+      identity: 'creator',
+      globalId: 'Creator',
+      attributes: [{ name: 'firstName', type: 'string', association: null }]
+    }
+  ],
+  helpers: [{ path: 'mail.sendTemplate' }],
+  config: [{ path: 'custom.appName', type: 'string' }]
+}
+
 test(
   'Bosun Helm exposes the shared structured execution result',
   {
@@ -162,5 +176,131 @@ test(
     } finally {
       sails.helpers.helm.cancelExecution = originalCancel
     }
+  }
+)
+
+test(
+  'Bosun Helm introspects its live Sails app without returning config values',
+  {
+    world: {
+      name: 'configured-slipway'
+    }
+  },
+  async ({ sails, request, expect }) => {
+    const secret = 'helm-completion-value-must-stay-server-side'
+    sails.config.custom.helmCompletionTestSecret = secret
+
+    try {
+      const response = await request
+        .as('genesisUser')
+        .get('/api/v1/bosun/helm/completions')
+
+      expect(response).toHaveStatus(200)
+      expect(response.header('cache-control')).toMatch('private')
+      expect(response.header('cache-control')).toMatch('no-store')
+      expect(response).toHaveJsonPath('available', true)
+      expect(response).toHaveJsonPath('version', 1)
+      const userModel = response.data.models.find(
+        (model) => model.identity === 'user'
+      )
+      expect(userModel.globalId).toBe('User')
+      expect(
+        userModel.attributes.some((attribute) => attribute.name === 'email')
+      ).toBe(true)
+      expect(response.data.helpers.length > 0).toBe(true)
+      expect(
+        response.data.config.some(
+          (entry) => entry.path === 'custom.helmCompletionTestSecret'
+        )
+      ).toBe(true)
+      expect(JSON.stringify(response.data).includes(secret)).toBe(false)
+    } finally {
+      delete sails.config.custom.helmCompletionTestSecret
+    }
+  }
+)
+
+test(
+  'project Helm completion metadata comes from the current running app',
+  {
+    world: {
+      name: 'configured-slipway',
+      context: {
+        deploymentTarget: {
+          slug: 'helm-completion-contract',
+          name: 'Helm Completion Contract'
+        }
+      }
+    }
+  },
+  async ({ sails, world, request, expect }) => {
+    const current = world.current
+    const originalGetCompletions = sails.helpers.helm.getCompletions
+    let inspectedContainer
+
+    await sails.models.app.updateOne({ id: current.apps.web.id }).set({
+      status: 'running',
+      containerName: 'helm-completion-contract-web'
+    })
+    sails.helpers.helm.getCompletions = async (containerName) => {
+      inspectedContainer = containerName
+      return COMPLETIONS
+    }
+
+    try {
+      const projectSlug = current.projects.deploymentTarget.slug
+      const environmentSlug = current.environments.production.slug
+      const response = await request
+        .as('genesisUser')
+        .get(
+          `/api/v1/projects/${projectSlug}/environments/${environmentSlug}/helm/completions`
+        )
+
+      expect(response).toHaveStatus(200)
+      expect(response.header('cache-control')).toMatch('private')
+      expect(response.header('cache-control')).toMatch('no-store')
+      expect(inspectedContainer).toBe('helm-completion-contract-web')
+      expect(response).toHaveJsonPath('available', true)
+      expect(response).toHaveJsonPath('models.0.globalId', 'Creator')
+      expect(response).toHaveJsonPath('models.0.attributes.0.name', 'firstName')
+      expect(response).toHaveJsonPath('helpers.0.path', 'mail.sendTemplate')
+    } finally {
+      sails.helpers.helm.getCompletions = originalGetCompletions
+    }
+  }
+)
+
+test(
+  'project Helm completion degrades to an empty contract when its app is unavailable',
+  {
+    world: {
+      name: 'configured-slipway',
+      context: {
+        deploymentTarget: {
+          slug: 'helm-completion-unavailable',
+          name: 'Helm Completion Unavailable'
+        }
+      }
+    }
+  },
+  async ({ sails, world, request, expect }) => {
+    const current = world.current
+    await sails.models.app.updateOne({ id: current.apps.web.id }).set({
+      status: 'stopped',
+      containerName: ''
+    })
+
+    const response = await request
+      .as('genesisUser')
+      .get(
+        `/api/v1/projects/${current.projects.deploymentTarget.slug}/environments/${current.environments.production.slug}/helm/completions`
+      )
+
+    expect(response).toHaveStatus(200)
+    expect(response).toHaveJsonPath('available', false)
+    expect(response).toHaveJsonPath('version', 1)
+    expect(response.data.models).toEqual([])
+    expect(response.data.helpers).toEqual([])
+    expect(response.data.config).toEqual([])
   }
 )

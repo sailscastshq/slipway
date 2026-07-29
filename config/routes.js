@@ -239,6 +239,8 @@ module.exports.routes = {
     'api/v1/app/stop-app',
   'POST /api/v1/projects/:projectSlug/environments/:environmentSlug/execute':
     'api/v1/app/execute-code',
+  'GET /api/v1/projects/:projectSlug/environments/:environmentSlug/helm/completions':
+    'api/v1/helm/get-project-completions',
 
   // Webhooks (public — signature-verified in controller)
   'POST /api/v1/webhooks/github/:projectSlug': {
@@ -471,6 +473,7 @@ module.exports.routes = {
   'GET /api/v1/bosun/diff': 'api/v1/bosun/get-diff',
   'POST /api/v1/bosun/migrate': 'api/v1/bosun/apply-migration',
   'POST /api/v1/bosun/eval': 'api/v1/bosun/eval',
+  'GET /api/v1/bosun/helm/completions': 'api/v1/bosun/get-helm-completions',
   'POST /api/v1/helm/executions/:executionId/cancel':
     'api/v1/helm/cancel-execution',
   'GET /api/v1/bosun/activity': 'api/v1/bosun/get-activity',

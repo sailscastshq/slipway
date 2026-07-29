@@ -6,6 +6,7 @@ import {
   historyKeymap,
   indentWithTab
 } from '@codemirror/commands'
+import { autocompletion, completionKeymap } from '@codemirror/autocomplete'
 import { javascript } from '@codemirror/lang-javascript'
 import { sql } from '@codemirror/lang-sql'
 import {
@@ -31,6 +32,7 @@ import {
   placeholder as editorPlaceholder
 } from '@codemirror/view'
 import { tags } from '@lezer/highlight'
+import { createHelmCompletionSource } from '@/lib/helmCompletions.mjs'
 
 const props = defineProps({
   modelValue: { type: String, default: '' },
@@ -43,6 +45,7 @@ const props = defineProps({
   ariaLabel: { type: String, default: 'Code editor' },
   testId: { type: String, default: '' },
   disabled: { type: Boolean, default: false },
+  completionMetadata: { type: Object, default: null },
   submitOnModEnter: { type: Boolean, default: false },
   height: {
     type: String,
@@ -64,6 +67,7 @@ const editorHost = ref(null)
 const languageCompartment = new Compartment()
 const appearanceCompartment = new Compartment()
 const editableCompartment = new Compartment()
+const completionCompartment = new Compartment()
 const setExecutedRange = StateEffect.define()
 const setInlineDiagnostic = StateEffect.define()
 const executedRangeMark = Decoration.mark({ class: 'cm-executed-range' })
@@ -195,14 +199,24 @@ function editorTheme(isDark) {
         caret: '#f5f5f5',
         placeholder: '#525252',
         selection: '#075985',
-        matchingBracket: '#404040'
+        matchingBracket: '#404040',
+        completionBackground: '#171717',
+        completionBorder: '#404040',
+        completionSelected: '#262626',
+        completionDetail: '#a3a3a3',
+        completionMuted: '#737373'
       }
     : {
         text: '#171717',
         caret: '#171717',
         placeholder: '#a3a3a3',
         selection: '#bae6fd',
-        matchingBracket: '#e5e5e5'
+        matchingBracket: '#e5e5e5',
+        completionBackground: '#ffffff',
+        completionBorder: '#e5e5e5',
+        completionSelected: '#f5f5f5',
+        completionDetail: '#737373',
+        completionMuted: '#a3a3a3'
       }
 
   return EditorView.theme(
@@ -245,6 +259,40 @@ function editorTheme(isDark) {
       '.cm-matchingBracket': {
         backgroundColor: palette.matchingBracket,
         outline: 'none'
+      },
+      '.cm-tooltip.cm-tooltip-autocomplete': {
+        overflow: 'hidden',
+        border: `1px solid ${palette.completionBorder}`,
+        borderRadius: '0.5rem',
+        backgroundColor: palette.completionBackground,
+        boxShadow:
+          '0 12px 32px -12px rgb(0 0 0 / 0.28), 0 4px 12px -6px rgb(0 0 0 / 0.18)'
+      },
+      '.cm-tooltip.cm-tooltip-autocomplete > ul': {
+        maxHeight: '18rem',
+        padding: '0.25rem'
+      },
+      '.cm-tooltip.cm-tooltip-autocomplete > ul > li': {
+        minWidth: '18rem',
+        padding: '0.375rem 0.5rem',
+        borderRadius: '0.375rem',
+        lineHeight: '1.25rem'
+      },
+      '.cm-tooltip.cm-tooltip-autocomplete > ul > li[aria-selected]': {
+        color: palette.text,
+        backgroundColor: palette.completionSelected
+      },
+      '.cm-completionLabel': {
+        fontWeight: '500'
+      },
+      '.cm-completionDetail': {
+        color: palette.completionDetail,
+        fontStyle: 'normal',
+        marginLeft: '1rem'
+      },
+      '.cm-completionIcon': {
+        color: palette.completionMuted,
+        opacity: '1'
       }
     },
     { dark: isDark }
@@ -331,6 +379,22 @@ function editableExtension() {
     EditorView.editable.of(!props.disabled),
     EditorView.contentAttributes.of(attributes)
   ]
+}
+
+function completionExtension() {
+  if (
+    props.language !== 'javascript' ||
+    !props.completionMetadata ||
+    !Array.isArray(props.completionMetadata.models)
+  ) {
+    return []
+  }
+
+  return autocompletion({
+    activateOnTyping: true,
+    maxRenderedOptions: 80,
+    override: [createHelmCompletionSource(props.completionMetadata)]
+  })
 }
 
 function submitKeymap() {
@@ -515,6 +579,7 @@ onMounted(() => {
         EditorView.lineWrapping,
         keymap.of([
           ...submitKeymap(),
+          ...completionKeymap,
           indentWithTab,
           ...defaultKeymap,
           ...historyKeymap
@@ -523,6 +588,7 @@ onMounted(() => {
         languageCompartment.of(languageExtension(props.language)),
         appearanceCompartment.of(appearanceExtension()),
         editableCompartment.of(editableExtension()),
+        completionCompartment.of(completionExtension()),
         EditorView.updateListener.of((update) => {
           if (update.docChanged && !applyingExternalValue) {
             emit('update:modelValue', update.state.doc.toString())
@@ -556,8 +622,19 @@ watch(
     view.dispatch({
       effects: [
         languageCompartment.reconfigure(languageExtension(language)),
-        appearanceCompartment.reconfigure(appearanceExtension())
+        appearanceCompartment.reconfigure(appearanceExtension()),
+        completionCompartment.reconfigure(completionExtension())
       ]
+    })
+  }
+)
+
+watch(
+  () => props.completionMetadata,
+  () => {
+    if (!view) return
+    view.dispatch({
+      effects: completionCompartment.reconfigure(completionExtension())
     })
   }
 )

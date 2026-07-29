@@ -1,6 +1,6 @@
 <script setup>
 import { Link, Head, usePage } from '@inertiajs/vue3'
-import { inject, ref, computed, watch } from 'vue'
+import { inject, ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
 import SlippyLoader from '@/components/SlippyLoader.vue'
 import CodeEditor from '@/components/CodeEditor.vue'
@@ -30,12 +30,14 @@ const running = ref(false)
 const stopping = ref(false)
 const history = ref([])
 const editor = ref(null)
+const completionMetadata = ref(null)
 const editorSelection = ref({
   hasSelection: false,
   hasExecutableSelection: false
 })
 let executionSequence = 0
 let activeExecution = null
+let completionRequestSequence = 0
 
 const isRunning = computed(() => props.appStatus === 'running')
 const runLabel = computed(() =>
@@ -194,6 +196,41 @@ function clearExecutionOutput() {
 function clearHistory() {
   history.value = []
 }
+
+async function loadCompletionMetadata() {
+  const sequence = ++completionRequestSequence
+
+  try {
+    const response = await fetch(
+      `/api/v1/projects/${props.project.slug}/environments/${props.environment.slug}/helm/completions`,
+      {
+        headers: {
+          Accept: 'application/json'
+        },
+        cache: 'no-store'
+      }
+    )
+    if (!response.ok) throw new Error('Completion metadata is unavailable.')
+
+    const metadata = await response.json()
+    if (sequence !== completionRequestSequence) return
+    completionMetadata.value = metadata.available ? metadata : null
+  } catch {
+    if (sequence === completionRequestSequence) {
+      completionMetadata.value = null
+    }
+  }
+}
+
+onMounted(() => {
+  loadCompletionMetadata()
+  window.addEventListener('focus', loadCompletionMetadata)
+})
+
+onBeforeUnmount(() => {
+  completionRequestSequence++
+  window.removeEventListener('focus', loadCompletionMetadata)
+})
 
 watch(code, () => editor.value?.clearDiagnostics())
 </script>
@@ -440,6 +477,7 @@ watch(code, () => editor.value?.clearDiagnostics())
             test-id="helm-editor"
             height="fill"
             :disabled="!isRunning"
+            :completion-metadata="completionMetadata"
             submit-on-mod-enter
             placeholder="// Enter JavaScript code..."
             @selection-change="editorSelection = $event"

@@ -44,4 +44,12 @@ test('browser actions and JSON transports have explicit route contracts', ({
   expect(routes['DELETE /settings/team-profile/logo']).toBe(
     'team/delete-team-logo'
   )
+  expect(
+    routes[
+      'GET /api/v1/projects/:projectSlug/environments/:environmentSlug/helm/completions'
+    ]
+  ).toBe('api/v1/helm/get-project-completions')
+  expect(routes['GET /api/v1/bosun/helm/completions']).toBe(
+    'api/v1/bosun/get-helm-completions'
+  )
 })
