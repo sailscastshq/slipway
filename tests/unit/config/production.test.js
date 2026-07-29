@@ -64,3 +64,33 @@ test('production observability retention has documented defaults and positive ov
     }
   }
 })
+
+test('production Helm history has bounded configurable retention', ({
+  expect
+}) => {
+  const names = [
+    'SLIPWAY_HELM_HISTORY_RETENTION_DAYS',
+    'SLIPWAY_HELM_HISTORY_MAX_ENTRIES'
+  ]
+  const original = Object.fromEntries(
+    names.map((name) => [name, process.env[name]])
+  )
+
+  try {
+    process.env.SLIPWAY_HELM_HISTORY_RETENTION_DAYS = '14'
+    process.env.SLIPWAY_HELM_HISTORY_MAX_ENTRIES = '80'
+    delete require.cache[productionConfigPath]
+
+    const productionConfig = require(productionConfigPath)
+    expect(productionConfig.custom.helm.historyRetentionMs).toBe(
+      14 * 24 * 60 * 60 * 1000
+    )
+    expect(productionConfig.custom.helm.historyMaxEntriesPerScope).toBe(80)
+  } finally {
+    delete require.cache[productionConfigPath]
+    for (const name of names) {
+      if (original[name] === undefined) delete process.env[name]
+      else process.env[name] = original[name]
+    }
+  }
+})

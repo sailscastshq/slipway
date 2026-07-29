@@ -438,7 +438,8 @@ function emitSelectionChange(state) {
   emit('selection-change', {
     hasSelection: snapshot.hasSelection,
     hasExecutableSelection:
-      snapshot.hasSelection && snapshot.hasExecutableSource
+      snapshot.hasSelection && snapshot.hasExecutableSource,
+    source: snapshot.source
   })
 }
 

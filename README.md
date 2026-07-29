@@ -151,7 +151,7 @@ Slipway includes integrated tools that work with your deployed Sails apps:
 
 | Tool        | What it does                                                                                                                             |
 | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| **Helm**    | Production REPL — query models, run helpers, inspect config from the browser                                                             |
+| **Helm**    | Production REPL — query models, run helpers, inspect config, and reuse private or project snippets with source-only history              |
 | **Bridge**  | Configurable data management UI from your Waterline models, with a [server-enforced resource contract](docs/bridge-resource-contract.md) |
 | **Dock**    | SQL console, schema diff, and migration tool for your databases                                                                          |
 | **Quest**   | Job scheduler dashboard for [sails-hook-quest](https://docs.sailscasts.com/quest)                                                        |
