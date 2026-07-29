@@ -350,7 +350,7 @@ test(
     await page.click('@helm-run')
     await page.wait('@helm-error')
 
-    expect(submitted[1]).toEqual({
+    expectHelmSubmission(expect, submitted[1], {
       code: selectedSource,
       sourceStartLine: 2,
       sourceStartColumn: 1
@@ -368,7 +368,7 @@ test(
 
     await page.key('ControlOrMeta+Enter')
     await page.wait('@helm-output')
-    expect(submitted[2]).toEqual({
+    expectHelmSubmission(expect, submitted[2], {
       code: selectedSource,
       sourceStartLine: 2,
       sourceStartColumn: 1
@@ -437,7 +437,7 @@ test(
     await page.click('@bosun-console-run')
     await page.wait('@bosun-helm-error')
 
-    expect(submitted[0]).toEqual({
+    expectHelmSubmission(expect, submitted[0], {
       code: "await Promise.reject(new Error('No user'))",
       sourceStartLine: 1,
       sourceStartColumn: 1
@@ -735,7 +735,7 @@ test(
     )
     await page.wait('@helm-output')
 
-    expect(submitted[0]).toEqual({
+    expectHelmSubmission(expect, submitted[0], {
       code: selectedSource,
       sourceStartLine: 2,
       sourceStartColumn: 1
@@ -761,7 +761,13 @@ test(
         request.method() === 'POST' && request.url().includes(endpoint)
     )
     await page.key('ControlOrMeta+Enter')
-    expect((await rerun).postDataJSON()).toEqual(submitted[0])
+    const rerunSubmission = (await rerun).postDataJSON()
+    expectHelmSubmission(expect, rerunSubmission, {
+      code: selectedSource,
+      sourceStartLine: 2,
+      sourceStartColumn: 1
+    })
+    expect(rerunSubmission.executionId === submitted[0].executionId).toBe(false)
     await page.wait(750)
     expect(await page.raw.locator('.cm-executed-range').count()).toBe(0)
 
@@ -964,7 +970,7 @@ test(
         request.url().includes('/api/v1/bosun/eval')
     )
     await page.key('ControlOrMeta+Enter')
-    expect((await execution).postDataJSON()).toEqual({
+    expectHelmSubmission(expect, (await execution).postDataJSON(), {
       code: selectedSource,
       sourceStartLine: 2,
       sourceStartColumn: 1
@@ -988,3 +994,240 @@ test(
     expect(page).toHaveNoSmoke()
   }
 )
+
+test(
+  'project Helm stops work, reports cancellation, and ignores a late older response',
+  {
+    browser: true,
+    world: helmWorld('helm-cancellation-project')
+  },
+  async ({ sails, world, login, page, expect }) => {
+    const current = world.current
+    const projectSlug = current.projects.deploymentTarget.slug
+    const environmentSlug = current.environments.production.slug
+    const endpoint = `/api/v1/projects/${projectSlug}/environments/${environmentSlug}/execute`
+    let executionCount = 0
+    let releaseFirstExecution
+    const firstExecutionCancelled = new Promise((resolve) => {
+      releaseFirstExecution = resolve
+    })
+
+    await sails.models.app.updateOne({ id: current.apps.web.id }).set({
+      status: 'running',
+      containerName: 'sounding-helm-cancellation-app'
+    })
+    const updateCheckFinished = page.raw.waitForResponse(
+      '**/api/v1/system/check-update'
+    )
+    await login.withPassword('genesisUser', page, {
+      password: current.auth.genesisUserPassword
+    })
+    await updateCheckFinished
+    await page.raw.route(`**${endpoint}`, async (route) => {
+      executionCount += 1
+
+      if (executionCount === 1) {
+        await firstExecutionCancelled
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify(
+            cancelledResult(['loaded creator 1'], {
+              durationMs: 640,
+              logsPartial: true
+            })
+          )
+        })
+        return
+      }
+
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          status: 'success',
+          value: 'newer result',
+          logs: [],
+          output: 'newer result',
+          outputBytes: 12,
+          rowCount: null,
+          error: null,
+          durationMs: 18,
+          truncated: false,
+          logsPartial: false
+        })
+      })
+    })
+    await page.raw.route(
+      '**/api/v1/helm/executions/*/cancel',
+      async (route) => {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ cancelled: true })
+        })
+        setTimeout(releaseFirstExecution, 350)
+      }
+    )
+
+    await page.resize(1440, 900)
+    await page.inLightMode()
+    await page.goto(
+      `/projects/${projectSlug}/environments/${environmentSlug}/helm`
+    )
+    await page.fill(
+      '@helm-editor',
+      "console.log('loaded creator 1')\nawait new Promise(() => {})"
+    )
+    await page.click('@helm-run')
+    await page.raw
+      .locator('[data-test="helm-run"]')
+      .filter({ hasText: 'Stop' })
+      .waitFor()
+    expect(
+      await page.raw.locator('[data-test="helm-running-status"]').textContent()
+    ).toContain('Running')
+    await page.wait(250)
+    await page.screenshot('.tmp/issue-271-project-running-stop-light.png')
+
+    await page.click('@helm-run')
+    await page.raw.locator('[data-test="helm-result-status"]').waitFor()
+    expect(
+      await page.raw.locator('[data-test="helm-result-status"]').textContent()
+    ).toContain('Cancelled')
+    expect(
+      await page.raw
+        .locator('[data-test="helm-history-entry"] span')
+        .last()
+        .getAttribute('class')
+    ).toContain('bg-gray-400')
+    await page.screenshot('.tmp/issue-271-project-cancelled-light.png')
+
+    await page.fill('@helm-editor', "'newer result'")
+    await page.click('@helm-run')
+    await page.wait('@helm-output')
+    expect(
+      await page.raw.locator('[data-test="helm-output"]').textContent()
+    ).toContain('newer result')
+    await page.wait(500)
+    expect(
+      await page.raw.locator('[data-test="helm-output"]').textContent()
+    ).toContain('newer result')
+    expect(executionCount).toBe(2)
+    expect(page).toHaveNoSmoke()
+  }
+)
+
+test(
+  'Bosun Helm shows the same stopped and partial-console states in dark mode',
+  {
+    browser: true,
+    world: helmWorld('helm-cancellation-bosun')
+  },
+  async ({ world, login, page, expect }) => {
+    const current = world.current
+    let releaseExecution
+    const executionCancelled = new Promise((resolve) => {
+      releaseExecution = resolve
+    })
+
+    const updateCheckFinished = page.raw.waitForResponse(
+      '**/api/v1/system/check-update'
+    )
+    await login.withPassword('genesisUser', page, {
+      password: current.auth.genesisUserPassword
+    })
+    await updateCheckFinished
+    await page.raw.route('**/api/v1/bosun/eval', async (route) => {
+      await executionCancelled
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(
+          cancelledResult(['found 12 users'], {
+            durationMs: 812,
+            logsPartial: true
+          })
+        )
+      })
+    })
+    await page.raw.route(
+      '**/api/v1/helm/executions/*/cancel',
+      async (route) => {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ cancelled: true })
+        })
+        setTimeout(releaseExecution, 100)
+      }
+    )
+
+    await page.resize(1440, 900)
+    await page.inDarkMode()
+    await page.goto('/bosun?tab=console&mode=helm')
+    await page.fill(
+      '@bosun-helm-editor',
+      "console.log('found 12 users')\nawait new Promise(() => {})"
+    )
+    await page.click('@bosun-console-run')
+    await page.raw
+      .locator('[data-test="bosun-console-run"]')
+      .filter({ hasText: 'Stop' })
+      .waitFor()
+    await page.wait(250)
+    await page.screenshot('.tmp/issue-271-bosun-running-stop-dark.png')
+
+    await page.click('@bosun-console-run')
+    await page.raw
+      .locator('[data-test="bosun-helm-result-status"]')
+      .filter({ hasText: 'Partial console' })
+      .waitFor()
+    expect(
+      await page.raw
+        .locator('[data-test="bosun-helm-result-status"]')
+        .textContent()
+    ).toContain('Cancelled')
+    expect(
+      await page.raw.locator('[data-test="bosun-helm-logs"]').textContent()
+    ).toContain('partial')
+    await page.screenshot('.tmp/issue-271-bosun-cancelled-dark.png')
+    expect(page).toHaveNoSmoke()
+  }
+)
+
+function cancelledResult(logs, overrides = {}) {
+  return {
+    success: false,
+    status: 'cancelled',
+    value: null,
+    logs,
+    output: logs.join('\n') || null,
+    outputBytes: Buffer.byteLength(logs.join('\n')),
+    rowCount: null,
+    error: {
+      name: 'CancelledError',
+      message: 'Helm execution was cancelled.',
+      stack: null,
+      filename: null,
+      line: null,
+      column: null,
+      code: 'HELM_CANCELLED'
+    },
+    durationMs: 0,
+    truncated: false,
+    logsPartial: false,
+    ...overrides
+  }
+}
+
+function expectHelmSubmission(expect, actual, expected) {
+  expect({
+    code: actual.code,
+    sourceStartLine: actual.sourceStartLine,
+    sourceStartColumn: actual.sourceStartColumn
+  }).toEqual(expected)
+  expect(typeof actual.executionId).toBe('string')
+  expect(actual.executionId.length).toBe(36)
+}

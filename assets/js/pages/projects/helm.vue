@@ -6,6 +6,7 @@ import SlippyLoader from '@/components/SlippyLoader.vue'
 import CodeEditor from '@/components/CodeEditor.vue'
 import HelmResultViewer from '@/components/HelmResultViewer.vue'
 import { helmEditorDiagnostic } from '@/lib/helmResult'
+import { cancelHelmExecution, cancelledHelmResult } from '@/lib/helmExecution'
 
 defineOptions({
   layout: AppLayout
@@ -26,12 +27,15 @@ const code = ref('// Access your Sails models, helpers, and config\n')
 const executionResult = ref(null)
 const requestError = ref('')
 const running = ref(false)
+const stopping = ref(false)
 const history = ref([])
 const editor = ref(null)
 const editorSelection = ref({
   hasSelection: false,
   hasExecutableSelection: false
 })
+let executionSequence = 0
+let activeExecution = null
 
 const isRunning = computed(() => props.appStatus === 'running')
 const runLabel = computed(() =>
@@ -52,7 +56,16 @@ async function execute() {
   editor.value.highlightExecution(execution)
   editor.value.clearDiagnostics()
   editor.value.focus()
+  const currentExecution = {
+    id: crypto.randomUUID(),
+    sequence: ++executionSequence,
+    startedAt: performance.now(),
+    source: execution.source,
+    historyRecorded: false
+  }
+  activeExecution = currentExecution
   running.value = true
+  stopping.value = false
   executionResult.value = null
   requestError.value = ''
 
@@ -66,6 +79,7 @@ async function execute() {
           'x-csrf-token': page.props._csrf || ''
         },
         body: JSON.stringify({
+          executionId: currentExecution.id,
           code: execution.source,
           sourceStartLine: execution.startLine,
           sourceStartColumn: execution.startColumn
@@ -91,26 +105,80 @@ async function execute() {
           'Execution failed'
       )
     }
+    if (activeExecution?.sequence !== currentExecution.sequence) return
+
     executionResult.value = result
     const diagnostic = helmEditorDiagnostic(result.error)
     if (diagnostic) editor.value.showDiagnostic(diagnostic)
 
-    // Add to history
-    history.value.unshift({
-      code: execution.source,
-      success: result.success,
-      time: new Date()
-    })
-
-    // Keep only last 20 entries
-    if (history.value.length > 20) {
-      history.value = history.value.slice(0, 20)
-    }
+    recordHistory(currentExecution, result)
   } catch (err) {
+    if (activeExecution?.sequence !== currentExecution.sequence) return
     requestError.value = err.message || 'Network error'
   } finally {
-    running.value = false
+    if (activeExecution?.sequence === currentExecution.sequence) {
+      running.value = false
+      stopping.value = false
+    }
   }
+}
+
+async function stopExecution() {
+  const currentExecution = activeExecution
+  if (!currentExecution || !running.value || stopping.value) return
+
+  stopping.value = true
+  requestError.value = ''
+
+  try {
+    const cancelled = await cancelHelmExecution(
+      currentExecution.id,
+      page.props._csrf || ''
+    )
+    if (!cancelled) {
+      throw new Error('This Helm execution has already finished.')
+    }
+    if (activeExecution?.sequence !== currentExecution.sequence) return
+    if (!running.value && executionResult.value?.status === 'cancelled') return
+
+    const result = cancelledHelmResult(
+      Math.round(performance.now() - currentExecution.startedAt)
+    )
+    executionResult.value = result
+    recordHistory(currentExecution, result)
+    running.value = false
+  } catch (error) {
+    if (activeExecution?.sequence !== currentExecution.sequence) return
+    requestError.value = error.message || 'Could not stop Helm execution.'
+  } finally {
+    if (activeExecution?.sequence === currentExecution.sequence) {
+      stopping.value = false
+    }
+  }
+}
+
+function runOrStop() {
+  if (running.value) stopExecution()
+  else execute()
+}
+
+function historyStatusClass(entry) {
+  if (entry.status === 'cancelled') return 'bg-gray-400'
+  if (entry.status === 'timeout' || entry.truncated) return 'bg-amber-500'
+  return entry.success ? 'bg-green-500' : 'bg-red-500'
+}
+
+function recordHistory(execution, result) {
+  if (execution.historyRecorded) return
+  execution.historyRecorded = true
+  history.value.unshift({
+    code: execution.source,
+    success: result.success,
+    status: result.status,
+    truncated: result.truncated,
+    time: new Date()
+  })
+  history.value = history.value.slice(0, 20)
 }
 
 function loadFromHistory(entry) {
@@ -289,21 +357,39 @@ watch(code, () => editor.value?.clearDiagnostics())
         <!-- Run button -->
         <button
           data-test="helm-run"
-          @click="execute"
-          :disabled="!canExecute"
-          class="flex items-center space-x-1.5 rounded-md bg-gray-900 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-gray-800 disabled:opacity-50 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100 sm:px-3"
-          :title="`${runLabel} · ${
-            navigator?.platform?.includes('Mac') ? '⌘' : 'Ctrl'
-          }+Enter`"
+          @click="runOrStop"
+          :disabled="running ? stopping : !canExecute"
+          :class="[
+            'flex items-center space-x-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium text-white disabled:opacity-50 sm:px-3',
+            running
+              ? 'bg-red-600 hover:bg-red-700 dark:bg-red-600 dark:hover:bg-red-500'
+              : 'bg-gray-900 hover:bg-gray-800 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100'
+          ]"
+          :title="
+            running
+              ? 'Stop execution'
+              : `${runLabel} · ${
+                  navigator?.platform?.includes('Mac') ? '⌘' : 'Ctrl'
+                }+Enter`
+          "
         >
-          <SlippyLoader v-if="running" size="h-3 w-3" />
+          <SlippyLoader v-if="stopping" size="h-3 w-3" />
+          <svg
+            v-else-if="running"
+            class="h-3 w-3"
+            fill="currentColor"
+            viewBox="0 0 20 20"
+            aria-hidden="true"
+          >
+            <rect x="5" y="5" width="10" height="10" rx="1" />
+          </svg>
           <svg v-else class="h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
             <path
               d="M6.3 2.841A1.5 1.5 0 004 4.11V15.89a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z"
             />
           </svg>
           <span class="hidden sm:inline">{{
-            running ? 'Running' : runLabel
+            stopping ? 'Stopping' : running ? 'Stop' : runLabel
           }}</span>
         </button>
 
@@ -416,7 +502,7 @@ watch(code, () => editor.value?.clearDiagnostics())
               <span
                 :class="[
                   'ml-2 h-1.5 w-1.5 shrink-0 rounded-full',
-                  entry.success ? 'bg-green-500' : 'bg-red-500'
+                  historyStatusClass(entry)
                 ]"
               ></span>
             </button>

@@ -2,6 +2,7 @@ const acorn = require('acorn')
 
 const START_MARKER = '___SLIPWAY_HELM_RESULT_START___'
 const END_MARKER = '___SLIPWAY_HELM_RESULT_END___'
+const LOG_MARKER = '___SLIPWAY_HELM_LOG___'
 const VIRTUAL_FILENAME = 'helm-input.js'
 const MAX_SOURCE_COORDINATE = 1_000_000
 
@@ -106,7 +107,8 @@ function buildRunnerSource({
   bootstrapSails = true,
   timeoutMs = 30000,
   maxLogBytes = 64 * 1024,
-  maxResultBytes = 128 * 1024
+  maxResultBytes = 128 * 1024,
+  executionId
 }) {
   return `(${helmSubprocessMain.toString()})(${JSON.stringify({
     preparedSource,
@@ -117,8 +119,10 @@ function buildRunnerSource({
     timeoutMs,
     maxLogBytes,
     maxResultBytes,
+    executionId,
     startMarker: START_MARKER,
     endMarker: END_MARKER,
+    logMarker: LOG_MARKER,
     filename: VIRTUAL_FILENAME
   })})`
 }
@@ -138,17 +142,36 @@ function parseRunnerOutput(stdout) {
   return JSON.parse(payload)
 }
 
-function createFailureResult(error, durationMs = 0) {
+function parseRunnerLogs(stdout) {
+  return String(stdout || '')
+    .split('\n')
+    .filter((line) => line.startsWith(LOG_MARKER))
+    .map((line) => {
+      try {
+        return JSON.parse(line.slice(LOG_MARKER.length))
+      } catch {
+        return null
+      }
+    })
+    .filter((line) => typeof line === 'string')
+}
+
+function createFailureResult(
+  error,
+  durationMs = 0,
+  { logs = [], logsPartial = false } = {}
+) {
   const normalized = normalizeHostError(error)
-  return {
+  return withResultMetadata({
     success: false,
     value: null,
-    logs: [],
-    output: null,
+    logs,
+    output: logs.join('\n') || null,
     error: normalized,
     durationMs,
-    truncated: false
-  }
+    truncated: false,
+    logsPartial
+  })
 }
 
 function normalizeHostError(error) {
@@ -166,7 +189,28 @@ function normalizeHostError(error) {
         : error?.stack || null,
     filename: line && column ? VIRTUAL_FILENAME : null,
     line,
-    column
+    column,
+    code: error?.code || null
+  }
+}
+
+function withResultMetadata(result) {
+  const output =
+    typeof result.output === 'string' ? result.output : result.output || ''
+  const errorCode = result.error?.code
+
+  return {
+    ...result,
+    status: result.success
+      ? 'success'
+      : errorCode === 'HELM_TIMEOUT'
+      ? 'timeout'
+      : errorCode === 'HELM_CANCELLED'
+      ? 'cancelled'
+      : 'error',
+    rowCount: Array.isArray(result.value) ? result.value.length : null,
+    outputBytes: Buffer.byteLength(String(output)),
+    logsPartial: result.logsPartial === true
   }
 }
 
@@ -228,6 +272,7 @@ function formatBytes(bytes) {
 }
 
 async function helmSubprocessMain(options) {
+  const fs = require('node:fs')
   const vm = require('node:vm')
   const startedAt = Date.now()
   let sailsApp
@@ -237,6 +282,13 @@ async function helmSubprocessMain(options) {
   const logs = []
   let logBytes = 0
   let logsTruncated = false
+  const pidFile = options.executionId
+    ? `/tmp/slipway-helm-${options.executionId}.pid`
+    : null
+
+  if (pidFile) {
+    fs.writeFileSync(pidFile, String(process.pid), { mode: 0o600 })
+  }
 
   const timeoutError = () => {
     const error = new Error(
@@ -305,6 +357,9 @@ async function helmSubprocessMain(options) {
       logs.push(bounded.value)
       logBytes += separatorBytes + Buffer.byteLength(bounded.value)
       logsTruncated ||= bounded.truncated
+      process.stdout.write(
+        `${options.logMarker}${JSON.stringify(bounded.value)}\n`
+      )
     }
 
     const context = {
@@ -381,15 +436,18 @@ async function helmSubprocessMain(options) {
 
     if (value !== undefined) outputParts.push(valueResult.output)
 
-    sendResult({
-      success: true,
-      value: valueResult.value,
-      logs,
-      output: outputParts.join('\n') || '(no output)',
-      error: null,
-      durationMs: Date.now() - startedAt,
-      truncated: logsTruncated || valueResult.truncated
-    })
+    sendResult(
+      completeResult({
+        success: true,
+        value: valueResult.value,
+        logs,
+        output: outputParts.join('\n') || '(no output)',
+        error: null,
+        durationMs: Date.now() - startedAt,
+        truncated: logsTruncated || valueResult.truncated,
+        logsPartial: false
+      })
+    )
   } catch (error) {
     sendResult(failureResult(isVmTimeout(error) ? timeoutError() : error))
   } finally {
@@ -398,14 +456,31 @@ async function helmSubprocessMain(options) {
   }
 
   function failureResult(error) {
-    return {
+    return completeResult({
       success: false,
       value: null,
       logs,
       output: logs.join('\n') || null,
       error: normalizeRuntimeError(error, options),
       durationMs: Date.now() - startedAt,
-      truncated: logsTruncated
+      truncated: logsTruncated,
+      logsPartial: false
+    })
+  }
+
+  function completeResult(result) {
+    return {
+      ...result,
+      status: result.success
+        ? 'success'
+        : result.error?.code === 'HELM_TIMEOUT'
+        ? 'timeout'
+        : result.error?.code === 'HELM_CANCELLED'
+        ? 'cancelled'
+        : 'error',
+      rowCount: Array.isArray(result.value) ? result.value.length : null,
+      outputBytes: Buffer.byteLength(String(result.output || '')),
+      logsPartial: result.logsPartial === true
     }
   }
 
@@ -438,6 +513,16 @@ async function helmSubprocessMain(options) {
         ])
       } catch {
         // The process is isolated and must still terminate if lowering fails.
+      }
+    }
+
+    if (pidFile) {
+      try {
+        fs.unlinkSync(pidFile)
+      } catch (error) {
+        if (error.code !== 'ENOENT') {
+          // Process isolation still makes termination the safe final state.
+        }
       }
     }
 
@@ -737,7 +822,8 @@ async function helmSubprocessMain(options) {
       stack,
       filename: line && column ? runtimeOptions.filename : null,
       line,
-      column
+      column,
+      code: safeString(readErrorProperty(error, 'code', ''), '') || null
     }
   }
 
@@ -787,7 +873,11 @@ async function helmSubprocessMain(options) {
             }
           : null,
         durationMs: result.durationMs,
-        truncated: true
+        truncated: true,
+        status: result.status,
+        rowCount: result.rowCount,
+        outputBytes: result.outputBytes,
+        logsPartial: result.logsPartial
       }),
       truncated: true
     }
@@ -873,10 +963,13 @@ async function helmSubprocessMain(options) {
 
 module.exports = {
   END_MARKER,
+  LOG_MARKER,
   START_MARKER,
   VIRTUAL_FILENAME,
   buildRunnerSource,
   createFailureResult,
+  parseRunnerLogs,
   parseRunnerOutput,
-  prepareSource
+  prepareSource,
+  withResultMetadata
 }

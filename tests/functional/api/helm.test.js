@@ -8,7 +8,11 @@ const RESULT = {
   output: 'querying\n[\n  {\n    "id": 1\n  }\n]',
   error: null,
   durationMs: 12,
-  truncated: false
+  truncated: false,
+  status: 'success',
+  rowCount: 1,
+  outputBytes: 36,
+  logsPartial: false
 }
 
 test(
@@ -33,6 +37,7 @@ test(
     try {
       const dashboard = await withCsrfFromPage(request, '/bosun', 'genesisUser')
       const response = await dashboard.request.post('/api/v1/bosun/eval', {
+        executionId: 'a019d7ef-c88c-44b6-b88e-bb2d27e21f14',
         code: 'await User.find()',
         sourceStartLine: 7,
         sourceStartColumn: 3
@@ -104,6 +109,7 @@ test(
         `/api/v1/projects/${projectSlug}/environments/${environmentSlug}/execute`,
         {
           code: 'await Creator.find()',
+          executionId: '6e0f9e7a-0f32-4a57-b253-2f86276427bc',
           sourceStartLine: 11,
           sourceStartColumn: 5
         }
@@ -123,6 +129,38 @@ test(
       expect(response).toHaveJsonPath('truncated', false)
     } finally {
       sails.helpers.helm.executeInContainer = originalExecute
+    }
+  }
+)
+
+test(
+  'Helm cancellation delegates with the current user and does not expose ownership',
+  {
+    world: {
+      name: 'configured-slipway'
+    }
+  },
+  async ({ sails, request, expect }) => {
+    const originalCancel = sails.helpers.helm.cancelExecution
+    const calls = []
+    sails.helpers.helm.cancelExecution = (executionId, userId) => {
+      calls.push({ executionId, userId })
+      return true
+    }
+
+    try {
+      const dashboard = await withCsrfFromPage(request, '/bosun', 'genesisUser')
+      const response = await dashboard.request.post(
+        '/api/v1/helm/executions/ab6e36f8-4700-45e8-961a-13380634764b/cancel'
+      )
+
+      expect(response).toHaveStatus(200)
+      expect(response).toHaveJsonPath('cancelled', true)
+      expect(calls.length).toBe(1)
+      expect(calls[0].executionId).toBe('ab6e36f8-4700-45e8-961a-13380634764b')
+      expect(Boolean(calls[0].userId)).toBe(true)
+    } finally {
+      sails.helpers.helm.cancelExecution = originalCancel
     }
   }
 )

@@ -20,6 +20,10 @@ module.exports = {
       defaultsTo: 1,
       min: 1,
       max: 1000000
+    },
+    signal: {
+      type: 'ref',
+      description: 'Optional AbortSignal for user cancellation.'
     }
   },
 
@@ -29,13 +33,14 @@ module.exports = {
     }
   },
 
-  fn: async function ({ source, sourceStartLine, sourceStartColumn }) {
+  fn: async function ({ source, sourceStartLine, sourceStartColumn, signal }) {
     return sails.helpers.helm.run.with({
       command: process.execPath,
       source,
       sourceStartLine,
       sourceStartColumn,
-      bootstrapSails: true
+      bootstrapSails: true,
+      signal
     })
   }
 }

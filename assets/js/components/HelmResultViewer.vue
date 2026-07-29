@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import ActionMenu from '@/components/ActionMenu.vue'
 import HelmResultTreeNode from '@/components/HelmResultTreeNode.vue'
 import SlippyLoader from '@/components/SlippyLoader.vue'
@@ -41,6 +41,9 @@ const emit = defineEmits(['clear'])
 const activeView = ref('raw')
 const logsOpen = ref(false)
 const toasts = ref([])
+const runningDurationMs = ref(0)
+let runningStartedAt = 0
+let runningTimer
 let toastId = 0
 
 const value = computed(() => props.result?.value)
@@ -96,9 +99,11 @@ const errorText = computed(
   () =>
     props.error ||
     (structuredError.value
-      ? `${structuredError.value.name || 'Error'}: ${
-          structuredError.value.message || 'Execution failed'
-        }`
+      ? ['cancelled', 'timeout'].includes(props.result?.status)
+        ? structuredError.value.message || 'Execution stopped.'
+        : `${structuredError.value.name || 'Error'}: ${
+            structuredError.value.message || 'Execution failed'
+          }`
       : '')
 )
 const errorLocation = computed(() => {
@@ -118,17 +123,60 @@ const logs = computed(() =>
 const metadata = computed(() => {
   if (!props.result) return []
 
-  const items = []
-  if (tableCompatible.value) {
-    items.push(`${rows.value.length} row${rows.value.length === 1 ? '' : 's'}`)
-  } else {
-    items.push(props.result.success ? 'Success' : 'Error')
+  const status =
+    props.result.status || (props.result.success ? 'success' : 'error')
+  const labels = {
+    cancelled: 'Cancelled',
+    error: 'Error',
+    success: 'Success',
+    timeout: 'Timed out'
   }
-  if (props.result.truncated) items.push('Truncated')
+  const items = [
+    {
+      label: labels[status] || labels.error,
+      tone:
+        status === 'success'
+          ? 'success'
+          : status === 'cancelled'
+          ? 'neutral'
+          : status === 'timeout'
+          ? 'warning'
+          : 'danger'
+    }
+  ]
+  const rowCount = Number.isSafeInteger(props.result.rowCount)
+    ? props.result.rowCount
+    : tableCompatible.value
+    ? rows.value.length
+    : null
+  if (rowCount !== null) {
+    items.push({
+      label: `${rowCount} row${rowCount === 1 ? '' : 's'}`
+    })
+  }
+  const outputBytes = Number.isFinite(props.result.outputBytes)
+    ? props.result.outputBytes
+    : new TextEncoder().encode(String(props.result.output || '')).length
+  items.push({ label: formatBytes(outputBytes) })
+  if (props.result.truncated) {
+    items.push({ label: 'Truncated', tone: 'warning' })
+  }
+  if (props.result.logsPartial) {
+    items.push({ label: 'Partial console', tone: 'warning' })
+  }
   if (Number.isFinite(props.result.durationMs)) {
-    items.push(`${props.result.durationMs}ms`)
+    items.push({ label: formatDuration(props.result.durationMs) })
   }
   return items
+})
+const errorSummaryClasses = computed(() => {
+  if (props.result?.status === 'cancelled') {
+    return 'text-gray-700 dark:text-gray-300'
+  }
+  if (props.result?.status === 'timeout') {
+    return 'text-amber-700 dark:text-amber-400'
+  }
+  return 'text-red-700 dark:text-red-400'
 })
 const actionItems = computed(() => {
   const items = []
@@ -158,6 +206,46 @@ watch(
   },
   { immediate: true }
 )
+
+watch(
+  () => props.loading,
+  (loading) => {
+    clearInterval(runningTimer)
+    runningTimer = null
+
+    if (!loading) return
+    runningStartedAt = performance.now()
+    runningDurationMs.value = 0
+    runningTimer = setInterval(() => {
+      runningDurationMs.value = Math.round(performance.now() - runningStartedAt)
+    }, 100)
+  },
+  { immediate: true }
+)
+
+onBeforeUnmount(() => clearInterval(runningTimer))
+
+function formatDuration(durationMs) {
+  if (durationMs < 1000) return `${Math.max(0, Math.round(durationMs))}ms`
+  return `${(durationMs / 1000).toFixed(durationMs < 10000 ? 1 : 0)}s`
+}
+
+function formatBytes(bytes) {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) {
+    return `${(bytes / 1024).toFixed(bytes < 10 * 1024 ? 1 : 0)} KB`
+  }
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
+
+function metadataClasses(tone) {
+  return {
+    danger: 'font-medium text-red-600 dark:text-red-400',
+    neutral: 'font-medium text-gray-600 dark:text-gray-300',
+    success: 'font-medium text-green-600 dark:text-green-400',
+    warning: 'font-medium text-amber-600 dark:text-amber-400'
+  }[tone]
+}
 
 function scalarClasses(type) {
   return {
@@ -217,11 +305,14 @@ function dismissToast(id) {
     >
       <div
         v-if="loading"
-        class="flex h-full items-center justify-center"
+        class="flex h-full items-center justify-center gap-2 text-sm text-gray-500 dark:text-gray-400"
         aria-live="polite"
         aria-label="Running Helm"
       >
         <SlippyLoader size="h-4 w-4" />
+        <span :data-test="`${testId}-running-status`"
+          >Running &middot; {{ formatDuration(runningDurationMs) }}</span
+        >
       </div>
 
       <template v-else-if="result || errorText">
@@ -229,11 +320,11 @@ function dismissToast(id) {
           v-if="errorText"
           :data-test="`${testId}-error`"
           class="px-4 py-3"
-          role="alert"
+          :role="result?.status === 'cancelled' ? 'status' : 'alert'"
         >
           <p
             :data-test="`${testId}-error-summary`"
-            class="text-sm font-medium leading-5 text-red-700 dark:text-red-400"
+            :class="['text-sm font-medium leading-5', errorSummaryClasses]"
           >
             {{ errorText }}
           </p>
@@ -380,7 +471,8 @@ function dismissToast(id) {
       >
         Console
         <span class="font-normal text-gray-400 dark:text-gray-600"
-          >{{ logs.length }} line{{ logs.length === 1 ? '' : 's' }}</span
+          >{{ logs.length }} line{{ logs.length === 1 ? '' : 's'
+          }}{{ result?.logsPartial ? ' · partial' : '' }}</span
         >
       </summary>
       <pre
@@ -467,15 +559,11 @@ function dismissToast(id) {
           class="truncate text-xs text-gray-500 dark:text-gray-400"
           aria-live="polite"
         >
-          <template v-for="(item, index) in metadata" :key="item">
-            <span
-              :class="
-                item === 'Truncated'
-                  ? 'font-medium text-amber-600 dark:text-amber-400'
-                  : ''
-              "
-              >{{ item }}</span
-            >
+          <template
+            v-for="(item, index) in metadata"
+            :key="`${item.label}-${index}`"
+          >
+            <span :class="metadataClasses(item.tone)">{{ item.label }}</span>
             <span
               v-if="index < metadata.length - 1"
               aria-hidden="true"

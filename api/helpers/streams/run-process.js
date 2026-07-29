@@ -193,6 +193,10 @@ module.exports = {
     } catch (error) {
       terminate(child, killGraceMs)
       await Promise.allSettled([closePromise, inputPromise, outputPromise])
+      error.stdout = stdout.value()
+      error.stdoutTruncated = stdout.truncated()
+      error.stderr ||= stderr.value()
+      error.stderrTruncated ||= stderr.truncated()
       throw error
     } finally {
       interruption.cleanup()
@@ -245,8 +249,14 @@ function createInterruption({ signal, timeoutMs, onInterrupt }) {
   timeout.unref()
 
   const onAbort = () => {
-    const error = new Error('Process was cancelled.')
-    error.code = 'PROCESS_ABORTED'
+    const signalReason = signal?.reason
+    const error =
+      signalReason instanceof Error &&
+      typeof signalReason.code === 'string' &&
+      signalReason.code
+        ? signalReason
+        : new Error('Process was cancelled.')
+    error.code = error.code || 'PROCESS_ABORTED'
     interrupt(error)
   }
 

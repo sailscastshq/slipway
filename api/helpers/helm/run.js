@@ -40,6 +40,13 @@ module.exports = {
     timeoutMs: {
       type: 'number',
       min: 1
+    },
+    executionId: {
+      type: 'string'
+    },
+    signal: {
+      type: 'ref',
+      description: 'Optional AbortSignal for user cancellation.'
     }
   },
 
@@ -56,7 +63,9 @@ module.exports = {
     sourceStartLine,
     sourceStartColumn,
     bootstrapSails,
-    timeoutMs
+    timeoutMs,
+    executionId,
+    signal
   }) {
     const limits = sails.config.custom.helm
     const startedAt = Date.now()
@@ -82,7 +91,8 @@ module.exports = {
       bootstrapSails,
       timeoutMs: executionTimeoutMs,
       maxLogBytes: limits.maxLogBytes,
-      maxResultBytes: limits.maxResultBytes
+      maxResultBytes: limits.maxResultBytes,
+      executionId
     })
 
     try {
@@ -96,26 +106,39 @@ module.exports = {
         maxStdoutBytes: limits.maxProcessOutputBytes,
         maxStderrBytes: limits.maxProcessStderrBytes,
         captureStdout: true,
-        killGraceMs: limits.killGraceMs
+        killGraceMs: limits.killGraceMs,
+        signal
       })
 
       const result = helmRuntime.parseRunnerOutput(processResult.stdout)
       result.truncated ||=
         processResult.stdoutTruncated || processResult.stderrTruncated
-      return result
+      return helmRuntime.withResultMetadata(result)
     } catch (error) {
+      const partialLogs = helmRuntime.parseRunnerLogs(error?.stdout)
       const failure = helmRuntime.createFailureResult(
         normalizeProcessError(error, executionTimeoutMs),
-        Date.now() - startedAt
+        Date.now() - startedAt,
+        {
+          logs: partialLogs,
+          logsPartial: partialLogs.length > 0
+        }
       )
       failure.truncated =
         error?.stdoutTruncated === true || error?.stderrTruncated === true
-      return failure
+      return helmRuntime.withResultMetadata(failure)
     }
   }
 }
 
 function normalizeProcessError(error, timeoutMs) {
+  if (error?.code === 'HELM_CANCELLED' || error?.code === 'PROCESS_ABORTED') {
+    const cancelledError = new Error('Helm execution was cancelled.')
+    cancelledError.name = 'CancelledError'
+    cancelledError.code = 'HELM_CANCELLED'
+    return cancelledError
+  }
+
   if (error?.code !== 'PROCESS_TIMEOUT') return error
 
   const timeoutError = new Error(
