@@ -117,6 +117,21 @@ const helmResults = ref(null)
 const helmError = ref(null)
 const helmLoading = ref(false)
 const helmHistory = ref([])
+const helmEditor = ref(null)
+const helmSelection = ref({
+  hasSelection: false,
+  hasExecutableSelection: false
+})
+const helmRunLabel = computed(() =>
+  helmSelection.value.hasSelection ? 'Run selection' : 'Run'
+)
+const canExecuteHelm = computed(() => {
+  if (helmLoading.value) return false
+  if (helmSelection.value.hasSelection) {
+    return helmSelection.value.hasExecutableSelection
+  }
+  return Boolean(helmCode.value.trim())
+})
 
 // Toast state
 const toasts = ref([])
@@ -210,8 +225,11 @@ async function executeQuery() {
 }
 
 async function executeHelm() {
-  if (!helmCode.value.trim() || helmLoading.value) return
+  const execution = helmEditor.value?.getExecutionSnapshot()
+  if (!execution?.hasExecutableSource || !canExecuteHelm.value) return
 
+  helmEditor.value.highlightExecution(execution)
+  helmEditor.value.focus()
   helmLoading.value = true
   helmError.value = null
   helmResults.value = null
@@ -220,7 +238,11 @@ async function executeHelm() {
     const response = await fetch('/api/v1/bosun/eval', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ code: helmCode.value })
+      body: JSON.stringify({
+        code: execution.source,
+        sourceStartLine: execution.startLine,
+        sourceStartColumn: execution.startColumn
+      })
     })
 
     let data
@@ -247,11 +269,11 @@ async function executeHelm() {
     if (!data.success) helmError.value = formatHelmError(data.error)
 
     // Add to history (deduplicate)
-    const c = helmCode.value.trim()
-    helmHistory.value = [c, ...helmHistory.value.filter((h) => h !== c)].slice(
-      0,
-      20
-    )
+    const executedSource = execution.source
+    helmHistory.value = [
+      executedSource,
+      ...helmHistory.value.filter((source) => source !== executedSource)
+    ].slice(0, 20)
   } catch (err) {
     helmError.value = err.message || 'Network error'
   } finally {
@@ -885,6 +907,7 @@ onUnmounted(() => {
         <!-- Helm editor -->
         <CodeEditor
           v-else
+          ref="helmEditor"
           v-model="helmCode"
           language="javascript"
           aria-label="Bosun Helm code"
@@ -892,6 +915,7 @@ onUnmounted(() => {
           height="fill"
           submit-on-mod-enter
           placeholder="// Access Slipway models and helpers&#10;await User.find()"
+          @selection-change="helmSelection = $event"
           @submit="executeHelm"
         />
       </div>
@@ -959,16 +983,26 @@ onUnmounted(() => {
           </div>
         </div>
         <button
+          data-test="bosun-console-run"
           @click="executeCurrentMode"
           :disabled="
             consoleMode === 'sql'
               ? consoleLoading || !sqlQuery.trim()
-              : helmLoading || !helmCode.trim()
+              : !canExecuteHelm
+          "
+          :title="
+            consoleMode === 'helm'
+              ? `${helmRunLabel} · ${
+                  navigator?.platform?.includes('Mac') ? '⌘' : 'Ctrl'
+                }+Enter`
+              : 'Run · ⌘+Enter'
           "
           class="rounded-md bg-gray-900 px-4 py-1.5 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
         >
           <span v-if="consoleLoading || helmLoading">Running...</span>
-          <span v-else>Run</span>
+          <span v-else>{{
+            consoleMode === 'helm' ? helmRunLabel : 'Run'
+          }}</span>
         </button>
       </div>
 

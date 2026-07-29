@@ -21,6 +21,18 @@ module.exports = {
       type: 'string',
       required: true
     },
+    sourceStartLine: {
+      type: 'number',
+      defaultsTo: 1,
+      min: 1,
+      max: 1000000
+    },
+    sourceStartColumn: {
+      type: 'number',
+      defaultsTo: 1,
+      min: 1,
+      max: 1000000
+    },
     bootstrapSails: {
       type: 'boolean',
       defaultsTo: true
@@ -37,7 +49,15 @@ module.exports = {
     }
   },
 
-  fn: async function ({ command, args, source, bootstrapSails, timeoutMs }) {
+  fn: async function ({
+    command,
+    args,
+    source,
+    sourceStartLine,
+    sourceStartColumn,
+    bootstrapSails,
+    timeoutMs
+  }) {
     const limits = sails.config.custom.helm
     const startedAt = Date.now()
     let prepared
@@ -45,6 +65,8 @@ module.exports = {
     try {
       prepared = await sails.helpers.helm.prepareSource.with({
         source,
+        sourceStartLine,
+        sourceStartColumn,
         maxSourceBytes: limits.maxSourceBytes
       })
     } catch (error) {
@@ -55,6 +77,8 @@ module.exports = {
     const runnerSource = helmRuntime.buildRunnerSource({
       preparedSource: prepared.source,
       finalExpression: prepared.finalExpression,
+      sourceStartLine,
+      sourceStartColumn,
       bootstrapSails,
       timeoutMs: executionTimeoutMs,
       maxLogBytes: limits.maxLogBytes,

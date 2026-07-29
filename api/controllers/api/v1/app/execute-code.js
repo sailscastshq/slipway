@@ -18,6 +18,18 @@ module.exports = {
       required: true,
       description: 'JavaScript code to execute'
     },
+    sourceStartLine: {
+      type: 'number',
+      defaultsTo: 1,
+      min: 1,
+      max: 1000000
+    },
+    sourceStartColumn: {
+      type: 'number',
+      defaultsTo: 1,
+      min: 1,
+      max: 1000000
+    },
     appSlug: {
       type: 'string',
       description: 'Target app slug (defaults to default app)'
@@ -39,7 +51,14 @@ module.exports = {
     }
   },
 
-  fn: async function ({ projectSlug, environmentSlug, code, appSlug }) {
+  fn: async function ({
+    projectSlug,
+    environmentSlug,
+    code,
+    sourceStartLine,
+    sourceStartColumn,
+    appSlug
+  }) {
     const user = await User.findOne({ id: this.req.session.userId })
 
     const project = await Project.findOne({ slug: projectSlug }).populate(
@@ -71,6 +90,11 @@ module.exports = {
       throw { badRequest: 'App is not running.' }
     }
 
-    return sails.helpers.helm.executeInContainer(app.containerName, code)
+    return sails.helpers.helm.executeInContainer(
+      app.containerName,
+      code,
+      sourceStartLine,
+      sourceStartColumn
+    )
   }
 }

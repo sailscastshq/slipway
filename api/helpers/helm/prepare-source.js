@@ -14,6 +14,18 @@ module.exports = {
     maxSourceBytes: {
       type: 'number',
       min: 1
+    },
+    sourceStartLine: {
+      type: 'number',
+      defaultsTo: 1,
+      min: 1,
+      max: 1000000
+    },
+    sourceStartColumn: {
+      type: 'number',
+      defaultsTo: 1,
+      min: 1,
+      max: 1000000
     }
   },
 
@@ -23,9 +35,16 @@ module.exports = {
     }
   },
 
-  fn: async function ({ source, maxSourceBytes }) {
+  fn: async function ({
+    source,
+    maxSourceBytes,
+    sourceStartLine,
+    sourceStartColumn
+  }) {
     return helmRuntime.prepareSource(source, {
-      maxSourceBytes: maxSourceBytes || sails.config.custom.helm.maxSourceBytes
+      maxSourceBytes: maxSourceBytes || sails.config.custom.helm.maxSourceBytes,
+      sourceStartLine,
+      sourceStartColumn
     })
   }
 }

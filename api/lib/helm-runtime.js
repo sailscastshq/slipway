@@ -3,16 +3,28 @@ const acorn = require('acorn')
 const START_MARKER = '___SLIPWAY_HELM_RESULT_START___'
 const END_MARKER = '___SLIPWAY_HELM_RESULT_END___'
 const VIRTUAL_FILENAME = 'helm-input.js'
+const MAX_SOURCE_COORDINATE = 1_000_000
 
-function prepareSource(source, { maxSourceBytes = 64 * 1024 } = {}) {
+function prepareSource(
+  source,
+  {
+    maxSourceBytes = 64 * 1024,
+    sourceStartLine = 1,
+    sourceStartColumn = 1
+  } = {}
+) {
   const submittedSource = String(source || '')
   const sourceBytes = Buffer.byteLength(submittedSource)
+  const origin = normalizeSourceOrigin({
+    sourceStartLine,
+    sourceStartColumn
+  })
 
   if (!submittedSource.trim()) {
     throw sourceError('Code cannot be empty.', {
       name: 'HelmSourceError',
-      line: 1,
-      column: 1
+      line: origin.line,
+      column: origin.column
     })
   }
 
@@ -21,8 +33,8 @@ function prepareSource(source, { maxSourceBytes = 64 * 1024 } = {}) {
       `Code exceeds the ${formatBytes(maxSourceBytes)} Helm source limit.`,
       {
         name: 'HelmSourceError',
-        line: 1,
-        column: 1
+        line: origin.line,
+        column: origin.column
       }
     )
   }
@@ -44,10 +56,11 @@ function prepareSource(source, { maxSourceBytes = 64 * 1024 } = {}) {
       Math.max(1, (error.loc?.line || 2) - 1)
     )
     const column = (error.loc?.column || 0) + 1
+    const location = mapSourceLocation(line, column, origin)
     throw sourceError(cleanParserMessage(error.message), {
       name: error.name || 'SyntaxError',
-      line,
-      column,
+      line: location.line,
+      column: location.column,
       cause: error
     })
   }
@@ -75,8 +88,11 @@ function prepareSource(source, { maxSourceBytes = 64 * 1024 } = {}) {
       replacement +
       submittedSource.slice(statementEnd),
     finalExpression: {
-      line: finalStatement.loc.start.line - 1,
-      column: finalStatement.loc.start.column + 1,
+      ...mapSourceLocation(
+        finalStatement.loc.start.line - 1,
+        finalStatement.loc.start.column + 1,
+        origin
+      ),
       addedColumns: 'return ('.length
     }
   }
@@ -85,6 +101,8 @@ function prepareSource(source, { maxSourceBytes = 64 * 1024 } = {}) {
 function buildRunnerSource({
   preparedSource,
   finalExpression,
+  sourceStartLine = 1,
+  sourceStartColumn = 1,
   bootstrapSails = true,
   timeoutMs = 30000,
   maxLogBytes = 64 * 1024,
@@ -93,6 +111,8 @@ function buildRunnerSource({
   return `(${helmSubprocessMain.toString()})(${JSON.stringify({
     preparedSource,
     finalExpression,
+    sourceStartLine,
+    sourceStartColumn,
     bootstrapSails,
     timeoutMs,
     maxLogBytes,
@@ -156,6 +176,41 @@ function sourceError(message, { name, line, column, cause }) {
   error.line = line
   error.column = column
   return error
+}
+
+function normalizeSourceOrigin({ sourceStartLine, sourceStartColumn }) {
+  return {
+    line: normalizeSourceCoordinate(sourceStartLine, 'line'),
+    column: normalizeSourceCoordinate(sourceStartColumn, 'column')
+  }
+}
+
+function normalizeSourceCoordinate(value, label) {
+  const coordinate = Number(value)
+
+  if (
+    !Number.isSafeInteger(coordinate) ||
+    coordinate < 1 ||
+    coordinate > MAX_SOURCE_COORDINATE
+  ) {
+    throw sourceError(
+      `Source start ${label} must be an integer between 1 and ${MAX_SOURCE_COORDINATE}.`,
+      {
+        name: 'HelmSourceError',
+        line: 1,
+        column: 1
+      }
+    )
+  }
+
+  return coordinate
+}
+
+function mapSourceLocation(line, column, origin) {
+  return {
+    line: origin.line + line - 1,
+    column: line === 1 ? origin.column + column - 1 : column
+  }
 }
 
 function cleanParserMessage(message) {
@@ -304,10 +359,11 @@ async function helmSubprocessMain(options) {
       if (model.globalId) context[model.globalId] = model
     }
 
-    const wrappedSource = `(async function () {\n${options.preparedSource}\n})()`
+    const firstLinePadding = ' '.repeat(options.sourceStartColumn - 1)
+    const wrappedSource = `(async function () {\n${firstLinePadding}${options.preparedSource}\n})()`
     const script = new vm.Script(wrappedSource, {
       filename: options.filename,
-      lineOffset: -1,
+      lineOffset: options.sourceStartLine - 2,
       displayErrors: true
     })
     const sandbox = vm.createContext(context)

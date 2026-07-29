@@ -20,20 +20,30 @@ test(
   },
   async ({ sails, request, expect }) => {
     const originalEvaluate = sails.helpers.helm.evaluate
-    let submittedSource
-    sails.helpers.helm.evaluate = async (source) => {
-      submittedSource = source
+    let invocation
+    sails.helpers.helm.evaluate = async (
+      source,
+      sourceStartLine,
+      sourceStartColumn
+    ) => {
+      invocation = { source, sourceStartLine, sourceStartColumn }
       return RESULT
     }
 
     try {
       const dashboard = await withCsrfFromPage(request, '/bosun', 'genesisUser')
       const response = await dashboard.request.post('/api/v1/bosun/eval', {
-        code: 'await User.find()'
+        code: 'await User.find()',
+        sourceStartLine: 7,
+        sourceStartColumn: 3
       })
 
       expect(response).toHaveStatus(200)
-      expect(submittedSource).toBe('await User.find()')
+      expect(invocation).toEqual({
+        source: 'await User.find()',
+        sourceStartLine: 7,
+        sourceStartColumn: 3
+      })
       expect(response).toHaveJsonPath('success', true)
       expect(response).toHaveJsonPath('value.0.id', 1)
       expect(response).toHaveJsonPath('logs.0', 'querying')
@@ -67,8 +77,18 @@ test(
       status: 'running',
       containerName: 'shared-helm-contract-web'
     })
-    sails.helpers.helm.executeInContainer = async (containerName, source) => {
-      invocation = { containerName, source }
+    sails.helpers.helm.executeInContainer = async (
+      containerName,
+      source,
+      sourceStartLine,
+      sourceStartColumn
+    ) => {
+      invocation = {
+        containerName,
+        source,
+        sourceStartLine,
+        sourceStartColumn
+      }
       return RESULT
     }
 
@@ -83,14 +103,18 @@ test(
       const response = await dashboard.request.post(
         `/api/v1/projects/${projectSlug}/environments/${environmentSlug}/execute`,
         {
-          code: 'await Creator.find()'
+          code: 'await Creator.find()',
+          sourceStartLine: 11,
+          sourceStartColumn: 5
         }
       )
 
       expect(response).toHaveStatus(200)
       expect(invocation).toEqual({
         containerName: 'shared-helm-contract-web',
-        source: 'await Creator.find()'
+        source: 'await Creator.find()',
+        sourceStartLine: 11,
+        sourceStartColumn: 5
       })
       expect(response).toHaveJsonPath('success', true)
       expect(response).toHaveJsonPath('value.0.id', 1)
