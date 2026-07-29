@@ -47,6 +47,9 @@ module.exports = {
       maxProcessOutputBytes: 256 * 1024,
       maxProcessStderrBytes: 64 * 1024,
       killGraceMs: 250,
+      writeArmTtlMs:
+        positiveInteger(process.env.SLIPWAY_HELM_WRITE_ARM_TTL_SECONDS, 60) *
+        1000,
       historyRetentionMs:
         positiveInteger(process.env.SLIPWAY_HELM_HISTORY_RETENTION_DAYS, 30) *
         24 *
@@ -56,6 +59,16 @@ module.exports = {
       historyMaxEntriesPerScope: positiveInteger(
         process.env.SLIPWAY_HELM_HISTORY_MAX_ENTRIES,
         200
+      ),
+      auditRetentionMs:
+        positiveInteger(process.env.SLIPWAY_HELM_AUDIT_RETENTION_DAYS, 90) *
+        24 *
+        60 *
+        60 *
+        1000,
+      auditMaxEntriesPerTeam: positiveInteger(
+        process.env.SLIPWAY_HELM_AUDIT_MAX_ENTRIES,
+        5000
       )
     }
   },

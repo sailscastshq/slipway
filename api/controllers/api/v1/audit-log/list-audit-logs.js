@@ -14,45 +14,38 @@ module.exports = {
       defaultsTo: 50,
       min: 1,
       max: 100
+    },
+    q: {
+      type: 'string',
+      maxLength: 200
+    },
+    group: {
+      type: 'string',
+      isIn: ['all', 'helm'],
+      defaultsTo: 'all'
     }
   },
 
   exits: {
     success: {
       statusCode: 200
+    },
+    forbidden: {
+      statusCode: 403
     }
   },
 
-  fn: async function ({ page, limit }) {
+  fn: async function ({ page, limit, q, group }) {
     const user = await User.findOne({ id: this.req.session.userId })
-    const skip = (page - 1) * limit
+    if (!['owner', 'admin'].includes(user.teamRole)) throw 'forbidden'
 
-    const [logs, totalCount] = await Promise.all([
-      AuditLog.find({ team: user.team })
-        .sort('createdAt DESC')
-        .skip(skip)
-        .limit(limit)
-        .populate('user'),
-      AuditLog.count({ team: user.team })
-    ])
-
-    return {
-      logs: logs.map((log) => ({
-        id: log.id,
-        action: log.action,
-        resourceType: log.resourceType,
-        resourceId: log.resourceId,
-        details: log.details,
-        ipAddress: log.ipAddress,
-        userName: log.user ? log.user.fullName || log.user.email : 'System',
-        createdAt: log.createdAt
-      })),
-      pagination: {
-        page,
-        perPage: limit,
-        totalCount,
-        totalPages: Math.ceil(totalCount / limit)
-      }
-    }
+    this.res.set('Cache-Control', 'private, no-store')
+    return sails.helpers.audit.listTeamEvents(
+      String(user.team),
+      page,
+      limit,
+      q,
+      group
+    )
   }
 }

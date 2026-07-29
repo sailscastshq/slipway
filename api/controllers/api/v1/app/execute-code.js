@@ -39,6 +39,12 @@ module.exports = {
     appSlug: {
       type: 'string',
       description: 'Target app slug (defaults to default app)'
+    },
+    writeArmToken: {
+      type: 'string',
+      maxLength: 200,
+      description:
+        'Short-lived, single-use capability for an exact production mutation'
     }
   },
 
@@ -54,6 +60,9 @@ module.exports = {
     },
     badRequest: {
       responseType: 'badRequest'
+    },
+    conflict: {
+      statusCode: 409
     }
   },
 
@@ -64,7 +73,8 @@ module.exports = {
     executionId,
     sourceStartLine,
     sourceStartColumn,
-    appSlug
+    appSlug,
+    writeArmToken
   }) {
     const scope = await sails.helpers.helm
       .resolveProjectScope(
@@ -79,6 +89,47 @@ module.exports = {
 
     if (!app || app.status !== 'running' || !app.containerName) {
       throw { badRequest: 'App is not running.' }
+    }
+
+    const classification = sails.helpers.helm.classifyMutations(code)
+    const sourceHash = sails.helpers.helm.hashSource(code)
+    const target = sails.helpers.helm.describeTarget(scope)
+    let writeArmed = false
+
+    if (scope.environment.isProduction && classification.mutating) {
+      if (writeArmToken) {
+        writeArmed = Boolean(
+          await sails.helpers.helm.consumeWriteArm.with({
+            token: writeArmToken,
+            scope,
+            sourceHash,
+            targetFingerprint: target.fingerprint
+          })
+        )
+      }
+
+      if (!writeArmed) {
+        await recordBlockedExecution({
+          scope,
+          source: code,
+          sourceHash,
+          target,
+          classification,
+          ipAddress: this.req.ip,
+          reason: writeArmToken ? 'invalid-or-expired-arm' : 'not-armed'
+        })
+        throw {
+          conflict: {
+            code: 'HELM_WRITES_NOT_ARMED',
+            message: writeArmToken
+              ? 'The production write arm expired or no longer matches this source and target.'
+              : 'Production writes must be armed before they can run.',
+            sourceHash,
+            classification,
+            target: publicTarget(target)
+          }
+        }
+      }
     }
 
     const execution = sails.helpers.helm.beginExecution(
@@ -101,6 +152,11 @@ module.exports = {
         scope,
         source: code,
         result,
+        startedAt,
+        sourceHash,
+        target,
+        classification,
+        writeArmed,
         ipAddress: this.req.ip
       })
       return result
@@ -113,6 +169,11 @@ module.exports = {
           success: false,
           durationMs: Date.now() - startedAt
         },
+        startedAt,
+        sourceHash,
+        target,
+        classification,
+        writeArmed,
         ipAddress: this.req.ip
       })
       throw error
@@ -120,4 +181,50 @@ module.exports = {
       execution.release()
     }
   }
+}
+
+async function recordBlockedExecution({
+  scope,
+  source,
+  sourceHash,
+  target,
+  classification,
+  ipAddress,
+  reason
+}) {
+  await sails.helpers.audit.log.with({
+    action: 'helm.execution.blocked',
+    resourceType: 'app',
+    resourceId: String(scope.app.id),
+    details: {
+      ...publicTarget(target),
+      targetFingerprint: target.fingerprint,
+      sourceHash,
+      sourceBytes: Buffer.byteLength(source),
+      startedAt: Date.now(),
+      status: 'blocked',
+      outputBytes: 0,
+      classifierComplete: classification.complete,
+      mutationKinds: [
+        ...new Set(classification.findings.map((item) => item.kind))
+      ],
+      mutationMethods: [
+        ...new Set(classification.findings.map((item) => item.method))
+      ],
+      reason
+    },
+    userId: String(scope.user.id),
+    teamId: String(scope.project.team.id),
+    ipAddress
+  })
+  try {
+    await sails.helpers.helm.pruneAudit(scope.project.team.id)
+  } catch (error) {
+    sails.log.verbose(`Could not prune Helm audit: ${error.message || error}`)
+  }
+}
+
+function publicTarget(target) {
+  const { fingerprint, ...safeTarget } = target
+  return safeTarget
 }

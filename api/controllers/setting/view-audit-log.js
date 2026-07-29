@@ -8,52 +8,49 @@ module.exports = {
       type: 'number',
       defaultsTo: 1,
       min: 1
+    },
+    q: {
+      type: 'string',
+      maxLength: 200
+    },
+    group: {
+      type: 'string',
+      isIn: ['all', 'helm'],
+      defaultsTo: 'all'
     }
   },
 
   exits: {
     success: {
       responseType: 'inertia'
+    },
+    forbidden: {
+      responseType: 'redirect'
     }
   },
 
-  fn: async function ({ page }) {
+  fn: async function ({ page, q, group }) {
     const perPage = 50
-    const skip = (page - 1) * perPage
-
     const user = await User.findOne({ id: this.req.session.userId })
+    if (!['owner', 'admin'].includes(user.teamRole)) {
+      throw { forbidden: '/settings' }
+    }
 
-    const [logs, totalCount] = await Promise.all([
-      AuditLog.find({ team: user.team })
-        .sort('createdAt DESC')
-        .skip(skip)
-        .limit(perPage)
-        .populate('user'),
-      AuditLog.count({ team: user.team })
-    ])
-
-    // Sanitize user data for the frontend
-    const sanitizedLogs = logs.map((log) => ({
-      id: log.id,
-      action: log.action,
-      resourceType: log.resourceType,
-      resourceId: log.resourceId,
-      details: log.details,
-      ipAddress: log.ipAddress,
-      userName: log.user ? log.user.fullName || log.user.email : 'System',
-      createdAt: log.createdAt
-    }))
+    const result = await sails.helpers.audit.listTeamEvents(
+      String(user.team),
+      page,
+      perPage,
+      q,
+      group
+    )
 
     return {
       page: 'settings/audit-log',
       props: {
-        logs: sanitizedLogs,
-        pagination: {
-          page,
-          perPage,
-          totalCount,
-          totalPages: Math.ceil(totalCount / perPage)
-        }
+        ...result,
+        helmAuditRetentionDays: Math.round(
+          sails.config.custom.helm.auditRetentionMs / (24 * 60 * 60 * 1000)
+        )
       }
     }
   }

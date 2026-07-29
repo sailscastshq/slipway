@@ -87,8 +87,11 @@ module.exports.custom = {
     maxProcessOutputBytes: 256 * 1024,
     maxProcessStderrBytes: 64 * 1024,
     killGraceMs: 250,
+    writeArmTtlMs: 60 * 1000,
     historyRetentionMs: 30 * 24 * 60 * 60 * 1000,
-    historyMaxEntriesPerScope: 200
+    historyMaxEntriesPerScope: 200,
+    auditRetentionMs: 90 * 24 * 60 * 60 * 1000,
+    auditMaxEntriesPerTeam: 5000
   },
 
   // Lookout keeps infrastructure samples for 24 hours and application

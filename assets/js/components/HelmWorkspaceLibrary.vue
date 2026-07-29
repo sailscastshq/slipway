@@ -582,7 +582,9 @@ defineExpose({ refreshHistory, openSnippetDialog })
                 <span
                   class="mt-0.5 flex items-center gap-1.5 text-[11px] text-gray-400 dark:text-gray-600"
                 >
-                  <span>{{ entry.target }}</span>
+                  <span :title="entry.targetLabel || entry.target">{{
+                    entry.targetLabel || entry.target
+                  }}</span>
                   <span aria-hidden="true">&middot;</span>
                   <span>{{ formatDuration(entry.durationMs) }}</span>
                   <span aria-hidden="true">&middot;</span>

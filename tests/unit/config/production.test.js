@@ -70,7 +70,10 @@ test('production Helm history has bounded configurable retention', ({
 }) => {
   const names = [
     'SLIPWAY_HELM_HISTORY_RETENTION_DAYS',
-    'SLIPWAY_HELM_HISTORY_MAX_ENTRIES'
+    'SLIPWAY_HELM_HISTORY_MAX_ENTRIES',
+    'SLIPWAY_HELM_WRITE_ARM_TTL_SECONDS',
+    'SLIPWAY_HELM_AUDIT_RETENTION_DAYS',
+    'SLIPWAY_HELM_AUDIT_MAX_ENTRIES'
   ]
   const original = Object.fromEntries(
     names.map((name) => [name, process.env[name]])
@@ -79,6 +82,9 @@ test('production Helm history has bounded configurable retention', ({
   try {
     process.env.SLIPWAY_HELM_HISTORY_RETENTION_DAYS = '14'
     process.env.SLIPWAY_HELM_HISTORY_MAX_ENTRIES = '80'
+    process.env.SLIPWAY_HELM_WRITE_ARM_TTL_SECONDS = '45'
+    process.env.SLIPWAY_HELM_AUDIT_RETENTION_DAYS = '120'
+    process.env.SLIPWAY_HELM_AUDIT_MAX_ENTRIES = '2400'
     delete require.cache[productionConfigPath]
 
     const productionConfig = require(productionConfigPath)
@@ -86,6 +92,11 @@ test('production Helm history has bounded configurable retention', ({
       14 * 24 * 60 * 60 * 1000
     )
     expect(productionConfig.custom.helm.historyMaxEntriesPerScope).toBe(80)
+    expect(productionConfig.custom.helm.writeArmTtlMs).toBe(45 * 1000)
+    expect(productionConfig.custom.helm.auditRetentionMs).toBe(
+      120 * 24 * 60 * 60 * 1000
+    )
+    expect(productionConfig.custom.helm.auditMaxEntriesPerTeam).toBe(2400)
   } finally {
     delete require.cache[productionConfigPath]
     for (const name of names) {

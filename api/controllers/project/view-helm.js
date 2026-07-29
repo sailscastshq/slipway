@@ -45,9 +45,19 @@ module.exports = {
       throw { notFound: `/projects/${slug}` }
     }
 
-    const app =
+    let app =
       (await App.findOne({ environment: environment.id, isDefault: true })) ||
       (await App.findOne({ environment: environment.id }))
+    if (app)
+      app = await App.findOne({ id: app.id }).populate('currentDeployment')
+    const target = app
+      ? sails.helpers.helm.describeTarget({
+          user,
+          project,
+          environment,
+          app
+        })
+      : null
 
     return {
       page: 'projects/helm',
@@ -60,10 +70,28 @@ module.exports = {
         environment: {
           id: environment.id,
           name: environment.name,
-          slug: environment.slug
+          slug: environment.slug,
+          isProduction: environment.isProduction
         },
-        appStatus: app ? app.status : null
+        app: app
+          ? {
+              id: app.id,
+              name: app.name,
+              slug: app.slug,
+              status: app.status
+            }
+          : null,
+        appStatus: app ? app.status : null,
+        target: target ? publicTarget(target) : null,
+        writeArmTtlSeconds: Math.ceil(
+          sails.config.custom.helm.writeArmTtlMs / 1000
+        )
       }
     }
   }
+}
+
+function publicTarget(target) {
+  const { fingerprint, ...safeTarget } = target
+  return safeTarget
 }

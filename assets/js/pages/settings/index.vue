@@ -1,5 +1,5 @@
 <script setup>
-import { Link, Head } from '@inertiajs/vue3'
+import { Link, Head, usePage } from '@inertiajs/vue3'
 import { inject, ref, computed } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
 
@@ -10,10 +10,14 @@ defineOptions({
 const toggleMobileMenu = inject('toggleMobileMenu')
 const toggleSidebar = inject('toggleSidebar')
 const sidebarCollapsed = inject('sidebarCollapsed')
+const page = usePage()
 
 const search = ref('')
+const canManage = computed(() =>
+  ['owner', 'admin'].includes(page.props.loggedInUser?.teamRole)
+)
 
-const categories = [
+const rawCategories = [
   {
     name: 'Instance',
     items: [
@@ -89,6 +93,14 @@ const categories = [
           'Check for Slipway updates and view installation instructions.',
         href: '/settings/update',
         icon: 'update'
+      },
+      {
+        title: 'Audit Log',
+        description:
+          'Search operational events, production Helm runs, and write arms.',
+        href: '/settings/audit-log',
+        icon: 'audit',
+        adminOnly: true
       }
     ]
   }
@@ -96,6 +108,12 @@ const categories = [
 
 const filteredCategories = computed(() => {
   const q = search.value.toLowerCase().trim()
+  const categories = rawCategories
+    .map((category) => ({
+      ...category,
+      items: category.items.filter((item) => !item.adminOnly || canManage.value)
+    }))
+    .filter((category) => category.items.length > 0)
   if (!q) return categories
 
   return categories
@@ -398,6 +416,21 @@ const filteredCategories = computed(() => {
                       stroke-linejoin="round"
                       stroke-width="1.5"
                       d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                    />
+                  </svg>
+                  <!-- Audit icon -->
+                  <svg
+                    v-if="item.icon === 'audit'"
+                    class="h-4 w-4 text-gray-400 dark:text-gray-500"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="1.5"
+                      d="M9 12.75 11.25 15 15 9.75M12 3.75l7.5 3.75v4.8c0 4.35-3.08 7.25-7.5 8.7-4.42-1.45-7.5-4.35-7.5-8.7V7.5L12 3.75Z"
                     />
                   </svg>
                   <div>

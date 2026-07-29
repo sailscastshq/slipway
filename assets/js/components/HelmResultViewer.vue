@@ -34,6 +34,10 @@ const props = defineProps({
   testId: {
     type: String,
     default: 'helm'
+  },
+  target: {
+    type: Object,
+    default: null
   }
 })
 
@@ -186,6 +190,9 @@ const actionItems = computed(() => {
       items.push({ key: 'export-csv', label: 'Export CSV' })
     }
   }
+  if (props.result) {
+    items.push({ key: 'copy-diagnostics', label: 'Copy diagnostics' })
+  }
   if (props.clearable && (props.result || props.error)) {
     items.push({ key: 'clear', label: 'Clear result' })
   }
@@ -270,7 +277,42 @@ async function handleAction(item) {
     notify('Exported helm-result.csv')
     return
   }
+  if (item.key === 'copy-diagnostics') {
+    await navigator.clipboard.writeText(
+      JSON.stringify(buildDiagnostics(), null, 2)
+    )
+    notify('Copied diagnostics to clipboard')
+    return
+  }
   if (item.key === 'clear') emit('clear')
+}
+
+function buildDiagnostics() {
+  return {
+    target: props.target,
+    execution: {
+      status:
+        props.result?.status || (props.result?.success ? 'success' : 'error'),
+      durationMs: props.result?.durationMs ?? null,
+      outputBytes: Number.isFinite(props.result?.outputBytes)
+        ? props.result.outputBytes
+        : new TextEncoder().encode(String(props.result?.output || '')).length,
+      rowCount: Number.isSafeInteger(props.result?.rowCount)
+        ? props.result.rowCount
+        : null,
+      truncated: Boolean(props.result?.truncated),
+      logsPartial: Boolean(props.result?.logsPartial),
+      error: props.result?.error
+        ? {
+            name: props.result.error.name || 'Error',
+            message: props.result.error.message || 'Execution failed',
+            line: props.result.error.line || null,
+            column: props.result.error.column || null,
+            code: props.result.error.code || null
+          }
+        : null
+    }
+  }
 }
 
 function downloadCsv() {

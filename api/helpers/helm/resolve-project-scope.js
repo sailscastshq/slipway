@@ -58,6 +58,8 @@ module.exports = {
 
     if (!app) throw 'notFound'
 
+    app = await App.findOne({ id: app.id }).populate('currentDeployment')
+
     return { user, project, environment, app }
   }
 }
