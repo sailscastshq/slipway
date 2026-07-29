@@ -25,6 +25,8 @@ const colors = {
   <Teleport to="body">
     <div
       class="fixed bottom-4 right-4 z-50 flex flex-col-reverse space-y-2 space-y-reverse"
+      aria-live="polite"
+      aria-atomic="false"
     >
       <TransitionGroup
         enter-active-class="transition duration-300 ease-out"
@@ -45,6 +47,7 @@ const colors = {
             fill="none"
             stroke="currentColor"
             viewBox="0 0 24 24"
+            aria-hidden="true"
           >
             <path
               stroke-linecap="round"
@@ -59,12 +62,14 @@ const colors = {
           <button
             @click="emit('dismiss', toast.id)"
             class="shrink-0 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+            :aria-label="`Dismiss ${toast.message}`"
           >
             <svg
               class="h-4 w-4"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
+              aria-hidden="true"
             >
               <path
                 stroke-linecap="round"

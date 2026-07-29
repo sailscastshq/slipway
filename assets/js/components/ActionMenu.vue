@@ -16,6 +16,11 @@ const props = defineProps({
     default: 'horizontal',
     validator: (value) => ['horizontal', 'vertical'].includes(value)
   },
+  placement: {
+    type: String,
+    default: 'bottom',
+    validator: (value) => ['top', 'bottom'].includes(value)
+  },
   disabled: Boolean,
   testId: {
     type: String,
@@ -148,7 +153,10 @@ onUnmounted(() =>
       ref="menu"
       role="menu"
       :data-test="testId"
-      class="min-w-44 absolute right-0 top-full z-30 mt-1 rounded-md border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-900"
+      :class="[
+        'min-w-44 absolute right-0 z-30 rounded-md border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-900',
+        placement === 'top' ? 'bottom-full mb-1' : 'top-full mt-1'
+      ]"
       @click.stop
       @keydown="handleKeydown"
     >
