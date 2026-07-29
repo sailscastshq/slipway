@@ -15,6 +15,7 @@ import {
   indentOnInput,
   syntaxHighlighting
 } from '@codemirror/language'
+import { setDiagnostics } from '@codemirror/lint'
 import {
   Compartment,
   EditorState,
@@ -24,6 +25,7 @@ import {
 import {
   Decoration,
   EditorView,
+  WidgetType,
   drawSelection,
   keymap,
   placeholder as editorPlaceholder
@@ -63,7 +65,33 @@ const languageCompartment = new Compartment()
 const appearanceCompartment = new Compartment()
 const editableCompartment = new Compartment()
 const setExecutedRange = StateEffect.define()
+const setInlineDiagnostic = StateEffect.define()
 const executedRangeMark = Decoration.mark({ class: 'cm-executed-range' })
+
+class InlineDiagnosticWidget extends WidgetType {
+  constructor(message) {
+    super()
+    this.message = message
+  }
+
+  eq(other) {
+    return other.message === this.message
+  }
+
+  toDOM() {
+    const label = document.createElement('span')
+    label.className = 'cm-inline-diagnostic'
+    label.textContent = this.message
+    label.title = this.message
+    label.setAttribute('aria-hidden', 'true')
+    return label
+  }
+
+  ignoreEvent() {
+    return true
+  }
+}
+
 const executedRangeField = StateField.define({
   create() {
     return Decoration.none
@@ -78,6 +106,34 @@ const executedRangeField = StateField.define({
         range && range.from < range.to
           ? Decoration.set([executedRangeMark.range(range.from, range.to)])
           : Decoration.none
+    }
+
+    return nextDecorations
+  },
+  provide(field) {
+    return EditorView.decorations.from(field)
+  }
+})
+const inlineDiagnosticField = StateField.define({
+  create() {
+    return Decoration.none
+  },
+  update(decorations, transaction) {
+    let nextDecorations = transaction.docChanged
+      ? Decoration.none
+      : decorations.map(transaction.changes)
+
+    for (const effect of transaction.effects) {
+      if (!effect.is(setInlineDiagnostic)) continue
+      const diagnostic = effect.value
+      nextDecorations = diagnostic
+        ? Decoration.set([
+            Decoration.widget({
+              widget: new InlineDiagnosticWidget(diagnostic.message),
+              side: 1
+            }).range(diagnostic.position)
+          ])
+        : Decoration.none
     }
 
     return nextDecorations
@@ -338,6 +394,98 @@ function highlightExecution(snapshot = getExecutionSnapshot()) {
   }, 700)
 }
 
+function showDiagnostic(diagnostic) {
+  if (!view) return
+
+  const range = resolveDiagnosticRange(view.state, diagnostic)
+  if (!range) {
+    clearDiagnostics()
+    return
+  }
+
+  const message = String(diagnostic.message || 'Execution failed')
+  view.dispatch(
+    setDiagnostics(view.state, [
+      {
+        from: range.from,
+        to: range.to,
+        severity: 'error',
+        source: diagnostic.source || 'Helm',
+        message
+      }
+    ]),
+    {
+      effects: [
+        setInlineDiagnostic.of({
+          position: range.lineTo,
+          message
+        }),
+        EditorView.scrollIntoView(range.from, { y: 'center' })
+      ]
+    }
+  )
+}
+
+function clearDiagnostics() {
+  if (!view) return
+  view.dispatch(setDiagnostics(view.state, []), {
+    effects: setInlineDiagnostic.of(null)
+  })
+}
+
+function resolveDiagnosticRange(state, diagnostic) {
+  const lineNumber = Number(diagnostic?.line)
+  const columnNumber = Number(diagnostic?.column)
+  if (
+    !Number.isSafeInteger(lineNumber) ||
+    !Number.isSafeInteger(columnNumber) ||
+    lineNumber < 1 ||
+    lineNumber > state.doc.lines ||
+    columnNumber < 1
+  ) {
+    return null
+  }
+
+  let line = state.doc.line(lineNumber)
+  let from = Math.min(line.to, line.from + columnNumber - 1)
+
+  if (from === line.to) {
+    const lastCodeOffset = line.text.search(/\s*$/) - 1
+    if (lastCodeOffset >= 0) {
+      from = line.from + lastCodeOffset
+    } else {
+      for (
+        let previousLine = lineNumber - 1;
+        previousLine >= 1;
+        previousLine--
+      ) {
+        const candidate = state.doc.line(previousLine)
+        const candidateOffset = candidate.text.search(/\s*$/) - 1
+        if (candidateOffset < 0) continue
+        line = candidate
+        from = candidate.from + candidateOffset
+        break
+      }
+    }
+  }
+
+  let to = Math.min(line.to, from + 1)
+  if (/[\w$]/.test(state.sliceDoc(from, to))) {
+    while (from > line.from && /[\w$]/.test(state.sliceDoc(from - 1, from))) {
+      from--
+    }
+    while (to < line.to && /[\w$]/.test(state.sliceDoc(to, to + 1))) {
+      to++
+    }
+  }
+
+  return {
+    from,
+    to,
+    lineTo: line.to
+  }
+}
+
 function focus() {
   view?.focus()
 }
@@ -361,6 +509,7 @@ onMounted(() => {
         history(),
         drawSelection(),
         executedRangeField,
+        inlineDiagnosticField,
         indentOnInput(),
         bracketMatching(),
         EditorView.lineWrapping,
@@ -430,9 +579,11 @@ onBeforeUnmount(() => {
 })
 
 defineExpose({
+  clearDiagnostics,
   focus,
   getExecutionSnapshot,
-  highlightExecution
+  highlightExecution,
+  showDiagnostic
 })
 </script>
 
@@ -480,9 +631,36 @@ defineExpose({
   box-shadow: inset 0 -1px color-mix(in srgb, var(--color-brand-500) 45%, transparent);
 }
 
+.code-editor :deep(.cm-lintRange-error) {
+  background-image: none;
+  text-decoration: underline wavy var(--color-red-500);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+
+.code-editor :deep(.cm-inline-diagnostic) {
+  display: inline-block;
+  max-width: min(24rem, 45vw);
+  margin-left: 0.75rem;
+  overflow: hidden;
+  color: var(--color-red-600);
+  font-family: ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji',
+    'Segoe UI Emoji';
+  font-size: 0.75rem;
+  font-weight: 500;
+  line-height: 1rem;
+  text-overflow: ellipsis;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
 @media (prefers-color-scheme: dark) {
   .code-editor :deep(.cm-editor.cm-focused) {
     outline-color: var(--color-brand-800);
+  }
+
+  .code-editor :deep(.cm-inline-diagnostic) {
+    color: var(--color-red-400);
   }
 }
 </style>

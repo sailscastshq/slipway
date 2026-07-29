@@ -164,6 +164,7 @@ function normalizeHostError(error) {
       line && column
         ? `${name}: ${message}\n    at ${VIRTUAL_FILENAME}:${line}:${column}`
         : error?.stack || null,
+    filename: line && column ? VIRTUAL_FILENAME : null,
     line,
     column
   }
@@ -730,7 +731,14 @@ async function helmSubprocessMain(options) {
       }
     }
 
-    return { name, message, stack, line, column }
+    return {
+      name,
+      message,
+      stack,
+      filename: line && column ? runtimeOptions.filename : null,
+      line,
+      column
+    }
   }
 
   function truncateEnvelope(serialized, result, maxBytes) {

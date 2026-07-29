@@ -6,6 +6,7 @@ const TYPED_SCALAR_TYPES = new Set([
   'Symbol',
   'undefined'
 ])
+const HELM_INPUT_FILENAME = 'helm-input.js'
 
 function isObject(value) {
   return value !== null && typeof value === 'object'
@@ -109,6 +110,27 @@ export function formatHelmError(error, fallback = 'Execution failed') {
   const location =
     error.line && error.column ? ` (${error.line}:${error.column})` : ''
   return `${error.name || 'Error'}: ${error.message || fallback}${location}`
+}
+
+export function helmEditorDiagnostic(error) {
+  if (
+    !error ||
+    typeof error !== 'object' ||
+    error.filename !== HELM_INPUT_FILENAME ||
+    !Number.isSafeInteger(error.line) ||
+    !Number.isSafeInteger(error.column) ||
+    error.line < 1 ||
+    error.column < 1
+  ) {
+    return null
+  }
+
+  return {
+    line: error.line,
+    column: error.column,
+    message: `${error.name || 'Error'}: ${error.message || 'Execution failed'}`,
+    source: 'Helm'
+  }
 }
 
 export function helmRowsToCsv(rows, columns) {

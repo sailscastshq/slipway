@@ -1,10 +1,11 @@
 <script setup>
 import { Link, Head, usePage } from '@inertiajs/vue3'
-import { inject, ref, computed } from 'vue'
+import { inject, ref, computed, watch } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
 import SlippyLoader from '@/components/SlippyLoader.vue'
 import CodeEditor from '@/components/CodeEditor.vue'
 import HelmResultViewer from '@/components/HelmResultViewer.vue'
+import { helmEditorDiagnostic } from '@/lib/helmResult'
 
 defineOptions({
   layout: AppLayout
@@ -49,6 +50,7 @@ async function execute() {
   if (!execution?.hasExecutableSource || !canExecute.value) return
 
   editor.value.highlightExecution(execution)
+  editor.value.clearDiagnostics()
   editor.value.focus()
   running.value = true
   executionResult.value = null
@@ -80,6 +82,8 @@ async function execute() {
     }
 
     if (!response.ok) {
+      const diagnostic = helmEditorDiagnostic(result.error)
+      if (diagnostic) editor.value.showDiagnostic(diagnostic)
       throw new Error(
         result.message ||
           result.error?.message ||
@@ -88,6 +92,8 @@ async function execute() {
       )
     }
     executionResult.value = result
+    const diagnostic = helmEditorDiagnostic(result.error)
+    if (diagnostic) editor.value.showDiagnostic(diagnostic)
 
     // Add to history
     history.value.unshift({
@@ -114,11 +120,14 @@ function loadFromHistory(entry) {
 function clearExecutionOutput() {
   executionResult.value = null
   requestError.value = ''
+  editor.value?.clearDiagnostics()
 }
 
 function clearHistory() {
   history.value = []
 }
+
+watch(code, () => editor.value?.clearDiagnostics())
 </script>
 <template>
   <Head
