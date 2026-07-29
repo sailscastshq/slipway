@@ -14,6 +14,7 @@ import SlippyLoader from '@/components/SlippyLoader.vue'
 import CodeEditor from '@/components/CodeEditor.vue'
 import HelmResultViewer from '@/components/HelmResultViewer.vue'
 import HelmWorkspaceLibrary from '@/components/HelmWorkspaceLibrary.vue'
+import HelmWriteGuardDialog from '@/components/HelmWriteGuardDialog.vue'
 import Tooltip from '@/components/Tooltip.vue'
 import { helmEditorDiagnostic } from '@/lib/helmResult'
 import { cancelHelmExecution, cancelledHelmResult } from '@/lib/helmExecution'
@@ -25,6 +26,12 @@ defineOptions({
 const props = defineProps({
   project: Object,
   environment: Object,
+  app: Object,
+  target: Object,
+  writeArmTtlSeconds: {
+    type: Number,
+    default: 60
+  },
   appStatus: String
 })
 
@@ -43,6 +50,17 @@ const library = ref(null)
 const libraryOpen = ref(false)
 const libraryTab = ref('history')
 const completionMetadata = ref(null)
+const writeGuard = ref({
+  show: false,
+  execution: null,
+  findings: [],
+  target: null,
+  error: ''
+})
+const writeArm = ref(null)
+const writeArmRemaining = ref(0)
+const armingWrites = ref(false)
+const inspectingSource = ref(false)
 const editorSelection = ref({
   hasSelection: false,
   hasExecutableSelection: false,
@@ -51,13 +69,21 @@ const editorSelection = ref({
 let executionSequence = 0
 let activeExecution = null
 let completionRequestSequence = 0
+let writeArmTimer = null
 
 const isRunning = computed(() => props.appStatus === 'running')
+const isProduction = computed(() => Boolean(props.environment.isProduction))
+const writeArmActive = computed(
+  () =>
+    Boolean(writeArm.value) &&
+    writeArmRemaining.value > 0 &&
+    writeArm.value.expiresAt > Date.now()
+)
 const runLabel = computed(() =>
   editorSelection.value.hasSelection ? 'Run selection' : 'Run'
 )
 const canExecute = computed(() => {
-  if (!isRunning.value || running.value) return false
+  if (!isRunning.value || running.value || inspectingSource.value) return false
   if (editorSelection.value.hasSelection) {
     return editorSelection.value.hasExecutableSelection
   }
@@ -71,7 +97,13 @@ const helmLibraryUrl = computed(
 async function execute(sourceOverride) {
   let execution
   if (typeof sourceOverride === 'string') {
-    if (!sourceOverride.trim() || !isRunning.value || running.value) return
+    if (
+      !sourceOverride.trim() ||
+      !isRunning.value ||
+      running.value ||
+      inspectingSource.value
+    )
+      return
     code.value = sourceOverride
     await nextTick()
     execution = {
@@ -85,6 +117,36 @@ async function execute(sourceOverride) {
   } else {
     execution = editor.value?.getExecutionSnapshot()
     if (!execution?.hasExecutableSource || !canExecute.value) return
+  }
+
+  const candidateArm =
+    writeArmActive.value && writeArm.value.source === execution.source
+      ? writeArm.value
+      : null
+  if (writeArm.value && !candidateArm) clearWriteArm()
+
+  if (isProduction.value && !candidateArm) {
+    inspectingSource.value = true
+    requestError.value = ''
+    try {
+      const inspection = await inspectSource(execution.source)
+      if (inspection.requiresWriteArm) {
+        writeGuard.value = {
+          show: true,
+          execution,
+          findings: inspection.classification?.findings || [],
+          target: inspection.target || props.target,
+          error: ''
+        }
+        return
+      }
+    } catch (error) {
+      requestError.value =
+        error.message || 'Could not inspect this production source.'
+      return
+    } finally {
+      inspectingSource.value = false
+    }
   }
 
   editor.value.highlightExecution(execution)
@@ -101,6 +163,8 @@ async function execute(sourceOverride) {
   stopping.value = false
   executionResult.value = null
   requestError.value = ''
+  const activeArm = candidateArm
+  if (activeArm) clearWriteArm()
 
   try {
     const response = await fetch(
@@ -115,11 +179,12 @@ async function execute(sourceOverride) {
           executionId: currentExecution.id,
           code: execution.source,
           sourceStartLine: execution.startLine,
-          sourceStartColumn: execution.startColumn
+          sourceStartColumn: execution.startColumn,
+          appSlug: props.app?.slug,
+          writeArmToken: activeArm?.token
         })
       }
     )
-
     const responseText = await response.text()
     let result
     try {
@@ -129,6 +194,16 @@ async function execute(sourceOverride) {
     }
 
     if (!response.ok) {
+      if (response.status === 409 && result.code === 'HELM_WRITES_NOT_ARMED') {
+        writeGuard.value = {
+          show: true,
+          execution,
+          findings: result.classification?.findings || [],
+          target: result.target || props.target,
+          error: ''
+        }
+        return
+      }
       const diagnostic = helmEditorDiagnostic(result.error)
       if (diagnostic) editor.value.showDiagnostic(diagnostic)
       throw new Error(
@@ -154,6 +229,131 @@ async function execute(sourceOverride) {
       stopping.value = false
     }
   }
+}
+
+async function inspectSource(source) {
+  const response = await fetch(`${helmLibraryUrl.value}/inspect-source`, {
+    method: 'POST',
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+      'x-csrf-token': page.props._csrf || ''
+    },
+    cache: 'no-store',
+    body: JSON.stringify({
+      code: source,
+      appSlug: props.app?.slug
+    })
+  })
+  const text = await response.text()
+  let result
+  try {
+    result = JSON.parse(text)
+  } catch {
+    throw new Error(text || 'Could not inspect this production source.')
+  }
+  if (!response.ok) {
+    throw new Error(
+      result.message ||
+        result.error ||
+        'Could not inspect this production source.'
+    )
+  }
+  return result
+}
+
+async function armWrites() {
+  const execution = writeGuard.value.execution
+  if (!execution || armingWrites.value) return
+
+  armingWrites.value = true
+  writeGuard.value.error = ''
+  try {
+    const response = await fetch(`${helmLibraryUrl.value}/arm-writes`, {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+        'x-csrf-token': page.props._csrf || ''
+      },
+      cache: 'no-store',
+      body: JSON.stringify({
+        code: execution.source,
+        appSlug: props.app?.slug
+      })
+    })
+    const text = await response.text()
+    let result
+    try {
+      result = JSON.parse(text)
+    } catch {
+      throw new Error(text || 'Could not arm production writes.')
+    }
+    if (!response.ok) {
+      throw new Error(
+        result.message || result.error || 'Could not arm production writes.'
+      )
+    }
+
+    writeArm.value = {
+      token: result.token,
+      sourceHash: result.sourceHash,
+      source: execution.source,
+      expiresAt: result.expiresAt,
+      target: result.target
+    }
+    writeGuard.value = {
+      show: false,
+      execution: null,
+      findings: [],
+      target: null,
+      error: ''
+    }
+    startWriteArmTimer()
+    await nextTick()
+    editor.value?.focus()
+  } catch (error) {
+    writeGuard.value.error = error.message || 'Could not arm production writes.'
+  } finally {
+    armingWrites.value = false
+  }
+}
+
+function cancelWriteGuard() {
+  if (armingWrites.value) return
+  writeGuard.value = {
+    show: false,
+    execution: null,
+    findings: [],
+    target: null,
+    error: ''
+  }
+  nextTick(() => editor.value?.focus())
+}
+
+function startWriteArmTimer() {
+  window.clearInterval(writeArmTimer)
+  updateWriteArmRemaining()
+  writeArmTimer = window.setInterval(updateWriteArmRemaining, 250)
+}
+
+function updateWriteArmRemaining() {
+  if (!writeArm.value) {
+    writeArmRemaining.value = 0
+    return
+  }
+  writeArmRemaining.value = Math.max(
+    0,
+    Math.ceil((writeArm.value.expiresAt - Date.now()) / 1000)
+  )
+  if (writeArmRemaining.value === 0) clearWriteArm()
+}
+
+function clearWriteArm() {
+  writeArm.value = null
+  writeArmRemaining.value = 0
+  window.clearInterval(writeArmTimer)
+  writeArmTimer = null
 }
 
 async function stopExecution() {
@@ -254,10 +454,14 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   completionRequestSequence++
+  clearWriteArm()
   window.removeEventListener('focus', loadCompletionMetadata)
 })
 
-watch(code, () => editor.value?.clearDiagnostics())
+watch(code, () => {
+  editor.value?.clearDiagnostics()
+  if (writeArm.value && writeArm.value.source !== code.value) clearWriteArm()
+})
 </script>
 <template>
   <Head
@@ -371,6 +575,13 @@ watch(code, () => editor.value?.clearDiagnostics())
             {{ project.name.toLowerCase() }}
           </Link>
           <span class="text-gray-400 dark:text-gray-600">/</span>
+          <span
+            v-if="app"
+            class="max-w-28 truncate text-gray-500 dark:text-gray-400"
+            :title="app.name"
+            >{{ app.name.toLowerCase() }}</span
+          >
+          <span v-if="app" class="text-gray-400 dark:text-gray-600">/</span>
           <span class="font-medium text-gray-900 dark:text-white">helm</span>
         </nav>
         <!-- Desktop: full breadcrumb -->
@@ -396,6 +607,13 @@ watch(code, () => editor.value?.clearDiagnostics())
             {{ environment.name.toLowerCase() }}
           </Link>
           <span class="text-gray-400 dark:text-gray-600">/</span>
+          <span
+            v-if="app"
+            class="max-w-32 truncate text-gray-500 dark:text-gray-400"
+            :title="app.name"
+            >{{ app.name.toLowerCase() }}</span
+          >
+          <span v-if="app" class="text-gray-400 dark:text-gray-600">/</span>
           <span class="font-medium text-gray-900 dark:text-white">helm</span>
         </nav>
       </div>
@@ -486,19 +704,21 @@ watch(code, () => editor.value?.clearDiagnostics())
           :disabled="running ? stopping : !canExecute"
           :class="[
             'flex items-center space-x-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium text-white disabled:opacity-50 sm:px-3',
-            running
+            running || writeArmActive
               ? 'bg-red-600 hover:bg-red-700 dark:bg-red-600 dark:hover:bg-red-500'
               : 'bg-gray-900 hover:bg-gray-800 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100'
           ]"
           :title="
             running
               ? 'Stop execution'
+              : writeArmActive
+              ? `Run armed production write within ${writeArmRemaining} seconds`
               : `${runLabel} · ${
                   navigator?.platform?.includes('Mac') ? '⌘' : 'Ctrl'
                 }+Enter`
           "
         >
-          <SlippyLoader v-if="stopping" size="h-3 w-3" />
+          <SlippyLoader v-if="stopping || inspectingSource" size="h-3 w-3" />
           <svg
             v-else-if="running"
             class="h-3 w-3"
@@ -514,8 +734,24 @@ watch(code, () => editor.value?.clearDiagnostics())
             />
           </svg>
           <span class="hidden sm:inline">{{
-            stopping ? 'Stopping' : running ? 'Stop' : runLabel
+            stopping
+              ? 'Stopping'
+              : running
+              ? 'Stop'
+              : inspectingSource
+              ? 'Checking'
+              : writeArmActive
+              ? `Run write · ${writeArmRemaining}s`
+              : runLabel
           }}</span>
+          <span
+            v-if="writeArmActive"
+            data-test="helm-writes-armed"
+            class="sr-only"
+            role="status"
+          >
+            Production writes armed for {{ writeArmRemaining }} seconds
+          </span>
         </button>
 
         <!-- Docs link -->
@@ -583,6 +819,7 @@ watch(code, () => editor.value?.clearDiagnostics())
           :result="executionResult"
           :error="requestError"
           :loading="running"
+          :target="target"
           clearable
           test-id="helm"
           @clear="clearExecutionOutput"
@@ -602,6 +839,17 @@ watch(code, () => editor.value?.clearDiagnostics())
         />
       </div>
     </div>
+
+    <HelmWriteGuardDialog
+      :show="writeGuard.show"
+      :findings="writeGuard.findings"
+      :target="writeGuard.target"
+      :ttl-seconds="writeArmTtlSeconds"
+      :loading="armingWrites"
+      :error="writeGuard.error"
+      @arm="armWrites"
+      @cancel="cancelWriteGuard"
+    />
 
     <!-- Not running warning -->
     <div

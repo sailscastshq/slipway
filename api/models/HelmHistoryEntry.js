@@ -39,6 +39,11 @@ module.exports = {
       maxLength: 200
     },
 
+    targetContext: {
+      type: 'json',
+      columnName: 'target_context'
+    },
+
     pinned: {
       type: 'boolean',
       defaultsTo: false

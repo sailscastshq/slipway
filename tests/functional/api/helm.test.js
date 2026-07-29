@@ -171,6 +171,109 @@ test(
 )
 
 test(
+  'production Helm requires a source-and-deployment-bound single-use write arm',
+  {
+    world: {
+      name: 'configured-slipway',
+      context: {
+        deploymentTarget: {
+          slug: 'production-helm-write-arm',
+          name: 'Production Helm Write Arm'
+        }
+      }
+    }
+  },
+  async ({ sails, world, request, expect }) => {
+    const current = world.current
+    const project = current.projects.deploymentTarget
+    const environment = current.environments.production
+    const app = current.apps.web
+    const originalExecute = sails.helpers.helm.executeInContainer
+    let executions = 0
+
+    await sails.models.app.updateOne({ id: app.id }).set({
+      status: 'running',
+      containerName: 'production-helm-write-arm-web'
+    })
+    sails.helpers.helm.executeInContainer = async () => {
+      executions += 1
+      return RESULT
+    }
+
+    try {
+      const helmPath = `/projects/${project.slug}/environments/${environment.slug}/helm`
+      const executePath = `/api/v1/projects/${project.slug}/environments/${environment.slug}/execute`
+      const armPath = `/api/v1/projects/${project.slug}/environments/${environment.slug}/helm/arm-writes`
+      const inspectPath = `/api/v1/projects/${project.slug}/environments/${environment.slug}/helm/inspect-source`
+      const browser = await withCsrfFromPage(request, helmPath, 'genesisUser')
+      const source =
+        "await Creator.updateOne({ id: 1 }).set({ email: 'new@example.com' })"
+
+      const inspection = await browser.request.post(inspectPath, {
+        code: source
+      })
+      expect(inspection).toHaveStatus(200)
+      expect(inspection).toHaveJsonPath('requiresWriteArm', true)
+      expect(inspection).toHaveJsonPath('classification.mutating', true)
+
+      const blocked = await browser.request.post(executePath, {
+        code: source,
+        executionId: '2667db5d-46af-4762-80aa-7c3f89704c9f'
+      })
+      expect(blocked).toHaveStatus(409)
+      expect(blocked).toHaveJsonPath('code', 'HELM_WRITES_NOT_ARMED')
+      expect(blocked).toHaveJsonPath('classification.mutating', true)
+      expect(executions).toBe(0)
+
+      const armed = await browser.request.post(armPath, { code: source })
+      expect(armed).toHaveStatus(201)
+      expect(armed.data.token.length > 30).toBe(true)
+      expect(armed.data.sourceHash.length).toBe(64)
+      expect(armed).toHaveJsonPath('target.environment.isProduction', true)
+
+      const executed = await browser.request.post(executePath, {
+        code: source,
+        writeArmToken: armed.data.token,
+        executionId: '47c4b4fe-d30d-4649-8a86-d12a63c716f7'
+      })
+      expect(executed).toHaveStatus(200)
+      expect(executions).toBe(1)
+
+      const reused = await browser.request.post(executePath, {
+        code: source,
+        writeArmToken: armed.data.token,
+        executionId: '873cb28a-a1bb-45f7-a73c-9090283d6992'
+      })
+      expect(reused).toHaveStatus(409)
+      expect(executions).toBe(1)
+
+      const executionAudit = await sails.models.auditlog.findOne({
+        action: 'helm.executed',
+        resourceId: String(app.id)
+      })
+      expect(executionAudit.details.sourceHash).toBe(armed.data.sourceHash)
+      expect(executionAudit.details.writeArmed).toBe(true)
+      expect(executionAudit.details.outputBytes).toBe(RESULT.outputBytes)
+      expect(executionAudit.details.environment.isProduction).toBe(true)
+      expect(JSON.stringify(executionAudit).includes(source)).toBe(false)
+      expect(JSON.stringify(executionAudit).includes('querying')).toBe(false)
+
+      const [blockedAudit] = await sails.models.auditlog
+        .find({
+          action: 'helm.execution.blocked',
+          resourceId: String(app.id)
+        })
+        .sort('createdAt ASC')
+        .limit(1)
+      expect(blockedAudit.details.outputBytes).toBe(0)
+      expect(JSON.stringify(blockedAudit).includes(source)).toBe(false)
+    } finally {
+      sails.helpers.helm.executeInContainer = originalExecute
+    }
+  }
+)
+
+test(
   'project Helm history is durable, searchable, scoped, and preserves pins when cleared',
   {
     world: {

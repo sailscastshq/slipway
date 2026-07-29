@@ -35,7 +35,13 @@ module.exports = function defineCustomHook(sails) {
                   const user = await User.findOne({
                     id: userId
                   })
-                    .select(['email', 'fullName', 'initials', 'team'])
+                    .select([
+                      'email',
+                      'fullName',
+                      'initials',
+                      'team',
+                      'teamRole'
+                    ])
                     .populate('team')
 
                   if (!user) {

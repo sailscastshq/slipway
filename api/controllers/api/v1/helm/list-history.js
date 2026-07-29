@@ -64,6 +64,15 @@ function serializeEntry(entry) {
     durationMs: entry.durationMs,
     executedAt: entry.executedAt,
     target: entry.target,
+    targetContext: entry.targetContext,
+    targetLabel: formatTarget(entry),
     pinned: entry.pinned
   }
+}
+
+function formatTarget(entry) {
+  const context = entry.targetContext
+  if (!context?.environment || !context?.app) return entry.target
+  const version = context.displayVersion ? ` @ ${context.displayVersion}` : ''
+  return `${context.environment.slug} / ${context.app.slug}${version}`
 }
