@@ -122,12 +122,14 @@ const helmLoading = ref(false)
 const helmStopping = ref(false)
 const helmHistory = ref([])
 const helmEditor = ref(null)
+const helmCompletionMetadata = ref(null)
 const helmSelection = ref({
   hasSelection: false,
   hasExecutableSelection: false
 })
 let helmExecutionSequence = 0
 let activeHelmExecution = null
+let helmCompletionRequestSequence = 0
 const helmRunLabel = computed(() =>
   helmSelection.value.hasSelection ? 'Run selection' : 'Run'
 )
@@ -151,6 +153,28 @@ function showToast(message, type = 'success') {
 
 function dismissToast(id) {
   toasts.value = toasts.value.filter((t) => t.id !== id)
+}
+
+async function loadHelmCompletionMetadata() {
+  const sequence = ++helmCompletionRequestSequence
+
+  try {
+    const response = await fetch('/api/v1/bosun/helm/completions', {
+      headers: {
+        Accept: 'application/json'
+      },
+      cache: 'no-store'
+    })
+    if (!response.ok) throw new Error('Completion metadata is unavailable.')
+
+    const metadata = await response.json()
+    if (sequence !== helmCompletionRequestSequence) return
+    helmCompletionMetadata.value = metadata.available ? metadata : null
+  } catch {
+    if (sequence === helmCompletionRequestSequence) {
+      helmCompletionMetadata.value = null
+    }
+  }
 }
 
 async function executeQuery() {
@@ -746,6 +770,8 @@ function handleClickOutside(e) {
 
 onMounted(() => {
   document.addEventListener('click', handleClickOutside)
+  window.addEventListener('focus', loadHelmCompletionMetadata)
+  loadHelmCompletionMetadata()
   if (activeTab.value === 'activity') {
     fetchActivity()
   }
@@ -759,7 +785,9 @@ onBeforeUnmount(() => {
 })
 
 onUnmounted(() => {
+  helmCompletionRequestSequence++
   document.removeEventListener('click', handleClickOutside)
+  window.removeEventListener('focus', loadHelmCompletionMetadata)
 })
 </script>
 
@@ -939,6 +967,7 @@ onUnmounted(() => {
           aria-label="Bosun Helm code"
           test-id="bosun-helm-editor"
           height="fill"
+          :completion-metadata="helmCompletionMetadata"
           submit-on-mod-enter
           placeholder="// Access Slipway models and helpers&#10;await User.find()"
           @selection-change="helmSelection = $event"

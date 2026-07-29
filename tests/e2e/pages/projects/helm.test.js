@@ -13,6 +13,46 @@ function helmWorld(slug) {
   }
 }
 
+const HELM_COMPLETION_METADATA = {
+  available: true,
+  version: 1,
+  models: [
+    {
+      identity: 'creator',
+      globalId: 'Creator',
+      attributes: [
+        { name: 'email', type: 'string', association: null },
+        { name: 'firstName', type: 'string', association: null },
+        {
+          name: 'invoices',
+          type: 'collection:invoice',
+          association: 'collection'
+        }
+      ]
+    },
+    {
+      identity: 'invoice',
+      globalId: 'Invoice',
+      attributes: [
+        { name: 'amount', type: 'number', association: null },
+        { name: 'status', type: 'string', association: null }
+      ]
+    }
+  ],
+  helpers: [
+    { path: 'mail.send' },
+    { path: 'mail.sendTemplate' },
+    { path: 'passwords.hashPassword' }
+  ],
+  config: [
+    { path: 'custom', type: 'object' },
+    { path: 'custom.appName', type: 'string' },
+    { path: 'custom.baseUrl', type: 'string' },
+    { path: 'models', type: 'object' },
+    { path: 'models.migrate', type: 'string' }
+  ]
+}
+
 function oversizedOutput() {
   return JSON.stringify(
     Array.from({ length: 180 }, (_, index) => ({
@@ -1193,6 +1233,143 @@ test(
       await page.raw.locator('[data-test="bosun-helm-logs"]').textContent()
     ).toContain('partial')
     await page.screenshot('.tmp/issue-271-bosun-cancelled-dark.png')
+    expect(page).toHaveNoSmoke()
+  }
+)
+
+test(
+  'project Helm completes models, attributes, and Waterline without stealing run shortcuts',
+  {
+    browser: true,
+    world: helmWorld('helm-completion-project')
+  },
+  async ({ sails, world, login, page, expect }) => {
+    const current = world.current
+    const projectSlug = current.projects.deploymentTarget.slug
+    const environmentSlug = current.environments.production.slug
+    let executionCount = 0
+
+    await sails.models.app.updateOne({ id: current.apps.web.id }).set({
+      status: 'running',
+      containerName: 'sounding-helm-completion-app'
+    })
+
+    const updateCheckFinished = page.raw.waitForResponse(
+      '**/api/v1/system/check-update'
+    )
+    await login.withPassword('genesisUser', page, {
+      password: current.auth.genesisUserPassword
+    })
+    await updateCheckFinished
+
+    await page.raw.route('**/helm/completions', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(HELM_COMPLETION_METADATA)
+      })
+    })
+    await page.raw.route('**/execute', async (route) => {
+      executionCount++
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          status: 'success',
+          value: [],
+          logs: [],
+          output: '[]',
+          error: null,
+          durationMs: 2,
+          truncated: false,
+          rowCount: 0,
+          outputBytes: 2,
+          logsPartial: false
+        })
+      })
+    })
+
+    await page.resize(1440, 900)
+    await page.inLightMode()
+    await page.goto(
+      `/projects/${projectSlug}/environments/${environmentSlug}/helm`
+    )
+
+    await page.fill('@helm-editor', 'Cre')
+    await page.raw.locator('.cm-tooltip-autocomplete').waitFor()
+    expect(
+      await page.raw.locator('.cm-tooltip-autocomplete').textContent()
+    ).toContain('Creator')
+    await page.screenshot('.tmp/issue-272-project-model-completion-light.png')
+
+    await page.key('Escape')
+    await page.fill('@helm-editor', 'Creator.find({ fir')
+    await page.raw.locator('.cm-tooltip-autocomplete').waitFor()
+    expect(
+      await page.raw.locator('.cm-tooltip-autocomplete').textContent()
+    ).toContain('firstName')
+    await page.screenshot(
+      '.tmp/issue-272-project-attribute-completion-light.png'
+    )
+
+    await page.fill('@helm-editor', 'Creator.fi')
+    await page.raw.locator('.cm-tooltip-autocomplete').waitFor()
+    await page.key('Enter')
+    expect(
+      await page.raw.locator('[data-test="helm-editor"]').textContent()
+    ).toBe('Creator.find')
+    expect(executionCount).toBe(0)
+
+    await page.key('ControlOrMeta+Enter')
+    await page.wait('@helm-output')
+    expect(executionCount).toBe(1)
+    expect(page).toHaveNoSmoke()
+  }
+)
+
+test(
+  'Bosun Helm completes helper and config namespaces in dark mode',
+  {
+    browser: true,
+    world: helmWorld('helm-completion-bosun')
+  },
+  async ({ world, login, page, expect }) => {
+    const current = world.current
+    const updateCheckFinished = page.raw.waitForResponse(
+      '**/api/v1/system/check-update'
+    )
+
+    await login.withPassword('genesisUser', page, {
+      password: current.auth.genesisUserPassword
+    })
+    await updateCheckFinished
+    await page.raw.route('**/api/v1/bosun/helm/completions', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(HELM_COMPLETION_METADATA)
+      })
+    })
+
+    await page.resize(1440, 900)
+    await page.inDarkMode()
+    await page.goto('/bosun?tab=console&mode=helm')
+
+    await page.fill('@bosun-helm-editor', 'sails.helpers.ma')
+    await page.raw.locator('.cm-tooltip-autocomplete').waitFor()
+    expect(
+      await page.raw.locator('.cm-tooltip-autocomplete').textContent()
+    ).toContain('mail')
+    await page.screenshot('.tmp/issue-272-bosun-helper-completion-dark.png')
+
+    await page.key('Escape')
+    await page.fill('@bosun-helm-editor', 'sails.config.cu')
+    await page.raw.locator('.cm-tooltip-autocomplete').waitFor()
+    expect(
+      await page.raw.locator('.cm-tooltip-autocomplete').textContent()
+    ).toContain('custom')
+    await page.screenshot('.tmp/issue-272-bosun-config-completion-dark.png')
     expect(page).toHaveNoSmoke()
   }
 )
