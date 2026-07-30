@@ -117,26 +117,35 @@ test('Helm query tracing is opt-in, execution-scoped, bounded, and redacted', as
   sails,
   expect
 }) => {
-  const result = await runHelm(
-    sails,
-    [
-      '// @trace queries',
-      "await Project.find({ slug: 'waterline-secret' }).limit(1)",
-      'for (let index = 0; index < 105; index++) {',
-      '  await sails.getDatastore().sendNativeQuery(',
-      '    "SELECT \'native-secret\' AS value, 99 AS count"',
-      '  )',
-      '}',
-      "'done'"
-    ].join('\n'),
-    { bootstrapSails: true }
-  )
+  const defaultMaxEntries = sails.config.custom.helm.maxQueryTraceEntries
+  expect(defaultMaxEntries).toBe(100)
+  sails.config.custom.helm.maxQueryTraceEntries = 3
+
+  let result
+  try {
+    result = await runHelm(
+      sails,
+      [
+        '// @trace queries',
+        "await Project.find({ slug: 'waterline-secret' }).limit(1)",
+        'for (let index = 0; index < 5; index++) {',
+        '  await sails.getDatastore().sendNativeQuery(',
+        '    "SELECT \'native-secret\' AS value, 99 AS count"',
+        '  )',
+        '}',
+        "'done'"
+      ].join('\n'),
+      { bootstrapSails: true }
+    )
+  } finally {
+    sails.config.custom.helm.maxQueryTraceEntries = defaultMaxEntries
+  }
 
   expect(result.success).toBe(true)
   expect(result.value).toBe('done')
   expect(result.queryTrace.enabled).toBe(true)
-  expect(result.queryTrace.entries.length).toBe(100)
-  expect(result.queryTrace.omittedCount).toBe(6)
+  expect(result.queryTrace.entries.length).toBe(3)
+  expect(result.queryTrace.omittedCount).toBe(3)
   expect({
     kind: result.queryTrace.entries[0].kind,
     model: result.queryTrace.entries[0].model,
