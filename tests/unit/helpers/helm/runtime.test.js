@@ -1,5 +1,7 @@
 const { test } = require('sounding')
+const { AsyncLocalStorage } = require('node:async_hooks')
 const helmRuntime = require('../../../../api/lib/helm-runtime')
+const createHelmQueryTracer = require('../../../../api/lib/helm-query-tracer')
 
 test('Helm returns complete final expressions instead of physical lines', async ({
   sails,
@@ -117,42 +119,66 @@ test('Helm query tracing is opt-in, execution-scoped, bounded, and redacted', as
   sails,
   expect
 }) => {
-  const defaultMaxEntries = sails.config.custom.helm.maxQueryTraceEntries
-  expect(defaultMaxEntries).toBe(100)
-  sails.config.custom.helm.maxQueryTraceEntries = 3
+  expect(sails.config.custom.helm.maxQueryTraceEntries).toBe(100)
 
-  let result
-  try {
-    result = await runHelm(
-      sails,
-      [
-        '// @trace queries',
-        "await Project.find({ slug: 'waterline-secret' }).limit(1)",
-        'for (let index = 0; index < 5; index++) {',
-        '  await sails.getDatastore().sendNativeQuery(',
-        '    "SELECT \'native-secret\' AS value, 99 AS count"',
-        '  )',
-        '}',
-        "'done'"
-      ].join('\n'),
-      { bootstrapSails: true }
-    )
-  } finally {
-    sails.config.custom.helm.maxQueryTraceEntries = defaultMaxEntries
+  const queryTrace = {
+    enabled: true,
+    entries: [],
+    omittedCount: 0
+  }
+  const queryTraceContext = new AsyncLocalStorage()
+  const datastore = {
+    sendNativeQuery() {
+      return Promise.resolve({ rows: [] })
+    }
+  }
+  const project = {
+    identity: 'project',
+    datastore: 'default',
+    find(criteria) {
+      return deferredQuery({
+        method: 'find',
+        criteria: {
+          where: criteria,
+          limit: 1
+        }
+      })
+    }
+  }
+  const sailsApp = {
+    models: { project },
+    config: { datastores: { default: {} } },
+    getDatastore() {
+      return datastore
+    }
   }
 
-  expect(result.success).toBe(true)
-  expect(result.value).toBe('done')
-  expect(result.queryTrace.enabled).toBe(true)
-  expect(result.queryTrace.entries.length).toBe(3)
-  expect(result.queryTrace.omittedCount).toBe(3)
+  createHelmQueryTracer({
+    sailsApp,
+    queryTrace,
+    queryTraceContext,
+    maxEntries: 3
+  })
+
+  await project.find({ slug: 'outside-trace-secret' })
+  await queryTraceContext.run(true, async () => {
+    await project.find({ slug: 'waterline-secret' })
+    for (let index = 0; index < 5; index++) {
+      await sailsApp
+        .getDatastore()
+        .sendNativeQuery("SELECT 'native-secret' AS value, 99 AS count")
+    }
+  })
+
+  expect(queryTrace.entries.length).toBe(3)
+  expect(queryTrace.omittedCount).toBe(3)
   expect({
-    kind: result.queryTrace.entries[0].kind,
-    model: result.queryTrace.entries[0].model,
-    datastore: result.queryTrace.entries[0].datastore,
-    method: result.queryTrace.entries[0].method,
-    status: result.queryTrace.entries[0].status,
-    criteria: result.queryTrace.entries[0].criteria
+    kind: queryTrace.entries[0].kind,
+    model: queryTrace.entries[0].model,
+    datastore: queryTrace.entries[0].datastore,
+    method: queryTrace.entries[0].method,
+    status: queryTrace.entries[0].status,
+    criteria: queryTrace.entries[0].criteria
   }).toEqual({
     kind: 'waterline',
     model: 'project',
@@ -167,11 +193,11 @@ test('Helm query tracing is opt-in, execution-scoped, bounded, and redacted', as
     }
   })
   expect({
-    kind: result.queryTrace.entries[1].kind,
-    datastore: result.queryTrace.entries[1].datastore,
-    method: result.queryTrace.entries[1].method,
-    status: result.queryTrace.entries[1].status,
-    statement: result.queryTrace.entries[1].statement
+    kind: queryTrace.entries[1].kind,
+    datastore: queryTrace.entries[1].datastore,
+    method: queryTrace.entries[1].method,
+    status: queryTrace.entries[1].status,
+    statement: queryTrace.entries[1].statement
   }).toEqual({
     kind: 'native',
     datastore: 'default',
@@ -179,12 +205,11 @@ test('Helm query tracing is opt-in, execution-scoped, bounded, and redacted', as
     status: 'success',
     statement: 'SELECT ? AS value, ? AS count'
   })
-  expect(JSON.stringify(result.queryTrace).includes('waterline-secret')).toBe(
+  expect(JSON.stringify(queryTrace).includes('outside-trace-secret')).toBe(
     false
   )
-  expect(JSON.stringify(result.queryTrace).includes('native-secret')).toBe(
-    false
-  )
+  expect(JSON.stringify(queryTrace).includes('waterline-secret')).toBe(false)
+  expect(JSON.stringify(queryTrace).includes('native-secret')).toBe(false)
 })
 
 test('Helm understands normal JavaScript syntax around return words', async ({
@@ -619,6 +644,25 @@ async function runHelm(sails, source, options = {}) {
     bootstrapSails: false,
     ...options
   })
+}
+
+function deferredQuery(queryInfo) {
+  const deferred = {
+    _wlQueryInfo: queryInfo,
+    _handleExec(done) {
+      queueMicrotask(() => done(null, []))
+    },
+    then(onFulfilled, onRejected) {
+      return new Promise((resolve, reject) => {
+        deferred._handleExec((error, value) => {
+          if (error) reject(error)
+          else resolve(value)
+        })
+      }).then(onFulfilled, onRejected)
+    }
+  }
+
+  return deferred
 }
 
 async function captureError(operation) {
