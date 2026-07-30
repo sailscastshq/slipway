@@ -18,6 +18,10 @@ stored in Helm history. Security audit records are written separately and do
 not contain the executed source. Deleting editable history therefore does not
 delete the audit trail.
 
+Inline values captured with `// @inspect` and the redacted database trace
+enabled by `// @trace queries` belong only to the current execution response.
+Slipway does not copy either diagnostic into history or audit records.
+
 History is private to the user who ran it and to the project environment where
 it ran. A user can search, reload, rerun, pin, or delete an entry. Clearing
 history removes unpinned entries and preserves pins.

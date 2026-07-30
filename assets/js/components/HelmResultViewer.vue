@@ -44,6 +44,7 @@ const props = defineProps({
 const emit = defineEmits(['clear'])
 const activeView = ref('raw')
 const logsOpen = ref(false)
+const queriesOpen = ref(false)
 const toasts = ref([])
 const runningDurationMs = ref(0)
 let runningStartedAt = 0
@@ -123,6 +124,19 @@ const errorStack = computed(() =>
 )
 const logs = computed(() =>
   Array.isArray(props.result?.logs) ? props.result.logs : []
+)
+const queryTrace = computed(() =>
+  props.result?.queryTrace?.enabled ? props.result.queryTrace : null
+)
+const queryEntries = computed(() =>
+  Array.isArray(queryTrace.value?.entries) ? queryTrace.value.entries : []
+)
+const queryDurationMs = computed(() =>
+  queryEntries.value.reduce(
+    (total, entry) =>
+      total + (Number.isFinite(entry.durationMs) ? entry.durationMs : 0),
+    0
+  )
 )
 const metadata = computed(() => {
   if (!props.result) return []
@@ -210,6 +224,7 @@ watch(
     logsOpen.value = Boolean(
       logs.value.length && props.result?.success === false
     )
+    queriesOpen.value = Boolean(queryTrace.value)
   },
   { immediate: true }
 )
@@ -302,6 +317,13 @@ function buildDiagnostics() {
         : null,
       truncated: Boolean(props.result?.truncated),
       logsPartial: Boolean(props.result?.logsPartial),
+      queryTrace: queryTrace.value
+        ? {
+            count: queryEntries.value.length,
+            omittedCount: queryTrace.value.omittedCount || 0,
+            truncated: Boolean(queryTrace.value.truncated)
+          }
+        : null,
       error: props.result?.error
         ? {
             name: props.result.error.name || 'Error',
@@ -336,6 +358,17 @@ function notify(message) {
 
 function dismissToast(id) {
   toasts.value = toasts.value.filter((toast) => toast.id !== id)
+}
+
+function queryLabel(entry) {
+  return entry.kind === 'native'
+    ? `${entry.datastore}.sendNativeQuery`
+    : `${entry.model}.${entry.method}`
+}
+
+function queryDetail(entry) {
+  if (entry.kind === 'native') return entry.statement
+  return entry.criteria ? JSON.stringify(entry.criteria) : 'No criteria'
 }
 </script>
 
@@ -500,6 +533,101 @@ function dismissToast(id) {
         {{ emptyText }}
       </div>
     </div>
+
+    <details
+      v-if="queryTrace"
+      :open="queriesOpen"
+      :data-test="`${testId}-queries`"
+      class="group shrink-0 border-t border-gray-200 bg-gray-50/70 dark:border-gray-800 dark:bg-gray-900/40"
+      @toggle="queriesOpen = $event.currentTarget.open"
+    >
+      <summary
+        class="flex cursor-pointer list-none items-center gap-2 px-4 py-2 text-xs font-medium text-gray-500 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-gray-300 dark:text-gray-400 dark:focus-visible:ring-gray-700"
+      >
+        <svg
+          class="h-3.5 w-3.5"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          stroke-width="1.5"
+          aria-hidden="true"
+        >
+          <ellipse cx="12" cy="5" rx="7.5" ry="2.75" />
+          <path
+            stroke-linecap="round"
+            d="M4.5 5v7c0 1.52 3.36 2.75 7.5 2.75s7.5-1.23 7.5-2.75V5m-15 7v7c0 1.52 3.36 2.75 7.5 2.75s7.5-1.23 7.5-2.75v-7"
+          />
+        </svg>
+        <span>Queries</span>
+        <span class="font-normal text-gray-400 dark:text-gray-600">
+          {{ queryEntries.length
+          }}{{
+            queryTrace.omittedCount
+              ? ` + ${queryTrace.omittedCount} omitted`
+              : ''
+          }}
+          &middot; {{ formatDuration(queryDurationMs) }}
+          {{ queryTrace.truncated ? ' · truncated' : '' }}
+        </span>
+        <svg
+          class="ml-auto h-3.5 w-3.5 shrink-0 transition-transform group-open:rotate-180 motion-reduce:transition-none"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          stroke-width="1.5"
+          aria-hidden="true"
+        >
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            d="m6 9 6 6 6-6"
+          />
+        </svg>
+      </summary>
+      <ol
+        v-if="queryEntries.length"
+        :data-test="`${testId}-query-list`"
+        class="max-h-56 space-y-3 overflow-auto px-4 pb-3"
+      >
+        <li
+          v-for="(entry, index) in queryEntries"
+          :key="`${entry.kind}-${entry.model || entry.datastore}-${
+            entry.method
+          }-${index}`"
+          class="min-w-0"
+        >
+          <div class="flex min-w-0 items-center justify-between gap-4">
+            <code
+              class="truncate font-mono text-xs font-medium text-gray-700 dark:text-gray-300"
+              >{{ queryLabel(entry) }}</code
+            >
+            <span
+              :class="[
+                'shrink-0 text-xs tabular-nums',
+                entry.status === 'error'
+                  ? 'text-red-600 dark:text-red-400'
+                  : 'text-gray-400 dark:text-gray-600'
+              ]"
+            >
+              {{ entry.status === 'error' ? 'Error · ' : ''
+              }}{{ formatDuration(entry.durationMs) }}
+            </span>
+          </div>
+          <code
+            :title="queryDetail(entry)"
+            class="mt-0.5 block truncate font-mono text-[0.6875rem] leading-4 text-gray-400 dark:text-gray-600"
+            >{{ queryDetail(entry) }}</code
+          >
+        </li>
+      </ol>
+      <p
+        v-else
+        :data-test="`${testId}-query-empty`"
+        class="px-4 pb-3 text-xs text-gray-400 dark:text-gray-600"
+      >
+        No Waterline or native queries ran.
+      </p>
+    </details>
 
     <details
       v-if="logs.length"

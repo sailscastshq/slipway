@@ -151,6 +151,7 @@ async function execute(sourceOverride) {
 
   editor.value.highlightExecution(execution)
   editor.value.clearDiagnostics()
+  editor.value.clearInspections()
   editor.value.focus()
   const currentExecution = {
     id: crypto.randomUUID(),
@@ -216,6 +217,7 @@ async function execute(sourceOverride) {
     if (activeExecution?.sequence !== currentExecution.sequence) return
 
     executionResult.value = result
+    editor.value.showInspections(result.inspections)
     const diagnostic = helmEditorDiagnostic(result.error)
     if (diagnostic) editor.value.showDiagnostic(diagnostic)
 
@@ -420,6 +422,7 @@ function clearExecutionOutput() {
   executionResult.value = null
   requestError.value = ''
   editor.value?.clearDiagnostics()
+  editor.value?.clearInspections()
 }
 
 async function loadCompletionMetadata() {
@@ -460,6 +463,7 @@ onBeforeUnmount(() => {
 
 watch(code, () => {
   editor.value?.clearDiagnostics()
+  editor.value?.clearInspections()
   if (writeArm.value && writeArm.value.source !== code.value) clearWriteArm()
 })
 </script>

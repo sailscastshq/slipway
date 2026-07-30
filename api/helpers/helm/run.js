@@ -86,12 +86,17 @@ module.exports = {
     const runnerSource = helmRuntime.buildRunnerSource({
       preparedSource: prepared.source,
       finalExpression: prepared.finalExpression,
+      inspections: prepared.inspections,
+      sourceMappings: prepared.sourceMappings,
+      traceQueries: prepared.traceQueries,
       sourceStartLine,
       sourceStartColumn,
       bootstrapSails,
       timeoutMs: executionTimeoutMs,
       maxLogBytes: limits.maxLogBytes,
       maxResultBytes: limits.maxResultBytes,
+      maxInspectionValuesPerMarker: limits.maxInspectionValuesPerMarker,
+      maxQueryTraceEntries: limits.maxQueryTraceEntries,
       executionId
     })
 

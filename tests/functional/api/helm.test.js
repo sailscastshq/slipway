@@ -12,7 +12,31 @@ const RESULT = {
   status: 'success',
   rowCount: 1,
   outputBytes: 36,
-  logsPartial: false
+  logsPartial: false,
+  inspections: [
+    {
+      id: 0,
+      line: 7,
+      column: 25,
+      values: [{ value: 1, preview: '1', truncated: false }],
+      omittedCount: 0
+    }
+  ],
+  queryTrace: {
+    enabled: true,
+    entries: [
+      {
+        kind: 'waterline',
+        model: 'creator',
+        datastore: 'default',
+        method: 'find',
+        durationMs: 2,
+        status: 'success',
+        criteria: { where: { id: '[value]' } }
+      }
+    ],
+    omittedCount: 0
+  }
 }
 
 const COMPLETIONS = {
@@ -68,6 +92,11 @@ test(
       expect(response).toHaveJsonPath('logs.0', 'querying')
       expect(response).toHaveJsonPath('durationMs', 12)
       expect(response).toHaveJsonPath('truncated', false)
+      expect(response).toHaveJsonPath('inspections.0.line', 7)
+      expect(response).toHaveJsonPath(
+        'queryTrace.entries.0.criteria.where.id',
+        '[value]'
+      )
     } finally {
       sails.helpers.helm.evaluate = originalEvaluate
     }
@@ -141,6 +170,8 @@ test(
       expect(response).toHaveJsonPath('logs.0', 'querying')
       expect(response).toHaveJsonPath('durationMs', 12)
       expect(response).toHaveJsonPath('truncated', false)
+      expect(response).toHaveJsonPath('inspections.0.values.0.preview', '1')
+      expect(response).toHaveJsonPath('queryTrace.entries.0.method', 'find')
 
       const history = await sails.models.helmhistoryentry.findOne({
         user: current.users.genesisUser.id,

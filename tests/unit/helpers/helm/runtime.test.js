@@ -1,4 +1,5 @@
 const { test } = require('sounding')
+const helmRuntime = require('../../../../api/lib/helm-runtime')
 
 test('Helm returns complete final expressions instead of physical lines', async ({
   sails,
@@ -39,6 +40,142 @@ await Creator.find({
   expect(result.status).toBe('success')
   expect(result.rowCount).toBe(1)
   expect(result.outputBytes).toBe(Buffer.byteLength(result.output))
+})
+
+test('Helm captures parser-backed inline inspections without changing expression values', async ({
+  sails,
+  expect
+}) => {
+  const result = await runHelm(
+    sails,
+    [
+      'const values = []',
+      'for (const number of [1, 2, 3]) {',
+      '  const doubled = number * 2 // @inspect',
+      '  values.push(doubled)',
+      '}',
+      'values // @inspect'
+    ].join('\n')
+  )
+
+  expect(result.success).toBe(true)
+  expect(result.value).toEqual([2, 4, 6])
+  expect(result.inspections.length).toBe(2)
+  expect(result.inspections[0].line).toBe(3)
+  expect(result.inspections[0].values.map(({ value }) => value)).toEqual([
+    2, 4, 6
+  ])
+  expect(result.inspections[1].line).toBe(6)
+  expect(result.inspections[1].values[0].value).toEqual([2, 4, 6])
+
+  const capped = await runHelm(
+    sails,
+    [
+      'for (let index = 0; index < 25; index++) {',
+      '  index // @inspect',
+      '}'
+    ].join('\n')
+  )
+  expect(capped.success).toBe(true)
+  expect(capped.inspections[0].values.length).toBe(20)
+  expect(capped.inspections[0].omittedCount).toBe(5)
+
+  const lookalike = await runHelm(
+    sails,
+    'const marker = "// @inspect and // @trace queries"\nmarker'
+  )
+  expect(lookalike.inspections).toEqual([])
+  expect(lookalike.queryTrace).toBe(null)
+  const ordinarySource = helmRuntime.prepareSource('1 + 1')
+  const tracedSource = helmRuntime.prepareSource('// @trace queries\n1 + 1')
+  expect(
+    helmRuntime
+      .buildRunnerSource({
+        preparedSource: ordinarySource.source,
+        finalExpression: ordinarySource.finalExpression,
+        traceQueries: ordinarySource.traceQueries
+      })
+      .includes('sendNativeQuery')
+  ).toBe(false)
+  expect(
+    helmRuntime
+      .buildRunnerSource({
+        preparedSource: tracedSource.source,
+        finalExpression: tracedSource.finalExpression,
+        traceQueries: tracedSource.traceQueries
+      })
+      .includes('sendNativeQuery')
+  ).toBe(true)
+
+  const invalid = await runHelm(sails, 'const value = 1\n// @inspect\nvalue')
+  expect(invalid.success).toBe(false)
+  expect(invalid.error.code).toBe('HELM_SOURCE_INVALID')
+  expect(invalid.error.message).toContain('complete expression')
+})
+
+test('Helm query tracing is opt-in, execution-scoped, bounded, and redacted', async ({
+  sails,
+  expect
+}) => {
+  const result = await runHelm(
+    sails,
+    [
+      '// @trace queries',
+      "await Project.find({ slug: 'waterline-secret' }).limit(1)",
+      'for (let index = 0; index < 105; index++) {',
+      '  await sails.getDatastore().sendNativeQuery(',
+      '    "SELECT \'native-secret\' AS value, 99 AS count"',
+      '  )',
+      '}',
+      "'done'"
+    ].join('\n'),
+    { bootstrapSails: true }
+  )
+
+  expect(result.success).toBe(true)
+  expect(result.value).toBe('done')
+  expect(result.queryTrace.enabled).toBe(true)
+  expect(result.queryTrace.entries.length).toBe(100)
+  expect(result.queryTrace.omittedCount).toBe(6)
+  expect({
+    kind: result.queryTrace.entries[0].kind,
+    model: result.queryTrace.entries[0].model,
+    datastore: result.queryTrace.entries[0].datastore,
+    method: result.queryTrace.entries[0].method,
+    status: result.queryTrace.entries[0].status,
+    criteria: result.queryTrace.entries[0].criteria
+  }).toEqual({
+    kind: 'waterline',
+    model: 'project',
+    datastore: 'default',
+    method: 'find',
+    status: 'success',
+    criteria: {
+      where: {
+        slug: '[value]'
+      },
+      limit: '[value]'
+    }
+  })
+  expect({
+    kind: result.queryTrace.entries[1].kind,
+    datastore: result.queryTrace.entries[1].datastore,
+    method: result.queryTrace.entries[1].method,
+    status: result.queryTrace.entries[1].status,
+    statement: result.queryTrace.entries[1].statement
+  }).toEqual({
+    kind: 'native',
+    datastore: 'default',
+    method: 'sendNativeQuery',
+    status: 'success',
+    statement: 'SELECT ? AS value, ? AS count'
+  })
+  expect(JSON.stringify(result.queryTrace).includes('waterline-secret')).toBe(
+    false
+  )
+  expect(JSON.stringify(result.queryTrace).includes('native-secret')).toBe(
+    false
+  )
 })
 
 test('Helm understands normal JavaScript syntax around return words', async ({
@@ -224,6 +361,15 @@ test('Helm maps syntax and runtime failures to helm-input.js', async ({
   expect(runtimeFailure.error.line).toBe(2)
   expect(runtimeFailure.error.column).toBe(9)
   expect(runtimeFailure.error.stack).toContain('helm-input.js:2:9')
+
+  const inspectedFailure = await runHelm(
+    sails,
+    'const creator = null\ncreator.publicId // @inspect'
+  )
+  expect(inspectedFailure.success).toBe(false)
+  expect(inspectedFailure.error.line).toBe(2)
+  expect(inspectedFailure.error.column).toBe(9)
+  expect(inspectedFailure.error.stack).toContain('helm-input.js:2:9')
 
   const rejectedPromise = await runHelm(
     sails,
