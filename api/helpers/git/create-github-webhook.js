@@ -46,7 +46,7 @@ module.exports = {
         body: JSON.stringify({
           name: 'web',
           active: true,
-          events: ['push', 'pull_request', 'delete'],
+          events: ['push'],
           config: {
             url: webhookUrl,
             content_type: 'json',
@@ -90,7 +90,7 @@ module.exports = {
                 },
                 body: JSON.stringify({
                   active: true,
-                  events: ['push', 'pull_request', 'delete'],
+                  events: ['push'],
                   config: {
                     url: webhookUrl,
                     content_type: 'json',

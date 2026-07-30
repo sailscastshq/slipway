@@ -39,11 +39,11 @@ module.exports = {
       throw 'notFound'
     }
 
-    if (!project.webhookSecret || !project.autoDeploy) {
+    if (!project.webhookSecret) {
       sails.log.warn(
-        `Webhook received for ${projectSlug} but auto-deploy is not enabled`
+        `Webhook received for ${projectSlug} but no webhook secret is configured`
       )
-      return { message: 'Auto-deploy not enabled' }
+      return { message: 'Webhook not configured' }
     }
 
     // Verify GitHub signature
@@ -73,13 +73,19 @@ module.exports = {
     const event = this.req.headers['x-github-event']
     const body = typeof rawBody === 'string' ? JSON.parse(rawBody) : rawBody
 
-    // Handle pull_request events for preview environments
-    if (event === 'pull_request') {
-      return await handlePullRequest(project, body)
+    if (event !== 'push') {
+      return {
+        received: true,
+        action: 'ignored',
+        reason: 'unsupported_event'
+      }
     }
 
-    if (event !== 'push') {
-      return { message: `Ignored event: ${event}` }
+    if (!project.autoDeploy) {
+      sails.log.warn(
+        `Push webhook received for ${projectSlug} but auto-deploy is not enabled`
+      )
+      return { message: 'Auto-deploy not enabled' }
     }
 
     if (isContentCommit(body.head_commit?.message)) {
@@ -197,121 +203,4 @@ module.exports = {
       deploymentIds
     }
   }
-}
-
-/**
- * Handle pull_request webhook events for preview environments.
- * - opened/synchronize: create preview env + deploy
- * - closed: destroy preview env
- */
-async function handlePullRequest(project, body) {
-  const action = body.action
-  const pr = body.pull_request
-  if (!pr) return { message: 'No pull_request payload' }
-
-  const prNumber = pr.number
-  const branch = pr.head.ref
-
-  if (
-    action === 'opened' ||
-    action === 'synchronize' ||
-    action === 'reopened'
-  ) {
-    // Create or get preview environment
-    const environment =
-      await sails.helpers.preview.createPreviewEnvironment.with({
-        project,
-        prNumber,
-        branch
-      })
-
-    // Clone/pull the PR branch
-    const repoUrl = project.repositoryUrl
-    if (!repoUrl) {
-      return { message: 'No repository URL configured' }
-    }
-
-    const targetDir = path.join(
-      sails.config.custom.slipwayAppsDir,
-      project.slug
-    )
-
-    fs.mkdirSync(sails.config.custom.slipwayAppsDir, { recursive: true })
-
-    try {
-      if (fs.existsSync(path.join(targetDir, '.git'))) {
-        execFileSync('git', ['fetch', 'origin', branch], {
-          cwd: targetDir,
-          timeout: 120000
-        })
-        execFileSync('git', ['checkout', '-B', branch, `origin/${branch}`], {
-          cwd: targetDir,
-          timeout: 30000
-        })
-        execFileSync('git', ['clean', '-fd'], {
-          cwd: targetDir,
-          timeout: 30000
-        })
-      } else {
-        if (fs.existsSync(targetDir)) {
-          fs.rmSync(targetDir, { recursive: true, force: true })
-        }
-        execFileSync(
-          'git',
-          [
-            'clone',
-            '--branch',
-            branch,
-            '--single-branch',
-            '--depth',
-            '1',
-            repoUrl,
-            targetDir
-          ],
-          {
-            timeout: 120000
-          }
-        )
-      }
-    } catch (err) {
-      sails.log.error(
-        `Failed to clone/pull PR branch for ${project.slug}: ${err.message}`
-      )
-      return { message: `Git error: ${err.message}` }
-    }
-
-    // Get owner for deployer
-    const owner = await User.findOne({ id: project.createdBy })
-
-    const queued = await sails.helpers.deploy.queueDeployment.with({
-      values: {
-        gitCommit: pr.head.sha,
-        gitBranch: branch,
-        gitMessage: pr.title,
-        triggeredBy: owner ? owner.id : null,
-        triggerType: 'webhook',
-        environment: environment.id
-      }
-    })
-    const deployment = queued.deployment
-
-    sails.log.info(
-      `Preview deploy triggered for ${project.slug}/pr-${prNumber}: ${deployment.id}`
-    )
-
-    return {
-      message: `Preview deployment triggered for PR #${prNumber}`,
-      deploymentId: deployment.id
-    }
-  } else if (action === 'closed') {
-    // Destroy preview environment
-    await sails.helpers.preview.destroyPreviewEnvironment.with({
-      project,
-      prNumber
-    })
-
-    return { message: `Preview environment for PR #${prNumber} destroyed` }
-  }
-
-  return { message: `Ignored PR action: ${action}` }
 }

@@ -31,21 +31,6 @@ module.exports = {
       columnName: 'is_production'
     },
 
-    isPreview: {
-      type: 'boolean',
-      defaultsTo: false,
-      description:
-        'Whether this is an auto-created preview environment (from a PR)',
-      columnName: 'is_preview'
-    },
-
-    prNumber: {
-      type: 'number',
-      allowNull: true,
-      description: 'Pull request number (for preview environments)',
-      columnName: 'pr_number'
-    },
-
     domain: {
       type: 'string',
       description: 'Custom domain for this environment (optional)',

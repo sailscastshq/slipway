@@ -123,13 +123,6 @@ module.exports = {
       description: 'Automatically deploy on push'
     },
 
-    autoDeployPreviews: {
-      type: 'boolean',
-      columnName: 'auto_deploy_previews',
-      defaultsTo: true,
-      description: 'Automatically deploy PR preview environments'
-    },
-
     // Relationships
     provider: {
       model: 'gitprovider',
