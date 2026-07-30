@@ -27,7 +27,14 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['update:tab', 'close', 'load', 'rerun', 'insert'])
+const emit = defineEmits([
+  'update:tab',
+  'close',
+  'load',
+  'rerun',
+  'insert',
+  'snippet-saved'
+])
 const history = ref([])
 const snippets = ref([])
 const historyQuery = ref('')
@@ -279,6 +286,7 @@ async function saveSnippet(values) {
     )
     snippetDialog.value = { show: false, snippet: null }
     await refreshSnippets()
+    emit('snippet-saved', values.source)
     notify(existing?.id ? 'Snippet updated' : 'Snippet saved')
   } catch (error) {
     requestError.value = error.message
@@ -388,11 +396,9 @@ defineExpose({ refreshHistory, openSnippetDialog })
     data-test="helm-library"
     class="flex max-h-[17rem] min-h-0 shrink-0 flex-col border-t border-gray-100 bg-white dark:border-gray-800 dark:bg-gray-950"
   >
-    <header
-      class="flex shrink-0 items-center gap-2 border-b border-gray-100 px-3 py-2 dark:border-gray-800"
-    >
+    <header class="flex shrink-0 items-center gap-2 px-3 py-2">
       <div
-        class="flex shrink-0 overflow-hidden rounded-md border border-gray-300 dark:border-gray-700"
+        class="flex shrink-0 items-center gap-0.5"
         role="tablist"
         aria-label="Helm library"
       >
@@ -412,11 +418,10 @@ defineExpose({ refreshHistory, openSnippetDialog })
             :tabindex="tab === item.key ? 0 : -1"
             :data-test="`helm-library-${item.key}`"
             :class="[
-              'flex h-7 w-8 items-center justify-center outline-none transition-colors focus-visible:z-10 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-gray-400 motion-reduce:transition-none dark:focus-visible:ring-gray-600',
-              index > 0 ? 'border-l border-gray-300 dark:border-gray-700' : '',
+              'flex h-7 w-7 items-center justify-center rounded-md outline-none transition-colors focus-visible:z-10 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-gray-400 motion-reduce:transition-none dark:focus-visible:ring-gray-600',
               tab === item.key
-                ? 'bg-gray-200 text-gray-900 dark:bg-gray-700 dark:text-white'
-                : 'text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800'
+                ? 'bg-gray-200/80 text-gray-900 dark:bg-gray-800 dark:text-white'
+                : 'text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-500 dark:hover:bg-gray-800 dark:hover:text-gray-300'
             ]"
             @click="emit('update:tab', item.key)"
             @keydown="handleLibraryTabKeydown($event, index)"
@@ -477,22 +482,40 @@ defineExpose({ refreshHistory, openSnippetDialog })
           data-test="helm-library-search"
           type="search"
           :placeholder="`Search ${tab}`"
-          class="block w-full rounded-md border-0 bg-gray-50 py-1.5 pl-8 pr-3 text-xs text-gray-900 outline-none ring-1 ring-inset ring-gray-200 placeholder:text-gray-400 focus:ring-1 focus:ring-gray-400 dark:bg-gray-900 dark:text-white dark:ring-gray-800 dark:placeholder:text-gray-600 dark:focus:ring-gray-600"
+          class="block w-full rounded-md border-0 bg-gray-100/70 py-1.5 pl-8 pr-3 text-xs text-gray-900 outline-none placeholder:text-gray-400 focus:ring-1 focus:ring-gray-300 dark:bg-gray-900 dark:text-white dark:placeholder:text-gray-600 dark:focus:ring-gray-700"
         />
       </label>
 
-      <button
-        v-if="tab === 'history'"
-        type="button"
-        data-test="helm-clear-history"
-        :disabled="clearableHistoryCount === 0"
-        class="disabled:opacity-35 rounded-md px-2 py-1.5 text-xs font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-900 disabled:cursor-not-allowed dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white"
-        @click="confirm = { show: true, type: 'clear-history', item: null }"
+      <Tooltip
+        v-if="tab === 'history' && clearableHistoryCount > 0"
+        text="Clear recent history"
+        position="top"
       >
-        Clear
-      </button>
+        <button
+          type="button"
+          data-test="helm-clear-history"
+          aria-label="Clear recent history"
+          class="rounded-md p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 dark:text-gray-500 dark:hover:bg-red-950/40 dark:hover:text-red-400 dark:focus-visible:ring-gray-700"
+          @click="confirm = { show: true, type: 'clear-history', item: null }"
+        >
+          <svg
+            class="h-4 w-4"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+            stroke-width="1.75"
+            aria-hidden="true"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              d="M4.5 7.5h15M9 7.5V5.25h6V7.5m-8.25 0 .75 11.25h9l.75-11.25M10 11v4.5m4-4.5v4.5"
+            />
+          </svg>
+        </button>
+      </Tooltip>
       <button
-        v-else
+        v-if="tab !== 'history'"
         type="button"
         data-test="helm-new-snippet"
         :disabled="!hasCurrentSource"
@@ -554,12 +577,12 @@ defineExpose({ refreshHistory, openSnippetDialog })
             Runs appear here without their returned data.
           </p>
         </div>
-        <div v-else>
+        <div v-else class="space-y-0.5 p-1">
           <div
             v-for="entry in history"
             :key="entry.id"
             data-test="helm-history-entry"
-            class="group flex items-center gap-2 border-b border-gray-100 px-3 py-2 last:border-b-0 hover:bg-gray-50 dark:border-gray-900 dark:hover:bg-gray-900/60"
+            class="group flex items-center gap-2 rounded-md px-2 py-2 hover:bg-gray-50 dark:hover:bg-gray-900/60"
           >
             <button
               type="button"
@@ -633,12 +656,12 @@ defineExpose({ refreshHistory, openSnippetDialog })
             Save repeatable work, then insert it without running.
           </p>
         </div>
-        <div v-else>
+        <div v-else class="space-y-0.5 p-1">
           <div
             v-for="snippet in snippets"
             :key="snippet.id"
             data-test="helm-snippet-entry"
-            class="group flex items-center gap-2 border-b border-gray-100 px-3 py-2 last:border-b-0 hover:bg-gray-50 dark:border-gray-900 dark:hover:bg-gray-900/60"
+            class="group flex items-center gap-2 rounded-md px-2 py-2 hover:bg-gray-50 dark:hover:bg-gray-900/60"
           >
             <button
               type="button"
@@ -678,7 +701,7 @@ defineExpose({ refreshHistory, openSnippetDialog })
 
     <footer
       v-if="requestError || (tab === 'history' && history.length > 0)"
-      class="shrink-0 border-t border-gray-100 px-3 py-1.5 text-[11px] dark:border-gray-800"
+      class="shrink-0 px-3 py-1.5 text-[11px]"
     >
       <p v-if="requestError" class="text-red-600 dark:text-red-400">
         {{ requestError }}

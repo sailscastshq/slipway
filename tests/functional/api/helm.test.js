@@ -104,6 +104,40 @@ test(
 )
 
 test(
+  'project Helm opens the app named in its page URL',
+  {
+    world: {
+      name: 'configured-slipway',
+      context: {
+        deploymentTarget: {
+          slug: 'helm-explicit-app',
+          name: 'Helm Explicit App'
+        }
+      }
+    }
+  },
+  async ({ sails, world, visit, expect }) => {
+    const current = world.current
+    const worker = await sails.models.app
+      .create({
+        name: 'Worker',
+        slug: 'worker',
+        environment: current.environments.production.id,
+        isDefault: false
+      })
+      .fetch()
+    const path = `/projects/${current.projects.deploymentTarget.slug}/environments/${current.environments.production.slug}/helm?appSlug=${worker.slug}`
+
+    const page = await visit.as('genesisUser')(path)
+
+    expect(page).toHaveStatus(200)
+    expect(page).toBeInertiaPage('projects/helm')
+    expect(page).toHaveInertiaProp('app.slug', 'worker')
+    expect(page).toHaveInertiaProp('target.app.slug', 'worker')
+  }
+)
+
+test(
   'project Helm exposes the same structured execution result',
   {
     world: {

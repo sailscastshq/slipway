@@ -13,6 +13,10 @@ module.exports = {
       type: 'string',
       required: true,
       description: 'Environment slug'
+    },
+    appSlug: {
+      type: 'string',
+      description: 'App slug'
     }
   },
 
@@ -25,7 +29,7 @@ module.exports = {
     }
   },
 
-  fn: async function ({ slug, envSlug }) {
+  fn: async function ({ slug, envSlug, appSlug }) {
     const user = await User.findOne({ id: this.req.session.userId }).populate(
       'team'
     )
@@ -45,9 +49,17 @@ module.exports = {
       throw { notFound: `/projects/${slug}` }
     }
 
-    let app =
-      (await App.findOne({ environment: environment.id, isDefault: true })) ||
-      (await App.findOne({ environment: environment.id }))
+    let app = appSlug
+      ? await App.findOne({ environment: environment.id, slug: appSlug })
+      : (await App.findOne({
+          environment: environment.id,
+          isDefault: true
+        })) || (await App.findOne({ environment: environment.id }))
+    if (appSlug && !app) {
+      throw {
+        notFound: `/projects/${slug}/environments/${envSlug}`
+      }
+    }
     if (app)
       app = await App.findOne({ id: app.id }).populate('currentDeployment')
     const target = app

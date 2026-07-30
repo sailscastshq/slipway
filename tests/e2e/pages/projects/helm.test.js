@@ -197,6 +197,208 @@ async function selectFromSecondLine(page, { toDocumentEnd = true } = {}) {
 }
 
 test(
+  'project Helm keeps named scratchpads durable without storing returned values',
+  {
+    browser: true,
+    world: helmWorld('helm-named-scratchpads')
+  },
+  async ({ sails, world, login, page, expect }) => {
+    const current = world.current
+    const projectSlug = current.projects.deploymentTarget.slug
+    const environmentSlug = current.environments.production.slug
+    const endpoint = `/api/v1/projects/${projectSlug}/environments/${environmentSlug}/execute`
+    const returnedValue = 'server-only-result'
+
+    await sails.models.app.updateOne({ id: current.apps.web.id }).set({
+      status: 'running',
+      containerName: 'sounding-helm-scratchpads-app'
+    })
+    const updateCheckFinished = page.raw.waitForResponse(
+      '**/api/v1/system/check-update'
+    )
+    await login.withPassword('genesisUser', page, {
+      password: current.auth.genesisUserPassword
+    })
+    await updateCheckFinished
+    await page.raw.route(`**${endpoint}`, async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          value: [{ id: 1, name: returnedValue }],
+          logs: [`loaded ${returnedValue}`],
+          output: JSON.stringify([{ id: 1, name: returnedValue }], null, 2),
+          error: null,
+          durationMs: 5,
+          truncated: false
+        })
+      })
+    })
+
+    await page.resize(1440, 900)
+    await page.inLightMode()
+    await page.goto(
+      `/projects/${projectSlug}/environments/${environmentSlug}/helm`
+    )
+
+    const tabs = page.raw.locator('[data-test="helm-scratchpads"] [role="tab"]')
+    expect(await tabs.count()).toBe(1)
+    expect((await tabs.first().textContent()).includes('Production')).toBe(
+      false
+    )
+
+    await page.fill('@helm-editor', 'await Creator.find()')
+    expect((await tabs.first().textContent()).includes('Modified')).toBe(true)
+
+    await page.click('@helm-scratchpad-create')
+    expect(await tabs.count()).toBe(2)
+    await page.fill('@helm-editor', 'await Creator.find().limit(1)')
+
+    await page.click('@helm-scratchpad-actions-trigger')
+    await page.click('@helm-scratchpad-actions-rename')
+    await page.fill('@helm-scratchpad-rename', 'Creator audit')
+    await page.key('Enter')
+    expect((await tabs.nth(1).textContent()).includes('Creator audit')).toBe(
+      true
+    )
+
+    await page.click('@helm-run')
+    await page.wait('@helm-result-table')
+    await page.click('@helm-view-raw')
+    expect(
+      await page.raw
+        .locator('[data-test="helm-view-raw"]')
+        .getAttribute('aria-pressed')
+    ).toBe('true')
+
+    await tabs.first().click()
+    expect(
+      (
+        await page.raw.locator('[data-test="helm-editor"]').textContent()
+      ).includes('await Creator.find()')
+    ).toBe(true)
+    expect(page).toSee('Run JavaScript to see results')
+
+    await tabs.first().focus()
+    await page.key('ArrowRight')
+    expect(await tabs.nth(1).getAttribute('aria-selected')).toBe('true')
+    expect(
+      (
+        await page.raw.locator('[data-test="helm-output"]').textContent()
+      ).includes(returnedValue)
+    ).toBe(true)
+
+    await page.click('@helm-scratchpad-actions-trigger')
+    await page.click('@helm-scratchpad-actions-save')
+    await page.wait('@helm-snippet-dialog')
+    expect(
+      (
+        await page.raw
+          .locator('[data-test="helm-snippet-source"]')
+          .textContent()
+      ).includes('await Creator.find().limit(1)')
+    ).toBe(true)
+    await page.raw
+      .locator('[data-test="helm-snippet-dialog"]')
+      .getByRole('button', { name: 'Cancel', exact: true })
+      .click()
+
+    await page.click('@helm-scratchpad-actions-trigger')
+    await page.click('@helm-scratchpad-actions-duplicate')
+    expect(await tabs.count()).toBe(3)
+    await page.click('@helm-scratchpad-actions-trigger')
+    await page.click('@helm-scratchpad-actions-move-left')
+    expect(
+      (await tabs.nth(1).textContent()).includes('Copy of Creator audit')
+    ).toBe(true)
+
+    await page.click('@helm-scratchpad-actions-trigger')
+    await page.click('@helm-scratchpad-actions-close')
+    await page.wait('@confirm-modal')
+    await page.raw
+      .locator('[data-test="confirm-modal"]')
+      .getByRole('button', { name: 'Close scratchpad', exact: true })
+      .click()
+    expect(await tabs.count()).toBe(2)
+
+    const storedBeforeReload = await page.raw.evaluate(() =>
+      window.localStorage.getItem('slipway:helm-scratchpads')
+    )
+    expect(storedBeforeReload.includes(returnedValue)).toBe(false)
+
+    await page.reload()
+    expect(await tabs.count()).toBe(2)
+    expect(page).toSee('Run JavaScript to see results')
+    expect(
+      (
+        await page.raw.locator('[data-test="helm-editor"]').textContent()
+      ).includes('await Creator.find().limit(1)')
+    ).toBe(true)
+
+    await page.click('@helm-run')
+    await page.wait('@helm-result-raw')
+    expect(
+      await page.raw
+        .locator('[data-test="helm-view-raw"]')
+        .getAttribute('aria-pressed')
+    ).toBe('true')
+    await page.screenshot('.tmp/issue-276-helm-scratchpads-light.png')
+
+    await page.raw.evaluate(() => {
+      const key = 'slipway:helm-scratchpads'
+      const state = JSON.parse(window.localStorage.getItem(key))
+      const sourceTab = state.tabs[0]
+      state.tabs.push({
+        ...sourceTab,
+        id: 'remote-production-tab',
+        name: 'Billing repair',
+        source: 'await Invoice.find()',
+        baselineSource: 'await Invoice.find()',
+        target: {
+          key: 'billing-project:billing-production:billing-app',
+          project: {
+            id: 'billing-project',
+            name: 'Billing',
+            slug: 'billing'
+          },
+          environment: {
+            id: 'billing-production',
+            name: 'Production',
+            slug: 'production',
+            isProduction: true
+          },
+          app: {
+            id: 'billing-app',
+            name: 'billing.app',
+            slug: 'billing-app'
+          },
+          href: '/projects/billing/environments/production/helm?appSlug=billing-app'
+        }
+      })
+      state.activeByTarget['billing-project:billing-production:billing-app'] =
+        'remote-production-tab'
+      window.localStorage.setItem(key, JSON.stringify(state))
+    })
+    await page.inDarkMode()
+    await page.reload()
+    const foreignTab = page.raw.getByRole('tab', { name: /Billing repair/ })
+    expect((await foreignTab.textContent()).includes('Production')).toBe(true)
+    await foreignTab.click()
+    await page.raw
+      .locator('[data-test="confirm-modal"]')
+      .waitFor({ state: 'visible' })
+    expect(page).toSee('Open production scratchpad?')
+    expect(page).toSee('Billing / Production / billing.app')
+    await page.raw.waitForTimeout(250)
+    await page.screenshot(
+      '.tmp/issue-276-helm-production-switch-warning-dark.png'
+    )
+    expect(page).toHaveNoSmoke()
+  }
+)
+
+test(
   'Helm keeps its editor visible while oversized output scrolls on desktop',
   { browser: true, world: helmWorld('helm-layout-desktop') },
   async ({ sails, world, login, page, expect }) => {

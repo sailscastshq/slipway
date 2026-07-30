@@ -1,5 +1,5 @@
 <script setup>
-import { Link, Head, usePage } from '@inertiajs/vue3'
+import { Link, Head, router, usePage } from '@inertiajs/vue3'
 import {
   inject,
   ref,
@@ -12,12 +12,19 @@ import {
 import AppLayout from '@/layouts/AppLayout.vue'
 import SlippyLoader from '@/components/SlippyLoader.vue'
 import CodeEditor from '@/components/CodeEditor.vue'
+import ConfirmModal from '@/components/ConfirmModal.vue'
 import HelmResultViewer from '@/components/HelmResultViewer.vue'
+import HelmScratchpadTabs from '@/components/HelmScratchpadTabs.vue'
 import HelmWorkspaceLibrary from '@/components/HelmWorkspaceLibrary.vue'
 import HelmWriteGuardDialog from '@/components/HelmWriteGuardDialog.vue'
 import Tooltip from '@/components/Tooltip.vue'
+import { useHelmScratchpads } from '@/composables/useHelmScratchpads'
 import { helmEditorDiagnostic } from '@/lib/helmResult'
 import { cancelHelmExecution, cancelledHelmResult } from '@/lib/helmExecution'
+import {
+  helmScratchpadIsModified,
+  helmScratchpadTargetTitle
+} from '@/lib/helmScratchpads.mjs'
 
 defineOptions({
   layout: AppLayout
@@ -40,9 +47,18 @@ const toggleMobileMenu = inject('toggleMobileMenu')
 const toggleSidebar = inject('toggleSidebar')
 const sidebarCollapsed = inject('sidebarCollapsed')
 
-const code = ref('// Access your Sails models, helpers, and config\n')
-const executionResult = ref(null)
-const requestError = ref('')
+const scratchpads = useHelmScratchpads(() => props.target)
+const {
+  tabs: scratchpadTabs,
+  activeId: activeScratchpadId,
+  activeTab: activeScratchpad,
+  currentTargetKey,
+  code,
+  view: resultView,
+  result: executionResult,
+  error: requestError,
+  canCreate: canCreateScratchpad
+} = scratchpads
 const running = ref(false)
 const stopping = ref(false)
 const editor = ref(null)
@@ -61,6 +77,8 @@ const writeArm = ref(null)
 const writeArmRemaining = ref(0)
 const armingWrites = ref(false)
 const inspectingSource = ref(false)
+const targetSwitch = ref({ show: false, tab: null })
+const closeScratchpadGuard = ref({ show: false, tab: null })
 const editorSelection = ref({
   hasSelection: false,
   hasExecutableSelection: false,
@@ -93,6 +111,20 @@ const helmLibraryUrl = computed(
   () =>
     `/api/v1/projects/${props.project.slug}/environments/${props.environment.slug}/helm`
 )
+const targetSwitchMessage = computed(() => {
+  const target = targetSwitch.value.tab?.target
+  return target
+    ? `This scratchpad runs against ${helmScratchpadTargetTitle(
+        target
+      )}. Confirm the production target before continuing.`
+    : ''
+})
+const closeScratchpadMessage = computed(() => {
+  const tab = closeScratchpadGuard.value.tab
+  return tab
+    ? `“${tab.name}” has changes that have not been executed or saved as a snippet.`
+    : ''
+})
 
 async function execute(sourceOverride) {
   let execution
@@ -220,6 +252,9 @@ async function execute(sourceOverride) {
     editor.value.showInspections(result.inspections)
     const diagnostic = helmEditorDiagnostic(result.error)
     if (diagnostic) editor.value.showDiagnostic(diagnostic)
+    if (!execution.hasSelection) {
+      scratchpads.markCurrentSourceSaved(code.value)
+    }
 
     await revealHistory()
   } catch (err) {
@@ -419,10 +454,77 @@ async function loadSource(source) {
 }
 
 function clearExecutionOutput() {
-  executionResult.value = null
-  requestError.value = ''
+  scratchpads.clearRuntime()
   editor.value?.clearDiagnostics()
   editor.value?.clearInspections()
+}
+
+async function activateScratchpad(tab) {
+  if (!tab || running.value || inspectingSource.value) return
+  if (tab.target.key === currentTargetKey.value) {
+    scratchpads.activate(tab.id)
+    clearWriteArm()
+    await nextTick()
+    editor.value?.clearDiagnostics()
+    editor.value?.clearInspections()
+    editor.value?.focus()
+    return
+  }
+
+  if (tab.target.environment.isProduction) {
+    targetSwitch.value = { show: true, tab }
+    return
+  }
+  openScratchpadTarget(tab)
+}
+
+function openScratchpadTarget(tab = targetSwitch.value.tab) {
+  if (!tab) return
+  targetSwitch.value = { show: false, tab: null }
+  scratchpads.activate(tab.id)
+  router.visit(tab.target.href)
+}
+
+async function createScratchpad() {
+  if (running.value || inspectingSource.value) return
+  const tab = scratchpads.create()
+  if (!tab) return
+  clearWriteArm()
+  await nextTick()
+  editor.value?.focus()
+}
+
+async function duplicateScratchpad(tab) {
+  if (running.value || inspectingSource.value) return
+  const copy = scratchpads.duplicate(tab.id)
+  if (!copy) return
+  clearWriteArm()
+  await nextTick()
+  editor.value?.focus()
+}
+
+function requestCloseScratchpad(tab) {
+  if (!tab || running.value || inspectingSource.value) return
+  if (helmScratchpadIsModified(tab)) {
+    closeScratchpadGuard.value = { show: true, tab }
+    return
+  }
+  closeScratchpad(tab)
+}
+
+function closeScratchpad(tab = closeScratchpadGuard.value.tab) {
+  if (!tab) return
+  closeScratchpadGuard.value = { show: false, tab: null }
+  scratchpads.close(tab.id)
+  clearWriteArm()
+  nextTick(() => editor.value?.focus())
+}
+
+async function saveScratchpadAsSnippet() {
+  libraryTab.value = 'snippets'
+  libraryOpen.value = true
+  await nextTick()
+  library.value?.openSnippetDialog(code.value)
 }
 
 async function loadCompletionMetadata() {
@@ -782,8 +884,30 @@ watch(code, () => {
       </div>
     </div>
 
+    <HelmScratchpadTabs
+      :tabs="scratchpadTabs"
+      :active-id="activeScratchpadId"
+      :current-target-key="currentTargetKey"
+      :disabled="running || inspectingSource"
+      :can-create="canCreateScratchpad"
+      @activate="activateScratchpad"
+      @create="createScratchpad"
+      @rename="scratchpads.rename"
+      @duplicate="duplicateScratchpad"
+      @move="(tab, offset) => scratchpads.move(tab.id, offset)"
+      @save="saveScratchpadAsSnippet"
+      @close="requestCloseScratchpad"
+    />
+
     <!-- Main content - Tinkerwell style -->
     <div
+      id="helm-scratchpad-panel"
+      role="tabpanel"
+      :aria-labelledby="
+        activeScratchpad
+          ? `helm-scratchpad-${activeScratchpad.id}-tab`
+          : undefined
+      "
       data-test="helm-workspace"
       class="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden lg:flex-row"
     >
@@ -820,6 +944,7 @@ watch(code, () => {
         class="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-white dark:bg-gray-950"
       >
         <HelmResultViewer
+          v-model:view="resultView"
           :result="executionResult"
           :error="requestError"
           :loading="running"
@@ -840,6 +965,7 @@ watch(code, () => {
           @load="loadSource"
           @insert="loadSource"
           @rerun="execute"
+          @snippet-saved="scratchpads.markCurrentSourceSaved"
         />
       </div>
     </div>
@@ -853,6 +979,25 @@ watch(code, () => {
       :error="writeGuard.error"
       @arm="armWrites"
       @cancel="cancelWriteGuard"
+    />
+
+    <ConfirmModal
+      :show="targetSwitch.show"
+      title="Open production scratchpad?"
+      :message="targetSwitchMessage"
+      confirm-label="Open production"
+      @cancel="targetSwitch = { show: false, tab: null }"
+      @confirm="openScratchpadTarget"
+    />
+
+    <ConfirmModal
+      :show="closeScratchpadGuard.show"
+      title="Close modified scratchpad?"
+      :message="closeScratchpadMessage"
+      confirm-label="Close scratchpad"
+      destructive
+      @cancel="closeScratchpadGuard = { show: false, tab: null }"
+      @confirm="closeScratchpad"
     />
 
     <!-- Not running warning -->
