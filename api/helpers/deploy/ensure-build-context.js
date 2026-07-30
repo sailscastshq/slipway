@@ -24,10 +24,12 @@ module.exports = {
       type: 'string'
     },
     gitBranch: {
-      type: 'string'
+      type: 'string',
+      allowNull: true
     },
     gitCommit: {
       type: 'string',
+      allowNull: true,
       description: 'Exact repository commit to build when one was recorded.'
     },
     refreshRepository: {

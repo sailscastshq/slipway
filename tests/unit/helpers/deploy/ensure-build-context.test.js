@@ -6,6 +6,41 @@ const { test } = require('sounding')
 
 const ensureBuildContext = require('../../../../api/helpers/deploy/ensure-build-context')
 
+test('pushed source accepts deployment records without git metadata', async ({
+  sails,
+  expect
+}) => {
+  const tempRoot = fs.mkdtempSync(
+    path.join(os.tmpdir(), 'slipway-ensure-build-context-')
+  )
+  const project = { slug: 'cli-pushed-source' }
+  const contextPath = path.join(tempRoot, project.slug)
+  const originalAppsDir = sails.config.custom.slipwayAppsDir
+  sails.config.custom.slipwayAppsDir = tempRoot
+  fs.mkdirSync(contextPath)
+  fs.writeFileSync(path.join(contextPath, 'Dockerfile'), 'FROM node:22\n')
+
+  try {
+    const result = await sails.helpers.deploy.ensureBuildContext.with({
+      project,
+      environment: { id: 303, slug: 'production' },
+      deploymentId: '303',
+      gitBranch: null,
+      gitCommit: null,
+      refreshRepository: true
+    })
+
+    expect(result).toEqual({
+      contextPath,
+      hydrated: false,
+      sourceMode: 'pushed'
+    })
+  } finally {
+    sails.config.custom.slipwayAppsDir = originalAppsDir
+    fs.rmSync(tempRoot, { recursive: true, force: true })
+  }
+})
+
 test('missing build context is hydrated from a connected repository', async ({
   expect
 }) => {
