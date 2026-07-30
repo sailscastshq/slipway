@@ -233,6 +233,7 @@ async function executeHelm() {
 
   helmEditor.value.highlightExecution(execution)
   helmEditor.value.clearDiagnostics()
+  helmEditor.value.clearInspections()
   helmEditor.value.focus()
   const currentExecution = {
     id: crypto.randomUUID(),
@@ -283,6 +284,7 @@ async function executeHelm() {
     if (activeHelmExecution?.sequence !== currentExecution.sequence) return
 
     helmResults.value = data
+    helmEditor.value.showInspections(data.inspections)
     const diagnostic = helmEditorDiagnostic(data.error)
     if (diagnostic) helmEditor.value.showDiagnostic(diagnostic)
 
@@ -335,7 +337,10 @@ async function stopHelmExecution() {
   }
 }
 
-watch(helmCode, () => helmEditor.value?.clearDiagnostics())
+watch(helmCode, () => {
+  helmEditor.value?.clearDiagnostics()
+  helmEditor.value?.clearInspections()
+})
 
 function executeCurrentMode() {
   if (consoleMode.value === 'helm') {

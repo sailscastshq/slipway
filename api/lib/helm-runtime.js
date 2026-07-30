@@ -1,10 +1,14 @@
 const acorn = require('acorn')
+const createHelmQueryTracer = require('./helm-query-tracer')
 
 const START_MARKER = '___SLIPWAY_HELM_RESULT_START___'
 const END_MARKER = '___SLIPWAY_HELM_RESULT_END___'
 const LOG_MARKER = '___SLIPWAY_HELM_LOG___'
 const VIRTUAL_FILENAME = 'helm-input.js'
 const MAX_SOURCE_COORDINATE = 1_000_000
+const INSPECTION_MARKER = '@inspect'
+const QUERY_TRACE_MARKER = '@trace queries'
+const INSPECTION_RUNTIME_IDENTIFIER = 'globalThis.__slipwayHelmInspectValue__'
 
 function prepareSource(
   source,
@@ -43,12 +47,14 @@ function prepareSource(
   const prefix = 'async function __helmInput__() {\n'
   const suffix = '\n}'
   let program
+  const comments = []
 
   try {
     program = acorn.parse(`${prefix}${submittedSource}${suffix}`, {
       ecmaVersion: 'latest',
       sourceType: 'script',
-      locations: true
+      locations: true,
+      onComment: comments
     })
   } catch (error) {
     const submittedLineCount = submittedSource.split('\n').length
@@ -68,11 +74,48 @@ function prepareSource(
 
   const statements = program.body[0].body.body
   const finalStatement = statements.at(-1)
+  const submittedComments = comments.filter(
+    (comment) =>
+      comment.type === 'Line' &&
+      comment.start >= prefix.length &&
+      comment.end <= prefix.length + submittedSource.length
+  )
+  const inspectionComments = submittedComments.filter(
+    (comment) => comment.value.trim() === INSPECTION_MARKER
+  )
+  const traceQueries = submittedComments.some(
+    (comment) => comment.value.trim() === QUERY_TRACE_MARKER
+  )
+  const inspectionTargets = collectInspectionTargets(
+    program.body[0].body,
+    inspectionComments,
+    submittedSource,
+    prefix.length,
+    origin
+  )
+  const sourceMappings = []
+  const replacements = inspectionTargets.map((target) => {
+    const expression = submittedSource.slice(target.start, target.end)
+    const prefixText = `${INSPECTION_RUNTIME_IDENTIFIER}(${target.id}, (`
+    sourceMappings.push({
+      line: target.line,
+      column: target.expressionColumn,
+      addedColumns: prefixText.length
+    })
+    return {
+      start: target.start,
+      end: target.end,
+      value: `${prefixText}${expression}))`
+    }
+  })
 
   if (!finalStatement || finalStatement.type !== 'ExpressionStatement') {
     return {
-      source: submittedSource,
-      finalExpression: null
+      source: applySourceReplacements(submittedSource, replacements),
+      finalExpression: null,
+      inspections: inspectionTargets.map(publicInspectionTarget),
+      sourceMappings,
+      traceQueries
     }
   }
 
@@ -80,51 +123,191 @@ function prepareSource(
   const statementEnd = finalStatement.end - prefix.length
   const expressionStart = finalStatement.expression.start - prefix.length
   const expressionEnd = finalStatement.expression.end - prefix.length
+  const inspectionTarget = inspectionTargets.find(
+    (target) => target.start === expressionStart && target.end === expressionEnd
+  )
   const expression = submittedSource.slice(expressionStart, expressionEnd)
-  const replacement = `return (${expression});`
+  const inspectedExpression = inspectionTarget
+    ? `${INSPECTION_RUNTIME_IDENTIFIER}(${inspectionTarget.id}, (${expression}))`
+    : expression
+  const replacement = `return (${inspectedExpression});`
+  const finalLocation = mapSourceLocation(
+    finalStatement.loc.start.line - 1,
+    finalStatement.loc.start.column + 1,
+    origin
+  )
+  sourceMappings.push({
+    ...finalLocation,
+    addedColumns: 'return ('.length
+  })
 
   return {
-    source:
-      submittedSource.slice(0, statementStart) +
-      replacement +
-      submittedSource.slice(statementEnd),
-    finalExpression: {
-      ...mapSourceLocation(
-        finalStatement.loc.start.line - 1,
-        finalStatement.loc.start.column + 1,
-        origin
+    source: applySourceReplacements(submittedSource, [
+      ...replacements.filter(
+        ({ start, end }) => start !== expressionStart || end !== expressionEnd
       ),
+      {
+        start: statementStart,
+        end: statementEnd,
+        value: replacement
+      }
+    ]),
+    finalExpression: {
+      ...finalLocation,
       addedColumns: 'return ('.length
+    },
+    inspections: inspectionTargets.map(publicInspectionTarget),
+    sourceMappings,
+    traceQueries
+  }
+}
+
+function collectInspectionTargets(
+  root,
+  comments,
+  source,
+  prefixLength,
+  origin
+) {
+  const statements = []
+  visitSyntaxTree(root, (node) => {
+    const expression = inspectableExpression(node)
+    if (expression) statements.push({ node, expression })
+  })
+
+  return comments.flatMap((comment, index) => {
+    const commentStart = comment.start - prefixLength
+    const target = statements
+      .filter(
+        ({ node }) =>
+          node.end <= comment.start &&
+          node.loc.end.line === comment.loc.start.line &&
+          /^\s*$/.test(source.slice(node.end - prefixLength, commentStart))
+      )
+      .sort((left, right) => right.node.end - left.node.end)[0]
+
+    if (!target) {
+      const location = mapSourceLocation(
+        comment.loc.start.line - 1,
+        comment.loc.start.column + 1,
+        origin
+      )
+      throw sourceError(
+        'The // @inspect marker must follow a complete expression.',
+        {
+          name: 'HelmSourceError',
+          line: location.line,
+          column: location.column
+        }
+      )
+    }
+
+    const expressionLocation = mapSourceLocation(
+      target.expression.loc.start.line - 1,
+      target.expression.loc.start.column + 1,
+      origin
+    )
+    const markerLocation = mapSourceLocation(
+      comment.loc.start.line - 1,
+      comment.loc.start.column + 1,
+      origin
+    )
+
+    return [
+      {
+        id: index,
+        start: target.expression.start - prefixLength,
+        end: target.expression.end - prefixLength,
+        line: markerLocation.line,
+        column: markerLocation.column,
+        expressionColumn: expressionLocation.column
+      }
+    ]
+  })
+}
+
+function inspectableExpression(node) {
+  if (node.type === 'ExpressionStatement') return node.expression
+  if (node.type === 'ReturnStatement') return node.argument
+  if (node.type === 'VariableDeclaration' && node.declarations.length === 1) {
+    return node.declarations[0].init
+  }
+  return null
+}
+
+function visitSyntaxTree(node, visitor) {
+  if (!node || typeof node !== 'object') return
+  if (typeof node.type === 'string') visitor(node)
+
+  for (const [key, value] of Object.entries(node)) {
+    if (['start', 'end', 'loc'].includes(key)) continue
+    if (Array.isArray(value)) {
+      for (const child of value) visitSyntaxTree(child, visitor)
+    } else {
+      visitSyntaxTree(value, visitor)
     }
   }
+}
+
+function publicInspectionTarget({ id, line, column }) {
+  return { id, line, column }
+}
+
+function applySourceReplacements(source, replacements) {
+  let output = source
+  const ordered = [...replacements].sort(
+    (left, right) => right.start - left.start
+  )
+
+  for (const replacement of ordered) {
+    output =
+      output.slice(0, replacement.start) +
+      replacement.value +
+      output.slice(replacement.end)
+  }
+
+  return output
 }
 
 function buildRunnerSource({
   preparedSource,
   finalExpression,
+  inspections = [],
+  sourceMappings = [],
+  traceQueries = false,
   sourceStartLine = 1,
   sourceStartColumn = 1,
   bootstrapSails = true,
   timeoutMs = 30000,
   maxLogBytes = 64 * 1024,
   maxResultBytes = 128 * 1024,
+  maxInspectionValuesPerMarker = 20,
+  maxQueryTraceEntries = 100,
   executionId
 }) {
+  const queryTracerSource = traceQueries
+    ? `(${createHelmQueryTracer.toString()})`
+    : 'null'
   return `(${helmSubprocessMain.toString()})(${JSON.stringify({
     preparedSource,
     finalExpression,
+    inspections,
+    sourceMappings,
+    traceQueries,
     sourceStartLine,
     sourceStartColumn,
     bootstrapSails,
     timeoutMs,
     maxLogBytes,
     maxResultBytes,
+    maxInspectionValuesPerMarker,
+    maxQueryTraceEntries,
     executionId,
     startMarker: START_MARKER,
     endMarker: END_MARKER,
     logMarker: LOG_MARKER,
     filename: VIRTUAL_FILENAME
-  })})`
+  })}, ${queryTracerSource})`
 }
 
 function parseRunnerOutput(stdout) {
@@ -271,9 +454,12 @@ function formatBytes(bytes) {
   return `${Math.round(bytes / 1024)} KB`
 }
 
-async function helmSubprocessMain(options) {
+async function helmSubprocessMain(options, createQueryTracer) {
   const fs = require('node:fs')
   const vm = require('node:vm')
+  const AsyncLocalStorage = options.traceQueries
+    ? require('node:async_hooks').AsyncLocalStorage
+    : null
   const startedAt = Date.now()
   let sailsApp
   let resultSent = false
@@ -282,6 +468,19 @@ async function helmSubprocessMain(options) {
   const logs = []
   let logBytes = 0
   let logsTruncated = false
+  const inspections = (options.inspections || []).map((inspection) => ({
+    ...inspection,
+    values: [],
+    omittedCount: 0
+  }))
+  const queryTrace = options.traceQueries
+    ? {
+        enabled: true,
+        entries: [],
+        omittedCount: 0
+      }
+    : null
+  const queryTraceContext = queryTrace ? new AsyncLocalStorage() : null
   const pidFile = options.executionId
     ? `/tmp/slipway-helm-${options.executionId}.pid`
     : null
@@ -336,6 +535,15 @@ async function helmSubprocessMain(options) {
             else resolve()
           }
         )
+      })
+    }
+
+    if (queryTrace && sailsApp) {
+      createQueryTracer({
+        sailsApp,
+        queryTrace,
+        queryTraceContext,
+        maxEntries: options.maxQueryTraceEntries
       })
     }
 
@@ -407,7 +615,8 @@ async function helmSubprocessMain(options) {
       isNaN,
       isFinite,
       encodeURIComponent,
-      decodeURIComponent
+      decodeURIComponent,
+      __slipwayHelmInspectValue__: recordInspection
     }
 
     for (const identity of Object.keys(sailsApp?.models || {})) {
@@ -427,10 +636,14 @@ async function helmSubprocessMain(options) {
       1,
       options.timeoutMs - (Date.now() - startedAt)
     )
-    const value = await script.runInContext(sandbox, {
-      timeout: remainingMs,
-      displayErrors: true
-    })
+    const runScript = () =>
+      script.runInContext(sandbox, {
+        timeout: remainingMs,
+        displayErrors: true
+      })
+    const value = await (queryTraceContext
+      ? queryTraceContext.run(true, runScript)
+      : runScript())
     const valueResult = formatResultValue(value, options.maxResultBytes)
     const outputParts = [...logs]
 
@@ -445,7 +658,9 @@ async function helmSubprocessMain(options) {
         error: null,
         durationMs: Date.now() - startedAt,
         truncated: logsTruncated || valueResult.truncated,
-        logsPartial: false
+        logsPartial: false,
+        inspections: completedInspections(),
+        queryTrace
       })
     )
   } catch (error) {
@@ -464,8 +679,69 @@ async function helmSubprocessMain(options) {
       error: normalizeRuntimeError(error, options),
       durationMs: Date.now() - startedAt,
       truncated: logsTruncated,
-      logsPartial: false
+      logsPartial: false,
+      inspections: completedInspections(),
+      queryTrace
     })
+  }
+
+  function recordInspection(id, value) {
+    const inspection = inspections[id]
+    if (!inspection) return value
+
+    if (inspection.values.length >= options.maxInspectionValuesPerMarker) {
+      inspection.omittedCount++
+      return value
+    }
+
+    inspection.values.push(formatInspectionValue(value))
+    return value
+  }
+
+  function completedInspections() {
+    return inspections.filter(
+      (inspection) =>
+        inspection.values.length > 0 || inspection.omittedCount > 0
+    )
+  }
+
+  function formatInspectionValue(value) {
+    if (value === undefined) {
+      return {
+        value: { type: 'undefined' },
+        preview: 'undefined',
+        truncated: false
+      }
+    }
+
+    if (typeof value === 'string') {
+      const bounded = truncateUtf8(value, 2048)
+      const preview = truncateUtf8(JSON.stringify(bounded.value), 320)
+      return {
+        value: bounded.value,
+        preview: preview.value,
+        truncated: bounded.truncated || preview.truncated
+      }
+    }
+
+    const state = {
+      seen: new WeakMap(),
+      nextReference: 1,
+      entries: 0,
+      maxEntries: 50,
+      maxDepth: 4,
+      maxStringBytes: 2048,
+      truncated: false
+    }
+    const snapshot = snapshotValue(value, state, 0)
+    const serialized = safeJson(snapshot, '[Uninspectable]')
+    const preview = truncateUtf8(serialized.replace(/\s+/g, ' '), 320)
+
+    return {
+      value: snapshot,
+      preview: preview.value,
+      truncated: state.truncated || preview.truncated
+    }
   }
 
   function completeResult(result) {
@@ -798,16 +1074,24 @@ async function helmSubprocessMain(options) {
     if (location) {
       line = Number(location[1])
       column = Number(location[2])
+      const mappings =
+        runtimeOptions.sourceMappings?.length > 0
+          ? runtimeOptions.sourceMappings
+          : runtimeOptions.finalExpression
+          ? [runtimeOptions.finalExpression]
+          : []
+      let mappedColumn = column
 
-      if (
-        runtimeOptions.finalExpression &&
-        line === runtimeOptions.finalExpression.line &&
-        column >=
-          runtimeOptions.finalExpression.column +
-            runtimeOptions.finalExpression.addedColumns
-      ) {
-        const mappedColumn =
-          column - runtimeOptions.finalExpression.addedColumns
+      for (const mapping of mappings) {
+        if (
+          line === mapping.line &&
+          mappedColumn >= mapping.column + mapping.addedColumns
+        ) {
+          mappedColumn -= mapping.addedColumns
+        }
+      }
+
+      if (mappedColumn !== column) {
         stack = stack.replace(
           `${runtimeOptions.filename}:${line}:${column}`,
           `${runtimeOptions.filename}:${line}:${mappedColumn}`
@@ -836,6 +1120,25 @@ async function helmSubprocessMain(options) {
       ...result,
       value: { type: 'truncated' },
       logs: [],
+      inspections: (result.inspections || []).map((inspection) => ({
+        id: inspection.id,
+        line: inspection.line,
+        column: inspection.column,
+        values: [],
+        omittedCount:
+          (inspection.omittedCount || 0) + (inspection.values?.length || 0),
+        truncated: true
+      })),
+      queryTrace: result.queryTrace
+        ? {
+            enabled: true,
+            entries: [],
+            omittedCount:
+              (result.queryTrace.omittedCount || 0) +
+              (result.queryTrace.entries?.length || 0),
+            truncated: true
+          }
+        : null,
       output: truncateUtf8(result.output || '', Math.floor(maxBytes / 8)).value,
       truncated: true
     }
@@ -877,7 +1180,18 @@ async function helmSubprocessMain(options) {
         status: result.status,
         rowCount: result.rowCount,
         outputBytes: result.outputBytes,
-        logsPartial: result.logsPartial
+        logsPartial: result.logsPartial,
+        inspections: [],
+        queryTrace: result.queryTrace
+          ? {
+              enabled: true,
+              entries: [],
+              omittedCount:
+                (result.queryTrace.omittedCount || 0) +
+                (result.queryTrace.entries?.length || 0),
+              truncated: true
+            }
+          : null
       }),
       truncated: true
     }
@@ -951,6 +1265,14 @@ async function helmSubprocessMain(options) {
   function safeString(value, fallback) {
     try {
       return value === undefined || value === null ? fallback : String(value)
+    } catch {
+      return fallback
+    }
+  }
+
+  function safeJson(value, fallback) {
+    try {
+      return JSON.stringify(value)
     } catch {
       return fallback
     }

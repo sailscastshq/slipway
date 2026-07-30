@@ -70,6 +70,7 @@ const editableCompartment = new Compartment()
 const completionCompartment = new Compartment()
 const setExecutedRange = StateEffect.define()
 const setInlineDiagnostic = StateEffect.define()
+const setInlineInspections = StateEffect.define()
 const executedRangeMark = Decoration.mark({ class: 'cm-executed-range' })
 
 class InlineDiagnosticWidget extends WidgetType {
@@ -94,6 +95,61 @@ class InlineDiagnosticWidget extends WidgetType {
   ignoreEvent() {
     return true
   }
+}
+
+class InlineInspectionWidget extends WidgetType {
+  constructor(inspection) {
+    super()
+    this.inspection = inspection
+  }
+
+  eq(other) {
+    return (
+      inspectionSignature(other.inspection) ===
+      inspectionSignature(this.inspection)
+    )
+  }
+
+  toDOM() {
+    const values = this.inspection.values || []
+    const latest = values.at(-1)
+    const count = values.length + (this.inspection.omittedCount || 0)
+    const label = document.createElement('span')
+    const preview = latest?.preview || 'not reached'
+    label.className = 'cm-inline-inspection'
+    label.textContent = `→ ${preview}${count > 1 ? ` · ${count}×` : ''}`
+    label.title = [
+      ...values.map(
+        (value, index) => `${index + 1}. ${value.preview || 'undefined'}`
+      ),
+      this.inspection.omittedCount
+        ? `… ${this.inspection.omittedCount} more value${
+            this.inspection.omittedCount === 1 ? '' : 's'
+          }`
+        : ''
+    ]
+      .filter(Boolean)
+      .join('\n')
+    label.setAttribute(
+      'aria-label',
+      `Inspected value: ${preview}${
+        count > 1 ? `, captured ${count} times` : ''
+      }`
+    )
+    return label
+  }
+
+  ignoreEvent() {
+    return true
+  }
+}
+
+function inspectionSignature(inspection) {
+  return JSON.stringify({
+    line: inspection?.line,
+    omittedCount: inspection?.omittedCount,
+    previews: inspection?.values?.map((value) => value.preview)
+  })
 }
 
 const executedRangeField = StateField.define({
@@ -138,6 +194,45 @@ const inlineDiagnosticField = StateField.define({
             }).range(diagnostic.position)
           ])
         : Decoration.none
+    }
+
+    return nextDecorations
+  },
+  provide(field) {
+    return EditorView.decorations.from(field)
+  }
+})
+const inlineInspectionField = StateField.define({
+  create() {
+    return Decoration.none
+  },
+  update(decorations, transaction) {
+    let nextDecorations = transaction.docChanged
+      ? Decoration.none
+      : decorations.map(transaction.changes)
+
+    for (const effect of transaction.effects) {
+      if (!effect.is(setInlineInspections)) continue
+      const inspectionDecorations = (effect.value || []).flatMap(
+        (inspection) => {
+          const lineNumber = Number(inspection.line)
+          if (
+            !Number.isSafeInteger(lineNumber) ||
+            lineNumber < 1 ||
+            lineNumber > transaction.state.doc.lines
+          ) {
+            return []
+          }
+
+          return [
+            Decoration.widget({
+              widget: new InlineInspectionWidget(inspection),
+              side: 1
+            }).range(transaction.state.doc.line(lineNumber).to)
+          ]
+        }
+      )
+      nextDecorations = Decoration.set(inspectionDecorations, true)
     }
 
     return nextDecorations
@@ -498,6 +593,19 @@ function clearDiagnostics() {
   })
 }
 
+function showInspections(inspections) {
+  if (!view) return
+  view.dispatch({
+    effects: setInlineInspections.of(
+      Array.isArray(inspections) ? inspections : []
+    )
+  })
+}
+
+function clearInspections() {
+  showInspections([])
+}
+
 function resolveDiagnosticRange(state, diagnostic) {
   const lineNumber = Number(diagnostic?.line)
   const columnNumber = Number(diagnostic?.column)
@@ -575,6 +683,7 @@ onMounted(() => {
         drawSelection(),
         executedRangeField,
         inlineDiagnosticField,
+        inlineInspectionField,
         indentOnInput(),
         bracketMatching(),
         EditorView.lineWrapping,
@@ -658,9 +767,11 @@ onBeforeUnmount(() => {
 
 defineExpose({
   clearDiagnostics,
+  clearInspections,
   focus,
   getExecutionSnapshot,
   highlightExecution,
+  showInspections,
   showDiagnostic
 })
 </script>
@@ -732,6 +843,22 @@ defineExpose({
   white-space: nowrap;
 }
 
+.code-editor :deep(.cm-inline-inspection) {
+  display: inline-block;
+  max-width: min(28rem, 50vw);
+  margin-left: 0.75rem;
+  overflow: hidden;
+  color: var(--color-gray-500);
+  font-family: ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji',
+    'Segoe UI Emoji';
+  font-size: 0.75rem;
+  font-weight: 500;
+  line-height: 1rem;
+  text-overflow: ellipsis;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
 @media (prefers-color-scheme: dark) {
   .code-editor :deep(.cm-editor.cm-focused) {
     outline-color: var(--color-brand-800);
@@ -739,6 +866,10 @@ defineExpose({
 
   .code-editor :deep(.cm-inline-diagnostic) {
     color: var(--color-red-400);
+  }
+
+  .code-editor :deep(.cm-inline-inspection) {
+    color: var(--color-gray-400);
   }
 }
 </style>

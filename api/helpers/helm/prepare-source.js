@@ -4,7 +4,7 @@ module.exports = {
   friendlyName: 'Prepare Helm source',
 
   description:
-    'Parse Helm JavaScript and return its complete final top-level expression.',
+    'Parse Helm JavaScript, instrument opted-in diagnostics, and return its complete final expression.',
 
   inputs: {
     source: {

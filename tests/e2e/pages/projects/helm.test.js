@@ -511,6 +511,150 @@ test(
 )
 
 test(
+  'Helm shows transient inline values and redacted query traces in both executors',
+  {
+    browser: true,
+    world: helmWorld('helm-inspection-and-query-trace')
+  },
+  async ({ sails, world, login, page, expect }) => {
+    const current = world.current
+    const projectSlug = current.projects.deploymentTarget.slug
+    const environmentSlug = current.environments.production.slug
+    const projectEndpoint = `/api/v1/projects/${projectSlug}/environments/${environmentSlug}/execute`
+    let projectExecution = 0
+
+    await sails.models.app.updateOne({ id: current.apps.web.id }).set({
+      status: 'running',
+      containerName: 'sounding-helm-inspection-app'
+    })
+    const updateCheckFinished = page.raw.waitForResponse(
+      '**/api/v1/system/check-update'
+    )
+    await login.withPassword('genesisUser', page, {
+      password: current.auth.genesisUserPassword
+    })
+    await updateCheckFinished
+    await page.raw.route(`**${projectEndpoint}`, async (route) => {
+      projectExecution += 1
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(
+          projectExecution === 1
+            ? inspectedHelmResult({
+                inspectionLine: 2,
+                query: {
+                  kind: 'waterline',
+                  model: 'creator',
+                  datastore: 'default',
+                  method: 'find',
+                  durationMs: 4,
+                  status: 'success',
+                  criteria: {
+                    where: {
+                      subscriptionStatus: '[value]'
+                    }
+                  }
+                }
+              })
+            : {
+                success: true,
+                value: 2,
+                logs: [],
+                output: '2',
+                error: null,
+                durationMs: 1,
+                truncated: false,
+                inspections: [],
+                queryTrace: null
+              }
+        )
+      })
+    })
+
+    await page.resize(1440, 900)
+    await page.inLightMode()
+    await page.goto(
+      `/projects/${projectSlug}/environments/${environmentSlug}/helm`
+    )
+    await page.fill(
+      '@helm-editor',
+      [
+        '// @trace queries',
+        "const creators = await Creator.find({ subscriptionStatus: 'active' }) // @inspect",
+        'creators'
+      ].join('\n')
+    )
+    await page.click('@helm-run')
+    await page.raw.locator('.cm-inline-inspection').waitFor()
+    await page.wait('@helm-queries')
+
+    expect(
+      await page.raw.locator('.cm-inline-inspection').textContent()
+    ).toContain('Ada')
+    expect(
+      await page.raw.locator('[data-test="helm-query-list"]').textContent()
+    ).toContain('creator.find')
+    expect(
+      await page.raw.locator('[data-test="helm-query-list"]').textContent()
+    ).toContain('"subscriptionStatus":"[value]"')
+    await page.screenshot(
+      '.tmp/issue-275-project-inspection-query-trace-light.png'
+    )
+
+    await page.fill('@helm-editor', '1 + 1')
+    expect(await page.raw.locator('.cm-inline-inspection').count()).toBe(0)
+    await page.click('@helm-run')
+    await page.wait('@helm-output')
+    expect(await page.raw.locator('[data-test="helm-queries"]').count()).toBe(0)
+
+    await page.raw.route('**/api/v1/bosun/eval', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(
+          inspectedHelmResult({
+            inspectionLine: 2,
+            query: {
+              kind: 'native',
+              model: null,
+              datastore: 'default',
+              method: 'sendNativeQuery',
+              durationMs: 2,
+              status: 'success',
+              statement: 'SELECT ? AS active_creators'
+            }
+          })
+        )
+      })
+    })
+    await page.inDarkMode()
+    await page.goto('/bosun?tab=console&mode=helm')
+    await page.fill(
+      '@bosun-helm-editor',
+      [
+        '// @trace queries',
+        "const creators = [{ firstName: 'Ada', lastName: 'Lovelace' }] // @inspect",
+        'creators'
+      ].join('\n')
+    )
+    await page.click('@bosun-console-run')
+    await page.raw.locator('.cm-inline-inspection').waitFor()
+    await page.wait('@bosun-helm-queries')
+
+    expect(
+      await page.raw
+        .locator('[data-test="bosun-helm-query-list"]')
+        .textContent()
+    ).toContain('default.sendNativeQuery')
+    await page.screenshot(
+      '.tmp/issue-275-bosun-inspection-query-trace-dark.png'
+    )
+    expect(page).toHaveNoSmoke()
+  }
+)
+
+test(
   'Helm presents structured values as minimal table, tree, and raw views',
   {
     browser: true,
@@ -651,6 +795,46 @@ test(
     expect(page).toHaveNoSmoke()
   }
 )
+
+function inspectedHelmResult({ inspectionLine, query }) {
+  const creators = [
+    {
+      firstName: 'Ada',
+      lastName: 'Lovelace',
+      subscriptionStatus: 'active'
+    }
+  ]
+
+  return {
+    success: true,
+    value: creators,
+    logs: [],
+    output: JSON.stringify(creators, null, 2),
+    error: null,
+    durationMs: 7,
+    truncated: false,
+    inspections: [
+      {
+        id: 0,
+        line: inspectionLine,
+        column: 73,
+        values: [
+          {
+            value: creators,
+            preview: JSON.stringify(creators),
+            truncated: false
+          }
+        ],
+        omittedCount: 0
+      }
+    ],
+    queryTrace: {
+      enabled: true,
+      entries: [query],
+      omittedCount: 0
+    }
+  }
+}
 
 test(
   'Bosun Helm uses the same structured result viewer in dark mode',
