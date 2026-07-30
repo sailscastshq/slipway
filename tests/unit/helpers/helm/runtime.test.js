@@ -135,14 +135,8 @@ test('Helm query tracing is opt-in, execution-scoped, bounded, and redacted', as
   const project = {
     identity: 'project',
     datastore: 'default',
-    find(criteria) {
-      return deferredQuery({
-        method: 'find',
-        criteria: {
-          where: criteria,
-          limit: 1
-        }
-      })
+    find(criteria, done) {
+      done(null, [])
     }
   }
   const sailsApp = {
@@ -160,9 +154,9 @@ test('Helm query tracing is opt-in, execution-scoped, bounded, and redacted', as
     maxEntries: 3
   })
 
-  await project.find({ slug: 'outside-trace-secret' })
+  project.find({ slug: 'outside-trace-secret' }, () => {})
   await queryTraceContext.run(true, async () => {
-    await project.find({ slug: 'waterline-secret' })
+    project.find({ slug: 'waterline-secret' }, () => {})
     for (let index = 0; index < 5; index++) {
       await sailsApp
         .getDatastore()
@@ -186,10 +180,7 @@ test('Helm query tracing is opt-in, execution-scoped, bounded, and redacted', as
     method: 'find',
     status: 'success',
     criteria: {
-      where: {
-        slug: '[value]'
-      },
-      limit: '[value]'
+      slug: '[value]'
     }
   })
   expect({
@@ -644,25 +635,6 @@ async function runHelm(sails, source, options = {}) {
     bootstrapSails: false,
     ...options
   })
-}
-
-function deferredQuery(queryInfo) {
-  const deferred = {
-    _wlQueryInfo: queryInfo,
-    _handleExec(done) {
-      queueMicrotask(() => done(null, []))
-    },
-    then(onFulfilled, onRejected) {
-      return new Promise((resolve, reject) => {
-        deferred._handleExec((error, value) => {
-          if (error) reject(error)
-          else resolve(value)
-        })
-      }).then(onFulfilled, onRejected)
-    }
-  }
-
-  return deferred
 }
 
 async function captureError(operation) {
