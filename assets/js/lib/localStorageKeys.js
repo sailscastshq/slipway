@@ -1,6 +1,7 @@
 export const LOCAL_STORAGE_KEYS = Object.freeze({
   sidebarCollapsed: 'slipway:sidebar-collapsed',
   commandHistory: 'slipway:command-history',
+  helmScratchpads: 'slipway:helm-scratchpads',
   updateDismissed: 'slipway:update-dismissed'
 })
 

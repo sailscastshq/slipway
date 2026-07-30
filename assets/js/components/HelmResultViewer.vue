@@ -38,11 +38,16 @@ const props = defineProps({
   target: {
     type: Object,
     default: null
+  },
+  view: {
+    type: String,
+    default: 'auto',
+    validator: (value) => ['auto', 'raw', 'tree', 'table'].includes(value)
   }
 })
 
-const emit = defineEmits(['clear'])
-const activeView = ref('raw')
+const emit = defineEmits(['clear', 'update:view'])
+const activeView = ref(props.view === 'auto' ? 'raw' : props.view)
 const logsOpen = ref(false)
 const queriesOpen = ref(false)
 const toasts = ref([])
@@ -216,17 +221,20 @@ const actionItems = computed(() => {
 watch(
   () => props.result,
   () => {
-    activeView.value = tableCompatible.value
-      ? 'table'
-      : structured.value
-      ? 'tree'
-      : 'raw'
+    activeView.value = preferredView()
     logsOpen.value = Boolean(
       logs.value.length && props.result?.success === false
     )
     queriesOpen.value = Boolean(queryTrace.value)
   },
   { immediate: true }
+)
+
+watch(
+  () => props.view,
+  () => {
+    activeView.value = preferredView()
+  }
 )
 
 watch(
@@ -250,6 +258,18 @@ onBeforeUnmount(() => clearInterval(runningTimer))
 function formatDuration(durationMs) {
   if (durationMs < 1000) return `${Math.max(0, Math.round(durationMs))}ms`
   return `${(durationMs / 1000).toFixed(durationMs < 10000 ? 1 : 0)}s`
+}
+
+function selectView(view) {
+  activeView.value = view
+  emit('update:view', view)
+}
+
+function preferredView() {
+  if (views.value.includes(props.view)) return props.view
+  if (tableCompatible.value) return 'table'
+  if (structured.value) return 'tree'
+  return 'raw'
 }
 
 function formatBytes(bytes) {
@@ -538,7 +558,7 @@ function queryDetail(entry) {
       v-if="queryTrace"
       :open="queriesOpen"
       :data-test="`${testId}-queries`"
-      class="group shrink-0 border-t border-gray-200 bg-gray-50/70 dark:border-gray-800 dark:bg-gray-900/40"
+      class="group shrink-0 bg-gray-50/70 dark:bg-gray-900/40"
       @toggle="queriesOpen = $event.currentTarget.open"
     >
       <summary
@@ -633,13 +653,27 @@ function queryDetail(entry) {
       v-if="logs.length"
       :open="logsOpen"
       :data-test="`${testId}-logs`"
-      class="shrink-0 border-t border-gray-200 bg-gray-50/70 dark:border-gray-800 dark:bg-gray-900/40"
+      class="group shrink-0 bg-gray-50/70 dark:bg-gray-900/40"
       @toggle="logsOpen = $event.currentTarget.open"
     >
       <summary
-        class="cursor-pointer px-4 py-2 text-xs font-medium text-gray-500 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-gray-300 dark:text-gray-400 dark:focus-visible:ring-gray-700"
+        class="flex cursor-pointer list-none items-center gap-2 px-3 py-2 text-xs font-medium text-gray-500 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-gray-300 dark:text-gray-400 dark:focus-visible:ring-gray-700"
       >
-        Console
+        <svg
+          class="h-3 w-3 shrink-0 -rotate-90 transition-transform group-open:rotate-0 motion-reduce:transition-none"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          stroke-width="1.75"
+          aria-hidden="true"
+        >
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            d="m6 9 6 6 6-6"
+          />
+        </svg>
+        <span>Console</span>
         <span class="font-normal text-gray-400 dark:text-gray-600"
           >{{ logs.length }} line{{ logs.length === 1 ? '' : 's'
           }}{{ result?.logsPartial ? ' · partial' : '' }}</span
@@ -654,12 +688,12 @@ function queryDetail(entry) {
     <footer
       v-if="result"
       :data-test="`${testId}-result-status`"
-      class="min-h-10 flex shrink-0 items-center justify-between gap-3 border-t border-gray-200 bg-gray-50 px-3 py-1.5 dark:border-gray-800 dark:bg-gray-900/50"
+      class="min-h-10 flex shrink-0 items-center justify-between gap-3 bg-gray-50/70 px-3 py-1.5 dark:bg-gray-900/40"
     >
-      <div class="flex min-w-0 items-center gap-3">
+      <div class="flex min-w-0 items-center gap-2">
         <div
           v-if="views.length > 1"
-          class="flex shrink-0 overflow-hidden rounded-md border border-gray-300 dark:border-gray-700"
+          class="flex shrink-0 items-center gap-0.5"
           role="group"
           aria-label="Result view"
         >
@@ -675,15 +709,12 @@ function queryDetail(entry) {
               :aria-label="`${view[0].toUpperCase()}${view.slice(1)} view`"
               :aria-pressed="activeView === view"
               :class="[
-                'flex h-7 w-8 items-center justify-center outline-none transition-colors focus-visible:z-10 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-gray-400 motion-reduce:transition-none dark:focus-visible:ring-gray-600',
-                view !== views[0]
-                  ? 'border-l border-gray-300 dark:border-gray-700'
-                  : '',
+                'flex h-7 w-7 items-center justify-center rounded-md outline-none transition-colors focus-visible:z-10 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-gray-400 motion-reduce:transition-none dark:focus-visible:ring-gray-600',
                 activeView === view
-                  ? 'bg-gray-200 text-gray-900 dark:bg-gray-700 dark:text-white'
-                  : 'text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800'
+                  ? 'bg-gray-200/80 text-gray-900 dark:bg-gray-800 dark:text-white'
+                  : 'text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-500 dark:hover:bg-gray-800 dark:hover:text-gray-300'
               ]"
-              @click="activeView = view"
+              @click="selectView(view)"
             >
               <svg
                 v-if="view === 'table'"

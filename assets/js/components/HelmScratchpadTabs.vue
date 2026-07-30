@@ -1,0 +1,212 @@
+<script setup>
+import { computed, nextTick, ref } from 'vue'
+import ActionMenu from '@/components/ActionMenu.vue'
+import Tooltip from '@/components/Tooltip.vue'
+import {
+  helmScratchpadIsModified,
+  helmScratchpadTargetLabel,
+  helmScratchpadTargetTitle
+} from '@/lib/helmScratchpads.mjs'
+
+const props = defineProps({
+  tabs: { type: Array, default: () => [] },
+  activeId: { type: String, default: '' },
+  currentTargetKey: { type: String, default: '' },
+  disabled: Boolean,
+  canCreate: Boolean
+})
+
+const emit = defineEmits([
+  'activate',
+  'close',
+  'create',
+  'duplicate',
+  'move',
+  'rename',
+  'save'
+])
+
+const tabRefs = ref([])
+const renamingId = ref('')
+const renameValue = ref('')
+const renameInput = ref(null)
+const activeIndex = computed(() =>
+  props.tabs.findIndex((tab) => tab.id === props.activeId)
+)
+const activeTab = computed(() => props.tabs[activeIndex.value] || null)
+const actions = computed(() => {
+  if (!activeTab.value) return []
+  return [
+    { key: 'rename', label: 'Rename' },
+    { key: 'duplicate', label: 'Duplicate', disabled: !props.canCreate },
+    {
+      key: 'move-left',
+      label: 'Move left',
+      disabled: activeIndex.value <= 0
+    },
+    {
+      key: 'move-right',
+      label: 'Move right',
+      disabled: activeIndex.value >= props.tabs.length - 1
+    },
+    { key: 'save', label: 'Save as snippet' },
+    { key: 'close', label: 'Close scratchpad', destructive: true }
+  ]
+})
+
+async function beginRename(tab = activeTab.value) {
+  if (!tab || props.disabled) return
+  renamingId.value = tab.id
+  renameValue.value = tab.name
+  await nextTick()
+  renameInput.value?.select()
+}
+
+function commitRename() {
+  if (!renamingId.value) return
+  emit('rename', renamingId.value, renameValue.value)
+  renamingId.value = ''
+}
+
+function cancelRename() {
+  renamingId.value = ''
+}
+
+function setRenameInput(element) {
+  renameInput.value = element
+}
+
+function handleAction(action) {
+  const tab = activeTab.value
+  if (!tab) return
+  if (action.key === 'rename') beginRename(tab)
+  if (action.key === 'duplicate') emit('duplicate', tab)
+  if (action.key === 'move-left') emit('move', tab, -1)
+  if (action.key === 'move-right') emit('move', tab, 1)
+  if (action.key === 'save') emit('save', tab)
+  if (action.key === 'close') emit('close', tab)
+}
+
+function handleTabKeydown(event, index) {
+  let nextIndex = index
+  if (event.key === 'ArrowRight') {
+    nextIndex = (index + 1) % props.tabs.length
+  } else if (event.key === 'ArrowLeft') {
+    nextIndex = (index - 1 + props.tabs.length) % props.tabs.length
+  } else if (event.key === 'Home') {
+    nextIndex = 0
+  } else if (event.key === 'End') {
+    nextIndex = props.tabs.length - 1
+  } else {
+    return
+  }
+
+  event.preventDefault()
+  const tab = props.tabs[nextIndex]
+  emit('activate', tab)
+  nextTick(() => tabRefs.value[nextIndex]?.focus())
+}
+</script>
+
+<template>
+  <div
+    data-test="helm-scratchpads"
+    class="min-h-9 flex shrink-0 items-center gap-2 bg-white px-3 py-0.5 dark:bg-gray-950"
+  >
+    <div
+      role="tablist"
+      aria-label="Helm scratchpads"
+      class="flex min-w-0 flex-1 items-center gap-3 overflow-x-auto"
+    >
+      <template v-for="(tab, index) in tabs" :key="tab.id">
+        <input
+          v-if="renamingId === tab.id"
+          :ref="setRenameInput"
+          v-model="renameValue"
+          data-test="helm-scratchpad-rename"
+          maxlength="64"
+          aria-label="Scratchpad name"
+          class="h-8 w-40 shrink-0 rounded-md bg-white px-2 text-xs font-medium text-gray-900 shadow-sm outline-none ring-1 ring-gray-300 focus:ring-2 focus:ring-gray-400 dark:bg-gray-900 dark:text-white dark:ring-gray-700 dark:focus:ring-gray-600"
+          @blur="commitRename"
+          @keydown.enter.prevent="commitRename"
+          @keydown.escape.prevent="cancelRename"
+        />
+        <button
+          v-else
+          :id="`helm-scratchpad-${tab.id}-tab`"
+          :ref="(element) => (tabRefs[index] = element)"
+          type="button"
+          role="tab"
+          :data-test="`helm-scratchpad-${index}`"
+          :aria-selected="tab.id === activeId"
+          aria-controls="helm-scratchpad-panel"
+          :tabindex="tab.id === activeId ? 0 : -1"
+          :disabled="disabled"
+          :title="helmScratchpadTargetTitle(tab.target)"
+          :class="[
+            'max-w-64 flex h-8 shrink-0 items-center gap-1.5 rounded-sm px-0.5 text-left text-xs outline-none transition-colors focus-visible:ring-2 focus-visible:ring-gray-300 disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transition-none dark:focus-visible:ring-gray-700',
+            tab.id === activeId
+              ? 'font-medium text-gray-900 dark:text-white'
+              : 'text-gray-400 hover:text-gray-700 dark:text-gray-500 dark:hover:text-gray-300'
+          ]"
+          @click="emit('activate', tab)"
+          @dblclick="beginRename(tab)"
+          @keydown="handleTabKeydown($event, index)"
+        >
+          <span class="truncate">{{ tab.name }}</span>
+          <span
+            v-if="tab.target.key !== currentTargetKey"
+            class="max-w-28 truncate font-normal text-gray-400 dark:text-gray-500"
+            >{{ helmScratchpadTargetLabel(tab.target) }}</span
+          >
+          <span
+            v-if="helmScratchpadIsModified(tab)"
+            class="h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500"
+            aria-hidden="true"
+          ></span>
+          <span v-if="helmScratchpadIsModified(tab)" class="sr-only">
+            Modified
+          </span>
+        </button>
+      </template>
+    </div>
+
+    <div class="flex shrink-0 items-center gap-0.5">
+      <Tooltip
+        :text="canCreate ? 'New scratchpad' : 'Scratchpad limit reached'"
+        position="bottom"
+      >
+        <button
+          type="button"
+          data-test="helm-scratchpad-create"
+          :disabled="disabled || !canCreate"
+          aria-label="New scratchpad"
+          class="rounded-md p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 disabled:cursor-not-allowed disabled:opacity-40 dark:text-gray-500 dark:hover:bg-gray-900 dark:hover:text-gray-200 dark:focus-visible:ring-gray-700"
+          @click="emit('create')"
+        >
+          <svg
+            class="h-4 w-4"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            stroke-width="1.75"
+            aria-hidden="true"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              d="M12 5v14M5 12h14"
+            />
+          </svg>
+        </button>
+      </Tooltip>
+      <ActionMenu
+        :items="actions"
+        label="Scratchpad actions"
+        test-id="helm-scratchpad-actions"
+        :disabled="disabled || !activeTab"
+        @select="handleAction"
+      />
+    </div>
+  </div>
+</template>
