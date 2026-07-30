@@ -70,10 +70,13 @@ module.exports = {
         return await handlePush(repo, payload)
 
       case 'pull_request':
-        return await handlePullRequest(repo, payload)
-
       case 'delete':
-        return await handleDelete(repo, payload)
+        sails.log.verbose(`[webhook] Ignoring unsupported event: ${event}`)
+        return {
+          received: true,
+          action: 'ignored',
+          reason: 'unsupported_event'
+        }
 
       case 'ping':
         sails.log.info(`[webhook] Ping received for ${repo.fullName}`)
@@ -205,107 +208,4 @@ async function handlePush(repo, payload) {
     sails.log.error(`[webhook] Failed to create deployment: ${err.message}`)
     return { received: true, action: 'error', error: err.message }
   }
-}
-
-/**
- * Handle pull request events - preview environments
- */
-async function handlePullRequest(repo, payload) {
-  const action = payload.action
-  const prNumber = payload.pull_request?.number
-  const branch = payload.pull_request?.head?.ref
-
-  sails.log.info(`[webhook] PR #${prNumber} ${action} on ${repo.fullName}`)
-
-  if (!repo.autoDeployPreviews) {
-    return { received: true, action: 'skipped', reason: 'previews_disabled' }
-  }
-
-  // Need the project to create preview environment
-  const environment = await Environment.findOne({
-    id: repo.environment.id || repo.environment
-  }).populate('project')
-  if (!environment || !environment.project) {
-    return { received: true, action: 'skipped', reason: 'no_project' }
-  }
-  const project = await Project.findOne({
-    id: environment.project.id || environment.project
-  })
-
-  switch (action) {
-    case 'opened':
-    case 'synchronize':
-    case 'reopened': {
-      const previewEnv =
-        await sails.helpers.preview.createPreviewEnvironment.with({
-          project,
-          prNumber,
-          branch
-        })
-      return {
-        received: true,
-        action: 'preview_queued',
-        prNumber,
-        environmentId: previewEnv.id
-      }
-    }
-
-    case 'closed':
-      await sails.helpers.preview.destroyPreviewEnvironment.with({
-        project,
-        prNumber
-      })
-      return { received: true, action: 'preview_destroyed', prNumber }
-
-    default:
-      return { received: true, action: 'ignored' }
-  }
-}
-
-/**
- * Handle delete events - cleanup
- */
-async function handleDelete(repo, payload) {
-  const refType = payload.ref_type
-  const ref = payload.ref
-
-  sails.log.info(`[webhook] ${refType} "${ref}" deleted on ${repo.fullName}`)
-
-  // Clean up preview environments associated with deleted branches
-  if (refType === 'branch') {
-    const environment = await Environment.findOne({
-      id: repo.environment.id || repo.environment
-    }).populate('project')
-    if (environment && environment.project) {
-      const project = await Project.findOne({
-        id: environment.project.id || environment.project
-      })
-      if (project) {
-        // Find preview environments that match this branch (pr-* slugs)
-        const previewEnvs = await Environment.find({
-          project: project.id,
-          isPreview: true
-        })
-        for (const preview of previewEnvs) {
-          if (preview.prNumber) {
-            try {
-              await sails.helpers.preview.destroyPreviewEnvironment.with({
-                project,
-                prNumber: preview.prNumber
-              })
-              sails.log.info(
-                `[webhook] Cleaned up preview environment pr-${preview.prNumber} for deleted branch "${ref}"`
-              )
-            } catch (err) {
-              sails.log.warn(
-                `[webhook] Failed to clean up preview pr-${preview.prNumber}: ${err.message}`
-              )
-            }
-          }
-        }
-      }
-    }
-  }
-
-  return { received: true, action: 'cleanup_completed', refType, ref }
 }

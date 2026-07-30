@@ -428,54 +428,6 @@ test(
   }
 )
 
-test(
-  'preview cleanup uses the same orchestration and always purges',
-  { world: cleanupWorld('cleanup-preview') },
-  async ({ sails, world, expect }) => {
-    const current = world.current
-    const project = current.projects.deploymentTarget
-    const preview = await world.create('environment').with({
-      project: project.id,
-      name: 'PR 42',
-      slug: 'pr-42',
-      isPreview: true,
-      prNumber: 42
-    })
-    await world.create('app').with({
-      environment: preview.id,
-      name: 'Preview web',
-      slug: 'preview-web',
-      containerName: 'slipway-cleanup-preview-web',
-      imageName: 'slipway/cleanup-preview:42'
-    })
-
-    await withCleanupStubs(sails, {}, async (calls) => {
-      const result = await sails.helpers.preview.destroyPreviewEnvironment.with(
-        {
-          project,
-          prNumber: 42
-        }
-      )
-      const repeated =
-        await sails.helpers.preview.destroyPreviewEnvironment.with({
-          project,
-          prNumber: 42
-        })
-      const operation = await sails.models.cleanupoperation.findOne({
-        targetKey: `environment:${preview.id}`
-      })
-
-      expect(result.status).toBe('complete')
-      expect(repeated.id).toBe(result.id)
-      expect(operation.retentionPolicy).toBe('purge')
-      expect(calls.removeImage).toContain('slipway/cleanup-preview:42')
-      expect(await sails.models.environment.findOne({ id: preview.id })).toBe(
-        undefined
-      )
-    })
-  }
-)
-
 async function withCleanupStubs(sails, overrides, run) {
   const originals = {
     removeRoute: sails.helpers.caddy.removeRoute,
