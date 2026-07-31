@@ -23,6 +23,7 @@ export default async function envList(options) {
     )
 
     const vars = env.envVars || {}
+    const metadata = env.envVarMetadata || {}
     const keys = Object.keys(vars).sort()
 
     if (keys.length === 0) {
@@ -39,7 +40,7 @@ export default async function envList(options) {
     for (const key of keys) {
       const value = vars[key]
       // Mask sensitive values
-      const masked = shouldMask(key) ? '••••••••' : value
+      const masked = shouldMask(key, metadata) ? '••••••••' : value
       console.log(`  ${c.dim(key + '=')}${masked}`)
     }
 
@@ -50,7 +51,9 @@ export default async function envList(options) {
 }
 
 // Keys that should have their values masked
-function shouldMask(key) {
+function shouldMask(key, metadata) {
+  if (metadata[key]?.kind) return metadata[key].kind !== 'plain'
+
   const sensitivePatterns = [
     'PASSWORD',
     'SECRET',

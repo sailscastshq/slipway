@@ -156,10 +156,41 @@ module.exports = {
         envVarKey = `${name.replace(/-/g, '_').toUpperCase()}_URL`
       }
       const updatedVars = { ...currentVars, [envVarKey]: connectionUrl }
+      const updatedMetadata =
+        sails.helpers.configuration.normalizeEnvVarMetadata.with({
+          values: updatedVars,
+          metadata: {
+            ...(environment.envVarMetadata || {}),
+            [envVarKey]: {
+              kind: 'secret',
+              managed: true,
+              previewPolicy: 'omit',
+              description: `Connection URL managed by ${name}`
+            }
+          },
+          currentValues: currentVars,
+          currentMetadata: environment.envVarMetadata || {},
+          managedKeys: [envVarKey],
+          changedBy: String(user.id),
+          changedByName: user.fullName
+        })
       await Environment.updateOne({ id: environment.id }).set({
-        envVars: updatedVars
+        envVars: updatedVars,
+        envVarMetadata: updatedMetadata
       })
       await Service.updateOne({ id: service.id }).set({ envVarKey })
+      await sails.helpers.configuration.recordEnvVarChanges.with({
+        before: currentVars,
+        after: updatedVars,
+        beforeMetadata: environment.envVarMetadata || {},
+        afterMetadata: updatedMetadata,
+        scope: 'environment',
+        resourceType: 'environment',
+        resourceId: String(environment.id),
+        userId: String(user.id),
+        teamId: String(project.team.id),
+        ipAddress: this.req.ip
+      })
     }
 
     sails.log.info(

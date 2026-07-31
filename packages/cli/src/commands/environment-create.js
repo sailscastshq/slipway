@@ -21,6 +21,7 @@ export default async function environmentCreate(options, positionals) {
     const data = { name }
     if (options.production) data.isProduction = true
     if (options.domain) data.domain = options.domain
+    if (options.from) data.sourceEnvironmentSlug = options.from
 
     const { environment } = await api.environments.create(project.project, data)
 

@@ -37,6 +37,9 @@ module.exports = {
     envVars: {
       type: 'json'
     },
+    envVarMetadata: {
+      type: 'json'
+    },
     resourceLimits: {
       type: 'json'
     }
@@ -59,6 +62,7 @@ module.exports = {
     routePath,
     healthPath,
     envVars,
+    envVarMetadata,
     resourceLimits
   }) {
     const user = await User.findOne({ id: this.req.session.userId })
@@ -77,7 +81,7 @@ module.exports = {
     const app = await App.findOne({
       environment: environment.id,
       slug: appSlug
-    })
+    }).decrypt()
     if (!app) throw 'notFound'
 
     const problems = sails.helpers.configuration.validate({
@@ -87,6 +91,27 @@ module.exports = {
       healthPath,
       resourceLimits
     })
+    const currentEnvVars = app.secureEnvVars || app.envVars || {}
+    const nextEnvVars = envVars === undefined ? currentEnvVars : envVars
+    if (envVars !== undefined || envVarMetadata !== undefined) {
+      const managedKeys = (await Service.find({ environment: environment.id }))
+        .map((service) => service.envVarKey)
+        .filter(Boolean)
+      for (const key of managedKeys) {
+        if (Object.prototype.hasOwnProperty.call(nextEnvVars, key)) {
+          problems.push({
+            envVars: `"${key}" is managed by Slipway at the environment scope and cannot be overridden by an app.`
+          })
+          break
+        }
+      }
+      problems.push(
+        ...sails.helpers.configuration.validateEnvVarMetadata(
+          nextEnvVars,
+          envVarMetadata || app.envVarMetadata || {}
+        )
+      )
+    }
     if (problems.length) {
       throw { badRequest: { problems } }
     }
@@ -99,7 +124,21 @@ module.exports = {
     if (dockerfilePath !== undefined) updates.dockerfilePath = dockerfilePath
     if (routePath !== undefined) updates.routePath = routePath
     if (healthPath !== undefined) updates.healthPath = healthPath
-    if (envVars !== undefined) updates.envVars = envVars
+    let normalizedMetadata = app.envVarMetadata || {}
+    if (envVars !== undefined || envVarMetadata !== undefined) {
+      normalizedMetadata =
+        sails.helpers.configuration.normalizeEnvVarMetadata.with({
+          values: nextEnvVars,
+          metadata: envVarMetadata || app.envVarMetadata || {},
+          currentValues: currentEnvVars,
+          currentMetadata: app.envVarMetadata || {},
+          changedBy: String(user.id),
+          changedByName: user.fullName
+        })
+      updates.secureEnvVars = nextEnvVars
+      updates.envVars = {}
+      updates.envVarMetadata = normalizedMetadata
+    }
     if (resourceLimits !== undefined) {
       updates.resourceLimits = resourceLimits
 
@@ -131,6 +170,27 @@ module.exports = {
 
     const updated = await App.updateOne({ id: app.id }).set(updates)
 
-    return { app: updated }
+    if (envVars !== undefined || envVarMetadata !== undefined) {
+      await sails.helpers.configuration.recordEnvVarChanges.with({
+        before: currentEnvVars,
+        after: nextEnvVars,
+        beforeMetadata: app.envVarMetadata || {},
+        afterMetadata: normalizedMetadata,
+        scope: 'app',
+        resourceType: 'app',
+        resourceId: String(app.id),
+        userId: String(user.id),
+        teamId: String(project.team.id),
+        ipAddress: this.req.ip
+      })
+    }
+
+    const {
+      envVars: legacyEnvVars,
+      secureEnvVars,
+      bridgeSecret,
+      ...publicApp
+    } = updated
+    return { app: publicApp }
   }
 }

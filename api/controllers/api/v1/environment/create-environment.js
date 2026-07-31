@@ -23,6 +23,11 @@ module.exports = {
     domain: {
       type: 'string',
       description: 'Custom domain for this environment'
+    },
+    sourceEnvironmentSlug: {
+      type: 'string',
+      description:
+        'Optional environment whose config should be copied using preview policies'
     }
   },
 
@@ -41,7 +46,13 @@ module.exports = {
     }
   },
 
-  fn: async function ({ projectSlug, name, isProduction, domain }) {
+  fn: async function ({
+    projectSlug,
+    name,
+    isProduction,
+    domain,
+    sourceEnvironmentSlug
+  }) {
     const user = await User.findOne({ id: this.req.session.userId })
 
     const project = await Project.findOne({ slug: projectSlug }).populate(
@@ -56,6 +67,19 @@ module.exports = {
       throw 'forbidden'
     }
 
+    let inherited = { values: {}, metadata: {} }
+    if (sourceEnvironmentSlug) {
+      const sourceEnvironment = await Environment.findOne({
+        project: project.id,
+        slug: sourceEnvironmentSlug
+      }).decrypt()
+      if (!sourceEnvironment) throw 'notFound'
+      inherited = sails.helpers.configuration.applyPreviewPolicy(
+        sourceEnvironment.envVars || {},
+        sourceEnvironment.envVarMetadata || {}
+      )
+    }
+
     let environment
     try {
       const { telemetryToken, telemetryTokenHash } =
@@ -64,6 +88,8 @@ module.exports = {
         name,
         isProduction,
         domain,
+        envVars: inherited.values,
+        envVarMetadata: inherited.metadata,
         telemetryToken,
         telemetryTokenHash,
         project: project.id
@@ -82,6 +108,21 @@ module.exports = {
       }
       throw error
     }
+
+    await sails.helpers.audit.log.with({
+      action: 'environment.created',
+      resourceType: 'environment',
+      resourceId: String(environment.id),
+      details: {
+        projectSlug,
+        environmentSlug: environment.slug,
+        sourceEnvironmentSlug: sourceEnvironmentSlug || null,
+        inheritedConfigKeys: Object.keys(inherited.values).sort()
+      },
+      userId: String(user.id),
+      teamId: String(project.team.id),
+      ipAddress: this.req.ip
+    })
 
     return { environment }
   }

@@ -131,25 +131,12 @@ module.exports = {
       hostPortReserved = true
       await recordStage('container_startup', { hostPort })
 
-      let globalEnvVars = {}
-      try {
-        const globalJson = await sails.helpers.setting.get(
-          'globalEnvVars',
-          '{}'
-        )
-        globalEnvVars = JSON.parse(globalJson)
-      } catch {
-        /* ignore invalid legacy settings */
-      }
-
-      const envRecord = await Environment.findOne({
-        id: environment.id
-      }).decrypt()
-      const envVars = {
-        ...globalEnvVars,
-        ...(envRecord.envVars || {}),
-        ...(existingApp?.envVars || {})
-      }
+      const runtimeConfig =
+        await sails.helpers.configuration.resolveRuntimeConfig.with({
+          environmentId: String(environment.id),
+          ...(existingApp?.id ? { appId: String(existingApp.id) } : {})
+        })
+      const envVars = { ...runtimeConfig.values }
 
       if (existingApp?.bridgeEnabled) {
         const bridgeHost =
@@ -162,6 +149,22 @@ module.exports = {
         envVars.SLIPWAY_BRIDGE_SECRET =
           await sails.helpers.bridge.ensureAppSecret(String(existingApp.id))
       }
+
+      const fingerprint =
+        sails.helpers.configuration.fingerprintRuntimeConfig.with({
+          values: envVars,
+          manifest: runtimeConfig.manifest
+        })
+      await updateDeployment({
+        configHash: fingerprint.hash,
+        configManifest: fingerprint.manifest
+      })
+      await Deployment.appendDeployLog(
+        rollbackId,
+        `Config: ${fingerprint.hash.slice(0, 12)} (${
+          fingerprint.manifest.length
+        } variables)\n`
+      )
 
       const containerResult = await sails.helpers.docker.runContainer.with({
         imageName: targetDeployment.imageName,

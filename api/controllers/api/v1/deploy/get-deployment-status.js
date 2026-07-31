@@ -69,6 +69,8 @@ module.exports = {
         duration,
         queuePosition,
         errorMessage: deployment.errorMessage,
+        configHash: deployment.configHash,
+        configManifest: deployment.configManifest || [],
         environment: {
           id: deployment.environment.id,
           name: deployment.environment.name,

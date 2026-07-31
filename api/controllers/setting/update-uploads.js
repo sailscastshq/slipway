@@ -57,10 +57,20 @@ module.exports = {
     publicUrl,
     backupSchedule
   }) {
+    const user = await User.findOne({ id: this.req.session.userId })
     let globalEnvVars = {}
     try {
       const globalJson = await sails.helpers.setting.get('globalEnvVars', '{}')
       globalEnvVars = JSON.parse(globalJson)
+    } catch {
+      /* ignore parse errors */
+    }
+    const previousGlobalEnvVars = { ...globalEnvVars }
+    let previousMetadata = {}
+    try {
+      previousMetadata = JSON.parse(
+        await sails.helpers.setting.get('globalEnvVarMetadata', '{}')
+      )
     } catch {
       /* ignore parse errors */
     }
@@ -197,6 +207,44 @@ module.exports = {
       'globalEnvVars',
       JSON.stringify(globalEnvVars)
     )
+    const requestedMetadata = Object.fromEntries(
+      Object.keys(globalEnvVars).map((key) => {
+        const isCredential = /_(ACCESS|SECRET)_KEY$/.test(key)
+        return [
+          key,
+          previousMetadata[key] || {
+            kind: isCredential ? 'secret' : 'plain',
+            previewPolicy: isCredential ? 'omit' : 'inherit'
+          }
+        ]
+      })
+    )
+    const normalizedMetadata =
+      sails.helpers.configuration.normalizeEnvVarMetadata.with({
+        values: globalEnvVars,
+        metadata: requestedMetadata,
+        currentValues: previousGlobalEnvVars,
+        currentMetadata: previousMetadata,
+        changedBy: String(user.id),
+        changedByName: user.fullName
+      })
+    await sails.helpers.setting.set(
+      'globalEnvVarMetadata',
+      JSON.stringify(normalizedMetadata),
+      'Non-secret metadata for instance-wide environment variables'
+    )
+    await sails.helpers.configuration.recordEnvVarChanges.with({
+      before: previousGlobalEnvVars,
+      after: globalEnvVars,
+      beforeMetadata: previousMetadata,
+      afterMetadata: normalizedMetadata,
+      scope: 'global',
+      resourceType: 'setting',
+      resourceId: 'globalEnvVars',
+      userId: String(user.id),
+      teamId: String(user.team),
+      ipAddress: this.req.ip
+    })
 
     sails.inertia.flash('success', 'Storage configuration saved')
     return '/settings/uploads'

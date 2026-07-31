@@ -201,13 +201,15 @@ module.exports = {
       environment,
       project
     })
+    const publicEnvironment = omitPrivateEnvironmentFields(environment)
+    const publicApp = omitPrivateAppFields(app)
 
     return {
       page: 'projects/app',
       props: {
         project,
         environment: {
-          ...environment,
+          ...publicEnvironment,
           fullDomain,
           generatedDomain,
           domains,
@@ -215,14 +217,23 @@ module.exports = {
           services
         },
         app: {
-          ...app,
+          ...publicApp,
           containerHealth,
           directAccess,
           primaryUrl,
           accessUrls,
           bridgeUrl: bridgeUrl ? `${bridgeUrl}/bridge` : null
         },
-        appEnvVars: decryptedApp.envVars || {},
+        appEnvVars: decryptedApp.secureEnvVars || decryptedApp.envVars || {},
+        appEnvVarMetadata:
+          sails.helpers.configuration.normalizeEnvVarMetadata.with({
+            values: decryptedApp.secureEnvVars || decryptedApp.envVars || {},
+            metadata: decryptedApp.envVarMetadata || {},
+            currentValues:
+              decryptedApp.secureEnvVars || decryptedApp.envVars || {},
+            currentMetadata: decryptedApp.envVarMetadata || {},
+            now: decryptedApp.updatedAt
+          }),
         inheritedVars,
         deploymentHistory,
         services,
@@ -233,4 +244,21 @@ module.exports = {
       }
     }
   }
+}
+
+function omitPrivateEnvironmentFields(environment) {
+  const {
+    envVars,
+    envVarMetadata,
+    telemetryToken,
+    telemetryTokenHash,
+    ...publicEnvironment
+  } = environment
+  return publicEnvironment
+}
+
+function omitPrivateAppFields(app) {
+  const { envVars, secureEnvVars, envVarMetadata, bridgeSecret, ...publicApp } =
+    app
+  return publicApp
 }

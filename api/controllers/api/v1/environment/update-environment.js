@@ -31,6 +31,10 @@ module.exports = {
       type: 'json',
       description: 'Environment variables (key-value object)'
     },
+    envVarMetadata: {
+      type: 'json',
+      description: 'Non-secret type and preview metadata keyed by variable name'
+    },
     resourceLimits: {
       type: 'json',
       description: 'Docker resource limits for the app (cpus, memory)'
@@ -62,6 +66,7 @@ module.exports = {
     isProduction,
     domain,
     envVars,
+    envVarMetadata,
     resourceLimits
   }) {
     const user = await User.findOne({ id: this.req.session.userId })
@@ -78,7 +83,10 @@ module.exports = {
       throw 'forbidden'
     }
 
-    const environment = await Environment.findOne({ project: project.id, slug })
+    const environment = await Environment.findOne({
+      project: project.id,
+      slug
+    }).decrypt()
 
     if (!environment) {
       throw 'notFound'
@@ -89,6 +97,49 @@ module.exports = {
       domain,
       resourceLimits
     })
+    const nextEnvVars =
+      envVars === undefined ? environment.envVars || {} : envVars
+    if (envVars !== undefined || envVarMetadata !== undefined) {
+      problems.push(
+        ...sails.helpers.configuration.validateEnvVarMetadata(
+          nextEnvVars,
+          envVarMetadata || environment.envVarMetadata || {}
+        )
+      )
+    }
+
+    const services = await Service.find({ environment: environment.id })
+    const managedKeys = services
+      .map((service) => service.envVarKey)
+      .filter(Boolean)
+    if (envVars !== undefined) {
+      for (const key of managedKeys) {
+        if (envVars[key] !== (environment.envVars || {})[key]) {
+          problems.push({
+            envVars: `"${key}" is managed by Slipway. Change or remove its service instead.`
+          })
+          break
+        }
+      }
+    }
+    if (envVarMetadata !== undefined) {
+      for (const key of managedKeys) {
+        const previous = environment.envVarMetadata?.[key] || {}
+        const requested = envVarMetadata?.[key]
+        if (!requested) continue
+        const changed = ['kind', 'previewPolicy', 'description'].some(
+          (field) =>
+            requested[field] !== undefined &&
+            requested[field] !== previous[field]
+        )
+        if (changed) {
+          problems.push({
+            envVarMetadata: `"${key}" is managed by Slipway. Its policy cannot be changed directly.`
+          })
+          break
+        }
+      }
+    }
     if (problems.length) {
       throw { badRequest: { problems } }
     }
@@ -101,9 +152,38 @@ module.exports = {
     if (name !== undefined) updates.name = name
     if (isProduction !== undefined) updates.isProduction = isProduction
     if (domain !== undefined) updates.domain = domain
-    if (envVars !== undefined) updates.envVars = envVars
+    let normalizedMetadata = environment.envVarMetadata || {}
+    if (envVars !== undefined || envVarMetadata !== undefined) {
+      normalizedMetadata =
+        sails.helpers.configuration.normalizeEnvVarMetadata.with({
+          values: nextEnvVars,
+          metadata: envVarMetadata || environment.envVarMetadata || {},
+          currentValues: environment.envVars || {},
+          currentMetadata: environment.envVarMetadata || {},
+          managedKeys,
+          changedBy: String(user.id),
+          changedByName: user.fullName
+        })
+      updates.envVars = nextEnvVars
+      updates.envVarMetadata = normalizedMetadata
+    }
 
     await Environment.updateOne({ id: environment.id }).set(updates)
+
+    if (envVars !== undefined || envVarMetadata !== undefined) {
+      await sails.helpers.configuration.recordEnvVarChanges.with({
+        before: environment.envVars || {},
+        after: nextEnvVars,
+        beforeMetadata: environment.envVarMetadata || {},
+        afterMetadata: normalizedMetadata,
+        scope: 'environment',
+        resourceType: 'environment',
+        resourceId: String(environment.id),
+        userId: String(user.id),
+        teamId: String(project.team.id),
+        ipAddress: this.req.ip
+      })
+    }
 
     // If resource limits changed, update the App record
     if (resourceLimits !== undefined) {
@@ -142,6 +222,11 @@ module.exports = {
       .populate('app')
       .populate('services')
 
-    return { environment: updatedEnv }
+    const {
+      envVars: privateEnvVars,
+      telemetryToken,
+      ...publicEnvironment
+    } = updatedEnv
+    return { environment: publicEnvironment }
   }
 }

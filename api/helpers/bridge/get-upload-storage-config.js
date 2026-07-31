@@ -22,20 +22,7 @@ module.exports = {
   },
 
   fn: async function ({ app, environment }) {
-    let globalEnvVars = {}
-    try {
-      const stored = await sails.helpers.setting.get('globalEnvVars', '{}')
-      const parsed = JSON.parse(stored)
-      if (isPlainObject(parsed)) globalEnvVars = parsed
-    } catch {
-      // A malformed optional global setting must not expose or replace scoped values.
-    }
-
-    const scopes = [
-      storageValues(globalEnvVars),
-      storageValues(environment.envVars),
-      storageValues(app.envVars)
-    ]
+    const scopes = await resolveStorageScopes({ app, environment })
     const provider = resolveProvider(scopes)
     if (!['r2', 's3'].includes(provider)) {
       throw storageError(
@@ -83,6 +70,26 @@ module.exports = {
   }
 }
 
+async function resolveStorageScopes({ app, environment }) {
+  if (app.id && environment.id) {
+    const runtimeConfig =
+      await sails.helpers.configuration.resolveRuntimeConfig.with({
+        environmentId: String(environment.id),
+        appId: String(app.id)
+      })
+    return runtimeConfig.scopes.map((scope) => storageValues(scope.values))
+  }
+
+  const globalValues = parseObject(
+    await sails.helpers.setting.get('globalEnvVars', '{}')
+  )
+  return [
+    storageValues(globalValues),
+    storageValues(environment.envVars),
+    storageValues(app.secureEnvVars || app.envVars)
+  ]
+}
+
 function storageValues(value) {
   if (!isPlainObject(value)) return {}
   return Object.fromEntries(
@@ -93,6 +100,15 @@ function storageValues(value) {
         key.startsWith('S3_')
     )
   )
+}
+
+function parseObject(value) {
+  try {
+    const parsed = JSON.parse(value || '{}')
+    return isPlainObject(parsed) ? parsed : {}
+  } catch {
+    return {}
+  }
 }
 
 function resolveProvider(scopes) {

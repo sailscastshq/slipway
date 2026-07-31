@@ -16,6 +16,7 @@ import Breadcrumb from '@/components/Breadcrumb.vue'
 import SlideToDeploy from '@/components/SlideToDeploy.vue'
 import Tooltip from '@/components/Tooltip.vue'
 import CodeEditor from '@/components/CodeEditor.vue'
+import ConfigVariableMenu from '@/components/ConfigVariableMenu.vue'
 import { useToast } from '@/composables/toast'
 import SlippyLoader from '@/components/SlippyLoader.vue'
 import DeploymentHistory from '@/components/DeploymentHistory.vue'
@@ -30,6 +31,7 @@ const props = defineProps({
   environment: Object,
   app: Object,
   appEnvVars: Object,
+  appEnvVarMetadata: Object,
   inheritedVars: Object,
   deploymentHistory: Object,
   services: Array,
@@ -378,11 +380,19 @@ function toggleServiceUrlReveal(id) {
 
 // --- App-specific env vars ---
 const localVars = reactive({ ...props.appEnvVars })
+const localMetadata = reactive({ ...props.appEnvVarMetadata })
 watch(
   () => props.appEnvVars,
   (newVars) => {
     Object.keys(localVars).forEach((k) => delete localVars[k])
     Object.assign(localVars, newVars)
+  }
+)
+watch(
+  () => props.appEnvVarMetadata,
+  (newMetadata) => {
+    Object.keys(localMetadata).forEach((k) => delete localMetadata[k])
+    Object.assign(localMetadata, newMetadata || {})
   }
 )
 const revealedKeys = ref(new Set())
@@ -407,7 +417,7 @@ function exitBulkMode() {
   bulkMode.value = false
 }
 
-function saveBulk() {
+async function saveBulk() {
   const vars = {}
   for (const line of bulkText.value.split('\n')) {
     const trimmed = line.trim()
@@ -418,14 +428,55 @@ function saveBulk() {
     const value = trimmed.slice(eqIdx + 1).trim()
     if (key) vars[key] = value
   }
+  const nextMetadata = Object.fromEntries(
+    Object.keys(vars).map((key) => [
+      key,
+      localMetadata[key] || { kind: 'secret', previewPolicy: 'omit' }
+    ])
+  )
+  if (!(await saveEnvVars(vars, nextMetadata))) return
   Object.keys(localVars).forEach((k) => delete localVars[k])
   Object.assign(localVars, vars)
-  saveEnvVars()
+  Object.keys(localMetadata).forEach((key) => delete localMetadata[key])
+  Object.assign(localMetadata, nextMetadata)
   bulkMode.value = false
 }
 
-function isSensitive() {
-  return true
+function metadataFor(key) {
+  const metadata = localMetadata[key] || {}
+  const kind = metadata.kind === 'plain' ? 'plain' : 'secret'
+  return {
+    ...metadata,
+    kind,
+    managed: metadata.managed === true,
+    previewPolicy:
+      metadata.previewPolicy || (kind === 'plain' ? 'inherit' : 'omit')
+  }
+}
+
+function isSensitive(key) {
+  return metadataFor(key).kind === 'secret'
+}
+
+function metadataSummary(key) {
+  const metadata = metadataFor(key)
+  const type = metadata.kind === 'secret' ? 'Secret' : 'Plain config'
+  const preview = {
+    omit: 'omitted from previews',
+    inherit: 'inherited by previews',
+    randomize: 'regenerated for previews'
+  }[metadata.previewPolicy]
+  return `${type} · ${preview}`
+}
+
+function changeSummary(key) {
+  const metadata = metadataFor(key)
+  return [
+    metadata.changedByName,
+    metadata.changedAt ? timeAgo(metadata.changedAt) : null
+  ]
+    .filter(Boolean)
+    .join(' · ')
 }
 
 function toggleReveal(key) {
@@ -446,37 +497,63 @@ function generateSecret() {
   ).join('')
 }
 
-async function saveEnvVars() {
+async function saveEnvVars(vars = localVars, metadata = localMetadata) {
   savingVars.value = true
   try {
-    await fetch(
+    const response = await fetch(
       `/api/v1/projects/${props.project.slug}/environments/${props.environment.slug}/apps/${props.app.slug}`,
       {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ envVars: { ...localVars } })
+        body: JSON.stringify({
+          envVars: { ...vars },
+          envVarMetadata: { ...metadata }
+        })
       }
     )
-    router.reload({ only: ['appEnvVars'] })
+    if (!response.ok) {
+      throw new Error('Environment variables could not be saved.')
+    }
+    router.reload({ only: ['appEnvVars', 'appEnvVarMetadata'] })
+    return true
+  } catch (error) {
+    toast({ message: error.message, type: 'error' })
+    router.reload({
+      only: ['appEnvVars', 'appEnvVarMetadata'],
+      preserveScroll: true
+    })
+    return false
   } finally {
     savingVars.value = false
   }
 }
 
-function addVar() {
+async function addVar() {
   if (!newKey.value.trim()) return
-  localVars[newKey.value.trim()] = newValue.value
-  saveEnvVars()
+  const key = newKey.value.trim()
+  const nextVars = { ...localVars, [key]: newValue.value }
+  const nextMetadata = {
+    ...localMetadata,
+    [key]: { kind: 'secret', previewPolicy: 'omit' }
+  }
+  if (!(await saveEnvVars(nextVars, nextMetadata))) return
+  Object.assign(localVars, nextVars)
+  Object.assign(localMetadata, nextMetadata)
   newKey.value = ''
   newValue.value = ''
 }
 
-function removeVar(key) {
+async function removeVar(key) {
+  const nextVars = { ...localVars }
+  const nextMetadata = { ...localMetadata }
+  delete nextVars[key]
+  delete nextMetadata[key]
+  if (!(await saveEnvVars(nextVars, nextMetadata))) return
   delete localVars[key]
-  saveEnvVars()
+  delete localMetadata[key]
 }
 
-function renameVar(oldKey, el) {
+async function renameVar(oldKey, el) {
   const trimmed = el.value.trim()
   if (!trimmed || trimmed === oldKey) {
     el.value = oldKey
@@ -487,17 +564,34 @@ function renameVar(oldKey, el) {
     el.value = oldKey
     return
   }
-  const value = localVars[oldKey]
+  const nextVars = { ...localVars }
+  const nextMetadata = { ...localMetadata }
+  const value = nextVars[oldKey]
+  const metadata = metadataFor(oldKey)
+  delete nextVars[oldKey]
+  delete nextMetadata[oldKey]
+  nextVars[trimmed] = value
+  nextMetadata[trimmed] = metadata
+  if (!(await saveEnvVars(nextVars, nextMetadata))) return
   delete localVars[oldKey]
+  delete localMetadata[oldKey]
   localVars[trimmed] = value
-  saveEnvVars()
+  localMetadata[trimmed] = metadata
   toast({ message: `Renamed "${oldKey}" to "${trimmed}"`, type: 'success' })
 }
 
-function updateVarValue(key, value) {
+async function updateVarMetadata(key, metadata) {
+  const nextMetadata = { ...localMetadata, [key]: metadata }
+  if (!(await saveEnvVars(localVars, nextMetadata))) return
+  localMetadata[key] = metadata
+  toast({ message: `Updated "${key}"`, type: 'success' })
+}
+
+async function updateVarValue(key, value) {
   if (localVars[key] === value) return
+  const nextVars = { ...localVars, [key]: value }
+  if (!(await saveEnvVars(nextVars, localMetadata))) return
   localVars[key] = value
-  saveEnvVars()
   toast({ message: `Updated "${key}"`, type: 'success' })
 }
 
@@ -1367,7 +1461,7 @@ onBeforeUnmount(() => {
           </div>
 
           <!-- App Variables -->
-          <div>
+          <div data-test="app-config">
             <div class="flex items-center justify-between px-4 py-3">
               <button
                 @click="envVarsOpen = !envVarsOpen"
@@ -1491,7 +1585,7 @@ onBeforeUnmount(() => {
                         class="min-w-0 flex-1 border-b border-dashed border-transparent bg-transparent font-mono text-sm font-medium text-gray-900 focus:border-gray-300 focus:outline-none dark:text-white dark:focus:border-gray-600"
                       />
                       <div
-                        class="flex items-center space-x-1 opacity-0 transition-opacity group-hover:opacity-100"
+                        class="has-[details[open]]:visible invisible flex items-center space-x-1 focus-within:visible group-hover:visible"
                       >
                         <button
                           v-if="isSensitive(key)"
@@ -1533,24 +1627,12 @@ onBeforeUnmount(() => {
                             />
                           </svg>
                         </button>
-                        <button
-                          @click="removeVar(key)"
-                          class="rounded p-1 text-gray-400 hover:text-red-600 dark:hover:text-red-400"
-                        >
-                          <svg
-                            class="h-4 w-4"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                          >
-                            <path
-                              stroke-linecap="round"
-                              stroke-linejoin="round"
-                              stroke-width="2"
-                              d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                            />
-                          </svg>
-                        </button>
+                        <ConfigVariableMenu
+                          :variable-key="key"
+                          :metadata="metadataFor(key)"
+                          @update="updateVarMetadata(key, $event)"
+                          @remove="removeVar(key)"
+                        />
                       </div>
                     </div>
                     <input
@@ -1566,6 +1648,12 @@ onBeforeUnmount(() => {
                       spellcheck="false"
                       class="mt-1 w-full border-b border-dashed border-transparent bg-transparent font-mono text-sm text-gray-500 focus:border-gray-300 focus:outline-none dark:text-gray-400 dark:focus:border-gray-600"
                     />
+                    <p class="mt-1 text-xs text-gray-400 dark:text-gray-500">
+                      {{ metadataSummary(key) }}
+                      <template v-if="changeSummary(key)">
+                        · {{ changeSummary(key) }}
+                      </template>
+                    </p>
                   </div>
                 </div>
                 <div

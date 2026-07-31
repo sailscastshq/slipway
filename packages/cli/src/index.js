@@ -65,7 +65,8 @@ const commands = {
     args: '<name>',
     options: {
       production: { type: 'boolean', short: 'p' },
-      domain: { type: 'string', short: 'd' }
+      domain: { type: 'string', short: 'd' },
+      from: { type: 'string', short: 'f' }
     }
   },
   'environment:update': {

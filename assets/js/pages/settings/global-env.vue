@@ -4,6 +4,7 @@ import { inject, ref, reactive, computed, watch, onMounted } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
 import Tooltip from '@/components/Tooltip.vue'
 import CodeEditor from '@/components/CodeEditor.vue'
+import ConfigVariableMenu from '@/components/ConfigVariableMenu.vue'
 import { useToast } from '@/composables/toast'
 import { usePrecognitionValidation } from '@/composables/precognition'
 
@@ -13,6 +14,7 @@ defineOptions({
 
 const props = defineProps({
   globalEnvVars: Object,
+  globalEnvVarMetadata: Object,
   backupConfigured: Boolean
 })
 
@@ -22,6 +24,7 @@ const sidebarCollapsed = inject('sidebarCollapsed')
 const toast = useToast()
 
 const localVars = reactive({ ...props.globalEnvVars })
+const localMetadata = reactive({ ...props.globalEnvVarMetadata })
 const newKey = ref('')
 const newValue = ref('')
 const saving = ref(false)
@@ -31,8 +34,62 @@ const revealedKeys = ref(new Set())
 
 const sortedVarKeys = computed(() => Object.keys(localVars).sort())
 
-function isSensitive() {
-  return true
+function metadataFor(key) {
+  const metadata = localMetadata[key] || {}
+  const kind = metadata.kind === 'plain' ? 'plain' : 'secret'
+  return {
+    ...metadata,
+    kind,
+    managed: metadata.managed === true,
+    previewPolicy:
+      metadata.previewPolicy || (kind === 'plain' ? 'inherit' : 'omit')
+  }
+}
+
+function isSensitive(key) {
+  return metadataFor(key).kind === 'secret'
+}
+
+function metadataSummary(key) {
+  const metadata = metadataFor(key)
+  const type = metadata.managed
+    ? 'Managed secret'
+    : metadata.kind === 'secret'
+    ? 'Secret'
+    : 'Plain config'
+  const preview = {
+    omit: 'omitted from previews',
+    inherit: 'inherited by previews',
+    randomize: 'regenerated for previews'
+  }[metadata.previewPolicy]
+  return `${type} · ${preview}`
+}
+
+function changeSummary(key) {
+  const metadata = metadataFor(key)
+  return [
+    metadata.changedByName,
+    metadata.changedAt ? timeAgo(metadata.changedAt) : null
+  ]
+    .filter(Boolean)
+    .join(' · ')
+}
+
+function timeAgo(timestamp) {
+  const seconds = Math.max(0, Math.floor((Date.now() - timestamp) / 1000))
+  const intervals = [
+    ['year', 31536000],
+    ['month', 2592000],
+    ['week', 604800],
+    ['day', 86400],
+    ['hour', 3600],
+    ['minute', 60]
+  ]
+  for (const [label, interval] of intervals) {
+    const count = Math.floor(seconds / interval)
+    if (count >= 1) return `${count} ${label}${count > 1 ? 's' : ''} ago`
+  }
+  return 'just now'
 }
 
 function toggleReveal(key) {
@@ -58,6 +115,7 @@ function generateSecret() {
 
 const envForm = useForm({
   envVars: { ...props.globalEnvVars },
+  envVarMetadata: { ...props.globalEnvVarMetadata },
   envSource: ''
 })
   .withPrecognition('patch', '/settings/global-env')
@@ -66,6 +124,11 @@ const envForm = useForm({
 function replaceLocalVars(vars) {
   Object.keys(localVars).forEach((key) => delete localVars[key])
   Object.assign(localVars, vars)
+}
+
+function replaceLocalMetadata(metadata) {
+  Object.keys(localMetadata).forEach((key) => delete localMetadata[key])
+  Object.assign(localMetadata, metadata)
 }
 
 function submitVars(onSuccess) {
@@ -81,8 +144,12 @@ function submitVars(onSuccess) {
   })
 }
 
-function saveVars(vars, { envSource = '', onSuccess } = {}) {
+function saveVars(
+  vars,
+  { metadata = localMetadata, envSource = '', onSuccess } = {}
+) {
   envForm.envVars = { ...vars }
+  envForm.envVarMetadata = { ...metadata }
   envForm.envSource = envSource
   envForm.validate('envVars', {
     onPrecognitionSuccess: () => submitVars(onSuccess)
@@ -93,9 +160,15 @@ function addVar() {
   if (!newKey.value.trim()) return
   const key = newKey.value.trim()
   const nextVars = { ...localVars, [key]: newValue.value }
+  const nextMetadata = {
+    ...localMetadata,
+    [key]: { kind: 'secret', previewPolicy: 'omit' }
+  }
   saveVars(nextVars, {
+    metadata: nextMetadata,
     onSuccess: () => {
       replaceLocalVars(nextVars)
+      replaceLocalMetadata(nextMetadata)
       toast({ message: `Added "${key}"`, type: 'success' })
       newKey.value = ''
       newValue.value = ''
@@ -105,10 +178,14 @@ function addVar() {
 
 function removeVar(key) {
   const nextVars = { ...localVars }
+  const nextMetadata = { ...localMetadata }
   delete nextVars[key]
+  delete nextMetadata[key]
   saveVars(nextVars, {
+    metadata: nextMetadata,
     onSuccess: () => {
       replaceLocalVars(nextVars)
+      replaceLocalMetadata(nextMetadata)
       toast({ message: `Removed "${key}"`, type: 'success' })
     }
   })
@@ -127,15 +204,32 @@ function renameVar(oldKey, el) {
   }
   const value = localVars[oldKey]
   const nextVars = { ...localVars }
+  const nextMetadata = { ...localMetadata }
   delete nextVars[oldKey]
+  const metadata = nextMetadata[oldKey]
+  delete nextMetadata[oldKey]
   nextVars[trimmed] = value
+  nextMetadata[trimmed] = metadata || metadataFor(oldKey)
   saveVars(nextVars, {
+    metadata: nextMetadata,
     onSuccess: () => {
       replaceLocalVars(nextVars)
+      replaceLocalMetadata(nextMetadata)
       toast({
         message: `Renamed "${oldKey}" to "${trimmed}"`,
         type: 'success'
       })
+    }
+  })
+}
+
+function updateVarMetadata(key, metadata) {
+  const nextMetadata = { ...localMetadata, [key]: metadata }
+  saveVars(localVars, {
+    metadata: nextMetadata,
+    onSuccess: () => {
+      replaceLocalMetadata(nextMetadata)
+      toast({ message: `Updated "${key}"`, type: 'success' })
     }
   })
 }
@@ -203,10 +297,18 @@ function saveBulk() {
     .map((k) => vars[k])
     .join(',')
   if (oldKeys !== newKeys || oldVals !== newVals) {
+    const nextMetadata = Object.fromEntries(
+      Object.keys(vars).map((key) => [
+        key,
+        localMetadata[key] || { kind: 'secret', previewPolicy: 'omit' }
+      ])
+    )
     saveVars(vars, {
+      metadata: nextMetadata,
       envSource: bulkText.value,
       onSuccess: () => {
         replaceLocalVars(vars)
+        replaceLocalMetadata(nextMetadata)
         bulkMode.value = false
         toast({ message: 'Environment variables updated', type: 'success' })
       }
@@ -437,7 +539,10 @@ onMounted(() => {
         </div>
 
         <!-- Variables -->
-        <div class="rounded-lg border border-gray-200 dark:border-gray-800">
+        <div
+          data-test="global-config"
+          class="rounded-lg border border-gray-200 dark:border-gray-800"
+        >
           <!-- Header with bulk toggle -->
           <div class="px-4 py-3">
             <div class="flex items-center justify-between">
@@ -488,10 +593,10 @@ onMounted(() => {
               </div>
             </div>
             <p
-              v-if="envForm.errors.envVars"
+              v-if="envForm.errors.envVars || envForm.errors.envVarMetadata"
               class="mt-1 text-sm text-red-600 dark:text-red-400"
             >
-              {{ envForm.errors.envVars }}
+              {{ envForm.errors.envVars || envForm.errors.envVarMetadata }}
             </p>
           </div>
 
@@ -534,6 +639,7 @@ onMounted(() => {
                 <div class="flex items-center justify-between">
                   <input
                     :value="key"
+                    :readonly="metadataFor(key).managed"
                     @blur="renameVar(key, $event.target)"
                     @keydown.enter="$event.target.blur()"
                     autocomplete="off"
@@ -581,28 +687,17 @@ onMounted(() => {
                         />
                       </svg>
                     </button>
-                    <button
-                      @click="removeVar(key)"
-                      class="rounded p-1 text-gray-400 hover:text-red-600 dark:hover:text-red-400"
-                    >
-                      <svg
-                        class="h-4 w-4"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                          stroke-width="2"
-                          d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                        />
-                      </svg>
-                    </button>
+                    <ConfigVariableMenu
+                      :variable-key="key"
+                      :metadata="metadataFor(key)"
+                      @update="updateVarMetadata(key, $event)"
+                      @remove="removeVar(key)"
+                    />
                   </div>
                 </div>
                 <input
                   :value="localVars[key]"
+                  :readonly="metadataFor(key).managed"
                   :type="
                     isSensitive(key) && !revealedKeys.has(key)
                       ? 'password'
@@ -614,6 +709,12 @@ onMounted(() => {
                   spellcheck="false"
                   class="mt-1 w-full border-b border-dashed border-transparent bg-transparent font-mono text-sm text-gray-500 focus:border-gray-300 focus:outline-none dark:text-gray-400 dark:focus:border-gray-600"
                 />
+                <p class="mt-1 text-xs text-gray-400 dark:text-gray-500">
+                  {{ metadataSummary(key) }}
+                  <template v-if="changeSummary(key)">
+                    · {{ changeSummary(key) }}
+                  </template>
+                </p>
               </div>
             </div>
 
