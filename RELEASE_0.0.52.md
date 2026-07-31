@@ -104,6 +104,18 @@ Redeploy the affected apps and reopen only the ports you still require. You can
 make only application ports public with `SLIPWAY_APP_PORT_HOST=0.0.0.0` while
 leaving the dashboard behind Caddy.
 
+This migration and rollback were rehearsed on an existing Hetzner Cloud
+installation on July 31, 2026. The public baseline exposed the dashboard and
+four application ports. A disposable application port was then moved from a
+public binding to loopback: it remained healthy locally, became unreachable
+externally, and became reachable again after rollback. The installer moved the
+live dashboard to `127.0.0.1` without changing its Caddy-served response or any
+application domain, restored the public binding during rollback, and returned
+to the private binding successfully. Docker reported the final dashboard as
+healthy. Existing application containers deliberately kept their old bindings;
+the persisted private app setting takes effect as each app is redeployed after
+the upgrade.
+
 Read the complete [Ingress and Firewall](https://docs.sailscasts.com/slipway/ingress-and-firewall)
 guide for the default VPS, explicit direct-access, and optional Cloudflare
 Tunnel modes.
