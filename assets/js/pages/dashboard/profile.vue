@@ -227,7 +227,7 @@ function logout() {
                     : undefined
                 "
                 class="focus:border-brand w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500 sm:max-w-xs"
-                @blur="validateOnBlur('fullName')"
+                @blur="validateOnBlur('fullName', $event)"
                 @input="revalidateWhenInvalid('fullName')"
               />
               <p
@@ -254,7 +254,7 @@ function logout() {
                     : 'profile-email-description'
                 "
                 class="focus:border-brand w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500 sm:max-w-xs"
-                @blur="validateOnBlur('email')"
+                @blur="validateOnBlur('email', $event)"
                 @input="revalidateWhenInvalid('email')"
               />
               <p
@@ -318,7 +318,7 @@ function logout() {
                     : undefined
                 "
                 class="focus:border-brand w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500 sm:max-w-xs"
-                @blur="validateOnBlur('currentPassword')"
+                @blur="validateOnBlur('currentPassword', $event)"
                 @input="revalidateWhenInvalid('currentPassword')"
               />
               <p
@@ -345,7 +345,7 @@ function logout() {
                     : undefined
                 "
                 class="focus:border-brand w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500 sm:max-w-xs"
-                @blur="validateOnBlur('password')"
+                @blur="validateOnBlur('password', $event)"
                 @input="revalidateWhenInvalid('password')"
               />
               <p
@@ -374,7 +374,7 @@ function logout() {
                     : undefined
                 "
                 class="focus:border-brand w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500 sm:max-w-xs"
-                @blur="validateOnBlur('confirmPassword')"
+                @blur="validateOnBlur('confirmPassword', $event)"
                 @input="revalidateWhenInvalid('confirmPassword')"
               />
               <p

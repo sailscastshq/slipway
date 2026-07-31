@@ -52,7 +52,7 @@ const { revalidateWhenInvalid, validateOnBlur } =
                 : 'forgot-password-email-description'
             "
             class="focus:border-brand h-12 w-full border-b border-dashed border-gray-200 bg-transparent px-1 text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
-            @blur="validateOnBlur('email')"
+            @blur="validateOnBlur('email', $event)"
             @input="revalidateWhenInvalid('email')"
           />
           <p

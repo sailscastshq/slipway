@@ -1,5 +1,9 @@
 export function usePrecognitionValidation(form) {
-  function validateOnBlur(field) {
+  function validateOnBlur(field, event) {
+    if (event?.relatedTarget?.closest?.('button[type="submit"], a[href]')) {
+      return
+    }
+
     if (String(form[field] ?? '').trim()) {
       form.validate(field)
     }

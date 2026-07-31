@@ -87,7 +87,7 @@ const isFormValid = computed(() => {
               form.invalid('email') ? 'setup-email-error' : undefined
             "
             class="focus:border-brand h-12 w-full border-b border-dashed border-gray-200 bg-transparent px-1 text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
-            @blur="validateOnBlur('email')"
+            @blur="validateOnBlur('email', $event)"
             @input="revalidateWhenInvalid('email')"
           />
           <p
@@ -111,7 +111,7 @@ const isFormValid = computed(() => {
               form.invalid('password') ? 'setup-password-error' : undefined
             "
             class="focus:border-brand h-12 w-full border-b border-dashed border-gray-200 bg-transparent px-1 text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
-            @blur="validateOnBlur('password')"
+            @blur="validateOnBlur('password', $event)"
             @input="revalidateWhenInvalid('password')"
           />
           <p
@@ -137,7 +137,7 @@ const isFormValid = computed(() => {
                 : undefined
             "
             class="focus:border-brand h-12 w-full border-b border-dashed border-gray-200 bg-transparent px-1 text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
-            @blur="validateOnBlur('confirmPassword')"
+            @blur="validateOnBlur('confirmPassword', $event)"
             @input="revalidateWhenInvalid('confirmPassword')"
           />
           <p
