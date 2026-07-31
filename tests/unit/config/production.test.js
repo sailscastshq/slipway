@@ -29,6 +29,37 @@ test('production custom config keeps the public URL and domain settings together
   }
 })
 
+test('production cookies follow the canonical URL with an explicit override', ({
+  expect
+}) => {
+  const names = ['SLIPWAY_URL', 'SLIPWAY_SSL']
+  const original = Object.fromEntries(
+    names.map((name) => [name, process.env[name]])
+  )
+
+  try {
+    process.env.SLIPWAY_URL = 'https://slipway.example.com'
+    delete process.env.SLIPWAY_SSL
+    delete require.cache[productionConfigPath]
+    expect(require(productionConfigPath).session.cookie.secure).toBe(true)
+    expect(require(productionConfigPath).http.trustProxy).toBe(true)
+
+    process.env.SLIPWAY_URL = 'http://46.62.235.40'
+    delete require.cache[productionConfigPath]
+    expect(require(productionConfigPath).session.cookie.secure).toBe(false)
+
+    process.env.SLIPWAY_SSL = 'true'
+    delete require.cache[productionConfigPath]
+    expect(require(productionConfigPath).session.cookie.secure).toBe(true)
+  } finally {
+    delete require.cache[productionConfigPath]
+    for (const name of names) {
+      if (original[name] === undefined) delete process.env[name]
+      else process.env[name] = original[name]
+    }
+  }
+})
+
 test('production ingress keeps app ports private unless direct access is explicit', ({
   expect
 }) => {

@@ -126,16 +126,11 @@ test('retention respects exact cutoffs and drains large tables in batches', asyn
   expect(await sails.models.telemetrymetric.count()).toBe(1)
 })
 
-test('legacy container metrics migrate once and are verified before removal', async ({
+test('preparing observability storage leaves legacy metrics out of web startup', async ({
   sails,
   expect
 }) => {
   await sails.models.containermetric.destroy({})
-  await sails.models.containermetric.create({
-    ...containerMetric({ environmentId: 1, recordedAt: 1000 }),
-    containerName: 'slipway-one',
-    legacySourceId: 1
-  })
   const source = sails.getDatastore()
 
   await source.sendNativeQuery('DROP TABLE IF EXISTS container_metrics')
@@ -166,26 +161,20 @@ test('legacy container metrics migrate once and are verified before removal', as
       environment
     ) VALUES
       (1, 1, 'slipway-one', 'app', 1, 10, 100, 10, 1, 1000, 1),
-      (2, 2, 'slipway-two', 'service', 2, 20, 100, 20, 2, 2000, 1)`
+      (2, 2, 'slipway-two', 'service', 2, 20, 100, 20, 2, 2000, 1),
+      (3, 3, 'slipway-three', 'app', 3, 30, 100, 30, 3, 3000, 1),
+      (4, 4, 'slipway-four', 'service', 4, 40, 100, 40, 4, 4000, 1),
+      (5, 5, 'slipway-five', 'app', 5, 50, 100, 50, 5, 5000, 1)`
   )
 
-  const first = await sails.helpers.lookout.ensureObservabilitySchema()
-  const second = await sails.helpers.lookout.ensureObservabilitySchema()
-  const sourceCount = await source.sendNativeQuery(
+  await sails.helpers.lookout.ensureObservabilitySchema()
+  const sourceBeforeMaintenance = await source.sendNativeQuery(
     'SELECT COUNT(*) AS total FROM container_metrics'
   )
-  const migrated = await sails.models.containermetric
-    .find()
-    .sort('legacySourceId ASC')
-
-  expect(first.migrated).toBe(2)
-  expect(second.migrated).toBe(0)
-  expect((sourceCount.rows || sourceCount)[0].total).toBe(0)
-  expect(migrated.map((row) => row.containerName)).toEqual([
-    'slipway-one',
-    'slipway-two'
-  ])
-  expect(migrated.map((row) => row.legacySourceId)).toEqual([1, 2])
+  expect(
+    (sourceBeforeMaintenance.rows || sourceBeforeMaintenance)[0].total
+  ).toBe(5)
+  expect(await sails.models.containermetric.count()).toBe(0)
 })
 
 test('SQLite query plans use the observability time-shape indexes', async ({

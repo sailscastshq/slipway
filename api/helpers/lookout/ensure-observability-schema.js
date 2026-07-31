@@ -26,22 +26,9 @@ module.exports = {
         recorded_at INTEGER,
         environment INTEGER,
         app INTEGER,
-        service INTEGER,
-        legacy_source_id INTEGER
+        service INTEGER
       )
     `)
-
-    const containerColumns = await datastore.sendNativeQuery(
-      'PRAGMA table_info(container_metrics)'
-    )
-    const existingContainerColumns = new Set(
-      rows(containerColumns).map((column) => column.name)
-    )
-    if (!existingContainerColumns.has('legacy_source_id')) {
-      await datastore.sendNativeQuery(
-        'ALTER TABLE container_metrics ADD COLUMN legacy_source_id INTEGER'
-      )
-    }
 
     await datastore.sendNativeQuery(`
       CREATE TABLE IF NOT EXISTS telemetry_spans (
@@ -158,15 +145,6 @@ module.exports = {
       )
     }
 
-    await datastore.sendNativeQuery(`
-      CREATE UNIQUE INDEX IF NOT EXISTS container_metrics_legacy_source_unique
-      ON container_metrics (legacy_source_id)
-    `)
-
-    return await sails.helpers.lookout.migrateContainerMetrics()
+    return { ready: true }
   }
-}
-
-function rows(result) {
-  return result.rows || result || []
 }

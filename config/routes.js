@@ -223,10 +223,7 @@ module.exports.routes = {
     'api/v1/app/destroy-app',
 
   // Sails-native release flags
-  'GET /api/v1/flags/apps/:appId': {
-    action: 'api/v1/flag/get-config',
-    csrf: false
-  },
+  'GET /api/v1/flags/apps/:appId': 'api/v1/flag/get-config',
   'POST /api/v1/projects/:projectSlug/environments/:environmentSlug/apps/:appSlug/flags':
     'api/v1/flag/create-flag',
   'PATCH /api/v1/projects/:projectSlug/environments/:environmentSlug/apps/:appSlug/flags/:flagId':
