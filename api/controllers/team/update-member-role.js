@@ -23,6 +23,12 @@ module.exports = {
     },
     notFound: {
       statusCode: 404
+    },
+    invalid: {
+      responseType: 'badRequest'
+    },
+    precognitionSuccess: {
+      responseType: 'precognitionSuccess'
     }
   },
 
@@ -33,6 +39,11 @@ module.exports = {
     if (currentUser.teamRole !== 'owner') {
       this.req.addFlash('error', 'Only team owners can change roles.')
       return '/settings/team'
+    }
+
+    const problems = sails.helpers.setting.validate({ role }, [], this.req)
+    if (problems.length) {
+      throw { invalid: { problems } }
     }
 
     // Can't change own role
@@ -54,6 +65,10 @@ module.exports = {
     if (targetUser.teamRole === 'owner') {
       this.req.addFlash('error', "Cannot change the team owner's role.")
       return '/settings/team'
+    }
+
+    if (sails.inertia.isPrecognitive(this.req)) {
+      throw 'precognitionSuccess'
     }
 
     await User.updateOne({ id: userId }).set({ teamRole: role })

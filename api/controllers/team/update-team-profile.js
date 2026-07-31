@@ -15,6 +15,12 @@ module.exports = {
   exits: {
     success: {
       responseType: 'inertiaRedirect'
+    },
+    invalid: {
+      responseType: 'badRequest'
+    },
+    precognitionSuccess: {
+      responseType: 'precognitionSuccess'
     }
   },
 
@@ -22,6 +28,18 @@ module.exports = {
     const user = await User.findOne({ id: this.req.session.userId }).populate(
       'team'
     )
+
+    const problems = sails.helpers.setting.validate(
+      { name },
+      ['name'],
+      this.req
+    )
+    if (problems.length) {
+      throw { invalid: { problems } }
+    }
+    if (sails.inertia.isPrecognitive(this.req)) {
+      throw 'precognitionSuccess'
+    }
 
     // Generate new slug from name
     const slug = name

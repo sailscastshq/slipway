@@ -22,6 +22,12 @@ module.exports = {
     },
     notFound: {
       responseType: 'redirect'
+    },
+    invalid: {
+      responseType: 'badRequest'
+    },
+    precognitionSuccess: {
+      responseType: 'precognitionSuccess'
     }
   },
 
@@ -34,7 +40,19 @@ module.exports = {
       throw { notFound: '/settings/api-keys' }
     }
 
-    await CliToken.updateOne(id).set({ name })
+    const problems = sails.helpers.setting.validate(
+      { name },
+      ['name'],
+      this.req
+    )
+    if (problems.length) {
+      throw { invalid: { problems } }
+    }
+    if (sails.inertia.isPrecognitive(this.req)) {
+      throw 'precognitionSuccess'
+    }
+
+    await CliToken.updateOne(id).set({ name: name.trim() })
 
     sails.inertia.flash('success', 'Token renamed.')
     return '/settings/api-keys'

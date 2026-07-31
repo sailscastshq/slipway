@@ -1,8 +1,9 @@
 <script setup>
-import { Link, Head, router } from '@inertiajs/vue3'
+import { Link, Head, router, useForm } from '@inertiajs/vue3'
 import { inject, ref, computed, watch, onUnmounted } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
 import ConfirmModal from '@/components/ConfirmModal.vue'
+import { usePrecognitionValidation } from '@/composables/precognition'
 
 defineOptions({
   layout: AppLayout
@@ -36,38 +37,30 @@ const isOwner = computed(() => props.currentUserRole === 'owner')
 
 // Invite
 const showInvite = ref(false)
-const inviteEmail = ref('')
-const inviteRole = ref('member')
-const inviting = ref(false)
+const inviteForm = useForm({
+  email: '',
+  role: 'member'
+})
+  .withPrecognition('post', '/settings/team/invite')
+  .setValidationTimeout(350)
+const { revalidateWhenInvalid, validateOnBlur } =
+  usePrecognitionValidation(inviteForm)
 
 function submitInvite() {
-  if (!inviteEmail.value.trim()) return
-  inviting.value = true
-  router.post(
-    '/settings/team/invite',
-    {
-      email: inviteEmail.value.trim(),
-      role: inviteRole.value
-    },
-    {
-      preserveScroll: true,
-      onSuccess: () => {
-        showInvite.value = false
-        inviteEmail.value = ''
-        inviteRole.value = 'member'
-      },
-      onFinish: () => {
-        inviting.value = false
-      }
+  if (!inviteForm.email.trim()) return
+  inviteForm.post('/settings/team/invite', {
+    preserveScroll: true,
+    onSuccess: () => {
+      showInvite.value = false
+      inviteForm.reset()
     }
-  )
+  })
 }
 
 function closeInvite() {
-  if (!inviting.value) {
+  if (!inviteForm.processing) {
     showInvite.value = false
-    inviteEmail.value = ''
-    inviteRole.value = 'member'
+    inviteForm.resetAndClearErrors()
   }
 }
 
@@ -99,15 +92,23 @@ function closeMenu() {
 }
 
 // Role change
+const roleMemberId = ref(null)
+const roleForm = useForm({ role: 'member' }).withPrecognition(
+  'patch',
+  () => `/settings/team/${roleMemberId.value}/role`
+)
+
 function changeRole(member, newRole) {
   openMenu.value = null
-  router.patch(
-    `/settings/team/${member.id}/role`,
-    {
-      role: newRole
-    },
-    { preserveScroll: true }
-  )
+  roleMemberId.value = member.id
+  roleForm.role = newRole
+  roleForm.validate('role', {
+    onPrecognitionSuccess: () => {
+      roleForm.patch(`/settings/team/${member.id}/role`, {
+        preserveScroll: true
+      })
+    }
+  })
 }
 
 // Remove member
@@ -515,12 +516,25 @@ function timeAgo(date) {
                     >Email</label
                   >
                   <input
-                    v-model="inviteEmail"
+                    v-model="inviteForm.email"
                     type="email"
                     placeholder="teammate@example.com"
                     required
+                    :aria-invalid="inviteForm.invalid('email')"
+                    :aria-describedby="
+                      inviteForm.errors.email ? 'invite-email-error' : null
+                    "
                     class="focus:border-brand w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-2 text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
+                    @blur="validateOnBlur('email', $event)"
+                    @input="revalidateWhenInvalid('email')"
                   />
+                  <p
+                    v-if="inviteForm.errors.email"
+                    id="invite-email-error"
+                    class="mt-1 text-sm text-red-600 dark:text-red-400"
+                  >
+                    {{ inviteForm.errors.email }}
+                  </p>
                 </div>
                 <div>
                   <label
@@ -528,7 +542,7 @@ function timeAgo(date) {
                     >Role</label
                   >
                   <select
-                    v-model="inviteRole"
+                    v-model="inviteForm.role"
                     class="focus:border-brand w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-white"
                   >
                     <option value="member">Member</option>
@@ -539,17 +553,21 @@ function timeAgo(date) {
                   <button
                     type="button"
                     @click="closeInvite"
-                    :disabled="inviting"
+                    :disabled="inviteForm.processing"
                     class="rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    :disabled="inviting"
+                    :disabled="
+                      inviteForm.processing ||
+                      inviteForm.hasErrors ||
+                      !inviteForm.email.trim()
+                    "
                     class="rounded-md bg-gray-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
                   >
-                    {{ inviting ? 'Sending...' : 'Send invite' }}
+                    {{ inviteForm.processing ? 'Sending...' : 'Send invite' }}
                   </button>
                 </div>
               </form>

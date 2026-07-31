@@ -4,6 +4,7 @@ import { inject, ref, computed } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
 import ConfirmModal from '@/components/ConfirmModal.vue'
 import { useToast } from '@/composables/toast'
+import { usePrecognitionValidation } from '@/composables/precognition'
 
 defineOptions({
   layout: AppLayout
@@ -28,6 +29,12 @@ const oauthForm = useForm({
   clientId: '',
   clientSecret: ''
 })
+  .withPrecognition('patch', '/settings/git')
+  .setValidationTimeout(350)
+const {
+  revalidateWhenInvalid: revalidateOauthWhenInvalid,
+  validateOnBlur: validateOauthOnBlur
+} = usePrecognitionValidation(oauthForm)
 
 function saveOAuthConfig() {
   if (!oauthForm.clientId.trim() || !oauthForm.clientSecret.trim()) return
@@ -45,36 +52,46 @@ function connectGithub() {
 
 // ---- Deploy Tokens ----
 const showCreateToken = ref(false)
-const newToken = ref({
+const newToken = useForm({
   name: '',
   projectId: '',
   scopes: ['deploy']
 })
+  .withPrecognition('post', '/api/v1/deploy-tokens')
+  .setValidationTimeout(350)
+const {
+  applyResponseProblems: applyTokenProblems,
+  revalidateWhenInvalid: revalidateTokenWhenInvalid,
+  validateOnBlur: validateTokenOnBlur
+} = usePrecognitionValidation(newToken)
 const createdToken = ref(null)
 const creatingToken = ref(false)
 
 async function createToken() {
-  if (!newToken.value.name.trim() || creatingToken.value) return
+  if (!newToken.name.trim() || creatingToken.value) return
   creatingToken.value = true
+  newToken.clearErrors()
 
   try {
     const res = await fetch('/api/v1/deploy-tokens', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        name: newToken.value.name.trim(),
-        projectId: newToken.value.projectId || undefined,
-        scopes: newToken.value.scopes
+        name: newToken.name.trim(),
+        projectId: newToken.projectId || undefined,
+        scopes: newToken.scopes
       })
     })
 
+    const data = await res.json()
     if (res.ok) {
-      const data = await res.json()
       createdToken.value = data.token
-      newToken.value = { name: '', projectId: '', scopes: ['deploy'] }
+      newToken.reset()
       toast({ message: 'Deploy token created', type: 'success' })
     } else {
-      toast({ message: 'Failed to create token', type: 'error' })
+      if (!applyTokenProblems(data.problems)) {
+        toast({ message: 'Failed to create token', type: 'error' })
+      }
     }
   } catch (err) {
     toast({ message: 'Failed to create token', type: 'error' })
@@ -289,9 +306,22 @@ function timeAgo(date) {
                   v-model="oauthForm.clientId"
                   type="text"
                   placeholder="Ov23li..."
+                  :aria-invalid="oauthForm.invalid('clientId')"
+                  :aria-describedby="
+                    oauthForm.errors.clientId ? 'github-client-id-error' : null
+                  "
                   class="focus:border-brand mt-1 w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
                   required
+                  @blur="validateOauthOnBlur('clientId', $event)"
+                  @input="revalidateOauthWhenInvalid('clientId')"
                 />
+                <p
+                  v-if="oauthForm.errors.clientId"
+                  id="github-client-id-error"
+                  class="mt-1 text-sm text-red-600 dark:text-red-400"
+                >
+                  {{ oauthForm.errors.clientId }}
+                </p>
               </div>
 
               <div>
@@ -303,16 +333,24 @@ function timeAgo(date) {
                   v-model="oauthForm.clientSecret"
                   type="password"
                   placeholder="••••••••••••••••"
+                  :aria-invalid="oauthForm.invalid('clientSecret')"
+                  :aria-describedby="
+                    oauthForm.errors.clientSecret
+                      ? 'github-client-secret-error'
+                      : null
+                  "
                   class="focus:border-brand mt-1 w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
                   required
+                  @blur="validateOauthOnBlur('clientSecret', $event)"
+                  @input="revalidateOauthWhenInvalid('clientSecret')"
                 />
-              </div>
-
-              <div
-                v-if="oauthForm.hasErrors"
-                class="rounded-md bg-red-50 p-3 text-sm text-red-800 dark:bg-red-900/20 dark:text-red-300"
-              >
-                Failed to save configuration
+                <p
+                  v-if="oauthForm.errors.clientSecret"
+                  id="github-client-secret-error"
+                  class="mt-1 text-sm text-red-600 dark:text-red-400"
+                >
+                  {{ oauthForm.errors.clientSecret }}
+                </p>
               </div>
 
               <div class="pt-2">
@@ -321,6 +359,7 @@ function timeAgo(date) {
                   :disabled="
                     !oauthForm.clientId.trim() ||
                     !oauthForm.clientSecret.trim() ||
+                    oauthForm.hasErrors ||
                     oauthForm.processing
                   "
                   class="rounded-md bg-gray-900 px-4 py-1.5 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
@@ -660,9 +699,22 @@ jobs:
                   v-model="newToken.name"
                   type="text"
                   placeholder="e.g., GitHub Actions"
+                  :aria-invalid="newToken.invalid('name')"
+                  :aria-describedby="
+                    newToken.errors.name ? 'deploy-token-name-error' : null
+                  "
                   class="focus:border-brand mt-1 w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
                   required
+                  @blur="validateTokenOnBlur('name', $event)"
+                  @input="revalidateTokenWhenInvalid('name')"
                 />
+                <p
+                  v-if="newToken.errors.name"
+                  id="deploy-token-name-error"
+                  class="mt-1 text-sm text-red-600 dark:text-red-400"
+                >
+                  {{ newToken.errors.name }}
+                </p>
               </div>
 
               <div>
@@ -691,7 +743,9 @@ jobs:
                 </button>
                 <button
                   type="submit"
-                  :disabled="!newToken.name.trim() || creatingToken"
+                  :disabled="
+                    !newToken.name.trim() || newToken.hasErrors || creatingToken
+                  "
                   class="rounded-md bg-gray-900 px-4 py-1.5 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
                 >
                   {{ creatingToken ? 'Creating...' : 'Create' }}

@@ -26,6 +26,12 @@ module.exports = {
     },
     conflict: {
       statusCode: 409
+    },
+    invalid: {
+      responseType: 'badRequest'
+    },
+    precognitionSuccess: {
+      responseType: 'precognitionSuccess'
     }
   },
 
@@ -37,21 +43,37 @@ module.exports = {
       throw { redirect: '/settings/team' }
     }
 
+    const problems = sails.helpers.setting.validate(
+      { email, role },
+      [],
+      this.req
+    )
+    if (problems.length) {
+      throw { invalid: { problems } }
+    }
+
     // Check if user already exists
     const existingUser = await User.findOne({ email: email.toLowerCase() })
 
     if (existingUser) {
       if (existingUser.team === currentUser.team) {
-        // Already on this team
-        this.req.addFlash('error', `${email} is already a member of this team.`)
-        return '/settings/team'
+        throw {
+          invalid: {
+            problems: [
+              { email: 'This person is already a member of the team.' }
+            ]
+          }
+        }
       }
-      // User exists but on another team — for 0.0.1, don't support multi-team
-      this.req.addFlash(
-        'error',
-        `${email} already has an account on another team.`
-      )
-      return '/settings/team'
+      throw {
+        invalid: {
+          problems: [{ email: 'This account already belongs to another team.' }]
+        }
+      }
+    }
+
+    if (sails.inertia.isPrecognitive(this.req)) {
+      throw 'precognitionSuccess'
     }
 
     // Create new user account with a temporary password

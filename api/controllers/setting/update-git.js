@@ -23,6 +23,12 @@ module.exports = {
     forbidden: {
       statusCode: 403,
       description: 'Only admins can configure GitHub OAuth'
+    },
+    invalid: {
+      responseType: 'badRequest'
+    },
+    precognitionSuccess: {
+      responseType: 'precognitionSuccess'
     }
   },
 
@@ -31,6 +37,18 @@ module.exports = {
 
     if (user.teamRole !== 'owner' && user.teamRole !== 'admin') {
       throw 'forbidden'
+    }
+
+    const problems = sails.helpers.setting.validate(
+      { clientId, clientSecret },
+      ['clientId', 'clientSecret'],
+      this.req
+    )
+    if (problems.length) {
+      throw { invalid: { problems } }
+    }
+    if (sails.inertia.isPrecognitive(this.req)) {
+      throw 'precognitionSuccess'
     }
 
     await sails.helpers.setting.set('githubClientId', clientId.trim())

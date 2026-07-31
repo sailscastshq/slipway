@@ -2,6 +2,7 @@
 import { Link, Head, useForm } from '@inertiajs/vue3'
 import { inject, ref, computed } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
+import { usePrecognitionValidation } from '@/composables/precognition'
 
 defineOptions({
   layout: AppLayout
@@ -53,6 +54,10 @@ const form = useForm({
   // Quest
   notifyOnJobFailure: props.preferences.jobFailure
 })
+  .withPrecognition('patch', '/settings/notifications')
+  .setValidationTimeout(350)
+const { revalidateWhenInvalid, validateOnBlur } =
+  usePrecognitionValidation(form)
 
 const testing = ref(null)
 const testForm = useForm({
@@ -486,9 +491,28 @@ const categoryIcons = {
                     <input
                       type="text"
                       v-model="form.discordWebhookUrl"
-                      placeholder="https://discord.com/api/webhooks/..."
+                      :placeholder="
+                        discord.hasWebhookUrl
+                          ? 'Configured — enter a new URL to replace it'
+                          : 'https://discord.com/api/webhooks/...'
+                      "
+                      :aria-invalid="form.invalid('discordWebhookUrl')"
+                      :aria-describedby="
+                        form.errors.discordWebhookUrl
+                          ? 'discord-webhook-url-error'
+                          : null
+                      "
                       class="focus:border-brand w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 font-mono text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
+                      @blur="validateOnBlur('discordWebhookUrl', $event)"
+                      @input="revalidateWhenInvalid('discordWebhookUrl')"
                     />
+                    <p
+                      v-if="form.errors.discordWebhookUrl"
+                      id="discord-webhook-url-error"
+                      class="mt-1 text-sm text-red-600 dark:text-red-400"
+                    >
+                      {{ form.errors.discordWebhookUrl }}
+                    </p>
                     <p class="mt-1 text-xs text-gray-400 dark:text-gray-500">
                       Create a webhook in your Discord server settings under
                       Integrations
@@ -499,7 +523,8 @@ const categoryIcons = {
                       type="button"
                       @click="testChannel('discord')"
                       :disabled="
-                        testing === 'discord' || !form.discordWebhookUrl
+                        testing === 'discord' ||
+                        (!form.discordWebhookUrl && !discord.hasWebhookUrl)
                       "
                       class="rounded-md border border-gray-200 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
                     >
@@ -571,9 +596,28 @@ const categoryIcons = {
                     <input
                       type="text"
                       v-model="form.slackWebhookUrl"
-                      placeholder="https://hooks.slack.com/services/..."
+                      :placeholder="
+                        slack.hasWebhookUrl
+                          ? 'Configured — enter a new URL to replace it'
+                          : 'https://hooks.slack.com/services/...'
+                      "
+                      :aria-invalid="form.invalid('slackWebhookUrl')"
+                      :aria-describedby="
+                        form.errors.slackWebhookUrl
+                          ? 'slack-webhook-url-error'
+                          : null
+                      "
                       class="focus:border-brand w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 font-mono text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
+                      @blur="validateOnBlur('slackWebhookUrl', $event)"
+                      @input="revalidateWhenInvalid('slackWebhookUrl')"
                     />
+                    <p
+                      v-if="form.errors.slackWebhookUrl"
+                      id="slack-webhook-url-error"
+                      class="mt-1 text-sm text-red-600 dark:text-red-400"
+                    >
+                      {{ form.errors.slackWebhookUrl }}
+                    </p>
                     <p class="mt-1 text-xs text-gray-400 dark:text-gray-500">
                       Create an incoming webhook in your Slack workspace
                       settings
@@ -583,7 +627,10 @@ const categoryIcons = {
                     <button
                       type="button"
                       @click="testChannel('slack')"
-                      :disabled="testing === 'slack' || !form.slackWebhookUrl"
+                      :disabled="
+                        testing === 'slack' ||
+                        (!form.slackWebhookUrl && !slack.hasWebhookUrl)
+                      "
                       class="rounded-md border border-gray-200 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
                     >
                       {{
@@ -653,10 +700,23 @@ const categoryIcons = {
                       <input
                         :type="revealToken ? 'text' : 'password'"
                         v-model="form.telegramBotToken"
-                        placeholder="123456789:ABCDefGhIJKlmNoPQRsTUVwxyZ"
+                        :placeholder="
+                          telegram.hasBotToken
+                            ? 'Configured — enter a new token to replace it'
+                            : '123456789:ABCDefGhIJKlmNoPQRsTUVwxyZ'
+                        "
+                        :aria-invalid="form.invalid('telegramBotToken')"
+                        :aria-describedby="
+                          form.errors.telegramBotToken
+                            ? 'telegram-bot-token-error'
+                            : null
+                        "
                         class="focus:border-brand w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 font-mono text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
+                        @blur="validateOnBlur('telegramBotToken', $event)"
+                        @input="revalidateWhenInvalid('telegramBotToken')"
                       />
                       <button
+                        v-if="form.telegramBotToken"
                         type="button"
                         @click="revealToken = !revealToken"
                         class="rounded p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
@@ -697,6 +757,13 @@ const categoryIcons = {
                         </svg>
                       </button>
                     </div>
+                    <p
+                      v-if="form.errors.telegramBotToken"
+                      id="telegram-bot-token-error"
+                      class="mt-1 text-sm text-red-600 dark:text-red-400"
+                    >
+                      {{ form.errors.telegramBotToken }}
+                    </p>
                     <p class="mt-1 text-xs text-gray-400 dark:text-gray-500">
                       Create a bot via
                       <a
@@ -716,8 +783,23 @@ const categoryIcons = {
                       type="text"
                       v-model="form.telegramChatId"
                       placeholder="-1001234567890"
+                      :aria-invalid="form.invalid('telegramChatId')"
+                      :aria-describedby="
+                        form.errors.telegramChatId
+                          ? 'telegram-chat-id-error'
+                          : null
+                      "
                       class="focus:border-brand w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 font-mono text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500 sm:max-w-xs"
+                      @blur="validateOnBlur('telegramChatId', $event)"
+                      @input="revalidateWhenInvalid('telegramChatId')"
                     />
+                    <p
+                      v-if="form.errors.telegramChatId"
+                      id="telegram-chat-id-error"
+                      class="mt-1 text-sm text-red-600 dark:text-red-400"
+                    >
+                      {{ form.errors.telegramChatId }}
+                    </p>
                     <p class="mt-1 text-xs text-gray-400 dark:text-gray-500">
                       The chat, group, or channel ID to send messages to
                     </p>
@@ -734,8 +816,23 @@ const categoryIcons = {
                       type="text"
                       v-model="form.telegramThreadId"
                       placeholder="12345"
+                      :aria-invalid="form.invalid('telegramThreadId')"
+                      :aria-describedby="
+                        form.errors.telegramThreadId
+                          ? 'telegram-thread-id-error'
+                          : null
+                      "
                       class="focus:border-brand w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 font-mono text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500 sm:max-w-xs"
+                      @blur="validateOnBlur('telegramThreadId', $event)"
+                      @input="revalidateWhenInvalid('telegramThreadId')"
                     />
+                    <p
+                      v-if="form.errors.telegramThreadId"
+                      id="telegram-thread-id-error"
+                      class="mt-1 text-sm text-red-600 dark:text-red-400"
+                    >
+                      {{ form.errors.telegramThreadId }}
+                    </p>
                     <p class="mt-1 text-xs text-gray-400 dark:text-gray-500">
                       For groups with Topics enabled, send to a specific topic
                       thread
@@ -747,7 +844,7 @@ const categoryIcons = {
                       @click="testChannel('telegram')"
                       :disabled="
                         testing === 'telegram' ||
-                        !form.telegramBotToken ||
+                        (!form.telegramBotToken && !telegram.hasBotToken) ||
                         !form.telegramChatId
                       "
                       class="rounded-md border border-gray-200 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
@@ -850,8 +947,21 @@ const categoryIcons = {
                         type="text"
                         v-model="form.smtpHost"
                         placeholder="smtp.example.com"
+                        :aria-invalid="form.invalid('smtpHost')"
+                        :aria-describedby="
+                          form.errors.smtpHost ? 'smtp-host-error' : null
+                        "
                         class="focus:border-brand w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
+                        @blur="validateOnBlur('smtpHost', $event)"
+                        @input="revalidateWhenInvalid('smtpHost')"
                       />
+                      <p
+                        v-if="form.errors.smtpHost"
+                        id="smtp-host-error"
+                        class="mt-1 text-sm text-red-600 dark:text-red-400"
+                      >
+                        {{ form.errors.smtpHost }}
+                      </p>
                     </div>
                     <div>
                       <label
@@ -862,8 +972,21 @@ const categoryIcons = {
                         type="text"
                         v-model="form.smtpPort"
                         placeholder="587"
+                        :aria-invalid="form.invalid('smtpPort')"
+                        :aria-describedby="
+                          form.errors.smtpPort ? 'smtp-port-error' : null
+                        "
                         class="focus:border-brand w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
+                        @blur="validateOnBlur('smtpPort', $event)"
+                        @input="revalidateWhenInvalid('smtpPort')"
                       />
+                      <p
+                        v-if="form.errors.smtpPort"
+                        id="smtp-port-error"
+                        class="mt-1 text-sm text-red-600 dark:text-red-400"
+                      >
+                        {{ form.errors.smtpPort }}
+                      </p>
                     </div>
                   </div>
                   <div class="grid gap-4 px-4 py-3 sm:grid-cols-2">
@@ -906,8 +1029,21 @@ const categoryIcons = {
                       type="email"
                       v-model="form.smtpFrom"
                       placeholder="noreply@example.com"
+                      :aria-invalid="form.invalid('smtpFrom')"
+                      :aria-describedby="
+                        form.errors.smtpFrom ? 'smtp-from-error' : null
+                      "
                       class="focus:border-brand w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500 sm:max-w-xs"
+                      @blur="validateOnBlur('smtpFrom', $event)"
+                      @input="revalidateWhenInvalid('smtpFrom')"
                     />
+                    <p
+                      v-if="form.errors.smtpFrom"
+                      id="smtp-from-error"
+                      class="mt-1 text-sm text-red-600 dark:text-red-400"
+                    >
+                      {{ form.errors.smtpFrom }}
+                    </p>
                   </div>
                   <div class="px-4 py-3">
                     <label
@@ -918,8 +1054,23 @@ const categoryIcons = {
                       type="text"
                       v-model="form.notificationEmails"
                       placeholder="admin@example.com, team@example.com"
+                      :aria-invalid="form.invalid('notificationEmails')"
+                      :aria-describedby="
+                        form.errors.notificationEmails
+                          ? 'notification-emails-error'
+                          : null
+                      "
                       class="focus:border-brand w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
+                      @blur="validateOnBlur('notificationEmails', $event)"
+                      @input="revalidateWhenInvalid('notificationEmails')"
                     />
+                    <p
+                      v-if="form.errors.notificationEmails"
+                      id="notification-emails-error"
+                      class="mt-1 text-sm text-red-600 dark:text-red-400"
+                    >
+                      {{ form.errors.notificationEmails }}
+                    </p>
                     <p class="mt-1 text-xs text-gray-400 dark:text-gray-500">
                       Comma-separated list of email addresses
                     </p>
@@ -984,6 +1135,7 @@ const categoryIcons = {
                     class="relative inline-flex cursor-pointer items-center"
                   >
                     <input
+                      data-test="webhook-enabled"
                       type="checkbox"
                       v-model="form.webhookEnabled"
                       class="peer sr-only"
@@ -1003,11 +1155,29 @@ const categoryIcons = {
                       >Webhook URL</label
                     >
                     <input
+                      id="webhookUrl"
                       type="text"
                       v-model="form.webhookUrl"
-                      placeholder="https://example.com/webhook"
+                      :placeholder="
+                        webhook.hasUrl
+                          ? 'Configured — enter a new URL to replace it'
+                          : 'https://example.com/webhook'
+                      "
+                      :aria-invalid="form.invalid('webhookUrl')"
+                      :aria-describedby="
+                        form.errors.webhookUrl ? 'webhook-url-error' : null
+                      "
                       class="focus:border-brand w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 font-mono text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
+                      @blur="validateOnBlur('webhookUrl', $event)"
+                      @input="revalidateWhenInvalid('webhookUrl')"
                     />
+                    <p
+                      v-if="form.errors.webhookUrl"
+                      id="webhook-url-error"
+                      class="mt-1 text-sm text-red-600 dark:text-red-400"
+                    >
+                      {{ form.errors.webhookUrl }}
+                    </p>
                     <p class="mt-1 text-xs text-gray-400 dark:text-gray-500">
                       Receives POST with JSON payload: { event, timestamp, data
                       }
@@ -1017,7 +1187,10 @@ const categoryIcons = {
                     <button
                       type="button"
                       @click="testChannel('webhook')"
-                      :disabled="testing === 'webhook' || !form.webhookUrl"
+                      :disabled="
+                        testing === 'webhook' ||
+                        (!form.webhookUrl && !webhook.hasUrl)
+                      "
                       class="rounded-md border border-gray-200 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
                     >
                       {{
@@ -1055,7 +1228,7 @@ const categoryIcons = {
           <div class="flex justify-end pt-6">
             <button
               type="submit"
-              :disabled="form.processing || !form.isDirty"
+              :disabled="form.processing || form.hasErrors || !form.isDirty"
               class="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
             >
               {{ form.processing ? 'Saving...' : 'Save changes' }}
