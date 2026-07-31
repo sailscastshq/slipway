@@ -4,6 +4,7 @@ import { inject, ref } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
 import ConfirmModal from '@/components/ConfirmModal.vue'
 import { useToast } from '@/composables/toast'
+import { usePrecognitionValidation } from '@/composables/precognition'
 
 defineOptions({
   layout: AppLayout
@@ -23,6 +24,11 @@ const form = useForm({
   password: '',
   confirmPassword: ''
 })
+  .withPrecognition('patch', '/profile')
+  .setValidationTimeout(350)
+
+const { revalidateWhenInvalid, validateOnBlur } =
+  usePrecognitionValidation(form)
 
 const deleteAccountForm = useForm({
   password: ''
@@ -210,28 +216,66 @@ function logout() {
                 >Full Name</label
               >
               <input
+                id="profile-full-name"
                 v-model="form.fullName"
                 type="text"
+                autocomplete="name"
+                :aria-invalid="form.invalid('fullName') ? 'true' : undefined"
+                :aria-describedby="
+                  form.invalid('fullName')
+                    ? 'profile-full-name-error'
+                    : undefined
+                "
                 class="focus:border-brand w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500 sm:max-w-xs"
+                @blur="validateOnBlur('fullName', $event)"
+                @input="revalidateWhenInvalid('fullName')"
               />
+              <p
+                v-if="form.errors.fullName"
+                id="profile-full-name-error"
+                class="mt-1 text-xs text-red-600 dark:text-red-400"
+              >
+                {{ form.errors.fullName }}
+              </p>
             </div>
             <div class="px-4 py-3">
               <label class="mb-1 block text-sm text-gray-700 dark:text-gray-300"
                 >Email</label
               >
               <input
+                id="profile-email"
                 v-model="form.email"
                 type="email"
+                autocomplete="email"
+                :aria-invalid="form.invalid('email') ? 'true' : undefined"
+                :aria-describedby="
+                  form.invalid('email')
+                    ? 'profile-email-error'
+                    : 'profile-email-description'
+                "
                 class="focus:border-brand w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500 sm:max-w-xs"
+                @blur="validateOnBlur('email', $event)"
+                @input="revalidateWhenInvalid('email')"
               />
-              <p class="mt-1 text-xs text-gray-400 dark:text-gray-500">
+              <p
+                v-if="form.errors.email"
+                id="profile-email-error"
+                class="mt-1 text-xs text-red-600 dark:text-red-400"
+              >
+                {{ form.errors.email }}
+              </p>
+              <p
+                v-else
+                id="profile-email-description"
+                class="mt-1 text-xs text-gray-400 dark:text-gray-500"
+              >
                 Changing your email requires verification
               </p>
             </div>
             <div class="flex items-center justify-end px-4 py-3">
               <button
                 type="submit"
-                :disabled="form.processing || !form.isDirty"
+                :disabled="form.processing || !form.isDirty || form.hasErrors"
                 class="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
               >
                 {{ form.processing ? 'Saving...' : 'Save changes' }}
@@ -261,35 +305,84 @@ function logout() {
                 >Current Password</label
               >
               <input
+                id="profile-current-password"
                 v-model="form.currentPassword"
                 type="password"
                 autocomplete="current-password"
+                :aria-invalid="
+                  form.invalid('currentPassword') ? 'true' : undefined
+                "
+                :aria-describedby="
+                  form.invalid('currentPassword')
+                    ? 'profile-current-password-error'
+                    : undefined
+                "
                 class="focus:border-brand w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500 sm:max-w-xs"
+                @blur="validateOnBlur('currentPassword', $event)"
+                @input="revalidateWhenInvalid('currentPassword')"
               />
+              <p
+                v-if="form.errors.currentPassword"
+                id="profile-current-password-error"
+                class="mt-1 text-xs text-red-600 dark:text-red-400"
+              >
+                {{ form.errors.currentPassword }}
+              </p>
             </div>
             <div class="px-4 py-3">
               <label class="mb-1 block text-sm text-gray-700 dark:text-gray-300"
                 >New Password</label
               >
               <input
+                id="profile-new-password"
                 v-model="form.password"
                 type="password"
                 autocomplete="new-password"
+                :aria-invalid="form.invalid('password') ? 'true' : undefined"
+                :aria-describedby="
+                  form.invalid('password')
+                    ? 'profile-new-password-error'
+                    : undefined
+                "
                 class="focus:border-brand w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500 sm:max-w-xs"
+                @blur="validateOnBlur('password', $event)"
+                @input="revalidateWhenInvalid('password')"
               />
+              <p
+                v-if="form.errors.password"
+                id="profile-new-password-error"
+                class="mt-1 text-xs text-red-600 dark:text-red-400"
+              >
+                {{ form.errors.password }}
+              </p>
             </div>
             <div class="px-4 py-3">
               <label class="mb-1 block text-sm text-gray-700 dark:text-gray-300"
                 >Confirm Password</label
               >
               <input
+                id="profile-confirm-password"
                 v-model="form.confirmPassword"
                 type="password"
                 autocomplete="new-password"
+                :aria-invalid="
+                  form.invalid('confirmPassword') ? 'true' : undefined
+                "
+                :aria-describedby="
+                  form.invalid('confirmPassword')
+                    ? 'profile-confirm-password-error'
+                    : undefined
+                "
                 class="focus:border-brand w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500 sm:max-w-xs"
+                @blur="validateOnBlur('confirmPassword', $event)"
+                @input="revalidateWhenInvalid('confirmPassword')"
               />
-              <p v-if="form.errors.password" class="mt-1 text-xs text-red-500">
-                {{ form.errors.password }}
+              <p
+                v-if="form.errors.confirmPassword"
+                id="profile-confirm-password-error"
+                class="mt-1 text-xs text-red-600 dark:text-red-400"
+              >
+                {{ form.errors.confirmPassword }}
               </p>
             </div>
             <div class="flex items-center justify-end px-4 py-3">
@@ -299,7 +392,8 @@ function logout() {
                   form.processing ||
                   !form.isDirty ||
                   !form.currentPassword ||
-                  !form.password
+                  !form.password ||
+                  form.hasErrors
                 "
                 class="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
               >

@@ -3,12 +3,18 @@ import { Head, useForm } from '@inertiajs/vue3'
 import { computed } from 'vue'
 import SlipwayLogo from '@/components/SlipwayLogo.vue'
 import SlippyLoader from '@/components/SlippyLoader.vue'
+import { usePrecognitionValidation } from '@/composables/precognition'
 
 const form = useForm({
   email: '',
   password: '',
   confirmPassword: ''
 })
+  .withPrecognition('post', '/setup')
+  .setValidationTimeout(350)
+
+const { revalidateWhenInvalid, validateOnBlur } =
+  usePrecognitionValidation(form)
 
 const containsSpecialChars = computed(() => {
   const specialChars = /[`!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?~]/
@@ -23,17 +29,13 @@ const passwordsMatch = computed(() => {
   return form.password && form.password === form.confirmPassword
 })
 
-const emailIsValid = computed(() => {
-  const emailRegex = /^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,4}$/
-  return emailRegex.test(form.email)
-})
-
 const isFormValid = computed(() => {
   return (
-    emailIsValid.value &&
+    form.email &&
     passwordIsValid.value &&
     containsSpecialChars.value &&
     passwordsMatch.value &&
+    !form.hasErrors &&
     !form.processing
   )
 })
@@ -66,39 +68,86 @@ const isFormValid = computed(() => {
 
       <!-- Error message -->
       <div
-        v-if="form.errors.email || form.errors.password || form.errors.setup"
+        v-if="form.errors.setup"
         class="mb-6 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-600 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-400"
       >
-        {{ form.errors.email || form.errors.password || form.errors.setup }}
+        {{ form.errors.setup }}
       </div>
 
       <form @submit.prevent="form.post('/setup')" class="space-y-4">
-        <input
-          id="email"
-          v-model="form.email"
-          type="email"
-          placeholder="Enter your email address..."
-          autocomplete="email"
-          class="focus:border-brand h-12 w-full border-b border-dashed border-gray-200 bg-transparent px-1 text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
-        />
+        <div>
+          <input
+            id="email"
+            v-model="form.email"
+            type="email"
+            placeholder="Enter your email address..."
+            autocomplete="email"
+            :aria-invalid="form.invalid('email') ? 'true' : undefined"
+            :aria-describedby="
+              form.invalid('email') ? 'setup-email-error' : undefined
+            "
+            class="focus:border-brand h-12 w-full border-b border-dashed border-gray-200 bg-transparent px-1 text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
+            @blur="validateOnBlur('email', $event)"
+            @input="revalidateWhenInvalid('email')"
+          />
+          <p
+            v-if="form.errors.email"
+            id="setup-email-error"
+            class="mt-1.5 text-xs text-red-600 dark:text-red-400"
+          >
+            {{ form.errors.email }}
+          </p>
+        </div>
 
-        <input
-          id="password"
-          v-model="form.password"
-          type="password"
-          placeholder="Create a password"
-          autocomplete="new-password"
-          class="focus:border-brand h-12 w-full border-b border-dashed border-gray-200 bg-transparent px-1 text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
-        />
+        <div>
+          <input
+            id="password"
+            v-model="form.password"
+            type="password"
+            placeholder="Create a password"
+            autocomplete="new-password"
+            :aria-invalid="form.invalid('password') ? 'true' : undefined"
+            :aria-describedby="
+              form.invalid('password') ? 'setup-password-error' : undefined
+            "
+            class="focus:border-brand h-12 w-full border-b border-dashed border-gray-200 bg-transparent px-1 text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
+            @blur="validateOnBlur('password', $event)"
+            @input="revalidateWhenInvalid('password')"
+          />
+          <p
+            v-if="form.errors.password"
+            id="setup-password-error"
+            class="mt-1.5 text-xs text-red-600 dark:text-red-400"
+          >
+            {{ form.errors.password }}
+          </p>
+        </div>
 
-        <input
-          id="confirmPassword"
-          v-model="form.confirmPassword"
-          type="password"
-          placeholder="Confirm password"
-          autocomplete="new-password"
-          class="focus:border-brand h-12 w-full border-b border-dashed border-gray-200 bg-transparent px-1 text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
-        />
+        <div>
+          <input
+            id="confirmPassword"
+            v-model="form.confirmPassword"
+            type="password"
+            placeholder="Confirm password"
+            autocomplete="new-password"
+            :aria-invalid="form.invalid('confirmPassword') ? 'true' : undefined"
+            :aria-describedby="
+              form.invalid('confirmPassword')
+                ? 'setup-confirm-password-error'
+                : undefined
+            "
+            class="focus:border-brand h-12 w-full border-b border-dashed border-gray-200 bg-transparent px-1 text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
+            @blur="validateOnBlur('confirmPassword', $event)"
+            @input="revalidateWhenInvalid('confirmPassword')"
+          />
+          <p
+            v-if="form.errors.confirmPassword"
+            id="setup-confirm-password-error"
+            class="mt-1.5 text-xs text-red-600 dark:text-red-400"
+          >
+            {{ form.errors.confirmPassword }}
+          </p>
+        </div>
 
         <!-- Password Requirements -->
         <p class="text-xs text-gray-400">

@@ -54,10 +54,17 @@ and exposed as a shared data via loggedInUser prop.)`,
     },
     badCombo: {
       responseType: 'badRequest'
+    },
+    precognitionSuccess: {
+      responseType: 'precognitionSuccess'
     }
   },
 
   fn: async function ({ email, password, rememberMe, redirect, returnUrl }) {
+    if (sails.inertia.isPrecognitive(this.req)) {
+      throw 'precognitionSuccess'
+    }
+
     const user = await User.findOne({
       email: email.toLowerCase()
     })

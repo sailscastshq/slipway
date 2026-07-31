@@ -3,6 +3,7 @@ import { Link, Head, useForm } from '@inertiajs/vue3'
 import { computed } from 'vue'
 import SlipwayLogo from '@/components/SlipwayLogo.vue'
 import SlippyLoader from '@/components/SlippyLoader.vue'
+import { usePrecognitionValidation } from '@/composables/precognition'
 
 const { token } = defineProps({
   token: String
@@ -13,6 +14,11 @@ const form = useForm({
   password: '',
   confirmPassword: ''
 })
+  .withPrecognition('post', '/reset-password')
+  .setValidationTimeout(350)
+
+const { revalidateWhenInvalid, validateOnBlur } =
+  usePrecognitionValidation(form)
 
 const containsSpecialChars = computed(() => {
   const specialChars = /[`!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?~]/
@@ -32,6 +38,7 @@ const isFormValid = computed(() => {
     passwordIsValid.value &&
     containsSpecialChars.value &&
     passwordsMatch.value &&
+    !form.hasErrors &&
     !form.processing
   )
 })
@@ -62,33 +69,67 @@ const isFormValid = computed(() => {
 
       <!-- Error message -->
       <div
-        v-if="form.errors.password || form.errors.token"
+        v-if="form.errors.token"
         class="mb-6 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-600 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-400"
       >
-        {{ form.errors.password || form.errors.token }}
+        {{ form.errors.token }}
       </div>
 
       <form @submit.prevent="form.post('/reset-password')" class="space-y-4">
-        <input
-          id="password"
-          v-model="form.password"
-          type="password"
-          placeholder="Enter new password"
-          autocomplete="new-password"
-          class="focus:border-brand h-12 w-full border-b border-dashed border-gray-200 bg-transparent px-1 text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
-        />
+        <div>
+          <input
+            id="password"
+            v-model="form.password"
+            type="password"
+            placeholder="Enter new password"
+            autocomplete="new-password"
+            :aria-invalid="form.invalid('password') ? 'true' : undefined"
+            :aria-describedby="
+              form.invalid('password')
+                ? 'reset-password-error'
+                : 'reset-password-requirements'
+            "
+            class="focus:border-brand h-12 w-full border-b border-dashed border-gray-200 bg-transparent px-1 text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
+            @blur="validateOnBlur('password', $event)"
+            @input="revalidateWhenInvalid('password')"
+          />
+          <p
+            v-if="form.errors.password"
+            id="reset-password-error"
+            class="mt-1.5 text-xs text-red-600 dark:text-red-400"
+          >
+            {{ form.errors.password }}
+          </p>
+        </div>
 
-        <input
-          id="confirmPassword"
-          v-model="form.confirmPassword"
-          type="password"
-          placeholder="Confirm new password"
-          autocomplete="new-password"
-          class="focus:border-brand h-12 w-full border-b border-dashed border-gray-200 bg-transparent px-1 text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
-        />
+        <div>
+          <input
+            id="confirmPassword"
+            v-model="form.confirmPassword"
+            type="password"
+            placeholder="Confirm new password"
+            autocomplete="new-password"
+            :aria-invalid="form.invalid('confirmPassword') ? 'true' : undefined"
+            :aria-describedby="
+              form.invalid('confirmPassword')
+                ? 'reset-confirm-password-error'
+                : undefined
+            "
+            class="focus:border-brand h-12 w-full border-b border-dashed border-gray-200 bg-transparent px-1 text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
+            @blur="validateOnBlur('confirmPassword', $event)"
+            @input="revalidateWhenInvalid('confirmPassword')"
+          />
+          <p
+            v-if="form.errors.confirmPassword"
+            id="reset-confirm-password-error"
+            class="mt-1.5 text-xs text-red-600 dark:text-red-400"
+          >
+            {{ form.errors.confirmPassword }}
+          </p>
+        </div>
 
         <!-- Password Requirements -->
-        <p class="text-xs text-gray-400">
+        <p id="reset-password-requirements" class="text-xs text-gray-400">
           <span
             :class="passwordIsValid ? 'text-green-600 dark:text-green-500' : ''"
             >8+ chars</span
