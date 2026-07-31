@@ -46,11 +46,11 @@ CI, production configuration, and documentation around one tested baseline
 
 ### Existing SQLite installations: prepare the Bridge columns in Bosun
 
-Existing Slipway installations created before 0.0.52 may not yet have the two
-Bridge columns expected by the new `App` model. Because the model can be read
-before the automatic Bridge bootstrap migration runs, the candidate container
-can fail its health check with `SQLITE_ERROR: no such column: bridge_enabled`.
-The previous Slipway container remains active after this failed update.
+Upgrading an existing SQLite-backed Slipway installation to 0.0.52 requires a
+one-time Bosun migration for the two Bridge columns introduced on the `App`
+model. Until those columns exist, the candidate container fails its health
+check with `SQLITE_ERROR: no such column: bridge_enabled`. The previous
+Slipway container remains active after this failed update.
 
 Before retrying the update, open the currently running Slipway, go to **Bosun →
 Console**, select **SQL** and the **app** database, and inspect the control-plane
@@ -83,9 +83,7 @@ automatically when the new release lifts successfully.
 
 Messages about a closed database connection, an unregistered datastore, or
 Lookout collector persistence after the missing-column error are cascading
-shutdown noise rather than additional migrations to perform. Automatic
-pre-lift handling is tracked in
-[#317](https://github.com/sailscastshq/slipway/issues/317).
+shutdown noise rather than additional migrations to perform.
 
 ### Existing installations: harden the public port boundary
 
