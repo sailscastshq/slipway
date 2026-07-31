@@ -3,6 +3,7 @@ import { Link, Head, useForm } from '@inertiajs/vue3'
 import { computed } from 'vue'
 import SlipwayLogo from '@/components/SlipwayLogo.vue'
 import SlippyLoader from '@/components/SlippyLoader.vue'
+import { usePrecognitionValidation } from '@/composables/precognition'
 
 const props = defineProps({
   redirect: String,
@@ -15,6 +16,11 @@ const form = useForm({
   rememberMe: false,
   redirect: props.redirect || null
 })
+  .withPrecognition('post', '/login')
+  .setValidationTimeout(350)
+
+const { revalidateWhenInvalid, validateOnBlur } =
+  usePrecognitionValidation(form)
 
 const isFormValid = computed(() => {
   return form.email && form.password
@@ -45,34 +51,64 @@ const isFormValid = computed(() => {
 
       <!-- Error message -->
       <div
-        v-if="form.errors.login || form.errors.email || props.error"
+        v-if="form.errors.login || props.error"
         class="mb-6 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-600 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-400"
       >
-        {{ form.errors.login || form.errors.email || props.error }}
+        {{ form.errors.login || props.error }}
       </div>
 
       <form @submit.prevent="form.post('/login')" class="space-y-4">
-        <input
-          id="email"
-          v-model="form.email"
-          type="email"
-          placeholder="Enter your email address..."
-          autocomplete="email"
-          class="focus:border-brand h-12 w-full border-b border-dashed border-gray-200 bg-transparent px-1 text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
-        />
+        <div>
+          <input
+            id="email"
+            v-model="form.email"
+            type="email"
+            placeholder="Enter your email address..."
+            autocomplete="email"
+            :aria-invalid="form.invalid('email') ? 'true' : undefined"
+            :aria-describedby="
+              form.invalid('email') ? 'login-email-error' : undefined
+            "
+            class="focus:border-brand h-12 w-full border-b border-dashed border-gray-200 bg-transparent px-1 text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
+            @blur="validateOnBlur('email')"
+            @input="revalidateWhenInvalid('email')"
+          />
+          <p
+            v-if="form.errors.email"
+            id="login-email-error"
+            class="mt-1.5 text-xs text-red-600 dark:text-red-400"
+          >
+            {{ form.errors.email }}
+          </p>
+        </div>
 
-        <input
-          id="password"
-          v-model="form.password"
-          type="password"
-          placeholder="Enter password"
-          autocomplete="current-password"
-          class="focus:border-brand h-12 w-full border-b border-dashed border-gray-200 bg-transparent px-1 text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
-        />
+        <div>
+          <input
+            id="password"
+            v-model="form.password"
+            type="password"
+            placeholder="Enter password"
+            autocomplete="current-password"
+            :aria-invalid="form.invalid('password') ? 'true' : undefined"
+            :aria-describedby="
+              form.invalid('password') ? 'login-password-error' : undefined
+            "
+            class="focus:border-brand h-12 w-full border-b border-dashed border-gray-200 bg-transparent px-1 text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
+            @blur="validateOnBlur('password')"
+            @input="revalidateWhenInvalid('password')"
+          />
+          <p
+            v-if="form.errors.password"
+            id="login-password-error"
+            class="mt-1.5 text-xs text-red-600 dark:text-red-400"
+          >
+            {{ form.errors.password }}
+          </p>
+        </div>
 
         <button
           type="submit"
-          :disabled="!isFormValid || form.processing"
+          :disabled="!isFormValid || form.processing || form.hasErrors"
           class="flex h-12 w-full items-center justify-center gap-2 rounded-md border border-gray-200 bg-gray-900 font-medium text-white transition-colors hover:bg-gray-800 disabled:bg-gray-100 disabled:text-gray-400 dark:border-gray-800 dark:bg-white dark:text-black dark:hover:bg-gray-100 dark:disabled:bg-gray-900 dark:disabled:text-gray-600"
         >
           <SlippyLoader v-if="form.processing" size="h-4 w-4" />

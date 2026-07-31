@@ -1,3 +1,6 @@
+const hasSpecialCharacter = (value) =>
+  /[`!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?~]/.test(value)
+
 module.exports = {
   friendlyName: 'Reset password',
 
@@ -12,6 +15,10 @@ module.exports = {
       type: 'string',
       required: true,
       minLength: 8
+    },
+    confirmPassword: {
+      type: 'string',
+      required: true
     }
   },
 
@@ -30,10 +37,45 @@ module.exports = {
       extendedDescription:
         'If this request was sent from a graphical user interface, the request ' +
         'parameters should have been validated/coerced _before_ they were sent.'
+    },
+    precognitionSuccess: {
+      responseType: 'precognitionSuccess'
     }
   },
 
-  fn: async function ({ token, password }) {
+  fn: async function ({ token, password, confirmPassword }) {
+    if (
+      sails.inertia.shouldValidate('password', this.req) &&
+      !hasSpecialCharacter(password)
+    ) {
+      throw {
+        badSignupRequest: {
+          problems: [
+            {
+              password: 'Password must include at least one special character.'
+            }
+          ]
+        }
+      }
+    }
+
+    if (
+      sails.inertia.shouldValidate('confirmPassword', this.req) &&
+      password !== confirmPassword
+    ) {
+      throw {
+        badSignupRequest: {
+          problems: [
+            { confirmPassword: 'Password confirmation does not match.' }
+          ]
+        }
+      }
+    }
+
+    if (sails.inertia.isPrecognitive(this.req)) {
+      throw 'precognitionSuccess'
+    }
+
     if (!token) {
       throw 'invalidOrExpiredToken'
     }

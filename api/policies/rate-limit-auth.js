@@ -36,6 +36,12 @@ function rateLimitHandler(req, res) {
 }
 
 module.exports = function (req, res, next) {
+  // Validation-only requests never attempt authentication, send mail, or
+  // consume reset tokens, so they should not spend a real auth attempt.
+  if (sails.inertia.isPrecognitive(req)) {
+    return next()
+  }
+
   if (sails.config.environment === 'test') {
     return next()
   }

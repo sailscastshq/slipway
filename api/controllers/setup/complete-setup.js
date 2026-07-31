@@ -1,3 +1,6 @@
+const hasSpecialCharacter = (value) =>
+  /[`!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?~]/.test(value)
+
 module.exports = {
   friendlyName: 'Complete setup',
 
@@ -16,6 +19,11 @@ module.exports = {
       required: true,
       minLength: 8,
       description: 'Password for the genesis user'
+    },
+    confirmPassword: {
+      type: 'string',
+      required: true,
+      description: 'Password confirmation for the genesis user'
     }
   },
 
@@ -26,10 +34,45 @@ module.exports = {
     },
     success: {
       responseType: 'redirect'
+    },
+    precognitionSuccess: {
+      responseType: 'precognitionSuccess'
     }
   },
 
-  fn: async function ({ email: userEmail, password }) {
+  fn: async function ({ email: userEmail, password, confirmPassword }) {
+    if (
+      sails.inertia.shouldValidate('password', this.req) &&
+      !hasSpecialCharacter(password)
+    ) {
+      throw {
+        badRequest: {
+          problems: [
+            {
+              password: 'Password must include at least one special character.'
+            }
+          ]
+        }
+      }
+    }
+
+    if (
+      sails.inertia.shouldValidate('confirmPassword', this.req) &&
+      password !== confirmPassword
+    ) {
+      throw {
+        badRequest: {
+          problems: [
+            { confirmPassword: 'Password confirmation does not match.' }
+          ]
+        }
+      }
+    }
+
+    if (sails.inertia.isPrecognitive(this.req)) {
+      throw 'precognitionSuccess'
+    }
+
     const email = userEmail.toLowerCase()
 
     // Derive display name from email (part before @)

@@ -29,6 +29,32 @@ test(
 )
 
 test(
+  'login Precognition validates shape without revealing an account',
+  { world: 'configured-slipway' },
+  async ({ request, world, expect }) => {
+    const guest = await withCsrfFromPage(request, '/login')
+    const precognitive = guest.request.withHeaders({
+      Precognition: 'true',
+      'Precognition-Validate-Only': 'email'
+    })
+
+    const existingAccount = await precognitive.post('/login', {
+      email: world.current.users.genesisUser.email,
+      password: 'not-the-password'
+    })
+    const unknownAccount = await precognitive.post('/login', {
+      email: 'nobody@example.com',
+      password: 'not-the-password'
+    })
+
+    expect(existingAccount).toHaveStatus(204)
+    expect(existingAccount).toHaveHeader('precognition-success', 'true')
+    expect(unknownAccount).toHaveStatus(204)
+    expect(unknownAccount).toHaveHeader('precognition-success', 'true')
+  }
+)
+
+test(
   'forgot password sends a reset email through the real mail helper',
   { world: 'configured-slipway' },
   async ({ request, world, expect, mailbox, sails }) => {
@@ -60,6 +86,198 @@ test(
     } finally {
       sails.config.sounding.mail = previousMailConfig
     }
+  }
+)
+
+test(
+  'forgot-password Precognition sends no mail and creates no token',
+  { world: 'configured-slipway' },
+  async ({ request, world, expect, mailbox, sails }) => {
+    const current = world.current
+    const guest = await withCsrfFromPage(request, '/forgot-password')
+    const before = await sails.models.user.findOne({
+      id: current.users.genesisUser.id
+    })
+    const response = await guest.request
+      .withHeaders({
+        Precognition: 'true',
+        'Precognition-Validate-Only': 'email'
+      })
+      .post('/forgot-password', {
+        email: current.users.genesisUser.email
+      })
+    const after = await sails.models.user.findOne({
+      id: current.users.genesisUser.id
+    })
+
+    expect(response).toHaveStatus(204)
+    expect(response).toHaveHeader('precognition-success', 'true')
+    expect(after.passwordResetToken).toBe(before.passwordResetToken)
+    expect(mailbox.all().length).toBe(0)
+  }
+)
+
+test(
+  'reset-password Precognition does not inspect or consume the token',
+  { world: 'configured-slipway' },
+  async ({ request, world, expect, sails }) => {
+    const current = world.current
+    const guest = await withCsrfFromPage(request, '/forgot-password')
+    const before = await sails.models.user.findOne({
+      id: current.users.genesisUser.id
+    })
+    const response = await guest.request
+      .withHeaders({
+        Precognition: 'true',
+        'Precognition-Validate-Only': 'password'
+      })
+      .post('/reset-password', {
+        token: 'token-that-does-not-exist',
+        password: 'new-secret123!',
+        confirmPassword: 'new-secret123!'
+      })
+    const after = await sails.models.user.findOne({
+      id: current.users.genesisUser.id
+    })
+
+    expect(response).toHaveStatus(204)
+    expect(response).toHaveHeader('precognition-success', 'true')
+    expect(after.password).toBe(before.password)
+  }
+)
+
+test(
+  'reset-password validates confirmation without inspecting the token',
+  { world: 'configured-slipway' },
+  async ({ request, expect }) => {
+    const guest = await withCsrfFromPage(request, '/forgot-password')
+    const response = await guest.request
+      .withHeaders({
+        Precognition: 'true',
+        'Precognition-Validate-Only': 'confirmPassword'
+      })
+      .post('/reset-password', {
+        token: 'token-that-does-not-exist',
+        password: 'new-secret123!',
+        confirmPassword: 'different123!'
+      })
+
+    expect(response).toHaveStatus(422)
+    expect(response.data.errors.confirmPassword).toContain(
+      'Password confirmation does not match'
+    )
+  }
+)
+
+test(
+  'password reset still updates the password on a normal submit',
+  { world: 'configured-slipway' },
+  async ({ request, world, expect, sails }) => {
+    const current = world.current
+    const token = 'valid-password-reset-token'
+    await sails.models.user
+      .updateOne({ id: current.users.genesisUser.id })
+      .set({
+        passwordResetToken: token,
+        passwordResetTokenExpiresAt: Date.now() + 60_000
+      })
+
+    const guest = await withCsrfFromPage(
+      request,
+      `/reset-password?token=${token}`
+    )
+    const response = await guest.request.post('/reset-password', {
+      token,
+      password: 'new-secret123!',
+      confirmPassword: 'new-secret123!'
+    })
+    const updated = await sails.models.user.findOne({
+      id: current.users.genesisUser.id
+    })
+
+    expect(response).toHaveStatus(302)
+    expect(response).toRedirectTo('/reset-password/success')
+    expect(updated.passwordResetToken).toBe('')
+    expect(updated.passwordResetTokenExpiresAt).toBe(0)
+  }
+)
+
+test(
+  'profile Precognition validates without changing the account',
+  { world: 'configured-slipway' },
+  async ({ request, world, expect, mailbox, sails }) => {
+    const current = world.current
+    const browser = await withCsrfFromPage(request, '/profile', 'genesisUser')
+    const response = await browser.request
+      .withHeaders({
+        Precognition: 'true',
+        'Precognition-Validate-Only': 'email'
+      })
+      .patch('/profile', {
+        fullName: current.users.genesisUser.fullName,
+        email: 'next-address@example.com',
+        currentPassword: '',
+        password: '',
+        confirmPassword: ''
+      })
+    const unchanged = await sails.models.user.findOne({
+      id: current.users.genesisUser.id
+    })
+
+    expect(response).toHaveStatus(204)
+    expect(response).toHaveHeader('precognition-success', 'true')
+    expect(unchanged.email).toBe(current.users.genesisUser.email)
+    expect(unchanged.emailChangeCandidate || '').toBe('')
+    expect(mailbox.all().length).toBe(0)
+  }
+)
+
+test(
+  'profile requires the current password before accepting a new one',
+  { world: 'configured-slipway' },
+  async ({ request, world, expect }) => {
+    const current = world.current
+    const browser = await withCsrfFromPage(request, '/profile', 'genesisUser')
+    const response = await browser.request
+      .withHeaders({
+        Precognition: 'true',
+        'Precognition-Validate-Only': 'currentPassword'
+      })
+      .patch('/profile', {
+        fullName: current.users.genesisUser.fullName,
+        email: current.users.genesisUser.email,
+        currentPassword: '',
+        password: 'new-secret123!',
+        confirmPassword: 'new-secret123!'
+      })
+
+    expect(response).toHaveStatus(422)
+    expect(response.data.errors.currentPassword).toContain(
+      'Current password is required'
+    )
+  }
+)
+
+test(
+  'profile changes still persist on a normal submit',
+  { world: 'configured-slipway' },
+  async ({ request, world, expect, sails }) => {
+    const current = world.current
+    const browser = await withCsrfFromPage(request, '/profile', 'genesisUser')
+    const response = await browser.request.patch('/profile', {
+      fullName: 'Updated Slipway Owner',
+      email: current.users.genesisUser.email,
+      currentPassword: '',
+      password: '',
+      confirmPassword: ''
+    })
+    const updated = await sails.models.user.findOne({
+      id: current.users.genesisUser.id
+    })
+
+    expect(response).toHaveStatus(409)
+    expect(response).toHaveHeader('x-inertia-location', 'back')
+    expect(updated.fullName).toBe('Updated Slipway Owner')
   }
 )
 

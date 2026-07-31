@@ -20,10 +20,17 @@ module.exports = {
       description:
         'The email address might have matched a user in the database.  (If so, a recovery email was sent.)',
       responseType: 'redirect'
+    },
+    precognitionSuccess: {
+      responseType: 'precognitionSuccess'
     }
   },
 
   fn: async function ({ email }) {
+    if (sails.inertia.isPrecognitive(this.req)) {
+      throw 'precognitionSuccess'
+    }
+
     const normalizedEmail = email.toLowerCase()
     const token = await sails.helpers.strings.random('url-friendly')
     const now = Date.now()

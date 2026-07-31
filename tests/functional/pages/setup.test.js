@@ -11,6 +11,76 @@ test('the genesis user gets the setup path before Slipway is configured', async 
   expect(response).toRedirectTo('/setup')
 })
 
+test('setup validates with Precognition without creating anything', async ({
+  expect,
+  sails,
+  request
+}) => {
+  const guest = await withCsrfFromPage(request, '/setup')
+  const response = await guest.request
+    .withHeaders({
+      Precognition: 'true',
+      'Precognition-Validate-Only': 'email'
+    })
+    .post('/setup', {
+      email: 'founder@example.com',
+      password: 'secret123!',
+      confirmPassword: 'secret123!'
+    })
+
+  expect(response).toHaveStatus(204)
+  expect(response).toHaveHeader('precognition', 'true')
+  expect(response).toHaveHeader('precognition-success', 'true')
+  expect(await sails.models.user.count()).toBe(0)
+  expect(await sails.models.team.count()).toBe(0)
+  expect(Boolean(sails.config.custom.slipwayIsSetup)).toBe(false)
+})
+
+test('setup returns a field error for invalid Precognition input', async ({
+  expect,
+  request
+}) => {
+  const guest = await withCsrfFromPage(request, '/setup')
+  const response = await guest.request
+    .withHeaders({
+      Precognition: 'true',
+      'Precognition-Validate-Only': 'email'
+    })
+    .post('/setup', {
+      email: 'not-an-email',
+      password: 'secret123!',
+      confirmPassword: 'secret123!'
+    })
+
+  expect(response).toHaveStatus(422)
+  expect(response.data.errors.email).toContain(
+    'Please enter a valid email address'
+  )
+  expect(response.data.errors.password).toBe(undefined)
+})
+
+test('setup validates password confirmation before submit', async ({
+  expect,
+  request
+}) => {
+  const guest = await withCsrfFromPage(request, '/setup')
+  const response = await guest.request
+    .withHeaders({
+      Precognition: 'true',
+      'Precognition-Validate-Only': 'confirmPassword'
+    })
+    .post('/setup', {
+      email: 'founder@example.com',
+      password: 'secret123!',
+      confirmPassword: 'different123!'
+    })
+
+  expect(response).toHaveStatus(422)
+  expect(response.data.errors.confirmPassword).toContain(
+    'Password confirmation does not match'
+  )
+})
+
 test('setup creates the genesis owner and default team', async ({
   expect,
   sails,
@@ -20,7 +90,8 @@ test('setup creates the genesis owner and default team', async ({
 
   const response = await guest.request.post('/setup', {
     email: 'founder@example.com',
-    password: 'secret123'
+    password: 'secret123!',
+    confirmPassword: 'secret123!'
   })
 
   expect(response).toHaveStatus(302)

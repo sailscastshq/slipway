@@ -1,3 +1,6 @@
+const hasSpecialCharacter = (value) =>
+  /[`!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?~]/.test(value)
+
 module.exports = {
   friendlyName: 'Update profile',
 
@@ -23,6 +26,7 @@ module.exports = {
     password: {
       type: 'string',
       allowNull: true,
+      minLength: 8,
       description: 'The new password of the user.'
     },
     confirmPassword: {
@@ -44,6 +48,9 @@ module.exports = {
     unauthorized: {
       responseType: 'inertiaRedirect',
       description: 'The provided current password is incorrect.'
+    },
+    precognitionSuccess: {
+      responseType: 'precognitionSuccess'
     }
   },
 
@@ -54,6 +61,52 @@ module.exports = {
     password,
     confirmPassword
   }) {
+    if (
+      password &&
+      sails.inertia.shouldValidate('password', this.req) &&
+      !hasSpecialCharacter(password)
+    ) {
+      throw {
+        invalid: {
+          problems: [
+            {
+              password: 'Password must include at least one special character.'
+            }
+          ]
+        }
+      }
+    }
+
+    if (
+      password &&
+      sails.inertia.shouldValidate('currentPassword', this.req) &&
+      !currentPassword
+    ) {
+      throw {
+        invalid: {
+          problems: [{ currentPassword: 'Current password is required.' }]
+        }
+      }
+    }
+
+    if (
+      password &&
+      sails.inertia.shouldValidate('confirmPassword', this.req) &&
+      password !== confirmPassword
+    ) {
+      throw {
+        invalid: {
+          problems: [
+            { confirmPassword: 'Password confirmation does not match.' }
+          ]
+        }
+      }
+    }
+
+    if (sails.inertia.isPrecognitive(this.req)) {
+      throw 'precognitionSuccess'
+    }
+
     const userId = this.req.session.userId
     const user = await User.findOne({ id: userId }).select([
       'password',
@@ -92,13 +145,6 @@ module.exports = {
     }
 
     if (password) {
-      if (password !== confirmPassword) {
-        throw {
-          invalid: {
-            problems: [{ password: 'Password confirmation does not match.' }]
-          }
-        }
-      }
       updatedData.password = password
     }
 
