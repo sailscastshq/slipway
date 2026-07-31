@@ -193,6 +193,9 @@ async function buildCreateArgs({
   config,
   routableApps
 }) {
+  const siteLabel = await sails.helpers.caddy.formatSiteLabel.with({
+    domains: config.domains
+  })
   const args = [
     'create',
     '--name',
@@ -202,7 +205,7 @@ async function buildCreateArgs({
     '--restart',
     'unless-stopped',
     '--label',
-    `caddy=${config.domains.join(',')}`
+    `caddy=${siteLabel}`
   ]
 
   if (routableApps.length === 1) {
@@ -232,7 +235,7 @@ async function buildCreateArgs({
   }
 
   const acmeEmail = await sails.helpers.setting.get('acmeEmail')
-  if (acmeEmail) {
+  if (acmeEmail && sails.config.custom.slipwayIngress !== 'cloudflare-tunnel') {
     args.push('--label', `caddy.tls=${acmeEmail}`)
   }
 

@@ -32,7 +32,7 @@ module.exports = {
     const imageRepository = `ghcr.io/${githubRepo}`
     const CACHE_KEY = 'slipway_update_progress'
     const appsDir = sails.config.custom.slipwayAppsDir || '/var/slipway/apps'
-    const portHost = sails.config.custom.slipwayPortHost || '0.0.0.0'
+    const portHost = sails.config.custom.slipwayPortHost || '127.0.0.1'
     let tempPort = null
     let tempPortReserved = false
 

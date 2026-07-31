@@ -81,7 +81,7 @@ module.exports = {
     const networkName =
       network || sails.config.custom.slipwayNetwork || 'slipway'
     const bindHost = normalizeHost(
-      host || sails.config.custom.slipwayPortHost || '0.0.0.0'
+      host || sails.config.custom.slipwayPortHost || '127.0.0.1'
     )
     const portBindingArgument =
       await sails.helpers.docker.formatPortBinding.with({

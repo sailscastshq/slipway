@@ -43,6 +43,39 @@ test(
   }
 )
 
+test('Cloudflare Tunnel routes keep TLS at the edge', async ({
+  sails,
+  expect
+}) => {
+  const originalIngress = sails.config.custom.slipwayIngress
+  const originalGetSetting = sails.helpers.setting.get
+
+  try {
+    sails.config.custom.slipwayIngress = 'cloudflare-tunnel'
+    sails.helpers.setting.get = async () => 'ops@example.com'
+
+    const helper = require(helperPath)
+    const args = await helper._private.buildCreateArgs({
+      candidateName: 'slipway-route-candidate',
+      network: 'slipway',
+      config: { domains: ['app.example.com'] },
+      routableApps: [
+        {
+          routePath: '/',
+          containerName: 'slipway-app',
+          port: 1337
+        }
+      ]
+    })
+
+    expect(args.includes('caddy=http://app.example.com')).toBe(true)
+    expect(args.some((value) => value.startsWith('caddy.tls='))).toBe(false)
+  } finally {
+    sails.config.custom.slipwayIngress = originalIngress
+    sails.helpers.setting.get = originalGetSetting
+  }
+})
+
 test(
   'candidate route verification failure removes the candidate and verifies the still-active previous route',
   { world: routeWorld('route-restoration') },

@@ -99,7 +99,7 @@ module.exports = {
             containerName: app.containerName,
             containerPort: app.port || 1337,
             hostPort: app.hostPort,
-            host: sails.config.custom.slipwayPortHost || '0.0.0.0'
+            host: sails.config.custom.slipwayPortHost || '127.0.0.1'
           })
         } catch (error) {
           portBinding = {

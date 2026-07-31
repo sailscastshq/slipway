@@ -115,7 +115,7 @@ module.exports = {
       const appSlug = targetApp ? targetApp.slug : undefined
       const isPubliclyRoutable = !targetApp || targetApp.routePath !== null
       const appBindHost = isPubliclyRoutable
-        ? sails.config.custom.slipwayPortHost || '0.0.0.0'
+        ? sails.config.custom.slipwayPortHost || '127.0.0.1'
         : '127.0.0.1'
 
       // 3. Generate image name and container names

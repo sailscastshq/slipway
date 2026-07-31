@@ -110,7 +110,7 @@ module.exports = {
       const appSlug = existingApp?.slug
       const isPubliclyRoutable = !existingApp || existingApp.routePath !== null
       const appBindHost = isPubliclyRoutable
-        ? sails.config.custom.slipwayPortHost || '0.0.0.0'
+        ? sails.config.custom.slipwayPortHost || '127.0.0.1'
         : '127.0.0.1'
       const healthPath = App.normalizeHealthPath(existingApp?.healthPath)
       const oldContainerName = existingApp?.containerName

@@ -93,6 +93,50 @@ test('self-update docker args keep an existing apps mount without duplicating it
   ).toBe(1)
 })
 
+test('self-update preserves loopback-only dashboard port bindings', async ({
+  sails,
+  expect
+}) => {
+  const { runArgs } = await sails.helpers.system.buildUpdateDockerArgs.with({
+    containerInfo: {
+      Mounts: [],
+      NetworkSettings: { Networks: {} },
+      HostConfig: {
+        PortBindings: {
+          '1337/tcp': [{ HostIp: '127.0.0.1', HostPort: '1337' }]
+        }
+      },
+      Config: { Env: [], Labels: {} }
+    }
+  })
+
+  expect(runArgs.includes('127.0.0.1:1337:1337')).toBe(true)
+  expect(runArgs.includes('1337:1337')).toBe(false)
+})
+
+test('self-update collapses equivalent public IPv4 and IPv6 bindings', async ({
+  sails,
+  expect
+}) => {
+  const { runArgs } = await sails.helpers.system.buildUpdateDockerArgs.with({
+    containerInfo: {
+      Mounts: [],
+      NetworkSettings: { Networks: {} },
+      HostConfig: {
+        PortBindings: {
+          '1337/tcp': [
+            { HostIp: '0.0.0.0', HostPort: '1337' },
+            { HostIp: '::', HostPort: '1337' }
+          ]
+        }
+      },
+      Config: { Env: [], Labels: {} }
+    }
+  })
+
+  expect(runArgs.filter((value) => value === '1337:1337').length).toBe(1)
+})
+
 test('self-update docker args force production node environment', async ({
   sails,
   expect
@@ -116,6 +160,27 @@ test('self-update docker args force production node environment', async ({
   expect(runArgs.includes('NODE_ENV=production')).toBe(true)
   expect(runArgs.includes('PORT=1337')).toBe(true)
   expect(runArgs.includes('SLIPWAY_URL=https://x')).toBe(true)
+  expect(runArgs.includes('SLIPWAY_APP_PORT_HOST=0.0.0.0')).toBe(true)
+})
+
+test('self-update keeps an explicit private app binding', async ({
+  sails,
+  expect
+}) => {
+  const { envArgs } = await sails.helpers.system.buildUpdateDockerArgs.with({
+    containerInfo: {
+      Mounts: [],
+      NetworkSettings: { Networks: {} },
+      HostConfig: { PortBindings: {} },
+      Config: {
+        Env: ['SLIPWAY_APP_PORT_HOST=127.0.0.1'],
+        Labels: {}
+      }
+    }
+  })
+
+  expect(envArgs.includes('SLIPWAY_APP_PORT_HOST=127.0.0.1')).toBe(true)
+  expect(envArgs.includes('SLIPWAY_APP_PORT_HOST=0.0.0.0')).toBe(false)
 })
 
 test('self-update image refs use the advertised release tag instead of latest', async ({

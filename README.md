@@ -35,23 +35,12 @@ curl -fsSL https://raw.githubusercontent.com/sailscastshq/slipway/main/install.s
 
 This installs two containers (Slipway + Caddy proxy) and gives you a dashboard URL.
 
-Slipway publishes direct application URLs from TCP ports `1338-1500`. The
-installer adds that range to UFW or firewalld when either firewall is already
-active; it does not enable a firewall or change your SSH rules. If your VPS
-provider has a separate network firewall, allow inbound TCP `1338-1500` there
-as well. Applications reached through a configured domain only require ports
-`80` and `443`.
-
-After the first deployment, validate direct access from a different machine or
-network so the request crosses the provider firewall:
-
-```bash
-curl -I --connect-timeout 5 http://YOUR_SERVER_IP:ALLOCATED_PORT/health
-```
-
-The deployment log confirms the container health and live Docker mapping. If
-those checks pass but this external request times out, the remaining boundary
-is the VPS provider or host firewall.
+Fresh installations expose only Caddy on TCP `80` and `443`. The dashboard and
+deployed app ports bind to loopback; Caddy is the single public HTTP/S entry
+point. Raw `IP:port` app URLs remain available as an explicit mode, and
+Cloudflare Tunnel can replace public origin ports entirely. See the
+[ingress and firewall guide](docs/ingress.md) for both options and for upgrading
+an older installation without changing its access unexpectedly.
 
 ### Run Slipway locally like production
 

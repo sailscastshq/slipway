@@ -29,6 +29,39 @@ test('production custom config keeps the public URL and domain settings together
   }
 })
 
+test('production ingress keeps app ports private unless direct access is explicit', ({
+  expect
+}) => {
+  const names = ['SLIPWAY_APP_PORT_HOST', 'SLIPWAY_INGRESS']
+  const original = Object.fromEntries(
+    names.map((name) => [name, process.env[name]])
+  )
+
+  try {
+    delete process.env.SLIPWAY_APP_PORT_HOST
+    delete process.env.SLIPWAY_INGRESS
+    delete require.cache[productionConfigPath]
+
+    let productionConfig = require(productionConfigPath)
+    expect(productionConfig.custom.slipwayPortHost).toBe('127.0.0.1')
+    expect(productionConfig.custom.slipwayIngress).toBe('public')
+
+    process.env.SLIPWAY_APP_PORT_HOST = '0.0.0.0'
+    process.env.SLIPWAY_INGRESS = 'cloudflare-tunnel'
+    delete require.cache[productionConfigPath]
+
+    productionConfig = require(productionConfigPath)
+    expect(productionConfig.custom.slipwayPortHost).toBe('0.0.0.0')
+    expect(productionConfig.custom.slipwayIngress).toBe('cloudflare-tunnel')
+  } finally {
+    delete require.cache[productionConfigPath]
+    for (const name of names) {
+      if (original[name] === undefined) delete process.env[name]
+      else process.env[name] = original[name]
+    }
+  }
+})
+
 test('production observability retention has documented defaults and positive overrides', ({
   expect
 }) => {
