@@ -345,6 +345,11 @@ deterministic 0–100% cohorts. `sails-hook-slipway` caches the private contract
 refreshes in the background, and uses the last valid snapshot or explicit
 default when the control plane is unavailable.
 
+The app-facing API is a genuine Sails helper machine furnished through the
+built-in helpers hook. Sails validates its inputs, the helper works through the
+ordinary `.with()` contract, and an app-owned `flags.enabled` helper is never
+overwritten (#314, PR #316).
+
 The useful unit is not only the switch. Lookout compares flag-on and flag-off
 request count, latency, 5xx rate, and trace-linked exceptions. A team can
 release to itself, expand gradually, observe whether the new path is healthier,
