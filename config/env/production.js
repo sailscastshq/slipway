@@ -89,7 +89,7 @@ module.exports = {
   session: {
     secret: process.env.SESSION_SECRET,
     cookie: {
-      secure: process.env.SLIPWAY_SSL === 'true',
+      secure: secureCookie(process.env.SLIPWAY_URL, process.env.SLIPWAY_SSL),
       httpOnly: true,
       sameSite: 'lax',
       maxAge: 24 * 60 * 60 * 1000
@@ -117,6 +117,17 @@ function positiveNumber(value, fallback) {
 
 function positiveInteger(value, fallback) {
   return Math.floor(positiveNumber(value, fallback))
+}
+
+function secureCookie(url, override) {
+  if (override !== undefined && override !== '') {
+    return override === 'true'
+  }
+
+  return String(url || '')
+    .trim()
+    .toLowerCase()
+    .startsWith('https://')
 }
 
 function bindHost(value) {

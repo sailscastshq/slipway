@@ -4,7 +4,7 @@ module.exports = {
   friendlyName: 'Run observability maintenance',
 
   description:
-    'Migrate, prune, count, and check disk health independently of Docker metrics.',
+    'Prune, count, and check disk health independently of Docker metrics.',
 
   inputs: {
     now: {
@@ -17,8 +17,8 @@ module.exports = {
     const attemptedAt = now || Date.now()
 
     try {
-      const migration = await sails.helpers.lookout.ensureObservabilitySchema()
       const config = sails.config.custom.observability
+      await sails.helpers.lookout.ensureObservabilitySchema()
       const previous = await ObservabilityJobHealth.findOne({
         jobName: 'retention'
       })
@@ -34,7 +34,7 @@ module.exports = {
         previousDetails: previous?.details || {}
       })
       const completedAt = Date.now()
-      const details = { migration, prune, disk }
+      const details = { prune, disk }
 
       await sails.helpers.lookout.recordObservabilityHealth.with({
         jobName: 'retention',

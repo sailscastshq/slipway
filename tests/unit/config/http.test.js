@@ -3,6 +3,11 @@ const { test } = require('sounding')
 const Tokens = require('csrf')
 
 const { http } = require('../../../config/http')
+const { routes } = require('../../../config/routes')
+
+test('safe flag config route does not carry a CSRF override', ({ expect }) => {
+  expect(routes['GET /api/v1/flags/apps/:appId']).toBe('api/v1/flag/get-config')
+})
 
 test('bearer csrf bridge gives unsafe cli requests a valid csrf header', async ({
   expect

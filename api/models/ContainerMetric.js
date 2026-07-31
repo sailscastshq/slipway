@@ -81,14 +81,6 @@ module.exports = {
       columnName: 'recorded_at'
     },
 
-    legacySourceId: {
-      type: 'number',
-      allowNull: true,
-      description:
-        'Original ID from the default datastore during the one-time migration',
-      columnName: 'legacy_source_id'
-    },
-
     // These IDs refer to records in the default datastore. They intentionally
     // are not Waterline associations because cross-datastore joins are unsafe.
     environment: {
