@@ -44,6 +44,49 @@ using the CLI or the hook directly on another host. This aligns development,
 CI, production configuration, and documentation around one tested baseline
 (#239, #210).
 
+### Existing SQLite installations: prepare the Bridge columns in Bosun
+
+Existing Slipway installations created before 0.0.52 may not yet have the two
+Bridge columns expected by the new `App` model. Because the model can be read
+before the automatic Bridge bootstrap migration runs, the candidate container
+can fail its health check with `SQLITE_ERROR: no such column: bridge_enabled`.
+The previous Slipway container remains active after this failed update.
+
+Before retrying the update, open the currently running Slipway, go to **Bosun →
+Console**, select **SQL** and the **app** database, and inspect the control-plane
+`apps` table:
+
+```sql
+PRAGMA table_info(apps);
+```
+
+This is Slipway's own `app` database. Do not run these statements against the
+`observability` or `cache` databases, or against a deployed application's
+database. Take a VPS snapshot or your normal database backup before arming
+Bosun writes.
+
+If `bridge_enabled` and `bridge_secret` are absent, arm writes and run:
+
+```sql
+ALTER TABLE apps
+ADD COLUMN bridge_enabled BOOLEAN NOT NULL DEFAULT 0;
+
+ALTER TABLE apps
+ADD COLUMN bridge_secret TEXT;
+```
+
+If inspection shows that either column already exists, skip its corresponding
+`ALTER TABLE` statement. SQLite rejects adding a duplicate column. Run
+`PRAGMA table_info(apps);` again, confirm both columns are present, and retry
+the 0.0.52 update. The remaining Bridge access tables are created
+automatically when the new release lifts successfully.
+
+Messages about a closed database connection, an unregistered datastore, or
+Lookout collector persistence after the missing-column error are cascading
+shutdown noise rather than additional migrations to perform. Automatic
+pre-lift handling is tracked in
+[#317](https://github.com/sailscastshq/slipway/issues/317).
+
 ### Existing installations: harden the public port boundary
 
 Fresh installations need no migration. They expose Caddy on ports 80 and 443,
