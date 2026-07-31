@@ -17,6 +17,7 @@ import SlideToDeploy from '@/components/SlideToDeploy.vue'
 import Tooltip from '@/components/Tooltip.vue'
 import CodeEditor from '@/components/CodeEditor.vue'
 import ConfigVariableMenu from '@/components/ConfigVariableMenu.vue'
+import ReleaseFlagMenu from '@/components/ReleaseFlagMenu.vue'
 import { useToast } from '@/composables/toast'
 import SlippyLoader from '@/components/SlippyLoader.vue'
 import DeploymentHistory from '@/components/DeploymentHistory.vue'
@@ -38,6 +39,7 @@ const props = defineProps({
   backupConfigured: Boolean,
   checklist: Array,
   sourceReadiness: Object,
+  releaseFlags: Array,
   canManageBridge: Boolean
 })
 
@@ -667,6 +669,125 @@ watch(logsOpen, (open) => {
 
 // --- Accordion state ---
 const servicesOpen = ref(false)
+
+// --- Release flags ---
+const releaseFlagsOpen = ref(_params.has('flags'))
+const localReleaseFlags = ref([...(props.releaseFlags || [])])
+const newFlagKey = ref('')
+const savingFlag = ref(false)
+
+watch(
+  () => props.releaseFlags,
+  (flags) => {
+    localReleaseFlags.value = [...(flags || [])]
+  },
+  { deep: true }
+)
+
+const validNewFlagKey = computed(() =>
+  /^[a-z][a-z0-9-]{0,63}$/.test(newFlagKey.value.trim())
+)
+
+function flagSummary(flag) {
+  if (!flag.enabled) return 'Off'
+  const parts = []
+  if (flag.rolloutPercentage === 100) parts.push('Everyone')
+  else if (flag.rolloutPercentage > 0) parts.push(`${flag.rolloutPercentage}%`)
+  if (flag.targets?.length)
+    parts.push(
+      `${flag.targets.length} target${flag.targets.length === 1 ? '' : 's'}`
+    )
+  return parts.join(' · ') || 'No audience'
+}
+
+function flagUrl(flag) {
+  const base = `/api/v1/projects/${props.project.slug}/environments/${props.environment.slug}/apps/${props.app.slug}/flags`
+  return flag ? `${base}/${flag.id}` : base
+}
+
+async function flagRequest(url, options) {
+  const response = await fetch(url, {
+    headers: { 'Content-Type': 'application/json' },
+    ...options
+  })
+  const data = await response.json().catch(() => ({}))
+  if (!response.ok) {
+    const firstProblem = data.problems?.[0]
+    throw new Error(
+      firstProblem
+        ? Object.values(firstProblem)[0]
+        : data.message || 'Release flag could not be saved.'
+    )
+  }
+  return data
+}
+
+async function createReleaseFlag() {
+  if (!validNewFlagKey.value || savingFlag.value) return
+  savingFlag.value = true
+  try {
+    const data = await flagRequest(flagUrl(), {
+      method: 'POST',
+      body: JSON.stringify({ key: newFlagKey.value.trim() })
+    })
+    localReleaseFlags.value.push(data.flag)
+    localReleaseFlags.value.sort((a, b) => a.key.localeCompare(b.key))
+    newFlagKey.value = ''
+    toast({ message: 'Release flag created', type: 'success' })
+  } catch (error) {
+    toast({ message: error.message, type: 'error' })
+  } finally {
+    savingFlag.value = false
+  }
+}
+
+async function updateReleaseFlag(flag, updates) {
+  if (savingFlag.value) return
+  savingFlag.value = true
+  try {
+    const data = await flagRequest(flagUrl(flag), {
+      method: 'PATCH',
+      body: JSON.stringify({
+        description: flag.description,
+        enabled: flag.enabled,
+        rolloutPercentage: flag.rolloutPercentage,
+        targets: flag.targets,
+        ...updates
+      })
+    })
+    const index = localReleaseFlags.value.findIndex(
+      (candidate) => candidate.id === flag.id
+    )
+    if (index >= 0) localReleaseFlags.value[index] = data.flag
+  } catch (error) {
+    toast({ message: error.message, type: 'error' })
+  } finally {
+    savingFlag.value = false
+  }
+}
+
+async function removeReleaseFlag(flag) {
+  if (savingFlag.value) return
+  savingFlag.value = true
+  try {
+    await flagRequest(flagUrl(flag), { method: 'DELETE' })
+    localReleaseFlags.value = localReleaseFlags.value.filter(
+      (candidate) => candidate.id !== flag.id
+    )
+    toast({ message: 'Release flag deleted', type: 'success' })
+  } catch (error) {
+    toast({ message: error.message, type: 'error' })
+  } finally {
+    savingFlag.value = false
+  }
+}
+
+watch(releaseFlagsOpen, (open) => {
+  const url = new URL(window.location)
+  if (open) url.searchParams.set('flags', '1')
+  else url.searchParams.delete('flags')
+  window.history.replaceState({}, '', url)
+})
 
 // --- Escape key ---
 function handleEscapeKey(e) {
@@ -1696,6 +1817,135 @@ onBeforeUnmount(() => {
                   </div>
                 </div>
               </template>
+            </div>
+          </div>
+
+          <!-- Release flags -->
+          <div data-test="release-flags">
+            <div class="flex items-center justify-between px-4 py-3">
+              <button
+                @click="releaseFlagsOpen = !releaseFlagsOpen"
+                class="flex flex-1 items-center space-x-3 text-left hover:opacity-80"
+              >
+                <h2 class="text-sm font-medium text-gray-900 dark:text-white">
+                  Release flags
+                </h2>
+                <span
+                  class="inline-flex rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-500 dark:bg-gray-800 dark:text-gray-400"
+                >
+                  {{ localReleaseFlags.length }}
+                </span>
+              </button>
+              <button
+                @click="releaseFlagsOpen = !releaseFlagsOpen"
+                class="rounded p-0.5 hover:bg-gray-100 dark:hover:bg-gray-800"
+                aria-label="Toggle release flags"
+              >
+                <svg
+                  :class="[
+                    'h-4 w-4 text-gray-400 transition-transform duration-200',
+                    releaseFlagsOpen ? 'rotate-90' : ''
+                  ]"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M9 5l7 7-7 7"
+                  />
+                </svg>
+              </button>
+            </div>
+            <div
+              v-show="releaseFlagsOpen"
+              class="border-t border-gray-200 dark:border-gray-800"
+            >
+              <div
+                v-if="localReleaseFlags.length"
+                class="divide-y divide-gray-100 px-4 dark:divide-gray-800"
+              >
+                <div
+                  v-for="flag in localReleaseFlags"
+                  :key="flag.id"
+                  class="flex items-center gap-3 py-3"
+                  :data-test="`release-flag-${flag.key}`"
+                >
+                  <div class="min-w-0 flex-1">
+                    <div class="flex items-baseline gap-2">
+                      <code
+                        class="truncate text-sm font-medium text-gray-900 dark:text-white"
+                        >{{ flag.key }}</code
+                      >
+                      <span class="shrink-0 text-xs text-gray-400">{{
+                        flagSummary(flag)
+                      }}</span>
+                    </div>
+                    <p
+                      v-if="flag.description"
+                      class="mt-0.5 truncate text-xs text-gray-500 dark:text-gray-400"
+                    >
+                      {{ flag.description }}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    role="switch"
+                    :aria-checked="flag.enabled"
+                    :aria-label="`${flag.enabled ? 'Disable' : 'Enable'} ${
+                      flag.key
+                    }`"
+                    :disabled="savingFlag"
+                    @click="updateReleaseFlag(flag, { enabled: !flag.enabled })"
+                    :class="[
+                      'relative inline-flex h-5 w-9 shrink-0 rounded-full transition-colors disabled:opacity-50',
+                      flag.enabled
+                        ? 'bg-gray-900 dark:bg-white'
+                        : 'bg-gray-200 dark:bg-gray-700'
+                    ]"
+                  >
+                    <span
+                      :class="[
+                        'mt-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition-transform dark:bg-gray-900',
+                        flag.enabled ? 'translate-x-[18px]' : 'translate-x-0.5'
+                      ]"
+                    ></span>
+                  </button>
+                  <ReleaseFlagMenu
+                    :flag="flag"
+                    @update="updateReleaseFlag(flag, $event)"
+                    @remove="removeReleaseFlag(flag)"
+                  />
+                </div>
+              </div>
+              <p
+                v-else
+                class="px-4 pt-5 text-center text-sm text-gray-500 dark:text-gray-400"
+              >
+                No release flags yet.
+              </p>
+              <div class="flex items-center gap-3 px-4 py-3">
+                <input
+                  v-model="newFlagKey"
+                  type="text"
+                  autocomplete="off"
+                  spellcheck="false"
+                  placeholder="new-checkout"
+                  aria-label="Release flag key"
+                  class="min-w-0 flex-1 border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 font-mono text-sm text-gray-900 placeholder-gray-400 focus:border-gray-500 focus:outline-none dark:border-gray-700 dark:text-white"
+                  @keydown.enter="createReleaseFlag"
+                />
+                <button
+                  type="button"
+                  @click="createReleaseFlag"
+                  :disabled="!validNewFlagKey || savingFlag"
+                  class="rounded-md bg-gray-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-40 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
+                >
+                  Add
+                </button>
+              </div>
             </div>
           </div>
 

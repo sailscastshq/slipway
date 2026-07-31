@@ -222,6 +222,18 @@ module.exports.routes = {
   'DELETE /api/v1/projects/:projectSlug/environments/:environmentSlug/apps/:appSlug':
     'api/v1/app/destroy-app',
 
+  // Sails-native release flags
+  'GET /api/v1/flags/apps/:appId': {
+    action: 'api/v1/flag/get-config',
+    csrf: false
+  },
+  'POST /api/v1/projects/:projectSlug/environments/:environmentSlug/apps/:appSlug/flags':
+    'api/v1/flag/create-flag',
+  'PATCH /api/v1/projects/:projectSlug/environments/:environmentSlug/apps/:appSlug/flags/:flagId':
+    'api/v1/flag/update-flag',
+  'DELETE /api/v1/projects/:projectSlug/environments/:environmentSlug/apps/:appSlug/flags/:flagId':
+    'api/v1/flag/destroy-flag',
+
   // App-scoped deploy/lifecycle
   'POST /api/v1/projects/:projectSlug/environments/:environmentSlug/apps/:appSlug/deploy':
     'api/v1/deploy/trigger-deployment',

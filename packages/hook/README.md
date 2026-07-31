@@ -5,7 +5,8 @@ The Sails hook that connects an application to Slipway.
 It currently provides:
 
 - automatic request, exception, Waterline, Quest, and cache telemetry for
-  Lookout; and
+  Lookout;
+- app-scoped boolean release flags with deterministic rollouts; and
 - a secure app-local `/bridge` entry point for people who manage application
   data without receiving Slipway infrastructure access.
 
@@ -153,3 +154,22 @@ module.exports.slipway = {
 ```
 
 Telemetry failures never break the host application.
+
+## Release flags
+
+Slipway injects the private flag endpoint and app identity during deployments
+and rollbacks. Evaluate a flag with an explicit safe default:
+
+```js
+const enabled = await sails.helpers.flags.enabled.with({
+  key: 'new-checkout',
+  req: this.req,
+  defaultValue: false
+})
+```
+
+For a background job, pass a stable `context` containing a `user`, `account`,
+`tenant`, or `team` identifier. Configuration is cached and refreshed in the
+background; an unavailable control plane never fails or delays the host-app
+request. See the [release flag guide](https://docs.sailscasts.com/slipway/release-flags)
+for rollout behavior and Lookout comparisons.

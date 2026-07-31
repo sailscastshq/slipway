@@ -42,6 +42,7 @@ const props = defineProps({
         topKeys: [],
         recent: []
       },
+      flags: [],
       hasTelemetry: false,
       telemetryToken: null
     })
@@ -225,6 +226,12 @@ const expandedRequest = useQueryState('request', '', { replace: true })
 
 function toggleRequest(traceId) {
   expandedRequest.value = expandedRequest.value === traceId ? '' : traceId
+}
+
+function requestFlags(request) {
+  return Object.entries(request.attributes?.['feature.flags'] || {}).map(
+    ([key, evaluation]) => ({ key, ...evaluation })
+  )
 }
 
 // Exception detail
@@ -1447,6 +1454,58 @@ async function copyToken() {
             </div>
           </div>
 
+          <!-- Release flag comparison -->
+          <div v-if="telemetry.flags?.length" class="mb-6">
+            <h3
+              class="mb-3 text-sm font-medium text-gray-700 dark:text-gray-300"
+            >
+              Release flags
+            </h3>
+            <div
+              class="overflow-hidden rounded-lg border border-gray-200 dark:border-gray-800"
+            >
+              <div
+                class="grid grid-cols-[minmax(0,1fr)_repeat(2,minmax(110px,auto))] gap-4 bg-gray-50 px-4 py-2 text-[10px] font-medium uppercase tracking-wider text-gray-400 dark:bg-gray-900 dark:text-gray-500"
+              >
+                <span>Flag</span>
+                <span>On</span>
+                <span>Off</span>
+              </div>
+              <div
+                v-for="flag in telemetry.flags"
+                :key="flag.key"
+                class="grid grid-cols-[minmax(0,1fr)_repeat(2,minmax(110px,auto))] gap-4 border-t border-gray-100 px-4 py-2.5 text-xs dark:border-gray-800"
+              >
+                <code
+                  class="truncate font-medium text-gray-900 dark:text-white"
+                  >{{ flag.key }}</code
+                >
+                <span class="text-gray-500 dark:text-gray-400">
+                  {{ flag.on.requests }} req ·
+                  {{ flag.on.avg === null ? '—' : formatDuration(flag.on.avg) }}
+                  <template v-if="flag.on.errorRate !== null">
+                    · {{ flag.on.errorRate }}% err</template
+                  >
+                  <template v-if="flag.on.exceptions">
+                    · {{ flag.on.exceptions }} exc</template
+                  >
+                </span>
+                <span class="text-gray-500 dark:text-gray-400">
+                  {{ flag.off.requests }} req ·
+                  {{
+                    flag.off.avg === null ? '—' : formatDuration(flag.off.avg)
+                  }}
+                  <template v-if="flag.off.errorRate !== null">
+                    · {{ flag.off.errorRate }}% err</template
+                  >
+                  <template v-if="flag.off.exceptions">
+                    · {{ flag.off.exceptions }} exc</template
+                  >
+                </span>
+              </div>
+            </div>
+          </div>
+
           <!-- Recent requests -->
           <div v-if="telemetry.requests.recent.length > 0">
             <!-- Search & filters -->
@@ -1729,6 +1788,25 @@ async function copyToken() {
                           class="min-w-0 truncate text-xs text-gray-700 dark:text-gray-300"
                         >
                           {{ req.attributes['http.user_agent'] }}
+                        </dd>
+                      </div>
+                      <div
+                        v-if="requestFlags(req).length"
+                        class="flex items-start gap-4 px-4 py-2"
+                      >
+                        <dt
+                          class="w-24 shrink-0 text-[10px] font-medium uppercase tracking-wider text-gray-400 dark:text-gray-500"
+                        >
+                          Flags
+                        </dt>
+                        <dd class="flex min-w-0 flex-wrap gap-1.5">
+                          <span
+                            v-for="flag in requestFlags(req)"
+                            :key="flag.key"
+                            class="rounded bg-gray-100 px-1.5 py-0.5 font-mono text-[10px] text-gray-600 dark:bg-gray-800 dark:text-gray-300"
+                          >
+                            {{ flag.key }}={{ flag.value ? 'on' : 'off' }}
+                          </span>
                         </dd>
                       </div>
                       <div

@@ -75,6 +75,9 @@ module.exports.policies = {
   // Telemetry ingest is public (token-verified in controller)
   'api/v1/telemetry/ingest': true,
 
+  // Deployed apps fetch release flags with their environment telemetry token.
+  'api/v1/flag/get-config': true,
+
   // Bridge handoff endpoints authenticate with a dedicated app credential or
   // a short-lived, single-use launch code.
   'api/v1/bridge/exchange': 'rate-limit-bridge-exchange',

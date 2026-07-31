@@ -208,6 +208,12 @@ module.exports = {
             : 'host.docker.internal'
         envVars.SLIPWAY_TELEMETRY_URL = `http://${telemetryHost}:1337/api/v1/telemetry/ingest`
         envVars.SLIPWAY_TELEMETRY_TOKEN = envRecord.telemetryToken
+
+        if (targetApp?.id) {
+          envVars.SLIPWAY_FLAGS_URL = `http://${telemetryHost}:1337/api/v1/flags/apps/${targetApp.id}`
+          envVars.SLIPWAY_FLAGS_TOKEN = envRecord.telemetryToken
+          envVars.SLIPWAY_FLAGS_APP_ID = String(targetApp.id)
+        }
       }
 
       // 7c. App-local Bridge is an explicit, app-scoped capability. Its

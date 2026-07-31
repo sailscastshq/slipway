@@ -14,6 +14,7 @@ module.exports.bootstrap = async function () {
   // deployment job queries run on an existing installation.
   await sails.helpers.cleanup.ensureSchema()
   await sails.helpers.configuration.ensureSchema()
+  await sails.helpers.flag.ensureSchema()
   await sails.helpers.deploy.ensureQueueSchema()
   await sails.helpers.service.ensureVersionSchema()
   await sails.helpers.lookout.ensureObservabilitySchema()

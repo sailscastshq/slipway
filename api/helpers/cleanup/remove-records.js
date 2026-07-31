@@ -36,6 +36,11 @@ module.exports = {
       }
 
       if (target.scopeType === 'app') {
+        removed.default.featureFlags = await destroyCriteriaCount(
+          FeatureFlag,
+          { app: { in: records.appIds } },
+          db
+        )
         removed.default.bridgeLaunchCodes = await destroyCriteriaCount(
           BridgeLaunchCode,
           { app: { in: records.appIds } },
@@ -76,6 +81,11 @@ module.exports = {
       }
 
       await updateCount(App, records.appIds, { currentDeployment: null }, db)
+      removed.default.featureFlags = await destroyCriteriaCount(
+        FeatureFlag,
+        { app: { in: records.appIds } },
+        db
+      )
       removed.default.bridgeLaunchCodes = await destroyCriteriaCount(
         BridgeLaunchCode,
         { app: { in: records.appIds } },

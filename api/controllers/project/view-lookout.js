@@ -196,6 +196,11 @@ module.exports = {
       durations.length > 0
         ? durations.reduce((a, b) => a + b, 0) / durations.length
         : 0
+    const flagComparisons = summarizeFeatureFlags(
+      recentSpans,
+      app?.id,
+      recentExceptions
+    )
 
     // Group exceptions by type+message
     const exceptionGroups = {}
@@ -296,6 +301,7 @@ module.exports = {
           recordedAt: m.recordedAt
         }))
       },
+      flags: flagComparisons,
       hasTelemetry:
         recentSpans.length > 0 ||
         recentExceptions.length > 0 ||
@@ -322,5 +328,61 @@ module.exports = {
         telemetry
       }
     }
+  }
+}
+
+function summarizeFeatureFlags(spans, appId, exceptions = []) {
+  const summaries = new Map()
+  const exceptionCounts = new Map()
+  for (const exception of exceptions) {
+    if (!exception.traceId) continue
+    exceptionCounts.set(
+      exception.traceId,
+      (exceptionCounts.get(exception.traceId) || 0) + 1
+    )
+  }
+
+  for (const span of spans) {
+    const spanAppId = span.attributes?.['feature.app_id']
+    if (spanAppId && String(spanAppId) !== String(appId)) continue
+    const evaluations = span.attributes?.['feature.flags']
+    if (!evaluations || typeof evaluations !== 'object') continue
+
+    for (const [key, evaluation] of Object.entries(evaluations)) {
+      if (!summaries.has(key)) {
+        summaries.set(key, {
+          key,
+          on: { requests: 0, errors: 0, exceptions: 0, duration: 0 },
+          off: { requests: 0, errors: 0, exceptions: 0, duration: 0 }
+        })
+      }
+      const group = evaluation?.value === true ? 'on' : 'off'
+      const bucket = summaries.get(key)[group]
+      bucket.requests++
+      if (span.statusCode >= 500) bucket.errors++
+      bucket.exceptions += exceptionCounts.get(span.traceId) || 0
+      bucket.duration += Number(span.duration || 0)
+    }
+  }
+
+  return [...summaries.values()]
+    .map((summary) => ({
+      key: summary.key,
+      on: presentFlagBucket(summary.on),
+      off: presentFlagBucket(summary.off)
+    }))
+    .sort((left, right) => left.key.localeCompare(right.key))
+}
+
+function presentFlagBucket(bucket) {
+  return {
+    requests: bucket.requests,
+    exceptions: bucket.exceptions,
+    errorRate:
+      bucket.requests > 0
+        ? Number(((bucket.errors / bucket.requests) * 100).toFixed(1))
+        : null,
+    avg:
+      bucket.requests > 0 ? Math.round(bucket.duration / bucket.requests) : null
   }
 }

@@ -27,6 +27,7 @@
 const http = require('http')
 const https = require('https')
 const crypto = require('crypto')
+const { createReleaseFlags } = require('./lib/release-flags')
 
 module.exports = function defineSlipwayHook(sails) {
   // Telemetry buffers
@@ -38,6 +39,8 @@ module.exports = function defineSlipwayHook(sails) {
   // Config (populated in initialize)
   let config = {}
   let bridgeConfig = {}
+  let flagsConfig = {}
+  let releaseFlags = null
 
   return {
     defaults: {
@@ -54,6 +57,11 @@ module.exports = function defineSlipwayHook(sails) {
             emailVerifiedAttribute: 'emailVerified',
             verifiedEmailStatuses: ['verified', 'confirmed']
           }
+        },
+        flags: {
+          enabled: true,
+          refreshInterval: 15000,
+          requestTimeout: 3000
         },
         lookout: {
           enabled: true,
@@ -76,6 +84,16 @@ module.exports = function defineSlipwayHook(sails) {
       if (envUrl) sails.config.slipway.lookout.telemetryUrl = envUrl
       if (envToken) sails.config.slipway.lookout.telemetryToken = envToken
 
+      if (process.env.SLIPWAY_FLAGS_URL) {
+        sails.config.slipway.flags.url = process.env.SLIPWAY_FLAGS_URL
+      }
+      if (process.env.SLIPWAY_FLAGS_TOKEN) {
+        sails.config.slipway.flags.token = process.env.SLIPWAY_FLAGS_TOKEN
+      }
+      if (process.env.SLIPWAY_FLAGS_APP_ID) {
+        sails.config.slipway.flags.appId = process.env.SLIPWAY_FLAGS_APP_ID
+      }
+
       if (process.env.SLIPWAY_BRIDGE_ENABLED === 'true') {
         sails.config.slipway.bridge.enabled = true
       }
@@ -94,6 +112,12 @@ module.exports = function defineSlipwayHook(sails) {
     initialize: function (done) {
       config = sails.config.slipway.lookout
       bridgeConfig = sails.config.slipway.bridge
+      flagsConfig = sails.config.slipway.flags || {
+        enabled: true,
+        refreshInterval: 15000,
+        requestTimeout: 3000
+      }
+      initializeReleaseFlags()
 
       // Skip if not configured
       if (!config.telemetryUrl || !config.telemetryToken) {
@@ -222,7 +246,15 @@ module.exports = function defineSlipwayHook(sails) {
                   'http.client_ip':
                     req.ip || req.headers['x-forwarded-for'] || '',
                   'http.referrer': req.headers.referer || '',
-                  'http.accept': req.headers.accept || ''
+                  'http.accept': req.headers.accept || '',
+                  ...(req._slipwayFlagEvaluations
+                    ? {
+                        'feature.flags': req._slipwayFlagEvaluations,
+                        ...(flagsConfig.appId
+                          ? { 'feature.app_id': String(flagsConfig.appId) }
+                          : {})
+                      }
+                    : {})
                 }
               })
 
@@ -748,6 +780,67 @@ module.exports = function defineSlipwayHook(sails) {
   function safeLocalPath(value, fallback) {
     const path = String(value || fallback)
     return path.startsWith('/') && !path.startsWith('//') ? path : fallback
+  }
+
+  function initializeReleaseFlags() {
+    releaseFlags = createReleaseFlags({
+      url: flagsConfig.url,
+      token: flagsConfig.token,
+      refreshInterval: flagsConfig.refreshInterval,
+      requestTimeout: flagsConfig.requestTimeout
+    })
+
+    const enabled = async function (inputs = {}) {
+      const defaultValue = inputs.defaultValue === true
+      if (!flagsConfig.enabled || !flagsConfig.url || !flagsConfig.token) {
+        recordFlagEvaluation(inputs.req, inputs.key, defaultValue, 'default')
+        return defaultValue
+      }
+
+      const evaluation = await releaseFlags.evaluate({
+        key: String(inputs.key || ''),
+        context: requestFlagContext(inputs.req, inputs.context),
+        defaultValue
+      })
+      recordFlagEvaluation(
+        inputs.req,
+        inputs.key,
+        evaluation.value,
+        evaluation.reason,
+        evaluation.flagVersion
+      )
+      return evaluation.value
+    }
+    enabled.with = enabled
+    sails.helpers.flags = sails.helpers.flags || {}
+    sails.helpers.flags.enabled = enabled
+
+    if (flagsConfig.enabled && flagsConfig.url && flagsConfig.token) {
+      releaseFlags.refresh().catch(() => {})
+    }
+  }
+
+  function requestFlagContext(req, supplied = {}) {
+    supplied = supplied || {}
+    const me = req?.me || {}
+    const session = req?.session || {}
+    return {
+      user: supplied.user ?? me.id ?? session.userId,
+      account: supplied.account ?? me.account ?? session.accountId,
+      tenant: supplied.tenant ?? me.tenant ?? session.tenantId,
+      team: supplied.team ?? me.team ?? session.teamId,
+      session: supplied.session ?? req?.sessionID ?? session.id
+    }
+  }
+
+  function recordFlagEvaluation(req, key, value, reason, version) {
+    if (!req || !key) return
+    req._slipwayFlagEvaluations = req._slipwayFlagEvaluations || {}
+    req._slipwayFlagEvaluations[String(key)] = {
+      value: value === true,
+      reason,
+      version: version || null
+    }
   }
 
   function requestJson({ url, token, body }) {
