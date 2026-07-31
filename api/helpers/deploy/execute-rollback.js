@@ -137,6 +137,24 @@ module.exports = {
           ...(existingApp?.id ? { appId: String(existingApp.id) } : {})
         })
       const envVars = { ...runtimeConfig.values }
+      const envRecord = await Environment.findOne({
+        id: environment.id
+      }).decrypt()
+
+      if (envRecord.telemetryToken) {
+        const telemetryHost =
+          sails.config.environment === 'production'
+            ? 'slipway'
+            : 'host.docker.internal'
+        envVars.SLIPWAY_TELEMETRY_URL = `http://${telemetryHost}:1337/api/v1/telemetry/ingest`
+        envVars.SLIPWAY_TELEMETRY_TOKEN = envRecord.telemetryToken
+
+        if (existingApp?.id) {
+          envVars.SLIPWAY_FLAGS_URL = `http://${telemetryHost}:1337/api/v1/flags/apps/${existingApp.id}`
+          envVars.SLIPWAY_FLAGS_TOKEN = envRecord.telemetryToken
+          envVars.SLIPWAY_FLAGS_APP_ID = String(existingApp.id)
+        }
+      }
 
       if (existingApp?.bridgeEnabled) {
         const bridgeHost =

@@ -201,6 +201,12 @@ module.exports = {
       environment,
       project
     })
+    const releaseFlags = (
+      await FeatureFlag.find({
+        environment: environment.id,
+        app: app.id
+      }).sort('key ASC')
+    ).map((flag) => sails.helpers.flag.present(flag))
     const publicEnvironment = omitPrivateEnvironmentFields(environment)
     const publicApp = omitPrivateAppFields(app)
 
@@ -240,6 +246,7 @@ module.exports = {
         backupConfigured,
         checklist,
         sourceReadiness,
+        releaseFlags,
         canManageBridge: ['owner', 'admin'].includes(user.teamRole)
       }
     }
