@@ -1,10 +1,11 @@
 <script setup>
-import { Link, Head, router } from '@inertiajs/vue3'
+import { Link, Head, router, useForm } from '@inertiajs/vue3'
 import { inject, ref, computed } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
 import Breadcrumb from '@/components/Breadcrumb.vue'
 import ConfirmModal from '@/components/ConfirmModal.vue'
 import { useToast } from '@/composables/toast'
+import { usePrecognitionValidation } from '@/composables/precognition'
 
 defineOptions({
   layout: AppLayout
@@ -21,14 +22,21 @@ const toggleSidebar = inject('toggleSidebar')
 const sidebarCollapsed = inject('sidebarCollapsed')
 const toast = useToast()
 
-const name = ref(props.environment.name)
-const isProduction = ref(props.environment.isProduction)
+const settingsUrl = `/api/v1/projects/${props.project.slug}/environments/${props.environment.slug}`
+const form = useForm({
+  name: props.environment.name,
+  isProduction: props.environment.isProduction
+})
+  .withPrecognition('patch', settingsUrl)
+  .setValidationTimeout(350)
+const { applyResponseProblems, revalidateWhenInvalid, validateOnBlur } =
+  usePrecognitionValidation(form)
 const saving = ref(false)
 
 const isDirty = computed(
   () =>
-    name.value !== props.environment.name ||
-    isProduction.value !== props.environment.isProduction
+    form.name !== props.environment.name ||
+    form.isProduction !== props.environment.isProduction
 )
 const showDeleteConfirm = ref(false)
 const deleting = ref(false)
@@ -39,34 +47,21 @@ async function save() {
   saving.value = true
 
   try {
-    const res = await fetch(
-      `/api/v1/projects/${props.project.slug}/environments/${props.environment.slug}`,
-      {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: name.value,
-          isProduction: isProduction.value
-        })
-      }
-    )
+    const res = await fetch(settingsUrl, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: form.name,
+        isProduction: form.isProduction
+      })
+    })
 
     if (res.ok) {
       toast({ message: 'Environment updated', type: 'success' })
-      // If name changed, redirect to new slug
-      if (name.value !== props.environment.name) {
-        const newSlug = name.value
-          .toLowerCase()
-          .replace(/[^a-z0-9]+/g, '-')
-          .replace(/^-|-$/g, '')
-        router.visit(
-          `/projects/${props.project.slug}/environments/${newSlug}/settings`
-        )
-      } else {
-        router.reload()
-      }
+      router.reload()
     } else {
       const err = await res.json().catch(() => null)
+      applyResponseProblems(err?.problems)
       toast({
         message: err?.message || 'Failed to update environment',
         type: 'error'
@@ -271,10 +266,23 @@ function openDeleteEnvironment() {
             </label>
             <input
               id="name"
-              v-model="name"
+              v-model="form.name"
               type="text"
+              :aria-invalid="form.invalid('name')"
+              :aria-describedby="
+                form.errors.name ? 'environment-name-error' : null
+              "
               class="focus:border-brand w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
+              @blur="validateOnBlur('name', $event)"
+              @input="revalidateWhenInvalid('name')"
             />
+            <p
+              v-if="form.errors.name"
+              id="environment-name-error"
+              class="mt-1 text-sm text-red-600 dark:text-red-400"
+            >
+              {{ form.errors.name }}
+            </p>
           </div>
 
           <div
@@ -293,16 +301,16 @@ function openDeleteEnvironment() {
             </div>
             <button
               type="button"
-              @click="isProduction = !isProduction"
+              @click="form.isProduction = !form.isProduction"
               :class="[
                 'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none',
-                isProduction ? 'bg-brand' : 'bg-gray-200 dark:bg-gray-700'
+                form.isProduction ? 'bg-brand' : 'bg-gray-200 dark:bg-gray-700'
               ]"
             >
               <span
                 :class="[
                   'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
-                  isProduction ? 'translate-x-5' : 'translate-x-0'
+                  form.isProduction ? 'translate-x-5' : 'translate-x-0'
                 ]"
               />
             </button>
@@ -311,7 +319,7 @@ function openDeleteEnvironment() {
           <div class="flex justify-end">
             <button
               type="submit"
-              :disabled="saving || !isDirty"
+              :disabled="saving || form.hasErrors || !isDirty"
               class="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
             >
               {{ saving ? 'Saving...' : 'Save changes' }}

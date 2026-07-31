@@ -49,6 +49,9 @@ module.exports = {
     },
     badRequest: {
       responseType: 'badRequest'
+    },
+    precognitionSuccess: {
+      responseType: 'precognitionSuccess'
     }
   },
 
@@ -79,6 +82,18 @@ module.exports = {
 
     if (!environment) {
       throw 'notFound'
+    }
+
+    const problems = sails.helpers.configuration.validate({
+      name,
+      domain,
+      resourceLimits
+    })
+    if (problems.length) {
+      throw { badRequest: { problems } }
+    }
+    if (sails.inertia.isPrecognitive(this.req)) {
+      throw 'precognitionSuccess'
     }
 
     // Build update object

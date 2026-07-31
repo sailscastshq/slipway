@@ -6,6 +6,7 @@ import Breadcrumb from '@/components/Breadcrumb.vue'
 import ConfirmModal from '@/components/ConfirmModal.vue'
 import Tooltip from '@/components/Tooltip.vue'
 import { useToast } from '@/composables/toast'
+import { usePrecognitionValidation } from '@/composables/precognition'
 
 defineOptions({
   layout: AppLayout
@@ -32,26 +33,39 @@ const basePath = computed(
 )
 
 // --- Form state ---
-const name = ref(props.app.name)
-const dockerfilePath = ref(props.app.dockerfilePath || 'Dockerfile')
-const healthPath = ref(props.app.healthPath || '/health')
-const routePath = ref(
-  props.app.routePath === null ? 'none' : props.app.routePath || '/'
-)
-const cpus = ref(props.app.resourceLimits?.cpus || '1')
-const memory = ref(props.app.resourceLimits?.memory || '512m')
+const settingsUrl = `/api/v1/projects/${props.project.slug}/environments/${props.environment.slug}/apps/${props.app.slug}`
+const form = useForm({
+  name: props.app.name,
+  dockerfilePath: props.app.dockerfilePath || 'Dockerfile',
+  healthPath: props.app.healthPath || '/health',
+  routePath: props.app.routePath === null ? null : props.app.routePath || '/',
+  resourceLimits: {
+    cpus: props.app.resourceLimits?.cpus || '1',
+    memory: props.app.resourceLimits?.memory || '512m'
+  }
+})
+  .withPrecognition('patch', settingsUrl)
+  .setValidationTimeout(350)
+const { applyResponseProblems, revalidateWhenInvalid, validateOnBlur } =
+  usePrecognitionValidation(form)
+const routePathChoice = computed({
+  get: () => form.routePath ?? 'none',
+  set: (value) => {
+    form.routePath = value === 'none' ? null : value
+  }
+})
 const saving = ref(false)
 const savingAndRestarting = ref(false)
 
 const isDirty = computed(
   () =>
-    name.value !== props.app.name ||
-    dockerfilePath.value !== (props.app.dockerfilePath || 'Dockerfile') ||
-    healthPath.value !== (props.app.healthPath || '/health') ||
-    routePath.value !==
-      (props.app.routePath === null ? 'none' : props.app.routePath || '/') ||
-    cpus.value !== (props.app.resourceLimits?.cpus || '1') ||
-    memory.value !== (props.app.resourceLimits?.memory || '512m')
+    form.name !== props.app.name ||
+    form.dockerfilePath !== (props.app.dockerfilePath || 'Dockerfile') ||
+    form.healthPath !== (props.app.healthPath || '/health') ||
+    form.routePath !==
+      (props.app.routePath === null ? null : props.app.routePath || '/') ||
+    form.resourceLimits.cpus !== (props.app.resourceLimits?.cpus || '1') ||
+    form.resourceLimits.memory !== (props.app.resourceLimits?.memory || '512m')
 )
 
 async function saveSettings({ restart = false } = {}) {
@@ -61,25 +75,32 @@ async function saveSettings({ restart = false } = {}) {
     saving.value = true
   }
   try {
-    const res = await fetch(
-      `/api/v1/projects/${props.project.slug}/environments/${props.environment.slug}/apps/${props.app.slug}`,
-      {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-csrf-token': page.props._csrf || ''
-        },
-        body: JSON.stringify({
-          name: name.value,
-          dockerfilePath: dockerfilePath.value,
-          healthPath: healthPath.value,
-          routePath: routePath.value === 'none' ? null : routePath.value,
-          resourceLimits: { cpus: cpus.value, memory: memory.value }
-        })
-      }
-    )
+    const res = await fetch(settingsUrl, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-csrf-token': page.props._csrf || ''
+      },
+      body: JSON.stringify({
+        name: form.name,
+        dockerfilePath: form.dockerfilePath,
+        healthPath: form.healthPath,
+        routePath: form.routePath,
+        resourceLimits: form.resourceLimits
+      })
+    })
 
-    if (res.ok && restart) {
+    if (!res.ok) {
+      const data = await res.json().catch(() => null)
+      applyResponseProblems(data?.problems)
+      toast({
+        message: data?.message || 'Failed to save app settings',
+        type: 'error'
+      })
+      return
+    }
+
+    if (restart) {
       await fetch(
         `/api/v1/projects/${props.project.slug}/environments/${props.environment.slug}/apps/${props.app.slug}/restart`,
         {
@@ -414,10 +435,21 @@ async function deleteApp() {
             </label>
             <input
               id="appName"
-              v-model="name"
+              v-model="form.name"
               type="text"
+              :aria-invalid="form.invalid('name')"
+              :aria-describedby="form.errors.name ? 'app-name-error' : null"
               class="focus:border-brand w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
+              @blur="validateOnBlur('name', $event)"
+              @input="revalidateWhenInvalid('name')"
             />
+            <p
+              v-if="form.errors.name"
+              id="app-name-error"
+              class="mt-1 text-sm text-red-600 dark:text-red-400"
+            >
+              {{ form.errors.name }}
+            </p>
           </div>
 
           <div>
@@ -429,11 +461,24 @@ async function deleteApp() {
             </label>
             <input
               id="healthPath"
-              v-model="healthPath"
+              v-model="form.healthPath"
               type="text"
               placeholder="/health"
+              :aria-invalid="form.invalid('healthPath')"
+              :aria-describedby="
+                form.errors.healthPath ? 'health-path-error' : null
+              "
               class="focus:border-brand w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
+              @blur="validateOnBlur('healthPath', $event)"
+              @input="revalidateWhenInvalid('healthPath')"
             />
+            <p
+              v-if="form.errors.healthPath"
+              id="health-path-error"
+              class="mt-1 text-sm text-red-600 dark:text-red-400"
+            >
+              {{ form.errors.healthPath }}
+            </p>
             <p class="mt-1 text-xs text-gray-400 dark:text-gray-500">
               Deployment waits for this path to return a 2xx response.
             </p>
@@ -448,11 +493,24 @@ async function deleteApp() {
             </label>
             <input
               id="dockerfilePath"
-              v-model="dockerfilePath"
+              v-model="form.dockerfilePath"
               type="text"
               placeholder="Dockerfile"
+              :aria-invalid="form.invalid('dockerfilePath')"
+              :aria-describedby="
+                form.errors.dockerfilePath ? 'dockerfile-path-error' : null
+              "
               class="focus:border-brand w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
+              @blur="validateOnBlur('dockerfilePath', $event)"
+              @input="revalidateWhenInvalid('dockerfilePath')"
             />
+            <p
+              v-if="form.errors.dockerfilePath"
+              id="dockerfile-path-error"
+              class="mt-1 text-sm text-red-600 dark:text-red-400"
+            >
+              {{ form.errors.dockerfilePath }}
+            </p>
             <p class="mt-1 text-xs text-gray-400 dark:text-gray-500">
               Relative to your project root, e.g.
               <code class="text-gray-500 dark:text-gray-400"
@@ -470,7 +528,7 @@ async function deleteApp() {
             </label>
             <select
               id="routePath"
-              v-model="routePath"
+              v-model="routePathChoice"
               class="focus:border-brand w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 focus:outline-none dark:border-gray-700 dark:text-white"
             >
               <option value="/">/ (root)</option>
@@ -493,11 +551,24 @@ async function deleteApp() {
               </label>
               <input
                 id="cpuLimit"
-                v-model="cpus"
+                v-model="form.resourceLimits.cpus"
                 type="text"
                 placeholder="1"
+                :aria-invalid="form.invalid('resourceLimits.cpus')"
+                :aria-describedby="
+                  form.errors['resourceLimits.cpus'] ? 'cpu-limit-error' : null
+                "
                 class="focus:border-brand w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
+                @blur="validateOnBlur('resourceLimits.cpus', $event)"
+                @input="revalidateWhenInvalid('resourceLimits.cpus')"
               />
+              <p
+                v-if="form.errors['resourceLimits.cpus']"
+                id="cpu-limit-error"
+                class="mt-1 text-sm text-red-600 dark:text-red-400"
+              >
+                {{ form.errors['resourceLimits.cpus'] }}
+              </p>
             </div>
             <div>
               <label
@@ -508,11 +579,26 @@ async function deleteApp() {
               </label>
               <input
                 id="memoryLimit"
-                v-model="memory"
+                v-model="form.resourceLimits.memory"
                 type="text"
                 placeholder="512m"
+                :aria-invalid="form.invalid('resourceLimits.memory')"
+                :aria-describedby="
+                  form.errors['resourceLimits.memory']
+                    ? 'memory-limit-error'
+                    : null
+                "
                 class="focus:border-brand w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
+                @blur="validateOnBlur('resourceLimits.memory', $event)"
+                @input="revalidateWhenInvalid('resourceLimits.memory')"
               />
+              <p
+                v-if="form.errors['resourceLimits.memory']"
+                id="memory-limit-error"
+                class="mt-1 text-sm text-red-600 dark:text-red-400"
+              >
+                {{ form.errors['resourceLimits.memory'] }}
+              </p>
             </div>
           </div>
 
@@ -520,7 +606,9 @@ async function deleteApp() {
             <div class="inline-flex rounded-md shadow-sm">
               <button
                 type="submit"
-                :disabled="!isDirty || saving || savingAndRestarting"
+                :disabled="
+                  !isDirty || form.hasErrors || saving || savingAndRestarting
+                "
                 class="rounded-l-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
               >
                 {{ saving ? 'Saving...' : 'Save changes' }}
@@ -529,7 +617,9 @@ async function deleteApp() {
                 <button
                   type="button"
                   @click="saveSettings({ restart: true })"
-                  :disabled="!isDirty || saving || savingAndRestarting"
+                  :disabled="
+                    !isDirty || form.hasErrors || saving || savingAndRestarting
+                  "
                   class="rounded-r-md border-l border-gray-700 bg-gray-900 px-3 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50 dark:border-gray-200 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
                 >
                   <template v-if="savingAndRestarting">

@@ -2,6 +2,7 @@
 import { Link, Head, useForm } from '@inertiajs/vue3'
 import { inject, ref } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
+import { usePrecognitionValidation } from '@/composables/precognition'
 import Breadcrumb from '@/components/Breadcrumb.vue'
 import ConfirmModal from '@/components/ConfirmModal.vue'
 
@@ -23,12 +24,24 @@ const form = useForm({
   description: props.project.description || '',
   repositoryUrl: props.project.repositoryUrl || ''
 })
+  .withPrecognition('patch', `/projects/${props.project.slug}`)
+  .setValidationTimeout(350)
 
 const deployForm = useForm({
   autoDeploy: props.project.autoDeploy || false,
   autoDeployBranch: props.project.autoDeployBranch || 'main',
   generateWebhookSecret: false
 })
+  .withPrecognition('patch', `/projects/${props.project.slug}`)
+  .setValidationTimeout(350)
+const {
+  revalidateWhenInvalid: revalidateProjectWhenInvalid,
+  validateOnBlur: validateProjectOnBlur
+} = usePrecognitionValidation(form)
+const {
+  revalidateWhenInvalid: revalidateDeployWhenInvalid,
+  validateOnBlur: validateDeployOnBlur
+} = usePrecognitionValidation(deployForm)
 
 const showDeleteConfirm = ref(false)
 const deleteProjectForm = useForm({
@@ -233,9 +246,17 @@ function openDeleteProject() {
               id="name"
               v-model="form.name"
               type="text"
+              :aria-invalid="form.invalid('name')"
+              :aria-describedby="form.errors.name ? 'project-name-error' : null"
               class="focus:border-brand w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
+              @blur="validateProjectOnBlur('name', $event)"
+              @input="revalidateProjectWhenInvalid('name')"
             />
-            <p v-if="form.errors.name" class="mt-1 text-sm text-red-600">
+            <p
+              v-if="form.errors.name"
+              id="project-name-error"
+              class="mt-1 text-sm text-red-600 dark:text-red-400"
+            >
               {{ form.errors.name }}
             </p>
           </div>
@@ -253,7 +274,20 @@ function openDeleteProject() {
               placeholder="A brief description about your project"
               class="focus:border-brand w-full resize-none border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
               style="field-sizing: content"
+              :aria-invalid="form.invalid('description')"
+              :aria-describedby="
+                form.errors.description ? 'project-description-error' : null
+              "
+              @blur="validateProjectOnBlur('description', $event)"
+              @input="revalidateProjectWhenInvalid('description')"
             ></textarea>
+            <p
+              v-if="form.errors.description"
+              id="project-description-error"
+              class="mt-1 text-sm text-red-600 dark:text-red-400"
+            >
+              {{ form.errors.description }}
+            </p>
           </div>
 
           <div>
@@ -268,14 +302,27 @@ function openDeleteProject() {
               v-model="form.repositoryUrl"
               type="url"
               placeholder="https://github.com/your-org/your-repo"
+              :aria-invalid="form.invalid('repositoryUrl')"
+              :aria-describedby="
+                form.errors.repositoryUrl ? 'repository-url-error' : null
+              "
               class="focus:border-brand w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
+              @blur="validateProjectOnBlur('repositoryUrl', $event)"
+              @input="revalidateProjectWhenInvalid('repositoryUrl')"
             />
+            <p
+              v-if="form.errors.repositoryUrl"
+              id="repository-url-error"
+              class="mt-1 text-sm text-red-600 dark:text-red-400"
+            >
+              {{ form.errors.repositoryUrl }}
+            </p>
           </div>
 
           <div class="flex justify-end">
             <button
               type="submit"
-              :disabled="form.processing || !form.isDirty"
+              :disabled="form.processing || form.hasErrors || !form.isDirty"
               class="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
             >
               {{ form.processing ? 'Saving...' : 'Save changes' }}
@@ -320,16 +367,33 @@ function openDeleteProject() {
                   v-model="deployForm.autoDeployBranch"
                   type="text"
                   placeholder="main"
+                  :aria-invalid="deployForm.invalid('autoDeployBranch')"
+                  :aria-describedby="
+                    deployForm.errors.autoDeployBranch
+                      ? 'auto-deploy-branch-error'
+                      : null
+                  "
                   class="focus:border-brand w-40 border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 focus:outline-none dark:border-gray-700 dark:text-white"
+                  @blur="validateDeployOnBlur('autoDeployBranch', $event)"
+                  @input="revalidateDeployWhenInvalid('autoDeployBranch')"
                 />
                 <button
                   @click="saveDeploySettings"
-                  :disabled="deployForm.processing"
+                  :disabled="
+                    deployForm.processing || deployForm.errors.autoDeployBranch
+                  "
                   class="rounded-md bg-gray-900 px-3 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
                 >
                   Save
                 </button>
               </div>
+              <p
+                v-if="deployForm.errors.autoDeployBranch"
+                id="auto-deploy-branch-error"
+                class="mt-1 text-sm text-red-600 dark:text-red-400"
+              >
+                {{ deployForm.errors.autoDeployBranch }}
+              </p>
             </div>
 
             <!-- Webhook URL -->

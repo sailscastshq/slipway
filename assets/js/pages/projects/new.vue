@@ -2,6 +2,7 @@
 import { useForm, Head, Link } from '@inertiajs/vue3'
 import { inject } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
+import { usePrecognitionValidation } from '@/composables/precognition'
 
 defineOptions({
   layout: AppLayout
@@ -11,6 +12,10 @@ const form = useForm({
   name: '',
   description: ''
 })
+  .withPrecognition('post', '/projects')
+  .setValidationTimeout(350)
+const { revalidateWhenInvalid, validateOnBlur } =
+  usePrecognitionValidation(form)
 
 const submit = () => {
   form.post('/projects')
@@ -160,22 +165,25 @@ const sidebarCollapsed = inject('sidebarCollapsed')
     >
       <div class="flex justify-center">
         <div class="w-full max-w-md">
-          <!-- Error message -->
-          <div
-            v-if="form.errors.name"
-            class="mb-6 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-600 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-400"
-          >
-            {{ form.errors.name }}
-          </div>
-
           <form @submit.prevent="submit" class="space-y-4">
             <input
               id="name"
               v-model="form.name"
               type="text"
               placeholder="Project name"
+              :aria-invalid="form.invalid('name')"
+              :aria-describedby="form.errors.name ? 'project-name-error' : null"
               class="focus:border-brand h-12 w-full border-b border-dashed border-gray-200 bg-transparent px-1 text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
+              @blur="validateOnBlur('name', $event)"
+              @input="revalidateWhenInvalid('name')"
             />
+            <p
+              v-if="form.errors.name"
+              id="project-name-error"
+              class="-mt-2 text-sm text-red-600 dark:text-red-400"
+            >
+              {{ form.errors.name }}
+            </p>
 
             <textarea
               id="description"
@@ -183,7 +191,20 @@ const sidebarCollapsed = inject('sidebarCollapsed')
               placeholder="A brief description about your project"
               class="focus:border-brand w-full resize-none border-b border-dashed border-gray-200 bg-transparent px-1 py-3 text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
               style="field-sizing: content"
+              :aria-invalid="form.invalid('description')"
+              :aria-describedby="
+                form.errors.description ? 'project-description-error' : null
+              "
+              @blur="validateOnBlur('description', $event)"
+              @input="revalidateWhenInvalid('description')"
             ></textarea>
+            <p
+              v-if="form.errors.description"
+              id="project-description-error"
+              class="-mt-2 text-sm text-red-600 dark:text-red-400"
+            >
+              {{ form.errors.description }}
+            </p>
 
             <div class="flex items-center justify-end space-x-3 pt-4">
               <Link
@@ -194,7 +215,7 @@ const sidebarCollapsed = inject('sidebarCollapsed')
               </Link>
               <button
                 type="submit"
-                :disabled="form.processing || !form.name"
+                :disabled="form.processing || form.hasErrors || !form.name"
                 class="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
               >
                 {{ form.processing ? 'Creating...' : 'Create' }}
