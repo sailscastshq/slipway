@@ -1,10 +1,14 @@
 export function usePrecognitionValidation(form) {
+  function valueFor(field) {
+    return field.split('.').reduce((value, segment) => value?.[segment], form)
+  }
+
   function validateOnBlur(field, event) {
-    if (event?.relatedTarget?.closest?.('button[type="submit"], a[href]')) {
+    if (event?.relatedTarget?.closest?.('button, a[href]')) {
       return
     }
 
-    if (String(form[field] ?? '').trim()) {
+    if (String(valueFor(field) ?? '').trim()) {
       form.validate(field)
     }
   }
@@ -15,7 +19,25 @@ export function usePrecognitionValidation(form) {
     }
   }
 
+  function applyResponseProblems(problems = []) {
+    const errors = Object.assign(
+      {},
+      ...problems.filter(
+        (problem) =>
+          problem && typeof problem === 'object' && !Array.isArray(problem)
+      )
+    )
+
+    if (Object.keys(errors).length) {
+      form.setError(errors)
+      return true
+    }
+
+    return false
+  }
+
   return {
+    applyResponseProblems,
     revalidateWhenInvalid,
     validateOnBlur
   }

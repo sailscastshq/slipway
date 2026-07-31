@@ -1,11 +1,12 @@
 <script setup>
-import { Link, Head, router, usePage } from '@inertiajs/vue3'
+import { Link, Head, router, usePage, useForm } from '@inertiajs/vue3'
 import { ref, computed, inject, onMounted } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
 import Breadcrumb from '@/components/Breadcrumb.vue'
 import Tooltip from '@/components/Tooltip.vue'
 import { useToast } from '@/composables/toast'
 import { useEventSource } from '@/composables/sse'
+import { usePrecognitionValidation } from '@/composables/precognition'
 
 defineOptions({
   layout: AppLayout
@@ -39,8 +40,17 @@ const defaults = typeDefaults[props.service.type] || {
 }
 
 // Form state
-const cpus = ref(props.service.resourceLimits?.cpus || defaults.cpus)
-const memory = ref(props.service.resourceLimits?.memory || defaults.memory)
+const settingsUrl = `/api/v1/services/${props.service.id}`
+const form = useForm({
+  resourceLimits: {
+    cpus: props.service.resourceLimits?.cpus || defaults.cpus,
+    memory: props.service.resourceLimits?.memory || defaults.memory
+  }
+})
+  .withPrecognition('patch', settingsUrl)
+  .setValidationTimeout(350)
+const { applyResponseProblems, revalidateWhenInvalid, validateOnBlur } =
+  usePrecognitionValidation(form)
 const saving = ref(false)
 const savingAndRestarting = ref(false)
 const upgradeOpen = ref(false)
@@ -77,8 +87,10 @@ const { connect: connectUpgrade, close: closeUpgrade } = useEventSource(
 
 const isDirty = computed(
   () =>
-    cpus.value !== (props.service.resourceLimits?.cpus || defaults.cpus) ||
-    memory.value !== (props.service.resourceLimits?.memory || defaults.memory)
+    form.resourceLimits.cpus !==
+      (props.service.resourceLimits?.cpus || defaults.cpus) ||
+    form.resourceLimits.memory !==
+      (props.service.resourceLimits?.memory || defaults.memory)
 )
 
 async function saveSettings({ restart = false } = {}) {
@@ -89,14 +101,14 @@ async function saveSettings({ restart = false } = {}) {
   }
 
   try {
-    const res = await fetch(`/api/v1/services/${props.service.id}`, {
+    const res = await fetch(settingsUrl, {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
         'x-csrf-token': page.props._csrf || ''
       },
       body: JSON.stringify({
-        resourceLimits: { cpus: cpus.value, memory: memory.value }
+        resourceLimits: form.resourceLimits
       })
     })
 
@@ -119,6 +131,7 @@ async function saveSettings({ restart = false } = {}) {
       router.reload()
     } else {
       const data = await res.json()
+      applyResponseProblems(data.problems)
       toast({
         message: data.message || 'Failed to save settings',
         type: 'error'
@@ -531,11 +544,26 @@ const serviceTypeLabel = {
               </label>
               <input
                 id="cpuLimit"
-                v-model="cpus"
+                v-model="form.resourceLimits.cpus"
                 type="text"
                 :placeholder="defaults.cpus"
+                :aria-invalid="form.invalid('resourceLimits.cpus')"
+                :aria-describedby="
+                  form.errors['resourceLimits.cpus']
+                    ? 'service-cpu-limit-error'
+                    : null
+                "
                 class="focus:border-brand w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
+                @blur="validateOnBlur('resourceLimits.cpus', $event)"
+                @input="revalidateWhenInvalid('resourceLimits.cpus')"
               />
+              <p
+                v-if="form.errors['resourceLimits.cpus']"
+                id="service-cpu-limit-error"
+                class="mt-1 text-sm text-red-600 dark:text-red-400"
+              >
+                {{ form.errors['resourceLimits.cpus'] }}
+              </p>
               <p class="mt-1 text-xs text-gray-400 dark:text-gray-500">
                 Number of CPU cores, e.g.
                 <code class="text-gray-500 dark:text-gray-400">0.5</code> or
@@ -551,11 +579,26 @@ const serviceTypeLabel = {
               </label>
               <input
                 id="memoryLimit"
-                v-model="memory"
+                v-model="form.resourceLimits.memory"
                 type="text"
                 :placeholder="defaults.memory"
+                :aria-invalid="form.invalid('resourceLimits.memory')"
+                :aria-describedby="
+                  form.errors['resourceLimits.memory']
+                    ? 'service-memory-limit-error'
+                    : null
+                "
                 class="focus:border-brand w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
+                @blur="validateOnBlur('resourceLimits.memory', $event)"
+                @input="revalidateWhenInvalid('resourceLimits.memory')"
               />
+              <p
+                v-if="form.errors['resourceLimits.memory']"
+                id="service-memory-limit-error"
+                class="mt-1 text-sm text-red-600 dark:text-red-400"
+              >
+                {{ form.errors['resourceLimits.memory'] }}
+              </p>
               <p class="mt-1 text-xs text-gray-400 dark:text-gray-500">
                 e.g. <code class="text-gray-500 dark:text-gray-400">256m</code>,
                 <code class="text-gray-500 dark:text-gray-400">512m</code>,
@@ -569,7 +612,9 @@ const serviceTypeLabel = {
             <div class="inline-flex rounded-md shadow-sm">
               <button
                 type="submit"
-                :disabled="!isDirty || saving || savingAndRestarting"
+                :disabled="
+                  !isDirty || form.hasErrors || saving || savingAndRestarting
+                "
                 class="rounded-l-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
               >
                 {{ saving ? 'Saving...' : 'Save changes' }}
@@ -578,7 +623,9 @@ const serviceTypeLabel = {
                 <button
                   type="button"
                   @click="saveSettings({ restart: true })"
-                  :disabled="!isDirty || saving || savingAndRestarting"
+                  :disabled="
+                    !isDirty || form.hasErrors || saving || savingAndRestarting
+                  "
                   class="rounded-r-md border-l border-gray-700 bg-gray-900 px-3 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50 dark:border-gray-200 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
                 >
                   <template v-if="savingAndRestarting">

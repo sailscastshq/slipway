@@ -51,6 +51,12 @@ module.exports = {
     },
     notFound: {
       responseType: 'redirect'
+    },
+    invalid: {
+      responseType: 'badRequest'
+    },
+    precognitionSuccess: {
+      responseType: 'precognitionSuccess'
     }
   },
 
@@ -74,6 +80,29 @@ module.exports = {
       slug: envSlug
     })
     if (!environment) throw { notFound: `/projects/${slug}` }
+
+    const problems = sails.helpers.configuration.validate(
+      { name, dockerfilePath, routePath, healthPath },
+      ['name', 'dockerfilePath', 'healthPath']
+    )
+    const appSlug = name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '')
+    if (
+      !problems.length &&
+      (await App.findOne({ environment: environment.id, slug: appSlug }))
+    ) {
+      problems.push({
+        name: 'An app with this name already exists in this environment.'
+      })
+    }
+    if (problems.length) {
+      throw { invalid: { problems } }
+    }
+    if (sails.inertia.isPrecognitive(this.req)) {
+      throw 'precognitionSuccess'
+    }
 
     let app
     try {

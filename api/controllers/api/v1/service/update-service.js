@@ -31,7 +31,10 @@ module.exports = {
       statusCode: 404
     },
     badRequest: {
-      statusCode: 400
+      responseType: 'badRequest'
+    },
+    precognitionSuccess: {
+      responseType: 'precognitionSuccess'
     }
   },
 
@@ -55,17 +58,26 @@ module.exports = {
 
     const updates = {}
 
-    // Update name if provided
-    if (name !== undefined) {
-      const trimmedName = name.trim()
-      if (!trimmedName) {
-        throw { badRequest: { message: 'Name cannot be empty' } }
-      }
-      if (trimmedName.length > 50) {
-        throw { badRequest: { message: 'Name must be 50 characters or less' } }
-      }
-      updates.name = trimmedName
+    const problems = sails.helpers.configuration.validate({
+      name,
+      resourceLimits
+    })
+    if (
+      name !== undefined &&
+      name.trim().length > 50 &&
+      !problems.some((problem) => problem.name)
+    ) {
+      problems.push({ name: 'Name must be 50 characters or less.' })
     }
+    if (problems.length) {
+      throw { badRequest: { problems } }
+    }
+    if (sails.inertia.isPrecognitive(this.req)) {
+      throw 'precognitionSuccess'
+    }
+
+    // Update name if provided
+    if (name !== undefined) updates.name = name.trim()
 
     // Update resource limits if provided
     if (resourceLimits !== undefined) {
@@ -98,7 +110,11 @@ module.exports = {
     }
 
     if (Object.keys(updates).length === 0) {
-      throw { badRequest: { message: 'No fields to update' } }
+      throw {
+        badRequest: {
+          problems: [{ settings: 'Choose a setting to update.' }]
+        }
+      }
     }
 
     const updated = await Service.updateOne({ id: service.id }).set(updates)

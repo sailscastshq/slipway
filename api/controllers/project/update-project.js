@@ -43,6 +43,12 @@ module.exports = {
     },
     notFound: {
       responseType: 'inertiaRedirect'
+    },
+    invalid: {
+      responseType: 'badRequest'
+    },
+    precognitionSuccess: {
+      responseType: 'precognitionSuccess'
     }
   },
 
@@ -63,6 +69,20 @@ module.exports = {
 
     if (!project) {
       throw { notFound: '/' }
+    }
+
+    const problems = sails.helpers.configuration.validate({
+      name,
+      description,
+      repositoryUrl,
+      autoDeploy,
+      autoDeployBranch
+    })
+    if (problems.length) {
+      throw { invalid: { problems } }
+    }
+    if (sails.inertia.isPrecognitive(this.req)) {
+      throw 'precognitionSuccess'
     }
 
     const updates = {}

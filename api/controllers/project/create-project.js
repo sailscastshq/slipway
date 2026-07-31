@@ -22,6 +22,9 @@ module.exports = {
     },
     invalid: {
       responseType: 'badRequest'
+    },
+    precognitionSuccess: {
+      responseType: 'precognitionSuccess'
     }
   },
 
@@ -33,6 +36,24 @@ module.exports = {
 
     if (!user || !user.team) {
       throw 'invalid'
+    }
+
+    const problems = sails.helpers.configuration.validate(
+      { name, description },
+      ['name']
+    )
+    const slug = name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '')
+    if (!problems.length && (await Project.findOne({ slug }))) {
+      problems.push({ name: 'A project with this name already exists.' })
+    }
+    if (problems.length) {
+      throw { invalid: { problems } }
+    }
+    if (sails.inertia.isPrecognitive(this.req)) {
+      throw 'precognitionSuccess'
     }
 
     // Create the project

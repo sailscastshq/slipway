@@ -45,7 +45,9 @@ module.exports = {
   exits: {
     success: { statusCode: 200 },
     notFound: { statusCode: 404 },
-    forbidden: { statusCode: 403 }
+    forbidden: { statusCode: 403 },
+    badRequest: { responseType: 'badRequest' },
+    precognitionSuccess: { responseType: 'precognitionSuccess' }
   },
 
   fn: async function ({
@@ -77,6 +79,20 @@ module.exports = {
       slug: appSlug
     })
     if (!app) throw 'notFound'
+
+    const problems = sails.helpers.configuration.validate({
+      name,
+      dockerfilePath,
+      routePath,
+      healthPath,
+      resourceLimits
+    })
+    if (problems.length) {
+      throw { badRequest: { problems } }
+    }
+    if (sails.inertia.isPrecognitive(this.req)) {
+      throw 'precognitionSuccess'
+    }
 
     const updates = {}
     if (name !== undefined) updates.name = name

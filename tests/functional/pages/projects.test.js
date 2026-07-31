@@ -90,6 +90,98 @@ test(
 )
 
 test(
+  'project creation validates with Precognition without creating records',
+  { world: 'configured-slipway' },
+  async ({ sails, request, expect }) => {
+    const dashboard = await withCsrfFromPage(
+      request,
+      '/projects/new',
+      'genesisUser'
+    )
+    const projectsBefore = await sails.models.project.count()
+    const environmentsBefore = await sails.models.environment.count()
+
+    const invalid = await dashboard.request
+      .withHeaders({
+        Precognition: 'true',
+        'Precognition-Validate-Only': 'name'
+      })
+      .post('/projects', {
+        name: '---',
+        description: ''
+      })
+
+    expect(invalid).toHaveStatus(422)
+    expect(Boolean(invalid.data.errors.name)).toBe(true)
+
+    const valid = await dashboard.request
+      .withHeaders({
+        Precognition: 'true',
+        'Precognition-Validate-Only': 'name'
+      })
+      .post('/projects', {
+        name: 'Precognitive Launch',
+        description: ''
+      })
+
+    expect(valid).toHaveStatus(204)
+    expect(valid).toHaveHeader('precognition-success', 'true')
+    expect(await sails.models.project.count()).toBe(projectsBefore)
+    expect(await sails.models.environment.count()).toBe(environmentsBefore)
+  }
+)
+
+test(
+  'app settings validate with Precognition without changing the app',
+  {
+    world: {
+      name: 'configured-slipway',
+      context: {
+        deploymentTarget: {
+          slug: 'precognition-configuration',
+          name: 'Precognition Configuration'
+        }
+      }
+    }
+  },
+  async ({ sails, world, request, expect }) => {
+    const current = world.current
+    const project = current.projects.deploymentTarget
+    const environment = current.environments.production
+    const app = current.apps.web
+    const dashboard = await withCsrfFromPage(request, '/', 'genesisUser')
+    const url = `/api/v1/projects/${project.slug}/environments/${environment.slug}/apps/${app.slug}`
+
+    const invalid = await dashboard.request
+      .withHeaders({
+        Precognition: 'true',
+        'Precognition-Validate-Only': 'resourceLimits.cpus'
+      })
+      .patch(url, {
+        resourceLimits: { cpus: '0', memory: '512m' }
+      })
+
+    expect(invalid).toHaveStatus(422)
+    expect(Boolean(invalid.data.errors['resourceLimits.cpus'])).toBe(true)
+
+    const valid = await dashboard.request
+      .withHeaders({
+        Precognition: 'true',
+        'Precognition-Validate-Only': 'resourceLimits.memory'
+      })
+      .patch(url, {
+        resourceLimits: { cpus: '1', memory: '1g' }
+      })
+
+    expect(valid).toHaveStatus(204)
+    expect(valid).toHaveHeader('precognition-success', 'true')
+
+    const unchanged = await sails.models.app.findOne({ id: app.id })
+    expect(unchanged.resourceLimits).toEqual(app.resourceLimits)
+  }
+)
+
+test(
   'app page uses the custom domain as the primary URL',
   {
     world: {

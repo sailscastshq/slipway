@@ -19,6 +19,7 @@ import DeploymentHistory from '@/components/DeploymentHistory.vue'
 import { useToast } from '@/composables/toast'
 import { useServiceActions } from '@/composables/service-actions'
 import { useEventSource } from '@/composables/sse'
+import { usePrecognitionValidation } from '@/composables/precognition'
 
 defineOptions({
   layout: AppLayout
@@ -65,6 +66,21 @@ const createAppForm = useForm({
   routePath: '/',
   repoId: null,
   branch: null
+})
+  .withPrecognition(
+    'post',
+    `/projects/${props.project.slug}/environments/${props.environment.slug}/apps`
+  )
+  .setValidationTimeout(350)
+const {
+  revalidateWhenInvalid: revalidateAppWhenInvalid,
+  validateOnBlur: validateAppOnBlur
+} = usePrecognitionValidation(createAppForm)
+const createAppRoutePath = computed({
+  get: () => createAppForm.routePath ?? 'none',
+  set: (value) => {
+    createAppForm.routePath = value === 'none' ? null : value
+  }
 })
 
 // --- Repo picker state ---
@@ -147,8 +163,6 @@ watch(addAppOpen, (open) => {
 
 function createApp() {
   if (!createAppForm.name.trim()) return
-  createAppForm.routePath =
-    createAppForm.routePath === 'none' ? null : createAppForm.routePath
   createAppForm.post(
     `/projects/${props.project.slug}/environments/${props.environment.slug}/apps`,
     {
@@ -1569,26 +1583,77 @@ onBeforeUnmount(() => {
               <div class="px-4 pb-3">
                 <div v-if="addAppOpen" class="space-y-3">
                   <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
-                    <input
-                      v-model="createAppForm.name"
-                      placeholder="app name"
-                      class="focus:border-brand w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500 sm:flex-1"
-                      @keydown.enter="createApp"
-                    />
-                    <input
-                      v-model="createAppForm.dockerfilePath"
-                      placeholder="Dockerfile"
-                      class="focus:border-brand w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500 sm:w-32"
-                      @keydown.enter="createApp"
-                    />
-                    <input
-                      v-model="createAppForm.healthPath"
-                      placeholder="/health"
-                      class="focus:border-brand w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500 sm:w-28"
-                      @keydown.enter="createApp"
-                    />
+                    <div class="w-full sm:flex-1">
+                      <input
+                        v-model="createAppForm.name"
+                        placeholder="app name"
+                        :aria-invalid="createAppForm.invalid('name')"
+                        :aria-describedby="
+                          createAppForm.errors.name
+                            ? 'create-app-name-error'
+                            : null
+                        "
+                        class="focus:border-brand w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
+                        @blur="validateAppOnBlur('name', $event)"
+                        @input="revalidateAppWhenInvalid('name')"
+                        @keydown.enter="createApp"
+                      />
+                      <p
+                        v-if="createAppForm.errors.name"
+                        id="create-app-name-error"
+                        class="mt-1 text-xs text-red-600 dark:text-red-400"
+                      >
+                        {{ createAppForm.errors.name }}
+                      </p>
+                    </div>
+                    <div class="w-full sm:w-32">
+                      <input
+                        v-model="createAppForm.dockerfilePath"
+                        placeholder="Dockerfile"
+                        :aria-invalid="createAppForm.invalid('dockerfilePath')"
+                        :aria-describedby="
+                          createAppForm.errors.dockerfilePath
+                            ? 'create-app-dockerfile-error'
+                            : null
+                        "
+                        class="focus:border-brand w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
+                        @blur="validateAppOnBlur('dockerfilePath', $event)"
+                        @input="revalidateAppWhenInvalid('dockerfilePath')"
+                        @keydown.enter="createApp"
+                      />
+                      <p
+                        v-if="createAppForm.errors.dockerfilePath"
+                        id="create-app-dockerfile-error"
+                        class="mt-1 text-xs text-red-600 dark:text-red-400"
+                      >
+                        {{ createAppForm.errors.dockerfilePath }}
+                      </p>
+                    </div>
+                    <div class="w-full sm:w-28">
+                      <input
+                        v-model="createAppForm.healthPath"
+                        placeholder="/health"
+                        :aria-invalid="createAppForm.invalid('healthPath')"
+                        :aria-describedby="
+                          createAppForm.errors.healthPath
+                            ? 'create-app-health-error'
+                            : null
+                        "
+                        class="focus:border-brand w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
+                        @blur="validateAppOnBlur('healthPath', $event)"
+                        @input="revalidateAppWhenInvalid('healthPath')"
+                        @keydown.enter="createApp"
+                      />
+                      <p
+                        v-if="createAppForm.errors.healthPath"
+                        id="create-app-health-error"
+                        class="mt-1 text-xs text-red-600 dark:text-red-400"
+                      >
+                        {{ createAppForm.errors.healthPath }}
+                      </p>
+                    </div>
                     <select
-                      v-model="createAppForm.routePath"
+                      v-model="createAppRoutePath"
                       class="focus:border-brand rounded-md border border-gray-200 bg-white px-2 py-1.5 text-sm text-gray-900 focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-white"
                     >
                       <option value="/">/ (root)</option>
@@ -1832,7 +1897,9 @@ onBeforeUnmount(() => {
                     <button
                       @click="createApp"
                       :disabled="
-                        !createAppForm.name.trim() || createAppForm.processing
+                        !createAppForm.name.trim() ||
+                        createAppForm.hasErrors ||
+                        createAppForm.processing
                       "
                       class="rounded-md bg-gray-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
                     >

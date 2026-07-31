@@ -22,6 +22,12 @@ module.exports = {
     },
     notFound: {
       responseType: 'redirect'
+    },
+    invalid: {
+      responseType: 'badRequest'
+    },
+    precognitionSuccess: {
+      responseType: 'precognitionSuccess'
     }
   },
 
@@ -34,6 +40,29 @@ module.exports = {
 
     if (!project) {
       throw { notFound: '/' }
+    }
+
+    const problems = sails.helpers.configuration.validate({ name }, ['name'])
+    const environmentSlug = name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '')
+    if (
+      !problems.length &&
+      (await Environment.findOne({
+        project: project.id,
+        slug: environmentSlug
+      }))
+    ) {
+      problems.push({
+        name: 'An environment with this name already exists in this project.'
+      })
+    }
+    if (problems.length) {
+      throw { invalid: { problems } }
+    }
+    if (sails.inertia.isPrecognitive(this.req)) {
+      throw 'precognitionSuccess'
     }
 
     const { telemetryToken, telemetryTokenHash } =
