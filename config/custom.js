@@ -60,8 +60,13 @@ module.exports.custom = {
   // Port range for app containers (Slipway allocates from this range)
   slipwayPortRange: { start: 1338, end: 1500 },
 
-  // Host interface used when checking and reserving app container ports
-  slipwayPortHost: '0.0.0.0',
+  // Host interface used when checking and reserving app container ports.
+  // Keep apps private by default; 0.0.0.0 is an explicit direct-access mode.
+  slipwayPortHost: '127.0.0.1',
+
+  // Caddy terminates TLS by default. Cloudflare Tunnel terminates it at the
+  // edge and asks Caddy to serve HTTP on the private origin connection.
+  slipwayIngress: 'public',
 
   // Keep database transfers bounded on memory-constrained VPS hosts.
   databaseOperations: {

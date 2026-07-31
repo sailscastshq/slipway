@@ -37,10 +37,18 @@ module.exports = {
 
     const portBindings = containerInfo.HostConfig?.PortBindings || {}
     for (const [containerPort, bindings] of Object.entries(portBindings)) {
+      const publishedBindings = new Set()
       for (const binding of bindings || []) {
         const hostPort = binding.HostPort || ''
         if (hostPort) {
-          runArgs.push('-p', `${hostPort}:${containerPort.replace('/tcp', '')}`)
+          const publishedBinding = formatPortBinding(
+            binding.HostIp,
+            hostPort,
+            containerPort.replace('/tcp', '')
+          )
+          if (publishedBindings.has(publishedBinding)) continue
+          publishedBindings.add(publishedBinding)
+          runArgs.push('-p', publishedBinding)
         }
       }
     }
@@ -64,8 +72,22 @@ module.exports = {
   }
 }
 
+function formatPortBinding(host, hostPort, containerPort) {
+  const normalizedHost = String(host || '0.0.0.0').trim() || '0.0.0.0'
+
+  if (normalizedHost === '0.0.0.0' || normalizedHost === '::') {
+    return `${hostPort}:${containerPort}`
+  }
+
+  const formattedHost = normalizedHost.includes(':')
+    ? `[${normalizedHost}]`
+    : normalizedHost
+  return `${formattedHost}:${hostPort}:${containerPort}`
+}
+
 function buildEnvArgs(envVars = []) {
   const normalized = []
+  let hasAppPortHost = false
 
   for (const envVar of envVars || []) {
     const value = String(envVar)
@@ -75,9 +97,19 @@ function buildEnvArgs(envVars = []) {
       continue
     }
 
+    if (key === 'SLIPWAY_APP_PORT_HOST') {
+      hasAppPortHost = true
+    }
+
     normalized.push(value)
   }
 
+  // Releases before the private-ingress default always published routable
+  // apps. Preserve that behavior during self-update; fresh installs pass an
+  // explicit loopback value.
+  if (!hasAppPortHost) {
+    normalized.push('SLIPWAY_APP_PORT_HOST=0.0.0.0')
+  }
   normalized.push('NODE_ENV=production')
 
   return normalized.flatMap((envVar) => ['-e', envVar])

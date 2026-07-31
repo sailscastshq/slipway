@@ -8,6 +8,8 @@ module.exports = {
       start: Number(process.env.SLIPWAY_APP_PORT_START) || 1338,
       end: Number(process.env.SLIPWAY_APP_PORT_END) || 1500
     },
+    slipwayPortHost: bindHost(process.env.SLIPWAY_APP_PORT_HOST),
+    slipwayIngress: ingressMode(process.env.SLIPWAY_INGRESS),
     observability: {
       containerMetricsRetentionMs:
         positiveNumber(
@@ -115,4 +117,14 @@ function positiveNumber(value, fallback) {
 
 function positiveInteger(value, fallback) {
   return Math.floor(positiveNumber(value, fallback))
+}
+
+function bindHost(value) {
+  return String(value || '').trim() === '0.0.0.0' ? '0.0.0.0' : '127.0.0.1'
+}
+
+function ingressMode(value) {
+  return String(value || '').trim() === 'cloudflare-tunnel'
+    ? 'cloudflare-tunnel'
+    : 'public'
 }

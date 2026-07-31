@@ -78,7 +78,11 @@ test('installer validates the target image before replacing the live dashboard',
   ).toBe(true)
   expect(
     script.indexOf('# 9. Validate target image') <
-      script.indexOf('# 10. Replace the live dashboard')
+      script.indexOf('# 10. Route initial setup through Caddy')
+  ).toBe(true)
+  expect(
+    script.indexOf('# 10. Route initial setup through Caddy') <
+      script.indexOf('# 11. Replace the live dashboard')
   ).toBe(true)
 })
 
@@ -117,8 +121,12 @@ test('installer keeps production defaults overridable for isolated rehearsals', 
   expect(script.includes('if [ "$SLIPWAY_SKIP_PULL" = true ]; then')).toBe(true)
   expect(script.includes('docker network create "$SLIPWAY_NETWORK"')).toBe(true)
   expect(script.includes('-v "$SLIPWAY_DB_VOLUME:/app/db"')).toBe(true)
-  expect(script.includes('-p "$SLIPWAY_HTTP_PORT:80"')).toBe(true)
-  expect(script.includes('-p "$SLIPWAY_HTTPS_PORT:443"')).toBe(true)
+  expect(
+    script.includes('-p "$SLIPWAY_PROXY_HOST:$SLIPWAY_HTTP_PORT:80"')
+  ).toBe(true)
+  expect(
+    script.includes('-p "$SLIPWAY_PROXY_HOST:$SLIPWAY_HTTPS_PORT:443"')
+  ).toBe(true)
   expect(
     script.includes('SLIPWAY_APP_PORT_START="${SLIPWAY_APP_PORT_START:-1338}"')
   ).toBe(true)
@@ -131,20 +139,35 @@ test('installer keeps production defaults overridable for isolated rehearsals', 
   expect(script.includes('SLIPWAY_APP_PORT_END=$SLIPWAY_APP_PORT_END')).toBe(
     true
   )
+  expect(script.includes('DEFAULT_DASHBOARD_HOST="127.0.0.1"')).toBe(true)
+  expect(script.includes('DEFAULT_APP_PORT_HOST="127.0.0.1"')).toBe(true)
+  expect(script.includes('-p "$SLIPWAY_DASHBOARD_HOST:$host_port:1337"')).toBe(
+    true
+  )
+  expect(
+    script.includes('-e SLIPWAY_APP_PORT_HOST="$SLIPWAY_APP_PORT_HOST"')
+  ).toBe(true)
+  expect(script.includes('configure_bootstrap_dashboard_route()')).toBe(true)
+  expect(
+    script.includes('--label "caddy.reverse_proxy=$SLIPWAY_CONTAINER:1337"')
+  ).toBe(true)
   expect(script.includes('configure_host_firewall()')).toBe(true)
   expect(
+    script.includes('if is_public_bind_host "$SLIPWAY_APP_PORT_HOST"; then')
+  ).toBe(true)
+  expect(
     script.includes(
-      'ufw allow "$SLIPWAY_APP_PORT_START:$SLIPWAY_APP_PORT_END/tcp"'
+      'sync_ufw_port "$SLIPWAY_APP_PORT_HOST" "$SLIPWAY_APP_PORT_START:$SLIPWAY_APP_PORT_END"'
     )
   ).toBe(true)
   expect(
     script.includes(
-      'firewall-cmd --permanent --add-port="$SLIPWAY_APP_PORT_START-$SLIPWAY_APP_PORT_END/tcp"'
+      'sync_firewalld_port "$SLIPWAY_APP_PORT_HOST" "$SLIPWAY_APP_PORT_START-$SLIPWAY_APP_PORT_END"'
     )
   ).toBe(true)
   expect(
     script.includes(
-      'If your VPS provider has a network firewall, allow inbound TCP'
+      'Direct app ports: private (set SLIPWAY_APP_PORT_HOST=0.0.0.0 to opt in)'
     )
   ).toBe(true)
 })

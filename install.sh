@@ -22,6 +22,7 @@ SLIPWAY_CONTAINER="${SLIPWAY_CONTAINER:-slipway}"
 SLIPWAY_VALIDATION_CONTAINER="${SLIPWAY_VALIDATION_CONTAINER:-slipway-next}"
 SLIPWAY_PREVIOUS_CONTAINER="${SLIPWAY_PREVIOUS_CONTAINER:-slipway-previous}"
 SLIPWAY_PROXY_CONTAINER="${SLIPWAY_PROXY_CONTAINER:-slipway-proxy}"
+SLIPWAY_BOOTSTRAP_ROUTE_CONTAINER="${SLIPWAY_BOOTSTRAP_ROUTE_CONTAINER:-slipway-route-bootstrap}"
 SLIPWAY_NETWORK="${SLIPWAY_NETWORK:-slipway}"
 SLIPWAY_DB_VOLUME="${SLIPWAY_DB_VOLUME:-slipway-db}"
 SLIPWAY_CERTS_VOLUME="${SLIPWAY_CERTS_VOLUME:-slipway-certs}"
@@ -33,6 +34,11 @@ SLIPWAY_APP_PORT_END="${SLIPWAY_APP_PORT_END:-1500}"
 SLIPWAY_CONFIGURE_FIREWALL="${SLIPWAY_CONFIGURE_FIREWALL:-true}"
 SLIPWAY_HEALTH_ATTEMPTS="${SLIPWAY_HEALTH_ATTEMPTS:-30}"
 SLIPWAY_SKIP_PULL="${SLIPWAY_SKIP_PULL:-false}"
+REQUESTED_SLIPWAY_URL="${SLIPWAY_URL:-}"
+REQUESTED_SLIPWAY_INGRESS="${SLIPWAY_INGRESS:-}"
+REQUESTED_SLIPWAY_PROXY_HOST="${SLIPWAY_PROXY_HOST:-}"
+REQUESTED_SLIPWAY_DASHBOARD_HOST="${SLIPWAY_DASHBOARD_HOST:-}"
+REQUESTED_SLIPWAY_APP_PORT_HOST="${SLIPWAY_APP_PORT_HOST:-}"
 IS_UPDATE=false
 
 container_exists() {
@@ -50,7 +56,7 @@ run_slipway_container() {
     local restart_args=()
 
     if [ -n "$host_port" ]; then
-        port_args=(-p "$host_port:1337")
+        port_args=(-p "$SLIPWAY_DASHBOARD_HOST:$host_port:1337")
         restart_args=(--restart unless-stopped)
     fi
 
@@ -65,6 +71,8 @@ run_slipway_container() {
         -e NODE_ENV=production \
         -e PORT=1337 \
         -e SLIPWAY_URL="$SLIPWAY_URL" \
+        -e SLIPWAY_INGRESS="$SLIPWAY_INGRESS" \
+        -e SLIPWAY_APP_PORT_HOST="$SLIPWAY_APP_PORT_HOST" \
         -e SLIPWAY_APP_PORT_START="$SLIPWAY_APP_PORT_START" \
         -e SLIPWAY_APP_PORT_END="$SLIPWAY_APP_PORT_END" \
         -e SESSION_SECRET="$SESSION_SECRET" \
@@ -159,6 +167,106 @@ replace_live_container() {
     fi
 }
 
+is_public_bind_host() {
+    [ "$1" = "0.0.0.0" ]
+}
+
+validate_bind_host() {
+    local name="$1"
+    local value="$2"
+
+    if [ "$value" != "127.0.0.1" ] && [ "$value" != "0.0.0.0" ]; then
+        echo -e "${RED}$name must be 127.0.0.1 or 0.0.0.0 (received: $value).${NC}" >&2
+        exit 1
+    fi
+}
+
+persist_setting() {
+    local key="$1"
+    local value="$2"
+    local temp_file="${SLIPWAY_ENV_FILE}.tmp"
+
+    awk -v key="$key" -v value="$value" '
+        BEGIN { updated = 0 }
+        index($0, key "=") == 1 { print key "=" value; updated = 1; next }
+        { print }
+        END { if (!updated) print key "=" value }
+    ' "$SLIPWAY_ENV_FILE" > "$temp_file"
+    mv "$temp_file" "$SLIPWAY_ENV_FILE"
+}
+
+configure_bootstrap_dashboard_route() {
+    local authority="${SLIPWAY_URL#*://}"
+    local host
+    local site
+
+    authority="${authority%%/*}"
+    if [[ "$authority" == \[* ]]; then
+        host="${authority%%]*}]"
+    else
+        host="${authority%%:*}"
+    fi
+
+    if [ "$SLIPWAY_INGRESS" = "cloudflare-tunnel" ] || [[ "$SLIPWAY_URL" == http://* ]]; then
+        site="http://$host"
+    else
+        site="$host"
+    fi
+
+    echo "Preparing initial dashboard route..."
+    remove_container "$SLIPWAY_BOOTSTRAP_ROUTE_CONTAINER"
+    docker run -d \
+        --name "$SLIPWAY_BOOTSTRAP_ROUTE_CONTAINER" \
+        --network "$SLIPWAY_NETWORK" \
+        --restart unless-stopped \
+        --label "caddy=$site" \
+        --label "caddy.reverse_proxy=$SLIPWAY_CONTAINER:1337" \
+        alpine sleep infinity >/dev/null
+    echo -e "${GREEN}Initial dashboard route ready${NC}"
+}
+
+sync_ufw_port() {
+    local host="$1"
+    local port="$2"
+    local comment="$3"
+
+    if is_public_bind_host "$host"; then
+        ufw allow "$port/tcp" comment "$comment" >/dev/null
+    else
+        ufw --force delete allow "$port/tcp" >/dev/null 2>&1 || true
+    fi
+}
+
+sync_firewalld_port() {
+    local host="$1"
+    local port="$2"
+
+    if is_public_bind_host "$host"; then
+        firewall-cmd --permanent --add-port="$port/tcp" >/dev/null
+    else
+        firewall-cmd --permanent --remove-port="$port/tcp" >/dev/null 2>&1 || true
+    fi
+}
+
+allow_ufw_ports() {
+    local status=0
+    sync_ufw_port "$SLIPWAY_PROXY_HOST" "$SLIPWAY_HTTP_PORT" 'Slipway HTTP' || status=1
+    sync_ufw_port "$SLIPWAY_PROXY_HOST" "$SLIPWAY_HTTPS_PORT" 'Slipway HTTPS' || status=1
+    sync_ufw_port "$SLIPWAY_DASHBOARD_HOST" "$SLIPWAY_PORT" 'Slipway dashboard' || status=1
+    sync_ufw_port "$SLIPWAY_APP_PORT_HOST" "$SLIPWAY_APP_PORT_START:$SLIPWAY_APP_PORT_END" 'Slipway direct app access' || status=1
+    return "$status"
+}
+
+allow_firewalld_ports() {
+    local status=0
+    sync_firewalld_port "$SLIPWAY_PROXY_HOST" "$SLIPWAY_HTTP_PORT" || status=1
+    sync_firewalld_port "$SLIPWAY_PROXY_HOST" "$SLIPWAY_HTTPS_PORT" || status=1
+    sync_firewalld_port "$SLIPWAY_DASHBOARD_HOST" "$SLIPWAY_PORT" || status=1
+    sync_firewalld_port "$SLIPWAY_APP_PORT_HOST" "$SLIPWAY_APP_PORT_START-$SLIPWAY_APP_PORT_END" || status=1
+    firewall-cmd --reload >/dev/null || status=1
+    return "$status"
+}
+
 configure_host_firewall() {
     if [ "$SLIPWAY_CONFIGURE_FIREWALL" != true ]; then
         echo -e "${YELLOW}Host firewall configuration skipped (SLIPWAY_CONFIGURE_FIREWALL=$SLIPWAY_CONFIGURE_FIREWALL).${NC}"
@@ -166,28 +274,21 @@ configure_host_firewall() {
     fi
 
     if command -v ufw >/dev/null 2>&1 && ufw status 2>/dev/null | grep -q '^Status: active'; then
-        echo "Allowing Slipway ports through UFW..."
-        if ufw allow "$SLIPWAY_PORT/tcp" comment 'Slipway dashboard' >/dev/null \
-            && ufw allow "$SLIPWAY_HTTP_PORT/tcp" comment 'Slipway HTTP' >/dev/null \
-            && ufw allow "$SLIPWAY_HTTPS_PORT/tcp" comment 'Slipway HTTPS' >/dev/null \
-            && ufw allow "$SLIPWAY_APP_PORT_START:$SLIPWAY_APP_PORT_END/tcp" comment 'Slipway direct app access' >/dev/null; then
-            echo -e "${GREEN}UFW allows the dashboard, proxy, and direct app port range${NC}"
+        echo "Aligning UFW with Slipway's public bindings..."
+        if allow_ufw_ports; then
+            echo -e "${GREEN}UFW matches Slipway's public bindings${NC}"
         else
-            echo -e "${YELLOW}Slipway could not update every UFW rule. Review 'ufw status' before using direct app URLs.${NC}"
+            echo -e "${YELLOW}Slipway could not update every UFW rule. Review 'ufw status'.${NC}"
         fi
         return
     fi
 
     if command -v firewall-cmd >/dev/null 2>&1 && firewall-cmd --state >/dev/null 2>&1; then
-        echo "Allowing Slipway ports through firewalld..."
-        if firewall-cmd --permanent --add-port="$SLIPWAY_PORT/tcp" >/dev/null \
-            && firewall-cmd --permanent --add-port="$SLIPWAY_HTTP_PORT/tcp" >/dev/null \
-            && firewall-cmd --permanent --add-port="$SLIPWAY_HTTPS_PORT/tcp" >/dev/null \
-            && firewall-cmd --permanent --add-port="$SLIPWAY_APP_PORT_START-$SLIPWAY_APP_PORT_END/tcp" >/dev/null \
-            && firewall-cmd --reload >/dev/null; then
-            echo -e "${GREEN}firewalld allows the dashboard, proxy, and direct app port range${NC}"
+        echo "Aligning firewalld with Slipway's public bindings..."
+        if allow_firewalld_ports; then
+            echo -e "${GREEN}firewalld matches Slipway's public bindings${NC}"
         else
-            echo -e "${YELLOW}Slipway could not update every firewalld rule. Review 'firewall-cmd --list-ports' before using direct app URLs.${NC}"
+            echo -e "${YELLOW}Slipway could not update every firewalld rule. Review 'firewall-cmd --list-ports'.${NC}"
         fi
         return
     fi
@@ -237,8 +338,6 @@ if [ -z "$IP" ]; then
     echo -e "${YELLOW}Could not detect public IP. Using localhost.${NC}"
     IP="localhost"
 fi
-SLIPWAY_URL="${SLIPWAY_URL:-http://$IP:$SLIPWAY_PORT}"
-echo -e "${GREEN}Server URL: $SLIPWAY_URL${NC}"
 
 # 5. Load or generate secrets
 if [ -f "$SLIPWAY_ENV_FILE" ]; then
@@ -251,17 +350,73 @@ else
     echo "Generating secrets..."
     SESSION_SECRET=$(openssl rand -hex 32)
     DATA_ENCRYPTION_KEY=$(openssl rand -base64 32)
+fi
 
+SLIPWAY_INGRESS="${REQUESTED_SLIPWAY_INGRESS:-${SLIPWAY_INGRESS:-public}}"
+if [ "$SLIPWAY_INGRESS" != "public" ] && [ "$SLIPWAY_INGRESS" != "cloudflare-tunnel" ]; then
+    echo -e "${RED}SLIPWAY_INGRESS must be public or cloudflare-tunnel.${NC}" >&2
+    exit 1
+fi
+
+if [ "$IS_UPDATE" = true ]; then
+    DEFAULT_DASHBOARD_HOST="0.0.0.0"
+    DEFAULT_APP_PORT_HOST="0.0.0.0"
+else
+    DEFAULT_DASHBOARD_HOST="127.0.0.1"
+    DEFAULT_APP_PORT_HOST="127.0.0.1"
+fi
+
+DEFAULT_PROXY_HOST="0.0.0.0"
+if [ "$SLIPWAY_INGRESS" = "cloudflare-tunnel" ]; then
+    DEFAULT_PROXY_HOST="127.0.0.1"
+fi
+
+SLIPWAY_PROXY_HOST="${REQUESTED_SLIPWAY_PROXY_HOST:-${SLIPWAY_PROXY_HOST:-$DEFAULT_PROXY_HOST}}"
+SLIPWAY_DASHBOARD_HOST="${REQUESTED_SLIPWAY_DASHBOARD_HOST:-${SLIPWAY_DASHBOARD_HOST:-$DEFAULT_DASHBOARD_HOST}}"
+SLIPWAY_APP_PORT_HOST="${REQUESTED_SLIPWAY_APP_PORT_HOST:-${SLIPWAY_APP_PORT_HOST:-$DEFAULT_APP_PORT_HOST}}"
+
+validate_bind_host SLIPWAY_PROXY_HOST "$SLIPWAY_PROXY_HOST"
+validate_bind_host SLIPWAY_DASHBOARD_HOST "$SLIPWAY_DASHBOARD_HOST"
+validate_bind_host SLIPWAY_APP_PORT_HOST "$SLIPWAY_APP_PORT_HOST"
+
+if [ "$SLIPWAY_INGRESS" = "cloudflare-tunnel" ] && [ -z "$REQUESTED_SLIPWAY_URL" ] && [ -z "${SLIPWAY_URL:-}" ]; then
+    echo -e "${RED}Cloudflare Tunnel mode requires SLIPWAY_URL (for example, https://slipway.example.com).${NC}" >&2
+    exit 1
+fi
+
+if [ -n "$REQUESTED_SLIPWAY_URL" ]; then
+    SLIPWAY_URL="$REQUESTED_SLIPWAY_URL"
+elif [ -z "${SLIPWAY_URL:-}" ]; then
+    if is_public_bind_host "$SLIPWAY_DASHBOARD_HOST"; then
+        SLIPWAY_URL="http://$IP:$SLIPWAY_PORT"
+    else
+        SLIPWAY_URL="http://$IP"
+    fi
+fi
+
+if [ "$IS_UPDATE" = false ]; then
     mkdir -p "$(dirname "$SLIPWAY_ENV_FILE")"
     cat > "$SLIPWAY_ENV_FILE" <<EOF
 SESSION_SECRET=$SESSION_SECRET
 DATA_ENCRYPTION_KEY=$DATA_ENCRYPTION_KEY
+SLIPWAY_URL=$SLIPWAY_URL
+SLIPWAY_INGRESS=$SLIPWAY_INGRESS
+SLIPWAY_PROXY_HOST=$SLIPWAY_PROXY_HOST
+SLIPWAY_DASHBOARD_HOST=$SLIPWAY_DASHBOARD_HOST
+SLIPWAY_APP_PORT_HOST=$SLIPWAY_APP_PORT_HOST
 SLIPWAY_APP_PORT_START=$SLIPWAY_APP_PORT_START
 SLIPWAY_APP_PORT_END=$SLIPWAY_APP_PORT_END
 EOF
-    chmod 600 "$SLIPWAY_ENV_FILE"
-    echo -e "${GREEN}Secrets generated and saved to $SLIPWAY_ENV_FILE${NC}"
+else
+    persist_setting SLIPWAY_URL "$SLIPWAY_URL"
+    persist_setting SLIPWAY_INGRESS "$SLIPWAY_INGRESS"
+    persist_setting SLIPWAY_PROXY_HOST "$SLIPWAY_PROXY_HOST"
+    persist_setting SLIPWAY_DASHBOARD_HOST "$SLIPWAY_DASHBOARD_HOST"
+    persist_setting SLIPWAY_APP_PORT_HOST "$SLIPWAY_APP_PORT_HOST"
 fi
+chmod 600 "$SLIPWAY_ENV_FILE"
+echo -e "${GREEN}Configuration saved to $SLIPWAY_ENV_FILE${NC}"
+echo -e "${GREEN}Server URL: $SLIPWAY_URL${NC}"
 
 # 6. Start Caddy (reverse proxy with automatic HTTPS)
 echo "Starting Caddy proxy..."
@@ -270,8 +425,8 @@ docker run -d \
     --name "$SLIPWAY_PROXY_CONTAINER" \
     --network "$SLIPWAY_NETWORK" \
     --restart unless-stopped \
-    -p "$SLIPWAY_HTTP_PORT:80" \
-    -p "$SLIPWAY_HTTPS_PORT:443" \
+    -p "$SLIPWAY_PROXY_HOST:$SLIPWAY_HTTP_PORT:80" \
+    -p "$SLIPWAY_PROXY_HOST:$SLIPWAY_HTTPS_PORT:443" \
     -v /var/run/docker.sock:/var/run/docker.sock:ro \
     -v "$SLIPWAY_CERTS_VOLUME:/data" \
     -e CADDY_INGRESS_NETWORKS="$SLIPWAY_NETWORK" \
@@ -339,14 +494,17 @@ fi
 # 9. Validate target image before touching the live dashboard
 validate_slipway_image
 
-# 10. Replace the live dashboard only after validation succeeds
+# 10. Route initial setup through Caddy before making the dashboard live
+configure_bootstrap_dashboard_route
+
+# 11. Replace the live dashboard only after validation succeeds
 replace_live_container
 echo -e "${GREEN}Slipway dashboard running${NC}"
 
-# 11. Keep host firewall rules aligned with Slipway's published ports
+# 12. Keep host firewall rules aligned with Slipway's published ports
 configure_host_firewall
 
-# 12. Show access info
+# 13. Show access info
 echo ""
 echo -e "${GREEN}========================================================${NC}"
 if [ "$IS_UPDATE" = true ]; then
@@ -357,15 +515,34 @@ fi
 echo -e "${GREEN}========================================================${NC}"
 echo ""
 echo "  Dashboard: $SLIPWAY_URL"
-echo "  Direct app ports: TCP $SLIPWAY_APP_PORT_START-$SLIPWAY_APP_PORT_END"
-echo "  If your VPS provider has a network firewall, allow inbound TCP $SLIPWAY_APP_PORT_START-$SLIPWAY_APP_PORT_END for direct app URLs."
-echo "  Domains proxied through Caddy only require TCP $SLIPWAY_HTTP_PORT and $SLIPWAY_HTTPS_PORT."
+if [ "$SLIPWAY_INGRESS" = "cloudflare-tunnel" ]; then
+    echo "  Public ingress: Cloudflare Tunnel (Caddy listens on loopback)"
+elif is_public_bind_host "$SLIPWAY_PROXY_HOST"; then
+    echo "  Public ingress: TCP $SLIPWAY_HTTP_PORT and $SLIPWAY_HTTPS_PORT through Caddy"
+else
+    echo "  Public ingress: none (Caddy listens on loopback)"
+fi
+if is_public_bind_host "$SLIPWAY_APP_PORT_HOST"; then
+    echo "  Direct app ports: TCP $SLIPWAY_APP_PORT_START-$SLIPWAY_APP_PORT_END (explicitly public)"
+    echo "  Allow that range in your VPS provider firewall before using raw IP:port URLs."
+else
+    echo "  Direct app ports: private (set SLIPWAY_APP_PORT_HOST=0.0.0.0 to opt in)"
+fi
+if is_public_bind_host "$SLIPWAY_DASHBOARD_HOST"; then
+    echo "  Dashboard port: TCP $SLIPWAY_PORT (legacy or explicitly public binding)"
+fi
 echo ""
 if [ "$IS_UPDATE" = false ]; then
     echo "  Next steps:"
-    echo "  1. Open the dashboard URL above to complete setup"
-    echo "  2. Point a domain to this server (e.g., slipway.yourdomain.com)"
-    echo "  3. SSL will be configured automatically when you add a domain"
+    if [ "$SLIPWAY_INGRESS" = "cloudflare-tunnel" ]; then
+        echo "  1. Route $SLIPWAY_URL through Cloudflare Tunnel to http://127.0.0.1:$SLIPWAY_HTTP_PORT"
+        echo "  2. Open the dashboard URL above to complete setup"
+        echo "  3. Add generated and custom app hostnames to the tunnel"
+    else
+        echo "  1. Open the dashboard URL above to complete setup"
+        echo "  2. Point a domain to this server (e.g., slipway.yourdomain.com)"
+        echo "  3. SSL will be configured automatically when you add a domain"
+    fi
     echo ""
     echo "  To deploy apps, install the CLI:"
     echo "    npm install -g slipway-cli"

@@ -28,7 +28,11 @@ module.exports = {
     const dockerPath = sails.config.docker?.binaryPath || 'docker'
     const network = sails.config.custom.slipwayNetwork || 'slipway'
     const containerName = 'slipway-route-dashboard'
+    const bootstrapContainerName = 'slipway-route-bootstrap'
     const port = sails.config.port || 1337
+    const siteLabel = await sails.helpers.caddy.formatSiteLabel.with({
+      domains: [domain]
+    })
 
     // Remove existing route container
     await new Promise((resolve) => {
@@ -46,14 +50,17 @@ module.exports = {
       '--restart',
       'unless-stopped',
       '--label',
-      `caddy=${domain}`,
+      `caddy=${siteLabel}`,
       '--label',
       `caddy.reverse_proxy=slipway:${port}`
     ]
 
     // Add TLS email if configured
     const acmeEmail = await sails.helpers.setting.get('acmeEmail')
-    if (acmeEmail) {
+    if (
+      acmeEmail &&
+      sails.config.custom.slipwayIngress !== 'cloudflare-tunnel'
+    ) {
       args.push('--label', `caddy.tls=${acmeEmail}`)
     }
 
@@ -65,10 +72,13 @@ module.exports = {
           sails.log.error(
             `Dashboard route container creation failed: ${err.message}`
           )
-          throw 'caddyError'
+          reject('caddyError')
+          return
         }
-        sails.log.info(`Caddy dashboard route created for ${domain}`)
-        resolve({ domain, action: 'created' })
+        execFile(dockerPath, ['rm', '-f', bootstrapContainerName], () => {
+          sails.log.info(`Caddy dashboard route created for ${domain}`)
+          resolve({ domain, action: 'created' })
+        })
       })
     })
   }
