@@ -40,8 +40,17 @@ module.exports = {
     envVars: {
       type: 'json',
       encrypt: true,
+      protect: true,
       description: 'Environment variables passed to containers at deploy time',
       columnName: 'env_vars'
+    },
+
+    envVarMetadata: {
+      type: 'json',
+      defaultsTo: {},
+      description:
+        'Non-secret metadata for environment variables, keyed by variable name',
+      columnName: 'env_var_metadata'
     },
 
     /**
@@ -66,6 +75,7 @@ module.exports = {
     telemetryToken: {
       type: 'string',
       encrypt: true,
+      protect: true,
       description: 'Token for authenticating telemetry data from deployed apps',
       columnName: 'telemetry_token'
     },

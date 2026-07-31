@@ -163,6 +163,18 @@ module.exports = {
     const checklist = await sails.helpers.environment.generateChecklist(
       environment.id
     )
+    const managedEnvVarKeys = (environment.services || [])
+      .map((service) => service.envVarKey)
+      .filter(Boolean)
+    const envVarMetadata =
+      sails.helpers.configuration.normalizeEnvVarMetadata.with({
+        values: environment.envVars || {},
+        metadata: environment.envVarMetadata || {},
+        currentValues: environment.envVars || {},
+        currentMetadata: environment.envVarMetadata || {},
+        managedKeys: managedEnvVarKeys,
+        now: environment.updatedAt
+      })
 
     // Check if GitHub is connected for this team
     const gitProvider = await GitProvider.findOne({
@@ -180,22 +192,24 @@ module.exports = {
           app: appRecord
         })
     }
+    const publicEnvironment = omitPrivateEnvironmentFields(environment)
 
     return {
       page: 'projects/environment',
       props: {
         project,
         environment: {
-          ...environment,
+          ...publicEnvironment,
           fullDomain,
           generatedDomain,
           domains,
           serverIp,
           services
         },
-        app: app || null,
-        apps: appsWithHealth,
+        app: app ? omitPrivateAppFields(app) : null,
+        apps: appsWithHealth.map(omitPrivateAppFields),
         envVars: environment.envVars || {},
+        envVarMetadata,
         deploymentHistory,
         checklist,
         serviceVersions: getPublicMatrix(),
@@ -217,4 +231,21 @@ module.exports = {
       }
     }
   }
+}
+
+function omitPrivateEnvironmentFields(environment) {
+  const {
+    envVars,
+    envVarMetadata,
+    telemetryToken,
+    telemetryTokenHash,
+    ...publicEnvironment
+  } = environment
+  return publicEnvironment
+}
+
+function omitPrivateAppFields(app) {
+  const { envVars, secureEnvVars, envVarMetadata, bridgeSecret, ...publicApp } =
+    app
+  return publicApp
 }

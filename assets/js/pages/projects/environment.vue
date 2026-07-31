@@ -15,6 +15,7 @@ import ConfirmModal from '@/components/ConfirmModal.vue'
 import SlideToDeploy from '@/components/SlideToDeploy.vue'
 import Tooltip from '@/components/Tooltip.vue'
 import CodeEditor from '@/components/CodeEditor.vue'
+import ConfigVariableMenu from '@/components/ConfigVariableMenu.vue'
 import DeploymentHistory from '@/components/DeploymentHistory.vue'
 import { useToast } from '@/composables/toast'
 import { useServiceActions } from '@/composables/service-actions'
@@ -31,6 +32,7 @@ const props = defineProps({
   app: Object,
   apps: Array,
   envVars: Object,
+  envVarMetadata: Object,
   deploymentHistory: Object,
   checklist: Array,
   serviceVersions: Object,
@@ -293,11 +295,19 @@ function cancelAddApp() {
 
 // --- Env vars management ---
 const localVars = reactive({ ...props.envVars })
+const localMetadata = reactive({ ...props.envVarMetadata })
 watch(
   () => props.envVars,
   (newVars) => {
     Object.keys(localVars).forEach((k) => delete localVars[k])
     Object.assign(localVars, newVars)
+  }
+)
+watch(
+  () => props.envVarMetadata,
+  (newMetadata) => {
+    Object.keys(localMetadata).forEach((k) => delete localMetadata[k])
+    Object.assign(localMetadata, newMetadata || {})
   }
 )
 const revealedKeys = ref(new Set())
@@ -339,7 +349,7 @@ function exitBulkMode() {
   bulkMode.value = false
 }
 
-function saveBulk() {
+async function saveBulk() {
   const vars = {}
   for (const line of bulkText.value.split('\n')) {
     const trimmed = line.trim()
@@ -355,15 +365,23 @@ function saveBulk() {
     .sort()
     .map((k) => localVars[k])
     .join(',')
-  Object.keys(localVars).forEach((k) => delete localVars[k])
-  Object.assign(localVars, vars)
-  const newKeys = Object.keys(localVars).sort().join(',')
-  const newVals = Object.keys(localVars)
+  const nextMetadata = Object.fromEntries(
+    Object.keys(vars).map((key) => [
+      key,
+      localMetadata[key] || { kind: 'secret', previewPolicy: 'omit' }
+    ])
+  )
+  const newKeys = Object.keys(vars).sort().join(',')
+  const newVals = Object.keys(vars)
     .sort()
-    .map((k) => localVars[k])
+    .map((k) => vars[k])
     .join(',')
   if (oldKeys !== newKeys || oldVals !== newVals) {
-    saveEnvVars(localVars)
+    if (!(await saveEnvVars(vars, nextMetadata))) return
+    Object.keys(localVars).forEach((k) => delete localVars[k])
+    Object.assign(localVars, vars)
+    Object.keys(localMetadata).forEach((key) => delete localMetadata[key])
+    Object.assign(localMetadata, nextMetadata)
     toast({ message: 'Environment variables updated', type: 'success' })
   }
   bulkMode.value = false
@@ -409,8 +427,45 @@ function closeAllDropdowns() {
 }
 
 // --- Env vars helpers ---
-function isSensitive() {
-  return true
+function metadataFor(key) {
+  const metadata = localMetadata[key] || {}
+  const kind = metadata.kind === 'plain' ? 'plain' : 'secret'
+  return {
+    ...metadata,
+    kind,
+    managed: metadata.managed === true,
+    previewPolicy:
+      metadata.previewPolicy || (kind === 'plain' ? 'inherit' : 'omit')
+  }
+}
+
+function isSensitive(key) {
+  return metadataFor(key).kind === 'secret'
+}
+
+function metadataSummary(key) {
+  const metadata = metadataFor(key)
+  const type = metadata.managed
+    ? 'Managed secret'
+    : metadata.kind === 'secret'
+    ? 'Secret'
+    : 'Plain config'
+  const preview = {
+    omit: 'omitted from previews',
+    inherit: 'inherited by previews',
+    randomize: 'regenerated for previews'
+  }[metadata.previewPolicy]
+  return `${type} · ${preview}`
+}
+
+function changeSummary(key) {
+  const metadata = metadataFor(key)
+  return [
+    metadata.changedByName,
+    metadata.changedAt ? timeAgo(metadata.changedAt) : null
+  ]
+    .filter(Boolean)
+    .join(' · ')
 }
 
 function toggleReveal(key) {
@@ -434,43 +489,73 @@ function generateSecret() {
   ).join('')
 }
 
-async function saveEnvVars(vars) {
+async function saveEnvVars(vars, metadata = localMetadata) {
   saving.value = true
   try {
-    await fetch(
+    const response = await fetch(
       `/api/v1/projects/${props.project.slug}/environments/${props.environment.slug}`,
       {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ envVars: vars })
+        body: JSON.stringify({
+          envVars: { ...vars },
+          envVarMetadata: { ...metadata }
+        })
       }
     )
+    if (!response.ok) {
+      throw new Error('Environment variables could not be saved.')
+    }
     router.reload({
-      only: ['envVars', 'environment', 'checklist'],
+      only: ['envVars', 'envVarMetadata', 'environment', 'checklist'],
       preserveScroll: true
     })
+    return true
+  } catch (error) {
+    toast({ message: error.message, type: 'error' })
+    router.reload({
+      only: ['envVars', 'envVarMetadata'],
+      preserveScroll: true
+    })
+    return false
   } finally {
     saving.value = false
   }
 }
 
-function addVar() {
+async function addVar() {
   if (!newKey.value.trim()) return
   const key = newKey.value.trim()
-  localVars[key] = newValue.value
-  saveEnvVars(localVars)
+  const nextVars = { ...localVars, [key]: newValue.value }
+  const nextMetadata = {
+    ...localMetadata,
+    [key]: { kind: 'secret', previewPolicy: 'omit' }
+  }
+  if (!(await saveEnvVars(nextVars, nextMetadata))) return
+  Object.assign(localVars, nextVars)
+  Object.assign(localMetadata, nextMetadata)
   toast({ message: `Added "${key}"`, type: 'success' })
   newKey.value = ''
   newValue.value = ''
 }
 
-function removeVar(key) {
+async function removeVar(key) {
+  if (metadataFor(key).managed) return
+  const nextVars = { ...localVars }
+  const nextMetadata = { ...localMetadata }
+  delete nextVars[key]
+  delete nextMetadata[key]
+  if (!(await saveEnvVars(nextVars, nextMetadata))) return
   delete localVars[key]
-  saveEnvVars(localVars)
+  delete localMetadata[key]
   toast({ message: `Removed "${key}"`, type: 'success' })
 }
 
-function renameVar(oldKey, el) {
+async function renameVar(oldKey, el) {
+  if (metadataFor(oldKey).managed) {
+    el.value = oldKey
+    return
+  }
   const trimmed = el.value.trim()
   if (!trimmed || trimmed === oldKey) {
     el.value = oldKey
@@ -481,17 +566,36 @@ function renameVar(oldKey, el) {
     el.value = oldKey
     return
   }
-  const value = localVars[oldKey]
+  const nextVars = { ...localVars }
+  const nextMetadata = { ...localMetadata }
+  const value = nextVars[oldKey]
+  const metadata = metadataFor(oldKey)
+  delete nextVars[oldKey]
+  delete nextMetadata[oldKey]
+  nextVars[trimmed] = value
+  nextMetadata[trimmed] = metadata
+  if (!(await saveEnvVars(nextVars, nextMetadata))) return
   delete localVars[oldKey]
+  delete localMetadata[oldKey]
   localVars[trimmed] = value
-  saveEnvVars(localVars)
+  localMetadata[trimmed] = metadata
   toast({ message: `Renamed "${oldKey}" to "${trimmed}"`, type: 'success' })
 }
 
-function updateVarValue(key, value) {
+async function updateVarValue(key, value) {
+  if (metadataFor(key).managed) return
   if (localVars[key] === value) return
+  const nextVars = { ...localVars, [key]: value }
+  if (!(await saveEnvVars(nextVars, localMetadata))) return
   localVars[key] = value
-  saveEnvVars(localVars)
+  toast({ message: `Updated "${key}"`, type: 'success' })
+}
+
+async function updateVarMetadata(key, metadata) {
+  if (metadataFor(key).managed) return
+  const nextMetadata = { ...localMetadata, [key]: metadata }
+  if (!(await saveEnvVars(localVars, nextMetadata))) return
+  localMetadata[key] = metadata
   toast({ message: `Updated "${key}"`, type: 'success' })
 }
 
@@ -627,7 +731,9 @@ async function createService() {
     newServiceVersion.value = selectedServicePolicy.value?.defaultVersion || ''
     customServiceVersion.value = false
     addServiceOpen.value = false
-    router.reload({ only: ['environment', 'envVars', 'checklist'] })
+    router.reload({
+      only: ['environment', 'envVars', 'envVarMetadata', 'checklist']
+    })
   } catch (err) {
     completeAction(actionId, false)
     toast({
@@ -721,7 +827,9 @@ async function executeDeleteService() {
         type: 'error'
       })
     }
-    router.reload({ only: ['environment', 'envVars', 'checklist'] })
+    router.reload({
+      only: ['environment', 'envVars', 'envVarMetadata', 'checklist']
+    })
   } catch (error) {
     toast({
       message: error.message || 'Failed to delete service',
@@ -2411,7 +2519,7 @@ onBeforeUnmount(() => {
           </div>
 
           <!-- Environment Variables -->
-          <div>
+          <div data-test="environment-config">
             <div class="flex items-center justify-between px-4 py-3">
               <button
                 @click="envVarsOpen = !envVarsOpen"
@@ -2528,6 +2636,7 @@ onBeforeUnmount(() => {
                     <div class="flex items-center justify-between">
                       <input
                         :value="key"
+                        :readonly="metadataFor(key).managed"
                         @blur="renameVar(key, $event.target)"
                         @keydown.enter="$event.target.blur()"
                         autocomplete="off"
@@ -2535,7 +2644,7 @@ onBeforeUnmount(() => {
                         class="min-w-0 flex-1 border-b border-dashed border-transparent bg-transparent font-mono text-sm font-medium text-gray-900 focus:border-gray-300 focus:outline-none dark:text-white dark:focus:border-gray-600"
                       />
                       <div
-                        class="flex items-center space-x-1 opacity-0 transition-opacity group-hover:opacity-100"
+                        class="has-[details[open]]:visible invisible flex items-center space-x-1 focus-within:visible group-hover:visible"
                       >
                         <button
                           v-if="isSensitive(key)"
@@ -2577,28 +2686,17 @@ onBeforeUnmount(() => {
                             />
                           </svg>
                         </button>
-                        <button
-                          @click="removeVar(key)"
-                          class="rounded p-1 text-gray-400 hover:text-red-600 dark:hover:text-red-400"
-                        >
-                          <svg
-                            class="h-4 w-4"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                          >
-                            <path
-                              stroke-linecap="round"
-                              stroke-linejoin="round"
-                              stroke-width="2"
-                              d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                            />
-                          </svg>
-                        </button>
+                        <ConfigVariableMenu
+                          :variable-key="key"
+                          :metadata="metadataFor(key)"
+                          @update="updateVarMetadata(key, $event)"
+                          @remove="removeVar(key)"
+                        />
                       </div>
                     </div>
                     <input
                       :value="localVars[key]"
+                      :readonly="metadataFor(key).managed"
                       :type="
                         isSensitive(key) && !revealedKeys.has(key)
                           ? 'password'
@@ -2610,6 +2708,12 @@ onBeforeUnmount(() => {
                       spellcheck="false"
                       class="mt-1 w-full border-b border-dashed border-transparent bg-transparent font-mono text-sm text-gray-500 focus:border-gray-300 focus:outline-none dark:text-gray-400 dark:focus:border-gray-600"
                     />
+                    <p class="mt-1 text-xs text-gray-400 dark:text-gray-500">
+                      {{ metadataSummary(key) }}
+                      <template v-if="changeSummary(key)">
+                        · {{ changeSummary(key) }}
+                      </template>
+                    </p>
                   </div>
                 </div>
                 <div

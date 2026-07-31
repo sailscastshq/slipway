@@ -28,7 +28,10 @@ module.exports = {
     await sails.getDatastore().transaction(async (db) => {
       for (const update of environmentVars) {
         await Environment.updateOne({ id: update.environmentId })
-          .set({ envVars: update.envVars })
+          .set({
+            envVars: update.envVars,
+            envVarMetadata: update.envVarMetadata
+          })
           .usingConnection(db)
       }
 
@@ -153,10 +156,12 @@ async function getEnvironmentVarUpdates(services) {
     if (!environment) continue
 
     const envVars = { ...(environment.envVars || {}) }
+    const envVarMetadata = { ...(environment.envVarMetadata || {}) }
     for (const key of keys) {
       delete envVars[key]
+      delete envVarMetadata[key]
     }
-    updates.push({ environmentId, envVars })
+    updates.push({ environmentId, envVars, envVarMetadata })
   }
 
   return updates

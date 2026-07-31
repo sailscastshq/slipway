@@ -189,27 +189,16 @@ module.exports = {
       deployHostPortReserved = true
       await recordStage('container_startup', { hostPort: deployHostPort })
 
-      // 7. 3-tier env var merge: global < environment < app-specific
-      let globalEnvVars = {}
-      try {
-        const globalJson = await sails.helpers.setting.get(
-          'globalEnvVars',
-          '{}'
-        )
-        globalEnvVars = JSON.parse(globalJson)
-      } catch {
-        /* ignore parse errors */
-      }
-
+      // 7. Resolve deployment config: global < environment < app-specific.
       const envRecord = await Environment.findOne({
         id: environment.id
       }).decrypt()
-      const appEnvVars = (targetApp && targetApp.envVars) || {}
-      const envVars = {
-        ...globalEnvVars,
-        ...(envRecord.envVars || {}),
-        ...appEnvVars
-      }
+      const runtimeConfig =
+        await sails.helpers.configuration.resolveRuntimeConfig.with({
+          environmentId: String(environment.id),
+          ...(targetApp?.id ? { appId: String(targetApp.id) } : {})
+        })
+      const envVars = { ...runtimeConfig.values }
 
       // 7b. Auto-inject Slipway telemetry env vars for sails-hook-slipway
       if (envRecord.telemetryToken) {
@@ -234,6 +223,22 @@ module.exports = {
         envVars.SLIPWAY_BRIDGE_SECRET =
           await sails.helpers.bridge.ensureAppSecret(String(targetApp.id))
       }
+
+      const fingerprint =
+        sails.helpers.configuration.fingerprintRuntimeConfig.with({
+          values: envVars,
+          manifest: runtimeConfig.manifest
+        })
+      await updateDeployment({
+        configHash: fingerprint.hash,
+        configManifest: fingerprint.manifest
+      })
+      await Deployment.appendDeployLog(
+        deploymentId,
+        `Config: ${fingerprint.hash.slice(0, 12)} (${
+          fingerprint.manifest.length
+        } variables)\n`
+      )
 
       // 8. Get resource limits from existing app
       const existingApp =

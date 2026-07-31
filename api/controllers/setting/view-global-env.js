@@ -14,10 +14,18 @@ module.exports = {
   fn: async function () {
     const globalEnvJson = await sails.helpers.setting.get('globalEnvVars', '{}')
     let globalEnvVars = {}
+    let globalEnvVarMetadata = {}
     try {
       globalEnvVars = JSON.parse(globalEnvJson)
     } catch {
       globalEnvVars = {}
+    }
+    try {
+      globalEnvVarMetadata = JSON.parse(
+        await sails.helpers.setting.get('globalEnvVarMetadata', '{}')
+      )
+    } catch {
+      globalEnvVarMetadata = {}
     }
 
     // Check if backup storage is configured
@@ -31,6 +39,7 @@ module.exports = {
       page: 'settings/global-env',
       props: {
         globalEnvVars,
+        globalEnvVarMetadata,
         backupConfigured
       }
     }

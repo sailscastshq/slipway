@@ -62,8 +62,26 @@ module.exports = {
     envVars: {
       type: 'json',
       defaultsTo: {},
-      description: 'App-specific environment variable overrides',
+      protect: true,
+      description:
+        'Legacy app-specific environment variable overrides retained for migration',
       columnName: 'app_env_vars'
+    },
+
+    secureEnvVars: {
+      type: 'json',
+      encrypt: true,
+      protect: true,
+      description: 'Encrypted app-specific environment variable overrides',
+      columnName: 'secure_env_vars'
+    },
+
+    envVarMetadata: {
+      type: 'json',
+      defaultsTo: {},
+      description:
+        'Non-secret metadata for app environment variables, keyed by variable name',
+      columnName: 'env_var_metadata'
     },
 
     isDefault: {

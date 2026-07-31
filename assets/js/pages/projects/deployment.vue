@@ -592,7 +592,7 @@ function executeRollback() {
         </div>
 
         <!-- Metadata -->
-        <div class="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
+        <div class="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-5">
           <div>
             <dt class="text-xs text-gray-500 dark:text-gray-400">
               Triggered by
@@ -625,6 +625,18 @@ function executeRollback() {
                 class="ml-1 font-mono text-xs text-gray-500"
               >
                 {{ deployment.gitCommit.slice(0, 7) }}
+              </span>
+            </dd>
+          </div>
+          <div v-if="deployment.configHash" data-test="config-fingerprint">
+            <dt class="text-xs text-gray-500 dark:text-gray-400">Config</dt>
+            <dd
+              :title="deployment.configHash"
+              class="mt-1 font-mono text-sm text-gray-900 dark:text-white"
+            >
+              {{ deployment.configHash.slice(0, 12) }}
+              <span class="font-sans text-xs text-gray-400 dark:text-gray-500">
+                · {{ deployment.configManifest?.length || 0 }} vars
               </span>
             </dd>
           </div>

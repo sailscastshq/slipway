@@ -86,6 +86,22 @@ module.exports = {
       columnName: 'error_message'
     },
 
+    configHash: {
+      type: 'string',
+      allowNull: true,
+      description:
+        'Keyed SHA-256 fingerprint of the resolved runtime configuration',
+      columnName: 'config_hash'
+    },
+
+    configManifest: {
+      type: 'json',
+      defaultsTo: [],
+      description:
+        'Non-secret manifest describing the source and policy of deployed variables',
+      columnName: 'config_manifest'
+    },
+
     // Timing
     startedAt: {
       type: 'number',

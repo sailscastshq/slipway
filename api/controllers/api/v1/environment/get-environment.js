@@ -71,12 +71,16 @@ module.exports = {
           // Container not found or inspect failed
         }
       }
-      appsWithHealth.push({ ...a, containerHealth })
+      const { envVars, secureEnvVars, bridgeSecret, ...publicApp } = a
+      appsWithHealth.push({ ...publicApp, containerHealth })
     }
+
+    const { telemetryToken, telemetryTokenHash, ...publicEnvironment } =
+      environment
 
     return {
       environment: {
-        ...environment,
+        ...publicEnvironment,
         fullDomain,
         generatedDomain,
         domains,
