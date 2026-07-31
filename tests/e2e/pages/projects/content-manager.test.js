@@ -23,6 +23,9 @@ test(
     const tempRoot = fs.mkdtempSync(
       path.join(os.tmpdir(), 'slipway-content-manager-ui-')
     )
+    const precognitionScreenshotRoot = path.resolve(
+      '.tmp/screenshots/issue-208-precognition'
+    )
     const projectRoot = path.join(
       tempRoot,
       current.projects.deploymentTarget.slug
@@ -31,6 +34,7 @@ test(
     const originalAppsDir = sails.config.custom.slipwayAppsDir
     const originalGetContainerStatus = sails.helpers.docker.getContainerStatus
 
+    fs.mkdirSync(precognitionScreenshotRoot, { recursive: true })
     fs.mkdirSync(collectionRoot, { recursive: true })
     fs.writeFileSync(
       path.join(collectionRoot, 'welcome.md'),
@@ -220,7 +224,24 @@ test(
       await page.wait('@content-create-modal')
       await expect(page).toSee('Create new content in posts')
       expect(await page.raw.getByText('Target app').count()).toBe(0)
-      await page.raw.getByPlaceholder('my-new-post').fill('release-notes')
+      const contentSlug = page.raw.getByPlaceholder('my-new-post')
+      await contentSlug.fill('Release Notes')
+      await contentSlug.blur()
+      await page.wait('text=Use lowercase letters')
+      await page.screenshot(
+        path.join(precognitionScreenshotRoot, 'content-slug-error-light.png'),
+        { fullPage: true }
+      )
+      await page.raw.emulateMedia({ colorScheme: 'dark' })
+      await page.screenshot(
+        path.join(precognitionScreenshotRoot, 'content-slug-error-dark.png'),
+        { fullPage: true }
+      )
+      await page.raw.emulateMedia({ colorScheme: 'light' })
+      await contentSlug.fill('release-notes')
+      await page.raw
+        .getByText('Use lowercase letters', { exact: false })
+        .waitFor({ state: 'hidden' })
       expect(
         await page.raw
           .getByRole('button', { name: 'Create' })
@@ -229,7 +250,15 @@ test(
       await page.screenshot('.tmp/content-manager-create.png', {
         fullPage: true
       })
-      expect(page).toHaveNoSmoke()
+      await page.raw.getByRole('button', { name: 'Create' }).click()
+      await page.raw.waitForURL(
+        (url) => url.pathname.endsWith('/content/posts/release-notes'),
+        { timeout: 10000 }
+      )
+      expect(fs.existsSync(path.join(collectionRoot, 'release-notes.md'))).toBe(
+        true
+      )
+      expect(page).toHaveNoJavascriptErrors()
     } finally {
       sails.helpers.docker.getContainerStatus = originalGetContainerStatus
       sails.config.custom.slipwayAppsDir = originalAppsDir

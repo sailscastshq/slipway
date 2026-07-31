@@ -42,6 +42,9 @@ module.exports = {
     },
     badRequest: {
       responseType: 'badRequest'
+    },
+    precognitionSuccess: {
+      responseType: 'precognitionSuccess'
     }
   },
 
@@ -88,29 +91,36 @@ module.exports = {
         }
       }))
 
-    // Sanitize slug
-    const safeSlug = contentSlug
-      .toLowerCase()
-      .replace(/[^a-z0-9-]/g, '-')
-      .replace(/-+/g, '-')
-      .replace(/^-|-$/g, '')
-
-    if (!safeSlug) {
+    const validateOnly = sails.inertia.validateOnly(this.req)
+    const problems = sails.helpers.content.validate(
+      { contentSlug, title },
+      validateOnly
+    )
+    if (problems.length) {
       throw {
-        badRequest: {
-          problems: [{ contentSlug: 'Enter a valid content slug.' }]
-        }
+        badRequest: { problems }
       }
     }
+
+    const safeSlug = contentSlug.trim()
 
     const collectionPath = path.join(appPath, contentDir, collection)
     const filePath = path.join(collectionPath, `${safeSlug}.md`)
 
     // Check if file already exists
-    if (fs.existsSync(filePath)) {
+    if (
+      sails.inertia.shouldValidate('contentSlug', this.req) &&
+      fs.existsSync(filePath)
+    ) {
       throw {
-        badRequest: { error: `Content file "${safeSlug}.md" already exists` }
+        badRequest: {
+          problems: [{ contentSlug: 'This content slug is already in use.' }]
+        }
       }
+    }
+
+    if (sails.inertia.isPrecognitive(this.req)) {
+      throw 'precognitionSuccess'
     }
 
     // Build frontmatter

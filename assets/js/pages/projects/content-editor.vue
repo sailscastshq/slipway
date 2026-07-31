@@ -5,6 +5,7 @@ import AppLayout from '@/layouts/AppLayout.vue'
 import ConfirmModal from '@/components/ConfirmModal.vue'
 import MarkdownEditor from '@/components/content/MarkdownEditor.vue'
 import Tooltip from '@/components/Tooltip.vue'
+import { usePrecognitionValidation } from '@/composables/precognition'
 
 defineOptions({
   layout: AppLayout
@@ -57,6 +58,18 @@ const saveForm = useForm({
   appSlug: props.app.slug,
   sourceSha: props.content?.sourceSha || ''
 })
+  .withPrecognition('post', () => getActionPath('update'))
+  .setValidationTimeout(350)
+const { revalidateWhenInvalid } = usePrecognitionValidation(saveForm)
+const hasContentErrors = computed(() =>
+  Object.keys(saveForm.errors).some(
+    (field) =>
+      field === 'frontmatter' ||
+      field.startsWith('frontmatter.') ||
+      field === 'body' ||
+      field === 'raw'
+  )
+)
 
 const deleteForm = useForm({
   appSlug: props.app.slug,
@@ -86,10 +99,7 @@ function getUploadPath() {
   return `/api/v1/projects/${props.project.slug}${envPath.value}/content/${props.collection}/${props.file}/images`
 }
 
-// Save content
-function saveContent(triggerDeploy = false) {
-  if (saveForm.processing) return
-
+function syncSaveForm(triggerDeploy = saveForm.deploy) {
   if (fileType.value === 'json') {
     saveForm.raw = raw.value
     saveForm.frontmatter = {}
@@ -100,8 +110,19 @@ function saveContent(triggerDeploy = false) {
     saveForm.raw = ''
   }
   saveForm.deploy = triggerDeploy
-  saveForm.clearErrors()
+}
 
+function validateEditorField(field) {
+  syncSaveForm()
+  saveForm.validate(field)
+}
+
+function revalidateEditorField(field) {
+  syncSaveForm()
+  revalidateWhenInvalid(field)
+}
+
+function submitContent() {
   saveForm.post(getActionPath('update'), {
     preserveScroll: true,
     onSuccess: (page) => {
@@ -113,6 +134,30 @@ function saveContent(triggerDeploy = false) {
       }
     },
     onError: () => {
+      showSaveMenu.value = true
+    }
+  })
+}
+
+// Save content
+function saveContent(triggerDeploy = false) {
+  if (saveForm.processing || saveForm.validating) return
+
+  syncSaveForm(triggerDeploy)
+  saveForm.clearErrors()
+  saveForm.validate({
+    only:
+      fileType.value === 'json'
+        ? ['raw']
+        : [
+            'frontmatter',
+            ...Object.keys(frontmatter.value).map(
+              (key) => `frontmatter.${key}`
+            ),
+            'body'
+          ],
+    onPrecognitionSuccess: submitContent,
+    onValidationError: () => {
       showSaveMenu.value = true
     }
   })
@@ -459,7 +504,12 @@ function handleKeydown(e) {
           <button
             type="button"
             @click="saveContent(false)"
-            :disabled="saveForm.processing || !hasChanges"
+            :disabled="
+              saveForm.processing ||
+              saveForm.validating ||
+              !hasChanges ||
+              hasContentErrors
+            "
             class="rounded-l-md bg-gray-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
           >
             {{
@@ -477,7 +527,7 @@ function handleKeydown(e) {
             :aria-expanded="showSaveMenu"
             aria-controls="content-save-menu"
             @click="showSaveMenu = !showSaveMenu"
-            :disabled="saveForm.processing"
+            :disabled="saveForm.processing || saveForm.validating"
             class="rounded-r-md border-l border-gray-700 bg-gray-900 px-2 py-1.5 text-white hover:bg-gray-800 disabled:opacity-50 dark:border-gray-300 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
           >
             <svg
@@ -567,7 +617,18 @@ function handleKeydown(e) {
           data-test="content-json-source"
           class="flex-1 resize-none bg-transparent p-5 font-mono text-sm leading-7 text-gray-900 outline-none dark:text-white"
           spellcheck="false"
+          :aria-invalid="saveForm.invalid('raw')"
+          :aria-describedby="saveForm.errors.raw ? 'content-raw-error' : null"
+          @blur="validateEditorField('raw')"
+          @input="revalidateEditorField('raw')"
         ></textarea>
+        <p
+          v-if="saveForm.errors.raw"
+          id="content-raw-error"
+          class="px-5 pb-3 text-xs text-red-600 dark:text-red-400"
+        >
+          {{ saveForm.errors.raw }}
+        </p>
       </div>
 
       <!-- Markdown document workspace -->
@@ -619,18 +680,51 @@ function handleKeydown(e) {
                   :id="`content-metadata-${key}`"
                   v-model="frontmatter[key]"
                   type="text"
+                  :aria-invalid="saveForm.invalid(`frontmatter.${key}`)"
+                  :aria-describedby="
+                    saveForm.errors[`frontmatter.${key}`]
+                      ? `content-metadata-${key}-error`
+                      : null
+                  "
                   class="focus:border-brand dark:focus:border-brand-400 w-full border-0 border-b border-gray-200 bg-transparent px-0 py-1.5 text-sm text-gray-900 outline-none transition-colors dark:border-gray-700 dark:text-white"
+                  @blur="validateEditorField(`frontmatter.${key}`)"
+                  @input="revalidateEditorField(`frontmatter.${key}`)"
                 />
+                <p
+                  v-if="saveForm.errors[`frontmatter.${key}`]"
+                  :id="`content-metadata-${key}-error`"
+                  class="mt-1 text-xs text-red-600 dark:text-red-400"
+                >
+                  {{ saveForm.errors[`frontmatter.${key}`] }}
+                </p>
               </dd>
             </div>
           </dl>
+          <p
+            v-if="saveForm.errors.frontmatter"
+            class="mt-2 text-xs text-red-600 dark:text-red-400"
+          >
+            {{ saveForm.errors.frontmatter }}
+          </p>
         </details>
+
+        <p
+          v-if="saveForm.errors.body"
+          id="content-body-error"
+          class="mx-auto w-full max-w-3xl px-5 pt-4 text-xs text-red-600 dark:text-red-400 sm:px-8"
+        >
+          {{ saveForm.errors.body }}
+        </p>
 
         <MarkdownEditor
           ref="markdownEditor"
           v-model="body"
           :uploads-configured="uploadsConfigured"
           :upload-url="getUploadPath()"
+          :aria-invalid="saveForm.invalid('body')"
+          :aria-describedby="saveForm.errors.body ? 'content-body-error' : null"
+          @blur="validateEditorField('body')"
+          @update:model-value="revalidateEditorField('body')"
           @mode-change="updateEditorMode"
           @compatibility-change="updateEditorCompatibility"
         />

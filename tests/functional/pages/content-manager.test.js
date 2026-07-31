@@ -301,6 +301,101 @@ test(
 )
 
 test(
+  'Content Manager validates create and editor values without writing source',
+  { world: contentWorld('content-precognition') },
+  async ({ sails, world, request, expect }) => {
+    const workspace = await prepareContentWorkspace({ sails, world })
+
+    try {
+      const managerPath = `/projects/${workspace.project.slug}/content`
+      const manager = await withCsrfFromPage(
+        request,
+        managerPath,
+        'genesisUser'
+      )
+      const createRequest = manager.request.withHeaders({
+        Precognition: 'true',
+        'Precognition-Validate-Only': 'contentSlug'
+      })
+
+      const invalidSlug = await createRequest.post(
+        `${managerPath}/posts/create`,
+        {
+          contentSlug: 'Release Notes',
+          title: 'Release notes',
+          appSlug: workspace.app.slug
+        }
+      )
+      expect(invalidSlug).toHaveStatus(422)
+      expect(invalidSlug.data.errors.contentSlug[0]).toContain(
+        'Use lowercase letters'
+      )
+
+      const duplicateSlug = await createRequest.post(
+        `${managerPath}/posts/create`,
+        {
+          contentSlug: 'welcome',
+          title: 'Another welcome',
+          appSlug: workspace.app.slug
+        }
+      )
+      expect(duplicateSlug).toHaveStatus(422)
+      expect(duplicateSlug.data.errors.contentSlug[0]).toContain(
+        'This content slug is already in use'
+      )
+
+      const availableSlug = await createRequest.post(
+        `${managerPath}/posts/create`,
+        {
+          contentSlug: 'release-notes',
+          title: 'Release notes',
+          appSlug: workspace.app.slug
+        }
+      )
+      expect(availableSlug).toHaveStatus(204)
+      expect(availableSlug).toHaveHeader('precognition-success', 'true')
+
+      const editor = await withCsrfFromPage(
+        request,
+        workspace.editorPath,
+        'genesisUser'
+      )
+      const editorRequest = editor.request.withHeaders({
+        Precognition: 'true',
+        'Precognition-Validate-Only': 'frontmatter.bad/key'
+      })
+      const invalidMetadata = await editorRequest.post(workspace.updatePath, {
+        frontmatter: { 'bad/key': 'unsafe' },
+        body: 'This request must not be written.',
+        appSlug: workspace.app.slug
+      })
+      expect(invalidMetadata).toHaveStatus(422)
+      expect(invalidMetadata.data.errors['frontmatter.bad/key'][0]).toContain(
+        'valid metadata field name'
+      )
+
+      const validEditor = await editorRequest.post(workspace.updatePath, {
+        frontmatter: { title: 'Welcome' },
+        body: 'This valid preflight must not be written either.',
+        appSlug: workspace.app.slug
+      })
+      expect(validEditor).toHaveStatus(204)
+      expect(validEditor).toHaveHeader('precognition-success', 'true')
+      expect(
+        fs.existsSync(
+          path.join(path.dirname(workspace.filePath), 'release-notes.md')
+        )
+      ).toBe(false)
+      expect(fs.readFileSync(workspace.filePath, 'utf8')).toBe(
+        workspace.originalContent
+      )
+    } finally {
+      workspace.restore()
+    }
+  }
+)
+
+test(
   'Content Manager deletes Git-backed content with a conventional commit',
   { world: contentWorld('content-git-delete') },
   async ({ sails, world, request, expect }) => {

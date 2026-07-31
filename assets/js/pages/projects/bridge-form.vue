@@ -12,6 +12,7 @@ import {
   validateBridgeFieldValue
 } from '@/lib/bridge/fields.mjs'
 import { containsRawHtml } from '@/lib/content/markdown.mjs'
+import { usePrecognitionValidation } from '@/composables/precognition'
 
 defineOptions({
   layout: AppLayout
@@ -48,6 +49,13 @@ const bridgeApiBasePath = computed(() =>
 )
 
 const isEdit = computed(() => props.mode === 'edit')
+const actionUrl = computed(() =>
+  isEdit.value
+    ? `${bridgeBasePath.value}/${props.modelIdentity}/${encodePathSegment(
+        props.recordId
+      )}/update`
+    : `${bridgeBasePath.value}/${props.modelIdentity}/create`
+)
 
 function encodePathSegment(value) {
   return encodeURIComponent(String(value))
@@ -63,6 +71,9 @@ function displayIdentifier(value) {
 const formValues = ref({})
 const formErrors = ref({})
 const form = useForm({ values: {} })
+  .withPrecognition('post', () => actionUrl.value)
+  .setValidationTimeout(350)
+const { revalidateWhenInvalid } = usePrecognitionValidation(form)
 
 // Initialize form values from props
 onMounted(() => {
@@ -89,6 +100,7 @@ onMounted(() => {
   }
 
   formValues.value = values
+  form.values = values
 })
 
 // Editable fields
@@ -127,11 +139,19 @@ function hasRequiredValue(field) {
   return validateField(field) === ''
 }
 
+const hasBridgeFieldErrors = computed(() =>
+  Object.keys(form.errors).some((field) => field.startsWith('values.'))
+)
 const isFormReady = computed(
   () =>
     editableFields.value.every(hasRequiredValue) &&
-    Object.keys(formErrors.value).length === 0
+    Object.keys(formErrors.value).length === 0 &&
+    !hasBridgeFieldErrors.value
 )
+
+function serverFieldName(field) {
+  return `values.${field.name}`
+}
 
 function validateField(field) {
   const attr = field.attr
@@ -149,25 +169,32 @@ function validateField(field) {
   })
 }
 
-function validateAndRemember(field) {
+function validateAndRemember(field, validateOnServer = true) {
   const error = validateField(field)
-  if (error) formErrors.value[field.name] = error
-  else delete formErrors.value[field.name]
+  const fieldName = serverFieldName(field)
+  if (error) {
+    formErrors.value[field.name] = error
+    form.clearErrors(fieldName)
+    return
+  }
+
+  delete formErrors.value[field.name]
+  if (validateOnServer) form.validate(fieldName)
 }
 
 function updateField(field, value) {
   formValues.value[field.name] = value
-  if (formErrors.value[field.name]) validateAndRemember(field)
-  if (form.errors[field.name]) form.clearErrors(field.name)
+  if (formErrors.value[field.name]) validateAndRemember(field, false)
+  revalidateWhenInvalid(serverFieldName(field))
 }
 
 function clearFieldError(field) {
   delete formErrors.value[field.name]
-  form.clearErrors(field.name)
+  form.clearErrors(serverFieldName(field))
 }
 
 function handleSubmit() {
-  for (const field of editableFields.value) validateAndRemember(field)
+  for (const field of editableFields.value) validateAndRemember(field, false)
   if (!isFormReady.value) {
     toast({ message: 'Complete the required fields first.', type: 'error' })
     return
@@ -185,13 +212,7 @@ function handleSubmit() {
   }
 
   form.values = values
-  const actionUrl = isEdit.value
-    ? `${bridgeBasePath.value}/${props.modelIdentity}/${encodePathSegment(
-        props.recordId
-      )}/update`
-    : `${bridgeBasePath.value}/${props.modelIdentity}/create`
-
-  form.post(actionUrl, {
+  form.post(actionUrl.value, {
     onSuccess: () => {
       toast({
         message: isEdit.value ? 'Record updated.' : 'Record created.',
@@ -199,7 +220,9 @@ function handleSubmit() {
       })
     },
     onError: (errors) => {
-      toast({ message: errors.error || 'Failed to save record', type: 'error' })
+      if (errors.error) {
+        toast({ message: errors.error, type: 'error' })
+      }
     }
   })
 }
@@ -431,7 +454,11 @@ function recordUrl() {
               :key="field.name"
               :field="field"
               :model-value="formValues[field.name]"
-              :error="formErrors[field.name] || form.errors[field.name] || ''"
+              :error="
+                formErrors[field.name] ||
+                form.errors[serverFieldName(field)] ||
+                ''
+              "
               :is-edit="isEdit"
               :model-identity="modelIdentity"
               :record-id="recordId"

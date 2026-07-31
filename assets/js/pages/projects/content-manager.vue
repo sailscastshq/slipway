@@ -3,6 +3,7 @@ import { Link, Head, router, useForm } from '@inertiajs/vue3'
 import { inject, ref, onMounted, onUnmounted } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
 import Breadcrumb from '@/components/Breadcrumb.vue'
+import { usePrecognitionValidation } from '@/composables/precognition'
 
 defineOptions({
   layout: AppLayout
@@ -32,35 +33,45 @@ const createForm = useForm({
   title: '',
   appSlug: props.app.slug
 })
+  .withPrecognition('post', () => getCreatePath())
+  .setValidationTimeout(350)
+const { revalidateWhenInvalid, validateOnBlur } =
+  usePrecognitionValidation(createForm)
+
+function getCreatePath() {
+  const envPath =
+    props.environment.slug !== 'production'
+      ? `/environments/${props.environment.slug}`
+      : ''
+  return `/projects/${props.project.slug}${envPath}/content/${selectedCollection.value?.slug}/create`
+}
 
 function openCreateModal(collection) {
   selectedCollection.value = collection
-  createForm.reset()
+  createForm.resetAndClearErrors()
   createModalOpen.value = true
 }
 
 function createContent() {
   if (!createForm.contentSlug.trim()) return
 
-  const envPath =
-    props.environment.slug !== 'production'
-      ? `/environments/${props.environment.slug}`
-      : ''
-
-  createForm.post(
-    `/projects/${props.project.slug}${envPath}/content/${selectedCollection.value.slug}/create`,
-    {
-      onSuccess: () => {
-        createModalOpen.value = false
-      }
+  createForm.validate({
+    only: ['contentSlug', 'title'],
+    onPrecognitionSuccess: () => {
+      createForm.post(getCreatePath(), {
+        onSuccess: () => {
+          createModalOpen.value = false
+        }
+      })
     }
-  )
+  })
 }
 
 function closeCreateModal() {
   if (!createForm.processing) {
     createModalOpen.value = false
     selectedCollection.value = null
+    createForm.resetAndClearErrors()
   }
 }
 
@@ -474,15 +485,28 @@ function refresh() {
             >
             <input
               v-model="createForm.contentSlug"
+              id="contentSlug"
               type="text"
               placeholder="my-new-post"
+              :aria-invalid="createForm.invalid('contentSlug')"
+              :aria-describedby="
+                createForm.errors.contentSlug
+                  ? 'content-create-slug-error'
+                  : 'content-create-slug-help'
+              "
               class="focus:border-brand mt-1 block w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-2 text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
+              @blur="validateOnBlur('contentSlug', $event)"
+              @input="revalidateWhenInvalid('contentSlug')"
             />
-            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+            <p
+              id="content-create-slug-help"
+              class="mt-1 text-xs text-gray-500 dark:text-gray-400"
+            >
               Will be used as the filename
             </p>
             <p
               v-if="createForm.errors.contentSlug"
+              id="content-create-slug-error"
               class="mt-1 text-xs text-red-600 dark:text-red-400"
             >
               {{ createForm.errors.contentSlug }}
@@ -495,10 +519,24 @@ function refresh() {
             >
             <input
               v-model="createForm.title"
+              id="contentTitle"
               type="text"
               placeholder="My New Post"
+              :aria-invalid="createForm.invalid('title')"
+              :aria-describedby="
+                createForm.errors.title ? 'content-create-title-error' : null
+              "
               class="focus:border-brand mt-1 block w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-2 text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
+              @blur="validateOnBlur('title', $event)"
+              @input="revalidateWhenInvalid('title')"
             />
+            <p
+              v-if="createForm.errors.title"
+              id="content-create-title-error"
+              class="mt-1 text-xs text-red-600 dark:text-red-400"
+            >
+              {{ createForm.errors.title }}
+            </p>
           </div>
           <div class="flex items-center justify-end space-x-3 pt-2">
             <button
@@ -511,7 +549,10 @@ function refresh() {
             <button
               type="submit"
               :disabled="
-                !createForm.contentSlug.trim() || createForm.processing
+                !createForm.contentSlug.trim() ||
+                createForm.processing ||
+                createForm.validating ||
+                createForm.hasErrors
               "
               class="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
             >
