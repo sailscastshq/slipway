@@ -100,12 +100,45 @@ module.exports = {
   exits: {
     success: {
       responseType: 'inertiaRedirect'
+    },
+    invalid: {
+      responseType: 'badRequest'
+    },
+    precognitionSuccess: {
+      responseType: 'precognitionSuccess'
     }
   },
 
   fn: async function (inputs) {
+    const validationInputs = { ...inputs }
+    for (const [field, settingKey] of [
+      ['telegramBotToken', 'telegramBotToken'],
+      ['discordWebhookUrl', 'discordWebhookUrl'],
+      ['slackWebhookUrl', 'slackWebhookUrl'],
+      ['webhookUrl', 'webhookUrl']
+    ]) {
+      if (!String(validationInputs[field] || '').trim()) {
+        validationInputs[field] = await sails.helpers.setting.get(
+          settingKey,
+          ''
+        )
+      }
+    }
+
+    const problems = sails.helpers.setting.validate(
+      validationInputs,
+      [],
+      this.req
+    )
+    if (problems.length) {
+      throw { invalid: { problems } }
+    }
+    if (sails.inertia.isPrecognitive(this.req)) {
+      throw 'precognitionSuccess'
+    }
+
     // Telegram settings
-    if (inputs.telegramBotToken !== undefined) {
+    if (inputs.telegramBotToken?.trim()) {
       await sails.helpers.setting.set(
         'telegramBotToken',
         inputs.telegramBotToken.trim()
@@ -131,7 +164,7 @@ module.exports = {
     }
 
     // Discord settings
-    if (inputs.discordWebhookUrl !== undefined) {
+    if (inputs.discordWebhookUrl?.trim()) {
       await sails.helpers.setting.set(
         'discordWebhookUrl',
         inputs.discordWebhookUrl.trim()
@@ -145,7 +178,7 @@ module.exports = {
     }
 
     // Slack settings
-    if (inputs.slackWebhookUrl !== undefined) {
+    if (inputs.slackWebhookUrl?.trim()) {
       await sails.helpers.setting.set(
         'slackWebhookUrl',
         inputs.slackWebhookUrl.trim()
@@ -159,7 +192,7 @@ module.exports = {
     }
 
     // Webhook settings
-    if (inputs.webhookUrl !== undefined) {
+    if (inputs.webhookUrl?.trim()) {
       await sails.helpers.setting.set('webhookUrl', inputs.webhookUrl.trim())
     }
     if (inputs.webhookEnabled !== undefined) {

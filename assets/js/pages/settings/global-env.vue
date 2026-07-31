@@ -5,6 +5,7 @@ import AppLayout from '@/layouts/AppLayout.vue'
 import Tooltip from '@/components/Tooltip.vue'
 import CodeEditor from '@/components/CodeEditor.vue'
 import { useToast } from '@/composables/toast'
+import { usePrecognitionValidation } from '@/composables/precognition'
 
 defineOptions({
   layout: AppLayout
@@ -56,13 +57,22 @@ function generateSecret() {
 }
 
 const envForm = useForm({
-  envVars: { ...props.globalEnvVars }
+  envVars: { ...props.globalEnvVars },
+  envSource: ''
 })
+  .withPrecognition('patch', '/settings/global-env')
+  .setValidationTimeout(350)
 
-function saveVars(vars) {
-  envForm.envVars = { ...vars }
+function replaceLocalVars(vars) {
+  Object.keys(localVars).forEach((key) => delete localVars[key])
+  Object.assign(localVars, vars)
+}
+
+function submitVars(onSuccess) {
+  saving.value = true
   envForm.patch('/settings/global-env', {
     preserveScroll: true,
+    onSuccess,
     onError: () =>
       toast({ message: 'Failed to save environment variables', type: 'error' }),
     onFinish: () => {
@@ -71,20 +81,37 @@ function saveVars(vars) {
   })
 }
 
+function saveVars(vars, { envSource = '', onSuccess } = {}) {
+  envForm.envVars = { ...vars }
+  envForm.envSource = envSource
+  envForm.validate('envVars', {
+    onPrecognitionSuccess: () => submitVars(onSuccess)
+  })
+}
+
 function addVar() {
   if (!newKey.value.trim()) return
   const key = newKey.value.trim()
-  localVars[key] = newValue.value
-  saveVars(localVars)
-  toast({ message: `Added "${key}"`, type: 'success' })
-  newKey.value = ''
-  newValue.value = ''
+  const nextVars = { ...localVars, [key]: newValue.value }
+  saveVars(nextVars, {
+    onSuccess: () => {
+      replaceLocalVars(nextVars)
+      toast({ message: `Added "${key}"`, type: 'success' })
+      newKey.value = ''
+      newValue.value = ''
+    }
+  })
 }
 
 function removeVar(key) {
-  delete localVars[key]
-  saveVars(localVars)
-  toast({ message: `Removed "${key}"`, type: 'success' })
+  const nextVars = { ...localVars }
+  delete nextVars[key]
+  saveVars(nextVars, {
+    onSuccess: () => {
+      replaceLocalVars(nextVars)
+      toast({ message: `Removed "${key}"`, type: 'success' })
+    }
+  })
 }
 
 function renameVar(oldKey, el) {
@@ -99,17 +126,29 @@ function renameVar(oldKey, el) {
     return
   }
   const value = localVars[oldKey]
-  delete localVars[oldKey]
-  localVars[trimmed] = value
-  saveVars(localVars)
-  toast({ message: `Renamed "${oldKey}" to "${trimmed}"`, type: 'success' })
+  const nextVars = { ...localVars }
+  delete nextVars[oldKey]
+  nextVars[trimmed] = value
+  saveVars(nextVars, {
+    onSuccess: () => {
+      replaceLocalVars(nextVars)
+      toast({
+        message: `Renamed "${oldKey}" to "${trimmed}"`,
+        type: 'success'
+      })
+    }
+  })
 }
 
 function updateVarValue(key, value) {
   if (localVars[key] === value) return
-  localVars[key] = value
-  saveVars(localVars)
-  toast({ message: `Updated "${key}"`, type: 'success' })
+  const nextVars = { ...localVars, [key]: value }
+  saveVars(nextVars, {
+    onSuccess: () => {
+      replaceLocalVars(nextVars)
+      toast({ message: `Updated "${key}"`, type: 'success' })
+    }
+  })
 }
 
 const bulkHasChanges = computed(() => {
@@ -158,16 +197,21 @@ function saveBulk() {
     .sort()
     .map((k) => localVars[k])
     .join(',')
-  Object.keys(localVars).forEach((k) => delete localVars[k])
-  Object.assign(localVars, vars)
-  const newKeys = Object.keys(localVars).sort().join(',')
-  const newVals = Object.keys(localVars)
+  const newKeys = Object.keys(vars).sort().join(',')
+  const newVals = Object.keys(vars)
     .sort()
-    .map((k) => localVars[k])
+    .map((k) => vars[k])
     .join(',')
   if (oldKeys !== newKeys || oldVals !== newVals) {
-    saveVars(localVars)
-    toast({ message: 'Environment variables updated', type: 'success' })
+    saveVars(vars, {
+      envSource: bulkText.value,
+      onSuccess: () => {
+        replaceLocalVars(vars)
+        bulkMode.value = false
+        toast({ message: 'Environment variables updated', type: 'success' })
+      }
+    })
+    return
   }
   bulkMode.value = false
 }
@@ -395,52 +439,60 @@ onMounted(() => {
         <!-- Variables -->
         <div class="rounded-lg border border-gray-200 dark:border-gray-800">
           <!-- Header with bulk toggle -->
-          <div class="flex items-center justify-between px-4 py-3">
-            <h2 class="text-sm font-medium text-gray-900 dark:text-white">
-              Variables
-            </h2>
-            <div class="flex items-center gap-2">
-              <span
-                class="inline-flex rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-500 dark:bg-gray-800 dark:text-gray-400"
-              >
-                {{ sortedVarKeys.length }}
-              </span>
-              <Tooltip :text="bulkMode ? 'Single edit' : 'Bulk edit'">
-                <button
-                  @click="bulkMode ? exitBulkMode() : enterBulkMode()"
-                  class="rounded p-0.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-800 dark:hover:text-gray-200"
+          <div class="px-4 py-3">
+            <div class="flex items-center justify-between">
+              <h2 class="text-sm font-medium text-gray-900 dark:text-white">
+                Variables
+              </h2>
+              <div class="flex items-center gap-2">
+                <span
+                  class="inline-flex rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-500 dark:bg-gray-800 dark:text-gray-400"
                 >
-                  <svg
-                    v-if="bulkMode"
-                    class="h-4 w-4"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
+                  {{ sortedVarKeys.length }}
+                </span>
+                <Tooltip :text="bulkMode ? 'Single edit' : 'Bulk edit'">
+                  <button
+                    @click="bulkMode ? exitBulkMode() : enterBulkMode()"
+                    class="rounded p-0.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-800 dark:hover:text-gray-200"
                   >
-                    <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="2"
-                      d="M4 6h16M4 12h16M4 18h16"
-                    />
-                  </svg>
-                  <svg
-                    v-else
-                    class="h-4 w-4"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="2"
-                      d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"
-                    />
-                  </svg>
-                </button>
-              </Tooltip>
+                    <svg
+                      v-if="bulkMode"
+                      class="h-4 w-4"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M4 6h16M4 12h16M4 18h16"
+                      />
+                    </svg>
+                    <svg
+                      v-else
+                      class="h-4 w-4"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"
+                      />
+                    </svg>
+                  </button>
+                </Tooltip>
+              </div>
             </div>
+            <p
+              v-if="envForm.errors.envVars"
+              class="mt-1 text-sm text-red-600 dark:text-red-400"
+            >
+              {{ envForm.errors.envVars }}
+            </p>
           </div>
 
           <!-- Bulk edit mode -->

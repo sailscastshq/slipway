@@ -2,6 +2,7 @@
 import { Link, Head, useForm } from '@inertiajs/vue3'
 import { inject } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
+import { usePrecognitionValidation } from '@/composables/precognition'
 defineOptions({
   layout: AppLayout
 })
@@ -21,6 +22,10 @@ const form = useForm({
   instanceName: props.instanceName || '',
   acmeEmail: props.acmeEmail || ''
 })
+  .withPrecognition('patch', '/settings/instance')
+  .setValidationTimeout(350)
+const { revalidateWhenInvalid, validateOnBlur } =
+  usePrecognitionValidation(form)
 
 function save() {
   form.patch('/settings/instance', { preserveScroll: true })
@@ -193,8 +198,21 @@ function save() {
                 v-model="form.instanceName"
                 type="text"
                 placeholder="Slipway"
+                :aria-invalid="form.invalid('instanceName')"
+                :aria-describedby="
+                  form.errors.instanceName ? 'instance-name-error' : null
+                "
                 class="focus:border-brand w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500 sm:max-w-md"
+                @blur="validateOnBlur('instanceName', $event)"
+                @input="revalidateWhenInvalid('instanceName')"
               />
+              <p
+                v-if="form.errors.instanceName"
+                id="instance-name-error"
+                class="mt-1 text-sm text-red-600 dark:text-red-400"
+              >
+                {{ form.errors.instanceName }}
+              </p>
             </div>
           </div>
 
@@ -223,9 +241,22 @@ function save() {
                   v-model="form.instanceDomain"
                   type="text"
                   placeholder="slipway.example.com"
+                  :aria-invalid="form.invalid('instanceDomain')"
+                  :aria-describedby="
+                    form.errors.instanceDomain ? 'instance-domain-error' : null
+                  "
                   class="focus:border-brand w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500 sm:max-w-md"
+                  @blur="validateOnBlur('instanceDomain', $event)"
+                  @input="revalidateWhenInvalid('instanceDomain')"
                 />
               </div>
+              <p
+                v-if="form.errors.instanceDomain"
+                id="instance-domain-error"
+                class="mt-1 text-sm text-red-600 dark:text-red-400"
+              >
+                {{ form.errors.instanceDomain }}
+              </p>
             </div>
           </div>
 
@@ -251,8 +282,21 @@ function save() {
                 v-model="form.acmeEmail"
                 type="email"
                 placeholder="admin@example.com"
+                :aria-invalid="form.invalid('acmeEmail')"
+                :aria-describedby="
+                  form.errors.acmeEmail ? 'acme-email-error' : null
+                "
                 class="focus:border-brand w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500 sm:max-w-md"
+                @blur="validateOnBlur('acmeEmail', $event)"
+                @input="revalidateWhenInvalid('acmeEmail')"
               />
+              <p
+                v-if="form.errors.acmeEmail"
+                id="acme-email-error"
+                class="mt-1 text-sm text-red-600 dark:text-red-400"
+              >
+                {{ form.errors.acmeEmail }}
+              </p>
             </div>
           </div>
 
@@ -260,7 +304,7 @@ function save() {
           <div class="flex justify-end">
             <button
               type="submit"
-              :disabled="form.processing || !form.isDirty"
+              :disabled="form.processing || form.hasErrors || !form.isDirty"
               class="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
             >
               {{ form.processing ? 'Saving...' : 'Save changes' }}

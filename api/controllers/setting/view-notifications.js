@@ -125,21 +125,25 @@ module.exports = {
       page: 'settings/notifications',
       props: {
         telegram: {
-          botToken: telegramBotToken,
+          botToken: '',
+          hasBotToken: !!telegramBotToken,
           chatId: telegramChatId,
           threadId: telegramThreadId,
           enabled: telegramEnabled === 'true'
         },
         discord: {
-          webhookUrl: discordWebhookUrl,
+          webhookUrl: '',
+          hasWebhookUrl: !!discordWebhookUrl,
           enabled: discordEnabled === 'true'
         },
         slack: {
-          webhookUrl: slackWebhookUrl,
+          webhookUrl: '',
+          hasWebhookUrl: !!slackWebhookUrl,
           enabled: slackEnabled === 'true'
         },
         webhook: {
-          url: webhookUrl,
+          url: '',
+          hasUrl: !!webhookUrl,
           enabled: webhookEnabled === 'true'
         },
         smtp: {

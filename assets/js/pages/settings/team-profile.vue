@@ -3,6 +3,7 @@ import { Link, Head, useForm } from '@inertiajs/vue3'
 import { inject, ref, computed } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
 import SlippyLoader from '@/components/SlippyLoader.vue'
+import { usePrecognitionValidation } from '@/composables/precognition'
 
 defineOptions({
   layout: AppLayout
@@ -20,6 +21,10 @@ const sidebarCollapsed = inject('sidebarCollapsed')
 const form = useForm({
   name: props.team.name
 })
+  .withPrecognition('patch', '/settings/team-profile')
+  .setValidationTimeout(350)
+const { revalidateWhenInvalid, validateOnBlur } =
+  usePrecognitionValidation(form)
 
 const logoForm = useForm({
   logo: null
@@ -370,8 +375,19 @@ const initials = computed(() => {
                 type="text"
                 required
                 placeholder="My Team"
+                :aria-invalid="form.invalid('name')"
+                :aria-describedby="form.errors.name ? 'team-name-error' : null"
                 class="focus:border-brand w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500 sm:max-w-md"
+                @blur="validateOnBlur('name', $event)"
+                @input="revalidateWhenInvalid('name')"
               />
+              <p
+                v-if="form.errors.name"
+                id="team-name-error"
+                class="mt-1 text-sm text-red-600 dark:text-red-400"
+              >
+                {{ form.errors.name }}
+              </p>
               <p class="mt-2 text-xs text-gray-400 dark:text-gray-500">
                 Slug:
                 <span class="font-mono">{{
@@ -388,7 +404,12 @@ const initials = computed(() => {
           <div class="flex justify-end">
             <button
               type="submit"
-              :disabled="form.processing || !form.isDirty || !form.name.trim()"
+              :disabled="
+                form.processing ||
+                form.hasErrors ||
+                !form.isDirty ||
+                !form.name.trim()
+              "
               class="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
             >
               {{ form.processing ? 'Saving...' : 'Save changes' }}

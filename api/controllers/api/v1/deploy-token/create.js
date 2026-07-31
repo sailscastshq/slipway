@@ -37,6 +37,12 @@ module.exports = {
     },
     forbidden: {
       statusCode: 403
+    },
+    invalid: {
+      responseType: 'badRequest'
+    },
+    precognitionSuccess: {
+      responseType: 'precognitionSuccess'
     }
   },
 
@@ -48,6 +54,15 @@ module.exports = {
     expiresInDays
   }) {
     const user = await User.findOne({ id: this.req.session.userId })
+
+    const problems = sails.helpers.setting.validate(
+      { name, scopes, expiresInDays },
+      ['name'],
+      this.req
+    )
+    if (problems.length) {
+      throw { invalid: { problems } }
+    }
 
     // Validate project access if scoped
     if (projectId) {
@@ -71,6 +86,10 @@ module.exports = {
       if (project.team.id !== user.team) {
         throw 'forbidden'
       }
+    }
+
+    if (sails.inertia.isPrecognitive(this.req)) {
+      throw 'precognitionSuccess'
     }
 
     // Calculate expiration

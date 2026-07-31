@@ -3,6 +3,7 @@ import { Link, Head, useForm } from '@inertiajs/vue3'
 import { inject, ref, computed } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
 import { useToast } from '@/composables/toast'
+import { usePrecognitionValidation } from '@/composables/precognition'
 
 defineOptions({
   layout: AppLayout
@@ -54,6 +55,12 @@ const storageForm = useForm({
   secretKey: '',
   ...getProviderDefaults()
 })
+  .withPrecognition('patch', '/settings/uploads')
+  .setValidationTimeout(350)
+const {
+  revalidateWhenInvalid: revalidateStorageWhenInvalid,
+  validateOnBlur: validateStorageOnBlur
+} = usePrecognitionValidation(storageForm)
 
 function onProviderChange() {
   const defaults = getProviderDefaults()
@@ -64,6 +71,7 @@ function onProviderChange() {
   storageForm.endpoint = defaults.endpoint
   storageForm.region = defaults.region
   storageForm.publicUrl = defaults.publicUrl
+  storageForm.clearErrors()
 }
 
 const isCurrentProvider = computed(
@@ -90,6 +98,12 @@ const scheduleForm = useForm({
     retentionCount: props.backupSchedule?.retentionCount || 10
   }
 })
+  .withPrecognition('patch', '/settings/uploads')
+  .setValidationTimeout(350)
+const {
+  revalidateWhenInvalid: revalidateScheduleWhenInvalid,
+  validateOnBlur: validateScheduleOnBlur
+} = usePrecognitionValidation(scheduleForm)
 
 function saveSchedule() {
   scheduleForm.patch('/settings/uploads', {
@@ -436,10 +450,25 @@ const providers = [
                 <input
                   v-model="storageForm.accessKey"
                   type="text"
-                  required
+                  :required="!isCurrentProvider"
                   placeholder="Enter access key"
+                  :aria-invalid="storageForm.invalid('accessKey')"
+                  :aria-describedby="
+                    storageForm.errors.accessKey
+                      ? 'storage-access-key-error'
+                      : null
+                  "
                   class="focus:border-brand w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 font-mono text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500 sm:max-w-md"
+                  @blur="validateStorageOnBlur('accessKey', $event)"
+                  @input="revalidateStorageWhenInvalid('accessKey')"
                 />
+                <p
+                  v-if="storageForm.errors.accessKey"
+                  id="storage-access-key-error"
+                  class="mt-1 text-sm text-red-600 dark:text-red-400"
+                >
+                  {{ storageForm.errors.accessKey }}
+                </p>
               </div>
 
               <!-- Secret Key -->
@@ -452,9 +481,17 @@ const providers = [
                   <input
                     v-model="storageForm.secretKey"
                     :type="showSecrets ? 'text' : 'password'"
-                    required
+                    :required="!isCurrentProvider"
                     placeholder="Enter secret key"
+                    :aria-invalid="storageForm.invalid('secretKey')"
+                    :aria-describedby="
+                      storageForm.errors.secretKey
+                        ? 'storage-secret-key-error'
+                        : null
+                    "
                     class="focus:border-brand w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 font-mono text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500 sm:max-w-md"
+                    @blur="validateStorageOnBlur('secretKey', $event)"
+                    @input="revalidateStorageWhenInvalid('secretKey')"
                   />
                   <button
                     type="button"
@@ -497,6 +534,13 @@ const providers = [
                     </svg>
                   </button>
                 </div>
+                <p
+                  v-if="storageForm.errors.secretKey"
+                  id="storage-secret-key-error"
+                  class="mt-1 text-sm text-red-600 dark:text-red-400"
+                >
+                  {{ storageForm.errors.secretKey }}
+                </p>
               </div>
 
               <!-- Bucket -->
@@ -510,8 +554,21 @@ const providers = [
                   type="text"
                   required
                   placeholder="my-bucket"
+                  :aria-invalid="storageForm.invalid('bucket')"
+                  :aria-describedby="
+                    storageForm.errors.bucket ? 'storage-bucket-error' : null
+                  "
                   class="focus:border-brand w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 font-mono text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500 sm:max-w-md"
+                  @blur="validateStorageOnBlur('bucket', $event)"
+                  @input="revalidateStorageWhenInvalid('bucket')"
                 />
+                <p
+                  v-if="storageForm.errors.bucket"
+                  id="storage-bucket-error"
+                  class="mt-1 text-sm text-red-600 dark:text-red-400"
+                >
+                  {{ storageForm.errors.bucket }}
+                </p>
               </div>
 
               <!-- Region (S3/Spaces only) -->
@@ -530,8 +587,21 @@ const providers = [
                   :placeholder="
                     selectedProvider === 's3' ? 'us-east-1' : 'nyc3'
                   "
+                  :aria-invalid="storageForm.invalid('region')"
+                  :aria-describedby="
+                    storageForm.errors.region ? 'storage-region-error' : null
+                  "
                   class="focus:border-brand w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 font-mono text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500 sm:max-w-md"
+                  @blur="validateStorageOnBlur('region', $event)"
+                  @input="revalidateStorageWhenInvalid('region')"
                 />
+                <p
+                  v-if="storageForm.errors.region"
+                  id="storage-region-error"
+                  class="mt-1 text-sm text-red-600 dark:text-red-400"
+                >
+                  {{ storageForm.errors.region }}
+                </p>
               </div>
 
               <!-- Endpoint -->
@@ -557,8 +627,23 @@ const providers = [
                   :required="
                     selectedProvider === 'r2' || selectedProvider === 'spaces'
                   "
+                  :aria-invalid="storageForm.invalid('endpoint')"
+                  :aria-describedby="
+                    storageForm.errors.endpoint
+                      ? 'storage-endpoint-error'
+                      : null
+                  "
                   class="focus:border-brand w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 font-mono text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
+                  @blur="validateStorageOnBlur('endpoint', $event)"
+                  @input="revalidateStorageWhenInvalid('endpoint')"
                 />
+                <p
+                  v-if="storageForm.errors.endpoint"
+                  id="storage-endpoint-error"
+                  class="mt-1 text-sm text-red-600 dark:text-red-400"
+                >
+                  {{ storageForm.errors.endpoint }}
+                </p>
               </div>
 
               <!-- Public URL -->
@@ -581,8 +666,23 @@ const providers = [
                       ? 'https://my-bucket.nyc3.cdn.digitaloceanspaces.com'
                       : 'https://my-bucket.s3.us-east-1.amazonaws.com'
                   "
+                  :aria-invalid="storageForm.invalid('publicUrl')"
+                  :aria-describedby="
+                    storageForm.errors.publicUrl
+                      ? 'storage-public-url-error'
+                      : null
+                  "
                   class="focus:border-brand w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 font-mono text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
+                  @blur="validateStorageOnBlur('publicUrl', $event)"
+                  @input="revalidateStorageWhenInvalid('publicUrl')"
                 />
+                <p
+                  v-if="storageForm.errors.publicUrl"
+                  id="storage-public-url-error"
+                  class="mt-1 text-sm text-red-600 dark:text-red-400"
+                >
+                  {{ storageForm.errors.publicUrl }}
+                </p>
                 <p class="mt-1 text-xs text-gray-400 dark:text-gray-500">
                   The public-facing URL for accessing uploaded files (e.g. R2
                   public bucket URL, CloudFront distribution, or custom domain)
@@ -597,6 +697,7 @@ const providers = [
               type="submit"
               :disabled="
                 storageForm.processing ||
+                storageForm.hasErrors ||
                 !storageForm.bucket ||
                 (!isCurrentProvider &&
                   (!storageForm.accessKey || !storageForm.secretKey))
@@ -667,7 +768,21 @@ const providers = [
                 >
                 <select
                   v-model="scheduleForm.backupSchedule.intervalHours"
+                  :aria-invalid="
+                    scheduleForm.invalid('backupSchedule.intervalHours')
+                  "
                   class="focus:border-brand w-full rounded-md border border-gray-200 bg-transparent px-3 py-1.5 text-sm text-gray-900 focus:outline-none dark:border-gray-700 dark:text-white"
+                  @change="
+                    revalidateScheduleWhenInvalid(
+                      'backupSchedule.intervalHours'
+                    )
+                  "
+                  @blur="
+                    validateScheduleOnBlur(
+                      'backupSchedule.intervalHours',
+                      $event
+                    )
+                  "
                 >
                   <option :value="6">Every 6 hours</option>
                   <option :value="12">Every 12 hours</option>
@@ -675,6 +790,12 @@ const providers = [
                   <option :value="48">Every 48 hours</option>
                   <option :value="168">Weekly</option>
                 </select>
+                <p
+                  v-if="scheduleForm.errors['backupSchedule.intervalHours']"
+                  class="mt-1 text-sm text-red-600 dark:text-red-400"
+                >
+                  {{ scheduleForm.errors['backupSchedule.intervalHours'] }}
+                </p>
               </div>
               <div>
                 <label
@@ -683,20 +804,40 @@ const providers = [
                 >
                 <select
                   v-model="scheduleForm.backupSchedule.retentionCount"
+                  :aria-invalid="
+                    scheduleForm.invalid('backupSchedule.retentionCount')
+                  "
                   class="focus:border-brand w-full rounded-md border border-gray-200 bg-transparent px-3 py-1.5 text-sm text-gray-900 focus:outline-none dark:border-gray-700 dark:text-white"
+                  @change="
+                    revalidateScheduleWhenInvalid(
+                      'backupSchedule.retentionCount'
+                    )
+                  "
+                  @blur="
+                    validateScheduleOnBlur(
+                      'backupSchedule.retentionCount',
+                      $event
+                    )
+                  "
                 >
                   <option :value="5">Keep last 5</option>
                   <option :value="10">Keep last 10</option>
                   <option :value="20">Keep last 20</option>
                   <option :value="50">Keep last 50</option>
                 </select>
+                <p
+                  v-if="scheduleForm.errors['backupSchedule.retentionCount']"
+                  class="mt-1 text-sm text-red-600 dark:text-red-400"
+                >
+                  {{ scheduleForm.errors['backupSchedule.retentionCount'] }}
+                </p>
               </div>
             </div>
 
             <div class="flex justify-end">
               <button
                 @click="saveSchedule"
-                :disabled="scheduleForm.processing"
+                :disabled="scheduleForm.processing || scheduleForm.hasErrors"
                 class="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
               >
                 {{ scheduleForm.processing ? 'Saving...' : 'Save schedule' }}

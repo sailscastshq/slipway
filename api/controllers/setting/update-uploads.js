@@ -41,6 +41,9 @@ module.exports = {
     },
     badRequest: {
       responseType: 'badRequest'
+    },
+    precognitionSuccess: {
+      responseType: 'precognitionSuccess'
     }
   },
 
@@ -54,6 +57,53 @@ module.exports = {
     publicUrl,
     backupSchedule
   }) {
+    let globalEnvVars = {}
+    try {
+      const globalJson = await sails.helpers.setting.get('globalEnvVars', '{}')
+      globalEnvVars = JSON.parse(globalJson)
+    } catch {
+      /* ignore parse errors */
+    }
+
+    const prefix = provider ? provider.toUpperCase() : null
+    const requiredFields = []
+    if (provider) {
+      requiredFields.push('provider', 'bucket')
+      if (!globalEnvVars[`${prefix}_ACCESS_KEY`]) {
+        requiredFields.push('accessKey')
+      }
+      if (!globalEnvVars[`${prefix}_SECRET_KEY`]) {
+        requiredFields.push('secretKey')
+      }
+      if (provider === 'r2' || provider === 'spaces') {
+        requiredFields.push('endpoint')
+      }
+      if (provider === 's3' || provider === 'spaces') {
+        requiredFields.push('region')
+      }
+    }
+
+    const problems = sails.helpers.setting.validate(
+      {
+        provider,
+        accessKey,
+        secretKey,
+        bucket,
+        endpoint,
+        region,
+        publicUrl,
+        backupSchedule
+      },
+      requiredFields,
+      this.req
+    )
+    if (problems.length) {
+      throw { badRequest: { problems } }
+    }
+    if (sails.inertia.isPrecognitive(this.req)) {
+      throw 'precognitionSuccess'
+    }
+
     // Handle backup schedule update
     if (backupSchedule !== undefined) {
       const existing = await sails.helpers.setting.get('backupSchedule')
@@ -77,15 +127,6 @@ module.exports = {
         sails.inertia.flash('success', 'Backup schedule updated')
         return '/settings/uploads'
       }
-    }
-
-    // Get existing global env vars
-    let globalEnvVars = {}
-    try {
-      const globalJson = await sails.helpers.setting.get('globalEnvVars', '{}')
-      globalEnvVars = JSON.parse(globalJson)
-    } catch {
-      /* ignore parse errors */
     }
 
     // Preserve existing credentials before clearing

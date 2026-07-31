@@ -22,10 +22,33 @@ module.exports = {
   exits: {
     success: {
       responseType: 'inertiaRedirect'
+    },
+    invalid: {
+      responseType: 'badRequest'
+    },
+    precognitionSuccess: {
+      responseType: 'precognitionSuccess'
     }
   },
 
   fn: async function ({ instanceDomain, instanceName, acmeEmail }) {
+    const user = await User.findOne({ id: this.req.session.userId })
+    const problems = sails.helpers.setting.validate(
+      {
+        instanceDomain,
+        instanceName,
+        acmeEmail
+      },
+      [],
+      this.req
+    )
+    if (problems.length) {
+      throw { invalid: { problems } }
+    }
+    if (sails.inertia.isPrecognitive(this.req)) {
+      throw 'precognitionSuccess'
+    }
+
     if (instanceDomain !== undefined) {
       // Clean up the domain - remove protocol and trailing slashes
       let cleanDomain = instanceDomain
@@ -69,7 +92,6 @@ module.exports = {
     }
 
     // Audit log
-    const user = await User.findOne({ id: this.req.session.userId })
     await sails.helpers.audit.log.with({
       action: 'settings.updated',
       resourceType: 'settings',

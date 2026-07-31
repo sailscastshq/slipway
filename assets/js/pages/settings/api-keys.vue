@@ -1,8 +1,9 @@
 <script setup>
-import { Link, Head, router } from '@inertiajs/vue3'
+import { Link, Head, router, useForm } from '@inertiajs/vue3'
 import { inject, ref, computed } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
 import ConfirmModal from '@/components/ConfirmModal.vue'
+import { usePrecognitionValidation } from '@/composables/precognition'
 
 defineOptions({
   layout: AppLayout
@@ -39,32 +40,33 @@ function closeMenu() {
 
 // Rename
 const renamingId = ref(null)
-const renameValue = ref('')
+const renameForm = useForm({ name: '' })
+  .withPrecognition('patch', () => `/settings/cli-tokens/${renamingId.value}`)
+  .setValidationTimeout(350)
+const { revalidateWhenInvalid, validateOnBlur } =
+  usePrecognitionValidation(renameForm)
 
 function startRename(token) {
   renamingId.value = token.id
-  renameValue.value = token.name
+  renameForm.name = token.name
+  renameForm.clearErrors()
   openMenu.value = null
 }
 
 function submitRename(tokenId) {
-  if (!renameValue.value.trim()) return
-  router.patch(
-    `/settings/cli-tokens/${tokenId}`,
-    {
-      name: renameValue.value.trim()
-    },
-    {
-      preserveScroll: true,
-      onSuccess: () => {
-        renamingId.value = null
-      }
+  if (!renameForm.name.trim()) return
+  renameForm.patch(`/settings/cli-tokens/${tokenId}`, {
+    preserveScroll: true,
+    onSuccess: () => {
+      renamingId.value = null
+      renameForm.resetAndClearErrors()
     }
-  )
+  })
 }
 
 function cancelRename() {
   renamingId.value = null
+  renameForm.resetAndClearErrors()
 }
 
 // Delete
@@ -282,12 +284,18 @@ function timeAgo(date) {
                 <template v-if="renamingId === token.id">
                   <div class="flex items-center space-x-2">
                     <input
-                      v-model="renameValue"
+                      v-model="renameForm.name"
                       @keydown.enter="submitRename(token.id)"
                       @keydown.escape="cancelRename"
                       ref="renameInput"
                       autofocus
+                      :aria-invalid="renameForm.invalid('name')"
+                      :aria-describedby="
+                        renameForm.errors.name ? 'cli-token-name-error' : null
+                      "
                       class="focus:border-brand w-full rounded-md border border-gray-200 bg-white px-2 py-1 text-sm text-gray-900 focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+                      @blur="validateOnBlur('name', $event)"
+                      @input="revalidateWhenInvalid('name')"
                     />
                     <button
                       @click="submitRename(token.id)"
@@ -326,6 +334,13 @@ function timeAgo(date) {
                       </svg>
                     </button>
                   </div>
+                  <p
+                    v-if="renameForm.errors.name"
+                    id="cli-token-name-error"
+                    class="mt-1 text-xs text-red-600 dark:text-red-400"
+                  >
+                    {{ renameForm.errors.name }}
+                  </p>
                 </template>
                 <template v-else>
                   <div class="flex items-center space-x-2">
