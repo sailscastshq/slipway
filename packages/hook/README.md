@@ -171,5 +171,8 @@ const enabled = await sails.helpers.flags.enabled.with({
 For a background job, pass a stable `context` containing a `user`, `account`,
 `tenant`, or `team` identifier. Configuration is cached and refreshed in the
 background; an unavailable control plane never fails or delays the host-app
-request. See the [release flag guide](https://docs.sailscasts.com/slipway/release-flags)
-for rollout behavior and Lookout comparisons.
+request. `flags.enabled` is a regular Sails helper machine, so Sails validates
+its declared inputs before evaluation. An app-defined helper at the same
+identity is preserved. See the
+[release flag guide](https://docs.sailscasts.com/slipway/release-flags) for
+rollout behavior and Lookout comparisons.

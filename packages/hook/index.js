@@ -28,6 +28,7 @@ const http = require('http')
 const https = require('https')
 const crypto = require('crypto')
 const { createReleaseFlags } = require('./lib/release-flags')
+const buildFlagsEnabledHelper = require('./lib/helpers/flags/enabled')
 
 module.exports = function defineSlipwayHook(sails) {
   // Telemetry buffers
@@ -117,53 +118,10 @@ module.exports = function defineSlipwayHook(sails) {
         refreshInterval: 15000,
         requestTimeout: 3000
       }
-      initializeReleaseFlags()
-
-      // Skip if not configured
-      if (!config.telemetryUrl || !config.telemetryToken) {
-        sails.log.verbose(
-          'sails-hook-slipway: No telemetry endpoint configured, skipping.'
-        )
-        return done()
-      }
-
-      if (!config.enabled) {
-        sails.log.verbose('sails-hook-slipway: Disabled via config.')
-        return done()
-      }
-
-      sails.log.info(
-        'sails-hook-slipway: Initializing telemetry instrumentation'
-      )
-
-      // Start flush timer
-      flushTimer = setInterval(flush, config.flushInterval)
-
-      // Instrument unhandled exceptions (process-level handlers only)
-      if (config.captureExceptions) {
-        instrumentExceptions()
-      }
-
-      // Instrument Waterline queries
-      if (config.captureQueries) {
-        sails.after('hook:orm:loaded', () => {
-          instrumentQueries()
-        })
-      }
-
-      // Instrument Quest job lifecycle events
-      if (config.captureQuestEvents) {
-        instrumentQuest()
-      }
-
-      // Instrument sails-stash cache operations
-      if (config.captureCache) {
-        sails.after('hook:stash:loaded', () => {
-          instrumentCache()
-        })
-      }
-
-      return done()
+      return initializeReleaseFlags((error) => {
+        if (error) return done(error)
+        return initializeTelemetry(done)
+      })
     },
 
     // ─── HTTP Request & Exception Instrumentation ───────────────
@@ -364,6 +322,45 @@ module.exports = function defineSlipwayHook(sails) {
       flush()
       return done()
     }
+  }
+
+  function initializeTelemetry(done) {
+    if (!config.telemetryUrl || !config.telemetryToken) {
+      sails.log.verbose(
+        'sails-hook-slipway: No telemetry endpoint configured, skipping.'
+      )
+      return done()
+    }
+
+    if (!config.enabled) {
+      sails.log.verbose('sails-hook-slipway: Disabled via config.')
+      return done()
+    }
+
+    sails.log.info('sails-hook-slipway: Initializing telemetry instrumentation')
+    flushTimer = setInterval(flush, config.flushInterval)
+
+    if (config.captureExceptions) {
+      instrumentExceptions()
+    }
+
+    if (config.captureQueries) {
+      sails.after('hook:orm:loaded', () => {
+        instrumentQueries()
+      })
+    }
+
+    if (config.captureQuestEvents) {
+      instrumentQuest()
+    }
+
+    if (config.captureCache) {
+      sails.after('hook:stash:loaded', () => {
+        instrumentCache()
+      })
+    }
+
+    return done()
   }
 
   // ─── Exception Instrumentation (process-level) ─────────────────
@@ -782,7 +779,7 @@ module.exports = function defineSlipwayHook(sails) {
     return path.startsWith('/') && !path.startsWith('//') ? path : fallback
   }
 
-  function initializeReleaseFlags() {
+  function initializeReleaseFlags(done) {
     releaseFlags = createReleaseFlags({
       url: flagsConfig.url,
       token: flagsConfig.token,
@@ -790,34 +787,58 @@ module.exports = function defineSlipwayHook(sails) {
       requestTimeout: flagsConfig.requestTimeout
     })
 
-    const enabled = async function (inputs = {}) {
-      const defaultValue = inputs.defaultValue === true
-      if (!flagsConfig.enabled || !flagsConfig.url || !flagsConfig.token) {
-        recordFlagEvaluation(inputs.req, inputs.key, defaultValue, 'default')
-        return defaultValue
+    if (!sails.hooks.helpers) {
+      return done(
+        new Error(
+          'Cannot load sails-hook-slipway without enabling the "helpers" hook!'
+        )
+      )
+    }
+
+    sails.after('hook:helpers:loaded', () => {
+      try {
+        if (sails.helpers.flags?.enabled) {
+          sails.log.warn(
+            'sails-hook-slipway: Keeping the app-owned `flags.enabled` helper.'
+          )
+          return done()
+        }
+
+        sails.hooks.helpers.furnishHelper(
+          'flags.enabled',
+          buildFlagsEnabledHelper({ evaluate: evaluateReleaseFlag })
+        )
+      } catch (error) {
+        return done(error)
       }
 
-      const evaluation = await releaseFlags.evaluate({
-        key: String(inputs.key || ''),
-        context: requestFlagContext(inputs.req, inputs.context),
-        defaultValue
-      })
-      recordFlagEvaluation(
-        inputs.req,
-        inputs.key,
-        evaluation.value,
-        evaluation.reason,
-        evaluation.flagVersion
-      )
-      return evaluation.value
-    }
-    enabled.with = enabled
-    sails.helpers.flags = sails.helpers.flags || {}
-    sails.helpers.flags.enabled = enabled
+      if (flagsConfig.enabled && flagsConfig.url && flagsConfig.token) {
+        releaseFlags.refresh().catch(() => {})
+      }
+      return done()
+    })
+  }
 
-    if (flagsConfig.enabled && flagsConfig.url && flagsConfig.token) {
-      releaseFlags.refresh().catch(() => {})
+  async function evaluateReleaseFlag(inputs) {
+    const defaultValue = inputs.defaultValue === true
+    if (!flagsConfig.enabled || !flagsConfig.url || !flagsConfig.token) {
+      recordFlagEvaluation(inputs.req, inputs.key, defaultValue, 'default')
+      return defaultValue
     }
+
+    const evaluation = await releaseFlags.evaluate({
+      key: inputs.key,
+      context: requestFlagContext(inputs.req, inputs.context),
+      defaultValue
+    })
+    recordFlagEvaluation(
+      inputs.req,
+      inputs.key,
+      evaluation.value,
+      evaluation.reason,
+      evaluation.flagVersion
+    )
+    return evaluation.value
   }
 
   function requestFlagContext(req, supplied = {}) {
