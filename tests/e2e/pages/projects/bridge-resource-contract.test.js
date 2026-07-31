@@ -49,6 +49,9 @@ test(
     const sailscastsScreenshotRoot = path.resolve(
       '.tmp/screenshots/issue-225-sailscasts-bridge-parity'
     )
+    const precognitionScreenshotRoot = path.resolve(
+      '.tmp/screenshots/issue-208-precognition'
+    )
 
     fs.mkdirSync(screenshotRoot, { recursive: true })
     fs.mkdirSync(identifierScreenshotRoot, { recursive: true })
@@ -58,6 +61,7 @@ test(
     fs.mkdirSync(actionScreenshotRoot, { recursive: true })
     fs.mkdirSync(filterScreenshotRoot, { recursive: true })
     fs.mkdirSync(sailscastsScreenshotRoot, { recursive: true })
+    fs.mkdirSync(precognitionScreenshotRoot, { recursive: true })
 
     const contract = await sails.helpers.bridge.normalizeResourceContract.with({
       models: resourceMetadata(),
@@ -152,6 +156,15 @@ test(
       }
       if (code.includes('const missing = [];')) {
         return successfulResult({ missing: [] })
+      }
+      if (code.includes('const fieldErrors = {};')) {
+        const values = readEmbeddedValue(code, 'values')
+        return successfulResult({
+          fieldErrors:
+            values.title === 'Existing course'
+              ? { title: 'Course title is already in use.' }
+              : {}
+        })
       }
       if (code.includes('const where = definition.query')) {
         const definition = readEmbeddedValue(code, 'definition')
@@ -639,7 +652,27 @@ test(
         ),
         { fullPage: true }
       )
-      await page.raw.getByLabel('Course title').fill('Ship a durable course')
+      const courseTitle = page.raw.getByLabel('Course title')
+      await courseTitle.fill('Existing course')
+      await courseTitle.blur()
+      await page.wait('text=Course title is already in use')
+      await courseTitle.evaluate((element) => {
+        element.scrollIntoView({ block: 'center' })
+      })
+      await page.screenshot(
+        path.join(precognitionScreenshotRoot, 'bridge-field-error-light.png'),
+        { fullPage: true }
+      )
+      await page.raw.emulateMedia({ colorScheme: 'dark' })
+      await page.screenshot(
+        path.join(precognitionScreenshotRoot, 'bridge-field-error-dark.png'),
+        { fullPage: true }
+      )
+      await page.raw.emulateMedia({ colorScheme: 'light' })
+      await courseTitle.fill('Ship a durable course')
+      await page.raw
+        .getByText('Course title is already in use', { exact: false })
+        .waitFor({ state: 'hidden' })
       await page.raw.getByLabel('Price').fill('49')
       await page.raw.setViewportSize({ width: 1440, height: 1100 })
       const creatorRelationshipSelect = page.raw.getByRole('combobox', {
@@ -1300,7 +1333,8 @@ function resourceMetadata() {
         },
         title: {
           type: 'string',
-          required: true
+          required: true,
+          unique: true
         },
         description: {
           type: 'string',

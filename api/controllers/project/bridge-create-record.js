@@ -38,6 +38,9 @@ module.exports = {
     },
     badRequest: {
       responseType: 'badRequest'
+    },
+    precognitionSuccess: {
+      responseType: 'precognitionSuccess'
     }
   },
 
@@ -58,6 +61,7 @@ module.exports = {
       throw { badRequest: { error: 'App is not running' } }
     }
     const { project, environment, app, actor, actorId } = resolved
+    const validateOnly = bridgeValidateOnly(this.req)
 
     let loaded
     let allowedValues
@@ -77,7 +81,8 @@ module.exports = {
           actorId,
           projectId: project.id,
           environmentId: environment.id
-        }
+        },
+        validateOnly
       })
       await sails.helpers.bridge.authorizeRelationshipValues.with({
         containerName: app.containerName,
@@ -86,8 +91,17 @@ module.exports = {
         actor,
         values: allowedValues
       })
+      await sails.helpers.bridge.validateResourceValues.with({
+        containerName: app.containerName,
+        resource: loaded.resource,
+        values: allowedValues
+      })
     } catch (error) {
       throw { badRequest: toBadRequest(error) }
+    }
+
+    if (sails.inertia.isPrecognitive(this.req)) {
+      throw 'precognitionSuccess'
     }
 
     try {
@@ -118,7 +132,14 @@ function toBadRequest(error) {
   return {
     error: error.message,
     problems: Object.entries(error.fieldErrors).map(([field, message]) => ({
-      [field]: message
+      [`values.${field}`]: message
     }))
   }
+}
+
+function bridgeValidateOnly(req) {
+  return sails.inertia
+    .validateOnly(req)
+    .filter((field) => field.startsWith('values.'))
+    .map((field) => field.slice('values.'.length))
 }

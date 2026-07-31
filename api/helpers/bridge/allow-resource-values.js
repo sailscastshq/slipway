@@ -22,6 +22,11 @@ module.exports = {
       type: 'ref',
       description:
         'Authorized actor and resource context used to verify Bridge upload receipts.'
+    },
+    validateOnly: {
+      type: 'json',
+      defaultsTo: [],
+      description: 'Optional Bridge field names to validate from the payload.'
     }
   },
 
@@ -31,7 +36,13 @@ module.exports = {
     }
   },
 
-  fn: async function ({ values, resource, surface, uploadContext }) {
+  fn: async function ({
+    values,
+    resource,
+    surface,
+    uploadContext,
+    validateOnly
+  }) {
     if (
       !values ||
       typeof values !== 'object' ||
@@ -60,8 +71,11 @@ module.exports = {
     const rejectedFields = []
     const unsafeMarkdownFields = []
     const fieldErrors = {}
+    const requestedFields = validateOnly.length
+      ? Array.from(new Set(validateOnly))
+      : Object.keys(values)
 
-    for (const key of Object.keys(values)) {
+    for (const key of requestedFields) {
       if (
         !allowedFields.has(key) ||
         ['__proto__', 'constructor', 'prototype'].includes(key)
@@ -128,6 +142,7 @@ module.exports = {
 
     if (surface === 'create') {
       for (const key of allowedFields) {
+        if (validateOnly.length && !validateOnly.includes(key)) continue
         const attribute = resource.attributes[key]
         if (
           attribute.required === true &&

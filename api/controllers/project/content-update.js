@@ -62,6 +62,9 @@ module.exports = {
     },
     badRequest: {
       responseType: 'badRequest'
+    },
+    precognitionSuccess: {
+      responseType: 'precognitionSuccess'
     }
   },
 
@@ -129,23 +132,34 @@ module.exports = {
     if (!fs.existsSync(filePath)) {
       filePath = path.join(appPath, contentDir, collection, `${file}.md`)
       fileType = 'markdown'
-
-      // Ensure collection directory exists
-      const collectionPath = path.join(appPath, contentDir, collection)
-      if (!fs.existsSync(collectionPath)) {
-        fs.mkdirSync(collectionPath, { recursive: true })
-      }
     }
 
-    // Generate content
-    let content
-    if (raw !== undefined) {
-      content = raw
-    } else if (fileType === 'markdown') {
-      content = serializeFrontmatter(frontmatter, body)
-    } else {
-      content = JSON.stringify(frontmatter, null, 2)
+    const problems = sails.helpers.content.validate(
+      {
+        frontmatter,
+        body,
+        raw,
+        fileType
+      },
+      sails.inertia.validateOnly(this.req)
+    )
+    if (problems.length) {
+      throw { badRequest: { problems } }
     }
+
+    if (sails.inertia.isPrecognitive(this.req)) {
+      throw 'precognitionSuccess'
+    }
+
+    const useRawMarkdown =
+      fileType === 'markdown' &&
+      raw !== undefined &&
+      frontmatter === undefined &&
+      body === undefined
+    const content =
+      fileType === 'json' || useRawMarkdown
+        ? raw
+        : serializeFrontmatter(frontmatter, body)
 
     if (deploy) {
       const sourceReadiness =
@@ -194,6 +208,10 @@ module.exports = {
 
     // Keep the local build context in sync only after the source-of-truth
     // write succeeds. Repository deployments will refresh this exact commit.
+    const collectionPath = path.dirname(filePath)
+    if (!fs.existsSync(collectionPath)) {
+      fs.mkdirSync(collectionPath, { recursive: true })
+    }
     fs.writeFileSync(filePath, content, 'utf8')
 
     sails.log.info(`[content] Updated ${collection}/${file} in ${slug}`)
