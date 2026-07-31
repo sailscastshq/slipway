@@ -18,20 +18,20 @@ These are real browser states captured by Slipway's Sounding test suite with
 seeded application data. Every surface follows the same restrained interface
 in system light and dark modes.
 
-| Bridge dashboards | App-local Bridge access |
-| --- | --- |
+| Bridge dashboards                                                                                                                                                                                  | App-local Bridge access                                                                                                                                                  |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | ![A Bridge dashboard with course, lesson, signup, trend, and status metrics](https://raw.githubusercontent.com/sailscastshq/slipway/v0.0.52/.github/screenshots/0.0.52/bridge-dashboard-light.png) | ![The app-local Bridge invitation and access manager](https://raw.githubusercontent.com/sailscastshq/slipway/v0.0.52/.github/screenshots/0.0.52/bridge-access-light.png) |
 
-| Git-backed Content | Helm structured results |
-| --- | --- |
+| Git-backed Content                                                                                                                                                            | Helm structured results                                                                                                                                                               |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | ![The minimal dark-mode visual Markdown editor in Content](https://raw.githubusercontent.com/sailscastshq/slipway/v0.0.52/.github/screenshots/0.0.52/content-editor-dark.png) | ![Helm with a Sails query and a structured table result](https://raw.githubusercontent.com/sailscastshq/slipway/v0.0.52/.github/screenshots/0.0.52/helm-structured-results-light.png) |
 
-| Deliberate deployment ordering | Multiple Dock results |
-| --- | --- |
+| Deliberate deployment ordering                                                                                                                                                                        | Multiple Dock results                                                                                                                                                                               |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | ![One building and one queued deployment promoted above the deployment history](https://raw.githubusercontent.com/sailscastshq/slipway/v0.0.52/.github/screenshots/0.0.52/deployment-queue-light.png) | ![Dock showing individually selectable results for multiple SQL statements](https://raw.githubusercontent.com/sailscastshq/slipway/v0.0.52/.github/screenshots/0.0.52/dock-multi-results-light.png) |
 
-| Release controls | Flag-aware observation |
-| --- | --- |
+| Release controls                                                                                                                                                 | Flag-aware observation                                                                                                                                                                       |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | ![Release flags configured on an application](https://raw.githubusercontent.com/sailscastshq/slipway/v0.0.52/.github/screenshots/0.0.52/release-flags-light.png) | ![Lookout comparing request health with a release flag on and off](https://raw.githubusercontent.com/sailscastshq/slipway/v0.0.52/.github/screenshots/0.0.52/lookout-release-flags-dark.png) |
 
 ## Read this before upgrading
