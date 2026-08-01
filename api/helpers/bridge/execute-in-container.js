@@ -37,9 +37,11 @@ module.exports = {
   fn: async function ({ containerName, code, timeout }) {
     return new Promise((resolve) => {
       const dockerPath = sails.config.docker?.binaryPath || 'docker'
-      const proc = spawn(dockerPath, ['exec', '-i', containerName, 'node'], {
-        timeout
-      })
+      const proc = spawn(
+        dockerPath,
+        ['exec', '-e', 'NODE_ENV=production', '-i', containerName, 'node'],
+        { timeout }
+      )
 
       let stdout = ''
       let stderr = ''
