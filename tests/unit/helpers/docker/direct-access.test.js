@@ -110,7 +110,7 @@ test('workers never receive a direct HTTP endpoint', async ({
   expect(directAccess.url).toBe(null)
 })
 
-test('an intentionally private loopback binding is explained instead of advertised', async ({
+test('an intentionally private loopback binding stays quiet and is not advertised', async ({
   sails,
   expect
 }) => {
@@ -127,7 +127,8 @@ test('an intentionally private loopback binding is explained instead of advertis
     }
   })
 
-  expect(directAccess.status).toBe('unavailable')
+  expect(directAccess.status).toBe('private')
   expect(directAccess.url).toBe(null)
-  expect(directAccess.message).toMatch(/intentionally private/)
+  expect(directAccess.message).toBe(null)
+  expect(directAccess.firewallHint).toBe(null)
 })

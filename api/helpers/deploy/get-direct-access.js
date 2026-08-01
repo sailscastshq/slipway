@@ -78,9 +78,9 @@ module.exports = {
       return {
         url: null,
         attemptedUrl,
-        status: 'unavailable',
-        message: `Docker published host port ${hostPort} only on ${portBinding.host}, so it is intentionally private. Bind routable apps to 0.0.0.0 and redeploy before using a public direct URL.`,
-        firewallHint
+        status: 'private',
+        message: null,
+        firewallHint: null
       }
     }
 

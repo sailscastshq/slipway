@@ -14,9 +14,9 @@ module.exports = {
   },
 
   exits: {
-    success: { responseType: 'redirect' },
-    notFound: { responseType: 'redirect' },
-    forbidden: { responseType: 'redirect' }
+    success: { responseType: 'inertiaRedirect' },
+    notFound: { responseType: 'inertiaRedirect' },
+    forbidden: { responseType: 'inertiaRedirect' }
   },
 
   fn: async function ({ slug, envSlug, appSlug, accessId, role }) {

@@ -3,6 +3,60 @@ const { test } = require('sounding')
 const { withCsrfFromPage } = require('../../support/csrf-request')
 
 test(
+  'Bridge access mutations return one Inertia location instead of replaying the mutation',
+  { world: bridgeWorld('bridge-mutation-redirects', 'Bridge Redirects') },
+  async ({ sails, world, request, expect }) => {
+    const current = world.current
+    const app = current.apps.web
+    const environment = current.environments.production
+    const project = current.projects.deploymentTarget
+    const accessPath = bridgeAccessPath(project, environment, app)
+    const access = await world.create('bridgeaccess').with({
+      email: 'editor@host-app.example',
+      role: 'viewer',
+      status: 'active',
+      hostUserId: 'host-editor-1',
+      activatedAt: Date.now(),
+      app: app.id,
+      environment: environment.id,
+      project: project.id,
+      team: current.teams.genesisTeam.id,
+      invitedBy: current.users.genesisUser.id
+    })
+    const browser = await withCsrfFromPage(request, accessPath, 'genesisUser')
+
+    const enabled = await browser.request.patch(accessPath, { enabled: true })
+
+    expect(enabled).toHaveStatus(409)
+    expect(enabled).toHaveHeader('x-inertia-location', accessPath)
+    expect((await sails.models.app.findOne({ id: app.id })).bridgeEnabled).toBe(
+      true
+    )
+
+    const updated = await browser.request.patch(`${accessPath}/${access.id}`, {
+      role: 'editor'
+    })
+
+    expect(updated).toHaveStatus(409)
+    expect(updated).toHaveHeader('x-inertia-location', accessPath)
+    expect(
+      (await sails.models.bridgeaccess.findOne({ id: access.id })).role
+    ).toBe('editor')
+
+    const revoked = await browser.request.delete(
+      `${accessPath}/${access.id}`,
+      {}
+    )
+
+    expect(revoked).toHaveStatus(409)
+    expect(revoked).toHaveHeader('x-inertia-location', accessPath)
+    expect(
+      (await sails.models.bridgeaccess.findOne({ id: access.id })).status
+    ).toBe('revoked')
+  }
+)
+
+test(
   'owner invites a host-app account without granting Slipway team access',
   { world: bridgeWorld('host-bridge-invite', 'Host Bridge Invite') },
   async ({ sails, world, request, visit, mailbox, expect }) => {
