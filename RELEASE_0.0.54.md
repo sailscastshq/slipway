@@ -71,16 +71,49 @@ first page.
 Changing the Slipway session cookie name requires operators to sign in to the
 Slipway dashboard once after upgrading. Host-app sessions are not affected.
 
+## Configuration correctness
+
+### What was happening
+
+Legacy service-managed variables could have values without stored metadata.
+The configuration page resolved the missing fields into the correct effective
+policy, but an update compared that effective request with the raw legacy
+record. Adding an unrelated variable could therefore look like an attempt to
+change a protected managed variable and be rejected.
+
+The same normalizer was also used while reading environment and app pages. It
+treated missing default fields as a mutation and stamped the parent record's
+`updatedAt` onto each variable. The UI could then claim a legacy secret had
+changed “N minutes ago” even when the timestamp belonged to an unrelated
+environment or app update.
+
+### What changed
+
+- Managed-variable guards compare effective current policy with effective
+  requested policy. Actual managed values and policies remain protected.
+- Read-only normalization is explicit and never creates actor/time history;
+  environment, app, and global configuration pages now use the same path.
+- Only an accepted value or policy mutation records who changed a variable and
+  when. Unrelated environment edits leave variable history byte-for-byte
+  unchanged.
+- Variable rows show only `Managed secret`, `Secret`, or `Plain config` plus
+  genuine history. Preview behavior is explained in the existing variable
+  menu instead of repeated in every row.
+- Row actions remain visually quiet but are keyboard-focusable, and the menu
+  opens with Enter. The policy explanation was verified in light, dark, and
+  390 px-wide layouts.
+
 ### Local measurements
 
 On August 3, 2026, the reproducible local Docker benchmark recorded:
 
 | Measurement                         | Result                |
 | ----------------------------------- | --------------------- |
-| Old per-operation lifecycle         | 5,026 ms and 4,953 ms |
-| One-time deployment/startup prewarm | 4,917 ms              |
-| Five consecutive warm operations    | 1, 0, 0, 0, and 0 ms  |
+| Old per-operation lifecycle         | 4,936 ms and 4,760 ms |
+| One-time deployment/startup prewarm | 4,760 ms              |
+| Five consecutive warm operations    | 1, 1, 0, 0, and 0 ms  |
 | Slowest warm runtime operation      | 1 ms                  |
+| Local Slipway login TTFB            | 26 ms                 |
 
 These numbers isolate Bridge runtime overhead. Database execution, network
 latency, the 300 ms search debounce, and browser rendering remain part of the
@@ -120,3 +153,7 @@ The same-origin gate additionally requires:
 - host and Slipway session cookies cannot overwrite each other;
 - revocation and Bridge-secret rotation invalidate both URL modes; and
 - Caddy accepts the generated ordered handlers before deployment cutover.
+
+The final merged candidate passed 270 unit, 98 functional, and 42 browser tests
+locally. Both environment-fix pull requests also passed the complete GitHub CI
+pipeline independently.
