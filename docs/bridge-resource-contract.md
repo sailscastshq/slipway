@@ -463,18 +463,57 @@ surface. Protected values are never readable through Bridge.
 
 ## Target app authorization
 
-Static `actions` remain useful for permanently disabling operations. Add an
-authorization helper when the decision depends on the signed-in actor:
+Static `actions` remain useful for permanently disabling operations. For the
+common host-role boundary, configure a deny-by-default role matrix once:
 
 ```js
-course: {
+bridge: {
   authorization: {
-    helper: 'bridge.authorize'
+    roleAttribute: 'role',
+    roles: {
+      admin: ['*'],
+      editor: ['viewAny', 'view', 'create']
+    },
+    default: []
+  },
+  resources: {
+    coursePurchase: {
+      authorization: {
+        roles: {
+          admin: ['viewAny', 'view'],
+          editor: []
+        }
+      }
+    }
   }
 }
 ```
 
-The helper runs inside the target Sails application. It receives `actor`,
+The authorization model defaults to the Bridge identity model (`User`) and its
+primary key. Slipway loads that host user by the stable host ID bound during
+the app-local exchange, reads `roleAttribute` once per authorization pass, and
+intersects the configured actions with the Bridge invitation-role ceiling.
+The browser-supplied email is never used to find the user. `'*'` applies only
+to actions already enabled on configured resources. Unknown users, roles, and
+actions are denied; invalid models, attributes, roles, or action names reject
+the resource contract.
+
+A resource `roles` object replaces the global matrix for that resource, which
+allows a sensitive resource to be narrower. `default` may only be `[]`; an
+unlisted host role can never acquire access.
+
+Keep an authorization helper only for genuinely record-specific domain
+decisions that a role matrix cannot express:
+
+```js
+course: {
+  authorization: {
+    helper: 'course.authorizeBridgeRecord'
+  }
+}
+```
+
+That helper runs inside the target Sails application. It receives `actor`,
 `action`, `resource`, and `recordId` when a record is in scope. It must return
 `true` (or `{ allowed: true }`) to allow the action; falsey values, missing
 helpers, malformed results, and helper errors fail closed.
@@ -510,11 +549,9 @@ module.exports = {
 }
 ```
 
-This matches the current Nexus split: editors can discover, read, and create;
-admins can also update and delete. The actor contains a small Slipway identity
-context (`id`, `email`, `fullName`, team role, and current project/environment
-identifiers). The target app remains responsible for mapping that identity to
-its own user and roles.
+The actor contains a small Slipway identity context (`id`, `email`, `fullName`,
+Bridge role, and current project/environment identifiers). Declarative
+authorization treats only `id` as the stable host identity.
 
 Custom actions use the same authorization helper. A denied action is removed
 from the effective contract sent to the UI and the execution endpoint repeats
@@ -533,13 +570,15 @@ cannot cross the Bridge boundary.
 
 ```js
 course: {
-  authorization: 'bridge.authorize',
   actions: {
     bulkDelete: false,
 
     syncCatalog: {
       scope: 'resource',
-      helper: 'bridge.syncCatalog',
+      helper: {
+        identity: 'catalog.sync',
+        inputs: 'values'
+      },
       label: 'Sync catalog',
       success: 'Catalog synchronized.'
     },
@@ -590,6 +629,33 @@ course: {
 }
 ```
 
+The object helper form invokes ordinary application domain behavior. With
+`inputs: 'values'`, validated action fields become named Sails helper inputs,
+so the helper's own input contract is enforced normally. `context` may
+explicitly add `actor`, `resource`, `recordId`, or `recordIds`; none are passed
+implicitly. The helper identity comes only from trusted server configuration.
+The client cannot select or override it.
+
+An action that returns structured data can map scalar fields into one bounded,
+one-time result message:
+
+```js
+helper: {
+  identity: 'license.createLicense',
+  inputs: 'values',
+  result: {
+    message: 'License issued for {{email}}. Copy this key now: {{key}}'
+  }
+}
+```
+
+The template is rendered inside the target app. Only the normalized message
+leaves the container, appears in the one-time flash, and is limited to 500
+characters. Raw structured output, submitted values, and plaintext secrets are
+not stored in the resource contract or audit log. Direct-domain-helper errors
+are replaced with a generic action failure so exception text cannot leak a
+secret.
+
 The three scopes determine where the action appears and which identifiers the
 helper receives:
 
@@ -623,7 +689,8 @@ normalized. Rich text supports the explicit Markdown format and repeats the
 raw-HTML denial on the server. Relationship and upload fields are not action
 inputs; use record forms for those workflows.
 
-The configured helper runs inside the target Sails application:
+The legacy string helper form remains available for Bridge-envelope adapters
+and runs inside the target Sails application:
 
 ```js
 // api/helpers/bridge/publish-course.js

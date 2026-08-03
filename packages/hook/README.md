@@ -27,11 +27,17 @@ Enable Bridge for an app from **App → Bridge access** in Slipway, then redeplo
 the app. Slipway injects a dedicated, app-scoped exchange credential into that
 deployment.
 
-People open:
+People can enter Bridge through either URL without changing origin mid-session:
 
 ```text
 https://your-app.example.com/bridge
+https://slipway.example.com/projects/<project>/environments/<environment>/apps/<app>/bridge
 ```
+
+The public URL keeps navigation, search, actions, and assets under the app's
+own `/bridge` path. The Slipway URL is the operator entry point. If the app is
+mounted below a route prefix, that prefix comes before `/bridge`; a root app
+uses exactly `/bridge`.
 
 The hook uses the app's existing authenticated user as the identity. Slipway
 only activates an invitation when the signed-in user's verified email exactly
@@ -47,10 +53,98 @@ The default Boring Stack conventions work without app code:
 - name: `fullName`
 - verification: `emailStatus` is `verified` or `confirmed`
 
-### Custom authentication
+Persist that provider-neutral verification state when Wish, a redeemed magic
+link, or another authentication flow proves ownership of the exact email
+stored on the user. A provider that verifies a different candidate email must
+not confirm the current address. Opening `/bridge` must never call GitHub,
+Google, or another identity provider, and Bridge does not need stored OAuth
+access tokens.
 
-Configure one identity helper when the app uses different authentication
-conventions:
+### Declarative identity mapping
+
+For conventional model-backed sessions with different names, map the
+attributes instead:
+
+```js
+module.exports.slipway = {
+  bridge: {
+    loginPath: '/login',
+    identity: {
+      model: 'member',
+      sessionKey: 'memberId',
+      emailAttribute: 'emailAddress',
+      nameAttribute: 'name',
+      emailVerifiedAttribute: 'hasVerifiedEmail'
+    }
+  }
+}
+```
+
+### Declarative host authorization
+
+Bridge invitation roles are a ceiling. Narrow them with the host user's
+persisted role without an application authorization helper:
+
+```js
+module.exports.slipway = {
+  bridge: {
+    authorization: {
+      roleAttribute: 'role',
+      roles: {
+        admin: ['*'],
+        editor: ['viewAny', 'view', 'create']
+      },
+      default: []
+    },
+    resources: {
+      purchase: {
+        authorization: {
+          roles: {
+            admin: ['viewAny', 'view'],
+            editor: []
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+Slipway resolves the host user by the stable ID established during the Bridge
+exchange and reads the configured role once per authorization pass. Unknown
+users, roles, actions, and invalid configuration fail closed.
+
+### Direct domain actions
+
+An action can invoke an explicitly allowlisted application domain helper with
+validated fields as named inputs:
+
+```js
+issueLicense: {
+  scope: 'resource',
+  helper: {
+    identity: 'license.createLicense',
+    inputs: 'values',
+    result: {
+      message: 'License issued for {{email}}. Copy this key now: {{key}}'
+    }
+  },
+  fields: {
+    email: { type: 'email', required: true },
+    maxUses: { type: 'number', required: true, min: 1, max: 2 }
+  }
+}
+```
+
+Sails still validates the domain helper's declared inputs. The result template
+is rendered inside the target app and only the bounded message crosses into a
+one-time Bridge flash. Add `context: ['actor', 'recordId']` only when the domain
+helper explicitly declares those inputs. The browser can never choose a helper
+identity.
+
+### Custom authentication escape hatch
+
+Use an identity helper only when authentication is not model-backed:
 
 ```js
 // config/slipway.js
@@ -94,26 +188,6 @@ module.exports = {
 The helper must return `emailVerified: true`. Bridge fails closed when it cannot
 prove email verification.
 
-### Declarative identity mapping
-
-For conventional model-backed sessions with different names, map the
-attributes instead:
-
-```js
-module.exports.slipway = {
-  bridge: {
-    loginPath: '/login',
-    identity: {
-      model: 'member',
-      sessionKey: 'memberId',
-      emailAttribute: 'emailAddress',
-      nameAttribute: 'name',
-      emailVerifiedAttribute: 'hasVerifiedEmail'
-    }
-  }
-}
-```
-
 ## Security model
 
 - Bridge is disabled per app by default.
@@ -129,6 +203,10 @@ module.exports.slipway = {
   the eight-hour Bridge session lifetime invalidates access server-side.
 - Bridge roles (`viewer`, `editor`, and `administrator`) are a ceiling. The
   target app's configured resource authorization can only narrow that access.
+- Declarative host authorization loads the host user by its server-established
+  ID, never by a client-supplied email.
+- OAuth provider tokens stay inside authentication and are not required by
+  Bridge.
 
 ## Lookout telemetry
 

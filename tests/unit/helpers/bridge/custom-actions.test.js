@@ -266,6 +266,130 @@ test('Bridge custom actions expose only bounded helper feedback', async ({
   }
 })
 
+test('Bridge invokes an allowlisted domain helper with named values and maps its one-time result', async ({
+  sails,
+  expect
+}) => {
+  const contract = await sails.helpers.bridge.normalizeResourceContract.with({
+    models: courseMetadata(),
+    config: {
+      resources: {
+        course: {
+          actions: {
+            issueLicense: {
+              scope: 'resource',
+              helper: {
+                identity: 'license.createLicense',
+                inputs: 'values',
+                result: {
+                  message:
+                    'License issued for {{ email }}. Copy this key now: {{key}}'
+                }
+              },
+              fields: {
+                email: { type: 'email', required: true },
+                maxUses: { type: 'number', required: true }
+              }
+            }
+          }
+        }
+      }
+    }
+  })
+  const action = contract.resources.course.actionDefinitions.issueLicense
+  expect(action.helper).toBe('license.createLicense')
+  expect(action.invocation).toEqual({
+    inputs: 'values',
+    context: [],
+    result: {
+      message: 'License issued for {{ email }}. Copy this key now: {{key}}'
+    }
+  })
+
+  const originalBuildSailsWrapper = sails.helpers.bridge.buildSailsWrapper
+  const originalExecuteInContainer = sails.helpers.bridge.executeInContainer
+  let helperInputs
+  let shouldFail = false
+  const createLicense = async (inputs) => {
+    helperInputs = inputs
+    if (shouldFail) {
+      throw new Error(
+        'provider failure containing plaintext secret sk_live_nope'
+      )
+    }
+    return {
+      email: inputs.email,
+      key: 'license-key-shown-once',
+      internalReceipt: 'must not leave the target app'
+    }
+  }
+  createLicense.with = createLicense
+
+  try {
+    sails.helpers.bridge.buildSailsWrapper = async (code) => code
+    sails.helpers.bridge.executeInContainer = async (containerName, code) => {
+      expect(containerName).toBe('bridge-app-web')
+      try {
+        const run = new Function('sails', `return (async () => {${code}})();`)
+        const output = await run({
+          helpers: {
+            license: { createLicense }
+          }
+        })
+        return successfulResult(output)
+      } catch (error) {
+        return {
+          success: false,
+          output: '',
+          error: error.message,
+          exitCode: 1
+        }
+      }
+    }
+
+    const result = await sails.helpers.bridge.executeCustomAction.with({
+      containerName: 'bridge-app-web',
+      resource: contract.resources.course,
+      action,
+      actor: { id: '7', email: 'admin@example.com' },
+      values: {
+        email: 'customer@example.com',
+        maxUses: 2
+      }
+    })
+    expect(helperInputs).toEqual({
+      email: 'customer@example.com',
+      maxUses: 2
+    })
+    expect(result).toEqual({
+      message:
+        'License issued for customer@example.com. Copy this key now: license-key-shown-once'
+    })
+
+    shouldFail = true
+    let normalizedError
+    try {
+      await sails.helpers.bridge.executeCustomAction.with({
+        containerName: 'bridge-app-web',
+        resource: contract.resources.course,
+        action,
+        actor: { id: '7', email: 'admin@example.com' },
+        values: {
+          email: 'customer@example.com',
+          maxUses: 2
+        }
+      })
+    } catch (error) {
+      normalizedError = error
+    }
+    expect(normalizedError.message).toBe('Issue License failed.')
+    expect(normalizedError.message.includes('sk_live_nope')).toBe(false)
+  } finally {
+    sails.helpers.bridge.buildSailsWrapper = originalBuildSailsWrapper
+    sails.helpers.bridge.executeInContainer = originalExecuteInContainer
+  }
+})
+
 function actionConfig() {
   return {
     resources: {
