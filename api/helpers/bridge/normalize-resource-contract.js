@@ -89,6 +89,19 @@ function normalizeBridgeResourceContract({ models, config = {} }) {
     'destructive',
     'fields'
   ]
+  const CUSTOM_ACTION_HELPER_OPTION_KEYS = [
+    'identity',
+    'inputs',
+    'context',
+    'result'
+  ]
+  const CUSTOM_ACTION_RESULT_OPTION_KEYS = ['message']
+  const CUSTOM_ACTION_CONTEXT_KEYS = [
+    'actor',
+    'resource',
+    'recordId',
+    'recordIds'
+  ]
   const CUSTOM_ACTION_FIELD_OPTION_KEYS = [
     'type',
     'label',
@@ -238,6 +251,21 @@ function normalizeBridgeResourceContract({ models, config = {} }) {
       model,
       rawResource === false ? { hidden: true } : rawResource || {},
       rawResource !== undefined
+    )
+  }
+
+  const globalAuthorization = normalizeGlobalAuthorization(
+    config.authorization,
+    config.identity,
+    resources
+  )
+  for (const [identity, resource] of Object.entries(resources)) {
+    const rawResource = configuredResources[identity]
+    resource.authorization = normalizeAuthorization(
+      identity,
+      isPlainObject(rawResource) ? rawResource.authorization : undefined,
+      globalAuthorization,
+      resource
     )
   }
 
@@ -416,7 +444,7 @@ function normalizeBridgeResourceContract({ models, config = {} }) {
       configured,
       actions: normalizedActions.permissions,
       actionDefinitions: normalizedActions.definitions,
-      authorization: normalizeAuthorization(identity, raw.authorization),
+      authorization: null,
       attributes,
       associations
     }
@@ -992,9 +1020,11 @@ function normalizeBridgeResourceContract({ models, config = {} }) {
         `${path}.scope must be one of: ${CUSTOM_ACTION_SCOPES.join(', ')}.`
       )
     }
-    if (!isSafeHelperIdentity(rawAction.helper)) {
-      throw new Error(`${path}.helper must be a safe Sails helper identity.`)
-    }
+    const normalizedHelper = normalizeCustomActionHelper(
+      path,
+      rawAction.helper,
+      rawAction.fields
+    )
     for (const option of ['label', 'description', 'confirm', 'success']) {
       assertOptionalString(rawAction[option], `${path}.${option}`)
     }
@@ -1026,7 +1056,10 @@ function normalizeBridgeResourceContract({ models, config = {} }) {
     return {
       name,
       scope: rawAction.scope,
-      helper: rawAction.helper,
+      helper: normalizedHelper.identity,
+      ...(normalizedHelper.invocation
+        ? { invocation: normalizedHelper.invocation }
+        : {}),
       label,
       description: readString(rawAction.description),
       confirm:
@@ -1304,29 +1337,258 @@ function normalizeBridgeResourceContract({ models, config = {} }) {
     }
   }
 
-  function normalizeAuthorization(identity, rawAuthorization) {
+  function normalizeGlobalAuthorization(
+    rawAuthorization,
+    identityConfig,
+    normalizedResources
+  ) {
     if (rawAuthorization === undefined) return null
+    const path = 'sails.config.slipway.bridge.authorization'
+    if (!isPlainObject(rawAuthorization)) {
+      throw new Error(`${path} must be an object.`)
+    }
+    rejectUnknownKeys(
+      rawAuthorization,
+      ['model', 'roleAttribute', 'roles', 'default'],
+      path
+    )
+
+    const modelIdentity = String(
+      rawAuthorization.model || identityConfig?.model || 'user'
+    ).toLowerCase()
+    if (!isSafeIdentifier(modelIdentity) || !models[modelIdentity]) {
+      throw new Error(
+        `${path}.model must name an introspected Waterline model.`
+      )
+    }
+    const model = models[modelIdentity]
+    const primaryKey = model.primaryKey || 'id'
+    const roleAttribute = rawAuthorization.roleAttribute || 'role'
+    if (
+      !isSafeIdentifier(roleAttribute) ||
+      !model.attributes?.[roleAttribute]
+    ) {
+      throw new Error(
+        `${path}.roleAttribute must name an attribute on "${modelIdentity}".`
+      )
+    }
+
+    const knownActions = new Set()
+    for (const resource of Object.values(normalizedResources)) {
+      for (const action of Object.keys(resource.actions || {})) {
+        knownActions.add(action)
+      }
+    }
+    return {
+      mode: 'roles',
+      model: modelIdentity,
+      primaryKey,
+      roleAttribute,
+      roles: normalizeAuthorizationRoles({
+        roles: rawAuthorization.roles,
+        defaultActions: rawAuthorization.default,
+        path,
+        knownActions,
+        knownRoles: readKnownRoleValues(model.attributes[roleAttribute])
+      }),
+      default: []
+    }
+  }
+
+  function normalizeAuthorization(
+    identity,
+    rawAuthorization,
+    globalAuthorization,
+    resource
+  ) {
+    if (rawAuthorization === undefined) {
+      return globalAuthorization
+        ? cloneSerializable(globalAuthorization, `${identity}.authorization`)
+        : null
+    }
 
     const authorization =
       typeof rawAuthorization === 'string'
         ? { helper: rawAuthorization }
         : rawAuthorization
+    const path = `Bridge resource "${identity}".authorization`
     if (!isPlainObject(authorization)) {
+      throw new Error(`${path} must be a helper identity or an object.`)
+    }
+
+    if (Object.prototype.hasOwnProperty.call(authorization, 'helper')) {
+      rejectUnknownKeys(authorization, ['helper'], path)
+      if (!isSafeHelperIdentity(authorization.helper)) {
+        throw new Error(`${path}.helper must be a safe Sails helper identity.`)
+      }
+      return { helper: authorization.helper }
+    }
+
+    rejectUnknownKeys(authorization, ['roles', 'default'], path)
+    if (!globalAuthorization) {
       throw new Error(
-        `Bridge resource "${identity}".authorization must be a helper identity or an object.`
+        `${path}.roles requires sails.config.slipway.bridge.authorization.`
+      )
+    }
+    const model = models[globalAuthorization.model]
+    return {
+      ...cloneSerializable(globalAuthorization, path),
+      roles: normalizeAuthorizationRoles({
+        roles: authorization.roles,
+        defaultActions: authorization.default,
+        path,
+        knownActions: new Set(Object.keys(resource.actions || {})),
+        knownRoles: readKnownRoleValues(
+          model.attributes[globalAuthorization.roleAttribute]
+        )
+      }),
+      default: []
+    }
+  }
+
+  function normalizeAuthorizationRoles({
+    roles,
+    defaultActions,
+    path,
+    knownActions,
+    knownRoles
+  }) {
+    if (!isPlainObject(roles) || Object.keys(roles).length === 0) {
+      throw new Error(`${path}.roles must be a non-empty object.`)
+    }
+    if (
+      defaultActions !== undefined &&
+      (!Array.isArray(defaultActions) || defaultActions.length !== 0)
+    ) {
+      throw new Error(`${path}.default must be an empty deny-by-default array.`)
+    }
+
+    const normalized = {}
+    for (const [role, actions] of Object.entries(roles)) {
+      if (!isSafeIdentifier(role)) {
+        throw new Error(`${path}.roles contains an invalid role "${role}".`)
+      }
+      if (knownRoles && !knownRoles.has(role)) {
+        throw new Error(`${path}.roles references unknown role "${role}".`)
+      }
+      if (!Array.isArray(actions)) {
+        throw new Error(`${path}.roles.${role} must be an array.`)
+      }
+      const unique = Array.from(new Set(actions))
+      for (const action of unique) {
+        if (
+          action !== '*' &&
+          (!isSafeIdentifier(action) || !knownActions.has(action))
+        ) {
+          throw new Error(
+            `${path}.roles.${role} references unknown action "${action}".`
+          )
+        }
+      }
+      normalized[role] = unique
+    }
+    return normalized
+  }
+
+  function readKnownRoleValues(attribute) {
+    const values = attribute?.isIn || attribute?.validations?.isIn
+    return Array.isArray(values) ? new Set(values.map(String)) : null
+  }
+
+  function normalizeCustomActionHelper(path, rawHelper, rawFields) {
+    if (typeof rawHelper === 'string') {
+      if (!isSafeHelperIdentity(rawHelper)) {
+        throw new Error(`${path}.helper must be a safe Sails helper identity.`)
+      }
+      return { identity: rawHelper, invocation: null }
+    }
+    if (!isPlainObject(rawHelper)) {
+      throw new Error(
+        `${path}.helper must be a safe helper identity or an invocation object.`
       )
     }
     rejectUnknownKeys(
-      authorization,
-      ['helper'],
-      `Bridge resource "${identity}".authorization`
+      rawHelper,
+      CUSTOM_ACTION_HELPER_OPTION_KEYS,
+      `${path}.helper`
     )
-    if (!isSafeHelperIdentity(authorization.helper)) {
+    if (!isSafeHelperIdentity(rawHelper.identity)) {
       throw new Error(
-        `Bridge resource "${identity}".authorization.helper must be a safe Sails helper identity.`
+        `${path}.helper.identity must be a safe Sails helper identity.`
       )
     }
-    return { helper: authorization.helper }
+    const inputMode = rawHelper.inputs || 'values'
+    if (!['values', 'envelope'].includes(inputMode)) {
+      throw new Error(`${path}.helper.inputs must be "values" or "envelope".`)
+    }
+    const context = rawHelper.context || []
+    if (
+      !Array.isArray(context) ||
+      context.some((key) => !CUSTOM_ACTION_CONTEXT_KEYS.includes(key))
+    ) {
+      throw new Error(
+        `${path}.helper.context may contain only: ${CUSTOM_ACTION_CONTEXT_KEYS.join(
+          ', '
+        )}.`
+      )
+    }
+    const uniqueContext = Array.from(new Set(context))
+    if (
+      inputMode === 'values' &&
+      uniqueContext.some((key) =>
+        Object.prototype.hasOwnProperty.call(rawFields || {}, key)
+      )
+    ) {
+      throw new Error(
+        `${path}.helper.context cannot overwrite an action field with the same name.`
+      )
+    }
+
+    let result = null
+    if (rawHelper.result !== undefined) {
+      if (!isPlainObject(rawHelper.result)) {
+        throw new Error(`${path}.helper.result must be an object.`)
+      }
+      rejectUnknownKeys(
+        rawHelper.result,
+        CUSTOM_ACTION_RESULT_OPTION_KEYS,
+        `${path}.helper.result`
+      )
+      if (
+        typeof rawHelper.result.message !== 'string' ||
+        !rawHelper.result.message.trim() ||
+        rawHelper.result.message.length > 500
+      ) {
+        throw new Error(
+          `${path}.helper.result.message must be a non-empty string of at most 500 characters.`
+        )
+      }
+      for (const placeholder of rawHelper.result.message.matchAll(
+        /{{\s*([^{}]+?)\s*}}/g
+      )) {
+        if (!isSafeResultPath(placeholder[1])) {
+          throw new Error(
+            `${path}.helper.result.message contains an invalid result placeholder.`
+          )
+        }
+      }
+      result = { message: rawHelper.result.message.trim() }
+    }
+
+    return {
+      identity: rawHelper.identity,
+      invocation: {
+        inputs: inputMode,
+        context: uniqueContext,
+        ...(result ? { result } : {})
+      }
+    }
+  }
+
+  function isSafeResultPath(value) {
+    return String(value)
+      .split('.')
+      .every((part) => isSafeIdentifier(part))
   }
 
   function validateFieldVisibility(identity, name, visibility) {

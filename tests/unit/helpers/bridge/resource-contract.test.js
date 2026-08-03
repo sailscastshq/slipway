@@ -1332,6 +1332,117 @@ test('Bridge resolves target app action authorization and fails closed', async (
   }
 })
 
+test('Bridge declarative roles use one stable-ID lookup and deny unknown roles', async ({
+  sails,
+  expect
+}) => {
+  const models = modelMetadata()
+  models.user.attributes.role = {
+    type: 'string',
+    isIn: ['user', 'editor', 'admin']
+  }
+  const contract = await sails.helpers.bridge.normalizeResourceContract.with({
+    models,
+    config: {
+      discover: false,
+      authorization: {
+        roleAttribute: 'role',
+        roles: {
+          admin: ['*'],
+          editor: ['viewAny', 'view', 'create']
+        },
+        default: []
+      },
+      resources: {
+        course: {
+          actions: { publish: true }
+        },
+        user: {
+          authorization: {
+            roles: {
+              admin: ['viewAny'],
+              editor: []
+            }
+          }
+        }
+      }
+    }
+  })
+  const originalBuildSailsWrapper = sails.helpers.bridge.buildSailsWrapper
+  const originalExecuteInContainer = sails.helpers.bridge.executeInContainer
+  let role = 'editor'
+  let queryCount = 0
+
+  try {
+    sails.helpers.bridge.buildSailsWrapper = async (code) => code
+    sails.helpers.bridge.executeInContainer = async (containerName, code) => {
+      expect(containerName).toBe('bridge-app-web')
+      const run = new Function('sails', `return (async () => {${code}})();`)
+      const output = await run({
+        models: {
+          user: {
+            findOne: async (criteria) => {
+              queryCount += 1
+              expect(criteria).toEqual({ id: '7' })
+              return { id: 7, role }
+            }
+          }
+        },
+        helpers: {}
+      })
+      return successfulResult(output)
+    }
+
+    const editorResources =
+      await sails.helpers.bridge.authorizeResourceActions.with({
+        containerName: 'bridge-app-web',
+        resources: contract.resources,
+        actor: {
+          id: '7',
+          email: 'forged-address-does-not-drive-authorization@example.com'
+        }
+      })
+    expect(queryCount).toBe(1)
+    expect(editorResources.course.actions.viewAny).toBe(true)
+    expect(editorResources.course.actions.create).toBe(true)
+    expect(editorResources.course.actions.update).toBe(false)
+    expect(editorResources.course.actions.publish).toBe(false)
+    expect(editorResources.user.actions.viewAny).toBe(false)
+
+    role = 'unknown'
+    queryCount = 0
+    const unknownResources =
+      await sails.helpers.bridge.authorizeResourceActions.with({
+        containerName: 'bridge-app-web',
+        resources: contract.resources,
+        actor: { id: '7', email: 'editor@example.com' }
+      })
+    expect(queryCount).toBe(1)
+    expect(unknownResources.course.actions.viewAny).toBe(false)
+    expect(unknownResources.course.actions.create).toBe(false)
+  } finally {
+    sails.helpers.bridge.buildSailsWrapper = originalBuildSailsWrapper
+    sails.helpers.bridge.executeInContainer = originalExecuteInContainer
+  }
+
+  let invalidConfiguration
+  try {
+    await sails.helpers.bridge.normalizeResourceContract.with({
+      models,
+      config: {
+        authorization: {
+          roles: {
+            editor: ['publsih']
+          }
+        }
+      }
+    })
+  } catch (error) {
+    invalidConfiguration = error
+  }
+  expect(invalidConfiguration.message).toContain('unknown action "publsih"')
+})
+
 test('Bridge denies raw HTML in Markdown fields by default', async ({
   sails,
   expect

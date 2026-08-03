@@ -57,7 +57,8 @@ module.exports = {
 
     const actionCode = `
       const helperIdentity = ${JSON.stringify(action.helper)};
-      const inputs = {
+      const invocation = ${JSON.stringify(action.invocation || null)};
+      const envelope = {
         actor: ${JSON.stringify(actor)},
         resource: ${JSON.stringify({
           identity: resource.identity,
@@ -83,14 +84,51 @@ module.exports = {
       }
 
       if (recordId !== undefined && recordId !== null) {
-        inputs.recordId = recordId;
+        envelope.recordId = recordId;
       }
       if (Array.isArray(recordIds)) {
-        inputs.recordIds = recordIds;
+        envelope.recordIds = recordIds;
+      }
+
+      const inputs =
+        invocation && invocation.inputs === 'values'
+          ? { ...envelope.values }
+          : envelope;
+      if (invocation && invocation.inputs === 'values') {
+        for (const key of invocation.context || []) {
+          if (Object.prototype.hasOwnProperty.call(envelope, key)) {
+            inputs[key] = envelope[key];
+          }
+        }
       }
 
       const result = await helper.with(inputs);
       if (result === undefined || result === null) return {};
+      if (invocation && invocation.result && invocation.result.message) {
+        if (typeof result !== 'object' || Array.isArray(result)) {
+          throw new Error('Configured Bridge action result must be an object.');
+        }
+        const message = invocation.result.message.replace(
+          /{{\\s*([^{}]+?)\\s*}}/g,
+          function (_placeholder, path) {
+            let value = result;
+            for (const segment of path.split('.')) {
+              value = value && value[segment];
+            }
+            if (
+              value === undefined ||
+              value === null ||
+              !['string', 'number', 'boolean'].includes(typeof value)
+            ) {
+              throw new Error(
+                'Configured Bridge action result is missing "' + path + '".'
+              );
+            }
+            return String(value);
+          }
+        );
+        return { message };
+      }
       if (typeof result === 'string') return { message: result };
       if (typeof result !== 'object' || Array.isArray(result)) return {};
       return {
@@ -108,7 +146,9 @@ module.exports = {
 
     if (!result.success) {
       throw bridgeActionError(
-        result.error || `${action.label || action.name} failed.`,
+        action.invocation
+          ? `${action.label || action.name} failed.`
+          : result.error || `${action.label || action.name} failed.`,
         'BRIDGE_ACTION_EXECUTION_FAILED'
       )
     }

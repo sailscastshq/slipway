@@ -42,8 +42,10 @@ module.exports = {
 
     for (const [key, resource] of Object.entries(effectiveResources)) {
       const helperIdentity = resource.authorization?.helper
-      if (!helperIdentity) continue
-      if (!isSafeHelperIdentity(helperIdentity)) {
+      const roleAuthorization =
+        resource.authorization?.mode === 'roles' ? resource.authorization : null
+      if (!helperIdentity && !roleAuthorization) continue
+      if (helperIdentity && !isSafeHelperIdentity(helperIdentity)) {
         const error = new Error(
           `Bridge resource "${
             resource.identity || key
@@ -67,7 +69,8 @@ module.exports = {
         requests.push({
           key,
           action,
-          helperIdentity,
+          ...(helperIdentity ? { helperIdentity } : {}),
+          ...(roleAuthorization ? { roleAuthorization } : {}),
           scope: resource.actionDefinitions?.[action]?.scope || null,
           resource: {
             identity: resource.identity,
@@ -94,6 +97,10 @@ module.exports = {
       const recordId = ${JSON.stringify(recordId)};
       const recordIds = ${JSON.stringify(recordIds)};
       const decisions = Object.create(null);
+      const actorId =
+        actor && actor.id !== undefined && actor.id !== null
+          ? String(actor.id)
+          : '';
 
       function resolveHelper(identity) {
         let helper = sails.helpers;
@@ -110,7 +117,61 @@ module.exports = {
         return helper;
       }
 
+      const roleRecords = Object.create(null);
       for (const request of requests) {
+        if (!request.roleAuthorization) continue;
+        if (!actorId) {
+          throw new Error(
+            'Declarative Bridge authorization requires a stable host user ID.'
+          );
+        }
+        const authorization = request.roleAuthorization;
+        const cacheKey = [
+          authorization.model,
+          authorization.primaryKey,
+          authorization.roleAttribute
+        ].join(':');
+        if (Object.prototype.hasOwnProperty.call(roleRecords, cacheKey)) {
+          continue;
+        }
+        const model = sails.models[authorization.model];
+        if (!model || typeof model.findOne !== 'function') {
+          throw new Error(
+            'Configured Bridge authorization model "' +
+              authorization.model +
+              '" is unavailable.'
+          );
+        }
+        roleRecords[cacheKey] = await model.findOne({
+          [authorization.primaryKey]: actorId
+        });
+      }
+
+      for (const request of requests) {
+        if (request.roleAuthorization) {
+          const authorization = request.roleAuthorization;
+          const cacheKey = [
+            authorization.model,
+            authorization.primaryKey,
+            authorization.roleAttribute
+          ].join(':');
+          const record = roleRecords[cacheKey];
+          const role = record
+            ? String(record[authorization.roleAttribute] || '')
+            : '';
+          const allowedActions = Object.prototype.hasOwnProperty.call(
+            authorization.roles,
+            role
+          )
+            ? authorization.roles[role]
+            : [];
+          decisions[request.key] = decisions[request.key] || {};
+          decisions[request.key][request.action] =
+            allowedActions.includes('*') ||
+            allowedActions.includes(request.action);
+          continue;
+        }
+
         const helper = resolveHelper(request.helperIdentity);
         const inputs = {
           actor,

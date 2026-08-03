@@ -25,6 +25,15 @@ test(
     const contract = await sails.helpers.bridge.normalizeResourceContract.with({
       models: modelMetadata(),
       config: {
+        discover: false,
+        authorization: {
+          roleAttribute: 'role',
+          roles: {
+            admin: ['*'],
+            editor: ['viewAny', 'view', 'create']
+          },
+          default: []
+        },
         resources: {
           course: {
             list: ['title', 'published'],
@@ -48,6 +57,9 @@ test(
     })
     let dashboardExecutions = 0
     let queryExecutions = 0
+    let authorizationExecutions = 0
+    let roleQueries = 0
+    const authorizationRequestCounts = []
 
     try {
       await sails.models.app.updateOne({ id: app.id }).set({
@@ -65,15 +77,21 @@ test(
       sails.helpers.bridge.executeInContainer = async (containerName, code) => {
         expect(containerName).toBe('bridge-partial-performance-web')
         if (code.includes('const decisions = Object.create(null);')) {
+          authorizationExecutions += 1
           const requests = readEmbeddedValue(code, 'requests')
-          const decisions = {}
-          for (const authorizationRequest of requests) {
-            decisions[authorizationRequest.key] =
-              decisions[authorizationRequest.key] || {}
-            decisions[authorizationRequest.key][
-              authorizationRequest.action
-            ] = true
-          }
+          authorizationRequestCounts.push(requests.length)
+          const run = new Function('sails', `return (async () => {${code}})();`)
+          const decisions = await run({
+            models: {
+              user: {
+                findOne: async () => {
+                  roleQueries += 1
+                  return { id: 'host-user', role: 'editor' }
+                }
+              }
+            },
+            helpers: {}
+          })
           return successfulResult(decisions)
         }
         if (code.includes('const dashboard =')) {
@@ -102,6 +120,8 @@ test(
       expect(initial).toHaveInertiaProp('activeDashboard.cards.0.value', 1)
       expect(dashboardExecutions).toBe(1)
       expect(queryExecutions).toBe(1)
+      expect(roleQueries).toBe(authorizationExecutions)
+      expect(authorizationRequestCounts.some((count) => count > 3)).toBe(true)
 
       const search = await browser.request.get(`${modelPath}?search=durable`, {
         headers: {
@@ -117,6 +137,7 @@ test(
       expect(search.data.props.activeDashboard).toBe(undefined)
       expect(dashboardExecutions).toBe(1)
       expect(queryExecutions).toBe(2)
+      expect(roleQueries).toBe(authorizationExecutions)
     } finally {
       sails.helpers.bridge.introspectModels = originalIntrospectModels
       sails.helpers.bridge.buildSailsWrapper = originalBuildSailsWrapper
@@ -160,6 +181,20 @@ function modelMetadata() {
         id: { type: 'number', autoIncrement: true },
         title: { type: 'string', required: true },
         published: { type: 'boolean', defaultsTo: false }
+      },
+      associations: []
+    },
+    user: {
+      identity: 'user',
+      globalId: 'User',
+      tableName: 'user',
+      primaryKey: 'id',
+      attributes: {
+        id: { type: 'string', required: true },
+        role: {
+          type: 'string',
+          isIn: ['user', 'editor', 'admin']
+        }
       },
       associations: []
     }
