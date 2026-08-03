@@ -112,16 +112,16 @@ function createTestApp({ appOwnedHelper = false } = {}) {
 function liftTestApp(appPath) {
   return new Promise((resolve, reject) => {
     const app = new Sails()
-    app.lift(
+    app.load(
       {
         appPath,
-        port: 0,
         environment: 'test',
         globals: false,
         log: { level: 'silent' },
         hooks: {
           blueprints: false,
           grunt: false,
+          http: false,
           i18n: false,
           orm: false,
           policies: false,

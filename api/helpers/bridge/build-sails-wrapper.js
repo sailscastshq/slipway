@@ -2,7 +2,7 @@ module.exports = {
   friendlyName: 'Build Sails wrapper',
 
   description:
-    'Wrap a Waterline expression in the Sails bootstrap boilerplate for container execution.',
+    'Prepare a Waterline expression for execution by the warm Bridge runtime.',
 
   inputs: {
     code: {
@@ -19,43 +19,9 @@ module.exports = {
   },
 
   fn: async function ({ code }) {
-    // Use unique markers to isolate JSON output from any console noise
-    const startMarker = '___SLIPWAY_BRIDGE_START___'
-    const endMarker = '___SLIPWAY_BRIDGE_END___'
-
-    return `
-(async () => {
-  let sailsApp;
-  try {
-    sailsApp = require('sails');
-    await new Promise((resolve, reject) => {
-      sailsApp.load({
-        hooks: { http: false, views: false, sockets: false, pubsub: false, grunt: false, flash: false, session: false },
-        log: { level: 'silent' }
-      }, (err) => {
-        if (err) reject(err);
-        else resolve();
-      });
-    });
-
-    const __result = await (async function() {
-      ${code}
-    })();
-
-    if (__result !== undefined) {
-      process.stdout.write('${startMarker}' + JSON.stringify(__result) + '${endMarker}');
-    }
-  } catch (err) {
-    process.stderr.write(err.stack || err.message);
-    process.exitCode = 1;
-  }
-
-  if (sailsApp && sailsApp.lower) {
-    sailsApp.lower(() => process.exit());
-  } else {
-    process.exit();
-  }
-})();
-`
+    // The worker owns the Sails lifecycle. Keeping this helper as the single
+    // preparation boundary avoids changing the Bridge feature helpers while
+    // ensuring they no longer load and lower the target app for every query.
+    return code
   }
 }

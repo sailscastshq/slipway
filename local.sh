@@ -1,6 +1,6 @@
 #!/bin/bash
 # Slipway local installer
-# Usage: bash ./local.sh [install|rebuild|stop|down|destroy|logs|status|shell]
+# Usage: bash ./local.sh [install|rebuild|stop|down|destroy|logs|status|shell|bridge-benchmark]
 
 set -euo pipefail
 
@@ -26,7 +26,7 @@ SLIPWAY_URL="${SLIPWAY_LOCAL_URL:-http://${HOST}:${PORT}}"
 
 usage() {
   cat <<EOF
-Usage: bash ./local.sh [install|rebuild|stop|down|destroy|logs|status|shell]
+Usage: bash ./local.sh [install|rebuild|stop|down|destroy|logs|status|shell|bridge-benchmark]
 
 Commands:
   install   Build the current checkout and run Slipway locally in Docker
@@ -37,6 +37,8 @@ Commands:
   logs      Tail logs from the local Slipway container
   status    Show the local Slipway container status
   shell     Open a shell inside the local Slipway container
+  bridge-benchmark
+            Compare cold and warm Bridge runtime operations; fail above 500ms warm
 EOF
 }
 
@@ -231,6 +233,47 @@ open_shell() {
   docker exec -it "$CONTAINER_NAME" bash
 }
 
+benchmark_bridge_runtime() {
+  local benchmark_container
+  benchmark_container="slipway-bridge-perf-$$"
+
+  if [ "$(docker inspect --format '{{.State.Running}}' "$CONTAINER_NAME" 2>/dev/null || true)" != "true" ]; then
+    echo "${CONTAINER_NAME} must be running. Start it with: bash ./local.sh" >&2
+    exit 1
+  fi
+
+  if [ ! -f "$SLIPWAY_ENV_FILE" ]; then
+    echo "Missing ${SLIPWAY_ENV_FILE}. Start Slipway once before benchmarking." >&2
+    exit 1
+  fi
+
+  cleanup_bridge_benchmark() {
+    docker rm -f -v "$benchmark_container" >/dev/null 2>&1 || true
+  }
+  trap cleanup_bridge_benchmark EXIT INT TERM
+
+  echo "Starting isolated Bridge performance target..."
+  docker run -d \
+    --name "$benchmark_container" \
+    --network "$NETWORK_NAME" \
+    --env-file "$SLIPWAY_ENV_FILE" \
+    -e NODE_ENV=production \
+    -e SLIPWAY_MIGRATE=safe \
+    -e SLIPWAY_URL="http://${benchmark_container}:1337" \
+    -e SLIPWAY_SSL=false \
+    -v "$ROOT_DIR:/app" \
+    -v "$NODE_MODULES_VOLUME:/app/node_modules" \
+    -v /app/db \
+    "$IMAGE_NAME" sleep infinity >/dev/null
+
+  docker exec "$CONTAINER_NAME" \
+    node scripts/benchmark-bridge-runtime.js "$benchmark_container" --assert
+
+  echo -e "${GREEN}Bridge warm-runtime benchmark passed${NC}"
+  cleanup_bridge_benchmark
+  trap - EXIT INT TERM
+}
+
 destroy_local_state() {
   remove_container
   docker volume rm -f "$NODE_MODULES_VOLUME" "$NPM_CACHE_VOLUME" >/dev/null 2>&1 || true
@@ -286,6 +329,9 @@ main() {
       ;;
     shell)
       open_shell
+      ;;
+    bridge-benchmark)
+      benchmark_bridge_runtime
       ;;
     *)
       usage

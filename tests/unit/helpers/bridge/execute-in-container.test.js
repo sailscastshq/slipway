@@ -4,66 +4,157 @@ const path = require('node:path')
 
 const { test } = require('sounding')
 
-test('Bridge workers load the deployed app in production', async ({
+test('Bridge reuses one production worker for warm operations', async ({
   sails,
   expect
 }) => {
-  const temporaryDirectory = await fs.mkdtemp(
-    path.join(os.tmpdir(), 'slipway-bridge-worker-')
-  )
-  const fakeDockerPath = path.join(temporaryDirectory, 'docker')
-  const capturedArgumentsPath = path.join(temporaryDirectory, 'arguments.json')
-  const previousDockerConfig = sails.config.docker
-  const previousCapturePath = process.env.SLIPWAY_FAKE_DOCKER_ARGS_PATH
-
-  await fs.writeFile(
-    fakeDockerPath,
-    [
-      '#!/usr/bin/env node',
-      "const fs = require('node:fs')",
-      'fs.writeFileSync(',
-      '  process.env.SLIPWAY_FAKE_DOCKER_ARGS_PATH,',
-      '  JSON.stringify(process.argv.slice(2))',
-      ')',
-      "process.stdin.on('data', () => {})",
-      "process.stdin.on('end', () => {",
-      "  process.stdout.write('___SLIPWAY_BRIDGE_START___' + JSON.stringify({ ready: true }) + '___SLIPWAY_BRIDGE_END___')",
-      '})'
-    ].join('\n'),
-    { mode: 0o755 }
-  )
-  sails.config.docker = {
-    ...(previousDockerConfig || {}),
-    binaryPath: fakeDockerPath
-  }
-  process.env.SLIPWAY_FAKE_DOCKER_ARGS_PATH = capturedArgumentsPath
+  const fixture = await createFakeDockerFixture()
+  const restore = useFakeDocker(sails, fixture)
+  process.env.SLIPWAY_FAKE_DOCKER_EXIT_AFTER = '2'
 
   try {
-    const result = await sails.helpers.bridge.executeInContainer.with({
+    const first = await sails.helpers.bridge.executeInContainer.with({
       containerName: 'sailscasts-production',
-      code: 'return { ready: true }'
+      code: 'return { operation: "dashboard" }'
+    })
+    const second = await sails.helpers.bridge.executeInContainer.with({
+      containerName: 'sailscasts-production',
+      code: 'return { operation: "search" }'
     })
     const argumentsPassedToDocker = JSON.parse(
-      await fs.readFile(capturedArgumentsPath, 'utf8')
+      await fs.readFile(fixture.argumentsPath, 'utf8')
     )
 
-    expect(result.success).toBe(true)
-    expect(result.output).toBe('{"ready":true}')
-    expect(argumentsPassedToDocker).toEqual([
+    expect(first.success).toBe(true)
+    expect(JSON.parse(first.output)).toEqual({
+      code: 'return { operation: "dashboard" }'
+    })
+    expect(second.success).toBe(true)
+    expect(JSON.parse(second.output)).toEqual({
+      code: 'return { operation: "search" }'
+    })
+    expect(await readBootCount(fixture.bootCountPath)).toBe(1)
+    expect(argumentsPassedToDocker.slice(0, 7)).toEqual([
       'exec',
       '-e',
       'NODE_ENV=production',
       '-i',
       'sailscasts-production',
-      'node'
+      'node',
+      '-e'
     ])
+    expect(argumentsPassedToDocker[7]).toContain('sailsApp.load')
+    expect(argumentsPassedToDocker[7]).toContain('http: false')
   } finally {
-    sails.config.docker = previousDockerConfig
-    if (previousCapturePath === undefined) {
-      delete process.env.SLIPWAY_FAKE_DOCKER_ARGS_PATH
-    } else {
-      process.env.SLIPWAY_FAKE_DOCKER_ARGS_PATH = previousCapturePath
-    }
-    await fs.rm(temporaryDirectory, { recursive: true, force: true })
+    restore()
+    delete process.env.SLIPWAY_FAKE_DOCKER_EXIT_AFTER
+    await fs.rm(fixture.directory, { recursive: true, force: true })
   }
 })
+
+test('Bridge replaces a timed-out worker before the next operation', async ({
+  sails,
+  expect
+}) => {
+  const fixture = await createFakeDockerFixture()
+  const restore = useFakeDocker(sails, fixture)
+  process.env.SLIPWAY_FAKE_DOCKER_EXIT_AFTER = '1'
+
+  try {
+    const timedOut = await sails.helpers.bridge.executeInContainer.with({
+      containerName: 'sailscasts-timeout',
+      code: '/* never finishes */',
+      timeout: 1000
+    })
+    const recovered = await sails.helpers.bridge.executeInContainer.with({
+      containerName: 'sailscasts-timeout',
+      code: 'return { operation: "recovered" }'
+    })
+
+    expect(timedOut.success).toBe(false)
+    expect(timedOut.error).toMatch(/timed out after 1000ms/)
+    expect(recovered.success).toBe(true)
+    expect(JSON.parse(recovered.output)).toEqual({
+      code: 'return { operation: "recovered" }'
+    })
+    expect(await readBootCount(fixture.bootCountPath)).toBe(2)
+  } finally {
+    restore()
+    delete process.env.SLIPWAY_FAKE_DOCKER_EXIT_AFTER
+    await fs.rm(fixture.directory, { recursive: true, force: true })
+  }
+})
+
+async function createFakeDockerFixture() {
+  const directory = await fs.mkdtemp(
+    path.join(os.tmpdir(), 'slipway-bridge-worker-')
+  )
+  const dockerPath = path.join(directory, 'docker')
+  const argumentsPath = path.join(directory, 'arguments.json')
+  const bootCountPath = path.join(directory, 'boot-count.txt')
+
+  await fs.writeFile(
+    dockerPath,
+    [
+      '#!/usr/bin/env node',
+      "const fs = require('node:fs')",
+      "const readline = require('node:readline')",
+      "const marker = '___SLIPWAY_BRIDGE_WORKER_RESULT___'",
+      'const argumentsPath = process.env.SLIPWAY_FAKE_DOCKER_ARGS_PATH',
+      'const bootCountPath = process.env.SLIPWAY_FAKE_DOCKER_BOOT_COUNT_PATH',
+      "fs.appendFileSync(bootCountPath, 'boot\\n')",
+      'fs.writeFileSync(argumentsPath, JSON.stringify(process.argv.slice(2)))',
+      'const input = readline.createInterface({ input: process.stdin })',
+      'let handled = 0',
+      "input.on('line', (line) => {",
+      '  const job = JSON.parse(line)',
+      "  if (job.code.includes('never finishes')) return",
+      '  handled += 1',
+      '  const response = {',
+      '    id: job.id,',
+      '    success: true,',
+      '    output: JSON.stringify({ code: job.code }),',
+      '    error: null',
+      '  }',
+      "  process.stdout.write('target app noise\\n' + marker + JSON.stringify(response) + '\\n', () => {",
+      '    if (handled === Number(process.env.SLIPWAY_FAKE_DOCKER_EXIT_AFTER || 0)) process.exit(0)',
+      '  })',
+      '})'
+    ].join('\n'),
+    { mode: 0o755 }
+  )
+
+  return { directory, dockerPath, argumentsPath, bootCountPath }
+}
+
+function useFakeDocker(sails, fixture) {
+  const previousDockerConfig = sails.config.docker
+  const previousArgumentsPath = process.env.SLIPWAY_FAKE_DOCKER_ARGS_PATH
+  const previousBootCountPath = process.env.SLIPWAY_FAKE_DOCKER_BOOT_COUNT_PATH
+
+  sails.config.docker = {
+    ...(previousDockerConfig || {}),
+    binaryPath: fixture.dockerPath
+  }
+  process.env.SLIPWAY_FAKE_DOCKER_ARGS_PATH = fixture.argumentsPath
+  process.env.SLIPWAY_FAKE_DOCKER_BOOT_COUNT_PATH = fixture.bootCountPath
+
+  return function restore() {
+    sails.config.docker = previousDockerConfig
+    restoreEnvironment('SLIPWAY_FAKE_DOCKER_ARGS_PATH', previousArgumentsPath)
+    restoreEnvironment(
+      'SLIPWAY_FAKE_DOCKER_BOOT_COUNT_PATH',
+      previousBootCountPath
+    )
+  }
+}
+
+function restoreEnvironment(name, value) {
+  if (value === undefined) delete process.env[name]
+  else process.env[name] = value
+}
+
+async function readBootCount(bootCountPath) {
+  const boots = await fs.readFile(bootCountPath, 'utf8')
+  return boots.trim().split('\n').length
+}

@@ -59,6 +59,21 @@ const defaultLens = computed(() =>
   (props.lenses || []).find((definition) => definition.default)
 )
 const allRecordsLensValue = computed(() => (defaultLens.value ? '__all' : ''))
+const tableReloadProps = [
+  'records',
+  'total',
+  'totalPages',
+  'currentPage',
+  'perPage',
+  'sort',
+  'search',
+  'filterState',
+  'filterDefinitions',
+  'columns',
+  'lenses',
+  'activeLens',
+  'error'
+]
 
 // Local state for UI
 const page = ref(props.currentPage)
@@ -196,7 +211,7 @@ let searchTimeout = null
 watch(searchInput, (val) => {
   clearTimeout(searchTimeout)
   searchTimeout = setTimeout(() => {
-    navigateWithParams({ search: val, page: 1 })
+    navigateWithParams({ search: val, page: 1 }, { replace: true })
   }, 300)
 })
 watch(
@@ -226,7 +241,7 @@ watch(
 )
 
 // Navigate with updated params
-function navigateWithParams(updates) {
+function navigateWithParams(updates, visitOptions = {}) {
   const params = {
     page: updates.page ?? page.value,
     sort: updates.sort ?? sortValue.value,
@@ -260,7 +275,9 @@ function navigateWithParams(updates) {
 
   router.visit(query ? `${basePath}?${query}` : basePath, {
     preserveState: true,
-    preserveScroll: true
+    preserveScroll: true,
+    only: visitOptions.only || tableReloadProps,
+    replace: visitOptions.replace === true
   })
 }
 
@@ -465,7 +482,10 @@ function goToPage(newPage) {
 }
 
 function switchDashboard(event) {
-  navigateWithParams({ dashboard: event.target.value, page: 1 })
+  navigateWithParams(
+    { dashboard: event.target.value, page: 1 },
+    { only: ['activeDashboard', 'error'], replace: true }
+  )
 }
 
 // URL builders

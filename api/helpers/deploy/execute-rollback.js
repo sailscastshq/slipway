@@ -227,6 +227,22 @@ module.exports = {
       })
 
       candidateContainerName = null
+      if (existingApp?.bridgeEnabled) {
+        try {
+          await sails.helpers.bridge.warmRuntime.with({
+            containerName: containerResult.containerName
+          })
+          await Deployment.appendDeployLog(
+            rollbackId,
+            `Bridge runtime warmed for ${containerResult.containerName}.\n`
+          )
+        } catch (error) {
+          await Deployment.appendDeployLog(
+            rollbackId,
+            `Bridge runtime warmup deferred: ${error.message}\n`
+          )
+        }
+      }
       await recordStage('cleanup')
       await releaseDeployPort({ hostPort, deploymentId: rollbackId })
       hostPortReserved = false

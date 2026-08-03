@@ -74,6 +74,28 @@ module.exports = {
     lens,
     dashboard
   }) {
+    const partialProps = inertiaPartialProps(this.req)
+    const shouldLoadDashboard =
+      partialProps.size === 0 ||
+      ['activeDashboard', 'dashboards', 'dashboardResources'].some((prop) =>
+        partialProps.has(prop)
+      )
+    const shouldLoadRecords =
+      partialProps.size === 0 ||
+      [
+        'records',
+        'total',
+        'totalPages',
+        'currentPage',
+        'perPage',
+        'sort',
+        'search',
+        'filterState',
+        'filterDefinitions',
+        'columns',
+        'lenses',
+        'activeLens'
+      ].some((prop) => partialProps.has(prop))
     let resolved
     try {
       resolved = await sails.helpers.bridge.resolveRequest.with({
@@ -119,91 +141,96 @@ module.exports = {
           actor
         })
         modelMeta = loaded.resource
-        const dashboardDefinitions = Object.values(
-          loaded.contract.dashboards || {}
-        ).filter(
-          (definition) =>
-            definition.scope === 'resource' &&
-            definition.resource === modelIdentity
-        )
-        dashboards = dashboardDefinitions.map((definition) => ({
-          id: definition.id,
-          label: definition.label,
-          scope: definition.scope
-        }))
-        const selectedDashboard =
-          dashboardDefinitions.find(
-            (definition) => definition.id === dashboard
-          ) ||
-          dashboardDefinitions.find((definition) => definition.default) ||
-          dashboardDefinitions[0]
+        if (shouldLoadDashboard) {
+          const dashboardDefinitions = Object.values(
+            loaded.contract.dashboards || {}
+          ).filter(
+            (definition) =>
+              definition.scope === 'resource' &&
+              definition.resource === modelIdentity
+          )
+          dashboards = dashboardDefinitions.map((definition) => ({
+            id: definition.id,
+            label: definition.label,
+            scope: definition.scope
+          }))
+          const selectedDashboard =
+            dashboardDefinitions.find(
+              (definition) => definition.id === dashboard
+            ) ||
+            dashboardDefinitions.find((definition) => definition.default) ||
+            dashboardDefinitions[0]
 
-        if (selectedDashboard) {
-          const authorizedResources =
-            await sails.helpers.bridge.authorizeResourceActions.with({
+          if (selectedDashboard) {
+            const authorizedResources =
+              await sails.helpers.bridge.authorizeResourceActions.with({
+                containerName: app.containerName,
+                resources: loaded.contract.models,
+                actor
+              })
+            const authorizedDashboardResources = Object.fromEntries(
+              Object.entries(authorizedResources).filter(
+                ([, resource]) => !resource.hidden
+              )
+            )
+            dashboardResources = Object.fromEntries(
+              Object.entries(authorizedResources).filter(
+                ([, resource]) =>
+                  !resource.hidden && resource.actions?.viewAny !== false
+              )
+            )
+            activeDashboard = await sails.helpers.bridge.resolveDashboard.with({
               containerName: app.containerName,
-              resources: loaded.contract.models,
+              dashboard: selectedDashboard,
+              resources: authorizedDashboardResources,
               actor
             })
-          const authorizedDashboardResources = Object.fromEntries(
-            Object.entries(authorizedResources).filter(
-              ([, resource]) => !resource.hidden
-            )
-          )
-          dashboardResources = Object.fromEntries(
-            Object.entries(authorizedResources).filter(
-              ([, resource]) =>
-                !resource.hidden && resource.actions?.viewAny !== false
-            )
-          )
-          activeDashboard = await sails.helpers.bridge.resolveDashboard.with({
+          }
+        }
+
+        if (shouldLoadRecords) {
+          const normalizedQuery =
+            await sails.helpers.bridge.normalizeResourceQuery.with({
+              resource: modelMeta,
+              page,
+              perPage,
+              sort,
+              search,
+              filters,
+              lens
+            })
+
+          normalizedPage = normalizedQuery.page
+          normalizedPerPage = normalizedQuery.perPage
+          normalizedSort = normalizedQuery.sort
+          normalizedSearch = normalizedQuery.search
+          normalizedFilters = normalizedQuery.filters
+          columns = normalizedQuery.columns
+          activeLens = normalizedQuery.lens
+          filterDefinitions = normalizedQuery.filterDefinitions
+          lenses = Object.values(modelMeta.lenses || {}).map((definition) => ({
+            id: definition.id,
+            label: definition.label,
+            default: definition.default
+          }))
+
+          const data = await sails.helpers.bridge.queryResource.with({
             containerName: app.containerName,
-            dashboard: selectedDashboard,
-            resources: authorizedDashboardResources,
+            resource: modelMeta,
+            query: normalizedQuery,
             actor
           })
-        }
-        const normalizedQuery =
-          await sails.helpers.bridge.normalizeResourceQuery.with({
-            resource: modelMeta,
-            page,
-            perPage,
-            sort,
-            search,
-            filters,
-            lens
+          records = await sails.helpers.bridge.redactResourceRecords.with({
+            records: data.records || [],
+            resource: {
+              ...modelMeta,
+              list: normalizedQuery.select
+            },
+            surface: 'list'
           })
-
-        normalizedPage = normalizedQuery.page
-        normalizedPerPage = normalizedQuery.perPage
-        normalizedSort = normalizedQuery.sort
-        normalizedSearch = normalizedQuery.search
-        normalizedFilters = normalizedQuery.filters
-        columns = normalizedQuery.columns
-        activeLens = normalizedQuery.lens
-        filterDefinitions = normalizedQuery.filterDefinitions
-        lenses = Object.values(modelMeta.lenses || {}).map((definition) => ({
-          id: definition.id,
-          label: definition.label,
-          default: definition.default
-        }))
-
-        const data = await sails.helpers.bridge.queryResource.with({
-          containerName: app.containerName,
-          resource: modelMeta,
-          query: normalizedQuery,
-          actor
-        })
-        records = await sails.helpers.bridge.redactResourceRecords.with({
-          records: data.records || [],
-          resource: {
-            ...modelMeta,
-            list: normalizedQuery.select
-          },
-          surface: 'list'
-        })
-        total = data.total || 0
-        totalPages = Math.ceil(total / normalizedPerPage)
+          total = data.total || 0
+          totalPages = Math.ceil(total / normalizedPerPage)
+        }
       } catch (err) {
         error = err.message
       }
@@ -252,4 +279,20 @@ module.exports = {
       }
     }
   }
+}
+
+function inertiaPartialProps(req) {
+  if (
+    req.get('X-Inertia') !== 'true' ||
+    req.get('X-Inertia-Partial-Component') !== 'projects/bridge-model'
+  ) {
+    return new Set()
+  }
+
+  return new Set(
+    String(req.get('X-Inertia-Partial-Data') || '')
+      .split(',')
+      .map((value) => value.trim())
+      .filter(Boolean)
+  )
 }
