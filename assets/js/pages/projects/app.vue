@@ -1106,7 +1106,11 @@ onBeforeUnmount(() => {
             <!-- More menu -->
             <div class="relative">
               <button
+                type="button"
                 data-test="app-more-menu"
+                aria-label="Open app actions"
+                aria-haspopup="true"
+                :aria-expanded="moreMenuOpen"
                 @click.stop="moreMenuOpen = !moreMenuOpen"
                 class="rounded-md p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-800 dark:hover:text-gray-200"
               >
@@ -1171,30 +1175,8 @@ onBeforeUnmount(() => {
                           d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"
                         />
                       </svg>
-                      Bridge in Slipway
+                      Bridge
                     </Link>
-                    <a
-                      v-if="app.bridgeEnabled && app.bridgeUrl"
-                      :href="app.bridgeUrl"
-                      target="_blank"
-                      rel="noopener"
-                      class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
-                    >
-                      <svg
-                        class="h-4 w-4 text-gray-400"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                          stroke-width="2"
-                          d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"
-                        />
-                      </svg>
-                      Public Bridge
-                    </a>
                     <Link
                       v-if="hasDatabaseService"
                       :href="`/projects/${project.slug}/environments/${
