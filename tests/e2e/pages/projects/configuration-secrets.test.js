@@ -41,6 +41,7 @@ test(
       .set({
         envVars: {
           DATABASE_URL: 'postgresql://managed',
+          LEGACY_SECRET: 'legacy-environment-secret',
           RELEASE_CHANNEL: 'stable'
         },
         envVarMetadata: {
@@ -70,7 +71,10 @@ test(
       status: 'stopped'
     })
     await sails.models.app.updateOne({ id: current.apps.web.id }).set({
-      secureEnvVars: { APP_SIGNING_SECRET: 'app-secret' },
+      secureEnvVars: {
+        APP_SIGNING_SECRET: 'app-secret',
+        LEGACY_APP_SECRET: 'legacy-app-secret'
+      },
       envVars: {},
       envVarMetadata: {
         APP_SIGNING_SECRET: {
@@ -86,7 +90,10 @@ test(
     })
     await sails.helpers.setting.set(
       'globalEnvVars',
-      JSON.stringify({ GLOBAL_REGION: 'eu-central' })
+      JSON.stringify({
+        GLOBAL_REGION: 'eu-central',
+        LEGACY_GLOBAL_SECRET: 'legacy-global-secret'
+      })
     )
     await sails.helpers.setting.set(
       'globalEnvVarMetadata',
@@ -138,30 +145,59 @@ test(
       '/projects/configuration-secrets-ui/environments/production?env=1'
     )
     await page.wait('@environment-config')
-    await page.raw.locator('input[value="DATABASE_URL"]').hover()
-    await page.raw
-      .locator('[data-test="config-menu-DATABASE_URL"] summary')
-      .click()
+    const legacyEnvironmentSummary = page.raw.locator(
+      '[data-test="config-variable-summary-LEGACY_SECRET"]'
+    )
+    expect((await legacyEnvironmentSummary.textContent()).trim()).toBe('Secret')
+    const managedEnvironmentSummary = page.raw.locator(
+      '[data-test="config-variable-summary-DATABASE_URL"]'
+    )
+    expect(
+      (await managedEnvironmentSummary.textContent()).includes('ago')
+    ).toBe(true)
+    const managedMenu = page.raw.locator(
+      '[data-test="config-menu-DATABASE_URL"] summary'
+    )
+    await managedMenu.focus()
+    await managedMenu.press('Enter')
+    expect(
+      await managedMenu.evaluate((summary) => summary.parentElement.open)
+    ).toBe(true)
     await expect(page).toSee(
       'Managed by Slipway. Change or remove the service that owns this value.'
     )
+    await expect(page).toSee('Not copied to preview environments.')
     await screenshotConfig(
       page,
       'environment-config',
       '.tmp/issue-200-environment-secrets-light.png'
     )
+    await page.resize(390, 844)
+    await screenshotConfig(
+      page,
+      'environment-config',
+      '.tmp/issue-357-environment-secrets-narrow.png'
+    )
 
     await page.inDarkMode()
+    await page.resize(1440, 1000)
     await navigateAfterUpdateCheck(
       page,
       '/projects/configuration-secrets-ui/environments/production/apps/web?env=1'
     )
     await page.wait('@app-config')
+    const legacyAppSummary = page.raw.locator(
+      '[data-test="config-variable-summary-LEGACY_APP_SECRET"]'
+    )
+    expect((await legacyAppSummary.textContent()).trim()).toBe('Secret')
     await page.raw.locator('input[value="APP_SIGNING_SECRET"]').hover()
     await page.raw
       .locator('[data-test="config-menu-APP_SIGNING_SECRET"] summary')
       .click()
     await expect(page).toSee('Generate a new value')
+    await expect(page).toSee(
+      'A fresh value is generated for each preview environment.'
+    )
     await screenshotConfig(
       page,
       'app-config',
@@ -171,9 +207,14 @@ test(
     await page.inLightMode()
     await navigateAfterUpdateCheck(page, '/settings/global-env')
     await page.wait('@global-config')
+    const legacyGlobalSummary = page.raw.locator(
+      '[data-test="config-variable-summary-LEGACY_GLOBAL_SECRET"]'
+    )
+    expect((await legacyGlobalSummary.textContent()).trim()).toBe('Secret')
     await page.raw
       .locator('[data-test="config-menu-GLOBAL_REGION"] summary')
       .click()
+    await expect(page).toSee('Copied to preview environments.')
     await screenshotConfig(
       page,
       'global-config',

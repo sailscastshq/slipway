@@ -59,6 +59,15 @@ test('read-only metadata normalization resolves legacy policy without inventing 
     now: 999,
     recordChanges: false
   })
+  const reread = sails.helpers.configuration.normalizeEnvVarMetadata.with({
+    values: { DATABASE_URL: 'postgresql://managed' },
+    metadata: missing,
+    currentValues: { DATABASE_URL: 'postgresql://managed' },
+    currentMetadata: missing,
+    managedKeys: ['DATABASE_URL'],
+    now: 1000,
+    recordChanges: false
+  })
 
   expect(missing.DATABASE_URL).toEqual({
     kind: 'secret',
@@ -70,6 +79,35 @@ test('read-only metadata normalization resolves legacy policy without inventing 
     managed: true,
     previewPolicy: 'omit',
     changedAt: 123,
+    changedBy: '7',
+    changedByName: 'Builder'
+  })
+  expect(reread).toEqual(missing)
+})
+
+test('accepted metadata mutations record the supplied actor and time', async ({
+  sails,
+  expect
+}) => {
+  const metadata = sails.helpers.configuration.normalizeEnvVarMetadata.with({
+    values: { API_SECRET: 'new-value' },
+    metadata: {
+      API_SECRET: { kind: 'secret', previewPolicy: 'randomize' }
+    },
+    currentValues: { API_SECRET: 'old-value' },
+    currentMetadata: {
+      API_SECRET: { kind: 'secret', previewPolicy: 'omit' }
+    },
+    changedBy: '7',
+    changedByName: 'Builder',
+    now: 456
+  })
+
+  expect(metadata.API_SECRET).toEqual({
+    kind: 'secret',
+    managed: false,
+    previewPolicy: 'randomize',
+    changedAt: 456,
     changedBy: '7',
     changedByName: 'Builder'
   })

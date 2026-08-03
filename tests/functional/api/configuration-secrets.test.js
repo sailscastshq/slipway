@@ -166,6 +166,11 @@ test(
         previewPolicy: 'omit'
       }
     }
+    expect(dashboard.page.data.props.envVarMetadata.DATABASE_URL).toEqual({
+      kind: 'secret',
+      managed: true,
+      previewPolicy: 'omit'
+    })
 
     const response = await dashboard.request.patch(path, {
       envVars: {
@@ -186,6 +191,22 @@ test(
       previewPolicy: 'omit'
     })
     expect(persisted.envVarMetadata.SENTRY_DSN.changedAt > 0).toBe(true)
+    expect(persisted.envVarMetadata.SENTRY_DSN.changedBy).toBe(
+      String(world.current.users.genesisUser.id)
+    )
+    expect(persisted.envVarMetadata.SENTRY_DSN.changedByName).toBe(
+      world.current.users.genesisUser.fullName
+    )
+    const metadataAfterVariableUpdate = persisted.envVarMetadata
+
+    const unrelatedUpdate = await dashboard.request.patch(path, {
+      name: 'Production launch'
+    })
+    expect(unrelatedUpdate).toHaveStatus(200)
+    persisted = await sails.models.environment
+      .findOne({ id: environment.id })
+      .decrypt()
+    expect(persisted.envVarMetadata).toEqual(metadataAfterVariableUpdate)
 
     const configurationAudits = await sails.models.auditlog.find({
       resourceType: 'environment',

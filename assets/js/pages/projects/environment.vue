@@ -445,17 +445,11 @@ function isSensitive(key) {
 
 function metadataSummary(key) {
   const metadata = metadataFor(key)
-  const type = metadata.managed
+  return metadata.managed
     ? 'Managed secret'
     : metadata.kind === 'secret'
     ? 'Secret'
     : 'Plain config'
-  const preview = {
-    omit: 'omitted from previews',
-    inherit: 'inherited by previews',
-    randomize: 'regenerated for previews'
-  }[metadata.previewPolicy]
-  return `${type} · ${preview}`
 }
 
 function changeSummary(key) {
@@ -2644,7 +2638,7 @@ onBeforeUnmount(() => {
                         class="min-w-0 flex-1 border-b border-dashed border-transparent bg-transparent font-mono text-sm font-medium text-gray-900 focus:border-gray-300 focus:outline-none dark:text-white dark:focus:border-gray-600"
                       />
                       <div
-                        class="has-[details[open]]:visible invisible flex items-center space-x-1 focus-within:visible group-hover:visible"
+                        class="has-[details[open]]:opacity-100 flex items-center space-x-1 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100"
                       >
                         <button
                           v-if="isSensitive(key)"
@@ -2708,7 +2702,10 @@ onBeforeUnmount(() => {
                       spellcheck="false"
                       class="mt-1 w-full border-b border-dashed border-transparent bg-transparent font-mono text-sm text-gray-500 focus:border-gray-300 focus:outline-none dark:text-gray-400 dark:focus:border-gray-600"
                     />
-                    <p class="mt-1 text-xs text-gray-400 dark:text-gray-500">
+                    <p
+                      :data-test="`config-variable-summary-${key}`"
+                      class="mt-1 text-xs text-gray-400 dark:text-gray-500"
+                    >
                       {{ metadataSummary(key) }}
                       <template v-if="changeSummary(key)">
                         · {{ changeSummary(key) }}
