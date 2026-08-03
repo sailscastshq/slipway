@@ -314,6 +314,23 @@ module.exports = {
       // failure cleanup if this worker loses its lease after cutover.
       deployContainerName = null
 
+      if (targetApp?.bridgeEnabled) {
+        try {
+          await sails.helpers.bridge.warmRuntime.with({
+            containerName: containerResult.containerName
+          })
+          await Deployment.appendDeployLog(
+            deploymentId,
+            `Bridge runtime warmed for ${containerResult.containerName}.\n`
+          )
+        } catch (error) {
+          await Deployment.appendDeployLog(
+            deploymentId,
+            `Bridge runtime warmup deferred: ${error.message}\n`
+          )
+        }
+      }
+
       await recordStage('cleanup')
       await releaseDeployPort({ hostPort: deployHostPort, deploymentId })
       deployHostPortReserved = false
