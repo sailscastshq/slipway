@@ -73,52 +73,20 @@ module.exports = {
       .intercept('notFound', 'notFound')
       .intercept('appNotRunning', 'appNotRunning')
 
-    // Existing dashboard Bridge remains available to the team until app-local
-    // Bridge is enabled. Once enabled, every person must first prove a matching
-    // host-app account through /bridge.
-    if (!resolved.app.bridgeEnabled) {
-      const actor = await sails.helpers.bridge.buildActor.with({
-        user: resolved.user,
-        project: resolved.project,
-        environment: resolved.environment
-      })
-      return {
-        ...resolved,
-        actor,
-        actorId: String(resolved.user.id),
-        auditUserId: String(resolved.user.id),
-        access: null,
-        ...requestPaths({
-          req,
-          project: resolved.project,
-          environment: resolved.environment,
-          app: resolved.app,
-          appScoped: Boolean(appSlug)
-        })
-      }
-    }
-
-    const access = await BridgeAccess.findOne({
-      app: resolved.app.id,
-      email: resolved.user.email.toLowerCase(),
-      status: 'active'
-    })
-    if (!access || !roleAllows(access.role, requiredRole)) {
-      throw 'forbidden'
-    }
-
-    const actor = await sails.helpers.bridge.buildAccessActor.with({
-      access,
+    // A Slipway operator enters Bridge with their existing project/team
+    // authorization. App-local invitations are a separate public-host flow
+    // and are resolved above through the dedicated Bridge session.
+    const actor = await sails.helpers.bridge.buildActor.with({
+      user: resolved.user,
       project: resolved.project,
-      environment: resolved.environment,
-      app: resolved.app
+      environment: resolved.environment
     })
     return {
       ...resolved,
       actor,
-      actorId: actor.id,
+      actorId: String(resolved.user.id),
       auditUserId: String(resolved.user.id),
-      access,
+      access: null,
       ...requestPaths({
         req,
         project: resolved.project,

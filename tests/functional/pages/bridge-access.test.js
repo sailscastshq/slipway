@@ -84,11 +84,6 @@ test(
     expect(page).toHaveInertiaProps({
       'app.bridgeEnabled': true,
       'app.bridgeUrl': 'https://host-app.example/bridge',
-      'app.slipwayBridgeUrl': `${await sails.helpers.getInstanceUrl()}${bridgeAppPath(
-        project,
-        environment,
-        app
-      )}`,
       hookDetected: true
     })
 
@@ -145,6 +140,34 @@ test(
     } finally {
       sails.config.sounding.mail = previousMailConfig
     }
+  }
+)
+
+test(
+  'Slipway operator opens internal Bridge without a public Bridge invitation',
+  { world: bridgeWorld('operator-bridge', 'Operator Bridge') },
+  async ({ sails, world, visit, expect }) => {
+    const current = world.current
+    const app = current.apps.web
+    const environment = current.environments.production
+    const project = current.projects.deploymentTarget
+    const bridgePath = bridgeAppPath(project, environment, app)
+
+    await sails.models.app.updateOne({ id: app.id }).set({
+      bridgeEnabled: true,
+      status: 'stopped',
+      containerName: null
+    })
+    await sails.models.bridgeaccess.destroy({ app: app.id })
+
+    const page = await visit.as('genesisUser')(bridgePath)
+
+    expect(page).toHaveStatus(200)
+    expect(page).toBeInertiaPage('projects/bridge')
+    expect(page).toHaveInertiaProps({
+      bridgeRequestBasePath: bridgePath,
+      hostBridgeOrigin: false
+    })
   }
 )
 
