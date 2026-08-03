@@ -23,6 +23,58 @@ test('config metadata defaults secrets to omit and keeps plain config inheritabl
   expect(metadata.API_SECRET.changedByName).toBe('Builder')
 })
 
+test('read-only metadata normalization resolves legacy policy without inventing history', async ({
+  sails,
+  expect
+}) => {
+  const missing = sails.helpers.configuration.normalizeEnvVarMetadata.with({
+    values: { DATABASE_URL: 'postgresql://managed' },
+    metadata: {},
+    currentValues: { DATABASE_URL: 'postgresql://managed' },
+    currentMetadata: {},
+    managedKeys: ['DATABASE_URL'],
+    now: 999,
+    recordChanges: false
+  })
+  const partial = sails.helpers.configuration.normalizeEnvVarMetadata.with({
+    values: { DATABASE_URL: 'postgresql://managed' },
+    metadata: {
+      DATABASE_URL: {
+        kind: 'secret',
+        changedAt: 123,
+        changedBy: '7',
+        changedByName: 'Builder'
+      }
+    },
+    currentValues: { DATABASE_URL: 'postgresql://managed' },
+    currentMetadata: {
+      DATABASE_URL: {
+        kind: 'secret',
+        changedAt: 123,
+        changedBy: '7',
+        changedByName: 'Builder'
+      }
+    },
+    managedKeys: ['DATABASE_URL'],
+    now: 999,
+    recordChanges: false
+  })
+
+  expect(missing.DATABASE_URL).toEqual({
+    kind: 'secret',
+    managed: true,
+    previewPolicy: 'omit'
+  })
+  expect(partial.DATABASE_URL).toEqual({
+    kind: 'secret',
+    managed: true,
+    previewPolicy: 'omit',
+    changedAt: 123,
+    changedBy: '7',
+    changedByName: 'Builder'
+  })
+})
+
 test('preview policy omits production secrets and regenerates selected values', async ({
   sails,
   expect

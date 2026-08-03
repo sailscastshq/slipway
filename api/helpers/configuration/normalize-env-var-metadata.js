@@ -14,7 +14,13 @@ module.exports = {
     managedKeys: { type: 'ref', defaultsTo: [] },
     changedBy: { type: 'string', allowNull: true },
     changedByName: { type: 'string', allowNull: true },
-    now: { type: 'number', defaultsTo: 0 }
+    now: { type: 'number', defaultsTo: 0 },
+    recordChanges: {
+      type: 'boolean',
+      defaultsTo: true,
+      description:
+        'Whether policy defaulting may create per-variable change history.'
+    }
   },
 
   exits: {
@@ -29,7 +35,8 @@ module.exports = {
     managedKeys,
     changedBy,
     changedByName,
-    now
+    now,
+    recordChanges
   }) {
     const normalized = {}
     const managed = new Set((managedKeys || []).map(String))
@@ -66,6 +73,12 @@ module.exports = {
       }
       if (description) next.description = description
 
+      if (!recordChanges) {
+        preserveHistory(next, previous)
+        normalized[key] = next
+        continue
+      }
+
       const changed =
         !Object.prototype.hasOwnProperty.call(currentValues || {}, key) ||
         currentValues[key] !== values[key] ||
@@ -74,11 +87,13 @@ module.exports = {
         previous.previewPolicy !== next.previewPolicy ||
         String(previous.description || '') !== description
 
-      next.changedAt = changed ? changedAt : previous.changedAt || changedAt
-      next.changedBy = changed ? changedBy || null : previous.changedBy || null
-      next.changedByName = changed
-        ? changedByName || null
-        : previous.changedByName || null
+      if (changed) {
+        next.changedAt = changedAt
+        next.changedBy = changedBy || null
+        next.changedByName = changedByName || null
+      } else {
+        preserveHistory(next, previous)
+      }
       normalized[key] = next
     }
 
@@ -88,4 +103,10 @@ module.exports = {
 
 function allowed(value, values) {
   return values.includes(value)
+}
+
+function preserveHistory(target, source) {
+  for (const field of ['changedAt', 'changedBy', 'changedByName']) {
+    if (source[field] !== undefined) target[field] = source[field]
+  }
 }
