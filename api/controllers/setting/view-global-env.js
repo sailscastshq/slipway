@@ -34,6 +34,14 @@ module.exports = {
       globalEnvVars.R2_SECRET_KEY &&
       globalEnvVars.R2_BUCKET
     )
+    globalEnvVarMetadata =
+      sails.helpers.configuration.normalizeEnvVarMetadata.with({
+        values: globalEnvVars,
+        metadata: globalEnvVarMetadata,
+        currentValues: globalEnvVars,
+        currentMetadata: globalEnvVarMetadata,
+        recordChanges: false
+      })
 
     return {
       page: 'settings/global-env',

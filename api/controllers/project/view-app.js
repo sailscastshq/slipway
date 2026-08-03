@@ -238,7 +238,7 @@ module.exports = {
             currentValues:
               decryptedApp.secureEnvVars || decryptedApp.envVars || {},
             currentMetadata: decryptedApp.envVarMetadata || {},
-            now: decryptedApp.updatedAt
+            recordChanges: false
           }),
         inheritedVars,
         deploymentHistory,

@@ -173,7 +173,7 @@ module.exports = {
         currentValues: environment.envVars || {},
         currentMetadata: environment.envVarMetadata || {},
         managedKeys: managedEnvVarKeys,
-        now: environment.updatedAt
+        recordChanges: false
       })
 
     // Check if GitHub is connected for this team

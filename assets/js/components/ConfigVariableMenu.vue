@@ -12,12 +12,26 @@ function update(field, value) {
     [field]: value
   })
 }
+
+function previewPolicyDescription(policy) {
+  return {
+    omit: 'Not copied to preview environments.',
+    inherit: 'Copied to preview environments.',
+    randomize: 'A fresh value is generated for each preview environment.'
+  }[policy]
+}
+
+function toggleDetails(event) {
+  const details = event.currentTarget.closest('details')
+  details.open = !details.open
+}
 </script>
 
 <template>
   <details :data-test="`config-menu-${variableKey}`" class="relative">
     <summary
       :aria-label="`Configure ${variableKey}`"
+      @keydown.enter.prevent="toggleDetails"
       class="flex cursor-pointer list-none rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 dark:hover:bg-gray-800 dark:hover:text-gray-200 dark:focus-visible:ring-gray-700 [&::-webkit-details-marker]:hidden"
     >
       <svg
@@ -41,6 +55,18 @@ function update(field, value) {
       >
         Managed by Slipway. Change or remove the service that owns this value.
       </p>
+
+      <div v-if="metadata.managed">
+        <p class="text-xs font-medium text-gray-700 dark:text-gray-300">
+          Preview environments
+        </p>
+        <p
+          data-test="config-preview-policy-description"
+          class="mt-1 text-xs leading-5 text-gray-500 dark:text-gray-400"
+        >
+          {{ previewPolicyDescription(metadata.previewPolicy) }}
+        </p>
+      </div>
 
       <template v-else>
         <label class="block">
@@ -70,6 +96,12 @@ function update(field, value) {
             <option value="inherit">Inherit</option>
             <option value="randomize">Generate a new value</option>
           </select>
+          <span
+            data-test="config-preview-policy-description"
+            class="mt-1 block text-xs leading-5 text-gray-500 dark:text-gray-400"
+          >
+            {{ previewPolicyDescription(metadata.previewPolicy) }}
+          </span>
         </label>
 
         <label class="block">
