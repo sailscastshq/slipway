@@ -112,6 +112,24 @@ module.exports = {
     const managedKeys = services
       .map((service) => service.envVarKey)
       .filter(Boolean)
+    const currentEnvVarMetadata =
+      sails.helpers.configuration.normalizeEnvVarMetadata.with({
+        values: environment.envVars || {},
+        metadata: environment.envVarMetadata || {},
+        currentValues: environment.envVars || {},
+        currentMetadata: environment.envVarMetadata || {},
+        managedKeys,
+        recordChanges: false
+      })
+    const requestedEnvVarMetadata =
+      sails.helpers.configuration.normalizeEnvVarMetadata.with({
+        values: nextEnvVars,
+        metadata: envVarMetadata || currentEnvVarMetadata,
+        currentValues: environment.envVars || {},
+        currentMetadata: currentEnvVarMetadata,
+        managedKeys,
+        recordChanges: false
+      })
     if (envVars !== undefined) {
       for (const key of managedKeys) {
         if (envVars[key] !== (environment.envVars || {})[key]) {
@@ -124,13 +142,11 @@ module.exports = {
     }
     if (envVarMetadata !== undefined) {
       for (const key of managedKeys) {
-        const previous = environment.envVarMetadata?.[key] || {}
-        const requested = envVarMetadata?.[key]
+        const previous = currentEnvVarMetadata[key] || {}
+        const requested = requestedEnvVarMetadata[key]
         if (!requested) continue
         const changed = ['kind', 'previewPolicy', 'description'].some(
-          (field) =>
-            requested[field] !== undefined &&
-            requested[field] !== previous[field]
+          (field) => requested[field] !== previous[field]
         )
         if (changed) {
           problems.push({
@@ -152,14 +168,14 @@ module.exports = {
     if (name !== undefined) updates.name = name
     if (isProduction !== undefined) updates.isProduction = isProduction
     if (domain !== undefined) updates.domain = domain
-    let normalizedMetadata = environment.envVarMetadata || {}
+    let normalizedMetadata = currentEnvVarMetadata
     if (envVars !== undefined || envVarMetadata !== undefined) {
       normalizedMetadata =
         sails.helpers.configuration.normalizeEnvVarMetadata.with({
           values: nextEnvVars,
-          metadata: envVarMetadata || environment.envVarMetadata || {},
+          metadata: requestedEnvVarMetadata,
           currentValues: environment.envVars || {},
-          currentMetadata: environment.envVarMetadata || {},
+          currentMetadata: currentEnvVarMetadata,
           managedKeys,
           changedBy: String(user.id),
           changedByName: user.fullName
@@ -174,7 +190,7 @@ module.exports = {
       await sails.helpers.configuration.recordEnvVarChanges.with({
         before: environment.envVars || {},
         after: nextEnvVars,
-        beforeMetadata: environment.envVarMetadata || {},
+        beforeMetadata: currentEnvVarMetadata,
         afterMetadata: normalizedMetadata,
         scope: 'environment',
         resourceType: 'environment',
