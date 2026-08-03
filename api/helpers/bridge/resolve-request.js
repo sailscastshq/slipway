@@ -1,4 +1,9 @@
 const crypto = require('crypto')
+const {
+  internalBridgeApiBasePath,
+  internalBridgeBasePath,
+  publicBridgeBasePath
+} = require('../../lib/bridge-paths')
 
 const ROLE_RANK = {
   viewer: 1,
@@ -82,7 +87,14 @@ module.exports = {
         actor,
         actorId: String(resolved.user.id),
         auditUserId: String(resolved.user.id),
-        access: null
+        access: null,
+        ...requestPaths({
+          req,
+          project: resolved.project,
+          environment: resolved.environment,
+          app: resolved.app,
+          appScoped: Boolean(appSlug)
+        })
       }
     }
 
@@ -106,7 +118,14 @@ module.exports = {
       actor,
       actorId: actor.id,
       auditUserId: String(resolved.user.id),
-      access
+      access,
+      ...requestPaths({
+        req,
+        project: resolved.project,
+        environment: resolved.environment,
+        app: resolved.app,
+        appScoped: Boolean(appSlug)
+      })
     }
   }
 }
@@ -189,8 +208,49 @@ async function resolveHostSession({
     actor,
     actorId: actor.id,
     auditUserId: null,
-    access
+    access,
+    ...requestPaths({
+      req,
+      project,
+      environment,
+      app,
+      appScoped: Boolean(appSlug)
+    })
   }
+}
+
+function requestPaths({ req, project, environment, app, appScoped }) {
+  const hostOrigin = req.session.bridgeHostOrigin === true
+  const internalBasePath = internalBridgeBasePath(
+    project,
+    environment,
+    app,
+    appScoped
+  )
+  const bridgeBasePath = hostOrigin
+    ? publicBridgeBasePath(app)
+    : internalBasePath
+
+  if (hostOrigin && typeof req.url === 'string') {
+    req.url = replacePathPrefix(req.url, internalBasePath, bridgeBasePath)
+  }
+
+  return {
+    bridgeBasePath,
+    bridgeApiBasePath: hostOrigin
+      ? bridgeBasePath
+      : internalBridgeApiBasePath(project, environment, app, appScoped),
+    bridgeAssetBasePath: hostOrigin ? `${bridgeBasePath}/_assets` : '',
+    bridgeHostOrigin: hostOrigin
+  }
+}
+
+function replacePathPrefix(url, currentPrefix, publicPrefix) {
+  return url === currentPrefix ||
+    url.startsWith(`${currentPrefix}/`) ||
+    url.startsWith(`${currentPrefix}?`)
+    ? `${publicPrefix}${url.slice(currentPrefix.length)}`
+    : url
 }
 
 function roleAllows(actual, required) {
@@ -202,6 +262,7 @@ function clearBridgeSession(req) {
   delete req.session.bridgeAppId
   delete req.session.bridgeAuthenticatedAt
   delete req.session.bridgeCredentialHash
+  delete req.session.bridgeHostOrigin
 }
 
 function hashCredential(value) {

@@ -82,6 +82,77 @@ test('host Bridge preserves the invitation while sending a guest through app log
   )
 })
 
+test('proxied Bridge exchanges on the host origin with its routed app prefix', async ({
+  expect
+}) => {
+  const exchange = await startExchangeServer()
+  const { hostRoute } = await createBridgeRoute({
+    bridge: {
+      enabled: true,
+      exchangeUrl: exchange.url,
+      appId: '42',
+      secret: 'slb_app-secret',
+      loginPath: '/sign-in',
+      routePath: '/academy',
+      identity: defaultIdentityConfig()
+    },
+    user: {
+      id: 'host-user-7',
+      email: 'editor@example.com',
+      fullName: 'Host Editor',
+      emailStatus: 'verified'
+    }
+  })
+  const response = createResponse()
+
+  try {
+    await hostRoute(
+      {
+        session: { userId: 'host-user-7' },
+        originalUrl: '/_slipway/bridge',
+        query: {}
+      },
+      response
+    )
+
+    expect(response.status).toBe('redirect')
+    expect(exchange.request.body.hostOrigin).toBe(true)
+  } finally {
+    await exchange.close()
+  }
+})
+
+test('proxied Bridge prefixes host login and preserves its invitation callback', async ({
+  expect
+}) => {
+  const { hostRoute } = await createBridgeRoute({
+    bridge: {
+      enabled: true,
+      exchangeUrl: 'http://127.0.0.1:1/exchange',
+      appId: '42',
+      secret: 'slb_app-secret',
+      loginPath: '/sign-in',
+      routePath: '/academy',
+      identity: defaultIdentityConfig()
+    }
+  })
+  const response = createResponse()
+
+  await hostRoute(
+    {
+      session: {},
+      originalUrl: '/_slipway/bridge?invite=bli_invitation',
+      query: { invite: 'bli_invitation' }
+    },
+    response
+  )
+
+  expect(response.status).toBe('redirect')
+  expect(response.value).toBe(
+    '/academy/sign-in?redirect=%2Facademy%2F_slipway%2Fbridge%3Finvite%3Dbli_invitation'
+  )
+})
+
 test('host Bridge fails closed when the app cannot prove email verification', async ({
   expect
 }) => {
@@ -169,7 +240,8 @@ async function createBridgeRoute({
   })
 
   return {
-    route: hook.routes.after['GET /bridge']
+    route: hook.routes.after['GET /bridge'],
+    hostRoute: hook.routes.after['GET /_slipway/bridge']
   }
 }
 

@@ -2,6 +2,14 @@ import { createApp, h } from 'vue'
 import { createInertiaApp, router } from '@inertiajs/vue3'
 import '~/css/app.css'
 
+/* global __webpack_public_path__ */
+if (typeof window !== 'undefined' && window.__SLIPWAY_ASSET_PREFIX__) {
+  __webpack_public_path__ = `${window.__SLIPWAY_ASSET_PREFIX__.replace(
+    /\/$/,
+    ''
+  )}/`
+}
+
 const UNSAFE_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
 
 function setCsrfToken(token) {

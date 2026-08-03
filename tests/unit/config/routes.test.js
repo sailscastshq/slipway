@@ -34,6 +34,11 @@ test('browser actions and JSON transports have explicit route contracts', ({
   ).toBe('project/bridge-relationship-options')
   expect(
     routes[
+      'GET /projects/:slug/environments/:envSlug/apps/:appSlug/bridge/:modelIdentity/relationships/:relationshipAlias/options'
+    ]
+  ).toBe('project/bridge-relationship-options')
+  expect(
+    routes[
       'POST /projects/:slug/environments/:envSlug/bridge/:modelIdentity/:recordId/relationships/:relationshipAlias/:operation'
     ]
   ).toBe('project/bridge-update-relationship')

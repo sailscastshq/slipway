@@ -79,7 +79,7 @@ module.exports = {
       if (error.code === 'notFound') throw { notFound: '/' }
       throw { badRequest: { error: 'App is not running' } }
     }
-    const { environment, app, actor } = resolved
+    const { environment, app, actor, bridgeBasePath } = resolved
 
     try {
       const loaded = await sails.helpers.bridge.loadResource.with({
@@ -175,9 +175,6 @@ module.exports = {
       throw { badRequest: { error: error.message } }
     }
 
-    const bridgeBasePath = appSlug
-      ? `/projects/${slug}/environments/${envSlug}/apps/${app.slug}/bridge`
-      : `/projects/${slug}/environments/${envSlug}/bridge`
     return `${bridgeBasePath}/${modelIdentity}/${encodeURIComponent(
       String(recordId)
     )}`

@@ -253,8 +253,15 @@ function timeAgo(timestamp) {
               rel="noopener"
               class="min-h-9 inline-flex items-center rounded-lg bg-gray-950 px-3.5 text-sm font-medium text-white hover:bg-gray-800 dark:bg-white dark:text-gray-950 dark:hover:bg-gray-100"
             >
-              Open Bridge
+              Open public Bridge
             </a>
+            <Link
+              v-if="app.bridgeEnabled"
+              :href="bridgePath"
+              class="min-h-9 inline-flex items-center rounded-lg border border-gray-200 px-3.5 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-800 dark:text-gray-300 dark:hover:bg-gray-900"
+            >
+              Open in Slipway
+            </Link>
             <button
               v-if="!app.bridgeEnabled"
               type="button"
@@ -300,6 +307,47 @@ function timeAgo(timestamp) {
               scoped exchange credential.
             </p>
           </div>
+        </section>
+
+        <section
+          v-if="app.bridgeEnabled"
+          class="mt-6 grid gap-3 sm:grid-cols-2"
+          aria-label="Bridge URLs"
+          data-test="bridge-urls"
+        >
+          <a
+            v-if="app.bridgeUrl"
+            :href="app.bridgeUrl"
+            target="_blank"
+            rel="noopener"
+            class="min-w-0 rounded-lg border border-gray-200 px-4 py-3 hover:border-gray-300 dark:border-gray-800 dark:hover:border-gray-700"
+          >
+            <span
+              class="block text-xs font-medium text-gray-500 dark:text-gray-400"
+            >
+              Public app URL
+            </span>
+            <code
+              class="mt-1 block truncate text-sm text-gray-900 dark:text-gray-100"
+            >
+              {{ app.bridgeUrl }}
+            </code>
+          </a>
+          <a
+            :href="app.slipwayBridgeUrl"
+            class="min-w-0 rounded-lg border border-gray-200 px-4 py-3 hover:border-gray-300 dark:border-gray-800 dark:hover:border-gray-700"
+          >
+            <span
+              class="block text-xs font-medium text-gray-500 dark:text-gray-400"
+            >
+              Slipway instance URL
+            </span>
+            <code
+              class="mt-1 block truncate text-sm text-gray-900 dark:text-gray-100"
+            >
+              {{ app.slipwayBridgeUrl }}
+            </code>
+          </a>
         </section>
 
         <section class="mt-10" aria-labelledby="invite-title">

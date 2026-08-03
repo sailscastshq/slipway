@@ -76,6 +76,62 @@ test('Cloudflare Tunnel routes keep TLS at the edge', async ({
   }
 })
 
+test('Bridge routes stay on the app origin and precede the app catch-all', ({
+  expect
+}) => {
+  const helper = require(helperPath)
+  const labels = helper._private.buildRouteLabels({
+    projectSlug: 'durable-ui',
+    environmentSlug: 'production',
+    controlPlaneUpstream: 'slipway:1337',
+    routableApps: [
+      {
+        slug: 'admin',
+        routePath: '/admin',
+        bridgeEnabled: true,
+        containerName: 'durable-ui-admin',
+        port: 1337
+      },
+      {
+        slug: 'web',
+        routePath: '/',
+        bridgeEnabled: false,
+        containerName: 'durable-ui-web',
+        port: 1337
+      }
+    ]
+  })
+
+  expect(labels).toEqual([
+    'caddy.handle_0=/admin/bridge/launch',
+    'caddy.handle_0.0_uri=replace /admin/bridge/launch /bridge/launch',
+    'caddy.handle_0.1_reverse_proxy=slipway:1337',
+    'caddy.handle_1=/admin/bridge/_assets/*',
+    'caddy.handle_1.0_uri=strip_prefix /admin/bridge/_assets',
+    'caddy.handle_1.1_reverse_proxy=slipway:1337',
+    'caddy.handle_2=/admin/bridge*',
+    'caddy.handle_2.0_uri=replace /admin/bridge /projects/durable-ui/environments/production/apps/admin/bridge',
+    'caddy.handle_2.1_reverse_proxy=slipway:1337',
+    'caddy.handle_3=/admin*',
+    'caddy.handle_3.0_uri=strip_prefix /admin',
+    'caddy.handle_3.1_reverse_proxy=durable-ui-admin:1337',
+    'caddy.handle_4=/*',
+    'caddy.handle_4.1_reverse_proxy=durable-ui-web:1337'
+  ])
+  expect(
+    helper._private.routeUpstreams(
+      [
+        {
+          bridgeEnabled: true,
+          containerName: 'durable-ui-admin',
+          port: 1337
+        }
+      ],
+      'slipway:1337'
+    )
+  ).toEqual(['durable-ui-admin:1337', 'slipway:1337'])
+})
+
 test(
   'candidate route verification failure removes the candidate and verifies the still-active previous route',
   { world: routeWorld('route-restoration') },

@@ -17,6 +17,10 @@ module.exports = {
     },
     inviteToken: {
       type: 'string'
+    },
+    hostOrigin: {
+      type: 'boolean',
+      defaultsTo: false
     }
   },
 
@@ -35,7 +39,7 @@ module.exports = {
     }
   },
 
-  fn: async function ({ appId, hostUser, inviteToken }) {
+  fn: async function ({ appId, hostUser, inviteToken, hostOrigin }) {
     const presentedSecret = bearerToken(this.req)
     const app = await App.findOne({ id: appId }).decrypt()
 
@@ -124,6 +128,31 @@ module.exports = {
       appId: app.id
     })
     const instanceUrl = await sails.helpers.getInstanceUrl()
+    let launchBaseUrl = instanceUrl.replace(/\/$/, '')
+
+    if (hostOrigin) {
+      const environment = await Environment.findOne({ id: app.environment })
+      const project = environment
+        ? await Project.findOne({ id: environment.project })
+        : null
+      const appUrl =
+        environment && project
+          ? await sails.helpers.bridge.getAppUrl.with({
+              app,
+              environment,
+              project
+            })
+          : ''
+
+      if (!appUrl) {
+        throw {
+          badRequest: {
+            error: 'Bridge does not have a public app URL for this deployment.'
+          }
+        }
+      }
+      launchBaseUrl = appUrl.replace(/\/$/, '')
+    }
 
     await sails.helpers.audit.log.with({
       action: activated ? 'bridge.access.activated' : 'bridge.access.exchanged',
@@ -139,10 +168,15 @@ module.exports = {
     })
 
     return {
-      launchUrl: `${instanceUrl.replace(
-        /\/$/,
-        ''
-      )}/bridge/launch?code=${encodeURIComponent(code)}`
+      launchUrl: `${launchBaseUrl}/bridge/launch?code=${encodeURIComponent(
+        code
+      )}${
+        hostOrigin
+          ? `&hostOrigin=true&hostRoutePath=${encodeURIComponent(
+              app.routePath || '/'
+            )}`
+          : ''
+      }`
     }
   }
 }

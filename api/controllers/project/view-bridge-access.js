@@ -38,6 +38,8 @@ module.exports = {
       environment,
       project
     })
+    const slipwayBridgePath = `/projects/${project.slug}/environments/${environment.slug}/apps/${app.slug}/bridge`
+    const instanceUrl = await sails.helpers.getInstanceUrl()
 
     return {
       page: 'projects/bridge-access',
@@ -60,7 +62,11 @@ module.exports = {
             'bridgeEnabled'
           ]),
           appUrl,
-          bridgeUrl: appUrl ? `${appUrl}/bridge` : null
+          bridgeUrl: appUrl ? `${appUrl}/bridge` : null,
+          slipwayBridgeUrl: `${instanceUrl.replace(
+            /\/$/,
+            ''
+          )}${slipwayBridgePath}`
         },
         access: access.map((grant) => ({
           id: grant.id,

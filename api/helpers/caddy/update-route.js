@@ -99,12 +99,14 @@ module.exports = {
     const routableApps = environmentApps.filter(
       (app) => app.hostPort && app.routePath !== null
     )
-    const expectedUpstreams = routableApps.map(
-      (app) => `${app.containerName}:${app.port}`
+    const controlPlaneUpstream = `${
+      sails.config.custom.slipwayContainerName || 'slipway'
+    }:1337`
+    const expectedUpstreams = routeUpstreams(routableApps, controlPlaneUpstream)
+    const previousUpstreams = routeUpstreams(
+      previousApps.filter((app) => app.hostPort && app.routePath !== null),
+      controlPlaneUpstream
     )
-    const previousUpstreams = previousApps
-      .filter((app) => app.hostPort && app.routePath !== null)
-      .map((app) => `${app.containerName}:${app.port}`)
     const suffix = normalizeContainerSuffix(routeVersion || String(Date.now()))
     const candidateName = `${routeContainerName}-candidate-${suffix}`
     const previousName = `${routeContainerName}-previous-${suffix}`
@@ -207,32 +209,16 @@ async function buildCreateArgs({
     '--label',
     `caddy=${siteLabel}`
   ]
-
-  if (routableApps.length === 1) {
-    const app = routableApps[0]
-    args.push('--label', `caddy.reverse_proxy=${app.containerName}:${app.port}`)
-  } else {
-    const sorted = [...routableApps].sort((a, b) => {
-      if (a.routePath === '/') return 1
-      if (b.routePath === '/') return -1
-      return b.routePath.length - a.routePath.length
-    })
-
-    sorted.forEach((app, index) => {
-      if (app.routePath === '/') {
-        args.push(
-          '--label',
-          `caddy.reverse_proxy=${app.containerName}:${app.port}`
-        )
-      } else {
-        args.push('--label', `caddy.handle_path_${index}=${app.routePath}*`)
-        args.push(
-          '--label',
-          `caddy.handle_path_${index}.reverse_proxy=${app.containerName}:${app.port}`
-        )
-      }
-    })
-  }
+  const controlPlaneUpstream = `${
+    sails.config.custom.slipwayContainerName || 'slipway'
+  }:1337`
+  const labels = buildRouteLabels({
+    projectSlug: config.projectSlug,
+    environmentSlug: config.environmentSlug,
+    routableApps,
+    controlPlaneUpstream
+  })
+  for (const label of labels) args.push('--label', label)
 
   const acmeEmail = await sails.helpers.setting.get('acmeEmail')
   if (acmeEmail && sails.config.custom.slipwayIngress !== 'cloudflare-tunnel') {
@@ -241,6 +227,84 @@ async function buildCreateArgs({
 
   args.push('alpine', 'sleep', 'infinity')
   return args
+}
+
+function buildRouteLabels({
+  projectSlug,
+  environmentSlug,
+  routableApps,
+  controlPlaneUpstream
+}) {
+  const labels = []
+  let handleIndex = 0
+  const sorted = [...routableApps].sort((a, b) => {
+    if (a.routePath === '/') return 1
+    if (b.routePath === '/') return -1
+    return b.routePath.length - a.routePath.length
+  })
+
+  for (const app of sorted) {
+    if (!app.bridgeEnabled) continue
+
+    const routePrefix = normalizeRoutePrefix(app.routePath)
+    const publicBasePath = `${routePrefix}/bridge`
+    const internalBasePath = `/projects/${projectSlug}/environments/${environmentSlug}/apps/${app.slug}/bridge`
+
+    addHandle({
+      labels,
+      index: handleIndex++,
+      matcher: `${publicBasePath}/launch`,
+      uri: `replace ${publicBasePath}/launch /bridge/launch`,
+      upstream: controlPlaneUpstream
+    })
+    addHandle({
+      labels,
+      index: handleIndex++,
+      matcher: `${publicBasePath}/_assets/*`,
+      uri: `strip_prefix ${publicBasePath}/_assets`,
+      upstream: controlPlaneUpstream
+    })
+    addHandle({
+      labels,
+      index: handleIndex++,
+      matcher: `${publicBasePath}*`,
+      uri: `replace ${publicBasePath} ${internalBasePath}`,
+      upstream: controlPlaneUpstream
+    })
+  }
+
+  for (const app of sorted) {
+    const routePrefix = normalizeRoutePrefix(app.routePath)
+    addHandle({
+      labels,
+      index: handleIndex++,
+      matcher: routePrefix ? `${routePrefix}*` : '/*',
+      ...(routePrefix ? { uri: `strip_prefix ${routePrefix}` } : {}),
+      upstream: `${app.containerName}:${app.port}`
+    })
+  }
+
+  return labels
+}
+
+function addHandle({ labels, index, matcher, uri, upstream }) {
+  const key = `caddy.handle_${index}`
+  labels.push(`${key}=${matcher}`)
+  if (uri) labels.push(`${key}.0_uri=${uri}`)
+  labels.push(`${key}.1_reverse_proxy=${upstream}`)
+}
+
+function normalizeRoutePrefix(routePath) {
+  if (!routePath || routePath === '/') return ''
+  return `/${String(routePath).replace(/^\/+|\/+$/g, '')}`
+}
+
+function routeUpstreams(apps, controlPlaneUpstream) {
+  const upstreams = apps.map((app) => `${app.containerName}:${app.port}`)
+  if (apps.some((app) => app.bridgeEnabled)) {
+    upstreams.push(controlPlaneUpstream)
+  }
+  return [...new Set(upstreams)]
 }
 
 async function getContainerState(dockerPath, containerName) {
@@ -273,4 +337,9 @@ function normalizeContainerSuffix(value) {
     .slice(0, 64)
 }
 
-module.exports._private = { buildCreateArgs, normalizeContainerSuffix }
+module.exports._private = {
+  buildCreateArgs,
+  buildRouteLabels,
+  normalizeContainerSuffix,
+  routeUpstreams
+}

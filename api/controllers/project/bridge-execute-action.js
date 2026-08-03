@@ -76,7 +76,8 @@ module.exports = {
       if (error.code === 'notFound') throw { notFound: '/' }
       throw { badRequest: { error: 'App is not running' } }
     }
-    const { project, environment, app, actor, auditUserId } = resolved
+    const { project, environment, app, actor, auditUserId, bridgeBasePath } =
+      resolved
 
     let loaded
     let allowedValues
@@ -171,19 +172,14 @@ module.exports = {
       outcome.message || action.success || `${action.label} completed.`
     )
     return actionRedirect({
-      slug,
-      envSlug,
-      appSlug: appSlug ? app.slug : null,
+      bridgeBasePath,
       resource: loaded.resource,
       loaded
     })
   }
 }
 
-function actionRedirect({ slug, envSlug, appSlug, resource, loaded }) {
-  const bridgeBasePath = appSlug
-    ? `/projects/${slug}/environments/${envSlug}/apps/${appSlug}/bridge`
-    : `/projects/${slug}/environments/${envSlug}/bridge`
+function actionRedirect({ bridgeBasePath, resource, loaded }) {
   const modelPath = `${bridgeBasePath}/${resource.identity}`
   if (loaded.actionDefinition.scope !== 'record') return modelPath
   return `${modelPath}/${encodeURIComponent(String(loaded.recordId))}`

@@ -84,6 +84,11 @@ test(
     expect(page).toHaveInertiaProps({
       'app.bridgeEnabled': true,
       'app.bridgeUrl': 'https://host-app.example/bridge',
+      'app.slipwayBridgeUrl': `${await sails.helpers.getInstanceUrl()}${bridgeAppPath(
+        project,
+        environment,
+        app
+      )}`,
       hookDetected: true
     })
 
@@ -334,6 +339,120 @@ test(
       .withSession(launch.session)
       .get(bridgePath)
     expect(staleSession).toHaveStatus(403)
+  }
+)
+
+test(
+  'host-origin Bridge keeps launch, navigation, APIs, and assets under the app route',
+  { world: bridgeWorld('host-origin-bridge', 'Host Origin Bridge') },
+  async ({ sails, world, request, expect }) => {
+    const current = world.current
+    const environment = current.environments.production
+    const project = current.projects.deploymentTarget
+    const app = await sails.models.app
+      .updateOne({ id: current.apps.web.id })
+      .set({
+        routePath: '/',
+        bridgeEnabled: true
+      })
+    await sails.models.environment.updateOne({ id: environment.id }).set({
+      domain: 'host-app.example'
+    })
+    const secret = await sails.helpers.bridge.ensureAppSecret.with({
+      appId: String(app.id),
+      rotate: true
+    })
+    const access = await world.create('bridgeaccess').with({
+      email: 'host-origin@host-app.example',
+      role: 'viewer',
+      status: 'active',
+      hostUserId: 'host-origin-user',
+      activatedAt: Date.now(),
+      app: app.id,
+      environment: environment.id,
+      project: project.id,
+      team: current.teams.genesisTeam.id,
+      invitedBy: current.users.genesisUser.id
+    })
+    const appClient = request.withHeaders({
+      authorization: `Bearer ${secret}`,
+      accept: 'application/json'
+    })
+    const exchange = await appClient.post('/api/v1/bridge/exchange', {
+      appId: String(app.id),
+      hostOrigin: true,
+      hostUser: {
+        id: access.hostUserId,
+        email: access.email,
+        fullName: 'Host Origin User',
+        emailVerified: true
+      }
+    })
+
+    expect(exchange).toHaveStatus(201)
+    const publicLaunchUrl = new URL(exchange.data.launchUrl)
+    expect(publicLaunchUrl.origin).toBe('https://host-app.example')
+    expect(publicLaunchUrl.pathname).toBe('/bridge/launch')
+    expect(publicLaunchUrl.searchParams.get('hostOrigin')).toBe('true')
+    expect(publicLaunchUrl.searchParams.get('hostRoutePath')).toBe('/')
+
+    const internalBridgePath = bridgeAppPath(project, environment, app)
+    const unauthenticated = await request.get(internalBridgePath, {
+      headers: {
+        host: 'host-app.example',
+        'x-forwarded-host': 'host-app.example',
+        accept: 'text/html, application/xhtml+xml'
+      }
+    })
+    expect(unauthenticated).toHaveStatus(302)
+    expect(unauthenticated).toRedirectTo('/_slipway/bridge')
+
+    const launch = await request.get(
+      `/bridge/launch${publicLaunchUrl.search}`,
+      {
+        headers: {
+          host: 'host-app.example',
+          'x-forwarded-host': 'host-app.example'
+        }
+      }
+    )
+    expect(launch).toHaveStatus(302)
+    expect(launch).toRedirectTo('/bridge')
+    expect(launch.session.bridgeAccessId).toBe(access.id)
+    expect(launch.session.bridgeHostOrigin).toBe(true)
+
+    const bridge = await request
+      .withSession(launch.session)
+      .get(internalBridgePath, {
+        headers: {
+          host: 'host-app.example',
+          'x-forwarded-host': 'host-app.example',
+          'x-inertia': 'true',
+          accept: 'text/html, application/xhtml+xml'
+        }
+      })
+    expect(bridge).toHaveStatus(200)
+    expect(bridge).toBeInertiaPage('projects/bridge')
+    expect(bridge.data.url).toBe('/bridge')
+    expect(bridge).toHaveInertiaProps({
+      bridgeRequestBasePath: '/bridge',
+      bridgeRequestApiBasePath: '/bridge',
+      hostBridgeAssetBasePath: '/bridge/_assets',
+      hostBridgeOrigin: true
+    })
+
+    const search = await request
+      .withSession(launch.session)
+      .get(`${internalBridgePath}/user?search=ada`, {
+        headers: {
+          host: 'host-app.example',
+          'x-forwarded-host': 'host-app.example',
+          'x-inertia': 'true',
+          accept: 'text/html, application/xhtml+xml'
+        }
+      })
+    expect(search).toHaveStatus(200)
+    expect(search.data.url).toBe('/bridge/user?search=ada')
   }
 )
 
