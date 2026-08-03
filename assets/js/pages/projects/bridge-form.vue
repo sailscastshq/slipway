@@ -23,6 +23,9 @@ const props = defineProps({
   environment: Object,
   app: Object,
   appScoped: Boolean,
+  bridgeRequestBasePath: String,
+  bridgeRequestApiBasePath: String,
+  hostBridgeOrigin: Boolean,
   mode: String,
   modelIdentity: String,
   recordId: String,
@@ -37,15 +40,19 @@ const toggleMobileMenu = inject('toggleMobileMenu')
 const toggleSidebar = inject('toggleSidebar')
 const sidebarCollapsed = inject('sidebarCollapsed')
 const { toasts, toast, dismiss } = createToast()
-const bridgeBasePath = computed(() =>
-  props.appScoped && props.app?.slug
-    ? `/projects/${props.project.slug}/environments/${props.environment.slug}/apps/${props.app.slug}/bridge`
-    : `/projects/${props.project.slug}/environments/${props.environment.slug}/bridge`
+const bridgeBasePath = computed(
+  () =>
+    props.bridgeRequestBasePath ||
+    (props.appScoped && props.app?.slug
+      ? `/projects/${props.project.slug}/environments/${props.environment.slug}/apps/${props.app.slug}/bridge`
+      : `/projects/${props.project.slug}/environments/${props.environment.slug}/bridge`)
 )
-const bridgeApiBasePath = computed(() =>
-  props.appScoped && props.app?.slug
-    ? `/api/v1/projects/${props.project.slug}/environments/${props.environment.slug}/apps/${props.app.slug}/bridge`
-    : `/api/v1/projects/${props.project.slug}/environments/${props.environment.slug}/bridge`
+const bridgeApiBasePath = computed(
+  () =>
+    props.bridgeRequestApiBasePath ||
+    (props.appScoped && props.app?.slug
+      ? `/api/v1/projects/${props.project.slug}/environments/${props.environment.slug}/apps/${props.app.slug}/bridge`
+      : `/api/v1/projects/${props.project.slug}/environments/${props.environment.slug}/bridge`)
 )
 
 const isEdit = computed(() => props.mode === 'edit')
@@ -368,19 +375,21 @@ function recordUrl() {
           }}</span>
         </nav>
         <nav class="hidden items-center space-x-2 text-sm sm:flex">
-          <Link
-            href="/"
-            class="text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
-            >projects</Link
-          >
-          <span class="text-gray-400 dark:text-gray-600">/</span>
-          <Link
-            :href="`/projects/${project.slug}`"
-            class="text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
-          >
-            {{ project.name.toLowerCase() }}
-          </Link>
-          <span class="text-gray-400 dark:text-gray-600">/</span>
+          <template v-if="!hostBridgeOrigin">
+            <Link
+              href="/"
+              class="text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
+              >projects</Link
+            >
+            <span class="text-gray-400 dark:text-gray-600">/</span>
+            <Link
+              :href="`/projects/${project.slug}`"
+              class="text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
+            >
+              {{ project.name.toLowerCase() }}
+            </Link>
+            <span class="text-gray-400 dark:text-gray-600">/</span>
+          </template>
           <Link
             :href="bridgeUrl()"
             class="text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"

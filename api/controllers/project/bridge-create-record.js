@@ -60,7 +60,8 @@ module.exports = {
       if (error.code === 'notFound') throw { notFound: '/' }
       throw { badRequest: { error: 'App is not running' } }
     }
-    const { project, environment, app, actor, actorId } = resolved
+    const { project, environment, app, actor, actorId, bridgeBasePath } =
+      resolved
     const validateOnly = bridgeValidateOnly(this.req)
 
     let loaded
@@ -112,9 +113,6 @@ module.exports = {
       })
       const recordId = record?.[loaded.resource.primaryKey]
 
-      const bridgeBasePath = appSlug
-        ? `/projects/${slug}/environments/${envSlug}/apps/${app.slug}/bridge`
-        : `/projects/${slug}/environments/${envSlug}/bridge`
       if (recordId !== undefined && recordId !== null) {
         return `${bridgeBasePath}/${
           loaded.resource.identity

@@ -71,7 +71,8 @@ module.exports = {
       if (error.code === 'notFound') throw { notFound: '/' }
       throw { badRequest: { error: 'App is not running' } }
     }
-    const { project, environment, app, actor, actorId } = resolved
+    const { project, environment, app, actor, actorId, bridgeBasePath } =
+      resolved
     const validateOnly = bridgeValidateOnly(this.req)
 
     let loaded
@@ -141,9 +142,6 @@ module.exports = {
     }
 
     // Redirect back to record view
-    const bridgeBasePath = appSlug
-      ? `/projects/${slug}/environments/${envSlug}/apps/${app.slug}/bridge`
-      : `/projects/${slug}/environments/${envSlug}/bridge`
     return `${bridgeBasePath}/${modelIdentity}/${encodeURIComponent(
       String(recordId)
     )}`

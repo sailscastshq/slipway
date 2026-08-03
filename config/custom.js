@@ -54,6 +54,9 @@ module.exports.custom = {
   // Docker network name for app containers
   slipwayNetwork: 'slipway',
 
+  // Stable control-plane upstream used by same-origin Bridge ingress routes.
+  slipwayContainerName: 'slipway',
+
   // Directory where app source code is stored
   slipwayAppsDir: '/var/slipway/apps',
 

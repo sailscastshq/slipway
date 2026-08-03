@@ -13,6 +13,8 @@ const props = defineProps({
   environment: Object,
   app: Object,
   appScoped: Boolean,
+  bridgeRequestBasePath: String,
+  hostBridgeOrigin: Boolean,
   appRunning: Boolean,
   models: Object,
   modelsError: String,
@@ -23,10 +25,12 @@ const props = defineProps({
 const toggleMobileMenu = inject('toggleMobileMenu')
 const toggleSidebar = inject('toggleSidebar')
 const sidebarCollapsed = inject('sidebarCollapsed')
-const bridgeBasePath = computed(() =>
-  props.appScoped && props.app?.slug
-    ? `/projects/${props.project.slug}/environments/${props.environment.slug}/apps/${props.app.slug}/bridge`
-    : `/projects/${props.project.slug}/environments/${props.environment.slug}/bridge`
+const bridgeBasePath = computed(
+  () =>
+    props.bridgeRequestBasePath ||
+    (props.appScoped && props.app?.slug
+      ? `/projects/${props.project.slug}/environments/${props.environment.slug}/apps/${props.app.slug}/bridge`
+      : `/projects/${props.project.slug}/environments/${props.environment.slug}/bridge`)
 )
 
 // Search
@@ -179,7 +183,14 @@ function switchDashboard(event) {
           </svg>
         </button>
         <nav class="flex items-center space-x-2 text-sm sm:hidden">
+          <span
+            v-if="hostBridgeOrigin"
+            class="text-gray-500 dark:text-gray-400"
+          >
+            {{ app.name.toLowerCase() }}
+          </span>
           <Link
+            v-else
             :href="`/projects/${project.slug}/environments/${environment.slug}`"
             class="text-gray-500 dark:text-gray-400"
           >
@@ -189,25 +200,30 @@ function switchDashboard(event) {
           <span class="font-medium text-gray-900 dark:text-white">bridge</span>
         </nav>
         <nav class="hidden items-center space-x-2 text-sm sm:flex">
-          <Link
-            href="/"
-            class="text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
-            >projects</Link
-          >
-          <span class="text-gray-400 dark:text-gray-600">/</span>
-          <Link
-            :href="`/projects/${project.slug}`"
-            class="text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
-          >
-            {{ project.name.toLowerCase() }}
-          </Link>
-          <span class="text-gray-400 dark:text-gray-600">/</span>
-          <Link
-            :href="`/projects/${project.slug}/environments/${environment.slug}`"
-            class="text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
-          >
-            {{ environment.slug }}
-          </Link>
+          <template v-if="!hostBridgeOrigin">
+            <Link
+              href="/"
+              class="text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
+              >projects</Link
+            >
+            <span class="text-gray-400 dark:text-gray-600">/</span>
+            <Link
+              :href="`/projects/${project.slug}`"
+              class="text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
+            >
+              {{ project.name.toLowerCase() }}
+            </Link>
+            <span class="text-gray-400 dark:text-gray-600">/</span>
+            <Link
+              :href="`/projects/${project.slug}/environments/${environment.slug}`"
+              class="text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
+            >
+              {{ environment.slug }}
+            </Link>
+          </template>
+          <span v-else class="text-gray-500 dark:text-gray-400">
+            {{ app.name.toLowerCase() }}
+          </span>
           <span class="text-gray-400 dark:text-gray-600">/</span>
           <span class="font-medium text-gray-900 dark:text-white">bridge</span>
         </nav>
@@ -281,6 +297,7 @@ function switchDashboard(event) {
             Deploy your app to start using Bridge.
           </p>
           <Link
+            v-if="!hostBridgeOrigin"
             :href="`/projects/${project.slug}/environments/${environment.slug}`"
             class="mt-4 inline-flex items-center rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-800 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
           >

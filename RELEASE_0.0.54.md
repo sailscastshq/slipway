@@ -31,14 +31,54 @@ The resident worker intentionally remains separate from the application's web
 process. This preserves the existing execution boundary, so an expensive or
 failed Bridge operation cannot block the public application's event loop.
 
+## Same-origin Bridge
+
+### What was happening
+
+The host app's `/bridge` hook authenticated the app user, exchanged that
+identity for a one-time launch code, and then redirected the browser to the
+Slipway control-plane hostname. Every Bridge link was consequently built as a
+Slipway dashboard path. That produced two different browsing models and made a
+host-app launch unexpectedly leave the host origin.
+
+A simple reverse proxy alone would not be safe for two Sails applications:
+both default to a cookie named `sails.sid`, so the proxied Slipway session could
+overwrite the host application's session on the same origin. Absolute asset,
+API, redirect, and Inertia page URLs would also escape the proxy after the
+first page.
+
+### What changed
+
+- Caddy gives each Bridge-enabled app three routes before the app catch-all:
+  the one-time launch endpoint, a namespaced asset endpoint, and the app's
+  `/bridge` subtree.
+- The host app authenticates through a private `/_slipway/bridge` callback;
+  direct `/bridge` exchange remains available for deployments without the new
+  ingress route.
+- Host-origin exchange returns a launch URL on the app's public hostname and
+  sets the same revocable, app-scoped Bridge session used by direct Slipway
+  access.
+- Slipway sessions now use `slipway.sid`, keeping them separate from a host
+  Sails app's `sails.sid` while retaining normal session-backed CSRF.
+- Server redirects, relationship APIs, Inertia page URLs, initial assets, and
+  lazy-loaded chunks use the public Bridge base path. Direct
+  `slipway.sailscasts.com/projects/.../bridge` navigation is unchanged.
+- The Bridge Access screen and app menu expose both entry points explicitly:
+  the public `https://<app-host>/bridge` URL and the operator
+  `https://<slipway-host>/projects/<project>/environments/<environment>/apps/<app>/bridge`
+  URL.
+
+Changing the Slipway session cookie name requires operators to sign in to the
+Slipway dashboard once after upgrading. Host-app sessions are not affected.
+
 ### Local measurements
 
 On August 3, 2026, the reproducible local Docker benchmark recorded:
 
 | Measurement                         | Result                |
 | ----------------------------------- | --------------------- |
-| Old per-operation lifecycle         | 5,566 ms and 4,803 ms |
-| One-time deployment/startup prewarm | 4,864 ms              |
+| Old per-operation lifecycle         | 5,026 ms and 4,953 ms |
+| One-time deployment/startup prewarm | 4,917 ms              |
 | Five consecutive warm operations    | 1, 0, 0, 0, and 0 ms  |
 | Slowest warm runtime operation      | 1 ms                  |
 
@@ -71,3 +111,12 @@ The 0.0.54 release gate is:
 - first visible Bridge page below two seconds in the production smoke test;
 - subsequent navigation below 500 ms in the production smoke test; and
 - search results begin rendering within 800 ms after the final keystroke.
+
+The same-origin gate additionally requires:
+
+- an app-origin `/bridge` request never changes the browser hostname;
+- a non-root app keeps launch, assets, navigation, search, API calls, and
+  mutation redirects under its own `<app-path>/bridge` prefix;
+- host and Slipway session cookies cannot overwrite each other;
+- revocation and Bridge-secret rotation invalidate both URL modes; and
+- Caddy accepts the generated ordered handlers before deployment cutover.

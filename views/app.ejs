@@ -1,5 +1,12 @@
 <!DOCTYPE html>
 <html lang="en">
+  <%
+    const bridgeAssetBasePath = page?.props?.hostBridgeAssetBasePath || ''
+    const prefixBridgeAssets = (tags) =>
+      bridgeAssetBasePath
+        ? tags.replace(/(src|href)="\//g, `$1="${bridgeAssetBasePath}/`)
+        : tags
+  %>
   <head>
     <meta charset="UTF-8" />
     <meta http-equiv="X-UA-Compatible" content="IE=edge" />
@@ -11,16 +18,21 @@
       rel="icon"
       type="image/svg+xml"
       sizes="any"
-      href="/images/favicon.svg"
+      href="<%= bridgeAssetBasePath %>/images/favicon.svg"
       data-deployment-state="idle"
     />
-    <%- shipwright.styles() %>
+    <%- prefixBridgeAssets(shipwright.styles()) %>
   </head>
   <body>
     <div id="app"></div>
     <script type="application/json" data-page="app">
       <%- JSON.stringify(page).replace(/</g, '\\u003c') %>
     </script>
-    <%- shipwright.scripts() %>
+    <% if (bridgeAssetBasePath) { %>
+      <script>
+        window.__SLIPWAY_ASSET_PREFIX__ = <%- JSON.stringify(bridgeAssetBasePath) %>
+      </script>
+    <% } %>
+    <%- prefixBridgeAssets(shipwright.scripts()) %>
   </body>
 </html>

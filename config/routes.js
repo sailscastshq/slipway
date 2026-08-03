@@ -391,6 +391,8 @@ module.exports.routes = {
     'project/view-bridge',
   'GET /projects/:slug/environments/:envSlug/apps/:appSlug/bridge/:modelIdentity':
     'project/view-bridge-model',
+  'GET /projects/:slug/environments/:envSlug/apps/:appSlug/bridge/:modelIdentity/relationships/:relationshipAlias/options':
+    'project/bridge-relationship-options',
   'GET /projects/:slug/environments/:envSlug/apps/:appSlug/bridge/:modelIdentity/new':
     'project/view-bridge-create',
   'GET /projects/:slug/environments/:envSlug/apps/:appSlug/bridge/:modelIdentity/:recordId':

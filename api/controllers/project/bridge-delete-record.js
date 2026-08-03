@@ -56,7 +56,7 @@ module.exports = {
       if (error.code === 'notFound') throw { notFound: '/' }
       throw { badRequest: { error: 'App is not running' } }
     }
-    const { project, environment, app, actor } = resolved
+    const { project, environment, app, actor, bridgeBasePath } = resolved
 
     let resource
     let normalizedRecordId
@@ -98,9 +98,6 @@ module.exports = {
     }
 
     // Redirect back to model list
-    const bridgeBasePath = appSlug
-      ? `/projects/${slug}/environments/${envSlug}/apps/${app.slug}/bridge`
-      : `/projects/${slug}/environments/${envSlug}/bridge`
     return `${bridgeBasePath}/${modelIdentity}`
   }
 }

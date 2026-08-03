@@ -58,7 +58,16 @@ module.exports = {
           : '/login'
       }
     }
-    const { project, environment, app, actor } = resolved
+    const {
+      project,
+      environment,
+      app,
+      actor,
+      bridgeBasePath,
+      bridgeApiBasePath,
+      bridgeAssetBasePath,
+      bridgeHostOrigin
+    } = resolved
     const appRunning = app && app.status === 'running'
 
     // Load models server-side if app is running
@@ -182,6 +191,10 @@ module.exports = {
           slug: app.slug
         },
         appScoped: Boolean(appSlug),
+        bridgeRequestBasePath: bridgeBasePath,
+        bridgeRequestApiBasePath: bridgeApiBasePath,
+        hostBridgeAssetBasePath: bridgeAssetBasePath,
+        hostBridgeOrigin: bridgeHostOrigin,
         appRunning,
         models,
         modelsError,

@@ -66,8 +66,12 @@ module.exports = {
       }
     }
 
-    // Single app with root path — identical config to original (backward compat)
-    if (routableApps.length === 1 && routableApps[0].routePath === '/') {
+    // Single non-Bridge app with a root path — retain the minimal route.
+    if (
+      routableApps.length === 1 &&
+      routableApps[0].routePath === '/' &&
+      !routableApps[0].bridgeEnabled
+    ) {
       const app = routableApps[0]
       return {
         domain: fullDomain,
@@ -99,6 +103,20 @@ module.exports = {
     })
 
     const handlers = []
+
+    for (const app of sorted) {
+      if (!app.bridgeEnabled) continue
+      handlers.push(
+        ...bridgeHandlers({
+          app,
+          projectSlug: environment.project.slug,
+          environmentSlug: environment.slug,
+          controlPlaneUpstream: `${
+            sails.config.custom.slipwayContainerName || 'slipway'
+          }:1337`
+        })
+      )
+    }
 
     for (const app of sorted) {
       if (app.routePath === '/') {
@@ -141,3 +159,49 @@ module.exports = {
     }
   }
 }
+
+function bridgeHandlers({
+  app,
+  projectSlug,
+  environmentSlug,
+  controlPlaneUpstream
+}) {
+  const routePrefix =
+    !app.routePath || app.routePath === '/'
+      ? ''
+      : `/${String(app.routePath).replace(/^\/+|\/+$/g, '')}`
+  const publicBasePath = `${routePrefix}/bridge`
+  const internalBasePath = `/projects/${projectSlug}/environments/${environmentSlug}/apps/${app.slug}/bridge`
+  const reverseProxy = {
+    handler: 'reverse_proxy',
+    upstreams: [{ dial: controlPlaneUpstream }]
+  }
+
+  return [
+    subroute(`${publicBasePath}/launch`, [
+      { handler: 'rewrite', uri: '/bridge/launch' },
+      reverseProxy
+    ]),
+    subroute(`${publicBasePath}/_assets/*`, [
+      { handler: 'rewrite', strip_path_prefix: `${publicBasePath}/_assets` },
+      reverseProxy
+    ]),
+    subroute(`${publicBasePath}*`, [
+      { handler: 'rewrite', strip_path_prefix: publicBasePath },
+      {
+        handler: 'rewrite',
+        uri: `${internalBasePath}{http.request.uri.path}`
+      },
+      reverseProxy
+    ])
+  ]
+}
+
+function subroute(path, handle) {
+  return {
+    handler: 'subroute',
+    routes: [{ match: [{ path: [path] }], handle }]
+  }
+}
+
+module.exports._private = { bridgeHandlers }

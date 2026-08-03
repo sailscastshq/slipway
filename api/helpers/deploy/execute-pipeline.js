@@ -226,6 +226,7 @@ module.exports = {
         envVars.SLIPWAY_BRIDGE_ENABLED = 'true'
         envVars.SLIPWAY_BRIDGE_EXCHANGE_URL = `http://${bridgeHost}:1337/api/v1/bridge/exchange`
         envVars.SLIPWAY_BRIDGE_APP_ID = String(targetApp.id)
+        envVars.SLIPWAY_BRIDGE_ROUTE_PATH = targetApp.routePath || '/'
         envVars.SLIPWAY_BRIDGE_SECRET =
           await sails.helpers.bridge.ensureAppSecret(String(targetApp.id))
       }

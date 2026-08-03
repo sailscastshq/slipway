@@ -108,6 +108,10 @@ module.exports = function defineSlipwayHook(sails) {
       if (process.env.SLIPWAY_BRIDGE_SECRET) {
         sails.config.slipway.bridge.secret = process.env.SLIPWAY_BRIDGE_SECRET
       }
+      if (process.env.SLIPWAY_BRIDGE_ROUTE_PATH) {
+        sails.config.slipway.bridge.routePath =
+          process.env.SLIPWAY_BRIDGE_ROUTE_PATH
+      }
     },
 
     initialize: function (done) {
@@ -229,88 +233,8 @@ module.exports = function defineSlipwayHook(sails) {
         }
       },
       after: {
-        'GET /bridge': async function (req, res) {
-          if (!bridgeConfig.enabled) {
-            return res.notFound()
-          }
-
-          if (
-            !bridgeConfig.exchangeUrl ||
-            !bridgeConfig.appId ||
-            !bridgeConfig.secret
-          ) {
-            sails.log.warn(
-              'sails-hook-slipway: Bridge is enabled but its Slipway exchange credentials are unavailable.'
-            )
-            return res.serverError(
-              'Bridge is not configured for this deployment. Redeploy the app from Slipway.'
-            )
-          }
-
-          let identity
-          try {
-            identity = await resolveBridgeIdentity(req)
-          } catch (error) {
-            sails.log.warn(
-              `sails-hook-slipway: Could not resolve the Bridge user: ${
-                error.message || error
-              }`
-            )
-            return res.forbidden(
-              'Bridge could not verify your host-app account.'
-            )
-          }
-
-          if (!identity) {
-            const loginPath = safeLocalPath(bridgeConfig.loginPath, '/login')
-            const returnUrl = safeLocalPath(req.originalUrl, '/bridge')
-            return res.redirect(
-              `${loginPath}?redirect=${encodeURIComponent(returnUrl)}`
-            )
-          }
-
-          if (!identity.emailVerified) {
-            return res.forbidden(
-              'Verify your host-app email address before opening Bridge.'
-            )
-          }
-
-          try {
-            const response = await requestJson({
-              url: bridgeConfig.exchangeUrl,
-              token: bridgeConfig.secret,
-              body: {
-                appId: String(bridgeConfig.appId),
-                hostUser: identity,
-                inviteToken:
-                  typeof req.query?.invite === 'string'
-                    ? req.query.invite
-                    : undefined
-              }
-            })
-
-            if (!response.launchUrl) {
-              throw new Error('Slipway did not return a Bridge launch URL.')
-            }
-
-            return res.redirect(response.launchUrl)
-          } catch (error) {
-            if (error.statusCode === 403) {
-              return res.forbidden(
-                `Your host-app account (${identity.email}) has not been invited to Bridge.`
-              )
-            }
-
-            sails.log.warn(
-              `sails-hook-slipway: Bridge exchange failed: ${
-                error.message || error
-              }`
-            )
-            return res.serverError(
-              'Bridge could not contact Slipway. Try again in a moment.'
-            )
-          }
-        }
+        'GET /bridge': createBridgeRoute(false),
+        'GET /_slipway/bridge': createBridgeRoute(true)
       }
     },
 
@@ -322,6 +246,110 @@ module.exports = function defineSlipwayHook(sails) {
       flush()
       return done()
     }
+  }
+
+  function createBridgeRoute(hostOrigin) {
+    return async function openBridge(req, res) {
+      if (!bridgeConfig.enabled) {
+        return res.notFound()
+      }
+
+      if (
+        !bridgeConfig.exchangeUrl ||
+        !bridgeConfig.appId ||
+        !bridgeConfig.secret
+      ) {
+        sails.log.warn(
+          'sails-hook-slipway: Bridge is enabled but its Slipway exchange credentials are unavailable.'
+        )
+        return res.serverError(
+          'Bridge is not configured for this deployment. Redeploy the app from Slipway.'
+        )
+      }
+
+      let identity
+      try {
+        identity = await resolveBridgeIdentity(req)
+      } catch (error) {
+        sails.log.warn(
+          `sails-hook-slipway: Could not resolve the Bridge user: ${
+            error.message || error
+          }`
+        )
+        return res.forbidden('Bridge could not verify your host-app account.')
+      }
+
+      if (!identity) {
+        const loginPath = safeLocalPath(bridgeConfig.loginPath, '/login')
+        let returnUrl = hostOrigin
+          ? withBridgeRoutePrefix('/_slipway/bridge')
+          : safeLocalPath(req.originalUrl, '/bridge')
+        if (hostOrigin && typeof req.query?.invite === 'string') {
+          returnUrl += `?invite=${encodeURIComponent(req.query.invite)}`
+        }
+        return res.redirect(
+          `${
+            hostOrigin ? withBridgeRoutePrefix(loginPath) : loginPath
+          }?redirect=${encodeURIComponent(returnUrl)}`
+        )
+      }
+
+      if (!identity.emailVerified) {
+        return res.forbidden(
+          'Verify your host-app email address before opening Bridge.'
+        )
+      }
+
+      try {
+        const response = await requestJson({
+          url: bridgeConfig.exchangeUrl,
+          token: bridgeConfig.secret,
+          body: {
+            appId: String(bridgeConfig.appId),
+            hostUser: identity,
+            inviteToken:
+              typeof req.query?.invite === 'string'
+                ? req.query.invite
+                : undefined,
+            hostOrigin
+          }
+        })
+
+        if (!response.launchUrl) {
+          throw new Error('Slipway did not return a Bridge launch URL.')
+        }
+
+        return res.redirect(response.launchUrl)
+      } catch (error) {
+        if (error.statusCode === 403) {
+          return res.forbidden(
+            `Your host-app account (${identity.email}) has not been invited to Bridge.`
+          )
+        }
+
+        sails.log.warn(
+          `sails-hook-slipway: Bridge exchange failed: ${
+            error.message || error
+          }`
+        )
+        return res.serverError(
+          'Bridge could not contact Slipway. Try again in a moment.'
+        )
+      }
+    }
+  }
+
+  function withBridgeRoutePrefix(path) {
+    const routePath = String(bridgeConfig.routePath || '').replace(
+      /^\/+|\/+$/g,
+      ''
+    )
+    const normalizedPath = safeLocalPath(path, '/')
+    if (!routePath) return normalizedPath
+    const prefix = `/${routePath}`
+    return normalizedPath === prefix || normalizedPath.startsWith(`${prefix}/`)
+      ? normalizedPath
+      : `${prefix}${normalizedPath}`
   }
 
   function initializeTelemetry(done) {
