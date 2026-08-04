@@ -6,7 +6,6 @@ import {
   reactive,
   computed,
   watch,
-  nextTick,
   onMounted,
   onBeforeUnmount
 } from 'vue'
@@ -21,8 +20,8 @@ import ReleaseFlagMenu from '@/components/ReleaseFlagMenu.vue'
 import { useToast } from '@/composables/toast'
 import SlippyLoader from '@/components/SlippyLoader.vue'
 import DeploymentHistory from '@/components/DeploymentHistory.vue'
-import { highlightLogLine } from '@/lib/highlightLog'
 import { configVariableSummary } from '@/lib/config-variables.mjs'
+import LogViewer from '@/components/LogViewer.vue'
 
 defineOptions({
   layout: AppLayout
@@ -616,8 +615,6 @@ watch(bulkMode, (open) => {
 // --- Container logs ---
 const logsOpen = ref(_params.has('logs'))
 const logLines = ref([])
-const logContainer = ref(null)
-const autoScroll = ref(true)
 
 const {
   connected: logsConnected,
@@ -633,13 +630,6 @@ const {
         logLines.value.push(data.log)
         if (logLines.value.length > 2000) {
           logLines.value = logLines.value.slice(-1500)
-        }
-        if (autoScroll.value) {
-          nextTick(() => {
-            if (logContainer.value) {
-              logContainer.value.scrollTop = logContainer.value.scrollHeight
-            }
-          })
         }
       }
     }
@@ -1532,48 +1522,11 @@ onBeforeUnmount(() => {
               </button>
             </div>
             <div v-show="logsOpen">
-              <div
-                v-if="logsError"
-                class="border-t border-gray-200 px-4 py-6 text-center text-sm text-gray-500 dark:border-gray-800 dark:text-gray-400"
-              >
-                {{ logsError }}
-              </div>
-              <div v-else class="border-t border-gray-200 dark:border-gray-800">
-                <div
-                  ref="logContainer"
-                  class="h-80 overflow-y-auto bg-gray-100 p-4 font-mono text-xs leading-5 text-gray-700 dark:bg-gray-950 dark:text-gray-300"
-                  @scroll="
-                    autoScroll =
-                      logContainer &&
-                      logContainer.scrollHeight -
-                        logContainer.scrollTop -
-                        logContainer.clientHeight <
-                        40
-                  "
-                >
-                  <div
-                    v-if="!logsConnected && logLines.length === 0"
-                    class="flex h-full items-center justify-center text-gray-500"
-                  >
-                    <SlippyLoader size="h-4 w-4" class="mr-2" />
-                    Connecting to logs...
-                  </div>
-                  <div
-                    v-else-if="logLines.length === 0 && logsConnected"
-                    class="text-gray-500"
-                  >
-                    Waiting for output...
-                  </div>
-                  <template v-else>
-                    <div
-                      v-for="(line, i) in logLines"
-                      :key="i"
-                      class="whitespace-pre-wrap break-all hover:bg-gray-200/50 dark:hover:bg-gray-900/50"
-                      v-html="highlightLogLine(line)"
-                    ></div>
-                  </template>
-                </div>
-              </div>
+              <LogViewer
+                :lines="logLines"
+                :connected="logsConnected"
+                :error="logsError"
+              />
             </div>
           </div>
 
