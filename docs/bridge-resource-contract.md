@@ -999,21 +999,60 @@ BRIDGE_S3_REGION=us-east-1
 Only `BRIDGE_` variables are considered. App values override environment
 values, and environment values override instance-global values.
 
-The upload endpoint:
+Bridge uses a three-step direct-upload protocol:
 
-- authorizes the current actor against the target resource and create/edit
-  action before accepting bytes;
-- enforces the field's MIME allowlist and `maxBytes`;
-- streams directly to the configured object store instead of buffering the
-  entire file in Slipway memory;
+- `prepare` authorizes the current actor against the target resource and
+  create/edit action, validates the MIME allowlist and `maxBytes`, resolves the
+  object path, and returns a 15-minute presigned `PUT` URL;
+- the browser sends the file bytes directly to the configured object store,
+  reports real byte progress, and can cancel or retry without proxying the file
+  through Slipway; and
+- `complete` verifies the object's key, byte size, and content type with the
+  storage provider before returning the canonical URL and signed field receipt.
+
+Preparing the upload before the multipart stream exists is important. The
+legacy proxy endpoint remains for older clients and inline Markdown images,
+but doing slow authorization or container work after a multipart upstream
+arrives can exceed Skipper's `maxTimeToBuffer` and fail with `EMAXBUFFER`.
+Increasing that timeout does not fix the race; the direct-upload protocol
+removes it for file, image, and video fields.
+
+The protocol also:
+
 - scopes the object key to the team, project, environment, resource, and field;
-  and
+- appends an opaque UUID to configured filename stems so uploads cannot
+  overwrite one another or reuse a stale CDN object; and
 - returns the canonical public URL plus a short-lived, signed receipt.
 
 The subsequent create or update accepts the URL only when its receipt matches
 the current actor, project, environment, resource, and field. The target model
 stores only the URL. A browser therefore cannot forge a different remote URL
 or reuse a receipt across apps or fields.
+
+Because the browser uploads directly, the bucket must allow `PUT` from every
+origin where Bridge is rendered. For example, an app available both in Slipway
+and through its own `/bridge` route needs both origins in its R2 CORS policy:
+
+```json
+[
+  {
+    "AllowedOrigins": [
+      "https://slipway.example.com",
+      "https://app.example.com"
+    ],
+    "AllowedMethods": ["PUT"],
+    "AllowedHeaders": ["Content-Type"],
+    "ExposeHeaders": ["ETag"],
+    "MaxAgeSeconds": 3600
+  }
+]
+```
+
+CORS controls which browser origins may upload; it does not make stored assets
+private. Paid or otherwise protected files need authorization at the delivery
+origin (for example, short-lived signed URLs enforced by a CDN rule or Worker).
+An unguessable object name reduces collisions and casual enumeration, but is
+not an access-control boundary.
 
 Uploads use an environment-scoped namespace by default. An app that owns a
 dedicated bucket can opt into its established bucket-root layout with safe
@@ -1035,7 +1074,8 @@ upload: {
 `directory` may reference a scalar field such as `{title}` or a scalar field
 on a belongs-to relationship such as `{course.slug}`. Add `|slug` to normalize
 a value into a lowercase URL-safe segment. `filename` is an extension-free
-stem; Bridge derives the extension from the accepted file type. Every
+stem; Bridge appends an opaque UUID and derives the extension from the accepted
+file type. Every
 reference is validated against the resource contract, related records are
 loaded from the target app, missing context blocks the upload, and the final
 path is sanitized against traversal. `scope: 'bucket'` is explicit because it

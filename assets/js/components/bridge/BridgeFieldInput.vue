@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onBeforeUnmount, ref } from 'vue'
 import MarkdownEditor from '@/components/content/MarkdownEditor.vue'
 import BridgeRelationshipSelect from '@/components/bridge/BridgeRelationshipSelect.vue'
 import {
@@ -55,6 +55,10 @@ const emit = defineEmits(['update:modelValue', 'blur', 'clear-error'])
 const fileInput = ref(null)
 const uploading = ref(false)
 const uploadError = ref('')
+const uploadPhase = ref('')
+const uploadedBytes = ref(0)
+const totalUploadBytes = ref(0)
+const activeUploadRequest = ref(null)
 const richTextEditor = ref(null)
 const richTextMode = ref('visual')
 const richTextCompatibility = ref({ supported: true })
@@ -166,6 +170,24 @@ const uploadHint = computed(() => {
         }).format(labels.map((value) => value.toUpperCase()))
   return `${types} · ${formatBridgeBytes(maxBytes.value)} max`
 })
+const uploadPercent = computed(() => {
+  if (!totalUploadBytes.value) return 0
+  return Math.min(
+    100,
+    Math.round((uploadedBytes.value / totalUploadBytes.value) * 100)
+  )
+})
+const uploadStatus = computed(() => {
+  if (uploadPhase.value === 'preparing') return 'Preparing secure upload…'
+  if (uploadPhase.value === 'verifying') return 'Verifying upload…'
+  if (uploadPhase.value === 'uploading') {
+    const progress = `${formatBridgeBytes(
+      uploadedBytes.value
+    )} of ${formatBridgeBytes(totalUploadBytes.value)}`
+    return `Uploading ${uploadPercent.value}% · ${progress}`
+  }
+  return ''
+})
 const currencySymbol = computed(() => {
   const currency = attribute.value.field?.currency || {}
   try {
@@ -208,6 +230,10 @@ async function uploadFile(event) {
   event.target.value = ''
   if (!file) return
 
+  await beginUpload(file)
+}
+
+async function beginUpload(file) {
   uploadError.value = ''
   if (file.size > maxBytes.value) {
     uploadError.value = `Choose a file no larger than ${formatBridgeBytes(
@@ -221,35 +247,142 @@ async function uploadFile(event) {
   }
 
   uploading.value = true
+  uploadPhase.value = 'preparing'
+  uploadedBytes.value = 0
+  totalUploadBytes.value = file.size
   try {
-    const data = new FormData()
-    data.append('file', file)
-    data.append('values', JSON.stringify(uploadPathValues.value))
-    if (props.isEdit && props.recordId !== null) {
-      data.append('recordId', String(props.recordId))
-    }
-    const response = await fetch(props.uploadUrl, {
-      method: 'POST',
-      body: data
-    })
-    const result = await response.json().catch(() => ({}))
-    if (!response.ok) {
-      throw new Error(result.message || 'The file could not be uploaded.')
-    }
-    if (!result.url || !result.receipt) {
-      throw new Error('The upload did not return a verifiable file URL.')
-    }
-    update({
-      url: result.url,
-      receipt: result.receipt,
-      file: result.file || { name: file.name, size: file.size, type: file.type }
-    })
+    const prepared = await prepareDirectUpload(file)
+    uploadPhase.value = 'uploading'
+    await putFileDirectly(file, prepared)
+    uploadPhase.value = 'verifying'
+    const result = await completeDirectUpload(prepared)
+    rememberUpload(result, file)
   } catch (error) {
-    uploadError.value = error.message || 'The file could not be uploaded.'
+    uploadError.value =
+      error.code === 'UPLOAD_CANCELLED'
+        ? 'Upload cancelled. You can retry when ready.'
+        : error.message || 'The file could not be uploaded.'
   } finally {
+    activeUploadRequest.value = null
+    uploadPhase.value = ''
     uploading.value = false
   }
 }
+
+async function prepareDirectUpload(file) {
+  const response = await fetch(`${props.uploadUrl}/prepare`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      fileName: file.name,
+      fileSize: file.size,
+      fileType: file.type,
+      values: uploadPathValues.value,
+      ...(props.isEdit && props.recordId !== null
+        ? { recordId: String(props.recordId) }
+        : {})
+    })
+  })
+  const result = await response.json().catch(() => ({}))
+  if (!response.ok) {
+    throw new Error(result.message || 'The upload could not be prepared.')
+  }
+  if (
+    !result.uploadUrl ||
+    !result.url ||
+    !result.uploadReceipt ||
+    result.method !== 'PUT'
+  ) {
+    throw new Error('Bridge did not return a valid direct upload operation.')
+  }
+  return result
+}
+
+function putFileDirectly(file, prepared) {
+  return new Promise((resolve, reject) => {
+    const request = new XMLHttpRequest()
+    activeUploadRequest.value = request
+
+    request.open('PUT', prepared.uploadUrl)
+    for (const [name, value] of Object.entries(prepared.headers || {})) {
+      request.setRequestHeader(name, value)
+    }
+    request.upload.addEventListener('progress', (event) => {
+      if (!event.lengthComputable) return
+      uploadedBytes.value = event.loaded
+      totalUploadBytes.value = event.total
+    })
+    request.addEventListener('load', () => {
+      if (request.status >= 200 && request.status < 300) {
+        uploadedBytes.value = file.size
+        totalUploadBytes.value = file.size
+        resolve()
+        return
+      }
+      reject(
+        new Error(
+          request.status === 403
+            ? 'Object storage rejected the upload. Check the bucket CORS policy and retry.'
+            : `Object storage rejected the upload (${request.status}).`
+        )
+      )
+    })
+    request.addEventListener('error', () => {
+      reject(
+        new Error(
+          'The browser could not reach object storage. Check the bucket CORS policy and your connection.'
+        )
+      )
+    })
+    request.addEventListener('abort', () => {
+      const error = new Error('Upload cancelled.')
+      error.code = 'UPLOAD_CANCELLED'
+      reject(error)
+    })
+    request.send(file)
+  })
+}
+
+async function completeDirectUpload(prepared) {
+  const response = await fetch(`${props.uploadUrl}/complete`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      url: prepared.url,
+      uploadReceipt: prepared.uploadReceipt,
+      ...(props.isEdit && props.recordId !== null
+        ? { recordId: String(props.recordId) }
+        : {})
+    })
+  })
+  const result = await response.json().catch(() => ({}))
+  if (!response.ok) {
+    throw new Error(result.message || 'Bridge could not verify the upload.')
+  }
+  if (!result.url || !result.receipt) {
+    throw new Error('The upload did not return a verifiable file URL.')
+  }
+  return result
+}
+
+function rememberUpload(result, file) {
+  update({
+    url: result.url,
+    receipt: result.receipt,
+    file: {
+      name: file.name,
+      size: file.size,
+      type: file.type,
+      ...(result.file || {})
+    }
+  })
+}
+
+function cancelUpload() {
+  activeUploadRequest.value?.abort()
+}
+
+onBeforeUnmount(() => activeUploadRequest.value?.abort())
 
 function defaultPlaceholder(fieldType) {
   if (fieldType === 'email') return 'name@example.com'
@@ -578,7 +711,48 @@ function defaultPlaceholder(fieldType) {
           @change="uploadFile"
         />
         <div
-          v-if="safeCurrentUploadUrl"
+          v-if="uploading"
+          class="space-y-2 rounded-lg bg-gray-50 p-3 dark:bg-gray-900"
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+          :aria-label="`${label} upload status`"
+        >
+          <div class="flex items-center justify-between gap-4">
+            <p
+              class="min-w-0 truncate text-xs font-medium tabular-nums text-gray-600 dark:text-gray-300"
+            >
+              {{ uploadStatus }}
+            </p>
+            <button
+              v-if="uploadPhase === 'uploading' && activeUploadRequest"
+              type="button"
+              class="shrink-0 text-xs font-medium text-gray-500 hover:text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 dark:text-gray-400 dark:hover:text-white dark:focus-visible:ring-gray-600"
+              @click="cancelUpload"
+            >
+              Cancel
+            </button>
+          </div>
+          <progress
+            v-if="uploadPhase === 'uploading'"
+            :value="uploadPercent"
+            max="100"
+            class="h-1.5 w-full overflow-hidden rounded-full accent-gray-900 dark:accent-white"
+          >
+            {{ uploadPercent }}%
+          </progress>
+          <div
+            v-else
+            class="h-1.5 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700"
+            aria-hidden="true"
+          >
+            <span
+              class="block h-full w-1/3 animate-pulse rounded-full bg-gray-500 motion-reduce:animate-none dark:bg-gray-400"
+            ></span>
+          </div>
+        </div>
+        <div
+          v-else-if="safeCurrentUploadUrl"
           class="flex min-w-0 items-center gap-3 rounded-lg bg-gray-50 p-3 dark:bg-gray-900"
         >
           <img
@@ -611,21 +785,16 @@ function defaultPlaceholder(fieldType) {
             Replace
           </button>
         </div>
-        <button
-          v-else
-          type="button"
-          :disabled="field.readOnly || uploading"
-          class="inline-flex h-10 items-center rounded-md bg-gray-100 px-3 text-sm font-medium text-gray-700 hover:bg-gray-200 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
-          @click="fileInput?.click()"
-        >
-          {{
-            uploading
-              ? 'Uploading…'
-              : isImageUpload
-              ? 'Choose image'
-              : 'Choose file'
-          }}
-        </button>
+        <div v-else>
+          <button
+            type="button"
+            :disabled="field.readOnly"
+            class="inline-flex h-10 items-center rounded-md bg-gray-100 px-3 text-sm font-medium text-gray-700 hover:bg-gray-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700 dark:focus-visible:ring-gray-600"
+            @click="fileInput?.click()"
+          >
+            {{ isImageUpload ? 'Choose image' : 'Choose file' }}
+          </button>
+        </div>
         <p class="text-xs text-gray-400 dark:text-gray-500">
           {{ uploadHint }}
         </p>

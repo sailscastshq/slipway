@@ -77,15 +77,17 @@ module.exports = {
     recordId,
     values
   }) {
-    let resolved
+    let target
     try {
-      resolved = await sails.helpers.bridge.resolveRequest.with({
+      target = await sails.helpers.bridge.prepareUploadTarget.with({
         req: this.req,
         projectSlug: slug,
         environmentSlug: envSlug,
         ...(appSlug ? { appSlug } : {}),
-        requiredRole: 'editor',
-        requireRunning: true
+        modelIdentity,
+        fieldName,
+        ...(recordId ? { recordId } : {}),
+        values: parseUploadValues(values)
       })
     } catch (error) {
       if (error.code === 'forbidden') {
@@ -93,94 +95,26 @@ module.exports = {
           forbidden: { message: 'Your Bridge role cannot upload files.' }
         }
       }
-      if (error.code === 'notFound') throw 'notFound'
-      throw { badRequest: { message: 'The target app is not running.' } }
-    }
-    const { project, environment, app, actor, actorId } = resolved
-
-    let loaded
-    try {
-      loaded = await sails.helpers.bridge.loadResource.with({
-        containerName: app.containerName,
-        environmentId: environment.id,
-        modelIdentity,
-        action: recordId ? 'update' : 'create',
-        actor,
-        ...(recordId ? { recordId } : {})
-      })
-    } catch (error) {
-      throw { forbidden: { message: error.message } }
-    }
-
-    const surface = recordId ? 'edit' : 'create'
-    const attribute = loaded.resource.attributes?.[fieldName]
-    const fieldType = attribute?.field?.type
-    if (
-      !loaded.resource[surface]?.includes(fieldName) ||
-      !(
-        ['file', 'image', 'upload'].includes(fieldType) ||
-        (fieldType === 'richtext' &&
-          attribute.field.format?.toLowerCase() === 'markdown' &&
-          attribute.field.upload?.kind === 'image')
-      ) ||
-      attribute.field.upload?.storage !== 'bridge'
-    ) {
-      throw {
-        notFound: { message: 'This Bridge upload field is not available.' }
+      if (
+        error.code === 'notFound' ||
+        error.code === 'BRIDGE_UPLOAD_FIELD_NOT_FOUND'
+      ) {
+        throw { notFound: { message: error.message } }
       }
-    }
-
-    let storage
-    try {
-      storage = await sails.helpers.bridge.getUploadStorageConfig.with({
-        app,
-        environment
-      })
-    } catch (error) {
       throw { badRequest: { message: error.message } }
     }
 
-    const upload = attribute.field.upload
-    let uploadValues
-    let objectPathConfig
-    try {
-      uploadValues = parseUploadValues(values)
-      await sails.helpers.bridge.authorizeRelationshipValues.with({
-        containerName: app.containerName,
-        environmentId: environment.id,
-        resource: loaded.resource,
-        actor,
-        values: uploadValues
-      })
-      objectPathConfig =
-        await sails.helpers.bridge.resolveUploadObjectPath.with({
-          containerName: app.containerName,
-          resource: loaded.resource,
-          resources: loaded.contract?.models || {
-            [loaded.resource.identity]: loaded.resource
-          },
-          upload,
-          values: uploadValues,
-          ...(recordId ? { recordId: loaded.recordId } : {})
-        })
-    } catch (error) {
-      throw { badRequest: { message: error.message } }
-    }
-
-    const namespace =
-      upload.scope === 'bucket'
-        ? []
-        : [
-            'bridge',
-            `teams/${safeSegment(project.team)}`,
-            `projects/${safeSegment(project.id)}`,
-            `environments/${safeSegment(environment.id)}`,
-            safeSegment(modelIdentity),
-            safeSegment(fieldName)
-          ]
-    const directory = [...namespace, objectPathConfig.directory]
-      .filter(Boolean)
-      .join('/')
+    const {
+      project,
+      environment,
+      actorId,
+      loaded,
+      attribute,
+      upload,
+      storage,
+      directory,
+      configuredFilename
+    } = target
     const objectId = crypto.randomUUID()
 
     const uploadedFiles = await new Promise((resolve, reject) => {
@@ -206,10 +140,10 @@ module.exports = {
             const extension =
               MIME_EXTENSIONS[incoming.type] ||
               safeExtension(incoming.filename || '')
-            proceed(
-              null,
-              `${objectPathConfig.filename || objectId}${extension}`
-            )
+            const stem = configuredFilename
+              ? `${configuredFilename}-${objectId}`
+              : objectId
+            proceed(null, `${stem}${extension}`)
           }
         },
         (error, files) => {
@@ -273,10 +207,6 @@ function acceptsMimeType(type, accepted) {
 function safeExtension(filename) {
   const extension = path.extname(filename).toLowerCase()
   return /^\.[a-z0-9]{1,10}$/.test(extension) ? extension : ''
-}
-
-function safeSegment(value) {
-  return String(value).replace(/[^A-Za-z0-9._-]/g, '-')
 }
 
 function parseUploadValues(value) {

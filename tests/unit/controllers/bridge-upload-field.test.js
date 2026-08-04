@@ -5,89 +5,36 @@ test('Bridge streams inline Markdown images through the configured field boundar
   sails,
   expect
 }) => {
-  const originals = {
-    resolveRequest: sails.helpers.bridge.resolveRequest,
-    loadResource: sails.helpers.bridge.loadResource,
-    getUploadStorageConfig: sails.helpers.bridge.getUploadStorageConfig,
-    createUploadReceipt: sails.helpers.bridge.createUploadReceipt
-  }
+  const originalTarget = sails.helpers.bridge.prepareUploadTarget
+  const originalReceipt = sails.helpers.bridge.createUploadReceipt
   let uploadOptions
 
-  sails.helpers.bridge.resolveRequest = helper(async () => ({
-    project: { id: 12, team: 7 },
+  sails.helpers.bridge.prepareUploadTarget = helper(async () => ({
+    project: { id: 12 },
     environment: { id: 13 },
-    app: { id: 14, containerName: 'sailscasts-web' },
-    actor: { id: 15, email: 'editor@sailscasts.com' },
-    actorId: 15
-  }))
-  sails.helpers.bridge.loadResource = helper(async () => ({
-    resource: {
-      identity: 'lesson',
-      create: ['title', 'description'],
-      edit: ['title', 'description'],
-      attributes: {
-        description: {
-          label: 'Description',
-          field: {
-            type: 'richtext',
-            format: 'markdown',
-            upload: {
-              kind: 'image',
-              storage: 'bridge',
-              directory: 'lessons/descriptions',
-              store: 'url',
-              accept: ['image/png'],
-              maxBytes: 10 * 1024 * 1024
-            }
-          }
-        }
-      }
-    }
-  }))
-  sails.helpers.bridge.getUploadStorageConfig = helper(async () => ({
-    provider: 'r2',
-    key: 'test-key',
-    secret: 'test-secret',
-    bucket: 'sailscasts',
-    endpoint: 'https://account.r2.cloudflarestorage.com',
-    publicUrl: 'https://cdn.sailscasts.test',
-    region: 'auto'
+    actorId: 15,
+    loaded: { resource: { identity: 'lesson' } },
+    attribute: { label: 'Description' },
+    upload: { accept: ['image/png'], maxBytes: 10 * 1024 * 1024 },
+    storage: storage('https://cdn.sailscasts.test'),
+    directory:
+      'bridge/teams/7/projects/12/environments/13/lesson/description/lessons/descriptions',
+    configuredFilename: ''
   }))
   sails.helpers.bridge.createUploadReceipt = helper(
     async () => 'signed-inline-image-receipt'
   )
 
-  const req = {
-    file(name) {
-      expect(name).toBe('file')
-      return {
-        upload(options, done) {
-          uploadOptions = options
-          options.saveAs(
-            {
-              type: 'image/png',
-              filename: 'deployment-diagram.png'
-            },
-            (error, generatedName) => {
-              if (error) return done(error)
-              done(null, [
-                {
-                  fd: `/tmp/${generatedName}`,
-                  filename: 'deployment-diagram.png',
-                  size: 2048,
-                  type: 'image/png'
-                }
-              ])
-            }
-          )
-        }
-      }
-    }
-  }
-
   try {
     const result = await bridgeUploadField.fn.call(
-      { req },
+      {
+        req: uploadRequest(
+          'image/png',
+          'deployment-diagram.png',
+          2048,
+          (value) => (uploadOptions = value)
+        )
+      },
       {
         slug: 'sailscasts',
         envSlug: 'production',
@@ -102,120 +49,53 @@ test('Bridge streams inline Markdown images through the configured field boundar
       'bridge/teams/7/projects/12/environments/13/lesson/description/lessons/descriptions'
     )
     expect(result.url).toContain('https://cdn.sailscasts.test/bridge/')
-    expect(result.url).toContain('/lesson/description/lessons/descriptions/')
     expect(result.receipt).toBe('signed-inline-image-receipt')
   } finally {
-    sails.helpers.bridge.resolveRequest = originals.resolveRequest
-    sails.helpers.bridge.loadResource = originals.loadResource
-    sails.helpers.bridge.getUploadStorageConfig =
-      originals.getUploadStorageConfig
-    sails.helpers.bridge.createUploadReceipt = originals.createUploadReceipt
+    sails.helpers.bridge.prepareUploadTarget = originalTarget
+    sails.helpers.bridge.createUploadReceipt = originalReceipt
   }
 })
 
-test('Bridge writes an explicitly configured video path at the bucket root using the accepted MIME extension', async ({
+test('Bridge writes a collision-safe video path at the bucket root', async ({
   sails,
   expect
 }) => {
-  const originals = {
-    resolveRequest: sails.helpers.bridge.resolveRequest,
-    loadResource: sails.helpers.bridge.loadResource,
-    getUploadStorageConfig: sails.helpers.bridge.getUploadStorageConfig,
-    authorizeRelationshipValues:
-      sails.helpers.bridge.authorizeRelationshipValues,
-    resolveUploadObjectPath: sails.helpers.bridge.resolveUploadObjectPath,
-    createUploadReceipt: sails.helpers.bridge.createUploadReceipt
-  }
+  const originalTarget = sails.helpers.bridge.prepareUploadTarget
+  const originalReceipt = sails.helpers.bridge.createUploadReceipt
   let uploadOptions
   let receivedValues
 
-  sails.helpers.bridge.resolveRequest = helper(async () => ({
-    project: { id: 12, team: 7 },
-    environment: { id: 13 },
-    app: { id: 14, containerName: 'course-web' },
-    actor: { id: 15, email: 'editor@example.com' },
-    actorId: 15
-  }))
-  sails.helpers.bridge.loadResource = helper(async () => {
-    const resource = {
-      identity: 'lesson',
-      create: ['title', 'videoUrl'],
-      edit: ['title', 'videoUrl'],
-      attributes: {
-        videoUrl: {
-          label: 'Video',
-          field: {
-            type: 'upload',
-            upload: {
-              kind: 'file',
-              storage: 'bridge',
-              scope: 'bucket',
-              directory: 'courses/introduction',
-              filename: '{title|slug}',
-              store: 'url',
-              accept: ['video/mp4'],
-              maxBytes: 2 * 1024 * 1024 * 1024
-            }
-          }
-        }
-      }
-    }
-    return {
-      resource,
-      contract: { models: { lesson: resource } }
-    }
-  })
-  sails.helpers.bridge.getUploadStorageConfig = helper(async () => ({
-    provider: 'r2',
-    key: 'test-key',
-    secret: 'test-secret',
-    bucket: 'courses',
-    endpoint: 'https://account.r2.cloudflarestorage.com',
-    publicUrl: 'https://assets.example.com',
-    region: 'auto'
-  }))
-  sails.helpers.bridge.authorizeRelationshipValues = helper(async () => {})
-  sails.helpers.bridge.resolveUploadObjectPath = helper(async ({ values }) => {
+  sails.helpers.bridge.prepareUploadTarget = helper(async ({ values }) => {
     receivedValues = values
     return {
+      project: { id: 12 },
+      environment: { id: 13 },
+      actorId: 15,
+      loaded: { resource: { identity: 'lesson' } },
+      attribute: { label: 'Video' },
+      upload: {
+        accept: ['video/mp4'],
+        maxBytes: 2 * 1024 * 1024 * 1024
+      },
+      storage: storage('https://assets.example.com'),
       directory: 'courses/introduction',
-      filename: 'course-assumptions'
+      configuredFilename: 'course-assumptions'
     }
   })
   sails.helpers.bridge.createUploadReceipt = helper(
     async () => 'signed-video-receipt'
   )
 
-  const req = {
-    file() {
-      return {
-        upload(options, done) {
-          uploadOptions = options
-          options.saveAs(
-            {
-              type: 'video/mp4',
-              filename: 'untrusted-name.exe'
-            },
-            (error, generatedName) => {
-              if (error) return done(error)
-              done(null, [
-                {
-                  fd: `courses/introduction/${generatedName}`,
-                  filename: 'untrusted-name.exe',
-                  size: 4096,
-                  type: 'video/mp4'
-                }
-              ])
-            }
-          )
-        }
-      }
-    }
-  }
-
   try {
     const result = await bridgeUploadField.fn.call(
-      { req },
+      {
+        req: uploadRequest(
+          'video/mp4',
+          'untrusted-name.exe',
+          4096,
+          (value) => (uploadOptions = value)
+        )
+      },
       {
         slug: 'courses',
         envSlug: 'production',
@@ -228,22 +108,49 @@ test('Bridge writes an explicitly configured video path at the bucket root using
 
     expect(receivedValues).toEqual({ title: 'Course assumptions' })
     expect(uploadOptions.dirname).toBe('courses/introduction')
-    expect(result.url).toBe(
-      'https://assets.example.com/courses/introduction/course-assumptions.mp4'
+    expect(result.url).toMatch(
+      /^https:\/\/assets\.example\.com\/courses\/introduction\/course-assumptions-[0-9a-f-]{36}\.mp4$/
     )
     expect(result.receipt).toBe('signed-video-receipt')
   } finally {
-    sails.helpers.bridge.resolveRequest = originals.resolveRequest
-    sails.helpers.bridge.loadResource = originals.loadResource
-    sails.helpers.bridge.getUploadStorageConfig =
-      originals.getUploadStorageConfig
-    sails.helpers.bridge.authorizeRelationshipValues =
-      originals.authorizeRelationshipValues
-    sails.helpers.bridge.resolveUploadObjectPath =
-      originals.resolveUploadObjectPath
-    sails.helpers.bridge.createUploadReceipt = originals.createUploadReceipt
+    sails.helpers.bridge.prepareUploadTarget = originalTarget
+    sails.helpers.bridge.createUploadReceipt = originalReceipt
   }
 })
+
+function uploadRequest(type, filename, size, captureOptions) {
+  return {
+    file() {
+      return {
+        upload(options, done) {
+          captureOptions(options)
+          options.saveAs({ type, filename }, (error, generatedName) => {
+            if (error) return done(error)
+            done(null, [
+              {
+                fd: `${options.dirname}/${generatedName}`,
+                filename,
+                size,
+                type
+              }
+            ])
+          })
+        }
+      }
+    }
+  }
+}
+
+function storage(publicUrl) {
+  return {
+    key: 'test-key',
+    secret: 'test-secret',
+    bucket: 'courses',
+    endpoint: 'https://account.r2.cloudflarestorage.com',
+    publicUrl,
+    region: 'auto'
+  }
+}
 
 function helper(fn) {
   fn.with = fn

@@ -98,6 +98,8 @@ module.exports.policies = {
   'project/bridge-relationship-options': 'is-bridge-authenticated',
   'project/bridge-update-relationship': 'is-bridge-authenticated',
   'project/bridge-upload-field': 'is-bridge-authenticated',
+  'project/bridge-prepare-upload-field': 'is-bridge-authenticated',
+  'project/bridge-complete-upload-field': 'is-bridge-authenticated',
 
   // Webhooks are public (signature-verified in controller)
   'api/v1/webhook/github': true,
