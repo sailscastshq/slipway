@@ -109,7 +109,6 @@ module.exports = {
       await sails.helpers.notification.sendEmail
         .with({
           template: 'container-down',
-          layout: 'mail',
           subject: `\uD83D\uDD34 Heads up \u2014 ${containerName} went down`,
           templateData: {
             containerName,
