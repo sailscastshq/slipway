@@ -196,7 +196,9 @@ test('host Bridge fails closed when the app cannot prove email verification', as
     'Your sign-in may have expired, or this account may not have access.'
   )
   expect(response.value).toContain('contact your administrator')
-  expect(response.value).toContain('403 · BRIDGE_ACCESS_DENIED')
+  expect(response.value).toContain('aria-label="HTTP status 403"')
+  expect(response.value).toContain('<dt>Error code</dt>')
+  expect(response.value).toContain('<code>BRIDGE_ACCESS_DENIED</code>')
   expect(response.value.includes('host-app')).toBe(false)
 
   const jsonResponse = createResponse()
