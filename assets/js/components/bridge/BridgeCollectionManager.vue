@@ -1,6 +1,7 @@
 <script setup>
 import { router } from '@inertiajs/vue3'
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
+import BridgeSearchInput from '@/components/bridge/BridgeSearchInput.vue'
 
 const props = defineProps({
   relationship: {
@@ -206,20 +207,18 @@ onBeforeUnmount(() => {
           </button>
         </header>
 
-        <div class="border-b border-gray-100 p-4 dark:border-gray-800">
+        <div class="px-5 py-3">
           <label
             :for="`bridge-${relationship.alias}-manager-search`"
             class="sr-only"
             >Search {{ relationship.label.toLowerCase() }}</label
           >
-          <input
+          <BridgeSearchInput
             :id="`bridge-${relationship.alias}-manager-search`"
             ref="searchInput"
             v-model="query"
-            type="search"
-            autocomplete="off"
+            :label="`Search ${relationship.label.toLowerCase()}`"
             :placeholder="`Search ${relationship.label.toLowerCase()}…`"
-            class="h-10 w-full rounded-md bg-gray-50 px-3 text-sm text-gray-900 outline-none ring-1 ring-inset ring-gray-200 focus:ring-gray-400 dark:bg-gray-950 dark:text-white dark:ring-gray-700 dark:focus:ring-gray-500"
           />
         </div>
 

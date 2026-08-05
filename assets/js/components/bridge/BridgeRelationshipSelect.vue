@@ -1,5 +1,6 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import BridgeSearchInput from '@/components/bridge/BridgeSearchInput.vue'
 
 const props = defineProps({
   id: {
@@ -203,21 +204,16 @@ onBeforeUnmount(() => {
         openAbove ? 'bottom-full mb-2' : 'mt-2'
       ]"
     >
-      <div
-        v-if="searchable && searchUrl"
-        class="border-b border-gray-100 p-2 dark:border-gray-800"
-      >
+      <div v-if="searchable && searchUrl" class="px-3 py-2">
         <label :for="`${id}-search`" class="sr-only"
           >Search {{ label.toLowerCase() }}</label
         >
-        <input
+        <BridgeSearchInput
           :id="`${id}-search`"
           ref="searchInput"
           v-model="query"
-          type="search"
-          autocomplete="off"
+          :label="`Search ${label.toLowerCase()}`"
           :placeholder="`Search ${label.toLowerCase()}…`"
-          class="h-9 w-full rounded-md bg-gray-50 px-3 text-sm text-gray-900 outline-none ring-1 ring-inset ring-gray-200 focus:ring-gray-400 dark:bg-gray-950 dark:text-white dark:ring-gray-700 dark:focus:ring-gray-500"
           @keydown.esc.prevent="hideOptions"
         />
       </div>

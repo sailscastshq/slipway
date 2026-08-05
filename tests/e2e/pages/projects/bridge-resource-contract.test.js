@@ -704,6 +704,22 @@ test(
       })
       await creatorRelationshipSelect.click()
       await page.wait('text=Ada Lovelace')
+      const creatorSearch = page.raw.getByRole('searchbox', {
+        name: 'Search creator'
+      })
+      const creatorSearchClass = await creatorSearch.getAttribute('class')
+      expect(creatorSearchClass.includes('border-b')).toBe(true)
+      expect(creatorSearchClass.includes('border-dashed')).toBe(true)
+      expect(creatorSearchClass.includes('bg-transparent')).toBe(true)
+      expect(creatorSearchClass.includes('rounded')).toBe(false)
+      expect(creatorSearchClass.includes('ring-1')).toBe(false)
+      expect(
+        await creatorSearch.evaluate(
+          (element) => getComputedStyle(element).borderBottomStyle
+        )
+      ).toBe('dashed')
+      await creatorSearch.fill('Ada')
+      await page.wait('text=Ada Lovelace')
       await page.screenshot(
         path.join(
           relationshipScreenshotRoot,
@@ -1033,6 +1049,17 @@ test(
       await page.raw
         .getByRole('button', { name: 'Manage lessons', exact: true })
         .click()
+      await page.wait('text=Operate the boring path')
+      const collectionSearch = page.raw.getByRole('searchbox', {
+        name: 'Search lessons'
+      })
+      const collectionSearchClass = await collectionSearch.getAttribute('class')
+      expect(collectionSearchClass.includes('border-b')).toBe(true)
+      expect(collectionSearchClass.includes('border-dashed')).toBe(true)
+      expect(collectionSearchClass.includes('bg-transparent')).toBe(true)
+      expect(collectionSearchClass.includes('rounded')).toBe(false)
+      expect(collectionSearchClass.includes('ring-1')).toBe(false)
+      await collectionSearch.fill('Operate')
       await page.wait('text=Operate the boring path')
       await expect(page).toSee('Remove')
       await expect(page).toSee('Attach')
