@@ -60,6 +60,9 @@ module.exports = {
     badRequest: {
       statusCode: 400
     },
+    reauthenticate: {
+      responseType: 'bridgeReauthenticate'
+    },
     forbidden: {
       statusCode: 403
     },
@@ -88,6 +91,9 @@ module.exports = {
         requireRunning: true
       })
     } catch (error) {
+      if (error.code === 'reauthenticate') {
+        throw { reauthenticate: error.raw || error }
+      }
       if (error.code === 'forbidden') {
         throw {
           forbidden: { message: 'Your Bridge role cannot upload files.' }

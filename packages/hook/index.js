@@ -276,7 +276,12 @@ module.exports = function defineSlipwayHook(sails) {
             error.message || error
           }`
         )
-        return res.forbidden('Bridge could not verify your host-app account.')
+        return denyBridgeAccess(
+          req,
+          res,
+          'Bridge could not verify your host-app account.',
+          hostOrigin
+        )
       }
 
       if (!identity) {
@@ -295,8 +300,11 @@ module.exports = function defineSlipwayHook(sails) {
       }
 
       if (!identity.emailVerified) {
-        return res.forbidden(
-          'Verify your host-app email address before opening Bridge.'
+        return denyBridgeAccess(
+          req,
+          res,
+          'Verify your host-app email address before opening Bridge.',
+          hostOrigin
         )
       }
 
@@ -322,8 +330,11 @@ module.exports = function defineSlipwayHook(sails) {
         return res.redirect(response.launchUrl)
       } catch (error) {
         if (error.statusCode === 403) {
-          return res.forbidden(
-            `Your host-app account (${identity.email}) has not been invited to Bridge.`
+          return denyBridgeAccess(
+            req,
+            res,
+            `Your host-app account (${identity.email}) has not been invited to Bridge.`,
+            hostOrigin
           )
         }
 
@@ -350,6 +361,70 @@ module.exports = function defineSlipwayHook(sails) {
     return normalizedPath === prefix || normalizedPath.startsWith(`${prefix}/`)
       ? normalizedPath
       : `${prefix}${normalizedPath}`
+  }
+
+  function denyBridgeAccess(req, res, message, hostOrigin) {
+    res.statusCode = 403
+
+    if (req.wantsJSON && !acceptsHtml(req)) {
+      return res.json({
+        error: 'Forbidden',
+        code: 'bridge_access_denied',
+        message
+      })
+    }
+
+    const homePath = withBridgeRoutePrefix('/')
+    const currentPath = safeLocalPath(
+      req.originalUrl,
+      hostOrigin
+        ? withBridgeRoutePrefix('/_slipway/bridge')
+        : withBridgeRoutePrefix('/bridge')
+    )
+    const retryPath = hostOrigin
+      ? withBridgeRoutePrefix(currentPath)
+      : currentPath
+    return res.type('html').send(`<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Bridge access unavailable</title>
+    <style>
+      :root { color-scheme: light dark; font-family: ui-sans-serif, system-ui, sans-serif; }
+      body { min-height: 100vh; margin: 0; display: grid; place-items: center; background: Canvas; color: CanvasText; }
+      main { width: min(34rem, calc(100% - 3rem)); }
+      h1 { margin: 0 0 .75rem; font-size: clamp(1.75rem, 5vw, 2.5rem); letter-spacing: -.04em; }
+      p { margin: 0; color: color-mix(in srgb, CanvasText 68%, transparent); line-height: 1.6; }
+      nav { display: flex; gap: .75rem; margin-top: 2rem; }
+      a { color: CanvasText; font-weight: 650; text-underline-offset: .25rem; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Bridge access unavailable</h1>
+      <p>${escapeHtml(message)}</p>
+      <nav aria-label="Bridge access actions">
+        <a href="${escapeHtml(retryPath)}">Try again</a>
+        <a href="${escapeHtml(homePath)}">Return to app</a>
+      </nav>
+    </main>
+  </body>
+</html>`)
+  }
+
+  function acceptsHtml(req) {
+    const accept = req.get?.('accept') || req.headers?.accept || ''
+    return String(accept).includes('text/html')
+  }
+
+  function escapeHtml(value) {
+    return String(value || '')
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;')
+      .replaceAll('"', '&quot;')
+      .replaceAll("'", '&#39;')
   }
 
   function initializeTelemetry(done) {

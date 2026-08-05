@@ -56,6 +56,9 @@ module.exports = {
     notFound: {
       responseType: 'redirect'
     },
+    reauthenticate: {
+      responseType: 'bridgeReauthenticate'
+    },
     forbidden: {
       statusCode: 403
     }
@@ -106,6 +109,9 @@ module.exports = {
         requiredRole: 'viewer'
       })
     } catch (error) {
+      if (error.code === 'reauthenticate') {
+        throw { reauthenticate: error.raw || error }
+      }
       if (error.code === 'forbidden') throw 'forbidden'
       throw { notFound: '/login' }
     }

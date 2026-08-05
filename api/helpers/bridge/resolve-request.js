@@ -2,7 +2,8 @@ const crypto = require('crypto')
 const {
   internalBridgeApiBasePath,
   internalBridgeBasePath,
-  publicBridgeBasePath
+  publicBridgeBasePath,
+  publicBridgeCallbackPath
 } = require('../../lib/bridge-paths')
 
 const ROLE_RANK = {
@@ -35,6 +36,7 @@ module.exports = {
 
   exits: {
     success: { outputType: 'ref' },
+    reauthenticate: { outputType: 'string' },
     forbidden: {},
     notFound: {},
     appNotRunning: {}
@@ -111,8 +113,13 @@ async function resolveHostSession({
     !req.session.bridgeAuthenticatedAt ||
     Date.now() - req.session.bridgeAuthenticatedAt > 8 * 60 * 60 * 1000
   ) {
-    clearBridgeSession(req)
-    throw 'forbidden'
+    const app = await findHostSessionApp({
+      req,
+      projectSlug,
+      environmentSlug,
+      appSlug
+    })
+    invalidateBridgeSession(req, app, true)
   }
 
   const access = await BridgeAccess.findOne({
@@ -144,14 +151,23 @@ async function resolveHostSession({
     !environment ||
     !project ||
     (appSlug && app.slug !== appSlug) ||
-    String(req.session.bridgeAppId) !== String(app.id) ||
+    String(req.session.bridgeAppId) !== String(app.id)
+  ) {
+    const requestedApp = await findHostSessionApp({
+      req,
+      projectSlug,
+      environmentSlug,
+      appSlug
+    })
+    invalidateBridgeSession(req, requestedApp, true)
+  }
+  if (
     !safeEqual(
       req.session.bridgeCredentialHash,
       hashCredential(app.bridgeSecret)
     )
   ) {
-    clearBridgeSession(req)
-    throw 'forbidden'
+    invalidateBridgeSession(req, app, true)
   }
   if (!roleAllows(access.role, requiredRole)) {
     throw 'forbidden'
@@ -185,6 +201,59 @@ async function resolveHostSession({
       appScoped: Boolean(appSlug)
     })
   }
+}
+
+async function findHostSessionApp({
+  req,
+  projectSlug,
+  environmentSlug,
+  appSlug
+}) {
+  if (req.session.bridgeHostOrigin !== true) {
+    return null
+  }
+
+  if (projectSlug && environmentSlug && appSlug) {
+    const project = await Project.findOne({ slug: projectSlug })
+    const environment = project
+      ? await Environment.findOne({
+          project: project.id,
+          slug: environmentSlug
+        })
+      : null
+    const requestedApp = environment
+      ? await App.findOne({
+          environment: environment.id,
+          slug: appSlug,
+          bridgeEnabled: true
+        })
+      : null
+
+    if (requestedApp) return requestedApp
+  }
+
+  return req.session.bridgeAppId
+    ? App.findOne({
+        id: req.session.bridgeAppId,
+        bridgeEnabled: true
+      })
+    : null
+}
+
+function invalidateBridgeSession(req, app = null, mayReauthenticate = false) {
+  const callback =
+    mayReauthenticate &&
+    req.session.bridgeHostOrigin === true &&
+    app?.bridgeEnabled
+      ? publicBridgeCallbackPath(app)
+      : null
+
+  clearBridgeSession(req)
+
+  if (callback) {
+    throw { reauthenticate: callback }
+  }
+  throw 'forbidden'
 }
 
 function requestPaths({ req, project, environment, app, appScoped }) {

@@ -187,8 +187,78 @@ test('host Bridge fails closed when the app cannot prove email verification', as
     response
   )
 
-  expect(response.status).toBe('forbidden')
-  expect(response.value).toBe('Bridge could not verify your host-app account.')
+  expect(response.status).toBe('send')
+  expect(response.statusCode).toBe(403)
+  expect(response.contentType).toBe('html')
+  expect(response.value).toContain('Bridge access unavailable')
+  expect(response.value).toContain(
+    'Bridge could not verify your host-app account.'
+  )
+
+  const jsonResponse = createResponse()
+  await route(
+    {
+      session: { userId: 'host-user-7' },
+      originalUrl: '/bridge',
+      query: {},
+      wantsJSON: true,
+      headers: { accept: 'application/json' }
+    },
+    jsonResponse
+  )
+  expect(jsonResponse.status).toBe('json')
+  expect(jsonResponse.statusCode).toBe(403)
+  expect(jsonResponse.value).toEqual({
+    error: 'Forbidden',
+    code: 'bridge_access_denied',
+    message: 'Bridge could not verify your host-app account.'
+  })
+})
+
+test('host Bridge explains an uninvited identity without exposing raw Forbidden', async ({
+  expect
+}) => {
+  const exchange = await startExchangeServer({ statusCode: 403 })
+  const { hostRoute } = await createBridgeRoute({
+    bridge: {
+      enabled: true,
+      exchangeUrl: exchange.url,
+      appId: '42',
+      secret: 'slb_app-secret',
+      loginPath: '/login',
+      routePath: '/academy',
+      identity: defaultIdentityConfig()
+    },
+    user: {
+      id: 'host-user-7',
+      email: 'editor@example.com',
+      fullName: 'Host Editor',
+      emailStatus: 'verified'
+    }
+  })
+  const response = createResponse()
+
+  try {
+    await hostRoute(
+      {
+        session: { userId: 'host-user-7' },
+        originalUrl: '/_slipway/bridge',
+        query: {}
+      },
+      response
+    )
+
+    expect(response.status).toBe('send')
+    expect(response.statusCode).toBe(403)
+    expect(response.value).toContain(
+      'Your host-app account (editor@example.com) has not been invited to Bridge.'
+    )
+    expect(response.value).toContain('href="/academy/_slipway/bridge"')
+    expect(response.value).toContain('href="/academy/"')
+    expect(response.value).toContain('Return to app')
+  } finally {
+    await exchange.close()
+  }
 })
 
 async function createBridgeRoute({
@@ -248,6 +318,8 @@ async function createBridgeRoute({
 function createResponse() {
   return {
     status: null,
+    statusCode: 200,
+    contentType: null,
     value: null,
     redirect(value) {
       this.status = 'redirect'
@@ -256,6 +328,20 @@ function createResponse() {
     },
     forbidden(value) {
       this.status = 'forbidden'
+      this.value = value
+      return value
+    },
+    type(value) {
+      this.contentType = value
+      return this
+    },
+    send(value) {
+      this.status = 'send'
+      this.value = value
+      return value
+    },
+    json(value) {
+      this.status = 'json'
       this.value = value
       return value
     },
@@ -284,7 +370,7 @@ function defaultIdentityConfig() {
   }
 }
 
-function startExchangeServer() {
+function startExchangeServer({ statusCode = 201 } = {}) {
   return new Promise((resolve, reject) => {
     const request = {}
     const server = http.createServer((incoming, response) => {
@@ -293,11 +379,16 @@ function startExchangeServer() {
       incoming.on('end', () => {
         request.authorization = incoming.headers.authorization
         request.body = JSON.parse(Buffer.concat(chunks).toString('utf8'))
-        response.writeHead(201, { 'content-type': 'application/json' })
+        response.writeHead(statusCode, { 'content-type': 'application/json' })
         response.end(
-          JSON.stringify({
-            launchUrl: 'https://slipway.example/bridge/launch?code=blc_once'
-          })
+          JSON.stringify(
+            statusCode === 201
+              ? {
+                  launchUrl:
+                    'https://slipway.example/bridge/launch?code=blc_once'
+                }
+              : { error: 'Forbidden' }
+          )
         )
       })
     })
