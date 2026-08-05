@@ -632,6 +632,7 @@ test(
       await expect(page).toSee('Course description')
       await expect(page).toSee('Thumbnail')
       await expect(page).toSee('Price')
+      await expect(page).toSee('Order')
       await expect(page).toSee('Website')
       await expect(page).toSee('Metadata')
       await expect(page).toSee('Creator')
@@ -673,7 +674,27 @@ test(
       await page.raw
         .getByText('Course title is already in use', { exact: false })
         .waitFor({ state: 'hidden' })
-      await page.raw.getByLabel('Price').fill('49')
+      const priceInput = page.raw.getByLabel('Price')
+      const orderInput = page.raw.getByLabel('Order')
+      for (const numericInput of [priceInput, orderInput]) {
+        expect(await numericInput.getAttribute('type')).toBe('number')
+        expect(await numericInput.getAttribute('inputmode')).toBe('decimal')
+        expect(await numericInput.getAttribute('step')).toBe('any')
+        expect(
+          (await numericInput.getAttribute('class')).includes(
+            'bridge-number-input'
+          )
+        ).toBe(true)
+        expect(
+          await numericInput.evaluate(
+            (element) => getComputedStyle(element).appearance
+          )
+        ).toBe('textfield')
+      }
+      expect(await orderInput.getAttribute('min')).toBe('0')
+      expect(await orderInput.getAttribute('max')).toBe('999')
+      await priceInput.fill('49')
+      await orderInput.fill('5')
       await page.raw.setViewportSize({ width: 1440, height: 1100 })
       const creatorRelationshipSelect = page.raw.getByRole('combobox', {
         name: 'Creator'
@@ -874,6 +895,7 @@ test(
       expect(createdValues.id).toBe(createdCourseRecordId)
       expect(createdValues.creator).toBe(creatorId)
       expect(createdValues.price).toBe(49)
+      expect(createdValues.order).toBe(5)
       await expect(page).toSee('Ship a durable course')
 
       await page.goto(`${coursePath}/${createdCourseRecordId}/edit`)
@@ -1108,6 +1130,7 @@ function resourceConfig() {
           'description',
           'thumbnailUrl',
           'price',
+          'order',
           'website',
           'metadata',
           'published',
@@ -1269,6 +1292,11 @@ function resourceConfig() {
               submit: 'major'
             }
           },
+          order: {
+            label: 'Order',
+            type: 'number',
+            help: 'Lower numbers appear first.'
+          },
           website: {
             label: 'Website',
             type: 'url',
@@ -1346,6 +1374,11 @@ function resourceMetadata() {
         price: {
           type: 'number',
           required: true
+        },
+        order: {
+          type: 'number',
+          min: 0,
+          max: 999
         },
         website: {
           type: 'string',
