@@ -176,30 +176,53 @@ function partitionWidth(card, value) {
 
     <dl
       v-if="valueCards.length"
-      class="mt-8 grid gap-x-10 gap-y-7 sm:grid-cols-2 lg:grid-cols-4"
+      data-bridge-metric-grid
+      class="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5"
     >
-      <div v-for="card in valueCards" :key="card.id" class="min-w-0">
-        <dt class="truncate text-sm text-gray-500 dark:text-gray-400">
+      <div
+        v-for="card in valueCards"
+        :key="card.id"
+        :data-bridge-metric-card="card.id"
+        class="min-h-36 sm:min-h-40 relative flex min-w-0 flex-col overflow-hidden rounded-2xl bg-white px-5 py-5 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_12px_32px_rgba(15,23,42,0.06)] ring-1 ring-gray-950/[0.06] dark:bg-gray-900 dark:shadow-[0_1px_2px_rgba(0,0,0,0.3),0_16px_40px_rgba(0,0,0,0.22)] dark:ring-white/[0.08] sm:px-6 sm:py-6"
+      >
+        <span
+          aria-hidden="true"
+          class="absolute left-5 top-0 h-0.5 w-9 rounded-b-full bg-blue-500/80 dark:bg-blue-400/90 sm:left-6"
+        ></span>
+        <dt
+          class="text-sm font-medium leading-5 text-gray-500 dark:text-gray-400"
+        >
           {{ card.label }}
         </dt>
         <dd
-          class="mt-1 truncate text-3xl font-semibold tabular-nums tracking-tight text-gray-950 dark:text-white"
+          class="mt-auto break-words pt-7 text-3xl font-semibold tabular-nums leading-none tracking-tight text-gray-950 dark:text-gray-100"
+          :aria-describedby="
+            card.error || card.detail || card.description
+              ? `bridge-metric-${card.id}-detail`
+              : undefined
+          "
           :title="card.error || undefined"
         >
           {{ formatValue(card) }}
         </dd>
-        <p
+        <dd
           v-if="card.error"
-          class="mt-1 truncate text-xs text-red-600 dark:text-red-400"
+          :id="`bridge-metric-${card.id}-detail`"
+          class="mt-3 flex items-center gap-2 text-xs font-medium text-red-700 dark:text-red-300"
         >
+          <span
+            aria-hidden="true"
+            class="h-1.5 w-1.5 shrink-0 rounded-full bg-current"
+          ></span>
           Unavailable
-        </p>
-        <p
+        </dd>
+        <dd
           v-else-if="card.detail || card.description"
-          class="mt-1 truncate text-xs text-gray-400 dark:text-gray-500"
+          :id="`bridge-metric-${card.id}-detail`"
+          class="mt-3 text-xs leading-5 text-gray-500 dark:text-gray-400"
         >
           {{ card.detail || card.description }}
-        </p>
+        </dd>
       </div>
     </dl>
 
