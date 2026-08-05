@@ -1,7 +1,7 @@
 <script setup>
 import { Link, Head, useForm } from '@inertiajs/vue3'
 import { inject, ref, computed, onMounted } from 'vue'
-import AppLayout from '@/layouts/AppLayout.vue'
+import BridgePageLayout from '@/layouts/BridgePageLayout.vue'
 import ToastContainer from '@/components/ToastContainer.vue'
 import { createToast } from '@/composables/toast'
 import SlippyLoader from '@/components/SlippyLoader.vue'
@@ -13,9 +13,10 @@ import {
 } from '@/lib/bridge/fields.mjs'
 import { containsRawHtml } from '@/lib/content/markdown.mjs'
 import { usePrecognitionValidation } from '@/composables/precognition'
+import BridgePageHeader from '@/components/bridge/BridgePageHeader.vue'
 
 defineOptions({
-  layout: AppLayout
+  layout: BridgePageLayout
 })
 
 const props = defineProps({
@@ -26,6 +27,7 @@ const props = defineProps({
   bridgeRequestBasePath: String,
   bridgeRequestApiBasePath: String,
   hostBridgeOrigin: Boolean,
+  bridgeWorkspace: Object,
   mode: String,
   modelIdentity: String,
   recordId: String,
@@ -273,8 +275,25 @@ function recordUrl() {
   <ToastContainer :toasts="toasts" @dismiss="dismiss" />
 
   <div class="flex h-full flex-col">
-    <!-- Header -->
+    <BridgePageHeader
+      v-if="hostBridgeOrigin"
+      :project="project"
+      :environment="environment"
+      :app="app"
+      :host-bridge-origin="true"
+      :breadcrumbs="[
+        { label: 'bridge', href: bridgeUrl() },
+        { label: modelMeta?.label || modelIdentity, href: modelUrl() },
+        {
+          label: isEdit ? displayIdentifier(recordId) : 'new',
+          title: isEdit ? String(recordId) : 'New record'
+        }
+      ]"
+    />
+
+    <!-- Operator header -->
     <div
+      v-else
       class="flex items-center justify-between border-b border-gray-200 px-4 py-3 dark:border-gray-800 sm:px-6"
     >
       <div class="flex items-center space-x-3">

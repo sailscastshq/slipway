@@ -461,7 +461,17 @@ test(
       bridgeRequestBasePath: '/bridge',
       bridgeRequestApiBasePath: '/bridge',
       hostBridgeAssetBasePath: '/bridge/_assets',
-      hostBridgeOrigin: true
+      hostBridgeOrigin: true,
+      bridgeWorkspace: {
+        actor: {
+          id: 'host-origin-user',
+          email: 'host-origin@host-app.example',
+          fullName: 'Host Origin User',
+          role: 'viewer'
+        },
+        dashboards: [],
+        resources: []
+      }
     })
 
     const search = await request

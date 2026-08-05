@@ -1,7 +1,7 @@
 <script setup>
 import { Link, Head, router, useForm } from '@inertiajs/vue3'
 import { inject, ref, computed } from 'vue'
-import AppLayout from '@/layouts/AppLayout.vue'
+import BridgePageLayout from '@/layouts/BridgePageLayout.vue'
 import ConfirmModal from '@/components/ConfirmModal.vue'
 import ToastContainer from '@/components/ToastContainer.vue'
 import { createToast } from '@/composables/toast'
@@ -9,9 +9,10 @@ import BridgeFieldValue from '@/components/bridge/BridgeFieldValue.vue'
 import BridgeCollectionManager from '@/components/bridge/BridgeCollectionManager.vue'
 import ActionMenu from '@/components/ActionMenu.vue'
 import BridgeActionDialog from '@/components/bridge/BridgeActionDialog.vue'
+import BridgePageHeader from '@/components/bridge/BridgePageHeader.vue'
 
 defineOptions({
-  layout: AppLayout
+  layout: BridgePageLayout
 })
 
 const props = defineProps({
@@ -22,6 +23,7 @@ const props = defineProps({
   bridgeRequestBasePath: String,
   bridgeRequestApiBasePath: String,
   hostBridgeOrigin: Boolean,
+  bridgeWorkspace: Object,
   modelIdentity: String,
   recordId: String,
   appRunning: Boolean,
@@ -228,8 +230,37 @@ function relationshipMutationBaseUrl(relationship) {
   <ToastContainer :toasts="toasts" @dismiss="dismiss" />
 
   <div class="flex h-full flex-col">
-    <!-- Header -->
+    <BridgePageHeader
+      v-if="hostBridgeOrigin"
+      :project="project"
+      :environment="environment"
+      :app="app"
+      :host-bridge-origin="true"
+      :breadcrumbs="[
+        { label: 'bridge', href: bridgeUrl() },
+        { label: modelMeta?.label || modelIdentity, href: modelUrl() },
+        { label: displayIdentifier(recordId), title: String(recordId) }
+      ]"
+    >
+      <template #actions>
+        <ActionMenu
+          v-if="record"
+          :items="recordMenuItems"
+          :disabled="quickActionForm.processing"
+          :label="`Actions for ${
+            record[modelMeta?.title] ||
+            modelMeta?.singularLabel ||
+            modelIdentity
+          }`"
+          test-id="bridge-record-action-menu"
+          @select="handleRecordAction"
+        />
+      </template>
+    </BridgePageHeader>
+
+    <!-- Operator header -->
     <div
+      v-else
       class="flex items-center justify-between border-b border-gray-200 px-4 py-3 dark:border-gray-800 sm:px-6"
     >
       <div class="flex items-center space-x-3">
