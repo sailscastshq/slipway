@@ -18,7 +18,6 @@ module.exports = function renderBridgeAccessDenied({
         --ink: #111827;
         --muted: #6b7280;
         --line: #e5e7eb;
-        --soft: #f9fafb;
         --button: #111827;
         --button-ink: #ffffff;
         font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -33,7 +32,7 @@ module.exports = function renderBridgeAccessDenied({
         color: var(--ink);
       }
       main {
-        width: min(32rem, calc(100% - 2rem));
+        width: min(29rem, calc(100% - 2rem));
         padding: 3rem 0;
       }
       .brand {
@@ -51,30 +50,10 @@ module.exports = function renderBridgeAccessDenied({
         font: 600 .7rem/1.2 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
         letter-spacing: .14em;
       }
-      .status {
-        display: flex;
-        align-items: center;
-        gap: .625rem;
-        margin: 2.25rem 0 1.5rem;
-        padding-top: 1.5rem;
-        border-top: 1px dashed var(--line);
-        color: var(--muted);
-        font: 600 .72rem/1.4 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-        letter-spacing: .08em;
-      }
-      .status-dot { width: .55rem; height: .55rem; border-radius: 999px; background: var(--brand); }
-      h1 { margin: 0; max-width: 12ch; font-size: clamp(2rem, 8vw, 3.25rem); line-height: 1.02; letter-spacing: -.055em; }
+      section { margin-top: 2.75rem; }
+      h1 { margin: 0; max-width: 13ch; font-size: clamp(2rem, 8vw, 2.75rem); line-height: 1.05; letter-spacing: -.05em; }
       .message { margin: 1.25rem 0 0; max-width: 43ch; color: var(--muted); font-size: 1rem; line-height: 1.65; }
-      .context {
-        margin-top: 1.75rem;
-        padding: 1rem 1.125rem;
-        border-left: 3px solid var(--brand);
-        background: var(--soft);
-        color: var(--muted);
-        font-size: .875rem;
-        line-height: 1.55;
-      }
-      .context strong { color: var(--ink); font-weight: 650; }
+      .support { display: block; margin-top: .5rem; font-size: .875rem; }
       nav { margin-top: 2rem; }
       nav ul { display: flex; flex-wrap: wrap; gap: .75rem; margin: 0; padding: 0; list-style: none; }
       a {
@@ -93,14 +72,6 @@ module.exports = function renderBridgeAccessDenied({
       a.secondary { outline: 1px solid var(--line); outline-offset: -1px; }
       a:hover { text-decoration: underline; text-underline-offset: .2rem; }
       a:focus-visible { outline: 3px solid var(--brand); outline-offset: 3px; }
-      footer {
-        margin-top: 2.5rem;
-        padding-top: 1rem;
-        border-top: 1px dashed var(--line);
-        color: var(--muted);
-        font: .68rem/1.5 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-        letter-spacing: .06em;
-      }
       @media (max-width: 30rem) {
         main { padding: 2rem 0; }
         nav li, nav a { width: 100%; }
@@ -111,7 +82,6 @@ module.exports = function renderBridgeAccessDenied({
           --ink: #f9fafb;
           --muted: #9ca3af;
           --line: #374151;
-          --soft: #0b0f14;
           --button: #f9fafb;
           --button-ink: #111827;
         }
@@ -138,23 +108,22 @@ module.exports = function renderBridgeAccessDenied({
       </header>
 
       <section aria-labelledby="access-heading">
-        <p class="status"><span class="status-dot" aria-hidden="true"></span>403 · BRIDGE_ACCESS_DENIED</p>
         <h1 id="access-heading">Bridge access unavailable</h1>
-        <p class="message">${escapeHtml(message)}</p>
-        <p class="context"><strong>Bridge is Slipway’s admin view for this app.</strong> Try again after your access or verified email has been updated.</p>
+        <p class="message">
+          ${escapeHtml(message)}
+          <span class="support">If this keeps happening, contact your app administrator.</span>
+        </p>
         <nav aria-label="Bridge access actions">
           <ul>
             <li><a class="primary" href="${escapeHtml(
               retryPath
-            )}">Try Bridge again</a></li>
+            )}">Try again</a></li>
             <li><a class="secondary" href="${escapeHtml(
               homePath
             )}">Return to app</a></li>
           </ul>
         </nav>
       </section>
-
-      <footer>SECURED AND SERVED BY SLIPWAY</footer>
     </main>
   </body>
 </html>`
