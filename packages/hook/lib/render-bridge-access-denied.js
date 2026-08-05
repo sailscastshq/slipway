@@ -1,8 +1,7 @@
-module.exports = function renderBridgeAccessDenied({
-  message,
-  retryPath,
-  homePath
-}) {
+const ACCESS_DENIED_MESSAGE =
+  'We couldn’t open Bridge. Your sign-in may have expired, or this account may not have access.'
+
+function renderBridgeAccessDenied({ retryPath, homePath }) {
   return `<!doctype html>
 <html lang="en">
   <head>
@@ -54,6 +53,13 @@ module.exports = function renderBridgeAccessDenied({
       h1 { margin: 0; max-width: 13ch; font-size: clamp(2rem, 8vw, 2.75rem); line-height: 1.05; letter-spacing: -.05em; }
       .message { margin: 1.25rem 0 0; max-width: 43ch; color: var(--muted); font-size: 1rem; line-height: 1.65; }
       .support { display: block; margin-top: .5rem; font-size: .875rem; }
+      .error-code {
+        margin: 1rem 0 0;
+        color: var(--muted);
+        font: .7rem/1.5 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        letter-spacing: .04em;
+      }
+      .error-code code { font: inherit; }
       nav { margin-top: 2rem; }
       nav ul { display: flex; flex-wrap: wrap; gap: .75rem; margin: 0; padding: 0; list-style: none; }
       a {
@@ -110,9 +116,10 @@ module.exports = function renderBridgeAccessDenied({
       <section aria-labelledby="access-heading">
         <h1 id="access-heading">Bridge access unavailable</h1>
         <p class="message">
-          ${escapeHtml(message)}
-          <span class="support">If this keeps happening, contact your app administrator.</span>
+          ${ACCESS_DENIED_MESSAGE}
+          <span class="support">Try signing in again. If this keeps happening, contact your administrator.</span>
         </p>
+        <p class="error-code">Error code: <code>BRIDGE_ACCESS_DENIED</code></p>
         <nav aria-label="Bridge access actions">
           <ul>
             <li><a class="primary" href="${escapeHtml(
@@ -127,6 +134,11 @@ module.exports = function renderBridgeAccessDenied({
     </main>
   </body>
 </html>`
+}
+
+module.exports = {
+  ACCESS_DENIED_MESSAGE,
+  renderBridgeAccessDenied
 }
 
 function escapeHtml(value) {

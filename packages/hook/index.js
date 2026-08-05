@@ -29,7 +29,10 @@ const https = require('https')
 const crypto = require('crypto')
 const { createReleaseFlags } = require('./lib/release-flags')
 const buildFlagsEnabledHelper = require('./lib/helpers/flags/enabled')
-const renderBridgeAccessDenied = require('./lib/render-bridge-access-denied')
+const {
+  ACCESS_DENIED_MESSAGE,
+  renderBridgeAccessDenied
+} = require('./lib/render-bridge-access-denied')
 
 module.exports = function defineSlipwayHook(sails) {
   // Telemetry buffers
@@ -277,12 +280,7 @@ module.exports = function defineSlipwayHook(sails) {
             error.message || error
           }`
         )
-        return denyBridgeAccess(
-          req,
-          res,
-          'Bridge could not verify your host-app account.',
-          hostOrigin
-        )
+        return denyBridgeAccess(req, res, hostOrigin)
       }
 
       if (!identity) {
@@ -301,12 +299,7 @@ module.exports = function defineSlipwayHook(sails) {
       }
 
       if (!identity.emailVerified) {
-        return denyBridgeAccess(
-          req,
-          res,
-          'Verify your host-app email address before opening Bridge.',
-          hostOrigin
-        )
+        return denyBridgeAccess(req, res, hostOrigin)
       }
 
       try {
@@ -331,12 +324,7 @@ module.exports = function defineSlipwayHook(sails) {
         return res.redirect(response.launchUrl)
       } catch (error) {
         if (error.statusCode === 403) {
-          return denyBridgeAccess(
-            req,
-            res,
-            `Your host-app account (${identity.email}) has not been invited to Bridge.`,
-            hostOrigin
-          )
+          return denyBridgeAccess(req, res, hostOrigin)
         }
 
         sails.log.warn(
@@ -364,14 +352,14 @@ module.exports = function defineSlipwayHook(sails) {
       : `${prefix}${normalizedPath}`
   }
 
-  function denyBridgeAccess(req, res, message, hostOrigin) {
+  function denyBridgeAccess(req, res, hostOrigin) {
     res.statusCode = 403
 
     if (req.wantsJSON && !acceptsHtml(req)) {
       return res.json({
         error: 'Forbidden',
         code: 'bridge_access_denied',
-        message
+        message: ACCESS_DENIED_MESSAGE
       })
     }
 
@@ -387,7 +375,7 @@ module.exports = function defineSlipwayHook(sails) {
       : currentPath
     return res
       .type('html')
-      .send(renderBridgeAccessDenied({ message, retryPath, homePath }))
+      .send(renderBridgeAccessDenied({ retryPath, homePath }))
   }
 
   function acceptsHtml(req) {

@@ -192,11 +192,12 @@ test('host Bridge fails closed when the app cannot prove email verification', as
   expect(response.contentType).toBe('html')
   expect(response.value).toContain('Bridge access unavailable')
   expect(response.value).toContain('aria-label="Slipway Bridge"')
-  expect(response.value).toContain('contact your app administrator')
-  expect(response.value.includes('BRIDGE_ACCESS_DENIED')).toBe(false)
   expect(response.value).toContain(
-    'Bridge could not verify your host-app account.'
+    'Your sign-in may have expired, or this account may not have access.'
   )
+  expect(response.value).toContain('contact your administrator')
+  expect(response.value).toContain('BRIDGE_ACCESS_DENIED')
+  expect(response.value.includes('host-app')).toBe(false)
 
   const jsonResponse = createResponse()
   await route(
@@ -214,7 +215,8 @@ test('host Bridge fails closed when the app cannot prove email verification', as
   expect(jsonResponse.value).toEqual({
     error: 'Forbidden',
     code: 'bridge_access_denied',
-    message: 'Bridge could not verify your host-app account.'
+    message:
+      'We couldn’t open Bridge. Your sign-in may have expired, or this account may not have access.'
   })
 })
 
@@ -254,8 +256,10 @@ test('host Bridge explains an uninvited identity without exposing raw Forbidden'
     expect(response.status).toBe('send')
     expect(response.statusCode).toBe(403)
     expect(response.value).toContain(
-      'Your host-app account (editor@example.com) has not been invited to Bridge.'
+      'Your sign-in may have expired, or this account may not have access.'
     )
+    expect(response.value.includes('editor@example.com')).toBe(false)
+    expect(response.value.includes('invited')).toBe(false)
     expect(response.value).toContain('href="/academy/_slipway/bridge"')
     expect(response.value).toContain('href="/academy/"')
     expect(response.value).toContain('Try again')
