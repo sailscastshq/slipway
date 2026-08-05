@@ -461,7 +461,17 @@ test(
       bridgeRequestBasePath: '/bridge',
       bridgeRequestApiBasePath: '/bridge',
       hostBridgeAssetBasePath: '/bridge/_assets',
-      hostBridgeOrigin: true
+      hostBridgeOrigin: true,
+      bridgeWorkspace: {
+        actor: {
+          id: 'host-origin-user',
+          email: 'host-origin@host-app.example',
+          fullName: 'Host Origin User',
+          role: 'viewer'
+        },
+        dashboards: [],
+        resources: []
+      }
     })
 
     const search = await request
@@ -476,6 +486,108 @@ test(
       })
     expect(search).toHaveStatus(200)
     expect(search.data.url).toBe('/bridge/user?search=ada')
+
+    const expiredSession = {
+      ...launch.session,
+      bridgeAuthenticatedAt: Date.now() - 9 * 60 * 60 * 1000
+    }
+    const expiredHostSession = await request
+      .withSession(expiredSession)
+      .get(internalBridgePath, {
+        headers: {
+          host: 'host-app.example',
+          'x-forwarded-host': 'host-app.example',
+          accept: 'text/html, application/xhtml+xml'
+        }
+      })
+    expect(expiredHostSession).toHaveStatus(302)
+    expect(expiredHostSession).toRedirectTo('/_slipway/bridge')
+
+    const revokedHtmlSession = { ...launch.session }
+    const revokedInertiaSession = { ...launch.session }
+    const revokedJsonSession = { ...launch.session }
+    const revokedActionSession = { ...launch.session }
+    const rotatedCredentialSession = { ...launch.session }
+
+    await sails.models.bridgeaccess
+      .updateOne({ id: access.id })
+      .set({ status: 'revoked', revokedAt: Date.now() })
+
+    const revokedHostSession = await request
+      .withSession(revokedHtmlSession)
+      .get(internalBridgePath, {
+        headers: {
+          host: 'host-app.example',
+          'x-forwarded-host': 'host-app.example',
+          accept: 'text/html, application/xhtml+xml'
+        }
+      })
+    expect(revokedHostSession).toHaveStatus(302)
+    expect(revokedHostSession).toRedirectTo('/_slipway/bridge')
+    expect(revokedHostSession.session.bridgeAccessId).toBe(undefined)
+
+    const revokedInertia = await request
+      .withSession(revokedInertiaSession)
+      .get(internalBridgePath, {
+        headers: {
+          host: 'host-app.example',
+          'x-forwarded-host': 'host-app.example',
+          'x-inertia': 'true',
+          accept: 'text/html, application/xhtml+xml'
+        }
+      })
+    expect(revokedInertia).toHaveStatus(409)
+    expect(revokedInertia).toHaveHeader(
+      'x-inertia-location',
+      '/_slipway/bridge'
+    )
+
+    const revokedJson = await request
+      .withSession(revokedJsonSession)
+      .get(internalBridgePath, {
+        headers: {
+          host: 'host-app.example',
+          'x-forwarded-host': 'host-app.example',
+          accept: 'application/json'
+        }
+      })
+    expect(revokedJson).toHaveStatus(401)
+    expect(revokedJson.data.reauthenticate).toBe('/_slipway/bridge')
+
+    const revokedAction = await request
+      .withSession(revokedActionSession)
+      .get(`${internalBridgePath}/user/relationships/team/options`, {
+        headers: {
+          host: 'host-app.example',
+          'x-forwarded-host': 'host-app.example',
+          accept: 'application/json'
+        }
+      })
+    expect(revokedAction).toHaveStatus(401)
+    expect(revokedAction.data.reauthenticate).toBe('/_slipway/bridge')
+
+    await sails.models.bridgeaccess.updateOne({ id: access.id }).set({
+      status: 'active',
+      revokedAt: null
+    })
+
+    await sails.helpers.bridge.ensureAppSecret.with({
+      appId: String(app.id),
+      rotate: true
+    })
+
+    const staleHostSession = await request
+      .withSession(rotatedCredentialSession)
+      .get(internalBridgePath, {
+        headers: {
+          host: 'host-app.example',
+          'x-forwarded-host': 'host-app.example',
+          accept: 'text/html, application/xhtml+xml'
+        }
+      })
+    expect(staleHostSession).toHaveStatus(302)
+    expect(staleHostSession).toRedirectTo('/_slipway/bridge')
+    expect(staleHostSession.session.bridgeAccessId).toBe(undefined)
   }
 )
 

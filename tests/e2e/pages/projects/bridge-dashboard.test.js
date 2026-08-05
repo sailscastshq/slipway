@@ -27,6 +27,7 @@ test(
     const originalExecuteInContainer = sails.helpers.bridge.executeInContainer
     const screenshotRoot = path.resolve('.tmp/screenshots/issue-222-dashboard')
     fs.mkdirSync(screenshotRoot, { recursive: true })
+    let salesUnavailable = false
 
     const contract = await sails.helpers.bridge.normalizeResourceContract.with({
       models: modelMetadata(),
@@ -61,7 +62,18 @@ test(
         return successfulResult([
           { id: 'users', value: 1248 },
           { id: 'courses', value: 42 },
+          { id: 'chapters', value: 74 },
           { id: 'lessons', value: 286 },
+          salesUnavailable
+            ? {
+                id: 'sales',
+                error: 'Sales data is temporarily unavailable.'
+              }
+            : {
+                id: 'sales',
+                value: 1,
+                detail: 'Completed purchases'
+              },
           {
             id: 'recentLessons',
             records: [
@@ -162,9 +174,30 @@ test(
       await expect(page).toSee('Total users')
       await expect(page).toSee('1,248')
       await expect(page).toSee('42')
+      await expect(page).toSee('74')
       await expect(page).toSee('286')
+      await expect(page).toSee('Completed purchases')
       await expect(page).toSee('Make production failures boring')
       await expect(page).toSee('Ada Lovelace')
+      const metricCards = page.raw.locator('[data-bridge-metric-card]')
+      expect(await metricCards.count()).toBe(5)
+      const metricCardBoxes = await metricCards.evaluateAll((cards) =>
+        cards.map((card) => {
+          const box = card.getBoundingClientRect()
+          return {
+            top: Math.round(box.top),
+            width: Math.round(box.width),
+            backgroundColor: window.getComputedStyle(card).backgroundColor
+          }
+        })
+      )
+      expect(new Set(metricCardBoxes.map((card) => card.top)).size).toBe(1)
+      expect(metricCardBoxes.every((card) => card.width >= 150)).toBe(true)
+      expect(
+        metricCardBoxes.every(
+          (card) => card.backgroundColor !== 'rgba(0, 0, 0, 0)'
+        )
+      ).toBe(true)
       expect(
         await page.raw.getByRole('button', { name: 'Quick actions' }).count()
       ).toBe(1)
@@ -197,7 +230,9 @@ test(
       )
       await page.raw.keyboard.press('Escape')
       expect(await page.raw.getByRole('menu').count()).toBe(0)
-      await page.raw.mouse.click(800, 400)
+      await page.raw
+        .getByRole('button', { name: 'Quick actions' })
+        .evaluate((button) => button.blur())
 
       await page.screenshot(path.join(screenshotRoot, 'dashboard-light.png'), {
         fullPage: true
@@ -216,12 +251,32 @@ test(
         }
       )
       await page.raw.keyboard.press('Escape')
-      await page.raw.mouse.click(800, 400)
+      await page.raw
+        .getByRole('button', { name: 'Quick actions' })
+        .evaluate((button) => button.blur())
       await page.raw.emulateMedia({ colorScheme: 'light' })
       await page.raw.waitForTimeout(400)
       await page.resize(390, 844)
+      const mobileMetricCardBoxes = await metricCards.evaluateAll((cards) =>
+        cards.map((card) => {
+          const box = card.getBoundingClientRect()
+          return {
+            left: Math.round(box.left),
+            width: Math.round(box.width)
+          }
+        })
+      )
+      expect(new Set(mobileMetricCardBoxes.map((card) => card.left)).size).toBe(
+        1
+      )
+      expect(mobileMetricCardBoxes.every((card) => card.width >= 320)).toBe(
+        true
+      )
       await page.screenshot(path.join(screenshotRoot, 'dashboard-mobile.png'), {
         fullPage: true
+      })
+      await page.raw.locator('[data-bridge-metric-grid]').screenshot({
+        path: path.join(screenshotRoot, 'metric-cards-mobile.png')
       })
       await page.raw.getByRole('button', { name: 'Quick actions' }).click()
       await page.raw.getByRole('menu').waitFor()
@@ -231,6 +286,15 @@ test(
           fullPage: true
         }
       )
+      await page.raw.keyboard.press('Escape')
+
+      salesUnavailable = true
+      await page.raw.getByRole('button', { name: 'Refresh Bridge' }).click()
+      const unavailableSalesCard = page.raw.locator(
+        '[data-bridge-metric-card="sales"]'
+      )
+      await unavailableSalesCard.getByText('Unavailable').waitFor()
+      expect(await unavailableSalesCard.getByText('—').count()).toBe(1)
     } finally {
       sails.helpers.bridge.introspectModels = originalIntrospectModels
       sails.helpers.bridge.buildSailsWrapper = originalBuildSailsWrapper
@@ -293,10 +357,20 @@ function dashboardConfig() {
           label: 'Courses',
           resource: 'course'
         },
+        chapters: {
+          type: 'metric',
+          label: 'Chapters',
+          resource: 'chapter'
+        },
         lessons: {
           type: 'metric',
           label: 'Lessons',
           resource: 'lesson'
+        },
+        sales: {
+          type: 'custom',
+          label: 'Sales',
+          helper: 'bridge.dashboard.sales'
         },
         recentLessons: {
           type: 'recent',

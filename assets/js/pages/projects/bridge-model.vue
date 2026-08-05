@@ -1,7 +1,7 @@
 <script setup>
 import { Link, Head, router, useForm } from '@inertiajs/vue3'
 import { inject, ref, computed, watch } from 'vue'
-import AppLayout from '@/layouts/AppLayout.vue'
+import BridgePageLayout from '@/layouts/BridgePageLayout.vue'
 import ConfirmModal from '@/components/ConfirmModal.vue'
 import ToastContainer from '@/components/ToastContainer.vue'
 import { createToast } from '@/composables/toast'
@@ -10,9 +10,10 @@ import ActionMenu from '@/components/ActionMenu.vue'
 import BridgeActionDialog from '@/components/bridge/BridgeActionDialog.vue'
 import BridgeDashboard from '@/components/bridge/BridgeDashboard.vue'
 import BridgeFilterMenu from '@/components/bridge/BridgeFilterMenu.vue'
+import BridgePageHeader from '@/components/bridge/BridgePageHeader.vue'
 
 defineOptions({
-  layout: AppLayout
+  layout: BridgePageLayout
 })
 
 const props = defineProps({
@@ -23,6 +24,7 @@ const props = defineProps({
   bridgeRequestBasePath: String,
   bridgeRequestApiBasePath: String,
   hostBridgeOrigin: Boolean,
+  bridgeWorkspace: Object,
   modelIdentity: String,
   appRunning: Boolean,
   modelMeta: Object,
@@ -526,8 +528,21 @@ function createUrl() {
     @click="closeActionMenu"
     @keydown.esc="closeActionMenu"
   >
-    <!-- Header -->
+    <BridgePageHeader
+      v-if="hostBridgeOrigin"
+      :project="project"
+      :environment="environment"
+      :app="app"
+      :host-bridge-origin="true"
+      :breadcrumbs="[
+        { label: 'bridge', href: bridgeUrl() },
+        { label: modelMeta?.label || modelIdentity }
+      ]"
+    />
+
+    <!-- Operator header -->
     <div
+      v-else
       class="flex items-center justify-between border-b border-gray-200 px-4 py-3 dark:border-gray-800 sm:px-6"
     >
       <div class="flex items-center space-x-3">

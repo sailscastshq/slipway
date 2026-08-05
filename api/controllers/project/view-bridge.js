@@ -28,6 +28,9 @@ module.exports = {
     notFound: {
       responseType: 'redirect'
     },
+    reauthenticate: {
+      responseType: 'bridgeReauthenticate'
+    },
     forbidden: {
       statusCode: 403
     }
@@ -44,6 +47,9 @@ module.exports = {
         requiredRole: 'viewer'
       })
     } catch (error) {
+      if (error.code === 'reauthenticate') {
+        throw { reauthenticate: error.raw || error }
+      }
       if (error.code === 'forbidden' && !this.req.session.userId) {
         throw 'forbidden'
       }
@@ -75,6 +81,13 @@ module.exports = {
     let modelsError = null
     let dashboards = []
     let activeDashboard = null
+    let bridgeWorkspace = bridgeHostOrigin
+      ? await sails.helpers.bridge.buildWorkspaceNavigation.with({
+          actor,
+          contract: { models: {}, dashboards: {} },
+          authorizedResources: {}
+        })
+      : null
 
     if (appRunning) {
       try {
@@ -103,6 +116,15 @@ module.exports = {
                 !resource.hidden && resource.actions?.viewAny !== false
             )
           )
+
+          if (bridgeHostOrigin) {
+            bridgeWorkspace =
+              await sails.helpers.bridge.buildWorkspaceNavigation.with({
+                actor,
+                contract: introspection,
+                authorizedResources: authorizedModels
+              })
+          }
 
           const dashboardDefinitions = Object.values(
             introspection.dashboards || {}
@@ -195,6 +217,7 @@ module.exports = {
         bridgeRequestApiBasePath: bridgeApiBasePath,
         hostBridgeAssetBasePath: bridgeAssetBasePath,
         hostBridgeOrigin: bridgeHostOrigin,
+        bridgeWorkspace,
         appRunning,
         models,
         modelsError,

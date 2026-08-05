@@ -32,6 +32,9 @@ module.exports = {
     notFound: {
       responseType: 'redirect'
     },
+    reauthenticate: {
+      responseType: 'bridgeReauthenticate'
+    },
     forbidden: {
       statusCode: 403
     },
@@ -52,6 +55,9 @@ module.exports = {
         requireRunning: true
       })
     } catch (error) {
+      if (error.code === 'reauthenticate') {
+        throw { reauthenticate: error.raw || error }
+      }
       if (error.code === 'forbidden') throw 'forbidden'
       if (error.code === 'notFound') throw { notFound: '/' }
       throw { badRequest: { error: 'App is not running' } }

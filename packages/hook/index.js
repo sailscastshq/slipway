@@ -29,6 +29,10 @@ const https = require('https')
 const crypto = require('crypto')
 const { createReleaseFlags } = require('./lib/release-flags')
 const buildFlagsEnabledHelper = require('./lib/helpers/flags/enabled')
+const {
+  ACCESS_DENIED_MESSAGE,
+  renderBridgeAccessDenied
+} = require('./lib/render-bridge-access-denied')
 
 module.exports = function defineSlipwayHook(sails) {
   // Telemetry buffers
@@ -276,7 +280,7 @@ module.exports = function defineSlipwayHook(sails) {
             error.message || error
           }`
         )
-        return res.forbidden('Bridge could not verify your host-app account.')
+        return denyBridgeAccess(req, res, hostOrigin)
       }
 
       if (!identity) {
@@ -295,9 +299,7 @@ module.exports = function defineSlipwayHook(sails) {
       }
 
       if (!identity.emailVerified) {
-        return res.forbidden(
-          'Verify your host-app email address before opening Bridge.'
-        )
+        return denyBridgeAccess(req, res, hostOrigin)
       }
 
       try {
@@ -322,9 +324,7 @@ module.exports = function defineSlipwayHook(sails) {
         return res.redirect(response.launchUrl)
       } catch (error) {
         if (error.statusCode === 403) {
-          return res.forbidden(
-            `Your host-app account (${identity.email}) has not been invited to Bridge.`
-          )
+          return denyBridgeAccess(req, res, hostOrigin)
         }
 
         sails.log.warn(
@@ -350,6 +350,37 @@ module.exports = function defineSlipwayHook(sails) {
     return normalizedPath === prefix || normalizedPath.startsWith(`${prefix}/`)
       ? normalizedPath
       : `${prefix}${normalizedPath}`
+  }
+
+  function denyBridgeAccess(req, res, hostOrigin) {
+    res.statusCode = 403
+
+    if (req.wantsJSON && !acceptsHtml(req)) {
+      return res.json({
+        error: 'Forbidden',
+        code: 'bridge_access_denied',
+        message: ACCESS_DENIED_MESSAGE
+      })
+    }
+
+    const homePath = withBridgeRoutePrefix('/')
+    const currentPath = safeLocalPath(
+      req.originalUrl,
+      hostOrigin
+        ? withBridgeRoutePrefix('/_slipway/bridge')
+        : withBridgeRoutePrefix('/bridge')
+    )
+    const retryPath = hostOrigin
+      ? withBridgeRoutePrefix(currentPath)
+      : currentPath
+    return res
+      .type('html')
+      .send(renderBridgeAccessDenied({ retryPath, homePath }))
+  }
+
+  function acceptsHtml(req) {
+    const accept = req.get?.('accept') || req.headers?.accept || ''
+    return String(accept).includes('text/html')
   }
 
   function initializeTelemetry(done) {

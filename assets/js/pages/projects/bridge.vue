@@ -1,11 +1,12 @@
 <script setup>
 import { Link, Head, router } from '@inertiajs/vue3'
-import { inject, computed, ref } from 'vue'
-import AppLayout from '@/layouts/AppLayout.vue'
+import { computed, ref } from 'vue'
+import BridgePageLayout from '@/layouts/BridgePageLayout.vue'
 import BridgeDashboard from '@/components/bridge/BridgeDashboard.vue'
+import BridgePageHeader from '@/components/bridge/BridgePageHeader.vue'
 
 defineOptions({
-  layout: AppLayout
+  layout: BridgePageLayout
 })
 
 const props = defineProps({
@@ -15,6 +16,7 @@ const props = defineProps({
   appScoped: Boolean,
   bridgeRequestBasePath: String,
   hostBridgeOrigin: Boolean,
+  bridgeWorkspace: Object,
   appRunning: Boolean,
   models: Object,
   modelsError: String,
@@ -22,9 +24,6 @@ const props = defineProps({
   activeDashboard: Object
 })
 
-const toggleMobileMenu = inject('toggleMobileMenu')
-const toggleSidebar = inject('toggleSidebar')
-const sidebarCollapsed = inject('sidebarCollapsed')
 const bridgeBasePath = computed(
   () =>
     props.bridgeRequestBasePath ||
@@ -90,145 +89,14 @@ function switchDashboard(event) {
 <template>
   <Head :title="`Bridge - ${project.name} | Slipway`"></Head>
   <div class="flex h-full flex-col">
-    <!-- Header -->
-    <div
-      class="flex items-center justify-between border-b border-gray-200 px-4 py-3 dark:border-gray-800 sm:px-6"
+    <BridgePageHeader
+      :project="project"
+      :environment="environment"
+      :app="app"
+      :host-bridge-origin="hostBridgeOrigin"
+      :breadcrumbs="[{ label: 'bridge' }]"
     >
-      <div class="flex items-center space-x-3">
-        <button
-          @click="toggleMobileMenu"
-          class="rounded-md p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white md:hidden"
-        >
-          <svg
-            class="h-5 w-5"
-            viewBox="-0.5 -0.5 16 16"
-            fill="none"
-            stroke="currentColor"
-          >
-            <path
-              d="M12.777 14.285H2.223c-.833 0-1.508-.675-1.508-1.508V2.223c0-.833.675-1.508 1.508-1.508h10.554c.833 0 1.508.675 1.508 1.508v10.554c0 .833-.675 1.508-1.508 1.508Z"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="1"
-            />
-            <path
-              d="M5.615 14.285V.715"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="1"
-            />
-            <path
-              d="M2.6 5.992 3.919 7.5 2.6 9.008"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="1"
-            />
-          </svg>
-        </button>
-        <button
-          @click="toggleSidebar"
-          class="hidden text-gray-400 dark:text-gray-500 md:block"
-        >
-          <svg
-            v-if="sidebarCollapsed"
-            class="h-5 w-5"
-            viewBox="-0.5 -0.5 16 16"
-            fill="none"
-            stroke="currentColor"
-          >
-            <path
-              d="M12.777 14.285H2.223c-.833 0-1.508-.675-1.508-1.508V2.223c0-.833.675-1.508 1.508-1.508h10.554c.833 0 1.508.675 1.508 1.508v10.554c0 .833-.675 1.508-1.508 1.508Z"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="1"
-            />
-            <path
-              d="M5.615 14.285V.715"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="1"
-            />
-            <path
-              d="M2.6 5.992 3.919 7.5 2.6 9.008"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="1"
-            />
-          </svg>
-          <svg
-            v-else
-            class="h-5 w-5"
-            viewBox="-0.5 -0.5 16 16"
-            fill="none"
-            stroke="currentColor"
-          >
-            <path
-              d="M12.777 14.285H2.223c-.833 0-1.508-.675-1.508-1.508V2.223c0-.833.675-1.508 1.508-1.508h10.554c.833 0 1.508.675 1.508 1.508v10.554c0 .833-.675 1.508-1.508 1.508Z"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="1"
-            />
-            <path
-              d="M5.615 14.285V.715"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="1"
-            />
-            <path
-              d="M3.919 5.992 2.6 7.5l1.319 1.508"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="1"
-            />
-          </svg>
-        </button>
-        <nav class="flex items-center space-x-2 text-sm sm:hidden">
-          <span
-            v-if="hostBridgeOrigin"
-            class="text-gray-500 dark:text-gray-400"
-          >
-            {{ app.name.toLowerCase() }}
-          </span>
-          <Link
-            v-else
-            :href="`/projects/${project.slug}/environments/${environment.slug}`"
-            class="text-gray-500 dark:text-gray-400"
-          >
-            {{ project.name.toLowerCase() }}
-          </Link>
-          <span class="text-gray-400 dark:text-gray-600">/</span>
-          <span class="font-medium text-gray-900 dark:text-white">bridge</span>
-        </nav>
-        <nav class="hidden items-center space-x-2 text-sm sm:flex">
-          <template v-if="!hostBridgeOrigin">
-            <Link
-              href="/"
-              class="text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
-              >projects</Link
-            >
-            <span class="text-gray-400 dark:text-gray-600">/</span>
-            <Link
-              :href="`/projects/${project.slug}`"
-              class="text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
-            >
-              {{ project.name.toLowerCase() }}
-            </Link>
-            <span class="text-gray-400 dark:text-gray-600">/</span>
-            <Link
-              :href="`/projects/${project.slug}/environments/${environment.slug}`"
-              class="text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
-            >
-              {{ environment.slug }}
-            </Link>
-          </template>
-          <span v-else class="text-gray-500 dark:text-gray-400">
-            {{ app.name.toLowerCase() }}
-          </span>
-          <span class="text-gray-400 dark:text-gray-600">/</span>
-          <span class="font-medium text-gray-900 dark:text-white">bridge</span>
-        </nav>
-      </div>
-      <div class="flex items-center gap-2">
+      <template #actions>
         <select
           v-if="dashboards?.length > 1"
           :value="activeDashboard?.id"
@@ -265,8 +133,8 @@ function switchDashboard(event) {
             />
           </svg>
         </button>
-      </div>
-    </div>
+      </template>
+    </BridgePageHeader>
 
     <!-- Content -->
     <div class="flex-1 overflow-y-auto">
@@ -446,7 +314,7 @@ function switchDashboard(event) {
             <div
               v-for="model in filteredModels"
               :key="model.identity"
-              class="group grid grid-cols-12 items-center gap-4 px-6 py-4"
+              class="group grid grid-cols-12 items-center gap-4 px-6 py-4 transition-colors hover:bg-gray-50 dark:hover:bg-gray-900/40"
             >
               <div class="col-span-5">
                 <Link
@@ -473,7 +341,7 @@ function switchDashboard(event) {
                   </div>
                   <div class="min-w-0">
                     <div
-                      class="font-medium text-gray-900 underline decoration-gray-300 decoration-dashed underline-offset-2 hover:text-gray-700 dark:text-white dark:decoration-gray-600 dark:hover:text-gray-300"
+                      class="font-medium text-gray-900 transition-colors group-hover:text-gray-700 dark:text-white dark:group-hover:text-gray-300"
                     >
                       {{ model.label }}
                     </div>
