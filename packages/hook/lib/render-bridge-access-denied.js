@@ -119,7 +119,7 @@ function renderBridgeAccessDenied({ retryPath, homePath }) {
           ${ACCESS_DENIED_MESSAGE}
           <span class="support">Try signing in again. If this keeps happening, contact your administrator.</span>
         </p>
-        <p class="error-code">Error code: <code>BRIDGE_ACCESS_DENIED</code></p>
+        <p class="error-code">Error code: <code>403 · BRIDGE_ACCESS_DENIED</code></p>
         <nav aria-label="Bridge access actions">
           <ul>
             <li><a class="primary" href="${escapeHtml(
