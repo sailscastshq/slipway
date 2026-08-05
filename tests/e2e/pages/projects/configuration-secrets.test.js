@@ -148,13 +148,17 @@ test(
     const legacyEnvironmentSummary = page.raw.locator(
       '[data-test="config-variable-summary-LEGACY_SECRET"]'
     )
-    expect((await legacyEnvironmentSummary.textContent()).trim()).toBe('Secret')
+    expect(await legacyEnvironmentSummary.count()).toBe(0)
     const managedEnvironmentSummary = page.raw.locator(
       '[data-test="config-variable-summary-DATABASE_URL"]'
     )
-    expect(
-      (await managedEnvironmentSummary.textContent()).includes('ago')
-    ).toBe(true)
+    const managedEnvironmentText = await managedEnvironmentSummary.textContent()
+    expect(managedEnvironmentText.includes('Managed by Slipway')).toBe(true)
+    expect(managedEnvironmentText.includes('ago')).toBe(true)
+    const plainEnvironmentText = await page.raw
+      .locator('[data-test="config-variable-summary-RELEASE_CHANNEL"]')
+      .textContent()
+    expect(plainEnvironmentText.startsWith('Plain config · ')).toBe(true)
     const managedMenu = page.raw.locator(
       '[data-test="config-menu-DATABASE_URL"] summary'
     )
@@ -189,7 +193,12 @@ test(
     const legacyAppSummary = page.raw.locator(
       '[data-test="config-variable-summary-LEGACY_APP_SECRET"]'
     )
-    expect((await legacyAppSummary.textContent()).trim()).toBe('Secret')
+    expect(await legacyAppSummary.count()).toBe(0)
+    const attributedAppText = await page.raw
+      .locator('[data-test="config-variable-summary-APP_SIGNING_SECRET"]')
+      .textContent()
+    expect(attributedAppText.includes(changedByName)).toBe(true)
+    expect(attributedAppText.includes('Secret')).toBe(false)
     await page.raw.locator('input[value="APP_SIGNING_SECRET"]').hover()
     await page.raw
       .locator('[data-test="config-menu-APP_SIGNING_SECRET"] summary')
@@ -210,7 +219,11 @@ test(
     const legacyGlobalSummary = page.raw.locator(
       '[data-test="config-variable-summary-LEGACY_GLOBAL_SECRET"]'
     )
-    expect((await legacyGlobalSummary.textContent()).trim()).toBe('Secret')
+    expect(await legacyGlobalSummary.count()).toBe(0)
+    const plainGlobalText = await page.raw
+      .locator('[data-test="config-variable-summary-GLOBAL_REGION"]')
+      .textContent()
+    expect(plainGlobalText.startsWith('Plain config · ')).toBe(true)
     await page.raw
       .locator('[data-test="config-menu-GLOBAL_REGION"] summary')
       .click()
