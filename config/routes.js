@@ -403,6 +403,14 @@ module.exports.routes = {
     'project/bridge-create-record',
   'POST /projects/:slug/environments/:envSlug/apps/:appSlug/bridge/:modelIdentity/:fieldName/upload':
     'project/bridge-upload-field',
+  'POST /projects/:slug/environments/:envSlug/apps/:appSlug/bridge/:modelIdentity/:fieldName/upload/prepare':
+    'project/bridge-prepare-upload-field',
+  'POST /projects/:slug/environments/:envSlug/apps/:appSlug/bridge/:modelIdentity/:fieldName/upload/resume':
+    'project/bridge-resume-upload-field',
+  'POST /projects/:slug/environments/:envSlug/apps/:appSlug/bridge/:modelIdentity/:fieldName/upload/abort':
+    'project/bridge-abort-upload-field',
+  'POST /projects/:slug/environments/:envSlug/apps/:appSlug/bridge/:modelIdentity/:fieldName/upload/complete':
+    'project/bridge-complete-upload-field',
   'POST /projects/:slug/environments/:envSlug/apps/:appSlug/bridge/:modelIdentity/:recordId/update':
     'project/bridge-update-record',
   'POST /projects/:slug/environments/:envSlug/apps/:appSlug/bridge/:modelIdentity/:recordId/delete':
@@ -441,6 +449,22 @@ module.exports.routes = {
     'project/bridge-upload-field',
   'POST /projects/:slug/environments/:envSlug/bridge/:modelIdentity/:fieldName/upload':
     'project/bridge-upload-field',
+  'POST /projects/:slug/bridge/:modelIdentity/:fieldName/upload/prepare':
+    'project/bridge-prepare-upload-field',
+  'POST /projects/:slug/environments/:envSlug/bridge/:modelIdentity/:fieldName/upload/prepare':
+    'project/bridge-prepare-upload-field',
+  'POST /projects/:slug/bridge/:modelIdentity/:fieldName/upload/resume':
+    'project/bridge-resume-upload-field',
+  'POST /projects/:slug/environments/:envSlug/bridge/:modelIdentity/:fieldName/upload/resume':
+    'project/bridge-resume-upload-field',
+  'POST /projects/:slug/bridge/:modelIdentity/:fieldName/upload/abort':
+    'project/bridge-abort-upload-field',
+  'POST /projects/:slug/environments/:envSlug/bridge/:modelIdentity/:fieldName/upload/abort':
+    'project/bridge-abort-upload-field',
+  'POST /projects/:slug/bridge/:modelIdentity/:fieldName/upload/complete':
+    'project/bridge-complete-upload-field',
+  'POST /projects/:slug/environments/:envSlug/bridge/:modelIdentity/:fieldName/upload/complete':
+    'project/bridge-complete-upload-field',
   'POST /projects/:slug/bridge/:modelIdentity/:recordId/update':
     'project/bridge-update-record',
   'POST /projects/:slug/environments/:envSlug/bridge/:modelIdentity/:recordId/update':

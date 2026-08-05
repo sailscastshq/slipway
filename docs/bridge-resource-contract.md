@@ -999,21 +999,84 @@ BRIDGE_S3_REGION=us-east-1
 Only `BRIDGE_` variables are considered. App values override environment
 values, and environment values override instance-global values.
 
-The upload endpoint:
+Bridge uses a server-owned direct-upload protocol:
 
-- authorizes the current actor against the target resource and create/edit
-  action before accepting bytes;
-- enforces the field's MIME allowlist and `maxBytes`;
-- streams directly to the configured object store instead of buffering the
-  entire file in Slipway memory;
+- `prepare` authorizes the current actor against the target resource and
+  create/edit action, validates the MIME allowlist and `maxBytes`, resolves the
+  object path, and returns a signed upload intent;
+- files up to 16 MiB receive a one-hour presigned `PUT` URL;
+- larger files use S3-compatible multipart upload with 16 MiB parts, up to
+  three concurrent browser requests, and three attempts per failed part;
+- `resume` asks the storage provider which parts actually arrived and signs
+  only the missing or malformed parts, so selecting the same file after a
+  reload continues instead of restarting from byte zero;
+- `abort` cancels the provider-side multipart upload when the user explicitly
+  cancels; and
+- `complete` lists and validates every part on the server, completes the
+  multipart upload, then verifies the final object's exact key, byte size, and
+  content type before returning the canonical URL and signed field receipt.
+
+The browser reports aggregate byte progress across completed and in-flight
+parts. A part that produces no progress for 45 seconds is treated as stalled
+and retried independently. The 24-hour upload intent contains no storage
+credentials or reusable part URLs; it is signed to the actor, app, project,
+environment, resource, field, record, object key, file metadata, and multipart
+upload ID. R2's `ListParts` response remains authoritative after a reload.
+When a completion response is lost, Bridge verifies the already-completed
+object and safely returns the same receipt instead of uploading a duplicate.
+
+Preparing the upload before the multipart stream exists is important. The
+legacy proxy endpoint remains for older clients and inline Markdown images,
+but doing slow authorization or container work after a multipart upstream
+arrives can exceed Skipper's `maxTimeToBuffer` and fail with `EMAXBUFFER`.
+Increasing that timeout does not fix the race; the direct-upload protocol
+removes it for file, image, and video fields.
+
+The protocol also:
+
 - scopes the object key to the team, project, environment, resource, and field;
-  and
+- appends an opaque UUID to configured filename stems so uploads cannot
+  overwrite one another or reuse a stale CDN object; and
 - returns the canonical public URL plus a short-lived, signed receipt.
 
 The subsequent create or update accepts the URL only when its receipt matches
 the current actor, project, environment, resource, and field. The target model
-stores only the URL. A browser therefore cannot forge a different remote URL
-or reuse a receipt across apps or fields.
+stores only the URL. A browser therefore cannot forge a different remote URL,
+alter the file size or type, or reuse an upload session or receipt across apps,
+records, or fields.
+
+Because the browser uploads directly, the bucket must allow `PUT` from every
+origin where Bridge is rendered. For example, an app available both in Slipway
+and through its own `/bridge` route needs both origins in its R2 CORS policy:
+
+```json
+[
+  {
+    "AllowedOrigins": [
+      "https://slipway.example.com",
+      "https://app.example.com"
+    ],
+    "AllowedMethods": ["PUT"],
+    "AllowedHeaders": ["Content-Type"],
+    "MaxAgeSeconds": 3600
+  }
+]
+```
+
+Bridge does not trust a browser-provided multipart ETag; it lists uploaded
+parts from the provider before completion, so exposing `ETag` is optional. Add
+an object-store lifecycle rule that aborts incomplete multipart uploads after
+one day as a final cleanup guard for abandoned tabs or expired sessions.
+For a `local.sh` trial, temporarily add its exact browser origin (by default
+`http://127.0.0.1:1337`, or the configured `SLIPWAY_LOCAL_URL`) to
+`AllowedOrigins`. If the app-domain Bridge is also exercised locally, add that
+exact origin as well. CORS origins never include a trailing path.
+
+CORS controls which browser origins may upload; it does not make stored assets
+private. Paid or otherwise protected files need authorization at the delivery
+origin (for example, short-lived signed URLs enforced by a CDN rule or Worker).
+An unguessable object name reduces collisions and casual enumeration, but is
+not an access-control boundary.
 
 Uploads use an environment-scoped namespace by default. An app that owns a
 dedicated bucket can opt into its established bucket-root layout with safe
@@ -1035,7 +1098,8 @@ upload: {
 `directory` may reference a scalar field such as `{title}` or a scalar field
 on a belongs-to relationship such as `{course.slug}`. Add `|slug` to normalize
 a value into a lowercase URL-safe segment. `filename` is an extension-free
-stem; Bridge derives the extension from the accepted file type. Every
+stem; Bridge appends an opaque UUID and derives the extension from the accepted
+file type. Every
 reference is validated against the resource contract, related records are
 loaded from the target app, missing context blocks the upload, and the final
 path is sanitized against traversal. `scope: 'bucket'` is explicit because it
