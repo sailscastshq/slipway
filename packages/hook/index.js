@@ -29,6 +29,7 @@ const https = require('https')
 const crypto = require('crypto')
 const { createReleaseFlags } = require('./lib/release-flags')
 const buildFlagsEnabledHelper = require('./lib/helpers/flags/enabled')
+const renderBridgeAccessDenied = require('./lib/render-bridge-access-denied')
 
 module.exports = function defineSlipwayHook(sails) {
   // Telemetry buffers
@@ -384,47 +385,14 @@ module.exports = function defineSlipwayHook(sails) {
     const retryPath = hostOrigin
       ? withBridgeRoutePrefix(currentPath)
       : currentPath
-    return res.type('html').send(`<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Bridge access unavailable</title>
-    <style>
-      :root { color-scheme: light dark; font-family: ui-sans-serif, system-ui, sans-serif; }
-      body { min-height: 100vh; margin: 0; display: grid; place-items: center; background: Canvas; color: CanvasText; }
-      main { width: min(34rem, calc(100% - 3rem)); }
-      h1 { margin: 0 0 .75rem; font-size: clamp(1.75rem, 5vw, 2.5rem); letter-spacing: -.04em; }
-      p { margin: 0; color: color-mix(in srgb, CanvasText 68%, transparent); line-height: 1.6; }
-      nav { display: flex; gap: .75rem; margin-top: 2rem; }
-      a { color: CanvasText; font-weight: 650; text-underline-offset: .25rem; }
-    </style>
-  </head>
-  <body>
-    <main>
-      <h1>Bridge access unavailable</h1>
-      <p>${escapeHtml(message)}</p>
-      <nav aria-label="Bridge access actions">
-        <a href="${escapeHtml(retryPath)}">Try again</a>
-        <a href="${escapeHtml(homePath)}">Return to app</a>
-      </nav>
-    </main>
-  </body>
-</html>`)
+    return res
+      .type('html')
+      .send(renderBridgeAccessDenied({ message, retryPath, homePath }))
   }
 
   function acceptsHtml(req) {
     const accept = req.get?.('accept') || req.headers?.accept || ''
     return String(accept).includes('text/html')
-  }
-
-  function escapeHtml(value) {
-    return String(value || '')
-      .replaceAll('&', '&amp;')
-      .replaceAll('<', '&lt;')
-      .replaceAll('>', '&gt;')
-      .replaceAll('"', '&quot;')
-      .replaceAll("'", '&#39;')
   }
 
   function initializeTelemetry(done) {

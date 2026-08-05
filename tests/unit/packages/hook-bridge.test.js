@@ -191,6 +191,11 @@ test('host Bridge fails closed when the app cannot prove email verification', as
   expect(response.statusCode).toBe(403)
   expect(response.contentType).toBe('html')
   expect(response.value).toContain('Bridge access unavailable')
+  expect(response.value).toContain('aria-label="Slipway Bridge"')
+  expect(response.value).toContain('403 · BRIDGE_ACCESS_DENIED')
+  expect(response.value).toContain(
+    'Bridge is Slipway’s admin view for this app'
+  )
   expect(response.value).toContain(
     'Bridge could not verify your host-app account.'
   )
@@ -255,6 +260,7 @@ test('host Bridge explains an uninvited identity without exposing raw Forbidden'
     )
     expect(response.value).toContain('href="/academy/_slipway/bridge"')
     expect(response.value).toContain('href="/academy/"')
+    expect(response.value).toContain('Try Bridge again')
     expect(response.value).toContain('Return to app')
   } finally {
     await exchange.close()
