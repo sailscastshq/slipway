@@ -308,7 +308,11 @@ function loadMarkdown(markdown, currentEditor = editor.value) {
     currentEditor.getMarkdown(),
     markdown
   )
-  if (!roundTripMatches(markdown, serialized)) {
+  if (
+    !roundTripMatches(markdown, serialized, (value) =>
+      currentEditor.markdown.parse(value)
+    )
+  ) {
     setCompatibility({
       supported: false,
       issues: [{ code: 'round-trip', label: 'syntax Visual mode cannot keep' }],

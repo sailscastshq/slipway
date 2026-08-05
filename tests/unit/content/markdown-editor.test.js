@@ -50,6 +50,44 @@ test('Content Manager keeps unsupported Markdown in source mode', async ({
   }
 })
 
+test('Content Manager accepts harmless prose whitespace normalization', async ({
+  expect
+}) => {
+  const { preserveMarkdownEnvelope, roundTripMatches } = await import(
+    '../../../assets/js/lib/content/markdown.mjs'
+  )
+  const markdown =
+    'First plain paragraph.\n\n\nSecond paragraph that is\nsoft wrapped across lines.\n'
+  const editor = createMarkdownEditor(markdown)
+  const serialized = preserveMarkdownEnvelope(editor.getMarkdown(), markdown)
+
+  expect(serialized).toBe(
+    'First plain paragraph.\n\nSecond paragraph that is\nsoft wrapped across lines.\n'
+  )
+  expect(
+    roundTripMatches(markdown, serialized, (value) =>
+      editor.markdown.parse(value)
+    )
+  ).toBe(true)
+  editor.destroy()
+})
+
+test('Content Manager does not normalize meaningful code-block whitespace', async ({
+  expect
+}) => {
+  const { roundTripMatches } = await import(
+    '../../../assets/js/lib/content/markdown.mjs'
+  )
+  const source = '```js\nconst first = true;\n\nconst second = true;\n```\n'
+  const rewritten = '```js\nconst first = true;\nconst second = true;\n```\n'
+  const editor = createMarkdownEditor(source)
+
+  expect(
+    roundTripMatches(source, rewritten, (value) => editor.markdown.parse(value))
+  ).toBe(false)
+  editor.destroy()
+})
+
 test('Content Manager rejects unsafe links and image sources', async ({
   expect
 }) => {
