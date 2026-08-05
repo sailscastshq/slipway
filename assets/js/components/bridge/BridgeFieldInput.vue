@@ -788,7 +788,7 @@ function defaultPlaceholder(fieldType) {
           :aria-invalid="visibleError ? 'true' : undefined"
           :aria-describedby="describedBy"
           :data-test="`${fieldId}-input`"
-          class="h-11 w-full bg-transparent px-2 text-sm tabular-nums text-gray-900 placeholder-gray-400 focus:outline-none disabled:cursor-not-allowed disabled:text-gray-400 dark:text-white dark:placeholder-gray-500"
+          class="bridge-number-input h-11 w-full bg-transparent px-2 text-sm tabular-nums text-gray-900 placeholder-gray-400 focus:outline-none disabled:cursor-not-allowed disabled:text-gray-400 dark:text-white dark:placeholder-gray-500"
           @input="update($event.target.value)"
           @blur="handleBlur"
         />
@@ -809,7 +809,7 @@ function defaultPlaceholder(fieldType) {
         :aria-invalid="visibleError ? 'true' : undefined"
         :aria-describedby="describedBy"
         :data-test="`${fieldId}-input`"
-        :class="`${inputClass} tabular-nums`"
+        :class="`${inputClass} bridge-number-input tabular-nums`"
         @input="update($event.target.value)"
         @blur="handleBlur"
       />
@@ -1085,3 +1085,16 @@ function defaultPlaceholder(fieldType) {
     </p>
   </div>
 </template>
+
+<style scoped>
+.bridge-number-input {
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+
+.bridge-number-input::-webkit-outer-spin-button,
+.bridge-number-input::-webkit-inner-spin-button {
+  margin: 0;
+  -webkit-appearance: none;
+}
+</style>
