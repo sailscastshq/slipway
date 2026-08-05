@@ -183,12 +183,8 @@ function partitionWidth(card, value) {
         v-for="card in valueCards"
         :key="card.id"
         :data-bridge-metric-card="card.id"
-        class="min-h-36 sm:min-h-40 relative flex min-w-0 flex-col overflow-hidden rounded-2xl bg-white px-5 py-5 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_12px_32px_rgba(15,23,42,0.06)] ring-1 ring-gray-950/[0.06] dark:bg-gray-900 dark:shadow-[0_1px_2px_rgba(0,0,0,0.3),0_16px_40px_rgba(0,0,0,0.22)] dark:ring-white/[0.08] sm:px-6 sm:py-6"
+        class="min-h-36 sm:min-h-40 flex min-w-0 flex-col rounded-2xl bg-white px-5 py-5 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_12px_32px_rgba(15,23,42,0.06)] ring-1 ring-gray-950/[0.06] dark:bg-gray-900 dark:shadow-[0_1px_2px_rgba(0,0,0,0.3),0_16px_40px_rgba(0,0,0,0.22)] dark:ring-white/[0.08] sm:px-6 sm:py-6"
       >
-        <span
-          aria-hidden="true"
-          class="absolute left-5 top-0 h-0.5 w-9 rounded-b-full bg-blue-500/80 dark:bg-blue-400/90 sm:left-6"
-        ></span>
         <dt
           class="text-sm font-medium leading-5 text-gray-500 dark:text-gray-400"
         >
