@@ -75,10 +75,22 @@ export function normalizeMarkdownBoundary(markdown = '') {
     .replace(/\n+$/, '')
 }
 
-export function roundTripMatches(source, serialized) {
-  return (
+export function roundTripMatches(source, serialized, parseMarkdown) {
+  if (
     normalizeMarkdownBoundary(source) === normalizeMarkdownBoundary(serialized)
-  )
+  ) {
+    return true
+  }
+  if (typeof parseMarkdown !== 'function') return false
+
+  try {
+    return (
+      JSON.stringify(parseMarkdown(source)) ===
+      JSON.stringify(parseMarkdown(serialized))
+    )
+  } catch {
+    return false
+  }
 }
 
 export function preserveMarkdownEnvelope(serialized, source = '') {
