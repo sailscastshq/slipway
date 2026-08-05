@@ -68,6 +68,13 @@ module.exports = {
     let modelMeta = null
     let assocOptions = {}
     let error = null
+    let bridgeWorkspace = bridgeHostOrigin
+      ? await sails.helpers.bridge.buildWorkspaceNavigation.with({
+          actor,
+          contract: { models: {}, dashboards: {} },
+          authorizedResources: {}
+        })
+      : null
 
     if (appRunning) {
       try {
@@ -79,6 +86,21 @@ module.exports = {
           actor
         })
         modelMeta = loaded.resource
+        if (bridgeHostOrigin) {
+          try {
+            bridgeWorkspace =
+              await sails.helpers.bridge.buildWorkspaceNavigation.with({
+                containerName: app.containerName,
+                environmentId: environment.id,
+                actor,
+                contract: loaded.contract
+              })
+          } catch (navigationError) {
+            sails.log.warn(
+              `Bridge workspace navigation could not be loaded: ${navigationError.message}`
+            )
+          }
+        }
         const authorizedResources = {
           [modelMeta.identity]: modelMeta
         }
@@ -138,6 +160,7 @@ module.exports = {
         bridgeRequestApiBasePath: bridgeApiBasePath,
         hostBridgeAssetBasePath: bridgeAssetBasePath,
         hostBridgeOrigin: bridgeHostOrigin,
+        bridgeWorkspace,
         mode: 'create',
         modelIdentity,
         recordId: null,

@@ -145,6 +145,13 @@ module.exports = {
     let dashboards = []
     let dashboardResources = {}
     let activeDashboard = null
+    let bridgeWorkspace = bridgeHostOrigin
+      ? await sails.helpers.bridge.buildWorkspaceNavigation.with({
+          actor,
+          contract: { models: {}, dashboards: {} },
+          authorizedResources: {}
+        })
+      : null
 
     if (appRunning) {
       try {
@@ -156,6 +163,21 @@ module.exports = {
           actor
         })
         modelMeta = loaded.resource
+        if (bridgeHostOrigin) {
+          try {
+            bridgeWorkspace =
+              await sails.helpers.bridge.buildWorkspaceNavigation.with({
+                containerName: app.containerName,
+                environmentId: environment.id,
+                actor,
+                contract: loaded.contract
+              })
+          } catch (navigationError) {
+            sails.log.warn(
+              `Bridge workspace navigation could not be loaded: ${navigationError.message}`
+            )
+          }
+        }
         if (shouldLoadDashboard) {
           const dashboardDefinitions = Object.values(
             loaded.contract.dashboards || {}
@@ -270,6 +292,7 @@ module.exports = {
         bridgeRequestApiBasePath: bridgeApiBasePath,
         hostBridgeAssetBasePath: bridgeAssetBasePath,
         hostBridgeOrigin: bridgeHostOrigin,
+        bridgeWorkspace,
         modelIdentity,
         appRunning,
         modelMeta,
