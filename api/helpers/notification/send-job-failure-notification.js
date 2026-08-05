@@ -117,7 +117,6 @@ module.exports = {
       await sails.helpers.notification.sendEmail
         .with({
           template: 'job-failure',
-          layout: 'mail',
           subject: `\u274C A job didn't finish \u2014 ${jobName}`,
           templateData: {
             jobName,

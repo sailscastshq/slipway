@@ -1,7 +1,8 @@
 module.exports = {
   friendlyName: 'Send email notification',
 
-  description: 'Send an email notification to configured recipients.',
+  description:
+    'Fan an operational notification out to the configured recipients through the app mail boundary.',
 
   inputs: {
     template: {
