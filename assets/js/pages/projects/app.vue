@@ -22,6 +22,7 @@ import { useToast } from '@/composables/toast'
 import SlippyLoader from '@/components/SlippyLoader.vue'
 import DeploymentHistory from '@/components/DeploymentHistory.vue'
 import { highlightLogLine } from '@/lib/highlightLog'
+import { configVariableSummary } from '@/lib/config-variables.mjs'
 
 defineOptions({
   layout: AppLayout
@@ -460,11 +461,6 @@ function isSensitive(key) {
   return metadataFor(key).kind === 'secret'
 }
 
-function metadataSummary(key) {
-  const metadata = metadataFor(key)
-  return metadata.kind === 'secret' ? 'Secret' : 'Plain config'
-}
-
 function changeSummary(key) {
   const metadata = metadataFor(key)
   return [
@@ -473,6 +469,10 @@ function changeSummary(key) {
   ]
     .filter(Boolean)
     .join(' · ')
+}
+
+function variableSummary(key) {
+  return configVariableSummary(metadataFor(key), changeSummary(key))
 }
 
 function toggleReveal(key) {
@@ -1745,13 +1745,11 @@ onBeforeUnmount(() => {
                       class="mt-1 w-full border-b border-dashed border-transparent bg-transparent font-mono text-sm text-gray-500 focus:border-gray-300 focus:outline-none dark:text-gray-400 dark:focus:border-gray-600"
                     />
                     <p
+                      v-if="variableSummary(key)"
                       :data-test="`config-variable-summary-${key}`"
                       class="mt-1 text-xs text-gray-400 dark:text-gray-500"
                     >
-                      {{ metadataSummary(key) }}
-                      <template v-if="changeSummary(key)">
-                        · {{ changeSummary(key) }}
-                      </template>
+                      {{ variableSummary(key) }}
                     </p>
                   </div>
                 </div>
