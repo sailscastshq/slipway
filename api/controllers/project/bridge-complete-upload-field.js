@@ -2,56 +2,23 @@ module.exports = {
   friendlyName: 'Complete Bridge direct upload',
 
   description:
-    'Verify a directly uploaded object before issuing a Bridge field receipt.',
+    'Complete a direct upload and verify exact object metadata before issuing a field receipt.',
 
   inputs: {
-    slug: {
-      type: 'string',
-      required: true
-    },
-    envSlug: {
-      type: 'string',
-      defaultsTo: 'production'
-    },
-    appSlug: {
-      type: 'string'
-    },
-    modelIdentity: {
-      type: 'string',
-      required: true
-    },
-    fieldName: {
-      type: 'string',
-      required: true
-    },
-    recordId: {
-      type: 'string'
-    },
-    url: {
-      type: 'string',
-      required: true,
-      maxLength: 2048
-    },
-    uploadReceipt: {
-      type: 'string',
-      required: true,
-      maxLength: 4096
-    }
+    slug: { type: 'string', required: true },
+    envSlug: { type: 'string', defaultsTo: 'production' },
+    appSlug: { type: 'string' },
+    modelIdentity: { type: 'string', required: true },
+    fieldName: { type: 'string', required: true },
+    recordId: { type: 'string' },
+    uploadIntent: { type: 'string', required: true, maxLength: 8192 }
   },
 
   exits: {
-    success: {
-      description: 'The directly uploaded object was verified.'
-    },
-    badRequest: {
-      statusCode: 400
-    },
-    forbidden: {
-      statusCode: 403
-    },
-    notFound: {
-      statusCode: 404
-    }
+    success: { description: 'The directly uploaded object was verified.' },
+    badRequest: { statusCode: 400 },
+    forbidden: { statusCode: 403 },
+    notFound: { statusCode: 404 }
   },
 
   fn: async function ({
@@ -61,156 +28,140 @@ module.exports = {
     modelIdentity,
     fieldName,
     recordId,
-    url,
-    uploadReceipt
+    uploadIntent
   }) {
-    let resolved
+    let session
     try {
-      resolved = await sails.helpers.bridge.resolveRequest.with({
+      session = await sails.helpers.bridge.resolveDirectUploadSession.with({
         req: this.req,
         projectSlug: slug,
         environmentSlug: envSlug,
         ...(appSlug ? { appSlug } : {}),
-        requiredRole: 'editor',
-        requireRunning: true
+        modelIdentity,
+        fieldName,
+        ...(recordId ? { recordId } : {}),
+        uploadIntent
       })
     } catch (error) {
-      if (error.code === 'forbidden') {
-        throw {
-          forbidden: { message: 'Your Bridge role cannot upload files.' }
-        }
-      }
-      if (error.code === 'notFound') throw 'notFound'
-      throw { badRequest: { message: 'The target app is not running.' } }
+      throwSessionError(error)
     }
 
-    const { project, environment, app, actor, actorId } = resolved
+    const { payload, storage } = session
     try {
-      await sails.helpers.bridge.verifyUploadReceipt.with({
-        receipt: uploadReceipt,
-        url,
+      if (payload.strategy === 'multipart') {
+        try {
+          const listed = await sails.helpers.bridge.directUploadStorage.with({
+            operation: 'listParts',
+            storage,
+            objectPath: payload.objectPath,
+            uploadId: payload.uploadId
+          })
+          assertCompleteParts(listed.parts, payload)
+          await sails.helpers.bridge.directUploadStorage.with({
+            operation: 'completeMultipart',
+            storage,
+            objectPath: payload.objectPath,
+            uploadId: payload.uploadId,
+            parts: listed.parts
+          })
+        } catch (error) {
+          if (error.code !== 'BRIDGE_MULTIPART_UPLOAD_MISSING') throw error
+          // Completion is idempotent: when the response was lost, the upload ID
+          // is gone but the exact completed object is still authoritative.
+        }
+      }
+
+      const verified = await sails.helpers.bridge.directUploadStorage.with({
+        operation: 'head',
+        storage,
+        objectPath: payload.objectPath
+      })
+      if (
+        verified.size !== payload.fileSize ||
+        normalizeType(verified.type) !== normalizeType(payload.fileType)
+      ) {
+        throw new Error(
+          'The stored object does not match the selected file. Choose it again.'
+        )
+      }
+
+      const receipt = await sails.helpers.bridge.createUploadReceipt.with({
+        url: payload.url,
         context: {
-          actorId,
-          projectId: project.id,
-          environmentId: environment.id,
-          resource: modelIdentity,
+          actorId: session.actorId,
+          projectId: session.project.id,
+          environmentId: session.environment.id,
+          resource: session.loaded.resource.identity,
           field: fieldName
         }
       })
-    } catch (error) {
-      throw { badRequest: { message: error.message } }
-    }
-
-    let loaded
-    try {
-      loaded = await sails.helpers.bridge.loadResource.with({
-        containerName: app.containerName,
-        environmentId: environment.id,
-        modelIdentity,
-        action: recordId ? 'update' : 'create',
-        actor,
-        ...(recordId ? { recordId } : {})
-      })
-    } catch (error) {
-      throw { forbidden: { message: error.message } }
-    }
-
-    const surface = recordId ? 'edit' : 'create'
-    const attribute = loaded.resource.attributes?.[fieldName]
-    if (
-      !loaded.resource[surface]?.includes(fieldName) ||
-      attribute?.field?.upload?.storage !== 'bridge'
-    ) {
-      throw {
-        notFound: { message: 'This Bridge upload field is not available.' }
+      return {
+        url: payload.url,
+        receipt,
+        file: {
+          name: payload.objectPath.split('/').pop(),
+          size: verified.size,
+          type: verified.type,
+          etag: verified.etag
+        }
       }
-    }
-
-    let storage
-    let objectPath
-    let verified
-    try {
-      storage = await sails.helpers.bridge.getUploadStorageConfig.with({
-        app,
-        environment
-      })
-      objectPath = objectPathFromPublicUrl(url, storage.publicUrl)
-      verified = await sails.helpers.bridge.verifyDirectUploadObject.with({
-        storage,
-        objectPath
-      })
     } catch (error) {
-      throw { badRequest: { message: error.message } }
-    }
-
-    const upload = attribute.field.upload
-    if (
-      verified.size > upload.maxBytes ||
-      !acceptsMimeType(verified.type, upload.accept)
-    ) {
       throw {
         badRequest: {
-          message: 'The uploaded object does not match this Bridge field.'
+          message:
+            error.message ||
+            'Bridge could not verify the uploaded object. Please retry.'
         }
       }
     }
+  }
+}
 
-    const receipt = await sails.helpers.bridge.createUploadReceipt.with({
-      url,
-      context: {
-        actorId,
-        projectId: project.id,
-        environmentId: environment.id,
-        resource: loaded.resource.identity,
-        field: fieldName
-      }
-    })
-
-    return {
-      url,
-      receipt,
-      file: {
-        name: objectPath.split('/').pop(),
-        size: verified.size,
-        type: verified.type,
-        etag: verified.etag
-      }
+function assertCompleteParts(parts, payload) {
+  if (!Array.isArray(parts) || parts.length !== payload.partCount) {
+    throw new Error(
+      `Upload is incomplete: ${parts?.length || 0} of ${
+        payload.partCount
+      } parts arrived.`
+    )
+  }
+  let bytes = 0
+  for (let index = 0; index < parts.length; index += 1) {
+    const part = parts[index]
+    const expectedSize = Math.min(
+      payload.partSize,
+      payload.fileSize - index * payload.partSize
+    )
+    if (
+      part.partNumber !== index + 1 ||
+      part.size !== expectedSize ||
+      !part.etag
+    ) {
+      throw new Error(`Upload part ${index + 1} is incomplete or invalid.`)
     }
+    bytes += part.size
+  }
+  if (bytes !== payload.fileSize) {
+    throw new Error('The uploaded byte count does not match the selected file.')
   }
 }
 
-function objectPathFromPublicUrl(value, publicUrl) {
-  let uploaded
-  let base
-  try {
-    uploaded = new URL(value)
-    base = new URL(`${publicUrl.replace(/\/$/, '')}/`)
-  } catch {
-    throw new Error('The upload destination is invalid.')
+function throwSessionError(error) {
+  if (error.code === 'forbidden') {
+    throw { forbidden: { message: 'Your Bridge role cannot upload files.' } }
   }
-
   if (
-    uploaded.origin !== base.origin ||
-    uploaded.search ||
-    uploaded.hash ||
-    !uploaded.pathname.startsWith(base.pathname)
+    error.code === 'notFound' ||
+    error.code === 'BRIDGE_UPLOAD_FIELD_NOT_FOUND'
   ) {
-    throw new Error('The upload destination no longer matches this app.')
+    throw { notFound: { message: error.message } }
   }
-  const objectPath = decodeURIComponent(
-    uploaded.pathname.slice(base.pathname.length)
-  )
-  if (!objectPath || objectPath.startsWith('/') || objectPath.includes('..')) {
-    throw new Error('The upload destination is invalid.')
-  }
-  return objectPath
+  throw { badRequest: { message: error.message } }
 }
 
-function acceptsMimeType(type, accepted) {
-  if (!Array.isArray(accepted) || accepted.length === 0) return true
-  return accepted.some((candidate) =>
-    candidate.endsWith('/*')
-      ? type.startsWith(candidate.slice(0, -1))
-      : type === candidate
-  )
+function normalizeType(value) {
+  return String(value || '')
+    .split(';')[0]
+    .trim()
+    .toLowerCase()
 }
