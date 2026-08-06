@@ -22,9 +22,11 @@ module.exports = {
   },
 
   fn: async function ({ deployment, project, environment }) {
-    const status = deployment.status
-    const isSuccess = status === 'running' || status === 'success'
-    const isFailure = status === 'failed'
+    const outcome = await sails.helpers.deployment.resolveOutcome.with({
+      deployment
+    })
+    const isSuccess = ['current', 'succeeded'].includes(outcome.outcome)
+    const isFailure = outcome.outcome === 'failed'
 
     // Check notification preferences
     const notifyOnSuccess = await sails.helpers.setting.get(
@@ -57,7 +59,7 @@ module.exports = {
     const appName = app ? app.name : project.name
 
     const emoji = isSuccess ? '\u2705' : '\u274C'
-    const statusText = isSuccess ? 'succeeded' : 'failed'
+    const statusText = outcome.outcomeLabel.toLowerCase()
     const slippyTitle = isSuccess
       ? 'Deployment successful'
       : 'Deployment failed'
@@ -209,6 +211,9 @@ module.exports = {
             deployment: {
               id: deployment.id,
               status: deployment.status,
+              outcome: outcome.outcome,
+              outcomeLabel: outcome.outcomeLabel,
+              isCurrent: outcome.isCurrent,
               gitBranch: deployment.gitBranch,
               gitCommitShort: deployment.gitCommitShort
             },

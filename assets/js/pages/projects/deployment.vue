@@ -30,16 +30,20 @@ const sidebarCollapsed = inject('sidebarCollapsed')
 const logContainer = ref(null)
 
 // SSE-powered real-time updates
-const sseStatus = ref(null)
+const sseState = ref(null)
 const sseLogs = ref('')
 
 const deployment = computed(() => ({
   ...props.deployment,
-  ...(sseStatus.value ? { status: sseStatus.value } : {})
+  ...(sseState.value || {})
 }))
 
-const isInProgress = computed(() =>
-  ['pending', 'building', 'deploying'].includes(deployment.value.status)
+const isInProgress = computed(
+  () =>
+    deployment.value.isActive ??
+    ['pending', 'building', 'pushing', 'deploying'].includes(
+      deployment.value.status
+    )
 )
 
 const allLogs = computed(() => {
@@ -135,8 +139,18 @@ const { close: disconnectDeploymentStream } = useEventSource(
     immediate: isInProgress.value,
     onMessage(data) {
       if (data.status) {
-        sseStatus.value = data.status
-        if (['running', 'failed', 'cancelled'].includes(data.status)) {
+        sseState.value = {
+          status: data.status,
+          outcome: data.outcome,
+          outcomeLabel: data.outcomeLabel,
+          isCurrent: data.isCurrent,
+          isCurrentDeployment: data.isCurrent,
+          isActive: data.isActive,
+          appId: data.appId
+        }
+        if (
+          ['running', 'stopped', 'failed', 'cancelled'].includes(data.status)
+        ) {
           disconnectDeploymentStream()
           router.reload()
         }
@@ -160,47 +174,33 @@ watch(
   { immediate: true }
 )
 
-function statusBadge(status) {
+function outcomeBadge(deployment) {
   const map = {
-    running: {
-      label: 'Running',
+    current: {
       classes:
-        'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+        'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300'
     },
-    building: {
-      label: 'Building',
-      classes:
-        'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+    succeeded: {
+      classes: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300'
     },
-    deploying: {
-      label: 'Deploying',
+    'in-progress': {
       classes:
-        'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
-    },
-    pending: {
-      label: 'Queued',
-      classes:
-        'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'
+        'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
     },
     failed: {
-      label: 'Failed',
       classes: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
     },
-    stopped: {
-      label: 'Stopped',
-      classes: 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'
-    },
     cancelled: {
-      label: 'Cancelled',
       classes: 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'
     }
   }
-  return (
-    map[status] || {
-      label: status,
-      classes: 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'
-    }
-  )
+
+  return {
+    label: deployment.outcomeLabel || deployment.status,
+    classes:
+      map[deployment.outcome]?.classes ||
+      'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'
+  }
 }
 
 function formatDuration(seconds) {
@@ -234,7 +234,14 @@ async function cancelDeployment() {
 
     if (res.ok) {
       disconnectDeploymentStream()
-      sseStatus.value = 'cancelled'
+      sseState.value = {
+        status: 'cancelled',
+        outcome: 'cancelled',
+        outcomeLabel: 'Cancelled',
+        isCurrent: false,
+        isCurrentDeployment: false,
+        isActive: false
+      }
       router.reload()
     } else {
       const data = await res.json()
@@ -250,9 +257,9 @@ async function cancelDeployment() {
 // Rollback
 const canRollback = computed(
   () =>
-    props.deployment.status === 'running' &&
-    !props.deployment.isCurrentDeployment &&
-    props.deployment.imageName
+    deployment.value.outcome === 'succeeded' &&
+    !deployment.value.isCurrent &&
+    deployment.value.imageName
 )
 
 const rollingBack = ref(false)
@@ -496,16 +503,10 @@ function executeRollback() {
               <span
                 :class="[
                   'inline-flex items-center rounded-md px-2.5 py-1 text-xs font-medium',
-                  statusBadge(deployment.status).classes
+                  outcomeBadge(deployment).classes
                 ]"
               >
-                {{ statusBadge(deployment.status).label }}
-              </span>
-              <span
-                v-if="deployment.isCurrentDeployment"
-                class="bg-brand/10 text-brand inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium"
-              >
-                current
+                {{ outcomeBadge(deployment).label }}
               </span>
               <span
                 v-if="isInProgress"

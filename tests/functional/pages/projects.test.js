@@ -249,7 +249,9 @@ test(
 
     const tiedAt = baseTime + 200000
     const firstTie = await world.create('deployment').with({
-      status: 'stopped',
+      // Legacy successful releases can remain `running` after traffic moves on.
+      // The App pointer, not this lifecycle value, owns the user-facing outcome.
+      status: 'running',
       environment: environment.id,
       app: app.id,
       gitMessage: 'Tie A',
@@ -291,8 +293,16 @@ test(
       'Current'
     )
     expect(firstPage).toHaveInertiaProp(
-      'deploymentHistory.items.2.outcomeLabel',
+      'deploymentHistory.items.1.outcomeLabel',
       'Succeeded'
+    )
+    expect(firstPage).toHaveInertiaProp(
+      'deploymentHistory.items.0.isCurrent',
+      true
+    )
+    expect(firstPage).toHaveInertiaProp(
+      'deploymentHistory.items.1.isCurrent',
+      false
     )
     expect(firstPage).toHaveInertiaProp(
       'deploymentHistory.currentReleases.0.id',

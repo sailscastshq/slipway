@@ -11,6 +11,8 @@ const props = defineProps({
 const emit = defineEmits(['status-change', 'dismiss'])
 
 const status = ref(props.deployment.status)
+const outcome = ref(props.deployment.outcome)
+const outcomeLabel = ref(props.deployment.outcomeLabel)
 const startTime = ref(props.deployment.startedAt || Date.now())
 const elapsed = ref(0)
 const dismissed = ref(false)
@@ -121,12 +123,19 @@ const statusConfig = computed(() => {
       icon: 'x'
     }
   }
-  return configs[status.value] || configs.pending
+  const config = configs[status.value] || configs.pending
+  return {
+    ...config,
+    label: outcomeLabel.value || config.label
+  }
 })
 
 const isActive = computed(() => {
   return ['pending', 'building', 'pushing', 'deploying'].includes(status.value)
 })
+const isSuccessful = computed(() =>
+  ['current', 'succeeded'].includes(outcome.value)
+)
 
 const elapsedFormatted = computed(() => {
   const mins = Math.floor(elapsed.value / 60)
@@ -141,11 +150,15 @@ const { close: closeStream, connect: connectToStream } = useEventSource(
     onMessage(data) {
       if (data.status) {
         status.value = data.status
+        outcome.value = data.outcome
+        outcomeLabel.value = data.outcomeLabel
         emit('status-change', {
           deploymentId: props.deployment.id,
-          status: data.status
+          ...data
         })
-        if (['running', 'failed', 'cancelled'].includes(data.status)) {
+        if (
+          ['running', 'stopped', 'failed', 'cancelled'].includes(data.status)
+        ) {
           closeStream()
           setTimeout(() => dismiss(), 5000)
         }
@@ -190,6 +203,20 @@ watch(
   () => props.deployment.status,
   (newStatus) => {
     status.value = newStatus
+  }
+)
+
+watch(
+  () => props.deployment.outcome,
+  (newOutcome) => {
+    outcome.value = newOutcome
+  }
+)
+
+watch(
+  () => props.deployment.outcomeLabel,
+  (newLabel) => {
+    outcomeLabel.value = newLabel
   }
 )
 
@@ -241,7 +268,7 @@ watch(status, (newStatus) => {
               'flex h-10 w-10 shrink-0 items-center justify-center rounded-lg',
               isActive
                 ? 'bg-gray-100 dark:bg-gray-800'
-                : status === 'running'
+                : isSuccessful
                 ? 'bg-emerald-500/20'
                 : 'bg-red-500/20'
             ]"
@@ -250,7 +277,7 @@ watch(status, (newStatus) => {
             <SlippyLoader v-if="isActive" class="text-brand dark:text-white" />
             <!-- Check for success -->
             <svg
-              v-else-if="status === 'running'"
+              v-else-if="isSuccessful"
               class="h-5 w-5 text-emerald-400"
               fill="none"
               stroke="currentColor"

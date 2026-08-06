@@ -54,18 +54,22 @@ export function formatDuration(seconds) {
   return `${minutes}m ${secs}s`
 }
 
-export function statusColor(status) {
+export function statusColor(status, label = status) {
   const colorMap = {
     running: c.success,
+    current: c.success,
+    succeeded: c.success,
     pending: c.warn,
     building: c.info,
+    pushing: c.info,
     deploying: c.info,
+    'in-progress': c.info,
     stopped: c.gray,
     failed: c.error,
     cancelled: c.gray
   }
   const colorFn = colorMap[status] || ((s) => s)
-  return colorFn(status)
+  return colorFn(label)
 }
 
 // Simple spinner using stdout
