@@ -34,7 +34,7 @@ test(
 
     await page.raw
       .locator('.pointer-events-none.fixed.bottom-4.right-4')
-      .getByText('Deployed', { exact: true })
+      .getByText('Succeeded', { exact: true })
       .first()
       .waitFor({ state: 'visible' })
     expect(await faviconState(page)).toBe('deploying')
