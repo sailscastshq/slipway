@@ -574,6 +574,178 @@ test('Bridge rejects unsafe relationship configuration', async ({
   )
 })
 
+test('Bridge normalizes fixed and dependent relationship scopes', async ({
+  sails,
+  expect
+}) => {
+  const courseId = '018f2a5c-7b34-7f8a-9c12-4a73b9d80251'
+  const contract = await sails.helpers.bridge.normalizeResourceContract.with({
+    models: relationshipModelMetadata(),
+    config: {
+      resources: {
+        lesson: {
+          fields: {
+            chapter: {
+              relation: {
+                where: {
+                  course: { fromField: 'course' }
+                }
+              }
+            },
+            creator: {
+              relation: {
+                where: {
+                  role: { in: ['editor', 'admin'] }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  })
+
+  expect(contract.resources.lesson.relationships.chapter.where).toEqual({
+    course: { fromField: 'course' }
+  })
+  expect(contract.resources.lesson.relationships.creator.where).toEqual({
+    role: { in: ['editor', 'admin'] }
+  })
+
+  const resolved = await sails.helpers.bridge.resolveRelationshipScope.with({
+    resource: contract.resources.lesson,
+    relationship: contract.resources.lesson.relationships.chapter,
+    values: { course: courseId }
+  })
+  expect(resolved).toEqual({
+    ready: true,
+    missing: [],
+    where: { course: courseId }
+  })
+
+  const unresolved = await sails.helpers.bridge.resolveRelationshipScope.with({
+    resource: contract.resources.lesson,
+    relationship: contract.resources.lesson.relationships.chapter,
+    values: {}
+  })
+  expect(unresolved).toEqual({
+    ready: false,
+    missing: ['course'],
+    where: {}
+  })
+
+  const precognitionValues =
+    await sails.helpers.bridge.allowResourceValues.with({
+      values: { course: courseId, chapter: 'chapter-1' },
+      resource: contract.resources.lesson,
+      surface: 'create',
+      validateOnly: ['chapter']
+    })
+  expect(precognitionValues).toEqual({
+    chapter: 'chapter-1',
+    course: courseId
+  })
+})
+
+test('Bridge rejects unsafe relationship scopes and dependency cycles', async ({
+  sails,
+  expect
+}) => {
+  const cases = [
+    {
+      where: { missing: 'admin' },
+      message: 'references unavailable target field "missing"'
+    },
+    {
+      where: { role: { fromField: 'missing' } },
+      field: 'creator',
+      message: 'references unavailable source field "missing"'
+    },
+    {
+      where: { role: { not: 'admin' } },
+      field: 'creator',
+      message: 'must use only "fromField" or "in"'
+    },
+    {
+      where: { course: { fromField: 'published' } },
+      message: 'field types are incompatible'
+    }
+  ]
+
+  for (const testCase of cases) {
+    let error
+    try {
+      await sails.helpers.bridge.normalizeResourceContract.with({
+        models: relationshipModelMetadata(),
+        config: {
+          resources: {
+            lesson: {
+              fields: {
+                [testCase.field || 'chapter']: {
+                  relation: { where: testCase.where }
+                }
+              }
+            }
+          }
+        }
+      })
+    } catch (cause) {
+      error = cause
+    }
+    expect(error.message).toContain(testCase.message)
+  }
+
+  let unavailableError
+  try {
+    await sails.helpers.bridge.normalizeResourceContract.with({
+      models: relationshipModelMetadata(),
+      config: {
+        resources: {
+          lesson: {
+            create: ['title', 'chapter'],
+            fields: {
+              chapter: {
+                relation: { where: { course: { fromField: 'course' } } }
+              }
+            }
+          }
+        }
+      }
+    })
+  } catch (cause) {
+    unavailableError = cause
+  }
+  expect(unavailableError.message).toContain(
+    'depends on "course", which is unavailable on the create form'
+  )
+
+  let cycleError
+  try {
+    await sails.helpers.bridge.normalizeResourceContract.with({
+      models: relationshipModelMetadata(),
+      config: {
+        resources: {
+          lesson: {
+            fields: {
+              chapter: {
+                relation: { where: { course: { fromField: 'course' } } }
+              },
+              course: {
+                relation: { where: { id: { fromField: 'chapter' } } }
+              }
+            }
+          }
+        }
+      }
+    })
+  } catch (cause) {
+    cycleError = cause
+  }
+  expect(cycleError.message).toContain(
+    'relationship dependencies contain a cycle'
+  )
+})
+
 test('Bridge authorizes and verifies submitted belongs-to values', async ({
   sails,
   expect
@@ -605,7 +777,9 @@ test('Bridge authorizes and verifies submitted belongs-to values', async ({
           alias: 'chapter',
           identity: 'chapter',
           primaryKey: 'id',
-          id: chapterId
+          id: chapterId,
+          where: {},
+          invalidMessage: 'Chapter no longer exists.'
         }
       ])
       return successfulResult({ missing })
@@ -650,6 +824,179 @@ test('Bridge authorizes and verifies submitted belongs-to values', async ({
     })
   } finally {
     sails.helpers.bridge.introspectModels = originalIntrospectModels
+    sails.helpers.bridge.buildSailsWrapper = originalBuildSailsWrapper
+    sails.helpers.bridge.executeInContainer = originalExecuteInContainer
+  }
+})
+
+test('Bridge reapplies relationship scopes when authorizing mutations', async ({
+  sails,
+  expect
+}) => {
+  const contract = await sails.helpers.bridge.normalizeResourceContract.with({
+    models: relationshipModelMetadata(),
+    config: {
+      resources: {
+        lesson: {
+          fields: {
+            chapter: {
+              relation: { where: { course: { fromField: 'course' } } }
+            },
+            creator: {
+              relation: { where: { role: 'admin' } }
+            }
+          }
+        }
+      }
+    }
+  })
+  const originalIntrospectModels = sails.helpers.bridge.introspectModels
+  const originalBuildSailsWrapper = sails.helpers.bridge.buildSailsWrapper
+  const originalExecuteInContainer = sails.helpers.bridge.executeInContainer
+  const values = {
+    course: 'course-1',
+    chapter: 'chapter-from-another-course',
+    creator: 'student-1'
+  }
+
+  try {
+    sails.helpers.bridge.introspectModels = async () => ({
+      schemaVersion: contract.schemaVersion,
+      discover: contract.discover,
+      configured: contract.configured,
+      models: contract.resources
+    })
+    sails.helpers.bridge.buildSailsWrapper = async (code) => code
+    sails.helpers.bridge.executeInContainer = async (_containerName, code) => {
+      const definitions = readEmbeddedValue(code, 'definitions')
+      expect(
+        definitions.find((definition) => definition.alias === 'chapter').where
+      ).toEqual({ course: 'course-1' })
+      expect(
+        definitions.find((definition) => definition.alias === 'creator').where
+      ).toEqual({ role: 'admin' })
+      expect(code).toContain('{ and: [definition.where, identity] }')
+      return successfulResult({ missing: ['chapter', 'creator'] })
+    }
+
+    let error
+    try {
+      await sails.helpers.bridge.authorizeRelationshipValues.with({
+        containerName: 'bridge-app-web',
+        environmentId: 220,
+        resource: contract.resources.lesson,
+        actor: { id: '7', email: 'editor@example.com' },
+        values
+      })
+    } catch (cause) {
+      error = cause
+    }
+
+    expect(error.code).toBe('BRIDGE_RELATIONSHIP_NOT_FOUND')
+    expect(error.fieldErrors).toEqual({
+      chapter: 'Chapter is not available for the selected course.',
+      creator: 'Creator is not eligible for this field.'
+    })
+  } finally {
+    sails.helpers.bridge.introspectModels = originalIntrospectModels
+    sails.helpers.bridge.buildSailsWrapper = originalBuildSailsWrapper
+    sails.helpers.bridge.executeInContainer = originalExecuteInContainer
+  }
+})
+
+test('Bridge scopes initial and searched relationship options identically', async ({
+  sails,
+  expect
+}) => {
+  const courseId = '018f2a5c-7b34-7f8a-9c12-4a73b9d80261'
+  const contract = await sails.helpers.bridge.normalizeResourceContract.with({
+    models: relationshipModelMetadata(),
+    config: {
+      resources: {
+        lesson: {
+          fields: {
+            chapter: {
+              relation: {
+                search: ['title'],
+                where: { course: { fromField: 'course' } }
+              }
+            },
+            creator: {
+              relation: { where: { role: 'admin' } }
+            }
+          }
+        }
+      }
+    }
+  })
+  const originalBuildSailsWrapper = sails.helpers.bridge.buildSailsWrapper
+  const originalExecuteInContainer = sails.helpers.bridge.executeInContainer
+  let searchDefinition
+  let initialDefinitions
+
+  try {
+    sails.helpers.bridge.buildSailsWrapper = async (code) => code
+    sails.helpers.bridge.executeInContainer = async (_containerName, code) => {
+      if (code.includes('const definition = ')) {
+        searchDefinition = readEmbeddedValue(code, 'definition')
+        expect(code).toContain('{ and: [definition.where, textSearch] }')
+        return successfulResult({
+          options: [{ id: 'chapter-1', label: 'Scoped chapter' }],
+          page: 1,
+          limit: 20,
+          hasMore: false
+        })
+      }
+      initialDefinitions = readEmbeddedValue(code, 'definitions')
+      return successfulResult({
+        course: [],
+        chapter: [{ id: 'chapter-1', label: 'Scoped chapter' }],
+        creator: [{ id: 'admin-1', label: 'Ada Admin' }]
+      })
+    }
+
+    const searched = await sails.helpers.bridge.searchRelationshipOptions.with({
+      containerName: 'bridge-app-web',
+      resources: contract.resources,
+      resource: contract.resources.lesson,
+      relationshipAlias: 'chapter',
+      values: { course: courseId },
+      search: 'scope'
+    })
+    expect(searched.options[0].label).toBe('Scoped chapter')
+    expect(searchDefinition.where).toEqual({ course: courseId })
+
+    const initial = await sails.helpers.bridge.loadAssociationOptions.with({
+      containerName: 'bridge-app-web',
+      resources: contract.resources,
+      resource: contract.resources.lesson,
+      surface: 'create',
+      values: { course: courseId }
+    })
+    expect(initial.chapter[0].label).toBe('Scoped chapter')
+    expect(
+      initialDefinitions.find((definition) => definition.alias === 'chapter')
+        .where
+    ).toEqual({ course: courseId })
+    expect(
+      initialDefinitions.find((definition) => definition.alias === 'creator')
+        .where
+    ).toEqual({ role: 'admin' })
+
+    let overrideError
+    try {
+      await sails.helpers.bridge.searchRelationshipOptions.with({
+        containerName: 'bridge-app-web',
+        resources: contract.resources,
+        resource: contract.resources.lesson,
+        relationshipAlias: 'creator',
+        values: { role: 'student' }
+      })
+    } catch (cause) {
+      overrideError = cause
+    }
+    expect(overrideError.code).toBe('BRIDGE_RELATIONSHIP_SCOPE_INVALID')
+  } finally {
     sails.helpers.bridge.buildSailsWrapper = originalBuildSailsWrapper
     sails.helpers.bridge.executeInContainer = originalExecuteInContainer
   }
@@ -1769,7 +2116,8 @@ function relationshipModelMetadata() {
         title: { type: 'string', required: true },
         chapter: { type: 'string', model: 'chapter' },
         course: { type: 'string', model: 'course' },
-        creator: { type: 'string', model: 'user' }
+        creator: { type: 'string', model: 'user' },
+        published: { type: 'boolean', defaultsTo: false }
       },
       associations: [
         { alias: 'chapter', type: 'model', model: 'chapter' },
@@ -1784,7 +2132,12 @@ function relationshipModelMetadata() {
       primaryKey: 'id',
       attributes: {
         id: { type: 'string', required: true, isUUID: true },
-        fullName: { type: 'string', required: true }
+        fullName: { type: 'string', required: true },
+        role: {
+          type: 'string',
+          isIn: ['student', 'editor', 'admin'],
+          defaultsTo: 'student'
+        }
       },
       associations: []
     }

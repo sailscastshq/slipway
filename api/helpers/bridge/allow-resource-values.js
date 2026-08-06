@@ -74,8 +74,18 @@ module.exports = {
     const requestedFields = validateOnly.length
       ? Array.from(new Set(validateOnly))
       : Object.keys(values)
+    const fieldsToNormalize = Array.from(
+      new Set([
+        ...requestedFields,
+        ...requestedFields.flatMap((field) =>
+          Object.values(resource.relationships?.[field]?.where || {})
+            .map((constraint) => constraint?.fromField)
+            .filter(Boolean)
+        )
+      ])
+    )
 
-    for (const key of requestedFields) {
+    for (const key of fieldsToNormalize) {
       if (
         !allowedFields.has(key) ||
         ['__proto__', 'constructor', 'prototype'].includes(key)

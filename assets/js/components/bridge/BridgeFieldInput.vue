@@ -45,6 +45,22 @@ const props = defineProps({
     type: String,
     default: ''
   },
+  associationDisabledReason: {
+    type: String,
+    default: ''
+  },
+  associationSearchPlaceholder: {
+    type: String,
+    default: ''
+  },
+  associationEmptyText: {
+    type: String,
+    default: ''
+  },
+  resourceRelationships: {
+    type: Object,
+    default: () => ({})
+  },
   uploadUrl: {
     type: String,
     default: ''
@@ -146,8 +162,13 @@ const uploadPathValues = computed(() => {
     ),
     (match) => match[1]
   )
+  const dependencyRoots = roots.flatMap((name) =>
+    Object.values(props.resourceRelationships?.[name]?.where || {})
+      .map((constraint) => constraint?.fromField)
+      .filter(Boolean)
+  )
   return Object.fromEntries(
-    Array.from(new Set(roots))
+    Array.from(new Set([...roots, ...dependencyRoots]))
       .filter((name) =>
         Object.prototype.hasOwnProperty.call(props.uploadValues, name)
       )
@@ -877,7 +898,10 @@ function defaultPlaceholder(fieldType) {
         :options="associationOptions"
         :search-url="associationSearchUrl"
         :searchable="attribute.field?.relation?.searchable !== false"
-        :disabled="field.readOnly"
+        :disabled="field.readOnly || Boolean(associationDisabledReason)"
+        :placeholder="associationDisabledReason"
+        :search-placeholder="associationSearchPlaceholder"
+        :empty-text="associationEmptyText"
         :required="attribute.required"
         :invalid="Boolean(visibleError)"
         :described-by="describedBy"

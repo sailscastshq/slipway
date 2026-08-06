@@ -892,9 +892,67 @@ The form receives only the first bounded page. Its combobox searches through a
 dedicated JSON transport and loads additional pages on demand, so a large user
 or course table is never serialized into an Inertia page.
 
+Use `where` when a belongs-to field should expose only eligible records. A
+fixed value or bounded `in` list is owned entirely by the server contract:
+
+```js
+lesson: {
+  fields: {
+    creator: {
+      help: 'Only administrators can be creators.',
+      relation: {
+        search: ['fullName', 'email'],
+        where: {
+          role: { in: ['editor', 'admin'] }
+        }
+      }
+    }
+  }
+}
+```
+
+A relationship can also depend on a declared sibling form field. This keeps a
+Chapter selector empty until Course has a value, then scopes every initial,
+search, and paginated query to that course:
+
+```js
+lesson: {
+  fields: {
+    course: {
+      relation: {
+        search: ['title', 'slug']
+      }
+    },
+    chapter: {
+      relation: {
+        search: ['title', 'slug'],
+        where: {
+          course: { fromField: 'course' }
+        }
+      }
+    }
+  }
+}
+```
+
+Dependent selectors are disabled until their source fields are ready. Changing
+a source clears downstream selections, aborts stale option requests, and
+prefetches the first bounded page for the new scope. Edit forms keep the label
+of an existing out-of-scope value visible with a warning so it can be replaced;
+the value cannot be submitted as eligible.
+
+`where` accepts scalar string, number, or boolean equality, `{in: [...]}` with
+1 to 50 values, and `{fromField: 'fieldName'}`. Slipway rejects unknown target
+or source fields, unsupported operators, incompatible types, unavailable form
+dependencies, and dependency cycles while normalizing the contract. Browser
+query parameters can supply values only for declared `fromField` dependencies;
+they cannot alter fixed constraints.
+
 Create and update requests repeat the related resource's `viewAny`
-authorization and verify that every submitted belongs-to ID still exists.
-Hiding a selector therefore cannot be bypassed with a forged form payload.
+authorization and verify that every submitted belongs-to ID both exists and
+matches the identical normalized `where` scope. Relationship-backed upload
+paths repeat the same verification. Hiding or modifying a selector therefore
+cannot be bypassed with a forged form or upload payload.
 
 Collection associations appear as compact related-record lists on the detail
 page. Values are selected only from the related resource's safe `show` fields.

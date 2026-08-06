@@ -31,6 +31,10 @@ module.exports = {
     },
     recordId: {
       type: 'ref'
+    },
+    values: {
+      type: 'ref',
+      defaultsTo: {}
     }
   },
 
@@ -47,7 +51,8 @@ module.exports = {
     relationshipAlias,
     search,
     page,
-    recordId
+    recordId,
+    values
   }) {
     const relationship = resource.relationships?.[relationshipAlias]
     if (!relationship) {
@@ -68,6 +73,36 @@ module.exports = {
       .trim()
       .slice(0, 100)
     const limit = Math.min(Math.max(relationship.limit || 20, 1), 50)
+    const declaredDependencies = new Set(
+      Object.values(relationship.where || {})
+        .map((constraint) => constraint?.fromField)
+        .filter(Boolean)
+    )
+    const unknownDependency = Object.keys(values || {}).find(
+      (field) => !declaredDependencies.has(field)
+    )
+    if (unknownDependency) {
+      const error = relationshipError(
+        `Bridge relationship dependency "${unknownDependency}" is not declared.`
+      )
+      error.code = 'BRIDGE_RELATIONSHIP_SCOPE_INVALID'
+      throw error
+    }
+    const scope = await sails.helpers.bridge.resolveRelationshipScope.with({
+      resource,
+      relationship,
+      values
+    })
+    if (!scope.ready) {
+      const sourceField = scope.missing[0]
+      const error = relationshipError(
+        `Choose ${
+          resource.attributes?.[sourceField]?.label || sourceField
+        } before loading ${relationship.label}.`
+      )
+      error.code = 'BRIDGE_RELATIONSHIP_SCOPE_REQUIRED'
+      throw error
+    }
     const definition = {
       alias: relationship.alias,
       type: relationship.type,
@@ -78,6 +113,7 @@ module.exports = {
       limit,
       page: normalizedPage,
       query: normalizedSearch,
+      where: scope.where,
       parentIdentity: resource.identity,
       parentPrimaryKey: resource.primaryKey,
       recordId
@@ -90,13 +126,16 @@ module.exports = {
         throw new Error('Configured Bridge relationship model is unavailable.');
       }
 
-      const where = definition.query && definition.search.length > 0
+      const textSearch = definition.query && definition.search.length > 0
         ? {
             or: definition.search.map((field) => ({
               [field]: { contains: definition.query }
             }))
           }
-        : {};
+        : null;
+      const where = textSearch && Object.keys(definition.where).length > 0
+        ? { and: [definition.where, textSearch] }
+        : textSearch || definition.where;
       const fields = Array.from(new Set([
         definition.primaryKey,
         definition.title

@@ -57,7 +57,7 @@ test(
           }
           return successfulResult(decisions)
         }
-        if (code.includes('const where = definition.query')) {
+        if (code.includes('const textSearch = definition.query')) {
           const definition = readEmbeddedValue(code, 'definition')
           expect(definition.page).toBe(2)
           expect(definition.query).toBe('deploy')
@@ -223,6 +223,91 @@ test(
   }
 )
 
+test(
+  'Bridge rejects forged belongs-to values outside fixed and dependent scopes',
+  {
+    world: {
+      name: 'configured-slipway',
+      context: {
+        deploymentTarget: {
+          slug: 'bridge-scoped-relationship-tampering',
+          name: 'Bridge scoped relationship tampering'
+        }
+      }
+    }
+  },
+  async ({ sails, world, request, expect }) => {
+    const current = world.current
+    const app = current.apps.web
+    const environment = current.environments.production
+    const project = current.projects.deploymentTarget
+    const originalIntrospectModels = sails.helpers.bridge.introspectModels
+    const originalBuildSailsWrapper = sails.helpers.bridge.buildSailsWrapper
+    const originalExecuteInContainer = sails.helpers.bridge.executeInContainer
+    const contract = await sails.helpers.bridge.normalizeResourceContract.with({
+      models: scopedRelationshipModels(),
+      config: scopedRelationshipConfig()
+    })
+    let forgedField = 'chapter'
+
+    try {
+      await sails.models.app.updateOne({ id: app.id }).set({
+        status: 'running',
+        containerName: 'bridge-scoped-relationship-tampering-web'
+      })
+      sails.helpers.bridge.introspectModels = async () => ({
+        schemaVersion: contract.schemaVersion,
+        discover: contract.discover,
+        configured: contract.configured,
+        models: contract.resources
+      })
+      sails.helpers.bridge.buildSailsWrapper = async (code) => code
+      sails.helpers.bridge.executeInContainer = async (containerName, code) => {
+        expect(containerName).toBe('bridge-scoped-relationship-tampering-web')
+        const definitions = readEmbeddedValue(code, 'definitions')
+        expect(
+          definitions.find((definition) => definition.alias === 'chapter').where
+        ).toEqual({ course: 'course-1' })
+        expect(
+          definitions.find((definition) => definition.alias === 'creator').where
+        ).toEqual({ role: 'admin' })
+        return successfulResult({ missing: [forgedField] })
+      }
+
+      const createPath =
+        `/projects/${project.slug}/environments/${environment.slug}` +
+        '/bridge/lesson/new'
+      const createRecordPath =
+        `/projects/${project.slug}/environments/${environment.slug}` +
+        '/bridge/lesson/create'
+      const browser = await withCsrfFromPage(request, createPath, 'genesisUser')
+      const values = {
+        title: 'A forged lesson',
+        course: 'course-1',
+        chapter: 'chapter-from-course-2',
+        creator: 'student-1'
+      }
+
+      const chapterResponse = await browser.request.post(createRecordPath, {
+        values
+      })
+      expect(chapterResponse).toHaveStatus(303)
+      expect(chapterResponse).toHaveHeader('x-exit', 'badRequest')
+
+      forgedField = 'creator'
+      const creatorResponse = await browser.request.post(createRecordPath, {
+        values
+      })
+      expect(creatorResponse).toHaveStatus(303)
+      expect(creatorResponse).toHaveHeader('x-exit', 'badRequest')
+    } finally {
+      sails.helpers.bridge.introspectModels = originalIntrospectModels
+      sails.helpers.bridge.buildSailsWrapper = originalBuildSailsWrapper
+      sails.helpers.bridge.executeInContainer = originalExecuteInContainer
+    }
+  }
+)
+
 function relationshipConfig({ attach, detach }) {
   return {
     schemaVersion: 1,
@@ -286,6 +371,88 @@ function relationshipModels() {
           type: 'model',
           model: 'course'
         }
+      ]
+    }
+  }
+}
+
+function scopedRelationshipConfig() {
+  return {
+    schemaVersion: 1,
+    resources: {
+      lesson: {
+        fields: {
+          chapter: {
+            relation: {
+              search: ['title'],
+              where: { course: { fromField: 'course' } }
+            }
+          },
+          creator: {
+            relation: {
+              search: ['fullName'],
+              where: { role: 'admin' }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+function scopedRelationshipModels() {
+  return {
+    course: {
+      identity: 'course',
+      globalId: 'Course',
+      tableName: 'course',
+      primaryKey: 'id',
+      attributes: {
+        id: { type: 'string', required: true },
+        title: { type: 'string', required: true }
+      },
+      associations: []
+    },
+    chapter: {
+      identity: 'chapter',
+      globalId: 'Chapter',
+      tableName: 'chapter',
+      primaryKey: 'id',
+      attributes: {
+        id: { type: 'string', required: true },
+        title: { type: 'string', required: true },
+        course: { type: 'string', model: 'course' }
+      },
+      associations: [{ alias: 'course', type: 'model', model: 'course' }]
+    },
+    user: {
+      identity: 'user',
+      globalId: 'User',
+      tableName: 'user',
+      primaryKey: 'id',
+      attributes: {
+        id: { type: 'string', required: true },
+        fullName: { type: 'string', required: true },
+        role: { type: 'string', defaultsTo: 'student' }
+      },
+      associations: []
+    },
+    lesson: {
+      identity: 'lesson',
+      globalId: 'Lesson',
+      tableName: 'lesson',
+      primaryKey: 'id',
+      attributes: {
+        id: { type: 'number', autoIncrement: true },
+        title: { type: 'string', required: true },
+        course: { type: 'string', model: 'course', required: true },
+        chapter: { type: 'string', model: 'chapter', required: true },
+        creator: { type: 'string', model: 'user', required: true }
+      },
+      associations: [
+        { alias: 'course', type: 'model', model: 'course' },
+        { alias: 'chapter', type: 'model', model: 'chapter' },
+        { alias: 'creator', type: 'model', model: 'user' }
       ]
     }
   }
