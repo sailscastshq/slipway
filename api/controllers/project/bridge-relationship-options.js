@@ -39,6 +39,11 @@ module.exports = {
     page: {
       type: 'number',
       defaultsTo: 1
+    },
+    dependencies: {
+      type: 'string',
+      defaultsTo: '',
+      maxLength: 2000
     }
   },
 
@@ -69,7 +74,8 @@ module.exports = {
     surface,
     recordId,
     q,
-    page
+    page,
+    dependencies
   }) {
     let resolved
     try {
@@ -99,6 +105,7 @@ module.exports = {
     }
 
     try {
+      const dependencyValues = parseDependencyValues(dependencies)
       const loaded = await sails.helpers.bridge.loadResource.with({
         containerName: app.containerName,
         environmentId: environment.id,
@@ -156,6 +163,7 @@ module.exports = {
         relationshipAlias,
         search: q,
         page,
+        values: dependencyValues,
         ...(loaded.recordId !== undefined ? { recordId: loaded.recordId } : {})
       })
     } catch (error) {
@@ -168,4 +176,33 @@ function relationshipError(message) {
   const error = new Error(message)
   error.code = 'BRIDGE_RELATIONSHIP_NOT_ALLOWED'
   return error
+}
+
+function parseDependencyValues(value) {
+  if (!value) return {}
+
+  let parsed
+  try {
+    parsed = JSON.parse(value)
+  } catch {
+    throw relationshipError('Bridge relationship dependencies are invalid.')
+  }
+  if (
+    !parsed ||
+    typeof parsed !== 'object' ||
+    Array.isArray(parsed) ||
+    ![Object.prototype, null].includes(Object.getPrototypeOf(parsed))
+  ) {
+    throw relationshipError('Bridge relationship dependencies are invalid.')
+  }
+
+  for (const key of Object.keys(parsed)) {
+    if (
+      !/^[A-Za-z][A-Za-z0-9]*$/.test(key) ||
+      ['__proto__', 'constructor', 'prototype'].includes(key)
+    ) {
+      throw relationshipError('Bridge relationship dependencies are invalid.')
+    }
+  }
+  return parsed
 }

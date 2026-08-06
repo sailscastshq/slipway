@@ -55,6 +55,11 @@ module.exports = {
       if (!relatedResource || relatedResource.hidden) continue
       const relationship = resource.relationships?.[association.alias]
       if (!relationship) continue
+      const scope = await sails.helpers.bridge.resolveRelationshipScope.with({
+        resource,
+        relationship,
+        values
+      })
 
       definitions.push({
         alias: association.alias,
@@ -62,6 +67,8 @@ module.exports = {
         primaryKey: relatedResource.primaryKey,
         title: relatedResource.title,
         limit: relationship.limit,
+        where: scope.where,
+        scopeReady: scope.ready,
         selectedId: values?.[association.alias]
       })
     }
@@ -83,12 +90,15 @@ module.exports = {
           definition.primaryKey,
           definition.title
         ].filter(Boolean)));
-        const records = await model
-          .find({
-            sort: definition.title + ' ASC',
-            limit: definition.limit
-          })
-          .select(fields);
+        const records = definition.scopeReady
+          ? await model
+              .find({
+                where: definition.where,
+                sort: definition.title + ' ASC',
+                limit: definition.limit
+              })
+              .select(fields)
+          : [];
         if (
           definition.selectedId !== undefined &&
           definition.selectedId !== null &&
@@ -98,18 +108,37 @@ module.exports = {
               String(definition.selectedId)
           )
         ) {
-          const selected = await model
+          const selectedCriteria = Object.keys(definition.where).length > 0
+            ? {
+                and: [
+                  definition.where,
+                  { [definition.primaryKey]: definition.selectedId }
+                ]
+              }
+            : { [definition.primaryKey]: definition.selectedId };
+          const selectedInScope = definition.scopeReady
+            ? await model
+                .findOne(selectedCriteria)
+                .select(fields)
+            : null;
+          const selected = selectedInScope || await model
             .findOne({
               [definition.primaryKey]: definition.selectedId
             })
             .select(fields);
-          if (selected) records.unshift(selected);
+          if (selected) {
+            records.unshift({
+              ...selected,
+              __bridgeOutOfScope: !selectedInScope
+            });
+          }
         }
         options[definition.alias] = records.map((record) => ({
           id: record[definition.primaryKey],
           label: record[definition.title] == null
             ? '#' + record[definition.primaryKey]
-            : String(record[definition.title])
+            : String(record[definition.title]),
+          ...(record.__bridgeOutOfScope ? { outOfScope: true } : {})
         }));
       }
 

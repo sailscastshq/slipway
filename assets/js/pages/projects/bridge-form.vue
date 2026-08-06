@@ -164,6 +164,8 @@ function serverFieldName(field) {
 
 function validateField(field) {
   const attr = field.attr
+  const scopeError = relationshipScopeError(field)
+  if (scopeError) return scopeError
   if (
     attr.field?.type === 'richtext' &&
     attr.field?.format?.toLowerCase() === 'markdown' &&
@@ -176,6 +178,16 @@ function validateField(field) {
     value: formValues.value[field.name],
     isEdit: isEdit.value
   })
+}
+
+function relationshipScopeError(field) {
+  if (!field.attr.isBelongsTo) return ''
+  const value = formValues.value[field.name]
+  const selected = (props.assocOptions?.[field.name] || []).find(
+    (option) => String(option.id) === String(value)
+  )
+  if (!selected?.outOfScope) return ''
+  return `${field.attr.label || field.name} is outside the available choices.`
 }
 
 function validateAndRemember(field, validateOnServer = true) {
@@ -192,13 +204,51 @@ function validateAndRemember(field, validateOnServer = true) {
 }
 
 function updateField(field, value) {
+  const previous = formValues.value[field.name]
   formValues.value[field.name] = value
-  if (formErrors.value[field.name]) validateAndRemember(field, false)
+  if (!sameRelationshipValue(previous, value)) {
+    clearDependentRelationshipValues(field.name)
+  }
+  if (formErrors.value[serverFieldName(field)]) {
+    validateAndRemember(field, false)
+  }
   revalidateWhenInvalid(serverFieldName(field))
 }
 
+function clearDependentRelationshipValues(sourceField) {
+  const queue = [sourceField]
+  const cleared = new Set()
+
+  while (queue.length > 0) {
+    const source = queue.shift()
+    for (const candidate of editableFields.value) {
+      if (
+        cleared.has(candidate.name) ||
+        !relationshipDependencyFields(candidate).includes(source)
+      ) {
+        continue
+      }
+      cleared.add(candidate.name)
+      if (hasRelationshipValue(formValues.value[candidate.name])) {
+        formValues.value[candidate.name] = ''
+        clearFieldError(candidate)
+      }
+      queue.push(candidate.name)
+    }
+  }
+}
+
+function sameRelationshipValue(left, right) {
+  if (!hasRelationshipValue(left) && !hasRelationshipValue(right)) return true
+  return String(left) === String(right)
+}
+
+function hasRelationshipValue(value) {
+  return value !== undefined && value !== null && value !== ''
+}
+
 function clearFieldError(field) {
-  delete formErrors.value[field.name]
+  delete formErrors.value[serverFieldName(field)]
   form.clearErrors(serverFieldName(field))
 }
 
@@ -242,15 +292,60 @@ function uploadUrl(field) {
 
 function relationshipSearchUrl(field) {
   if (!field.attr.isBelongsTo) return ''
+  const dependencies = relationshipDependencyFields(field)
+  const dependencyValues = {}
+  for (const dependency of dependencies) {
+    const value = formValues.value[dependency]
+    if (!hasRelationshipValue(value)) return ''
+    dependencyValues[dependency] = value
+  }
   const params = new URLSearchParams({
     surface: isEdit.value ? 'edit' : 'create'
   })
+  if (dependencies.length > 0) {
+    params.set('dependencies', JSON.stringify(dependencyValues))
+  }
   if (isEdit.value && props.recordId !== null) {
     params.set('recordId', String(props.recordId))
   }
   return `${bridgeApiBasePath.value}/${
     props.modelIdentity
   }/relationships/${encodePathSegment(field.name)}/options?${params.toString()}`
+}
+
+function relationshipDependencyFields(field) {
+  return Object.values(field.attr.field?.relation?.where || {})
+    .map((constraint) => constraint?.fromField)
+    .filter(Boolean)
+}
+
+function relationshipDisabledReason(field) {
+  const dependency = relationshipDependencyFields(field).find(
+    (name) => !hasRelationshipValue(formValues.value[name])
+  )
+  if (!dependency) return ''
+  const label = props.modelMeta?.attributes?.[dependency]?.label || dependency
+  return `Choose ${label.toLowerCase()} first`
+}
+
+function relationshipSearchPlaceholder(field) {
+  const dependency = relationshipDependencyFields(field)[0]
+  if (!dependency) return ''
+  const sourceLabel =
+    props.modelMeta?.attributes?.[dependency]?.label || dependency
+  return `Search ${(
+    field.attr.label || field.name
+  ).toLowerCase()} in this ${sourceLabel.toLowerCase()}…`
+}
+
+function relationshipEmptyText(field) {
+  const dependency = relationshipDependencyFields(field)[0]
+  if (!dependency) return ''
+  const sourceLabel =
+    props.modelMeta?.attributes?.[dependency]?.label || dependency
+  return `No ${(
+    field.attr.label || field.name
+  ).toLowerCase()} available for this ${sourceLabel.toLowerCase()}`
 }
 
 function bridgeUrl() {
@@ -483,7 +578,8 @@ function recordUrl() {
               :field="field"
               :model-value="formValues[field.name]"
               :error="
-                formErrors[field.name] ||
+                relationshipScopeError(field) ||
+                formErrors[serverFieldName(field)] ||
                 form.errors[serverFieldName(field)] ||
                 ''
               "
@@ -492,6 +588,12 @@ function recordUrl() {
               :record-id="recordId"
               :association-options="assocOptions[field.name] || []"
               :association-search-url="relationshipSearchUrl(field)"
+              :association-disabled-reason="relationshipDisabledReason(field)"
+              :association-search-placeholder="
+                relationshipSearchPlaceholder(field)
+              "
+              :association-empty-text="relationshipEmptyText(field)"
+              :resource-relationships="modelMeta.relationships || {}"
               :upload-url="uploadUrl(field)"
               :upload-values="formValues"
               @update:model-value="updateField(field, $event)"

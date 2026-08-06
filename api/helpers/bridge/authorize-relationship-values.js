@@ -41,6 +41,7 @@ module.exports = {
     values
   }) {
     const definitions = []
+    const unresolved = {}
 
     for (const association of resource.associations || []) {
       if (
@@ -57,6 +58,19 @@ module.exports = {
         throw relationshipError(
           `Bridge relationship "${resource.identity}.${association.alias}" is unavailable.`
         )
+      }
+
+      const scope = await sails.helpers.bridge.resolveRelationshipScope.with({
+        resource,
+        relationship,
+        values
+      })
+      if (!scope.ready) {
+        const sourceField = scope.missing[0]
+        unresolved[association.alias] = `Choose ${
+          resource.attributes?.[sourceField]?.label || sourceField
+        } before ${relationship.label}.`
+        continue
       }
 
       let related
@@ -78,8 +92,22 @@ module.exports = {
         alias: association.alias,
         identity: related.resource.identity,
         primaryKey: related.resource.primaryKey,
-        id: values[association.alias]
+        id: values[association.alias],
+        where: scope.where,
+        invalidMessage: relationshipScopeMessage({
+          resource,
+          relationship
+        })
       })
+    }
+
+    if (Object.keys(unresolved).length > 0) {
+      const error = relationshipError(
+        'Some selected Bridge relationships need more context.'
+      )
+      error.code = 'BRIDGE_RELATIONSHIP_SCOPE_REQUIRED'
+      error.fieldErrors = unresolved
+      throw error
     }
 
     if (definitions.length === 0) return values
@@ -93,8 +121,12 @@ module.exports = {
         if (!model) {
           throw new Error('Configured Bridge relationship model is unavailable.');
         }
+        const identity = { [definition.primaryKey]: definition.id };
+        const criteria = Object.keys(definition.where).length > 0
+          ? { and: [definition.where, identity] }
+          : identity;
         const record = await model
-          .findOne({ [definition.primaryKey]: definition.id })
+          .findOne(criteria)
           .select([definition.primaryKey]);
         if (!record) missing.push(definition.alias);
       }
@@ -133,10 +165,14 @@ module.exports = {
         'Some selected Bridge relationships no longer exist.'
       )
       error.code = 'BRIDGE_RELATIONSHIP_NOT_FOUND'
+      const definitionsByAlias = new Map(
+        definitions.map((definition) => [definition.alias, definition])
+      )
       error.fieldErrors = Object.fromEntries(
         data.missing.map((alias) => [
           alias,
-          `${resource.attributes?.[alias]?.label || alias} no longer exists.`
+          definitionsByAlias.get(alias)?.invalidMessage ||
+            `${resource.attributes?.[alias]?.label || alias} is unavailable.`
         ])
       )
       throw error
@@ -150,4 +186,20 @@ function relationshipError(message) {
   const error = new Error(message)
   error.code = 'BRIDGE_RELATIONSHIP_NOT_ALLOWED'
   return error
+}
+
+function relationshipScopeMessage({ resource, relationship }) {
+  const dependency = Object.values(relationship.where || {}).find(
+    (constraint) => constraint?.fromField
+  )
+  if (dependency) {
+    const source = resource.attributes?.[dependency.fromField]
+    return `${relationship.label} is not available for the selected ${(
+      source?.label || dependency.fromField
+    ).toLowerCase()}.`
+  }
+  if (Object.keys(relationship.where || {}).length > 0) {
+    return `${relationship.label} is not eligible for this field.`
+  }
+  return `${relationship.label} no longer exists.`
 }

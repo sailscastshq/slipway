@@ -72,6 +72,8 @@ test(
     const creatorId = '018f2a5c-7b34-7f8a-9c12-4a73b9d80213'
     const chapterId = '018f2a5c-7b34-7f8a-9c12-4a73b9d80214'
     const lessonId = '018f2a5c-7b34-7f8a-9c12-4a73b9d80215'
+    const otherCourseId = '018f2a5c-7b34-7f8a-9c12-4a73b9d80217'
+    const otherChapterId = '018f2a5c-7b34-7f8a-9c12-4a73b9d80218'
     const records = [
       {
         id: courseRecordId,
@@ -150,6 +152,17 @@ test(
         })
       }
       if (code.includes('const options = {};')) {
+        const definitions = readEmbeddedValue(code, 'definitions')
+        if (definitions.some((definition) => definition.alias === 'chapter')) {
+          return successfulResult({
+            course: [
+              { id: courseRecordId, label: 'Build a production Sails app' },
+              { id: otherCourseId, label: 'Durable UI' }
+            ],
+            chapter: [],
+            creator: [{ id: creatorId, label: 'Ada Lovelace' }]
+          })
+        }
         return successfulResult({
           creator: [{ id: creatorId, label: 'Ada Lovelace' }]
         })
@@ -166,15 +179,43 @@ test(
               : {}
         })
       }
-      if (code.includes('const where = definition.query')) {
+      if (code.includes('const textSearch = definition.query')) {
         const definition = readEmbeddedValue(code, 'definition')
         if (definition.identity === 'user') {
+          expect(definition.where).toEqual({ role: 'admin' })
           return successfulResult({
             options: [
               {
                 id: creatorId,
                 label: 'Ada Lovelace',
                 attached: false
+              }
+            ],
+            page: definition.page,
+            limit: definition.limit,
+            hasMore: false
+          })
+        }
+        if (definition.identity === 'course') {
+          return successfulResult({
+            options: [
+              { id: courseRecordId, label: 'Build a production Sails app' },
+              { id: otherCourseId, label: 'Durable UI' }
+            ],
+            page: definition.page,
+            limit: definition.limit,
+            hasMore: false
+          })
+        }
+        if (definition.identity === 'chapter') {
+          const scopedToOtherCourse = definition.where.course === otherCourseId
+          return successfulResult({
+            options: [
+              {
+                id: scopedToOtherCourse ? otherChapterId : chapterId,
+                label: scopedToOtherCourse
+                  ? 'Durable form state'
+                  : 'The deployment path'
               }
             ],
             page: definition.page,
@@ -1077,6 +1118,68 @@ test(
         .click()
 
       await page.raw.emulateMedia({ colorScheme: 'light' })
+      await page.goto(`${bridgePath}/lesson/new`)
+      await page.wait('text=Create Lesson')
+      const courseSelect = page.raw.getByRole('combobox', { name: 'Course' })
+      const chapterSelect = page.raw.getByRole('combobox', { name: 'Chapter' })
+      const lessonCreatorSelect = page.raw.getByRole('combobox', {
+        name: 'Creator'
+      })
+
+      expect(await chapterSelect.isDisabled()).toBe(true)
+      await expect(chapterSelect).toHaveText('Choose course first')
+
+      await courseSelect.click()
+      await page.raw
+        .getByRole('option', {
+          name: 'Build a production Sails app',
+          exact: true
+        })
+        .click()
+      expect(await chapterSelect.isEnabled()).toBe(true)
+      await chapterSelect.click()
+      await page.wait('text=The deployment path')
+      await page.raw
+        .getByRole('option', { name: 'The deployment path', exact: true })
+        .click()
+      await expect(chapterSelect).toHaveText('The deployment path')
+
+      await courseSelect.click()
+      await page.raw
+        .getByRole('option', { name: 'Durable UI', exact: true })
+        .click()
+      await expect(chapterSelect).toHaveText('Select…')
+      await chapterSelect.click()
+      await page.wait('text=Durable form state')
+      expect(
+        await page.raw
+          .getByRole('option', { name: 'The deployment path', exact: true })
+          .count()
+      ).toBe(0)
+      await page.screenshot(
+        path.join(
+          relationshipScreenshotRoot,
+          'dependent-relationship-fields-light.png'
+        ),
+        { fullPage: true }
+      )
+      await page.raw.emulateMedia({ colorScheme: 'dark' })
+      await page.screenshot(
+        path.join(
+          relationshipScreenshotRoot,
+          'dependent-relationship-fields-dark.png'
+        ),
+        { fullPage: true }
+      )
+      await page.raw.emulateMedia({ colorScheme: 'light' })
+      await page.raw
+        .getByRole('option', { name: 'Durable form state', exact: true })
+        .click()
+
+      await lessonCreatorSelect.click()
+      await page.wait('text=Ada Lovelace')
+
+      await page.raw.emulateMedia({ colorScheme: 'light' })
       await page.goto(`${bridgePath}/user/${creatorId}`)
       await page.wait('text=Ada Lovelace')
       await expect(page).toSee('ada@example.com')
@@ -1335,7 +1438,10 @@ function resourceConfig() {
             help: 'Structured course metadata stored as JSON.'
           },
           creator: {
-            label: 'Creator'
+            label: 'Creator',
+            relation: {
+              where: { role: 'admin' }
+            }
           }
         }
       },
@@ -1367,7 +1473,23 @@ function resourceConfig() {
         group: 'Content',
         title: 'title',
         search: ['title'],
-        list: ['title']
+        list: ['title'],
+        create: ['title', 'course', 'chapter', 'creator'],
+        fields: {
+          chapter: {
+            relation: {
+              search: ['title'],
+              where: { course: { fromField: 'course' } }
+            }
+          },
+          creator: {
+            help: 'Only administrators can be creators.',
+            relation: {
+              search: ['fullName', 'email'],
+              where: { role: 'admin' }
+            }
+          }
+        }
       }
     }
   }
@@ -1471,6 +1593,11 @@ function resourceMetadata() {
           isEmail: true,
           required: true
         },
+        role: {
+          type: 'string',
+          isIn: ['student', 'admin'],
+          defaultsTo: 'student'
+        },
         githubAccessToken: {
           type: 'string'
         },
@@ -1535,7 +1662,18 @@ function resourceMetadata() {
         },
         course: {
           type: 'string',
-          model: 'course'
+          model: 'course',
+          required: true
+        },
+        chapter: {
+          type: 'string',
+          model: 'chapter',
+          required: true
+        },
+        creator: {
+          type: 'string',
+          model: 'user',
+          required: true
         }
       },
       associations: [
@@ -1543,6 +1681,16 @@ function resourceMetadata() {
           alias: 'course',
           type: 'model',
           model: 'course'
+        },
+        {
+          alias: 'chapter',
+          type: 'model',
+          model: 'chapter'
+        },
+        {
+          alias: 'creator',
+          type: 'model',
+          model: 'user'
         }
       ]
     }

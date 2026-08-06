@@ -26,6 +26,18 @@ const props = defineProps({
     type: Boolean,
     default: true
   },
+  placeholder: {
+    type: String,
+    default: ''
+  },
+  searchPlaceholder: {
+    type: String,
+    default: ''
+  },
+  emptyText: {
+    type: String,
+    default: ''
+  },
   required: Boolean,
   disabled: Boolean,
   invalid: Boolean,
@@ -49,6 +61,7 @@ const hasMore = ref(false)
 const openAbove = ref(false)
 let debounceTimer
 let requestController
+const optionCache = new Map()
 
 const allOptions = computed(() => {
   const merged = new Map()
@@ -77,6 +90,21 @@ watch(query, () => {
   clearTimeout(debounceTimer)
   debounceTimer = setTimeout(() => loadOptions(1), 180)
 })
+
+watch(
+  () => props.searchUrl,
+  (searchUrl, previousUrl) => {
+    if (searchUrl === previousUrl) return
+    clearTimeout(debounceTimer)
+    requestController?.abort()
+    query.value = ''
+    results.value = []
+    page.value = 1
+    hasMore.value = false
+    loadError.value = ''
+    if (searchUrl) void loadOptions(1)
+  }
+)
 
 async function showOptions() {
   if (props.disabled) return
@@ -112,6 +140,12 @@ async function loadOptions(nextPage, { append = false } = {}) {
     const url = new URL(props.searchUrl, window.location.origin)
     url.searchParams.set('q', query.value)
     url.searchParams.set('page', String(nextPage))
+    const cacheKey = url.toString()
+    if (optionCache.has(cacheKey)) {
+      applyOptions(optionCache.get(cacheKey), nextPage, append)
+      loading.value = false
+      return
+    }
     const response = await fetch(url, {
       headers: { Accept: 'application/json' },
       signal: controller.signal
@@ -120,11 +154,9 @@ async function loadOptions(nextPage, { append = false } = {}) {
     if (!response.ok) {
       throw new Error(data.error || 'Relationships could not be loaded.')
     }
-    results.value = append
-      ? [...results.value, ...(data.options || [])]
-      : data.options || []
-    page.value = data.page || nextPage
-    hasMore.value = data.hasMore === true
+    if (requestController !== controller) return
+    cacheOptions(cacheKey, data)
+    applyOptions(data, nextPage, append)
   } catch (error) {
     if (error.name !== 'AbortError') {
       loadError.value = error.message || 'Relationships could not be loaded.'
@@ -134,7 +166,22 @@ async function loadOptions(nextPage, { append = false } = {}) {
   }
 }
 
+function applyOptions(data, nextPage, append) {
+  results.value = append
+    ? [...results.value, ...(data.options || [])]
+    : data.options || []
+  page.value = data.page || nextPage
+  hasMore.value = data.hasMore === true
+}
+
+function cacheOptions(key, data) {
+  optionCache.set(key, data)
+  if (optionCache.size <= 100) return
+  optionCache.delete(optionCache.keys().next().value)
+}
+
 function choose(option) {
+  if (option?.outOfScope) return
   emit('update:modelValue', option ? option.id : '')
   hideOptions()
 }
@@ -180,7 +227,7 @@ onBeforeUnmount(() => {
           selected ? 'truncate' : 'truncate text-gray-400 dark:text-gray-500'
         "
       >
-        {{ selected?.label || (required ? 'Select…' : 'None') }}
+        {{ selected?.label || placeholder || (required ? 'Select…' : 'None') }}
       </span>
       <svg
         class="ml-3 h-4 w-4 shrink-0 text-gray-400 transition"
@@ -213,7 +260,7 @@ onBeforeUnmount(() => {
           ref="searchInput"
           v-model="query"
           :label="`Search ${label.toLowerCase()}`"
-          :placeholder="`Search ${label.toLowerCase()}…`"
+          :placeholder="searchPlaceholder || `Search ${label.toLowerCase()}…`"
           @keydown.esc.prevent="hideOptions"
         />
       </div>
@@ -242,7 +289,8 @@ onBeforeUnmount(() => {
           type="button"
           role="option"
           :aria-selected="String(option.id) === String(modelValue)"
-          class="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm text-gray-900 hover:bg-gray-50 dark:text-white dark:hover:bg-gray-800"
+          :disabled="option.outOfScope"
+          class="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm text-gray-900 hover:bg-gray-50 disabled:cursor-not-allowed disabled:text-amber-700 dark:text-white dark:hover:bg-gray-800 dark:disabled:text-amber-300"
           @click="choose(option)"
         >
           <span class="truncate">{{ option.label }}</span>
@@ -265,7 +313,11 @@ onBeforeUnmount(() => {
           v-if="!loading && !loadError && results.length === 0"
           class="px-3 py-6 text-center text-sm text-gray-400 dark:text-gray-500"
         >
-          No matching records
+          {{
+            query
+              ? `No matching ${label.toLowerCase()}`
+              : emptyText || `No ${label.toLowerCase()} available`
+          }}
         </p>
         <p
           v-if="loadError"

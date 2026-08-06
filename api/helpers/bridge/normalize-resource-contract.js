@@ -165,6 +165,7 @@ function normalizeBridgeResourceContract({ models, config = {} }) {
     'search',
     'fields',
     'limit',
+    'where',
     'attach',
     'detach'
   ]
@@ -278,6 +279,7 @@ function normalizeBridgeResourceContract({ models, config = {} }) {
       resources
     )
   }
+  validateRelationshipDependencyCycles(resources)
   for (const [identity, resource] of Object.entries(resources)) {
     validateUploadTemplateReferences(identity, resource, resources)
   }
@@ -784,6 +786,14 @@ function normalizeBridgeResourceContract({ models, config = {} }) {
         : configuredFields
       const defaultLimit = association.type === 'model' ? 20 : 5
       const limit = raw?.limit ?? defaultLimit
+      const where = normalizeRelationshipWhere({
+        identity,
+        alias: association.alias,
+        association,
+        value: raw?.where,
+        resource,
+        relatedResource
+      })
       const showByDefault =
         association.type === 'collection'
           ? true
@@ -812,6 +822,7 @@ function normalizeBridgeResourceContract({ models, config = {} }) {
         search: searchFields,
         fields,
         limit,
+        ...(where ? { where } : {}),
         attach:
           association.type === 'collection' &&
           !hidden &&
@@ -895,6 +906,201 @@ function normalizeBridgeResourceContract({ models, config = {} }) {
       throw new Error(
         `Bridge relationship "${identity}.${alias}" can enable attach or detach only for a collection association.`
       )
+    }
+    if (relation.where !== undefined && !isPlainObject(relation.where)) {
+      throw new Error(
+        `Bridge relationship "${identity}.${alias}".where must be an object.`
+      )
+    }
+  }
+
+  function normalizeRelationshipWhere({
+    identity,
+    alias,
+    association,
+    value,
+    resource,
+    relatedResource
+  }) {
+    if (value === undefined) return null
+    if (association.type !== 'model') {
+      throw new Error(
+        `Bridge relationship "${identity}.${alias}".where requires a belongs-to association.`
+      )
+    }
+    if (!isPlainObject(value)) {
+      throw new Error(
+        `Bridge relationship "${identity}.${alias}".where must be an object.`
+      )
+    }
+
+    const entries = Object.entries(value)
+    if (entries.length > 10) {
+      throw new Error(
+        `Bridge relationship "${identity}.${alias}".where may contain at most 10 fields.`
+      )
+    }
+
+    const where = {}
+    for (const [targetField, rawConstraint] of entries) {
+      if (
+        !/^[A-Za-z][A-Za-z0-9]*$/.test(targetField) ||
+        ['__proto__', 'constructor', 'prototype'].includes(targetField)
+      ) {
+        throw new Error(
+          `Bridge relationship "${identity}.${alias}".where references an invalid target field.`
+        )
+      }
+      const targetAttribute = relatedResource?.attributes?.[targetField]
+      if (!isRelationshipScopeAttribute(targetAttribute)) {
+        throw new Error(
+          `Bridge relationship "${identity}.${alias}".where references unavailable target field "${targetField}".`
+        )
+      }
+
+      if (isPlainObject(rawConstraint)) {
+        const keys = Object.keys(rawConstraint)
+        if (keys.length !== 1 || !['fromField', 'in'].includes(keys[0])) {
+          throw new Error(
+            `Bridge relationship "${identity}.${alias}".where.${targetField} must use only "fromField" or "in".`
+          )
+        }
+
+        if (keys[0] === 'fromField') {
+          const sourceField = readString(rawConstraint.fromField)
+          const sourceAttribute = sourceField
+            ? resource.attributes?.[sourceField]
+            : null
+          if (!sourceField || !isRelationshipScopeAttribute(sourceAttribute)) {
+            throw new Error(
+              `Bridge relationship "${identity}.${alias}".where.${targetField} references unavailable source field "${rawConstraint.fromField}".`
+            )
+          }
+          if (sourceAttribute.type !== targetAttribute.type) {
+            throw new Error(
+              `Bridge relationship "${identity}.${alias}".where.${targetField} cannot use "${sourceField}" because their field types are incompatible.`
+            )
+          }
+          for (const surface of ['create', 'edit']) {
+            if (
+              resource[surface].includes(alias) &&
+              !resource[surface].includes(sourceField)
+            ) {
+              throw new Error(
+                `Bridge relationship "${identity}.${alias}" depends on "${sourceField}", which is unavailable on the ${surface} form.`
+              )
+            }
+          }
+          where[targetField] = { fromField: sourceField }
+          continue
+        }
+
+        if (
+          !Array.isArray(rawConstraint.in) ||
+          rawConstraint.in.length === 0 ||
+          rawConstraint.in.length > 50
+        ) {
+          throw new Error(
+            `Bridge relationship "${identity}.${alias}".where.${targetField}.in must contain 1 to 50 values.`
+          )
+        }
+        where[targetField] = {
+          in: Array.from(
+            new Set(
+              rawConstraint.in.map((entry) =>
+                normalizeRelationshipScopeValue({
+                  identity,
+                  alias,
+                  targetField,
+                  attribute: targetAttribute,
+                  value: entry
+                })
+              )
+            )
+          )
+        }
+        continue
+      }
+
+      where[targetField] = normalizeRelationshipScopeValue({
+        identity,
+        alias,
+        targetField,
+        attribute: targetAttribute,
+        value: rawConstraint
+      })
+    }
+
+    return Object.keys(where).length > 0 ? where : null
+  }
+
+  function normalizeRelationshipScopeValue({
+    identity,
+    alias,
+    targetField,
+    attribute,
+    value
+  }) {
+    const valid =
+      (attribute.type === 'string' && typeof value === 'string') ||
+      (attribute.type === 'number' &&
+        typeof value === 'number' &&
+        Number.isFinite(value)) ||
+      (attribute.type === 'boolean' && typeof value === 'boolean')
+    if (!valid) {
+      throw new Error(
+        `Bridge relationship "${identity}.${alias}".where.${targetField} must use ${attribute.type} values.`
+      )
+    }
+    return value
+  }
+
+  function isRelationshipScopeAttribute(attribute) {
+    return Boolean(
+      attribute &&
+        !attribute.protect &&
+        !attribute.encrypt &&
+        attribute.sensitive !== true &&
+        ['string', 'number', 'boolean'].includes(attribute.type)
+    )
+  }
+
+  function validateRelationshipDependencyCycles(resources) {
+    for (const resource of Object.values(resources)) {
+      const graph = new Map()
+      for (const relationship of Object.values(resource.relationships || {})) {
+        if (relationship.type !== 'model') continue
+        graph.set(
+          relationship.alias,
+          Object.values(relationship.where || {})
+            .map((constraint) => constraint?.fromField)
+            .filter(
+              (field) => resource.relationships?.[field]?.type === 'model'
+            )
+        )
+      }
+
+      const visiting = new Set()
+      const visited = new Set()
+      const visit = (alias, path = []) => {
+        if (visiting.has(alias)) {
+          throw new Error(
+            `Bridge relationship dependencies contain a cycle: ${[
+              ...path,
+              alias
+            ].join(' -> ')}.`
+          )
+        }
+        if (visited.has(alias)) return
+        visiting.add(alias)
+        for (const dependency of graph.get(alias) || []) {
+          visit(dependency, [...path, alias])
+        }
+        visiting.delete(alias)
+        visited.add(alias)
+      }
+
+      for (const alias of graph.keys()) visit(alias)
     }
   }
 
