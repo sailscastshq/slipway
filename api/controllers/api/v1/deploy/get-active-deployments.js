@@ -49,6 +49,9 @@ module.exports = {
 
     // Get all apps for these environments (for app name enrichment)
     const apps = await App.find({ environment: environmentIds })
+    const currentDeploymentIds = apps
+      .map((app) => app.currentDeployment)
+      .filter(Boolean)
 
     // Enrich with project/environment/app info
     const enriched = []
@@ -67,9 +70,14 @@ module.exports = {
             apps.find((a) => a.environment === env.id)
         }
 
+        const outcome = sails.helpers.deployment.describeOutcome.with({
+          deployment,
+          currentDeploymentIds
+        })
+
         enriched.push({
           id: deployment.id,
-          status: deployment.status,
+          ...outcome,
           gitBranch: deployment.gitBranch,
           gitCommit: deployment.gitCommit
             ? deployment.gitCommit.slice(0, 7)

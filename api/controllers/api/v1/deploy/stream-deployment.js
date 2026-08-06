@@ -41,11 +41,13 @@ module.exports = {
 
     const stream = res.sse()
 
-    // Send initial status
-    stream.send({ status: deployment.status })
+    // Send initial lifecycle state and user-facing release outcome.
+    stream.send(await deploymentState(deployment))
 
     // If deployment is already complete, end immediately
-    if (['running', 'failed', 'cancelled'].includes(deployment.status)) {
+    if (
+      ['running', 'stopped', 'failed', 'cancelled'].includes(deployment.status)
+    ) {
       stream.close()
       return
     }
@@ -58,7 +60,15 @@ module.exports = {
         const current = await Deployment.findOne(id)
 
         if (!current) {
-          stream.send({ status: 'failed', error: 'Deployment not found' })
+          stream.send({
+            status: 'failed',
+            outcome: 'failed',
+            outcomeLabel: 'Failed',
+            isCurrent: false,
+            isActive: false,
+            appId: null,
+            error: 'Deployment not found'
+          })
           clearInterval(checkInterval)
           stream.close()
           return
@@ -67,7 +77,7 @@ module.exports = {
         // Send status update if changed
         if (current.status !== lastStatus) {
           lastStatus = current.status
-          stream.send({ status: current.status })
+          stream.send(await deploymentState(current))
         }
 
         // Stream new build log output if available
@@ -82,7 +92,9 @@ module.exports = {
         }
 
         // End stream when deployment is complete
-        if (['running', 'failed', 'cancelled'].includes(current.status)) {
+        if (
+          ['running', 'stopped', 'failed', 'cancelled'].includes(current.status)
+        ) {
           clearInterval(checkInterval)
           stream.close()
         }
@@ -97,4 +109,8 @@ module.exports = {
 
     return stream.wait()
   }
+}
+
+async function deploymentState(deployment) {
+  return await sails.helpers.deployment.resolveOutcome.with({ deployment })
 }

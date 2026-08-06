@@ -1,4 +1,5 @@
 const { test } = require('sounding')
+const path = require('node:path')
 
 async function seedHistory({ sails, world }) {
   const current = world.current
@@ -18,9 +19,9 @@ async function seedHistory({ sails, world }) {
     finishedAt: now - 90000,
     createdAt: now - 100000
   })
-  await world.create('deployment').with({
+  const previousRelease = await world.create('deployment').with({
     ...target,
-    status: 'stopped',
+    status: 'running',
     triggerType: 'webhook',
     gitMessage: 'Previous successful release',
     startedAt: now - 80000,
@@ -36,7 +37,7 @@ async function seedHistory({ sails, world }) {
     finishedAt: now - 45000,
     createdAt: now - 50000
   })
-  await world.create('deployment').with({
+  const buildingRelease = await world.create('deployment').with({
     ...target,
     status: 'building',
     triggerType: 'manual',
@@ -62,7 +63,11 @@ async function seedHistory({ sails, world }) {
   return {
     projectSlug: current.projects.deploymentTarget.slug,
     environmentSlug: current.environments.production.slug,
-    appSlug: current.apps.web.slug
+    appSlug: current.apps.web.slug,
+    currentReleaseId: currentRelease.id,
+    previousReleaseId: previousRelease.id,
+    buildingReleaseId: buildingRelease.id,
+    appId: current.apps.web.id
   }
 }
 
@@ -94,11 +99,11 @@ test(
     await page.wait('@active-deployment-row')
     await page.wait('@failed-deployment-row')
     await expect(page).toSee('Deployments')
-    await expect(page).toSee('Running')
+    await expect(page).toSee('Current')
     await expect(page).toSee('Building')
     await expect(page).toSee('Queued')
     await expect(page).toSee('Failed')
-    await expect(page).toSee('Stopped')
+    await expect(page).toSee('Succeeded')
     await expect(page).toSee('main')
     await expect(page).toSee('c0ffee1')
 
@@ -109,10 +114,12 @@ test(
     )
     expect(rows.length).toBe(5)
     expect(rows[0].includes('Building')).toBe(true)
-    expect(rows[1].includes('Running')).toBe(true)
+    expect(rows[1].includes('Current')).toBe(true)
     expect(rows[2].includes('Queued')).toBe(true)
     expect(rows[3].includes('Failed')).toBe(true)
-    expect(rows[4].includes('Stopped')).toBe(true)
+    expect(rows[4].includes('Succeeded')).toBe(true)
+    expect(rows.filter((row) => row.includes('Current')).length).toBe(1)
+    expect(rows.some((row) => row.includes('Running'))).toBe(false)
 
     const deploymentToasts = await page.raw
       .locator('.pointer-events-none.fixed.bottom-4.right-4')
@@ -121,8 +128,34 @@ test(
       deploymentToasts.indexOf('Building') < deploymentToasts.indexOf('Queued')
     ).toBe(true)
 
-    await page.screenshot('.tmp/deployment-queue-order.png', {
-      fullPage: true
+    await page.raw
+      .locator('.pointer-events-none.fixed.bottom-4.right-4')
+      .evaluate((element) => element.setAttribute('hidden', ''))
+    await page.raw
+      .locator('[data-testid="deployment-history-section"]')
+      .screenshot({
+        path: path.resolve('.tmp/issue-377-deployment-outcomes.png')
+      })
+
+    // A completed SSE transition must transfer the Current outcome without
+    // briefly leaving the previous traffic owner presented as Current.
+    await sails.models.app.updateOne({ id: target.appId }).set({
+      currentDeployment: target.buildingReleaseId,
+      lastDeployedAt: Date.now()
+    })
+    await sails.models.deployment
+      .updateOne({ id: target.buildingReleaseId })
+      .set({ status: 'running', finishedAt: Date.now() })
+
+    await page.raw.waitForFunction(() => {
+      const rows = [
+        ...document.querySelectorAll('[data-testid="deployment-row"]')
+      ].map((row) => row.textContent)
+      return (
+        rows.filter((row) => row.includes('Current')).length === 1 &&
+        rows.filter((row) => row.includes('Succeeded')).length >= 2 &&
+        rows.every((row) => !row.includes('Running'))
+      )
     })
     expect(page).toHaveNoJavascriptErrors()
   }
@@ -143,11 +176,11 @@ test(
     await page.wait('@deployment-history')
     await page.wait('@active-deployment-row')
     await expect(page).toSee('Deployments')
-    await expect(page).toSee('Running')
+    await expect(page).toSee('Current')
     await expect(page).toSee('Building')
     await expect(page).toSee('Queued')
     await expect(page).toSee('Failed')
-    await expect(page).toSee('Stopped')
+    await expect(page).toSee('Succeeded')
     expect(page).toHaveNoJavascriptErrors()
   }
 )

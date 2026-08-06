@@ -58,6 +58,26 @@ module.exports = {
 
     // Get Docker health status for all apps
     const apps = await App.find({ environment: environment.id })
+    const currentDeploymentIds = apps
+      .map((app) => app.currentDeployment)
+      .filter(Boolean)
+    const defaultApp = apps.find((app) => app.isDefault) || apps[0] || null
+    const deployments = (environment.deployments || []).map((deployment) => {
+      const deploymentApp = deployment.app
+        ? apps.find(
+            (app) =>
+              String(app.id) === String(deployment.app?.id || deployment.app)
+          )
+        : defaultApp
+      return {
+        ...deployment,
+        ...sails.helpers.deployment.describeOutcome.with({
+          deployment,
+          currentDeploymentIds
+        }),
+        appId: deploymentApp?.id || null
+      }
+    })
     const appsWithHealth = []
     for (const a of apps) {
       let containerHealth = null
@@ -85,6 +105,7 @@ module.exports = {
         generatedDomain,
         domains,
         app: appsWithHealth,
+        deployments,
         containerHealth: appsWithHealth[0]?.containerHealth || null
       }
     }

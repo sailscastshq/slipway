@@ -49,11 +49,14 @@ module.exports = {
 
     const duration = Deployment.getDuration(deployment)
     const queuePosition = await DeploymentJob.getQueuePosition(deployment.id)
+    const outcome = await sails.helpers.deployment.resolveOutcome.with({
+      deployment
+    })
 
     return {
       deployment: {
         id: deployment.id,
-        status: deployment.status,
+        ...outcome,
         gitCommit: deployment.gitCommit,
         gitBranch: deployment.gitBranch,
         gitMessage: deployment.gitMessage,

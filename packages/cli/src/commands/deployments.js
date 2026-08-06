@@ -64,7 +64,7 @@ export default async function deployments(options) {
 
     const rows = limited.map((d) => [
       String(d.id),
-      statusColor(d.status),
+      statusColor(d.outcome || d.status, d.outcomeLabel || d.status),
       d.environment,
       d.gitBranch || '-',
       d.gitCommit ? d.gitCommit.substring(0, 7) : '-',

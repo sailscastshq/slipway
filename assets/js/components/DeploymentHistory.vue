@@ -73,9 +73,22 @@ function refreshHistory() {
   })
 }
 
-function patchStatus(deploymentId, status) {
-  const patch = (deployment) =>
-    deployment.id === deploymentId ? { ...deployment, status } : deployment
+function patchState(deploymentId, state) {
+  const patch = (deployment) => {
+    const sameApp =
+      state.appId && String(deployment.app?.id || '') === String(state.appId)
+    const demoted =
+      state.isCurrent && sameApp && deployment.id !== deploymentId
+        ? {
+            ...deployment,
+            isCurrent: false,
+            outcome: 'succeeded',
+            outcomeLabel: 'Succeeded'
+          }
+        : deployment
+
+    return deployment.id === deploymentId ? { ...demoted, ...state } : demoted
+  }
 
   deployments.value = deployments.value.map(patch)
   activeDeployments.value = activeDeployments.value.map(patch)
@@ -111,7 +124,14 @@ function connectActiveDeployments() {
         const data = JSON.parse(event.data)
         if (!data.status) return
 
-        patchStatus(deployment.id, data.status)
+        patchState(deployment.id, {
+          status: data.status,
+          outcome: data.outcome,
+          outcomeLabel: data.outcomeLabel,
+          isCurrent: data.isCurrent,
+          isActive: data.isActive,
+          appId: data.appId
+        })
 
         if (
           ['running', 'failed', 'cancelled', 'stopped'].includes(data.status)
@@ -154,68 +174,36 @@ onBeforeUnmount(() => {
   activeSources.clear()
 })
 
-function statusBadge(status) {
+function outcomeBadge(deployment) {
   const map = {
-    running: {
-      label: 'Running',
+    current: {
       classes:
-        'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+        'bg-emerald-100 text-emerald-800 ring-1 ring-inset ring-emerald-600/20 dark:bg-emerald-900/30 dark:text-emerald-300 dark:ring-emerald-400/20'
     },
-    building: {
-      label: 'Building',
+    succeeded: {
       classes:
-        'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+        'bg-gray-100 text-gray-700 ring-1 ring-inset ring-gray-500/15 dark:bg-gray-800 dark:text-gray-300 dark:ring-gray-400/20'
     },
-    pushing: {
-      label: 'Pushing',
+    'in-progress': {
       classes:
-        'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
-    },
-    deploying: {
-      label: 'Deploying',
-      classes:
-        'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
-    },
-    pending: {
-      label: 'Queued',
-      classes:
-        'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'
+        'bg-blue-100 text-blue-700 ring-1 ring-inset ring-blue-600/20 dark:bg-blue-900/30 dark:text-blue-300 dark:ring-blue-400/20'
     },
     failed: {
-      label: 'Failed',
-      classes: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
-    },
-    stopped: {
-      label: 'Stopped',
-      classes: 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'
+      classes:
+        'bg-red-100 text-red-700 ring-1 ring-inset ring-red-600/20 dark:bg-red-900/30 dark:text-red-300 dark:ring-red-400/20'
     },
     cancelled: {
-      label: 'Cancelled',
-      classes: 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'
-    },
-    creating: {
-      label: 'Creating',
       classes:
-        'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+        'bg-gray-100 text-gray-600 ring-1 ring-inset ring-gray-500/15 dark:bg-gray-800 dark:text-gray-400 dark:ring-gray-400/20'
     }
   }
 
-  return (
-    map[status] || {
-      label: status,
-      classes: 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'
-    }
-  )
-}
-
-function statusDotClasses(status) {
-  if (status === 'running') return 'bg-green-500'
-  if (status === 'failed') return 'bg-red-500'
-  if (['building', 'pushing', 'deploying'].includes(status)) {
-    return 'bg-blue-500'
+  return {
+    label: deployment.outcomeLabel || deployment.status,
+    classes:
+      map[deployment.outcome]?.classes ||
+      'bg-gray-100 text-gray-600 ring-1 ring-inset ring-gray-500/15 dark:bg-gray-800 dark:text-gray-400 dark:ring-gray-400/20'
   }
-  if (['cancelled', 'stopped'].includes(status)) return 'bg-gray-400'
-  return 'bg-yellow-500'
 }
 
 function timeAgo(date) {
@@ -239,18 +227,17 @@ function timeAgo(date) {
 }
 
 function deploymentTestId(deployment) {
-  if (deployment.status === 'failed') return 'failed-deployment-row'
-  if (
-    ['pending', 'building', 'pushing', 'deploying'].includes(deployment.status)
-  ) {
-    return 'active-deployment-row'
-  }
+  if (deployment.outcome === 'failed') return 'failed-deployment-row'
+  if (deployment.isActive) return 'active-deployment-row'
   return 'deployment-history-row'
 }
 </script>
 
 <template>
-  <div v-if="deployments.length > 0 || !hideWhenEmpty">
+  <div
+    v-if="deployments.length > 0 || !hideWhenEmpty"
+    data-testid="deployment-history-section"
+  >
     <h2 class="mb-4 text-sm font-medium text-gray-900 dark:text-white">
       {{ title }}
     </h2>
@@ -276,12 +263,6 @@ function deploymentTestId(deployment) {
         >
           <div class="flex items-center space-x-3">
             <span
-              :class="[
-                'h-2 w-2 rounded-full',
-                statusDotClasses(deployment.status)
-              ]"
-            ></span>
-            <span
               v-if="showEnvironment"
               class="text-sm text-gray-900 dark:text-white"
             >
@@ -290,11 +271,11 @@ function deploymentTestId(deployment) {
             <span
               v-if="showStatus"
               :class="[
-                'inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium',
-                statusBadge(deployment.status).classes
+                'inline-flex items-center whitespace-nowrap rounded-md px-2 py-0.5 text-xs font-medium',
+                outcomeBadge(deployment).classes
               ]"
             >
-              {{ statusBadge(deployment.status).label }}
+              {{ outcomeBadge(deployment).label }}
             </span>
             <span
               v-if="deployment.app?.name"

@@ -32,32 +32,6 @@ function decodeCursor(cursor) {
   }
 }
 
-function outcomeFor(deployment, isCurrent) {
-  if (isCurrent) return { key: 'current', label: 'Current' }
-
-  const activeLabels = {
-    pending: 'Queued',
-    building: 'Building',
-    pushing: 'Publishing',
-    deploying: 'Deploying'
-  }
-
-  if (activeLabels[deployment.status]) {
-    return { key: 'in-progress', label: activeLabels[deployment.status] }
-  }
-  if (SUCCESS_STATUSES.includes(deployment.status)) {
-    return { key: 'succeeded', label: 'Succeeded' }
-  }
-  if (deployment.status === 'failed') {
-    return { key: 'failed', label: 'Failed' }
-  }
-  if (deployment.status === 'cancelled') {
-    return { key: 'cancelled', label: 'Cancelled' }
-  }
-
-  return { key: 'neutral', label: deployment.status }
-}
-
 function titleFor(deployment) {
   if (deployment.gitMessage) return deployment.gitMessage
   if (deployment.triggerType === 'webhook') return 'Git deployment'
@@ -98,18 +72,16 @@ function serializeDeployment({
     appById.get(appId) ||
     defaultAppByEnvironment.get(environmentId) ||
     null
-  const isCurrent = currentDeploymentIds.has(Number(deployment.id))
-  const outcome = outcomeFor(deployment, isCurrent)
+  const state = sails.helpers.deployment.describeOutcome.with({
+    deployment,
+    currentDeploymentIds: [...currentDeploymentIds]
+  })
   const duration = Deployment.getDuration(deployment)
 
   return {
     id: deployment.id,
     title: titleFor(deployment),
-    status: deployment.status,
-    outcome: outcome.key,
-    outcomeLabel: outcome.label,
-    isCurrent,
-    isActive: ACTIVE_STATUSES.includes(deployment.status),
+    ...state,
     gitCommit: deployment.gitCommit,
     gitBranch: deployment.gitBranch,
     source: deployment.triggerType,
@@ -336,10 +308,11 @@ module.exports = {
         health:
           currentApp?.containerHealth === 'unhealthy'
             ? 'Unhealthy'
-            : currentApp?.status === 'running'
+            : currentApp?.containerHealth === 'healthy' ||
+              currentApp?.containerRunning === true
             ? 'Healthy'
-            : currentApp?.status
-            ? currentApp.status[0].toUpperCase() + currentApp.status.slice(1)
+            : currentApp?.status === 'stopped'
+            ? 'Stopped'
             : 'Unknown',
         appHref:
           serialized.environment && serialized.app
@@ -395,7 +368,6 @@ module.exports = {
     ACTIVE_STATUSES,
     decodeCursor,
     encodeCursor,
-    outcomeFor,
     serializeDeployment
   }
 }

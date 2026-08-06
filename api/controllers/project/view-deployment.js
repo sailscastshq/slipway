@@ -55,13 +55,9 @@ module.exports = {
     const duration = Deployment.getDuration(deployment)
     const queuePosition = await DeploymentJob.getQueuePosition(deployment.id)
 
-    // Check if this is the currently active deployment
-    const app =
-      (await App.findOne({ environment: environment.id, isDefault: true })) ||
-      (await App.findOne({ environment: environment.id }))
-    const isCurrentDeployment = app
-      ? app.currentDeployment === deployment.id
-      : false
+    const outcome = await sails.helpers.deployment.resolveOutcome.with({
+      deployment
+    })
 
     return {
       page: 'projects/deployment',
@@ -72,7 +68,8 @@ module.exports = {
           ...deployment,
           duration,
           queuePosition,
-          isCurrentDeployment,
+          ...outcome,
+          isCurrentDeployment: outcome.isCurrent,
           triggeredBy: deployment.triggeredBy
             ? {
                 id: deployment.triggeredBy.id,

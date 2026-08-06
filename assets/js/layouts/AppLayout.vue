@@ -211,13 +211,13 @@ const { close: disconnectDeploymentStream } = useEventSource(
   }
 )
 
-function updateDeploymentStatus({ deploymentId, status }) {
+function updateDeploymentStatus({ deploymentId, ...state }) {
   const deployment = activeDeployments.value.find(
     ({ id }) => String(id) === String(deploymentId)
   )
-  if (deployment) deployment.status = status
+  if (deployment) Object.assign(deployment, state)
 
-  deploymentFavicon.noteDeploymentStatus(deploymentId, status)
+  deploymentFavicon.noteDeploymentStatus(deploymentId, state.status)
 }
 
 function dismissDeployment(deploymentId) {
