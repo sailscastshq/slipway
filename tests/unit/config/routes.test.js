@@ -29,6 +29,11 @@ test('browser actions and JSON transports have explicit route contracts', ({
   ).toBe('project/content-upload-image')
   expect(
     routes[
+      'POST /api/v1/projects/:slug/environments/:envSlug/apps/:appSlug/bearing/updates/images'
+    ]
+  ).toBe('project/upload-bearing-update-image')
+  expect(
+    routes[
       'GET /api/v1/projects/:slug/environments/:envSlug/bridge/:modelIdentity/relationships/:relationshipAlias/options'
     ]
   ).toBe('project/bridge-relationship-options')

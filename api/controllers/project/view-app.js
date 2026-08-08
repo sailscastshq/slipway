@@ -247,7 +247,8 @@ module.exports = {
         checklist,
         sourceReadiness,
         releaseFlags,
-        canManageBridge: ['owner', 'admin'].includes(user.teamRole)
+        canManageBridge: ['owner', 'admin'].includes(user.teamRole),
+        canManageBearing: ['owner', 'admin'].includes(user.teamRole)
       }
     }
   }
@@ -265,7 +266,13 @@ function omitPrivateEnvironmentFields(environment) {
 }
 
 function omitPrivateAppFields(app) {
-  const { envVars, secureEnvVars, envVarMetadata, bridgeSecret, ...publicApp } =
-    app
+  const {
+    envVars,
+    secureEnvVars,
+    envVarMetadata,
+    bridgeSecret,
+    bearingSecret,
+    ...publicApp
+  } = app
   return publicApp
 }

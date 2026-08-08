@@ -169,6 +169,19 @@ module.exports = {
           await sails.helpers.bridge.ensureAppSecret(String(existingApp.id))
       }
 
+      if (existingApp?.bearingEnabled) {
+        const bearingHost =
+          sails.config.environment === 'production'
+            ? 'slipway'
+            : 'host.docker.internal'
+        envVars.SLIPWAY_BEARING_ENABLED = 'true'
+        envVars.SLIPWAY_BEARING_EXCHANGE_URL = `http://${bearingHost}:1337/api/v1/bearing/exchange`
+        envVars.SLIPWAY_BEARING_APP_ID = String(existingApp.id)
+        envVars.SLIPWAY_BEARING_ROUTE_PATH = existingApp.routePath || '/'
+        envVars.SLIPWAY_BEARING_SECRET =
+          await sails.helpers.bearing.ensureAppSecret(String(existingApp.id))
+      }
+
       const fingerprint =
         sails.helpers.configuration.fingerprintRuntimeConfig.with({
           values: envVars,

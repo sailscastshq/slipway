@@ -6,7 +6,8 @@ It currently provides:
 
 - automatic request, exception, Waterline, Quest, and cache telemetry for
   Lookout;
-- app-scoped boolean release flags with deterministic rollouts; and
+- app-scoped boolean release flags with deterministic rollouts;
+- app-owned Bearing feedback, roadmap, updates, and an optional widget; and
 - a secure app-local `/bridge` entry point for people who manage application
   data without receiving Slipway infrastructure access.
 
@@ -187,6 +188,69 @@ module.exports = {
 
 The helper must return `emailVerified: true`. Bridge fails closed when it cannot
 prove email verification.
+
+## Bearing
+
+Bearing gives each deployed app feedback, roadmap, and update pages on the
+app's own domain. Enable it from **App → Bearing**, choose who may participate,
+then redeploy once so Slipway can inject the app-scoped exchange credential.
+
+```text
+https://your-app.example.com/feedback
+https://your-app.example.com/roadmap
+https://your-app.example.com/updates
+```
+
+When the widget is enabled, the hook adds one same-origin, asynchronous
+bootstrap script to successful HTML responses. It does not edit the app's
+templates, weaken its Content Security Policy, block a request on Slipway, or
+render anything while the control plane says the widget is off. The capability
+document is refreshed in the background with release flags.
+
+The widget says **What's new** only when a published update is newer than the
+last update that visitor opened. Opening it stores that update's public ID as a
+local seen watermark. Its quiet lower-corner trigger opens a compact panel above
+the same button; while open, that trigger becomes **Close**. Escape, an outside
+click, or the panel's close control also dismisses it and returns focus. The
+trigger then disappears until another update is published. No published or
+unseen update means no injected UI is visible.
+
+### One host identity contract
+
+Bearing resolves the same verified host-app identity as Bridge, but creates a
+customer participant—not a Slipway user or Bridge access grant. Configure the
+identity mapping once at `slipway.identity`; either feature may still override
+it for an unusual app. Existing `slipway.bridge.identity` configuration remains
+the backward-compatible fallback.
+
+```js
+module.exports.slipway = {
+  identity: {
+    model: 'member',
+    sessionKey: 'memberId',
+    emailAttribute: 'emailAddress',
+    nameAttribute: 'name',
+    emailVerifiedAttribute: 'hasVerifiedEmail',
+    loginPath: '/sign-in'
+  }
+}
+```
+
+For tenant-aware or external authentication, let the app compute the login URL
+instead of teaching Slipway whether the route is `/login` or `/signin`:
+
+```js
+module.exports.slipway = {
+  identity: {
+    helper: 'slipway.identity',
+    loginHelper: 'slipway.loginUrl'
+  }
+}
+```
+
+The login helper receives `req`, `returnUrl`, and `feature`, and returns a safe
+local URL containing whatever redirect state the app needs. A static
+`loginPath` remains the conventional fallback.
 
 ## Security model
 

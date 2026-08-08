@@ -96,10 +96,6 @@ module.exports = {
     }
   },
 
-  sockets: {
-    onlyAllowOrigins: [process.env.SLIPWAY_URL]
-  },
-
   log: {
     level: 'info'
   },

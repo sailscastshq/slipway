@@ -91,7 +91,13 @@ module.exports = {
           // Container not found or inspect failed
         }
       }
-      const { envVars, secureEnvVars, bridgeSecret, ...publicApp } = a
+      const {
+        envVars,
+        secureEnvVars,
+        bridgeSecret,
+        bearingSecret,
+        ...publicApp
+      } = a
       appsWithHealth.push({ ...publicApp, containerHealth })
     }
 

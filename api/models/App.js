@@ -164,6 +164,23 @@ module.exports = {
       columnName: 'bridge_secret'
     },
 
+    bearingEnabled: {
+      type: 'boolean',
+      defaultsTo: false,
+      description: 'Whether app-owned Bearing surfaces are enabled',
+      columnName: 'bearing_enabled'
+    },
+
+    bearingSecret: {
+      type: 'string',
+      allowNull: true,
+      encrypt: true,
+      protect: true,
+      description:
+        'App-specific credential used for the host-to-Slipway Bearing exchange',
+      columnName: 'bearing_secret'
+    },
+
     // Associations
     environment: {
       model: 'environment',

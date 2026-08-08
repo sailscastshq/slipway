@@ -49,6 +49,7 @@ const props = defineProps({
     type: Object,
     default: () => ({})
   },
+  showUploadControl: Boolean,
   variant: {
     type: String,
     default: 'document',
@@ -105,9 +106,11 @@ const imageAlt = ref('')
 const uploading = ref(false)
 const uploadMessage = ref('')
 const uploadKind = ref('status')
+const uploadInput = ref(null)
 let uploadMessageTimeout
 
 const isField = computed(() => props.variant === 'field')
+const uploadAcceptValue = computed(() => props.uploadAccept.join(','))
 const sourcePlaceholder = computed(() =>
   isField.value
     ? 'Write Markdown…'
@@ -513,6 +516,15 @@ async function uploadImages(files, position, currentEditor) {
   }
 }
 
+function chooseImage() {
+  uploadInput.value?.click()
+}
+
+async function uploadSelectedImages(event) {
+  await uploadImages(event.target.files, null, editor.value)
+  event.target.value = ''
+}
+
 function formatUploadBytes(bytes) {
   if (bytes >= 1024 * 1024) {
     return `${Math.round(bytes / (1024 * 1024))} MB`
@@ -629,6 +641,44 @@ defineExpose({
         spellcheck="false"
         @input="updateSource"
       ></textarea>
+    </div>
+
+    <div
+      v-if="mode === 'visual' && showUploadControl && uploadsConfigured"
+      class="min-h-9 mt-2 flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400"
+    >
+      <input
+        ref="uploadInput"
+        :data-test="testHandle('image-input')"
+        type="file"
+        :accept="uploadAcceptValue"
+        multiple
+        class="sr-only"
+        @change="uploadSelectedImages"
+      />
+      <button
+        type="button"
+        :disabled="uploading"
+        class="min-h-9 inline-flex items-center gap-1.5 rounded-lg px-2 text-xs font-medium text-gray-700 transition hover:bg-gray-100 disabled:cursor-wait disabled:opacity-50 dark:text-gray-300 dark:hover:bg-gray-900"
+        @click="chooseImage"
+      >
+        <svg
+          class="size-4"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          aria-hidden="true"
+        >
+          <path
+            d="M4 16.5 8.5 12l3 3 2-2 6.5 6.5M7.5 8.5h.01M5 4h14a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1Z"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="1.5"
+          />
+        </svg>
+        {{ uploading ? 'Uploading…' : 'Add image' }}
+      </button>
+      <span>or paste and drop</span>
     </div>
 
     <BubbleMenu

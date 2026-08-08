@@ -28,6 +28,7 @@ const http = require('http')
 const https = require('https')
 const crypto = require('crypto')
 const { createReleaseFlags } = require('./lib/release-flags')
+const { injectBearingWidget } = require('./lib/bearing-widget')
 const buildFlagsEnabledHelper = require('./lib/helpers/flags/enabled')
 const {
   ACCESS_DENIED_MESSAGE,
@@ -44,12 +45,14 @@ module.exports = function defineSlipwayHook(sails) {
   // Config (populated in initialize)
   let config = {}
   let bridgeConfig = {}
+  let bearingConfig = {}
   let flagsConfig = {}
   let releaseFlags = null
 
   return {
     defaults: {
       slipway: {
+        identity: {},
         bridge: {
           enabled: false,
           loginPath: '/login',
@@ -62,6 +65,9 @@ module.exports = function defineSlipwayHook(sails) {
             emailVerifiedAttribute: 'emailVerified',
             verifiedEmailStatuses: ['verified', 'confirmed']
           }
+        },
+        bearing: {
+          enabled: false
         },
         flags: {
           enabled: true,
@@ -116,11 +122,30 @@ module.exports = function defineSlipwayHook(sails) {
         sails.config.slipway.bridge.routePath =
           process.env.SLIPWAY_BRIDGE_ROUTE_PATH
       }
+
+      if (process.env.SLIPWAY_BEARING_ENABLED === 'true') {
+        sails.config.slipway.bearing.enabled = true
+      }
+      if (process.env.SLIPWAY_BEARING_EXCHANGE_URL) {
+        sails.config.slipway.bearing.exchangeUrl =
+          process.env.SLIPWAY_BEARING_EXCHANGE_URL
+      }
+      if (process.env.SLIPWAY_BEARING_APP_ID) {
+        sails.config.slipway.bearing.appId = process.env.SLIPWAY_BEARING_APP_ID
+      }
+      if (process.env.SLIPWAY_BEARING_SECRET) {
+        sails.config.slipway.bearing.secret = process.env.SLIPWAY_BEARING_SECRET
+      }
+      if (process.env.SLIPWAY_BEARING_ROUTE_PATH) {
+        sails.config.slipway.bearing.routePath =
+          process.env.SLIPWAY_BEARING_ROUTE_PATH
+      }
     },
 
     initialize: function (done) {
-      config = sails.config.slipway.lookout
-      bridgeConfig = sails.config.slipway.bridge
+      config = sails.config.slipway.lookout || {}
+      bridgeConfig = sails.config.slipway.bridge || {}
+      bearingConfig = sails.config.slipway.bearing || {}
       flagsConfig = sails.config.slipway.flags || {
         enabled: true,
         refreshInterval: 15000,
@@ -139,12 +164,17 @@ module.exports = function defineSlipwayHook(sails) {
     routes: {
       before: {
         'all /*': function (req, res, next) {
-          // Skip if telemetry is not configured or disabled
-          if (
-            !config.telemetryUrl ||
-            !config.telemetryToken ||
-            !config.enabled
-          ) {
+          const telemetryEnabled = Boolean(
+            config.telemetryUrl && config.telemetryToken && config.enabled
+          )
+          const bearingCapability = releaseFlags?.getCapability('bearing')
+          const bearingWidgetEnabled = Boolean(
+            bearingConfig.enabled &&
+              bearingCapability?.enabled &&
+              bearingCapability?.widgetEnabled
+          )
+
+          if (!telemetryEnabled && !bearingWidgetEnabled) {
             return next()
           }
 
@@ -157,7 +187,7 @@ module.exports = function defineSlipwayHook(sails) {
           req._slipwaySpanId = spanId
 
           // Patch res.serverError to capture handled exceptions
-          if (config.captureExceptions) {
+          if (telemetryEnabled && config.captureExceptions) {
             const originalServerError = res.serverError
             if (typeof originalServerError === 'function') {
               res.serverError = function (data) {
@@ -183,11 +213,16 @@ module.exports = function defineSlipwayHook(sails) {
             // Restore immediately to prevent double-firing
             res.end = originalEnd
 
+            if (bearingWidgetEnabled) {
+              args = injectBearingWidget(req, res, args, bearingCapability)
+            }
+
             const duration = Date.now() - startTime
 
             // Skip health check and static asset requests
             const url = req.originalUrl || req.url
             if (
+              telemetryEnabled &&
               url !== '/health' &&
               !url.startsWith('/__') &&
               !url.match(/\.(js|css|png|jpg|svg|ico|map|woff|woff2)$/)
@@ -238,7 +273,8 @@ module.exports = function defineSlipwayHook(sails) {
       },
       after: {
         'GET /bridge': createBridgeRoute(false),
-        'GET /_slipway/bridge': createBridgeRoute(true)
+        'GET /_slipway/bridge': createBridgeRoute(true),
+        'GET /_slipway/bearing/identity': createBearingIdentityRoute()
       }
     },
 
@@ -284,18 +320,20 @@ module.exports = function defineSlipwayHook(sails) {
       }
 
       if (!identity) {
-        const loginPath = safeLocalPath(bridgeConfig.loginPath, '/login')
         let returnUrl = hostOrigin
           ? withBridgeRoutePrefix('/_slipway/bridge')
           : safeLocalPath(req.originalUrl, '/bridge')
         if (hostOrigin && typeof req.query?.invite === 'string') {
           returnUrl += `?invite=${encodeURIComponent(req.query.invite)}`
         }
-        return res.redirect(
-          `${
-            hostOrigin ? withBridgeRoutePrefix(loginPath) : loginPath
-          }?redirect=${encodeURIComponent(returnUrl)}`
-        )
+        const loginUrl = await resolveLoginUrl({
+          req,
+          featureConfig: bridgeConfig,
+          featureName: 'Bridge',
+          returnUrl,
+          prefixPath: hostOrigin ? withBridgeRoutePrefix : (path) => path
+        })
+        return res.redirect(loginUrl)
       }
 
       if (!identity.emailVerified) {
@@ -339,8 +377,92 @@ module.exports = function defineSlipwayHook(sails) {
     }
   }
 
+  function createBearingIdentityRoute() {
+    return async function proveBearingIdentity(req, res) {
+      if (!bearingConfig.enabled) return res.notFound()
+
+      if (
+        !bearingConfig.exchangeUrl ||
+        !bearingConfig.appId ||
+        !bearingConfig.secret
+      ) {
+        sails.log.warn(
+          'sails-hook-slipway: Bearing is enabled but its Slipway exchange credentials are unavailable.'
+        )
+        return res.serverError(
+          'Bearing is not configured for this deployment. Redeploy the app from Slipway.'
+        )
+      }
+
+      let identity
+      try {
+        identity = await resolveBridgeIdentity(req, bearingConfig, 'Bearing')
+      } catch (error) {
+        sails.log.warn(
+          `sails-hook-slipway: Could not resolve the Bearing participant: ${
+            error.message || error
+          }`
+        )
+        return res.forbidden('Bearing could not verify this account.')
+      }
+
+      if (!identity) {
+        const returnUrl = withBearingRoutePrefix('/_slipway/bearing/identity')
+        const loginUrl = await resolveLoginUrl({
+          req,
+          featureConfig: bearingConfig,
+          featureName: 'Bearing',
+          returnUrl,
+          prefixPath: withBearingRoutePrefix
+        })
+        return res.redirect(loginUrl)
+      }
+
+      if (!identity.emailVerified) {
+        return res.forbidden('Bearing requires a verified account.')
+      }
+
+      try {
+        const response = await requestJson({
+          url: bearingConfig.exchangeUrl,
+          token: bearingConfig.secret,
+          body: {
+            appId: String(bearingConfig.appId),
+            hostUser: identity
+          }
+        })
+        if (!response.launchUrl) {
+          throw new Error('Slipway did not return a Bearing launch URL.')
+        }
+        return res.redirect(response.launchUrl)
+      } catch (error) {
+        sails.log.warn(
+          `sails-hook-slipway: Bearing exchange failed: ${
+            error.message || error
+          }`
+        )
+        return res.serverError(
+          'Bearing could not contact Slipway. Try again in a moment.'
+        )
+      }
+    }
+  }
+
   function withBridgeRoutePrefix(path) {
     const routePath = String(bridgeConfig.routePath || '').replace(
+      /^\/+|\/+$/g,
+      ''
+    )
+    const normalizedPath = safeLocalPath(path, '/')
+    if (!routePath) return normalizedPath
+    const prefix = `/${routePath}`
+    return normalizedPath === prefix || normalizedPath.startsWith(`${prefix}/`)
+      ? normalizedPath
+      : `${prefix}${normalizedPath}`
+  }
+
+  function withBearingRoutePrefix(path) {
+    const routePath = String(bearingConfig.routePath || '').replace(
       /^\/+|\/+$/g,
       ''
     )
@@ -748,17 +870,25 @@ module.exports = function defineSlipwayHook(sails) {
     }
   }
 
-  async function resolveBridgeIdentity(req) {
-    const identityConfig = bridgeConfig.identity || {}
+  async function resolveBridgeIdentity(
+    req,
+    featureConfig = bridgeConfig,
+    featureName = 'Bridge'
+  ) {
+    const identityConfig = {
+      ...(bridgeConfig.identity || {}),
+      ...(sails.config.slipway.identity || {}),
+      ...(featureConfig.identity || {})
+    }
     if (identityConfig.helper) {
       const helper = resolveHelper(identityConfig.helper)
       if (!helper) {
         throw new Error(
-          `Configured Bridge identity helper "${identityConfig.helper}" is unavailable.`
+          `Configured ${featureName} identity helper "${identityConfig.helper}" is unavailable.`
         )
       }
       const resolved = await helper.with({ req })
-      return normalizeBridgeIdentity(resolved)
+      return normalizeBridgeIdentity(resolved, featureName)
     }
 
     const sessionKey = identityConfig.sessionKey || 'userId'
@@ -769,7 +899,7 @@ module.exports = function defineSlipwayHook(sails) {
     const model = sails.models[modelIdentity]
     if (!model) {
       throw new Error(
-        `Bridge identity model "${modelIdentity}" is unavailable.`
+        `${featureName} identity model "${modelIdentity}" is unavailable.`
       )
     }
 
@@ -789,19 +919,22 @@ module.exports = function defineSlipwayHook(sails) {
     ]
     if (!hasStatusAttribute && !hasVerifiedAttribute) {
       throw new Error(
-        `Bridge cannot prove email verification from "${modelIdentity}". Configure slipway.bridge.identity.helper.`
+        `${featureName} cannot prove email verification from "${modelIdentity}". Configure slipway.${featureName.toLowerCase()}.identity.helper.`
       )
     }
 
-    return normalizeBridgeIdentity({
-      id: user.id,
-      email: user[emailAttribute],
-      fullName: user[nameAttribute],
-      emailVerified:
-        (hasStatusAttribute &&
-          acceptedStatuses.includes(user[statusAttribute])) ||
-        (hasVerifiedAttribute && user[verifiedAttribute] === true)
-    })
+    return normalizeBridgeIdentity(
+      {
+        id: user.id,
+        email: user[emailAttribute],
+        fullName: user[nameAttribute],
+        emailVerified:
+          (hasStatusAttribute &&
+            acceptedStatuses.includes(user[statusAttribute])) ||
+          (hasVerifiedAttribute && user[verifiedAttribute] === true)
+      },
+      featureName
+    )
   }
 
   function resolveHelper(identity) {
@@ -810,7 +943,7 @@ module.exports = function defineSlipwayHook(sails) {
       .reduce((cursor, segment) => cursor && cursor[segment], sails.helpers)
   }
 
-  function normalizeBridgeIdentity(identity) {
+  function normalizeBridgeIdentity(identity, featureName = 'Bridge') {
     if (!identity || identity.id === undefined || identity.id === null) {
       return null
     }
@@ -819,7 +952,9 @@ module.exports = function defineSlipwayHook(sails) {
       .trim()
       .toLowerCase()
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      throw new Error('The Bridge identity helper returned an invalid email.')
+      throw new Error(
+        `The ${featureName} identity helper returned an invalid email.`
+      )
     }
 
     return {
@@ -836,6 +971,40 @@ module.exports = function defineSlipwayHook(sails) {
   function safeLocalPath(value, fallback) {
     const path = String(value || fallback)
     return path.startsWith('/') && !path.startsWith('//') ? path : fallback
+  }
+
+  async function resolveLoginUrl({
+    req,
+    featureConfig,
+    featureName,
+    returnUrl,
+    prefixPath
+  }) {
+    const identityConfig = {
+      ...(bridgeConfig.identity || {}),
+      ...(sails.config.slipway.identity || {}),
+      ...(featureConfig.identity || {})
+    }
+    const helperIdentity =
+      featureConfig.loginHelper || identityConfig.loginHelper
+    if (helperIdentity) {
+      const helper = resolveHelper(helperIdentity)
+      if (!helper) {
+        throw new Error(
+          `Configured ${featureName} login helper "${helperIdentity}" is unavailable.`
+        )
+      }
+      const value = await helper.with({ req, returnUrl, feature: featureName })
+      return safeLocalPath(value, returnUrl)
+    }
+
+    const loginPath = safeLocalPath(
+      featureConfig.loginPath ||
+        identityConfig.loginPath ||
+        bridgeConfig.loginPath,
+      '/login'
+    )
+    return `${prefixPath(loginPath)}?redirect=${encodeURIComponent(returnUrl)}`
   }
 
   function initializeReleaseFlags(done) {
@@ -871,7 +1040,11 @@ module.exports = function defineSlipwayHook(sails) {
         return done(error)
       }
 
-      if (flagsConfig.enabled && flagsConfig.url && flagsConfig.token) {
+      if (
+        (flagsConfig.enabled || bearingConfig.enabled) &&
+        flagsConfig.url &&
+        flagsConfig.token
+      ) {
         releaseFlags.refresh().catch(() => {})
       }
       return done()
