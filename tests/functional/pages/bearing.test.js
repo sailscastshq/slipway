@@ -437,6 +437,7 @@ test(
       'app.identityPath': '/_slipway/bearing/identity',
       'app.publicUrl': 'https://ideas.example.com/bearing/feedback',
       'app.ogImageUrl': 'https://ideas.example.com/bearing/feedback/og.png',
+      'realtime.socketPath': '/_slipway/bearing/socket.io',
       hostAssetBasePath: '/_slipway/bearing/_assets'
     })
 

@@ -81,8 +81,8 @@ function buildRealtimeConfig({
       origin,
       secret
     }),
-    socketPath: resolved.hostAssetBasePath
-      ? `${resolved.publicBasePath}/_slipway/bearing/socket.io`
+    socketPath: resolved.integrationBasePath
+      ? `${resolved.integrationBasePath}/socket.io`
       : '/socket.io',
     subscribePath: `/bearing/public/${encodeURIComponent(
       projectSlug
