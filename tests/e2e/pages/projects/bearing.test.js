@@ -300,6 +300,7 @@ test(
       await expect(
         page.raw.locator('[data-test="bearing-update-body-visual-editor"] img')
       ).toHaveAttribute('src', updateImageUrl, { timeout: 10_000 })
+      await expect(page.raw.getByRole('status')).toHaveText('Image added.')
       const updateTitle = page.raw.locator('#bearing-update-title')
       const updateExcerpt = page.raw.locator('#bearing-update-excerpt')
       await updateTitle.fill('Rich updates can carry images')
