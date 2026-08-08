@@ -171,10 +171,9 @@ module.exports = {
       // 7. Health-check the validation container
       await setProgress('validating', 'Health-checking new version')
       try {
-        await sails.helpers.docker.healthCheck.with({
+        await sails.helpers.docker.healthCheckContainer.with({
           containerName: 'slipway-next',
           port: 1337,
-          hostPort: tempPort,
           path: '/health',
           timeout: 60000,
           interval: 2000
