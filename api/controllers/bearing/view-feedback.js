@@ -122,6 +122,10 @@ module.exports = {
         viewerHasVoted: votedFeedbackIds.has(String(item.id))
       })
     )
+    const feedbackPath = `${resolved.publicBasePath}/feedback`
+    const publicPath = focusedFeedback
+      ? `${feedbackPath}/${encodeURIComponent(focusedFeedback.publicId)}`
+      : feedbackPath
 
     return {
       page: 'bearing/feedback',
@@ -129,10 +133,11 @@ module.exports = {
         hostAssetBasePath: resolved.hostAssetBasePath,
         app: {
           name: resolved.project.name,
-          feedbackPath: `${resolved.publicBasePath}/feedback`,
+          feedbackPath,
           roadmapPath: `${resolved.publicBasePath}/roadmap`,
           updatesPath: `${resolved.publicBasePath}/updates`,
           identityPath: `${resolved.publicBasePath}/_slipway/bearing/identity`,
+          publicUrl: absoluteUrl(this.req, publicPath),
           ogImageUrl: absoluteUrl(
             this.req,
             `${resolved.publicBasePath}/feedback/og.png`
@@ -240,6 +245,10 @@ function buildCriteria({ spaceId, filters }) {
 
 function absoluteUrl(req, path) {
   const protocol = req.get('x-forwarded-proto') || req.protocol || 'https'
-  const host = req.get('x-forwarded-host') || req.get('host')
+  const host =
+    req.get('x-forwarded-host') ||
+    req.get('host') ||
+    req.hostname ||
+    'localhost'
   return `${protocol}://${host}${path}`
 }

@@ -82,6 +82,10 @@ module.exports = {
           feedbackPath: `${resolved.publicBasePath}/feedback`,
           roadmapPath: `${resolved.publicBasePath}/roadmap`,
           updatesPath: `${resolved.publicBasePath}/updates`,
+          publicUrl: absoluteUrl(
+            this.req,
+            `${resolved.publicBasePath}/${surface}`
+          ),
           ogImageUrl: absoluteUrl(
             this.req,
             `${resolved.publicBasePath}/${surface}/og.png`
@@ -109,6 +113,10 @@ module.exports = {
 
 function absoluteUrl(req, path) {
   const protocol = req.get('x-forwarded-proto') || req.protocol || 'https'
-  const host = req.get('x-forwarded-host') || req.get('host')
+  const host =
+    req.get('x-forwarded-host') ||
+    req.get('host') ||
+    req.hostname ||
+    'localhost'
   return `${protocol}://${host}${path}`
 }

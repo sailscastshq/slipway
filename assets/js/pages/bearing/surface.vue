@@ -150,10 +150,20 @@ function isoDate(value) {
 
 <template>
   <Head :title="`${title} · ${app.name}`">
+    <meta name="description" :content="description" />
     <meta property="og:type" content="website" />
+    <meta property="og:site_name" :content="app.name" />
     <meta property="og:title" :content="`${title} · ${app.name}`" />
+    <meta property="og:description" :content="description" />
+    <meta property="og:url" :content="app.publicUrl" />
     <meta property="og:image" :content="app.ogImageUrl" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
     <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" :content="`${title} · ${app.name}`" />
+    <meta name="twitter:description" :content="description" />
+    <meta name="twitter:image" :content="app.ogImageUrl" />
+    <link rel="canonical" :href="app.publicUrl" />
   </Head>
   <div
     class="min-h-screen bg-white text-gray-950 dark:bg-gray-950 dark:text-white"

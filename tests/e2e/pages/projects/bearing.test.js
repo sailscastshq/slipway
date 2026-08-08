@@ -444,6 +444,23 @@ test(
     await page.resize(1440, 1000)
     await page.goto(publicPath)
     await page.raw.waitForTimeout(750)
+    const canonicalUrl = await page.raw
+      .locator('link[rel="canonical"]')
+      .getAttribute('href')
+    const ogUrl = await page.raw
+      .locator('meta[property="og:url"]')
+      .getAttribute('content')
+    const ogImageUrl = await page.raw
+      .locator('meta[property="og:image"]')
+      .getAttribute('content')
+    expect(canonicalUrl).toContain(publicPath)
+    expect(ogUrl).toBe(canonicalUrl)
+    expect(ogImageUrl).toContain(`${publicPath}/og.png`)
+    expect(
+      await page.raw
+        .locator('meta[name="twitter:image"]')
+        .getAttribute('content')
+    ).toBe(ogImageUrl)
     expect(
       await page.raw
         .locator('[data-bearing-realtime]')

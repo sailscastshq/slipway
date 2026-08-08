@@ -39,14 +39,21 @@ function longDate(value) {
   <Head :title="pageTitle">
     <meta head-key="description" name="description" :content="update.excerpt" />
     <meta head-key="og:type" property="og:type" content="article" />
+    <meta head-key="og:site_name" property="og:site_name" :content="app.name" />
     <meta head-key="og:title" property="og:title" :content="pageTitle" />
     <meta
       head-key="og:description"
       property="og:description"
       :content="update.excerpt"
     />
+    <meta head-key="og:url" property="og:url" :content="publicUrl" />
     <meta head-key="og:image" property="og:image" :content="ogImageUrl" />
+    <meta head-key="og:image:width" property="og:image:width" content="1200" />
+    <meta head-key="og:image:height" property="og:image:height" content="630" />
     <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" :content="pageTitle" />
+    <meta name="twitter:description" :content="update.excerpt" />
+    <meta name="twitter:image" :content="ogImageUrl" />
     <link rel="canonical" :href="publicUrl" />
   </Head>
 

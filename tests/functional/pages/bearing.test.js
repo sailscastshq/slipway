@@ -408,6 +408,8 @@ test(
       participant: null,
       'bearing.allowAnonymousParticipation': false,
       'app.feedbackPath': publicPath,
+      'app.publicUrl': `https://localhost${publicPath}`,
+      'app.ogImageUrl': `https://localhost${publicPath}/og.png`,
       hostAssetBasePath: ''
     })
 
@@ -422,6 +424,8 @@ test(
       'app.roadmapPath': '/roadmap',
       'app.updatesPath': '/updates',
       'app.identityPath': '/_slipway/bearing/identity',
+      'app.publicUrl': 'https://ideas.example.com/feedback',
+      'app.ogImageUrl': 'https://ideas.example.com/feedback/og.png',
       hostAssetBasePath: '/_slipway/bearing/_assets'
     })
 
@@ -510,6 +514,7 @@ test(
     expect(permalink).toHaveStatus(200)
     expect(permalink).toHaveInertiaProps({
       focusedFeedbackId: feedback.publicId,
+      'app.publicUrl': `https://localhost${publicPath}/${feedback.publicId}`,
       'feedback.data.0.publicId': feedback.publicId,
       'feedback.data.0.title': 'Let me choose a calmer notification sound'
     })
@@ -559,6 +564,8 @@ test(
     expect(archive).toHaveStatus(200)
     expect(archive).toBeInertiaPage('bearing/surface')
     expect(archive).toHaveInertiaProps({
+      'app.publicUrl': `https://localhost${updatesPath}`,
+      'app.ogImageUrl': `https://localhost${updatesPath}/og.png`,
       'items.0.slug': update.slug,
       'items.0.title': 'Calmer notifications have shipped'
     })
