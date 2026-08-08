@@ -189,6 +189,7 @@ module.exports = {
       envVars: legacyEnvVars,
       secureEnvVars,
       bridgeSecret,
+      bearingSecret,
       ...publicApp
     } = updated
     return { app: publicApp }

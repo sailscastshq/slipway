@@ -244,6 +244,67 @@ function buildRouteLabels({
   })
 
   for (const app of sorted) {
+    if (!app.bearingEnabled) continue
+
+    const routePrefix = normalizeRoutePrefix(app.routePath)
+    const bearingInternalPath = `${routePrefix}/_slipway/bearing`
+    const internalBasePath = `/bearing/public/${projectSlug}/${environmentSlug}/${app.slug}`
+
+    addHandle({
+      labels,
+      index: handleIndex++,
+      matcher: `${bearingInternalPath}/socket.io*`,
+      uri: `strip_prefix ${bearingInternalPath}`,
+      upstream: controlPlaneUpstream
+    })
+    addHandle({
+      labels,
+      index: handleIndex++,
+      matcher: `${bearingInternalPath}/identity`,
+      ...(routePrefix ? { uri: `strip_prefix ${routePrefix}` } : {}),
+      upstream: `${app.containerName}:${app.port}`
+    })
+    addHandle({
+      labels,
+      index: handleIndex++,
+      matcher: `${bearingInternalPath}/session`,
+      uri: `replace ${bearingInternalPath}/session /bearing/session`,
+      upstream: controlPlaneUpstream
+    })
+    addHandle({
+      labels,
+      index: handleIndex++,
+      matcher: `${bearingInternalPath}/_assets/*`,
+      uri: `strip_prefix ${bearingInternalPath}/_assets`,
+      upstream: controlPlaneUpstream
+    })
+    addHandle({
+      labels,
+      index: handleIndex++,
+      matcher: `${bearingInternalPath}/bootstrap.js`,
+      uri: `replace ${bearingInternalPath}/bootstrap.js ${internalBasePath}/bootstrap.js`,
+      upstream: controlPlaneUpstream
+    })
+    addHandle({
+      labels,
+      index: handleIndex++,
+      matcher: `${bearingInternalPath}/widget-config`,
+      uri: `replace ${bearingInternalPath}/widget-config ${internalBasePath}/widget-config`,
+      upstream: controlPlaneUpstream
+    })
+    for (const surface of ['feedback', 'roadmap', 'updates']) {
+      const publicPath = `${routePrefix}/${surface}`
+      addHandle({
+        labels,
+        index: handleIndex++,
+        matcher: `${publicPath}*`,
+        uri: `replace ${publicPath} ${internalBasePath}/${surface}`,
+        upstream: controlPlaneUpstream
+      })
+    }
+  }
+
+  for (const app of sorted) {
     if (!app.bridgeEnabled) continue
 
     const routePrefix = normalizeRoutePrefix(app.routePath)
@@ -301,7 +362,7 @@ function normalizeRoutePrefix(routePath) {
 
 function routeUpstreams(apps, controlPlaneUpstream) {
   const upstreams = apps.map((app) => `${app.containerName}:${app.port}`)
-  if (apps.some((app) => app.bridgeEnabled)) {
+  if (apps.some((app) => app.bridgeEnabled || app.bearingEnabled)) {
     upstreams.push(controlPlaneUpstream)
   }
   return [...new Set(upstreams)]

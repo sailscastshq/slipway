@@ -46,13 +46,33 @@ module.exports = {
       targets: flag.targets,
       version: flag.version
     }))
+    const bearingSpace = app.bearingEnabled
+      ? await BearingSpace.findOne({ app: app.id })
+      : null
+    const capabilities = {
+      bearing: bearingSpace
+        ? {
+            enabled: true,
+            widgetEnabled: bearingSpace.widgetEnabled,
+            routePrefix: normalizeRoutePrefix(app.routePath),
+            side: bearingSpace.widgetSide,
+            openingView: bearingSpace.widgetOpeningView,
+            showUnread: bearingSpace.showUnread
+          }
+        : { enabled: false, widgetEnabled: false }
+    }
     const version = crypto
       .createHash('sha256')
-      .update(JSON.stringify(compiled))
+      .update(JSON.stringify({ flags: compiled, capabilities }))
       .digest('hex')
       .slice(0, 16)
 
     this.res.set('Cache-Control', 'private, no-store')
-    return { version, flags: compiled }
+    return { version, flags: compiled, capabilities }
   }
+}
+
+function normalizeRoutePrefix(routePath) {
+  if (!routePath || routePath === '/') return ''
+  return `/${String(routePath).replace(/^\/+|\/+$/g, '')}`
 }

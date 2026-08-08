@@ -46,3 +46,23 @@ test('direct Slipway pages retain their ordinary asset paths', ({ expect }) => {
   expect(html).toContain('src="/js/app.js"')
   expect(html.includes('__SLIPWAY_ASSET_PREFIX__')).toBe(false)
 })
+
+test('Bearing public pages use the shared host asset prefix', ({ expect }) => {
+  const html = ejs.render(template, {
+    page: {
+      component: 'bearing/feedback',
+      props: {
+        hostAssetBasePath: '/academy/_slipway/bearing/_assets'
+      }
+    },
+    shipwright: {
+      styles: () => '<link rel="stylesheet" href="/css/app.css">',
+      scripts: () => '<script src="/js/app.js"></script>'
+    }
+  })
+
+  expect(html).toContain(
+    'window.__SLIPWAY_ASSET_PREFIX__ = "/academy/_slipway/bearing/_assets"'
+  )
+  expect(html).toContain('href="/academy/_slipway/bearing/_assets/css/app.css"')
+})

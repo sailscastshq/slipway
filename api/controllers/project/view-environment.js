@@ -245,7 +245,13 @@ function omitPrivateEnvironmentFields(environment) {
 }
 
 function omitPrivateAppFields(app) {
-  const { envVars, secureEnvVars, envVarMetadata, bridgeSecret, ...publicApp } =
-    app
+  const {
+    envVars,
+    secureEnvVars,
+    envVarMetadata,
+    bridgeSecret,
+    bearingSecret,
+    ...publicApp
+  } = app
   return publicApp
 }

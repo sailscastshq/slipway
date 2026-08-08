@@ -82,6 +82,15 @@ module.exports.policies = {
   // a short-lived, single-use launch code.
   'api/v1/bridge/exchange': 'rate-limit-bridge-exchange',
   'bridge/launch': true,
+  'api/v1/bearing/exchange': 'rate-limit-bridge-exchange',
+  'bearing/session': true,
+  'bearing/view-feedback': true,
+  'bearing/create-feedback': true,
+  'bearing/subscribe-realtime': true,
+  'bearing/view-social-image': true,
+  'bearing/view-surface': true,
+  'bearing/view-update': true,
+  'bearing/view-update-social-image': true,
 
   // Bridge pages accept either a Slipway operator session or the dedicated,
   // app-scoped host-user session created by bridge/launch.

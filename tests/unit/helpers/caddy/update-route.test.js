@@ -132,6 +132,69 @@ test('Bridge routes stay on the app origin and precede the app catch-all', ({
   ).toEqual(['durable-ui-admin:1337', 'slipway:1337'])
 })
 
+test('Bearing sends identity to the app before proxying its public surfaces', ({
+  expect
+}) => {
+  const helper = require(helperPath)
+  const labels = helper._private.buildRouteLabels({
+    projectSlug: 'durable-ui',
+    environmentSlug: 'production',
+    controlPlaneUpstream: 'slipway:1337',
+    routableApps: [
+      {
+        slug: 'admin',
+        routePath: '/admin',
+        bearingEnabled: true,
+        bridgeEnabled: false,
+        containerName: 'durable-ui-admin',
+        port: 1337
+      }
+    ]
+  })
+
+  expect(labels.slice(0, 9)).toEqual([
+    'caddy.handle_0=/admin/_slipway/bearing/socket.io*',
+    'caddy.handle_0.0_uri=strip_prefix /admin/_slipway/bearing',
+    'caddy.handle_0.1_reverse_proxy=slipway:1337',
+    'caddy.handle_1=/admin/_slipway/bearing/identity',
+    'caddy.handle_1.0_uri=strip_prefix /admin',
+    'caddy.handle_1.1_reverse_proxy=durable-ui-admin:1337',
+    'caddy.handle_2=/admin/_slipway/bearing/session',
+    'caddy.handle_2.0_uri=replace /admin/_slipway/bearing/session /bearing/session',
+    'caddy.handle_2.1_reverse_proxy=slipway:1337'
+  ])
+  expect(labels).toContain(
+    'caddy.handle_5=/admin/_slipway/bearing/widget-config'
+  )
+  expect(labels).toContain(
+    'caddy.handle_5.0_uri=replace /admin/_slipway/bearing/widget-config /bearing/public/durable-ui/production/admin/widget-config'
+  )
+  expect(labels).toContain('caddy.handle_6=/admin/feedback*')
+  expect(labels).toContain(
+    'caddy.handle_6.0_uri=replace /admin/feedback /bearing/public/durable-ui/production/admin/feedback'
+  )
+  expect(labels).toContain('caddy.handle_9=/admin*')
+  expect(
+    labels.indexOf('caddy.handle_1=/admin/_slipway/bearing/identity')
+  ).toBe(3)
+  expect(
+    labels.indexOf('caddy.handle_9=/admin*') >
+      labels.indexOf('caddy.handle_8=/admin/updates*')
+  ).toBe(true)
+  expect(
+    helper._private.routeUpstreams(
+      [
+        {
+          bearingEnabled: true,
+          containerName: 'durable-ui-admin',
+          port: 1337
+        }
+      ],
+      'slipway:1337'
+    )
+  ).toEqual(['durable-ui-admin:1337', 'slipway:1337'])
+})
+
 test(
   'candidate route verification failure removes the candidate and verifies the still-active previous route',
   { world: routeWorld('route-restoration') },

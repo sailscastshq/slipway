@@ -21,6 +21,10 @@ function createReleaseFlags(options = {}) {
       .then((payload) => {
         snapshot = {
           version: payload.version || null,
+          capabilities:
+            payload.capabilities && typeof payload.capabilities === 'object'
+              ? payload.capabilities
+              : {},
           flags: new Map(
             (Array.isArray(payload.flags) ? payload.flags : []).map((flag) => [
               flag.key,
@@ -82,7 +86,16 @@ function createReleaseFlags(options = {}) {
     )
   }
 
-  return { evaluate, refresh }
+  function getCapability(name) {
+    if (!snapshot) {
+      refresh().catch(() => {})
+    } else if (now() - fetchedAt >= refreshInterval) {
+      refresh().catch(() => {})
+    }
+    return snapshot?.capabilities?.[name] || null
+  }
+
+  return { evaluate, getCapability, refresh }
 }
 
 function normalizeContext(context = {}) {

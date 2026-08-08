@@ -1,10 +1,11 @@
 <!DOCTYPE html>
 <html lang="en">
   <%
-    const bridgeAssetBasePath = page?.props?.hostBridgeAssetBasePath || ''
-    const prefixBridgeAssets = (tags) =>
-      bridgeAssetBasePath
-        ? tags.replace(/(src|href)="\//g, `$1="${bridgeAssetBasePath}/`)
+    const hostAssetBasePath =
+      page?.props?.hostAssetBasePath || page?.props?.hostBridgeAssetBasePath || ''
+    const prefixHostAssets = (tags) =>
+      hostAssetBasePath
+        ? tags.replace(/(src|href)="\//g, `$1="${hostAssetBasePath}/`)
         : tags
   %>
   <head>
@@ -14,25 +15,40 @@
       name="viewport"
       content="width=device-width, initial-scale=1.0, maximum-scale=1.0"
     />
+    <% if (locals.title) { %>
+      <title><%= locals.title %></title>
+      <meta property="og:title" content="<%= locals.title %>" />
+    <% } %>
+    <% if (locals.description) { %>
+      <meta name="description" content="<%= locals.description %>" />
+      <meta property="og:description" content="<%= locals.description %>" />
+    <% } %>
+    <% if (locals.ogImage) { %>
+      <meta property="og:image" content="<%= locals.ogImage %>" />
+      <meta name="twitter:card" content="summary_large_image" />
+    <% } %>
+    <% if (locals.canonicalUrl) { %>
+      <link rel="canonical" href="<%= locals.canonicalUrl %>" />
+    <% } %>
     <link
       rel="icon"
       type="image/svg+xml"
       sizes="any"
-      href="<%= bridgeAssetBasePath %>/images/favicon.svg"
+      href="<%= hostAssetBasePath %>/images/favicon.svg"
       data-deployment-state="idle"
     />
-    <%- prefixBridgeAssets(shipwright.styles()) %>
+    <%- prefixHostAssets(shipwright.styles()) %>
   </head>
   <body>
     <div id="app"></div>
     <script type="application/json" data-page="app">
       <%- JSON.stringify(page).replace(/</g, '\\u003c') %>
     </script>
-    <% if (bridgeAssetBasePath) { %>
+    <% if (hostAssetBasePath) { %>
       <script>
-        window.__SLIPWAY_ASSET_PREFIX__ = <%- JSON.stringify(bridgeAssetBasePath) %>
+        window.__SLIPWAY_ASSET_PREFIX__ = <%- JSON.stringify(hostAssetBasePath) %>
       </script>
     <% } %>
-    <%- prefixBridgeAssets(shipwright.scripts()) %>
+    <%- prefixHostAssets(shipwright.scripts()) %>
   </body>
 </html>

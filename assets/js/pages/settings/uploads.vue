@@ -272,8 +272,8 @@ const providers = [
             File Storage
           </h1>
           <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            Configure S3-compatible object storage for team logos and database
-            backups.
+            Configure S3-compatible object storage for Bearing attachments,
+            content, team logos, and database backups.
           </p>
         </div>
 
@@ -336,8 +336,8 @@ const providers = [
                 }}
               </template>
               <template v-else>
-                File storage not configured. Configure below to enable team
-                logos and database backups.
+                File storage not configured. Configure below to enable uploaded
+                content and database backups.
               </template>
             </span>
           </div>

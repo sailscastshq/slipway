@@ -2,9 +2,7 @@ module.exports = {
   port: 3333,
   hooks: {
     lookout: false,
-    quest: false,
-    sockets: false,
-    pubsub: false
+    quest: false
   },
   log: {
     level: 'error'

@@ -153,6 +153,36 @@ test('proxied Bridge prefixes host login and preserves its invitation callback',
   )
 })
 
+test('Bearing inherits the host login and identity contract from Bridge', async ({
+  expect
+}) => {
+  const { bearingIdentityRoute } = await createBridgeRoute({
+    bridge: {
+      enabled: false,
+      loginPath: '/sign-in',
+      identity: defaultIdentityConfig()
+    },
+    bearing: {
+      enabled: true,
+      exchangeUrl: 'http://127.0.0.1:1/exchange',
+      appId: '42',
+      secret: 'slb_bearing-secret',
+      routePath: '/academy'
+    }
+  })
+  const response = createResponse()
+
+  await bearingIdentityRoute(
+    { session: {}, originalUrl: '/_slipway/bearing/identity', query: {} },
+    response
+  )
+
+  expect(response.status).toBe('redirect')
+  expect(response.value).toBe(
+    '/academy/sign-in?redirect=%2Facademy%2F_slipway%2Fbearing%2Fidentity'
+  )
+})
+
 test('host Bridge fails closed when the app cannot prove email verification', async ({
   expect
 }) => {
@@ -273,6 +303,7 @@ test('host Bridge explains an uninvited identity without exposing raw Forbidden'
 
 async function createBridgeRoute({
   bridge,
+  bearing = { enabled: false },
   user = null,
   userAttributes = {
     id: {},
@@ -285,6 +316,7 @@ async function createBridgeRoute({
     config: {
       slipway: {
         bridge,
+        bearing,
         lookout: {
           enabled: true
         }
@@ -321,7 +353,8 @@ async function createBridgeRoute({
 
   return {
     route: hook.routes.after['GET /bridge'],
-    hostRoute: hook.routes.after['GET /_slipway/bridge']
+    hostRoute: hook.routes.after['GET /_slipway/bridge'],
+    bearingIdentityRoute: hook.routes.after['GET /_slipway/bearing/identity']
   }
 }
 

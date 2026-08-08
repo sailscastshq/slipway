@@ -66,11 +66,12 @@ module.exports = {
       }
     }
 
-    // Single non-Bridge app with a root path — retain the minimal route.
+    // Single app without an app-owned Slipway surface — retain the minimal route.
     if (
       routableApps.length === 1 &&
       routableApps[0].routePath === '/' &&
-      !routableApps[0].bridgeEnabled
+      !routableApps[0].bridgeEnabled &&
+      !routableApps[0].bearingEnabled
     ) {
       const app = routableApps[0]
       return {
@@ -103,6 +104,20 @@ module.exports = {
     })
 
     const handlers = []
+
+    for (const app of sorted) {
+      if (!app.bearingEnabled) continue
+      handlers.push(
+        ...bearingHandlers({
+          app,
+          projectSlug: environment.project.slug,
+          environmentSlug: environment.slug,
+          controlPlaneUpstream: `${
+            sails.config.custom.slipwayContainerName || 'slipway'
+          }:1337`
+        })
+      )
+    }
 
     for (const app of sorted) {
       if (!app.bridgeEnabled) continue
@@ -160,6 +175,67 @@ module.exports = {
   }
 }
 
+function bearingHandlers({
+  app,
+  projectSlug,
+  environmentSlug,
+  controlPlaneUpstream
+}) {
+  const routePrefix = normalizeRoutePrefix(app.routePath)
+  const bearingInternalPath = `${routePrefix}/_slipway/bearing`
+  const internalBasePath = `/bearing/public/${projectSlug}/${environmentSlug}/${app.slug}`
+  const appProxy = {
+    handler: 'reverse_proxy',
+    upstreams: [{ dial: `host.docker.internal:${app.hostPort}` }]
+  }
+  const controlPlaneProxy = {
+    handler: 'reverse_proxy',
+    upstreams: [{ dial: controlPlaneUpstream }]
+  }
+
+  return [
+    subroute(`${bearingInternalPath}/socket.io*`, [
+      { handler: 'rewrite', strip_path_prefix: bearingInternalPath },
+      controlPlaneProxy
+    ]),
+    subroute(`${bearingInternalPath}/identity`, [
+      ...(routePrefix
+        ? [{ handler: 'rewrite', strip_path_prefix: routePrefix }]
+        : []),
+      appProxy
+    ]),
+    subroute(`${bearingInternalPath}/session`, [
+      { handler: 'rewrite', uri: '/bearing/session' },
+      controlPlaneProxy
+    ]),
+    subroute(`${bearingInternalPath}/_assets/*`, [
+      {
+        handler: 'rewrite',
+        strip_path_prefix: `${bearingInternalPath}/_assets`
+      },
+      controlPlaneProxy
+    ]),
+    subroute(`${bearingInternalPath}/bootstrap.js`, [
+      { handler: 'rewrite', uri: `${internalBasePath}/bootstrap.js` },
+      controlPlaneProxy
+    ]),
+    subroute(`${bearingInternalPath}/widget-config`, [
+      { handler: 'rewrite', uri: `${internalBasePath}/widget-config` },
+      controlPlaneProxy
+    ]),
+    ...['feedback', 'roadmap', 'updates'].map((surface) =>
+      subroute(`${routePrefix}/${surface}*`, [
+        { handler: 'rewrite', strip_path_prefix: `${routePrefix}/${surface}` },
+        {
+          handler: 'rewrite',
+          uri: `${internalBasePath}/${surface}{http.request.uri.path}`
+        },
+        controlPlaneProxy
+      ])
+    )
+  ]
+}
+
 function bridgeHandlers({
   app,
   projectSlug,
@@ -204,4 +280,9 @@ function subroute(path, handle) {
   }
 }
 
-module.exports._private = { bridgeHandlers }
+function normalizeRoutePrefix(routePath) {
+  if (!routePath || routePath === '/') return ''
+  return `/${String(routePath).replace(/^\/+|\/+$/g, '')}`
+}
+
+module.exports._private = { bearingHandlers, bridgeHandlers }

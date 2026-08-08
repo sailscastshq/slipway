@@ -39,6 +39,34 @@ test('release flags honor typed targets before percentage rollout', async ({
   expect(untargeted.value).toBe(false)
 })
 
+test('release config keeps Bearing capability state beside flags', async ({
+  expect
+}) => {
+  const flags = createReleaseFlags({
+    url: 'https://slipway.example/flags',
+    token: 'stk_test',
+    requestJson: async () => ({
+      version: 'config-with-bearing',
+      flags: [],
+      capabilities: {
+        bearing: {
+          enabled: true,
+          widgetEnabled: true,
+          routePrefix: '/academy'
+        }
+      }
+    })
+  })
+
+  expect(flags.getCapability('bearing')).toBe(null)
+  await flags.refresh()
+  expect(flags.getCapability('bearing')).toEqual({
+    enabled: true,
+    widgetEnabled: true,
+    routePrefix: '/academy'
+  })
+})
+
 test('percentage rollout is deterministic and fails safe without context', async ({
   expect
 }) => {

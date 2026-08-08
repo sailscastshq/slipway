@@ -41,7 +41,8 @@ const props = defineProps({
   checklist: Array,
   sourceReadiness: Object,
   releaseFlags: Array,
-  canManageBridge: Boolean
+  canManageBridge: Boolean,
+  canManageBearing: Boolean
 })
 
 const toggleMobileMenu = inject('toggleMobileMenu')
@@ -1359,6 +1360,26 @@ onBeforeUnmount(() => {
                         />
                       </svg>
                       Bridge access
+                    </Link>
+                    <Link
+                      v-if="canManageBearing"
+                      :href="`/projects/${project.slug}/environments/${environment.slug}/apps/${app.slug}/bearing`"
+                      class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+                    >
+                      <svg
+                        class="h-4 w-4 text-gray-400"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          stroke-width="2"
+                          d="M12 3a9 9 0 109 9M12 3v9l6 3"
+                        />
+                      </svg>
+                      Bearing
                     </Link>
                     <Link
                       :href="`/projects/${project.slug}/environments/${environment.slug}/apps/${app.slug}/settings`"
