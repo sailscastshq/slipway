@@ -38,7 +38,8 @@ const searchQuery = ref('')
 // Sorted model list
 const modelList = computed(() => {
   return Object.values(props.models || {}).sort(
-    (a, b) => a.group.localeCompare(b.group) || a.label.localeCompare(b.label)
+    (a, b) =>
+      a.label.localeCompare(b.label) || a.identity.localeCompare(b.identity)
   )
 })
 
@@ -50,7 +51,6 @@ const filteredModels = computed(() => {
     (model) =>
       model.label.toLowerCase().includes(query) ||
       model.singularLabel.toLowerCase().includes(query) ||
-      model.group.toLowerCase().includes(query) ||
       model.identity.toLowerCase().includes(query) ||
       (model.globalId && model.globalId.toLowerCase().includes(query)) ||
       (model.tableName && model.tableName.toLowerCase().includes(query))
@@ -311,6 +311,7 @@ function switchDashboard(event) {
             <div
               v-for="model in filteredModels"
               :key="model.identity"
+              :data-test="`bridge-resource-row-${model.identity}`"
               class="group grid grid-cols-12 items-center gap-4 px-6 py-4 transition-colors hover:bg-gray-50 dark:hover:bg-gray-900/40"
             >
               <div class="col-span-5">
@@ -336,26 +337,24 @@ function switchDashboard(event) {
                       />
                     </svg>
                   </div>
-                  <div class="min-w-0">
-                    <div
-                      class="font-medium text-gray-900 transition-colors group-hover:text-gray-700 dark:text-white dark:group-hover:text-gray-300"
-                    >
-                      {{ model.label }}
-                    </div>
-                    <div class="text-xs text-gray-500 dark:text-gray-500">
-                      {{ model.group }}
-                    </div>
-                  </div>
+                  <span
+                    data-test="bridge-resource-label"
+                    class="min-w-0 truncate font-medium text-gray-900 transition-colors group-hover:text-gray-700 dark:text-white dark:group-hover:text-gray-300"
+                  >
+                    {{ model.label }}
+                  </span>
                 </Link>
               </div>
               <div class="col-span-2 text-right">
                 <span
+                  data-test="bridge-resource-record-count"
                   class="font-medium tabular-nums text-gray-900 dark:text-white"
                   >{{ (model.count || 0).toLocaleString() }}</span
                 >
               </div>
               <div class="col-span-2 text-right">
                 <span
+                  data-test="bridge-resource-attribute-count"
                   class="text-sm tabular-nums text-gray-500 dark:text-gray-400"
                   >{{ attrCount(model) }}</span
                 >
@@ -363,10 +362,16 @@ function switchDashboard(event) {
               <div class="col-span-2 text-right">
                 <span
                   v-if="assocCount(model) > 0"
+                  data-test="bridge-resource-association-count"
                   class="text-sm tabular-nums text-gray-500 dark:text-gray-400"
                   >{{ assocCount(model) }}</span
                 >
-                <span v-else class="text-gray-300 dark:text-gray-700">—</span>
+                <span
+                  v-else
+                  data-test="bridge-resource-association-count"
+                  class="text-gray-300 dark:text-gray-700"
+                  >—</span
+                >
               </div>
               <div class="col-span-1 flex items-center justify-end">
                 <Link

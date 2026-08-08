@@ -106,7 +106,6 @@ test('Bridge merges a partial resource config over discovered metadata', async (
       resources: {
         course: {
           label: 'Learning paths',
-          group: 'Content',
           search: ['title'],
           list: ['title', 'published']
         },
@@ -117,7 +116,7 @@ test('Bridge merges a partial resource config over discovered metadata', async (
 
   expect(contract.resources.course.label).toBe('Learning paths')
   expect(contract.resources.course.singularLabel).toBe('Learning path')
-  expect(contract.resources.course.group).toBe('Content')
+  expect(Object.hasOwn(contract.resources.course, 'group')).toBe(false)
   expect(contract.resources.course.list).toEqual(['id', 'title', 'published'])
   expect(contract.resources.course.create).toEqual([
     'title',
@@ -142,7 +141,6 @@ test('Bridge represents a fully configured content resource', async ({
         course: {
           label: 'Courses',
           singularLabel: 'Course',
-          group: 'Content',
           title: 'title',
           search: ['title'],
           list: ['title', 'published'],
@@ -1233,6 +1231,32 @@ test('Bridge rejects unknown fields and unsupported config options', async ({
   )
   expect(unknownOptionError.message).toBe(
     'Bridge resource "course" contains unsupported option "magic".'
+  )
+})
+
+test('Bridge rejects the removed resource group option', async ({
+  sails,
+  expect
+}) => {
+  let receivedError
+
+  try {
+    await sails.helpers.bridge.normalizeResourceContract.with({
+      models: modelMetadata(),
+      config: {
+        resources: {
+          course: {
+            group: 'Content'
+          }
+        }
+      }
+    })
+  } catch (error) {
+    receivedError = error
+  }
+
+  expect(receivedError.message).toBe(
+    'Bridge resource "course" contains unsupported option "group".'
   )
 })
 

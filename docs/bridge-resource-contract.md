@@ -12,7 +12,6 @@ module.exports.slipway = {
       course: {
         label: 'Courses',
         singularLabel: 'Course',
-        group: 'Content',
         title: 'title',
         search: ['title'],
         list: ['title', 'price', 'published', 'createdAt'],
@@ -130,9 +129,7 @@ module.exports.slipway = {
     schemaVersion: 1,
     discover: false,
     resources: {
-      course: {
-        group: 'Content'
-      }
+      course: {}
     }
   }
 }
