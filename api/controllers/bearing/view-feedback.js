@@ -136,7 +136,7 @@ module.exports = {
           feedbackPath,
           roadmapPath: `${resolved.publicBasePath}/roadmap`,
           updatesPath: `${resolved.publicBasePath}/updates`,
-          identityPath: `${resolved.publicBasePath}/_slipway/bearing/identity`,
+          identityPath: resolved.identityPath,
           publicUrl: absoluteUrl(this.req, publicPath),
           ogImageUrl: absoluteUrl(
             this.req,

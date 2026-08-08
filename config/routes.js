@@ -407,6 +407,8 @@ module.exports.routes = {
     'bearing/view-bootstrap',
   'GET /bearing/public/:projectSlug/:environmentSlug/:appSlug/widget-config':
     'bearing/view-widget-config',
+  'GET /bearing/public/:projectSlug/:environmentSlug/:appSlug':
+    'bearing/redirect-to-feedback',
   'GET /bearing/public/:projectSlug/:environmentSlug/:appSlug/:surface/og.png':
     'bearing/view-social-image',
   'GET /bearing/public/:projectSlug/:environmentSlug/:appSlug/updates/p/:updateSlug/og.png':

@@ -248,6 +248,7 @@ function buildRouteLabels({
 
     const routePrefix = normalizeRoutePrefix(app.routePath)
     const bearingInternalPath = `${routePrefix}/_slipway/bearing`
+    const publicBasePath = `${routePrefix}/bearing`
     const internalBasePath = `/bearing/public/${projectSlug}/${environmentSlug}/${app.slug}`
 
     addHandle({
@@ -292,8 +293,15 @@ function buildRouteLabels({
       uri: `replace ${bearingInternalPath}/widget-config ${internalBasePath}/widget-config`,
       upstream: controlPlaneUpstream
     })
+    addHandle({
+      labels,
+      index: handleIndex++,
+      matcher: publicBasePath,
+      uri: `replace ${publicBasePath} ${internalBasePath}`,
+      upstream: controlPlaneUpstream
+    })
     for (const surface of ['feedback', 'roadmap', 'updates']) {
-      const publicPath = `${routePrefix}/${surface}`
+      const publicPath = `${publicBasePath}/${surface}`
       addHandle({
         labels,
         index: handleIndex++,

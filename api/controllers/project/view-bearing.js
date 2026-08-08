@@ -83,9 +83,9 @@ module.exports = {
         counts,
         publicUrls: appUrl
           ? {
-              feedback: `${appUrl}/feedback`,
-              roadmap: `${appUrl}/roadmap`,
-              updates: `${appUrl}/updates`
+              feedback: `${appUrl}/bearing/feedback`,
+              roadmap: `${appUrl}/bearing/roadmap`,
+              updates: `${appUrl}/bearing/updates`
             }
           : null,
         uploadsConfigured,

@@ -19,7 +19,7 @@ module.exports = {
     const tokenHash = crypto.createHash('sha256').update(code).digest('hex')
     const launchCode = await sails.helpers.bearing.consumeLaunchCode(tokenHash)
     if (!launchCode) {
-      throw { forbidden: '/feedback?error=bearing_link_expired' }
+      throw { forbidden: '/bearing/feedback?error=bearing_link_expired' }
     }
 
     const participant = await BearingParticipant.findOne({
@@ -36,7 +36,7 @@ module.exports = {
       : null
 
     if (!participant || participant.disabledAt || !app || !space) {
-      throw { forbidden: '/feedback?error=bearing_access_denied' }
+      throw { forbidden: '/bearing/feedback?error=bearing_access_denied' }
     }
 
     const existingUserId = this.req.session.userId
@@ -47,7 +47,7 @@ module.exports = {
     this.req.session.bearingAuthenticatedAt = Date.now()
     this.req.session.bearingCredentialHash = hashCredential(app.bearingSecret)
 
-    return `${safeRoutePrefix(app.routePath)}/feedback`
+    return `${safeRoutePrefix(app.routePath)}/bearing/feedback`
   }
 }
 

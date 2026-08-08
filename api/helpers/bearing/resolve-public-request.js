@@ -64,7 +64,10 @@ module.exports = {
       app,
       space,
       participant,
-      publicBasePath: hostOrigin ? routePrefix : internalBasePath,
+      publicBasePath: hostOrigin ? `${routePrefix}/bearing` : internalBasePath,
+      identityPath: hostOrigin
+        ? `${routePrefix}/_slipway/bearing/identity`
+        : `${internalBasePath}/_slipway/bearing/identity`,
       hostAssetBasePath: hostOrigin
         ? `${routePrefix}/_slipway/bearing/_assets`
         : ''
