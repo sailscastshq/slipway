@@ -783,10 +783,7 @@ function createUrl() {
           v-if="activeDashboard"
           :dashboard="activeDashboard"
           :resources="dashboardResources"
-          :project="project"
-          :environment="environment"
-          :app="app"
-          :app-scoped="appScoped"
+          :bridge-base-path="bridgeBasePath"
           class="mb-10"
         />
 
