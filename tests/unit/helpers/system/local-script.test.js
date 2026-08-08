@@ -15,6 +15,9 @@ test('local dev scripts preserve production-like Docker assumptions', async ({
 
   expect(packageJson.scripts.local).toBe('bash ./local.sh')
   expect(packageJson.scripts['local:rebuild']).toBe('bash ./local.sh rebuild')
+  expect(packageJson.scripts['local:upgrade-check']).toBe(
+    'bash ./local.sh upgrade-check'
+  )
   expect(packageJson.scripts['local:stop']).toBe('bash ./local.sh stop')
   expect(packageJson.scripts['local:down']).toBe('bash ./local.sh down')
   expect(packageJson.scripts['local:destroy']).toBe('bash ./local.sh destroy')
@@ -32,4 +35,30 @@ test('local dev scripts preserve production-like Docker assumptions', async ({
   expect(script.includes('/app/db')).toBe(true)
   expect(script.includes('/health')).toBe(true)
   expect(script.includes('.tmp/local')).toBe(true)
+  expect(script.includes('check_upgrade_from_previous_release()')).toBe(true)
+  expect(script.includes('NODE_ENV=production')).toBe(true)
+  expect(script.includes('previous_image')).toBe(true)
+  expect(script.includes('candidate_container')).toBe(true)
+})
+
+test('production bootstrap adds App columns before hydrating App records', async ({
+  expect
+}) => {
+  const bootstrap = fs.readFileSync(
+    path.join(appRoot, 'config/bootstrap.js'),
+    'utf8'
+  )
+  const bridgeSchema = bootstrap.indexOf('sails.helpers.bridge.ensureSchema()')
+  const bearingSchema = bootstrap.indexOf(
+    'sails.helpers.bearing.ensureSchema()'
+  )
+  const configurationMigration = bootstrap.indexOf(
+    'sails.helpers.configuration.ensureSchema()'
+  )
+
+  expect(bridgeSchema > -1).toBe(true)
+  expect(bearingSchema > -1).toBe(true)
+  expect(configurationMigration > -1).toBe(true)
+  expect(bridgeSchema < configurationMigration).toBe(true)
+  expect(bearingSchema < configurationMigration).toBe(true)
 })

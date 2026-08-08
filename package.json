@@ -76,6 +76,7 @@
     "dev": "node --watch-path=api --watch-path=config app.js",
     "local": "bash ./local.sh",
     "local:rebuild": "bash ./local.sh rebuild",
+    "local:upgrade-check": "bash ./local.sh upgrade-check",
     "local:stop": "bash ./local.sh stop",
     "local:down": "bash ./local.sh down",
     "local:destroy": "bash ./local.sh destroy",

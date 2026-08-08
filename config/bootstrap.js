@@ -13,12 +13,15 @@ module.exports.bootstrap = async function () {
   // Production uses `migrate: safe`; create coordinator tables before any
   // deployment job queries run on an existing installation.
   await sails.helpers.cleanup.ensureSchema()
+  // Add every App column before a helper hydrates the full App model.  This
+  // ordering is part of the production-upgrade contract: Waterline selects
+  // every modeled column even when a helper only needs one of them.
+  await sails.helpers.bridge.ensureSchema()
+  await sails.helpers.bearing.ensureSchema()
   await sails.helpers.configuration.ensureSchema()
   await sails.helpers.flag.ensureSchema()
   await sails.helpers.deploy.ensureQueueSchema()
   await sails.helpers.service.ensureVersionSchema()
-  await sails.helpers.bridge.ensureSchema()
-  await sails.helpers.bearing.ensureSchema()
   await sails.helpers.helm.ensureWorkspaceSchema()
 
   // Initialize CLI tokens map for Bearer token authentication

@@ -50,6 +50,18 @@ When you want a local run that mirrors the production installer more closely tha
 npm run local
 ```
 
+Before cutting a release, boot the current checkout locally and verify it
+against the previous release's production database shape:
+
+```bash
+npm run local
+npm run local:upgrade-check -- 0.0.57
+```
+
+Replace `0.0.57` with the release users will be upgrading from. The ordinary
+local boot catches current-code startup failures; the upgrade check catches
+`migrate: safe` ordering mistakes that only exist on an older database.
+
 This runs [local.sh](local.sh), the local counterpart to
 [install.sh](install.sh). It:
 
