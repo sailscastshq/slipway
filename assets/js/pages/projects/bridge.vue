@@ -263,10 +263,7 @@ function switchDashboard(event) {
           v-if="activeDashboard"
           :dashboard="activeDashboard"
           :resources="models"
-          :project="project"
-          :environment="environment"
-          :app="app"
-          :app-scoped="appScoped"
+          :bridge-base-path="bridgeBasePath"
         />
 
         <!-- Toolbar -->

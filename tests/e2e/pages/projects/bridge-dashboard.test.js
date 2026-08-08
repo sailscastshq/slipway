@@ -179,6 +179,36 @@ test(
       await expect(page).toSee('Completed purchases')
       await expect(page).toSee('Make production failures boring')
       await expect(page).toSee('Ada Lovelace')
+      const recentLessonLink = page.raw.getByRole('link', {
+        name: /Make production failures boring/
+      })
+      expect(await recentLessonLink.getAttribute('href')).toBe(
+        `${bridgePath}/lesson/91`
+      )
+      const viewAllLinks = page.raw.getByRole('link', { name: 'View all' })
+      expect(await viewAllLinks.nth(0).getAttribute('href')).toBe(
+        `${bridgePath}/lesson`
+      )
+      expect(await viewAllLinks.nth(1).getAttribute('href')).toBe(
+        `${bridgePath}/user`
+      )
+
+      await recentLessonLink.click()
+      await page.raw.waitForURL(
+        (url) => url.pathname === `${bridgePath}/lesson/91`
+      )
+      await expect(page).not.toSee('Not Found')
+      await page.goto(bridgePath)
+      await page.wait('text=Content overview')
+
+      await page.raw.getByRole('link', { name: 'View all' }).nth(0).click()
+      await page.raw.waitForURL(
+        (url) => url.pathname === `${bridgePath}/lesson`
+      )
+      await expect(page).not.toSee('Not Found')
+      await page.goto(bridgePath)
+      await page.wait('text=Content overview')
+
       const metricCards = page.raw.locator('[data-bridge-metric-card]')
       expect(await metricCards.count()).toBe(5)
       const metricCardBoxes = await metricCards.evaluateAll((cards) =>
@@ -233,6 +263,14 @@ test(
       await page.raw
         .getByRole('button', { name: 'Quick actions' })
         .evaluate((button) => button.blur())
+      await page.raw.getByRole('button', { name: 'Quick actions' }).click()
+      await page.raw.getByRole('menuitem', { name: 'New Lesson' }).click()
+      await page.raw.waitForURL(
+        (url) => url.pathname === `${bridgePath}/lesson/new`
+      )
+      await expect(page).not.toSee('Not Found')
+      await page.goto(bridgePath)
+      await page.wait('text=Content overview')
 
       await page.screenshot(path.join(screenshotRoot, 'dashboard-light.png'), {
         fullPage: true

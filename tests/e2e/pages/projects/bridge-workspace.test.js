@@ -40,7 +40,7 @@ test(
       })
       await sails.models.app.updateOne({ id: app.id }).set({
         name: 'Sailscasts',
-        routePath: '/',
+        routePath: '/academy',
         bridgeEnabled: true,
         status: 'running',
         containerName: 'bridge-workspace-ui-web'
@@ -85,12 +85,27 @@ test(
           return successfulResult(decisions)
         }
         if (code.includes('const dashboard =')) {
+          const dashboard = readEmbeddedValue(code, 'dashboard')
+          if (dashboard.id === 'lessonActivity') {
+            return successfulResult([
+              {
+                id: 'recentLessons',
+                records: [{ id: 91, title: 'App-owned routes stay put' }]
+              },
+              { id: 'newLesson' }
+            ])
+          }
           return successfulResult([
             { id: 'users', value: 61 },
             { id: 'courses', value: 5 },
             { id: 'chapters', value: 24 },
             { id: 'lessons', value: 88 },
-            { id: 'sales', value: 1, detail: 'Completed purchases' }
+            { id: 'sales', value: 1, detail: 'Completed purchases' },
+            {
+              id: 'recentLessons',
+              records: [{ id: 91, title: 'App-owned routes stay put' }]
+            },
+            { id: 'newLesson' }
           ])
         }
         if (code.includes('const counts = {};')) {
@@ -109,9 +124,14 @@ test(
         accessId: String(access.id),
         appId: String(app.id)
       })
-      await page.raw.route('**/bridge/_assets/**', async (route) => {
+      const internalBridgePath = `/projects/${project.slug}/environments/${environment.slug}/apps/${app.slug}/bridge`
+      const publicBridgePath = '/academy/bridge'
+      await page.raw.route('**/academy/bridge/_assets/**', async (route) => {
         const assetUrl = new URL(route.request().url())
-        assetUrl.pathname = assetUrl.pathname.replace('/bridge/_assets', '')
+        assetUrl.pathname = assetUrl.pathname.replace(
+          '/academy/bridge/_assets',
+          ''
+        )
         await route.continue({ url: assetUrl.toString() })
       })
       await page.raw.context().setExtraHTTPHeaders({
@@ -120,10 +140,9 @@ test(
       await page.goto(
         `/bridge/launch?code=${encodeURIComponent(
           launchCode
-        )}&hostOrigin=true&hostRoutePath=/`
+        )}&hostOrigin=true&hostRoutePath=/academy`
       )
 
-      const internalBridgePath = `/projects/${project.slug}/environments/${environment.slug}/apps/${app.slug}/bridge`
       await page.resize(1440, 960)
       await page.goto(internalBridgePath)
       await page.wait('@bridge-workspace')
@@ -145,7 +164,7 @@ test(
         await desktopSidebar
           .locator('[data-test="bridge-resource-link"][data-resource="course"]')
           .getAttribute('href')
-      ).toBe('/bridge/course')
+      ).toBe(`${publicBridgePath}/course`)
       expect(
         await desktopSidebar.getByText('Content', { exact: true }).count()
       ).toBe(0)
@@ -164,6 +183,31 @@ test(
         await page.raw
           .locator('[data-test="bridge-page-header"]')
           .getByText('Administrator', { exact: true })
+          .count()
+      ).toBe(0)
+      const recentLessonLink = page.raw.getByRole('link', {
+        name: /App-owned routes stay put/
+      })
+      expect(await recentLessonLink.getAttribute('href')).toBe(
+        `${publicBridgePath}/lesson/91`
+      )
+      expect(
+        await page.raw
+          .getByRole('link', { name: 'View all' })
+          .getAttribute('href')
+      ).toBe(`${publicBridgePath}/lesson`)
+      await page.raw.getByRole('button', { name: 'Quick actions' }).click()
+      expect(
+        await page.raw
+          .getByRole('menuitem', { name: 'New Lesson' })
+          .getAttribute('href')
+      ).toBe(`${publicBridgePath}/lesson/new`)
+      await page.raw.keyboard.press('Escape')
+      expect(
+        await page.raw
+          .locator('#bridge-dashboard-title')
+          .locator('xpath=ancestor::section[1]')
+          .locator('a[href*="/projects/"]')
           .count()
       ).toBe(0)
 
@@ -206,6 +250,26 @@ test(
       await page.screenshot(path.join(screenshotRoot, 'desktop.png'), {
         fullPage: true
       })
+
+      await page.goto(`${internalBridgePath}/lesson`)
+      await page.wait('text=Lesson activity')
+      expect(
+        await page.raw
+          .getByRole('link', { name: /App-owned routes stay put/ })
+          .getAttribute('href')
+      ).toBe(`${publicBridgePath}/lesson/91`)
+      expect(
+        await page.raw
+          .getByRole('link', { name: 'View all' })
+          .getAttribute('href')
+      ).toBe(`${publicBridgePath}/lesson`)
+      await page.raw.getByRole('button', { name: 'Quick actions' }).click()
+      expect(
+        await page.raw
+          .getByRole('menuitem', { name: 'New Lesson' })
+          .getAttribute('href')
+      ).toBe(`${publicBridgePath}/lesson/new`)
+      await page.raw.keyboard.press('Escape')
 
       await page.resize(390, 844)
       await page.raw
@@ -257,15 +321,46 @@ function workspaceConfig() {
       lesson: { label: 'Lessons' },
       purchase: { label: 'Sales' }
     },
-    dashboard: {
-      label: 'Content overview',
-      default: true,
-      cards: {
-        users: { type: 'metric', label: 'Total users', resource: 'user' },
-        courses: { type: 'metric', label: 'Courses', resource: 'course' },
-        chapters: { type: 'metric', label: 'Chapters', resource: 'chapter' },
-        lessons: { type: 'metric', label: 'Lessons', resource: 'lesson' },
-        sales: { type: 'metric', label: 'Sales', resource: 'purchase' }
+    dashboards: {
+      overview: {
+        label: 'Content overview',
+        default: true,
+        cards: {
+          users: { type: 'metric', label: 'Total users', resource: 'user' },
+          courses: { type: 'metric', label: 'Courses', resource: 'course' },
+          chapters: { type: 'metric', label: 'Chapters', resource: 'chapter' },
+          lessons: { type: 'metric', label: 'Lessons', resource: 'lesson' },
+          sales: { type: 'metric', label: 'Sales', resource: 'purchase' },
+          recentLessons: {
+            type: 'recent',
+            label: 'Recent lessons',
+            resource: 'lesson',
+            fields: ['title']
+          },
+          newLesson: {
+            type: 'action',
+            label: 'New Lesson',
+            resource: 'lesson'
+          }
+        }
+      },
+      lessonActivity: {
+        label: 'Lesson activity',
+        scope: 'resource',
+        resource: 'lesson',
+        cards: {
+          recentLessons: {
+            type: 'recent',
+            label: 'Recent lessons',
+            resource: 'lesson',
+            fields: ['title']
+          },
+          newLesson: {
+            type: 'action',
+            label: 'New Lesson',
+            resource: 'lesson'
+          }
+        }
       }
     }
   }
