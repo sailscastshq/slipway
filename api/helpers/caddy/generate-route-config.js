@@ -183,6 +183,7 @@ function bearingHandlers({
 }) {
   const routePrefix = normalizeRoutePrefix(app.routePath)
   const bearingInternalPath = `${routePrefix}/_slipway/bearing`
+  const publicBasePath = `${routePrefix}/bearing`
   const internalBasePath = `/bearing/public/${projectSlug}/${environmentSlug}/${app.slug}`
   const appProxy = {
     handler: 'reverse_proxy',
@@ -223,9 +224,16 @@ function bearingHandlers({
       { handler: 'rewrite', uri: `${internalBasePath}/widget-config` },
       controlPlaneProxy
     ]),
+    subroute(publicBasePath, [
+      { handler: 'rewrite', uri: internalBasePath },
+      controlPlaneProxy
+    ]),
     ...['feedback', 'roadmap', 'updates'].map((surface) =>
-      subroute(`${routePrefix}/${surface}*`, [
-        { handler: 'rewrite', strip_path_prefix: `${routePrefix}/${surface}` },
+      subroute(`${publicBasePath}/${surface}*`, [
+        {
+          handler: 'rewrite',
+          strip_path_prefix: `${publicBasePath}/${surface}`
+        },
         {
           handler: 'rewrite',
           uri: `${internalBasePath}/${surface}{http.request.uri.path}`

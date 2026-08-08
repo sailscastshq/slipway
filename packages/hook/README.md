@@ -196,10 +196,14 @@ app's own domain. Enable it from **App → Bearing**, choose who may participate
 then redeploy once so Slipway can inject the app-scoped exchange credential.
 
 ```text
-https://your-app.example.com/feedback
-https://your-app.example.com/roadmap
-https://your-app.example.com/updates
+https://your-app.example.com/bearing/feedback
+https://your-app.example.com/bearing/roadmap
+https://your-app.example.com/bearing/updates
 ```
+
+`/bearing` redirects to `/bearing/feedback`. Keeping every public surface below
+the Bearing namespace prevents Slipway from claiming app routes such as
+`/feedback`, `/roadmap`, or `/updates`.
 
 When the widget is enabled, the hook adds one same-origin, asynchronous
 bootstrap script to successful HTML responses. It does not edit the app's

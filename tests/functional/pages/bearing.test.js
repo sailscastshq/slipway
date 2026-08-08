@@ -48,9 +48,9 @@ test(
       'bearing.showPublicRoadmap': true,
       'bearing.showPublicUpdates': true,
       'bearing.widgetEnabled': false,
-      'publicUrls.feedback': 'https://product.example.com/feedback',
-      'publicUrls.roadmap': 'https://product.example.com/roadmap',
-      'publicUrls.updates': 'https://product.example.com/updates',
+      'publicUrls.feedback': 'https://product.example.com/bearing/feedback',
+      'publicUrls.roadmap': 'https://product.example.com/bearing/roadmap',
+      'publicUrls.updates': 'https://product.example.com/bearing/updates',
       hookDetected: true
     })
     expect(await sails.models.bearingspace.count({ app: app.id })).toBe(0)
@@ -352,13 +352,13 @@ test(
     const launchPath = `${launchUrl.pathname}${launchUrl.search}`
     const launch = await request.get(launchPath)
     expect(launch).toHaveStatus(302)
-    expect(launch).toRedirectTo('/feedback')
+    expect(launch).toRedirectTo('/bearing/feedback')
     expect(launch.session.bearingParticipantId).toBe(participant.id)
     expect(launch.session.bearingAppId).toBe(app.id)
 
     const replay = await request.get(launchPath)
     expect(replay).toHaveStatus(302)
-    expect(replay).toRedirectTo('/feedback?error=bearing_link_expired')
+    expect(replay).toRedirectTo('/bearing/feedback?error=bearing_link_expired')
   }
 )
 
@@ -400,6 +400,17 @@ test(
       })
       .fetch()
     const publicPath = `/bearing/public/${project.slug}/${environment.slug}/${app.slug}/feedback`
+    const publicBasePath = `/bearing/public/${project.slug}/${environment.slug}/${app.slug}`
+
+    const namespace = await request.get(publicBasePath)
+    expect(namespace).toHaveStatus(302)
+    expect(namespace).toRedirectTo(`${publicBasePath}/feedback`)
+
+    const hostNamespace = await request
+      .withHeaders({ 'x-forwarded-host': 'ideas.example.com' })
+      .get(publicBasePath)
+    expect(hostNamespace).toHaveStatus(302)
+    expect(hostNamespace).toRedirectTo('/bearing/feedback')
 
     const guestPage = await visitPage(request, publicPath)
     expect(guestPage).toHaveStatus(200)
@@ -420,12 +431,13 @@ test(
       })
       .get(publicPath)
     expect(hostPage).toHaveInertiaProps({
-      'app.feedbackPath': '/feedback',
-      'app.roadmapPath': '/roadmap',
-      'app.updatesPath': '/updates',
+      'app.feedbackPath': '/bearing/feedback',
+      'app.roadmapPath': '/bearing/roadmap',
+      'app.updatesPath': '/bearing/updates',
       'app.identityPath': '/_slipway/bearing/identity',
-      'app.publicUrl': 'https://ideas.example.com/feedback',
-      'app.ogImageUrl': 'https://ideas.example.com/feedback/og.png',
+      'app.publicUrl': 'https://ideas.example.com/bearing/feedback',
+      'app.ogImageUrl': 'https://ideas.example.com/bearing/feedback/og.png',
+      'realtime.socketPath': '/_slipway/bearing/socket.io',
       hostAssetBasePath: '/_slipway/bearing/_assets'
     })
 

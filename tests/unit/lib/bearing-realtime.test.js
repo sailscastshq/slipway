@@ -1,10 +1,35 @@
 const { test } = require('sounding')
 const {
   authorizeSocketHandshake,
+  buildRealtimeConfig,
   issueRealtimeToken,
   serializeFeedback,
   verifyRealtimeToken
 } = require('../../../api/lib/bearing-realtime')
+
+test('Bearing realtime stays on its private integration path for mounted apps', ({
+  expect
+}) => {
+  const req = {
+    protocol: 'https',
+    get(name) {
+      return name === 'host' ? 'product.example.com' : undefined
+    }
+  }
+  const config = buildRealtimeConfig({
+    req,
+    resolved: {
+      space: { id: '42' },
+      integrationBasePath: '/academy/_slipway/bearing'
+    },
+    projectSlug: 'durable-ui',
+    environmentSlug: 'production',
+    appSlug: 'academy',
+    secret: 'test-bearing-realtime-secret'
+  })
+
+  expect(config.socketPath).toBe('/academy/_slipway/bearing/socket.io')
+})
 
 test('Bearing realtime tokens are short-lived, origin-bound, and tamper-safe', ({
   expect

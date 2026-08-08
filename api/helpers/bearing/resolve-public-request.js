@@ -55,6 +55,9 @@ module.exports = {
     const routePrefix = normalizeRoutePrefix(app.routePath)
     const instanceUrl = await sails.helpers.getInstanceUrl()
     const hostOrigin = isHostOriginRequest(req, instanceUrl)
+    const integrationBasePath = hostOrigin
+      ? `${routePrefix}/_slipway/bearing`
+      : ''
     const internalBasePath = `/bearing/public/${encodeURIComponent(
       project.slug
     )}/${encodeURIComponent(environment.slug)}/${encodeURIComponent(app.slug)}`
@@ -64,10 +67,12 @@ module.exports = {
       app,
       space,
       participant,
-      publicBasePath: hostOrigin ? routePrefix : internalBasePath,
-      hostAssetBasePath: hostOrigin
-        ? `${routePrefix}/_slipway/bearing/_assets`
-        : ''
+      publicBasePath: hostOrigin ? `${routePrefix}/bearing` : internalBasePath,
+      integrationBasePath,
+      identityPath: hostOrigin
+        ? `${integrationBasePath}/identity`
+        : `${internalBasePath}/_slipway/bearing/identity`,
+      hostAssetBasePath: hostOrigin ? `${integrationBasePath}/_assets` : ''
     }
   }
 }

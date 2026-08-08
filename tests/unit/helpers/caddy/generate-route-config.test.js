@@ -26,3 +26,37 @@ test('generated Caddy config rewrites host Bridge paths to the control plane', (
     { dial: 'slipway:1337' }
   ])
 })
+
+test('generated Caddy config keeps public Bearing surfaces in their namespace', ({
+  expect
+}) => {
+  const handlers = generateRouteConfig._private.bearingHandlers({
+    app: {
+      slug: 'web',
+      routePath: '/academy',
+      hostPort: 1410
+    },
+    projectSlug: 'durable-ui',
+    environmentSlug: 'production',
+    controlPlaneUpstream: 'slipway:1337'
+  })
+
+  expect(handlers[6].routes[0].match[0].path).toEqual(['/academy/bearing'])
+  expect(handlers[6].routes[0].handle[0].uri).toBe(
+    '/bearing/public/durable-ui/production/web'
+  )
+  expect(handlers[7].routes[0].match[0].path).toEqual([
+    '/academy/bearing/feedback*'
+  ])
+  expect(handlers[7].routes[0].handle[0].strip_path_prefix).toBe(
+    '/academy/bearing/feedback'
+  )
+  expect(handlers[7].routes[0].handle[1].uri).toBe(
+    '/bearing/public/durable-ui/production/web/feedback{http.request.uri.path}'
+  )
+  expect(
+    handlers.some((handler) =>
+      handler.routes[0].match[0].path.includes('/academy/feedback*')
+    )
+  ).toBe(false)
+})

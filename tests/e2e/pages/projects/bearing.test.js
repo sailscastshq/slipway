@@ -184,7 +184,10 @@ test(
           page.raw
             .locator('[data-test="bearing-public-surface-feedback"]')
             .getByRole('link', { name: /Open Feedback/ })
-        ).toHaveAttribute('href', 'https://product.example.com/feedback')
+        ).toHaveAttribute(
+          'href',
+          'https://product.example.com/bearing/feedback'
+        )
 
         await page.raw.emulateMedia({ colorScheme: 'dark' })
         await page.raw.waitForTimeout(100)
