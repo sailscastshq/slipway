@@ -142,7 +142,6 @@ function normalizeBridgeResourceContract({ models, config = {} }) {
   const RESOURCE_OPTION_KEYS = [
     'label',
     'singularLabel',
-    'group',
     'title',
     'search',
     'list',
@@ -292,7 +291,7 @@ function normalizeBridgeResourceContract({ models, config = {} }) {
   }
 
   function normalizeResource(identity, model, raw, configured) {
-    for (const option of ['label', 'singularLabel', 'group']) {
+    for (const option of ['label', 'singularLabel']) {
       assertOptionalString(
         raw[option],
         `Bridge resource "${identity}".${option}`
@@ -393,7 +392,6 @@ function normalizeBridgeResourceContract({ models, config = {} }) {
       primaryKey,
       label,
       singularLabel,
-      group: readString(raw.group) || 'Resources',
       title: normalizeFieldName(
         identity,
         'title',

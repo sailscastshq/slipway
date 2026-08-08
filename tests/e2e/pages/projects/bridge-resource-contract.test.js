@@ -466,9 +466,50 @@ test(
 
       await page.goto(bridgePath)
       await page.wait('text=Courses')
-      await expect(page).toSee('Content')
-      await expect(page).toSee('People')
       await expect(page).toSee('4 resources')
+      expect(
+        await page.raw
+          .locator('[data-test^="bridge-resource-row-"]')
+          .locator('[data-test="bridge-resource-label"]')
+          .allTextContents()
+      ).toEqual(['Chapters', 'Courses', 'Lessons', 'People'])
+      expect(
+        await page.raw
+          .locator('[data-test^="bridge-resource-row-"]')
+          .locator('[data-test="bridge-resource-record-count"]')
+          .allTextContents()
+      ).toEqual(['0', '3', '0', '1'])
+      for (const removedGroup of [
+        'Audience',
+        'Commerce',
+        'Content',
+        'Operations',
+        'Resources'
+      ]) {
+        expect(
+          await page.raw.getByText(removedGroup, { exact: true }).count()
+        ).toBe(0)
+      }
+      const resourceSearch = page.raw.getByPlaceholder('Search resources...')
+      await resourceSearch.fill('Person')
+      expect(
+        await page.raw
+          .locator('[data-test="bridge-resource-label"]')
+          .allTextContents()
+      ).toEqual(['People'])
+      await resourceSearch.fill('users')
+      expect(
+        await page.raw
+          .locator('[data-test="bridge-resource-label"]')
+          .allTextContents()
+      ).toEqual(['People'])
+      await resourceSearch.fill('Content')
+      expect(
+        await page.raw
+          .locator('[data-test="bridge-resource-label"]')
+          .allTextContents()
+      ).toEqual([])
+      await resourceSearch.fill('')
       expect(await page.raw.getByText('Model Settings').count()).toBe(0)
       await page.screenshot(path.join(screenshotRoot, 'resources-light.png'), {
         fullPage: true
@@ -1240,7 +1281,6 @@ function resourceConfig() {
       course: {
         label: 'Courses',
         singularLabel: 'Course',
-        group: 'Content',
         title: 'title',
         search: ['title'],
         list: ['title', 'price', 'published', 'createdAt'],
@@ -1448,7 +1488,6 @@ function resourceConfig() {
       user: {
         label: 'People',
         singularLabel: 'Person',
-        group: 'People',
         title: 'fullName',
         search: ['fullName', 'email'],
         list: ['fullName', 'email'],
@@ -1462,7 +1501,6 @@ function resourceConfig() {
       chapter: {
         label: 'Chapters',
         singularLabel: 'Chapter',
-        group: 'Content',
         title: 'title',
         search: ['title'],
         list: ['title']
@@ -1470,7 +1508,6 @@ function resourceConfig() {
       lesson: {
         label: 'Lessons',
         singularLabel: 'Lesson',
-        group: 'Content',
         title: 'title',
         search: ['title'],
         list: ['title'],
