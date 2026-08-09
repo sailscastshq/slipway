@@ -1,11 +1,12 @@
 #!/bin/bash
 # Slipway local installer
-# Usage: bash ./local.sh [install|rebuild|stop|down|destroy|logs|status|shell|bridge-benchmark]
+# Usage: bash ./local.sh [install|rebuild|upgrade-check|stop|down|destroy|logs|status|shell|bridge-benchmark]
 
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 COMMAND="${1:-install}"
+PREVIOUS_VERSION="${2:-}"
 
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -26,11 +27,14 @@ SLIPWAY_URL="${SLIPWAY_LOCAL_URL:-http://${HOST}:${PORT}}"
 
 usage() {
   cat <<EOF
-Usage: bash ./local.sh [install|rebuild|stop|down|destroy|logs|status|shell|bridge-benchmark]
+Usage: bash ./local.sh [install|rebuild|upgrade-check|stop|down|destroy|logs|status|shell|bridge-benchmark]
 
 Commands:
   install   Build the current checkout and run Slipway locally in Docker
   rebuild   Same as install, but forces a no-cache Docker build
+  upgrade-check <version>
+            Boot the current checkout in production against the previous
+            release's database shape (for example: upgrade-check 0.0.57)
   stop      Stop the local Slipway container, but keep it for restart/debugging
   down      Stop and remove the local Slipway container
   destroy   Remove the local container, cached volumes, and .tmp/local state
@@ -220,6 +224,118 @@ wait_for_health() {
   exit 1
 }
 
+wait_for_container_health() {
+  local container_name="$1"
+  local attempts="${2:-45}"
+
+  for _ in $(seq 1 "$attempts"); do
+    if docker exec "$container_name" \
+      curl -fsS http://localhost:1337/health >/dev/null 2>&1; then
+      return 0
+    fi
+    sleep 2
+  done
+
+  echo "Health check failed for ${container_name}. Recent logs:" >&2
+  docker logs --tail 200 "$container_name" >&2 || true
+  return 1
+}
+
+check_upgrade_from_previous_release() {
+  if [ -z "$PREVIOUS_VERSION" ]; then
+    echo "Pass the previous release version, for example:" >&2
+    echo "  npm run local:upgrade-check -- 0.0.57" >&2
+    exit 1
+  fi
+
+  local suffix previous_image seed_container current_container
+  local candidate_container db_volume apps_volume session_secret
+  local data_encryption_key
+  suffix="$$"
+  previous_image="ghcr.io/sailscastshq/slipway:${PREVIOUS_VERSION#v}"
+  seed_container="slipway-upgrade-seed-${suffix}"
+  current_container="slipway-upgrade-current-${suffix}"
+  candidate_container="slipway-upgrade-candidate-${suffix}"
+  db_volume="slipway-upgrade-db-${suffix}"
+  apps_volume="slipway-upgrade-apps-${suffix}"
+  session_secret="$(generate_hex_secret)"
+  data_encryption_key="$(generate_base64_secret)"
+
+  cleanup_upgrade_check() {
+    docker rm -f \
+      "$seed_container" \
+      "$current_container" \
+      "$candidate_container" >/dev/null 2>&1 || true
+    docker volume rm -f "$db_volume" "$apps_volume" >/dev/null 2>&1 || true
+  }
+  trap cleanup_upgrade_check EXIT INT TERM
+
+  ensure_network
+  build_local_image
+  docker pull "$previous_image"
+  docker volume create "$db_volume" >/dev/null
+  docker volume create "$apps_volume" >/dev/null
+
+  echo "Creating the ${PREVIOUS_VERSION#v} database shape..."
+  docker run -d \
+    --name "$seed_container" \
+    --network "$NETWORK_NAME" \
+    -v /var/run/docker.sock:/var/run/docker.sock \
+    -v "$db_volume:/app/db" \
+    -v "$apps_volume:/var/slipway/apps" \
+    -e NODE_ENV=development \
+    -e PORT=1337 \
+    -e SLIPWAY_URL="http://${seed_container}:1337" \
+    -e SLIPWAY_APP_PORT_HOST=127.0.0.1 \
+    -e SLIPWAY_APP_PORT_START=15500 \
+    -e SLIPWAY_APP_PORT_END=15600 \
+    -e SESSION_SECRET="$session_secret" \
+    -e DATA_ENCRYPTION_KEY="$data_encryption_key" \
+    "$previous_image" node app.js >/dev/null
+  wait_for_container_health "$seed_container"
+  docker rm -f "$seed_container" >/dev/null
+
+  echo "Starting the current ${PREVIOUS_VERSION#v} release..."
+  docker run -d \
+    --name "$current_container" \
+    --network "$NETWORK_NAME" \
+    -v /var/run/docker.sock:/var/run/docker.sock \
+    -v "$db_volume:/app/db" \
+    -v "$apps_volume:/var/slipway/apps" \
+    -e NODE_ENV=production \
+    -e PORT=1337 \
+    -e SLIPWAY_URL="http://${current_container}:1337" \
+    -e SLIPWAY_APP_PORT_HOST=127.0.0.1 \
+    -e SLIPWAY_APP_PORT_START=15500 \
+    -e SLIPWAY_APP_PORT_END=15600 \
+    -e SESSION_SECRET="$session_secret" \
+    -e DATA_ENCRYPTION_KEY="$data_encryption_key" \
+    "$previous_image" >/dev/null
+  wait_for_container_health "$current_container"
+
+  echo "Validating the current checkout against that live database..."
+  docker run -d \
+    --name "$candidate_container" \
+    --network "$NETWORK_NAME" \
+    -v /var/run/docker.sock:/var/run/docker.sock \
+    -v "$db_volume:/app/db" \
+    -v "$apps_volume:/var/slipway/apps" \
+    -e NODE_ENV=production \
+    -e PORT=1337 \
+    -e SLIPWAY_URL="http://${candidate_container}:1337" \
+    -e SLIPWAY_APP_PORT_HOST=127.0.0.1 \
+    -e SLIPWAY_APP_PORT_START=15500 \
+    -e SLIPWAY_APP_PORT_END=15600 \
+    -e SESSION_SECRET="$session_secret" \
+    -e DATA_ENCRYPTION_KEY="$data_encryption_key" \
+    "$IMAGE_NAME" >/dev/null
+  wait_for_container_health "$candidate_container"
+
+  echo -e "${GREEN}Upgrade check passed: ${PREVIOUS_VERSION#v} -> current checkout${NC}"
+  cleanup_upgrade_check
+  trap - EXIT INT TERM
+}
+
 show_status() {
   docker ps -a --filter "name=^/${CONTAINER_NAME}$"
   echo
@@ -308,6 +424,9 @@ main() {
       echo "  Down: npm run local:down"
       echo "  Destroy: npm run local:destroy"
       echo
+      ;;
+    upgrade-check)
+      check_upgrade_from_previous_release
       ;;
     stop)
       stop_container
