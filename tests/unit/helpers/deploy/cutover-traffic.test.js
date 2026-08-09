@@ -454,6 +454,7 @@ test(
     const setup = await prepareCutover({ sails, world })
     const originals = {
       ensureNetwork: sails.helpers.docker.ensureNetwork,
+      prepareCandidateContainer: sails.helpers.deploy.prepareCandidateContainer,
       ensureBuildContext: sails.helpers.deploy.ensureBuildContext,
       buildImage: sails.helpers.docker.buildImage,
       detectFeatures: sails.helpers.sails.detectFeatures,
@@ -473,6 +474,9 @@ test(
     let candidateImage
 
     sails.helpers.docker.ensureNetwork = machineStub(async () => {})
+    sails.helpers.deploy.prepareCandidateContainer = machineStub(async () => ({
+      action: 'ready'
+    }))
     sails.helpers.deploy.ensureBuildContext = machineStub(async () => ({
       contextPath: '/tmp/slipway-cancel-before-cutover'
     }))
@@ -550,6 +554,8 @@ test(
       )
     } finally {
       sails.helpers.docker.ensureNetwork = originals.ensureNetwork
+      sails.helpers.deploy.prepareCandidateContainer =
+        originals.prepareCandidateContainer
       sails.helpers.deploy.ensureBuildContext = originals.ensureBuildContext
       sails.helpers.docker.buildImage = originals.buildImage
       sails.helpers.sails.detectFeatures = originals.detectFeatures
@@ -574,6 +580,7 @@ test(
     })
     const originals = {
       ensureNetwork: sails.helpers.docker.ensureNetwork,
+      prepareCandidateContainer: sails.helpers.deploy.prepareCandidateContainer,
       allocatePort: sails.helpers.docker.allocatePort,
       runContainer: sails.helpers.docker.runContainer,
       healthCheck: sails.helpers.docker.healthCheck,
@@ -588,6 +595,9 @@ test(
     let candidateName
 
     sails.helpers.docker.ensureNetwork = machineStub(async () => {})
+    sails.helpers.deploy.prepareCandidateContainer = machineStub(async () => ({
+      action: 'ready'
+    }))
     sails.helpers.docker.allocatePort = machineStub(async () => 1403)
     sails.helpers.docker.runContainer = machineStub(async (inputs) => {
       sequence.push('candidate-started')
@@ -658,6 +668,8 @@ test(
       ])
     } finally {
       sails.helpers.docker.ensureNetwork = originals.ensureNetwork
+      sails.helpers.deploy.prepareCandidateContainer =
+        originals.prepareCandidateContainer
       sails.helpers.docker.allocatePort = originals.allocatePort
       sails.helpers.docker.runContainer = originals.runContainer
       sails.helpers.docker.healthCheck = originals.healthCheck
@@ -681,6 +693,7 @@ test(
     })
     const originals = {
       ensureNetwork: sails.helpers.docker.ensureNetwork,
+      prepareCandidateContainer: sails.helpers.deploy.prepareCandidateContainer,
       allocatePort: sails.helpers.docker.allocatePort,
       runContainer: sails.helpers.docker.runContainer,
       healthCheck: sails.helpers.docker.healthCheck,
@@ -694,6 +707,9 @@ test(
     sails.log.error = () => {}
 
     sails.helpers.docker.ensureNetwork = machineStub(async () => {})
+    sails.helpers.deploy.prepareCandidateContainer = machineStub(async () => ({
+      action: 'ready'
+    }))
     sails.helpers.docker.allocatePort = machineStub(async () => 1404)
     sails.helpers.docker.runContainer = machineStub(async (inputs) => {
       candidateName = inputs.containerName
@@ -751,6 +767,8 @@ test(
       expect(sequence.includes('stopped:slipway-web-previous')).toBe(false)
     } finally {
       sails.helpers.docker.ensureNetwork = originals.ensureNetwork
+      sails.helpers.deploy.prepareCandidateContainer =
+        originals.prepareCandidateContainer
       sails.helpers.docker.allocatePort = originals.allocatePort
       sails.helpers.docker.runContainer = originals.runContainer
       sails.helpers.docker.healthCheck = originals.healthCheck

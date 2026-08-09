@@ -11,6 +11,12 @@ module.exports = {
       type: 'string',
       required: true,
       description: 'Name or ID of the container'
+    },
+    fresh: {
+      type: 'boolean',
+      defaultsTo: false,
+      description:
+        'Bypass the short-lived status cache for lifecycle decisions.'
     }
   },
   exits: {
@@ -22,16 +28,21 @@ module.exports = {
       description: 'Container not found'
     }
   },
-  fn: async function ({ containerName }) {
+  fn: async function ({ containerName, fresh }) {
     // Check cache first
     const cacheKey = `container:status:${containerName}`
-    try {
-      const cached = await sails.cache.get(cacheKey)
-      if (cached) {
-        return cached
+    if (!fresh) {
+      try {
+        const cached = await sails.cache.get(cacheKey)
+        if (cached) {
+          return cached
+        }
+      } catch (err) {
+        sails.log.verbose(
+          'Cache read failed for container status:',
+          err.message
+        )
       }
-    } catch (err) {
-      sails.log.verbose('Cache read failed for container status:', err.message)
     }
 
     try {
