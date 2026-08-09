@@ -399,35 +399,27 @@ test(
         createdBy: current.users.genesisUser.id
       })
       .fetch()
-    const publicPath = `/bearing/public/${project.slug}/${environment.slug}/${app.slug}/feedback`
-    const publicBasePath = `/bearing/public/${project.slug}/${environment.slug}/${app.slug}`
-    const hostPath = `/bearing/host/${project.slug}/${environment.slug}/${app.slug}/feedback`
-    const hostBasePath = `/bearing/host/${project.slug}/${environment.slug}/${app.slug}`
+    const hostBasePath = `/_slipway/bearing/host/${project.slug}/${environment.slug}/${app.slug}`
+    const hostPath = `${hostBasePath}/feedback`
+    const appRequest = request.withHeaders({
+      host: 'ideas.example.com',
+      'x-forwarded-host': 'ideas.example.com'
+    })
 
-    const namespace = await request.get(publicBasePath)
-    expect(namespace).toHaveStatus(302)
-    expect(namespace).toRedirectTo(`${publicBasePath}/feedback`)
-
-    const legacyHostNamespace = await request
-      .withHeaders({ 'x-forwarded-host': 'ideas.example.com' })
-      .get(publicBasePath)
-    expect(legacyHostNamespace).toHaveStatus(302)
-    expect(legacyHostNamespace).toRedirectTo('/bearing/feedback')
-
-    const hostNamespace = await request.get(hostBasePath)
+    const hostNamespace = await appRequest.get(hostBasePath)
     expect(hostNamespace).toHaveStatus(302)
     expect(hostNamespace).toRedirectTo('/bearing/feedback')
 
-    const guestPage = await visitPage(request, publicPath)
+    const guestPage = await visitPage(appRequest, hostPath)
     expect(guestPage).toHaveStatus(200)
     expect(guestPage).toBeInertiaPage('bearing/feedback')
     expect(guestPage).toHaveInertiaProps({
       participant: null,
       'bearing.allowAnonymousParticipation': false,
-      'app.feedbackPath': publicPath,
-      'app.publicUrl': `https://localhost${publicPath}`,
-      'app.ogImageUrl': `https://localhost${publicPath}/og.png`,
-      hostAssetBasePath: ''
+      'app.feedbackPath': '/bearing/feedback',
+      'app.publicUrl': 'https://ideas.example.com/bearing/feedback',
+      'app.ogImageUrl': 'https://ideas.example.com/bearing/feedback/og.png',
+      hostAssetBasePath: '/_slipway/bearing/_assets'
     })
 
     const hostPage = await request
@@ -449,22 +441,8 @@ test(
       hostAssetBasePath: '/_slipway/bearing/_assets'
     })
 
-    const legacyHostPage = await request
-      .withHeaders({
-        ...INERTIA_HEADERS,
-        host: 'ideas.example.com',
-        'x-forwarded-host': 'ideas.example.com'
-      })
-      .get(publicPath)
-    expect(legacyHostPage).toHaveInertiaProps({
-      'app.feedbackPath': '/bearing/feedback',
-      'app.roadmapPath': '/bearing/roadmap',
-      'app.updatesPath': '/bearing/updates',
-      'realtime.subscribePath': `${publicBasePath}/realtime`
-    })
-
-    const guest = await withCsrfFromPage(request, publicPath)
-    const blocked = await guest.request.post(publicPath, {
+    const guest = await withCsrfFromPage(appRequest, hostPath)
+    const blocked = await guest.request.post(hostPath, {
       title: 'A guest should not get through',
       details: ''
     })
@@ -486,10 +464,12 @@ test(
       })
     const launchUrl = new URL(exchange.data.launchUrl)
     const launch = await request.get(`${launchUrl.pathname}${launchUrl.search}`)
-    const participantClient = request
-      .withSession(launch.session)
-      .withHeaders(INERTIA_HEADERS)
-    const participantPage = await participantClient.get(publicPath)
+    const participantClient = request.withSession(launch.session).withHeaders({
+      ...INERTIA_HEADERS,
+      host: 'ideas.example.com',
+      'x-forwarded-host': 'ideas.example.com'
+    })
+    const participantPage = await participantClient.get(hostPath)
     expect(participantPage).toHaveInertiaProps({
       'participant.displayName': 'Ada Feedback'
     })
@@ -510,7 +490,7 @@ test(
     expect(subscription.data.feedback).toEqual([])
     const invalidCategory = await participantClient
       .withHeaders({ 'x-csrf-token': participantPage.data.props._csrf })
-      .post(publicPath, {
+      .post(hostPath, {
         category: 'archived-category',
         title: 'This category should not be accepted',
         details: ''
@@ -519,13 +499,13 @@ test(
     const liveFeedback = socket.receive('bearing:feedback')
     const created = await participantClient
       .withHeaders({ 'x-csrf-token': participantPage.data.props._csrf })
-      .post(publicPath, {
+      .post(hostPath, {
         category: 'bug',
         title: 'Let me choose a calmer notification sound',
         details: 'The current sound is easy to miss during focused work.'
       })
     expect(created).toHaveStatus(409)
-    expect(created).toHaveHeader('x-inertia-location', publicPath)
+    expect(created).toHaveHeader('x-inertia-location', '/bearing/feedback')
 
     const event = await liveFeedback
     expect(event.verb).toBe('created')
@@ -543,12 +523,12 @@ test(
     expect(feedback.submittedAnonymously).toBe(false)
 
     const permalink = await participantClient.get(
-      `${publicPath}/${feedback.publicId}`
+      `${hostPath}/${feedback.publicId}`
     )
     expect(permalink).toHaveStatus(200)
     expect(permalink).toHaveInertiaProps({
       focusedFeedbackId: feedback.publicId,
-      'app.publicUrl': `https://localhost${publicPath}/${feedback.publicId}`,
+      'app.publicUrl': `https://ideas.example.com/bearing/feedback/${feedback.publicId}`,
       'feedback.data.0.publicId': feedback.publicId,
       'feedback.data.0.title': 'Let me choose a calmer notification sound'
     })
@@ -557,11 +537,11 @@ test(
       accept: 'application/json',
       'x-csrf-token': participantPage.data.props._csrf
     })
-    const voted = await voter.post(`${publicPath}/${feedback.publicId}/vote`)
+    const voted = await voter.post(`${hostPath}/${feedback.publicId}/vote`)
     expect(voted).toHaveStatus(200)
     expect(voted.data.voted).toBe(true)
     expect(voted.data.voteCount).toBe(1)
-    const unvoted = await voter.post(`${publicPath}/${feedback.publicId}/vote`)
+    const unvoted = await voter.post(`${hostPath}/${feedback.publicId}/vote`)
     expect(unvoted.data.voted).toBe(false)
     expect(unvoted.data.voteCount).toBe(0)
 
@@ -593,13 +573,13 @@ test(
     })
     expect(update.slug).toBe('calmer-notifications-have-shipped')
 
-    const updatesPath = `/bearing/public/${project.slug}/${environment.slug}/${app.slug}/updates`
+    const updatesPath = `/_slipway/bearing/host/${project.slug}/${environment.slug}/${app.slug}/updates`
     const archive = await participantClient.get(updatesPath)
     expect(archive).toHaveStatus(200)
     expect(archive).toBeInertiaPage('bearing/surface')
     expect(archive).toHaveInertiaProps({
-      'app.publicUrl': `https://localhost${updatesPath}`,
-      'app.ogImageUrl': `https://localhost${updatesPath}/og.png`,
+      'app.publicUrl': 'https://ideas.example.com/bearing/updates',
+      'app.ogImageUrl': 'https://ideas.example.com/bearing/updates/og.png',
       'items.0.slug': update.slug,
       'items.0.title': 'Calmer notifications have shipped'
     })
@@ -613,7 +593,7 @@ test(
       'update.title': 'Calmer notifications have shipped',
       'update.authorName': current.users.genesisUser.fullName,
       'update.linkedFeedback.0.publicId': feedback.publicId,
-      publicUrl: `https://localhost${updatePath}`
+      publicUrl: `https://ideas.example.com/bearing/updates/p/${update.slug}`
     })
 
     const missingUpdate = await participantClient.get(
@@ -622,7 +602,7 @@ test(
     expect(missingUpdate).toHaveStatus(404)
 
     const widgetConfig = await request.get(
-      `/bearing/public/${project.slug}/${environment.slug}/${app.slug}/widget-config`
+      `/_slipway/bearing/host/${project.slug}/${environment.slug}/${app.slug}/widget-config`
     )
     expect(widgetConfig).toHaveStatus(200)
     expect(widgetConfig.data.latestUpdate.title).toBe(
@@ -630,7 +610,7 @@ test(
     )
 
     const bootstrap = await request.get(
-      `/bearing/public/${project.slug}/${environment.slug}/${app.slug}/bootstrap.js`
+      `/_slipway/bearing/host/${project.slug}/${environment.slug}/${app.slug}/bootstrap.js`
     )
     expect(bootstrap).toHaveStatus(200)
     expect(bootstrap.body).toContain('slipway:bearing:')
@@ -649,7 +629,7 @@ test(
       await sails.models.bearingfeedback.create(paginatedFeedback)
     }
 
-    const firstPage = await participantClient.get(`${publicPath}?page=1`)
+    const firstPage = await participantClient.get(`${hostPath}?page=1`)
     expect(firstPage).toHaveStatus(200)
     expect(firstPage.data.props.feedback.data.length).toBe(20)
     expect(firstPage.data.props.feedback.meta.current_page).toBe(1)
@@ -663,7 +643,7 @@ test(
     expect(firstPage.data.mergeProps).toContain('feedback.data')
     expect(firstPage.data.matchPropsOn).toContain('feedback.data.publicId')
 
-    const secondPage = await participantClient.get(`${publicPath}?page=2`)
+    const secondPage = await participantClient.get(`${hostPath}?page=2`)
     expect(secondPage).toHaveStatus(200)
     expect(secondPage.data.props.feedback.data.length).toBe(6)
     expect(secondPage.data.props.feedback.meta.current_page).toBe(2)
@@ -678,7 +658,7 @@ test(
     expect(new Set(paginatedPublicIds).size).toBe(26)
 
     const focusedAfterPagination = await participantClient.get(
-      `${publicPath}/${feedback.publicId}`
+      `${hostPath}/${feedback.publicId}`
     )
     expect(focusedAfterPagination).toHaveInertiaProps({
       focusedFeedbackId: feedback.publicId,
@@ -686,7 +666,7 @@ test(
     })
 
     const filtered = await participantClient.get(
-      `${publicPath}?category=bug&status=active&sort=newest&q=notification`
+      `${hostPath}?category=bug&status=active&sort=newest&q=notification`
     )
     expect(filtered.data.props.feedback.data.length).toBe(1)
     expect(filtered).toHaveInertiaProps({
@@ -698,7 +678,7 @@ test(
     })
 
     const missingPermalink = await participantClient.get(
-      `${publicPath}/bfd_missing`
+      `${hostPath}/bfd_missing`
     )
     expect(missingPermalink).toHaveStatus(404)
 

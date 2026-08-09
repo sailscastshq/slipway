@@ -43,7 +43,7 @@ test('generated Caddy config keeps public Bearing surfaces in their namespace', 
 
   expect(handlers[6].routes[0].match[0].path).toEqual(['/academy/bearing'])
   expect(handlers[6].routes[0].handle[0].uri).toBe(
-    '/bearing/host/durable-ui/production/web'
+    '/_slipway/bearing/host/durable-ui/production/web'
   )
   expect(handlers[7].routes[0].match[0].path).toEqual([
     '/academy/bearing/feedback*'
@@ -52,7 +52,7 @@ test('generated Caddy config keeps public Bearing surfaces in their namespace', 
     '/academy/bearing/feedback'
   )
   expect(handlers[7].routes[0].handle[1].uri).toBe(
-    '/bearing/host/durable-ui/production/web/feedback{http.request.uri.path}'
+    '/_slipway/bearing/host/durable-ui/production/web/feedback{http.request.uri.path}'
   )
   expect(
     handlers.some((handler) =>

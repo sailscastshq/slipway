@@ -184,7 +184,7 @@ function bearingHandlers({
   const routePrefix = normalizeRoutePrefix(app.routePath)
   const bearingInternalPath = `${routePrefix}/_slipway/bearing`
   const publicBasePath = `${routePrefix}/bearing`
-  const internalBasePath = `/bearing/host/${projectSlug}/${environmentSlug}/${app.slug}`
+  const internalBasePath = `/_slipway/bearing/host/${projectSlug}/${environmentSlug}/${app.slug}`
   const appProxy = {
     handler: 'reverse_proxy',
     upstreams: [{ dial: `host.docker.internal:${app.hostPort}` }]

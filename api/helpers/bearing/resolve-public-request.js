@@ -19,9 +19,6 @@ module.exports = {
   },
 
   fn: async function ({ req, projectSlug, environmentSlug, appSlug }) {
-    const delivery = String(req.param('delivery') || '')
-    if (!['host', 'public'].includes(delivery)) throw 'notFound'
-
     const project = await Project.findOne({ slug: projectSlug })
     const environment = project
       ? await Environment.findOne({
@@ -55,15 +52,8 @@ module.exports = {
     if (!participant && req.session) clearBearingSession(req.session)
 
     const routePrefix = normalizeRoutePrefix(app.routePath)
-    const { domains } = await Environment.resolveDomains(
-      { ...environment, project },
-      {}
-    )
-    const hostOrigin = delivery === 'host' || requestMatchesDomain(req, domains)
-    const integrationBasePath = hostOrigin
-      ? `${routePrefix}/_slipway/bearing`
-      : ''
-    const internalBasePath = `/bearing/${delivery}/${encodeURIComponent(
+    const integrationBasePath = `${routePrefix}/_slipway/bearing`
+    const internalBasePath = `/_slipway/bearing/host/${encodeURIComponent(
       project.slug
     )}/${encodeURIComponent(environment.slug)}/${encodeURIComponent(app.slug)}`
     return {
@@ -72,14 +62,11 @@ module.exports = {
       app,
       space,
       participant,
-      hostOrigin,
       requestBasePath: internalBasePath,
-      publicBasePath: hostOrigin ? `${routePrefix}/bearing` : internalBasePath,
+      publicBasePath: `${routePrefix}/bearing`,
       integrationBasePath,
-      identityPath: hostOrigin
-        ? `${integrationBasePath}/identity`
-        : `${internalBasePath}/_slipway/bearing/identity`,
-      hostAssetBasePath: hostOrigin ? `${integrationBasePath}/_assets` : ''
+      identityPath: `${integrationBasePath}/identity`,
+      hostAssetBasePath: `${integrationBasePath}/_assets`
     }
   }
 }
@@ -94,30 +81,6 @@ function hashCredential(value) {
 function normalizeRoutePrefix(routePath) {
   if (!routePath || routePath === '/') return ''
   return `/${String(routePath).replace(/^\/+|\/+$/g, '')}`
-}
-
-function requestMatchesDomain(req, domains) {
-  const requestHost = normalizeHostname(
-    req.get('x-forwarded-host') || req.get('host') || req.hostname
-  )
-  return Boolean(
-    requestHost &&
-      domains.some((domain) => normalizeHostname(domain) === requestHost)
-  )
-}
-
-function normalizeHostname(value) {
-  const first = String(value || '')
-    .split(',')[0]
-    .trim()
-    .toLowerCase()
-  if (!first) return ''
-
-  try {
-    return new URL(`http://${first}`).hostname.toLowerCase()
-  } catch {
-    return ''
-  }
 }
 
 function clearBearingSession(session) {

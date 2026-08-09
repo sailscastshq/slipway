@@ -167,15 +167,15 @@ test('Bearing sends identity to the app before proxying its public surfaces', ({
     'caddy.handle_5=/admin/_slipway/bearing/widget-config'
   )
   expect(labels).toContain(
-    'caddy.handle_5.0_uri=replace /admin/_slipway/bearing/widget-config /bearing/host/durable-ui/production/admin/widget-config'
+    'caddy.handle_5.0_uri=replace /admin/_slipway/bearing/widget-config /_slipway/bearing/host/durable-ui/production/admin/widget-config'
   )
   expect(labels).toContain('caddy.handle_6=/admin/bearing')
   expect(labels).toContain(
-    'caddy.handle_6.0_uri=replace /admin/bearing /bearing/host/durable-ui/production/admin'
+    'caddy.handle_6.0_uri=replace /admin/bearing /_slipway/bearing/host/durable-ui/production/admin'
   )
   expect(labels).toContain('caddy.handle_7=/admin/bearing/feedback*')
   expect(labels).toContain(
-    'caddy.handle_7.0_uri=replace /admin/bearing/feedback /bearing/host/durable-ui/production/admin/feedback'
+    'caddy.handle_7.0_uri=replace /admin/bearing/feedback /_slipway/bearing/host/durable-ui/production/admin/feedback'
   )
   expect(labels).toContain('caddy.handle_10=/admin*')
   expect(
