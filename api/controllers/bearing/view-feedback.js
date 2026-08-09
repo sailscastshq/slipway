@@ -133,6 +133,7 @@ module.exports = {
         hostAssetBasePath: resolved.hostAssetBasePath,
         app: {
           name: resolved.project.name,
+          homeUrl: resolved.homeUrl,
           feedbackPath,
           roadmapPath: `${resolved.publicBasePath}/roadmap`,
           updatesPath: `${resolved.publicBasePath}/updates`,

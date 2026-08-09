@@ -413,9 +413,11 @@ test(
     const guestPage = await visitPage(appRequest, hostPath)
     expect(guestPage).toHaveStatus(200)
     expect(guestPage).toBeInertiaPage('bearing/feedback')
+    expect(guestPage.data.url).toBe('/bearing/feedback')
     expect(guestPage).toHaveInertiaProps({
       participant: null,
       'bearing.allowAnonymousParticipation': false,
+      'app.homeUrl': 'https://ideas.example.com/',
       'app.feedbackPath': '/bearing/feedback',
       'app.publicUrl': 'https://ideas.example.com/bearing/feedback',
       'app.ogImageUrl': 'https://ideas.example.com/bearing/feedback/og.png',
@@ -440,6 +442,7 @@ test(
       'realtime.subscribePath': `${hostBasePath}/realtime`,
       hostAssetBasePath: '/_slipway/bearing/_assets'
     })
+    expect(hostPage.data.url).toBe('/bearing/feedback')
 
     const guest = await withCsrfFromPage(appRequest, hostPath)
     const blocked = await guest.request.post(hostPath, {
@@ -473,6 +476,11 @@ test(
     expect(participantPage).toHaveInertiaProps({
       'participant.displayName': 'Ada Feedback'
     })
+    expect(participantPage.data.url).toBe('/bearing/feedback')
+    const roadmapPage = await participantClient.get(`${hostBasePath}/roadmap`)
+    expect(roadmapPage).toHaveStatus(200)
+    expect(roadmapPage).toBeInertiaPage('bearing/surface')
+    expect(roadmapPage.data.url).toBe('/bearing/roadmap')
     const realtime = participantPage.data.props.realtime
     const tokenPayload = JSON.parse(
       Buffer.from(realtime.token.split('.')[0], 'base64url').toString('utf8')
@@ -532,6 +540,7 @@ test(
       'feedback.data.0.publicId': feedback.publicId,
       'feedback.data.0.title': 'Let me choose a calmer notification sound'
     })
+    expect(permalink.data.url).toBe(`/bearing/feedback/${feedback.publicId}`)
 
     const voter = participantClient.withHeaders({
       accept: 'application/json',
@@ -578,23 +587,27 @@ test(
     expect(archive).toHaveStatus(200)
     expect(archive).toBeInertiaPage('bearing/surface')
     expect(archive).toHaveInertiaProps({
+      'app.homeUrl': 'https://ideas.example.com/',
       'app.publicUrl': 'https://ideas.example.com/bearing/updates',
       'app.ogImageUrl': 'https://ideas.example.com/bearing/updates/og.png',
       'items.0.slug': update.slug,
       'items.0.title': 'Calmer notifications have shipped'
     })
+    expect(archive.data.url).toBe('/bearing/updates')
 
     const updatePath = `${updatesPath}/p/${update.slug}`
     const updatePage = await participantClient.get(updatePath)
     expect(updatePage).toHaveStatus(200)
     expect(updatePage).toBeInertiaPage('bearing/update')
     expect(updatePage).toHaveInertiaProps({
+      'app.homeUrl': 'https://ideas.example.com/',
       'update.slug': update.slug,
       'update.title': 'Calmer notifications have shipped',
       'update.authorName': current.users.genesisUser.fullName,
       'update.linkedFeedback.0.publicId': feedback.publicId,
       publicUrl: `https://ideas.example.com/bearing/updates/p/${update.slug}`
     })
+    expect(updatePage.data.url).toBe(`/bearing/updates/p/${update.slug}`)
 
     const missingUpdate = await participantClient.get(
       `${updatesPath}/p/not-a-real-update`
@@ -676,6 +689,9 @@ test(
       'filters.q': 'notification',
       'feedback.data.0.publicId': feedback.publicId
     })
+    expect(filtered.data.url).toBe(
+      '/bearing/feedback?category=bug&status=active&sort=newest&q=notification'
+    )
 
     const missingPermalink = await participantClient.get(
       `${hostPath}/bfd_missing`
