@@ -249,7 +249,7 @@ function buildRouteLabels({
     const routePrefix = normalizeRoutePrefix(app.routePath)
     const bearingInternalPath = `${routePrefix}/_slipway/bearing`
     const publicBasePath = `${routePrefix}/bearing`
-    const internalBasePath = `/bearing/public/${projectSlug}/${environmentSlug}/${app.slug}`
+    const internalBasePath = `/bearing/host/${projectSlug}/${environmentSlug}/${app.slug}`
 
     addHandle({
       labels,

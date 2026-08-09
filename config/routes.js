@@ -395,29 +395,29 @@ module.exports.routes = {
   },
   'GET /bearing/session': 'bearing/session',
   'GET /_slipway/bearing/session': 'bearing/session',
-  'GET /bearing/public/:projectSlug/:environmentSlug/:appSlug/feedback':
+  'GET /bearing/:delivery/:projectSlug/:environmentSlug/:appSlug/feedback':
     'bearing/view-feedback',
-  'POST /bearing/public/:projectSlug/:environmentSlug/:appSlug/feedback':
+  'POST /bearing/:delivery/:projectSlug/:environmentSlug/:appSlug/feedback':
     'bearing/create-feedback',
-  'POST /bearing/public/:projectSlug/:environmentSlug/:appSlug/feedback/:publicId/vote':
+  'POST /bearing/:delivery/:projectSlug/:environmentSlug/:appSlug/feedback/:publicId/vote':
     'bearing/toggle-vote',
-  'GET /bearing/public/:projectSlug/:environmentSlug/:appSlug/realtime':
+  'GET /bearing/:delivery/:projectSlug/:environmentSlug/:appSlug/realtime':
     'bearing/subscribe-realtime',
-  'GET /bearing/public/:projectSlug/:environmentSlug/:appSlug/bootstrap.js':
+  'GET /bearing/:delivery/:projectSlug/:environmentSlug/:appSlug/bootstrap.js':
     'bearing/view-bootstrap',
-  'GET /bearing/public/:projectSlug/:environmentSlug/:appSlug/widget-config':
+  'GET /bearing/:delivery/:projectSlug/:environmentSlug/:appSlug/widget-config':
     'bearing/view-widget-config',
-  'GET /bearing/public/:projectSlug/:environmentSlug/:appSlug':
+  'GET /bearing/:delivery/:projectSlug/:environmentSlug/:appSlug':
     'bearing/redirect-to-feedback',
-  'GET /bearing/public/:projectSlug/:environmentSlug/:appSlug/:surface/og.png':
+  'GET /bearing/:delivery/:projectSlug/:environmentSlug/:appSlug/:surface/og.png':
     'bearing/view-social-image',
-  'GET /bearing/public/:projectSlug/:environmentSlug/:appSlug/updates/p/:updateSlug/og.png':
+  'GET /bearing/:delivery/:projectSlug/:environmentSlug/:appSlug/updates/p/:updateSlug/og.png':
     'bearing/view-update-social-image',
-  'GET /bearing/public/:projectSlug/:environmentSlug/:appSlug/updates/p/:updateSlug':
+  'GET /bearing/:delivery/:projectSlug/:environmentSlug/:appSlug/updates/p/:updateSlug':
     'bearing/view-update',
-  'GET /bearing/public/:projectSlug/:environmentSlug/:appSlug/feedback/:publicId':
+  'GET /bearing/:delivery/:projectSlug/:environmentSlug/:appSlug/feedback/:publicId':
     'bearing/view-feedback',
-  'GET /bearing/public/:projectSlug/:environmentSlug/:appSlug/:surface':
+  'GET /bearing/:delivery/:projectSlug/:environmentSlug/:appSlug/:surface':
     'bearing/view-surface',
   'GET /projects/:slug/environments/:envSlug/apps/:appSlug/bridge/access':
     'project/view-bridge-access',

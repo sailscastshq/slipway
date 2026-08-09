@@ -98,9 +98,6 @@ module.exports = {
         realtime: buildRealtimeConfig({
           req: this.req,
           resolved,
-          projectSlug,
-          environmentSlug,
-          appSlug,
           secret: sails.config.session.secret
         }),
         surface,

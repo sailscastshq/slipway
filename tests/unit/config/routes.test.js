@@ -33,7 +33,7 @@ test('browser actions and JSON transports have explicit route contracts', ({
     ]
   ).toBe('project/upload-bearing-update-image')
   expect(
-    routes['GET /bearing/public/:projectSlug/:environmentSlug/:appSlug']
+    routes['GET /bearing/:delivery/:projectSlug/:environmentSlug/:appSlug']
   ).toBe('bearing/redirect-to-feedback')
   expect(
     routes[
