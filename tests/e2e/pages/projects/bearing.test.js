@@ -491,6 +491,9 @@ test(
         .locator('meta[name="twitter:image"]')
         .getAttribute('content')
     ).toBe(ogImageUrl)
+    await expect(
+      page.raw.getByRole('link', { name: 'Northstar', exact: true })
+    ).toHaveAttribute('href', `${appOrigin}/`)
     await expect(page).toSee('Help shape what comes next')
     await expect(page).toSee('Sign in to share')
     await expect(page).toSee('Let me choose a calmer notification sound')
@@ -967,7 +970,7 @@ test(
       ) {
         await nextPageGate
       }
-      await route.continue()
+      await route.fallback()
     })
     await page.goto(publicPath)
     const feedbackCards = page.raw.locator('.bearing-feedback-card')

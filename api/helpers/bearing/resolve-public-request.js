@@ -56,6 +56,15 @@ module.exports = {
     const internalBasePath = `/_slipway/bearing/host/${encodeURIComponent(
       project.slug
     )}/${encodeURIComponent(environment.slug)}/${encodeURIComponent(app.slug)}`
+    const publicBasePath = `${routePrefix}/bearing`
+
+    // Caddy sends the private renderer path to Slipway, but Inertia uses
+    // req.url as the browser-history URL. Restore the app-owned namespace
+    // before the page object is built, just as Bridge does for host requests.
+    if (typeof req.url === 'string') {
+      req.url = replacePathPrefix(req.url, internalBasePath, publicBasePath)
+    }
+
     return {
       project,
       environment,
@@ -63,12 +72,31 @@ module.exports = {
       space,
       participant,
       requestBasePath: internalBasePath,
-      publicBasePath: `${routePrefix}/bearing`,
+      publicBasePath,
       integrationBasePath,
+      homeUrl: absoluteUrl(req, routePrefix || '/'),
       identityPath: `${integrationBasePath}/identity`,
       hostAssetBasePath: `${integrationBasePath}/_assets`
     }
   }
+}
+
+function absoluteUrl(req, path) {
+  const protocol = req.get('x-forwarded-proto') || req.protocol || 'https'
+  const host =
+    req.get('x-forwarded-host') ||
+    req.get('host') ||
+    req.hostname ||
+    'localhost'
+  return `${protocol}://${host}${path}`
+}
+
+function replacePathPrefix(url, currentPrefix, publicPrefix) {
+  return url === currentPrefix ||
+    url.startsWith(`${currentPrefix}/`) ||
+    url.startsWith(`${currentPrefix}?`)
+    ? `${publicPrefix}${url.slice(currentPrefix.length)}`
+    : url
 }
 
 function hashCredential(value) {

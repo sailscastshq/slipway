@@ -656,10 +656,7 @@ function shortDate(value) {
         class="mx-auto flex h-16 max-w-5xl items-center justify-between"
         aria-label="Bearing"
       >
-        <a
-          :href="app.feedbackPath"
-          class="text-sm font-semibold tracking-tight"
-        >
+        <a :href="app.homeUrl" class="text-sm font-semibold tracking-tight">
           {{ app.name }}
         </a>
         <div class="flex items-center gap-5 text-sm">

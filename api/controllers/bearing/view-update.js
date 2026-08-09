@@ -54,6 +54,7 @@ module.exports = {
         hostAssetBasePath: resolved.hostAssetBasePath,
         app: {
           name: resolved.project.name,
+          homeUrl: resolved.homeUrl,
           feedbackPath: `${resolved.publicBasePath}/feedback`,
           roadmapPath: `${resolved.publicBasePath}/roadmap`,
           updatesPath: `${resolved.publicBasePath}/updates`
