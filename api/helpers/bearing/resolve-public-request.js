@@ -1,5 +1,4 @@
 const crypto = require('node:crypto')
-const { isHostOriginRequest } = require('../../lib/bridge-paths')
 
 module.exports = {
   friendlyName: 'Resolve public Bearing request',
@@ -20,6 +19,9 @@ module.exports = {
   },
 
   fn: async function ({ req, projectSlug, environmentSlug, appSlug }) {
+    const delivery = String(req.param('delivery') || '')
+    if (!['host', 'public'].includes(delivery)) throw 'notFound'
+
     const project = await Project.findOne({ slug: projectSlug })
     const environment = project
       ? await Environment.findOne({
@@ -53,12 +55,11 @@ module.exports = {
     if (!participant && req.session) clearBearingSession(req.session)
 
     const routePrefix = normalizeRoutePrefix(app.routePath)
-    const instanceUrl = await sails.helpers.getInstanceUrl()
-    const hostOrigin = isHostOriginRequest(req, instanceUrl)
+    const hostOrigin = delivery === 'host'
     const integrationBasePath = hostOrigin
       ? `${routePrefix}/_slipway/bearing`
       : ''
-    const internalBasePath = `/bearing/public/${encodeURIComponent(
+    const internalBasePath = `/bearing/${delivery}/${encodeURIComponent(
       project.slug
     )}/${encodeURIComponent(environment.slug)}/${encodeURIComponent(app.slug)}`
     return {
@@ -67,6 +68,8 @@ module.exports = {
       app,
       space,
       participant,
+      hostOrigin,
+      requestBasePath: internalBasePath,
       publicBasePath: hostOrigin ? `${routePrefix}/bearing` : internalBasePath,
       integrationBasePath,
       identityPath: hostOrigin

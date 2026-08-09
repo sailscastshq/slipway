@@ -20,15 +20,16 @@ test('Bearing realtime stays on its private integration path for mounted apps', 
     req,
     resolved: {
       space: { id: '42' },
-      integrationBasePath: '/academy/_slipway/bearing'
+      integrationBasePath: '/academy/_slipway/bearing',
+      requestBasePath: '/bearing/host/durable-ui/production/academy'
     },
-    projectSlug: 'durable-ui',
-    environmentSlug: 'production',
-    appSlug: 'academy',
     secret: 'test-bearing-realtime-secret'
   })
 
   expect(config.socketPath).toBe('/academy/_slipway/bearing/socket.io')
+  expect(config.subscribePath).toBe(
+    '/bearing/host/durable-ui/production/academy/realtime'
+  )
 })
 
 test('Bearing realtime tokens are short-lived, origin-bound, and tamper-safe', ({

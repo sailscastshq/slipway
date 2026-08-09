@@ -66,14 +66,7 @@ function roomName(spaceId) {
   return `bearing:space:${String(spaceId)}`
 }
 
-function buildRealtimeConfig({
-  req,
-  resolved,
-  projectSlug,
-  environmentSlug,
-  appSlug,
-  secret
-}) {
+function buildRealtimeConfig({ req, resolved, secret }) {
   const origin = requestOrigin(req)
   return {
     token: issueRealtimeToken({
@@ -84,11 +77,7 @@ function buildRealtimeConfig({
     socketPath: resolved.integrationBasePath
       ? `${resolved.integrationBasePath}/socket.io`
       : '/socket.io',
-    subscribePath: `/bearing/public/${encodeURIComponent(
-      projectSlug
-    )}/${encodeURIComponent(environmentSlug)}/${encodeURIComponent(
-      appSlug
-    )}/realtime`
+    subscribePath: `${resolved.requestBasePath}/realtime`
   }
 }
 

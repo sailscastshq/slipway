@@ -401,14 +401,14 @@ test(
       .fetch()
     const publicPath = `/bearing/public/${project.slug}/${environment.slug}/${app.slug}/feedback`
     const publicBasePath = `/bearing/public/${project.slug}/${environment.slug}/${app.slug}`
+    const hostPath = `/bearing/host/${project.slug}/${environment.slug}/${app.slug}/feedback`
+    const hostBasePath = `/bearing/host/${project.slug}/${environment.slug}/${app.slug}`
 
     const namespace = await request.get(publicBasePath)
     expect(namespace).toHaveStatus(302)
     expect(namespace).toRedirectTo(`${publicBasePath}/feedback`)
 
-    const hostNamespace = await request
-      .withHeaders({ 'x-forwarded-host': 'ideas.example.com' })
-      .get(publicBasePath)
+    const hostNamespace = await request.get(hostBasePath)
     expect(hostNamespace).toHaveStatus(302)
     expect(hostNamespace).toRedirectTo('/bearing/feedback')
 
@@ -427,9 +427,10 @@ test(
     const hostPage = await request
       .withHeaders({
         ...INERTIA_HEADERS,
+        host: 'ideas.example.com',
         'x-forwarded-host': 'ideas.example.com'
       })
-      .get(publicPath)
+      .get(hostPath)
     expect(hostPage).toHaveInertiaProps({
       'app.feedbackPath': '/bearing/feedback',
       'app.roadmapPath': '/bearing/roadmap',
@@ -438,6 +439,7 @@ test(
       'app.publicUrl': 'https://ideas.example.com/bearing/feedback',
       'app.ogImageUrl': 'https://ideas.example.com/bearing/feedback/og.png',
       'realtime.socketPath': '/_slipway/bearing/socket.io',
+      'realtime.subscribePath': `${hostBasePath}/realtime`,
       hostAssetBasePath: '/_slipway/bearing/_assets'
     })
 
