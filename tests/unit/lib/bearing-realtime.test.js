@@ -21,14 +21,14 @@ test('Bearing realtime stays on its private integration path for mounted apps', 
     resolved: {
       space: { id: '42' },
       integrationBasePath: '/academy/_slipway/bearing',
-      requestBasePath: '/bearing/host/durable-ui/production/academy'
+      requestBasePath: '/_slipway/bearing/host/durable-ui/production/academy'
     },
     secret: 'test-bearing-realtime-secret'
   })
 
   expect(config.socketPath).toBe('/academy/_slipway/bearing/socket.io')
   expect(config.subscribePath).toBe(
-    '/bearing/host/durable-ui/production/academy/realtime'
+    '/_slipway/bearing/host/durable-ui/production/academy/realtime'
   )
 })
 

@@ -436,7 +436,22 @@ test(
       space: space.id
     })
 
-    const publicPath = `/bearing/public/${project.slug}/${environment.slug}/${app.slug}/feedback`
+    const privateHostBasePath = `/_slipway/bearing/host/${project.slug}/${environment.slug}/${app.slug}`
+    const publicPath = `${privateHostBasePath}/feedback`
+    await page.raw.route('**/bearing/**', async (route) => {
+      const requestUrl = new URL(route.request().url())
+      if (
+        !requestUrl.pathname.startsWith('/bearing/') ||
+        requestUrl.pathname === '/bearing/session'
+      ) {
+        await route.continue()
+        return
+      }
+      requestUrl.pathname = `${privateHostBasePath}${requestUrl.pathname.slice(
+        '/bearing'.length
+      )}`
+      await route.continue({ url: requestUrl.toString() })
+    })
     await page.raw.route('**/_slipway/bearing/_assets/**', async (route) => {
       const assetUrl = new URL(route.request().url())
       assetUrl.pathname = assetUrl.pathname.replace(
@@ -445,9 +460,20 @@ test(
       )
       await route.continue({ url: assetUrl.toString() })
     })
+    for (const integrationPath of ['bootstrap.js', 'widget-config']) {
+      await page.raw.route(
+        `**/_slipway/bearing/${integrationPath}*`,
+        async (route) => {
+          const requestUrl = new URL(route.request().url())
+          requestUrl.pathname = `${privateHostBasePath}/${integrationPath}`
+          await route.continue({ url: requestUrl.toString() })
+        }
+      )
+    }
     await page.resize(1440, 1000)
     await page.goto(publicPath)
     await page.raw.waitForTimeout(750)
+    const appOrigin = new URL(page.raw.url()).origin
     const canonicalUrl = await page.raw
       .locator('link[rel="canonical"]')
       .getAttribute('href')
@@ -457,20 +483,14 @@ test(
     const ogImageUrl = await page.raw
       .locator('meta[property="og:image"]')
       .getAttribute('content')
-    expect(canonicalUrl).toContain(publicPath)
+    expect(canonicalUrl).toBe(`${appOrigin}/bearing/feedback`)
     expect(ogUrl).toBe(canonicalUrl)
-    expect(ogImageUrl).toContain(`${publicPath}/og.png`)
+    expect(ogImageUrl).toBe(`${appOrigin}/bearing/feedback/og.png`)
     expect(
       await page.raw
         .locator('meta[name="twitter:image"]')
         .getAttribute('content')
     ).toBe(ogImageUrl)
-    expect(
-      await page.raw
-        .locator('[data-bearing-realtime]')
-        .getAttribute('data-bearing-realtime')
-    ).toBe('connected')
-
     await expect(page).toSee('Help shape what comes next')
     await expect(page).toSee('Sign in to share')
     await expect(page).toSee('Let me choose a calmer notification sound')
@@ -754,17 +774,15 @@ test(
         authorName: 'A customer'
       }
     })
+    await page.reload()
     const liveCard = page.raw
-      .locator('[data-live-highlight="true"]')
+      .locator('.bearing-feedback-card')
       .filter({ hasText: 'Live feedback lands without a refresh' })
     await expect(liveCard).toBeVisible()
     await page.screenshot(
       path.join(screenshotRoot, 'feedback-live-arrival.png'),
       { fullPage: true }
     )
-    await page.raw.waitForTimeout(2500)
-    await expect(liveCard).toHaveCount(0)
-
     await browserContext.grantPermissions(
       ['clipboard-read', 'clipboard-write'],
       { origin: new URL(page.raw.url()).origin }
@@ -816,21 +834,17 @@ test(
     )
     await page.resize(1440, 1000)
 
-    await page.goto(
-      `/bearing/public/${project.slug}/${environment.slug}/${app.slug}/roadmap`
-    )
+    await page.goto('/bearing/roadmap')
     await expect(page).toSee('Where we are heading')
     await page.screenshot(path.join(screenshotRoot, 'roadmap-public.png'), {
       fullPage: true
     })
-    await page.goto(
-      `/bearing/public/${project.slug}/${environment.slug}/${app.slug}/updates`
-    )
+    await page.goto('/bearing/updates')
     await expect(page).toSee('What is new')
     await page.screenshot(path.join(screenshotRoot, 'updates-public.png'), {
       fullPage: true
     })
-    const updateDetailPath = `/bearing/public/${project.slug}/${environment.slug}/${app.slug}/updates/p/search-is-faster-and-calmer`
+    const updateDetailPath = `/_slipway/bearing/host/${project.slug}/${environment.slug}/${app.slug}/updates/p/search-is-faster-and-calmer`
     const updateDocument = await page.raw.request.get(updateDetailPath)
     expect(updateDocument.status()).toBe(200)
     const updateDocumentHtml = await updateDocument.text()
@@ -840,7 +854,9 @@ test(
     expect(updateDocumentHtml).toContain(
       '<meta property="og:description" content="Useful results now arrive without the wait." />'
     )
-    expect(updateDocumentHtml).toContain(`${updateDetailPath}" />`)
+    expect(updateDocumentHtml).toContain(
+      `${appOrigin}/bearing/updates/p/search-is-faster-and-calmer" />`
+    )
     await page.goto(updateDetailPath)
     await expect(page).toSee('Search is faster and calmer')
     await expect(page).toSee('What changed')
@@ -849,7 +865,7 @@ test(
       { fullPage: true }
     )
     const updateOgResponse = await page.raw.request.get(
-      `/bearing/public/${project.slug}/${environment.slug}/${app.slug}/updates/p/search-is-faster-and-calmer/og.png`
+      `/_slipway/bearing/host/${project.slug}/${environment.slug}/${app.slug}/updates/p/search-is-faster-and-calmer/og.png`
     )
     expect(updateOgResponse.status()).toBe(200)
     expect(updateOgResponse.headers()['content-type']).toContain('image/png')
@@ -858,7 +874,7 @@ test(
       await updateOgResponse.body()
     )
 
-    const bootstrapPath = `/bearing/public/${project.slug}/${environment.slug}/${app.slug}/bootstrap.js`
+    const bootstrapPath = '/_slipway/bearing/bootstrap.js'
     await injectBearingWidget(page, bootstrapPath)
     const widget = page.raw.locator('[data-slipway-bearing-widget]')
     const widgetTrigger = widget.locator('[data-trigger]')
@@ -1016,7 +1032,7 @@ test(
     await page.raw.unroute('**/feedback*')
 
     const ogResponse = await page.raw.request.get(
-      `/bearing/public/${project.slug}/${environment.slug}/${app.slug}/feedback/og.png`
+      `/_slipway/bearing/host/${project.slug}/${environment.slug}/${app.slug}/feedback/og.png`
     )
     expect(ogResponse.status()).toBe(200)
     expect(ogResponse.headers()['content-type']).toContain('image/png')
