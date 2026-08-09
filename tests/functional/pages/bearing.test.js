@@ -408,6 +408,12 @@ test(
     expect(namespace).toHaveStatus(302)
     expect(namespace).toRedirectTo(`${publicBasePath}/feedback`)
 
+    const legacyHostNamespace = await request
+      .withHeaders({ 'x-forwarded-host': 'ideas.example.com' })
+      .get(publicBasePath)
+    expect(legacyHostNamespace).toHaveStatus(302)
+    expect(legacyHostNamespace).toRedirectTo('/bearing/feedback')
+
     const hostNamespace = await request.get(hostBasePath)
     expect(hostNamespace).toHaveStatus(302)
     expect(hostNamespace).toRedirectTo('/bearing/feedback')
@@ -441,6 +447,20 @@ test(
       'realtime.socketPath': '/_slipway/bearing/socket.io',
       'realtime.subscribePath': `${hostBasePath}/realtime`,
       hostAssetBasePath: '/_slipway/bearing/_assets'
+    })
+
+    const legacyHostPage = await request
+      .withHeaders({
+        ...INERTIA_HEADERS,
+        host: 'ideas.example.com',
+        'x-forwarded-host': 'ideas.example.com'
+      })
+      .get(publicPath)
+    expect(legacyHostPage).toHaveInertiaProps({
+      'app.feedbackPath': '/bearing/feedback',
+      'app.roadmapPath': '/bearing/roadmap',
+      'app.updatesPath': '/bearing/updates',
+      'realtime.subscribePath': `${publicBasePath}/realtime`
     })
 
     const guest = await withCsrfFromPage(request, publicPath)

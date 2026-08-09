@@ -55,7 +55,11 @@ module.exports = {
     if (!participant && req.session) clearBearingSession(req.session)
 
     const routePrefix = normalizeRoutePrefix(app.routePath)
-    const hostOrigin = delivery === 'host'
+    const { domains } = await Environment.resolveDomains(
+      { ...environment, project },
+      {}
+    )
+    const hostOrigin = delivery === 'host' || requestMatchesDomain(req, domains)
     const integrationBasePath = hostOrigin
       ? `${routePrefix}/_slipway/bearing`
       : ''
@@ -90,6 +94,30 @@ function hashCredential(value) {
 function normalizeRoutePrefix(routePath) {
   if (!routePath || routePath === '/') return ''
   return `/${String(routePath).replace(/^\/+|\/+$/g, '')}`
+}
+
+function requestMatchesDomain(req, domains) {
+  const requestHost = normalizeHostname(
+    req.get('x-forwarded-host') || req.get('host') || req.hostname
+  )
+  return Boolean(
+    requestHost &&
+      domains.some((domain) => normalizeHostname(domain) === requestHost)
+  )
+}
+
+function normalizeHostname(value) {
+  const first = String(value || '')
+    .split(',')[0]
+    .trim()
+    .toLowerCase()
+  if (!first) return ''
+
+  try {
+    return new URL(`http://${first}`).hostname.toLowerCase()
+  } catch {
+    return ''
+  }
 }
 
 function clearBearingSession(session) {
