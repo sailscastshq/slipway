@@ -135,6 +135,36 @@ module.exports = {
         candidateContainerName: deployContainerName,
         imageName
       })
+      const candidatePreparation =
+        await sails.helpers.deploy.prepareCandidateContainer.with({
+          deploymentId,
+          leaseToken,
+          ...(targetApp?.id ? { appId: String(targetApp.id) } : {}),
+          containerName: deployContainerName
+        })
+      if (candidatePreparation.action === 'current') {
+        deployContainerName = null
+        await sails.helpers.deploy.finalizeCurrentCandidate.with({
+          deploymentId,
+          leaseToken,
+          environmentId: String(environment.id),
+          appId: String(targetApp.id)
+        })
+        return
+      }
+      if (
+        candidatePreparation.action !== 'ready' &&
+        candidatePreparation.action !== 'removed'
+      ) {
+        // The app record is the traffic authority. Keep its container out of
+        // generic failure cleanup even when the deployment metadata disagrees.
+        deployContainerName = null
+        const conflict = new Error(
+          `Container ${candidatePreparation.app.containerName} currently owns app traffic and cannot be replaced as a stale candidate.`
+        )
+        conflict.code = 'DEPLOYMENT_TRAFFIC_OWNER_CONFLICT'
+        throw conflict
+      }
       const { contextPath } =
         await sails.helpers.deploy.ensureBuildContext.with({
           project,

@@ -124,6 +124,37 @@ module.exports = {
         previousContainerName: oldContainerName || undefined
       })
 
+      const candidatePreparation =
+        await sails.helpers.deploy.prepareCandidateContainer.with({
+          deploymentId: rollbackId,
+          leaseToken,
+          ...(existingApp?.id ? { appId: String(existingApp.id) } : {}),
+          containerName: candidateContainerName
+        })
+      if (candidatePreparation.action === 'current') {
+        candidateContainerName = null
+        await sails.helpers.deploy.finalizeCurrentCandidate.with({
+          deploymentId: rollbackId,
+          leaseToken,
+          environmentId: String(environment.id),
+          appId: String(existingApp.id)
+        })
+        return
+      }
+      if (
+        candidatePreparation.action !== 'ready' &&
+        candidatePreparation.action !== 'removed'
+      ) {
+        // The app record is the traffic authority. Keep its container out of
+        // generic failure cleanup even when the deployment metadata disagrees.
+        candidateContainerName = null
+        const conflict = new Error(
+          `Container ${candidatePreparation.app.containerName} currently owns app traffic and cannot be replaced as a stale candidate.`
+        )
+        conflict.code = 'DEPLOYMENT_TRAFFIC_OWNER_CONFLICT'
+        throw conflict
+      }
+
       hostPort = await sails.helpers.docker.allocatePort.with({
         ownerType: 'deployment',
         ownerId: String(rollbackId)
