@@ -74,13 +74,23 @@ module.exports = {
 
       return result
     } catch (error) {
-      if (
-        error.message.includes('No such container') ||
-        error.message.includes('No such object')
-      ) {
+      if (isMissingContainerError(error)) {
         throw 'notFound'
       }
       throw error
     }
   }
 }
+
+function isMissingContainerError(error) {
+  const output = [error?.message, error?.stderr]
+    .filter(Boolean)
+    .join('\n')
+    .toLowerCase()
+
+  return (
+    output.includes('no such container') || output.includes('no such object')
+  )
+}
+
+module.exports._private = { isMissingContainerError }
