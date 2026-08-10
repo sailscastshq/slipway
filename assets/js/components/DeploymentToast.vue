@@ -133,9 +133,7 @@ const statusConfig = computed(() => {
 const isActive = computed(() => {
   return ['pending', 'building', 'pushing', 'deploying'].includes(status.value)
 })
-const isSuccessful = computed(() =>
-  ['current', 'succeeded'].includes(outcome.value)
-)
+const isSuccessful = computed(() => outcome.value === 'succeeded')
 
 const elapsedFormatted = computed(() => {
   const mins = Math.floor(elapsed.value / 60)

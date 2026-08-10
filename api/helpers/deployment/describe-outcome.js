@@ -40,22 +40,12 @@ module.exports = {
     const isCurrent = currentIds.has(Number(deployment.id))
     const status = deployment.status
 
-    if (isCurrent) {
-      return {
-        status,
-        outcome: 'current',
-        outcomeLabel: 'Current',
-        isCurrent: true,
-        isActive: false
-      }
-    }
-
     if (ACTIVE_LABELS[status]) {
       return {
         status,
         outcome: 'in-progress',
         outcomeLabel: ACTIVE_LABELS[status],
-        isCurrent: false,
+        isCurrent,
         isActive: true
       }
     }
@@ -65,7 +55,7 @@ module.exports = {
         status,
         outcome: 'succeeded',
         outcomeLabel: 'Succeeded',
-        isCurrent: false,
+        isCurrent,
         isActive: false
       }
     }
@@ -75,7 +65,7 @@ module.exports = {
         status,
         outcome: 'failed',
         outcomeLabel: 'Failed',
-        isCurrent: false,
+        isCurrent,
         isActive: false
       }
     }
@@ -85,7 +75,7 @@ module.exports = {
         status,
         outcome: 'cancelled',
         outcomeLabel: 'Cancelled',
-        isCurrent: false,
+        isCurrent,
         isActive: false
       }
     }
@@ -94,7 +84,7 @@ module.exports = {
       status,
       outcome: 'neutral',
       outcomeLabel: humanize(status),
-      isCurrent: false,
+      isCurrent,
       isActive: false
     }
   }
