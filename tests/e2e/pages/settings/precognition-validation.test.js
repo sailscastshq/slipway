@@ -28,12 +28,27 @@ test(
       .locator('#instance-domain-error')
       .waitFor({ state: 'hidden' })
 
-    await page.raw.emulateMedia({ colorScheme: 'dark' })
+    await page.raw.emulateMedia({
+      colorScheme: 'dark',
+      reducedMotion: 'reduce'
+    })
     await page.goto('/settings/notifications')
     const webhookEnabled = page.raw.locator('[data-test="webhook-enabled"]')
+    expect(await webhookEnabled.getAttribute('type')).toBe('checkbox')
+    expect(await webhookEnabled.getAttribute('role')).toBe('switch')
+    expect(await webhookEnabled.getAttribute('aria-label')).toBe(
+      'Webhook notifications'
+    )
+    expect(
+      await webhookEnabled.evaluate(
+        (element) => getComputedStyle(element).transitionDuration
+      )
+    ).toBe('0.1s')
     if (!(await webhookEnabled.isChecked())) {
-      await webhookEnabled.check({ force: true })
+      await webhookEnabled.focus()
+      await page.raw.keyboard.press('Space')
     }
+    expect(await webhookEnabled.isChecked()).toBe(true)
     await page.fill(
       '#webhookUrl',
       'https://operator:private-token@example.com/hook'
