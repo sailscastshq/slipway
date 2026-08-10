@@ -122,6 +122,12 @@ test(
       await page.wait('@audit-events')
       expect(page).toSee('Ran Helm')
       expect(page).toSee('Armed Helm writes')
+      await expect(page.raw.locator('[data-test="audit-search"]')).toHaveClass(
+        /border-dashed/
+      )
+      await expect(
+        page.raw.locator('[data-test="audit-search"]')
+      ).not.toHaveClass(/rounded/)
       await page.screenshot('.tmp/issue-274-audit-light.png')
 
       await page.fill('@audit-search', 'armed')

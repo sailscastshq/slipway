@@ -248,7 +248,7 @@ function shortHash(hash) {
             <label class="relative min-w-0 flex-1 sm:w-64">
               <span class="sr-only">Search audit events</span>
               <svg
-                class="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400"
+                class="pointer-events-none absolute left-1 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400"
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke="currentColor"
@@ -267,7 +267,7 @@ function shortHash(hash) {
                 type="search"
                 autocomplete="off"
                 placeholder="Search events or people"
-                class="w-full rounded-md border-0 bg-gray-50 py-2 pl-9 pr-3 text-sm text-gray-900 outline-none ring-1 ring-inset ring-gray-200 placeholder:text-gray-400 focus:ring-gray-400 dark:bg-gray-900 dark:text-white dark:ring-gray-800 dark:placeholder:text-gray-600 dark:focus:ring-gray-600"
+                class="focus:border-brand min-h-10 w-full border-0 border-b border-dashed border-gray-200 bg-transparent py-2 pl-7 pr-1 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-0 dark:border-gray-700 dark:text-white dark:placeholder:text-gray-500"
               />
             </label>
             <label>

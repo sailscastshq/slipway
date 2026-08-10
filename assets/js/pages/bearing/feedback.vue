@@ -772,7 +772,7 @@ function shortDate(value) {
                       ? 'bearing-feedback-title-error'
                       : undefined
                   "
-                  class="w-full border-0 bg-transparent p-0 text-xl font-semibold tracking-tight text-gray-950 placeholder:font-medium placeholder:text-gray-300 focus:ring-0 dark:text-white dark:placeholder:text-gray-500 sm:text-2xl"
+                  class="bearing-feedback-composer-field w-full border-0 bg-transparent p-0 text-xl font-semibold tracking-tight text-gray-950 caret-gray-950 placeholder:font-medium placeholder:text-gray-300 dark:text-white dark:caret-white dark:placeholder:text-gray-500 sm:text-2xl"
                   @input="handleTitleInput"
                 />
               </label>
@@ -799,7 +799,7 @@ function shortDate(value) {
                   rows="2"
                   maxlength="5000"
                   placeholder="Add details (optional)"
-                  class="w-full resize-none border-0 bg-transparent p-0 text-sm leading-6 text-gray-700 placeholder:text-gray-300 focus:ring-0 dark:text-gray-300 dark:placeholder:text-gray-600"
+                  class="bearing-feedback-composer-field w-full resize-none border-0 bg-transparent p-0 text-sm leading-6 text-gray-700 caret-gray-950 placeholder:text-gray-300 dark:text-gray-300 dark:caret-white dark:placeholder:text-gray-600"
                 ></textarea>
               </label>
 
@@ -990,13 +990,13 @@ function shortDate(value) {
           </div>
 
           <div
-            class="mt-7 flex items-center gap-2 sm:max-w-xl"
+            class="mt-7 flex w-full items-center gap-2"
             aria-label="Find and filter feedback"
           >
-            <label class="relative min-w-0 flex-1">
+            <label class="relative min-w-0 flex-1 sm:max-w-md">
               <span class="sr-only">Search feedback</span>
               <svg
-                class="size-4 pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400"
+                class="size-4 pointer-events-none absolute left-1 top-1/2 -translate-y-1/2 text-gray-400"
                 viewBox="0 0 16 16"
                 fill="none"
                 aria-hidden="true"
@@ -1019,13 +1019,13 @@ function shortDate(value) {
                 v-model="search"
                 type="search"
                 placeholder="Find feedback…"
-                class="min-h-11 w-full rounded-xl border-0 bg-gray-50 py-2.5 pl-10 pr-3 text-sm placeholder:text-gray-400 focus:ring-2 focus:ring-gray-200 dark:bg-gray-900 dark:focus:ring-gray-800"
+                class="focus:border-brand min-h-11 w-full border-0 border-b border-dashed border-gray-200 bg-transparent py-2.5 pl-7 pr-1 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-0 dark:border-gray-700 dark:text-white dark:placeholder:text-gray-500"
               />
             </label>
             <button
               type="button"
               data-test="open-mobile-feedback-filters"
-              class="min-h-11 flex shrink-0 items-center gap-2 rounded-xl bg-gray-50 px-3.5 text-sm font-medium transition hover:bg-gray-100 dark:bg-gray-900 dark:hover:bg-gray-800"
+              class="min-h-11 flex shrink-0 items-center gap-2 rounded-xl bg-gray-50 px-3.5 text-sm font-medium transition hover:bg-gray-100 dark:bg-gray-900 dark:hover:bg-gray-800 sm:ml-auto"
               @click="openMobileFilters"
             >
               <svg
@@ -1057,8 +1057,10 @@ function shortDate(value) {
             aria-labelledby="mobile-feedback-filters-heading"
             @click="closeMobileFiltersFromBackdrop"
           >
-            <div class="max-h-[85svh] overflow-y-auto px-5 pb-5 pt-6">
-              <div class="flex items-center justify-between gap-4">
+            <div
+              class="max-h-[85svh] overflow-y-auto px-5 pb-5 pt-5 sm:px-6 sm:pb-6 sm:pt-6"
+            >
+              <div class="flex items-start justify-between gap-4">
                 <div>
                   <h3
                     id="mobile-feedback-filters-heading"
@@ -1073,7 +1075,7 @@ function shortDate(value) {
                 </div>
                 <button
                   type="button"
-                  class="flex h-11 w-11 items-center justify-center rounded-full bg-gray-50 text-xl text-gray-500 dark:bg-gray-900 dark:text-gray-400"
+                  class="flex h-10 w-10 items-center justify-center rounded-lg text-xl text-gray-400 transition hover:bg-gray-50 hover:text-gray-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 dark:text-gray-500 dark:hover:bg-gray-900 dark:hover:text-gray-200 dark:focus-visible:ring-gray-700"
                   aria-label="Close filters"
                   @click="closeMobileFilters"
                 >
@@ -1081,83 +1083,29 @@ function shortDate(value) {
                 </button>
               </div>
 
-              <fieldset class="mt-8">
-                <legend
+              <label class="mt-6 block">
+                <span
                   class="text-xs font-medium text-gray-500 dark:text-gray-400"
                 >
                   Category
-                </legend>
-                <label
-                  class="min-h-12 mt-2 flex cursor-pointer items-center justify-between gap-3 rounded-xl px-4 py-3 text-sm font-medium transition"
-                  :class="
-                    categoryFilter === 'all'
-                      ? 'bg-gray-100 text-gray-950 ring-1 ring-gray-200 dark:bg-gray-800 dark:text-white dark:ring-gray-700'
-                      : 'bg-gray-50/70 text-gray-500 hover:bg-gray-100 dark:bg-gray-900/60 dark:text-gray-400 dark:hover:bg-gray-900'
-                  "
+                </span>
+                <select
+                  v-model="categoryFilter"
+                  data-test="bearing-feedback-category-filter"
+                  class="focus:border-brand min-h-11 mt-1 w-full border-0 border-b border-dashed border-gray-300 bg-transparent px-0 text-sm focus:ring-0 dark:border-gray-700"
                 >
-                  <input
-                    v-model="categoryFilter"
-                    class="sr-only"
-                    type="radio"
-                    name="mobile-feedback-category"
-                    value="all"
-                  />
-                  <span>All categories</span>
-                  <svg
-                    v-if="categoryFilter === 'all'"
-                    aria-hidden="true"
-                    viewBox="0 0 16 16"
-                    class="size-4 shrink-0 text-gray-600 dark:text-gray-300"
-                    fill="none"
-                  >
-                    <path
-                      d="m3.5 8 2.75 2.75L12.5 4.5"
-                      stroke="currentColor"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="1.6"
-                    />
-                  </svg>
-                </label>
-                <div class="mt-2 flex flex-wrap gap-2">
-                  <label
+                  <option value="all">All categories</option>
+                  <option
                     v-for="category in categories"
                     :key="category.key"
-                    class="min-h-12 flex max-w-full cursor-pointer items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium transition"
-                    :class="
-                      categoryFilter === category.key
-                        ? 'bg-gray-100 text-gray-950 ring-1 ring-gray-200 dark:bg-gray-800 dark:text-white dark:ring-gray-700'
-                        : 'bg-gray-50/70 text-gray-500 hover:bg-gray-100 dark:bg-gray-900/60 dark:text-gray-400 dark:hover:bg-gray-900'
-                    "
+                    :value="category.key"
                   >
-                    <input
-                      v-model="categoryFilter"
-                      class="sr-only"
-                      type="radio"
-                      name="mobile-feedback-category"
-                      :value="category.key"
-                    />
-                    <span class="break-words">{{ category.label }}</span>
-                    <svg
-                      v-if="categoryFilter === category.key"
-                      aria-hidden="true"
-                      viewBox="0 0 16 16"
-                      class="size-4 shrink-0 text-gray-600 dark:text-gray-300"
-                      fill="none"
-                    >
-                      <path
-                        d="m3.5 8 2.75 2.75L12.5 4.5"
-                        stroke="currentColor"
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        stroke-width="1.6"
-                      />
-                    </svg>
-                  </label>
-                </div>
-              </fieldset>
+                    {{ category.label }}
+                  </option>
+                </select>
+              </label>
 
-              <label class="mt-7 block">
+              <label class="mt-5 block">
                 <span
                   class="text-xs font-medium text-gray-500 dark:text-gray-400"
                 >

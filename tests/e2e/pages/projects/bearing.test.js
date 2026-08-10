@@ -510,6 +510,27 @@ test(
     ).toBe('https://docs.sailscasts.com/slipway')
     expect(page).toHaveNoJavascriptErrors()
 
+    const feedbackSearch = page.raw.getByRole('searchbox', {
+      name: 'Search feedback'
+    })
+    await expect(feedbackSearch).toHaveClass(/border-dashed/)
+    await expect(feedbackSearch).not.toHaveClass(/rounded/)
+
+    const filterButtonBox = await page.raw
+      .locator('[data-test="open-mobile-feedback-filters"]')
+      .boundingBox()
+    const firstFeedbackCardBox = await page.raw
+      .locator('.bearing-feedback-card')
+      .first()
+      .boundingBox()
+    expect(
+      Math.abs(
+        filterButtonBox.x +
+          filterButtonBox.width -
+          (firstFeedbackCardBox.x + firstFeedbackCardBox.width)
+      ) <= 1
+    ).toBe(true)
+
     await page.screenshot(path.join(screenshotRoot, 'feedback-public.png'), {
       fullPage: true
     })
@@ -528,6 +549,13 @@ test(
     )
     await page.raw.getByRole('button', { name: /Filter and sort/ }).click()
     await expect(page).toSee('Filter feedback')
+    const categoryFilter = page.raw.locator(
+      '[data-test="bearing-feedback-category-filter"]'
+    )
+    await expect(categoryFilter).toHaveClass(/border-dashed/)
+    expect(
+      await page.raw.locator('input[name="mobile-feedback-category"]').count()
+    ).toBe(0)
     await page.screenshot(
       path.join(screenshotRoot, 'feedback-filters-mobile.png')
     )
@@ -587,20 +615,29 @@ test(
     ).toBeVisible()
     await composer.getByRole('combobox', { name: 'Category' }).click()
     await composer.getByRole('option', { name: 'Feature', exact: true }).click()
-    await expect(composer.getByPlaceholder('Describe your idea')).toBeVisible()
+    const titleField = composer.getByPlaceholder('Describe your idea')
+    const detailsField = composer.getByPlaceholder('Add details (optional)')
+    await expect(titleField).toBeVisible()
     expect(
       await composer.getByRole('button', { name: 'Share' }).isDisabled()
     ).toBe(true)
+
+    await titleField.click()
+    await expectComposerFieldToStayUnboxed(titleField, expect)
+    await page.raw.keyboard.press('Tab')
+    await expectComposerFieldToStayUnboxed(detailsField, expect)
     await page.screenshot(path.join(screenshotRoot, 'feedback-form.png'), {
       fullPage: true
     })
     await page.resize(390, 844)
+    await expectComposerFieldToStayUnboxed(detailsField, expect)
     await page.screenshot(
       path.join(screenshotRoot, 'feedback-form-mobile.png'),
       { fullPage: true }
     )
     await page.raw.emulateMedia({ colorScheme: 'dark' })
     await page.raw.waitForTimeout(250)
+    await expectComposerFieldToStayUnboxed(detailsField, expect)
     await page.screenshot(
       path.join(screenshotRoot, 'feedback-form-mobile-dark.png'),
       { fullPage: true }
@@ -1049,6 +1086,20 @@ test(
 function helper(fn) {
   fn.with = fn
   return fn
+}
+
+async function expectComposerFieldToStayUnboxed(locator, expect) {
+  await expect(locator).toBeFocused()
+  expect(
+    await locator.evaluate((element) => {
+      const styles = window.getComputedStyle(element)
+      return {
+        outlineStyle: styles.outlineStyle,
+        boxShadow: styles.boxShadow,
+        borderTopWidth: styles.borderTopWidth
+      }
+    })
+  ).toEqual({ outlineStyle: 'none', boxShadow: 'none', borderTopWidth: '0px' })
 }
 
 async function revealLatestUpdateTrigger(page, spaceSlug) {

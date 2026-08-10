@@ -1597,6 +1597,12 @@ test(
 
     await page.click('@helm-history-toggle')
     await page.raw.locator('[data-test="helm-history-entry"]').first().waitFor()
+    await expect(
+      page.raw.locator('[data-test="helm-library-search"]')
+    ).toHaveClass(/border-dashed/)
+    await expect(
+      page.raw.locator('[data-test="helm-library-search"]')
+    ).not.toHaveClass(/rounded/)
     expect(
       await page.raw.locator('[data-test="helm-history-entry"]').count()
     ).toBe(2)
