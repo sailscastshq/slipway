@@ -112,6 +112,14 @@ button:disabled,
   outline-offset: 2px;
 }
 
+/* Bearing's title and details are one editorial surface, not boxed fields. */
+.bearing-feedback-composer-field,
+.bearing-feedback-composer-field:focus,
+.bearing-feedback-composer-field:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+
 /* Selection color - Light mode */
 ::selection {
   background-color: var(--color-brand-200);

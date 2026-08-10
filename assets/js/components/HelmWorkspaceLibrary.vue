@@ -464,7 +464,7 @@ defineExpose({ refreshHistory, openSnippetDialog })
       <label class="relative min-w-0 flex-1">
         <span class="sr-only">Search {{ tab }}</span>
         <svg
-          class="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-400"
+          class="pointer-events-none absolute left-1 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-400"
           fill="none"
           stroke="currentColor"
           viewBox="0 0 24 24"
@@ -482,7 +482,7 @@ defineExpose({ refreshHistory, openSnippetDialog })
           data-test="helm-library-search"
           type="search"
           :placeholder="`Search ${tab}`"
-          class="block w-full rounded-md border-0 bg-gray-100/70 py-1.5 pl-8 pr-3 text-xs text-gray-900 outline-none placeholder:text-gray-400 focus:ring-1 focus:ring-gray-300 dark:bg-gray-900 dark:text-white dark:placeholder:text-gray-600 dark:focus:ring-gray-700"
+          class="focus:border-brand block w-full border-0 border-b border-dashed border-gray-200 bg-transparent py-1.5 pl-6 pr-1 text-xs text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-0 dark:border-gray-700 dark:text-white dark:placeholder:text-gray-500"
         />
       </label>
 
