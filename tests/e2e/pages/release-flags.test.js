@@ -77,12 +77,77 @@ test(
     await page.wait('@release-flags')
     await expect(page).toSee('new-checkout')
     await expect(page).toSee('25% · 2 targets')
+
+    const flagsEndpoint = `/api/v1/projects/${project.slug}/environments/${environment.slug}/apps/${app.slug}/flags`
+    let successfulToggleRequests = 0
+    page.raw.on('request', (request) => {
+      if (
+        request.method() === 'PATCH' &&
+        request.url().includes(`${flagsEndpoint}/`)
+      ) {
+        successfulToggleRequests += 1
+      }
+    })
+    const fasterSearchSwitch = page.raw.locator(
+      '[data-test="release-flag-faster-search-switch"]'
+    )
+    expect(await fasterSearchSwitch.getAttribute('type')).toBe('checkbox')
+    expect(await fasterSearchSwitch.getAttribute('role')).toBe('switch')
+    expect(await fasterSearchSwitch.isChecked()).toBe(false)
+    const fasterSearchSaved = page.raw.waitForResponse(
+      (response) =>
+        response.url().includes(`${flagsEndpoint}/`) &&
+        response.request().method() === 'PATCH'
+    )
+    await fasterSearchSwitch.focus()
+    await page.raw.keyboard.press('Space')
+    expect((await fasterSearchSaved).status()).toBe(200)
+    expect(await fasterSearchSwitch.isChecked()).toBe(true)
+    expect(successfulToggleRequests).toBe(1)
+    expect(
+      (
+        await sails.models.featureflag.findOne({
+          key: 'faster-search',
+          app: app.id
+        })
+      ).enabled
+    ).toBe(true)
+
+    let failedToggleRequests = 0
+    await page.raw.route(`**${flagsEndpoint}/*`, async (route) => {
+      if (route.request().method() !== 'PATCH') return route.continue()
+      failedToggleRequests += 1
+      await route.fulfill({
+        status: 422,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          message: 'Release flag rejected for testing.'
+        })
+      })
+    })
+    const newCheckoutSwitch = page.raw.locator(
+      '[data-test="release-flag-new-checkout-switch"]'
+    )
+    expect(await newCheckoutSwitch.isChecked()).toBe(true)
+    await newCheckoutSwitch.focus()
+    await page.raw.keyboard.press('Space')
+    await page.wait('text=Release flag rejected for testing.')
+    expect(await newCheckoutSwitch.isChecked()).toBe(true)
+    expect(failedToggleRequests).toBe(1)
+    await page.raw.unroute(`**${flagsEndpoint}/*`)
+
     await page.screenshot('.tmp/issue-227-release-flags-light.png', {
       fullPage: true
     })
 
     await page.inDarkMode()
+    await page.raw.emulateMedia({ reducedMotion: 'reduce' })
     await page.wait(250)
+    expect(
+      await newCheckoutSwitch.evaluate(
+        (element) => getComputedStyle(element).transitionDuration
+      )
+    ).toBe('0.1s')
     await page.screenshot('.tmp/issue-227-release-flags-dark.png', {
       fullPage: true
     })

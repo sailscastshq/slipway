@@ -719,6 +719,17 @@ test(
       await expect(page).toSee('Metadata')
       await expect(page).toSee('Creator')
       expect(await page.raw.getByLabel('Id').count()).toBe(0)
+      const publishedSwitch = page.raw.locator(
+        '[data-test="bridge-course-published-input"]'
+      )
+      expect(await publishedSwitch.getAttribute('type')).toBe('checkbox')
+      expect(await publishedSwitch.getAttribute('role')).toBe('switch')
+      expect(await publishedSwitch.getAttribute('data-state')).toBe('unchecked')
+      await page.raw.locator('label[for="bridge-course-published"]').click()
+      expect(await publishedSwitch.isChecked()).toBe(true)
+      await publishedSwitch.focus()
+      await page.raw.keyboard.press('Space')
+      expect(await publishedSwitch.isChecked()).toBe(false)
       const createRecordButton = page.raw.getByRole('button', {
         name: 'Create record'
       })

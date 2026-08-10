@@ -17,6 +17,7 @@ import Tooltip from '@/components/Tooltip.vue'
 import CodeEditor from '@/components/CodeEditor.vue'
 import ConfigVariableMenu from '@/components/ConfigVariableMenu.vue'
 import ReleaseFlagMenu from '@/components/ReleaseFlagMenu.vue'
+import Switch from '@/components/ui/switch/Switch.vue'
 import { useToast } from '@/composables/toast'
 import SlippyLoader from '@/components/SlippyLoader.vue'
 import DeploymentHistory from '@/components/DeploymentHistory.vue'
@@ -727,7 +728,7 @@ async function createReleaseFlag() {
 }
 
 async function updateReleaseFlag(flag, updates) {
-  if (savingFlag.value) return
+  if (savingFlag.value) return false
   savingFlag.value = true
   try {
     const data = await flagRequest(flagUrl(flag), {
@@ -744,10 +745,20 @@ async function updateReleaseFlag(flag, updates) {
       (candidate) => candidate.id === flag.id
     )
     if (index >= 0) localReleaseFlags.value[index] = data.flag
+    return true
   } catch (error) {
     toast({ message: error.message, type: 'error' })
+    return false
   } finally {
     savingFlag.value = false
+  }
+}
+
+async function toggleReleaseFlag(flag, enabled) {
+  const previous = flag.enabled
+  flag.enabled = enabled
+  if (!(await updateReleaseFlag(flag, { enabled }))) {
+    flag.enabled = previous
   }
 }
 
@@ -1840,29 +1851,16 @@ onBeforeUnmount(() => {
                       {{ flag.description }}
                     </p>
                   </div>
-                  <button
-                    type="button"
-                    role="switch"
-                    :aria-checked="flag.enabled"
+                  <Switch
+                    :model-value="flag.enabled"
                     :aria-label="`${flag.enabled ? 'Disable' : 'Enable'} ${
                       flag.key
                     }`"
                     :disabled="savingFlag"
-                    @click="updateReleaseFlag(flag, { enabled: !flag.enabled })"
-                    :class="[
-                      'relative inline-flex h-5 w-9 shrink-0 rounded-full transition-colors disabled:opacity-50',
-                      flag.enabled
-                        ? 'bg-gray-900 dark:bg-white'
-                        : 'bg-gray-200 dark:bg-gray-700'
-                    ]"
-                  >
-                    <span
-                      :class="[
-                        'mt-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition-transform dark:bg-gray-900',
-                        flag.enabled ? 'translate-x-[18px]' : 'translate-x-0.5'
-                      ]"
-                    ></span>
-                  </button>
+                    :data-test="`release-flag-${flag.key}-switch`"
+                    class="after:size-4 h-5 w-9 bg-gray-200 checked:bg-gray-950 checked:after:[transform:translate(1rem,-50%)] dark:bg-gray-700 dark:checked:bg-white dark:checked:after:bg-gray-950"
+                    @update:model-value="toggleReleaseFlag(flag, $event)"
+                  />
                   <ReleaseFlagMenu
                     :flag="flag"
                     @update="updateReleaseFlag(flag, $event)"

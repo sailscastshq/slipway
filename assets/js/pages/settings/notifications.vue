@@ -3,6 +3,7 @@ import { Link, Head, useForm } from '@inertiajs/vue3'
 import { inject, ref, computed } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
 import { usePrecognitionValidation } from '@/composables/precognition'
+import Switch from '@/components/ui/switch/Switch.vue'
 
 defineOptions({
   layout: AppLayout
@@ -104,6 +105,8 @@ function testChannel(channel) {
 }
 
 const revealToken = ref(false)
+const providerSwitchClass =
+  'h-5 w-9 bg-gray-200 after:size-4 checked:bg-brand checked:after:[transform:translate(1rem,-50%)] dark:bg-gray-700 dark:checked:bg-brand dark:checked:after:bg-white'
 
 // Define all notification events for filtering
 const allEvents = [
@@ -469,14 +472,11 @@ const categoryIcons = {
                   <label
                     class="relative inline-flex cursor-pointer items-center"
                   >
-                    <input
-                      type="checkbox"
+                    <Switch
                       v-model="form.discordEnabled"
-                      class="peer sr-only"
+                      aria-label="Discord notifications"
+                      :class="providerSwitchClass"
                     />
-                    <div
-                      class="peer-checked:bg-brand peer h-5 w-9 rounded-full bg-gray-200 after:absolute after:left-0.5 after:top-0.5 after:h-4 after:w-4 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:after:translate-x-full peer-checked:after:border-white peer-focus:outline-none dark:border-gray-600 dark:bg-gray-700"
-                    ></div>
                   </label>
                 </div>
                 <div
@@ -574,14 +574,11 @@ const categoryIcons = {
                   <label
                     class="relative inline-flex cursor-pointer items-center"
                   >
-                    <input
-                      type="checkbox"
+                    <Switch
                       v-model="form.slackEnabled"
-                      class="peer sr-only"
+                      aria-label="Slack notifications"
+                      :class="providerSwitchClass"
                     />
-                    <div
-                      class="peer-checked:bg-brand peer h-5 w-9 rounded-full bg-gray-200 after:absolute after:left-0.5 after:top-0.5 after:h-4 after:w-4 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:after:translate-x-full peer-checked:after:border-white peer-focus:outline-none dark:border-gray-600 dark:bg-gray-700"
-                    ></div>
                   </label>
                 </div>
                 <div
@@ -677,14 +674,11 @@ const categoryIcons = {
                   <label
                     class="relative inline-flex cursor-pointer items-center"
                   >
-                    <input
-                      type="checkbox"
+                    <Switch
                       v-model="form.telegramEnabled"
-                      class="peer sr-only"
+                      aria-label="Telegram notifications"
+                      :class="providerSwitchClass"
                     />
-                    <div
-                      class="peer-checked:bg-brand peer h-5 w-9 rounded-full bg-gray-200 after:absolute after:left-0.5 after:top-0.5 after:h-4 after:w-4 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:after:translate-x-full peer-checked:after:border-white peer-focus:outline-none dark:border-gray-600 dark:bg-gray-700"
-                    ></div>
                   </label>
                 </div>
                 <div
@@ -899,14 +893,11 @@ const categoryIcons = {
                   <label
                     class="relative inline-flex cursor-pointer items-center"
                   >
-                    <input
-                      type="checkbox"
+                    <Switch
                       v-model="form.smtpEnabled"
-                      class="peer sr-only"
+                      aria-label="Email notifications"
+                      :class="providerSwitchClass"
                     />
-                    <div
-                      class="peer-checked:bg-brand peer h-5 w-9 rounded-full bg-gray-200 after:absolute after:left-0.5 after:top-0.5 after:h-4 after:w-4 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:after:translate-x-full peer-checked:after:border-white peer-focus:outline-none dark:border-gray-600 dark:bg-gray-700"
-                    ></div>
                   </label>
                 </div>
                 <div
@@ -1134,15 +1125,12 @@ const categoryIcons = {
                   <label
                     class="relative inline-flex cursor-pointer items-center"
                   >
-                    <input
+                    <Switch
                       data-test="webhook-enabled"
-                      type="checkbox"
                       v-model="form.webhookEnabled"
-                      class="peer sr-only"
+                      aria-label="Webhook notifications"
+                      :class="providerSwitchClass"
                     />
-                    <div
-                      class="peer-checked:bg-brand peer h-5 w-9 rounded-full bg-gray-200 after:absolute after:left-0.5 after:top-0.5 after:h-4 after:w-4 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:after:translate-x-full peer-checked:after:border-white peer-focus:outline-none dark:border-gray-600 dark:bg-gray-700"
-                    ></div>
                   </label>
                 </div>
                 <div

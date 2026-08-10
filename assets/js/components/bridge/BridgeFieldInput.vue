@@ -3,6 +3,7 @@ import { router } from '@inertiajs/vue3'
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import MarkdownEditor from '@/components/content/MarkdownEditor.vue'
 import BridgeRelationshipSelect from '@/components/bridge/BridgeRelationshipSelect.vue'
+import Switch from '@/components/ui/switch/Switch.vue'
 import {
   bridgeFieldType,
   bridgeSelectOptions,
@@ -690,32 +691,17 @@ function defaultPlaceholder(fieldType) {
         {{ label }}
       </label>
       <div class="flex items-center gap-3">
-        <button
+        <Switch
           :id="fieldId"
-          type="button"
-          role="switch"
-          :aria-checked="Boolean(modelValue)"
+          :model-value="Boolean(modelValue)"
           :aria-describedby="describedBy"
+          :aria-invalid="Boolean(visibleError)"
           :disabled="field.readOnly"
           :data-test="`${fieldId}-input`"
-          :class="[
-            'relative inline-flex h-5 w-9 shrink-0 rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:ring-offset-2 motion-reduce:transition-none dark:focus-visible:ring-gray-600 dark:focus-visible:ring-offset-gray-900',
-            modelValue
-              ? 'bg-gray-900 dark:bg-white'
-              : 'bg-gray-300 dark:bg-gray-600',
-            field.readOnly ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'
-          ]"
-          @click="update(!modelValue)"
+          class="after:size-4 h-5 w-9 bg-gray-300 checked:bg-gray-950 checked:after:[transform:translate(1rem,-50%)] dark:bg-gray-600 dark:checked:bg-white dark:checked:after:bg-gray-950"
+          @update:model-value="update"
           @blur="handleBlur"
-        >
-          <span
-            :class="[
-              'pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow transition-transform motion-reduce:transition-none dark:bg-gray-900',
-              modelValue ? 'translate-x-4' : 'translate-x-0'
-            ]"
-            aria-hidden="true"
-          ></span>
-        </button>
+        />
         <span class="w-6 text-sm text-gray-500 dark:text-gray-400">
           {{ modelValue ? 'Yes' : 'No' }}
         </span>
