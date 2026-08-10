@@ -1,10 +1,12 @@
 <script setup>
-import { computed, nextTick, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import {
   LOG_LEVELS,
-  filterLogEntries,
+  appendLogEntry,
+  buildLogEvents,
+  filterLogEvents,
   parseLogLine,
-  serializeLogEntries
+  serializeLogEvents
 } from '@/lib/log-viewer.mjs'
 import SlippyLoader from '@/components/SlippyLoader.vue'
 
@@ -32,24 +34,46 @@ const query = ref('')
 const level = ref('all')
 const wrap = ref(true)
 const following = ref(true)
-const copied = ref(false)
+const copyState = ref('idle')
 const viewport = ref(null)
+const events = ref([])
 
-const entries = computed(() => props.lines.map(parseLogLine))
-const visibleEntries = computed(() =>
-  filterLogEntries(entries.value, { query: query.value, level: level.value })
+let processedLineCount = 0
+let firstProcessedLine
+let lastProcessedLine
+let nextEventKey = 0
+let copyResetTimer
+
+const visibleEvents = computed(() =>
+  filterLogEvents(events.value, { query: query.value, level: level.value })
 )
-const levelCounts = computed(() =>
-  entries.value.reduce(
-    (counts, entry) => {
-      if (entry.level === 'continuation') counts.info += 1
-      else counts[entry.level] += 1
-      return counts
-    },
-    { error: 0, warning: 0, info: 0, debug: 0 }
-  )
-)
+const levelCounts = computed(() => {
+  const counts = { error: 0, warning: 0, info: 0, debug: 0 }
+  for (const event of events.value) counts[event.level] += 1
+  return counts
+})
 const heightClass = computed(() => (props.height === 'lg' ? 'h-96' : 'h-80'))
+const connectionState = computed(() => {
+  if (props.inactiveMessage) return 'inactive'
+  if (props.error) return 'reconnecting'
+  if (props.connected) return 'live'
+  return 'connecting'
+})
+const connectionLabel = computed(
+  () =>
+    ({
+      inactive: 'Inactive',
+      reconnecting: 'Reconnecting',
+      live: 'Live',
+      connecting: 'Connecting'
+    }[connectionState.value])
+)
+
+watch(
+  () => [props.lines.length, props.lines[0], props.lines.at(-1)],
+  syncEvents,
+  { immediate: true }
+)
 
 watch(
   () => props.lines.length,
@@ -59,6 +83,34 @@ watch(
 )
 
 onMounted(scrollToLatest)
+onBeforeUnmount(() => clearTimeout(copyResetTimer))
+
+function syncEvents() {
+  const source = props.lines
+  const sourceChanged =
+    source.length < processedLineCount ||
+    (processedLineCount > 0 && source[0] !== firstProcessedLine) ||
+    (source.length === processedLineCount &&
+      source.at(-1) !== lastProcessedLine)
+
+  if (sourceChanged) {
+    events.value = buildLogEvents(source)
+    for (const event of events.value) event.key = nextEventKey++
+    processedLineCount = source.length
+  } else if (source.length > processedLineCount) {
+    const nextEvents = events.value
+    for (let index = processedLineCount; index < source.length; index += 1) {
+      const before = nextEvents.length
+      const event = appendLogEntry(nextEvents, parseLogLine(source[index]))
+      if (nextEvents.length > before) event.key = nextEventKey++
+    }
+    events.value = [...nextEvents]
+    processedLineCount = source.length
+  }
+
+  firstProcessedLine = source[0]
+  lastProcessedLine = source.at(-1)
+}
 
 function scrollToLatest() {
   nextTick(() => {
@@ -81,12 +133,19 @@ function toggleFollowing() {
 }
 
 async function copyVisibleLogs() {
-  if (visibleEntries.value.length === 0) return
-  await navigator.clipboard.writeText(serializeLogEntries(visibleEntries.value))
-  copied.value = true
-  setTimeout(() => {
-    copied.value = false
-  }, 1600)
+  if (visibleEvents.value.length === 0) return
+
+  clearTimeout(copyResetTimer)
+  try {
+    await navigator.clipboard.writeText(serializeLogEvents(visibleEvents.value))
+    copyState.value = 'copied'
+  } catch {
+    copyState.value = 'failed'
+  }
+
+  copyResetTimer = setTimeout(() => {
+    copyState.value = 'idle'
+  }, 1800)
 }
 
 function levelLabel(value) {
@@ -98,45 +157,22 @@ function levelLabel(value) {
   }[value]
 }
 
-function entryLabel(entry) {
-  if (entry.continuation && entry.level === 'continuation') return 'Trace'
+function badgeClass(event) {
   return {
-    error: 'Error',
-    warning: 'Warn',
-    info: 'Info',
-    debug: 'Debug',
-    continuation: 'Trace'
-  }[entry.level]
+    error: 'text-rose-300',
+    warning: 'text-amber-300',
+    info: 'text-sky-300',
+    debug: 'text-zinc-500'
+  }[event.level]
 }
 
-function levelButtonClass(value) {
-  if (level.value !== value) {
-    return 'text-zinc-400 hover:bg-white/5 hover:text-zinc-200'
-  }
-
+function eventClass(event) {
   return {
-    all: 'bg-white/10 text-white',
-    error: 'bg-rose-500/15 text-rose-300',
-    warning: 'bg-amber-500/15 text-amber-300',
-    info: 'bg-sky-500/15 text-sky-300',
-    debug: 'bg-zinc-500/20 text-zinc-300'
-  }[value]
-}
-
-function badgeClass(entry) {
-  return {
-    error: 'bg-rose-500/15 text-rose-300 ring-rose-400/20',
-    warning: 'bg-amber-500/15 text-amber-300 ring-amber-400/20',
-    info: 'bg-sky-500/10 text-sky-300 ring-sky-400/15',
-    debug: 'bg-zinc-500/15 text-zinc-400 ring-zinc-400/15',
-    continuation: 'text-zinc-600'
-  }[entry.level]
-}
-
-function rowClass(entry) {
-  if (entry.level === 'error') return 'bg-rose-950/20 hover:bg-rose-950/30'
-  if (entry.level === 'warning') return 'bg-amber-950/10 hover:bg-amber-950/20'
-  return 'hover:bg-white/[0.035]'
+    error: 'border-l-rose-500/70 bg-rose-950/20 hover:bg-rose-950/30',
+    warning: 'border-l-amber-400/60 bg-amber-950/10 hover:bg-amber-950/20',
+    info: 'border-l-transparent hover:bg-white/[0.035]',
+    debug: 'border-l-transparent hover:bg-white/[0.025]'
+  }[event.level]
 }
 
 function segmentClass(type) {
@@ -165,13 +201,34 @@ function segmentClass(type) {
     aria-label="Live logs"
   >
     <div
-      class="flex flex-wrap items-center gap-2 bg-zinc-900/80 px-3 py-2 shadow-[inset_0_-1px_0_rgba(255,255,255,0.06)]"
+      class="flex flex-wrap items-center gap-x-3 gap-y-2 border-y border-white/[0.07] bg-zinc-900/80 px-3 py-2 sm:flex-nowrap"
     >
-      <label class="min-w-44 relative flex-1 sm:max-w-xs">
+      <div
+        class="min-w-24 order-1 flex items-center gap-2 font-sans text-xs text-zinc-400"
+        role="status"
+        aria-live="polite"
+      >
+        <span
+          :class="[
+            'h-1.5 w-1.5 rounded-full',
+            connectionState === 'live' && 'bg-emerald-400',
+            connectionState === 'connecting' &&
+              'animate-pulse bg-amber-300 motion-reduce:animate-none',
+            connectionState === 'reconnecting' &&
+              'animate-pulse bg-rose-400 motion-reduce:animate-none',
+            connectionState === 'inactive' && 'bg-zinc-600'
+          ]"
+        ></span>
+        <span>{{ connectionLabel }}</span>
+      </div>
+
+      <label
+        class="sm:min-w-40 relative order-3 min-w-full flex-1 sm:order-2 sm:max-w-sm"
+      >
         <span class="sr-only">Search logs</span>
         <svg
           aria-hidden="true"
-          class="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-zinc-500"
+          class="pointer-events-none absolute left-0 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-600"
           fill="none"
           stroke="currentColor"
           viewBox="0 0 24 24"
@@ -179,7 +236,7 @@ function segmentClass(type) {
           <path
             stroke-linecap="round"
             stroke-linejoin="round"
-            stroke-width="2"
+            stroke-width="1.8"
             d="m21 21-4.35-4.35m2.35-5.65a8 8 0 1 1-16 0 8 8 0 0 1 16 0Z"
           />
         </svg>
@@ -188,67 +245,156 @@ function segmentClass(type) {
           data-test="log-search"
           type="search"
           autocomplete="off"
-          placeholder="Search logs"
-          class="h-8 w-full border-0 border-b border-dashed border-zinc-700 bg-transparent pl-8 pr-2 font-sans text-xs text-zinc-200 outline-none placeholder:text-zinc-600 focus:border-sky-400 focus:ring-0"
+          placeholder="Find in logs…"
+          class="h-9 w-full border-0 border-b border-dashed border-zinc-700 bg-transparent pl-6 pr-2 font-sans text-xs text-zinc-200 outline-none placeholder:text-zinc-600 focus:border-sky-400 focus:ring-0"
         />
       </label>
 
-      <div class="flex items-center gap-0.5" aria-label="Filter by severity">
-        <button
-          v-for="value in ['all', ...LOG_LEVELS]"
-          :key="value"
-          type="button"
-          :aria-pressed="level === value"
-          :class="[
-            'rounded-md px-2 py-1 text-[11px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/70',
-            levelButtonClass(value)
-          ]"
-          @click="level = value"
-        >
-          {{ value === 'all' ? 'All' : levelLabel(value) }}
-          <span class="ml-0.5 tabular-nums opacity-60">
-            {{ value === 'all' ? entries.length : levelCounts[value] }}
-          </span>
-        </button>
-      </div>
+      <div class="order-2 ml-auto flex items-center gap-1 sm:order-3">
+        <label class="relative">
+          <span class="sr-only">Filter logs by severity</span>
+          <select
+            v-model="level"
+            data-test="log-level-filter"
+            class="h-10 appearance-none border-0 border-b border-dashed border-zinc-700 bg-transparent py-0 pl-2 pr-7 font-sans text-xs text-zinc-300 outline-none focus:border-sky-400 focus:ring-0"
+          >
+            <option value="all">All · {{ events.length }}</option>
+            <option v-for="value in LOG_LEVELS" :key="value" :value="value">
+              {{ levelLabel(value) }} · {{ levelCounts[value] }}
+            </option>
+          </select>
+          <svg
+            aria-hidden="true"
+            class="pointer-events-none absolute right-1.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-zinc-500"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="m7 10 5 5 5-5"
+            />
+          </svg>
+        </label>
 
-      <div class="ml-auto flex items-center gap-1">
         <button
           type="button"
+          :aria-label="
+            following ? 'Pause automatic scrolling' : 'Follow latest log'
+          "
           :aria-pressed="following"
+          :title="following ? 'Following latest log' : 'Follow latest log'"
           :class="[
-            'rounded-md px-2 py-1 text-[11px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/70',
+            'min-w-10 inline-flex h-10 items-center justify-center gap-1.5 rounded-md px-2 font-sans text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/70',
             following
-              ? 'bg-emerald-500/10 text-emerald-300'
+              ? 'bg-white/[0.07] text-zinc-200'
               : 'text-zinc-500 hover:bg-white/5 hover:text-zinc-300'
           ]"
           @click="toggleFollowing"
         >
-          <span
-            :class="[
-              'mr-1 inline-block h-1.5 w-1.5 rounded-full',
-              following ? 'bg-emerald-400' : 'bg-zinc-600'
-            ]"
-          ></span>
-          {{ following ? 'Following' : 'Paused' }}
+          <svg
+            aria-hidden="true"
+            class="h-4 w-4"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1.8"
+              d="m7 10 5 5 5-5M12 15V4M5 20h14"
+            />
+          </svg>
+          <span class="hidden lg:inline">{{
+            following ? 'Following' : 'Follow'
+          }}</span>
         </button>
+
         <button
           type="button"
+          :aria-label="
+            wrap ? 'Turn line wrapping off' : 'Turn line wrapping on'
+          "
           :aria-pressed="wrap"
-          class="rounded-md px-2 py-1 text-[11px] font-medium text-zinc-400 transition-colors hover:bg-white/5 hover:text-zinc-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/70"
+          :title="wrap ? 'Line wrapping on' : 'Line wrapping off'"
+          :class="[
+            'min-w-10 inline-flex h-10 items-center justify-center rounded-md text-zinc-500 transition-colors hover:bg-white/5 hover:text-zinc-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/70',
+            wrap && 'bg-white/[0.07] text-zinc-200'
+          ]"
           @click="wrap = !wrap"
         >
-          {{ wrap ? 'Wrap on' : 'Wrap off' }}
+          <svg
+            aria-hidden="true"
+            class="h-4 w-4"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1.8"
+              d="M4 7h12a4 4 0 0 1 0 8H9m0 0 3-3m-3 3 3 3M4 12h7M4 17h2"
+            />
+          </svg>
         </button>
+
         <button
           type="button"
-          :disabled="visibleEntries.length === 0"
-          class="rounded-md px-2 py-1 text-[11px] font-medium text-zinc-400 transition-colors hover:bg-white/5 hover:text-zinc-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/70 disabled:cursor-not-allowed disabled:opacity-40"
+          :disabled="visibleEvents.length === 0"
+          :aria-label="
+            copyState === 'copied' ? 'Logs copied' : 'Copy visible logs'
+          "
+          :title="
+            copyState === 'failed' ? 'Could not copy logs' : 'Copy visible logs'
+          "
+          class="min-w-10 inline-flex h-10 items-center justify-center rounded-md text-zinc-500 transition-colors hover:bg-white/5 hover:text-zinc-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/70 disabled:cursor-not-allowed disabled:opacity-30"
           @click="copyVisibleLogs"
         >
-          {{ copied ? 'Copied' : 'Copy' }}
+          <svg
+            v-if="copyState === 'copied'"
+            aria-hidden="true"
+            class="h-4 w-4 text-emerald-400"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="m5 13 4 4L19 7"
+            />
+          </svg>
+          <svg
+            v-else
+            aria-hidden="true"
+            class="h-4 w-4"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1.8"
+              d="M8 8V5a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-3m-7-6h7a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2Z"
+            />
+          </svg>
         </button>
       </div>
+    </div>
+
+    <div
+      v-if="error && events.length > 0"
+      class="flex items-center gap-2 border-b border-amber-400/10 bg-amber-400/[0.06] px-3 py-2 font-sans text-xs text-amber-200/80"
+      role="status"
+    >
+      <span class="h-1.5 w-1.5 shrink-0 rounded-full bg-amber-300"></span>
+      Kept the logs already received. Reconnecting to live output…
     </div>
 
     <div
@@ -259,73 +405,82 @@ function segmentClass(type) {
       @scroll="handleScroll"
     >
       <div
-        v-if="error"
+        v-if="inactiveMessage && events.length === 0"
+        class="flex h-full items-center justify-center px-6 text-center font-sans text-sm text-zinc-500"
+      >
+        {{ inactiveMessage }}
+      </div>
+      <div
+        v-else-if="error && events.length === 0"
         role="status"
         class="flex h-full items-center justify-center px-6 text-center font-sans text-sm text-rose-300"
       >
         {{ error }}
       </div>
       <div
-        v-else-if="inactiveMessage"
-        class="flex h-full items-center justify-center px-6 text-center font-sans text-sm text-zinc-500"
-      >
-        {{ inactiveMessage }}
-      </div>
-      <div
-        v-else-if="!connected && entries.length === 0"
+        v-else-if="!connected && events.length === 0"
         class="flex h-full items-center justify-center font-sans text-sm text-zinc-500"
       >
         <SlippyLoader size="h-4 w-4" class="mr-2" />
         Connecting to logs…
       </div>
       <div
-        v-else-if="entries.length === 0"
+        v-else-if="events.length === 0"
         class="flex h-full items-center justify-center font-sans text-sm text-zinc-500"
       >
         Waiting for output…
       </div>
       <div
-        v-else-if="visibleEntries.length === 0"
+        v-else-if="visibleEvents.length === 0"
         class="flex h-full items-center justify-center px-6 text-center font-sans text-sm text-zinc-500"
       >
-        No logs match this filter.
+        No logs match this search and severity.
       </div>
       <ol v-else class="min-w-full py-1 font-mono text-xs leading-5">
         <li
-          v-for="(entry, index) in visibleEntries"
-          :key="`${index}-${entry.raw}`"
+          v-for="event in visibleEvents"
+          :key="event.key"
+          data-test="log-event"
+          :data-level="event.level"
           :class="[
-            'grid min-w-max grid-cols-[6.75rem_4.25rem_minmax(28rem,1fr)] items-start gap-2 px-3 py-0.5 transition-colors',
-            rowClass(entry)
+            'border-l-2 px-3 py-2 transition-colors sm:grid sm:grid-cols-[6.75rem_4rem_minmax(0,1fr)] sm:items-start sm:gap-3 sm:py-1.5',
+            eventClass(event)
           ]"
         >
-          <time
-            :datetime="entry.timestamp || undefined"
-            :title="entry.timestamp || 'Timestamp unavailable'"
-            class="select-none text-right tabular-nums text-zinc-600"
-          >
-            {{ entry.time || '—' }}
-          </time>
-          <span
-            :class="[
-              'min-w-11 mt-0.5 inline-flex h-4 w-fit items-center justify-center rounded px-1.5 font-sans text-[9px] font-semibold uppercase tracking-wider ring-1 ring-inset',
-              badgeClass(entry)
-            ]"
-          >
-            {{ entryLabel(entry) }}
-          </span>
-          <code
-            :class="[
-              'block min-w-0 bg-transparent p-0 font-mono text-[12px] text-zinc-300',
-              wrap ? 'whitespace-pre-wrap break-words' : 'whitespace-pre'
-            ]"
-            ><span
-              v-for="(segment, segmentIndex) in entry.segments"
-              :key="segmentIndex"
-              :class="segmentClass(segment.type)"
-              >{{ segment.text }}</span
-            ></code
-          >
+          <div class="mb-1.5 flex items-center gap-2 sm:contents">
+            <time
+              :datetime="event.timestamp || undefined"
+              :title="event.timestamp || 'Timestamp unavailable'"
+              class="select-none tabular-nums text-zinc-600 sm:text-right"
+            >
+              {{ event.time || '—' }}
+            </time>
+            <span
+              :class="[
+                'font-sans text-[9px] font-semibold uppercase tracking-[0.12em]',
+                badgeClass(event)
+              ]"
+            >
+              {{ event.level === 'warning' ? 'Warn' : event.level }}
+            </span>
+          </div>
+          <div class="min-w-0">
+            <code
+              v-for="(entry, entryIndex) in event.entries"
+              :key="entryIndex"
+              :class="[
+                'min-h-5 block bg-transparent p-0 font-mono text-[12px] text-zinc-300',
+                entryIndex > 0 && 'text-zinc-500',
+                wrap ? 'whitespace-pre-wrap break-words' : 'whitespace-pre'
+              ]"
+              ><span
+                v-for="(segment, segmentIndex) in entry.segments"
+                :key="segmentIndex"
+                :class="segmentClass(segment.type)"
+                >{{ segment.text }}</span
+              ></code
+            >
+          </div>
         </li>
       </ol>
     </div>

@@ -7,6 +7,8 @@ const TIMESTAMP_PATTERN =
   /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z?)\s?(.*)$/s
 const TOKEN_PATTERN =
   /(https?:\/\/[^\s"'<>]+|\/api\/[^\s"'<>]+|\b(?:GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS)\b|\b[1-5]\d{2}\b|\b(?:fatal|exception|error|err|warning|warn|info|debug|verbose)\b|\[[^\]]+\])/gi
+const CONTINUATION_PATTERN =
+  /^(?:\s+at\s|at\s|Caused by:|Note that\b|In call to\b|Please try again\b|\[\?\]\s+See\b|\s*(?:code|cause|errno|syscall|path|stack):\s|\s*[{}\][\]]\s*$|\s*[-─]{5,}\s*$)/i
 
 export function parseLogLine(line) {
   const raw = String(line ?? '')
@@ -17,37 +19,62 @@ export function parseLogLine(line) {
   const statusMatches = findHttpStatusMatches(message)
   const statusCodes = statusMatches.map((match) => match.code)
   const continuation = isContinuation(message)
-  const level = inferLogLevel(message, statusCodes, continuation)
+  const explicitLevel = inferExplicitLogLevel(message, statusCodes)
 
   return {
     raw,
     timestamp,
     time: compactTimestamp(timestamp),
     message,
-    level,
+    level: explicitLevel || (continuation ? 'continuation' : 'info'),
+    explicitLevel,
     continuation,
     statusCodes,
     segments: tokenizeLogMessage(message, statusMatches)
   }
 }
 
-export function filterLogEntries(entries, { query = '', level = 'all' } = {}) {
+export function buildLogEvents(lines) {
+  const events = []
+  for (const line of lines) appendLogEntry(events, parseLogLine(line))
+  return events
+}
+
+export function appendLogEntry(events, entry) {
+  const previous = events.at(-1)
+
+  if ((entry.continuation || entry.message === '') && previous) {
+    previous.entries.push(entry)
+    previous.raw = previous.entries.map((item) => item.raw).join('\n')
+    previous.searchText = previous.raw.toLocaleLowerCase()
+    return previous
+  }
+
+  const event = {
+    id: entry.raw,
+    level: entry.explicitLevel || 'info',
+    timestamp: entry.timestamp,
+    time: entry.time,
+    entries: [entry],
+    raw: entry.raw,
+    searchText: entry.raw.toLocaleLowerCase()
+  }
+  events.push(event)
+  return event
+}
+
+export function filterLogEvents(events, { query = '', level = 'all' } = {}) {
   const needle = query.trim().toLocaleLowerCase()
 
-  return entries.filter((entry) => {
-    const matchesLevel =
-      level === 'all' ||
-      entry.level === level ||
-      (level === 'info' && entry.level === 'continuation')
-    const matchesQuery =
-      !needle || entry.raw.toLocaleLowerCase().includes(needle)
-
+  return events.filter((event) => {
+    const matchesLevel = level === 'all' || event.level === level
+    const matchesQuery = !needle || event.searchText.includes(needle)
     return matchesLevel && matchesQuery
   })
 }
 
-export function serializeLogEntries(entries) {
-  return entries.map((entry) => entry.raw).join('\n')
+export function serializeLogEvents(events) {
+  return events.map((event) => event.raw).join('\n')
 }
 
 export function tokenizeLogMessage(
@@ -86,7 +113,7 @@ function compactTimestamp(timestamp) {
   return milliseconds ? `${match[1]}.${milliseconds}` : match[1]
 }
 
-function inferLogLevel(message, statusCodes, continuation) {
+function inferExplicitLogLevel(message, statusCodes) {
   if (
     statusCodes.some((code) => code >= 500) ||
     /\b(?:fatal|exception|error|err|emaxbuffer)\b/i.test(message)
@@ -100,12 +127,12 @@ function inferLogLevel(message, statusCodes, continuation) {
     return 'warning'
   }
   if (/\b(?:debug|verbose|silly)\b/i.test(message)) return 'debug'
-  if (continuation) return 'continuation'
-  return 'info'
+  if (/\binfo\b/i.test(message)) return 'info'
+  return null
 }
 
 function isContinuation(message) {
-  return /^(?:\s+at\s|\s*at\s|\s*Caused by:|\s*code:\s|\s*[}\]])/.test(message)
+  return message === '' || CONTINUATION_PATTERN.test(message)
 }
 
 function findHttpStatusMatches(message) {

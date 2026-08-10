@@ -138,7 +138,7 @@ const {
   {
     immediate: false,
     onMessage(data) {
-      if (data.log) {
+      if (Object.prototype.hasOwnProperty.call(data, 'log')) {
         logLines.value.push(data.log)
         if (logLines.value.length > 1000)
           logLines.value = logLines.value.slice(-1000)

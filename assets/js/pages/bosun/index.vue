@@ -645,7 +645,7 @@ const {
 } = useEventSource('/api/v1/bosun/logs/stream?tail=200', {
   immediate: false,
   onMessage(data) {
-    if (data.log) {
+    if (Object.prototype.hasOwnProperty.call(data, 'log')) {
       logLines.value.push(data.log)
       if (logLines.value.length > 2000) {
         logLines.value = logLines.value.slice(-1500)

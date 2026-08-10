@@ -7,6 +7,7 @@
  */
 
 const { spawn } = require('child_process')
+const createLineFramer = require('../../../../lib/create-line-framer')
 
 module.exports = {
   friendlyName: 'Stream container logs',
@@ -87,15 +88,19 @@ module.exports = {
 
     const docker = spawn(dockerPath, args)
 
-    function onData(data) {
-      const lines = data.toString().split('\n')
-      for (const line of lines) {
-        if (line.length > 0) stream.send({ log: line })
+    const stdoutLines = createLineFramer({
+      onLine(line) {
+        stream.send({ log: line })
       }
-    }
+    })
+    const stderrLines = createLineFramer({
+      onLine(line) {
+        stream.send({ log: line })
+      }
+    })
 
-    docker.stdout.on('data', onData)
-    docker.stderr.on('data', onData)
+    docker.stdout.on('data', (data) => stdoutLines.write(data))
+    docker.stderr.on('data', (data) => stderrLines.write(data))
 
     docker.on('error', (err) => {
       sails.log.error(
@@ -106,6 +111,8 @@ module.exports = {
     })
 
     docker.on('close', (code, signal) => {
+      stdoutLines.end()
+      stderrLines.end()
       sails.log.debug(
         `[stream-container-logs] Docker process closed with code: ${code}, signal: ${signal}`
       )
