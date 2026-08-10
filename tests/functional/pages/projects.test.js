@@ -290,7 +290,7 @@ test(
     )
     expect(firstPage).toHaveInertiaProp(
       'deploymentHistory.items.0.outcomeLabel',
-      'Current'
+      'Succeeded'
     )
     expect(firstPage).toHaveInertiaProp(
       'deploymentHistory.items.1.outcomeLabel',

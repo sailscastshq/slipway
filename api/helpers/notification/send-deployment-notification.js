@@ -25,7 +25,7 @@ module.exports = {
     const outcome = await sails.helpers.deployment.resolveOutcome.with({
       deployment
     })
-    const isSuccess = ['current', 'succeeded'].includes(outcome.outcome)
+    const isSuccess = outcome.outcome === 'succeeded'
     const isFailure = outcome.outcome === 'failed'
 
     // Check notification preferences

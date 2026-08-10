@@ -99,7 +99,7 @@ test(
     await page.wait('@active-deployment-row')
     await page.wait('@failed-deployment-row')
     await expect(page).toSee('Deployments')
-    await expect(page).toSee('Current')
+    await expect(page).toSee('Live')
     await expect(page).toSee('Building')
     await expect(page).toSee('Queued')
     await expect(page).toSee('Failed')
@@ -114,11 +114,12 @@ test(
     )
     expect(rows.length).toBe(5)
     expect(rows[0].includes('Building')).toBe(true)
-    expect(rows[1].includes('Current')).toBe(true)
+    expect(rows[1].includes('Succeeded')).toBe(true)
+    expect(rows[1].includes('Live')).toBe(true)
     expect(rows[2].includes('Queued')).toBe(true)
     expect(rows[3].includes('Failed')).toBe(true)
     expect(rows[4].includes('Succeeded')).toBe(true)
-    expect(rows.filter((row) => row.includes('Current')).length).toBe(1)
+    expect(rows.filter((row) => row.includes('Live')).length).toBe(1)
     expect(rows.some((row) => row.includes('Running'))).toBe(false)
 
     const deploymentToasts = await page.raw
@@ -134,11 +135,19 @@ test(
     await page.raw
       .locator('[data-testid="deployment-history-section"]')
       .screenshot({
-        path: path.resolve('.tmp/issue-377-deployment-outcomes.png')
+        path: path.resolve('.tmp/issue-421-deployment-outcomes-light.png')
       })
 
-    // A completed SSE transition must transfer the Current outcome without
-    // briefly leaving the previous traffic owner presented as Current.
+    await page.raw.emulateMedia({ colorScheme: 'dark' })
+    await page.raw
+      .locator('[data-testid="deployment-history-section"]')
+      .screenshot({
+        path: path.resolve('.tmp/issue-421-deployment-outcomes-dark.png')
+      })
+    await page.raw.emulateMedia({ colorScheme: 'light' })
+
+    // A completed SSE transition must transfer the Live marker without
+    // changing the lifecycle outcome or presenting two traffic owners.
     await sails.models.app.updateOne({ id: target.appId }).set({
       currentDeployment: target.buildingReleaseId,
       lastDeployedAt: Date.now()
@@ -152,8 +161,10 @@ test(
         ...document.querySelectorAll('[data-testid="deployment-row"]')
       ].map((row) => row.textContent)
       return (
-        rows.filter((row) => row.includes('Current')).length === 1 &&
-        rows.filter((row) => row.includes('Succeeded')).length >= 2 &&
+        rows[0].includes('Succeeded') &&
+        rows[0].includes('Live') &&
+        !rows[1].includes('Live') &&
+        rows.filter((row) => row.includes('Live')).length === 1 &&
         rows.every((row) => !row.includes('Running'))
       )
     })
@@ -176,11 +187,19 @@ test(
     await page.wait('@deployment-history')
     await page.wait('@active-deployment-row')
     await expect(page).toSee('Deployments')
-    await expect(page).toSee('Current')
+    await expect(page).toSee('Live')
     await expect(page).toSee('Building')
     await expect(page).toSee('Queued')
     await expect(page).toSee('Failed')
     await expect(page).toSee('Succeeded')
+    await page.raw
+      .locator('.pointer-events-none.fixed.bottom-4.right-4')
+      .evaluate((element) => element.setAttribute('hidden', ''))
+    await page.raw
+      .locator('[data-testid="deployment-history-section"]')
+      .screenshot({
+        path: path.resolve('.tmp/issue-421-deployment-outcomes-mobile.png')
+      })
     expect(page).toHaveNoJavascriptErrors()
   }
 )

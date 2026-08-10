@@ -1,6 +1,7 @@
 <script setup>
 import { Link, router } from '@inertiajs/vue3'
 import { onBeforeUnmount, ref, watch } from 'vue'
+import DeploymentOutcome from '@/components/DeploymentOutcome.vue'
 
 const props = defineProps({
   history: {
@@ -174,38 +175,6 @@ onBeforeUnmount(() => {
   activeSources.clear()
 })
 
-function outcomeBadge(deployment) {
-  const map = {
-    current: {
-      classes:
-        'bg-emerald-100 text-emerald-800 ring-1 ring-inset ring-emerald-600/20 dark:bg-emerald-900/30 dark:text-emerald-300 dark:ring-emerald-400/20'
-    },
-    succeeded: {
-      classes:
-        'bg-gray-100 text-gray-700 ring-1 ring-inset ring-gray-500/15 dark:bg-gray-800 dark:text-gray-300 dark:ring-gray-400/20'
-    },
-    'in-progress': {
-      classes:
-        'bg-blue-100 text-blue-700 ring-1 ring-inset ring-blue-600/20 dark:bg-blue-900/30 dark:text-blue-300 dark:ring-blue-400/20'
-    },
-    failed: {
-      classes:
-        'bg-red-100 text-red-700 ring-1 ring-inset ring-red-600/20 dark:bg-red-900/30 dark:text-red-300 dark:ring-red-400/20'
-    },
-    cancelled: {
-      classes:
-        'bg-gray-100 text-gray-600 ring-1 ring-inset ring-gray-500/15 dark:bg-gray-800 dark:text-gray-400 dark:ring-gray-400/20'
-    }
-  }
-
-  return {
-    label: deployment.outcomeLabel || deployment.status,
-    classes:
-      map[deployment.outcome]?.classes ||
-      'bg-gray-100 text-gray-600 ring-1 ring-inset ring-gray-500/15 dark:bg-gray-800 dark:text-gray-400 dark:ring-gray-400/20'
-  }
-}
-
 function timeAgo(date) {
   if (!date) return 'Never'
   const seconds = Math.floor((new Date() - new Date(date)) / 1000)
@@ -261,22 +230,14 @@ function deploymentTestId(deployment) {
           data-testid="deployment-row"
           :data-test="deploymentTestId(deployment)"
         >
-          <div class="flex items-center space-x-3">
+          <div class="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
             <span
               v-if="showEnvironment"
               class="text-sm text-gray-900 dark:text-white"
             >
               {{ deployment.environment?.name || 'Unknown' }}
             </span>
-            <span
-              v-if="showStatus"
-              :class="[
-                'inline-flex items-center whitespace-nowrap rounded-md px-2 py-0.5 text-xs font-medium',
-                outcomeBadge(deployment).classes
-              ]"
-            >
-              {{ outcomeBadge(deployment).label }}
-            </span>
+            <DeploymentOutcome v-if="showStatus" :deployment="deployment" />
             <span
               v-if="deployment.app?.name"
               class="inline-flex rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-500 dark:bg-gray-800 dark:text-gray-400"
@@ -285,22 +246,26 @@ function deploymentTestId(deployment) {
             </span>
             <span
               v-if="deployment.gitBranch"
-              class="text-xs text-gray-500 dark:text-gray-400"
+              class="hidden text-xs text-gray-500 dark:text-gray-400 sm:inline"
             >
               {{ deployment.gitBranch }}
             </span>
             <span
               v-if="showStatus && deployment.gitCommit"
-              class="font-mono text-xs text-gray-400 dark:text-gray-500"
+              class="hidden font-mono text-xs text-gray-400 dark:text-gray-500 sm:inline"
             >
               {{ deployment.gitCommit.slice(0, 7) }}
             </span>
           </div>
-          <div class="flex items-center space-x-4">
-            <span class="text-xs text-gray-500 dark:text-gray-400">
+          <div class="ml-3 flex shrink-0 items-center sm:space-x-4">
+            <span
+              class="hidden text-xs text-gray-500 dark:text-gray-400 sm:inline"
+            >
               {{ deployment.actor }}
             </span>
-            <span class="text-xs text-gray-400 dark:text-gray-500">
+            <span
+              class="whitespace-nowrap text-right text-xs text-gray-400 dark:text-gray-500"
+            >
               {{ timeAgo(deployment.createdAt) }}
             </span>
           </div>

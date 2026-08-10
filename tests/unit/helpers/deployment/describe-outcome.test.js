@@ -12,8 +12,8 @@ test('deployment outcomes separate traffic ownership from lifecycle status', ({
 
   expect(describe({ id: 42, status: 'running' }, [42])).toEqual({
     status: 'running',
-    outcome: 'current',
-    outcomeLabel: 'Current',
+    outcome: 'succeeded',
+    outcomeLabel: 'Succeeded',
     isCurrent: true,
     isActive: false
   })
