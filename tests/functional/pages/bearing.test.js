@@ -396,7 +396,9 @@ test(
       .create({
         publicSlug: 'public-feedback-space',
         app: app.id,
-        createdBy: current.users.genesisUser.id
+        createdBy: current.users.genesisUser.id,
+        widgetEnabled: true,
+        widgetOpeningView: 'updates'
       })
       .fetch()
     const hostBasePath = `/_slipway/bearing/host/${project.slug}/${environment.slug}/${app.slug}`
@@ -618,6 +620,22 @@ test(
       `/_slipway/bearing/host/${project.slug}/${environment.slug}/${app.slug}/widget-config`
     )
     expect(widgetConfig).toHaveStatus(200)
+    expect(widgetConfig.data.enabled).toBe(true)
+    expect(widgetConfig.data.openingView).toBe('updates')
+    expect(widgetConfig.data.surfaces).toEqual({
+      feedback: {
+        label: 'Feedback',
+        path: '/bearing/feedback?embedded=1'
+      },
+      roadmap: {
+        label: 'Roadmap',
+        path: '/bearing/roadmap?embedded=1'
+      },
+      updates: {
+        label: 'Updates',
+        path: '/bearing/updates?embedded=1'
+      }
+    })
     expect(widgetConfig.data.latestUpdate.title).toBe(
       'Calmer notifications have shipped'
     )
@@ -628,6 +646,8 @@ test(
     expect(bootstrap).toHaveStatus(200)
     expect(bootstrap.body).toContain('slipway:bearing:')
     expect(bootstrap.body).toContain('What’s new')
+    expect(bootstrap.body).toContain('data-slipway-bearing-open')
+    expect(bootstrap.body).toContain('slipway:bearing:open')
 
     for (const paginatedFeedback of Array.from({ length: 25 }, (_, index) => ({
       publicId: `bfd-pagination-${index + 1}`,

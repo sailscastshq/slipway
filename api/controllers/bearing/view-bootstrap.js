@@ -35,12 +35,27 @@ function bearingBootstrap() {
       if (!config?.enabled) return
 
       const side = config.side === 'left' ? 'left' : 'right'
+      const surfaceOrder = ['feedback', 'roadmap', 'updates']
+      const surfaces = Object.fromEntries(
+        surfaceOrder
+          .filter((key) => config.surfaces?.[key]?.path)
+          .map((key) => [key, config.surfaces[key]])
+      )
+      const openingView = surfaces[config.openingView]
+        ? config.openingView
+        : surfaceOrder.find((key) => surfaces[key])
+      if (!openingView) return
+
       const seenKey = `slipway:bearing:${config.space}:seen-update`
       const latestUpdateId = config.latestUpdate?.publicId || ''
       let open = false
+      let currentSurface = openingView
+      let opener = null
+      let openedFromInjectedTrigger = false
       let fresh = Boolean(
         config.showUnread &&
           latestUpdateId &&
+          surfaces.updates &&
           readStorage(seenKey) !== latestUpdateId
       )
 
@@ -117,12 +132,13 @@ function bearingBootstrap() {
           }
           .bearing-panel[data-side='right'] { left: auto; right: 20px; }
           .bearing-panel[data-side='left'] { left: 20px; right: auto; }
+          .bearing-panel[data-opened-from='host'] { bottom: 20px; }
           .bearing-panel[open] {
             animation: bearing-panel-in 180ms cubic-bezier(.2, .8, .2, 1);
             display: grid;
-            grid-template-rows: 52px minmax(0, 1fr);
+            grid-template-rows: 52px minmax(0, 1fr) auto 30px;
           }
-          .bearing-panel::backdrop { display: none; }
+          .bearing-panel::backdrop { background: transparent; }
 
           .bearing-panel-header {
             align-items: center;
@@ -160,6 +176,54 @@ function bearingBootstrap() {
             height: 100%;
             width: 100%;
           }
+          .bearing-panel-nav {
+            background: #fafafa;
+            display: grid;
+            gap: 4px;
+            grid-auto-columns: minmax(0, 1fr);
+            grid-auto-flow: column;
+            padding: 8px;
+          }
+          .bearing-panel-nav button {
+            align-items: center;
+            background: transparent;
+            border: 0;
+            border-radius: 10px;
+            color: #777;
+            cursor: pointer;
+            display: inline-flex;
+            font: 500 13px/1 system-ui, sans-serif;
+            justify-content: center;
+            min-height: 44px;
+            padding: 0 10px;
+          }
+          .bearing-panel-nav button:hover { background: #f0f0f0; color: #111; }
+          .bearing-panel-nav button:focus-visible {
+            outline: 2px solid #3b82f6;
+            outline-offset: -2px;
+          }
+          .bearing-panel-nav button[aria-current='page'] {
+            background: #fff;
+            box-shadow: 0 1px 4px rgb(0 0 0 / 10%);
+            color: #111;
+            font-weight: 650;
+          }
+          .bearing-panel-nav button[hidden] { display: none; }
+          .bearing-powered-by {
+            align-items: center;
+            background: #fafafa;
+            color: #999;
+            display: flex;
+            font: 500 11px/1 system-ui, sans-serif;
+            justify-content: center;
+            text-decoration: none;
+          }
+          .bearing-powered-by:hover { color: #555; }
+          .bearing-powered-by:focus-visible {
+            border-radius: 4px;
+            outline: 2px solid #3b82f6;
+            outline-offset: -1px;
+          }
 
           @keyframes bearing-panel-in {
             from { opacity: 0; transform: translateY(10px) scale(.985); }
@@ -182,6 +246,19 @@ function bearingBootstrap() {
             .bearing-panel-close { color: #aaa; }
             .bearing-panel-close:hover { background: #171b22; color: #fff; }
             .bearing-panel iframe { background: #030712; }
+            .bearing-panel-nav,
+            .bearing-powered-by { background: #090d14; }
+            .bearing-panel-nav button { color: #999; }
+            .bearing-panel-nav button:hover {
+              background: #171b22;
+              color: #fff;
+            }
+            .bearing-panel-nav button[aria-current='page'] {
+              background: #1d222b;
+              box-shadow: none;
+              color: #fff;
+            }
+            .bearing-powered-by:hover { color: #ddd; }
           }
 
           @media (max-width: 640px) {
@@ -195,6 +272,7 @@ function bearingBootstrap() {
             }
             .bearing-panel[data-side='right'] { left: auto; right: 8px; }
             .bearing-panel[data-side='left'] { left: 8px; right: auto; }
+            .bearing-panel[data-opened-from='host'] { bottom: 8px; }
           }
 
           @media (prefers-reduced-motion: reduce) {
@@ -216,7 +294,9 @@ function bearingBootstrap() {
           class="bearing-panel"
           data-panel
           data-side="${side}"
+          data-opened-from="host"
           aria-labelledby="slipway-bearing-title"
+          aria-modal="true"
         >
           <header class="bearing-panel-header">
             <span id="slipway-bearing-title">${escapeHtml(
@@ -229,19 +309,35 @@ function bearingBootstrap() {
               aria-label="Close"
             >×</button>
           </header>
-          <iframe title="${escapeHtml(config.appName)} feedback"></iframe>
+          <iframe data-frame title="${escapeHtml(
+            config.appName
+          )} Feedback"></iframe>
+          <nav class="bearing-panel-nav" aria-label="Bearing">
+            <button type="button" data-surface="feedback">Feedback</button>
+            <button type="button" data-surface="roadmap">Roadmap</button>
+            <button type="button" data-surface="updates">Updates</button>
+          </nav>
+          <a
+            class="bearing-powered-by"
+            href="https://docs.sailscasts.com/slipway"
+            target="_blank"
+            rel="noreferrer"
+          >Powered by Slipway</a>
         </dialog>
       `
 
       const trigger = root.querySelector('[data-trigger]')
       const panel = root.querySelector('[data-panel]')
       const closeButton = root.querySelector('[data-close]')
-      const frame = root.querySelector('iframe')
+      const frame = root.querySelector('[data-frame]')
+      const surfaceButtons = root.querySelectorAll('[data-surface]')
 
       function paintTrigger() {
-        trigger.setAttribute('aria-expanded', String(open))
-        trigger.hidden = !open && !fresh
-        if (open) {
+        const controlsOpenPanel = open && openedFromInjectedTrigger
+        trigger.setAttribute('aria-expanded', String(controlsOpenPanel))
+        trigger.tabIndex = controlsOpenPanel ? -1 : 0
+        trigger.hidden = !controlsOpenPanel && !(fresh && !open)
+        if (controlsOpenPanel) {
           trigger.innerHTML =
             '<span class="bearing-trigger-mark" aria-hidden="true">×</span><span>Close</span>'
           trigger.setAttribute('aria-label', `Close ${config.appName} feedback`)
@@ -258,36 +354,159 @@ function bearingBootstrap() {
         }
       }
 
+      function paintSurfaceNavigation() {
+        surfaceButtons.forEach((button) => {
+          const surface = button.dataset.surface
+          button.hidden = !surfaces[surface]
+          if (surface === currentSurface) {
+            button.setAttribute('aria-current', 'page')
+          } else {
+            button.removeAttribute('aria-current')
+          }
+        })
+      }
+
       function markLatestSeen() {
         if (!latestUpdateId) return
         writeStorage(seenKey, latestUpdateId)
         fresh = false
       }
 
-      function openPanel() {
-        if (!frame.src) {
-          frame.src = config.updatesPath
+      function setSurface(surface) {
+        if (!surfaces[surface]) return false
+        currentSurface = surface
+        if (frame.getAttribute('src') !== surfaces[surface].path) {
+          frame.src = surfaces[surface].path
         }
-        markLatestSeen()
-        panel.show()
+        frame.title = `${config.appName} ${surfaces[surface].label}`
+        if (surface === 'updates') markLatestSeen()
+        paintSurfaceNavigation()
+        paintTrigger()
+        return true
+      }
+
+      function openPanel(surface = openingView, nextOpener = null) {
+        if (!setSurface(surface)) return false
+        opener = nextOpener || document.activeElement
+        openedFromInjectedTrigger = opener === trigger
+        panel.dataset.openedFrom = openedFromInjectedTrigger ? 'widget' : 'host'
+        if (!panel.open) panel.show()
         open = true
         paintTrigger()
         requestAnimationFrame(() => closeButton.focus())
+        return true
       }
 
       function closePanel() {
+        const previousOpener = opener
         if (panel.open) panel.close()
         open = false
+        opener = null
+        openedFromInjectedTrigger = false
         paintTrigger()
-        trigger.focus()
+        if (previousOpener?.isConnected && previousOpener !== trigger) {
+          previousOpener.focus()
+        }
+      }
+
+      function requestedSurface(element) {
+        const requested = element.getAttribute('data-slipway-bearing-open')
+        if (requested !== null) return requested || openingView
+        if (element.tagName !== 'A') return null
+        try {
+          const destination = new URL(element.href, window.location.href)
+          if (destination.origin !== window.location.origin) return null
+          return (
+            surfaceOrder.find((surface) => {
+              if (!surfaces[surface]) return false
+              const configured = new URL(
+                surfaces[surface].path,
+                window.location.href
+              )
+              return destination.pathname === configured.pathname
+            }) || null
+          )
+        } catch {
+          return null
+        }
+      }
+
+      function shouldKeepLinkNavigation(event, link) {
+        return Boolean(
+          event.defaultPrevented ||
+            event.button !== 0 ||
+            event.metaKey ||
+            event.ctrlKey ||
+            event.shiftKey ||
+            event.altKey ||
+            link.hasAttribute('download') ||
+            (link.target && link.target !== '_self')
+        )
+      }
+
+      function handleHostTrigger(event) {
+        const target = event.target
+        if (!target?.closest) return
+        const element = target.closest('a[href], [data-slipway-bearing-open]')
+        if (!element) return
+        const surface = requestedSurface(element)
+        if (!surfaces[surface]) return
+        if (
+          element.tagName === 'A' &&
+          shouldKeepLinkNavigation(event, element)
+        ) {
+          return
+        }
+        event.preventDefault()
+        openPanel(surface, element)
+      }
+
+      function trapPanelFocus(event) {
+        if (event.key !== 'Tab') return
+        const focusable = panel.querySelectorAll(
+          'a[href], button:not([disabled]):not([hidden]), iframe'
+        )
+        if (!focusable.length) return
+        const first = focusable[0]
+        const last = focusable[focusable.length - 1]
+        const active = root.activeElement
+        if (event.shiftKey && active === first) {
+          event.preventDefault()
+          last.focus()
+        } else if (!event.shiftKey && active === last) {
+          event.preventDefault()
+          first.focus()
+        }
       }
 
       paintTrigger()
+      paintSurfaceNavigation()
       trigger.addEventListener('click', () => {
         if (open) closePanel()
-        else openPanel()
+        else openPanel('updates', trigger)
       })
       closeButton.addEventListener('click', closePanel)
+      surfaceButtons.forEach((button) => {
+        button.addEventListener('click', () =>
+          setSurface(button.dataset.surface)
+        )
+      })
+      panel.addEventListener('cancel', (event) => {
+        event.preventDefault()
+        closePanel()
+      })
+      panel.addEventListener('keydown', trapPanelFocus)
+      panel.addEventListener('click', (event) => {
+        if (event.target !== panel) return
+        const bounds = panel.getBoundingClientRect()
+        const inside =
+          event.clientX >= bounds.left &&
+          event.clientX <= bounds.right &&
+          event.clientY >= bounds.top &&
+          event.clientY <= bounds.bottom
+        if (!inside) closePanel()
+      })
+      document.addEventListener('click', handleHostTrigger, true)
       window.addEventListener('keydown', (event) => {
         if (open && event.key === 'Escape') closePanel()
       })
@@ -301,9 +520,18 @@ function bearingBootstrap() {
         },
         true
       )
+      window.addEventListener('slipway:bearing:open', (event) => {
+        const surface = event.detail?.surface || openingView
+        if (!surfaces[surface]) return
+        openPanel(surface, document.activeElement)
+      })
       window.addEventListener('storage', (event) => {
         if (event.key !== seenKey || !latestUpdateId) return
-        fresh = Boolean(config.showUnread && event.newValue !== latestUpdateId)
+        fresh = Boolean(
+          config.showUnread &&
+            surfaces.updates &&
+            event.newValue !== latestUpdateId
+        )
         paintTrigger()
       })
     })
