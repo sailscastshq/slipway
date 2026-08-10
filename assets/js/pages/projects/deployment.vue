@@ -1,16 +1,9 @@
 <script setup>
 import { Link, Head, router } from '@inertiajs/vue3'
-import {
-  inject,
-  ref,
-  computed,
-  watch,
-  nextTick,
-  onMounted,
-  onBeforeUnmount
-} from 'vue'
+import { inject, ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
 import Breadcrumb from '@/components/Breadcrumb.vue'
+import LogViewer from '@/components/LogViewer.vue'
 import SlippyLoader from '@/components/SlippyLoader.vue'
 import { useEventSource } from '@/composables/sse'
 
@@ -27,7 +20,6 @@ const props = defineProps({
 const toggleMobileMenu = inject('toggleMobileMenu')
 const toggleSidebar = inject('toggleSidebar')
 const sidebarCollapsed = inject('sidebarCollapsed')
-const logContainer = ref(null)
 
 // SSE-powered real-time updates
 const sseState = ref(null)
@@ -49,130 +41,38 @@ const isInProgress = computed(
 const allLogs = computed(() => {
   const build = props.deployment.buildLogs || ''
   const deploy = props.deployment.deployLogs || ''
-  return (build + deploy + sseLogs.value).trim()
+  return [build, deploy, sseLogs.value].filter(Boolean).join('\n').trim()
 })
+const allLogLines = computed(() =>
+  allLogs.value ? allLogs.value.split('\n') : []
+)
 
-const highlightedLogs = computed(() => {
-  if (!allLogs.value) return ''
-  return allLogs.value.split('\n').map(highlightLine).join('\n')
-})
-
-function highlightLine(line) {
-  // Escape HTML entities first
-  let s = line
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-
-  // Step number at start of line (#0, #1, etc.)
-  s = s.replace(
-    /^(#\d+)/,
-    '<span class="text-cyan-600 dark:text-cyan-500">$1</span>'
-  )
-
-  // DONE marker with timing
-  s = s.replace(
-    /\bDONE (\d+\.\d+s)/,
-    '<span class="text-green-600 dark:text-green-400 font-semibold">DONE</span> <span class="text-gray-400 dark:text-gray-500">$1</span>'
-  )
-
-  // ERROR marker
-  s = s.replace(
-    /\bERROR\b/g,
-    '<span class="text-red-600 dark:text-red-400 font-semibold">ERROR</span>'
-  )
-
-  // CANCELED marker
-  s = s.replace(
-    /\bCANCELED\b/g,
-    '<span class="text-yellow-600 dark:text-yellow-400 font-semibold">CANCELED</span>'
-  )
-
-  // Build stage steps [1/6], [2/6], etc.
-  s = s.replace(
-    /\[(\d+\/\d+)\]/,
-    '<span class="text-yellow-600 dark:text-yellow-400">[$1]</span>'
-  )
-
-  // [internal] tag
-  s = s.replace(
-    /\[internal\]/,
-    '<span class="text-gray-400 dark:text-gray-500">[internal]</span>'
-  )
-
-  // [auth] tag
-  s = s.replace(
-    /\[auth\]/,
-    '<span class="text-gray-400 dark:text-gray-500">[auth]</span>'
-  )
-
-  // Dockerfile instructions
-  s = s.replace(
-    /\b(FROM|RUN|COPY|WORKDIR|EXPOSE|CMD|ENTRYPOINT|ENV|ARG|ADD|LABEL|USER|VOLUME)\b/,
-    '<span class="text-purple-600 dark:text-purple-400">$1</span>'
-  )
-
-  // "done" at end of line
-  s = s.replace(
-    /\bdone$/,
-    '<span class="text-green-600 dark:text-green-500">done</span>'
-  )
-
-  // sha256 hashes — dim them
-  s = s.replace(
-    /(sha256:)([a-f0-9]+)/g,
-    '<span class="text-gray-400 dark:text-gray-600">$1$2</span>'
-  )
-
-  // Docker image references (e.g. docker.io/library/node:22-slim)
-  s = s.replace(
-    /(docker\.io\/[^\s@]+)/g,
-    '<span class="text-blue-600 dark:text-blue-400">$1</span>'
-  )
-
-  return s
-}
-
-const { close: disconnectDeploymentStream } = useEventSource(
-  `/api/v1/deployments/${props.deployment.id}/stream`,
-  {
-    immediate: isInProgress.value,
-    onMessage(data) {
-      if (data.status) {
-        sseState.value = {
-          status: data.status,
-          outcome: data.outcome,
-          outcomeLabel: data.outcomeLabel,
-          isCurrent: data.isCurrent,
-          isCurrentDeployment: data.isCurrent,
-          isActive: data.isActive,
-          appId: data.appId
-        }
-        if (
-          ['running', 'stopped', 'failed', 'cancelled'].includes(data.status)
-        ) {
-          disconnectDeploymentStream()
-          router.reload()
-        }
+const {
+  connected: deploymentStreamConnected,
+  close: disconnectDeploymentStream
+} = useEventSource(`/api/v1/deployments/${props.deployment.id}/stream`, {
+  immediate: isInProgress.value,
+  onMessage(data) {
+    if (data.status) {
+      sseState.value = {
+        status: data.status,
+        outcome: data.outcome,
+        outcomeLabel: data.outcomeLabel,
+        isCurrent: data.isCurrent,
+        isCurrentDeployment: data.isCurrent,
+        isActive: data.isActive,
+        appId: data.appId
       }
-      if (data.output) {
-        sseLogs.value += data.output + '\n'
+      if (['running', 'stopped', 'failed', 'cancelled'].includes(data.status)) {
+        disconnectDeploymentStream()
+        router.reload()
       }
+    }
+    if (data.output) {
+      sseLogs.value += data.output + '\n'
     }
   }
-)
-
-// Auto-scroll log container when logs update
-watch(
-  allLogs,
-  async () => {
-    await nextTick()
-    if (logContainer.value) {
-      logContainer.value.scrollTop = logContainer.value.scrollHeight
-    }
-  },
-  { immediate: true }
-)
+})
 
 function outcomeBadge(deployment) {
   const map = {
@@ -687,6 +587,7 @@ function executeRollback() {
 
         <!-- Log Viewer -->
         <div
+          data-test="deployment-log-viewer"
           class="flex flex-1 flex-col overflow-hidden rounded-lg border border-gray-200 dark:border-gray-800"
         >
           <div
@@ -696,26 +597,17 @@ function executeRollback() {
               >Build &amp; Deploy Logs</span
             >
           </div>
-          <div
-            ref="logContainer"
-            class="flex-1 overflow-y-auto bg-gray-50 p-4 font-mono text-xs leading-5 text-gray-700 dark:bg-gray-950 dark:text-gray-300"
-          >
-            <pre
-              v-if="allLogs"
-              class="whitespace-pre-wrap break-all"
-              v-html="highlightedLogs"
-            ></pre>
-            <div
-              v-else-if="isInProgress"
-              class="flex items-center space-x-2 text-gray-500"
-            >
-              <SlippyLoader size="h-4 w-4" />
-              <span>Waiting for logs...</span>
-            </div>
-            <span v-else class="text-gray-500"
-              >No additional logs were captured.</span
-            >
-          </div>
+          <LogViewer
+            :lines="allLogLines"
+            :connected="deploymentStreamConnected"
+            :complete="!isInProgress"
+            :inactive-message="
+              !isInProgress && allLogLines.length === 0
+                ? 'No additional logs were captured.'
+                : ''
+            "
+            height="lg"
+          />
         </div>
       </div>
     </div>

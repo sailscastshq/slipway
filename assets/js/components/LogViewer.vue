@@ -16,6 +16,7 @@ const props = defineProps({
     default: () => []
   },
   connected: Boolean,
+  complete: Boolean,
   error: {
     type: String,
     default: ''
@@ -57,6 +58,7 @@ const connectionState = computed(() => {
   if (props.inactiveMessage) return 'inactive'
   if (props.error) return 'reconnecting'
   if (props.connected) return 'live'
+  if (props.complete) return 'complete'
   return 'connecting'
 })
 const connectionLabel = computed(
@@ -65,6 +67,7 @@ const connectionLabel = computed(
       inactive: 'Inactive',
       reconnecting: 'Reconnecting',
       live: 'Live',
+      complete: 'Complete',
       connecting: 'Connecting'
     }[connectionState.value])
 )
@@ -212,6 +215,7 @@ function segmentClass(type) {
           :class="[
             'h-1.5 w-1.5 rounded-full',
             connectionState === 'live' && 'bg-emerald-400',
+            connectionState === 'complete' && 'bg-zinc-500',
             connectionState === 'connecting' &&
               'animate-pulse bg-amber-300 motion-reduce:animate-none',
             connectionState === 'reconnecting' &&
