@@ -6,6 +6,7 @@
  */
 
 const { spawn } = require('child_process')
+const createLineFramer = require('../../../../lib/create-line-framer')
 
 module.exports = {
   friendlyName: 'Stream instance logs',
@@ -53,28 +54,33 @@ module.exports = {
     // Track whether we ever received real log output from the container.
     // If docker closes before any stdout, the container doesn't exist (local dev).
     let stdoutReceived = false
+    const pendingStderr = []
 
-    function onData(data) {
-      const lines = data.toString().split('\n')
-      for (const line of lines) {
-        if (line.length > 0) stream.send({ log: line })
+    const stdoutLines = createLineFramer({
+      onLine(line) {
+        if (!stdoutReceived) {
+          stdoutReceived = true
+          for (const pendingLine of pendingStderr.splice(0)) {
+            stream.send({ log: pendingLine })
+          }
+        }
+        stream.send({ log: line })
       }
-    }
-
-    docker.stdout.on('data', (data) => {
-      stdoutReceived = true
-      onData(data)
     })
+    const stderrLines = createLineFramer({
+      onLine(line) {
+        if (stdoutReceived) stream.send({ log: line })
+        else pendingStderr.push(line)
+      }
+    })
+
+    docker.stdout.on('data', (data) => stdoutLines.write(data))
 
     // Buffer stderr until we know the container exists.
     // docker logs sends container stderr here during normal operation,
     // but also sends its own errors (e.g. "No such container") here.
     docker.stderr.on('data', (data) => {
-      if (stdoutReceived) {
-        // Container is running — this is real container stderr
-        onData(data)
-      }
-      // Otherwise swallow — we'll send a friendly error on close
+      stderrLines.write(data)
     })
 
     docker.on('error', (err) => {
@@ -88,6 +94,8 @@ module.exports = {
     })
 
     docker.on('close', (code, signal) => {
+      stdoutLines.end()
+      stderrLines.end()
       sails.log.debug(
         `[stream-instance-logs] Docker process closed with code: ${code}, signal: ${signal}`
       )
@@ -97,6 +105,7 @@ module.exports = {
           error: 'Instance logs are available when running in Docker'
         })
       } else {
+        for (const line of pendingStderr.splice(0)) stream.send({ log: line })
         stream.send({ closed: true })
       }
       stream.close()

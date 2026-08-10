@@ -5,7 +5,6 @@ import {
   computed,
   inject,
   watch,
-  nextTick,
   onMounted,
   onUnmounted,
   onBeforeUnmount
@@ -19,9 +18,9 @@ import CodeEditor from '@/components/CodeEditor.vue'
 import HelmResultViewer from '@/components/HelmResultViewer.vue'
 import { highlightSQL } from '@/lib/highlightSQL'
 import { highlightJSON } from '@/lib/highlightJSON'
-import { highlightLogLine } from '@/lib/highlightLog'
 import { formatHelmError, helmEditorDiagnostic } from '@/lib/helmResult'
 import SlippyLoader from '@/components/SlippyLoader.vue'
+import LogViewer from '@/components/LogViewer.vue'
 import { cancelHelmExecution, cancelledHelmResult } from '@/lib/helmExecution'
 
 defineOptions({
@@ -637,8 +636,6 @@ function changeActivityFilter(filter) {
 const _params = new URLSearchParams(window.location.search)
 const logsOpen = ref(_params.has('logs'))
 const logLines = ref([])
-const logContainer = ref(null)
-const autoScroll = ref(true)
 
 const {
   connected: logsConnected,
@@ -648,17 +645,10 @@ const {
 } = useEventSource('/api/v1/bosun/logs/stream?tail=200', {
   immediate: false,
   onMessage(data) {
-    if (data.log) {
+    if (Object.prototype.hasOwnProperty.call(data, 'log')) {
       logLines.value.push(data.log)
       if (logLines.value.length > 2000) {
         logLines.value = logLines.value.slice(-1500)
-      }
-      if (autoScroll.value) {
-        nextTick(() => {
-          if (logContainer.value) {
-            logContainer.value.scrollTop = logContainer.value.scrollHeight
-          }
-        })
       }
     }
   }
@@ -1557,17 +1547,6 @@ onUnmounted(() => {
                 </span>
               </button>
               <div class="flex items-center gap-2">
-                <label
-                  v-if="logsOpen"
-                  class="flex items-center gap-2 text-xs text-gray-400 dark:text-gray-500"
-                >
-                  <input
-                    v-model="autoScroll"
-                    type="checkbox"
-                    class="text-brand focus:ring-brand h-3.5 w-3.5 rounded border-gray-300 dark:border-gray-600 dark:bg-gray-800"
-                  />
-                  Auto-scroll
-                </label>
                 <button
                   @click="logsOpen = !logsOpen"
                   class="rounded p-0.5 hover:bg-gray-100 dark:hover:bg-gray-800"
@@ -1593,49 +1572,11 @@ onUnmounted(() => {
             </div>
 
             <div v-show="logsOpen">
-              <div
-                v-if="logsError"
-                class="border-t border-gray-200 px-4 py-6 text-center text-sm text-gray-500 dark:border-gray-800 dark:text-gray-400"
-              >
-                {{ logsError }}
-              </div>
-
-              <div v-else class="border-t border-gray-200 dark:border-gray-800">
-                <div
-                  ref="logContainer"
-                  class="h-80 overflow-y-auto bg-gray-100 p-4 font-mono text-xs leading-5 text-gray-700 dark:bg-gray-950 dark:text-gray-300"
-                  @scroll="
-                    autoScroll =
-                      logContainer &&
-                      logContainer.scrollHeight -
-                        logContainer.scrollTop -
-                        logContainer.clientHeight <
-                        40
-                  "
-                >
-                  <div
-                    v-if="!logsConnected && logLines.length === 0"
-                    class="flex h-full items-center justify-center text-gray-500"
-                  >
-                    <SlippyLoader size="h-4 w-4" class="mr-2" />
-                    Connecting to logs...
-                  </div>
-                  <div
-                    v-else-if="logLines.length === 0 && logsConnected"
-                    class="text-gray-500"
-                  >
-                    Waiting for output...
-                  </div>
-                  <template v-else>
-                    <div
-                      v-for="(line, i) in logLines"
-                      :key="i"
-                      class="whitespace-pre-wrap break-all hover:bg-gray-200/50 dark:hover:bg-gray-900/50"
-                      v-html="highlightLogLine(line)"
-                    ></div>
-                  </template>
-                </div>
-              </div>
+              <LogViewer
+                :lines="logLines"
+                :connected="logsConnected"
+                :error="logsError"
+              />
             </div>
           </div>
         </div>

@@ -6,7 +6,7 @@ import AppLayout from '@/layouts/AppLayout.vue'
 import Breadcrumb from '@/components/Breadcrumb.vue'
 import { useToast } from '@/composables/toast'
 import { useServiceActions } from '@/composables/service-actions'
-import SlippyLoader from '@/components/SlippyLoader.vue'
+import LogViewer from '@/components/LogViewer.vue'
 
 defineOptions({
   layout: AppLayout
@@ -26,9 +26,7 @@ const toggleSidebar = inject('toggleSidebar')
 const sidebarCollapsed = inject('sidebarCollapsed')
 
 // State
-const logContainer = ref(null)
 const logLines = ref([])
-const autoScroll = ref(true)
 const logsOpen = ref(true)
 const menuOpen = ref(false)
 const stopping = ref(false)
@@ -130,47 +128,6 @@ const maskedUrl = computed(() => {
   return props.service.connectionUrl.replace(/\/\/.*@/, '//***:***@')
 })
 
-// Functions
-function highlightLogLine(line) {
-  let s = line
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-  s = s.replace(
-    /^(\d{4}-\d{2}-\d{2}T[\d:.]+Z?\s?)/,
-    '<span class="text-gray-500">$1</span>'
-  )
-  s = s.replace(
-    /\b(error|Error|ERROR)\b/g,
-    '<span class="text-red-500 font-semibold">$1</span>'
-  )
-  s = s.replace(
-    /\b(warn|Warn|WARN|warning|Warning|WARNING)\b/g,
-    '<span class="text-amber-500 font-semibold">$1</span>'
-  )
-  s = s.replace(
-    /\b(info|Info|INFO)\b/g,
-    '<span class="text-blue-400">$1</span>'
-  )
-  s = s.replace(
-    /\b(debug|Debug|DEBUG)\b/g,
-    '<span class="text-gray-500">$1</span>'
-  )
-  s = s.replace(
-    /\b(LOG|STATEMENT|DETAIL|HINT|CONTEXT)\b:/g,
-    '<span class="text-cyan-400">$1</span>:'
-  )
-  s = s.replace(
-    /\b(SELECT|INSERT|UPDATE|DELETE|CREATE|DROP|ALTER|GRANT|REVOKE)\b/gi,
-    '<span class="text-purple-400">$1</span>'
-  )
-  s = s.replace(
-    /\b(Ready to accept connections)\b/g,
-    '<span class="text-emerald-400">$1</span>'
-  )
-  return s
-}
-
 const {
   connected: logsConnected,
   error: logsError,
@@ -181,16 +138,10 @@ const {
   {
     immediate: false,
     onMessage(data) {
-      if (data.log) {
+      if (Object.prototype.hasOwnProperty.call(data, 'log')) {
         logLines.value.push(data.log)
         if (logLines.value.length > 1000)
           logLines.value = logLines.value.slice(-1000)
-        if (autoScroll.value) {
-          nextTick(() => {
-            if (logContainer.value)
-              logContainer.value.scrollTop = logContainer.value.scrollHeight
-          })
-        }
       }
     }
   }
@@ -791,17 +742,6 @@ onUnmounted(() => {
                 </span>
               </button>
               <div class="flex items-center gap-2">
-                <label
-                  v-if="logsOpen"
-                  class="flex items-center gap-2 text-xs text-gray-400 dark:text-gray-500"
-                >
-                  <input
-                    v-model="autoScroll"
-                    type="checkbox"
-                    class="text-brand focus:ring-brand h-3.5 w-3.5 rounded border-gray-300 dark:border-gray-600 dark:bg-gray-800"
-                  />
-                  Auto-scroll
-                </label>
                 <button
                   @click="logsOpen = !logsOpen"
                   class="rounded p-0.5 hover:bg-gray-100 dark:hover:bg-gray-800"
@@ -827,99 +767,17 @@ onUnmounted(() => {
             </div>
 
             <div v-show="logsOpen">
-              <div
-                v-if="logsError && serviceStatus === 'running'"
-                class="border-t border-gray-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-gray-800 dark:bg-red-900/20 dark:text-red-400"
-              >
-                {{ logsError }}
-              </div>
-
-              <div
-                v-if="serviceStatus !== 'running'"
-                class="border-t border-gray-200 px-4 py-8 text-center dark:border-gray-800"
-              >
-                <svg
-                  class="mx-auto h-10 w-10 text-gray-300 dark:text-gray-700"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="1.5"
-                    d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                  />
-                </svg>
-                <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">
-                  Service is not running. Start the service to view logs.
-                </p>
-              </div>
-
-              <div v-else class="border-t border-gray-200 dark:border-gray-800">
-                <div
-                  ref="logContainer"
-                  class="h-96 overflow-y-auto bg-gray-100 p-4 font-mono text-xs leading-5 text-gray-700 dark:bg-gray-950 dark:text-gray-300"
-                  @scroll="
-                    autoScroll =
-                      logContainer &&
-                      logContainer.scrollHeight -
-                        logContainer.scrollTop -
-                        logContainer.clientHeight <
-                        40
-                  "
-                >
-                  <div
-                    v-if="serviceStatus !== 'running'"
-                    class="flex h-full flex-col items-center justify-center text-gray-500"
-                  >
-                    <svg
-                      class="mb-2 h-8 w-8 opacity-50"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        stroke-width="1.5"
-                        d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                      />
-                      <path
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        stroke-width="1.5"
-                        d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z"
-                      />
-                    </svg>
-                    <p>Service is not running</p>
-                    <p class="mt-1 text-xs text-gray-400 dark:text-gray-600">
-                      Start the service to view logs
-                    </p>
-                  </div>
-                  <div
-                    v-else-if="!logsConnected && logLines.length === 0"
-                    class="flex h-full items-center justify-center text-gray-500"
-                  >
-                    <SlippyLoader size="h-4 w-4" class="mr-2" />
-                    Connecting to logs...
-                  </div>
-                  <div
-                    v-else-if="logLines.length === 0 && logsConnected"
-                    class="text-gray-500"
-                  >
-                    Waiting for output...
-                  </div>
-                  <template v-else>
-                    <div
-                      v-for="(line, i) in logLines"
-                      :key="i"
-                      class="whitespace-pre-wrap break-all hover:bg-gray-200/50 dark:hover:bg-gray-900/50"
-                      v-html="highlightLogLine(line)"
-                    ></div>
-                  </template>
-                </div>
-              </div>
+              <LogViewer
+                :lines="logLines"
+                :connected="logsConnected"
+                :error="serviceStatus === 'running' ? logsError : ''"
+                :inactive-message="
+                  serviceStatus === 'running'
+                    ? ''
+                    : 'Service is not running. Start it to view logs.'
+                "
+                height="lg"
+              />
             </div>
           </div>
         </div>
