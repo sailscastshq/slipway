@@ -1,7 +1,7 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import CodeEditor from '@/components/CodeEditor.vue'
-import { Spinner } from '@/components/ui/spinner'
+import Spinner from '@/components/SlipwaySpinner.vue'
 
 const props = defineProps({
   show: Boolean,

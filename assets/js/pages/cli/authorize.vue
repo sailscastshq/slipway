@@ -2,7 +2,7 @@
 import { Head, Link } from '@inertiajs/vue3'
 import { ref } from 'vue'
 import SlipwayLogo from '@/components/SlipwayLogo.vue'
-import { Spinner } from '@/components/ui/spinner'
+import Spinner from '@/components/SlipwaySpinner.vue'
 
 const props = defineProps({
   code: String,

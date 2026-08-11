@@ -4,7 +4,7 @@ import { inject, ref, computed, onMounted } from 'vue'
 import BridgePageLayout from '@/layouts/BridgePageLayout.vue'
 import ToastContainer from '@/components/ToastContainer.vue'
 import { createToast } from '@/composables/toast'
-import { Spinner } from '@/components/ui/spinner'
+import Spinner from '@/components/SlipwaySpinner.vue'
 import BridgeFieldInput from '@/components/bridge/BridgeFieldInput.vue'
 import {
   prepareBridgeFieldSubmission,

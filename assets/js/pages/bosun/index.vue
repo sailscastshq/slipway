@@ -19,7 +19,7 @@ import HelmResultViewer from '@/components/HelmResultViewer.vue'
 import { highlightSQL } from '@/lib/highlightSQL'
 import { highlightJSON } from '@/lib/highlightJSON'
 import { formatHelmError, helmEditorDiagnostic } from '@/lib/helmResult'
-import { Spinner } from '@/components/ui/spinner'
+import Spinner from '@/components/SlipwaySpinner.vue'
 import LogViewer from '@/components/LogViewer.vue'
 import { cancelHelmExecution, cancelledHelmResult } from '@/lib/helmExecution'
 

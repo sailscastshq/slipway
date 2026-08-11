@@ -8,7 +8,7 @@ import {
   parseLogLine,
   serializeLogEvents
 } from '@/lib/log-viewer.mjs'
-import { Spinner } from '@/components/ui/spinner'
+import Spinner from '@/components/SlipwaySpinner.vue'
 
 const props = defineProps({
   lines: {

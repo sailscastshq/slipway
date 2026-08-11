@@ -5,7 +5,7 @@ import AppLayout from '@/layouts/AppLayout.vue'
 import Breadcrumb from '@/components/Breadcrumb.vue'
 import DeploymentOutcome from '@/components/DeploymentOutcome.vue'
 import LogViewer from '@/components/LogViewer.vue'
-import { Spinner } from '@/components/ui/spinner'
+import Spinner from '@/components/SlipwaySpinner.vue'
 import { useEventSource } from '@/composables/sse'
 
 defineOptions({

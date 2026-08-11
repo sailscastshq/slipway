@@ -3,8 +3,7 @@ import { Head, Link } from '@inertiajs/vue3'
 import { inject, ref, watch, onUnmounted } from 'vue'
 import { useEventSource } from '@/composables/sse'
 import AppLayout from '@/layouts/AppLayout.vue'
-import SlippyLoader from '@/components/SlippyLoader.vue'
-import { Spinner } from '@/components/ui/spinner'
+import Spinner from '@/components/SlipwaySpinner.vue'
 
 defineOptions({
   layout: AppLayout
@@ -546,9 +545,7 @@ function formatDate(dateString) {
               <Spinner
                 v-if="updatePhase !== 'success'"
                 class="text-brand-600 dark:text-brand-400 mb-4 h-8 w-8"
-              >
-                <SlippyLoader />
-              </Spinner>
+              />
               <div
                 v-else
                 class="mb-4 flex h-10 w-10 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/40"

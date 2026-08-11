@@ -1,7 +1,6 @@
 <script setup>
 import { ref, watch, onUnmounted } from 'vue'
-import SlippyLoader from '@/components/SlippyLoader.vue'
-import { Spinner } from '@/components/ui/spinner'
+import Spinner from '@/components/SlipwaySpinner.vue'
 import { useEventSource } from '@/composables/sse'
 
 const props = defineProps({
@@ -273,9 +272,7 @@ function formatDate(dateString) {
               <Spinner
                 v-if="updatePhase !== 'success'"
                 class="text-brand-600 dark:text-brand-400 mb-3 h-7 w-7"
-              >
-                <SlippyLoader />
-              </Spinner>
+              />
               <div
                 v-else
                 class="mb-3 flex h-7 w-7 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/40"

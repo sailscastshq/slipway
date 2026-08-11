@@ -2,7 +2,7 @@
 import { computed, nextTick, onUnmounted, ref, watch } from 'vue'
 import { useForm } from '@inertiajs/vue3'
 import BridgeFieldInput from '@/components/bridge/BridgeFieldInput.vue'
-import { Spinner } from '@/components/ui/spinner'
+import Spinner from '@/components/SlipwaySpinner.vue'
 import {
   prepareBridgeFieldSubmission,
   toBridgeFieldInputValue,

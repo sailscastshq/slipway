@@ -10,7 +10,7 @@ import {
   nextTick
 } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
-import { Spinner } from '@/components/ui/spinner'
+import Spinner from '@/components/SlipwaySpinner.vue'
 import CodeEditor from '@/components/CodeEditor.vue'
 import ConfirmModal from '@/components/ConfirmModal.vue'
 import HelmResultViewer from '@/components/HelmResultViewer.vue'
