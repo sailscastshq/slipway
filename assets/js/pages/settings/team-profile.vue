@@ -2,7 +2,7 @@
 import { Link, Head, useForm } from '@inertiajs/vue3'
 import { inject, ref, computed } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
-import SlippyLoader from '@/components/SlippyLoader.vue'
+import Spinner from '@/components/SlipwaySpinner.vue'
 import { usePrecognitionValidation } from '@/composables/precognition'
 
 defineOptions({
@@ -283,9 +283,11 @@ const initials = computed(() => {
                 <!-- Uploading overlay -->
                 <div
                   v-if="uploading"
+                  role="status"
                   class="absolute inset-0 flex items-center justify-center rounded-lg bg-black/50"
                 >
-                  <SlippyLoader class="text-white" />
+                  <Spinner class="h-5 w-5 text-white" />
+                  <span class="sr-only">Uploading team logo</span>
                 </div>
               </div>
 

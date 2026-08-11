@@ -10,7 +10,7 @@ import {
   nextTick
 } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
-import SlippyLoader from '@/components/SlippyLoader.vue'
+import Spinner from '@/components/SlipwaySpinner.vue'
 import CodeEditor from '@/components/CodeEditor.vue'
 import ConfirmModal from '@/components/ConfirmModal.vue'
 import HelmResultViewer from '@/components/HelmResultViewer.vue'
@@ -824,7 +824,7 @@ watch(code, () => {
                 }+Enter`
           "
         >
-          <SlippyLoader v-if="stopping || inspectingSource" size="h-3 w-3" />
+          <Spinner v-if="stopping || inspectingSource" class="h-3 w-3" />
           <svg
             v-else-if="running"
             class="h-3 w-3"

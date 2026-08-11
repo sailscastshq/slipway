@@ -1,7 +1,7 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { Link, router } from '@inertiajs/vue3'
-import SlippyLoader from '@/components/SlippyLoader.vue'
+import Spinner from '@/components/SlipwaySpinner.vue'
 import { useEventSource } from '@/composables/sse'
 
 const props = defineProps({
@@ -272,7 +272,10 @@ watch(status, (newStatus) => {
             ]"
           >
             <!-- Spinning loader for active states -->
-            <SlippyLoader v-if="isActive" class="text-brand dark:text-white" />
+            <Spinner
+              v-if="isActive"
+              class="text-brand h-5 w-5 dark:text-white"
+            />
             <!-- Check for success -->
             <svg
               v-else-if="isSuccessful"

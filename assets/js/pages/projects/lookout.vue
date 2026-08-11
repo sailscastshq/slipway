@@ -3,7 +3,7 @@ import { Link, Head, router } from '@inertiajs/vue3'
 import { inject, ref, computed, watch } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
 import Breadcrumb from '@/components/Breadcrumb.vue'
-import SlippyLoader from '@/components/SlippyLoader.vue'
+import Spinner from '@/components/SlipwaySpinner.vue'
 import { useQueryState } from '@/composables/useQueryState'
 import { useEventSource } from '@/composables/sse'
 
@@ -989,8 +989,8 @@ async function copyToken() {
                 >
                   <div class="p-4">
                     <div v-if="loadingDetail" class="py-8 text-center">
-                      <SlippyLoader
-                        class="mx-auto mb-2 text-gray-400 dark:text-gray-500"
+                      <Spinner
+                        class="mx-auto mb-2 h-5 w-5 text-gray-400 dark:text-gray-500"
                       />
                       <p class="text-sm text-gray-400 dark:text-gray-500">
                         Loading 24h history...

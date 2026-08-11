@@ -1,6 +1,6 @@
 <script setup>
 import { watch, onUnmounted } from 'vue'
-import SlippyLoader from '@/components/SlippyLoader.vue'
+import Spinner from '@/components/SlipwaySpinner.vue'
 
 const props = defineProps({
   show: {
@@ -122,7 +122,7 @@ onUnmounted(() => {
                 ]"
               >
                 <span v-if="loading" class="flex items-center gap-2">
-                  <SlippyLoader size="h-4 w-4" />
+                  <Spinner class="h-4 w-4" />
                   Loading...
                 </span>
                 <span v-else>{{ confirmLabel }}</span>

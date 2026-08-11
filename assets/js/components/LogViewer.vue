@@ -8,7 +8,7 @@ import {
   parseLogLine,
   serializeLogEvents
 } from '@/lib/log-viewer.mjs'
-import SlippyLoader from '@/components/SlippyLoader.vue'
+import Spinner from '@/components/SlipwaySpinner.vue'
 
 const props = defineProps({
   lines: {
@@ -425,7 +425,7 @@ function segmentClass(type) {
         v-else-if="!connected && events.length === 0"
         class="flex h-full items-center justify-center font-sans text-sm text-zinc-500"
       >
-        <SlippyLoader size="h-4 w-4" class="mr-2" />
+        <Spinner class="mr-2 h-4 w-4" />
         Connecting to logs…
       </div>
       <div

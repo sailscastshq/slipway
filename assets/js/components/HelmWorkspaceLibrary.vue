@@ -3,7 +3,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import ActionMenu from '@/components/ActionMenu.vue'
 import ConfirmModal from '@/components/ConfirmModal.vue'
 import HelmSnippetDialog from '@/components/HelmSnippetDialog.vue'
-import SlippyLoader from '@/components/SlippyLoader.vue'
+import Spinner from '@/components/SlipwaySpinner.vue'
 import Tooltip from '@/components/Tooltip.vue'
 import ToastContainer from '@/components/ToastContainer.vue'
 
@@ -556,10 +556,13 @@ defineExpose({ refreshHistory, openSnippetDialog })
     >
       <div
         v-if="activeLoading"
+        role="status"
         class="flex h-24 items-center justify-center"
-        aria-live="polite"
       >
-        <SlippyLoader size="h-4 w-4" />
+        <Spinner class="h-4 w-4" />
+        <span class="sr-only">
+          {{ tab === 'history' ? 'Loading Helm history' : 'Loading snippets' }}
+        </span>
       </div>
 
       <template v-else-if="tab === 'history'">

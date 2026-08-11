@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed, onBeforeUnmount } from 'vue'
-import SlippyLoader from '@/components/SlippyLoader.vue'
+import Spinner from '@/components/SlipwaySpinner.vue'
 
 const props = defineProps({
   isProduction: {
@@ -158,7 +158,7 @@ defineExpose({ reset })
           d="M9 5l7 7-7 7"
         />
       </svg>
-      <SlippyLoader v-else size="h-4 w-4" />
+      <Spinner v-else class="h-4 w-4" />
     </div>
   </div>
 </template>

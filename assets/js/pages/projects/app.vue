@@ -19,7 +19,7 @@ import ConfigVariableMenu from '@/components/ConfigVariableMenu.vue'
 import ReleaseFlagMenu from '@/components/ReleaseFlagMenu.vue'
 import Switch from '@/components/ui/switch/Switch.vue'
 import { useToast } from '@/composables/toast'
-import SlippyLoader from '@/components/SlippyLoader.vue'
+import Spinner from '@/components/SlipwaySpinner.vue'
 import DeploymentHistory from '@/components/DeploymentHistory.vue'
 import { configVariableSummary } from '@/lib/config-variables.mjs'
 import LogViewer from '@/components/LogViewer.vue'
@@ -1281,10 +1281,9 @@ onBeforeUnmount(() => {
                       :disabled="restarting"
                       class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
                     >
-                      <SlippyLoader
+                      <Spinner
                         v-if="restarting"
-                        size="h-4 w-4"
-                        class="text-gray-400"
+                        class="h-4 w-4 text-gray-400"
                       />
                       <svg
                         v-else

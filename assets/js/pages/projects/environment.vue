@@ -17,6 +17,7 @@ import Tooltip from '@/components/Tooltip.vue'
 import CodeEditor from '@/components/CodeEditor.vue'
 import ConfigVariableMenu from '@/components/ConfigVariableMenu.vue'
 import DeploymentHistory from '@/components/DeploymentHistory.vue'
+import Spinner from '@/components/SlipwaySpinner.vue'
 import { useToast } from '@/composables/toast'
 import { useServiceActions } from '@/composables/service-actions'
 import { useEventSource } from '@/composables/sse'
@@ -1833,26 +1834,12 @@ onBeforeUnmount(() => {
                             {{ b.name }}
                           </option>
                         </select>
-                        <svg
-                          v-else-if="loadingBranches"
-                          class="h-4 w-4 animate-spin text-gray-400"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                        >
-                          <circle
-                            class="opacity-25"
-                            cx="12"
-                            cy="12"
-                            r="10"
-                            stroke="currentColor"
-                            stroke-width="4"
-                          ></circle>
-                          <path
-                            class="opacity-75"
-                            fill="currentColor"
-                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-                          ></path>
-                        </svg>
+                        <span v-else-if="loadingBranches" role="status">
+                          <Spinner class="h-4 w-4 text-gray-400" />
+                          <span class="sr-only"
+                            >Loading repository branches</span
+                          >
+                        </span>
                         <span
                           v-else
                           class="rounded bg-gray-200 px-1.5 py-0.5 text-xs font-medium text-gray-600 dark:bg-gray-700 dark:text-gray-400"
@@ -1885,28 +1872,16 @@ onBeforeUnmount(() => {
                           class="focus:border-brand w-full border-b border-dashed border-gray-200 bg-transparent py-1.5 pl-8 pr-8 text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
                         />
                         <div
+                          :role="loadingRepos ? 'status' : undefined"
                           class="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2"
                         >
-                          <svg
+                          <Spinner
                             v-if="loadingRepos"
-                            class="h-4 w-4 animate-spin text-gray-400"
-                            fill="none"
-                            viewBox="0 0 24 24"
+                            class="h-4 w-4 text-gray-400"
+                          />
+                          <span v-if="loadingRepos" class="sr-only"
+                            >Loading repositories</span
                           >
-                            <circle
-                              class="opacity-25"
-                              cx="12"
-                              cy="12"
-                              r="10"
-                              stroke="currentColor"
-                              stroke-width="4"
-                            ></circle>
-                            <path
-                              class="opacity-75"
-                              fill="currentColor"
-                              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-                            ></path>
-                          </svg>
                           <svg
                             v-else
                             class="h-4 w-4 text-gray-400"

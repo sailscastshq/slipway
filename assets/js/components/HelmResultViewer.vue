@@ -2,7 +2,7 @@
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import ActionMenu from '@/components/ActionMenu.vue'
 import HelmResultTreeNode from '@/components/HelmResultTreeNode.vue'
-import SlippyLoader from '@/components/SlippyLoader.vue'
+import Spinner from '@/components/SlipwaySpinner.vue'
 import ToastContainer from '@/components/ToastContainer.vue'
 import Tooltip from '@/components/Tooltip.vue'
 import { highlightJSON } from '@/lib/highlightJSON'
@@ -404,7 +404,7 @@ function queryDetail(entry) {
         aria-live="polite"
         aria-label="Running Helm"
       >
-        <SlippyLoader size="h-4 w-4" />
+        <Spinner class="h-4 w-4" />
         <span :data-test="`${testId}-running-status`"
           >Running &middot; {{ formatDuration(runningDurationMs) }}</span
         >

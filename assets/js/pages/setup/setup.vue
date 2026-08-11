@@ -2,7 +2,7 @@
 import { Head, useForm } from '@inertiajs/vue3'
 import { computed } from 'vue'
 import SlipwayLogo from '@/components/SlipwayLogo.vue'
-import SlippyLoader from '@/components/SlippyLoader.vue'
+import Spinner from '@/components/SlipwaySpinner.vue'
 import { usePrecognitionValidation } from '@/composables/precognition'
 
 const form = useForm({
@@ -174,7 +174,7 @@ const isFormValid = computed(() => {
           :disabled="!isFormValid"
           class="flex h-12 w-full items-center justify-center gap-2 rounded-md border border-gray-200 bg-gray-900 font-medium text-white transition-colors hover:bg-gray-800 disabled:bg-gray-100 disabled:text-gray-400 dark:border-gray-800 dark:bg-white dark:text-black dark:hover:bg-gray-100 dark:disabled:bg-gray-900 dark:disabled:text-gray-600"
         >
-          <SlippyLoader v-if="form.processing" size="h-4 w-4" />
+          <Spinner v-if="form.processing" class="h-4 w-4" />
           <span>{{
             form.processing ? 'Creating account...' : 'Create account'
           }}</span>

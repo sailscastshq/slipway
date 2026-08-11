@@ -19,7 +19,7 @@ import HelmResultViewer from '@/components/HelmResultViewer.vue'
 import { highlightSQL } from '@/lib/highlightSQL'
 import { highlightJSON } from '@/lib/highlightJSON'
 import { formatHelmError, helmEditorDiagnostic } from '@/lib/helmResult'
-import SlippyLoader from '@/components/SlippyLoader.vue'
+import Spinner from '@/components/SlipwaySpinner.vue'
 import LogViewer from '@/components/LogViewer.vue'
 import { cancelHelmExecution, cancelledHelmResult } from '@/lib/helmExecution'
 
@@ -1058,10 +1058,7 @@ onUnmounted(() => {
               : 'bg-gray-900 hover:bg-gray-800 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100'
           ]"
         >
-          <SlippyLoader
-            v-if="consoleLoading || helmStopping"
-            size="h-3.5 w-3.5"
-          />
+          <Spinner v-if="consoleLoading || helmStopping" class="h-3.5 w-3.5" />
           <svg
             v-else-if="consoleMode === 'helm' && helmLoading"
             class="h-3.5 w-3.5"
@@ -1757,8 +1754,9 @@ onUnmounted(() => {
             </div>
           </div>
 
-          <div v-if="diffLoading" class="py-16 text-center">
-            <SlippyLoader class="mx-auto text-gray-400 dark:text-gray-600" />
+          <div v-if="diffLoading" role="status" class="py-16 text-center">
+            <Spinner class="mx-auto h-5 w-5 text-gray-400 dark:text-gray-600" />
+            <span class="sr-only">Loading migration diff</span>
           </div>
 
           <div
@@ -2026,8 +2024,9 @@ onUnmounted(() => {
           </div>
 
           <!-- Loading -->
-          <div v-if="activityLoading" class="py-16 text-center">
-            <SlippyLoader class="mx-auto text-gray-400 dark:text-gray-600" />
+          <div v-if="activityLoading" role="status" class="py-16 text-center">
+            <Spinner class="mx-auto h-5 w-5 text-gray-400 dark:text-gray-600" />
+            <span class="sr-only">Loading migration activity</span>
           </div>
 
           <!-- Empty state -->
