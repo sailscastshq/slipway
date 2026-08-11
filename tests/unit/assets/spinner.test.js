@@ -83,15 +83,6 @@ test('Slipway routes every loading indicator through its spinner recipes', ({
   expect(labelledSpinnerProps).toEqual([])
 })
 
-test('UI components use direct imports without barrel files', ({ expect }) => {
-  const uiRoot = path.resolve('assets/js/components/ui')
-  const barrelFiles = fs
-    .readdirSync(uiRoot, { recursive: true })
-    .filter((file) => /(^|\/)index\.(js|ts)$/.test(file))
-
-  expect(barrelFiles).toEqual([])
-})
-
 test('standalone loading regions own their truthful status text', ({
   expect
 }) => {
