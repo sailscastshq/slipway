@@ -936,11 +936,13 @@ test(
       fullPage: true
     })
     await page.resize(390, 844)
+    await page.raw.waitForTimeout(220)
     const mobileWidgetBounds = await widgetPanel.boundingBox()
-    expect(Math.round(mobileWidgetBounds.x) >= 8).toBe(true)
-    expect(
-      Math.round(mobileWidgetBounds.x + mobileWidgetBounds.width) <= 382
-    ).toBe(true)
+    expect({
+      left: Math.round(mobileWidgetBounds.x),
+      right: Math.round(mobileWidgetBounds.x + mobileWidgetBounds.width),
+      bottom: Math.round(mobileWidgetBounds.y + mobileWidgetBounds.height)
+    }).toEqual({ left: 0, right: 390, bottom: 844 })
     await page.screenshot(path.join(screenshotRoot, 'widget-open-mobile.png'), {
       fullPage: true
     })
@@ -975,12 +977,35 @@ test(
     await expect(reloadedWidgetTrigger).toBeHidden()
 
     await revealLatestUpdateTrigger(page, space.publicSlug)
-    await page.raw.evaluate(() => {
+    const ordinaryLinkWasIntercepted = await page.raw.evaluate(async () => {
       const link = document.querySelector('a[href="/bearing/feedback"]')
       link.id = 'host-feedback-link'
+      return new Promise((resolve) => {
+        link.addEventListener(
+          'click',
+          (event) => {
+            resolve(event.defaultPrevented)
+            event.preventDefault()
+          },
+          { once: true }
+        )
+        link.click()
+      })
     })
-    const hostFeedbackLink = page.raw.locator('#host-feedback-link')
-    await hostFeedbackLink.click()
+    expect(ordinaryLinkWasIntercepted).toBe(false)
+    await page.raw.evaluate(() => {
+      const link = document.querySelector('#host-feedback-link')
+      const button = document.createElement('button')
+      button.id = 'host-feedback-button'
+      button.type = 'button'
+      button.className = link.className
+      button.dataset.slipwayBearingOpen = 'feedback'
+      button.textContent = 'Feedback'
+      button.setAttribute('aria-label', 'Share feedback')
+      link.replaceWith(button)
+    })
+    const hostFeedbackButton = page.raw.locator('#host-feedback-button')
+    await hostFeedbackButton.click()
     await expect(widgetPanel).toBeVisible()
     await expect(widgetPanel).toHaveAttribute('data-opened-from', 'host')
     await expect(widgetTrigger).toBeHidden()
@@ -1013,6 +1038,7 @@ test(
     })
     await page.raw.waitForTimeout(220)
     await page.resize(390, 844)
+    await page.raw.waitForTimeout(220)
     const hostWidgetMobileBounds = await widgetPanel.boundingBox()
     expect({
       left: Math.round(hostWidgetMobileBounds.x),
@@ -1022,7 +1048,7 @@ test(
       bottom: Math.round(
         hostWidgetMobileBounds.y + hostWidgetMobileBounds.height
       )
-    }).toEqual({ left: 8, right: 382, bottom: 836 })
+    }).toEqual({ left: 0, right: 390, bottom: 844 })
     await page.screenshot(
       path.join(screenshotRoot, 'widget-feedback-from-host-mobile.png'),
       { fullPage: true }
@@ -1035,10 +1061,10 @@ test(
     await expect(widget.locator('[data-close]')).toBeFocused()
     await widget.locator('[data-close]').click()
     await expect(widgetPanel).not.toBeVisible()
-    await expect(hostFeedbackLink).toBeFocused()
+    await expect(hostFeedbackButton).toBeFocused()
     await expect(widgetTrigger).toContainText('What’s new')
 
-    await hostFeedbackLink.click()
+    await hostFeedbackButton.click()
     await widget.locator('[data-surface="roadmap"]').click()
     await expect(widgetFrame).toHaveAttribute(
       'src',

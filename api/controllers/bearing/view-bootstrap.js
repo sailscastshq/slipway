@@ -263,21 +263,41 @@ function bearingBootstrap() {
 
           @media (max-width: 640px) {
             .bearing-trigger { bottom: 12px; }
+            .bearing-trigger[aria-expanded='true'] { display: none; }
             .bearing-trigger[data-side='right'] { right: 12px; }
             .bearing-trigger[data-side='left'] { left: 12px; }
             .bearing-panel {
-              bottom: 68px;
-              height: min(680px, calc(100dvh - 84px));
-              width: calc(100vw - 16px);
+              border-bottom: 0;
+              border-radius: 20px 20px 0 0;
+              bottom: 0;
+              height: min(760px, calc(100dvh - 16px));
+              width: 100vw;
             }
-            .bearing-panel[data-side='right'] { left: auto; right: 8px; }
-            .bearing-panel[data-side='left'] { left: 8px; right: auto; }
-            .bearing-panel[data-opened-from='host'] { bottom: 8px; }
+            .bearing-panel[data-side='right'],
+            .bearing-panel[data-side='left'] {
+              left: 0;
+              right: 0;
+            }
+            .bearing-panel[data-opened-from='host'] { bottom: 0; }
+            .bearing-panel[open] {
+              animation-name: bearing-sheet-in;
+              grid-template-rows:
+                52px minmax(0, 1fr) auto
+                calc(30px + env(safe-area-inset-bottom));
+            }
+            .bearing-powered-by {
+              padding-bottom: env(safe-area-inset-bottom);
+            }
           }
 
           @media (prefers-reduced-motion: reduce) {
             .bearing-panel[open] { animation: none; }
             .bearing-trigger { transition: none; }
+          }
+
+          @keyframes bearing-sheet-in {
+            from { opacity: .96; transform: translateY(100%); }
+            to { opacity: 1; transform: translateY(0); }
           }
         </style>
         <button
@@ -411,24 +431,7 @@ function bearingBootstrap() {
 
       function requestedSurface(element) {
         const requested = element.getAttribute('data-slipway-bearing-open')
-        if (requested !== null) return requested || openingView
-        if (element.tagName !== 'A') return null
-        try {
-          const destination = new URL(element.href, window.location.href)
-          if (destination.origin !== window.location.origin) return null
-          return (
-            surfaceOrder.find((surface) => {
-              if (!surfaces[surface]) return false
-              const configured = new URL(
-                surfaces[surface].path,
-                window.location.href
-              )
-              return destination.pathname === configured.pathname
-            }) || null
-          )
-        } catch {
-          return null
-        }
+        return requested === null ? null : requested || openingView
       }
 
       function shouldKeepLinkNavigation(event, link) {
@@ -447,7 +450,7 @@ function bearingBootstrap() {
       function handleHostTrigger(event) {
         const target = event.target
         if (!target?.closest) return
-        const element = target.closest('a[href], [data-slipway-bearing-open]')
+        const element = target.closest('[data-slipway-bearing-open]')
         if (!element) return
         const surface = requestedSurface(element)
         if (!surfaces[surface]) return

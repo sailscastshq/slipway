@@ -1255,7 +1255,7 @@ function handleViewKeydown(event, index) {
                 <p
                   class="mt-1 text-sm leading-6 text-gray-500 dark:text-gray-400"
                 >
-                  Host-app links can open it directly. Unseen updates add a
+                  Host-app buttons can open it directly. Unseen updates add a
                   quiet lower-corner trigger until they are opened.
                 </p>
               </div>

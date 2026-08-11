@@ -219,26 +219,24 @@ click, or the panel's close control also dismisses it and returns focus. The
 trigger then disappears until another update is published. No published or
 unseen update means no injected UI is visible.
 
-The host app can also open the same panel from its own navigation. Prefer a
-real link so Bearing is progressive enhancement rather than a JavaScript-only
-dead end:
-
-```html
-<a href="https://your-app.example.com/bearing/feedback">Share feedback</a>
-```
-
-Bearing recognizes ordinary same-origin links to its enabled Feedback, Roadmap,
-and Updates paths. It listens with event delegation, so menu items rendered
-after the bootstrap loads work too. Modified clicks, downloads, and links
-targeting another browsing context keep their normal browser behavior. When the
-widget is unavailable or disabled, the link simply navigates to its `href`.
-
-Buttons have no navigation fallback, so give them an explicit surface:
+The host app can open the same panel from an explicit action in a menu or
+toolbar:
 
 ```html
 <button type="button" data-slipway-bearing-open="feedback">
   Share feedback
 </button>
+```
+
+Bearing listens with event delegation, so buttons rendered after the bootstrap
+loads work too. Use `feedback`, `roadmap`, or `updates` as the requested surface.
+Unknown or disabled surfaces do nothing safely.
+
+Ordinary links remain ordinary navigation and are never intercepted. This makes
+it safe to offer the full Bearing page elsewhere, such as in the app footer:
+
+```html
+<a href="https://your-app.example.com/bearing/feedback">Feedback</a>
 ```
 
 For a programmatic action, dispatch the equivalent event:
