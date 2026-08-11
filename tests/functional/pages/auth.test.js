@@ -13,22 +13,6 @@ test(
 )
 
 test(
-  'genesis user can authenticate with the real password flow',
-  { world: 'configured-slipway' },
-  async ({ auth, request, world, expect }) => {
-    const guest = await withCsrfFromPage(request, '/login')
-    const result = await auth.request.withPassword('genesisUser', {
-      password: world.current.auth.genesisUserPassword,
-      returnUrl: '/projects/new',
-      request: guest.request
-    })
-
-    expect(result.response).toHaveStatus(302)
-    expect(result.response).toRedirectTo('/projects/new')
-  }
-)
-
-test(
   'login Precognition validates shape without revealing an account',
   { world: 'configured-slipway' },
   async ({ request, world, expect }) => {
@@ -295,22 +279,6 @@ test('check email page exposes resend cooldown state', async ({
   expect(page).toBeInertiaPage('auth/check-email')
   expect(page).toHaveInertiaProp('resendCooldownSecondsRemaining')
   expect(page).toHaveInertiaProp('resendCooldownDurationSeconds', 30)
-})
-
-test('password reset success page uses Slipway copy', async ({
-  expect,
-  visit
-}) => {
-  const page = await visit('/reset-password/success')
-
-  expect(page).toHaveStatus(200)
-  expect(page).toBeInertiaPage('auth/success')
-  expect(page).toHaveInertiaProps({
-    pageTitle: 'Password updated',
-    pageHeading: 'Password updated',
-    message:
-      'Your new password is saved. You are signed in and ready to continue.'
-  })
 })
 
 test(

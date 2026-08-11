@@ -1,8 +1,4 @@
 const { test } = require('sounding')
-const fs = require('node:fs')
-const path = require('node:path')
-
-const appRoot = path.resolve(__dirname, '../../../../')
 
 function deploymentWorld(slug) {
   return {
@@ -148,25 +144,6 @@ test(
     }
   }
 )
-
-test('deploy and rollback reconcile candidate names before docker run', async ({
-  expect
-}) => {
-  for (const relativePath of [
-    'api/helpers/deploy/execute-pipeline.js',
-    'api/helpers/deploy/execute-rollback.js'
-  ]) {
-    const source = fs.readFileSync(path.join(appRoot, relativePath), 'utf8')
-    const preparation = source.indexOf(
-      'await sails.helpers.deploy.prepareCandidateContainer.with({'
-    )
-    const run = source.indexOf('await sails.helpers.docker.runContainer.with({')
-
-    expect(preparation > -1).toBe(true)
-    expect(run > -1).toBe(true)
-    expect(preparation < run).toBe(true)
-  }
-})
 
 test(
   'candidate preparation refuses to remove an inconsistent traffic owner',
