@@ -17,7 +17,7 @@ import HelmResultViewer from '@/components/HelmResultViewer.vue'
 import HelmScratchpadTabs from '@/components/HelmScratchpadTabs.vue'
 import HelmWorkspaceLibrary from '@/components/HelmWorkspaceLibrary.vue'
 import HelmWriteGuardDialog from '@/components/HelmWriteGuardDialog.vue'
-import Tooltip from '@/components/Tooltip.vue'
+import Tooltip from '@/components/ui/tooltip/Tooltip.vue'
 import { useHelmScratchpads } from '@/composables/useHelmScratchpads'
 import { helmEditorDiagnostic } from '@/lib/helmResult'
 import { cancelHelmExecution, cancelledHelmResult } from '@/lib/helmExecution'
@@ -741,7 +741,7 @@ watch(code, () => {
         </span>
 
         <div class="flex items-center">
-          <Tooltip text="History" position="bottom">
+          <Tooltip text="History" placement="bottom">
             <button
               type="button"
               data-test="helm-history-toggle"
@@ -771,7 +771,7 @@ watch(code, () => {
               <span class="sr-only">History</span>
             </button>
           </Tooltip>
-          <Tooltip text="Snippets" position="bottom">
+          <Tooltip text="Snippets" placement="bottom">
             <button
               type="button"
               data-test="helm-snippets-toggle"
@@ -814,15 +814,6 @@ watch(code, () => {
               ? 'bg-red-600 hover:bg-red-700 dark:bg-red-600 dark:hover:bg-red-500'
               : 'bg-gray-900 hover:bg-gray-800 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100'
           ]"
-          :title="
-            running
-              ? 'Stop execution'
-              : writeArmActive
-              ? `Run armed production write within ${writeArmRemaining} seconds`
-              : `${runLabel} · ${
-                  navigator?.platform?.includes('Mac') ? '⌘' : 'Ctrl'
-                }+Enter`
-          "
         >
           <Spinner v-if="stopping || inspectingSource" class="h-3 w-3" />
           <svg

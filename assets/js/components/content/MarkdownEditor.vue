@@ -8,6 +8,7 @@ import FileHandler from '@tiptap/extension-file-handler'
 import Placeholder from '@tiptap/extension-placeholder'
 import { Markdown } from '@tiptap/markdown'
 import DOMPurify from 'dompurify'
+import Tooltip from '@/components/ui/tooltip/Tooltip.vue'
 import {
   inspectMarkdown,
   looksLikeImageUrl,
@@ -695,94 +696,99 @@ defineExpose({
         aria-label="Text formatting"
       >
         <template v-if="!linkEditorOpen">
-          <button
-            type="button"
-            aria-label="Bold"
-            title="Bold"
-            :aria-pressed="editor.isActive('bold')"
-            :class="[
-              'min-w-8 h-8 rounded-md px-2 text-sm font-bold transition-colors',
-              editor.isActive('bold')
-                ? 'bg-white/20 dark:bg-gray-900/10'
-                : 'hover:bg-white/10 dark:hover:bg-gray-900/5'
-            ]"
-            @mousedown.prevent="toggleMark('toggleBold')"
-          >
-            B
-          </button>
-          <button
-            type="button"
-            aria-label="Italic"
-            title="Italic"
-            :aria-pressed="editor.isActive('italic')"
-            :class="[
-              'min-w-8 h-8 rounded-md px-2 font-serif text-sm italic transition-colors',
-              editor.isActive('italic')
-                ? 'bg-white/20 dark:bg-gray-900/10'
-                : 'hover:bg-white/10 dark:hover:bg-gray-900/5'
-            ]"
-            @mousedown.prevent="toggleMark('toggleItalic')"
-          >
-            I
-          </button>
-          <button
-            type="button"
-            aria-label="Add link"
-            title="Add link"
-            :aria-pressed="editor.isActive('link')"
-            :class="[
-              'grid h-8 w-8 place-items-center rounded-md transition-colors',
-              editor.isActive('link')
-                ? 'bg-white/20 dark:bg-gray-900/10'
-                : 'hover:bg-white/10 dark:hover:bg-gray-900/5'
-            ]"
-            @mousedown.prevent="openLinkEditor"
-          >
-            <svg
-              class="h-4 w-4"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              aria-hidden="true"
+          <Tooltip text="Bold">
+            <button
+              type="button"
+              aria-label="Bold"
+              :aria-pressed="editor.isActive('bold')"
+              :class="[
+                'min-w-8 h-8 rounded-md px-2 text-sm font-bold transition-colors',
+                editor.isActive('bold')
+                  ? 'bg-white/20 dark:bg-gray-900/10'
+                  : 'hover:bg-white/10 dark:hover:bg-gray-900/5'
+              ]"
+              @mousedown.prevent="toggleMark('toggleBold')"
             >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="1.75"
-                d="m10.5 13.5 3-3m-5.1 5.1-1.5 1.5a3 3 0 0 1-4.2-4.2l3-3a3 3 0 0 1 4.2 0m5.7-1.5 1.5-1.5a3 3 0 0 1 4.2 4.2l-3 3a3 3 0 0 1-4.2 0"
-              />
-            </svg>
-          </button>
-          <button
-            type="button"
-            aria-label="Strikethrough"
-            title="Strikethrough"
-            :aria-pressed="editor.isActive('strike')"
-            :class="[
-              'min-w-8 h-8 rounded-md px-2 text-sm line-through transition-colors',
-              editor.isActive('strike')
-                ? 'bg-white/20 dark:bg-gray-900/10'
-                : 'hover:bg-white/10 dark:hover:bg-gray-900/5'
-            ]"
-            @mousedown.prevent="toggleMark('toggleStrike')"
-          >
-            S
-          </button>
-          <button
-            type="button"
-            aria-label="Inline code"
-            title="Inline code"
-            :aria-pressed="editor.isActive('code')"
-            :class="[
-              'min-w-8 h-8 rounded-md px-2 font-mono text-xs transition-colors',
-              editor.isActive('code')
-                ? 'bg-white/20 dark:bg-gray-900/10'
-                : 'hover:bg-white/10 dark:hover:bg-gray-900/5'
-            ]"
-            @mousedown.prevent="toggleMark('toggleCode')"
-          >
-            &lt;/&gt;
-          </button>
+              B
+            </button>
+          </Tooltip>
+          <Tooltip text="Italic">
+            <button
+              type="button"
+              aria-label="Italic"
+              :aria-pressed="editor.isActive('italic')"
+              :class="[
+                'min-w-8 h-8 rounded-md px-2 font-serif text-sm italic transition-colors',
+                editor.isActive('italic')
+                  ? 'bg-white/20 dark:bg-gray-900/10'
+                  : 'hover:bg-white/10 dark:hover:bg-gray-900/5'
+              ]"
+              @mousedown.prevent="toggleMark('toggleItalic')"
+            >
+              I
+            </button>
+          </Tooltip>
+          <Tooltip text="Add link">
+            <button
+              type="button"
+              aria-label="Add link"
+              :aria-pressed="editor.isActive('link')"
+              :class="[
+                'grid h-8 w-8 place-items-center rounded-md transition-colors',
+                editor.isActive('link')
+                  ? 'bg-white/20 dark:bg-gray-900/10'
+                  : 'hover:bg-white/10 dark:hover:bg-gray-900/5'
+              ]"
+              @mousedown.prevent="openLinkEditor"
+            >
+              <svg
+                class="h-4 w-4"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                aria-hidden="true"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="1.75"
+                  d="m10.5 13.5 3-3m-5.1 5.1-1.5 1.5a3 3 0 0 1-4.2-4.2l3-3a3 3 0 0 1 4.2 0m5.7-1.5 1.5-1.5a3 3 0 0 1 4.2 4.2l-3 3a3 3 0 0 1-4.2 0"
+                />
+              </svg>
+            </button>
+          </Tooltip>
+          <Tooltip text="Strikethrough">
+            <button
+              type="button"
+              aria-label="Strikethrough"
+              :aria-pressed="editor.isActive('strike')"
+              :class="[
+                'min-w-8 h-8 rounded-md px-2 text-sm line-through transition-colors',
+                editor.isActive('strike')
+                  ? 'bg-white/20 dark:bg-gray-900/10'
+                  : 'hover:bg-white/10 dark:hover:bg-gray-900/5'
+              ]"
+              @mousedown.prevent="toggleMark('toggleStrike')"
+            >
+              S
+            </button>
+          </Tooltip>
+          <Tooltip text="Inline code">
+            <button
+              type="button"
+              aria-label="Inline code"
+              :aria-pressed="editor.isActive('code')"
+              :class="[
+                'min-w-8 h-8 rounded-md px-2 font-mono text-xs transition-colors',
+                editor.isActive('code')
+                  ? 'bg-white/20 dark:bg-gray-900/10'
+                  : 'hover:bg-white/10 dark:hover:bg-gray-900/5'
+              ]"
+              @mousedown.prevent="toggleMark('toggleCode')"
+            >
+              &lt;/&gt;
+            </button>
+          </Tooltip>
         </template>
 
         <form

@@ -13,7 +13,7 @@ import AppLayout from '@/layouts/AppLayout.vue'
 import Breadcrumb from '@/components/Breadcrumb.vue'
 import ConfirmModal from '@/components/ConfirmModal.vue'
 import SlideToDeploy from '@/components/SlideToDeploy.vue'
-import Tooltip from '@/components/Tooltip.vue'
+import Tooltip from '@/components/ui/tooltip/Tooltip.vue'
 import CodeEditor from '@/components/CodeEditor.vue'
 import ConfigVariableMenu from '@/components/ConfigVariableMenu.vue'
 import DeploymentHistory from '@/components/DeploymentHistory.vue'
@@ -2080,6 +2080,7 @@ onBeforeUnmount(() => {
                       >
                         <Link
                           :href="`/projects/${project.slug}/environments/${environment.slug}/dock/${service.id}`"
+                          :aria-label="`Open Dock for ${service.name}`"
                           class="rounded p-1 text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
                         >
                           <svg
@@ -2505,6 +2506,10 @@ onBeforeUnmount(() => {
                   :text="bulkMode ? 'Single edit' : 'Bulk edit'"
                 >
                   <button
+                    type="button"
+                    :aria-label="
+                      bulkMode ? 'Switch to single edit' : 'Switch to bulk edit'
+                    "
                     @click="bulkMode ? exitBulkMode() : enterBulkMode()"
                     class="rounded p-0.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-800 dark:hover:text-gray-200"
                   >

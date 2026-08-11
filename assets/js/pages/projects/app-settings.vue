@@ -4,7 +4,7 @@ import { ref, computed, inject, onMounted } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
 import Breadcrumb from '@/components/Breadcrumb.vue'
 import ConfirmModal from '@/components/ConfirmModal.vue'
-import Tooltip from '@/components/Tooltip.vue'
+import Tooltip from '@/components/ui/tooltip/Tooltip.vue'
 import Spinner from '@/components/SlipwaySpinner.vue'
 import { useToast } from '@/composables/toast'
 import { usePrecognitionValidation } from '@/composables/precognition'
@@ -70,6 +70,15 @@ const isDirty = computed(
 )
 
 async function saveSettings({ restart = false } = {}) {
+  if (
+    !isDirty.value ||
+    form.hasErrors ||
+    saving.value ||
+    savingAndRestarting.value
+  ) {
+    return
+  }
+
   if (restart) {
     savingAndRestarting.value = true
   } else {
@@ -623,10 +632,15 @@ async function deleteApp() {
                       ? 'Saving settings and restarting app'
                       : 'Save settings and restart app'
                   "
-                  :disabled="
+                  :aria-disabled="
                     !isDirty || form.hasErrors || saving || savingAndRestarting
                   "
-                  class="rounded-r-md border-l border-gray-700 bg-gray-900 px-3 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50 dark:border-gray-200 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
+                  :class="[
+                    'rounded-r-md border-l border-gray-700 bg-gray-900 px-3 py-2 text-sm font-medium text-white dark:border-gray-200 dark:bg-white dark:text-gray-900',
+                    !isDirty || form.hasErrors || saving || savingAndRestarting
+                      ? 'cursor-not-allowed opacity-50'
+                      : 'hover:bg-gray-800 dark:hover:bg-gray-100'
+                  ]"
                 >
                   <template v-if="savingAndRestarting">
                     <Spinner class="h-4 w-4" />

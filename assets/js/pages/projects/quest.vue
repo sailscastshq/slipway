@@ -3,7 +3,7 @@ import { Head, router, useForm } from '@inertiajs/vue3'
 import { inject, ref, computed, nextTick, watch, onMounted } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
 import Breadcrumb from '@/components/Breadcrumb.vue'
-import Tooltip from '@/components/Tooltip.vue'
+import Tooltip from '@/components/ui/tooltip/Tooltip.vue'
 import Spinner from '@/components/SlipwaySpinner.vue'
 import { useQueryState } from '@/composables/useQueryState'
 import { useEventSource } from '@/composables/sse'
@@ -209,6 +209,8 @@ function formatSchedule(job) {
 }
 
 function toggleJobPause(job) {
+  if (pauseForm.processing || resumeForm.processing) return
+
   if (job.paused) {
     resumeJob(job.name)
     return
@@ -437,6 +439,10 @@ function refresh() {
           "
         >
           <span
+            :aria-label="
+              connected ? 'Live updates active' : 'Live updates disconnected'
+            "
+            tabindex="0"
             class="flex items-center space-x-1.5 text-xs"
             :class="
               connected
@@ -663,6 +669,8 @@ function refresh() {
             </h2>
             <Tooltip text="Refresh">
               <button
+                type="button"
+                aria-label="Refresh scripts"
                 @click="refresh"
                 class="rounded-md p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-800 dark:hover:text-gray-200"
               >
@@ -790,14 +798,24 @@ function refresh() {
                     <!-- Run button -->
                     <Tooltip text="Run now">
                       <button
-                        @click="runJob(job.name)"
+                        type="button"
+                        @click="
+                          !runningJob && !job.isRunning && runJob(job.name)
+                        "
                         :aria-label="
                           runningJob === job.name
                             ? `Running ${job.name}`
                             : `Run ${job.name} now`
                         "
-                        :disabled="runningJob === job.name || job.isRunning"
-                        class="rounded-md p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-700 disabled:opacity-50 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200"
+                        :aria-disabled="
+                          Boolean(runningJob) || Boolean(job.isRunning)
+                        "
+                        :class="[
+                          'rounded-md p-1.5 text-gray-500 dark:text-gray-400',
+                          runningJob || job.isRunning
+                            ? 'cursor-not-allowed opacity-50'
+                            : 'hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-800 dark:hover:text-gray-200'
+                        ]"
                       >
                         <Spinner
                           v-if="runningJob === job.name"
@@ -830,11 +848,22 @@ function refresh() {
                     <template v-if="job.scheduleType !== 'manual'">
                       <Tooltip :text="job.paused ? 'Resume' : 'Pause'">
                         <button
+                          type="button"
+                          :aria-label="
+                            job.paused
+                              ? `Resume ${job.name}`
+                              : `Pause ${job.name}`
+                          "
                           @click="toggleJobPause(job)"
-                          :disabled="
+                          :aria-disabled="
                             pauseForm.processing || resumeForm.processing
                           "
-                          class="rounded-md p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-700 disabled:opacity-50 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200"
+                          :class="[
+                            'rounded-md p-1.5 text-gray-500 dark:text-gray-400',
+                            pauseForm.processing || resumeForm.processing
+                              ? 'cursor-not-allowed opacity-50'
+                              : 'hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-800 dark:hover:text-gray-200'
+                          ]"
                         >
                           <svg
                             v-if="job.paused"
@@ -998,35 +1027,42 @@ function refresh() {
 
                     <div v-else>
                       <div v-for="(run, idx) in expandedJobHistory" :key="idx">
-                        <button
-                          @click="toggleRun(String(idx))"
-                          class="group flex w-full items-center justify-between px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-900/50"
+                        <Tooltip
+                          :text="
+                            run.event === 'completed'
+                              ? 'Completed successfully'
+                              : run.error || 'Failed'
+                          "
                         >
-                          <div class="flex items-center space-x-4">
-                            <span
-                              class="whitespace-nowrap text-xs text-gray-400 dark:text-gray-500"
-                              >{{ formatDate(run.recordedAt) }}
-                              {{ formatTime(run.recordedAt) }}</span
-                            >
-                            <span
-                              class="whitespace-nowrap font-mono text-xs text-gray-600 dark:text-gray-300"
-                              >{{ formatDuration(run.duration) }}</span
-                            >
-                            <span
-                              v-if="run.trigger === 'manual'"
-                              class="text-[10px] text-gray-400 dark:text-gray-500"
-                              >manual</span
-                            >
-                          </div>
-                          <Tooltip
-                            :text="
+                          <button
+                            type="button"
+                            :aria-label="
                               run.event === 'completed'
                                 ? 'Completed successfully'
                                 : run.error || 'Failed'
                             "
+                            class="group flex w-full items-center justify-between px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-900/50"
+                            @click="toggleRun(String(idx))"
                           >
+                            <div class="flex items-center space-x-4">
+                              <span
+                                class="whitespace-nowrap text-xs text-gray-400 dark:text-gray-500"
+                                >{{ formatDate(run.recordedAt) }}
+                                {{ formatTime(run.recordedAt) }}</span
+                              >
+                              <span
+                                class="whitespace-nowrap font-mono text-xs text-gray-600 dark:text-gray-300"
+                                >{{ formatDuration(run.duration) }}</span
+                              >
+                              <span
+                                v-if="run.trigger === 'manual'"
+                                class="text-[10px] text-gray-400 dark:text-gray-500"
+                                >manual</span
+                              >
+                            </div>
                             <span
-                              class="opacity-0 transition-opacity group-hover:opacity-100"
+                              aria-hidden="true"
+                              class="opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"
                               :class="
                                 run.event === 'completed'
                                   ? 'text-gray-500 dark:text-gray-400'
@@ -1038,8 +1074,8 @@ function refresh() {
                               >
                               <template v-else>&#10007;</template>
                             </span>
-                          </Tooltip>
-                        </button>
+                          </button>
+                        </Tooltip>
                         <div
                           v-if="
                             expandedRun === String(idx) &&

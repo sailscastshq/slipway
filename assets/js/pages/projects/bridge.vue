@@ -4,6 +4,7 @@ import { computed, ref } from 'vue'
 import BridgePageLayout from '@/layouts/BridgePageLayout.vue'
 import BridgeDashboard from '@/components/bridge/BridgeDashboard.vue'
 import BridgePageHeader from '@/components/bridge/BridgePageHeader.vue'
+import Tooltip from '@/components/ui/tooltip/Tooltip.vue'
 
 defineOptions({
   layout: BridgePageLayout
@@ -112,27 +113,31 @@ function switchDashboard(event) {
             {{ dashboard.label }}
           </option>
         </select>
-        <button
+        <Tooltip
           v-if="appRunning && (modelList.length > 0 || activeDashboard)"
-          @click="refresh"
-          class="rounded-md p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-800 dark:hover:text-gray-300"
-          title="Refresh Bridge"
-          aria-label="Refresh Bridge"
+          text="Refresh Bridge"
         >
-          <svg
-            class="h-4 w-4"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
+          <button
+            type="button"
+            aria-label="Refresh Bridge"
+            class="rounded-md p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-800 dark:hover:text-gray-300"
+            @click="refresh"
           >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-            />
-          </svg>
-        </button>
+            <svg
+              class="h-4 w-4"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+              />
+            </svg>
+          </button>
+        </Tooltip>
       </template>
     </BridgePageHeader>
 
