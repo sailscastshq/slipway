@@ -66,7 +66,7 @@ test('Klean Spinner accepts an app-owned mark without double spinning it', ({
   expect(spinnerSource.includes('[&>*]:size-full')).toBe(true)
 })
 
-test('Slipway routes generic spinning indicators through Klean Spinner', ({
+test('Slipway routes every loading indicator through its spinner recipes', ({
   expect
 }) => {
   const sourceFiles = vueFiles(path.resolve('assets/js'))
@@ -81,6 +81,15 @@ test('Slipway routes generic spinning indicators through Klean Spinner', ({
 
   expect(oneOffSpinners).toEqual([])
   expect(labelledSpinnerProps).toEqual([])
+})
+
+test('UI components use direct imports without barrel files', ({ expect }) => {
+  const uiRoot = path.resolve('assets/js/components/ui')
+  const barrelFiles = fs
+    .readdirSync(uiRoot, { recursive: true })
+    .filter((file) => /(^|\/)index\.(js|ts)$/.test(file))
+
+  expect(barrelFiles).toEqual([])
 })
 
 test('standalone loading regions own their truthful status text', ({
@@ -120,12 +129,15 @@ test('Slippy remains a class-first, reduced-motion brand recipe', ({
     'assets/js/pages/bosun/index.vue',
     'assets/js/pages/cli/authorize.vue',
     'assets/js/pages/projects/app.vue',
+    'assets/js/pages/projects/app-settings.vue',
     'assets/js/pages/projects/bridge-form.vue',
     'assets/js/pages/projects/deployment.vue',
     'assets/js/pages/projects/dock.vue',
+    'assets/js/pages/projects/environment.vue',
     'assets/js/pages/projects/helm.vue',
     'assets/js/pages/projects/lookout.vue',
     'assets/js/pages/projects/quest.vue',
+    'assets/js/pages/projects/service-settings.vue',
     'assets/js/pages/settings/team-profile.vue',
     'assets/js/pages/settings/update.vue',
     'assets/js/pages/setup/setup.vue'

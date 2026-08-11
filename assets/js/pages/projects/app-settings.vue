@@ -5,7 +5,7 @@ import AppLayout from '@/layouts/AppLayout.vue'
 import Breadcrumb from '@/components/Breadcrumb.vue'
 import ConfirmModal from '@/components/ConfirmModal.vue'
 import Tooltip from '@/components/Tooltip.vue'
-import { Spinner } from '@/components/ui/spinner'
+import Spinner from '@/components/SlipwaySpinner.vue'
 import { useToast } from '@/composables/toast'
 import { usePrecognitionValidation } from '@/composables/precognition'
 
