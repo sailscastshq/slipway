@@ -30,8 +30,13 @@ jobs:
         run: npm run check:consistency
 
   test:
-    timeout-minutes: 15
+    name: Test (${{ matrix.lane }})
+    timeout-minutes: 10
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        lane: [unit, functional, e2e]
 
     steps:
       - uses: actions/checkout@v6
@@ -45,13 +50,8 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Run unit tests
-        run: npm run test:unit
-
-      - name: Run functional tests
-        run: npm run test:functional
-
       - name: Install Playwright browsers
+        if: matrix.lane == 'e2e'
         run: |
           if find tests/e2e/pages -type f -name '*.test.js' | grep -q .; then
             npx playwright install --with-deps chromium
@@ -59,11 +59,11 @@ jobs:
             echo "No browser e2e tests found"
           fi
 
-      - name: Run E2E tests
-        run: npm run test:e2e
+      - name: Run ${{ matrix.lane }} tests
+        run: npm run test:${{ matrix.lane }}
 
       - name: Upload Sounding browser failure artifacts
-        if: failure()
+        if: failure() && matrix.lane == 'e2e'
         uses: actions/upload-artifact@v6
         with:
           name: sounding-browser-artifacts

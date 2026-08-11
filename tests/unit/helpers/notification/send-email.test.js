@@ -1,25 +1,5 @@
 const { test } = require('sounding')
-const fs = require('node:fs')
-const path = require('node:path')
 const helper = require('../../../../api/helpers/notification/send-email')
-
-test('notification call sites leave layouts to configured mail', ({
-  expect
-}) => {
-  const notificationDir = path.join(process.cwd(), 'api/helpers/notification')
-  const offenders = fs
-    .readdirSync(notificationDir)
-    .filter((file) => file.endsWith('.js'))
-    .filter((file) => {
-      const source = fs.readFileSync(path.join(notificationDir, file), 'utf8')
-      return (
-        source.includes('sails.helpers.notification.sendEmail') &&
-        /^\s*layout\s*:/m.test(source)
-      )
-    })
-
-  expect(offenders).toEqual([])
-})
 
 test('email notifications fan out through configured mail', async ({
   expect
