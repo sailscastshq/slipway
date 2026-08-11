@@ -1240,8 +1240,8 @@ function handleViewKeydown(event, index) {
               <p
                 class="mt-1 text-sm leading-6 text-gray-500 dark:text-gray-400"
               >
-                A small, lazy trigger that appears when customers have an unseen
-                product update. No app template changes.
+                A lazy in-app panel for feedback, roadmap, and updates. It stays
+                out of the way until your app opens it or something new ships.
               </p>
             </div>
 
@@ -1255,7 +1255,8 @@ function handleViewKeydown(event, index) {
                 <p
                   class="mt-1 text-sm leading-6 text-gray-500 dark:text-gray-400"
                 >
-                  It disappears after the latest update has been opened.
+                  Host-app buttons can open it directly. Unseen updates add a
+                  quiet lower-corner trigger until they are opened.
                 </p>
               </div>
               <button

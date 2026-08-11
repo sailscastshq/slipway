@@ -936,12 +936,14 @@ test(
       fullPage: true
     })
     await page.resize(390, 844)
+    await page.raw.waitForTimeout(220)
     const mobileWidgetBounds = await widgetPanel.boundingBox()
-    expect(mobileWidgetBounds.x >= 8).toBe(true)
-    expect(mobileWidgetBounds.x + mobileWidgetBounds.width <= 382).toBe(true)
-    await page.screenshot(path.join(screenshotRoot, 'widget-open-mobile.png'), {
-      fullPage: true
-    })
+    expect({
+      left: Math.round(mobileWidgetBounds.x),
+      right: Math.round(mobileWidgetBounds.x + mobileWidgetBounds.width),
+      bottom: Math.round(mobileWidgetBounds.y + mobileWidgetBounds.height)
+    }).toEqual({ left: 0, right: 390, bottom: 844 })
+    await page.screenshot(path.join(screenshotRoot, 'widget-open-mobile.png'))
     await page.resize(1440, 1000)
     await widgetTrigger.click()
     await expect(widgetPanel).not.toBeVisible()
@@ -956,7 +958,7 @@ test(
     await revealLatestUpdateTrigger(page, space.publicSlug)
     await widgetTrigger.click()
     await expect(widgetPanel).toBeVisible()
-    await page.raw.locator('body').click({ position: { x: 80, y: 80 } })
+    await page.raw.mouse.click(80, 80)
     await expect(widgetPanel).not.toBeVisible()
     await expect(widgetTrigger).toBeHidden()
     await revealLatestUpdateTrigger(page, space.publicSlug)
@@ -971,6 +973,141 @@ test(
       .locator('[data-slipway-bearing-widget]')
       .locator('[data-trigger]')
     await expect(reloadedWidgetTrigger).toBeHidden()
+
+    await revealLatestUpdateTrigger(page, space.publicSlug)
+    const ordinaryLinkWasIntercepted = await page.raw.evaluate(async () => {
+      const link = document.querySelector('a[href="/bearing/feedback"]')
+      link.id = 'host-feedback-link'
+      return new Promise((resolve) => {
+        link.addEventListener(
+          'click',
+          (event) => {
+            resolve(event.defaultPrevented)
+            event.preventDefault()
+          },
+          { once: true }
+        )
+        link.click()
+      })
+    })
+    expect(ordinaryLinkWasIntercepted).toBe(false)
+    await page.raw.evaluate(() => {
+      const link = document.querySelector('#host-feedback-link')
+      const button = document.createElement('button')
+      button.id = 'host-feedback-button'
+      button.type = 'button'
+      button.className = link.className
+      button.dataset.slipwayBearingOpen = 'feedback'
+      button.textContent = 'Feedback'
+      button.setAttribute('aria-label', 'Share feedback')
+      link.replaceWith(button)
+    })
+    const hostFeedbackButton = page.raw.locator('#host-feedback-button')
+    await hostFeedbackButton.click()
+    await expect(widgetPanel).toBeVisible()
+    await expect(widgetPanel).toHaveAttribute('data-opened-from', 'host')
+    await expect(widgetTrigger).toBeHidden()
+    const widgetFrame = widget.locator('iframe')
+    await expect(widgetFrame).toHaveAttribute(
+      'src',
+      '/bearing/feedback?embedded=1'
+    )
+    await expect(
+      page.raw
+        .frameLocator('[data-slipway-bearing-widget] iframe')
+        .getByLabel('Summary')
+    ).toBeVisible()
+    await page.screenshot(
+      path.join(screenshotRoot, 'widget-feedback-from-host.png'),
+      { fullPage: true }
+    )
+    await page.raw.emulateMedia({
+      colorScheme: 'dark',
+      reducedMotion: 'reduce'
+    })
+    await expect(widgetPanel).toHaveCSS('animation-name', 'none')
+    await page.screenshot(
+      path.join(screenshotRoot, 'widget-feedback-from-host-dark.png'),
+      { fullPage: true, animations: 'disabled' }
+    )
+    await page.raw.emulateMedia({
+      colorScheme: 'light',
+      reducedMotion: 'no-preference'
+    })
+    await page.raw.waitForTimeout(220)
+    await page.resize(390, 844)
+    await page.raw.waitForTimeout(220)
+    const hostWidgetMobileBounds = await widgetPanel.boundingBox()
+    expect({
+      left: Math.round(hostWidgetMobileBounds.x),
+      right: Math.round(
+        hostWidgetMobileBounds.x + hostWidgetMobileBounds.width
+      ),
+      bottom: Math.round(
+        hostWidgetMobileBounds.y + hostWidgetMobileBounds.height
+      )
+    }).toEqual({ left: 0, right: 390, bottom: 844 })
+    await page.screenshot(
+      path.join(screenshotRoot, 'widget-feedback-from-host-mobile.png')
+    )
+    await page.resize(1440, 1000)
+    await expect(widget.locator('[data-close]')).toBeFocused()
+    await page.raw.keyboard.press('Shift+Tab')
+    await expect(widget.locator('.bearing-powered-by')).toBeFocused()
+    await page.raw.keyboard.press('Tab')
+    await expect(widget.locator('[data-close]')).toBeFocused()
+    await widget.locator('[data-close]').click()
+    await expect(widgetPanel).not.toBeVisible()
+    await expect(hostFeedbackButton).toBeFocused()
+    await expect(widgetTrigger).toContainText('What’s new')
+
+    await hostFeedbackButton.click()
+    await widget.locator('[data-surface="roadmap"]').click()
+    await expect(widgetFrame).toHaveAttribute(
+      'src',
+      '/bearing/roadmap?embedded=1'
+    )
+    await expect(widget.locator('[data-surface="roadmap"]')).toHaveAttribute(
+      'aria-current',
+      'page'
+    )
+    await widget.locator('[data-surface="updates"]').click()
+    await expect(widgetFrame).toHaveAttribute(
+      'src',
+      '/bearing/updates?embedded=1'
+    )
+    await widget.locator('[data-close]').click()
+    await expect(widgetTrigger).toBeHidden()
+
+    await page.raw.evaluate(() => {
+      window.dispatchEvent(
+        new CustomEvent('slipway:bearing:open', {
+          detail: { surface: 'feedback' }
+        })
+      )
+    })
+    await expect(widgetPanel).toBeVisible()
+    await expect(widgetFrame).toHaveAttribute(
+      'src',
+      '/bearing/feedback?embedded=1'
+    )
+    await widget.locator('[data-close]').click()
+
+    await page.raw.evaluate(() => {
+      const button = document.createElement('button')
+      button.id = 'host-roadmap-button'
+      button.type = 'button'
+      button.dataset.slipwayBearingOpen = 'roadmap'
+      button.textContent = 'Open roadmap'
+      document.body.append(button)
+    })
+    await page.raw.locator('#host-roadmap-button').click()
+    await expect(widgetPanel).toBeVisible()
+    await expect(widgetFrame).toHaveAttribute(
+      'src',
+      '/bearing/roadmap?embedded=1'
+    )
+    await widget.locator('[data-close]').click()
 
     const infiniteFeedbackStartedAt = Date.now() - 100_000
     for (const infiniteFeedback of Array.from({ length: 25 }, (_, index) => ({

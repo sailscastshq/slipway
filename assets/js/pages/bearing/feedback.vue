@@ -684,9 +684,15 @@ function shortDate(value) {
       </nav>
     </header>
 
-    <main class="px-5 pb-20 pt-14 sm:px-8 sm:pt-20">
+    <main
+      :class="
+        embedded
+          ? 'px-5 pb-10 pt-8 sm:px-6 sm:pt-10'
+          : 'px-5 pb-20 pt-14 sm:px-8 sm:pt-20'
+      "
+    >
       <div class="mx-auto max-w-3xl">
-        <div class="max-w-2xl">
+        <div v-if="!embedded" class="max-w-2xl">
           <p
             class="text-xs font-semibold uppercase tracking-[0.18em] text-gray-400"
           >
@@ -701,7 +707,10 @@ function shortDate(value) {
           </p>
         </div>
 
-        <section class="mt-10" aria-labelledby="share-feedback-heading">
+        <section
+          :class="embedded ? 'mt-0' : 'mt-10'"
+          aria-labelledby="share-feedback-heading"
+        >
           <form
             v-if="canSubmit"
             :class="[

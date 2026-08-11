@@ -37,16 +37,37 @@ module.exports = {
         })
       : []
 
+    const surfaces = {
+      feedback: {
+        label: 'Feedback',
+        path: `${resolved.publicBasePath}/feedback?embedded=1`
+      },
+      roadmap: resolved.space.showPublicRoadmap
+        ? {
+            label: 'Roadmap',
+            path: `${resolved.publicBasePath}/roadmap?embedded=1`
+          }
+        : null,
+      updates: resolved.space.showPublicUpdates
+        ? {
+            label: 'Updates',
+            path: `${resolved.publicBasePath}/updates?embedded=1`
+          }
+        : null
+    }
+    const openingView = surfaces[resolved.space.widgetOpeningView]
+      ? resolved.space.widgetOpeningView
+      : 'feedback'
+
     this.res.set('Cache-Control', 'private, no-store')
     return {
       enabled: resolved.space.widgetEnabled,
       appName: resolved.project.name,
       space: resolved.space.publicSlug,
       side: resolved.space.widgetSide,
-      openingView: resolved.space.widgetOpeningView,
+      openingView,
       showUnread: resolved.space.showUnread,
-      feedbackPath: `${resolved.publicBasePath}/feedback?embedded=1`,
-      updatesPath: `${resolved.publicBasePath}/updates?embedded=1`,
+      surfaces,
       latestUpdate: updates[0] ? serializeUpdate(updates[0]) : null
     }
   }

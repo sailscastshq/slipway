@@ -219,6 +219,39 @@ click, or the panel's close control also dismisses it and returns focus. The
 trigger then disappears until another update is published. No published or
 unseen update means no injected UI is visible.
 
+The host app can open the same panel from an explicit action in a menu or
+toolbar:
+
+```html
+<button type="button" data-slipway-bearing-open="feedback">
+  Share feedback
+</button>
+```
+
+Bearing listens with event delegation, so buttons rendered after the bootstrap
+loads work too. Use `feedback`, `roadmap`, or `updates` as the requested surface.
+Unknown or disabled surfaces do nothing safely.
+
+Ordinary links remain ordinary navigation and are never intercepted. This makes
+it safe to offer the full Bearing page elsewhere, such as in the app footer:
+
+```html
+<a href="https://your-app.example.com/bearing/feedback">Feedback</a>
+```
+
+For a programmatic action, dispatch the equivalent event:
+
+```js
+window.dispatchEvent(
+  new CustomEvent('slipway:bearing:open', {
+    detail: { surface: 'feedback' }
+  })
+)
+```
+
+Opening Feedback from the host app does not mark a product update as seen. The
+unread watermark changes only when the Updates surface is actually opened.
+
 ### One host identity contract
 
 Bearing resolves the same verified host-app identity as Bridge, but creates a
