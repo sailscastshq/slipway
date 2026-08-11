@@ -52,6 +52,7 @@ function bearingBootstrap() {
       let currentSurface = openingView
       let opener = null
       let openedFromInjectedTrigger = false
+      let hostScrollState = null
       let fresh = Boolean(
         config.showUnread &&
           latestUpdateId &&
@@ -353,16 +354,8 @@ function bearingBootstrap() {
       const surfaceButtons = root.querySelectorAll('[data-surface]')
 
       function paintTrigger() {
-        const controlsOpenPanel = open && openedFromInjectedTrigger
-        trigger.setAttribute('aria-expanded', String(controlsOpenPanel))
-        trigger.tabIndex = controlsOpenPanel ? -1 : 0
-        trigger.hidden = !controlsOpenPanel && !(fresh && !open)
-        if (controlsOpenPanel) {
-          trigger.innerHTML =
-            '<span class="bearing-trigger-mark" aria-hidden="true">×</span><span>Close</span>'
-          trigger.setAttribute('aria-label', `Close ${config.appName} feedback`)
-          return
-        }
+        trigger.setAttribute('aria-expanded', String(open))
+        trigger.hidden = open || !fresh
         if (fresh) {
           trigger.innerHTML =
             '<span class="bearing-trigger-mark" aria-hidden="true">✦</span><span>What’s new</span>'
@@ -405,13 +398,32 @@ function bearingBootstrap() {
         return true
       }
 
+      function lockHostScroll() {
+        if (hostScrollState) return
+        hostScrollState = {
+          documentElement: document.documentElement.style.overflow,
+          body: document.body.style.overflow
+        }
+        document.documentElement.style.overflow = 'hidden'
+        document.body.style.overflow = 'hidden'
+      }
+
+      function unlockHostScroll() {
+        if (!hostScrollState) return
+        document.documentElement.style.overflow =
+          hostScrollState.documentElement
+        document.body.style.overflow = hostScrollState.body
+        hostScrollState = null
+      }
+
       function openPanel(surface = openingView, nextOpener = null) {
         if (!setSurface(surface)) return false
         opener = nextOpener || document.activeElement
         openedFromInjectedTrigger = opener === trigger
         panel.dataset.openedFrom = openedFromInjectedTrigger ? 'widget' : 'host'
-        if (!panel.open) panel.show()
+        if (!panel.open) panel.showModal()
         open = true
+        lockHostScroll()
         paintTrigger()
         requestAnimationFrame(() => closeButton.focus())
         return true
@@ -423,6 +435,7 @@ function bearingBootstrap() {
         open = false
         opener = null
         openedFromInjectedTrigger = false
+        unlockHostScroll()
         paintTrigger()
         if (previousOpener?.isConnected && previousOpener !== trigger) {
           previousOpener.focus()
@@ -482,6 +495,21 @@ function bearingBootstrap() {
         }
       }
 
+      function handleEscape(event) {
+        if (!open || event.key !== 'Escape') return
+        event.preventDefault()
+        closePanel()
+      }
+
+      function listenForFrameEscape() {
+        try {
+          frame.contentWindow?.addEventListener('keydown', handleEscape)
+        } catch {
+          // The Bearing surfaces are same-origin. If a host policy changes
+          // that, the rest of the widget should remain usable.
+        }
+      }
+
       paintTrigger()
       paintSurfaceNavigation()
       trigger.addEventListener('click', () => {
@@ -499,6 +527,7 @@ function bearingBootstrap() {
         closePanel()
       })
       panel.addEventListener('keydown', trapPanelFocus)
+      frame.addEventListener('load', listenForFrameEscape)
       panel.addEventListener('click', (event) => {
         if (event.target !== panel) return
         const bounds = panel.getBoundingClientRect()
@@ -510,9 +539,7 @@ function bearingBootstrap() {
         if (!inside) closePanel()
       })
       document.addEventListener('click', handleHostTrigger, true)
-      window.addEventListener('keydown', (event) => {
-        if (open && event.key === 'Escape') closePanel()
-      })
+      window.addEventListener('keydown', handleEscape)
       document.addEventListener(
         'mousedown',
         (event) => {

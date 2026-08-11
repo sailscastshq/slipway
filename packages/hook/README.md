@@ -213,19 +213,21 @@ document is refreshed in the background with release flags.
 
 The widget says **What's new** only when a published update is newer than the
 last update that visitor opened. Opening it stores that update's public ID as a
-local seen watermark. Its quiet lower-corner trigger opens a compact panel above
-the same button; while open, that trigger becomes **Close**. Escape, an outside
-click, or the panel's close control also dismisses it and returns focus. The
-trigger then disappears until another update is published. No published or
-unseen update means no injected UI is visible.
+local seen watermark. Its quiet lower-corner trigger opens a compact panel and
+gets out of the way while that panel is open. Escape, an outside click, or the
+panel's close control dismisses it and returns focus. The trigger stays hidden
+until another update is published. No published or unseen update means no
+injected UI is visible.
 
-The host app can open the same panel from an explicit action in a menu or
-toolbar:
+The host app can open the same panel on any surface from explicit actions in a
+menu or toolbar:
 
 ```html
 <button type="button" data-slipway-bearing-open="feedback">
   Share feedback
 </button>
+<button type="button" data-slipway-bearing-open="roadmap">Roadmap</button>
+<button type="button" data-slipway-bearing-open="updates">What's new</button>
 ```
 
 Bearing listens with event delegation, so buttons rendered after the bootstrap
@@ -244,10 +246,16 @@ For a programmatic action, dispatch the equivalent event:
 ```js
 window.dispatchEvent(
   new CustomEvent('slipway:bearing:open', {
-    detail: { surface: 'feedback' }
+    detail: { surface: 'updates' }
   })
 )
 ```
+
+Set `surface` to `feedback`, `roadmap`, or `updates`. The requested surface is
+temporary widget state: it does not change the host app URL or persist in
+localStorage. Escape and an outside click close the panel even after the user
+moves into the embedded surface, host-page scrolling stays locked while it is
+open, and focus returns to the host control that invoked it.
 
 Opening Feedback from the host app does not mark a product update as seen. The
 unread watermark changes only when the Updates surface is actually opened.
