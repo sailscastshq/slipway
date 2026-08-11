@@ -926,7 +926,7 @@ test(
     await widgetTrigger.click()
     const widgetPanel = widget.locator('dialog')
     await expect(widgetPanel).toBeVisible()
-    await expect(widgetTrigger).toContainText('Close')
+    await expect(widgetTrigger).toBeHidden()
     await expect(widgetTrigger).toHaveAttribute('aria-expanded', 'true')
     const widgetBounds = await widgetPanel.boundingBox()
     expect(widgetBounds.x + widgetBounds.width > 1400).toBe(true)
@@ -945,7 +945,7 @@ test(
     }).toEqual({ left: 0, right: 390, bottom: 844 })
     await page.screenshot(path.join(screenshotRoot, 'widget-open-mobile.png'))
     await page.resize(1440, 1000)
-    await widgetTrigger.click()
+    await widget.locator('[data-close]').click()
     await expect(widgetPanel).not.toBeVisible()
     await expect(widgetTrigger).toBeHidden()
     await revealLatestUpdateTrigger(page, space.publicSlug)
@@ -993,16 +993,26 @@ test(
     expect(ordinaryLinkWasIntercepted).toBe(false)
     await page.raw.evaluate(() => {
       const link = document.querySelector('#host-feedback-link')
-      const button = document.createElement('button')
-      button.id = 'host-feedback-button'
-      button.type = 'button'
-      button.className = link.className
-      button.dataset.slipwayBearingOpen = 'feedback'
-      button.textContent = 'Feedback'
-      button.setAttribute('aria-label', 'Share feedback')
-      link.replaceWith(button)
+      const actions = document.createElement('div')
+      actions.id = 'host-bearing-actions'
+      for (const [surface, label] of [
+        ['feedback', 'Share feedback'],
+        ['roadmap', 'Roadmap'],
+        ['updates', "What's new"]
+      ]) {
+        const button = document.createElement('button')
+        button.id = `host-${surface}-button`
+        button.type = 'button'
+        button.className = link.className
+        button.dataset.slipwayBearingOpen = surface
+        button.textContent = label
+        actions.append(button)
+      }
+      link.replaceWith(actions)
     })
     const hostFeedbackButton = page.raw.locator('#host-feedback-button')
+    const hostRoadmapButton = page.raw.locator('#host-roadmap-button')
+    const hostUpdatesButton = page.raw.locator('#host-updates-button')
     await hostFeedbackButton.click()
     await expect(widgetPanel).toBeVisible()
     await expect(widgetPanel).toHaveAttribute('data-opened-from', 'host')
@@ -1012,6 +1022,12 @@ test(
       'src',
       '/bearing/feedback?embedded=1'
     )
+    expect(
+      await page.raw.evaluate(() => ({
+        documentElement: document.documentElement.style.overflow,
+        body: document.body.style.overflow
+      }))
+    ).toEqual({ documentElement: 'hidden', body: 'hidden' })
     await expect(
       page.raw
         .frameLocator('[data-slipway-bearing-widget] iframe')
@@ -1059,10 +1075,24 @@ test(
     await widget.locator('[data-close]').click()
     await expect(widgetPanel).not.toBeVisible()
     await expect(hostFeedbackButton).toBeFocused()
+    expect(
+      await page.raw.evaluate(() => ({
+        documentElement: document.documentElement.style.overflow,
+        body: document.body.style.overflow
+      }))
+    ).toEqual({ documentElement: '', body: '' })
     await expect(widgetTrigger).toContainText('What’s new')
 
     await hostFeedbackButton.click()
-    await widget.locator('[data-surface="roadmap"]').click()
+    const embeddedSummary = page.raw
+      .frameLocator('[data-slipway-bearing-widget] iframe')
+      .getByLabel('Summary')
+    await embeddedSummary.focus()
+    await embeddedSummary.press('Escape')
+    await expect(widgetPanel).not.toBeVisible()
+    await expect(hostFeedbackButton).toBeFocused()
+
+    await hostRoadmapButton.click()
     await expect(widgetFrame).toHaveAttribute(
       'src',
       '/bearing/roadmap?embedded=1'
@@ -1071,12 +1101,16 @@ test(
       'aria-current',
       'page'
     )
-    await widget.locator('[data-surface="updates"]').click()
+    await widget.locator('[data-close]').click()
+    await expect(hostRoadmapButton).toBeFocused()
+
+    await hostUpdatesButton.click()
     await expect(widgetFrame).toHaveAttribute(
       'src',
       '/bearing/updates?embedded=1'
     )
     await widget.locator('[data-close]').click()
+    await expect(hostUpdatesButton).toBeFocused()
     await expect(widgetTrigger).toBeHidden()
 
     await page.raw.evaluate(() => {
@@ -1090,22 +1124,6 @@ test(
     await expect(widgetFrame).toHaveAttribute(
       'src',
       '/bearing/feedback?embedded=1'
-    )
-    await widget.locator('[data-close]').click()
-
-    await page.raw.evaluate(() => {
-      const button = document.createElement('button')
-      button.id = 'host-roadmap-button'
-      button.type = 'button'
-      button.dataset.slipwayBearingOpen = 'roadmap'
-      button.textContent = 'Open roadmap'
-      document.body.append(button)
-    })
-    await page.raw.locator('#host-roadmap-button').click()
-    await expect(widgetPanel).toBeVisible()
-    await expect(widgetFrame).toHaveAttribute(
-      'src',
-      '/bearing/roadmap?embedded=1'
     )
     await widget.locator('[data-close]').click()
 
