@@ -4,6 +4,7 @@ import { ref, computed, inject, onMounted } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
 import Breadcrumb from '@/components/Breadcrumb.vue'
 import Tooltip from '@/components/Tooltip.vue'
+import { Spinner } from '@/components/ui/spinner'
 import { useToast } from '@/composables/toast'
 import { useEventSource } from '@/composables/sse'
 import { usePrecognitionValidation } from '@/composables/precognition'
@@ -400,11 +401,10 @@ const serviceTypeLabel = {
                     : `Upgrading to ${upgradeState.targetVersion}`
                 }}
               </p>
-              <span
+              <Spinner
                 v-if="upgradeInProgress"
-                class="h-3.5 w-3.5 animate-spin rounded-full border-2 border-gray-300 border-t-gray-800 dark:border-gray-700 dark:border-t-white"
-                aria-hidden="true"
-              ></span>
+                class="h-3.5 w-3.5 text-gray-800 dark:text-white"
+              />
             </div>
             <p
               class="mt-1 text-sm text-gray-600 dark:text-gray-400"
@@ -623,31 +623,18 @@ const serviceTypeLabel = {
                 <button
                   type="button"
                   @click="saveSettings({ restart: true })"
+                  :aria-label="
+                    savingAndRestarting
+                      ? 'Saving settings and restarting service'
+                      : 'Save settings and restart service'
+                  "
                   :disabled="
                     !isDirty || form.hasErrors || saving || savingAndRestarting
                   "
                   class="rounded-r-md border-l border-gray-700 bg-gray-900 px-3 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50 dark:border-gray-200 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
                 >
                   <template v-if="savingAndRestarting">
-                    <svg
-                      class="h-4 w-4 animate-spin"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                    >
-                      <circle
-                        class="opacity-25"
-                        cx="12"
-                        cy="12"
-                        r="10"
-                        stroke="currentColor"
-                        stroke-width="4"
-                      ></circle>
-                      <path
-                        class="opacity-75"
-                        fill="currentColor"
-                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-                      ></path>
-                    </svg>
+                    <Spinner class="h-4 w-4" />
                   </template>
                   <template v-else>
                     <svg

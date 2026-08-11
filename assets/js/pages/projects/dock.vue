@@ -17,7 +17,7 @@ import CodeEditor from '@/components/CodeEditor.vue'
 import DockResultStatusIcon from '@/components/DockResultStatusIcon.vue'
 import { highlightSQL } from '@/lib/highlightSQL'
 import { highlightJSON } from '@/lib/highlightJSON'
-import SlippyLoader from '@/components/SlippyLoader.vue'
+import { Spinner } from '@/components/ui/spinner'
 
 defineOptions({
   layout: AppLayout
@@ -1526,7 +1526,7 @@ onUnmounted(() => {
             v-if="redisRunning"
             class="flex items-center space-x-2 text-gray-500"
           >
-            <SlippyLoader size="h-4 w-4" />
+            <Spinner class="h-4 w-4" />
             <span>Executing...</span>
           </div>
         </div>
@@ -1555,7 +1555,7 @@ onUnmounted(() => {
               :disabled="!redisCommand.trim() || redisRunning"
               class="ml-2 flex items-center space-x-1.5 rounded-md bg-gray-200 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-300 disabled:opacity-50 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
             >
-              <SlippyLoader v-if="redisRunning" size="h-3 w-3" />
+              <Spinner v-if="redisRunning" class="h-3 w-3" />
               <span>{{ redisRunning ? 'Running...' : 'Run' }}</span>
             </button>
           </div>
@@ -2096,9 +2096,13 @@ onUnmounted(() => {
           </div>
           <div
             v-if="tablesLoading"
+            role="status"
             class="flex items-center justify-center py-8"
           >
-            <SlippyLoader class="text-gray-400 dark:text-gray-600" />
+            <Spinner class="h-5 w-5 text-gray-400 dark:text-gray-600" />
+            <span class="sr-only">
+              Loading {{ isMongoDB ? 'collections' : 'tables' }}
+            </span>
           </div>
           <div v-else>
             <button
@@ -2145,12 +2149,11 @@ onUnmounted(() => {
           </div>
           <div
             v-else-if="tableDataLoading"
+            role="status"
             class="flex h-full items-center justify-center"
           >
-            <SlippyLoader
-              size="h-6 w-6"
-              class="text-gray-400 dark:text-gray-600"
-            />
+            <Spinner class="h-6 w-6 text-gray-400 dark:text-gray-600" />
+            <span class="sr-only">Loading table data</span>
           </div>
           <div v-else-if="tableData" class="flex h-full flex-col">
             <div
@@ -2222,12 +2225,11 @@ onUnmounted(() => {
       >
         <div
           v-if="schemaLoading"
+          role="status"
           class="flex items-center justify-center py-12"
         >
-          <SlippyLoader
-            size="h-6 w-6"
-            class="text-gray-400 dark:text-gray-600"
-          />
+          <Spinner class="h-6 w-6 text-gray-400 dark:text-gray-600" />
+          <span class="sr-only">Loading database schema</span>
         </div>
 
         <div
@@ -2420,11 +2422,13 @@ onUnmounted(() => {
         v-if="activeTab === 'migrate'"
         class="flex-1 overflow-auto p-4 sm:p-6"
       >
-        <div v-if="diffLoading" class="flex items-center justify-center py-12">
-          <SlippyLoader
-            size="h-6 w-6"
-            class="text-gray-400 dark:text-gray-600"
-          />
+        <div
+          v-if="diffLoading"
+          role="status"
+          class="flex items-center justify-center py-12"
+        >
+          <Spinner class="h-6 w-6 text-gray-400 dark:text-gray-600" />
+          <span class="sr-only">Loading migration diff</span>
         </div>
 
         <div
@@ -2653,7 +2657,7 @@ onUnmounted(() => {
                 exportLoading ? 'opacity-50' : ''
               ]"
             >
-              <SlippyLoader v-if="exportLoading" size="h-4 w-4" />
+              <Spinner v-if="exportLoading" class="h-4 w-4" />
               <svg
                 v-else
                 class="h-4 w-4"

@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-import SlippyLoader from '@/components/SlippyLoader.vue'
+import { Spinner } from '@/components/ui/spinner'
 
 const props = defineProps({
   action: Object
@@ -60,7 +60,10 @@ onUnmounted(() => {
     <!-- Icon -->
     <div class="mt-0.5 shrink-0">
       <!-- Spinner for in progress -->
-      <SlippyLoader v-if="action.status === 'in_progress'" class="text-brand" />
+      <Spinner
+        v-if="action.status === 'in_progress'"
+        class="text-brand h-5 w-5"
+      />
       <!-- Check for success -->
       <svg
         v-else-if="action.status === 'success'"

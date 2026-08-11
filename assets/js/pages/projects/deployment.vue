@@ -5,7 +5,7 @@ import AppLayout from '@/layouts/AppLayout.vue'
 import Breadcrumb from '@/components/Breadcrumb.vue'
 import DeploymentOutcome from '@/components/DeploymentOutcome.vue'
 import LogViewer from '@/components/LogViewer.vue'
-import SlippyLoader from '@/components/SlippyLoader.vue'
+import { Spinner } from '@/components/ui/spinner'
 import { useEventSource } from '@/composables/sse'
 
 defineOptions({
@@ -377,7 +377,7 @@ function executeRollback() {
                 v-if="isInProgress"
                 class="inline-flex items-center space-x-1 text-xs text-blue-600 dark:text-blue-400"
               >
-                <SlippyLoader size="h-3 w-3" />
+                <Spinner class="h-3 w-3" />
                 <span>In progress</span>
               </span>
             </div>
@@ -452,7 +452,7 @@ function executeRollback() {
                   d="M15 19l-7-7 7-7"
                 />
               </svg>
-              <SlippyLoader v-else size="h-4 w-4" />
+              <Spinner v-else class="h-4 w-4" />
             </div>
           </div>
         </div>

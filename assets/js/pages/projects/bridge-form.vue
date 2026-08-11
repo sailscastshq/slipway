@@ -4,7 +4,7 @@ import { inject, ref, computed, onMounted } from 'vue'
 import BridgePageLayout from '@/layouts/BridgePageLayout.vue'
 import ToastContainer from '@/components/ToastContainer.vue'
 import { createToast } from '@/composables/toast'
-import SlippyLoader from '@/components/SlippyLoader.vue'
+import { Spinner } from '@/components/ui/spinner'
 import BridgeFieldInput from '@/components/bridge/BridgeFieldInput.vue'
 import {
   prepareBridgeFieldSubmission,
@@ -622,11 +622,7 @@ function recordUrl() {
               "
               class="inline-flex items-center rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-40 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
             >
-              <SlippyLoader
-                v-if="form.processing"
-                size="h-4 w-4"
-                class="mr-2"
-              />
+              <Spinner v-if="form.processing" class="mr-2 h-4 w-4" />
               {{ isEdit ? 'Save changes' : 'Create record' }}
             </button>
           </div>

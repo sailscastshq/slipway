@@ -2,7 +2,7 @@
 import { computed, nextTick, onUnmounted, ref, watch } from 'vue'
 import { useForm } from '@inertiajs/vue3'
 import BridgeFieldInput from '@/components/bridge/BridgeFieldInput.vue'
-import SlippyLoader from '@/components/SlippyLoader.vue'
+import { Spinner } from '@/components/ui/spinner'
 import {
   prepareBridgeFieldSubmission,
   toBridgeFieldInputValue,
@@ -308,7 +308,7 @@ function handleKeydown(event) {
                 ]"
               >
                 <span v-if="form.processing" class="flex items-center gap-2">
-                  <SlippyLoader size="h-4 w-4" />
+                  <Spinner class="h-4 w-4" />
                   Running…
                 </span>
                 <span v-else>{{ action.label }}</span>

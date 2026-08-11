@@ -1,7 +1,7 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import CodeEditor from '@/components/CodeEditor.vue'
-import SlippyLoader from '@/components/SlippyLoader.vue'
+import { Spinner } from '@/components/ui/spinner'
 
 const props = defineProps({
   show: Boolean,
@@ -271,7 +271,7 @@ function handleKeydown(event) {
               class="rounded-md bg-gray-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-40 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
             >
               <span v-if="loading" class="flex items-center gap-2">
-                <SlippyLoader size="h-3.5 w-3.5" />
+                <Spinner class="h-3.5 w-3.5" />
                 Saving
               </span>
               <span v-else>{{

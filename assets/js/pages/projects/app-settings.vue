@@ -5,6 +5,7 @@ import AppLayout from '@/layouts/AppLayout.vue'
 import Breadcrumb from '@/components/Breadcrumb.vue'
 import ConfirmModal from '@/components/ConfirmModal.vue'
 import Tooltip from '@/components/Tooltip.vue'
+import { Spinner } from '@/components/ui/spinner'
 import { useToast } from '@/composables/toast'
 import { usePrecognitionValidation } from '@/composables/precognition'
 
@@ -617,31 +618,18 @@ async function deleteApp() {
                 <button
                   type="button"
                   @click="saveSettings({ restart: true })"
+                  :aria-label="
+                    savingAndRestarting
+                      ? 'Saving settings and restarting app'
+                      : 'Save settings and restart app'
+                  "
                   :disabled="
                     !isDirty || form.hasErrors || saving || savingAndRestarting
                   "
                   class="rounded-r-md border-l border-gray-700 bg-gray-900 px-3 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50 dark:border-gray-200 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
                 >
                   <template v-if="savingAndRestarting">
-                    <svg
-                      class="h-4 w-4 animate-spin"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                    >
-                      <circle
-                        class="opacity-25"
-                        cx="12"
-                        cy="12"
-                        r="10"
-                        stroke="currentColor"
-                        stroke-width="4"
-                      ></circle>
-                      <path
-                        class="opacity-75"
-                        fill="currentColor"
-                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-                      ></path>
-                    </svg>
+                    <Spinner class="h-4 w-4" />
                   </template>
                   <template v-else>
                     <svg
@@ -826,25 +814,7 @@ async function deleteApp() {
                       v-if="loadingBranches"
                       class="flex items-center gap-2 py-1.5"
                     >
-                      <svg
-                        class="h-4 w-4 animate-spin text-gray-400"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                      >
-                        <circle
-                          class="opacity-25"
-                          cx="12"
-                          cy="12"
-                          r="10"
-                          stroke="currentColor"
-                          stroke-width="4"
-                        ></circle>
-                        <path
-                          class="opacity-75"
-                          fill="currentColor"
-                          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-                        ></path>
-                      </svg>
+                      <Spinner class="h-4 w-4 text-gray-400" />
                       <span class="text-sm text-gray-500 dark:text-gray-400"
                         >Loading branches...</span
                       >
@@ -913,28 +883,16 @@ async function deleteApp() {
                       class="focus:border-brand w-full border-b border-dashed border-gray-200 bg-transparent py-1.5 pl-7 pr-8 text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
                     />
                     <div
+                      :role="loadingRepos ? 'status' : undefined"
                       class="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-1"
                     >
-                      <svg
+                      <Spinner
                         v-if="loadingRepos"
-                        class="h-4 w-4 animate-spin text-gray-400"
-                        fill="none"
-                        viewBox="0 0 24 24"
+                        class="h-4 w-4 text-gray-400"
+                      />
+                      <span v-if="loadingRepos" class="sr-only"
+                        >Loading repositories</span
                       >
-                        <circle
-                          class="opacity-25"
-                          cx="12"
-                          cy="12"
-                          r="10"
-                          stroke="currentColor"
-                          stroke-width="4"
-                        ></circle>
-                        <path
-                          class="opacity-75"
-                          fill="currentColor"
-                          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-                        ></path>
-                      </svg>
                       <svg
                         v-else
                         class="h-4 w-4 text-gray-400"

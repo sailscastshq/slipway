@@ -1,6 +1,6 @@
 <script setup>
 import { nextTick, onBeforeUnmount, ref, watch } from 'vue'
-import SlippyLoader from '@/components/SlippyLoader.vue'
+import { Spinner } from '@/components/ui/spinner'
 
 const props = defineProps({
   show: Boolean,
@@ -190,7 +190,7 @@ function handleKeydown(event) {
               @click="emit('arm')"
             >
               <span v-if="loading" class="flex items-center gap-2">
-                <SlippyLoader size="h-3.5 w-3.5" />
+                <Spinner class="h-3.5 w-3.5" />
                 Arming
               </span>
               <span v-else>Arm writes for {{ ttlSeconds }}s</span>

@@ -4,7 +4,7 @@ import { inject, ref, computed, nextTick, watch, onMounted } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
 import Breadcrumb from '@/components/Breadcrumb.vue'
 import Tooltip from '@/components/Tooltip.vue'
-import SlippyLoader from '@/components/SlippyLoader.vue'
+import { Spinner } from '@/components/ui/spinner'
 import { useQueryState } from '@/composables/useQueryState'
 import { useEventSource } from '@/composables/sse'
 
@@ -791,12 +791,17 @@ function refresh() {
                     <Tooltip text="Run now">
                       <button
                         @click="runJob(job.name)"
+                        :aria-label="
+                          runningJob === job.name
+                            ? `Running ${job.name}`
+                            : `Run ${job.name} now`
+                        "
                         :disabled="runningJob === job.name || job.isRunning"
                         class="rounded-md p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-700 disabled:opacity-50 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200"
                       >
-                        <SlippyLoader
+                        <Spinner
                           v-if="runningJob === job.name"
-                          size="h-4 w-4"
+                          class="h-4 w-4"
                         />
                         <svg
                           v-else
@@ -878,7 +883,7 @@ function refresh() {
                           v-if="jobOutputs[job.name].running"
                           class="flex items-center space-x-1 text-xs font-medium text-gray-500 dark:text-gray-400"
                         >
-                          <SlippyLoader size="h-3 w-3" />
+                          <Spinner class="h-3 w-3" />
                           <span>Running...</span>
                         </span>
                         <span
@@ -924,7 +929,7 @@ function refresh() {
                         <div
                           class="flex items-center space-x-2 text-gray-500 dark:text-gray-400"
                         >
-                          <SlippyLoader size="h-4 w-4" />
+                          <Spinner class="h-4 w-4" />
                           <span>Executing script...</span>
                         </div>
                       </template>

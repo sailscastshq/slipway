@@ -4,6 +4,7 @@ import { inject, ref, watch, onUnmounted } from 'vue'
 import { useEventSource } from '@/composables/sse'
 import AppLayout from '@/layouts/AppLayout.vue'
 import SlippyLoader from '@/components/SlippyLoader.vue'
+import { Spinner } from '@/components/ui/spinner'
 
 defineOptions({
   layout: AppLayout
@@ -363,7 +364,7 @@ function formatDate(dateString) {
                 :disabled="checking"
                 class="inline-flex items-center gap-2 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
               >
-                <SlippyLoader v-if="checking" size="h-3.5 w-3.5" />
+                <Spinner v-if="checking" class="h-3.5 w-3.5" />
                 <svg
                   v-else
                   class="h-3.5 w-3.5"
@@ -542,11 +543,12 @@ function formatDate(dateString) {
               v-if="updating"
               class="flex flex-col items-center py-6 text-center"
             >
-              <SlippyLoader
+              <Spinner
                 v-if="updatePhase !== 'success'"
-                size="h-8 w-8"
-                class="text-brand-600 dark:text-brand-400 mb-4"
-              />
+                class="text-brand-600 dark:text-brand-400 mb-4 h-8 w-8"
+              >
+                <SlippyLoader />
+              </Spinner>
               <div
                 v-else
                 class="mb-4 flex h-10 w-10 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/40"
