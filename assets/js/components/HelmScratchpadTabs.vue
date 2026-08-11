@@ -1,7 +1,7 @@
 <script setup>
 import { computed, nextTick, ref } from 'vue'
 import ActionMenu from '@/components/ActionMenu.vue'
-import Tooltip from '@/components/Tooltip.vue'
+import Tooltip from '@/components/ui/tooltip/Tooltip.vue'
 import {
   helmScratchpadIsModified,
   helmScratchpadTargetLabel,
@@ -85,6 +85,11 @@ function handleAction(action) {
   if (action.key === 'move-right') emit('move', tab, 1)
   if (action.key === 'save') emit('save', tab)
   if (action.key === 'close') emit('close', tab)
+}
+
+function createScratchpad() {
+  if (props.disabled || !props.canCreate) return
+  emit('create')
 }
 
 function handleTabKeydown(event, index) {
@@ -174,15 +179,20 @@ function handleTabKeydown(event, index) {
     <div class="flex shrink-0 items-center gap-0.5">
       <Tooltip
         :text="canCreate ? 'New scratchpad' : 'Scratchpad limit reached'"
-        position="bottom"
+        placement="bottom"
       >
         <button
           type="button"
           data-test="helm-scratchpad-create"
-          :disabled="disabled || !canCreate"
+          :aria-disabled="disabled || !canCreate"
           aria-label="New scratchpad"
-          class="rounded-md p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 disabled:cursor-not-allowed disabled:opacity-40 dark:text-gray-500 dark:hover:bg-gray-900 dark:hover:text-gray-200 dark:focus-visible:ring-gray-700"
-          @click="emit('create')"
+          :class="[
+            'rounded-md p-1.5 text-gray-400 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 dark:text-gray-500 dark:focus-visible:ring-gray-700',
+            disabled || !canCreate
+              ? 'cursor-not-allowed opacity-40'
+              : 'hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-900 dark:hover:text-gray-200'
+          ]"
+          @click="createScratchpad"
         >
           <svg
             class="h-4 w-4"

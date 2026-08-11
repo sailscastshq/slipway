@@ -2,7 +2,7 @@
 import { Link, Head, useForm } from '@inertiajs/vue3'
 import { inject, ref, reactive, computed, watch, onMounted } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
-import Tooltip from '@/components/Tooltip.vue'
+import Tooltip from '@/components/ui/tooltip/Tooltip.vue'
 import CodeEditor from '@/components/CodeEditor.vue'
 import ConfigVariableMenu from '@/components/ConfigVariableMenu.vue'
 import { useToast } from '@/composables/toast'
@@ -547,6 +547,10 @@ onMounted(() => {
                 </span>
                 <Tooltip :text="bulkMode ? 'Single edit' : 'Bulk edit'">
                   <button
+                    type="button"
+                    :aria-label="
+                      bulkMode ? 'Switch to single edit' : 'Switch to bulk edit'
+                    "
                     @click="bulkMode ? exitBulkMode() : enterBulkMode()"
                     class="rounded p-0.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-800 dark:hover:text-gray-200"
                   >

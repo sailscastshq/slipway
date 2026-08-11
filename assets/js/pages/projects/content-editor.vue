@@ -4,7 +4,7 @@ import { computed, inject, onMounted, onUnmounted, ref, watch } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
 import ConfirmModal from '@/components/ConfirmModal.vue'
 import MarkdownEditor from '@/components/content/MarkdownEditor.vue'
-import Tooltip from '@/components/Tooltip.vue'
+import Tooltip from '@/components/ui/tooltip/Tooltip.vue'
 import { usePrecognitionValidation } from '@/composables/precognition'
 
 defineOptions({

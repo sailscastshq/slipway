@@ -14,6 +14,7 @@ import {
 import { containsRawHtml } from '@/lib/content/markdown.mjs'
 import { usePrecognitionValidation } from '@/composables/precognition'
 import BridgePageHeader from '@/components/bridge/BridgePageHeader.vue'
+import Tooltip from '@/components/ui/tooltip/Tooltip.vue'
 
 defineOptions({
   layout: BridgePageLayout
@@ -610,21 +611,37 @@ function recordUrl() {
             >
               Cancel
             </Link>
-            <button
-              type="submit"
-              :disabled="form.processing || !isFormReady"
-              :title="
+            <Tooltip
+              :text="
                 !isFormReady
                   ? isEdit
                     ? 'Complete the required fields to save this record'
                     : 'Complete the required fields to create this record'
-                  : undefined
+                  : isEdit
+                  ? 'Save changes'
+                  : 'Create record'
               "
-              class="inline-flex items-center rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-40 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
             >
-              <Spinner v-if="form.processing" class="mr-2 h-4 w-4" />
-              {{ isEdit ? 'Save changes' : 'Create record' }}
-            </button>
+              <button
+                type="submit"
+                :aria-disabled="form.processing || !isFormReady"
+                :aria-label="isEdit ? 'Save changes' : 'Create record'"
+                :class="[
+                  'inline-flex items-center rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white dark:bg-white dark:text-gray-900',
+                  form.processing || !isFormReady
+                    ? 'cursor-not-allowed opacity-40'
+                    : 'hover:bg-gray-800 dark:hover:bg-gray-100'
+                ]"
+                @click="
+                  form.processing || !isFormReady
+                    ? $event.preventDefault()
+                    : undefined
+                "
+              >
+                <Spinner v-if="form.processing" class="mr-2 h-4 w-4" />
+                {{ isEdit ? 'Save changes' : 'Create record' }}
+              </button>
+            </Tooltip>
           </div>
         </form>
       </div>

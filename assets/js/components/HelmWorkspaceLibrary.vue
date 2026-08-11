@@ -4,7 +4,7 @@ import ActionMenu from '@/components/ActionMenu.vue'
 import ConfirmModal from '@/components/ConfirmModal.vue'
 import HelmSnippetDialog from '@/components/HelmSnippetDialog.vue'
 import Spinner from '@/components/SlipwaySpinner.vue'
-import Tooltip from '@/components/Tooltip.vue'
+import Tooltip from '@/components/ui/tooltip/Tooltip.vue'
 import ToastContainer from '@/components/ToastContainer.vue'
 
 const props = defineProps({
@@ -406,7 +406,7 @@ defineExpose({ refreshHistory, openSnippetDialog })
           v-for="(item, index) in libraryTabs"
           :key="item.key"
           :text="`${item.label} · ${item.countLabel}`"
-          position="top"
+          placement="top"
         >
           <button
             :id="`helm-library-${item.key}-tab`"
@@ -489,7 +489,7 @@ defineExpose({ refreshHistory, openSnippetDialog })
       <Tooltip
         v-if="tab === 'history' && clearableHistoryCount > 0"
         text="Clear recent history"
-        position="top"
+        placement="top"
       >
         <button
           type="button"
