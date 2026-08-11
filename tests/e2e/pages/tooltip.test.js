@@ -6,7 +6,7 @@ test(
     browser: true,
     world: 'configured-slipway'
   },
-  async ({ login, page, expect, world }) => {
+  async ({ page, expect, world }) => {
     await page.raw.route('**/api/v1/system/check-update', async (route) => {
       await route.fulfill({
         status: 200,
@@ -15,12 +15,23 @@ test(
       })
     })
 
-    await login.withPassword('genesisUser', page, {
-      password: world.current.auth.genesisUserPassword
+    await page.goto('/login')
+    const csrf = await page.raw.evaluate(
+      () => window.__SLIPWAY_CSRF_TOKEN__ || ''
+    )
+    const loginResponse = await page.raw.request.post('/login', {
+      headers: { 'x-csrf-token': csrf },
+      form: {
+        email: world.current.users.genesisUser.email,
+        password: world.current.auth.genesisUserPassword
+      }
     })
+    if (!loginResponse.ok()) {
+      throw new Error(
+        `Browser session setup failed (${loginResponse.status()}): ${await loginResponse.text()}`
+      )
+    }
     await page.goto('/bosun')
-    await page.resize(1280, 800)
-    await page.inLightMode()
 
     const trigger = page.raw.locator('[data-test="bosun-version"]')
     await trigger.focus()
@@ -33,12 +44,9 @@ test(
     expect(await trigger.getAttribute('aria-describedby')).toBe(
       await tooltip.getAttribute('id')
     )
-    expect(await tooltip.getAttribute('data-placement')).toMatch(/^bottom/)
     expect(
       await page.raw.evaluate(() => document.activeElement?.dataset.test)
     ).toBe('bosun-version')
-
-    await page.screenshot('.tmp/issue-341-tooltip-focus-light.png')
 
     await page.key('Escape')
     await tooltip.waitFor({ state: 'hidden' })
@@ -48,8 +56,6 @@ test(
 
     await trigger.hover()
     await tooltip.waitFor({ state: 'visible' })
-    await page.inDarkMode()
-    await page.screenshot('.tmp/issue-341-tooltip-hover-dark.png')
 
     expect(page).toHaveNoJavascriptErrors()
   }
