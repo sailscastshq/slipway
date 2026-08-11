@@ -12,7 +12,7 @@ import {
 import AppLayout from '@/layouts/AppLayout.vue'
 import ConfirmModal from '@/components/ConfirmModal.vue'
 import ToastContainer from '@/components/ToastContainer.vue'
-import Tooltip from '@/components/Tooltip.vue'
+import Tooltip from '@/components/ui/tooltip/Tooltip.vue'
 import CodeEditor from '@/components/CodeEditor.vue'
 import DockResultStatusIcon from '@/components/DockResultStatusIcon.vue'
 import { highlightSQL } from '@/lib/highlightSQL'
@@ -1913,7 +1913,7 @@ onUnmounted(() => {
                   "
                   class="flex overflow-hidden rounded-md border border-gray-300 dark:border-gray-700"
                 >
-                  <Tooltip text="Table view" position="top">
+                  <Tooltip text="Table view" placement="top">
                     <button
                       @click="resultView = 'table'"
                       aria-label="Table view"
@@ -1939,7 +1939,7 @@ onUnmounted(() => {
                       </svg>
                     </button>
                   </Tooltip>
-                  <Tooltip text="JSON view" position="top">
+                  <Tooltip text="JSON view" placement="top">
                     <button
                       @click="resultView = 'json'"
                       aria-label="JSON view"
@@ -1970,7 +1970,7 @@ onUnmounted(() => {
                 "
                 class="flex items-center gap-1"
               >
-                <Tooltip text="Re-run query" position="top">
+                <Tooltip text="Re-run query" placement="top">
                   <button
                     @click="executeQuery"
                     aria-label="Re-run query"
@@ -1993,7 +1993,7 @@ onUnmounted(() => {
                 </Tooltip>
                 <Tooltip
                   :text="resultView === 'json' ? 'Copy as JSON' : 'Copy as CSV'"
-                  position="top"
+                  placement="top"
                 >
                   <button
                     @click="resultView === 'json' ? copyAsJSON() : copyAsCSV()"
@@ -2024,7 +2024,7 @@ onUnmounted(() => {
                     :text="
                       resultView === 'json' ? 'Download JSON' : 'Download CSV'
                     "
-                    position="top"
+                    placement="top"
                   >
                     <button
                       @click="showExportMenu = !showExportMenu"
@@ -2644,11 +2644,19 @@ onUnmounted(() => {
         <div class="relative">
           <Tooltip
             :text="exportLoading ? 'Exporting...' : 'Export'"
-            position="top"
+            placement="top"
           >
             <button
-              @click.stop="exportDropdownOpen = !exportDropdownOpen"
-              :disabled="exportLoading"
+              type="button"
+              :aria-label="
+                exportLoading ? 'Exporting database' : 'Export database'
+              "
+              @click.stop="
+                exportLoading
+                  ? undefined
+                  : (exportDropdownOpen = !exportDropdownOpen)
+              "
+              :aria-disabled="exportLoading"
               :class="[
                 'flex h-8 w-8 items-center justify-center rounded-md transition-colors',
                 exportDropdownOpen
@@ -2740,8 +2748,10 @@ onUnmounted(() => {
         </div>
 
         <!-- Import button -->
-        <Tooltip text="Import" position="top">
+        <Tooltip text="Import" placement="top">
           <button
+            type="button"
+            aria-label="Import database"
             @click="openImportModalFromExportActions"
             class="flex h-8 w-8 items-center justify-center rounded-md text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white"
           >

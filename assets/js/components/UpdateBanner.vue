@@ -1,7 +1,7 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { Link } from '@inertiajs/vue3'
-import Tooltip from '@/components/Tooltip.vue'
+import Tooltip from '@/components/ui/tooltip/Tooltip.vue'
 import { useUpdateCheck } from '@/composables/useUpdateCheck'
 import {
   LEGACY_LOCAL_STORAGE_KEYS,
@@ -89,6 +89,8 @@ onMounted(() => {
           </Link>
           <Tooltip text="Dismiss">
             <button
+              type="button"
+              aria-label="Dismiss update notice"
               @click="dismiss"
               class="hover:bg-brand-100 dark:hover:bg-brand-900/30 rounded-md p-1.5 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
             >

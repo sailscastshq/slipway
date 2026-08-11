@@ -13,7 +13,7 @@ import { useEventSource } from '@/composables/sse'
 import AppLayout from '@/layouts/AppLayout.vue'
 import ConfirmModal from '@/components/ConfirmModal.vue'
 import ToastContainer from '@/components/ToastContainer.vue'
-import Tooltip from '@/components/Tooltip.vue'
+import Tooltip from '@/components/ui/tooltip/Tooltip.vue'
 import CodeEditor from '@/components/CodeEditor.vue'
 import HelmResultViewer from '@/components/HelmResultViewer.vue'
 import { highlightSQL } from '@/lib/highlightSQL'
@@ -884,8 +884,11 @@ onUnmounted(() => {
         <span class="font-medium text-gray-900 dark:text-white">Bosun</span>
       </div>
       <div class="flex items-center space-x-2 sm:space-x-3">
-        <Tooltip text="Slipway version" position="bottom">
+        <Tooltip text="Slipway version" placement="bottom">
           <span
+            aria-label="Slipway version"
+            data-test="bosun-version"
+            tabindex="0"
             class="rounded bg-gray-100 px-2 py-1 text-xs font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-400"
             >v{{ version }}</span
           >
@@ -1044,13 +1047,6 @@ onUnmounted(() => {
               ? helmStopping
               : !canExecuteHelm
           "
-          :title="
-            consoleMode === 'helm'
-              ? `${helmRunLabel} · ${
-                  navigator?.platform?.includes('Mac') ? '⌘' : 'Ctrl'
-                }+Enter`
-              : 'Run · ⌘+Enter'
-          "
           :class="[
             'flex items-center gap-1.5 rounded-md px-4 py-1.5 text-sm font-medium text-white disabled:opacity-50',
             consoleMode === 'helm' && helmLoading
@@ -1198,8 +1194,10 @@ onUnmounted(() => {
               v-if="consoleResults?.columns"
               class="flex overflow-hidden rounded-md border border-gray-300 dark:border-gray-700"
             >
-              <Tooltip text="Table view" position="top">
+              <Tooltip text="Table view" placement="top">
                 <button
+                  type="button"
+                  aria-label="Table view"
                   @click="resultView = 'table'"
                   :class="[
                     'p-1.5',
@@ -1223,8 +1221,10 @@ onUnmounted(() => {
                   </svg>
                 </button>
               </Tooltip>
-              <Tooltip text="JSON view" position="top">
+              <Tooltip text="JSON view" placement="top">
                 <button
+                  type="button"
+                  aria-label="JSON view"
                   @click="resultView = 'json'"
                   :class="[
                     'border-l border-gray-300 px-1.5 py-1 font-mono text-sm font-bold dark:border-gray-700',
@@ -1253,8 +1253,10 @@ onUnmounted(() => {
           </div>
           <!-- Actions -->
           <div v-if="consoleResults?.columns" class="flex items-center gap-1">
-            <Tooltip text="Re-run query" position="top">
+            <Tooltip text="Re-run query" placement="top">
               <button
+                type="button"
+                aria-label="Re-run query"
                 @click="executeQuery"
                 class="rounded p-1.5 text-gray-500 hover:bg-gray-200 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-200"
               >
@@ -1275,9 +1277,13 @@ onUnmounted(() => {
             </Tooltip>
             <Tooltip
               :text="resultView === 'json' ? 'Copy as JSON' : 'Copy as CSV'"
-              position="top"
+              placement="top"
             >
               <button
+                type="button"
+                :aria-label="
+                  resultView === 'json' ? 'Copy as JSON' : 'Copy as CSV'
+                "
                 @click="resultView === 'json' ? copyAsJSON() : copyAsCSV()"
                 class="rounded p-1.5 text-gray-500 hover:bg-gray-200 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-200"
               >
@@ -1298,8 +1304,10 @@ onUnmounted(() => {
             </Tooltip>
             <!-- Export dropdown -->
             <div class="relative" data-export-menu>
-              <Tooltip text="Download" position="top">
+              <Tooltip text="Download" placement="top">
                 <button
+                  type="button"
+                  aria-label="Download query results"
                   @click="showExportMenu = !showExportMenu"
                   class="rounded p-1.5 text-gray-500 hover:bg-gray-200 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-200"
                 >

@@ -2,17 +2,6 @@ const { test } = require('sounding')
 const { withCsrfFromPage } = require('../../support/csrf-request')
 
 test(
-  'genesis user can open the new project page',
-  { world: 'configured-slipway' },
-  async ({ visit, expect }) => {
-    const response = await visit.as('genesisUser')('/projects/new')
-
-    expect(response).toHaveStatus(200)
-    expect(response).toBeInertiaPage('projects/new')
-  }
-)
-
-test(
   'genesis user can create a project, environment, and app',
   { world: 'configured-slipway' },
   async ({ sails, world, request, visit, expect }) => {

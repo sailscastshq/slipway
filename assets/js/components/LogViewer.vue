@@ -9,6 +9,7 @@ import {
   serializeLogEvents
 } from '@/lib/log-viewer.mjs'
 import Spinner from '@/components/SlipwaySpinner.vue'
+import Tooltip from '@/components/ui/tooltip/Tooltip.vue'
 
 const props = defineProps({
   lines: {
@@ -283,112 +284,129 @@ function segmentClass(type) {
           </svg>
         </label>
 
-        <button
-          type="button"
-          :aria-label="
-            following ? 'Pause automatic scrolling' : 'Follow latest log'
-          "
-          :aria-pressed="following"
-          :title="following ? 'Following latest log' : 'Follow latest log'"
-          :class="[
-            'min-w-10 inline-flex h-10 items-center justify-center gap-1.5 rounded-md px-2 font-sans text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/70',
-            following
-              ? 'bg-white/[0.07] text-zinc-200'
-              : 'text-zinc-500 hover:bg-white/5 hover:text-zinc-300'
-          ]"
-          @click="toggleFollowing"
+        <Tooltip
+          :text="following ? 'Following latest log' : 'Follow latest log'"
+          placement="bottom"
         >
-          <svg
-            aria-hidden="true"
-            class="h-4 w-4"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
+          <button
+            type="button"
+            :aria-label="
+              following ? 'Pause automatic scrolling' : 'Follow latest log'
+            "
+            :aria-pressed="following"
+            :class="[
+              'min-w-10 inline-flex h-10 items-center justify-center gap-1.5 rounded-md px-2 font-sans text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/70',
+              following
+                ? 'bg-white/[0.07] text-zinc-200'
+                : 'text-zinc-500 hover:bg-white/5 hover:text-zinc-300'
+            ]"
+            @click="toggleFollowing"
           >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="1.8"
-              d="m7 10 5 5 5-5M12 15V4M5 20h14"
-            />
-          </svg>
-          <span class="hidden lg:inline">{{
-            following ? 'Following' : 'Follow'
-          }}</span>
-        </button>
+            <svg
+              aria-hidden="true"
+              class="h-4 w-4"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="1.8"
+                d="m7 10 5 5 5-5M12 15V4M5 20h14"
+              />
+            </svg>
+            <span class="hidden lg:inline">{{
+              following ? 'Following' : 'Follow'
+            }}</span>
+          </button>
+        </Tooltip>
 
-        <button
-          type="button"
-          :aria-label="
-            wrap ? 'Turn line wrapping off' : 'Turn line wrapping on'
-          "
-          :aria-pressed="wrap"
-          :title="wrap ? 'Line wrapping on' : 'Line wrapping off'"
-          :class="[
-            'min-w-10 inline-flex h-10 items-center justify-center rounded-md text-zinc-500 transition-colors hover:bg-white/5 hover:text-zinc-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/70',
-            wrap && 'bg-white/[0.07] text-zinc-200'
-          ]"
-          @click="wrap = !wrap"
+        <Tooltip
+          :text="wrap ? 'Line wrapping on' : 'Line wrapping off'"
+          placement="bottom"
         >
-          <svg
-            aria-hidden="true"
-            class="h-4 w-4"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
+          <button
+            type="button"
+            :aria-label="
+              wrap ? 'Turn line wrapping off' : 'Turn line wrapping on'
+            "
+            :aria-pressed="wrap"
+            :class="[
+              'min-w-10 inline-flex h-10 items-center justify-center rounded-md text-zinc-500 transition-colors hover:bg-white/5 hover:text-zinc-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/70',
+              wrap && 'bg-white/[0.07] text-zinc-200'
+            ]"
+            @click="wrap = !wrap"
           >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="1.8"
-              d="M4 7h12a4 4 0 0 1 0 8H9m0 0 3-3m-3 3 3 3M4 12h7M4 17h2"
-            />
-          </svg>
-        </button>
+            <svg
+              aria-hidden="true"
+              class="h-4 w-4"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="1.8"
+                d="M4 7h12a4 4 0 0 1 0 8H9m0 0 3-3m-3 3 3 3M4 12h7M4 17h2"
+              />
+            </svg>
+          </button>
+        </Tooltip>
 
-        <button
-          type="button"
-          :disabled="visibleEvents.length === 0"
-          :aria-label="
-            copyState === 'copied' ? 'Logs copied' : 'Copy visible logs'
-          "
-          :title="
+        <Tooltip
+          :text="
             copyState === 'failed' ? 'Could not copy logs' : 'Copy visible logs'
           "
-          class="min-w-10 inline-flex h-10 items-center justify-center rounded-md text-zinc-500 transition-colors hover:bg-white/5 hover:text-zinc-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/70 disabled:cursor-not-allowed disabled:opacity-30"
-          @click="copyVisibleLogs"
+          placement="bottom"
         >
-          <svg
-            v-if="copyState === 'copied'"
-            aria-hidden="true"
-            class="h-4 w-4 text-emerald-400"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
+          <button
+            type="button"
+            :aria-disabled="visibleEvents.length === 0"
+            :aria-label="
+              copyState === 'copied' ? 'Logs copied' : 'Copy visible logs'
+            "
+            :class="[
+              'min-w-10 inline-flex h-10 items-center justify-center rounded-md text-zinc-500 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/70',
+              visibleEvents.length === 0
+                ? 'cursor-not-allowed opacity-30'
+                : 'hover:bg-white/5 hover:text-zinc-300'
+            ]"
+            @click="copyVisibleLogs"
           >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="m5 13 4 4L19 7"
-            />
-          </svg>
-          <svg
-            v-else
-            aria-hidden="true"
-            class="h-4 w-4"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="1.8"
-              d="M8 8V5a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-3m-7-6h7a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2Z"
-            />
-          </svg>
-        </button>
+            <svg
+              v-if="copyState === 'copied'"
+              aria-hidden="true"
+              class="h-4 w-4 text-emerald-400"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="m5 13 4 4L19 7"
+              />
+            </svg>
+            <svg
+              v-else
+              aria-hidden="true"
+              class="h-4 w-4"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="1.8"
+                d="M8 8V5a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-3m-7-6h7a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2Z"
+              />
+            </svg>
+          </button>
+        </Tooltip>
       </div>
     </div>
 

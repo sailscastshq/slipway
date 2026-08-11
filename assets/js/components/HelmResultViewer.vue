@@ -4,7 +4,7 @@ import ActionMenu from '@/components/ActionMenu.vue'
 import HelmResultTreeNode from '@/components/HelmResultTreeNode.vue'
 import Spinner from '@/components/SlipwaySpinner.vue'
 import ToastContainer from '@/components/ToastContainer.vue'
-import Tooltip from '@/components/Tooltip.vue'
+import Tooltip from '@/components/ui/tooltip/Tooltip.vue'
 import { highlightJSON } from '@/lib/highlightJSON'
 import {
   helmRowsToCsv,
@@ -701,7 +701,7 @@ function queryDetail(entry) {
             v-for="view in views"
             :key="view"
             :text="`${view[0].toUpperCase()}${view.slice(1)} view`"
-            position="top"
+            placement="top"
           >
             <button
               type="button"

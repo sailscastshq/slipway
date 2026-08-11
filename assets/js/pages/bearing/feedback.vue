@@ -3,6 +3,7 @@ import { Head, InfiniteScroll, router, useForm } from '@inertiajs/vue3'
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import SelectMenu from '@/components/SelectMenu.vue'
 import ShareLinkButton from '@/components/ShareLinkButton.vue'
+import Tooltip from '@/components/ui/tooltip/Tooltip.vue'
 import { useBearingRealtime } from '@/composables/useBearingRealtime'
 import { useFormDraft } from '@/composables/useFormDraft'
 
@@ -733,14 +734,16 @@ function shortDate(value) {
               </h2>
 
               <div class="flex items-center gap-3">
-                <span
-                  role="img"
-                  :aria-label="`Posting as ${participantName}`"
-                  :title="`Posting as ${participantName}`"
-                  class="size-10 flex shrink-0 items-center justify-center rounded-full bg-gray-950 text-xs font-semibold text-white dark:bg-white dark:text-gray-950"
-                >
-                  <span aria-hidden="true">{{ participantInitials }}</span>
-                </span>
+                <Tooltip :text="`Posting as ${participantName}`">
+                  <span
+                    role="img"
+                    :aria-label="`Posting as ${participantName}`"
+                    tabindex="0"
+                    class="size-10 flex shrink-0 items-center justify-center rounded-full bg-gray-950 text-xs font-semibold text-white dark:bg-white dark:text-gray-950"
+                  >
+                    <span aria-hidden="true">{{ participantInitials }}</span>
+                  </span>
+                </Tooltip>
 
                 <svg
                   aria-hidden="true"
@@ -826,27 +829,28 @@ function shortDate(value) {
                     :alt="image.file.name"
                     class="h-full w-full object-cover"
                   />
-                  <button
-                    type="button"
-                    :aria-label="`Remove ${image.file.name}`"
-                    :title="`Remove ${image.file.name}`"
-                    class="size-8 absolute right-2 top-2 flex items-center justify-center rounded-full bg-gray-950/80 text-white shadow-sm backdrop-blur transition hover:bg-gray-950 focus-visible:ring-2 focus-visible:ring-white"
-                    @click="removeImage(image.field)"
-                  >
-                    <svg
-                      aria-hidden="true"
-                      viewBox="0 0 16 16"
-                      class="size-3.5"
-                      fill="none"
+                  <Tooltip :text="`Remove ${image.file.name}`">
+                    <button
+                      type="button"
+                      :aria-label="`Remove ${image.file.name}`"
+                      class="size-8 absolute right-2 top-2 flex items-center justify-center rounded-full bg-gray-950/80 text-white shadow-sm backdrop-blur transition hover:bg-gray-950 focus-visible:ring-2 focus-visible:ring-white"
+                      @click="removeImage(image.field)"
                     >
-                      <path
-                        d="m4.25 4.25 7.5 7.5m0-7.5-7.5 7.5"
-                        stroke="currentColor"
-                        stroke-linecap="round"
-                        stroke-width="1.5"
-                      />
-                    </svg>
-                  </button>
+                      <svg
+                        aria-hidden="true"
+                        viewBox="0 0 16 16"
+                        class="size-3.5"
+                        fill="none"
+                      >
+                        <path
+                          d="m4.25 4.25 7.5 7.5m0-7.5-7.5 7.5"
+                          stroke="currentColor"
+                          stroke-linecap="round"
+                          stroke-width="1.5"
+                        />
+                      </svg>
+                    </button>
+                  </Tooltip>
                 </figure>
               </div>
 
