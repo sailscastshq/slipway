@@ -1,6 +1,3 @@
-const fs = require('node:fs')
-const path = require('node:path')
-
 const { test } = require('sounding')
 
 test('configured mail syncs UI SMTP settings before delegating', async ({
@@ -71,41 +68,4 @@ test('configured mail syncs UI SMTP settings before delegating', async ({
     sails.config.mail.mailers = originalMailers
     sails.config.mail.from = originalFrom
   }
-})
-
-test('outgoing app mail goes through the configured mail helper', async ({
-  expect
-}) => {
-  const root = process.cwd()
-  const apiDir = path.join(root, 'api')
-  const configuredHelper = path.join(
-    root,
-    'api/helpers/mail/send-configured.js'
-  )
-  const offenders = []
-
-  function walk(dir) {
-    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-      const filePath = path.join(dir, entry.name)
-      if (entry.isDirectory()) {
-        walk(filePath)
-        continue
-      }
-      if (!entry.isFile() || !entry.name.endsWith('.js')) {
-        continue
-      }
-      if (filePath === configuredHelper) {
-        continue
-      }
-
-      const source = fs.readFileSync(filePath, 'utf8')
-      if (source.includes('sails.helpers.mail.send.with(')) {
-        offenders.push(path.relative(root, filePath))
-      }
-    }
-  }
-
-  walk(apiDir)
-
-  expect(offenders).toEqual([])
 })

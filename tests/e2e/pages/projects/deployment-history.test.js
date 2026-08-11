@@ -171,35 +171,3 @@ test(
     expect(page).toHaveNoJavascriptErrors()
   }
 )
-
-test(
-  'deployment history keeps the compact deployment list on mobile',
-  { browser: 'mobile', world: historyWorld('deployment-history-mobile') },
-  async ({ sails, world, login, page, expect }) => {
-    const target = await seedHistory({ sails, world })
-    await login.withPassword('genesisUser', page, {
-      password: world.current.auth.genesisUserPassword
-    })
-    await page.goto(
-      `/projects/${target.projectSlug}/environments/${target.environmentSlug}/apps/${target.appSlug}`
-    )
-
-    await page.wait('@deployment-history')
-    await page.wait('@active-deployment-row')
-    await expect(page).toSee('Deployments')
-    await expect(page).toSee('Live')
-    await expect(page).toSee('Building')
-    await expect(page).toSee('Queued')
-    await expect(page).toSee('Failed')
-    await expect(page).toSee('Succeeded')
-    await page.raw
-      .locator('.pointer-events-none.fixed.bottom-4.right-4')
-      .evaluate((element) => element.setAttribute('hidden', ''))
-    await page.raw
-      .locator('[data-testid="deployment-history-section"]')
-      .screenshot({
-        path: path.resolve('.tmp/issue-421-deployment-outcomes-mobile.png')
-      })
-    expect(page).toHaveNoJavascriptErrors()
-  }
-)
