@@ -50,6 +50,9 @@ test('Klean Tooltip owns accessible hint behavior and collision-safe positioning
   expect(tooltipSource.includes('flip()')).toBe(true)
   expect(tooltipSource.includes('shift({ padding: 8 })')).toBe(true)
   expect(tooltipSource.includes('floatingArrow')).toBe(true)
+  expect(tooltipSource.includes('ARROW_CLIP_PATHS')).toBe(true)
+  expect(tooltipSource.includes('clipPath: ARROW_CLIP_PATHS[side]')).toBe(true)
+  expect(tooltipSource.includes('rotate-45')).toBe(false)
   expect(tooltipSource.includes('popover="hint"')).toBe(true)
   expect(tooltipSource.includes('role="tooltip"')).toBe(true)
   expect(
