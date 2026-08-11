@@ -943,9 +943,7 @@ test(
       right: Math.round(mobileWidgetBounds.x + mobileWidgetBounds.width),
       bottom: Math.round(mobileWidgetBounds.y + mobileWidgetBounds.height)
     }).toEqual({ left: 0, right: 390, bottom: 844 })
-    await page.screenshot(path.join(screenshotRoot, 'widget-open-mobile.png'), {
-      fullPage: true
-    })
+    await page.screenshot(path.join(screenshotRoot, 'widget-open-mobile.png'))
     await page.resize(1440, 1000)
     await widgetTrigger.click()
     await expect(widgetPanel).not.toBeVisible()
@@ -1050,8 +1048,7 @@ test(
       )
     }).toEqual({ left: 0, right: 390, bottom: 844 })
     await page.screenshot(
-      path.join(screenshotRoot, 'widget-feedback-from-host-mobile.png'),
-      { fullPage: true }
+      path.join(screenshotRoot, 'widget-feedback-from-host-mobile.png')
     )
     await page.resize(1440, 1000)
     await expect(widget.locator('[data-close]')).toBeFocused()
