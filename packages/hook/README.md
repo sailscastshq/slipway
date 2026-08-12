@@ -342,6 +342,12 @@ module.exports.slipway = {
 
 Telemetry failures never break the host application.
 
+With `sails-hook-quest` 0.0.5 or newer, failed job output continues streaming
+to the application log while its final bounded diagnostic is attached to the
+Lookout exception. The Slipway hook removes terminal formatting and redacts
+known secret values before telemetry leaves the application. Older Quest
+payloads remain supported and use their runner stack when one is available.
+
 ## Release flags
 
 Slipway injects the private flag endpoint and app identity during deployments

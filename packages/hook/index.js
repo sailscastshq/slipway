@@ -29,6 +29,7 @@ const https = require('https')
 const crypto = require('crypto')
 const { createReleaseFlags } = require('./lib/release-flags')
 const { injectBearingWidget } = require('./lib/bearing-widget')
+const { normalizeQuestDiagnostic } = require('./lib/quest-diagnostics')
 const buildFlagsEnabledHelper = require('./lib/helpers/flags/enabled')
 const {
   ACCESS_DENIED_MESSAGE,
@@ -730,7 +731,7 @@ module.exports = function defineSlipwayHook(sails) {
             ? data.error.message || String(data.error)
             : 'Unknown error'
         }`,
-        stackTrace: data.error ? data.error.stack : null,
+        stackTrace: normalizeQuestDiagnostic(data.error),
         handled: true,
         method: null,
         url: null,
