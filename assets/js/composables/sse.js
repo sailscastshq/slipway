@@ -1,4 +1,4 @@
-import { ref, onUnmounted, isRef, unref } from 'vue'
+import { ref, onScopeDispose, isRef, unref } from 'vue'
 
 /**
  * Vue composable for Server-Sent Events.
@@ -31,22 +31,29 @@ export function useEventSource(url, options = {}) {
   let reconnectTimer = null
   let unmounted = false
   let disposed = false
+  let connectionSequence = 0
+  let reconnectEnabled = false
 
   function connect() {
     close()
+    if (disposed) return
     error.value = null
 
     const resolvedUrl = isRef(url) ? unref(url) : url
     if (!resolvedUrl) return
 
+    reconnectEnabled = true
+    const sequence = ++connectionSequence
     es = new EventSource(resolvedUrl)
 
     es.onopen = () => {
+      if (sequence !== connectionSequence) return
       connected.value = true
       error.value = null
     }
 
     es.onmessage = (event) => {
+      if (sequence !== connectionSequence) return
       try {
         const parsed = JSON.parse(event.data)
         data.value = parsed
@@ -56,7 +63,7 @@ export function useEventSource(url, options = {}) {
         }
 
         if (parsed.closed) {
-          connected.value = false
+          close()
         }
 
         if (onMessage) {
@@ -68,24 +75,29 @@ export function useEventSource(url, options = {}) {
     }
 
     es.onerror = () => {
+      if (sequence !== connectionSequence) return
       connected.value = false
       if (es) {
         es.close()
         es = null
       }
 
-      if (!unmounted && autoReconnect) {
+      if (!unmounted && reconnectEnabled && autoReconnect) {
         if (!error.value) {
           error.value = 'Connection lost. Reconnecting...'
         }
+        if (reconnectTimer) clearTimeout(reconnectTimer)
         reconnectTimer = setTimeout(() => {
-          if (!unmounted) connect()
+          reconnectTimer = null
+          if (!unmounted && reconnectEnabled) connect()
         }, reconnectDelay)
       }
     }
   }
 
   function close() {
+    reconnectEnabled = false
+    connectionSequence += 1
     if (reconnectTimer) {
       clearTimeout(reconnectTimer)
       reconnectTimer = null
@@ -117,7 +129,7 @@ export function useEventSource(url, options = {}) {
     window.addEventListener('beforeunload', dispose)
   }
 
-  onUnmounted(dispose)
+  onScopeDispose(dispose)
 
   return { data, connected, error, close, connect }
 }

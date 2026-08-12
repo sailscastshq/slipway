@@ -30,11 +30,16 @@ test(
   },
   async ({ world, login, page, expect }) => {
     await page.raw.addInitScript((logs) => {
+      window.__slipwayTestEventSources = []
+
       class SlipwayTestEventSource {
         constructor(url) {
           this.url = String(url)
           this.readyState = 0
+          this.closed = false
+          window.__slipwayTestEventSources.push(this)
           this.timer = window.setTimeout(() => {
+            if (this.closed) return
             this.readyState = 1
             this.onopen?.({ type: 'open' })
             if (!this.url.includes('/logs/stream')) return
@@ -47,6 +52,7 @@ test(
 
         close() {
           window.clearTimeout(this.timer)
+          this.closed = true
           this.readyState = 2
         }
       }
@@ -59,7 +65,7 @@ test(
       password: current.auth.genesisUserPassword
     })
     await page.resize(1440, 900)
-    await page.inDarkMode()
+    await page.inLightMode()
     await page.goto(
       `/projects/${current.projects.deploymentTarget.slug}/environments/${current.environments.production.slug}/apps/${current.apps.web.slug}?logs=1`
     )
@@ -77,15 +83,28 @@ test(
         .locator('[data-test="log-event"][data-level="error"]')
         .count()
     ).toBe(1)
+    const lightSurface = await viewer.evaluate(
+      (element) => getComputedStyle(element).backgroundColor
+    )
     await viewer.screenshot({
-      path: path.resolve('.tmp/issue-383-log-viewer-desktop-dark.png')
+      path: path.resolve('.tmp/issue-434-log-viewer-desktop-light.png')
+    })
+
+    await page.inDarkMode()
+    await page.wait(100)
+    const darkSurface = await viewer.evaluate(
+      (element) => getComputedStyle(element).backgroundColor
+    )
+    expect(lightSurface === darkSurface).toBe(false)
+    await viewer.screenshot({
+      path: path.resolve('.tmp/issue-434-log-viewer-desktop-dark.png')
     })
 
     await viewer.locator('[data-test="log-level-filter"]').selectOption('error')
     expect(await viewer.locator('[data-test="log-event"]').count()).toBe(1)
     await expect(page).toSee('Timeout.<anonymous>')
     await viewer.screenshot({
-      path: path.resolve('.tmp/issue-383-log-viewer-error-filter.png')
+      path: path.resolve('.tmp/issue-434-log-viewer-error-filter.png')
     })
 
     await viewer.locator('[data-test="log-level-filter"]').selectOption('all')
@@ -97,8 +116,15 @@ test(
     }))
     expect(viewportWidth.scroll <= viewportWidth.client + 1).toBe(true)
     await viewer.screenshot({
-      path: path.resolve('.tmp/issue-383-log-viewer-mobile-dark.png')
+      path: path.resolve('.tmp/issue-434-log-viewer-mobile-dark.png')
     })
+
+    const logStreams = await page.raw.evaluate(() =>
+      window.__slipwayTestEventSources
+        .filter((stream) => stream.url.includes('/logs/stream'))
+        .map((stream) => ({ closed: stream.closed }))
+    )
+    expect(logStreams).toEqual([{ closed: false }])
     expect(page).toHaveNoJavascriptErrors()
   }
 )

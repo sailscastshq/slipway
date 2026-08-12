@@ -240,6 +240,11 @@ module.exports = function defineSseHook(sails) {
               }
 
               activeStreams.add(stream)
+              const heartbeatInterval = setInterval(() => {
+                stream.heartbeat()
+              }, 15 * 1000)
+              heartbeatInterval.unref?.()
+              stream.onClose(() => clearInterval(heartbeatInterval))
               _sseStream = stream
               return stream
             }
