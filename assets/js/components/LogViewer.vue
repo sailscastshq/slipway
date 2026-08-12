@@ -163,37 +163,40 @@ function levelLabel(value) {
 
 function badgeClass(event) {
   return {
-    error: 'text-rose-300',
-    warning: 'text-amber-300',
-    info: 'text-sky-300',
-    debug: 'text-zinc-500'
+    error: 'text-rose-700 dark:text-rose-300',
+    warning: 'text-amber-700 dark:text-amber-300',
+    info: 'text-sky-700 dark:text-sky-300',
+    debug: 'text-gray-500 dark:text-zinc-500'
   }[event.level]
 }
 
 function eventClass(event) {
   return {
-    error: 'border-l-rose-500/70 bg-rose-950/20 hover:bg-rose-950/30',
-    warning: 'border-l-amber-400/60 bg-amber-950/10 hover:bg-amber-950/20',
-    info: 'border-l-transparent hover:bg-white/[0.035]',
-    debug: 'border-l-transparent hover:bg-white/[0.025]'
+    error:
+      'border-l-rose-500/70 bg-rose-50/80 hover:bg-rose-100/70 dark:bg-rose-950/20 dark:hover:bg-rose-950/30',
+    warning:
+      'border-l-amber-400/60 bg-amber-50/70 hover:bg-amber-100/60 dark:bg-amber-950/10 dark:hover:bg-amber-950/20',
+    info: 'border-l-transparent hover:bg-gray-100/80 dark:hover:bg-white/[0.035]',
+    debug: 'border-l-transparent hover:bg-gray-50 dark:hover:bg-white/[0.025]'
   }[event.level]
 }
 
 function segmentClass(type) {
   return {
-    error: 'font-semibold text-rose-300',
-    warning: 'font-medium text-amber-300',
-    info: 'text-sky-300',
-    debug: 'text-zinc-500',
-    method: 'font-semibold text-cyan-300',
-    url: 'text-violet-300 underline decoration-violet-400/40 underline-offset-2',
-    path: 'text-cyan-300',
-    tag: 'text-zinc-500',
-    'status-error': 'rounded bg-rose-500/15 px-1 font-semibold text-rose-300',
+    error: 'font-semibold text-rose-700 dark:text-rose-300',
+    warning: 'font-medium text-amber-700 dark:text-amber-300',
+    info: 'text-sky-700 dark:text-sky-300',
+    debug: 'text-gray-500 dark:text-zinc-500',
+    method: 'font-semibold text-cyan-700 dark:text-cyan-300',
+    url: 'text-violet-700 underline decoration-violet-400/40 underline-offset-2 dark:text-violet-300',
+    path: 'text-cyan-700 dark:text-cyan-300',
+    tag: 'text-gray-500 dark:text-zinc-500',
+    'status-error':
+      'rounded bg-rose-100 px-1 font-semibold text-rose-700 dark:bg-rose-500/15 dark:text-rose-300',
     'status-warning':
-      'rounded bg-amber-500/15 px-1 font-semibold text-amber-300',
-    'status-redirect': 'text-sky-300',
-    'status-success': 'text-emerald-300'
+      'rounded bg-amber-100 px-1 font-semibold text-amber-700 dark:bg-amber-500/15 dark:text-amber-300',
+    'status-redirect': 'text-sky-700 dark:text-sky-300',
+    'status-success': 'text-emerald-700 dark:text-emerald-300'
   }[type]
 }
 </script>
@@ -201,14 +204,14 @@ function segmentClass(type) {
 <template>
   <section
     data-test="log-viewer"
-    class="overflow-hidden bg-zinc-950 text-zinc-200"
+    class="overflow-hidden bg-white text-gray-800 dark:bg-zinc-950 dark:text-zinc-200"
     aria-label="Live logs"
   >
     <div
-      class="flex flex-wrap items-center gap-x-3 gap-y-2 border-y border-white/[0.07] bg-zinc-900/80 px-3 py-2 sm:flex-nowrap"
+      class="flex flex-wrap items-center gap-x-3 gap-y-2 border-y border-gray-200 bg-gray-50/90 px-3 py-2 dark:border-white/[0.07] dark:bg-zinc-900/80 sm:flex-nowrap"
     >
       <div
-        class="min-w-24 order-1 flex items-center gap-2 font-sans text-xs text-zinc-400"
+        class="min-w-24 order-1 flex items-center gap-2 font-sans text-xs text-gray-600 dark:text-zinc-400"
         role="status"
         aria-live="polite"
       >
@@ -216,12 +219,12 @@ function segmentClass(type) {
           :class="[
             'h-1.5 w-1.5 rounded-full',
             connectionState === 'live' && 'bg-emerald-400',
-            connectionState === 'complete' && 'bg-zinc-500',
+            connectionState === 'complete' && 'bg-gray-400 dark:bg-zinc-500',
             connectionState === 'connecting' &&
               'animate-pulse bg-amber-300 motion-reduce:animate-none',
             connectionState === 'reconnecting' &&
               'animate-pulse bg-rose-400 motion-reduce:animate-none',
-            connectionState === 'inactive' && 'bg-zinc-600'
+            connectionState === 'inactive' && 'bg-gray-400 dark:bg-zinc-600'
           ]"
         ></span>
         <span>{{ connectionLabel }}</span>
@@ -233,7 +236,7 @@ function segmentClass(type) {
         <span class="sr-only">Search logs</span>
         <svg
           aria-hidden="true"
-          class="pointer-events-none absolute left-0 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-600"
+          class="pointer-events-none absolute left-0 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400 dark:text-zinc-600"
           fill="none"
           stroke="currentColor"
           viewBox="0 0 24 24"
@@ -251,7 +254,7 @@ function segmentClass(type) {
           type="search"
           autocomplete="off"
           placeholder="Find in logs…"
-          class="h-9 w-full border-0 border-b border-dashed border-zinc-700 bg-transparent pl-6 pr-2 font-sans text-xs text-zinc-200 outline-none placeholder:text-zinc-600 focus:border-sky-400 focus:ring-0"
+          class="h-9 w-full border-0 border-b border-dashed border-gray-300 bg-transparent pl-6 pr-2 font-sans text-xs text-gray-800 outline-none placeholder:text-gray-400 focus:border-sky-500 focus:ring-0 dark:border-zinc-700 dark:text-zinc-200 dark:placeholder:text-zinc-600 dark:focus:border-sky-400"
         />
       </label>
 
@@ -261,7 +264,7 @@ function segmentClass(type) {
           <select
             v-model="level"
             data-test="log-level-filter"
-            class="h-10 appearance-none border-0 border-b border-dashed border-zinc-700 bg-transparent py-0 pl-2 pr-7 font-sans text-xs text-zinc-300 outline-none focus:border-sky-400 focus:ring-0"
+            class="h-10 appearance-none border-0 border-b border-dashed border-gray-300 bg-transparent py-0 pl-2 pr-7 font-sans text-xs text-gray-700 outline-none focus:border-sky-500 focus:ring-0 dark:border-zinc-700 dark:text-zinc-300 dark:focus:border-sky-400"
           >
             <option value="all">All · {{ events.length }}</option>
             <option v-for="value in LOG_LEVELS" :key="value" :value="value">
@@ -270,7 +273,7 @@ function segmentClass(type) {
           </select>
           <svg
             aria-hidden="true"
-            class="pointer-events-none absolute right-1.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-zinc-500"
+            class="pointer-events-none absolute right-1.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-500 dark:text-zinc-500"
             fill="none"
             stroke="currentColor"
             viewBox="0 0 24 24"
@@ -295,10 +298,10 @@ function segmentClass(type) {
             "
             :aria-pressed="following"
             :class="[
-              'min-w-10 inline-flex h-10 items-center justify-center gap-1.5 rounded-md px-2 font-sans text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/70',
+              'min-w-10 inline-flex h-10 items-center justify-center gap-1.5 rounded-md px-2 font-sans text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500/70 dark:focus-visible:ring-sky-400/70',
               following
-                ? 'bg-white/[0.07] text-zinc-200'
-                : 'text-zinc-500 hover:bg-white/5 hover:text-zinc-300'
+                ? 'bg-gray-200/80 text-gray-800 dark:bg-white/[0.07] dark:text-zinc-200'
+                : 'text-gray-500 hover:bg-gray-200/70 hover:text-gray-800 dark:text-zinc-500 dark:hover:bg-white/5 dark:hover:text-zinc-300'
             ]"
             @click="toggleFollowing"
           >
@@ -333,8 +336,9 @@ function segmentClass(type) {
             "
             :aria-pressed="wrap"
             :class="[
-              'min-w-10 inline-flex h-10 items-center justify-center rounded-md text-zinc-500 transition-colors hover:bg-white/5 hover:text-zinc-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/70',
-              wrap && 'bg-white/[0.07] text-zinc-200'
+              'min-w-10 inline-flex h-10 items-center justify-center rounded-md text-gray-500 transition-colors hover:bg-gray-200/70 hover:text-gray-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500/70 dark:text-zinc-500 dark:hover:bg-white/5 dark:hover:text-zinc-300 dark:focus-visible:ring-sky-400/70',
+              wrap &&
+                'bg-gray-200/80 text-gray-800 dark:bg-white/[0.07] dark:text-zinc-200'
             ]"
             @click="wrap = !wrap"
           >
@@ -368,10 +372,10 @@ function segmentClass(type) {
               copyState === 'copied' ? 'Logs copied' : 'Copy visible logs'
             "
             :class="[
-              'min-w-10 inline-flex h-10 items-center justify-center rounded-md text-zinc-500 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/70',
+              'min-w-10 inline-flex h-10 items-center justify-center rounded-md text-gray-500 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500/70 dark:text-zinc-500 dark:focus-visible:ring-sky-400/70',
               visibleEvents.length === 0
                 ? 'cursor-not-allowed opacity-30'
-                : 'hover:bg-white/5 hover:text-zinc-300'
+                : 'hover:bg-gray-200/70 hover:text-gray-800 dark:hover:bg-white/5 dark:hover:text-zinc-300'
             ]"
             @click="copyVisibleLogs"
           >
@@ -412,7 +416,7 @@ function segmentClass(type) {
 
     <div
       v-if="error && events.length > 0"
-      class="flex items-center gap-2 border-b border-amber-400/10 bg-amber-400/[0.06] px-3 py-2 font-sans text-xs text-amber-200/80"
+      class="flex items-center gap-2 border-b border-amber-200 bg-amber-50 px-3 py-2 font-sans text-xs text-amber-800 dark:border-amber-400/10 dark:bg-amber-400/[0.06] dark:text-amber-200/80"
       role="status"
     >
       <span class="h-1.5 w-1.5 shrink-0 rounded-full bg-amber-300"></span>
@@ -428,33 +432,33 @@ function segmentClass(type) {
     >
       <div
         v-if="inactiveMessage && events.length === 0"
-        class="flex h-full items-center justify-center px-6 text-center font-sans text-sm text-zinc-500"
+        class="flex h-full items-center justify-center px-6 text-center font-sans text-sm text-gray-500 dark:text-zinc-500"
       >
         {{ inactiveMessage }}
       </div>
       <div
         v-else-if="error && events.length === 0"
         role="status"
-        class="flex h-full items-center justify-center px-6 text-center font-sans text-sm text-rose-300"
+        class="flex h-full items-center justify-center px-6 text-center font-sans text-sm text-rose-700 dark:text-rose-300"
       >
         {{ error }}
       </div>
       <div
         v-else-if="!connected && events.length === 0"
-        class="flex h-full items-center justify-center font-sans text-sm text-zinc-500"
+        class="flex h-full items-center justify-center font-sans text-sm text-gray-500 dark:text-zinc-500"
       >
         <Spinner class="mr-2 h-4 w-4" />
         Connecting to logs…
       </div>
       <div
         v-else-if="events.length === 0"
-        class="flex h-full items-center justify-center font-sans text-sm text-zinc-500"
+        class="flex h-full items-center justify-center font-sans text-sm text-gray-500 dark:text-zinc-500"
       >
         Waiting for output…
       </div>
       <div
         v-else-if="visibleEvents.length === 0"
-        class="flex h-full items-center justify-center px-6 text-center font-sans text-sm text-zinc-500"
+        class="flex h-full items-center justify-center px-6 text-center font-sans text-sm text-gray-500 dark:text-zinc-500"
       >
         No logs match this search and severity.
       </div>
@@ -473,7 +477,7 @@ function segmentClass(type) {
             <time
               :datetime="event.timestamp || undefined"
               :title="event.timestamp || 'Timestamp unavailable'"
-              class="select-none tabular-nums text-zinc-600 sm:text-right"
+              class="select-none tabular-nums text-gray-400 dark:text-zinc-600 sm:text-right"
             >
               {{ event.time || '—' }}
             </time>
@@ -491,8 +495,8 @@ function segmentClass(type) {
               v-for="(entry, entryIndex) in event.entries"
               :key="entryIndex"
               :class="[
-                'min-h-5 block bg-transparent p-0 font-mono text-[12px] text-zinc-300',
-                entryIndex > 0 && 'text-zinc-500',
+                'min-h-5 block bg-transparent p-0 font-mono text-[12px] text-gray-700 dark:text-zinc-300',
+                entryIndex > 0 && 'text-gray-500 dark:text-zinc-500',
                 wrap ? 'whitespace-pre-wrap break-words' : 'whitespace-pre'
               ]"
               ><span

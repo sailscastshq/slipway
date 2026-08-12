@@ -51,34 +51,23 @@ module.exports = {
 
     const docker = spawn(dockerPath, args)
 
-    // Track whether we ever received real log output from the container.
-    // If docker closes before any stdout, the container doesn't exist (local dev).
-    let stdoutReceived = false
-    const pendingStderr = []
-
+    // Docker preserves the container's stdout/stderr split. A healthy Node
+    // process can legitimately write only to stderr for long stretches, so
+    // both streams must be delivered immediately. Waiting for stdout makes a
+    // live EventSource look connected while its useful output is held forever.
     const stdoutLines = createLineFramer({
       onLine(line) {
-        if (!stdoutReceived) {
-          stdoutReceived = true
-          for (const pendingLine of pendingStderr.splice(0)) {
-            stream.send({ log: pendingLine })
-          }
-        }
         stream.send({ log: line })
       }
     })
     const stderrLines = createLineFramer({
       onLine(line) {
-        if (stdoutReceived) stream.send({ log: line })
-        else pendingStderr.push(line)
+        stream.send({ log: line })
       }
     })
 
     docker.stdout.on('data', (data) => stdoutLines.write(data))
 
-    // Buffer stderr until we know the container exists.
-    // docker logs sends container stderr here during normal operation,
-    // but also sends its own errors (e.g. "No such container") here.
     docker.stderr.on('data', (data) => {
       stderrLines.write(data)
     })
@@ -99,13 +88,13 @@ module.exports = {
       sails.log.debug(
         `[stream-instance-logs] Docker process closed with code: ${code}, signal: ${signal}`
       )
-      if (code !== 0 && !stdoutReceived) {
-        // Docker couldn't find the container — likely running outside Docker (local dev)
+      if (code !== 0) {
+        // Preserve Docker's output above, then add a useful product-level
+        // explanation instead of treating a failed command as a clean close.
         stream.send({
           error: 'Instance logs are available when running in Docker'
         })
       } else {
-        for (const line of pendingStderr.splice(0)) stream.send({ log: line })
         stream.send({ closed: true })
       }
       stream.close()
