@@ -480,6 +480,15 @@ const filteredStatements = computed(() => {
   )
 })
 
+const blockedStatements = computed(() =>
+  filteredStatements.value.filter((statement) => statement.blocked)
+)
+
+const canApplyMigration = computed(
+  () =>
+    filteredStatements.value.length > 0 && blockedStatements.value.length === 0
+)
+
 const diffSummary = computed(() => {
   if (!diff.value?.diff) {
     return {
@@ -519,7 +528,7 @@ function deselectAllModels() {
 }
 
 function confirmMigration() {
-  if (!filteredStatements.value.length) return
+  if (!canApplyMigration.value) return
   showMigrateConfirm.value = true
 }
 
@@ -1814,11 +1823,28 @@ onUnmounted(() => {
 
                 <button
                   @click="confirmMigration"
-                  :disabled="migrateLoading || filteredStatements.length === 0"
+                  :disabled="migrateLoading || !canApplyMigration"
                   class="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
                 >
                   {{ migrateLoading ? 'Applying...' : 'Apply migration' }}
                 </button>
+              </div>
+
+              <div
+                v-if="blockedStatements.length > 0"
+                class="border-t border-red-200 bg-red-50 px-4 py-4 dark:border-red-900/60 dark:bg-red-950/30"
+                role="alert"
+              >
+                <p class="text-sm font-medium text-red-800 dark:text-red-300">
+                  {{ blockedStatements.length }} rebuild{{
+                    blockedStatements.length === 1 ? '' : 's'
+                  }}
+                  blocked
+                </p>
+                <p class="mt-1 text-sm text-red-700 dark:text-red-400">
+                  Bosun cannot prove that every schema object would survive.
+                  Apply is disabled instead of guessing.
+                </p>
               </div>
 
               <div class="grid gap-4 px-4 py-4 sm:grid-cols-4">
@@ -1967,11 +1993,62 @@ onUnmounted(() => {
                     </p>
                   </div>
                   <span
-                    v-if="statement.column"
+                    v-if="statement.blocked"
+                    class="rounded bg-red-100 px-2 py-1 text-xs font-medium text-red-700 dark:bg-red-950 dark:text-red-300"
+                  >
+                    Blocked
+                  </span>
+                  <span
+                    v-else-if="statement.risk === 'high'"
+                    class="rounded bg-amber-100 px-2 py-1 text-xs font-medium text-amber-800 dark:bg-amber-950 dark:text-amber-300"
+                  >
+                    High risk · verified rebuild
+                  </span>
+                  <span
+                    v-else-if="statement.column"
                     class="rounded bg-gray-100 px-2 py-1 font-mono text-xs text-gray-600 dark:bg-gray-800 dark:text-gray-300"
                   >
                     {{ statement.column }}
                   </span>
+                </div>
+
+                <div
+                  v-if="statement.reason"
+                  class="border-b border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-300"
+                >
+                  {{ statement.reason }}
+                </div>
+
+                <div
+                  v-if="statement.changedColumns?.length"
+                  class="border-b border-gray-200 px-4 py-3 dark:border-gray-800"
+                >
+                  <div
+                    v-for="change in statement.changedColumns"
+                    :key="change.column"
+                    class="grid gap-2 text-xs sm:grid-cols-[minmax(8rem,0.7fr)_1fr_1fr] sm:items-center"
+                  >
+                    <span class="font-mono text-gray-900 dark:text-white">
+                      {{ change.column }}
+                    </span>
+                    <span class="text-gray-500 dark:text-gray-400">
+                      Current: {{ change.current.type }} ·
+                      {{ change.current.nullable ? 'nullable' : 'not null' }} ·
+                      default {{ change.current.defaultValue ?? 'none' }}
+                    </span>
+                    <span class="text-gray-700 dark:text-gray-300">
+                      Expected: {{ change.expected.type }} ·
+                      {{ change.expected.nullable ? 'nullable' : 'not null' }} ·
+                      default {{ change.expected.defaultValue ?? 'none' }}
+                    </span>
+                  </div>
+                  <p
+                    v-if="statement.verification"
+                    class="mt-2 text-xs text-gray-500 dark:text-gray-400"
+                  >
+                    Before commit, Bosun verifies row count, SQLite integrity,
+                    foreign keys, and preserved schema objects.
+                  </p>
                 </div>
 
                 <div class="overflow-x-auto bg-white dark:bg-gray-950">

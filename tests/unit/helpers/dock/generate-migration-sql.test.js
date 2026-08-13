@@ -1,6 +1,6 @@
 const { test } = require('sounding')
 
-test('sqlite migration SQL rebuilds tables for modified columns', async ({
+test('sqlite migration SQL preserves the original table contract and schema objects', async ({
   sails,
   expect
 }) => {
@@ -66,6 +66,38 @@ test('sqlite migration SQL rebuilds tables for modified columns', async ({
           { name: 'updated_at' },
           { name: 'email' },
           { name: 'is_genesis_user' }
+        ],
+        sql: `CREATE TABLE "users" (
+          "id" INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+          "created_at" INTEGER,
+          "updated_at" INTEGER,
+          "email" INTEGER NOT NULL COLLATE NOCASE CHECK (length("email") > 3),
+          "is_genesis_user" INTEGER NOT NULL DEFAULT 0,
+          CONSTRAINT "users_email_genesis_unique" UNIQUE ("email", "is_genesis_user")
+        ) STRICT`,
+        indexes: [
+          {
+            name: 'users_email_search',
+            origin: 'c',
+            sql: `CREATE INDEX "users_email_search" ON "users" (lower("email") DESC) WHERE "is_genesis_user" = 0`
+          },
+          {
+            name: 'sqlite_autoindex_users_1',
+            origin: 'u',
+            sql: null
+          }
+        ],
+        triggers: [
+          {
+            name: 'users_email_audit',
+            sql: `CREATE TRIGGER "users_email_audit" AFTER UPDATE OF "email" ON "users" BEGIN SELECT NEW."email"; END`
+          }
+        ],
+        views: [
+          {
+            name: 'active_users',
+            sql: `CREATE VIEW "active_users" AS SELECT * FROM "users"`
+          }
         ]
       }
     }
@@ -73,19 +105,38 @@ test('sqlite migration SQL rebuilds tables for modified columns', async ({
 
   expect(result.statements.length).toBe(1)
   expect(result.statements[0].type).toBe('rebuild_table')
+  expect(result.statements[0].risk).toBe('high')
   expect(result.statements[0].sql).toContain(
-    'ALTER TABLE `users` RENAME TO `users__old`;'
+    'CREATE TABLE `users__slipway_new`'
+  )
+  expect(result.statements[0].sql.includes('IF NOT EXISTS')).toBe(false)
+  expect(result.statements[0].sql).toContain(
+    '"email" TEXT NOT NULL COLLATE NOCASE CHECK (length("email") > 3)'
   )
   expect(result.statements[0].sql).toContain(
-    'CREATE TABLE IF NOT EXISTS `users`'
+    'CONSTRAINT "users_email_genesis_unique" UNIQUE ("email", "is_genesis_user")'
   )
-  expect(result.statements[0].sql).toContain('`is_genesis_user` TEXT DEFAULT 0')
+  expect(result.statements[0].sql).toContain(') STRICT;')
   expect(result.statements[0].sql).toContain(
-    'INSERT INTO `users` (`id`, `created_at`, `updated_at`, `email`, `is_genesis_user`)'
+    'INSERT INTO `users__slipway_new` (`id`, `created_at`, `updated_at`, `email`, `is_genesis_user`) SELECT `id`, `created_at`, `updated_at`, `email`, `is_genesis_user` FROM `users`;'
   )
   expect(result.statements[0].sql).toContain(
-    'CREATE UNIQUE INDEX IF NOT EXISTS `idx_users_email`'
+    'CREATE INDEX "users_email_search" ON "users" (lower("email") DESC) WHERE "is_genesis_user" = 0;'
   )
+  expect(result.statements[0].sql).toContain(
+    'CREATE TRIGGER "users_email_audit" AFTER UPDATE OF "email" ON "users"'
+  )
+  expect(result.statements[0].preservedObjects).toEqual([
+    { type: 'index', name: 'users_email_search' },
+    { type: 'unique constraint', name: 'sqlite_autoindex_users_1' },
+    { type: 'trigger', name: 'users_email_audit' },
+    { type: 'view', name: 'active_users' }
+  ])
+  expect(result.statements[0].verification).toEqual({
+    rowCount: true,
+    integrityCheck: true,
+    foreignKeyCheck: true
+  })
 })
 
 test('sqlite migration SQL renames camelCase columns without rebuilding tables', async ({
@@ -124,7 +175,7 @@ test('sqlite migration SQL renames camelCase columns without rebuilding tables',
   ])
 })
 
-test('sqlite table rebuild copies data from renamed source columns', async ({
+test('sqlite table rebuild fails closed when combined with a column rename', async ({
   sails,
   expect
 }) => {
@@ -178,14 +229,19 @@ test('sqlite table rebuild copies data from renamed source columns', async ({
     },
     {
       apps: {
-        columns: [{ name: 'id' }, { name: 'name' }, { name: 'dockerfilePath' }]
+        sql: 'CREATE TABLE `apps` (`id` INTEGER PRIMARY KEY, `name` INTEGER, `dockerfilePath` TEXT)',
+        columns: [{ name: 'id' }, { name: 'name' }, { name: 'dockerfilePath' }],
+        indexes: [],
+        triggers: [],
+        views: []
       }
     }
   )
 
   expect(result.statements.length).toBe(1)
-  expect(result.statements[0].type).toBe('rebuild_table')
-  expect(result.statements[0].sql).toContain(
-    'INSERT INTO `apps` (`id`, `name`, `dockerfile_path`) SELECT `id`, `name`, `dockerfilePath` FROM `apps__old`;'
-  )
+  expect(result.statements[0].type).toBe('blocked_rebuild')
+  expect(result.statements[0].table).toBe('apps')
+  expect(result.statements[0].blocked).toBe(true)
+  expect(result.statements[0].risk).toBe('blocked')
+  expect(result.statements[0].reason).toContain('column renames')
 })

@@ -238,9 +238,9 @@ function findRenameSourceColumn(existingColumns, attrName, columnName) {
  *   _json        -> LONGTEXT
  *   _ref         -> LONGTEXT
  *
- * SQLite mappings mirror sails-sqlite's current physical model handling:
- *   _boolean     -> TEXT
- *   boolean      -> INTEGER when explicitly provided as a physical columnType
+ * SQLite booleans use INTEGER as Bosun's canonical representation. Existing
+ * INTEGER, BOOLEAN, and sails-sqlite legacy TEXT columns compare as the same
+ * logical boolean contract, so healthy schemas do not churn.
  */
 function mapWaterlineToSql(attr, attrName, dbType, modelPrimaryKey) {
   // If explicit columnType is set, use it directly (adapters do this too)
@@ -250,6 +250,7 @@ function mapWaterlineToSql(attr, attrName, dbType, modelPrimaryKey) {
         dbType === 'sqlite'
           ? normalizeSqlitePhysicalType(attr.columnType)
           : attr.columnType,
+      logicalType: attr.type,
       nullable: !attr.required && attr.allowNull !== false,
       defaultValue: attr.defaultsTo,
       autoIncrement: attr.autoIncrement || false,
@@ -294,6 +295,7 @@ function mapWaterlineToSql(attr, attrName, dbType, modelPrimaryKey) {
 
   return {
     sqlType,
+    logicalType: attr.type,
     nullable: !attr.required && attr.allowNull !== false,
     defaultValue: attr.defaultsTo,
     autoIncrement: isAutoIncrement,
@@ -338,7 +340,7 @@ function getSqliteType(
       return 'INTEGER'
 
     case 'boolean':
-      return 'TEXT'
+      return 'INTEGER'
 
     case 'json':
     case 'ref':
@@ -453,7 +455,19 @@ function needsModification(existing, expected, dbType) {
   const normalizedExisting = normalizeType(existing.type)
   const normalizedExpected = normalizeType(expected.sqlType)
 
+  if (
+    dbType === 'sqlite' &&
+    expected.logicalType === 'boolean' &&
+    isSqliteBooleanStorageType(normalizedExisting)
+  ) {
+    return false
+  }
+
   return !typesMatch(normalizedExisting, normalizedExpected, dbType)
+}
+
+function isSqliteBooleanStorageType(type) {
+  return ['boolean', 'bool', 'integer', 'int', 'text'].includes(type)
 }
 
 /**
@@ -535,7 +549,7 @@ function normalizeSqlitePhysicalType(type) {
     case '_json':
       return 'TEXT'
     case '_boolean':
-      return 'TEXT'
+      return 'INTEGER'
     case 'float':
     case 'double':
     case 'real':

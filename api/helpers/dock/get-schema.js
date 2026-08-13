@@ -255,10 +255,20 @@ function getSqliteSchema(service) {
     const tableRows = db
       .prepare(
         `
-      SELECT name
-      FROM sqlite_master
+      SELECT name, sql
+      FROM sqlite_schema
       WHERE type = 'table'
         AND name NOT LIKE 'sqlite_%'
+      ORDER BY name
+    `
+      )
+      .all()
+    const viewRows = db
+      .prepare(
+        `
+      SELECT name, sql
+      FROM sqlite_schema
+      WHERE type = 'view'
       ORDER BY name
     `
       )
@@ -266,14 +276,29 @@ function getSqliteSchema(service) {
 
     const tables = {}
 
-    for (const { name } of tableRows) {
+    for (const { name, sql } of tableRows) {
       const tableName = escapeSqliteIdentifier(name)
       const columns = db.prepare(`PRAGMA table_info('${tableName}')`).all()
       const indexes = db.prepare(`PRAGMA index_list('${tableName}')`).all()
+      const foreignKeys = db
+        .prepare(`PRAGMA foreign_key_list('${tableName}')`)
+        .all()
+      const triggers = db
+        .prepare(
+          `
+          SELECT name, sql
+          FROM sqlite_schema
+          WHERE type = 'trigger' AND tbl_name = ?
+          ORDER BY name
+        `
+        )
+        .all(name)
 
       tables[name] = {
         name,
+        sql,
         columns: columns.map((column) => ({
+          position: column.cid,
           name: column.name,
           type: column.type,
           maxLength: null,
@@ -286,14 +311,47 @@ function getSqliteSchema(service) {
           .map((index) => {
             const indexName = escapeSqliteIdentifier(index.name)
             const indexColumns = db
-              .prepare(`PRAGMA index_info('${indexName}')`)
+              .prepare(`PRAGMA index_xinfo('${indexName}')`)
               .all()
+            const schemaEntry = db
+              .prepare(
+                `SELECT sql FROM sqlite_schema WHERE type = 'index' AND name = ?`
+              )
+              .get(index.name)
+
             return {
               name: index.name,
-              columns: indexColumns.map((column) => column.name),
-              unique: Boolean(index.unique)
+              columns: indexColumns
+                .filter((column) => column.key === 1)
+                .map((column) => column.name),
+              unique: Boolean(index.unique),
+              origin: index.origin,
+              partial: Boolean(index.partial),
+              sql: schemaEntry?.sql || null,
+              definition: indexColumns.map((column) => ({
+                position: column.seqno,
+                columnId: column.cid,
+                name: column.name,
+                descending: Boolean(column.desc),
+                collation: column.coll,
+                key: Boolean(column.key)
+              }))
             }
-          })
+          }),
+        foreignKeys: foreignKeys.map((foreignKey) => ({
+          id: foreignKey.id,
+          sequence: foreignKey.seq,
+          table: foreignKey.table,
+          from: foreignKey.from,
+          to: foreignKey.to,
+          onUpdate: foreignKey.on_update,
+          onDelete: foreignKey.on_delete,
+          match: foreignKey.match
+        })),
+        triggers,
+        // SQLite validates the full schema during table replacement. Keep the
+        // complete view inventory so rebuilds can replay transitive dependencies.
+        views: viewRows
       }
     }
 

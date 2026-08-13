@@ -78,7 +78,8 @@ module.exports = {
       modelCount: modelsResult.modelCount,
       diff,
       statements,
-      hasPendingChanges: statements.length > 0
+      hasPendingChanges: statements.length > 0,
+      hasBlockedChanges: statements.some((statement) => statement.blocked)
     }
   }
 }

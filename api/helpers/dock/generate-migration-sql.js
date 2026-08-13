@@ -131,7 +131,6 @@ module.exports = {
 function generateSqliteStatements(diff, models, schema) {
   const statements = []
   const rebuiltTables = new Set()
-  const renameMap = createRenameMap(diff.columnsToRename || [])
 
   for (const table of diff.tablesToCreate) {
     statements.push({
@@ -159,16 +158,24 @@ function generateSqliteStatements(diff, models, schema) {
     }
 
     rebuiltTables.add(tableName)
-    statements.push({
-      type: 'rebuild_table',
-      table: tableName,
-      sql: generateSqliteTableRebuild(
+    statements.push(
+      generateSqliteTableRebuildStatement({
         tableName,
-        model,
         existingTable,
-        renameMap.get(tableName) || new Map()
-      )
-    })
+        modifications: diff.columnsToModify.filter(
+          (column) => column.tableName === tableName
+        ),
+        renames: (diff.columnsToRename || []).filter(
+          (column) => column.tableName === tableName
+        ),
+        additions: (diff.columnsToAdd || []).filter(
+          (column) => column.tableName === tableName
+        ),
+        drops: (diff.columnsToDrop || []).filter(
+          (column) => column.tableName === tableName
+        )
+      })
+    )
   }
 
   for (const column of diff.columnsToRename || []) {
@@ -217,22 +224,6 @@ function generateSqliteStatements(diff, models, schema) {
   }
 
   return statements
-}
-
-function createRenameMap(columnsToRename) {
-  const renameMap = new Map()
-
-  for (const column of columnsToRename) {
-    if (!renameMap.has(column.tableName)) {
-      renameMap.set(column.tableName, new Map())
-    }
-
-    renameMap
-      .get(column.tableName)
-      .set(column.toColumnName.toLowerCase(), column.fromColumnName)
-  }
-
-  return renameMap
 }
 
 /**
@@ -419,73 +410,436 @@ function generateSqliteCreateTable(tableName, columns) {
   )}\n);`
 }
 
-function generateSqliteTableRebuild(
+function generateSqliteTableRebuildStatement({
   tableName,
-  model,
   existingTable,
-  renamedColumns = new Map()
-) {
-  const columns = []
+  modifications,
+  renames,
+  additions,
+  drops
+}) {
+  const unsupportedChanges = [
+    renames.length > 0 && 'column renames',
+    additions.length > 0 && 'column additions',
+    drops.length > 0 && 'column removals'
+  ].filter(Boolean)
 
-  for (const [attrName, attr] of Object.entries(model.attributes)) {
-    const mapped = mapSqliteModelColumn(attr, attrName, model.primaryKey)
-    columns.push({
-      name: attr.columnName || attrName,
-      ...mapped
-    })
+  if (unsupportedChanges.length > 0) {
+    return blockedSqliteRebuild(
+      tableName,
+      `A table rebuild combined with ${unsupportedChanges.join(
+        ', '
+      )} cannot be represented without guessing.`
+    )
   }
 
-  const oldTableName = `${tableName}__old`
-  const createSql = generateSqliteCreateTable(tableName, columns)
-  const existingColumnNames = new Set(
-    (existingTable?.columns || []).map((column) => column.name.toLowerCase())
-  )
-  const copyableColumns = columns
-    .map((column) => {
-      const targetColumn = column.name
-      const sourceColumn =
-        existingColumnNames.has(targetColumn.toLowerCase()) && targetColumn
+  if (!existingTable.sql) {
+    return blockedSqliteRebuild(
+      tableName,
+      'SQLite did not return the original CREATE TABLE definition.'
+    )
+  }
 
-      if (sourceColumn) {
-        return { targetColumn, sourceColumn }
-      }
-
-      const renamedSource = renamedColumns.get(targetColumn.toLowerCase())
-      if (
-        renamedSource &&
-        existingColumnNames.has(renamedSource.toLowerCase())
-      ) {
-        return { targetColumn, sourceColumn: renamedSource }
-      }
-
-      return null
+  try {
+    const temporaryTableName = `${tableName}__slipway_new`
+    const createSql = rewriteSqliteCreateTable({
+      sql: existingTable.sql,
+      tableName,
+      temporaryTableName,
+      modifications
     })
-    .filter(Boolean)
-  const quotedTargetColumns = copyableColumns
-    .map(({ targetColumn }) => `\`${targetColumn}\``)
-    .join(', ')
-  const quotedSourceColumns = copyableColumns
-    .map(({ sourceColumn }) => `\`${sourceColumn}\``)
-    .join(', ')
-  const copySql =
-    copyableColumns.length > 0
-      ? `INSERT INTO \`${tableName}\` (${quotedTargetColumns}) SELECT ${quotedSourceColumns} FROM \`${oldTableName}\`;`
-      : null
-  const indexStatements = generateSqliteIndexStatements(tableName, model).map(
-    (statement) => statement.sql
+    const columns = (existingTable.columns || []).map((column) => column.name)
+
+    if (columns.length === 0) {
+      throw new Error('The existing table has no copyable columns.')
+    }
+
+    const recreateSql = []
+    const dropDependentViewsSql = []
+    const preservedObjects = []
+
+    for (const index of existingTable.indexes || []) {
+      if (index.origin === 'u' && !index.sql) {
+        preservedObjects.push({ type: 'unique constraint', name: index.name })
+        continue
+      }
+
+      if (!index.sql) {
+        throw new Error(
+          `Index ${index.name} does not have a replayable SQLite definition.`
+        )
+      }
+
+      recreateSql.push(terminateSql(index.sql))
+      preservedObjects.push({ type: 'index', name: index.name })
+    }
+
+    for (const trigger of existingTable.triggers || []) {
+      if (!trigger.sql) {
+        throw new Error(
+          `Trigger ${trigger.name} does not have a replayable SQLite definition.`
+        )
+      }
+
+      recreateSql.push(terminateSql(trigger.sql))
+      preservedObjects.push({ type: 'trigger', name: trigger.name })
+    }
+
+    for (const view of existingTable.views || []) {
+      if (!view.sql) {
+        throw new Error(
+          `View ${view.name} does not have a replayable SQLite definition.`
+        )
+      }
+
+      dropDependentViewsSql.push(
+        `DROP VIEW ${quoteSqliteIdentifier(view.name)};`
+      )
+      recreateSql.push(terminateSql(view.sql))
+      preservedObjects.push({ type: 'view', name: view.name })
+    }
+
+    const quotedColumns = columns.map(quoteSqliteIdentifier).join(', ')
+    const sql = [
+      terminateSql(createSql),
+      `INSERT INTO ${quoteSqliteIdentifier(
+        temporaryTableName
+      )} (${quotedColumns}) SELECT ${quotedColumns} FROM ${quoteSqliteIdentifier(
+        tableName
+      )};`,
+      ...dropDependentViewsSql,
+      `DROP TABLE ${quoteSqliteIdentifier(tableName)};`,
+      `ALTER TABLE ${quoteSqliteIdentifier(
+        temporaryTableName
+      )} RENAME TO ${quoteSqliteIdentifier(tableName)};`,
+      ...recreateSql
+    ].join('\n')
+
+    return {
+      type: 'rebuild_table',
+      table: tableName,
+      risk: 'high',
+      sql,
+      currentSchemaSql: existingTable.sql,
+      changedColumns: modifications.map((modification) => ({
+        column: modification.columnName,
+        current: {
+          type: modification.current.type,
+          defaultValue: modification.current.defaultValue,
+          nullable: modification.current.nullable
+        },
+        expected: {
+          type: modification.expected.sqlType,
+          defaultValue: modification.expected.defaultValue,
+          nullable: modification.expected.nullable
+        }
+      })),
+      preservedObjects,
+      verification: {
+        rowCount: true,
+        integrityCheck: true,
+        foreignKeyCheck: true
+      }
+    }
+  } catch (error) {
+    return blockedSqliteRebuild(tableName, error.message)
+  }
+}
+
+function blockedSqliteRebuild(tableName, reason) {
+  return {
+    type: 'blocked_rebuild',
+    table: tableName,
+    blocked: true,
+    risk: 'blocked',
+    reason,
+    sql: `-- Bosun blocked this rebuild: ${reason}`
+  }
+}
+
+function rewriteSqliteCreateTable({
+  sql,
+  tableName,
+  temporaryTableName,
+  modifications
+}) {
+  const openParen = findFirstSqliteStructuralCharacter(sql, '(')
+  const closeParen = findMatchingSqliteParenthesis(sql, openParen)
+
+  if (openParen === -1 || closeParen === -1) {
+    throw new Error('The CREATE TABLE definition could not be parsed safely.')
+  }
+
+  const prefix = sql.slice(0, openParen)
+  const rewrittenPrefix = prefix.replace(
+    /^(\s*CREATE\s+TABLE\s+)(?:IF\s+NOT\s+EXISTS\s+)?(?:"(?:[^"]|"")*"|`(?:[^`]|``)*`|\[[^\]]*\]|[^\s(]+)(\s*)$/i,
+    `$1${quoteSqliteIdentifier(temporaryTableName)}$2`
   )
 
-  return [
-    'BEGIN;',
-    `ALTER TABLE \`${tableName}\` RENAME TO \`${oldTableName}\`;`,
-    createSql,
-    copySql,
-    ...indexStatements,
-    `DROP TABLE \`${oldTableName}\`;`,
-    'COMMIT;'
-  ]
-    .filter(Boolean)
-    .join('\n')
+  if (rewrittenPrefix === prefix) {
+    throw new Error(`The CREATE TABLE prefix for ${tableName} is unsupported.`)
+  }
+
+  const definitions = splitSqliteDefinitions(
+    sql.slice(openParen + 1, closeParen)
+  )
+  const modificationMap = new Map(
+    modifications.map((modification) => [
+      modification.columnName.toLowerCase(),
+      modification
+    ])
+  )
+  const rewrittenColumns = new Set()
+  const rewrittenDefinitions = definitions.map((definition) => {
+    const parsed = parseSqliteColumnDefinition(definition)
+    if (!parsed || !modificationMap.has(parsed.name.toLowerCase())) {
+      return definition
+    }
+
+    const modification = modificationMap.get(parsed.name.toLowerCase())
+    rewrittenColumns.add(parsed.name.toLowerCase())
+    return replaceSqliteDeclaredType(
+      definition,
+      parsed.identifierEnd,
+      modification.expected.sqlType
+    )
+  })
+
+  if (rewrittenColumns.size !== modificationMap.size) {
+    const missingColumns = Array.from(modificationMap.keys()).filter(
+      (column) => !rewrittenColumns.has(column)
+    )
+    throw new Error(
+      `Could not safely locate column definition(s): ${missingColumns.join(
+        ', '
+      )}.`
+    )
+  }
+
+  return `${rewrittenPrefix}(${rewrittenDefinitions.join(',')})${sql.slice(
+    closeParen + 1
+  )}`
+}
+
+function splitSqliteDefinitions(body) {
+  const definitions = []
+  let start = 0
+  let depth = 0
+  let quote = null
+
+  for (let index = 0; index < body.length; index++) {
+    const character = body[index]
+    const next = body[index + 1]
+
+    if (quote) {
+      if (character === quote) {
+        if (next === quote && quote !== ']') {
+          index++
+        } else {
+          quote = null
+        }
+      }
+      continue
+    }
+
+    if (character === "'" || character === '"' || character === '`') {
+      quote = character
+    } else if (character === '[') {
+      quote = ']'
+    } else if (character === '(') {
+      depth++
+    } else if (character === ')') {
+      depth--
+    } else if (character === ',' && depth === 0) {
+      definitions.push(body.slice(start, index))
+      start = index + 1
+    }
+  }
+
+  if (quote || depth !== 0) {
+    throw new Error('The CREATE TABLE column list is not balanced.')
+  }
+
+  definitions.push(body.slice(start))
+  return definitions
+}
+
+function parseSqliteColumnDefinition(definition) {
+  const leadingWhitespace = definition.match(/^\s*/)[0].length
+  const firstWord = definition
+    .slice(leadingWhitespace)
+    .match(/^(CONSTRAINT|PRIMARY|UNIQUE|CHECK|FOREIGN)\b/i)
+
+  if (firstWord) return null
+
+  const identifier = readSqliteIdentifier(definition, leadingWhitespace)
+  if (!identifier) return null
+
+  return identifier
+}
+
+function readSqliteIdentifier(sql, start) {
+  const first = sql[start]
+
+  if (first === '"' || first === '`' || first === '[') {
+    const closing = first === '[' ? ']' : first
+    let value = ''
+
+    for (let index = start + 1; index < sql.length; index++) {
+      if (sql[index] === closing) {
+        if (sql[index + 1] === closing && closing !== ']') {
+          value += closing
+          index++
+          continue
+        }
+
+        return { name: value, identifierEnd: index + 1 }
+      }
+      value += sql[index]
+    }
+
+    return null
+  }
+
+  const match = sql.slice(start).match(/^[^\s,()]+/)
+  if (!match) return null
+  return { name: match[0], identifierEnd: start + match[0].length }
+}
+
+function replaceSqliteDeclaredType(definition, identifierEnd, expectedType) {
+  if (
+    !/^[A-Za-z][A-Za-z0-9_ ]*(?:\(\s*\d+(?:\s*,\s*\d+)?\s*\))?$/.test(
+      expectedType
+    )
+  ) {
+    throw new Error(`Unsafe SQLite type: ${expectedType}.`)
+  }
+
+  let typeStart = identifierEnd
+  while (/\s/.test(definition[typeStart] || '')) typeStart++
+
+  if (
+    /^(PRIMARY|NOT|UNIQUE|CHECK|DEFAULT|COLLATE|REFERENCES|GENERATED|AS)\b/i.test(
+      definition.slice(typeStart)
+    )
+  ) {
+    throw new Error(
+      'A column without a declared type cannot be rewritten safely.'
+    )
+  }
+
+  let typeEnd = definition.length
+  let depth = 0
+  let quote = null
+
+  for (let index = typeStart; index < definition.length; index++) {
+    const character = definition[index]
+    const next = definition[index + 1]
+
+    if (quote) {
+      if (character === quote) {
+        if (next === quote && quote !== ']') index++
+        else quote = null
+      }
+      continue
+    }
+
+    if (character === "'" || character === '"' || character === '`') {
+      quote = character
+    } else if (character === '[') {
+      quote = ']'
+    } else if (character === '(') {
+      depth++
+    } else if (character === ')') {
+      depth--
+    } else if (depth === 0 && /\s/.test(character)) {
+      const remainder = definition.slice(index).trimStart()
+      if (
+        /^(PRIMARY|NOT|UNIQUE|CHECK|DEFAULT|COLLATE|REFERENCES|GENERATED|AS)\b/i.test(
+          remainder
+        )
+      ) {
+        typeEnd = index
+        break
+      }
+    }
+  }
+
+  if (!definition.slice(typeStart, typeEnd).trim()) {
+    throw new Error(
+      'A column without a declared type cannot be rewritten safely.'
+    )
+  }
+
+  return `${definition.slice(0, typeStart)}${expectedType}${definition.slice(
+    typeEnd
+  )}`
+}
+
+function findFirstSqliteStructuralCharacter(sql, target) {
+  let quote = null
+
+  for (let index = 0; index < sql.length; index++) {
+    const character = sql[index]
+    const next = sql[index + 1]
+
+    if (quote) {
+      if (character === quote) {
+        if (next === quote && quote !== ']') index++
+        else quote = null
+      }
+      continue
+    }
+
+    if (character === '"' || character === '`' || character === "'") {
+      quote = character
+    } else if (character === '[') {
+      quote = ']'
+    } else if (character === target) {
+      return index
+    }
+  }
+
+  return -1
+}
+
+function findMatchingSqliteParenthesis(sql, openParen) {
+  let depth = 0
+  let quote = null
+
+  for (let index = openParen; index < sql.length; index++) {
+    const character = sql[index]
+    const next = sql[index + 1]
+
+    if (quote) {
+      if (character === quote) {
+        if (next === quote && quote !== ']') index++
+        else quote = null
+      }
+      continue
+    }
+
+    if (character === '"' || character === '`' || character === "'") {
+      quote = character
+    } else if (character === '[') {
+      quote = ']'
+    } else if (character === '(') {
+      depth++
+    } else if (character === ')') {
+      depth--
+      if (depth === 0) return index
+    }
+  }
+
+  return -1
+}
+
+function quoteSqliteIdentifier(value) {
+  return `\`${String(value).replace(/`/g, '``')}\``
+}
+
+function terminateSql(sql) {
+  return `${String(sql).trim().replace(/;+$/, '')};`
 }
 
 function generateSqliteIndexStatements(tableName, model) {
@@ -566,7 +920,7 @@ function mapSqliteType(
     case 'number':
       return isPrimaryKey || isForeignKey ? 'INTEGER' : 'INTEGER'
     case 'boolean':
-      return 'TEXT'
+      return 'INTEGER'
     case 'json':
     case 'ref':
       return 'TEXT'
@@ -594,8 +948,9 @@ function normalizeSqliteType(type) {
     case 'integer':
       return 'INTEGER'
     case '_json':
-    case '_boolean':
       return 'TEXT'
+    case '_boolean':
+      return 'INTEGER'
     case 'float':
     case 'double':
     case 'real':

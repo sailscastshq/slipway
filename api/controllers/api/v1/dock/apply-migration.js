@@ -80,6 +80,23 @@ module.exports = {
       throw { badRequest: 'No statements provided.' }
     }
 
+    const blockedStatement = statements.find(
+      (statement) =>
+        statement &&
+        typeof statement === 'object' &&
+        (statement.blocked || statement.type === 'blocked_rebuild')
+    )
+
+    if (blockedStatement) {
+      throw {
+        badRequest:
+          blockedStatement.reason ||
+          `Slipway blocked the ${
+            blockedStatement.table || 'database'
+          } migration.`
+      }
+    }
+
     // Extract SQL from statement objects
     const sqlStatements = statements.map((s) =>
       typeof s === 'string' ? s : s.sql

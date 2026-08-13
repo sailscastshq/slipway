@@ -89,7 +89,7 @@ test('schema diff treats old camelCase physical columns as rename candidates', a
   expect(diff.columnsToAdd).toEqual([])
 })
 
-test('schema diff follows sails-sqlite boolean physical columns', async ({
+test('schema diff treats SQLite boolean storage forms as one logical contract', async ({
   sails,
   expect
 }) => {
@@ -109,6 +109,41 @@ test('schema diff follows sails-sqlite boolean physical columns', async ({
             columnName: 'is_default',
             columnType: '_boolean',
             defaultsTo: true
+          },
+          bridgeEnabled: {
+            type: 'boolean',
+            columnName: 'bridge_enabled',
+            defaultsTo: false
+          }
+        }
+      },
+      featureFlag: {
+        identity: 'featureFlag',
+        tableName: 'feature_flags',
+        primaryKey: 'id',
+        attributes: {
+          id: {
+            type: 'number',
+            autoIncrement: true
+          },
+          enabled: {
+            type: 'boolean',
+            defaultsTo: false
+          }
+        }
+      },
+      helmHistoryEntry: {
+        identity: 'helmHistoryEntry',
+        tableName: 'helm_history_entries',
+        primaryKey: 'id',
+        attributes: {
+          id: {
+            type: 'number',
+            autoIncrement: true
+          },
+          pinned: {
+            type: 'boolean',
+            defaultsTo: false
           }
         }
       },
@@ -133,7 +168,22 @@ test('schema diff follows sails-sqlite boolean physical columns', async ({
       apps: {
         columns: [
           { name: 'id', type: 'integer' },
-          { name: 'is_default', type: 'text' }
+          { name: 'is_default', type: 'text' },
+          { name: 'bridge_enabled', type: 'BOOLEAN' }
+        ],
+        indexes: []
+      },
+      feature_flags: {
+        columns: [
+          { name: 'id', type: 'integer' },
+          { name: 'enabled', type: 'INTEGER' }
+        ],
+        indexes: []
+      },
+      helm_history_entries: {
+        columns: [
+          { name: 'id', type: 'integer' },
+          { name: 'pinned', type: 'BOOLEAN' }
         ],
         indexes: []
       },
