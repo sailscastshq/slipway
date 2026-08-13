@@ -889,10 +889,10 @@ test(
     expect(updateDocument.status()).toBe(200)
     const updateDocumentHtml = await updateDocument.text()
     expect(updateDocumentHtml).toContain(
-      '<title>Search is faster and calmer · Northstar</title>'
+      '<title data-inertia="">Search is faster and calmer · Northstar</title>'
     )
     expect(updateDocumentHtml).toContain(
-      '<meta property="og:description" content="Useful results now arrive without the wait." />'
+      'property="og:description" content="Useful results now arrive without the wait."'
     )
     expect(updateDocumentHtml).toContain(
       `${appOrigin}/bearing/updates/p/search-is-faster-and-calmer" />`

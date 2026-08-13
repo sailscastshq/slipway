@@ -1,4 +1,7 @@
 const { serializeUpdate } = require('../../lib/bearing-realtime')
+const {
+  buildBearingSocialMetadata
+} = require('../../lib/bearing-social-metadata')
 
 module.exports = {
   friendlyName: 'View public Bearing update',
@@ -45,8 +48,15 @@ module.exports = {
     const publicPath = `${
       resolved.publicBasePath
     }/updates/p/${encodeURIComponent(update.slug)}`
-    const ogImageUrl = absoluteUrl(this.req, `${publicPath}/og.png`)
-    const canonicalUrl = absoluteUrl(this.req, publicPath)
+    const social = buildBearingSocialMetadata({
+      req: this.req,
+      appName: resolved.project.name,
+      path: publicPath,
+      imagePath: `${publicPath}/og.png`,
+      title: `${update.title} · ${resolved.project.name}`,
+      description: update.excerpt,
+      type: 'article'
+    })
 
     return {
       page: 'bearing/update',
@@ -64,15 +74,10 @@ module.exports = {
           showPublicUpdates: resolved.space.showPublicUpdates
         },
         update: serializeUpdate({ ...update, linkedFeedback }),
-        publicUrl: canonicalUrl,
-        ogImageUrl
+        publicUrl: social.publicUrl,
+        ogImageUrl: social.ogImageUrl
       },
-      locals: {
-        title: `${update.title} · ${resolved.project.name}`,
-        description: update.excerpt,
-        ogImage: ogImageUrl,
-        canonicalUrl
-      }
+      locals: social.locals
     }
   }
 }
@@ -86,14 +91,4 @@ async function resolveRequest(req, inputs) {
   } catch {
     throw 'notFound'
   }
-}
-
-function absoluteUrl(req, path) {
-  const protocol = req.get('x-forwarded-proto') || req.protocol || 'https'
-  const host =
-    req.get('x-forwarded-host') ||
-    req.get('host') ||
-    req.hostname ||
-    'localhost'
-  return `${protocol}://${host}${path}`
 }

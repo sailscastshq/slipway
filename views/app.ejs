@@ -7,6 +7,11 @@
       hostAssetBasePath
         ? tags.replace(/(src|href)="\//g, `$1="${hostAssetBasePath}/`)
         : tags
+    const pageTitle = locals.title
+    const pageDescription = locals.description
+    const pageUrl = locals.ogUrl || locals.canonicalUrl
+    const pageImage = locals.ogImage
+    const pageType = locals.ogType || 'website'
   %>
   <head>
     <meta charset="UTF-8" />
@@ -15,20 +20,39 @@
       name="viewport"
       content="width=device-width, initial-scale=1.0, maximum-scale=1.0"
     />
-    <% if (locals.title) { %>
-      <title><%= locals.title %></title>
-      <meta property="og:title" content="<%= locals.title %>" />
+    <% if (pageTitle) { %>
+      <title data-inertia=""><%= pageTitle %></title>
+      <meta data-inertia="og:title" property="og:title" content="<%= pageTitle %>" />
+      <meta data-inertia="twitter:title" name="twitter:title" content="<%= pageTitle %>" />
     <% } %>
-    <% if (locals.description) { %>
-      <meta name="description" content="<%= locals.description %>" />
-      <meta property="og:description" content="<%= locals.description %>" />
+    <% if (pageDescription) { %>
+      <meta data-inertia="description" name="description" content="<%= pageDescription %>" />
+      <meta data-inertia="og:description" property="og:description" content="<%= pageDescription %>" />
+      <meta data-inertia="twitter:description" name="twitter:description" content="<%= pageDescription %>" />
     <% } %>
-    <% if (locals.ogImage) { %>
-      <meta property="og:image" content="<%= locals.ogImage %>" />
-      <meta name="twitter:card" content="summary_large_image" />
+    <% if (locals.ogSiteName) { %>
+      <meta data-inertia="og:site_name" property="og:site_name" content="<%= locals.ogSiteName %>" />
+    <% } %>
+    <% if (pageUrl) { %>
+      <meta data-inertia="og:url" property="og:url" content="<%= pageUrl %>" />
+      <meta data-inertia="twitter:url" name="twitter:url" content="<%= pageUrl %>" />
+    <% } %>
+    <% if (locals.ogType) { %>
+      <meta data-inertia="og:type" property="og:type" content="<%= pageType %>" />
+    <% } %>
+    <% if (pageImage) { %>
+      <meta data-inertia="og:image" property="og:image" content="<%= pageImage %>" />
+      <% if (locals.ogImageWidth) { %>
+        <meta data-inertia="og:image:width" property="og:image:width" content="<%= locals.ogImageWidth %>" />
+      <% } %>
+      <% if (locals.ogImageHeight) { %>
+        <meta data-inertia="og:image:height" property="og:image:height" content="<%= locals.ogImageHeight %>" />
+      <% } %>
+      <meta data-inertia="twitter:card" name="twitter:card" content="summary_large_image" />
+      <meta data-inertia="twitter:image" name="twitter:image" content="<%= pageImage %>" />
     <% } %>
     <% if (locals.canonicalUrl) { %>
-      <link rel="canonical" href="<%= locals.canonicalUrl %>" />
+      <link data-inertia="canonical" rel="canonical" href="<%= locals.canonicalUrl %>" />
     <% } %>
     <link
       rel="icon"

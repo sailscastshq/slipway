@@ -1,5 +1,8 @@
 const { normalizeBearingCategories } = require('../../lib/bearing-categories')
 const {
+  buildBearingSocialMetadata
+} = require('../../lib/bearing-social-metadata')
+const {
   buildRealtimeConfig,
   serializeFeedback
 } = require('../../lib/bearing-realtime')
@@ -126,6 +129,21 @@ module.exports = {
     const publicPath = focusedFeedback
       ? `${feedbackPath}/${encodeURIComponent(focusedFeedback.publicId)}`
       : feedbackPath
+    const title = focusedFeedback
+      ? `${focusedFeedback.title} · ${resolved.project.name}`
+      : `Feedback · ${resolved.project.name}`
+    const description =
+      focusedFeedback?.details?.trim() ||
+      `Share feedback and help shape what comes next for ${resolved.project.name}.`
+    const social = buildBearingSocialMetadata({
+      req: this.req,
+      appName: resolved.project.name,
+      path: publicPath,
+      imagePath: `${resolved.publicBasePath}/feedback/og.png`,
+      title,
+      description,
+      type: focusedFeedback ? 'article' : 'website'
+    })
 
     return {
       page: 'bearing/feedback',
@@ -138,11 +156,8 @@ module.exports = {
           roadmapPath: `${resolved.publicBasePath}/roadmap`,
           updatesPath: `${resolved.publicBasePath}/updates`,
           identityPath: resolved.identityPath,
-          publicUrl: absoluteUrl(this.req, publicPath),
-          ogImageUrl: absoluteUrl(
-            this.req,
-            `${resolved.publicBasePath}/feedback/og.png`
-          )
+          publicUrl: social.publicUrl,
+          ogImageUrl: social.ogImageUrl
         },
         bearing: {
           acceptFeedback: resolved.space.acceptFeedback,
@@ -178,7 +193,8 @@ module.exports = {
           total,
           matchOn: 'publicId'
         })
-      }
+      },
+      locals: social.locals
     }
   }
 }
@@ -239,14 +255,4 @@ function buildCriteria({ spaceId, filters }) {
   }
 
   return criteria
-}
-
-function absoluteUrl(req, path) {
-  const protocol = req.get('x-forwarded-proto') || req.protocol || 'https'
-  const host =
-    req.get('x-forwarded-host') ||
-    req.get('host') ||
-    req.hostname ||
-    'localhost'
-  return `${protocol}://${host}${path}`
 }

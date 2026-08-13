@@ -3,6 +3,9 @@ const {
   serializeFeedback,
   serializeUpdate
 } = require('../../lib/bearing-realtime')
+const {
+  buildBearingSocialMetadata
+} = require('../../lib/bearing-social-metadata')
 
 module.exports = {
   friendlyName: 'View public Bearing surface',
@@ -72,6 +75,19 @@ module.exports = {
               .sort('updatedAt DESC')
               .limit(100)
           ).map(serializeFeedback)
+    const title = surface === 'roadmap' ? 'Roadmap' : 'Updates'
+    const description =
+      surface === 'roadmap'
+        ? `A clear look at what ${resolved.project.name} is considering and building next.`
+        : `The useful things that recently changed in ${resolved.project.name}.`
+    const social = buildBearingSocialMetadata({
+      req: this.req,
+      appName: resolved.project.name,
+      path: `${resolved.publicBasePath}/${surface}`,
+      imagePath: `${resolved.publicBasePath}/${surface}/og.png`,
+      title: `${title} · ${resolved.project.name}`,
+      description
+    })
 
     return {
       page: 'bearing/surface',
@@ -83,14 +99,8 @@ module.exports = {
           feedbackPath: `${resolved.publicBasePath}/feedback`,
           roadmapPath: `${resolved.publicBasePath}/roadmap`,
           updatesPath: `${resolved.publicBasePath}/updates`,
-          publicUrl: absoluteUrl(
-            this.req,
-            `${resolved.publicBasePath}/${surface}`
-          ),
-          ogImageUrl: absoluteUrl(
-            this.req,
-            `${resolved.publicBasePath}/${surface}/og.png`
-          )
+          publicUrl: social.publicUrl,
+          ogImageUrl: social.ogImageUrl
         },
         bearing: {
           showPublicRoadmap: resolved.space.showPublicRoadmap,
@@ -104,17 +114,8 @@ module.exports = {
         surface,
         embedded,
         items
-      }
+      },
+      locals: social.locals
     }
   }
-}
-
-function absoluteUrl(req, path) {
-  const protocol = req.get('x-forwarded-proto') || req.protocol || 'https'
-  const host =
-    req.get('x-forwarded-host') ||
-    req.get('host') ||
-    req.hostname ||
-    'localhost'
-  return `${protocol}://${host}${path}`
 }
