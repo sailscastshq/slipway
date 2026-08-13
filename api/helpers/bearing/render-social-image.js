@@ -1,5 +1,13 @@
 const { Resvg } = require('@resvg/resvg-js')
 
+const FONT = {
+  family: 'DejaVu Sans',
+  files: [
+    require.resolve('dejavu-fonts-ttf/ttf/DejaVuSans.ttf'),
+    require.resolve('dejavu-fonts-ttf/ttf/DejaVuSans-Bold.ttf')
+  ]
+}
+
 module.exports = {
   friendlyName: 'Render Bearing social image',
 
@@ -36,40 +44,60 @@ module.exports = {
       <svg width="1200" height="630" viewBox="0 0 1200 630" xmlns="http://www.w3.org/2000/svg">
         <rect width="1200" height="630" fill="#f4f4f1"/>
         <rect x="44" y="40" width="1112" height="550" rx="34" fill="#ffffff"/>
-        <rect x="88" y="84" width="42" height="42" rx="12" fill="#111111"/>
-        <path d="M102 96h10.5c7 0 11.5 3.7 11.5 9.2 0 5.8-4.5 9.8-11.8 9.8H108v7h-6V96Zm6 5v9h4.2c3.7 0 5.8-1.7 5.8-4.6 0-2.8-2.1-4.4-5.8-4.4H108Z" fill="#fff"/>
-        <text x="150" y="111" fill="#161616" font-family="Arial, sans-serif" font-size="23" font-weight="700">${escapeXml(
-          appName
-        )}</text>
-        <text x="1082" y="111" text-anchor="end" fill="#777773" font-family="Arial, sans-serif" font-size="20">${surfaceName}</text>
-        <text x="88" y="203" fill="#969691" font-family="Arial, sans-serif" font-size="16" font-weight="700" letter-spacing="3">BEARING</text>
-        <text x="88" y="263" fill="#111111" font-family="Arial, sans-serif" font-size="46" font-weight="700">${escapeXml(
-          headline
-        )}</text>
+        <text x="88" y="104" fill="#161616" font-family="${
+          FONT.family
+        }" font-size="23" font-weight="700">${escapeXml(appName)}</text>
+        <text x="88" y="137" fill="#777773" font-family="${
+          FONT.family
+        }" font-size="20">${surfaceName}</text>
+        <rect x="1016" y="72" width="96" height="96" rx="24" fill="#17171a"/>
+        <svg x="1034" y="89" width="60" height="60" viewBox="0 0 32 32" fill="none">
+          <path d="M7 17 C7 3 25 3 25 17 Z" stroke="#38bdf8" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M7 17 C4 21 4 25 8 28" stroke="#38bdf8" stroke-width="2.5" stroke-linecap="round"/>
+          <path d="M12 17 C11 21 10 25 13 28" stroke="#38bdf8" stroke-width="2.5" stroke-linecap="round"/>
+          <path d="M20 17 C21 21 22 25 19 28" stroke="#38bdf8" stroke-width="2.5" stroke-linecap="round"/>
+          <path d="M25 17 C28 21 28 25 24 28" stroke="#38bdf8" stroke-width="2.5" stroke-linecap="round"/>
+          <circle cx="13" cy="11" r="1.8" fill="#38bdf8"/>
+          <circle cx="19" cy="11" r="1.8" fill="#38bdf8"/>
+        </svg>
+        <text x="88" y="203" fill="#969691" font-family="${
+          FONT.family
+        }" font-size="16" font-weight="700" letter-spacing="3">BEARING</text>
+        <text x="88" y="263" fill="#111111" font-family="${
+          FONT.family
+        }" font-size="46" font-weight="700">${escapeXml(headline)}</text>
         <rect x="88" y="310" width="1024" height="176" rx="24" fill="#f7f7f5"/>
         <circle cx="128" cy="350" r="9" fill="#171717"/>
-        <text x="153" y="356" fill="#73736f" font-family="Arial, sans-serif" font-size="18">${escapeXml(
-          meta
-        )}</text>
+        <text x="153" y="356" fill="#73736f" font-family="${
+          FONT.family
+        }" font-size="18">${escapeXml(meta)}</text>
         ${titleLines
           .map(
             (line, index) =>
               `<text x="120" y="${
                 411 + index * 40
-              }" fill="#111111" font-family="Arial, sans-serif" font-size="31" font-weight="700">${escapeXml(
-                line
-              )}</text>`
+              }" fill="#111111" font-family="${
+                FONT.family
+              }" font-size="31" font-weight="700">${escapeXml(line)}</text>`
           )
           .join('')}
-        <text x="88" y="548" fill="#8b8b86" font-family="Arial, sans-serif" font-size="17">${itemCount} ${
+        <text x="88" y="548" fill="#8b8b86" font-family="${
+          FONT.family
+        }" font-size="17">${itemCount} ${
       itemCount === 1 ? 'post' : 'posts'
     } on ${surfaceName}</text>
-        <text x="1112" y="548" text-anchor="end" fill="#8b8b86" font-family="Arial, sans-serif" font-size="17">Powered by Slipway</text>
+        <text x="1112" y="548" text-anchor="end" fill="#8b8b86" font-family="${
+          FONT.family
+        }" font-size="17">Powered by Slipway</text>
       </svg>`
 
     return new Resvg(svg, {
       fitTo: { mode: 'width', value: 1200 },
-      font: { loadSystemFonts: true, defaultFontFamily: 'Arial' }
+      font: {
+        fontFiles: FONT.files,
+        loadSystemFonts: false,
+        defaultFontFamily: FONT.family
+      }
     })
       .render()
       .asPng()

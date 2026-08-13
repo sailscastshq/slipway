@@ -1231,12 +1231,48 @@ test(
     )
     expect(ogResponse.status()).toBe(200)
     expect(ogResponse.headers()['content-type']).toContain('image/png')
-    fs.writeFileSync(
-      path.join(screenshotRoot, 'feedback-og.png'),
-      await ogResponse.body()
-    )
+    const ogImage = await ogResponse.body()
+    await expectSocialImageText(page, ogImage, expect)
+    fs.writeFileSync(path.join(screenshotRoot, 'feedback-og.png'), ogImage)
   }
 )
+
+async function expectSocialImageText(page, image, expect) {
+  const metrics = await page.raw.evaluate(async (source) => {
+    const element = new Image()
+    element.src = source
+    await element.decode()
+
+    const canvas = document.createElement('canvas')
+    canvas.width = element.naturalWidth
+    canvas.height = element.naturalHeight
+    const context = canvas.getContext('2d')
+    context.drawImage(element, 0, 0)
+
+    const headline = context.getImageData(88, 220, 900, 56).data
+    let darkPixels = 0
+    for (let index = 0; index < headline.length; index += 4) {
+      if (
+        headline[index] < 80 &&
+        headline[index + 1] < 80 &&
+        headline[index + 2] < 80 &&
+        headline[index + 3] > 0
+      ) {
+        darkPixels += 1
+      }
+    }
+
+    return {
+      width: element.naturalWidth,
+      height: element.naturalHeight,
+      darkPixels
+    }
+  }, `data:image/png;base64,${image.toString('base64')}`)
+
+  expect(metrics.width).toBe(1200)
+  expect(metrics.height).toBe(630)
+  expect(metrics.darkPixels > 500).toBe(true)
+}
 
 function helper(fn) {
   fn.with = fn
