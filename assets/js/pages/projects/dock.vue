@@ -520,6 +520,10 @@ const filteredStatements = computed(() => {
   )
 })
 
+const hasBlockedStatements = computed(() =>
+  filteredStatements.value.some((statement) => statement.blocked)
+)
+
 function toggleModel(model) {
   if (selectedModels.value.has(model)) {
     selectedModels.value.delete(model)
@@ -540,7 +544,7 @@ function deselectAllModels() {
 
 // Show migration confirmation modal
 function confirmMigration() {
-  if (!filteredStatements.value.length) return
+  if (!filteredStatements.value.length || hasBlockedStatements.value) return
   showMigrateConfirm.value = true
 }
 
@@ -2635,7 +2639,7 @@ onUnmounted(() => {
         <button
           v-if="activeTab === 'migrate' && filteredStatements.length > 0"
           @click="confirmMigration"
-          :disabled="migrateLoading"
+          :disabled="migrateLoading || hasBlockedStatements"
           class="flex h-8 items-center rounded-md bg-gray-900 px-3 text-sm font-medium text-white transition-colors hover:bg-gray-800 disabled:opacity-50 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
         >
           {{ migrateLoading ? 'Applying...' : 'Apply' }}

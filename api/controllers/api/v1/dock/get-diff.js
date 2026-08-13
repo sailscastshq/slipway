@@ -157,6 +157,7 @@ module.exports = {
       diff,
       statements,
       hasPendingChanges: statements.length > 0,
+      hasBlockedChanges: statements.some((statement) => statement.blocked),
       modelsSource // 'runtime' or 'static'
     }
   }
