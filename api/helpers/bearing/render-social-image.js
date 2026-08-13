@@ -42,53 +42,80 @@ module.exports = {
       : `${itemCount} ${itemCount === 1 ? 'post' : 'posts'}`
     const svg = `
       <svg width="1200" height="630" viewBox="0 0 1200 630" xmlns="http://www.w3.org/2000/svg">
-        <rect width="1200" height="630" fill="#f4f4f1"/>
-        <rect x="44" y="40" width="1112" height="550" rx="34" fill="#ffffff"/>
-        <text x="88" y="104" fill="#161616" font-family="${
-          FONT.family
-        }" font-size="23" font-weight="700">${escapeXml(appName)}</text>
-        <text x="88" y="137" fill="#777773" font-family="${
-          FONT.family
-        }" font-size="20">${surfaceName}</text>
-        <rect x="964" y="68" width="148" height="148" rx="30" fill="#17171a"/>
-        <svg x="996" y="84" width="84" height="84" viewBox="0 0 32 32" fill="none">
-          <path d="M7 17 C7 3 25 3 25 17 Z" stroke="#38bdf8" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
-          <path d="M7 17 C4 21 4 25 8 28" stroke="#38bdf8" stroke-width="2.5" stroke-linecap="round"/>
-          <path d="M12 17 C11 21 10 25 13 28" stroke="#38bdf8" stroke-width="2.5" stroke-linecap="round"/>
-          <path d="M20 17 C21 21 22 25 19 28" stroke="#38bdf8" stroke-width="2.5" stroke-linecap="round"/>
-          <path d="M25 17 C28 21 28 25 24 28" stroke="#38bdf8" stroke-width="2.5" stroke-linecap="round"/>
-          <circle cx="13" cy="11" r="1.8" fill="#38bdf8"/>
-          <circle cx="19" cy="11" r="1.8" fill="#38bdf8"/>
+        <defs>
+          <linearGradient id="signal" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0" stop-color="#0284c7"/>
+            <stop offset="1" stop-color="#38bdf8"/>
+          </linearGradient>
+          <radialGradient id="glow" cx="0" cy="0" r="1" gradientTransform="translate(1040 40) rotate(135) scale(420 360)">
+            <stop offset="0" stop-color="#0ea5e9" stop-opacity="0.17"/>
+            <stop offset="1" stop-color="#0ea5e9" stop-opacity="0"/>
+          </radialGradient>
+        </defs>
+
+        <rect width="1200" height="630" fill="#09090b"/>
+        <rect width="1200" height="630" fill="url(#glow)"/>
+        <rect x="32" y="32" width="1136" height="566" rx="32" fill="none" stroke="#27272a"/>
+        <path d="M72 164 H1128" stroke="#27272a" stroke-dasharray="5 9"/>
+
+        <svg x="70" y="57" width="48" height="48" viewBox="0 0 32 32" fill="none">
+          <path d="M7 17 C7 3 25 3 25 17 Z" stroke="#38bdf8" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="#0ea5e9" fill-opacity="0.08"/>
+          <path d="M7 17 C4 21 4 25 8 28" stroke="#38bdf8" stroke-width="1.8" stroke-linecap="round"/>
+          <path d="M12 17 C11 21 10 25 13 28" stroke="#38bdf8" stroke-width="1.8" stroke-linecap="round"/>
+          <path d="M20 17 C21 21 22 25 19 28" stroke="#38bdf8" stroke-width="1.8" stroke-linecap="round"/>
+          <path d="M25 17 C28 21 28 25 24 28" stroke="#38bdf8" stroke-width="1.8" stroke-linecap="round"/>
+          <circle cx="13" cy="11" r="1.5" fill="#38bdf8"/>
+          <circle cx="19" cy="11" r="1.5" fill="#38bdf8"/>
         </svg>
-        <text x="1038" y="198" text-anchor="middle" fill="#d4d4d8" font-family="${
+        <text x="132" y="88" fill="#fafafa" font-family="${
           FONT.family
-        }" font-size="12" font-weight="700" letter-spacing="2.5">SLIPWAY</text>
-        <text x="88" y="203" fill="#969691" font-family="${
+        }" font-size="27" font-weight="700" letter-spacing="-1">slipway</text>
+        <rect x="252" y="61" width="104" height="35" rx="17.5" fill="#18181b" stroke="#3f3f46"/>
+        <text x="304" y="84" text-anchor="middle" fill="#a1a1aa" font-family="${
           FONT.family
-        }" font-size="16" font-weight="700" letter-spacing="3">BEARING</text>
-        <text x="88" y="263" fill="#111111" font-family="${
+        }" font-size="12" font-weight="700" letter-spacing="2">BEARING</text>
+
+        <text x="1128" y="84" text-anchor="end" fill="#fafafa" font-family="${
           FONT.family
-        }" font-size="46" font-weight="700">${escapeXml(headline)}</text>
-        <rect x="88" y="310" width="1024" height="176" rx="24" fill="#f7f7f5"/>
-        <circle cx="128" cy="350" r="9" fill="#171717"/>
-        <text x="153" y="356" fill="#73736f" font-family="${
+        }" font-size="22" font-weight="700">${escapeXml(
+      truncate(appName, 34)
+    )}</text>
+        <text x="1128" y="117" text-anchor="end" fill="#38bdf8" font-family="${
           FONT.family
-        }" font-size="18">${escapeXml(meta)}</text>
+        }" font-size="13" font-weight="700" letter-spacing="1.8">${escapeXml(
+      surfaceName.toUpperCase()
+    )}</text>
+
+        <text x="88" y="263" fill="#fafafa" font-family="${
+          FONT.family
+        }" font-size="48" font-weight="700" letter-spacing="-1.8">${escapeXml(
+      headline
+    )}</text>
+
+        <rect x="88" y="310" width="1024" height="182" rx="20" fill="#131316" stroke="#27272a"/>
+        <text x="128" y="357" fill="#a1a1aa" font-family="${
+          FONT.family
+        }" font-size="15" font-weight="700" letter-spacing="1.2">${escapeXml(
+      meta.toUpperCase()
+    )}</text>
         ${titleLines
           .map(
             (line, index) =>
-              `<text x="120" y="${
-                411 + index * 40
-              }" fill="#111111" font-family="${
+              `<text x="128" y="${
+                419 + index * 39
+              }" fill="#f4f4f5" font-family="${
                 FONT.family
-              }" font-size="31" font-weight="700">${escapeXml(line)}</text>`
+              }" font-size="31" font-weight="700" letter-spacing="-0.5">${escapeXml(
+                line
+              )}</text>`
           )
           .join('')}
-        <text x="88" y="548" fill="#8b8b86" font-family="${
+
+        <text x="88" y="558" fill="#71717a" font-family="${
           FONT.family
-        }" font-size="17">${itemCount} ${
-      itemCount === 1 ? 'post' : 'posts'
-    } on ${surfaceName}</text>
+        }" font-size="13" font-weight="700" letter-spacing="1.5">${itemCount} ${
+      itemCount === 1 ? 'POST' : 'POSTS'
+    }</text>
       </svg>`
 
     return new Resvg(svg, {
@@ -130,6 +157,11 @@ function statusLabel(status) {
 function votes(count) {
   if (!Number.isFinite(count)) return ''
   return `${count} ${count === 1 ? 'vote' : 'votes'}`
+}
+
+function truncate(value, limit) {
+  const string = String(value || '')
+  return string.length > limit ? `${string.slice(0, limit - 1)}…` : string
 }
 
 function wrap(value, width, limit) {

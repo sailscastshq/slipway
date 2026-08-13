@@ -1249,36 +1249,39 @@ async function expectSocialImageText(page, image, expect) {
     const context = canvas.getContext('2d')
     context.drawImage(element, 0, 0)
 
-    const headline = context.getImageData(88, 220, 900, 56).data
-    const platformBadge = context.getImageData(964, 68, 148, 148).data
-    let darkPixels = 0
+    const headline = context.getImageData(88, 215, 900, 60).data
+    const platformWordmark = context.getImageData(70, 52, 290, 58).data
+    const operationalFrame = context.getImageData(0, 0, 1200, 630).data
+    let headlinePixels = 0
     for (let index = 0; index < headline.length; index += 4) {
       if (
-        headline[index] < 80 &&
-        headline[index + 1] < 80 &&
-        headline[index + 2] < 80 &&
-        headline[index + 3] > 0
+        headline[index] > 210 &&
+        headline[index + 1] > 210 &&
+        headline[index + 2] > 210 &&
+        headline[index + 3] === 255
       ) {
-        darkPixels += 1
+        headlinePixels += 1
       }
     }
 
-    let badgePixels = 0
+    let framePixels = 0
     let slippyPixels = 0
-    for (let index = 0; index < platformBadge.length; index += 4) {
+    for (let index = 0; index < operationalFrame.length; index += 4) {
       if (
-        platformBadge[index] < 50 &&
-        platformBadge[index + 1] < 50 &&
-        platformBadge[index + 2] < 55 &&
-        platformBadge[index + 3] > 0
+        operationalFrame[index] < 35 &&
+        operationalFrame[index + 1] < 35 &&
+        operationalFrame[index + 2] < 40 &&
+        operationalFrame[index + 3] === 255
       ) {
-        badgePixels += 1
+        framePixels += 1
       }
+    }
+    for (let index = 0; index < platformWordmark.length; index += 4) {
       if (
-        platformBadge[index] < 90 &&
-        platformBadge[index + 1] > 140 &&
-        platformBadge[index + 2] > 190 &&
-        platformBadge[index + 3] > 0
+        platformWordmark[index] < 90 &&
+        platformWordmark[index + 1] > 140 &&
+        platformWordmark[index + 2] > 190 &&
+        platformWordmark[index + 3] === 255
       ) {
         slippyPixels += 1
       }
@@ -1287,17 +1290,17 @@ async function expectSocialImageText(page, image, expect) {
     return {
       width: element.naturalWidth,
       height: element.naturalHeight,
-      darkPixels,
-      badgePixels,
+      headlinePixels,
+      framePixels,
       slippyPixels
     }
   }, `data:image/png;base64,${image.toString('base64')}`)
 
   expect(metrics.width).toBe(1200)
   expect(metrics.height).toBe(630)
-  expect(metrics.darkPixels > 500).toBe(true)
-  expect(metrics.badgePixels > 10000).toBe(true)
-  expect(metrics.slippyPixels > 200).toBe(true)
+  expect(metrics.headlinePixels > 500).toBe(true)
+  expect(metrics.framePixels > 500000).toBe(true)
+  expect(metrics.slippyPixels > 80).toBe(true)
 }
 
 function helper(fn) {
