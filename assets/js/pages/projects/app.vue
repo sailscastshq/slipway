@@ -1499,15 +1499,6 @@ onBeforeUnmount(() => {
                 <h2 class="text-sm font-medium text-gray-900 dark:text-white">
                   Logs
                 </h2>
-                <span
-                  v-if="logsConnected"
-                  class="inline-flex items-center space-x-1 rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700 dark:bg-green-900/30 dark:text-green-400"
-                >
-                  <span
-                    class="h-1.5 w-1.5 animate-pulse rounded-full bg-green-500"
-                  ></span>
-                  <span>Live</span>
-                </span>
               </button>
               <button
                 @click="logsOpen = !logsOpen"

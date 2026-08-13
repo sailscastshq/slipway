@@ -1541,15 +1541,6 @@ onUnmounted(() => {
                 <h2 class="text-sm font-medium text-gray-900 dark:text-white">
                   Logs
                 </h2>
-                <span
-                  v-if="logsConnected"
-                  class="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-medium text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
-                >
-                  <span
-                    class="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-500"
-                  ></span>
-                  Live
-                </span>
               </button>
               <div class="flex items-center gap-2">
                 <button
