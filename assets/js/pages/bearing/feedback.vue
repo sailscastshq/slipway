@@ -633,20 +633,45 @@ function shortDate(value) {
 
 <template>
   <Head :title="pageTitle">
-    <meta name="description" :content="pageDescription" />
-    <meta property="og:type" content="website" />
-    <meta property="og:site_name" :content="app.name" />
-    <meta property="og:title" :content="pageTitle" />
-    <meta property="og:description" :content="pageDescription" />
-    <meta property="og:url" :content="app.publicUrl" />
-    <meta property="og:image" :content="app.ogImageUrl" />
-    <meta property="og:image:width" content="1200" />
-    <meta property="og:image:height" content="630" />
-    <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" :content="pageTitle" />
-    <meta name="twitter:description" :content="pageDescription" />
-    <meta name="twitter:image" :content="app.ogImageUrl" />
-    <link rel="canonical" :href="app.publicUrl" />
+    <meta
+      head-key="description"
+      name="description"
+      :content="pageDescription"
+    />
+    <meta
+      head-key="og:type"
+      property="og:type"
+      :content="focusedFeedback ? 'article' : 'website'"
+    />
+    <meta head-key="og:site_name" property="og:site_name" :content="app.name" />
+    <meta head-key="og:title" property="og:title" :content="pageTitle" />
+    <meta
+      head-key="og:description"
+      property="og:description"
+      :content="pageDescription"
+    />
+    <meta head-key="og:url" property="og:url" :content="app.publicUrl" />
+    <meta head-key="og:image" property="og:image" :content="app.ogImageUrl" />
+    <meta head-key="og:image:width" property="og:image:width" content="1200" />
+    <meta head-key="og:image:height" property="og:image:height" content="630" />
+    <meta
+      head-key="twitter:card"
+      name="twitter:card"
+      content="summary_large_image"
+    />
+    <meta head-key="twitter:title" name="twitter:title" :content="pageTitle" />
+    <meta
+      head-key="twitter:description"
+      name="twitter:description"
+      :content="pageDescription"
+    />
+    <meta head-key="twitter:url" name="twitter:url" :content="app.publicUrl" />
+    <meta
+      head-key="twitter:image"
+      name="twitter:image"
+      :content="app.ogImageUrl"
+    />
+    <link head-key="canonical" rel="canonical" :href="app.publicUrl" />
   </Head>
   <div
     class="min-h-screen bg-white text-gray-950 dark:bg-gray-950 dark:text-white"

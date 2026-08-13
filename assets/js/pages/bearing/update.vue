@@ -50,11 +50,20 @@ function longDate(value) {
     <meta head-key="og:image" property="og:image" :content="ogImageUrl" />
     <meta head-key="og:image:width" property="og:image:width" content="1200" />
     <meta head-key="og:image:height" property="og:image:height" content="630" />
-    <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" :content="pageTitle" />
-    <meta name="twitter:description" :content="update.excerpt" />
-    <meta name="twitter:image" :content="ogImageUrl" />
-    <link rel="canonical" :href="publicUrl" />
+    <meta
+      head-key="twitter:card"
+      name="twitter:card"
+      content="summary_large_image"
+    />
+    <meta head-key="twitter:title" name="twitter:title" :content="pageTitle" />
+    <meta
+      head-key="twitter:description"
+      name="twitter:description"
+      :content="update.excerpt"
+    />
+    <meta head-key="twitter:url" name="twitter:url" :content="publicUrl" />
+    <meta head-key="twitter:image" name="twitter:image" :content="ogImageUrl" />
+    <link head-key="canonical" rel="canonical" :href="publicUrl" />
   </Head>
 
   <div

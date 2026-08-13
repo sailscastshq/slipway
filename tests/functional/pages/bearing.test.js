@@ -407,6 +407,13 @@ test(
       host: 'ideas.example.com',
       'x-forwarded-host': 'ideas.example.com'
     })
+    const appDocumentRequest = request.using('http').withHeaders({
+      accept: 'text/html',
+      host: 'ideas.example.com',
+      'x-forwarded-host': 'ideas.example.com',
+      'x-forwarded-proto': 'https',
+      'user-agent': 'Twitterbot/1.0'
+    })
 
     const hostNamespace = await appRequest.get(hostBasePath)
     expect(hostNamespace).toHaveStatus(302)
@@ -425,6 +432,18 @@ test(
       'app.ogImageUrl': 'https://ideas.example.com/bearing/feedback/og.png',
       hostAssetBasePath: '/_slipway/bearing/_assets'
     })
+    expectBearingDocumentMetadata(
+      expect,
+      await appDocumentRequest.get(hostPath),
+      {
+        title: `Feedback · ${project.name}`,
+        description: `Share feedback and help shape what comes next for ${project.name}.`,
+        url: 'https://ideas.example.com/bearing/feedback',
+        image: 'https://ideas.example.com/bearing/feedback/og.png',
+        type: 'website',
+        siteName: project.name
+      }
+    )
 
     const hostPage = await request
       .withHeaders({
@@ -543,6 +562,18 @@ test(
       'feedback.data.0.title': 'Let me choose a calmer notification sound'
     })
     expect(permalink.data.url).toBe(`/bearing/feedback/${feedback.publicId}`)
+    expectBearingDocumentMetadata(
+      expect,
+      await appDocumentRequest.get(`${hostPath}/${feedback.publicId}`),
+      {
+        title: `Let me choose a calmer notification sound · ${project.name}`,
+        description: 'The current sound is easy to miss during focused work.',
+        url: `https://ideas.example.com/bearing/feedback/${feedback.publicId}`,
+        image: 'https://ideas.example.com/bearing/feedback/og.png',
+        type: 'article',
+        siteName: project.name
+      }
+    )
 
     const voter = participantClient.withHeaders({
       accept: 'application/json',
@@ -596,6 +627,30 @@ test(
       'items.0.title': 'Calmer notifications have shipped'
     })
     expect(archive.data.url).toBe('/bearing/updates')
+    expectBearingDocumentMetadata(
+      expect,
+      await appDocumentRequest.get(`${hostBasePath}/roadmap`),
+      {
+        title: `Roadmap · ${project.name}`,
+        description: `A clear look at what ${project.name} is considering and building next.`,
+        url: 'https://ideas.example.com/bearing/roadmap',
+        image: 'https://ideas.example.com/bearing/roadmap/og.png',
+        type: 'website',
+        siteName: project.name
+      }
+    )
+    expectBearingDocumentMetadata(
+      expect,
+      await appDocumentRequest.get(updatesPath),
+      {
+        title: `Updates · ${project.name}`,
+        description: `The useful things that recently changed in ${project.name}.`,
+        url: 'https://ideas.example.com/bearing/updates',
+        image: 'https://ideas.example.com/bearing/updates/og.png',
+        type: 'website',
+        siteName: project.name
+      }
+    )
 
     const updatePath = `${updatesPath}/p/${update.slug}`
     const updatePage = await participantClient.get(updatePath)
@@ -610,6 +665,25 @@ test(
       publicUrl: `https://ideas.example.com/bearing/updates/p/${update.slug}`
     })
     expect(updatePage.data.url).toBe(`/bearing/updates/p/${update.slug}`)
+    expectBearingDocumentMetadata(
+      expect,
+      await appDocumentRequest.get(updatePath),
+      {
+        title: `Calmer notifications have shipped · ${project.name}`,
+        description: 'Notification sounds now fit focused work.',
+        url: `https://ideas.example.com/bearing/updates/p/${update.slug}`,
+        image: `https://ideas.example.com/bearing/updates/p/${update.slug}/og.png`,
+        type: 'article',
+        siteName: project.name
+      }
+    )
+
+    const socialImage = await appDocumentRequest.get(
+      `${hostBasePath}/feedback/og.png`
+    )
+    expect(socialImage).toHaveStatus(200)
+    expect(socialImage).toHaveHeader('content-type', 'image/png')
+    expect(socialImage.body.length > 1000).toBe(true)
 
     const missingUpdate = await participantClient.get(
       `${updatesPath}/p/not-a-real-update`
@@ -728,4 +802,64 @@ function bearingPath(project, environment, app) {
 
 function visitPage(request, path) {
   return request.withHeaders(INERTIA_HEADERS).get(path)
+}
+
+function expectBearingDocumentMetadata(
+  expect,
+  response,
+  { title, description, url, image, type, siteName }
+) {
+  expect(response).toHaveStatus(200)
+  expect(response.header('content-type')).toContain('text/html')
+  const head = response.body.split('</head>')[0]
+
+  expectHeadValue(expect, head, 'title', title)
+  expectHeadValue(expect, head, 'meta[name="description"]', description)
+  expectHeadValue(expect, head, 'meta[property="og:site_name"]', siteName)
+  expectHeadValue(expect, head, 'meta[property="og:title"]', title)
+  expectHeadValue(expect, head, 'meta[property="og:description"]', description)
+  expectHeadValue(expect, head, 'meta[property="og:type"]', type)
+  expectHeadValue(expect, head, 'meta[property="og:url"]', url)
+  expectHeadValue(expect, head, 'meta[property="og:image"]', image)
+  expectHeadValue(expect, head, 'meta[property="og:image:width"]', '1200')
+  expectHeadValue(expect, head, 'meta[property="og:image:height"]', '630')
+  expectHeadValue(
+    expect,
+    head,
+    'meta[name="twitter:card"]',
+    'summary_large_image'
+  )
+  expectHeadValue(expect, head, 'meta[name="twitter:title"]', title)
+  expectHeadValue(expect, head, 'meta[name="twitter:description"]', description)
+  expectHeadValue(expect, head, 'meta[name="twitter:url"]', url)
+  expectHeadValue(expect, head, 'meta[name="twitter:image"]', image)
+  expectHeadValue(expect, head, 'link[rel="canonical"]', url)
+  expect(head.includes('slipway.sailscasts.com')).toBe(false)
+  expect(head.includes('/_slipway/bearing/host/')).toBe(false)
+}
+
+function expectHeadValue(expect, head, selector, expected) {
+  let pattern
+  if (selector === 'title') {
+    pattern = /<title[^>]*>([^<]*)<\/title>/
+  } else {
+    const [, tag, attribute, value] = selector.match(
+      /^(meta|link)\[(name|property|rel)="([^"]+)"\]$/
+    )
+    pattern = new RegExp(
+      `<${tag}(?=[^>]*${attribute}="${escapeRegExp(value)}")` +
+        `[^>]*(?:content|href)="([^"]+)"[^>]*>`
+    )
+  }
+
+  const match = head.match(pattern)
+  expect(
+    match,
+    `Missing ${selector} in the initial document head.`
+  ).toBeTruthy()
+  expect(match[1]).toBe(expected)
+}
+
+function escapeRegExp(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }

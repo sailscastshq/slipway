@@ -150,20 +150,45 @@ function isoDate(value) {
 
 <template>
   <Head :title="`${title} · ${app.name}`">
-    <meta name="description" :content="description" />
-    <meta property="og:type" content="website" />
-    <meta property="og:site_name" :content="app.name" />
-    <meta property="og:title" :content="`${title} · ${app.name}`" />
-    <meta property="og:description" :content="description" />
-    <meta property="og:url" :content="app.publicUrl" />
-    <meta property="og:image" :content="app.ogImageUrl" />
-    <meta property="og:image:width" content="1200" />
-    <meta property="og:image:height" content="630" />
-    <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" :content="`${title} · ${app.name}`" />
-    <meta name="twitter:description" :content="description" />
-    <meta name="twitter:image" :content="app.ogImageUrl" />
-    <link rel="canonical" :href="app.publicUrl" />
+    <meta head-key="description" name="description" :content="description" />
+    <meta head-key="og:type" property="og:type" content="website" />
+    <meta head-key="og:site_name" property="og:site_name" :content="app.name" />
+    <meta
+      head-key="og:title"
+      property="og:title"
+      :content="`${title} · ${app.name}`"
+    />
+    <meta
+      head-key="og:description"
+      property="og:description"
+      :content="description"
+    />
+    <meta head-key="og:url" property="og:url" :content="app.publicUrl" />
+    <meta head-key="og:image" property="og:image" :content="app.ogImageUrl" />
+    <meta head-key="og:image:width" property="og:image:width" content="1200" />
+    <meta head-key="og:image:height" property="og:image:height" content="630" />
+    <meta
+      head-key="twitter:card"
+      name="twitter:card"
+      content="summary_large_image"
+    />
+    <meta
+      head-key="twitter:title"
+      name="twitter:title"
+      :content="`${title} · ${app.name}`"
+    />
+    <meta
+      head-key="twitter:description"
+      name="twitter:description"
+      :content="description"
+    />
+    <meta head-key="twitter:url" name="twitter:url" :content="app.publicUrl" />
+    <meta
+      head-key="twitter:image"
+      name="twitter:image"
+      :content="app.ogImageUrl"
+    />
+    <link head-key="canonical" rel="canonical" :href="app.publicUrl" />
   </Head>
   <div
     class="min-h-screen bg-white text-gray-950 dark:bg-gray-950 dark:text-white"
