@@ -54,7 +54,11 @@ const levelCounts = computed(() => {
   for (const event of events.value) counts[event.level] += 1
   return counts
 })
-const heightClass = computed(() => (props.height === 'lg' ? 'h-96' : 'h-80'))
+const fillsAvailableHeight = computed(() => props.height === 'fill')
+const heightClass = computed(() => {
+  if (fillsAvailableHeight.value) return 'min-h-0 flex-1'
+  return props.height === 'lg' ? 'h-96' : 'h-80'
+})
 const connectionState = computed(() => {
   if (props.inactiveMessage) return 'inactive'
   if (props.error) return 'reconnecting'
@@ -204,11 +208,14 @@ function segmentClass(type) {
 <template>
   <section
     data-test="log-viewer"
-    class="overflow-hidden bg-white text-gray-800 dark:bg-zinc-950 dark:text-zinc-200"
+    :class="[
+      'overflow-hidden bg-white text-gray-800 dark:bg-zinc-950 dark:text-zinc-200',
+      fillsAvailableHeight && 'flex min-h-0 flex-1 flex-col'
+    ]"
     aria-label="Live logs"
   >
     <div
-      class="flex flex-wrap items-center gap-x-3 gap-y-2 border-y border-gray-200 bg-gray-50/90 px-3 py-2 dark:border-white/[0.07] dark:bg-zinc-900/80 sm:flex-nowrap"
+      class="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2 border-y border-gray-200 bg-gray-50/90 px-3 py-2 dark:border-white/[0.07] dark:bg-zinc-900/80 sm:flex-nowrap"
     >
       <div
         class="min-w-24 order-1 flex items-center gap-2 font-sans text-xs text-gray-600 dark:text-zinc-400"
@@ -416,7 +423,7 @@ function segmentClass(type) {
 
     <div
       v-if="error && events.length > 0"
-      class="flex items-center gap-2 border-b border-amber-200 bg-amber-50 px-3 py-2 font-sans text-xs text-amber-800 dark:border-amber-400/10 dark:bg-amber-400/[0.06] dark:text-amber-200/80"
+      class="flex shrink-0 items-center gap-2 border-b border-amber-200 bg-amber-50 px-3 py-2 font-sans text-xs text-amber-800 dark:border-amber-400/10 dark:bg-amber-400/[0.06] dark:text-amber-200/80"
       role="status"
     >
       <span class="h-1.5 w-1.5 shrink-0 rounded-full bg-amber-300"></span>

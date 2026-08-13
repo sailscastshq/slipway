@@ -24,7 +24,8 @@ const sidebarCollapsed = inject('sidebarCollapsed')
 
 // SSE-powered real-time updates
 const sseState = ref(null)
-const sseLogs = ref('')
+const sseBuildLogs = ref('')
+const sseDeployLogs = ref('')
 
 const deployment = computed(() => ({
   ...props.deployment,
@@ -39,19 +40,26 @@ const isInProgress = computed(
     )
 )
 
+const initialBuildLogLength = (props.deployment.buildLogs || '').length
+const initialDeployLogLength = (props.deployment.deployLogs || '').length
+const deploymentStreamUrl = `/api/v1/deployments/${props.deployment.id}/stream?buildOffset=${initialBuildLogLength}&deployOffset=${initialDeployLogLength}`
+
 const allLogs = computed(() => {
-  const build = props.deployment.buildLogs || ''
-  const deploy = props.deployment.deployLogs || ''
-  return [build, deploy, sseLogs.value].filter(Boolean).join('\n').trim()
+  const build = (props.deployment.buildLogs || '') + sseBuildLogs.value
+  const deploy = (props.deployment.deployLogs || '') + sseDeployLogs.value
+  return joinLogSections(build, deploy)
 })
-const allLogLines = computed(() =>
-  allLogs.value ? allLogs.value.split('\n') : []
-)
+const allLogLines = computed(() => {
+  if (!allLogs.value) return []
+  const lines = allLogs.value.split('\n')
+  if (lines.at(-1) === '') lines.pop()
+  return lines
+})
 
 const {
   connected: deploymentStreamConnected,
   close: disconnectDeploymentStream
-} = useEventSource(`/api/v1/deployments/${props.deployment.id}/stream`, {
+} = useEventSource(deploymentStreamUrl, {
   immediate: isInProgress.value,
   onMessage(data) {
     if (data.status) {
@@ -70,10 +78,21 @@ const {
       }
     }
     if (data.output) {
-      sseLogs.value += data.output + '\n'
+      if (data.source === 'deploy') sseDeployLogs.value += data.output
+      else sseBuildLogs.value += data.output
     }
   }
 })
+
+function joinLogSections(...sections) {
+  return sections.filter(Boolean).reduce((combined, section) => {
+    if (!combined) return section
+    if (combined.endsWith('\n') || section.startsWith('\n')) {
+      return combined + section
+    }
+    return `${combined}\n${section}`
+  }, '')
+}
 
 function formatDuration(seconds) {
   if (!seconds) return '—'
@@ -553,7 +572,7 @@ function executeRollback() {
         <!-- Log Viewer -->
         <div
           data-test="deployment-log-viewer"
-          class="flex flex-1 flex-col overflow-hidden rounded-lg border border-gray-200 dark:border-gray-800"
+          class="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-gray-200 dark:border-gray-800"
         >
           <div
             class="flex items-center justify-between border-b border-gray-200 bg-gray-50 px-4 py-2 dark:border-gray-800 dark:bg-gray-900"
@@ -571,7 +590,7 @@ function executeRollback() {
                 ? 'No additional logs were captured.'
                 : ''
             "
-            height="lg"
+            height="fill"
           />
         </div>
       </div>

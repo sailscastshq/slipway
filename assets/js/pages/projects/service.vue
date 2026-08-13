@@ -726,16 +726,7 @@ onUnmounted(() => {
                   Logs
                 </h2>
                 <span
-                  v-if="logsConnected"
-                  class="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-medium text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
-                >
-                  <span
-                    class="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-500"
-                  ></span>
-                  Live
-                </span>
-                <span
-                  v-else-if="serviceStatus !== 'running'"
+                  v-if="serviceStatus !== 'running'"
                   class="inline-flex rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium text-gray-500 dark:bg-gray-800 dark:text-gray-400"
                 >
                   Not running

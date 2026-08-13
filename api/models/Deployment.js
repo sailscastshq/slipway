@@ -1,3 +1,7 @@
+const { appendTimestampedChunk } = require('../lib/deployment-log')
+
+const logAppendQueues = new Map()
+
 /**
  * Deployment.js
  *
@@ -157,25 +161,38 @@ module.exports = {
    * Append to build logs
    */
   appendBuildLog: async function (deploymentId, log) {
-    const deployment = await Deployment.findOne({ id: deploymentId })
-    if (!deployment) return
-
-    const currentLogs = deployment.buildLogs || ''
-    await Deployment.updateOne({ id: deploymentId }).set({
-      buildLogs: currentLogs + log
-    })
+    return appendLog(deploymentId, 'buildLogs', log)
   },
 
   /**
    * Append to deploy logs
    */
   appendDeployLog: async function (deploymentId, log) {
-    const deployment = await Deployment.findOne({ id: deploymentId })
-    if (!deployment) return
+    return appendLog(deploymentId, 'deployLogs', log)
+  }
+}
 
-    const currentLogs = deployment.deployLogs || ''
-    await Deployment.updateOne({ id: deploymentId }).set({
-      deployLogs: currentLogs + log
+async function appendLog(deploymentId, field, log) {
+  if (!log) return
+
+  const key = `${deploymentId}:${field}`
+  const occurredAt = new Date().toISOString()
+  const previous = logAppendQueues.get(key) || Promise.resolve()
+  const pending = previous
+    .catch(() => {})
+    .then(async () => {
+      const deployment = await Deployment.findOne({ id: deploymentId })
+      if (!deployment) return
+
+      await Deployment.updateOne({ id: deploymentId }).set({
+        [field]: appendTimestampedChunk(deployment[field], log, occurredAt)
+      })
     })
+
+  logAppendQueues.set(key, pending)
+  try {
+    await pending
+  } finally {
+    if (logAppendQueues.get(key) === pending) logAppendQueues.delete(key)
   }
 }

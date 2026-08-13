@@ -15,6 +15,18 @@ module.exports = {
       type: 'string',
       required: true,
       description: 'The deployment ID.'
+    },
+    buildOffset: {
+      type: 'number',
+      min: 0,
+      defaultsTo: 0,
+      description: 'Number of persisted build-log characters already rendered.'
+    },
+    deployOffset: {
+      type: 'number',
+      min: 0,
+      defaultsTo: 0,
+      description: 'Number of persisted deploy-log characters already rendered.'
     }
   },
 
@@ -28,7 +40,7 @@ module.exports = {
     }
   },
 
-  fn: async function ({ id }) {
+  fn: async function ({ id, buildOffset, deployOffset }) {
     const req = this.req
     const res = this.res
 
@@ -53,7 +65,14 @@ module.exports = {
     }
 
     let lastStatus = deployment.status
-    let lastLogLength = 0
+    let lastBuildLogLength = Math.min(
+      buildOffset,
+      (deployment.buildLogs || '').length
+    )
+    let lastDeployLogLength = Math.min(
+      deployOffset,
+      (deployment.deployLogs || '').length
+    )
 
     const checkInterval = setInterval(async () => {
       try {
@@ -80,15 +99,24 @@ module.exports = {
           stream.send(await deploymentState(current))
         }
 
-        // Stream new build log output if available
-        if (current.buildLogs && current.buildLogs.length > lastLogLength) {
-          const newOutput = current.buildLogs.slice(lastLogLength)
-          lastLogLength = current.buildLogs.length
+        // Stream the exact persisted suffix so live output and a later reload
+        // share line boundaries and timestamps.
+        if (
+          current.buildLogs &&
+          current.buildLogs.length > lastBuildLogLength
+        ) {
+          const newOutput = current.buildLogs.slice(lastBuildLogLength)
+          lastBuildLogLength = current.buildLogs.length
+          stream.send({ output: newOutput, source: 'build' })
+        }
 
-          const lines = newOutput.split('\n').filter((l) => l.trim())
-          for (const line of lines) {
-            stream.send({ output: line })
-          }
+        if (
+          current.deployLogs &&
+          current.deployLogs.length > lastDeployLogLength
+        ) {
+          const newOutput = current.deployLogs.slice(lastDeployLogLength)
+          lastDeployLogLength = current.deployLogs.length
+          stream.send({ output: newOutput, source: 'deploy' })
         }
 
         // End stream when deployment is complete
