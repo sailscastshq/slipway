@@ -50,8 +50,8 @@ module.exports = {
         <text x="88" y="137" fill="#777773" font-family="${
           FONT.family
         }" font-size="20">${surfaceName}</text>
-        <rect x="1016" y="72" width="96" height="96" rx="24" fill="#17171a"/>
-        <svg x="1034" y="89" width="60" height="60" viewBox="0 0 32 32" fill="none">
+        <rect x="964" y="68" width="148" height="148" rx="30" fill="#17171a"/>
+        <svg x="996" y="84" width="84" height="84" viewBox="0 0 32 32" fill="none">
           <path d="M7 17 C7 3 25 3 25 17 Z" stroke="#38bdf8" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
           <path d="M7 17 C4 21 4 25 8 28" stroke="#38bdf8" stroke-width="2.5" stroke-linecap="round"/>
           <path d="M12 17 C11 21 10 25 13 28" stroke="#38bdf8" stroke-width="2.5" stroke-linecap="round"/>
@@ -60,6 +60,9 @@ module.exports = {
           <circle cx="13" cy="11" r="1.8" fill="#38bdf8"/>
           <circle cx="19" cy="11" r="1.8" fill="#38bdf8"/>
         </svg>
+        <text x="1038" y="198" text-anchor="middle" fill="#d4d4d8" font-family="${
+          FONT.family
+        }" font-size="12" font-weight="700" letter-spacing="2.5">SLIPWAY</text>
         <text x="88" y="203" fill="#969691" font-family="${
           FONT.family
         }" font-size="16" font-weight="700" letter-spacing="3">BEARING</text>
@@ -86,9 +89,6 @@ module.exports = {
         }" font-size="17">${itemCount} ${
       itemCount === 1 ? 'post' : 'posts'
     } on ${surfaceName}</text>
-        <text x="1112" y="548" text-anchor="end" fill="#8b8b86" font-family="${
-          FONT.family
-        }" font-size="17">Powered by Slipway</text>
       </svg>`
 
     return new Resvg(svg, {

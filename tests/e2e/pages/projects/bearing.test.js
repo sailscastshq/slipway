@@ -1250,6 +1250,7 @@ async function expectSocialImageText(page, image, expect) {
     context.drawImage(element, 0, 0)
 
     const headline = context.getImageData(88, 220, 900, 56).data
+    const platformBadge = context.getImageData(964, 68, 148, 148).data
     let darkPixels = 0
     for (let index = 0; index < headline.length; index += 4) {
       if (
@@ -1262,16 +1263,41 @@ async function expectSocialImageText(page, image, expect) {
       }
     }
 
+    let badgePixels = 0
+    let slippyPixels = 0
+    for (let index = 0; index < platformBadge.length; index += 4) {
+      if (
+        platformBadge[index] < 50 &&
+        platformBadge[index + 1] < 50 &&
+        platformBadge[index + 2] < 55 &&
+        platformBadge[index + 3] > 0
+      ) {
+        badgePixels += 1
+      }
+      if (
+        platformBadge[index] < 90 &&
+        platformBadge[index + 1] > 140 &&
+        platformBadge[index + 2] > 190 &&
+        platformBadge[index + 3] > 0
+      ) {
+        slippyPixels += 1
+      }
+    }
+
     return {
       width: element.naturalWidth,
       height: element.naturalHeight,
-      darkPixels
+      darkPixels,
+      badgePixels,
+      slippyPixels
     }
   }, `data:image/png;base64,${image.toString('base64')}`)
 
   expect(metrics.width).toBe(1200)
   expect(metrics.height).toBe(630)
   expect(metrics.darkPixels > 500).toBe(true)
+  expect(metrics.badgePixels > 10000).toBe(true)
+  expect(metrics.slippyPixels > 200).toBe(true)
 }
 
 function helper(fn) {
