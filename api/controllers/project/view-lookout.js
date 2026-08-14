@@ -248,6 +248,25 @@ module.exports = {
       .sort((a, b) => b.total - a.total)
       .slice(0, 10)
 
+    const hasRecentData =
+      recentSpans.length > 0 ||
+      recentExceptions.length > 0 ||
+      cacheMetrics.length > 0 ||
+      slowQueries.length > 0
+    const connection = app
+      ? await TelemetryConnection.findOne({ app: String(app.id) })
+      : null
+    const telemetryState = sails.helpers.lookout.resolveTelemetryState.with({
+      detectedFeature: environment.features?.['sails-hook-slipway'],
+      connection,
+      currentDeploymentId: app?.currentDeployment
+        ? String(app.currentDeployment)
+        : undefined,
+      hasRecentData,
+      now: Date.now(),
+      staleAfterMs: sails.config.custom.observability.telemetryConnectionStaleMs
+    })
+
     const telemetry = {
       requests: {
         total: totalRequests,
@@ -302,11 +321,8 @@ module.exports = {
         }))
       },
       flags: flagComparisons,
-      hasTelemetry:
-        recentSpans.length > 0 ||
-        recentExceptions.length > 0 ||
-        cacheMetrics.length > 0 ||
-        slowQueries.length > 0,
+      hasTelemetry: telemetryState.state !== 'not_detected',
+      state: telemetryState,
       telemetryToken: environment.telemetryToken
     }
 

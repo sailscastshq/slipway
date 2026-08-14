@@ -96,6 +96,15 @@ test('retention respects exact cutoffs and drains large tables in batches', asyn
     metric({ environmentId, recordedAt: telemetryCutoff - 1 }),
     metric({ environmentId, recordedAt: telemetryCutoff })
   ])
+  await sails.models.telemetryconnection.create({
+    app: 'retention-test-app',
+    environment: String(environmentId),
+    deployment: '42',
+    hookVersion: '0.0.9',
+    protocolVersion: 1,
+    startedAt: telemetryCutoff - 1,
+    lastSeenAt: telemetryCutoff - 1
+  })
 
   const first = await sails.helpers.lookout.pruneObservability.with({
     now,
@@ -124,6 +133,7 @@ test('retention respects exact cutoffs and drains large tables in batches', asyn
   expect(await sails.models.telemetryspan.count()).toBe(1)
   expect(await sails.models.telemetryexception.count()).toBe(1)
   expect(await sails.models.telemetrymetric.count()).toBe(1)
+  expect(await sails.models.telemetryconnection.count()).toBe(1)
 })
 
 test('preparing observability storage leaves legacy metrics out of web startup', async ({
@@ -236,7 +246,8 @@ async function clearTelemetry(sails) {
     sails.models.containermetric.destroy({}),
     sails.models.telemetryspan.destroy({}),
     sails.models.telemetryexception.destroy({}),
-    sails.models.telemetrymetric.destroy({})
+    sails.models.telemetrymetric.destroy({}),
+    sails.models.telemetryconnection.destroy({})
   ])
 }
 

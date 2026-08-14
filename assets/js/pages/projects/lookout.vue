@@ -1,6 +1,6 @@
 <script setup>
 import { Link, Head, router } from '@inertiajs/vue3'
-import { inject, ref, computed, watch } from 'vue'
+import { inject, ref, computed, watch, onUnmounted } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
 import Breadcrumb from '@/components/Breadcrumb.vue'
 import Spinner from '@/components/SlipwaySpinner.vue'
@@ -44,6 +44,7 @@ const props = defineProps({
       },
       flags: [],
       hasTelemetry: false,
+      state: { state: 'not_detected' },
       telemetryToken: null
     })
   }
@@ -60,6 +61,26 @@ const liveContainers = ref(
     history: c.history ? [...c.history] : []
   }))
 )
+const liveTelemetryState = ref(props.telemetry.state)
+const telemetryClock = ref(Date.now())
+const telemetryClockTimer = setInterval(() => {
+  telemetryClock.value = Date.now()
+}, 30_000)
+telemetryClockTimer.unref?.()
+onUnmounted(() => clearInterval(telemetryClockTimer))
+
+const effectiveTelemetryState = computed(() => {
+  const status = liveTelemetryState.value || { state: 'not_detected' }
+  if (
+    ['connected_quiet', 'receiving'].includes(status.state) &&
+    status.lastSeenAt &&
+    status.staleAfterMs &&
+    telemetryClock.value - Number(status.lastSeenAt) > status.staleAfterMs
+  ) {
+    return { ...status, state: 'stale' }
+  }
+  return status
+})
 
 // SSE: stream new metric snapshots instead of polling the entire page
 const sseUrl = computed(
@@ -69,6 +90,9 @@ const sseUrl = computed(
 
 useEventSource(sseUrl, {
   onMessage(msg) {
+    if (msg.telemetryState) {
+      liveTelemetryState.value = msg.telemetryState
+    }
     if (!msg.metrics) return
     const oneHourAgo = Date.now() - 60 * 60 * 1000
     for (const m of msg.metrics) {
@@ -115,7 +139,7 @@ const tabs = computed(() => {
       count: liveContainers.value.length
     }
   ]
-  if (props.telemetry.hasTelemetry) {
+  if (effectiveTelemetryState.value.state !== 'not_detected') {
     list.push(
       {
         id: 'requests',
@@ -137,9 +161,92 @@ const tabs = computed(() => {
       })
     }
   } else {
-    list.push({ id: 'setup', label: 'App Telemetry' })
+    list.push({ id: 'setup', label: 'Set up telemetry' })
   }
   return list
+})
+
+const telemetryNotice = computed(() => {
+  const status = effectiveTelemetryState.value
+  const notices = {
+    connected_quiet: {
+      tone: 'success',
+      title: 'Connected — waiting for traffic',
+      detail:
+        'The Slipway hook is ready. Requests, exceptions, and queries will appear here as the app receives traffic.'
+    },
+    receiving: {
+      tone: 'success',
+      title: 'Receiving telemetry',
+      detail: status.hookVersion
+        ? `sails-hook-slipway ${status.hookVersion} is connected.`
+        : 'The deployed app is connected.'
+    },
+    redeploy_required: {
+      tone: 'warning',
+      title: 'Redeploy to connect Lookout',
+      detail:
+        'The hook is present in the source, but the running deployment has not registered this version yet.'
+    },
+    stale: {
+      tone: 'warning',
+      title: 'Telemetry connection is stale',
+      detail: status.lastSeenAt
+        ? `Last heard from the app ${timeAgo(
+            status.lastSeenAt
+          )}. Check the running container and telemetry configuration.`
+        : 'The app previously connected but is no longer sending its heartbeat.'
+    },
+    disabled: {
+      tone: 'neutral',
+      title: 'Telemetry is disabled',
+      detail:
+        'The hook is running, but Lookout telemetry is disabled in the app configuration.'
+    },
+    incompatible: {
+      tone: 'warning',
+      title: 'Update sails-hook-slipway',
+      detail:
+        'This hook version predates connection registration. Upgrade it, then redeploy the app.'
+    }
+  }
+  return notices[status.state] || null
+})
+
+const telemetryNoticeClasses = computed(() => {
+  const tone = telemetryNotice.value?.tone
+  if (tone === 'success') {
+    return {
+      shell:
+        'border-emerald-200 bg-emerald-50/70 dark:border-emerald-900/70 dark:bg-emerald-950/20',
+      dot: 'bg-emerald-500',
+      title: 'text-emerald-950 dark:text-emerald-100',
+      detail: 'text-emerald-800/80 dark:text-emerald-300/80'
+    }
+  }
+  if (tone === 'warning') {
+    return {
+      shell:
+        'border-amber-200 bg-amber-50/70 dark:border-amber-900/70 dark:bg-amber-950/20',
+      dot: 'bg-amber-500',
+      title: 'text-amber-950 dark:text-amber-100',
+      detail: 'text-amber-800/80 dark:text-amber-300/80'
+    }
+  }
+  return {
+    shell: 'border-gray-200 bg-gray-50 dark:border-gray-800 dark:bg-gray-900',
+    dot: 'bg-gray-400 dark:bg-gray-500',
+    title: 'text-gray-900 dark:text-white',
+    detail: 'text-gray-500 dark:text-gray-400'
+  }
+})
+
+watch(tabs, (availableTabs) => {
+  if (!availableTabs.some((tab) => tab.id === activeTab.value)) {
+    activeTab.value =
+      availableTabs.find((tab) => tab.id !== 'infrastructure')?.id ||
+      'infrastructure'
+  }
 })
 
 // Expanded container for detail view (synced with URL query param)
@@ -686,6 +793,31 @@ async function copyToken() {
           <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
             Observability for {{ appName }}.
           </p>
+        </div>
+
+        <div
+          v-if="telemetryNotice"
+          :class="telemetryNoticeClasses.shell"
+          class="mb-6 flex items-start gap-3 rounded-lg border px-4 py-3"
+        >
+          <span
+            :class="telemetryNoticeClasses.dot"
+            class="mt-1.5 h-2 w-2 shrink-0 rounded-full"
+          ></span>
+          <div class="min-w-0">
+            <p
+              :class="telemetryNoticeClasses.title"
+              class="text-sm font-medium"
+            >
+              {{ telemetryNotice.title }}
+            </p>
+            <p
+              :class="telemetryNoticeClasses.detail"
+              class="mt-0.5 text-xs leading-5"
+            >
+              {{ telemetryNotice.detail }}
+            </p>
+          </div>
         </div>
 
         <!-- Tabs -->

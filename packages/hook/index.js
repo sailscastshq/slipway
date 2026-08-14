@@ -31,6 +31,7 @@ const { createReleaseFlags } = require('./lib/release-flags')
 const { injectBearingWidget } = require('./lib/bearing-widget')
 const { normalizeQuestDiagnostic } = require('./lib/quest-diagnostics')
 const buildFlagsEnabledHelper = require('./lib/helpers/flags/enabled')
+const hookVersion = require('./package.json').version
 const {
   ACCESS_DENIED_MESSAGE,
   renderBridgeAccessDenied
@@ -42,6 +43,8 @@ module.exports = function defineSlipwayHook(sails) {
   let exceptionBuffer = []
   let metricBuffer = []
   let flushTimer = null
+  let heartbeatTimer = null
+  const telemetryStartedAt = Date.now()
 
   // Config (populated in initialize)
   let config = {}
@@ -95,6 +98,14 @@ module.exports = function defineSlipwayHook(sails) {
 
       if (envUrl) sails.config.slipway.lookout.telemetryUrl = envUrl
       if (envToken) sails.config.slipway.lookout.telemetryToken = envToken
+      if (process.env.SLIPWAY_TELEMETRY_APP_ID) {
+        sails.config.slipway.lookout.appId =
+          process.env.SLIPWAY_TELEMETRY_APP_ID
+      }
+      if (process.env.SLIPWAY_TELEMETRY_DEPLOYMENT_ID) {
+        sails.config.slipway.lookout.deploymentId =
+          process.env.SLIPWAY_TELEMETRY_DEPLOYMENT_ID
+      }
 
       if (process.env.SLIPWAY_FLAGS_URL) {
         sails.config.slipway.flags.url = process.env.SLIPWAY_FLAGS_URL
@@ -283,8 +294,11 @@ module.exports = function defineSlipwayHook(sails) {
       if (flushTimer) {
         clearInterval(flushTimer)
       }
+      if (heartbeatTimer) {
+        clearInterval(heartbeatTimer)
+      }
       // Final flush
-      flush()
+      flush(true)
       return done()
     }
   }
@@ -513,6 +527,13 @@ module.exports = function defineSlipwayHook(sails) {
       )
       return done()
     }
+
+    flush(true)
+    heartbeatTimer = setInterval(
+      () => flush(true),
+      config.heartbeatInterval || 60 * 1000
+    )
+    heartbeatTimer.unref?.()
 
     if (!config.enabled) {
       sails.log.verbose('sails-hook-slipway: Disabled via config.')
@@ -827,17 +848,31 @@ module.exports = function defineSlipwayHook(sails) {
 
   // ─── Flush Telemetry Data ─────────────────────────────────────
 
-  function flush() {
+  function flush(includeRegistration = false) {
     // Grab current buffers and reset
     const spans = spanBuffer.splice(0)
     const exceptions = exceptionBuffer.splice(0)
     const metrics = metricBuffer.splice(0)
 
-    if (spans.length === 0 && exceptions.length === 0 && metrics.length === 0) {
+    const hasTelemetry =
+      spans.length > 0 || exceptions.length > 0 || metrics.length > 0
+    const registration =
+      includeRegistration || hasTelemetry ? buildRegistration() : null
+    if (
+      spans.length === 0 &&
+      exceptions.length === 0 &&
+      metrics.length === 0 &&
+      !registration
+    ) {
       return
     }
 
-    const payload = JSON.stringify({ spans, exceptions, metrics })
+    const payload = JSON.stringify({
+      spans,
+      exceptions,
+      metrics,
+      ...(registration ? { registration } : {})
+    })
 
     try {
       const url = new URL(config.telemetryUrl)
@@ -868,6 +903,27 @@ module.exports = function defineSlipwayHook(sails) {
       req.end()
     } catch {
       // Silently fail
+    }
+  }
+
+  function buildRegistration() {
+    if (!config.appId) return null
+    return {
+      appId: String(config.appId),
+      deploymentId: config.deploymentId
+        ? String(config.deploymentId)
+        : undefined,
+      hookVersion,
+      protocolVersion: 1,
+      enabled: config.enabled !== false,
+      startedAt: telemetryStartedAt,
+      capabilities: {
+        requests: true,
+        exceptions: config.captureExceptions !== false,
+        queries: config.captureQueries !== false,
+        quest: config.captureQuestEvents !== false,
+        cache: config.captureCache !== false
+      }
     }
   }
 

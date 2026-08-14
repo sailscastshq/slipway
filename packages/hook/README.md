@@ -319,8 +319,15 @@ local URL containing whatever redirect state the app needs. A static
 
 ## Lookout telemetry
 
-Slipway automatically injects `SLIPWAY_TELEMETRY_URL` and
-`SLIPWAY_TELEMETRY_TOKEN` during deployment.
+When Lookout is configured by Slipway, the hook also sends a lightweight
+startup registration and a bounded heartbeat over the same authenticated
+telemetry endpoint. This lets Lookout distinguish a connected but quiet app
+from a missing or stale hook without keeping a socket open or retaining empty
+request spans. Slipway supplies the app and deployment identity automatically.
+
+Slipway automatically injects the telemetry endpoint, scoped token, app ID,
+and deployment ID during deployment. Apps do not need to configure or expose
+those values themselves.
 
 Optional settings live under `lookout`:
 

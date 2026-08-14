@@ -110,6 +110,7 @@ module.exports.custom = {
   observability: {
     containerMetricsRetentionMs: 24 * 60 * 60 * 1000,
     applicationTelemetryRetentionMs: 7 * 24 * 60 * 60 * 1000,
+    telemetryConnectionStaleMs: 3 * 60 * 1000,
     pruneBatchSize: 500,
     maxPruneBatchesPerRun: 20
   },

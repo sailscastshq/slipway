@@ -25,6 +25,10 @@ module.exports = {
     metrics: {
       type: 'ref',
       description: 'Array of metric objects'
+    },
+    registration: {
+      type: 'ref',
+      description: 'Runtime registration and heartbeat from sails-hook-slipway'
     }
   },
 
@@ -37,7 +41,7 @@ module.exports = {
     badRequest: { statusCode: 400, description: 'Invalid payload' }
   },
 
-  fn: async function ({ spans, exceptions, metrics }) {
+  fn: async function ({ spans, exceptions, metrics, registration }) {
     // Authenticate via Bearer token
     const authHeader = this.req.headers.authorization
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -63,6 +67,12 @@ module.exports = {
     const environmentId = environment.id
     const now = Date.now()
     let ingested = { spans: 0, exceptions: 0, metrics: 0 }
+
+    const connection = await registerTelemetryRuntime({
+      registration,
+      environmentId,
+      now
+    })
 
     // Ingest spans
     if (Array.isArray(spans) && spans.length > 0) {
@@ -117,6 +127,81 @@ module.exports = {
       ingested.metrics = metricRecords.length
     }
 
+    if (connection) {
+      ingested.registration = true
+      const app = await App.findOne({ id: connection.app })
+      const hasRecentData =
+        ingested.spans > 0 || ingested.exceptions > 0 || ingested.metrics > 0
+      const telemetryState = sails.helpers.lookout.resolveTelemetryState.with({
+        detectedFeature: environment.features?.['sails-hook-slipway'],
+        connection,
+        currentDeploymentId: app?.currentDeployment
+          ? String(app.currentDeployment)
+          : undefined,
+        hasRecentData,
+        now,
+        staleAfterMs:
+          sails.config.custom.observability.telemetryConnectionStaleMs
+      })
+      sails.sse?.publish(`lookout:env:${environmentId}`, { telemetryState })
+    }
+
     return ingested
   }
+}
+
+async function registerTelemetryRuntime({ registration, environmentId, now }) {
+  if (!registration || typeof registration !== 'object') return null
+
+  const appId = String(registration.appId || '').trim()
+  const hookVersion = String(registration.hookVersion || '').trim()
+  const protocolVersion = Number(registration.protocolVersion)
+  if (!appId || !hookVersion || !Number.isInteger(protocolVersion)) return null
+
+  const app = await App.findOne({ id: appId, environment: environmentId })
+  if (!app) return null
+
+  const deploymentId = registration.deploymentId
+    ? String(registration.deploymentId)
+    : null
+  if (deploymentId) {
+    const deployment = await Deployment.findOne({
+      id: deploymentId,
+      environment: environmentId,
+      app: app.id
+    })
+    if (!deployment) return null
+  }
+
+  const existing = await TelemetryConnection.findOne({ app: String(app.id) })
+  if (
+    existing?.deployment &&
+    deploymentId &&
+    Number(existing.deployment) > Number(deploymentId)
+  ) {
+    return existing
+  }
+
+  const values = {
+    app: String(app.id),
+    environment: String(environmentId),
+    deployment: deploymentId,
+    hookVersion: hookVersion.slice(0, 64),
+    protocolVersion,
+    capabilities:
+      registration.capabilities &&
+      typeof registration.capabilities === 'object' &&
+      !Array.isArray(registration.capabilities)
+        ? registration.capabilities
+        : {},
+    enabled: registration.enabled !== false,
+    startedAt:
+      typeof registration.startedAt === 'number' ? registration.startedAt : now,
+    lastSeenAt: now
+  }
+
+  if (existing) {
+    return TelemetryConnection.updateOne({ id: existing.id }).set(values)
+  }
+  return TelemetryConnection.create(values).fetch()
 }
