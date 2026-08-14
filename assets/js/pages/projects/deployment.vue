@@ -6,6 +6,7 @@ import Breadcrumb from '@/components/Breadcrumb.vue'
 import DeploymentOutcome from '@/components/DeploymentOutcome.vue'
 import LogViewer from '@/components/LogViewer.vue'
 import Spinner from '@/components/SlipwaySpinner.vue'
+import Alert from '@/components/ui/alert/Alert.vue'
 import { useEventSource } from '@/composables/sse'
 
 defineOptions({
@@ -528,11 +529,12 @@ function executeRollback() {
         </div>
 
         <!-- Failure summary remains visible even when the pipeline failed before logs started. -->
-        <section
+        <Alert
           v-if="deployment.errorMessage && deployment.status !== 'cancelled'"
-          role="alert"
+          as="section"
+          data-test="deployment-failure-summary"
           aria-labelledby="deployment-error-title"
-          class="mb-6 rounded-lg border border-red-200 bg-red-50 p-4 dark:border-red-900/60 dark:bg-red-950/30"
+          class="mb-6 rounded-lg border border-red-200 bg-red-50 p-4 text-inherit dark:border-red-900/60 dark:bg-red-950/30"
         >
           <div class="flex items-start gap-3">
             <svg
@@ -567,7 +569,7 @@ function executeRollback() {
               </p>
             </div>
           </div>
-        </section>
+        </Alert>
 
         <!-- Log Viewer -->
         <div

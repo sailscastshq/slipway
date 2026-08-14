@@ -1,6 +1,7 @@
 <script setup>
 import { ref, watch, onUnmounted } from 'vue'
 import Spinner from '@/components/SlipwaySpinner.vue'
+import Alert from '@/components/ui/alert/Alert.vue'
 import { useEventSource } from '@/composables/sse'
 
 const props = defineProps({
@@ -347,8 +348,9 @@ function formatDate(dateString) {
 
             <!-- Ready State -->
             <div v-else class="space-y-4">
-              <div
-                class="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 dark:border-amber-800/50 dark:bg-amber-950/30"
+              <Alert
+                role="note"
+                class="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-inherit dark:border-amber-800/50 dark:bg-amber-950/30"
               >
                 <svg
                   class="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400"
@@ -366,7 +368,7 @@ function formatDate(dateString) {
                 <p class="text-sm text-amber-800 dark:text-amber-200">
                   Slipway will briefly go offline during the update.
                 </p>
-              </div>
+              </Alert>
               <div class="flex items-center justify-end space-x-3">
                 <button
                   @click="emit('close')"

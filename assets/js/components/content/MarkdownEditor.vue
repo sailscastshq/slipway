@@ -8,6 +8,7 @@ import FileHandler from '@tiptap/extension-file-handler'
 import Placeholder from '@tiptap/extension-placeholder'
 import { Markdown } from '@tiptap/markdown'
 import DOMPurify from 'dompurify'
+import Alert from '@/components/ui/alert/Alert.vue'
 import Tooltip from '@/components/ui/tooltip/Tooltip.vue'
 import {
   inspectMarkdown,
@@ -561,7 +562,7 @@ defineExpose({
     ]"
     :aria-label="isField ? undefined : 'Content editor'"
   >
-    <div
+    <Alert
       v-if="mode === 'source' && shouldShowCompatibilityWarning"
       :data-test="testHandle('source-warning')"
       role="note"
@@ -595,7 +596,7 @@ defineExpose({
           Unsupported constructs: {{ issueLabels }}
         </p>
       </div>
-    </div>
+    </Alert>
 
     <div
       v-show="mode === 'visual'"
