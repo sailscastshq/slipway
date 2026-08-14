@@ -100,6 +100,14 @@ test(
     await page.raw.getByRole('button', { name: 'Run', exact: true }).click()
     await page.wait('@dock-query-result-1')
 
+    const resultTable = page.raw.locator(
+      '[data-test="dock-query-result-panel"] [data-slot="table"]'
+    )
+    await expect(resultTable).toBeVisible()
+    expect(await resultTable.locator('caption').textContent()).toContain(
+      'Query result 1'
+    )
+
     const tabs = page.raw.getByRole('tab')
     expect(await tabs.count()).toBe(2)
     expect(await tabs.nth(0).getAttribute('aria-selected')).toBe('true')

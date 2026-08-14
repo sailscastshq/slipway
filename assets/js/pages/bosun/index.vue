@@ -14,6 +14,7 @@ import AppLayout from '@/layouts/AppLayout.vue'
 import ConfirmModal from '@/components/ConfirmModal.vue'
 import ToastContainer from '@/components/ToastContainer.vue'
 import Tooltip from '@/components/ui/tooltip/Tooltip.vue'
+import Table from '@/components/ui/table/Table.vue'
 import CodeEditor from '@/components/CodeEditor.vue'
 import HelmResultViewer from '@/components/HelmResultViewer.vue'
 import { highlightSQL } from '@/lib/highlightSQL'
@@ -1104,7 +1105,10 @@ onUnmounted(() => {
               v-if="consoleResults.columns && resultView === 'table'"
               class="flex-1 overflow-auto"
             >
-              <table class="min-w-full">
+              <Table class="min-w-full">
+                <caption class="sr-only">
+                  Bosun SQL query results
+                </caption>
                 <thead class="sticky top-0">
                   <tr
                     class="border-b border-gray-200 bg-gray-50 dark:border-gray-800 dark:bg-gray-900"
@@ -1112,6 +1116,7 @@ onUnmounted(() => {
                     <th
                       v-for="col in consoleResults.columns"
                       :key="col"
+                      scope="col"
                       class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400"
                     >
                       {{ col }}
@@ -1148,7 +1153,7 @@ onUnmounted(() => {
                     </td>
                   </tr>
                 </tbody>
-              </table>
+              </Table>
             </div>
 
             <!-- JSON view -->

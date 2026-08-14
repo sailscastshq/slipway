@@ -630,6 +630,10 @@ test(
     await page.click('@helm-run')
     await page.wait('@helm-result-table')
 
+    await expect(
+      page.raw.locator('[data-test="helm-result-table"]')
+    ).toHaveAttribute('data-slot', 'table')
+
     expect(
       await page.raw.locator('[data-test="helm-result-table"] tbody tr').count()
     ).toBe(3)

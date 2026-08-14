@@ -5,6 +5,7 @@ import HelmResultTreeNode from '@/components/HelmResultTreeNode.vue'
 import Spinner from '@/components/SlipwaySpinner.vue'
 import ToastContainer from '@/components/ToastContainer.vue'
 import Tooltip from '@/components/ui/tooltip/Tooltip.vue'
+import Table from '@/components/ui/table/Table.vue'
 import { highlightJSON } from '@/lib/highlightJSON'
 import {
   helmRowsToCsv,
@@ -453,7 +454,7 @@ function queryDetail(entry) {
           :data-test="`${testId}-output`"
           class="min-w-max"
         >
-          <table
+          <Table
             :data-test="`${testId}-result-table`"
             class="min-w-full font-mono text-sm"
           >
@@ -507,7 +508,7 @@ function queryDetail(entry) {
                 </td>
               </tr>
             </tbody>
-          </table>
+          </Table>
         </div>
 
         <div
