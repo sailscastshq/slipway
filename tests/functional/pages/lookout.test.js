@@ -103,3 +103,74 @@ test(
     )
   }
 )
+
+test(
+  'a quiet registered app stays connected in Lookout without retained events',
+  {
+    world: {
+      name: 'configured-slipway',
+      context: {
+        deploymentTarget: {
+          slug: 'lookout-connected-quiet',
+          name: 'Lookout connected quiet'
+        }
+      }
+    }
+  },
+  async ({ sails, world, request, visit, expect }) => {
+    const { projects, environments, apps } = world.current
+    const project = projects.deploymentTarget
+    const environment = environments.production
+    const app = apps.web
+    const deployment = await world.create('deployment').with({
+      status: 'running',
+      environment: environment.id,
+      app: app.id
+    })
+    const token = 'stk_' + crypto.randomBytes(24).toString('hex')
+
+    await sails.models.telemetryconnection.destroy({ app: String(app.id) })
+    await sails.models.app.updateOne({ id: app.id }).set({
+      currentDeployment: deployment.id,
+      status: 'running'
+    })
+    await sails.models.environment.updateOne({ id: environment.id }).set({
+      features: { 'sails-hook-slipway': { version: '^0.0.9' } },
+      telemetryToken: token,
+      telemetryTokenHash: crypto
+        .createHash('sha256')
+        .update(token)
+        .digest('hex')
+    })
+
+    const response = await request
+      .withHeaders({
+        authorization: `Bearer ${token}`,
+        accept: 'application/json'
+      })
+      .post('/api/v1/telemetry/ingest', {
+        registration: {
+          appId: String(app.id),
+          deploymentId: String(deployment.id),
+          hookVersion: '0.0.9',
+          protocolVersion: 1,
+          enabled: true,
+          startedAt: Date.now() - 1000,
+          capabilities: { requests: true, exceptions: true, queries: true }
+        }
+      })
+
+    expect(response).toHaveStatus(200)
+    expect(response).toHaveJsonPath('registration', true)
+    expect(
+      await sails.models.telemetryconnection.count({ app: String(app.id) })
+    ).toBe(1)
+
+    const page = await visit.as('genesisUser')(
+      `/projects/${project.slug}/environments/${environment.slug}/lookout`
+    )
+    expect(page).toHaveStatus(200)
+    expect(page).toHaveInertiaProp('telemetry.state.state', 'connected_quiet')
+    expect(page).toHaveInertiaProp('telemetry.requests.total', 0)
+  }
+)

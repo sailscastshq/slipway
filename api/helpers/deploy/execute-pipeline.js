@@ -197,10 +197,10 @@ module.exports = {
       const detectedFeatures = await sails.helpers.sails.detectFeatures(
         contextPath
       )
+      await Environment.updateOne({ id: environment.id }).set({
+        features: detectedFeatures
+      })
       if (Object.keys(detectedFeatures).length > 0) {
-        await Environment.updateOne({ id: environment.id }).set({
-          features: detectedFeatures
-        })
         await Deployment.appendBuildLog(
           deploymentId,
           `Detected features: ${Object.keys(detectedFeatures).join(', ')}\n`
@@ -238,6 +238,11 @@ module.exports = {
             : 'host.docker.internal'
         envVars.SLIPWAY_TELEMETRY_URL = `http://${telemetryHost}:1337/api/v1/telemetry/ingest`
         envVars.SLIPWAY_TELEMETRY_TOKEN = envRecord.telemetryToken
+
+        if (targetApp?.id) {
+          envVars.SLIPWAY_TELEMETRY_APP_ID = String(targetApp.id)
+          envVars.SLIPWAY_TELEMETRY_DEPLOYMENT_ID = String(deploymentId)
+        }
 
         if (targetApp?.id) {
           envVars.SLIPWAY_FLAGS_URL = `http://${telemetryHost}:1337/api/v1/flags/apps/${targetApp.id}`

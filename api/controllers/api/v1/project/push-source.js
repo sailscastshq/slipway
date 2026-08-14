@@ -108,10 +108,10 @@ module.exports = {
       const detectedFeatures = await sails.helpers.sails.detectFeatures(
         targetDir
       )
+      await Environment.update({ project: project.id }).set({
+        features: detectedFeatures
+      })
       if (Object.keys(detectedFeatures).length > 0) {
-        await Environment.update({ project: project.id }).set({
-          features: detectedFeatures
-        })
         sails.log.info(
           `Features detected for ${projectSlug}: ${Object.keys(
             detectedFeatures

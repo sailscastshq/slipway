@@ -82,6 +82,23 @@ module.exports = {
     `)
 
     await datastore.sendNativeQuery(`
+      CREATE TABLE IF NOT EXISTS telemetry_connections (
+        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+        created_at INTEGER,
+        updated_at INTEGER,
+        app_id TEXT NOT NULL UNIQUE,
+        environment TEXT NOT NULL,
+        deployment_id TEXT,
+        hook_version TEXT NOT NULL,
+        protocol_version INTEGER NOT NULL,
+        capabilities TEXT NOT NULL DEFAULT '{}',
+        enabled TEXT NOT NULL DEFAULT 1,
+        started_at INTEGER NOT NULL,
+        last_seen_at INTEGER NOT NULL
+      )
+    `)
+
+    await datastore.sendNativeQuery(`
       CREATE TABLE IF NOT EXISTS observability_job_health (
         id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
         created_at INTEGER,
@@ -136,7 +153,11 @@ module.exports = {
         'telemetry_metrics_environment_name_recorded_at',
         'telemetry_metrics (environment, name, recorded_at DESC)'
       ],
-      ['telemetry_metrics_recorded_at', 'telemetry_metrics (recorded_at, id)']
+      ['telemetry_metrics_recorded_at', 'telemetry_metrics (recorded_at, id)'],
+      [
+        'telemetry_connections_environment_last_seen',
+        'telemetry_connections (environment, last_seen_at DESC)'
+      ]
     ]
 
     for (const [name, shape] of indexes) {

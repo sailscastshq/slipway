@@ -181,6 +181,11 @@ module.exports = {
         envVars.SLIPWAY_TELEMETRY_TOKEN = envRecord.telemetryToken
 
         if (existingApp?.id) {
+          envVars.SLIPWAY_TELEMETRY_APP_ID = String(existingApp.id)
+          envVars.SLIPWAY_TELEMETRY_DEPLOYMENT_ID = String(rollbackId)
+        }
+
+        if (existingApp?.id) {
           envVars.SLIPWAY_FLAGS_URL = `http://${telemetryHost}:1337/api/v1/flags/apps/${existingApp.id}`
           envVars.SLIPWAY_FLAGS_TOKEN = envRecord.telemetryToken
           envVars.SLIPWAY_FLAGS_APP_ID = String(existingApp.id)

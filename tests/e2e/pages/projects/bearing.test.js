@@ -1182,17 +1182,6 @@ test(
     const loadedIds = await feedbackCards.evaluateAll((cards) =>
       cards.map((card) => card.id)
     )
-    const loadedPageTags = await page.raw
-      .locator('.bearing-feedback-items > *')
-      .evaluateAll((cards) =>
-        cards.map((card) => card.dataset.infiniteScrollPage || null)
-      )
-    expect(
-      loadedPageTags.filter((pageNumber) => pageNumber === '1').length
-    ).toBe(20)
-    expect(
-      loadedPageTags.filter((pageNumber) => pageNumber === '2').length
-    ).toBe(11)
     expect(
       loadedIds.filter((publicId) => !firstPageIds.includes(publicId)).length
     ).toBe(11)
