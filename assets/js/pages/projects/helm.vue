@@ -17,6 +17,7 @@ import HelmResultViewer from '@/components/HelmResultViewer.vue'
 import HelmScratchpadTabs from '@/components/HelmScratchpadTabs.vue'
 import HelmWorkspaceLibrary from '@/components/HelmWorkspaceLibrary.vue'
 import HelmWriteGuardDialog from '@/components/HelmWriteGuardDialog.vue'
+import Alert from '@/components/ui/alert/Alert.vue'
 import Tooltip from '@/components/ui/tooltip/Tooltip.vue'
 import { useHelmScratchpads } from '@/composables/useHelmScratchpads'
 import { helmEditorDiagnostic } from '@/lib/helmResult'
@@ -992,13 +993,15 @@ watch(code, () => {
     />
 
     <!-- Not running warning -->
-    <div
+    <Alert
       v-if="!isRunning"
-      class="border-t border-amber-200 bg-amber-50 px-4 py-3 dark:border-amber-900/50 dark:bg-amber-900/10"
+      data-test="helm-not-running-notice"
+      role="note"
+      class="rounded-none border-t border-amber-200 bg-amber-50 px-4 py-3 text-inherit dark:border-amber-900/50 dark:bg-amber-900/10"
     >
       <p class="text-center text-sm text-amber-700 dark:text-amber-400">
         App not running. Deploy first to use Helm.
       </p>
-    </div>
+    </Alert>
   </div>
 </template>

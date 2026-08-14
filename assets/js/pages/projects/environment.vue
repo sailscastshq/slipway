@@ -13,6 +13,7 @@ import AppLayout from '@/layouts/AppLayout.vue'
 import Breadcrumb from '@/components/Breadcrumb.vue'
 import ConfirmModal from '@/components/ConfirmModal.vue'
 import SlideToDeploy from '@/components/SlideToDeploy.vue'
+import Alert from '@/components/ui/alert/Alert.vue'
 import Tooltip from '@/components/ui/tooltip/Tooltip.vue'
 import CodeEditor from '@/components/CodeEditor.vue'
 import ConfigVariableMenu from '@/components/ConfigVariableMenu.vue'
@@ -1331,8 +1332,10 @@ onBeforeUnmount(() => {
           v-if="checklist && checklist.length > 0 && !checklistAllGood"
           class="mb-10"
         >
-          <div
-            class="rounded-lg border border-amber-200 bg-amber-50/50 dark:border-amber-900/50 dark:bg-amber-950/20"
+          <Alert
+            data-test="deployment-checklist"
+            role="note"
+            class="rounded-lg border border-amber-200 bg-amber-50/50 p-0 text-base text-inherit dark:border-amber-900/50 dark:bg-amber-950/20"
           >
             <div class="flex items-center gap-2 px-4 py-3">
               <svg
@@ -1359,10 +1362,10 @@ onBeforeUnmount(() => {
                 {{ checklistWarnings.length }}
               </span>
             </div>
-            <div
+            <ul
               class="divide-y divide-amber-200/50 border-t border-amber-200/50 dark:divide-amber-900/30 dark:border-amber-900/30"
             >
-              <div
+              <li
                 v-for="item in checklist"
                 :key="item.key"
                 class="flex items-start justify-between gap-3 px-4 py-2.5"
@@ -1424,14 +1427,15 @@ onBeforeUnmount(() => {
                 </div>
                 <button
                   v-if="item.action"
+                  type="button"
                   @click="handleChecklistAction(item.action)"
                   class="shrink-0 rounded-md border border-amber-300 bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700 hover:bg-amber-100 dark:border-amber-800 dark:bg-amber-900/30 dark:text-amber-400 dark:hover:bg-amber-900/50"
                 >
                   {{ item.action.label }}
                 </button>
-              </div>
-            </div>
-          </div>
+              </li>
+            </ul>
+          </Alert>
         </div>
 
         <!-- Accordion: Apps, Services, Env Vars -->
@@ -1539,6 +1543,8 @@ onBeforeUnmount(() => {
                   </div>
                   <div class="relative">
                     <button
+                      type="button"
+                      :data-test="`app-actions-${appItem.slug}`"
                       @click.stop="
                         appMenuOpen =
                           appMenuOpen === appItem.id ? null : appItem.id
@@ -1565,6 +1571,7 @@ onBeforeUnmount(() => {
                     >
                       <div
                         v-if="appMenuOpen === appItem.id"
+                        :data-test="`app-action-menu-${appItem.slug}`"
                         @click.stop
                         class="absolute right-0 top-full z-20 mt-1 w-56 rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-900"
                       >
@@ -1584,10 +1591,11 @@ onBeforeUnmount(() => {
                             :disabled="deployingAppId === appItem.id"
                             @deploy="deployApp(appItem)"
                           />
-                          <div
+                          <Alert
                             v-else
-                            role="alert"
-                            class="rounded-md bg-amber-50 p-3 dark:bg-amber-950/30"
+                            data-test="deployment-source-required"
+                            role="note"
+                            class="bg-amber-50 p-3 text-inherit dark:bg-amber-950/30"
                           >
                             <p
                               class="text-xs font-medium text-amber-900 dark:text-amber-200"
@@ -1605,7 +1613,7 @@ onBeforeUnmount(() => {
                             >
                               Repository settings
                             </Link>
-                          </div>
+                          </Alert>
                         </div>
                         <!-- Actions -->
                         <div

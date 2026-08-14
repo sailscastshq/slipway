@@ -12,6 +12,7 @@ import {
 import AppLayout from '@/layouts/AppLayout.vue'
 import Breadcrumb from '@/components/Breadcrumb.vue'
 import MarkdownEditor from '@/components/content/MarkdownEditor.vue'
+import Alert from '@/components/ui/alert/Alert.vue'
 import { useQueryState } from '@/composables/useQueryState'
 
 defineOptions({ layout: AppLayout })
@@ -379,10 +380,10 @@ function handleViewKeydown(event, index) {
           </button>
         </div>
 
-        <div
+        <Alert
           v-if="form.enabled && !hookDetected"
-          class="mt-8 rounded-xl bg-amber-50 px-4 py-3 dark:bg-amber-950/30"
-          role="status"
+          class="mt-8 rounded-xl bg-amber-50 px-4 py-3 text-inherit dark:bg-amber-950/30"
+          role="note"
         >
           <p class="text-sm font-medium text-amber-900 dark:text-amber-200">
             Update sails-hook-slipway, then redeploy this app.
@@ -391,7 +392,7 @@ function handleViewKeydown(event, index) {
             Public pages can be prepared now. The compatible hook will add the
             signed-in participant handshake and optional in-app widget.
           </p>
-        </div>
+        </Alert>
 
         <div
           ref="tablist"

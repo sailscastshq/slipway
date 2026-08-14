@@ -4,6 +4,7 @@ import { computed, inject, ref } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
 import Breadcrumb from '@/components/Breadcrumb.vue'
 import ConfirmModal from '@/components/ConfirmModal.vue'
+import Alert from '@/components/ui/alert/Alert.vue'
 
 defineOptions({
   layout: AppLayout
@@ -266,10 +267,11 @@ function timeAgo(timestamp) {
           </div>
         </div>
 
-        <section
+        <Alert
           v-if="app.bridgeEnabled && !hookDetected"
+          as="section"
           class="mt-8 rounded-lg bg-amber-50 px-4 py-3 dark:bg-amber-950/30"
-          role="status"
+          role="note"
           data-test="bridge-hook-warning"
         >
           <p class="text-sm font-medium text-amber-900 dark:text-amber-200">
@@ -279,7 +281,7 @@ function timeAgo(timestamp) {
             The hook adds the secure <code>/bridge</code> entry point. Existing
             dashboard Bridge tools continue to work while you update.
           </p>
-        </section>
+        </Alert>
 
         <section
           v-else-if="app.bridgeEnabled"
