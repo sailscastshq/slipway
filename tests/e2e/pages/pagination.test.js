@@ -96,6 +96,15 @@ test(
       await page.raw.emulateMedia({ colorScheme: 'light' })
 
       if (capturePhase === 'after') {
+        const resourceTable = page.raw.locator('[data-slot="table"]')
+        await expect(resourceTable).toBeVisible()
+        expect(
+          (await resourceTable.locator('caption').textContent()).trim()
+        ).toBe('Courses records')
+        expect(
+          await resourceTable.locator('thead th[scope="col"]').count()
+        ).toBe(2)
+
         const pagination = page.raw.locator('[data-test="bridge-pagination"]')
         await expect(pagination).toBeVisible()
         await expect(pagination).toHaveAttribute('data-slot', 'pagination')

@@ -12,6 +12,7 @@ import BridgeDashboard from '@/components/bridge/BridgeDashboard.vue'
 import BridgeFilterMenu from '@/components/bridge/BridgeFilterMenu.vue'
 import BridgePageHeader from '@/components/bridge/BridgePageHeader.vue'
 import Pagination from '@/components/ui/pagination/Pagination.vue'
+import Table from '@/components/ui/table/Table.vue'
 
 defineOptions({
   layout: BridgePageLayout
@@ -803,12 +804,18 @@ function createUrl() {
           v-else-if="modelMeta"
           class="rounded-lg border border-gray-200 dark:border-gray-800"
         >
-          <table class="w-full text-left text-sm">
+          <Table class="w-full text-left text-sm">
+            <caption class="sr-only">
+              {{
+                modelMeta.label || modelIdentity
+              }}
+              records
+            </caption>
             <thead
               class="border-b border-gray-200 bg-gray-50/50 dark:border-gray-800 dark:bg-gray-900/50"
             >
               <tr>
-                <th v-if="hasBulkActions" class="w-10 px-4 py-2">
+                <th v-if="hasBulkActions" scope="col" class="w-10 px-4 py-2">
                   <input
                     type="checkbox"
                     :checked="selectAll"
@@ -819,6 +826,7 @@ function createUrl() {
                 <th
                   v-for="col in visibleColumns"
                   :key="col"
+                  scope="col"
                   @click="toggleSort(col)"
                   :class="[
                     'select-none whitespace-nowrap px-4 py-2 text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400',
@@ -853,7 +861,7 @@ function createUrl() {
                     </svg>
                   </span>
                 </th>
-                <th v-if="hasRecordActions" class="w-12 px-4 py-2">
+                <th v-if="hasRecordActions" scope="col" class="w-12 px-4 py-2">
                   <span class="sr-only">Actions</span>
                 </th>
               </tr>
@@ -985,7 +993,7 @@ function createUrl() {
                 </td>
               </tr>
             </tbody>
-          </table>
+          </Table>
         </div>
       </div>
     </div>

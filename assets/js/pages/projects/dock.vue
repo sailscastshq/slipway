@@ -13,6 +13,7 @@ import AppLayout from '@/layouts/AppLayout.vue'
 import ConfirmModal from '@/components/ConfirmModal.vue'
 import ToastContainer from '@/components/ToastContainer.vue'
 import Tooltip from '@/components/ui/tooltip/Tooltip.vue'
+import Table from '@/components/ui/table/Table.vue'
 import CodeEditor from '@/components/CodeEditor.vue'
 import DockResultStatusIcon from '@/components/DockResultStatusIcon.vue'
 import { highlightSQL } from '@/lib/highlightSQL'
@@ -1789,7 +1790,7 @@ onUnmounted(() => {
                 "
                 class="flex-1 overflow-auto"
               >
-                <table class="min-w-full">
+                <Table class="min-w-full">
                   <caption class="sr-only">
                     Query result
                     {{
@@ -1846,7 +1847,7 @@ onUnmounted(() => {
                       </td>
                     </tr>
                   </tbody>
-                </table>
+                </Table>
               </div>
 
               <!-- JSON view -->
@@ -2172,7 +2173,13 @@ onUnmounted(() => {
               >
             </div>
             <div class="flex-1 overflow-x-auto">
-              <table class="min-w-full">
+              <Table class="min-w-full">
+                <caption class="sr-only">
+                  Data from
+                  {{
+                    selectedTable
+                  }}
+                </caption>
                 <thead>
                   <tr
                     class="border-b border-gray-200 bg-gray-50 dark:border-gray-800 dark:bg-gray-900/50"
@@ -2180,6 +2187,7 @@ onUnmounted(() => {
                     <th
                       v-for="col in tableData.columns"
                       :key="col"
+                      scope="col"
                       class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400"
                     >
                       {{ col }}
@@ -2216,7 +2224,7 @@ onUnmounted(() => {
                     </td>
                   </tr>
                 </tbody>
-              </table>
+              </Table>
             </div>
           </div>
         </div>
@@ -2344,25 +2352,35 @@ onUnmounted(() => {
                   >{{ tableName }}</span
                 >
               </div>
-              <table class="min-w-full">
+              <Table class="min-w-full">
+                <caption class="sr-only">
+                  Schema for
+                  {{
+                    tableName
+                  }}
+                </caption>
                 <thead>
                   <tr class="border-b border-gray-200 dark:border-gray-800">
                     <th
+                      scope="col"
                       class="px-4 py-2 text-left text-xs font-medium uppercase text-gray-500 dark:text-gray-400"
                     >
                       Column
                     </th>
                     <th
+                      scope="col"
                       class="px-4 py-2 text-left text-xs font-medium uppercase text-gray-500 dark:text-gray-400"
                     >
                       Type
                     </th>
                     <th
+                      scope="col"
                       class="px-4 py-2 text-left text-xs font-medium uppercase text-gray-500 dark:text-gray-400"
                     >
                       Nullable
                     </th>
                     <th
+                      scope="col"
                       class="px-4 py-2 text-left text-xs font-medium uppercase text-gray-500 dark:text-gray-400"
                     >
                       Default
@@ -2404,7 +2422,7 @@ onUnmounted(() => {
                     </td>
                   </tr>
                 </tbody>
-              </table>
+              </Table>
             </div>
           </div>
 
