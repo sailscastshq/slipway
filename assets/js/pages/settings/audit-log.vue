@@ -2,6 +2,7 @@
 import { Head, Link, router } from '@inertiajs/vue3'
 import { computed, inject, onBeforeUnmount, ref, watch } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
+import Pagination from '@/components/ui/pagination/Pagination.vue'
 
 defineOptions({
   layout: AppLayout
@@ -63,18 +64,17 @@ const resultRange = computed(() => {
 watch([query, group], ([, nextGroup], [, previousGroup]) => {
   window.clearTimeout(searchTimer)
   searchTimer = window.setTimeout(
-    () => fetchLogs(1),
+    () => refreshLogs(),
     nextGroup !== previousGroup ? 0 : 220
   )
 })
 
 onBeforeUnmount(() => window.clearTimeout(searchTimer))
 
-function fetchLogs(page) {
+function refreshLogs() {
   router.get(
     '/settings/audit-log',
     {
-      page,
       q: query.value.trim() || undefined,
       group: group.value === 'all' ? undefined : group.value
     },
@@ -421,24 +421,13 @@ function shortHash(hash) {
             Helm audit events are retained for
             {{ helmAuditRetentionDays }} days.
           </p>
-          <div v-if="pagination.totalPages > 1" class="flex items-center gap-1">
-            <button
-              type="button"
-              :disabled="pagination.page <= 1"
-              class="disabled:opacity-35 rounded-md px-2.5 py-1.5 font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-900 disabled:cursor-not-allowed dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white"
-              @click="fetchLogs(pagination.page - 1)"
-            >
-              Previous
-            </button>
-            <button
-              type="button"
-              :disabled="pagination.page >= pagination.totalPages"
-              class="disabled:opacity-35 rounded-md px-2.5 py-1.5 font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-900 disabled:cursor-not-allowed dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white"
-              @click="fetchLogs(pagination.page + 1)"
-            >
-              Next
-            </button>
-          </div>
+          <Pagination
+            :page="pagination.page"
+            :pages="pagination.totalPages"
+            :only="['logs', 'pagination', 'filters', 'helmAuditRetentionDays']"
+            data-test="audit-pagination"
+            class="[&_[data-slot=ellipsis]]:min-h-8 [&_[data-slot=ellipsis]]:min-w-6 [&_[data-slot=next]]:min-h-8 [&_[data-slot=next]]:min-w-8 [&_[data-slot=page]]:min-h-8 [&_[data-slot=page]]:min-w-8 [&_[data-slot=previous]]:min-h-8 [&_[data-slot=previous]]:min-w-8 w-auto [&>ul]:justify-end [&_[data-slot=next]]:border-0 [&_[data-slot=next]]:bg-transparent [&_[data-slot=next]]:px-2.5 [&_[data-slot=next]]:text-xs [&_[data-slot=page]]:border-0 [&_[data-slot=page]]:px-2 [&_[data-slot=page]]:text-xs [&_[data-slot=previous]]:border-0 [&_[data-slot=previous]]:bg-transparent [&_[data-slot=previous]]:px-2.5 [&_[data-slot=previous]]:text-xs"
+          />
         </footer>
       </div>
     </main>
