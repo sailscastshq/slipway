@@ -11,6 +11,7 @@ import BridgeActionDialog from '@/components/bridge/BridgeActionDialog.vue'
 import BridgeDashboard from '@/components/bridge/BridgeDashboard.vue'
 import BridgeFilterMenu from '@/components/bridge/BridgeFilterMenu.vue'
 import BridgePageHeader from '@/components/bridge/BridgePageHeader.vue'
+import Pagination from '@/components/ui/pagination/Pagination.vue'
 
 defineOptions({
   layout: BridgePageLayout
@@ -86,7 +87,6 @@ const tableReloadProps = [
 ]
 
 // Local state for UI
-const page = ref(props.currentPage)
 const sortValue = ref(props.sort)
 const searchInput = ref(props.search)
 const filtersValue = ref(props.filterState || {})
@@ -243,17 +243,10 @@ watch(
     sortValue.value = value
   }
 )
-watch(
-  () => props.currentPage,
-  (value) => {
-    page.value = value
-  }
-)
-
 // Navigate with updated params
 function navigateWithParams(updates, visitOptions = {}) {
   const params = {
-    page: updates.page ?? page.value,
+    page: updates.page ?? props.currentPage,
     sort: updates.sort ?? sortValue.value,
     search: updates.search ?? searchInput.value,
     filters: JSON.stringify(updates.filters ?? filtersValue.value),
@@ -305,7 +298,6 @@ const hasScopedQuery = computed(
 
 function applyFilters(filters) {
   filtersValue.value = filters
-  page.value = 1
   navigateWithParams({ filters, page: 1 })
 }
 
@@ -314,7 +306,6 @@ function switchLens(event) {
   lensValue.value = lens
   filtersValue.value = {}
   sortValue.value = ''
-  page.value = 1
   navigateWithParams({ lens, filters: {}, sort: '', page: 1 })
 }
 
@@ -483,12 +474,6 @@ function clearSelection() {
 function completeCustomAction() {
   if (actionDialog.value.action?.scope === 'bulk') clearSelection()
   actionDialog.value = { show: false, action: null, recordIds: [] }
-}
-
-// Pagination
-function goToPage(newPage) {
-  page.value = newPage
-  navigateWithParams({ page: newPage })
 }
 
 function switchDashboard(event) {
@@ -1005,7 +990,6 @@ function createUrl() {
       </div>
     </div>
 
-    <!-- Pagination -->
     <div
       v-if="totalPages > 1"
       class="border-t border-gray-200 px-4 py-3 dark:border-gray-800 sm:px-8"
@@ -1014,22 +998,13 @@ function createUrl() {
         <div class="text-xs text-gray-500 dark:text-gray-400">
           Page {{ currentPage }} of {{ totalPages }}
         </div>
-        <div class="flex items-center space-x-2">
-          <button
-            @click="goToPage(Math.max(1, currentPage - 1))"
-            :disabled="currentPage <= 1"
-            class="rounded-md border border-gray-200 px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
-          >
-            Previous
-          </button>
-          <button
-            @click="goToPage(Math.min(totalPages, currentPage + 1))"
-            :disabled="currentPage >= totalPages"
-            class="rounded-md border border-gray-200 px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
-          >
-            Next
-          </button>
-        </div>
+        <Pagination
+          :page="currentPage"
+          :pages="totalPages"
+          :only="tableReloadProps"
+          data-test="bridge-pagination"
+          class="[&_[data-slot=ellipsis]]:min-h-8 [&_[data-slot=ellipsis]]:min-w-6 [&_[data-slot=next]]:min-h-8 [&_[data-slot=next]]:min-w-8 [&_[data-slot=page]]:min-h-8 [&_[data-slot=page]]:min-w-8 [&_[data-slot=previous]]:min-h-8 [&_[data-slot=previous]]:min-w-8 w-auto [&>ul]:justify-end [&_[data-slot=next]]:px-2.5 [&_[data-slot=next]]:text-xs [&_[data-slot=page]]:px-2 [&_[data-slot=page]]:text-xs [&_[data-slot=previous]]:px-2.5 [&_[data-slot=previous]]:text-xs"
+        />
       </div>
     </div>
   </div>
