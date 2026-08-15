@@ -2,6 +2,7 @@ const SERVICE_IMAGE_POLICY = Object.freeze({
   postgresql: Object.freeze({
     label: 'PostgreSQL',
     repository: 'postgres',
+    versionLineSegments: 1,
     defaultVersion: '17',
     versions: Object.freeze([
       version('17', {
@@ -16,6 +17,7 @@ const SERVICE_IMAGE_POLICY = Object.freeze({
   mysql: Object.freeze({
     label: 'MySQL',
     repository: 'mysql',
+    versionLineSegments: 2,
     defaultVersion: '8.4',
     versions: Object.freeze([
       version('8.4', {
@@ -30,6 +32,7 @@ const SERVICE_IMAGE_POLICY = Object.freeze({
   redis: Object.freeze({
     label: 'Redis',
     repository: 'redis',
+    versionLineSegments: 2,
     defaultVersion: '7.2',
     versions: Object.freeze([
       version('7.2', {
@@ -42,6 +45,7 @@ const SERVICE_IMAGE_POLICY = Object.freeze({
   mongodb: Object.freeze({
     label: 'MongoDB',
     repository: 'mongo',
+    versionLineSegments: 2,
     defaultVersion: '8.0',
     versions: Object.freeze([
       version('8.0', {
@@ -176,12 +180,15 @@ function findSupportedLine(type, detectedVersion) {
   const numeric = String(detectedVersion).match(/\d+(?:\.\d+){0,2}/)?.[0]
   if (!numeric) return null
 
-  return (
+  const supportedLine =
     policy.versions.find(
       (entry) =>
         numeric === entry.version || numeric.startsWith(`${entry.version}.`)
-    )?.version || numeric
-  )
+    )?.version || null
+
+  if (supportedLine) return supportedLine
+
+  return numeric.split('.').slice(0, policy.versionLineSegments).join('.')
 }
 
 function policyError(message) {

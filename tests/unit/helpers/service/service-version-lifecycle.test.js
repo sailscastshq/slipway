@@ -112,6 +112,127 @@ test(
 )
 
 test(
+  'legacy Redis latest records resolve once and retain their running service',
+  {
+    world: {
+      name: 'configured-slipway',
+      context: {
+        deploymentTarget: {
+          slug: 'legacy-redis-service',
+          name: 'Legacy Redis Service'
+        }
+      }
+    }
+  },
+  async ({ sails, world, expect }) => {
+    const service = await world.create('service').with({
+      environment: world.current.environments.production.id,
+      name: 'cache',
+      type: 'redis',
+      version: 'latest',
+      status: 'running',
+      containerId: 'running-redis-container',
+      containerName: 'slipway-legacy-redis-service-production-cache',
+      imageMetadata: {
+        volumeName: 'slipway-legacy-redis-service-cache-data'
+      }
+    })
+    const originalInspect = sails.helpers.docker.inspectRunningServiceImage
+
+    const inspectExisting = async () => ({
+      version: '8.4',
+      detectedVersion: '8.4.0',
+      versionDetectionSource: 'runtime-command',
+      imageReference: 'redis@sha256:running',
+      imageId: 'sha256:running',
+      repoDigest: 'redis@sha256:running',
+      configuredImage: 'redis:latest'
+    })
+    inspectExisting.with = inspectExisting
+    sails.helpers.docker.inspectRunningServiceImage = inspectExisting
+
+    try {
+      const first = await sails.helpers.service.migrateLegacyVersions()
+      const second = await sails.helpers.service.migrateLegacyVersions()
+      const updated = await sails.models.service.findOne({ id: service.id })
+
+      expect(first.migrated).toBe(1)
+      expect(first.unresolved).toBe(0)
+      expect(second.migrated).toBe(0)
+      expect(second.unresolved).toBe(0)
+      expect(updated.version).toBe('8.4')
+      expect(updated.imageReference).toBe('redis@sha256:running')
+      expect(updated.containerId).toBe('running-redis-container')
+      expect(updated.containerName).toBe(service.containerName)
+      expect(updated.status).toBe('running')
+      expect(updated.imageMetadata.volumeName).toBe(
+        'slipway-legacy-redis-service-cache-data'
+      )
+      expect(updated.imageMetadata.versionResolution.status).toBe('resolved')
+      expect(updated.imageMetadata.versionDetectionSource).toBe(
+        'runtime-command'
+      )
+    } finally {
+      sails.helpers.docker.inspectRunningServiceImage = originalInspect
+    }
+  }
+)
+
+test(
+  'legacy services retain an immutable image when the version stays unknown',
+  {
+    world: {
+      name: 'configured-slipway',
+      context: {
+        deploymentTarget: {
+          slug: 'unknown-legacy-service',
+          name: 'Unknown Legacy Service'
+        }
+      }
+    }
+  },
+  async ({ sails, world, expect }) => {
+    const service = await world.create('service').with({
+      environment: world.current.environments.production.id,
+      name: 'cache',
+      type: 'redis',
+      version: 'latest',
+      status: 'running',
+      containerName: 'slipway-unknown-legacy-service-production-cache'
+    })
+    const originalInspect = sails.helpers.docker.inspectRunningServiceImage
+
+    const inspectExisting = async () => ({
+      version: null,
+      detectedVersion: null,
+      versionDetectionSource: null,
+      imageReference: 'redis@sha256:unknown-version',
+      imageId: 'sha256:unknown-version',
+      repoDigest: 'redis@sha256:unknown-version',
+      configuredImage: 'redis:latest'
+    })
+    inspectExisting.with = inspectExisting
+    sails.helpers.docker.inspectRunningServiceImage = inspectExisting
+
+    try {
+      const first = await sails.helpers.service.migrateLegacyVersions()
+      const second = await sails.helpers.service.migrateLegacyVersions()
+      const updated = await sails.models.service.findOne({ id: service.id })
+
+      expect(first.migrated).toBe(1)
+      expect(first.unresolved).toBe(1)
+      expect(second.migrated).toBe(0)
+      expect(second.unresolved).toBe(0)
+      expect(updated.version).toBe('latest')
+      expect(updated.imageReference).toBe('redis@sha256:unknown-version')
+      expect(updated.imageMetadata.versionResolution.status).toBe('unresolved')
+    } finally {
+      sails.helpers.docker.inspectRunningServiceImage = originalInspect
+    }
+  }
+)
+
+test(
   'a deliberate major upgrade backs up, restores, and retains recovery state',
   {
     world: {
