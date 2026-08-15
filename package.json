@@ -1,6 +1,6 @@
 {
   "name": "slipway",
-  "version": "0.0.60",
+  "version": "0.0.61",
   "private": true,
   "description": "The Sails-native deployment platform",
   "keywords": [
