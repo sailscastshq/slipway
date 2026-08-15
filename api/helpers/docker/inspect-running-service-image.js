@@ -5,6 +5,10 @@ const {
   findSupportedLine,
   getPolicy
 } = require('../../lib/service-image-policy')
+const {
+  discoverServiceVersion,
+  getRuntimeVersionCommand
+} = require('../../lib/service-version-discovery')
 
 const execFileAsync = promisify(execFile)
 
@@ -45,7 +49,18 @@ module.exports = {
     ])
     const image = images[0]
     const policy = getPolicy(type)
-    const detectedVersion = detectVersion(type, containerDetails, image)
+    const runtimeOutput = await inspectRuntimeVersion(
+      dockerPath,
+      type,
+      containerName
+    )
+    const versionDiscovery = discoverServiceVersion({
+      type,
+      runtimeOutput,
+      container: containerDetails,
+      image
+    })
+    const detectedVersion = versionDiscovery.detectedVersion
     const version = findSupportedLine(type, detectedVersion)
     const imageReference =
       image?.RepoDigests?.find((digest) =>
@@ -58,12 +73,32 @@ module.exports = {
     return {
       version,
       detectedVersion,
+      versionDetectionSource: versionDiscovery.source,
       imageReference,
       imageId: image?.Id || containerDetails.Image,
       repoDigest: image?.RepoDigests?.[0] || null,
       configuredImage: containerDetails.Config?.Image || null,
       inspectedAt: Date.now()
     }
+  }
+}
+
+async function inspectRuntimeVersion(dockerPath, type, containerName) {
+  const command = getRuntimeVersionCommand(type)
+  if (!command) return null
+
+  try {
+    const { stdout, stderr } = await execFileAsync(
+      dockerPath,
+      ['exec', containerName, ...command],
+      {
+        timeout: 5000,
+        maxBuffer: 64 * 1024
+      }
+    )
+    return [stdout, stderr].filter(Boolean).join('\n')
+  } catch {
+    return null
   }
 }
 
@@ -86,36 +121,4 @@ async function inspect(dockerPath, args) {
     error.code = 'SERVICE_CONTAINER_IMAGE_NOT_FOUND'
     throw error
   }
-}
-
-function detectVersion(type, container, image) {
-  const env = Object.fromEntries(
-    (image?.Config?.Env || [])
-      .map((entry) => entry.split(/=(.*)/s))
-      .filter(([key, value]) => key && value !== undefined)
-  )
-
-  const envKeys = {
-    postgresql: ['PG_MAJOR', 'PG_VERSION'],
-    mysql: ['MYSQL_VERSION', 'MYSQL_MAJOR'],
-    redis: ['REDIS_VERSION'],
-    mongodb: ['MONGO_VERSION', 'MONGO_MAJOR']
-  }
-
-  for (const key of envKeys[type] || []) {
-    const numeric = env[key]?.match(/\d+(?:\.\d+){0,2}/)?.[0]
-    if (numeric) return numeric
-  }
-
-  const configuredTag = container.Config?.Image?.match(/:([^:@]+)$/)?.[1]
-  if (configuredTag && configuredTag !== 'latest') {
-    return configuredTag
-  }
-
-  for (const repoTag of image?.RepoTags || []) {
-    const tag = repoTag.match(/:([^:@]+)$/)?.[1]
-    if (tag && tag !== 'latest') return tag
-  }
-
-  return null
 }

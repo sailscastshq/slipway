@@ -382,6 +382,12 @@ const serviceTypeLabel = {
               >
                 Custom version outside the tested matrix
               </span>
+              <span
+                v-else-if="service.imageReference"
+                class="text-amber-700 dark:text-amber-400"
+              >
+                Immutable image pinned; version line unknown
+              </span>
               <span v-else class="text-amber-700 dark:text-amber-400">
                 Legacy version has not been resolved from Docker
               </span>

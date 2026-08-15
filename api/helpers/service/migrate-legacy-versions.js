@@ -1,3 +1,5 @@
+const LEGACY_VERSION_RESOLUTION_SCHEMA = 1
+
 module.exports = {
   friendlyName: 'Migrate legacy service versions',
 
@@ -10,7 +12,9 @@ module.exports = {
     const services = await Service.find()
     const candidates = services.filter(
       (service) =>
-        service.version === 'latest' ||
+        (service.version === 'latest' &&
+          service.imageMetadata?.versionResolution?.schemaVersion !==
+            LEGACY_VERSION_RESOLUTION_SCHEMA) ||
         !service.imageReference ||
         !service.imageMetadata
     )
@@ -29,28 +33,42 @@ module.exports = {
             containerName: service.containerName
           })
 
-        if (service.version === 'latest' && !inspected.version) {
-          result.unresolved += 1
-          sails.log.warn(
-            `Could not determine the pinned version for legacy service ${service.name}; leaving it unresolved.`
-          )
-          continue
-        }
+        const resolvedVersion =
+          service.version === 'latest' ? inspected.version : service.version
+        const versionResolved = Boolean(
+          resolvedVersion && resolvedVersion !== 'latest'
+        )
 
         await Service.updateOne({ id: service.id }).set({
-          version:
-            service.version === 'latest' ? inspected.version : service.version,
+          version: resolvedVersion || service.version,
           imageReference: inspected.imageReference,
           imageMetadata: {
+            ...(service.imageMetadata || {}),
             source: 'running-container',
             migratedAt: Date.now(),
             configuredImage: inspected.configuredImage,
             detectedVersion: inspected.detectedVersion,
+            versionDetectionSource: inspected.versionDetectionSource,
             imageId: inspected.imageId,
-            repoDigest: inspected.repoDigest
+            repoDigest: inspected.repoDigest,
+            versionResolution: {
+              schemaVersion: LEGACY_VERSION_RESOLUTION_SCHEMA,
+              status: versionResolved ? 'resolved' : 'unresolved',
+              source:
+                service.version === 'latest'
+                  ? inspected.versionDetectionSource
+                  : 'stored-version'
+            }
           }
         })
         result.migrated += 1
+
+        if (!versionResolved) {
+          result.unresolved += 1
+          sails.log.warn(
+            `Pinned the immutable image for legacy service ${service.name}, but could not determine its version.`
+          )
+        }
       } catch (error) {
         result.unresolved += 1
         sails.log.warn(
