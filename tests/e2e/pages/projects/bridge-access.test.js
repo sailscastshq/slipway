@@ -39,7 +39,7 @@ test(
       await page.goto(appPath)
       await page.click('@app-more-menu')
 
-      const bridgeLink = page.raw.getByRole('link', {
+      const bridgeLink = page.raw.getByRole('menuitem', {
         name: 'Bridge',
         exact: true
       })

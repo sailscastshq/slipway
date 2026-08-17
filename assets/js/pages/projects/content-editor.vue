@@ -1,10 +1,11 @@
 <script setup>
 import { Link, Head, useForm } from '@inertiajs/vue3'
-import { computed, inject, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, inject, ref, watch } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
 import ConfirmModal from '@/components/ConfirmModal.vue'
 import MarkdownEditor from '@/components/content/MarkdownEditor.vue'
 import Tooltip from '@/components/ui/tooltip/Tooltip.vue'
+import Menu from '@/components/ui/menu/Menu.vue'
 import { usePrecognitionValidation } from '@/composables/precognition'
 
 defineOptions({
@@ -30,7 +31,6 @@ const sidebarCollapsed = inject('sidebarCollapsed')
 // State
 const deleteModalOpen = ref(false)
 const showSaveMenu = ref(false)
-const saveMenuRoot = ref(null)
 
 // Content (initialized from props)
 const fileType = ref(props.content?.fileType || 'markdown')
@@ -216,26 +216,6 @@ function updateEditorMode(nextMode) {
 function updateEditorCompatibility(nextCompatibility) {
   editorCompatibility.value = nextCompatibility
 }
-
-// Click outside handler
-function handleClickOutside(e) {
-  if (
-    showSaveMenu.value &&
-    saveMenuRoot.value &&
-    !saveMenuRoot.value.contains(e.target)
-  ) {
-    showSaveMenu.value = false
-  }
-}
-
-// Initialize
-onMounted(() => {
-  document.addEventListener('click', handleClickOutside)
-})
-
-onUnmounted(() => {
-  document.removeEventListener('click', handleClickOutside)
-})
 
 // Keyboard shortcuts
 function handleKeydown(e) {
@@ -500,7 +480,7 @@ function handleKeydown(e) {
         </Tooltip>
 
         <!-- Split Save Button -->
-        <div ref="saveMenuRoot" class="relative flex">
+        <div class="relative flex">
           <button
             type="button"
             @click="saveContent(false)"
@@ -524,9 +504,7 @@ function handleKeydown(e) {
             data-test="content-save-menu-toggle"
             type="button"
             aria-label="Open save options"
-            :aria-expanded="showSaveMenu"
-            aria-controls="content-save-menu"
-            @click="showSaveMenu = !showSaveMenu"
+            popovertarget="content-save-menu"
             :disabled="saveForm.processing || saveForm.validating"
             class="rounded-r-md border-l border-gray-700 bg-gray-900 px-2 py-1.5 text-white hover:bg-gray-800 disabled:opacity-50 dark:border-gray-300 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
           >
@@ -546,11 +524,14 @@ function handleKeydown(e) {
             </svg>
           </button>
           <!-- Dropdown -->
-          <div
-            v-if="showSaveMenu"
+          <Menu
+            v-model:open="showSaveMenu"
             id="content-save-menu"
             data-test="content-save-menu"
-            class="absolute right-0 top-full z-10 mt-1 w-64 rounded-md border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-800"
+            aria-label="Save options"
+            placement="bottom-end"
+            :offset="4"
+            class="w-64 rounded-md border-gray-200 bg-white px-0 py-1 shadow-lg dark:border-gray-700 dark:bg-gray-800"
           >
             <button
               type="button"
@@ -583,7 +564,7 @@ function handleKeydown(e) {
                 saveForm.errors.appSlug
               }}
             </p>
-          </div>
+          </Menu>
         </div>
       </div>
     </div>

@@ -3,6 +3,7 @@ import { Link, Head, router, useForm } from '@inertiajs/vue3'
 import { inject, ref, computed, watch, onUnmounted } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
 import ConfirmModal from '@/components/ConfirmModal.vue'
+import Menu from '@/components/ui/menu/Menu.vue'
 import { usePrecognitionValidation } from '@/composables/precognition'
 
 defineOptions({
@@ -80,17 +81,6 @@ onUnmounted(() => {
   document.removeEventListener('keydown', handleInviteKeydown)
 })
 
-// Actions menu
-const openMenu = ref(null)
-
-function toggleMenu(memberId) {
-  openMenu.value = openMenu.value === memberId ? null : memberId
-}
-
-function closeMenu() {
-  openMenu.value = null
-}
-
 // Role change
 const roleMemberId = ref(null)
 const roleForm = useForm({ role: 'member' }).withPrecognition(
@@ -99,7 +89,6 @@ const roleForm = useForm({ role: 'member' }).withPrecognition(
 )
 
 function changeRole(member, newRole) {
-  openMenu.value = null
   roleMemberId.value = member.id
   roleForm.role = newRole
   roleForm.validate('role', {
@@ -116,7 +105,6 @@ const removingMember = ref(null)
 
 function confirmRemove(member) {
   removingMember.value = member
-  openMenu.value = null
 }
 
 function executeRemove() {
@@ -161,7 +149,7 @@ function timeAgo(date) {
 </script>
 <template>
   <Head :title="`Team Members | ${team.name} | Slipway`"></Head>
-  <div class="flex h-full flex-col" @click="closeMenu">
+  <div class="flex h-full flex-col">
     <!-- Header -->
     <div
       class="flex items-center justify-between border-b border-gray-200 py-4 pl-4 pr-4 dark:border-gray-800 sm:pl-4 sm:pr-8"
@@ -396,7 +384,9 @@ function timeAgo(date) {
                   class="relative"
                 >
                   <button
-                    @click.stop="toggleMenu(member.id)"
+                    type="button"
+                    :popovertarget="`team-member-actions-${member.id}`"
+                    :aria-label="`Actions for ${member.fullName}`"
                     class="rounded-md p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-800 dark:hover:text-gray-300"
                   >
                     <svg
@@ -411,33 +401,36 @@ function timeAgo(date) {
                   </button>
 
                   <!-- Dropdown menu -->
-                  <div
-                    v-if="openMenu === member.id"
-                    class="absolute right-0 z-10 mt-1 w-40 rounded-md border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-900"
+                  <Menu
+                    :id="`team-member-actions-${member.id}`"
+                    :aria-label="`Actions for ${member.fullName}`"
+                    placement="bottom-end"
+                    :offset="4"
+                    class="w-40 rounded-md border-gray-200 bg-white px-0 py-1 shadow-lg dark:border-gray-700 dark:bg-gray-900"
                   >
                     <template v-if="isOwner">
                       <button
                         v-if="member.teamRole === 'member'"
-                        @click.stop="changeRole(member, 'admin')"
+                        @click="changeRole(member, 'admin')"
                         class="flex w-full items-center px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-800"
                       >
                         Make admin
                       </button>
                       <button
                         v-if="member.teamRole === 'admin'"
-                        @click.stop="changeRole(member, 'member')"
+                        @click="changeRole(member, 'member')"
                         class="flex w-full items-center px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-800"
                       >
                         Make member
                       </button>
                     </template>
                     <button
-                      @click.stop="confirmRemove(member)"
+                      @click="confirmRemove(member)"
                       class="flex w-full items-center px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20"
                     >
                       Remove
                     </button>
-                  </div>
+                  </Menu>
                 </div>
               </div>
             </div>

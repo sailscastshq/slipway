@@ -1,6 +1,7 @@
 <script setup>
-import { nextTick, onMounted, onUnmounted, ref } from 'vue'
+import { computed, useId } from 'vue'
 import { Link } from '@inertiajs/vue3'
+import Menu from '@/components/ui/menu/Menu.vue'
 
 const props = defineProps({
   items: {
@@ -29,38 +30,13 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['select'])
-const root = ref(null)
-const trigger = ref(null)
-const menu = ref(null)
-const open = ref(false)
-
-async function toggle(event) {
-  if (props.disabled) return
-  open.value = !open.value
-  if (open.value && event?.detail === 0) {
-    await nextTick()
-    menu.value?.querySelector('[role="menuitem"]')?.focus()
-  }
-}
-
-async function openFromTrigger(position) {
-  if (props.disabled) return
-  open.value = true
-  await nextTick()
-  const items = menu.value?.querySelectorAll('[role="menuitem"]')
-  const item = position === 'last' ? items?.[items.length - 1] : items?.[0]
-  item?.focus()
-}
-
-function close({ restoreFocus = false } = {}) {
-  if (!open.value) return
-  open.value = false
-  if (restoreFocus) nextTick(() => trigger.value?.focus())
-}
+const generatedId = useId().replace(/[^a-zA-Z0-9_-]/g, '')
+const menuId = `action-menu-${generatedId}`
+const menuPlacement = computed(() =>
+  props.placement === 'top' ? 'top-end' : 'bottom-end'
+)
 
 function select(item) {
-  trigger.value?.focus()
-  close()
   emit('select', item)
 }
 
@@ -72,64 +48,17 @@ function itemClasses(item) {
       : 'text-gray-700 hover:bg-gray-50 focus:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-800 dark:focus:bg-gray-800'
   ]
 }
-
-function handleKeydown(event) {
-  const items = Array.from(
-    menu.value?.querySelectorAll('[role="menuitem"]:not(:disabled)') || []
-  )
-  const currentIndex = items.indexOf(document.activeElement)
-
-  if (event.key === 'Escape') {
-    event.preventDefault()
-    close({ restoreFocus: true })
-    return
-  }
-
-  let nextIndex
-  if (event.key === 'ArrowDown') {
-    nextIndex = currentIndex < 0 ? 0 : (currentIndex + 1) % items.length
-  } else if (event.key === 'ArrowUp') {
-    nextIndex =
-      currentIndex < 0
-        ? items.length - 1
-        : (currentIndex - 1 + items.length) % items.length
-  } else if (event.key === 'Home') {
-    nextIndex = 0
-  } else if (event.key === 'End') {
-    nextIndex = items.length - 1
-  } else {
-    return
-  }
-
-  event.preventDefault()
-  items[nextIndex]?.focus()
-}
-
-function handlePointerDown(event) {
-  if (!root.value?.contains(event.target)) close()
-}
-
-onMounted(() => document.addEventListener('pointerdown', handlePointerDown))
-onUnmounted(() =>
-  document.removeEventListener('pointerdown', handlePointerDown)
-)
 </script>
 
 <template>
-  <div v-if="items.length > 0" ref="root" class="relative">
+  <div v-if="items.length > 0" class="relative">
     <button
-      ref="trigger"
       type="button"
       :disabled="disabled"
+      :popovertarget="menuId"
       :data-test="`${testId}-trigger`"
       class="rounded-md p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 disabled:cursor-not-allowed disabled:opacity-40 dark:text-gray-500 dark:hover:bg-gray-800 dark:hover:text-gray-200 dark:focus-visible:ring-gray-700"
       :aria-label="label"
-      aria-haspopup="menu"
-      :aria-expanded="open"
-      @click.stop="toggle"
-      @keydown.down.prevent="openFromTrigger('first')"
-      @keydown.up.prevent="openFromTrigger('last')"
-      @keydown.escape.prevent="close({ restoreFocus: true })"
     >
       <svg
         class="h-4 w-4"
@@ -148,23 +77,18 @@ onUnmounted(() =>
       </svg>
     </button>
 
-    <div
-      v-if="open"
-      ref="menu"
-      role="menu"
+    <Menu
+      :id="menuId"
+      :aria-label="label"
+      :placement="menuPlacement"
+      :offset="4"
       :data-test="testId"
-      :class="[
-        'min-w-44 absolute right-0 z-30 rounded-md border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-900',
-        placement === 'top' ? 'bottom-full mb-1' : 'top-full mt-1'
-      ]"
-      @click.stop
-      @keydown="handleKeydown"
+      class="min-w-44 rounded-md border-gray-200 bg-white px-0 py-1 shadow-lg dark:border-gray-700 dark:bg-gray-900"
     >
       <template v-for="item in items" :key="item.key">
         <Link
           v-if="item.href && !item.disabled"
           :href="item.href"
-          role="menuitem"
           :data-test="`${testId}-${item.key}`"
           :class="itemClasses(item)"
           @click="select(item)"
@@ -174,7 +98,6 @@ onUnmounted(() =>
         <button
           v-else
           type="button"
-          role="menuitem"
           :disabled="item.disabled"
           :data-test="`${testId}-${item.key}`"
           :class="itemClasses(item)"
@@ -183,6 +106,6 @@ onUnmounted(() =>
           {{ item.label }}
         </button>
       </template>
-    </div>
+    </Menu>
   </div>
 </template>

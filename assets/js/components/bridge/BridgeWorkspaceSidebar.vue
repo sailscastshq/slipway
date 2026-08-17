@@ -1,6 +1,7 @@
 <script setup>
 import { Link, usePage } from '@inertiajs/vue3'
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, ref } from 'vue'
+import Menu from '@/components/ui/menu/Menu.vue'
 
 const props = defineProps({
   app: Object,
@@ -12,7 +13,6 @@ defineEmits(['navigate'])
 
 const page = usePage()
 const search = ref('')
-const actorMenuOpen = ref(false)
 const normalizedBasePath = computed(() => props.basePath || '/bridge')
 const currentUrl = computed(() => page.url || normalizedBasePath.value)
 const currentPath = computed(() => currentUrl.value.split('?')[0])
@@ -62,24 +62,6 @@ function isResourceActive(identity) {
   const path = resourceUrl(identity)
   return currentPath.value === path || currentPath.value.startsWith(`${path}/`)
 }
-
-function closeActorMenu() {
-  actorMenuOpen.value = false
-}
-
-function handleEscapeKey(event) {
-  if (event.key === 'Escape') closeActorMenu()
-}
-
-onMounted(() => {
-  document.addEventListener('click', closeActorMenu)
-  document.addEventListener('keydown', handleEscapeKey)
-})
-
-onUnmounted(() => {
-  document.removeEventListener('click', closeActorMenu)
-  document.removeEventListener('keydown', handleEscapeKey)
-})
 </script>
 
 <template>
@@ -233,21 +215,15 @@ onUnmounted(() => {
     </nav>
 
     <div class="relative px-3 py-3">
-      <Transition
-        enter-active-class="transition ease-out duration-100"
-        enter-from-class="transform opacity-0 scale-95"
-        enter-to-class="transform opacity-100 scale-100"
-        leave-active-class="transition ease-in duration-75"
-        leave-from-class="transform opacity-100 scale-100"
-        leave-to-class="transform opacity-0 scale-95"
+      <Menu
+        id="bridge-actor-menu"
+        aria-label="Bridge account actions"
+        placement="top-start"
+        :offset="4"
+        class="w-52 rounded-lg border-gray-200 bg-white px-0 py-1 shadow-lg dark:border-gray-700 dark:bg-gray-900"
+        data-test="bridge-actor-menu"
       >
-        <div
-          v-if="actorMenuOpen"
-          id="bridge-actor-menu"
-          class="absolute bottom-full left-3 right-3 z-20 mb-1 rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-900"
-          data-test="bridge-actor-menu"
-          @click.stop
-        >
+        <div class="contents">
           <div
             class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 dark:text-gray-300"
           >
@@ -273,7 +249,10 @@ onUnmounted(() => {
               Role
             </span>
           </div>
-          <div class="my-1 border-t border-gray-100 dark:border-gray-800"></div>
+          <div
+            role="separator"
+            class="my-1 border-t border-gray-100 dark:border-gray-800"
+          ></div>
           <a
             href="https://docs.sailscasts.com/slipway/bridge"
             target="_blank"
@@ -313,15 +292,13 @@ onUnmounted(() => {
             <span>Sponsor Slipway</span>
           </a>
         </div>
-      </Transition>
+      </Menu>
 
       <button
         type="button"
+        popovertarget="bridge-actor-menu"
         class="flex w-full items-center space-x-3 rounded-md px-2 py-2 text-sm text-gray-500 transition-colors hover:bg-gray-200/50 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800/50 dark:hover:text-gray-200"
-        aria-controls="bridge-actor-menu"
-        :aria-expanded="actorMenuOpen"
         data-test="bridge-actor-menu-button"
-        @click.stop="actorMenuOpen = !actorMenuOpen"
       >
         <span
           class="bg-brand flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-medium text-white"
@@ -335,10 +312,7 @@ onUnmounted(() => {
           {{ actor.email || actorName }}
         </span>
         <svg
-          :class="[
-            'h-4 w-4 shrink-0 text-gray-400 transition-transform duration-150',
-            actorMenuOpen ? 'rotate-180' : ''
-          ]"
+          class="h-4 w-4 shrink-0 text-gray-400"
           fill="none"
           stroke="currentColor"
           viewBox="0 0 24 24"

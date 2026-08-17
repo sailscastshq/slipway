@@ -15,6 +15,7 @@ import ConfirmModal from '@/components/ConfirmModal.vue'
 import SlideToDeploy from '@/components/SlideToDeploy.vue'
 import Alert from '@/components/ui/alert/Alert.vue'
 import Tooltip from '@/components/ui/tooltip/Tooltip.vue'
+import Menu from '@/components/ui/menu/Menu.vue'
 import CodeEditor from '@/components/CodeEditor.vue'
 import ConfigVariableMenu from '@/components/ConfigVariableMenu.vue'
 import DeploymentHistory from '@/components/DeploymentHistory.vue'
@@ -271,13 +272,11 @@ async function stopSingleApp(appItem) {
 function openAddAppFromMoreMenu() {
   appsOpen.value = true
   addAppOpen.value = true
-  moreMenuOpen.value = false
 }
 
 function openAddServiceFromMoreMenu() {
   servicesOpen.value = true
   addServiceOpen.value = true
-  moreMenuOpen.value = false
 }
 
 async function handleRestartSingleApp(appItem) {
@@ -423,8 +422,6 @@ function copyToClipboard(text) {
 }
 
 function closeAllDropdowns() {
-  moreMenuOpen.value = false
-  serviceMenuOpen.value = null
   appMenuOpen.value = null
   repoDropdownOpen.value = false
 }
@@ -628,7 +625,6 @@ const creatingService = ref(false)
 const deletingServiceId = ref(null)
 const deletingService = ref(false)
 const purgeServiceData = ref(false)
-const serviceMenuOpen = ref(null)
 const stoppingServiceId = ref(null)
 const startingServiceId = ref(null)
 const revealedServiceUrls = ref(new Set())
@@ -737,22 +733,12 @@ async function createService() {
   }
 }
 
-function toggleServiceMenu(serviceId) {
-  serviceMenuOpen.value = serviceMenuOpen.value === serviceId ? null : serviceId
-}
-
-function closeServiceMenu() {
-  serviceMenuOpen.value = null
-}
-
 function confirmDeleteService(service) {
-  serviceMenuOpen.value = null
   purgeServiceData.value = false
   deletingServiceId.value = service.id
 }
 
 async function stopService(service) {
-  serviceMenuOpen.value = null
   stoppingServiceId.value = service.id
 
   const actionId = startAction({
@@ -776,7 +762,6 @@ async function stopService(service) {
 }
 
 async function startService(service) {
-  serviceMenuOpen.value = null
   startingServiceId.value = service.id
 
   const actionId = startAction({
@@ -1054,8 +1039,6 @@ function handleChecklistAction(action) {
   }
 }
 
-const moreMenuOpen = ref(false)
-
 // Handle escape key to close dropdowns
 function handleEscapeKey(e) {
   if (e.key === 'Escape') {
@@ -1229,7 +1212,9 @@ onBeforeUnmount(() => {
             <!-- More menu -->
             <div class="relative">
               <button
-                @click.stop="moreMenuOpen = !moreMenuOpen"
+                type="button"
+                aria-label="Environment actions"
+                popovertarget="environment-actions"
                 class="rounded-md p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-800 dark:hover:text-gray-200"
               >
                 <svg class="h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
@@ -1239,19 +1224,14 @@ onBeforeUnmount(() => {
                 </svg>
               </button>
               <!-- Dropdown -->
-              <Transition
-                enter-active-class="transition ease-out duration-100"
-                enter-from-class="transform opacity-0 scale-95"
-                enter-to-class="transform opacity-100 scale-100"
-                leave-active-class="transition ease-in duration-75"
-                leave-from-class="transform opacity-100 scale-100"
-                leave-to-class="transform opacity-0 scale-95"
+              <Menu
+                id="environment-actions"
+                aria-label="Environment actions"
+                placement="bottom-end"
+                :offset="4"
+                class="w-48 rounded-lg border-gray-200 bg-white px-0 py-1 shadow-lg dark:border-gray-700 dark:bg-gray-900"
               >
-                <div
-                  v-if="moreMenuOpen"
-                  @click.stop
-                  class="absolute right-0 top-full z-20 mt-1 w-48 rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-900"
-                >
+                <div class="contents">
                   <div
                     class="border-b border-gray-100 pb-1 dark:border-gray-800"
                   >
@@ -1322,7 +1302,7 @@ onBeforeUnmount(() => {
                     </Link>
                   </div>
                 </div>
-              </Transition>
+              </Menu>
             </div>
           </div>
         </div>
@@ -2037,7 +2017,7 @@ onBeforeUnmount(() => {
                 </svg>
               </button>
             </div>
-            <div v-show="servicesOpen" @click="closeServiceMenu">
+            <div v-show="servicesOpen">
               <div v-if="services.length > 0" class="space-y-1 px-4 pb-3">
                 <div
                   v-for="service in services"
@@ -2109,7 +2089,9 @@ onBeforeUnmount(() => {
                       <!-- Service actions menu -->
                       <div class="relative">
                         <button
-                          @click.stop="toggleServiceMenu(service.id)"
+                          type="button"
+                          :aria-label="`Actions for ${service.name}`"
+                          :popovertarget="`service-actions-${service.id}`"
                           class="rounded p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
                         >
                           <svg
@@ -2122,10 +2104,12 @@ onBeforeUnmount(() => {
                             />
                           </svg>
                         </button>
-                        <div
-                          v-if="serviceMenuOpen === service.id"
-                          @click.stop
-                          class="absolute right-0 z-20 mt-1 w-36 rounded-md border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-900"
+                        <Menu
+                          :id="`service-actions-${service.id}`"
+                          :aria-label="`Actions for ${service.name}`"
+                          placement="bottom-end"
+                          :offset="4"
+                          class="w-36 rounded-md border-gray-200 bg-white px-0 py-1 shadow-lg dark:border-gray-700 dark:bg-gray-900"
                         >
                           <button
                             v-if="service.status === 'running'"
@@ -2233,7 +2217,7 @@ onBeforeUnmount(() => {
                             </svg>
                             Delete
                           </button>
-                        </div>
+                        </Menu>
                       </div>
                     </div>
                   </div>

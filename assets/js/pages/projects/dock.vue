@@ -14,6 +14,7 @@ import ConfirmModal from '@/components/ConfirmModal.vue'
 import ToastContainer from '@/components/ToastContainer.vue'
 import Tooltip from '@/components/ui/tooltip/Tooltip.vue'
 import Table from '@/components/ui/table/Table.vue'
+import Menu from '@/components/ui/menu/Menu.vue'
 import CodeEditor from '@/components/CodeEditor.vue'
 import DockResultStatusIcon from '@/components/DockResultStatusIcon.vue'
 import { highlightSQL } from '@/lib/highlightSQL'
@@ -983,25 +984,17 @@ function downloadFile(content, filename, mimeType) {
   }, 100)
 }
 
-// Close all dropdowns on click outside
+// The schema filter is a form popover rather than an action menu.
 const handleClickOutside = (e) => {
-  if (showExportMenu.value && !e.target.closest('[ref="exportDropdown"]')) {
-    showExportMenu.value = false
-  }
   if (schemaFilterOpen.value && !e.target.closest('[data-schema-filter]')) {
     schemaFilterOpen.value = false
   }
-  if (exportDropdownOpen.value && !e.target.closest('[data-export-dropdown]')) {
-    exportDropdownOpen.value = false
-  }
 }
 
-// Handle escape key to close menus
+// Klean Menu owns Escape for action menus; this remains for form surfaces.
 function handleEscapeKey(e) {
   if (e.key === 'Escape') {
-    showExportMenu.value = false
     schemaFilterOpen.value = false
-    exportDropdownOpen.value = false
     if (showImportModal.value && !importLoading.value) {
       closeImportModal()
     }
@@ -2032,7 +2025,7 @@ onUnmounted(() => {
                     placement="top"
                   >
                     <button
-                      @click="showExportMenu = !showExportMenu"
+                      popovertarget="dock-query-export-menu"
                       :aria-label="
                         resultView === 'json' ? 'Download JSON' : 'Download CSV'
                       "
@@ -2053,9 +2046,13 @@ onUnmounted(() => {
                       </svg>
                     </button>
                   </Tooltip>
-                  <div
-                    v-if="showExportMenu"
-                    class="absolute bottom-full right-0 z-10 mb-1 w-40 rounded-md border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-800"
+                  <Menu
+                    v-model:open="showExportMenu"
+                    id="dock-query-export-menu"
+                    aria-label="Download query results"
+                    placement="top-end"
+                    :offset="4"
+                    class="w-40 rounded-md border-gray-200 bg-white px-0 py-1 shadow-lg dark:border-gray-700 dark:bg-gray-800"
                   >
                     <button
                       @click="downloadQueryResultAsJSON"
@@ -2069,7 +2066,7 @@ onUnmounted(() => {
                     >
                       Download as CSV
                     </button>
-                  </div>
+                  </Menu>
                 </div>
               </div>
             </div>
@@ -2673,11 +2670,8 @@ onUnmounted(() => {
               :aria-label="
                 exportLoading ? 'Exporting database' : 'Export database'
               "
-              @click.stop="
-                exportLoading
-                  ? undefined
-                  : (exportDropdownOpen = !exportDropdownOpen)
-              "
+              popovertarget="dock-database-export-menu"
+              :disabled="exportLoading"
               :aria-disabled="exportLoading"
               :class="[
                 'flex h-8 w-8 items-center justify-center rounded-md transition-colors',
@@ -2705,9 +2699,13 @@ onUnmounted(() => {
             </button>
           </Tooltip>
           <!-- Export dropdown -->
-          <div
-            v-if="exportDropdownOpen"
-            class="absolute bottom-full right-0 z-50 mb-2 w-44 rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-800"
+          <Menu
+            v-model:open="exportDropdownOpen"
+            id="dock-database-export-menu"
+            aria-label="Export database"
+            placement="top-end"
+            :offset="8"
+            class="w-44 rounded-lg border-gray-200 bg-white px-0 py-1 shadow-lg dark:border-gray-700 dark:bg-gray-800"
           >
             <button
               @click="exportDatabase('full')"
@@ -2766,7 +2764,7 @@ onUnmounted(() => {
               </svg>
               Data only
             </button>
-          </div>
+          </Menu>
         </div>
 
         <!-- Import button -->
