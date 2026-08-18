@@ -3,6 +3,7 @@ import { Link, Head, router, useForm } from '@inertiajs/vue3'
 import { inject, ref, computed } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
 import ConfirmModal from '@/components/ConfirmModal.vue'
+import Menu from '@/components/ui/menu/Menu.vue'
 import { usePrecognitionValidation } from '@/composables/precognition'
 
 defineOptions({
@@ -27,17 +28,6 @@ const filtered = computed(() => {
   )
 })
 
-// Actions menu
-const openMenu = ref(null)
-
-function toggleMenu(tokenId) {
-  openMenu.value = openMenu.value === tokenId ? null : tokenId
-}
-
-function closeMenu() {
-  openMenu.value = null
-}
-
 // Rename
 const renamingId = ref(null)
 const renameForm = useForm({ name: '' })
@@ -50,7 +40,6 @@ function startRename(token) {
   renamingId.value = token.id
   renameForm.name = token.name
   renameForm.clearErrors()
-  openMenu.value = null
 }
 
 function submitRename(tokenId) {
@@ -74,7 +63,6 @@ const deletingId = ref(null)
 
 function confirmDelete(token) {
   deletingId.value = token.id
-  openMenu.value = null
 }
 
 function executeDelete() {
@@ -111,7 +99,7 @@ function timeAgo(date) {
 </script>
 <template>
   <Head title="CLI Tokens | Slipway"></Head>
-  <div class="flex h-full flex-col" @click="closeMenu">
+  <div class="flex h-full flex-col">
     <!-- Header -->
     <div
       class="flex items-center justify-between border-b border-gray-200 py-4 pl-4 pr-4 dark:border-gray-800 sm:pl-4 sm:pr-8"
@@ -390,7 +378,9 @@ function timeAgo(date) {
               <div class="col-span-1 flex justify-end">
                 <div class="relative">
                   <button
-                    @click.stop="toggleMenu(token.id)"
+                    type="button"
+                    :popovertarget="`cli-token-actions-${token.id}`"
+                    :aria-label="`Actions for ${token.name}`"
                     class="rounded-md p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-800 dark:hover:text-gray-300"
                   >
                     <svg
@@ -405,12 +395,15 @@ function timeAgo(date) {
                   </button>
 
                   <!-- Dropdown menu -->
-                  <div
-                    v-if="openMenu === token.id"
-                    class="absolute right-0 z-10 mt-1 w-36 rounded-md border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-900"
+                  <Menu
+                    :id="`cli-token-actions-${token.id}`"
+                    :aria-label="`Actions for ${token.name}`"
+                    placement="bottom-end"
+                    :offset="4"
+                    class="w-36 rounded-md border-gray-200 bg-white px-0 py-1 shadow-lg dark:border-gray-700 dark:bg-gray-900"
                   >
                     <button
-                      @click.stop="startRename(token)"
+                      @click="startRename(token)"
                       class="flex w-full items-center px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-800"
                     >
                       <svg
@@ -429,7 +422,7 @@ function timeAgo(date) {
                       Rename
                     </button>
                     <button
-                      @click.stop="confirmDelete(token)"
+                      @click="confirmDelete(token)"
                       class="flex w-full items-center px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20"
                     >
                       <svg
@@ -447,7 +440,7 @@ function timeAgo(date) {
                       </svg>
                       Delete
                     </button>
-                  </div>
+                  </Menu>
                 </div>
               </div>
             </div>

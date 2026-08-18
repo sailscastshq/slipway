@@ -9,6 +9,7 @@ import UpdateModal from '@/components/UpdateModal.vue'
 import DeploymentToast from '@/components/DeploymentToast.vue'
 import ServiceActionToast from '@/components/ServiceActionToast.vue'
 import CommandPalette from '@/components/CommandPalette.vue'
+import Menu from '@/components/ui/menu/Menu.vue'
 import { createToast } from '@/composables/toast'
 import { useFlashToast } from '@/composables/flash-toast'
 import {
@@ -73,10 +74,6 @@ provide('toggleMobileMenu', toggleMobileMenu)
 provide('toggleSidebar', toggleSidebar)
 provide('sidebarCollapsed', sidebarCollapsed)
 
-// Team dropdown state
-const teamDropdownOpen = ref(false)
-const userDropdownOpen = ref(false)
-
 // Get user's teams (current team + owned teams)
 const userTeams = computed(() => {
   if (!loggedInUser) return []
@@ -96,7 +93,6 @@ const userTeams = computed(() => {
 })
 
 function switchTeam(teamId) {
-  teamDropdownOpen.value = false
   router.post(
     '/switch-team',
     { teamId },
@@ -112,59 +108,38 @@ function switchTeam(teamId) {
 }
 
 function createNewTeam() {
-  teamDropdownOpen.value = false
   router.visit('/teams/create')
 }
 
 function logout() {
-  userDropdownOpen.value = false
   deploymentFavicon.reset()
   router.delete('/logout')
 }
 
-function closeUserMenuAndMobileMenu() {
-  userDropdownOpen.value = false
+function handleMobileProfileClick() {
   closeMobileMenu()
 }
 
-function handleMobileProfileClick() {
-  closeUserMenuAndMobileMenu()
-}
-
 function handleMobileSettingsClick() {
-  closeUserMenuAndMobileMenu()
+  closeMobileMenu()
 }
 
 function openUpdateModalFromMobileMenu() {
-  closeUserMenuAndMobileMenu()
+  closeMobileMenu()
   showUpdateModal.value = true
 }
 
 function openCommandPaletteFromMobileMenu() {
-  closeUserMenuAndMobileMenu()
+  closeMobileMenu()
   openCommandPalette()
 }
 
 function openUpdateModalFromUserMenu() {
-  userDropdownOpen.value = false
   showUpdateModal.value = true
 }
 
 function openCommandPaletteFromUserMenu() {
-  userDropdownOpen.value = false
   openCommandPalette()
-}
-
-function closeAllDropdowns() {
-  teamDropdownOpen.value = false
-  userDropdownOpen.value = false
-}
-
-// Handle escape key to close dropdowns
-function handleEscapeKey(e) {
-  if (e.key === 'Escape') {
-    closeAllDropdowns()
-  }
 }
 
 // Toast system
@@ -243,8 +218,6 @@ onMounted(() => {
     sidebarCollapsed.value = saved === 'true'
   }
 
-  // Listen for escape key to close dropdowns
-  document.addEventListener('keydown', handleEscapeKey)
   document.addEventListener('visibilitychange', acknowledgeDeploymentFavicon)
   window.addEventListener('focus', acknowledgeDeploymentFavicon)
   window.addEventListener('pagehide', deploymentFavicon.reset)
@@ -253,7 +226,6 @@ onMounted(() => {
 onUnmounted(() => {
   disconnectDeploymentStream()
   deploymentFavicon.destroy()
-  document.removeEventListener('keydown', handleEscapeKey)
   document.removeEventListener('visibilitychange', acknowledgeDeploymentFavicon)
   window.removeEventListener('focus', acknowledgeDeploymentFavicon)
   window.removeEventListener('pagehide', deploymentFavicon.reset)
@@ -261,10 +233,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div
-    class="flex h-screen overflow-hidden bg-white dark:bg-gray-950"
-    @click="closeAllDropdowns"
-  >
+  <div class="flex h-screen overflow-hidden bg-white dark:bg-gray-950">
     <!-- Mobile Menu Backdrop -->
     <Transition
       enter-active-class="transition-opacity duration-300"
@@ -299,7 +268,7 @@ onUnmounted(() => {
           <div class="relative min-w-0 flex-1">
             <button
               data-test="mobile-team-selector"
-              @click.stop="teamDropdownOpen = !teamDropdownOpen"
+              popovertarget="mobile-team-menu"
               class="flex w-full min-w-0 items-center justify-between gap-2 rounded-md px-2 py-1.5 text-sm text-gray-700 hover:bg-gray-200 dark:text-gray-200 dark:hover:bg-gray-800"
             >
               <div class="flex min-w-0 flex-1 items-center space-x-2">
@@ -323,10 +292,7 @@ onUnmounted(() => {
                 >
               </div>
               <svg
-                :class="[
-                  'h-4 w-4 shrink-0 text-gray-400 transition-transform dark:text-gray-500',
-                  teamDropdownOpen ? 'rotate-180' : ''
-                ]"
+                class="h-4 w-4 shrink-0 text-gray-400 dark:text-gray-500"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -340,19 +306,14 @@ onUnmounted(() => {
               </svg>
             </button>
             <!-- Team Dropdown -->
-            <Transition
-              enter-active-class="transition ease-out duration-100"
-              enter-from-class="transform opacity-0 scale-95"
-              enter-to-class="transform opacity-100 scale-100"
-              leave-active-class="transition ease-in duration-75"
-              leave-from-class="transform opacity-100 scale-100"
-              leave-to-class="transform opacity-0 scale-95"
+            <Menu
+              id="mobile-team-menu"
+              aria-label="Switch team"
+              placement="bottom-start"
+              :offset="4"
+              class="w-64 rounded-lg border-gray-200 bg-white px-0 py-1 shadow-lg dark:border-gray-700 dark:bg-gray-900"
             >
-              <div
-                v-if="teamDropdownOpen"
-                @click.stop
-                class="absolute left-0 top-full z-20 mt-1 w-full rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-900"
-              >
+              <div class="contents">
                 <div
                   class="px-3 py-1.5 text-xs font-medium text-gray-400 dark:text-gray-500"
                 >
@@ -398,6 +359,7 @@ onUnmounted(() => {
                   </svg>
                 </button>
                 <div
+                  role="separator"
                   class="my-1 border-t border-gray-100 dark:border-gray-800"
                 ></div>
                 <button
@@ -420,7 +382,7 @@ onUnmounted(() => {
                   <span>Create team</span>
                 </button>
               </div>
-            </Transition>
+            </Menu>
           </div>
           <button
             data-test="mobile-menu-close"
@@ -560,7 +522,7 @@ onUnmounted(() => {
         <!-- User Profile Dropdown (Mobile) -->
         <div class="relative px-3 py-3">
           <button
-            @click.stop="userDropdownOpen = !userDropdownOpen"
+            popovertarget="mobile-user-menu"
             class="flex w-full items-center space-x-3 rounded-md px-3 py-2.5 text-sm text-gray-600 transition-colors hover:bg-gray-200/50 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800/50 dark:hover:text-gray-200"
           >
             <span
@@ -586,19 +548,14 @@ onUnmounted(() => {
             </svg>
           </button>
           <!-- User Dropdown -->
-          <Transition
-            enter-active-class="transition ease-out duration-100"
-            enter-from-class="transform opacity-0 scale-95"
-            enter-to-class="transform opacity-100 scale-100"
-            leave-active-class="transition ease-in duration-75"
-            leave-from-class="transform opacity-100 scale-100"
-            leave-to-class="transform opacity-0 scale-95"
+          <Menu
+            id="mobile-user-menu"
+            aria-label="Account actions"
+            placement="top-start"
+            :offset="4"
+            class="w-64 rounded-lg border-gray-200 bg-white px-0 py-1 shadow-lg dark:border-gray-700 dark:bg-gray-900"
           >
-            <div
-              v-if="userDropdownOpen"
-              @click.stop
-              class="absolute bottom-full left-3 right-3 z-20 mb-1 rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-900"
-            >
+            <div class="contents">
               <Link
                 href="/profile"
                 @click="handleMobileProfileClick"
@@ -688,6 +645,7 @@ onUnmounted(() => {
                 >
               </button>
               <div
+                role="separator"
                 class="my-1 border-t border-gray-100 dark:border-gray-800"
               ></div>
               <a
@@ -743,6 +701,7 @@ onUnmounted(() => {
                 Sponsor Slipway
               </a>
               <div
+                role="separator"
                 class="my-1 border-t border-gray-100 dark:border-gray-800"
               ></div>
               <button
@@ -765,7 +724,7 @@ onUnmounted(() => {
                 Sign out
               </button>
             </div>
-          </Transition>
+          </Menu>
         </div>
       </aside>
     </Transition>
@@ -783,7 +742,7 @@ onUnmounted(() => {
         <div class="relative min-w-0 flex-1">
           <button
             data-test="desktop-team-selector"
-            @click.stop="teamDropdownOpen = !teamDropdownOpen"
+            popovertarget="desktop-team-menu"
             class="flex w-full min-w-0 items-center space-x-2 rounded-md px-2 py-1.5 text-sm text-gray-700 hover:bg-gray-200 dark:text-gray-200 dark:hover:bg-gray-800"
           >
             <img
@@ -805,10 +764,7 @@ onUnmounted(() => {
               >{{ loggedInUser.team?.name || 'Team' }}</span
             >
             <svg
-              :class="[
-                'h-4 w-4 shrink-0 text-gray-400 transition-transform dark:text-gray-500',
-                teamDropdownOpen ? 'rotate-180' : ''
-              ]"
+              class="h-4 w-4 shrink-0 text-gray-400 dark:text-gray-500"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -822,19 +778,14 @@ onUnmounted(() => {
             </svg>
           </button>
           <!-- Team Dropdown -->
-          <Transition
-            enter-active-class="transition ease-out duration-100"
-            enter-from-class="transform opacity-0 scale-95"
-            enter-to-class="transform opacity-100 scale-100"
-            leave-active-class="transition ease-in duration-75"
-            leave-from-class="transform opacity-100 scale-100"
-            leave-to-class="transform opacity-0 scale-95"
+          <Menu
+            id="desktop-team-menu"
+            aria-label="Switch team"
+            placement="bottom-start"
+            :offset="4"
+            class="w-52 rounded-lg border-gray-200 bg-white px-0 py-1 shadow-lg dark:border-gray-700 dark:bg-gray-900"
           >
-            <div
-              v-if="teamDropdownOpen"
-              @click.stop
-              class="absolute left-0 top-full z-20 mt-1 w-full rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-900"
-            >
+            <div class="contents">
               <div
                 class="px-3 py-1.5 text-xs font-medium text-gray-400 dark:text-gray-500"
               >
@@ -880,6 +831,7 @@ onUnmounted(() => {
                 </svg>
               </button>
               <div
+                role="separator"
                 class="my-1 border-t border-gray-100 dark:border-gray-800"
               ></div>
               <button
@@ -902,7 +854,7 @@ onUnmounted(() => {
                 <span>Create team</span>
               </button>
             </div>
-          </Transition>
+          </Menu>
         </div>
       </div>
 
@@ -1019,7 +971,8 @@ onUnmounted(() => {
       <!-- User Profile Dropdown (Desktop) -->
       <div class="relative px-3 py-3">
         <button
-          @click.stop="userDropdownOpen = !userDropdownOpen"
+          data-test="desktop-user-menu-button"
+          popovertarget="desktop-user-menu"
           class="flex w-full items-center space-x-3 rounded-md px-2 py-2 text-sm text-gray-500 transition-colors hover:bg-gray-200/50 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800/50 dark:hover:text-gray-200"
         >
           <span
@@ -1045,22 +998,16 @@ onUnmounted(() => {
           </svg>
         </button>
         <!-- User Dropdown -->
-        <Transition
-          enter-active-class="transition ease-out duration-100"
-          enter-from-class="transform opacity-0 scale-95"
-          enter-to-class="transform opacity-100 scale-100"
-          leave-active-class="transition ease-in duration-75"
-          leave-from-class="transform opacity-100 scale-100"
-          leave-to-class="transform opacity-0 scale-95"
+        <Menu
+          id="desktop-user-menu"
+          aria-label="Account actions"
+          placement="top-start"
+          :offset="4"
+          class="w-52 rounded-lg border-gray-200 bg-white px-0 py-1 shadow-lg dark:border-gray-700 dark:bg-gray-900"
         >
-          <div
-            v-if="userDropdownOpen"
-            @click.stop
-            class="absolute bottom-full left-3 right-3 z-20 mb-1 rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-900"
-          >
+          <div class="contents">
             <Link
               href="/profile"
-              @click="userDropdownOpen = false"
               class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
             >
               <svg
@@ -1080,7 +1027,6 @@ onUnmounted(() => {
             </Link>
             <Link
               href="/settings"
-              @click="userDropdownOpen = false"
               class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
             >
               <svg
@@ -1147,6 +1093,7 @@ onUnmounted(() => {
               >
             </button>
             <div
+              role="separator"
               class="my-1 border-t border-gray-100 dark:border-gray-800"
             ></div>
             <a
@@ -1202,6 +1149,7 @@ onUnmounted(() => {
               Sponsor Slipway
             </a>
             <div
+              role="separator"
               class="my-1 border-t border-gray-100 dark:border-gray-800"
             ></div>
             <button
@@ -1224,7 +1172,7 @@ onUnmounted(() => {
               Sign out
             </button>
           </div>
-        </Transition>
+        </Menu>
       </div>
     </aside>
 

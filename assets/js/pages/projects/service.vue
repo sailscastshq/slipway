@@ -7,6 +7,7 @@ import Breadcrumb from '@/components/Breadcrumb.vue'
 import { useToast } from '@/composables/toast'
 import { useServiceActions } from '@/composables/service-actions'
 import LogViewer from '@/components/LogViewer.vue'
+import Menu from '@/components/ui/menu/Menu.vue'
 
 defineOptions({
   layout: AppLayout
@@ -28,7 +29,6 @@ const sidebarCollapsed = inject('sidebarCollapsed')
 // State
 const logLines = ref([])
 const logsOpen = ref(true)
-const menuOpen = ref(false)
 const stopping = ref(false)
 const restarting = ref(false)
 const serviceStatus = ref(props.service.status)
@@ -150,8 +150,6 @@ const {
 async function stopService() {
   if (stopping.value) return
   stopping.value = true
-  menuOpen.value = false
-
   const actionId = startAction({
     serviceName: serviceName.value,
     serviceType: props.service.type,
@@ -186,8 +184,6 @@ async function stopService() {
 async function restartService() {
   if (restarting.value) return
   restarting.value = true
-  menuOpen.value = false
-
   // Use 'starting' if stopped, 'restarting' if running
   const actionType =
     serviceStatus.value === 'stopped' || serviceStatus.value === 'failed'
@@ -230,7 +226,6 @@ async function restartService() {
 
 function clearLogs() {
   logLines.value = []
-  menuOpen.value = false
 }
 
 function copyUrl() {
@@ -304,8 +299,6 @@ function handleNameKeydown(e) {
 }
 
 function handleClickOutside(e) {
-  if (menuOpen.value && !e.target.closest('.menu-container'))
-    menuOpen.value = false
   if (editingName.value && !e.target.closest('.name-editor'))
     cancelEditingName()
 }
@@ -576,9 +569,11 @@ onUnmounted(() => {
 
           <div class="flex items-center space-x-2">
             <!-- More menu -->
-            <div class="menu-container relative">
+            <div class="relative">
               <button
-                @click.stop="menuOpen = !menuOpen"
+                type="button"
+                :popovertarget="`service-actions-${service.id}`"
+                :aria-label="`Actions for ${serviceName}`"
                 class="rounded-md p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-800 dark:hover:text-gray-200"
               >
                 <svg class="h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
@@ -587,19 +582,14 @@ onUnmounted(() => {
                   <circle cx="12" cy="18" r="1.5" />
                 </svg>
               </button>
-              <Transition
-                enter-active-class="transition ease-out duration-100"
-                enter-from-class="transform opacity-0 scale-95"
-                enter-to-class="transform opacity-100 scale-100"
-                leave-active-class="transition ease-in duration-75"
-                leave-from-class="transform opacity-100 scale-100"
-                leave-to-class="transform opacity-0 scale-95"
+              <Menu
+                :id="`service-actions-${service.id}`"
+                :aria-label="`Actions for ${serviceName}`"
+                placement="bottom-end"
+                :offset="4"
+                class="w-40 rounded-lg border-gray-200 bg-white px-0 py-1 shadow-lg dark:border-gray-700 dark:bg-gray-900"
               >
-                <div
-                  v-if="menuOpen"
-                  @click.stop
-                  class="absolute right-0 top-full z-20 mt-1 w-40 rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-900"
-                >
+                <div class="contents">
                   <button
                     v-if="serviceStatus === 'running'"
                     @click="stopService"
@@ -693,7 +683,7 @@ onUnmounted(() => {
                     Clear logs
                   </button>
                 </div>
-              </Transition>
+              </Menu>
             </div>
 
             <!-- Status badge -->

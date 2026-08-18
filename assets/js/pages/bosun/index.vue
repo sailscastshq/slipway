@@ -15,6 +15,7 @@ import ConfirmModal from '@/components/ConfirmModal.vue'
 import ToastContainer from '@/components/ToastContainer.vue'
 import Tooltip from '@/components/ui/tooltip/Tooltip.vue'
 import Table from '@/components/ui/table/Table.vue'
+import Menu from '@/components/ui/menu/Menu.vue'
 import CodeEditor from '@/components/CodeEditor.vue'
 import HelmResultViewer from '@/components/HelmResultViewer.vue'
 import { highlightSQL } from '@/lib/highlightSQL'
@@ -104,7 +105,6 @@ const consoleError = ref(null)
 const consoleLoading = ref(false)
 const queryHistory = ref([])
 const resultView = ref('table')
-const showExportMenu = ref(false)
 
 // ─── Migrate state ───
 const diff = ref(null)
@@ -421,7 +421,6 @@ function downloadFile(content, filename, mimeType) {
 
 function exportAction(fn) {
   fn()
-  showExportMenu.value = false
 }
 
 async function fetchDiff() {
@@ -766,15 +765,7 @@ function activityTypeColor(type) {
   )
 }
 
-// Close menus on click outside
-function handleClickOutside(e) {
-  if (showExportMenu.value && !e.target.closest('[data-export-menu]')) {
-    showExportMenu.value = false
-  }
-}
-
 onMounted(() => {
-  document.addEventListener('click', handleClickOutside)
   window.addEventListener('focus', loadHelmCompletionMetadata)
   loadHelmCompletionMetadata()
   if (activeTab.value === 'activity') {
@@ -791,7 +782,6 @@ onBeforeUnmount(() => {
 
 onUnmounted(() => {
   helmCompletionRequestSequence++
-  document.removeEventListener('click', handleClickOutside)
   window.removeEventListener('focus', loadHelmCompletionMetadata)
 })
 </script>
@@ -1317,12 +1307,12 @@ onUnmounted(() => {
               </button>
             </Tooltip>
             <!-- Export dropdown -->
-            <div class="relative" data-export-menu>
+            <div class="relative">
               <Tooltip text="Download" placement="top">
                 <button
                   type="button"
                   aria-label="Download query results"
-                  @click="showExportMenu = !showExportMenu"
+                  popovertarget="bosun-export-menu"
                   class="rounded p-1.5 text-gray-500 hover:bg-gray-200 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-200"
                 >
                   <svg
@@ -1340,9 +1330,12 @@ onUnmounted(() => {
                   </svg>
                 </button>
               </Tooltip>
-              <div
-                v-if="showExportMenu"
-                class="absolute bottom-full right-0 z-10 mb-1 w-40 rounded-md border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-800"
+              <Menu
+                id="bosun-export-menu"
+                aria-label="Export query results"
+                placement="top-end"
+                :offset="4"
+                class="w-40 rounded-md border-gray-200 bg-white px-0 py-1 shadow-lg dark:border-gray-700 dark:bg-gray-800"
               >
                 <button
                   @click="exportAction(copyAsJSON)"
@@ -1357,6 +1350,7 @@ onUnmounted(() => {
                   Copy as CSV
                 </button>
                 <div
+                  role="separator"
                   class="my-1 border-t border-gray-200 dark:border-gray-700"
                 ></div>
                 <button
@@ -1371,7 +1365,7 @@ onUnmounted(() => {
                 >
                   Download CSV
                 </button>
-              </div>
+              </Menu>
             </div>
           </div>
         </template>

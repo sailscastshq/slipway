@@ -5,6 +5,7 @@ import AppLayout from '@/layouts/AppLayout.vue'
 import Breadcrumb from '@/components/Breadcrumb.vue'
 import ConfirmModal from '@/components/ConfirmModal.vue'
 import Alert from '@/components/ui/alert/Alert.vue'
+import Menu from '@/components/ui/menu/Menu.vue'
 
 defineOptions({
   layout: AppLayout
@@ -21,7 +22,6 @@ const props = defineProps({
 const toggleMobileMenu = inject('toggleMobileMenu')
 const toggleSidebar = inject('toggleSidebar')
 const sidebarCollapsed = inject('sidebarCollapsed')
-const openMenu = ref(null)
 const revoking = ref(null)
 const disabling = ref(false)
 const resending = ref(null)
@@ -69,7 +69,6 @@ function setEnabled(enabled) {
 }
 
 function changeRole(grant, role) {
-  openMenu.value = null
   if (grant.role === role) return
   router.patch(
     `${accessPath.value}/${grant.id}`,
@@ -79,7 +78,6 @@ function changeRole(grant, role) {
 }
 
 function resend(grant) {
-  openMenu.value = null
   resending.value = grant.id
   router.post(
     `${accessPath.value}/invitations`,
@@ -97,7 +95,6 @@ function resend(grant) {
 }
 
 function confirmRevoke(grant) {
-  openMenu.value = null
   revoking.value = grant
 }
 
@@ -113,10 +110,6 @@ function revoke() {
 function disableBridge() {
   setEnabled(false)
   disabling.value = false
-}
-
-function closeMenus() {
-  openMenu.value = null
 }
 
 function statusLabel(grant) {
@@ -169,7 +162,7 @@ function timeAgo(timestamp) {
 
 <template>
   <Head :title="`Bridge access - ${app.name} | Slipway`"></Head>
-  <div class="flex h-full flex-col" @click="closeMenus">
+  <div class="flex h-full flex-col">
     <header
       class="flex items-center justify-between border-b border-gray-200 py-4 pl-4 pr-4 dark:border-gray-800 sm:pr-8"
     >
@@ -449,10 +442,7 @@ function timeAgo(timestamp) {
                   type="button"
                   class="rounded-md p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-900 dark:hover:text-gray-200"
                   :aria-label="`Manage ${grant.email}`"
-                  :aria-expanded="openMenu === grant.id"
-                  @click.stop="
-                    openMenu = openMenu === grant.id ? null : grant.id
-                  "
+                  :popovertarget="`bridge-access-actions-${grant.id}`"
                 >
                   <svg class="h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
                     <circle cx="6" cy="12" r="1.5" />
@@ -460,10 +450,12 @@ function timeAgo(timestamp) {
                     <circle cx="18" cy="12" r="1.5" />
                   </svg>
                 </button>
-                <div
-                  v-if="openMenu === grant.id"
-                  class="absolute right-0 top-full z-20 mt-1 w-44 rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-800 dark:bg-gray-900"
-                  @click.stop
+                <Menu
+                  :id="`bridge-access-actions-${grant.id}`"
+                  :aria-label="`Manage ${grant.email}`"
+                  placement="bottom-end"
+                  :offset="4"
+                  class="w-44 rounded-lg border-gray-200 bg-white px-0 py-1 shadow-lg dark:border-gray-800 dark:bg-gray-900"
                 >
                   <p
                     class="px-3 pb-1 pt-2 text-[11px] font-medium uppercase tracking-wide text-gray-400"
@@ -508,7 +500,7 @@ function timeAgo(timestamp) {
                   >
                     Revoke access
                   </button>
-                </div>
+                </Menu>
               </div>
             </article>
           </div>

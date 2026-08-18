@@ -1,8 +1,9 @@
 <script setup>
 import { Link, Head, useForm } from '@inertiajs/vue3'
-import { inject, ref, computed, onMounted, onUnmounted } from 'vue'
+import { inject, ref, computed } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
 import ConfirmModal from '@/components/ConfirmModal.vue'
+import Menu from '@/components/ui/menu/Menu.vue'
 
 defineOptions({
   layout: AppLayout
@@ -19,7 +20,6 @@ const toggleMobileMenu = inject('toggleMobileMenu')
 const toggleSidebar = inject('toggleSidebar')
 const sidebarCollapsed = inject('sidebarCollapsed')
 const searchQuery = ref('')
-const openMenuId = ref(null)
 const copiedSlug = ref(null)
 
 const filteredProjects = computed(() => {
@@ -54,16 +54,6 @@ function timeAgo(date) {
   return 'just now'
 }
 
-function toggleMenu(e, projectId) {
-  e.preventDefault()
-  e.stopPropagation()
-  openMenuId.value = openMenuId.value === projectId ? null : projectId
-}
-
-function closeMenu() {
-  openMenuId.value = null
-}
-
 function copySlug(e, slug) {
   e.preventDefault()
   e.stopPropagation()
@@ -72,7 +62,6 @@ function copySlug(e, slug) {
   setTimeout(() => {
     copiedSlug.value = null
   }, 2000)
-  closeMenu()
 }
 
 const deletingProject = ref(null)
@@ -85,7 +74,6 @@ function deleteProject(e, project) {
   e.stopPropagation()
   deletingProject.value = project
   deleteProjectForm.reset()
-  closeMenu()
 }
 
 function executeDeleteProject() {
@@ -101,21 +89,6 @@ function cancelDeleteProject() {
   deleteProjectForm.reset()
   deletingProject.value = null
 }
-
-// Close menu when clicking outside
-function handleClickOutside(e) {
-  if (openMenuId.value && !e.target.closest('.relative')) {
-    closeMenu()
-  }
-}
-
-onMounted(() => {
-  document.addEventListener('click', handleClickOutside)
-})
-
-onUnmounted(() => {
-  document.removeEventListener('click', handleClickOutside)
-})
 </script>
 <template>
   <Head title="Projects | Slipway"></Head>
@@ -397,7 +370,10 @@ onUnmounted(() => {
                 <!-- Actions Menu -->
                 <div class="relative">
                   <button
-                    @click="toggleMenu($event, project.id)"
+                    type="button"
+                    :popovertarget="`project-actions-${project.id}`"
+                    :data-test="`project-actions-${project.slug}`"
+                    :aria-label="`Actions for ${project.name}`"
                     class="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-800 dark:hover:text-gray-300"
                   >
                     <svg
@@ -411,9 +387,12 @@ onUnmounted(() => {
                     </svg>
                   </button>
                   <!-- Dropdown -->
-                  <div
-                    v-if="openMenuId === project.id"
-                    class="absolute right-0 z-10 mt-1 w-40 rounded-md border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-900"
+                  <Menu
+                    :id="`project-actions-${project.id}`"
+                    :aria-label="`Actions for ${project.name}`"
+                    placement="bottom-end"
+                    :offset="4"
+                    class="w-40 rounded-md border-gray-200 bg-white px-0 py-1 shadow-lg dark:border-gray-700 dark:bg-gray-900"
                   >
                     <Link
                       :href="`/projects/${project.slug}/settings`"
@@ -476,6 +455,7 @@ onUnmounted(() => {
                       Copy slug
                     </button>
                     <div
+                      role="separator"
                       class="my-1 border-t border-gray-200 dark:border-gray-700"
                     ></div>
                     <button
@@ -497,7 +477,7 @@ onUnmounted(() => {
                       </svg>
                       Delete
                     </button>
-                  </div>
+                  </Menu>
                 </div>
               </div>
             </div>

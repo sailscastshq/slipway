@@ -13,6 +13,7 @@ import BridgeFilterMenu from '@/components/bridge/BridgeFilterMenu.vue'
 import BridgePageHeader from '@/components/bridge/BridgePageHeader.vue'
 import Pagination from '@/components/ui/pagination/Pagination.vue'
 import Table from '@/components/ui/table/Table.vue'
+import Menu from '@/components/ui/menu/Menu.vue'
 
 defineOptions({
   layout: BridgePageLayout
@@ -96,7 +97,6 @@ const selectedIds = ref(new Set())
 const selectAll = ref(false)
 const deleteModal = ref({ show: false, recordId: null })
 const bulkDeleteModal = ref({ show: false })
-const openActionMenu = ref(null)
 const actionDialog = ref({ show: false, action: null, recordIds: [] })
 
 const hasRecordActions = computed(() => {
@@ -161,55 +161,12 @@ function actionLabel(record) {
   return String(title || displayIdentifier(record[props.modelMeta.primaryKey]))
 }
 
-function toggleActionMenu(record) {
-  const key = recordKey(record)
-  openActionMenu.value = openActionMenu.value === key ? null : key
-}
-
-function closeActionMenu() {
-  openActionMenu.value = null
-}
-
-function handleActionMenuKeydown(event) {
-  const items = Array.from(
-    event.currentTarget.querySelectorAll('[role="menuitem"]')
-  )
-  const currentIndex = items.indexOf(document.activeElement)
-
-  if (event.key === 'Escape') {
-    event.preventDefault()
-    closeActionMenu()
-    event.currentTarget.previousElementSibling?.focus()
-    return
-  }
-
-  let nextIndex
-  if (event.key === 'ArrowDown') {
-    nextIndex = currentIndex < 0 ? 0 : (currentIndex + 1) % items.length
-  } else if (event.key === 'ArrowUp') {
-    nextIndex =
-      currentIndex < 0
-        ? items.length - 1
-        : (currentIndex - 1 + items.length) % items.length
-  } else if (event.key === 'Home') {
-    nextIndex = 0
-  } else if (event.key === 'End') {
-    nextIndex = items.length - 1
-  } else {
-    return
-  }
-
-  event.preventDefault()
-  items[nextIndex]?.focus()
-}
-
 // Forms for delete actions
 const deleteForm = useForm({})
 const bulkDeleteForm = useForm({ ids: [] })
 const quickActionForm = useForm({})
 
 function openDeleteModal(record) {
-  closeActionMenu()
   deleteModal.value = {
     show: true,
     recordId: record[props.modelMeta.primaryKey],
@@ -509,11 +466,7 @@ function createUrl() {
   ></Head>
   <ToastContainer :toasts="toasts" @dismiss="dismiss" />
 
-  <div
-    class="flex h-full flex-col"
-    @click="closeActionMenu"
-    @keydown.esc="closeActionMenu"
-  >
+  <div class="flex h-full flex-col">
     <BridgePageHeader
       v-if="hostBridgeOrigin"
       :project="project"
@@ -890,7 +843,7 @@ function createUrl() {
               class="divide-y divide-gray-200 bg-white dark:divide-gray-800 dark:bg-gray-950"
             >
               <tr
-                v-for="(record, recordIndex) in records"
+                v-for="record in records"
                 :key="record[modelMeta.primaryKey]"
                 class="group hover:bg-gray-50 dark:hover:bg-gray-900/30"
               >
@@ -933,9 +886,9 @@ function createUrl() {
                       type="button"
                       class="rounded-md p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 dark:text-gray-500 dark:hover:bg-gray-800 dark:hover:text-gray-200 dark:focus-visible:ring-gray-700"
                       :aria-label="`Actions for ${actionLabel(record)}`"
-                      aria-haspopup="menu"
-                      :aria-expanded="openActionMenu === recordKey(record)"
-                      @click="toggleActionMenu(record)"
+                      :popovertarget="`bridge-record-actions-${recordKey(
+                        record
+                      )}`"
                     >
                       <svg
                         class="h-4 w-4"
@@ -949,16 +902,12 @@ function createUrl() {
                       </svg>
                     </button>
 
-                    <div
-                      v-if="openActionMenu === recordKey(record)"
-                      role="menu"
-                      :class="[
-                        'absolute right-0 z-20 w-36 rounded-md border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-900',
-                        recordIndex >= records.length - 2
-                          ? 'bottom-full mb-1'
-                          : 'top-full mt-1'
-                      ]"
-                      @keydown="handleActionMenuKeydown"
+                    <Menu
+                      :id="`bridge-record-actions-${recordKey(record)}`"
+                      :aria-label="`Actions for ${actionLabel(record)}`"
+                      placement="bottom-end"
+                      :offset="4"
+                      class="w-36 rounded-md border-gray-200 bg-white px-0 py-1 shadow-lg dark:border-gray-700 dark:bg-gray-900"
                     >
                       <Link
                         v-if="modelMeta.actions?.view !== false"
@@ -966,7 +915,6 @@ function createUrl() {
                         prefetch
                         role="menuitem"
                         class="flex w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 focus:bg-gray-50 focus:outline-none dark:text-gray-300 dark:hover:bg-gray-800 dark:focus:bg-gray-800"
-                        @click="closeActionMenu"
                       >
                         View record
                       </Link>
@@ -976,7 +924,6 @@ function createUrl() {
                         prefetch
                         role="menuitem"
                         class="flex w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 focus:bg-gray-50 focus:outline-none dark:text-gray-300 dark:hover:bg-gray-800 dark:focus:bg-gray-800"
-                        @click="closeActionMenu"
                       >
                         Edit record
                       </Link>
@@ -988,7 +935,7 @@ function createUrl() {
                       >
                         Delete record
                       </button>
-                    </div>
+                    </Menu>
                   </div>
                 </td>
               </tr>

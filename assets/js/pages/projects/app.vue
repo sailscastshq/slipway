@@ -18,6 +18,7 @@ import CodeEditor from '@/components/CodeEditor.vue'
 import ConfigVariableMenu from '@/components/ConfigVariableMenu.vue'
 import ReleaseFlagMenu from '@/components/ReleaseFlagMenu.vue'
 import Switch from '@/components/ui/switch/Switch.vue'
+import Menu from '@/components/ui/menu/Menu.vue'
 import { useToast } from '@/composables/toast'
 import Spinner from '@/components/SlipwaySpinner.vue'
 import DeploymentHistory from '@/components/DeploymentHistory.vue'
@@ -142,19 +143,16 @@ async function stopApp() {
 }
 
 async function handleRestartAppClick() {
-  moreMenuOpen.value = false
   await restartApp()
 }
 
 async function handleStopAppClick() {
-  moreMenuOpen.value = false
   await stopApp()
 }
 
 // --- Domain display ---
 const domainDropdownOpen = ref(false)
 const copiedText = ref(null)
-const moreMenuOpen = ref(false)
 
 const accessUrls = computed(() => props.app.accessUrls || [])
 
@@ -171,7 +169,6 @@ function copyToClipboard(text) {
 
 function closeAllDropdowns() {
   domainDropdownOpen.value = false
-  moreMenuOpen.value = false
 }
 
 // --- Custom domain ---
@@ -182,7 +179,6 @@ const domainModalOpen = ref(false)
 function openDomainModal() {
   newDomain.value = props.environment.domain || ''
   domainModalOpen.value = true
-  moreMenuOpen.value = false
 }
 
 function closeDomainModal() {
@@ -1111,9 +1107,7 @@ onBeforeUnmount(() => {
                 type="button"
                 data-test="app-more-menu"
                 aria-label="Open app actions"
-                aria-haspopup="true"
-                :aria-expanded="moreMenuOpen"
-                @click.stop="moreMenuOpen = !moreMenuOpen"
+                popovertarget="app-more-actions"
                 class="rounded-md p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-800 dark:hover:text-gray-200"
               >
                 <svg class="h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
@@ -1123,19 +1117,14 @@ onBeforeUnmount(() => {
                 </svg>
               </button>
               <!-- Dropdown -->
-              <Transition
-                enter-active-class="transition ease-out duration-100"
-                enter-from-class="transform opacity-0 scale-95"
-                enter-to-class="transform opacity-100 scale-100"
-                leave-active-class="transition ease-in duration-75"
-                leave-from-class="transform opacity-100 scale-100"
-                leave-to-class="transform opacity-0 scale-95"
+              <Menu
+                id="app-more-actions"
+                aria-label="App actions"
+                placement="bottom-end"
+                :offset="4"
+                class="w-48 rounded-lg border-gray-200 bg-white px-0 py-1 shadow-lg dark:border-gray-700 dark:bg-gray-900"
               >
-                <div
-                  v-if="moreMenuOpen"
-                  @click.stop
-                  class="absolute right-0 top-full z-20 mt-1 w-48 rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-900"
-                >
+                <div class="contents">
                   <!-- Platform tools -->
                   <div
                     v-if="app.status === 'running'"
@@ -1408,7 +1397,7 @@ onBeforeUnmount(() => {
                     </Link>
                   </div>
                 </div>
-              </Transition>
+              </Menu>
             </div>
             <span
               :class="[
