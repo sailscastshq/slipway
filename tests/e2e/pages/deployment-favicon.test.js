@@ -83,11 +83,8 @@ test(
     await acknowledgeFavicon(page)
     expect(await waitForFavicon(page, 'idle')).toBe('/images/favicon.svg')
 
-    await page.raw
-      .getByText(current.users.genesisUser.email, { exact: true })
-      .locator('..')
-      .click()
-    await page.raw.getByRole('button', { name: 'Sign out' }).click()
+    await page.raw.locator('[data-test="desktop-user-menu-button"]').click()
+    await page.raw.getByRole('menuitem', { name: 'Sign out' }).click()
 
     expect(await waitForFavicon(page, 'idle')).toBe('/images/favicon.svg')
     expect(page).toHaveNoJavascriptErrors()
