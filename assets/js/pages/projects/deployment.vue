@@ -2,7 +2,7 @@
 import { Link, Head, router } from '@inertiajs/vue3'
 import { inject, ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
-import Breadcrumb from '@/components/Breadcrumb.vue'
+import Breadcrumb from '@/components/ui/breadcrumb/Breadcrumb.vue'
 import DeploymentOutcome from '@/components/DeploymentOutcome.vue'
 import LogViewer from '@/components/LogViewer.vue'
 import Spinner from '@/components/SlipwaySpinner.vue'

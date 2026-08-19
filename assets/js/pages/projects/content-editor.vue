@@ -6,6 +6,7 @@ import ConfirmModal from '@/components/ConfirmModal.vue'
 import MarkdownEditor from '@/components/content/MarkdownEditor.vue'
 import Tooltip from '@/components/ui/tooltip/Tooltip.vue'
 import Menu from '@/components/ui/menu/Menu.vue'
+import Breadcrumb from '@/components/ui/breadcrumb/Breadcrumb.vue'
 import { usePrecognitionValidation } from '@/composables/precognition'
 
 defineOptions({
@@ -90,6 +91,21 @@ function getContentManagerPath() {
       : `/projects/${props.project.slug}/content`
   return `${path}?appSlug=${props.app.slug}`
 }
+
+const breadcrumbs = computed(() => [
+  { label: 'projects', href: '/' },
+  {
+    label: props.project.name.toLowerCase(),
+    href: `/projects/${props.project.slug}`
+  },
+  {
+    label: props.environment.name.toLowerCase(),
+    href: `/projects/${props.project.slug}/environments/${props.environment.slug}`
+  },
+  { label: 'content', href: getContentManagerPath() },
+  { label: props.collection, title: props.collection },
+  { label: props.file, title: props.file }
+])
 
 function getActionPath(action) {
   return `/projects/${props.project.slug}${envPath.value}/content/${props.collection}/${props.file}/${action}`
@@ -235,7 +251,7 @@ function handleKeydown(e) {
     <div
       class="flex items-center justify-between gap-2 border-b border-gray-200 px-3 py-2 dark:border-gray-800 sm:px-6 sm:py-3"
     >
-      <div class="flex min-w-0 items-center gap-2">
+      <div class="flex min-w-0 flex-1 items-center gap-2">
         <button
           type="button"
           aria-label="Open navigation"
@@ -331,75 +347,30 @@ function handleKeydown(e) {
             />
           </svg>
         </button>
-        <!-- Mobile: condensed breadcrumb -->
-        <nav
-          aria-label="Breadcrumb"
-          class="flex min-w-0 items-center gap-1.5 text-sm sm:hidden"
+        <Link
+          :href="getContentManagerPath()"
+          aria-label="Back to content manager"
+          class="shrink-0 rounded-sm text-gray-400 hover:text-gray-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-950 dark:text-gray-500 dark:hover:text-gray-300 dark:focus-visible:outline-white sm:hidden"
         >
-          <Link
-            :href="getContentManagerPath()"
-            aria-label="Back to content manager"
-            class="shrink-0 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
+          <svg
+            class="h-4 w-4"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+            aria-hidden="true"
           >
-            <svg
-              class="h-4 w-4"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-              aria-hidden="true"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M15 19l-7-7 7-7"
-              />
-            </svg>
-          </Link>
-          <span class="truncate font-medium text-gray-900 dark:text-white">{{
-            file
-          }}</span>
-        </nav>
-
-        <!-- Desktop: full breadcrumb -->
-        <nav
-          aria-label="Breadcrumb"
-          class="hidden items-center gap-2 text-sm sm:flex"
-        >
-          <Link
-            href="/"
-            class="text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
-          >
-            projects
-          </Link>
-          <span class="text-gray-400 dark:text-gray-600">/</span>
-          <Link
-            :href="`/projects/${project.slug}`"
-            class="text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
-          >
-            {{ project.name.toLowerCase() }}
-          </Link>
-          <span class="text-gray-400 dark:text-gray-600">/</span>
-          <Link
-            :href="`/projects/${project.slug}/environments/${environment.slug}`"
-            class="text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
-          >
-            {{ environment.name.toLowerCase() }}
-          </Link>
-          <span class="text-gray-400 dark:text-gray-600">/</span>
-          <Link
-            :href="getContentManagerPath()"
-            class="text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
-          >
-            content
-          </Link>
-          <span class="text-gray-400 dark:text-gray-600">/</span>
-          <span class="text-gray-500 dark:text-gray-400">{{ collection }}</span>
-          <span class="text-gray-400 dark:text-gray-600">/</span>
-          <span class="font-medium text-gray-900 dark:text-white">{{
-            file
-          }}</span>
-        </nav>
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M15 19l-7-7 7-7"
+            />
+          </svg>
+        </Link>
+        <Breadcrumb
+          :items="breadcrumbs"
+          class="sm:[&_[data-slot=current]]:min-h-11 @lg:[&_[data-slot=item]:not([data-state=current])]:flex @lg:[&_[data-state=current]_[data-slot=separator]]:block flex-1 [&_[data-slot=current]]:min-h-0 [&_[data-slot=current]]:px-0 sm:[&_[data-slot=current]]:px-1 [&_[data-slot=ellipsis]]:hidden [&_[data-slot=item]:not([data-state=current])]:hidden [&_[data-state=current]_[data-slot=separator]]:hidden"
+        />
       </div>
 
       <div class="flex shrink-0 items-center gap-1 sm:gap-2">

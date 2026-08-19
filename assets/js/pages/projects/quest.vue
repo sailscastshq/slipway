@@ -2,7 +2,7 @@
 import { Head, router, useForm } from '@inertiajs/vue3'
 import { inject, ref, computed, nextTick, watch, onMounted } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
-import Breadcrumb from '@/components/Breadcrumb.vue'
+import Breadcrumb from '@/components/ui/breadcrumb/Breadcrumb.vue'
 import Tooltip from '@/components/ui/tooltip/Tooltip.vue'
 import Spinner from '@/components/SlipwaySpinner.vue'
 import { useQueryState } from '@/composables/useQueryState'

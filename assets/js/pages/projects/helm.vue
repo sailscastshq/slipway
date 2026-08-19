@@ -1,5 +1,5 @@
 <script setup>
-import { Link, Head, router, usePage } from '@inertiajs/vue3'
+import { Head, router, usePage } from '@inertiajs/vue3'
 import {
   inject,
   ref,
@@ -18,6 +18,7 @@ import HelmScratchpadTabs from '@/components/HelmScratchpadTabs.vue'
 import HelmWorkspaceLibrary from '@/components/HelmWorkspaceLibrary.vue'
 import HelmWriteGuardDialog from '@/components/HelmWriteGuardDialog.vue'
 import Alert from '@/components/ui/alert/Alert.vue'
+import Breadcrumb from '@/components/ui/breadcrumb/Breadcrumb.vue'
 import Tooltip from '@/components/ui/tooltip/Tooltip.vue'
 import { useHelmScratchpads } from '@/composables/useHelmScratchpads'
 import { helmEditorDiagnostic } from '@/lib/helmResult'
@@ -47,6 +48,26 @@ const page = usePage()
 const toggleMobileMenu = inject('toggleMobileMenu')
 const toggleSidebar = inject('toggleSidebar')
 const sidebarCollapsed = inject('sidebarCollapsed')
+const breadcrumbs = computed(() => [
+  { label: 'projects', href: '/' },
+  {
+    label: props.project.name.toLowerCase(),
+    href: `/projects/${props.project.slug}`
+  },
+  {
+    label: props.environment.name.toLowerCase(),
+    href: `/projects/${props.project.slug}/environments/${props.environment.slug}`
+  },
+  ...(props.app
+    ? [
+        {
+          label: props.app.name.toLowerCase(),
+          title: props.app.name
+        }
+      ]
+    : []),
+  { label: 'helm' }
+])
 
 const scratchpads = useHelmScratchpads(() => props.target)
 const {
@@ -582,7 +603,7 @@ watch(code, () => {
     <div
       class="flex shrink-0 items-center justify-between border-b border-gray-200 px-4 py-3 dark:border-gray-800 sm:px-8 sm:py-4"
     >
-      <div class="flex items-center space-x-3">
+      <div class="flex min-w-0 flex-1 items-center space-x-3">
         <!-- Mobile menu toggle -->
         <button
           data-test="helm-mobile-menu"
@@ -673,58 +694,9 @@ watch(code, () => {
             />
           </svg>
         </button>
-        <!-- Mobile: simplified breadcrumb -->
-        <nav class="flex items-center space-x-2 text-sm sm:hidden">
-          <Link
-            :href="`/projects/${project.slug}/environments/${environment.slug}`"
-            class="text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
-          >
-            {{ project.name.toLowerCase() }}
-          </Link>
-          <span class="text-gray-400 dark:text-gray-600">/</span>
-          <span
-            v-if="app"
-            class="max-w-28 truncate text-gray-500 dark:text-gray-400"
-            :title="app.name"
-            >{{ app.name.toLowerCase() }}</span
-          >
-          <span v-if="app" class="text-gray-400 dark:text-gray-600">/</span>
-          <span class="font-medium text-gray-900 dark:text-white">helm</span>
-        </nav>
-        <!-- Desktop: full breadcrumb -->
-        <nav class="hidden items-center space-x-2 text-sm sm:flex">
-          <Link
-            href="/"
-            class="text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
-          >
-            projects
-          </Link>
-          <span class="text-gray-400 dark:text-gray-600">/</span>
-          <Link
-            :href="`/projects/${project.slug}`"
-            class="text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
-          >
-            {{ project.name.toLowerCase() }}
-          </Link>
-          <span class="text-gray-400 dark:text-gray-600">/</span>
-          <Link
-            :href="`/projects/${project.slug}/environments/${environment.slug}`"
-            class="text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
-          >
-            {{ environment.name.toLowerCase() }}
-          </Link>
-          <span class="text-gray-400 dark:text-gray-600">/</span>
-          <span
-            v-if="app"
-            class="max-w-32 truncate text-gray-500 dark:text-gray-400"
-            :title="app.name"
-            >{{ app.name.toLowerCase() }}</span
-          >
-          <span v-if="app" class="text-gray-400 dark:text-gray-600">/</span>
-          <span class="font-medium text-gray-900 dark:text-white">helm</span>
-        </nav>
+        <Breadcrumb :items="breadcrumbs" class="flex-1" />
       </div>
-      <div class="flex items-center space-x-2 sm:space-x-3">
+      <div class="flex shrink-0 items-center space-x-2 sm:space-x-3">
         <!-- Status indicator -->
         <span
           v-if="isRunning"
