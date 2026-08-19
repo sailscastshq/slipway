@@ -369,7 +369,8 @@ function handleKeydown(e) {
         </Link>
         <Breadcrumb
           :items="breadcrumbs"
-          class="sm:[&_[data-slot=current]]:min-h-11 @lg:[&_[data-slot=item]:not([data-state=current])]:flex @lg:[&_[data-state=current]_[data-slot=separator]]:block flex-1 [&_[data-slot=current]]:min-h-0 [&_[data-slot=current]]:px-0 sm:[&_[data-slot=current]]:px-1 [&_[data-slot=ellipsis]]:hidden [&_[data-slot=item]:not([data-state=current])]:hidden [&_[data-state=current]_[data-slot=separator]]:hidden"
+          current-only-on-mobile
+          class="sm:[&_[data-slot=current]]:min-h-11 flex-1 [&_[data-slot=current]]:min-h-0 [&_[data-slot=current]]:px-0 sm:[&_[data-slot=current]]:px-1"
         />
       </div>
 

@@ -7,7 +7,9 @@ defineOptions({ inheritAttrs: false })
 
 const props = defineProps({
   /** Ordered ancestors followed by the current page. */
-  items: { type: Array, required: true }
+  items: { type: Array, required: true },
+  /** Keep dense mobile headers to the current page, then reveal the terse trail. */
+  currentOnlyOnMobile: { type: Boolean, default: false }
 })
 
 const attrs = useAttrs()
@@ -35,10 +37,26 @@ const CURRENT_CLASSES =
 function itemClass(index) {
   return twMerge(
     'flex min-w-0 shrink-0 items-center gap-1.5',
-    collapses.value && index > 0 && index < lastIndex.value - 1
-      ? 'hidden @lg:flex'
+    isCollapsed(index) ? 'hidden' : undefined,
+    props.currentOnlyOnMobile &&
+      !isCollapsed(index) &&
+      index !== lastIndex.value
+      ? 'hidden sm:flex'
       : undefined,
     index === lastIndex.value ? 'shrink' : undefined
+  )
+}
+
+function isCollapsed(index) {
+  return collapses.value && index > 0 && index < lastIndex.value - 1
+}
+
+function separatorClass(index) {
+  return twMerge(
+    'size-3.5 shrink-0 text-gray-400 dark:text-gray-600',
+    props.currentOnlyOnMobile && index === lastIndex.value
+      ? 'hidden sm:block'
+      : undefined
   )
 }
 </script>
@@ -59,7 +77,12 @@ function itemClass(index) {
         <li
           v-if="collapses && index === lastIndex - 1"
           data-slot="ellipsis"
-          class="@lg:hidden flex shrink-0 items-center gap-1.5"
+          :class="
+            twMerge(
+              'flex shrink-0 items-center gap-1.5',
+              props.currentOnlyOnMobile ? 'hidden sm:flex' : undefined
+            )
+          "
         >
           <svg
             data-slot="separator"
@@ -88,13 +111,14 @@ function itemClass(index) {
           data-slot="item"
           :data-index="index"
           :data-state="index === lastIndex ? 'current' : undefined"
+          :data-collapsed="isCollapsed(index) ? 'true' : undefined"
           :class="itemClass(index)"
         >
           <svg
             v-if="index > 0"
             data-slot="separator"
             aria-hidden="true"
-            class="size-3.5 shrink-0 text-gray-400 dark:text-gray-600"
+            :class="separatorClass(index)"
             viewBox="0 0 16 16"
             fill="none"
           >

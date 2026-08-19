@@ -135,14 +135,10 @@ test(
       ).toEqual(['projects', 'content manager ui', 'production', 'content'])
       expect(
         await breadcrumb.locator('[data-slot="item"]:visible').allTextContents()
-      ).toEqual([
-        'projects',
-        'content manager ui',
-        'production',
-        'content',
-        'posts',
-        'welcome'
-      ])
+      ).toEqual(['projects', 'posts', 'welcome'])
+      await expect(
+        breadcrumb.locator('[data-slot="ellipsis"]:visible')
+      ).toHaveCount(1)
       await page.screenshot('.tmp/content-editor-populated-light.png', {
         fullPage: true
       })
