@@ -3,6 +3,7 @@ import { Link, Head, useForm } from '@inertiajs/vue3'
 import { inject, ref, computed } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
 import Spinner from '@/components/SlipwaySpinner.vue'
+import Avatar from '@/components/ui/avatar/Avatar.vue'
 import { usePrecognitionValidation } from '@/composables/precognition'
 
 defineOptions({
@@ -264,22 +265,19 @@ const initials = computed(() => {
             <div class="flex items-center gap-4">
               <!-- Logo preview -->
               <div class="relative">
-                <div
-                  v-if="logoPreview"
-                  class="h-16 w-16 overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700"
-                >
-                  <img
-                    :src="logoPreview"
-                    alt="Team logo"
-                    class="h-full w-full object-cover"
-                  />
-                </div>
-                <div
-                  v-else
-                  class="bg-brand flex h-16 w-16 items-center justify-center rounded-lg text-xl font-semibold text-white"
+                <Avatar
+                  data-test="team-profile-avatar"
+                  :src="logoPreview"
+                  :alt="`${props.team.name} team logo`"
+                  :class="[
+                    'bg-brand h-16 w-16 rounded-lg object-cover text-xl font-semibold text-white',
+                    logoPreview
+                      ? 'border border-gray-200 dark:border-gray-700'
+                      : ''
+                  ]"
                 >
                   {{ initials }}
-                </div>
+                </Avatar>
                 <!-- Uploading overlay -->
                 <div
                   v-if="uploading"

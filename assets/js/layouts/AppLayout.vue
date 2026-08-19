@@ -9,6 +9,7 @@ import UpdateModal from '@/components/UpdateModal.vue'
 import DeploymentToast from '@/components/DeploymentToast.vue'
 import ServiceActionToast from '@/components/ServiceActionToast.vue'
 import CommandPalette from '@/components/CommandPalette.vue'
+import Avatar from '@/components/ui/avatar/Avatar.vue'
 import Menu from '@/components/ui/menu/Menu.vue'
 import { createToast } from '@/composables/toast'
 import { useFlashToast } from '@/composables/flash-toast'
@@ -272,18 +273,14 @@ onUnmounted(() => {
               class="flex w-full min-w-0 items-center justify-between gap-2 rounded-md px-2 py-1.5 text-sm text-gray-700 hover:bg-gray-200 dark:text-gray-200 dark:hover:bg-gray-800"
             >
               <div class="flex min-w-0 flex-1 items-center space-x-2">
-                <img
-                  v-if="loggedInUser.team?.logoUrl"
-                  :src="loggedInUser.team.logoUrl"
+                <Avatar
+                  data-test="mobile-current-team-avatar"
+                  :src="loggedInUser.team?.logoUrl || ''"
                   alt=""
-                  class="h-6 w-6 shrink-0 rounded object-cover"
-                />
-                <span
-                  v-else
-                  class="bg-brand flex h-6 w-6 shrink-0 items-center justify-center rounded text-xs font-medium text-white"
+                  class="bg-brand h-6 w-6 rounded object-cover text-xs font-medium text-white"
                 >
                   {{ loggedInUser.team?.name?.charAt(0)?.toUpperCase() || 'T' }}
-                </span>
+                </Avatar>
                 <span
                   data-test="mobile-team-name"
                   class="truncate font-medium"
@@ -330,18 +327,13 @@ onUnmounted(() => {
                       : 'text-gray-600 dark:text-gray-400'
                   ]"
                 >
-                  <img
-                    v-if="team.logoUrl"
+                  <Avatar
                     :src="team.logoUrl"
                     alt=""
-                    class="h-5 w-5 rounded object-cover"
-                  />
-                  <span
-                    v-else
-                    class="bg-brand flex h-5 w-5 items-center justify-center rounded text-[10px] font-medium text-white"
+                    class="bg-brand h-5 w-5 rounded object-cover text-[10px] font-medium text-white"
                   >
                     {{ team.name?.charAt(0)?.toUpperCase() }}
-                  </span>
+                  </Avatar>
                   <span class="flex-1 truncate">{{ team.name }}</span>
                   <svg
                     v-if="team.id === loggedInUser.team?.id"
@@ -745,18 +737,14 @@ onUnmounted(() => {
             popovertarget="desktop-team-menu"
             class="flex w-full min-w-0 items-center space-x-2 rounded-md px-2 py-1.5 text-sm text-gray-700 hover:bg-gray-200 dark:text-gray-200 dark:hover:bg-gray-800"
           >
-            <img
-              v-if="loggedInUser.team?.logoUrl"
-              :src="loggedInUser.team.logoUrl"
+            <Avatar
+              data-test="desktop-current-team-avatar"
+              :src="loggedInUser.team?.logoUrl || ''"
               alt=""
-              class="h-6 w-6 shrink-0 rounded object-cover"
-            />
-            <span
-              v-else
-              class="bg-brand flex h-6 w-6 shrink-0 items-center justify-center rounded text-xs font-medium text-white"
+              class="bg-brand h-6 w-6 rounded object-cover text-xs font-medium text-white"
             >
               {{ loggedInUser.team?.name?.charAt(0)?.toUpperCase() || 'T' }}
-            </span>
+            </Avatar>
             <span
               data-test="desktop-team-name"
               class="min-w-0 flex-1 truncate text-left font-medium"
@@ -802,18 +790,13 @@ onUnmounted(() => {
                     : 'text-gray-600 dark:text-gray-400'
                 ]"
               >
-                <img
-                  v-if="team.logoUrl"
+                <Avatar
                   :src="team.logoUrl"
                   alt=""
-                  class="h-5 w-5 rounded object-cover"
-                />
-                <span
-                  v-else
-                  class="bg-brand flex h-5 w-5 items-center justify-center rounded text-[10px] font-medium text-white"
+                  class="bg-brand h-5 w-5 rounded object-cover text-[10px] font-medium text-white"
                 >
                   {{ team.name?.charAt(0)?.toUpperCase() }}
-                </span>
+                </Avatar>
                 <span class="flex-1 truncate">{{ team.name }}</span>
                 <svg
                   v-if="team.id === loggedInUser.team?.id"
