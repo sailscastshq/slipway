@@ -1,5 +1,6 @@
 <script setup>
 import Input from '@/components/ui/input/Input.vue'
+import Checkbox from '@/components/ui/checkbox/Checkbox.vue'
 import { Link, Head, useForm } from '@inertiajs/vue3'
 import { inject, ref, computed } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
@@ -541,9 +542,8 @@ function cancelDeleteProject() {
     >
       <template #form>
         <label class="mt-4 flex cursor-pointer items-start gap-3">
-          <input
+          <Checkbox
             v-model="deleteProjectForm.purgeData"
-            type="checkbox"
             class="mt-0.5 h-4 w-4 rounded border-gray-300 text-red-600 focus:ring-red-500 dark:border-gray-600 dark:bg-gray-800"
           />
           <span>

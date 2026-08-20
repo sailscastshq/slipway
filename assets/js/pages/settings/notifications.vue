@@ -1,5 +1,6 @@
 <script setup>
 import Input from '@/components/ui/input/Input.vue'
+import Checkbox from '@/components/ui/checkbox/Checkbox.vue'
 import { Link, Head, useForm } from '@inertiajs/vue3'
 import { inject, ref, computed } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
@@ -427,8 +428,7 @@ const categoryIcons = {
                         {{ event.description }}
                       </p>
                     </div>
-                    <input
-                      type="checkbox"
+                    <Checkbox
                       v-model="form[event.model]"
                       class="accent-brand text-brand focus:ring-brand h-4 w-4 rounded border-gray-300 dark:border-gray-600 dark:bg-gray-900"
                     />

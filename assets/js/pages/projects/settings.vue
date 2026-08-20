@@ -1,6 +1,7 @@
 <script setup>
 import Textarea from '@/components/ui/textarea/Textarea.vue'
 import Input from '@/components/ui/input/Input.vue'
+import Checkbox from '@/components/ui/checkbox/Checkbox.vue'
 import { Link, Head, useForm } from '@inertiajs/vue3'
 import { inject, ref } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
@@ -346,8 +347,7 @@ function openDeleteProject() {
           <div class="mt-6 space-y-4">
             <!-- Enable toggle -->
             <label class="flex items-center space-x-3">
-              <input
-                type="checkbox"
+              <Checkbox
                 v-model="deployForm.autoDeploy"
                 @change="saveDeploySettings"
                 class="text-brand focus:ring-brand h-4 w-4 rounded border-gray-300 dark:border-gray-600 dark:bg-gray-900"
@@ -500,9 +500,8 @@ function openDeleteProject() {
     >
       <template #form>
         <label class="mt-4 flex cursor-pointer items-start gap-3">
-          <input
+          <Checkbox
             v-model="deleteProjectForm.purgeData"
-            type="checkbox"
             class="mt-0.5 h-4 w-4 rounded border-gray-300 text-red-600 focus:ring-red-500 dark:border-gray-600 dark:bg-gray-800"
           />
           <span>

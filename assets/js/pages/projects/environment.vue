@@ -1,5 +1,6 @@
 <script setup>
 import Input from '@/components/ui/input/Input.vue'
+import Checkbox from '@/components/ui/checkbox/Checkbox.vue'
 import { Link, Head, router, useForm } from '@inertiajs/vue3'
 import {
   inject,
@@ -2738,9 +2739,8 @@ onBeforeUnmount(() => {
     >
       <template #form>
         <label class="mt-4 flex cursor-pointer items-start gap-3">
-          <input
+          <Checkbox
             v-model="purgeServiceData"
-            type="checkbox"
             class="mt-0.5 h-4 w-4 rounded border-gray-300 text-red-600 focus:ring-red-500 dark:border-gray-600 dark:bg-gray-800"
           />
           <span class="text-sm text-gray-700 dark:text-gray-300">

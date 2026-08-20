@@ -1,5 +1,6 @@
 <script setup>
 import Input from '@/components/ui/input/Input.vue'
+import Checkbox from '@/components/ui/checkbox/Checkbox.vue'
 import { Link, Head, router, useForm } from '@inertiajs/vue3'
 import { inject, ref, computed, watch } from 'vue'
 import BridgePageLayout from '@/layouts/BridgePageLayout.vue'
@@ -770,9 +771,9 @@ function createUrl() {
             >
               <tr>
                 <th v-if="hasBulkActions" scope="col" class="w-10 px-4 py-2">
-                  <input
-                    type="checkbox"
-                    :checked="selectAll"
+                  <Checkbox
+                    :model-value="selectAll"
+                    :indeterminate="selectedIds.size > 0 && !selectAll"
                     @change="toggleSelectAll"
                     class="h-3.5 w-3.5 rounded border-gray-300 text-gray-900 focus:ring-gray-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
                   />
@@ -849,9 +850,8 @@ function createUrl() {
                 class="group hover:bg-gray-50 dark:hover:bg-gray-900/30"
               >
                 <td v-if="hasBulkActions" class="px-4 py-2">
-                  <input
-                    type="checkbox"
-                    :checked="selectedIds.has(record[modelMeta.primaryKey])"
+                  <Checkbox
+                    :model-value="selectedIds.has(record[modelMeta.primaryKey])"
                     @change="toggleSelect(record[modelMeta.primaryKey])"
                     class="h-3.5 w-3.5 rounded border-gray-300 text-gray-900 focus:ring-gray-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
                   />
