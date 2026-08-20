@@ -10,7 +10,7 @@ import {
   watch
 } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
-import Breadcrumb from '@/components/Breadcrumb.vue'
+import Breadcrumb from '@/components/ui/breadcrumb/Breadcrumb.vue'
 import MarkdownEditor from '@/components/content/MarkdownEditor.vue'
 import Alert from '@/components/ui/alert/Alert.vue'
 import { useQueryState } from '@/composables/useQueryState'

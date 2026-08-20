@@ -2,7 +2,7 @@
 import { Link, Head, router, usePage, useForm } from '@inertiajs/vue3'
 import { ref, computed, inject, onMounted } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
-import Breadcrumb from '@/components/Breadcrumb.vue'
+import Breadcrumb from '@/components/ui/breadcrumb/Breadcrumb.vue'
 import ConfirmModal from '@/components/ConfirmModal.vue'
 import Tooltip from '@/components/ui/tooltip/Tooltip.vue'
 import Spinner from '@/components/SlipwaySpinner.vue'

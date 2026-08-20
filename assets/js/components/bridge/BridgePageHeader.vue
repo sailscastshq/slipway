@@ -1,6 +1,6 @@
 <script setup>
-import { Link } from '@inertiajs/vue3'
 import { computed, inject } from 'vue'
+import Breadcrumb from '@/components/ui/breadcrumb/Breadcrumb.vue'
 
 const props = defineProps({
   project: Object,
@@ -16,7 +16,27 @@ const props = defineProps({
 const toggleMobileMenu = inject('toggleMobileMenu')
 const toggleSidebar = inject('toggleSidebar')
 const sidebarCollapsed = inject('sidebarCollapsed')
-const mobileBreadcrumbs = computed(() => props.breadcrumbs.slice(-2))
+const breadcrumbItems = computed(() => [
+  ...(props.hostBridgeOrigin
+    ? [
+        {
+          label: props.app?.name || 'bridge',
+          title: props.app?.name || 'bridge'
+        }
+      ]
+    : [
+        { label: 'projects', href: '/' },
+        {
+          label: props.project.name.toLowerCase(),
+          href: `/projects/${props.project.slug}`
+        },
+        {
+          label: props.environment.slug,
+          href: `/projects/${props.project.slug}/environments/${props.environment.slug}`
+        }
+      ]),
+  ...props.breadcrumbs
+])
 </script>
 
 <template>
@@ -24,7 +44,7 @@ const mobileBreadcrumbs = computed(() => props.breadcrumbs.slice(-2))
     class="min-h-14 flex items-center justify-between gap-3 border-b border-gray-200 bg-white px-4 py-3 dark:border-gray-800 dark:bg-gray-950 sm:px-6"
     data-test="bridge-page-header"
   >
-    <div class="flex min-w-0 items-center gap-3">
+    <div class="flex min-w-0 flex-1 items-center gap-3">
       <button
         type="button"
         class="rounded-md p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white md:hidden"
@@ -88,81 +108,7 @@ const mobileBreadcrumbs = computed(() => props.breadcrumbs.slice(-2))
         </svg>
       </button>
 
-      <nav
-        aria-label="Breadcrumb"
-        class="flex min-w-0 items-center gap-2 text-sm sm:hidden"
-      >
-        <template
-          v-for="(crumb, index) in mobileBreadcrumbs"
-          :key="`${crumb.label}-${index}`"
-        >
-          <span v-if="index" class="text-gray-300 dark:text-gray-700">/</span>
-          <Link
-            v-if="crumb.href && index < mobileBreadcrumbs.length - 1"
-            :href="crumb.href"
-            class="max-w-32 truncate text-gray-500 dark:text-gray-400"
-          >
-            {{ crumb.label }}
-          </Link>
-          <span
-            v-else
-            class="max-w-40 truncate font-medium text-gray-900 dark:text-white"
-            :title="crumb.title || crumb.label"
-          >
-            {{ crumb.label }}
-          </span>
-        </template>
-      </nav>
-
-      <nav
-        aria-label="Breadcrumb"
-        class="hidden min-w-0 items-center gap-2 text-sm sm:flex"
-      >
-        <template v-if="!hostBridgeOrigin">
-          <Link
-            href="/"
-            class="text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
-            >projects</Link
-          >
-          <span class="text-gray-300 dark:text-gray-700">/</span>
-          <Link
-            :href="`/projects/${project.slug}`"
-            class="max-w-32 truncate text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
-          >
-            {{ project.name.toLowerCase() }}
-          </Link>
-          <span class="text-gray-300 dark:text-gray-700">/</span>
-          <Link
-            :href="`/projects/${project.slug}/environments/${environment.slug}`"
-            class="text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
-          >
-            {{ environment.slug }}
-          </Link>
-        </template>
-        <span v-else class="max-w-32 truncate text-gray-500 dark:text-gray-400">
-          {{ app?.name }}
-        </span>
-        <template
-          v-for="(crumb, index) in breadcrumbs"
-          :key="`${crumb.label}-${index}`"
-        >
-          <span class="text-gray-300 dark:text-gray-700">/</span>
-          <Link
-            v-if="crumb.href"
-            :href="crumb.href"
-            class="max-w-40 truncate text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
-          >
-            {{ crumb.label }}
-          </Link>
-          <span
-            v-else
-            class="max-w-48 truncate font-medium text-gray-900 dark:text-white"
-            :title="crumb.title || crumb.label"
-          >
-            {{ crumb.label }}
-          </span>
-        </template>
-      </nav>
+      <Breadcrumb :items="breadcrumbItems" class="flex-1" />
     </div>
 
     <div class="flex shrink-0 items-center gap-2 sm:gap-3">

@@ -2,7 +2,7 @@
 import { Link, Head, router } from '@inertiajs/vue3'
 import { inject, ref, computed, watch, onUnmounted } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
-import Breadcrumb from '@/components/Breadcrumb.vue'
+import Breadcrumb from '@/components/ui/breadcrumb/Breadcrumb.vue'
 import Spinner from '@/components/SlipwaySpinner.vue'
 import { useQueryState } from '@/composables/useQueryState'
 import { useEventSource } from '@/composables/sse'

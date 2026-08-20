@@ -26,6 +26,9 @@ test(
     const precognitionScreenshotRoot = path.resolve(
       '.tmp/screenshots/issue-208-precognition'
     )
+    const breadcrumbScreenshotRoot = path.resolve(
+      '.tmp/screenshots/issue-355-breadcrumb/after'
+    )
     const projectRoot = path.join(
       tempRoot,
       current.projects.deploymentTarget.slug
@@ -35,6 +38,7 @@ test(
     const originalGetContainerStatus = sails.helpers.docker.getContainerStatus
 
     fs.mkdirSync(precognitionScreenshotRoot, { recursive: true })
+    fs.mkdirSync(breadcrumbScreenshotRoot, { recursive: true })
     fs.mkdirSync(collectionRoot, { recursive: true })
     fs.writeFileSync(
       path.join(collectionRoot, 'welcome.md'),
@@ -119,9 +123,42 @@ test(
       await page.goto(`${basePath}/posts/welcome?${appScope}`)
       await page.wait('@content-visual-editor')
       await expect(page).toSee('A calmer way to ship')
+      const breadcrumb = page.raw.locator('[data-slot="breadcrumb"]')
+      expect(await breadcrumb.count()).toBe(1)
+      expect(await breadcrumb.locator('[data-slot="list"]').count()).toBe(1)
+      expect(
+        await breadcrumb.locator('[aria-current="page"]').textContent()
+      ).toBe('welcome')
+      expect(await breadcrumb.locator('[data-slot="link"]').count()).toBe(4)
+      expect(
+        await breadcrumb.locator('[data-slot="link"]').allTextContents()
+      ).toEqual(['projects', 'content manager ui', 'production', 'content'])
+      expect(
+        await breadcrumb.locator('[data-slot="item"]:visible').allTextContents()
+      ).toEqual(['projects', 'posts', 'welcome'])
+      await expect(
+        breadcrumb.locator('[data-slot="ellipsis"]:visible')
+      ).toHaveCount(1)
       await page.screenshot('.tmp/content-editor-populated-light.png', {
         fullPage: true
       })
+      await page.screenshot(
+        path.join(breadcrumbScreenshotRoot, 'content-editor-desktop-light.png'),
+        { fullPage: true }
+      )
+      expect(await breadcrumb.locator('[data-slot="current"] a').count()).toBe(
+        0
+      )
+      const projectsBreadcrumbLink = breadcrumb
+        .locator('[data-slot="link"]')
+        .first()
+      expect(await projectsBreadcrumbLink.getAttribute('href')).toBe('/')
+      await projectsBreadcrumbLink.focus()
+      expect(
+        await projectsBreadcrumbLink.evaluate(
+          (element) => document.activeElement === element
+        )
+      ).toBe(true)
 
       await page.raw.emulateMedia({ colorScheme: 'dark' })
       await page.screenshot('.tmp/content-editor-populated-dark.png', {
@@ -214,9 +251,17 @@ test(
       await page.goto(`${basePath}/posts/welcome?${appScope}`)
       await page.resize(390, 844)
       await page.wait('@content-visual-editor')
+      expect(await breadcrumb.count()).toBe(1)
+      expect(
+        await breadcrumb.locator('[data-slot="item"]:visible').allTextContents()
+      ).toEqual(['welcome'])
       await page.screenshot('.tmp/content-editor-mobile-light.png', {
         fullPage: true
       })
+      await page.screenshot(
+        path.join(breadcrumbScreenshotRoot, 'content-editor-mobile-light.png'),
+        { fullPage: true }
+      )
 
       await page.resize(1440, 900)
       await page.goto(`${basePath}?${appScope}`)

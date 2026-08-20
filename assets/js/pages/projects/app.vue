@@ -11,7 +11,7 @@ import {
 } from 'vue'
 import { useEventSource } from '@/composables/sse'
 import AppLayout from '@/layouts/AppLayout.vue'
-import Breadcrumb from '@/components/Breadcrumb.vue'
+import Breadcrumb from '@/components/ui/breadcrumb/Breadcrumb.vue'
 import SlideToDeploy from '@/components/SlideToDeploy.vue'
 import Tooltip from '@/components/ui/tooltip/Tooltip.vue'
 import CodeEditor from '@/components/CodeEditor.vue'

@@ -15,6 +15,7 @@ import ToastContainer from '@/components/ToastContainer.vue'
 import Tooltip from '@/components/ui/tooltip/Tooltip.vue'
 import Table from '@/components/ui/table/Table.vue'
 import Menu from '@/components/ui/menu/Menu.vue'
+import Breadcrumb from '@/components/ui/breadcrumb/Breadcrumb.vue'
 import CodeEditor from '@/components/CodeEditor.vue'
 import DockResultStatusIcon from '@/components/DockResultStatusIcon.vue'
 import { highlightSQL } from '@/lib/highlightSQL'
@@ -36,6 +37,18 @@ const props = defineProps({
 const toggleMobileMenu = inject('toggleMobileMenu')
 const toggleSidebar = inject('toggleSidebar')
 const sidebarCollapsed = inject('sidebarCollapsed')
+const breadcrumbs = computed(() => [
+  { label: 'projects', href: '/' },
+  {
+    label: props.project.name.toLowerCase(),
+    href: `/projects/${props.project.slug}`
+  },
+  {
+    label: props.environment.slug,
+    href: `/projects/${props.project.slug}/environments/${props.environment.slug}`
+  },
+  { label: 'dock' }
+])
 
 // Service picker mode (no service selected)
 const isPickerMode = computed(() => !props.databaseService)
@@ -1041,7 +1054,7 @@ onUnmounted(() => {
     <div
       class="flex items-center justify-between border-b border-gray-200 px-4 py-3 dark:border-gray-800 sm:px-6"
     >
-      <div class="flex items-center space-x-3">
+      <div class="flex min-w-0 flex-1 items-center space-x-3">
         <!-- Mobile menu toggle -->
         <button
           @click="toggleMobileMenu"
@@ -1131,43 +1144,9 @@ onUnmounted(() => {
             />
           </svg>
         </button>
-        <!-- Mobile: simplified breadcrumb -->
-        <nav class="flex items-center space-x-2 text-sm sm:hidden">
-          <Link
-            :href="`/projects/${project.slug}/environments/${environment.slug}`"
-            class="text-gray-500 dark:text-gray-400"
-          >
-            {{ project.name.toLowerCase() }}
-          </Link>
-          <span class="text-gray-400 dark:text-gray-600">/</span>
-          <span class="font-medium text-gray-900 dark:text-white">dock</span>
-        </nav>
-        <!-- Desktop: full breadcrumb -->
-        <nav class="hidden items-center space-x-2 text-sm sm:flex">
-          <Link
-            href="/"
-            class="text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
-            >projects</Link
-          >
-          <span class="text-gray-400 dark:text-gray-600">/</span>
-          <Link
-            :href="`/projects/${project.slug}`"
-            class="text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
-          >
-            {{ project.name.toLowerCase() }}
-          </Link>
-          <span class="text-gray-400 dark:text-gray-600">/</span>
-          <Link
-            :href="`/projects/${project.slug}/environments/${environment.slug}`"
-            class="text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
-          >
-            {{ environment.slug }}
-          </Link>
-          <span class="text-gray-400 dark:text-gray-600">/</span>
-          <span class="font-medium text-gray-900 dark:text-white">dock</span>
-        </nav>
+        <Breadcrumb :items="breadcrumbs" class="flex-1" />
       </div>
-      <div class="flex items-center space-x-2 sm:space-x-3">
+      <div class="flex shrink-0 items-center space-x-2 sm:space-x-3">
         <!-- Database selector (when multiple DBs available) -->
         <div
           v-if="databaseService && hasMultipleServices"

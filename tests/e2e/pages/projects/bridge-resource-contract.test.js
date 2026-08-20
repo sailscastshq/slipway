@@ -466,6 +466,15 @@ test(
 
       await page.goto(bridgePath)
       await page.wait('text=Courses')
+      const bridgeBreadcrumb = page.raw.locator(
+        '[data-test="bridge-page-header"] [data-slot="breadcrumb"]'
+      )
+      expect(await bridgeBreadcrumb.count()).toBe(1)
+      expect(
+        (
+          await bridgeBreadcrumb.locator('[aria-current="page"]').textContent()
+        ).trim()
+      ).toBe('bridge')
       await expect(page).toSee('4 resources')
       expect(
         await page.raw

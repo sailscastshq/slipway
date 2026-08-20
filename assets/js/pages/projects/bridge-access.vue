@@ -2,7 +2,7 @@
 import { Head, router, useForm } from '@inertiajs/vue3'
 import { computed, inject, ref } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
-import Breadcrumb from '@/components/Breadcrumb.vue'
+import Breadcrumb from '@/components/ui/breadcrumb/Breadcrumb.vue'
 import ConfirmModal from '@/components/ConfirmModal.vue'
 import Alert from '@/components/ui/alert/Alert.vue'
 import Menu from '@/components/ui/menu/Menu.vue'
