@@ -1,4 +1,5 @@
 <script setup>
+import Textarea from '@/components/ui/textarea/Textarea.vue'
 import Input from '@/components/ui/input/Input.vue'
 import { Head, InfiniteScroll, router, useForm } from '@inertiajs/vue3'
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
@@ -832,14 +833,14 @@ function shortDate(value) {
 
               <label class="mt-3 block" for="bearing-feedback-details">
                 <span class="sr-only">Details (optional)</span>
-                <textarea
+                <Textarea
                   id="bearing-feedback-details"
                   v-model="form.details"
                   rows="2"
                   maxlength="5000"
                   placeholder="Add details (optional)"
                   class="bearing-feedback-composer-field w-full resize-none border-0 bg-transparent p-0 text-sm leading-6 text-gray-700 caret-gray-950 placeholder:text-gray-300 dark:text-gray-300 dark:caret-white dark:placeholder:text-gray-600"
-                ></textarea>
+                />
               </label>
 
               <div

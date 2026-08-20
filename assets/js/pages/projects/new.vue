@@ -1,4 +1,5 @@
 <script setup>
+import Textarea from '@/components/ui/textarea/Textarea.vue'
 import Input from '@/components/ui/input/Input.vue'
 import { useForm, Head, Link } from '@inertiajs/vue3'
 import { inject } from 'vue'
@@ -186,7 +187,7 @@ const sidebarCollapsed = inject('sidebarCollapsed')
               {{ form.errors.name }}
             </p>
 
-            <textarea
+            <Textarea
               id="description"
               v-model="form.description"
               placeholder="A brief description about your project"
@@ -198,7 +199,7 @@ const sidebarCollapsed = inject('sidebarCollapsed')
               "
               @blur="validateOnBlur('description', $event)"
               @input="revalidateWhenInvalid('description')"
-            ></textarea>
+            />
             <p
               v-if="form.errors.description"
               id="project-description-error"

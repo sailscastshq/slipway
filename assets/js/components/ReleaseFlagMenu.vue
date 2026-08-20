@@ -1,4 +1,5 @@
 <script setup>
+import Textarea from '@/components/ui/textarea/Textarea.vue'
 import Input from '@/components/ui/input/Input.vue'
 import { ref, watch } from 'vue'
 
@@ -84,12 +85,12 @@ function remove(event) {
         class="mt-3 block text-xs font-medium text-gray-700 dark:text-gray-300"
       >
         Allowlist
-        <textarea
+        <Textarea
           v-model="targets"
           rows="3"
           class="mt-1 w-full resize-none border-b border-gray-200 bg-transparent py-1.5 font-mono text-xs font-normal text-gray-900 placeholder-gray-400 focus:border-gray-500 focus:outline-none dark:border-gray-700 dark:text-white"
           placeholder="user:42&#10;account:acme"
-        ></textarea>
+        />
       </label>
       <p class="mt-1 text-[11px] leading-4 text-gray-400">
         One user, account, tenant, or team per line.
