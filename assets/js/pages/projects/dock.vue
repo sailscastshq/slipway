@@ -13,6 +13,7 @@ import AppLayout from '@/layouts/AppLayout.vue'
 import ConfirmModal from '@/components/ConfirmModal.vue'
 import ToastContainer from '@/components/ToastContainer.vue'
 import Tooltip from '@/components/ui/tooltip/Tooltip.vue'
+import Select from '@/components/ui/select/Select.vue'
 import Table from '@/components/ui/table/Table.vue'
 import Menu from '@/components/ui/menu/Menu.vue'
 import Breadcrumb from '@/components/ui/breadcrumb/Breadcrumb.vue'
@@ -1152,19 +1153,17 @@ onUnmounted(() => {
           v-if="databaseService && hasMultipleServices"
           class="relative hidden sm:block"
         >
-          <select
-            :value="databaseService.id"
-            @change="switchService($event.target.value)"
+          <Select
+            :model-value="databaseService.id"
+            :options="
+              availableServices.map((service) => ({
+                value: service.id,
+                label: service.name
+              }))
+            "
+            @change="switchService"
             class="focus:border-brand appearance-none border-b border-dashed border-gray-300 bg-transparent py-1 pl-1 pr-6 text-sm text-gray-600 focus:outline-none dark:border-gray-600 dark:text-gray-400"
-          >
-            <option
-              v-for="svc in availableServices"
-              :key="svc.id"
-              :value="svc.id"
-            >
-              {{ svc.name }}
-            </option>
-          </select>
+          />
           <svg
             class="pointer-events-none absolute right-0 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-400"
             fill="none"

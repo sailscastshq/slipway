@@ -4,6 +4,7 @@ import { computed, ref } from 'vue'
 import BridgePageLayout from '@/layouts/BridgePageLayout.vue'
 import BridgeDashboard from '@/components/bridge/BridgeDashboard.vue'
 import BridgePageHeader from '@/components/bridge/BridgePageHeader.vue'
+import Select from '@/components/ui/select/Select.vue'
 import Tooltip from '@/components/ui/tooltip/Tooltip.vue'
 
 defineOptions({
@@ -77,8 +78,7 @@ function refresh() {
   router.reload({ only: ['models', 'modelsError', 'activeDashboard'] })
 }
 
-function switchDashboard(event) {
-  const id = event.target.value
+function switchDashboard(id) {
   router.get(bridgeBasePath.value, id ? { dashboard: id } : {}, {
     preserveState: true,
     preserveScroll: true,
@@ -98,21 +98,19 @@ function switchDashboard(event) {
       :breadcrumbs="[{ label: 'bridge' }]"
     >
       <template #actions>
-        <select
+        <Select
           v-if="dashboards?.length > 1"
-          :value="activeDashboard?.id"
+          :model-value="activeDashboard?.id"
+          :options="
+            dashboards.map((dashboard) => ({
+              value: dashboard.id,
+              label: dashboard.label
+            }))
+          "
           @change="switchDashboard"
           aria-label="Bridge dashboard"
           class="rounded-md border-0 bg-transparent py-1 pl-2 pr-7 text-sm text-gray-600 focus:ring-1 focus:ring-gray-300 dark:bg-gray-950 dark:text-gray-300 dark:focus:ring-gray-700"
-        >
-          <option
-            v-for="dashboard in dashboards"
-            :key="dashboard.id"
-            :value="dashboard.id"
-          >
-            {{ dashboard.label }}
-          </option>
-        </select>
+        />
         <Tooltip
           v-if="appRunning && (modelList.length > 0 || activeDashboard)"
           text="Refresh Bridge"

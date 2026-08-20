@@ -14,6 +14,7 @@ import Breadcrumb from '@/components/ui/breadcrumb/Breadcrumb.vue'
 import ConfirmModal from '@/components/ConfirmModal.vue'
 import SlideToDeploy from '@/components/SlideToDeploy.vue'
 import Alert from '@/components/ui/alert/Alert.vue'
+import Select from '@/components/ui/select/Select.vue'
 import Tooltip from '@/components/ui/tooltip/Tooltip.vue'
 import Menu from '@/components/ui/menu/Menu.vue'
 import CodeEditor from '@/components/CodeEditor.vue'
@@ -1739,15 +1740,16 @@ onBeforeUnmount(() => {
                         {{ createAppForm.errors.healthPath }}
                       </p>
                     </div>
-                    <select
+                    <Select
                       v-model="createAppRoutePath"
+                      :options="[
+                        { value: '/', label: '/ (root)' },
+                        { value: '/api', label: '/api' },
+                        { value: '/admin', label: '/admin' },
+                        { value: 'none', label: 'None (worker)' }
+                      ]"
                       class="focus:border-brand rounded-md border border-gray-200 bg-white px-2 py-1.5 text-sm text-gray-900 focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-white"
-                    >
-                      <option value="/">/ (root)</option>
-                      <option value="/api">/api</option>
-                      <option value="/admin">/admin</option>
-                      <option value="none">None (worker)</option>
-                    </select>
+                    />
                   </div>
 
                   <!-- GitHub repo picker -->
@@ -1808,20 +1810,18 @@ onBeforeUnmount(() => {
                         <span class="text-xs text-gray-500 dark:text-gray-400"
                           >Deploy branch</span
                         >
-                        <select
+                        <Select
                           v-if="branches.length > 0"
-                          :value="selectedBranch"
-                          @change="selectBranch($event.target.value)"
+                          :model-value="selectedBranch"
+                          :options="
+                            branches.map((branch) => ({
+                              value: branch.name,
+                              label: branch.name
+                            }))
+                          "
+                          @change="selectBranch"
                           class="focus:border-brand rounded-md border border-gray-200 bg-white px-2 py-1 text-sm text-gray-900 focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-white"
-                        >
-                          <option
-                            v-for="b in branches"
-                            :key="b.name"
-                            :value="b.name"
-                          >
-                            {{ b.name }}
-                          </option>
-                        </select>
+                        />
                         <span v-else-if="loadingBranches" role="status">
                           <Spinner class="h-4 w-4 text-gray-400" />
                           <span class="sr-only"
@@ -2391,35 +2391,29 @@ onBeforeUnmount(() => {
                       class="focus:border-brand w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 font-mono text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500 sm:flex-1"
                       @keydown.enter="createService"
                     />
-                    <select
+                    <Select
                       v-model="newServiceType"
+                      :options="serviceTypes"
                       class="focus:border-brand rounded-md border border-gray-200 bg-white px-2 py-1.5 text-sm text-gray-900 focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-white"
-                    >
-                      <option
-                        v-for="st in serviceTypes"
-                        :key="st.value"
-                        :value="st.value"
-                      >
-                        {{ st.label }}
-                      </option>
-                    </select>
-                    <select
+                    />
+                    <Select
                       v-if="!customServiceVersion"
                       v-model="newServiceVersion"
+                      :options="[
+                        ...(selectedServicePolicy?.versions || []).map(
+                          (entry) => ({
+                            value: entry.version,
+                            label: `${entry.version}${
+                              entry.recommended ? ' · recommended' : ''
+                            }`
+                          })
+                        ),
+                        { value: '__custom__', label: 'Custom version…' }
+                      ]"
                       aria-label="Service version"
                       class="focus:border-brand rounded-md border border-gray-200 bg-white px-2 py-1.5 text-sm text-gray-900 focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-white"
                       @change="handleServiceVersionChange"
-                    >
-                      <option
-                        v-for="entry in selectedServicePolicy?.versions || []"
-                        :key="entry.version"
-                        :value="entry.version"
-                      >
-                        {{ entry.version
-                        }}{{ entry.recommended ? ' · recommended' : '' }}
-                      </option>
-                      <option value="__custom__">Custom version…</option>
-                    </select>
+                    />
                     <div v-else class="flex items-center gap-2">
                       <input
                         v-model="newServiceVersion"

@@ -3,6 +3,7 @@ import { Link, Head, router } from '@inertiajs/vue3'
 import { inject, ref, computed, watch, onUnmounted } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
 import Breadcrumb from '@/components/ui/breadcrumb/Breadcrumb.vue'
+import Select from '@/components/ui/select/Select.vue'
 import Spinner from '@/components/SlipwaySpinner.vue'
 import { useQueryState } from '@/composables/useQueryState'
 import { useEventSource } from '@/composables/sse'
@@ -1676,17 +1677,18 @@ async function copyToken() {
                   </button>
                 </div>
                 <!-- Status filter -->
-                <select
-                  :value="requestStatusFilter"
-                  @change="requestStatusFilter = $event.target.value"
+                <Select
+                  :model-value="requestStatusFilter"
+                  :options="[
+                    { value: '', label: 'Any status' },
+                    { value: '2xx', label: '2xx' },
+                    { value: '3xx', label: '3xx' },
+                    { value: '4xx', label: '4xx' },
+                    { value: '5xx', label: '5xx' }
+                  ]"
+                  @change="requestStatusFilter = $event"
                   class="rounded border border-gray-200 bg-white px-1.5 py-0.5 text-[10px] font-medium text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400"
-                >
-                  <option value="">Any status</option>
-                  <option value="2xx">2xx</option>
-                  <option value="3xx">3xx</option>
-                  <option value="4xx">4xx</option>
-                  <option value="5xx">5xx</option>
-                </select>
+                />
                 <!-- Search -->
                 <div class="relative">
                   <svg

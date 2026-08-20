@@ -6,6 +6,7 @@ import Breadcrumb from '@/components/ui/breadcrumb/Breadcrumb.vue'
 import ConfirmModal from '@/components/ConfirmModal.vue'
 import Alert from '@/components/ui/alert/Alert.vue'
 import Menu from '@/components/ui/menu/Menu.vue'
+import Select from '@/components/ui/select/Select.vue'
 
 defineOptions({
   layout: AppLayout
@@ -365,16 +366,17 @@ function timeAgo(timestamp) {
               <label for="bridge-invite-role" class="sr-only">
                 Bridge role
               </label>
-              <select
+              <Select
                 id="bridge-invite-role"
                 v-model="inviteForm.role"
+                :options="[
+                  { value: 'viewer', label: 'Viewer' },
+                  { value: 'editor', label: 'Editor' },
+                  { value: 'administrator', label: 'Administrator' }
+                ]"
                 :disabled="!app.bridgeEnabled || inviteForm.processing"
                 class="min-h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-700 outline-none focus:border-gray-400 focus:ring-2 focus:ring-gray-100 disabled:cursor-not-allowed disabled:bg-gray-50 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-200 dark:focus:border-gray-600 dark:focus:ring-gray-900 dark:disabled:bg-gray-900"
-              >
-                <option value="viewer">Viewer</option>
-                <option value="editor">Editor</option>
-                <option value="administrator">Administrator</option>
-              </select>
+              />
             </div>
             <button
               type="submit"

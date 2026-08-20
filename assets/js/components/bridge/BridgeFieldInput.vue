@@ -3,6 +3,7 @@ import { router } from '@inertiajs/vue3'
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import MarkdownEditor from '@/components/content/MarkdownEditor.vue'
 import BridgeRelationshipSelect from '@/components/bridge/BridgeRelationshipSelect.vue'
+import Select from '@/components/ui/select/Select.vue'
 import Switch from '@/components/ui/switch/Switch.vue'
 import {
   bridgeFieldType,
@@ -851,30 +852,27 @@ function defaultPlaceholder(fieldType) {
         @blur="handleBlur"
       />
 
-      <select
+      <Select
         v-else-if="type === 'select'"
         :id="fieldId"
-        :value="modelValue"
+        :model-value="modelValue"
+        :options="[
+          { value: '', label: 'Select…' },
+          ...options.map((option) => ({
+            value: option.value,
+            label: option.label,
+            disabled: option.disabled
+          }))
+        ]"
         :disabled="field.readOnly"
         :required="attribute.required"
         :aria-invalid="visibleError ? 'true' : undefined"
         :aria-describedby="describedBy"
         :data-test="`${fieldId}-input`"
         :class="inputClass"
-        @change="update(options[$event.target.selectedIndex - 1]?.value ?? '')"
+        @change="update"
         @blur="handleBlur"
-      >
-        <option value="">Select…</option>
-        <option
-          v-for="option in options"
-          :key="`${typeof option.value}:${String(option.value)}`"
-          :value="String(option.value)"
-          :disabled="option.disabled"
-          :selected="Object.is(option.value, modelValue)"
-        >
-          {{ option.label }}
-        </option>
-      </select>
+      />
 
       <BridgeRelationshipSelect
         v-else-if="type === 'belongsTo'"

@@ -1,4 +1,6 @@
 <script setup>
+import Select from '@/components/ui/select/Select.vue'
+
 const props = defineProps({
   variableKey: { type: String, required: true },
   metadata: { type: Object, required: true }
@@ -73,29 +75,31 @@ function toggleDetails(event) {
           <span class="text-xs font-medium text-gray-700 dark:text-gray-300"
             >Value type</span
           >
-          <select
-            :value="metadata.kind"
-            @change="update('kind', $event.target.value)"
+          <Select
+            :model-value="metadata.kind"
+            :options="[
+              { value: 'secret', label: 'Secret' },
+              { value: 'plain', label: 'Plain config' }
+            ]"
+            @change="update('kind', $event)"
             class="mt-1 block w-full rounded-md border-0 bg-gray-50 px-2 py-1.5 text-sm text-gray-900 ring-1 ring-inset ring-gray-200 focus:ring-gray-400 dark:bg-gray-950 dark:text-white dark:ring-gray-800 dark:focus:ring-gray-600"
-          >
-            <option value="secret">Secret</option>
-            <option value="plain">Plain config</option>
-          </select>
+          />
         </label>
 
         <label class="block">
           <span class="text-xs font-medium text-gray-700 dark:text-gray-300"
             >Preview environments</span
           >
-          <select
-            :value="metadata.previewPolicy"
-            @change="update('previewPolicy', $event.target.value)"
+          <Select
+            :model-value="metadata.previewPolicy"
+            :options="[
+              { value: 'omit', label: 'Omit' },
+              { value: 'inherit', label: 'Inherit' },
+              { value: 'randomize', label: 'Generate a new value' }
+            ]"
+            @change="update('previewPolicy', $event)"
             class="mt-1 block w-full rounded-md border-0 bg-gray-50 px-2 py-1.5 text-sm text-gray-900 ring-1 ring-inset ring-gray-200 focus:ring-gray-400 dark:bg-gray-950 dark:text-white dark:ring-gray-800 dark:focus:ring-gray-600"
-          >
-            <option value="omit">Omit</option>
-            <option value="inherit">Inherit</option>
-            <option value="randomize">Generate a new value</option>
-          </select>
+          />
           <span
             data-test="config-preview-policy-description"
             class="mt-1 block text-xs leading-5 text-gray-500 dark:text-gray-400"
