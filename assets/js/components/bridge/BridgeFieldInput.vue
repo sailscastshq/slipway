@@ -1,4 +1,5 @@
 <script setup>
+import Textarea from '@/components/ui/textarea/Textarea.vue'
 import Input from '@/components/ui/input/Input.vue'
 import { router } from '@inertiajs/vue3'
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
@@ -921,7 +922,7 @@ function defaultPlaceholder(fieldType) {
         @compatibility-change="richTextCompatibility = $event"
       />
 
-      <textarea
+      <Textarea
         v-else-if="['textarea', 'richtext'].includes(type)"
         :id="fieldId"
         :value="modelValue"
@@ -936,7 +937,7 @@ function defaultPlaceholder(fieldType) {
         style="field-sizing: content"
         @input="update($event.target.value)"
         @blur="handleBlur"
-      ></textarea>
+      />
 
       <textarea
         v-else-if="type === 'json'"

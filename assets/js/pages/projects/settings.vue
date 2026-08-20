@@ -1,4 +1,5 @@
 <script setup>
+import Textarea from '@/components/ui/textarea/Textarea.vue'
 import Input from '@/components/ui/input/Input.vue'
 import { Link, Head, useForm } from '@inertiajs/vue3'
 import { inject, ref } from 'vue'
@@ -269,7 +270,7 @@ function openDeleteProject() {
             >
               Description
             </label>
-            <textarea
+            <Textarea
               id="description"
               v-model="form.description"
               placeholder="A brief description about your project"
@@ -281,7 +282,7 @@ function openDeleteProject() {
               "
               @blur="validateProjectOnBlur('description', $event)"
               @input="revalidateProjectWhenInvalid('description')"
-            ></textarea>
+            />
             <p
               v-if="form.errors.description"
               id="project-description-error"
