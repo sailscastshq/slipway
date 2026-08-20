@@ -46,7 +46,8 @@ function finishComposition(event) {
 
 defineExpose({
   element,
-  focus: (options) => element.value?.focus(options)
+  focus: (options) => element.value?.focus(options),
+  select: () => element.value?.select()
 })
 </script>
 
