@@ -20,6 +20,7 @@ import HelmWriteGuardDialog from '@/components/HelmWriteGuardDialog.vue'
 import Alert from '@/components/ui/alert/Alert.vue'
 import Breadcrumb from '@/components/ui/breadcrumb/Breadcrumb.vue'
 import Tooltip from '@/components/ui/tooltip/Tooltip.vue'
+import Tabs from '@/components/ui/tabs/Tabs.vue'
 import { useHelmScratchpads } from '@/composables/useHelmScratchpads'
 import { helmEditorDiagnostic } from '@/lib/helmResult'
 import { cancelHelmExecution, cancelledHelmResult } from '@/lib/helmExecution'
@@ -500,6 +501,11 @@ async function activateScratchpad(tab) {
   openScratchpadTarget(tab)
 }
 
+function activateScratchpadById(id) {
+  const tab = scratchpadTabs.value.find((item) => item.id === id)
+  if (tab) activateScratchpad(tab)
+}
+
 function openScratchpadTarget(tab = targetSwitch.value.tab) {
   if (!tab) return
   targetSwitch.value = { show: false, tab: null }
@@ -848,20 +854,26 @@ watch(code, () => {
       </div>
     </div>
 
-    <HelmScratchpadTabs
-      :tabs="scratchpadTabs"
-      :active-id="activeScratchpadId"
-      :current-target-key="currentTargetKey"
-      :disabled="running || inspectingSource"
-      :can-create="canCreateScratchpad"
-      @activate="activateScratchpad"
-      @create="createScratchpad"
-      @rename="scratchpads.rename"
-      @duplicate="duplicateScratchpad"
-      @move="(tab, offset) => scratchpads.move(tab.id, offset)"
-      @save="saveScratchpadAsSnippet"
-      @close="requestCloseScratchpad"
-    />
+    <Tabs
+      :model-value="activeScratchpadId"
+      aria-label="Helm scratchpads"
+      class="contents"
+      @change="activateScratchpadById"
+    >
+      <HelmScratchpadTabs
+        :tabs="scratchpadTabs"
+        :active-id="activeScratchpadId"
+        :current-target-key="currentTargetKey"
+        :disabled="running || inspectingSource"
+        :can-create="canCreateScratchpad"
+        @create="createScratchpad"
+        @rename="scratchpads.rename"
+        @duplicate="duplicateScratchpad"
+        @move="(tab, offset) => scratchpads.move(tab.id, offset)"
+        @save="saveScratchpadAsSnippet"
+        @close="requestCloseScratchpad"
+      />
+    </Tabs>
 
     <!-- Main content - Tinkerwell style -->
     <div

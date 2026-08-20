@@ -1,5 +1,6 @@
 <script setup>
 import Input from '@/components/ui/input/Input.vue'
+import Tabs from '@/components/ui/tabs/Tabs.vue'
 import { Head, usePage } from '@inertiajs/vue3'
 import {
   ref,
@@ -789,7 +790,12 @@ onUnmounted(() => {
 
 <template>
   <Head title="Bosun | Slipway"></Head>
-  <div class="flex h-full flex-col">
+  <Tabs
+    :model-value="activeTab"
+    aria-label="Bosun sections"
+    class="flex h-full flex-col"
+    @change="onTabChange"
+  >
     <!-- Header -->
     <div
       class="flex items-center justify-between border-b border-gray-200 px-4 py-3 dark:border-gray-800 sm:px-6"
@@ -919,12 +925,13 @@ onUnmounted(() => {
 
     <!-- Tab bar (Dock-style pills with frosted glass) -->
     <div
+      data-slot="tabs-list"
       class="flex items-center space-x-1 border-b border-gray-200/50 bg-white/80 px-4 py-2 backdrop-blur-md dark:border-gray-800/50 dark:bg-gray-950/80 sm:px-6"
     >
       <button
         v-for="tab in tabs"
         :key="tab.id"
-        @click="onTabChange(tab.id)"
+        :data-value="tab.id"
         :class="[
           'rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
           activeTab === tab.id
@@ -939,6 +946,8 @@ onUnmounted(() => {
     <!-- ═══ Console Tab (full-height layout matching Dock) ═══ -->
     <div
       v-if="activeTab === 'console'"
+      data-slot="tab-panel"
+      data-value="console"
       class="flex flex-1 flex-col overflow-hidden"
     >
       <!-- Editor -->
@@ -1380,7 +1389,11 @@ onUnmounted(() => {
     >
       <div class="mx-auto max-w-6xl">
         <!-- ═══ Overview Tab ═══ -->
-        <div v-if="activeTab === 'overview'">
+        <div
+          v-if="activeTab === 'overview'"
+          data-slot="tab-panel"
+          data-value="overview"
+        >
           <!-- Status line -->
           <div
             class="mb-6 flex flex-wrap items-center gap-3 rounded-lg border border-gray-200 bg-gray-50/50 px-4 py-3 dark:border-gray-800 dark:bg-gray-900/50"
@@ -1587,7 +1600,11 @@ onUnmounted(() => {
         </div>
 
         <!-- ═══ Environment Tab ═══ -->
-        <div v-if="activeTab === 'environment'">
+        <div
+          v-if="activeTab === 'environment'"
+          data-slot="tab-panel"
+          data-value="environment"
+        >
           <div class="mb-6">
             <h1 class="text-xl font-semibold text-gray-900 dark:text-white">
               Instance Environment
@@ -1729,7 +1746,11 @@ onUnmounted(() => {
         </div>
 
         <!-- ═══ Migrate Tab ═══ -->
-        <div v-if="activeTab === 'migrate'">
+        <div
+          v-if="activeTab === 'migrate'"
+          data-slot="tab-panel"
+          data-value="migrate"
+        >
           <div
             class="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between"
           >
@@ -2033,13 +2054,13 @@ onUnmounted(() => {
                     </span>
                     <span class="text-gray-500 dark:text-gray-400">
                       Current: {{ change.current.type }} ·
-                      {{ change.current.nullable ? 'nullable' : 'not null' }} ·
-                      default {{ change.current.defaultValue ?? 'none' }}
+                      {{ change.current.nullable ? 'nullable' : 'not null' }}
+                      · default {{ change.current.defaultValue ?? 'none' }}
                     </span>
                     <span class="text-gray-700 dark:text-gray-300">
                       Expected: {{ change.expected.type }} ·
-                      {{ change.expected.nullable ? 'nullable' : 'not null' }} ·
-                      default {{ change.expected.defaultValue ?? 'none' }}
+                      {{ change.expected.nullable ? 'nullable' : 'not null' }}
+                      · default {{ change.expected.defaultValue ?? 'none' }}
                     </span>
                   </div>
                   <p
@@ -2063,7 +2084,11 @@ onUnmounted(() => {
         </div>
 
         <!-- ═══ Activity Tab ═══ -->
-        <div v-if="activeTab === 'activity'">
+        <div
+          v-if="activeTab === 'activity'"
+          data-slot="tab-panel"
+          data-value="activity"
+        >
           <div class="mb-6 flex items-start justify-between">
             <div>
               <h1 class="text-xl font-semibold text-gray-900 dark:text-white">
@@ -2237,5 +2262,5 @@ onUnmounted(() => {
       @cancel="showMigrateConfirm = false"
     />
     <ToastContainer :toasts="toasts" @dismiss="dismissToast" />
-  </div>
+  </Tabs>
 </template>

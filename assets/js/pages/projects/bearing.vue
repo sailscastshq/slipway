@@ -17,6 +17,7 @@ import Breadcrumb from '@/components/ui/breadcrumb/Breadcrumb.vue'
 import MarkdownEditor from '@/components/content/MarkdownEditor.vue'
 import Alert from '@/components/ui/alert/Alert.vue'
 import Select from '@/components/ui/select/Select.vue'
+import Tabs from '@/components/ui/tabs/Tabs.vue'
 import { useQueryState } from '@/composables/useQueryState'
 
 defineOptions({ layout: AppLayout })
@@ -248,29 +249,6 @@ onUnmounted(() => {
   window.removeEventListener('resize', revealSelectedTab)
   window.clearTimeout(copyResetTimer)
 })
-
-function handleViewKeydown(event, index) {
-  let nextIndex
-
-  if (event.key === 'ArrowRight') {
-    nextIndex = (index + 1) % navItems.length
-  } else if (event.key === 'ArrowLeft') {
-    nextIndex = (index - 1 + navItems.length) % navItems.length
-  } else if (event.key === 'Home') {
-    nextIndex = 0
-  } else if (event.key === 'End') {
-    nextIndex = navItems.length - 1
-  } else {
-    return
-  }
-
-  event.preventDefault()
-  const [view] = navItems[nextIndex]
-  selectView(view)
-  nextTick(() => {
-    document.getElementById(`bearing-tab-${view}`)?.focus()
-  })
-}
 </script>
 
 <template>
@@ -339,7 +317,11 @@ function handleViewKeydown(event, index) {
     <main
       class="flex-1 overflow-y-auto px-4 py-8 text-gray-950 dark:text-white sm:px-8 sm:py-12"
     >
-      <div class="mx-auto max-w-3xl">
+      <Tabs
+        v-model="selectedView"
+        aria-label="Bearing sections"
+        class="mx-auto max-w-3xl"
+      >
         <div
           class="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between"
         >
@@ -400,27 +382,22 @@ function handleViewKeydown(event, index) {
 
         <div
           ref="tablist"
+          data-slot="tabs-list"
           class="mt-8 flex items-center gap-1 overflow-x-auto py-1"
-          role="tablist"
-          aria-label="Bearing sections"
         >
           <button
             v-for="(item, index) in navItems"
             :id="`bearing-tab-${item[0]}`"
             :key="item[0]"
             type="button"
-            role="tab"
-            :aria-selected="selectedView === item[0]"
+            :data-value="item[0]"
             :aria-controls="`bearing-panel-${item[0]}`"
-            :tabindex="selectedView === item[0] ? 0 : -1"
             :class="[
               'min-h-10 shrink-0 rounded-md px-3 py-1.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-400 dark:focus-visible:ring-gray-600',
               selectedView === item[0]
                 ? 'bg-gray-900 text-white dark:bg-white dark:text-gray-900'
                 : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-300'
             ]"
-            @click="selectView(item[0])"
-            @keydown="handleViewKeydown($event, index)"
           >
             {{ item[1] }}
           </button>
@@ -429,10 +406,9 @@ function handleViewKeydown(event, index) {
         <section
           v-if="selectedView === 'overview'"
           id="bearing-panel-overview"
+          data-slot="tab-panel"
+          data-value="overview"
           class="mt-10"
-          role="tabpanel"
-          aria-labelledby="bearing-tab-overview"
-          tabindex="0"
         >
           <div
             class="grid grid-cols-2 gap-3 min-[360px]:grid-cols-3 sm:grid-cols-5"
@@ -625,10 +601,9 @@ function handleViewKeydown(event, index) {
         <section
           v-else-if="selectedView === 'feedback'"
           id="bearing-panel-feedback"
+          data-slot="tab-panel"
+          data-value="feedback"
           class="mt-10"
-          role="tabpanel"
-          aria-labelledby="bearing-tab-feedback"
-          tabindex="0"
         >
           <div class="flex items-end justify-between gap-4">
             <div>
@@ -690,10 +665,9 @@ function handleViewKeydown(event, index) {
         <section
           v-else-if="selectedView === 'roadmap'"
           id="bearing-panel-roadmap"
+          data-slot="tab-panel"
+          data-value="roadmap"
           class="mt-10"
-          role="tabpanel"
-          aria-labelledby="bearing-tab-roadmap"
-          tabindex="0"
         >
           <div class="grid gap-4 lg:grid-cols-3">
             <section v-for="group in roadmapGroups" :key="group.status">
@@ -730,10 +704,9 @@ function handleViewKeydown(event, index) {
         <section
           v-else-if="selectedView === 'updates'"
           id="bearing-panel-updates"
+          data-slot="tab-panel"
+          data-value="updates"
           class="mt-10"
-          role="tabpanel"
-          aria-labelledby="bearing-tab-updates"
-          tabindex="0"
         >
           <form class="space-y-5" @submit.prevent="saveUpdate(false)">
             <div>
@@ -872,10 +845,9 @@ function handleViewKeydown(event, index) {
         <form
           v-else
           id="bearing-panel-settings"
+          data-slot="tab-panel"
+          data-value="settings"
           class="mt-10 space-y-12"
-          role="tabpanel"
-          aria-labelledby="bearing-tab-settings"
-          tabindex="0"
           @submit.prevent="save"
         >
           <section aria-labelledby="bearing-availability-heading">
@@ -1302,7 +1274,7 @@ function handleViewKeydown(event, index) {
             </p>
           </div>
         </form>
-      </div>
+      </Tabs>
     </main>
   </div>
 </template>

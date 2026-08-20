@@ -108,7 +108,9 @@ test(
       'Query result 1'
     )
 
-    const tabs = page.raw.getByRole('tab')
+    const tabs = page.raw
+      .getByRole('tablist', { name: 'Query results' })
+      .getByRole('tab')
     expect(await tabs.count()).toBe(2)
     expect(await tabs.nth(0).getAttribute('aria-selected')).toBe('true')
     await expect(page).toSee('24873')
@@ -127,7 +129,7 @@ test(
       .click()
     await page.wait(350)
 
-    await page.raw.getByRole('tab').nth(0).focus()
+    await tabs.nth(0).focus()
     await page.key('ArrowRight')
     expect(await tabs.nth(1).getAttribute('aria-selected')).toBe('true')
 

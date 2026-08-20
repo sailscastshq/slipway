@@ -5,6 +5,7 @@ import { inject, ref, computed, watch, onUnmounted } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
 import Breadcrumb from '@/components/ui/breadcrumb/Breadcrumb.vue'
 import Select from '@/components/ui/select/Select.vue'
+import Tabs from '@/components/ui/tabs/Tabs.vue'
 import Spinner from '@/components/SlipwaySpinner.vue'
 import { useQueryState } from '@/composables/useQueryState'
 import { useEventSource } from '@/composables/sse'
@@ -786,7 +787,11 @@ async function copyToken() {
 
     <!-- Content -->
     <div class="flex-1 overflow-y-auto px-4 py-6 sm:px-8 sm:py-8">
-      <div class="mx-auto max-w-5xl">
+      <Tabs
+        v-model="activeTab"
+        aria-label="Lookout sections"
+        class="mx-auto max-w-5xl"
+      >
         <!-- Header -->
         <div class="mb-6">
           <h1 class="text-xl font-semibold text-gray-900 dark:text-white">
@@ -824,11 +829,11 @@ async function copyToken() {
 
         <!-- Tabs -->
         <div class="mb-6 border-b border-gray-200 dark:border-gray-800">
-          <nav class="-mb-px flex space-x-6">
+          <nav data-slot="tabs-list" class="-mb-px flex space-x-6">
             <button
               v-for="tab in tabs"
               :key="tab.id"
-              @click="activeTab = tab.id"
+              :data-value="tab.id"
               :class="[
                 'flex items-center space-x-1.5 border-b-2 pb-3 text-sm font-medium transition-colors',
                 activeTab === tab.id
@@ -852,7 +857,11 @@ async function copyToken() {
         </div>
 
         <!-- INFRASTRUCTURE TAB -->
-        <div v-if="activeTab === 'infrastructure'">
+        <div
+          v-if="activeTab === 'infrastructure'"
+          data-slot="tab-panel"
+          data-value="infrastructure"
+        >
           <!-- Empty state -->
           <div v-if="liveContainers.length === 0" class="py-20 text-center">
             <svg
@@ -1174,7 +1183,8 @@ async function copyToken() {
                                 memColor(container.metric.memoryPercent)
                               ]"
                             >
-                              {{ formatBytes(container.metric.memoryUsage) }} /
+                              {{ formatBytes(container.metric.memoryUsage) }}
+                              /
                               {{ formatBytes(container.metric.memoryLimit) }}
                             </span>
                           </div>
@@ -1515,7 +1525,11 @@ async function copyToken() {
         </div>
 
         <!-- REQUESTS TAB -->
-        <div v-if="activeTab === 'requests'">
+        <div
+          v-if="activeTab === 'requests'"
+          data-slot="tab-panel"
+          data-value="requests"
+        >
           <!-- Summary cards -->
           <div class="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
             <div
@@ -2030,7 +2044,11 @@ async function copyToken() {
         </div>
 
         <!-- EXCEPTIONS TAB -->
-        <div v-if="activeTab === 'exceptions'">
+        <div
+          v-if="activeTab === 'exceptions'"
+          data-slot="tab-panel"
+          data-value="exceptions"
+        >
           <!-- Summary -->
           <div class="mb-6 flex items-center justify-between">
             <div class="flex items-baseline space-x-3">
@@ -2165,7 +2183,11 @@ async function copyToken() {
         </div>
 
         <!-- QUERIES TAB -->
-        <div v-if="activeTab === 'queries'">
+        <div
+          v-if="activeTab === 'queries'"
+          data-slot="tab-panel"
+          data-value="queries"
+        >
           <div v-if="telemetry.queries.slow.length > 0">
             <h3
               class="mb-3 text-sm font-medium text-gray-700 dark:text-gray-300"
@@ -2241,7 +2263,11 @@ async function copyToken() {
         </div>
 
         <!-- CACHE TAB -->
-        <div v-if="activeTab === 'cache'">
+        <div
+          v-if="activeTab === 'cache'"
+          data-slot="tab-panel"
+          data-value="cache"
+        >
           <!-- Summary cards -->
           <div class="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
             <div
@@ -2454,7 +2480,12 @@ async function copyToken() {
         </div>
 
         <!-- SETUP TAB (when no telemetry data) -->
-        <div v-if="activeTab === 'setup'" class="mx-auto max-w-lg py-8">
+        <div
+          v-if="activeTab === 'setup'"
+          data-slot="tab-panel"
+          data-value="setup"
+          class="mx-auto max-w-lg py-8"
+        >
           <div class="text-center">
             <div
               class="bg-brand/10 mx-auto flex h-12 w-12 items-center justify-center rounded-full"
@@ -2567,7 +2598,7 @@ async function copyToken() {
             </div>
           </div>
         </div>
-      </div>
+      </Tabs>
     </div>
   </div>
 </template>
