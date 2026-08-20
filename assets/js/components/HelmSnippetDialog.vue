@@ -1,5 +1,6 @@
 <script setup>
 import Input from '@/components/ui/input/Input.vue'
+import Radio from '@/components/ui/radio/Radio.vue'
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import CodeEditor from '@/components/CodeEditor.vue'
 import Spinner from '@/components/SlipwaySpinner.vue'
@@ -205,9 +206,8 @@ function handleKeydown(event) {
                         : 'border-gray-200 hover:border-gray-300 dark:border-gray-700 dark:hover:border-gray-600'
                     ]"
                   >
-                    <input
+                    <Radio
                       v-model="scope"
-                      type="radio"
                       name="snippet-scope"
                       :value="option.value"
                       class="sr-only"

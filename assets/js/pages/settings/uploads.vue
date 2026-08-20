@@ -1,5 +1,6 @@
 <script setup>
 import Input from '@/components/ui/input/Input.vue'
+import Radio from '@/components/ui/radio/Radio.vue'
 import { Link, Head, useForm } from '@inertiajs/vue3'
 import { inject, ref, computed } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
@@ -368,10 +369,10 @@ const providers = [
               ]"
             >
               <div class="flex items-center space-x-3">
-                <input
-                  type="radio"
+                <Radio
                   :value="p.id"
                   v-model="selectedProvider"
+                  name="storage-provider"
                   @change="onProviderChange"
                   class="text-brand focus:ring-brand h-4 w-4 border-gray-300 dark:border-gray-600"
                 />

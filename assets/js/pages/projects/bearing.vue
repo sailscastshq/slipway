@@ -1,6 +1,7 @@
 <script setup>
 import Input from '@/components/ui/input/Input.vue'
 import Checkbox from '@/components/ui/checkbox/Checkbox.vue'
+import Radio from '@/components/ui/radio/Radio.vue'
 import { Head, router, useForm } from '@inertiajs/vue3'
 import {
   computed,
@@ -984,10 +985,9 @@ function handleViewKeydown(event, index) {
                     : 'bg-gray-50 text-gray-950 hover:bg-gray-100 dark:bg-gray-900 dark:text-white dark:hover:bg-gray-800'
                 ]"
               >
-                <input
+                <Radio
                   v-model="form.allowAnonymousParticipation"
                   class="sr-only"
-                  type="radio"
                   name="bearing-participation"
                   :value="false"
                 />
@@ -1025,10 +1025,9 @@ function handleViewKeydown(event, index) {
                     : 'bg-gray-50 text-gray-950 hover:bg-gray-100 dark:bg-gray-900 dark:text-white dark:hover:bg-gray-800'
                 ]"
               >
-                <input
+                <Radio
                   v-model="form.allowAnonymousParticipation"
                   class="sr-only"
-                  type="radio"
                   name="bearing-participation"
                   :value="true"
                 />
