@@ -1,6 +1,7 @@
 <script setup>
 import Textarea from '@/components/ui/textarea/Textarea.vue'
 import Input from '@/components/ui/input/Input.vue'
+import Radio from '@/components/ui/radio/Radio.vue'
 import { Head, InfiniteScroll, router, useForm } from '@inertiajs/vue3'
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import SelectMenu from '@/components/SelectMenu.vue'
@@ -1177,10 +1178,9 @@ function shortDate(value) {
                         : 'bg-gray-50/70 text-gray-500 hover:bg-gray-100 dark:bg-gray-900/60 dark:text-gray-400 dark:hover:bg-gray-900'
                     "
                   >
-                    <input
+                    <Radio
                       v-model="sort"
                       class="sr-only"
-                      type="radio"
                       name="mobile-feedback-sort"
                       :value="option.value"
                     />
