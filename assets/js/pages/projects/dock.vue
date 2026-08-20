@@ -1,5 +1,6 @@
 <script setup>
 import Input from '@/components/ui/input/Input.vue'
+import Checkbox from '@/components/ui/checkbox/Checkbox.vue'
 import { Link, Head } from '@inertiajs/vue3'
 import {
   inject,
@@ -2298,9 +2299,8 @@ onUnmounted(() => {
                   :key="tableName"
                   class="flex cursor-pointer items-center gap-2 px-3 py-1.5 hover:bg-gray-50 dark:hover:bg-gray-800"
                 >
-                  <input
-                    type="checkbox"
-                    :checked="selectedSchemaTables.has(tableName)"
+                  <Checkbox
+                    :model-value="selectedSchemaTables.has(tableName)"
                     @change="toggleSchemaTable(tableName)"
                     class="h-3.5 w-3.5 rounded border-gray-300 text-gray-900 focus:ring-0 focus:ring-offset-0 dark:border-gray-600 dark:bg-gray-800"
                   />
@@ -2547,9 +2547,8 @@ onUnmounted(() => {
                       : 'border-gray-200 bg-white text-gray-500 hover:border-gray-300 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:border-gray-600'
                   "
                 >
-                  <input
-                    type="checkbox"
-                    :checked="selectedModels.has(model)"
+                  <Checkbox
+                    :model-value="selectedModels.has(model)"
                     @change="toggleModel(model)"
                     class="sr-only"
                   />

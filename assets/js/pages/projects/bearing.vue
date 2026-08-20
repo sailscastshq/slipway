@@ -1,5 +1,6 @@
 <script setup>
 import Input from '@/components/ui/input/Input.vue'
+import Checkbox from '@/components/ui/checkbox/Checkbox.vue'
 import { Head, router, useForm } from '@inertiajs/vue3'
 import {
   computed,
@@ -803,9 +804,8 @@ function handleViewKeydown(event, index) {
                   :key="item.publicId"
                   class="has-[:checked]:bg-gray-950 has-[:checked]:text-white dark:has-[:checked]:bg-white dark:has-[:checked]:text-gray-950 cursor-pointer rounded-full bg-gray-50 px-3 py-2 text-xs dark:bg-gray-900"
                 >
-                  <input
+                  <Checkbox
                     v-model="updateForm.feedbackIds"
-                    type="checkbox"
                     class="sr-only"
                     :value="item.publicId"
                   />
