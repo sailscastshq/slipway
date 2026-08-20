@@ -19,6 +19,7 @@ import Select from '@/components/ui/select/Select.vue'
 import Table from '@/components/ui/table/Table.vue'
 import Menu from '@/components/ui/menu/Menu.vue'
 import Breadcrumb from '@/components/ui/breadcrumb/Breadcrumb.vue'
+import Tabs from '@/components/ui/tabs/Tabs.vue'
 import CodeEditor from '@/components/CodeEditor.vue'
 import DockResultStatusIcon from '@/components/DockResultStatusIcon.vue'
 import { highlightSQL } from '@/lib/highlightSQL'
@@ -130,6 +131,10 @@ const queryResults = computed(() => {
 const activeQueryResult = computed(
   () => queryResults.value[activeQueryResultIndex.value] || null
 )
+const activeQueryResultTab = computed({
+  get: () => String(activeQueryResultIndex.value),
+  set: (value) => selectQueryResult(Number(value))
+})
 const hasMultipleQueryResults = computed(() => queryResults.value.length > 1)
 const hasOnlyCommandResults = computed(
   () =>
@@ -855,29 +860,6 @@ function selectQueryResult(index) {
   showExportMenu.value = false
 }
 
-function handleQueryResultKeydown(event, index) {
-  let nextIndex = index
-
-  if (event.key === 'ArrowRight') {
-    nextIndex = (index + 1) % queryResults.value.length
-  } else if (event.key === 'ArrowLeft') {
-    nextIndex =
-      (index - 1 + queryResults.value.length) % queryResults.value.length
-  } else if (event.key === 'Home') {
-    nextIndex = 0
-  } else if (event.key === 'End') {
-    nextIndex = queryResults.value.length - 1
-  } else {
-    return
-  }
-
-  event.preventDefault()
-  selectQueryResult(nextIndex)
-  nextTick(() => {
-    document.getElementById(`dock-query-result-tab-${nextIndex}`)?.focus()
-  })
-}
-
 function queryResultAriaLabel(result, index) {
   return `${index + 1}. ${
     result.statementPreview || result.commandTag || 'SQL statement'
@@ -1384,16 +1366,23 @@ onUnmounted(() => {
     </div>
 
     <!-- Database management UI (service selected) -->
-    <div v-else class="flex flex-1 flex-col overflow-hidden">
+    <Tabs
+      v-else
+      :model-value="activeTab"
+      aria-label="Database sections"
+      class="flex min-h-0 flex-1 flex-col overflow-hidden"
+      @change="switchTab"
+    >
       <!-- Tabs (hidden for Redis since it only has console) -->
       <div
-        v-if="validTabs.length > 1"
+        v-show="validTabs.length > 1"
+        data-slot="tabs-list"
         class="sticky top-0 z-10 flex items-center space-x-1 border-b border-gray-200/50 bg-white/80 px-4 py-2 backdrop-blur-md dark:border-gray-800/50 dark:bg-gray-950/80 sm:px-6"
       >
         <button
           v-for="tab in validTabs"
           :key="tab"
-          @click="switchTab(tab)"
+          :data-value="tab"
           :class="[
             'rounded-md px-3 py-1.5 text-sm font-medium capitalize transition-colors',
             activeTab === tab
@@ -1408,6 +1397,8 @@ onUnmounted(() => {
       <!-- Redis Console Tab -->
       <div
         v-if="activeTab === 'console' && isRedis"
+        data-slot="tab-panel"
+        data-value="console"
         class="flex flex-1 flex-col overflow-hidden"
       >
         <!-- Quick actions bar -->
@@ -1543,6 +1534,8 @@ onUnmounted(() => {
       <!-- SQL/MongoDB Console Tab -->
       <div
         v-if="activeTab === 'console' && !isRedis"
+        data-slot="tab-panel"
+        data-value="console"
         class="flex flex-1 flex-col overflow-hidden"
       >
         <!-- Editor -->
@@ -1702,22 +1695,24 @@ onUnmounted(() => {
           </section>
 
           <!-- Row-returning and mixed results -->
-          <div v-else-if="queryResult" class="flex h-full min-h-0 flex-col">
+          <Tabs
+            v-else-if="queryResult"
+            v-model="activeQueryResultTab"
+            aria-label="Query results"
+            class="flex h-full min-h-0 flex-col"
+          >
             <div
-              v-if="hasMultipleQueryResults"
-              role="tablist"
-              aria-label="Query results"
+              v-show="hasMultipleQueryResults"
+              data-slot="tabs-list"
               class="flex shrink-0 items-center gap-1 overflow-x-auto border-b border-gray-200 px-2 py-1.5 dark:border-gray-800"
             >
               <button
                 v-for="(result, index) in queryResults"
                 :id="`dock-query-result-tab-${index}`"
                 :key="index"
-                role="tab"
-                :aria-selected="index === activeQueryResultIndex"
+                :data-value="String(index)"
                 aria-controls="dock-query-result-panel"
                 :aria-label="queryResultAriaLabel(result, index)"
-                :tabindex="index === activeQueryResultIndex ? 0 : -1"
                 :data-test="`dock-query-result-${index + 1}`"
                 :title="result.statementSql"
                 :class="[
@@ -1726,8 +1721,6 @@ onUnmounted(() => {
                     ? 'bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-white'
                     : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-900 dark:hover:text-gray-200'
                 ]"
-                @click="selectQueryResult(index)"
-                @keydown="handleQueryResultKeydown($event, index)"
               >
                 <DockResultStatusIcon :status="result.status" />
                 <span class="shrink-0 font-medium tabular-nums">{{
@@ -1746,12 +1739,8 @@ onUnmounted(() => {
             <div
               id="dock-query-result-panel"
               data-test="dock-query-result-panel"
-              role="tabpanel"
-              :aria-labelledby="
-                hasMultipleQueryResults
-                  ? `dock-query-result-tab-${activeQueryResultIndex}`
-                  : undefined
-              "
+              data-slot="tab-panel"
+              :data-value="activeQueryResultTab"
               class="flex min-h-0 flex-1 flex-col"
             >
               <!-- Table view -->
@@ -2050,7 +2039,7 @@ onUnmounted(() => {
                 </div>
               </div>
             </div>
-          </div>
+          </Tabs>
 
           <!-- Empty state -->
           <div
@@ -2065,6 +2054,8 @@ onUnmounted(() => {
       <!-- Tables / Collections Tab -->
       <div
         v-if="activeTab === 'tables' || activeTab === 'collections'"
+        data-slot="tab-panel"
+        :data-value="activeTab"
         class="flex flex-1 overflow-hidden"
       >
         <!-- Table list sidebar -->
@@ -2210,6 +2201,8 @@ onUnmounted(() => {
       <!-- Schema Tab -->
       <div
         v-if="activeTab === 'schema'"
+        data-slot="tab-panel"
+        data-value="schema"
         class="flex-1 overflow-auto p-4 sm:p-6"
       >
         <div
@@ -2418,6 +2411,8 @@ onUnmounted(() => {
       <!-- Migrate Tab -->
       <div
         v-if="activeTab === 'migrate'"
+        data-slot="tab-panel"
+        data-value="migrate"
         class="flex-1 overflow-auto p-4 sm:p-6"
       >
         <div
@@ -2617,7 +2612,7 @@ onUnmounted(() => {
           </div>
         </div>
       </div>
-    </div>
+    </Tabs>
 
     <!-- Bottom-right toolbar (migrate tab only, not for Redis) -->
     <div

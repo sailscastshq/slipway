@@ -6,6 +6,7 @@ import ConfirmModal from '@/components/ConfirmModal.vue'
 import HelmSnippetDialog from '@/components/HelmSnippetDialog.vue'
 import Spinner from '@/components/SlipwaySpinner.vue'
 import Tooltip from '@/components/ui/tooltip/Tooltip.vue'
+import Tabs from '@/components/ui/tabs/Tabs.vue'
 import ToastContainer from '@/components/ToastContainer.vue'
 
 const props = defineProps({
@@ -366,45 +367,22 @@ function dismissToast(id) {
   toasts.value = toasts.value.filter((toast) => toast.id !== id)
 }
 
-function handleLibraryTabKeydown(event, index) {
-  let nextIndex = index
-  if (event.key === 'ArrowRight') {
-    nextIndex = (index + 1) % libraryTabs.value.length
-  } else if (event.key === 'ArrowLeft') {
-    nextIndex =
-      (index - 1 + libraryTabs.value.length) % libraryTabs.value.length
-  } else if (event.key === 'Home') {
-    nextIndex = 0
-  } else if (event.key === 'End') {
-    nextIndex = libraryTabs.value.length - 1
-  } else {
-    return
-  }
-
-  event.preventDefault()
-  const nextTab = libraryTabs.value[nextIndex]
-  emit('update:tab', nextTab.key)
-  window.requestAnimationFrame(() => {
-    document.getElementById(`helm-library-${nextTab.key}-tab`)?.focus()
-  })
-}
-
 defineExpose({ refreshHistory, openSnippetDialog })
 </script>
 
 <template>
-  <section
+  <Tabs
+    as="section"
+    :model-value="tab"
+    aria-label="Helm library"
     data-test="helm-library"
     class="flex max-h-[17rem] min-h-0 shrink-0 flex-col border-t border-gray-100 bg-white dark:border-gray-800 dark:bg-gray-950"
+    @change="emit('update:tab', $event)"
   >
     <header class="flex shrink-0 items-center gap-2 px-3 py-2">
-      <div
-        class="flex shrink-0 items-center gap-0.5"
-        role="tablist"
-        aria-label="Helm library"
-      >
+      <div data-slot="tabs-list" class="flex shrink-0 items-center gap-0.5">
         <Tooltip
-          v-for="(item, index) in libraryTabs"
+          v-for="item in libraryTabs"
           :key="item.key"
           :text="`${item.label} · ${item.countLabel}`"
           placement="top"
@@ -412,11 +390,9 @@ defineExpose({ refreshHistory, openSnippetDialog })
           <button
             :id="`helm-library-${item.key}-tab`"
             type="button"
-            role="tab"
+            :data-value="item.key"
             aria-controls="helm-library-panel"
             :aria-label="`${item.label}, ${item.countLabel}`"
-            :aria-selected="tab === item.key"
-            :tabindex="tab === item.key ? 0 : -1"
             :data-test="`helm-library-${item.key}`"
             :class="[
               'flex h-7 w-7 items-center justify-center rounded-md outline-none transition-colors focus-visible:z-10 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-gray-400 motion-reduce:transition-none dark:focus-visible:ring-gray-600',
@@ -424,8 +400,6 @@ defineExpose({ refreshHistory, openSnippetDialog })
                 ? 'bg-gray-200/80 text-gray-900 dark:bg-gray-800 dark:text-white'
                 : 'text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-500 dark:hover:bg-gray-800 dark:hover:text-gray-300'
             ]"
-            @click="emit('update:tab', item.key)"
-            @keydown="handleLibraryTabKeydown($event, index)"
           >
             <svg
               v-if="item.key === 'history'"
@@ -551,8 +525,8 @@ defineExpose({ refreshHistory, openSnippetDialog })
 
     <div
       id="helm-library-panel"
-      role="tabpanel"
-      :aria-labelledby="`helm-library-${tab}-tab`"
+      data-slot="tab-panel"
+      :data-value="tab"
       class="min-h-0 flex-1 overflow-y-auto"
     >
       <div
@@ -715,7 +689,7 @@ defineExpose({ refreshHistory, openSnippetDialog })
         are never saved.
       </p>
     </footer>
-  </section>
+  </Tabs>
 
   <HelmSnippetDialog
     :show="snippetDialog.show"

@@ -18,7 +18,6 @@ const props = defineProps({
 })
 
 const emit = defineEmits([
-  'activate',
   'close',
   'create',
   'duplicate',
@@ -27,7 +26,6 @@ const emit = defineEmits([
   'save'
 ])
 
-const tabRefs = ref([])
 const renamingId = ref('')
 const renameValue = ref('')
 const renameInput = ref(null)
@@ -92,26 +90,6 @@ function createScratchpad() {
   if (props.disabled || !props.canCreate) return
   emit('create')
 }
-
-function handleTabKeydown(event, index) {
-  let nextIndex = index
-  if (event.key === 'ArrowRight') {
-    nextIndex = (index + 1) % props.tabs.length
-  } else if (event.key === 'ArrowLeft') {
-    nextIndex = (index - 1 + props.tabs.length) % props.tabs.length
-  } else if (event.key === 'Home') {
-    nextIndex = 0
-  } else if (event.key === 'End') {
-    nextIndex = props.tabs.length - 1
-  } else {
-    return
-  }
-
-  event.preventDefault()
-  const tab = props.tabs[nextIndex]
-  emit('activate', tab)
-  nextTick(() => tabRefs.value[nextIndex]?.focus())
-}
 </script>
 
 <template>
@@ -120,8 +98,7 @@ function handleTabKeydown(event, index) {
     class="min-h-9 flex shrink-0 items-center gap-2 bg-white px-3 py-0.5 dark:bg-gray-950"
   >
     <div
-      role="tablist"
-      aria-label="Helm scratchpads"
+      data-slot="tabs-list"
       class="flex min-w-0 flex-1 items-center gap-3 overflow-x-auto"
     >
       <template v-for="(tab, index) in tabs" :key="tab.id">
@@ -140,13 +117,10 @@ function handleTabKeydown(event, index) {
         <button
           v-else
           :id="`helm-scratchpad-${tab.id}-tab`"
-          :ref="(element) => (tabRefs[index] = element)"
           type="button"
-          role="tab"
+          :data-value="tab.id"
           :data-test="`helm-scratchpad-${index}`"
-          :aria-selected="tab.id === activeId"
           aria-controls="helm-scratchpad-panel"
-          :tabindex="tab.id === activeId ? 0 : -1"
           :disabled="disabled"
           :title="helmScratchpadTargetTitle(tab.target)"
           :class="[
@@ -155,9 +129,7 @@ function handleTabKeydown(event, index) {
               ? 'font-medium text-gray-900 dark:text-white'
               : 'text-gray-400 hover:text-gray-700 dark:text-gray-500 dark:hover:text-gray-300'
           ]"
-          @click="emit('activate', tab)"
           @dblclick="beginRename(tab)"
-          @keydown="handleTabKeydown($event, index)"
         >
           <span class="truncate">{{ tab.name }}</span>
           <span
