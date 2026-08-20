@@ -1,4 +1,5 @@
 <script setup>
+import Input from '@/components/ui/input/Input.vue'
 import { Link, Head, usePage } from '@inertiajs/vue3'
 import { inject, ref, computed } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
@@ -260,7 +261,7 @@ const filteredCategories = computed(() => {
       <div class="mx-auto max-w-6xl">
         <!-- Search -->
         <div class="mb-6">
-          <input
+          <Input
             v-model="search"
             type="text"
             placeholder="Search settings..."

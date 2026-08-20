@@ -1,4 +1,5 @@
 <script setup>
+import Input from '@/components/ui/input/Input.vue'
 import { Link, Head } from '@inertiajs/vue3'
 import {
   inject,
@@ -1515,7 +1516,7 @@ onUnmounted(() => {
             <span class="mr-2 font-mono text-sm text-red-500 dark:text-red-400"
               >redis&gt;</span
             >
-            <input
+            <Input
               ref="redisCommandInput"
               v-model="redisCommand"
               @keydown="handleRedisKeydown"

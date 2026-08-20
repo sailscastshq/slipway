@@ -1,4 +1,5 @@
 <script setup>
+import Input from '@/components/ui/input/Input.vue'
 import { Link, Head, useForm } from '@inertiajs/vue3'
 import SlipwayLogo from '@/components/SlipwayLogo.vue'
 import Spinner from '@/components/SlipwaySpinner.vue'
@@ -39,7 +40,7 @@ const { revalidateWhenInvalid, validateOnBlur } =
 
       <form @submit.prevent="form.post('/forgot-password')" class="space-y-4">
         <div>
-          <input
+          <Input
             id="email"
             v-model="form.email"
             type="email"

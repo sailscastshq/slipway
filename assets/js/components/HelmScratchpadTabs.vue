@@ -1,4 +1,5 @@
 <script setup>
+import Input from '@/components/ui/input/Input.vue'
 import { computed, nextTick, ref } from 'vue'
 import ActionMenu from '@/components/ActionMenu.vue'
 import Tooltip from '@/components/ui/tooltip/Tooltip.vue'
@@ -124,7 +125,7 @@ function handleTabKeydown(event, index) {
       class="flex min-w-0 flex-1 items-center gap-3 overflow-x-auto"
     >
       <template v-for="(tab, index) in tabs" :key="tab.id">
-        <input
+        <Input
           v-if="renamingId === tab.id"
           :ref="setRenameInput"
           v-model="renameValue"

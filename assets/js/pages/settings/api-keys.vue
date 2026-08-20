@@ -1,4 +1,5 @@
 <script setup>
+import Input from '@/components/ui/input/Input.vue'
 import { Link, Head, router, useForm } from '@inertiajs/vue3'
 import { inject, ref, computed } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
@@ -235,7 +236,7 @@ function timeAgo(date) {
       <div class="mx-auto max-w-6xl">
         <!-- Search -->
         <div v-if="tokens.length > 0" class="mb-6">
-          <input
+          <Input
             v-model="search"
             type="text"
             placeholder="Search tokens..."
@@ -271,7 +272,7 @@ function timeAgo(date) {
               <div class="col-span-3">
                 <template v-if="renamingId === token.id">
                   <div class="flex items-center space-x-2">
-                    <input
+                    <Input
                       v-model="renameForm.name"
                       @keydown.enter="submitRename(token.id)"
                       @keydown.escape="cancelRename"

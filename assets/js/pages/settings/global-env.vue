@@ -1,4 +1,5 @@
 <script setup>
+import Input from '@/components/ui/input/Input.vue'
 import { Link, Head, useForm } from '@inertiajs/vue3'
 import { inject, ref, reactive, computed, watch, onMounted } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
@@ -631,7 +632,7 @@ onMounted(() => {
             >
               <div v-for="key in sortedVarKeys" :key="key" class="px-4 py-3">
                 <div class="flex items-center justify-between">
-                  <input
+                  <Input
                     :value="key"
                     :readonly="metadataFor(key).managed"
                     @blur="renameVar(key, $event.target)"
@@ -689,7 +690,7 @@ onMounted(() => {
                     />
                   </div>
                 </div>
-                <input
+                <Input
                   :value="localVars[key]"
                   :readonly="metadataFor(key).managed"
                   :type="
@@ -725,14 +726,14 @@ onMounted(() => {
               class="border-t border-gray-200 px-4 py-3 dark:border-gray-800"
             >
               <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
-                <input
+                <Input
                   v-model="newKey"
                   type="text"
                   placeholder="KEY"
                   class="focus:border-brand w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 font-mono text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500 sm:flex-1"
                   @keydown.enter="addVar"
                 />
-                <input
+                <Input
                   v-model="newValue"
                   type="text"
                   placeholder="value"

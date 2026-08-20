@@ -1,4 +1,5 @@
 <script setup>
+import Input from '@/components/ui/input/Input.vue'
 import { Link, Head, router, useForm } from '@inertiajs/vue3'
 import { inject, ref, computed, watch, onUnmounted } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
@@ -301,7 +302,7 @@ function timeAgo(date) {
 
         <!-- Search -->
         <div class="mb-6">
-          <input
+          <Input
             v-model="search"
             type="text"
             placeholder="Search members..."
@@ -509,7 +510,7 @@ function timeAgo(date) {
                     class="mb-1 block text-xs font-medium text-gray-500 dark:text-gray-400"
                     >Email</label
                   >
-                  <input
+                  <Input
                     v-model="inviteForm.email"
                     type="email"
                     placeholder="teammate@example.com"

@@ -1,4 +1,5 @@
 <script setup>
+import Input from '@/components/ui/input/Input.vue'
 import { Link, Head, useForm } from '@inertiajs/vue3'
 import { inject, ref, computed } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
@@ -369,7 +370,7 @@ const initials = computed(() => {
             <div
               class="border-t border-gray-200 px-4 py-3 dark:border-gray-800"
             >
-              <input
+              <Input
                 id="teamName"
                 v-model="form.name"
                 type="text"

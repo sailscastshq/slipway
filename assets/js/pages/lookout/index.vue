@@ -1,4 +1,5 @@
 <script setup>
+import Input from '@/components/ui/input/Input.vue'
 import { Link, Head, router, usePoll } from '@inertiajs/vue3'
 import { inject, ref, computed } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
@@ -575,7 +576,7 @@ function envTelemetry(container) {
 
         <!-- Search -->
         <div v-if="containers.length > 0" class="mb-6">
-          <input
+          <Input
             v-model="searchQuery"
             type="text"
             placeholder="Filter containers..."

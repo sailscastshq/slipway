@@ -1,4 +1,5 @@
 <script setup>
+import Input from '@/components/ui/input/Input.vue'
 import { Link, Head, router, useForm } from '@inertiajs/vue3'
 import { inject, ref, computed } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
@@ -264,7 +265,7 @@ function openDeleteEnvironment() {
             >
               Environment
             </label>
-            <input
+            <Input
               id="name"
               v-model="form.name"
               type="text"

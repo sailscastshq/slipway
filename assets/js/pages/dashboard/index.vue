@@ -1,4 +1,5 @@
 <script setup>
+import Input from '@/components/ui/input/Input.vue'
 import { Link, Head, useForm } from '@inertiajs/vue3'
 import { inject, ref, computed } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
@@ -223,7 +224,7 @@ function cancelDeleteProject() {
       <div v-if="projects.length > 0" class="mx-auto max-w-6xl">
         <!-- Toolbar: Search + Create Button -->
         <div class="mb-4 flex items-center justify-between">
-          <input
+          <Input
             v-model="searchQuery"
             type="text"
             placeholder="Search projects..."

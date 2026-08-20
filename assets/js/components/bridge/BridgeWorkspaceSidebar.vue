@@ -1,4 +1,5 @@
 <script setup>
+import Input from '@/components/ui/input/Input.vue'
 import { Link, usePage } from '@inertiajs/vue3'
 import { computed, ref } from 'vue'
 import Menu from '@/components/ui/menu/Menu.vue'
@@ -167,7 +168,7 @@ function isResourceActive(identity) {
                 d="m21 21-4.35-4.35m1.35-5.65a7 7 0 1 1-14 0 7 7 0 0 1 14 0Z"
               />
             </svg>
-            <input
+            <Input
               v-model="search"
               type="search"
               aria-label="Search Bridge resources"

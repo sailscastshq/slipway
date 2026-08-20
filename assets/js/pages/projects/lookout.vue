@@ -1,4 +1,5 @@
 <script setup>
+import Input from '@/components/ui/input/Input.vue'
 import { Link, Head, router } from '@inertiajs/vue3'
 import { inject, ref, computed, watch, onUnmounted } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
@@ -1704,7 +1705,7 @@ async function copyToken() {
                       d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
                     />
                   </svg>
-                  <input
+                  <Input
                     v-model="requestSearch"
                     type="text"
                     placeholder="URL or trace ID..."

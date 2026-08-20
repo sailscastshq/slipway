@@ -1,4 +1,5 @@
 <script setup>
+import Input from '@/components/ui/input/Input.vue'
 import { Head, router, useForm } from '@inertiajs/vue3'
 import { computed, inject, ref } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
@@ -346,7 +347,7 @@ function timeAgo(timestamp) {
               <label for="bridge-invite-email" class="sr-only">
                 Email address
               </label>
-              <input
+              <Input
                 id="bridge-invite-email"
                 v-model="inviteForm.email"
                 type="email"

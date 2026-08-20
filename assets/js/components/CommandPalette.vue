@@ -1,4 +1,5 @@
 <script setup>
+import Input from '@/components/ui/input/Input.vue'
 import {
   ref,
   computed,
@@ -769,7 +770,7 @@ const icons = computed(() => ({
                   :d="icons.search"
                 />
               </svg>
-              <input
+              <Input
                 ref="inputRef"
                 v-model="query"
                 type="text"

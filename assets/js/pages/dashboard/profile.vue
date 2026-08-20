@@ -1,4 +1,5 @@
 <script setup>
+import Input from '@/components/ui/input/Input.vue'
 import { Link, Head, usePage, useForm, router } from '@inertiajs/vue3'
 import { inject, ref } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
@@ -215,7 +216,7 @@ function logout() {
               <label class="mb-1 block text-sm text-gray-700 dark:text-gray-300"
                 >Full Name</label
               >
-              <input
+              <Input
                 id="profile-full-name"
                 v-model="form.fullName"
                 type="text"
@@ -242,7 +243,7 @@ function logout() {
               <label class="mb-1 block text-sm text-gray-700 dark:text-gray-300"
                 >Email</label
               >
-              <input
+              <Input
                 id="profile-email"
                 v-model="form.email"
                 type="email"
@@ -304,7 +305,7 @@ function logout() {
               <label class="mb-1 block text-sm text-gray-700 dark:text-gray-300"
                 >Current Password</label
               >
-              <input
+              <Input
                 id="profile-current-password"
                 v-model="form.currentPassword"
                 type="password"
@@ -333,7 +334,7 @@ function logout() {
               <label class="mb-1 block text-sm text-gray-700 dark:text-gray-300"
                 >New Password</label
               >
-              <input
+              <Input
                 id="profile-new-password"
                 v-model="form.password"
                 type="password"
@@ -360,7 +361,7 @@ function logout() {
               <label class="mb-1 block text-sm text-gray-700 dark:text-gray-300"
                 >Confirm Password</label
               >
-              <input
+              <Input
                 id="profile-confirm-password"
                 v-model="form.confirmPassword"
                 type="password"
@@ -466,7 +467,7 @@ function logout() {
           <label class="mb-1 block text-sm text-gray-700 dark:text-gray-300"
             >Enter your password to confirm</label
           >
-          <input
+          <Input
             v-model="deleteAccountForm.password"
             type="password"
             autocomplete="current-password"

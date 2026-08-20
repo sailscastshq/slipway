@@ -1,4 +1,5 @@
 <script setup>
+import Input from '@/components/ui/input/Input.vue'
 import { Link, Head, useForm } from '@inertiajs/vue3'
 import { inject, ref, computed } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
@@ -375,7 +376,7 @@ const categoryIcons = {
 
         <!-- Search -->
         <div class="mb-6">
-          <input
+          <Input
             v-model="search"
             type="text"
             placeholder="Search notifications..."
@@ -488,7 +489,7 @@ const categoryIcons = {
                       class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300"
                       >Webhook URL</label
                     >
-                    <input
+                    <Input
                       type="text"
                       v-model="form.discordWebhookUrl"
                       :placeholder="
@@ -590,7 +591,7 @@ const categoryIcons = {
                       class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300"
                       >Webhook URL</label
                     >
-                    <input
+                    <Input
                       type="text"
                       v-model="form.slackWebhookUrl"
                       :placeholder="
@@ -691,7 +692,7 @@ const categoryIcons = {
                       >Bot Token</label
                     >
                     <div class="flex items-center gap-2">
-                      <input
+                      <Input
                         :type="revealToken ? 'text' : 'password'"
                         v-model="form.telegramBotToken"
                         :placeholder="
@@ -773,7 +774,7 @@ const categoryIcons = {
                       class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300"
                       >Chat ID</label
                     >
-                    <input
+                    <Input
                       type="text"
                       v-model="form.telegramChatId"
                       placeholder="-1001234567890"
@@ -806,7 +807,7 @@ const categoryIcons = {
                         >(optional)</span
                       ></label
                     >
-                    <input
+                    <Input
                       type="text"
                       v-model="form.telegramThreadId"
                       placeholder="12345"
@@ -934,7 +935,7 @@ const categoryIcons = {
                         class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300"
                         >SMTP Host</label
                       >
-                      <input
+                      <Input
                         type="text"
                         v-model="form.smtpHost"
                         placeholder="smtp.example.com"
@@ -959,7 +960,7 @@ const categoryIcons = {
                         class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300"
                         >Port</label
                       >
-                      <input
+                      <Input
                         type="text"
                         v-model="form.smtpPort"
                         placeholder="587"
@@ -986,7 +987,7 @@ const categoryIcons = {
                         class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300"
                         >Username</label
                       >
-                      <input
+                      <Input
                         type="text"
                         v-model="form.smtpUser"
                         placeholder="user@example.com"
@@ -998,7 +999,7 @@ const categoryIcons = {
                         class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300"
                         >Password</label
                       >
-                      <input
+                      <Input
                         type="password"
                         v-model="form.smtpPassword"
                         :placeholder="
@@ -1016,7 +1017,7 @@ const categoryIcons = {
                       class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300"
                       >From Address</label
                     >
-                    <input
+                    <Input
                       type="email"
                       v-model="form.smtpFrom"
                       placeholder="noreply@example.com"
@@ -1041,7 +1042,7 @@ const categoryIcons = {
                       class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300"
                       >Notification Recipients</label
                     >
-                    <input
+                    <Input
                       type="text"
                       v-model="form.notificationEmails"
                       placeholder="admin@example.com, team@example.com"
@@ -1142,7 +1143,7 @@ const categoryIcons = {
                       class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300"
                       >Webhook URL</label
                     >
-                    <input
+                    <Input
                       id="webhookUrl"
                       type="text"
                       v-model="form.webhookUrl"

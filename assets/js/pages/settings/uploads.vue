@@ -1,4 +1,5 @@
 <script setup>
+import Input from '@/components/ui/input/Input.vue'
 import { Link, Head, useForm } from '@inertiajs/vue3'
 import { inject, ref, computed } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
@@ -448,7 +449,7 @@ const providers = [
                     }})
                   </span>
                 </label>
-                <input
+                <Input
                   v-model="storageForm.accessKey"
                   type="text"
                   :required="!isCurrentProvider"
@@ -479,7 +480,7 @@ const providers = [
                   >Secret Key</label
                 >
                 <div class="flex items-center gap-2">
-                  <input
+                  <Input
                     v-model="storageForm.secretKey"
                     :type="showSecrets ? 'text' : 'password'"
                     :required="!isCurrentProvider"
@@ -550,7 +551,7 @@ const providers = [
                   class="mb-1 block text-xs font-medium text-gray-500 dark:text-gray-400"
                   >Bucket Name</label
                 >
-                <input
+                <Input
                   v-model="storageForm.bucket"
                   type="text"
                   required
@@ -582,7 +583,7 @@ const providers = [
                   class="mb-1 block text-xs font-medium text-gray-500 dark:text-gray-400"
                   >Region</label
                 >
-                <input
+                <Input
                   v-model="storageForm.region"
                   type="text"
                   :placeholder="
@@ -615,7 +616,7 @@ const providers = [
                     >(optional, for custom endpoints)</span
                   >
                 </label>
-                <input
+                <Input
                   v-model="storageForm.endpoint"
                   type="text"
                   :placeholder="
@@ -657,7 +658,7 @@ const providers = [
                     >(for serving files to browsers)</span
                   >
                 </label>
-                <input
+                <Input
                   v-model="storageForm.publicUrl"
                   type="text"
                   :placeholder="

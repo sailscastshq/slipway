@@ -1,4 +1,5 @@
 <script setup>
+import Input from '@/components/ui/input/Input.vue'
 import { Link, Head, router } from '@inertiajs/vue3'
 import { computed, ref } from 'vue'
 import BridgePageLayout from '@/layouts/BridgePageLayout.vue'
@@ -277,7 +278,7 @@ function switchDashboard(id) {
             activeDashboard ? 'mt-12' : ''
           ]"
         >
-          <input
+          <Input
             v-model="searchQuery"
             type="text"
             placeholder="Search resources..."

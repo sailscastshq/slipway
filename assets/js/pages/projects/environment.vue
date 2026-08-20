@@ -1,4 +1,5 @@
 <script setup>
+import Input from '@/components/ui/input/Input.vue'
 import { Link, Head, router, useForm } from '@inertiajs/vue3'
 import {
   inject,
@@ -1672,7 +1673,7 @@ onBeforeUnmount(() => {
                 <div v-if="addAppOpen" class="space-y-3">
                   <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
                     <div class="w-full sm:flex-1">
-                      <input
+                      <Input
                         v-model="createAppForm.name"
                         placeholder="app name"
                         :aria-invalid="createAppForm.invalid('name')"
@@ -1695,7 +1696,7 @@ onBeforeUnmount(() => {
                       </p>
                     </div>
                     <div class="w-full sm:w-32">
-                      <input
+                      <Input
                         v-model="createAppForm.dockerfilePath"
                         placeholder="Dockerfile"
                         :aria-invalid="createAppForm.invalid('dockerfilePath')"
@@ -1718,7 +1719,7 @@ onBeforeUnmount(() => {
                       </p>
                     </div>
                     <div class="w-full sm:w-28">
-                      <input
+                      <Input
                         v-model="createAppForm.healthPath"
                         placeholder="/health"
                         :aria-invalid="createAppForm.invalid('healthPath')"
@@ -1852,7 +1853,7 @@ onBeforeUnmount(() => {
                             />
                           </svg>
                         </div>
-                        <input
+                        <Input
                           v-model="repoSearch"
                           @focus="repoDropdownOpen = true"
                           @click.stop
@@ -2384,7 +2385,7 @@ onBeforeUnmount(() => {
               <div class="px-4 pb-3">
                 <div v-if="addServiceOpen" class="space-y-3">
                   <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
-                    <input
+                    <Input
                       v-model="newServiceName"
                       type="text"
                       placeholder="service name (e.g. main-db)"
@@ -2415,7 +2416,7 @@ onBeforeUnmount(() => {
                       @change="handleServiceVersionChange"
                     />
                     <div v-else class="flex items-center gap-2">
-                      <input
+                      <Input
                         v-model="newServiceVersion"
                         type="text"
                         inputmode="decimal"
@@ -2590,7 +2591,7 @@ onBeforeUnmount(() => {
                     class="group py-2"
                   >
                     <div class="flex items-center justify-between">
-                      <input
+                      <Input
                         :value="key"
                         :readonly="metadataFor(key).managed"
                         @blur="renameVar(key, $event.target)"
@@ -2650,7 +2651,7 @@ onBeforeUnmount(() => {
                         />
                       </div>
                     </div>
-                    <input
+                    <Input
                       :value="localVars[key]"
                       :readonly="metadataFor(key).managed"
                       :type="
@@ -2681,14 +2682,14 @@ onBeforeUnmount(() => {
                 </div>
                 <div class="px-4 pb-3">
                   <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
-                    <input
+                    <Input
                       v-model="newKey"
                       type="text"
                       placeholder="KEY"
                       class="focus:border-brand w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 font-mono text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500 sm:flex-1"
                       @keydown.enter="addVar"
                     />
-                    <input
+                    <Input
                       v-model="newValue"
                       type="text"
                       placeholder="value"

@@ -1,4 +1,5 @@
 <script setup>
+import Input from '@/components/ui/input/Input.vue'
 import { Link, Head, useForm } from '@inertiajs/vue3'
 import { computed } from 'vue'
 import SlipwayLogo from '@/components/SlipwayLogo.vue'
@@ -77,7 +78,7 @@ const isFormValid = computed(() => {
 
       <form @submit.prevent="form.post('/reset-password')" class="space-y-4">
         <div>
-          <input
+          <Input
             id="password"
             v-model="form.password"
             type="password"
@@ -103,7 +104,7 @@ const isFormValid = computed(() => {
         </div>
 
         <div>
-          <input
+          <Input
             id="confirmPassword"
             v-model="form.confirmPassword"
             type="password"

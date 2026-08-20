@@ -1,4 +1,5 @@
 <script setup>
+import Input from '@/components/ui/input/Input.vue'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import BridgeRelationshipSelect from '@/components/bridge/BridgeRelationshipSelect.vue'
 import Select from '@/components/ui/select/Select.vue'
@@ -329,7 +330,7 @@ onBeforeUnmount(() => {
               <label :for="fieldId(definition, 'from')" class="sr-only">
                 {{ definition.label }} from
               </label>
-              <input
+              <Input
                 :id="fieldId(definition, 'from')"
                 v-model="draft[definition.field].from"
                 :type="inputType(definition)"
@@ -345,7 +346,7 @@ onBeforeUnmount(() => {
               <label :for="fieldId(definition, 'to')" class="sr-only">
                 {{ definition.label }} to
               </label>
-              <input
+              <Input
                 :id="fieldId(definition, 'to')"
                 v-model="draft[definition.field].to"
                 :type="inputType(definition)"
@@ -359,7 +360,7 @@ onBeforeUnmount(() => {
               />
             </div>
 
-            <input
+            <Input
               v-else-if="isText(definition)"
               :id="fieldId(definition, 'value')"
               v-model="draft[definition.field].value"
@@ -409,7 +410,7 @@ onBeforeUnmount(() => {
               :searchable="definition.relationship?.searchable !== false"
             />
 
-            <input
+            <Input
               v-else
               :id="fieldId(definition, 'value')"
               v-model="draft[definition.field].value"

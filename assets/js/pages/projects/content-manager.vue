@@ -1,4 +1,5 @@
 <script setup>
+import Input from '@/components/ui/input/Input.vue'
 import { Link, Head, router, useForm } from '@inertiajs/vue3'
 import { inject, ref, onMounted, onUnmounted } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
@@ -483,7 +484,7 @@ function refresh() {
               class="block text-sm font-medium text-gray-700 dark:text-gray-300"
               >Slug</label
             >
-            <input
+            <Input
               v-model="createForm.contentSlug"
               id="contentSlug"
               type="text"
@@ -517,7 +518,7 @@ function refresh() {
               class="block text-sm font-medium text-gray-700 dark:text-gray-300"
               >Title (optional)</label
             >
-            <input
+            <Input
               v-model="createForm.title"
               id="contentTitle"
               type="text"

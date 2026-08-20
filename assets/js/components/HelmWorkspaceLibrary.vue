@@ -1,4 +1,5 @@
 <script setup>
+import Input from '@/components/ui/input/Input.vue'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import ActionMenu from '@/components/ActionMenu.vue'
 import ConfirmModal from '@/components/ConfirmModal.vue'
@@ -477,7 +478,7 @@ defineExpose({ refreshHistory, openSnippetDialog })
             d="m21 21-4.35-4.35m2.35-5.65a8 8 0 1 1-16 0 8 8 0 0 1 16 0Z"
           />
         </svg>
-        <input
+        <Input
           v-model="activeQuery"
           data-test="helm-library-search"
           type="search"

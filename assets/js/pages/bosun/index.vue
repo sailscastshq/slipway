@@ -1,4 +1,5 @@
 <script setup>
+import Input from '@/components/ui/input/Input.vue'
 import { Head, usePage } from '@inertiajs/vue3'
 import {
   ref,
@@ -1701,14 +1702,14 @@ onUnmounted(() => {
             <!-- Add new variable -->
             <div class="px-4 pb-3">
               <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
-                <input
+                <Input
                   v-model="envNewKey"
                   type="text"
                   placeholder="KEY"
                   class="focus:border-brand w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 font-mono text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500 sm:flex-1"
                   @keydown.enter="addEnvVar"
                 />
-                <input
+                <Input
                   v-model="envNewValue"
                   type="text"
                   placeholder="value"
