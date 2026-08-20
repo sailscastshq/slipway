@@ -1,4 +1,5 @@
 <script setup>
+import Input from '@/components/ui/input/Input.vue'
 import { Head, Link, router } from '@inertiajs/vue3'
 import { computed, inject, onBeforeUnmount, ref, watch } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
@@ -262,7 +263,7 @@ function shortHash(hash) {
                   d="m21 21-4.35-4.35m2.35-5.65a8 8 0 1 1-16 0 8 8 0 0 1 16 0Z"
                 />
               </svg>
-              <input
+              <Input
                 v-model="query"
                 data-test="audit-search"
                 type="search"

@@ -1,4 +1,5 @@
 <script setup>
+import Input from '@/components/ui/input/Input.vue'
 import { useForm, Head, Link } from '@inertiajs/vue3'
 import { inject } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
@@ -164,7 +165,7 @@ const sidebarCollapsed = inject('sidebarCollapsed')
           </div>
 
           <form @submit.prevent="submit" class="space-y-4">
-            <input
+            <Input
               id="name"
               v-model="form.name"
               type="text"

@@ -1,4 +1,5 @@
 <script setup>
+import Input from '@/components/ui/input/Input.vue'
 import { Link, Head, router, usePage, useForm } from '@inertiajs/vue3'
 import { ref, computed, inject, onMounted } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
@@ -515,7 +516,7 @@ const serviceTypeLabel = {
                 Type <span class="font-mono">{{ service.name }}</span> to
                 confirm
               </label>
-              <input
+              <Input
                 id="upgrade-confirmation"
                 v-model="upgradeConfirmation"
                 type="text"
@@ -557,7 +558,7 @@ const serviceTypeLabel = {
               >
                 CPU limit
               </label>
-              <input
+              <Input
                 id="cpuLimit"
                 v-model="form.resourceLimits.cpus"
                 type="text"
@@ -592,7 +593,7 @@ const serviceTypeLabel = {
               >
                 Memory limit
               </label>
-              <input
+              <Input
                 id="memoryLimit"
                 v-model="form.resourceLimits.memory"
                 type="text"

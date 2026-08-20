@@ -1,4 +1,5 @@
 <script setup>
+import Input from '@/components/ui/input/Input.vue'
 import { Head, router, useForm } from '@inertiajs/vue3'
 import {
   computed,
@@ -743,7 +744,7 @@ function handleViewKeydown(event, index) {
               <label for="bearing-update-title" class="sr-only">
                 Update title
               </label>
-              <input
+              <Input
                 id="bearing-update-title"
                 v-model="updateForm.title"
                 required
@@ -756,7 +757,7 @@ function handleViewKeydown(event, index) {
               <label for="bearing-update-excerpt" class="sr-only">
                 Update summary
               </label>
-              <input
+              <Input
                 id="bearing-update-excerpt"
                 v-model="updateForm.excerpt"
                 required
@@ -1090,7 +1091,7 @@ function handleViewKeydown(event, index) {
                 ></span>
                 <label class="min-w-0 flex-1">
                   <span class="sr-only">Category name</span>
-                  <input
+                  <Input
                     v-model="category.label"
                     type="text"
                     maxlength="24"

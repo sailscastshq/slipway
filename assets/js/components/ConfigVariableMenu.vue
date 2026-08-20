@@ -1,4 +1,5 @@
 <script setup>
+import Input from '@/components/ui/input/Input.vue'
 import Select from '@/components/ui/select/Select.vue'
 
 const props = defineProps({
@@ -113,7 +114,7 @@ function toggleDetails(event) {
             >Description
             <span class="font-normal text-gray-400">(optional)</span></span
           >
-          <input
+          <Input
             :value="metadata.description || ''"
             @blur="update('description', $event.target.value)"
             maxlength="160"

@@ -1,4 +1,5 @@
 <script setup>
+import Input from '@/components/ui/input/Input.vue'
 import { ref } from 'vue'
 
 defineProps({
@@ -30,7 +31,7 @@ defineExpose({
 </script>
 
 <template>
-  <input
+  <Input
     :id="id"
     ref="input"
     v-model="model"

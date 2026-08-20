@@ -1,4 +1,5 @@
 <script setup>
+import Input from '@/components/ui/input/Input.vue'
 import { Link, Head, useForm } from '@inertiajs/vue3'
 import { computed, inject, ref, watch } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
@@ -629,7 +630,7 @@ function handleKeydown(e) {
                 >
               </dt>
               <dd class="mt-1">
-                <input
+                <Input
                   :id="`content-metadata-${key}`"
                   v-model="frontmatter[key]"
                   type="text"

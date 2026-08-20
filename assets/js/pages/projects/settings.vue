@@ -1,4 +1,5 @@
 <script setup>
+import Input from '@/components/ui/input/Input.vue'
 import { Link, Head, useForm } from '@inertiajs/vue3'
 import { inject, ref } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
@@ -242,7 +243,7 @@ function openDeleteProject() {
             >
               Project name
             </label>
-            <input
+            <Input
               id="name"
               v-model="form.name"
               type="text"
@@ -297,7 +298,7 @@ function openDeleteProject() {
             >
               Repository URL
             </label>
-            <input
+            <Input
               id="repositoryUrl"
               v-model="form.repositoryUrl"
               type="url"
@@ -363,7 +364,7 @@ function openDeleteProject() {
                 Deploy branch
               </label>
               <div class="flex items-center space-x-2">
-                <input
+                <Input
                   v-model="deployForm.autoDeployBranch"
                   type="text"
                   placeholder="main"

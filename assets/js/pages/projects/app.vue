@@ -1,4 +1,5 @@
 <script setup>
+import Input from '@/components/ui/input/Input.vue'
 import { Link, Head, router } from '@inertiajs/vue3'
 import {
   inject,
@@ -1640,7 +1641,7 @@ onBeforeUnmount(() => {
                     class="group py-2"
                   >
                     <div class="flex items-center justify-between">
-                      <input
+                      <Input
                         :value="key"
                         @blur="renameVar(key, $event.target)"
                         @keydown.enter="$event.target.blur()"
@@ -1699,7 +1700,7 @@ onBeforeUnmount(() => {
                         />
                       </div>
                     </div>
-                    <input
+                    <Input
                       :value="localVars[key]"
                       :type="
                         isSensitive(key) && !revealedKeys.has(key)
@@ -1729,14 +1730,14 @@ onBeforeUnmount(() => {
                 </div>
                 <div class="px-4 pb-3">
                   <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
-                    <input
+                    <Input
                       v-model="newKey"
                       type="text"
                       placeholder="KEY"
                       class="focus:border-brand w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 font-mono text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500 sm:flex-1"
                       @keydown.enter="addVar"
                     />
-                    <input
+                    <Input
                       v-model="newValue"
                       type="text"
                       placeholder="value"
@@ -1858,7 +1859,7 @@ onBeforeUnmount(() => {
                 No release flags yet.
               </p>
               <div class="flex items-center gap-3 px-4 py-3">
-                <input
+                <Input
                   v-model="newFlagKey"
                   type="text"
                   autocomplete="off"
@@ -2143,7 +2144,7 @@ onBeforeUnmount(() => {
                 with an A record. SSL is provisioned automatically.
               </p>
               <div class="mt-4">
-                <input
+                <Input
                   v-model="newDomain"
                   type="text"
                   placeholder="app.example.com"

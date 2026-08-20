@@ -1,4 +1,5 @@
 <script setup>
+import Input from '@/components/ui/input/Input.vue'
 import { Link, Head, router, useForm } from '@inertiajs/vue3'
 import { inject, ref, computed, watch } from 'vue'
 import BridgePageLayout from '@/layouts/BridgePageLayout.vue'
@@ -621,7 +622,7 @@ function createUrl() {
     <div class="px-4 py-4 sm:px-8">
       <div class="mx-auto flex max-w-6xl items-center justify-between">
         <div class="flex items-center space-x-3">
-          <input
+          <Input
             v-if="(modelMeta?.search || []).length > 0"
             v-model="searchInput"
             type="text"

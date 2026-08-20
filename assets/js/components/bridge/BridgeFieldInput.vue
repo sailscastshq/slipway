@@ -1,4 +1,5 @@
 <script setup>
+import Input from '@/components/ui/input/Input.vue'
 import { router } from '@inertiajs/vue3'
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import MarkdownEditor from '@/components/content/MarkdownEditor.vue'
@@ -745,7 +746,7 @@ function defaultPlaceholder(fieldType) {
         </button>
       </div>
 
-      <input
+      <Input
         v-if="['text', 'email', 'url', 'password', 'secret'].includes(type)"
         :id="fieldId"
         :value="modelValue"
@@ -782,7 +783,7 @@ function defaultPlaceholder(fieldType) {
         >
           {{ currencySymbol }}
         </span>
-        <input
+        <Input
           :id="fieldId"
           :value="modelValue"
           type="number"
@@ -802,7 +803,7 @@ function defaultPlaceholder(fieldType) {
         />
       </div>
 
-      <input
+      <Input
         v-else-if="type === 'number'"
         :id="fieldId"
         :value="modelValue"
@@ -822,7 +823,7 @@ function defaultPlaceholder(fieldType) {
         @blur="handleBlur"
       />
 
-      <input
+      <Input
         v-else-if="type === 'date'"
         :id="fieldId"
         :value="modelValue"
@@ -837,7 +838,7 @@ function defaultPlaceholder(fieldType) {
         @blur="handleBlur"
       />
 
-      <input
+      <Input
         v-else-if="['datetime', 'timestamp'].includes(type)"
         :id="fieldId"
         :value="modelValue"

@@ -1,4 +1,5 @@
 <script setup>
+import Input from '@/components/ui/input/Input.vue'
 import { ref, watch } from 'vue'
 
 const props = defineProps({ flag: { type: Object, required: true } })
@@ -54,7 +55,7 @@ function remove(event) {
     >
       <label class="block text-xs font-medium text-gray-700 dark:text-gray-300">
         Description
-        <input
+        <Input
           v-model="description"
           maxlength="160"
           class="mt-1 w-full border-b border-gray-200 bg-transparent py-1.5 text-sm font-normal text-gray-900 placeholder-gray-400 focus:border-gray-500 focus:outline-none dark:border-gray-700 dark:text-white"

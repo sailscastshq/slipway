@@ -1,4 +1,5 @@
 <script setup>
+import Input from '@/components/ui/input/Input.vue'
 import { Link, Head, router, usePage, useForm } from '@inertiajs/vue3'
 import { ref, computed, inject, onMounted } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
@@ -444,7 +445,7 @@ async function deleteApp() {
             >
               Name
             </label>
-            <input
+            <Input
               id="appName"
               v-model="form.name"
               type="text"
@@ -470,7 +471,7 @@ async function deleteApp() {
             >
               Health path
             </label>
-            <input
+            <Input
               id="healthPath"
               v-model="form.healthPath"
               type="text"
@@ -502,7 +503,7 @@ async function deleteApp() {
             >
               Dockerfile path
             </label>
-            <input
+            <Input
               id="dockerfilePath"
               v-model="form.dockerfilePath"
               type="text"
@@ -561,7 +562,7 @@ async function deleteApp() {
               >
                 CPU limit
               </label>
-              <input
+              <Input
                 id="cpuLimit"
                 v-model="form.resourceLimits.cpus"
                 type="text"
@@ -589,7 +590,7 @@ async function deleteApp() {
               >
                 Memory limit
               </label>
-              <input
+              <Input
                 id="memoryLimit"
                 v-model="form.resourceLimits.memory"
                 type="text"
@@ -890,7 +891,7 @@ async function deleteApp() {
                         />
                       </svg>
                     </div>
-                    <input
+                    <Input
                       v-model="repoSearch"
                       @focus="repoDropdownOpen = true"
                       placeholder="Search repositories..."

@@ -1,4 +1,5 @@
 <script setup>
+import Input from '@/components/ui/input/Input.vue'
 import { Link, Head, usePage } from '@inertiajs/vue3'
 import { inject, ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { useEventSource } from '@/composables/sse'
@@ -436,7 +437,7 @@ onUnmounted(() => {
               <!-- Editable name -->
               <div class="name-editor">
                 <div v-if="editingName" class="flex items-center gap-2">
-                  <input
+                  <Input
                     ref="nameInput"
                     v-model="editedName"
                     type="text"

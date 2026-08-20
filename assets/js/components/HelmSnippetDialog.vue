@@ -1,4 +1,5 @@
 <script setup>
+import Input from '@/components/ui/input/Input.vue'
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import CodeEditor from '@/components/CodeEditor.vue'
 import Spinner from '@/components/SlipwaySpinner.vue'
@@ -164,7 +165,7 @@ function handleKeydown(event) {
                   class="text-sm font-medium text-gray-700 dark:text-gray-300"
                   >Name</span
                 >
-                <input
+                <Input
                   ref="nameInput"
                   v-model="name"
                   data-test="helm-snippet-name"

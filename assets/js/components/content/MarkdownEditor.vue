@@ -1,4 +1,5 @@
 <script setup>
+import Input from '@/components/ui/input/Input.vue'
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { EditorContent, useEditor } from '@tiptap/vue-3'
 import { BubbleMenu } from '@tiptap/vue-3/menus'
@@ -798,7 +799,7 @@ defineExpose({
           @submit.prevent="applyLink"
         >
           <label class="sr-only" :for="elementId('link-url')">Link URL</label>
-          <input
+          <Input
             :id="elementId('link-url')"
             v-model="linkUrl"
             :data-test="testHandle('link-input')"
@@ -851,7 +852,7 @@ defineExpose({
         <label class="sr-only" :for="elementId('image-alt')"
           >Image alt text</label
         >
-        <input
+        <Input
           :id="elementId('image-alt')"
           v-model="imageAlt"
           type="text"

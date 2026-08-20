@@ -1,4 +1,5 @@
 <script setup>
+import Input from '@/components/ui/input/Input.vue'
 import { Head, InfiniteScroll, router, useForm } from '@inertiajs/vue3'
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import SelectMenu from '@/components/SelectMenu.vue'
@@ -796,7 +797,7 @@ function shortDate(value) {
 
               <label class="mt-7 block" for="bearing-feedback-title">
                 <span class="sr-only">Summary</span>
-                <input
+                <Input
                   id="bearing-feedback-title"
                   ref="titleInput"
                   v-model="form.title"
@@ -1054,7 +1055,7 @@ function shortDate(value) {
                   stroke-linecap="round"
                 />
               </svg>
-              <input
+              <Input
                 v-model="search"
                 type="search"
                 placeholder="Find feedback…"

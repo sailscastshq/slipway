@@ -1,4 +1,5 @@
 <script setup>
+import Input from '@/components/ui/input/Input.vue'
 import { Link, Head, useForm } from '@inertiajs/vue3'
 import { inject } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
@@ -193,7 +194,7 @@ function save() {
             <div
               class="border-t border-gray-200 px-4 py-3 dark:border-gray-800"
             >
-              <input
+              <Input
                 id="instanceName"
                 v-model="form.instanceName"
                 type="text"
@@ -236,7 +237,7 @@ function save() {
                 <span class="text-sm text-gray-400 dark:text-gray-500"
                   >https://</span
                 >
-                <input
+                <Input
                   id="instanceDomain"
                   v-model="form.instanceDomain"
                   type="text"
@@ -277,7 +278,7 @@ function save() {
             <div
               class="border-t border-gray-200 px-4 py-3 dark:border-gray-800"
             >
-              <input
+              <Input
                 id="acmeEmail"
                 v-model="form.acmeEmail"
                 type="email"
