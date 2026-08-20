@@ -13,6 +13,7 @@ import AppLayout from '@/layouts/AppLayout.vue'
 import Breadcrumb from '@/components/ui/breadcrumb/Breadcrumb.vue'
 import MarkdownEditor from '@/components/content/MarkdownEditor.vue'
 import Alert from '@/components/ui/alert/Alert.vue'
+import Select from '@/components/ui/select/Select.vue'
 import { useQueryState } from '@/composables/useQueryState'
 
 defineOptions({ layout: AppLayout })
@@ -659,17 +660,18 @@ function handleViewKeydown(event, index) {
                 </div>
                 <label class="shrink-0">
                   <span class="sr-only">Status for {{ item.title }}</span>
-                  <select
-                    :value="item.status"
+                  <Select
+                    :model-value="item.status"
+                    :options="[
+                      { value: 'reviewing', label: 'Reviewing' },
+                      { value: 'planned', label: 'Planned' },
+                      { value: 'in_progress', label: 'In progress' },
+                      { value: 'shipped', label: 'Shipped' },
+                      { value: 'closed', label: 'Closed' }
+                    ]"
                     class="min-h-10 rounded-lg border-0 bg-gray-50 px-3 text-sm focus:ring-2 focus:ring-gray-400 dark:bg-gray-900"
-                    @change="moveFeedback(item, $event.target.value)"
-                  >
-                    <option value="reviewing">Reviewing</option>
-                    <option value="planned">Planned</option>
-                    <option value="in_progress">In progress</option>
-                    <option value="shipped">Shipped</option>
-                    <option value="closed">Closed</option>
-                  </select>
+                    @change="moveFeedback(item, $event)"
+                  />
                 </label>
               </div>
             </article>

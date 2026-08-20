@@ -9,6 +9,7 @@ import {
   serializeLogEvents
 } from '@/lib/log-viewer.mjs'
 import Spinner from '@/components/SlipwaySpinner.vue'
+import Select from '@/components/ui/select/Select.vue'
 import Tooltip from '@/components/ui/tooltip/Tooltip.vue'
 
 const props = defineProps({
@@ -268,30 +269,18 @@ function segmentClass(type) {
       <div class="order-2 ml-auto flex items-center gap-1 sm:order-3">
         <label class="relative">
           <span class="sr-only">Filter logs by severity</span>
-          <select
+          <Select
             v-model="level"
+            :options="[
+              { value: 'all', label: `All · ${events.length}` },
+              ...LOG_LEVELS.map((value) => ({
+                value,
+                label: `${levelLabel(value)} · ${levelCounts[value]}`
+              }))
+            ]"
             data-test="log-level-filter"
             class="h-10 appearance-none border-0 border-b border-dashed border-gray-300 bg-transparent py-0 pl-2 pr-7 font-sans text-xs text-gray-700 outline-none focus:border-sky-500 focus:ring-0 dark:border-zinc-700 dark:text-zinc-300 dark:focus:border-sky-400"
-          >
-            <option value="all">All · {{ events.length }}</option>
-            <option v-for="value in LOG_LEVELS" :key="value" :value="value">
-              {{ levelLabel(value) }} · {{ levelCounts[value] }}
-            </option>
-          </select>
-          <svg
-            aria-hidden="true"
-            class="pointer-events-none absolute right-1.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-500 dark:text-zinc-500"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="m7 10 5 5 5-5"
-            />
-          </svg>
+          />
         </label>
 
         <Tooltip

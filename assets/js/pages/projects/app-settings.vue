@@ -4,6 +4,7 @@ import { ref, computed, inject, onMounted } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
 import Breadcrumb from '@/components/ui/breadcrumb/Breadcrumb.vue'
 import ConfirmModal from '@/components/ConfirmModal.vue'
+import Select from '@/components/ui/select/Select.vue'
 import Tooltip from '@/components/ui/tooltip/Tooltip.vue'
 import Spinner from '@/components/SlipwaySpinner.vue'
 import { useToast } from '@/composables/toast'
@@ -536,16 +537,17 @@ async function deleteApp() {
             >
               Route path
             </label>
-            <select
+            <Select
               id="routePath"
               v-model="routePathChoice"
+              :options="[
+                { value: '/', label: '/ (root)' },
+                { value: '/api', label: '/api' },
+                { value: '/admin', label: '/admin' },
+                { value: 'none', label: 'None (worker)' }
+              ]"
               class="focus:border-brand w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 focus:outline-none dark:border-gray-700 dark:text-white"
-            >
-              <option value="/">/ (root)</option>
-              <option value="/api">/api</option>
-              <option value="/admin">/admin</option>
-              <option value="none">None (worker)</option>
-            </select>
+            />
             <p class="mt-1 text-xs text-gray-400 dark:text-gray-500">
               URL prefix this app handles. Choose "None" for background workers.
             </p>
@@ -833,20 +835,18 @@ async function deleteApp() {
                         >Loading branches...</span
                       >
                     </div>
-                    <select
+                    <Select
                       v-else-if="branches.length > 0"
-                      :value="selectedBranch"
-                      @change="selectBranch($event.target.value)"
+                      :model-value="selectedBranch"
+                      :options="
+                        branches.map((branch) => ({
+                          value: branch.name,
+                          label: branch.name
+                        }))
+                      "
+                      @change="selectBranch"
                       class="focus:border-brand w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 focus:outline-none dark:border-gray-700 dark:text-white"
-                    >
-                      <option
-                        v-for="b in branches"
-                        :key="b.name"
-                        :value="b.name"
-                      >
-                        {{ b.name }}
-                      </option>
-                    </select>
+                    />
                     <p
                       v-else
                       class="py-1.5 text-sm text-gray-500 dark:text-gray-400"

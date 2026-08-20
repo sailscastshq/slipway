@@ -4,6 +4,7 @@ import { inject, ref, computed, watch, onUnmounted } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
 import ConfirmModal from '@/components/ConfirmModal.vue'
 import Menu from '@/components/ui/menu/Menu.vue'
+import Select from '@/components/ui/select/Select.vue'
 import { usePrecognitionValidation } from '@/composables/precognition'
 
 defineOptions({
@@ -534,13 +535,14 @@ function timeAgo(date) {
                     class="mb-1 block text-xs font-medium text-gray-500 dark:text-gray-400"
                     >Role</label
                   >
-                  <select
+                  <Select
                     v-model="inviteForm.role"
+                    :options="[
+                      { value: 'member', label: 'Member' },
+                      { value: 'admin', label: 'Admin' }
+                    ]"
                     class="focus:border-brand w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-white"
-                  >
-                    <option value="member">Member</option>
-                    <option value="admin">Admin</option>
-                  </select>
+                  />
                 </div>
                 <div class="flex justify-end space-x-3">
                   <button

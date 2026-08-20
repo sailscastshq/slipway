@@ -12,6 +12,7 @@ import BridgeDashboard from '@/components/bridge/BridgeDashboard.vue'
 import BridgeFilterMenu from '@/components/bridge/BridgeFilterMenu.vue'
 import BridgePageHeader from '@/components/bridge/BridgePageHeader.vue'
 import Pagination from '@/components/ui/pagination/Pagination.vue'
+import Select from '@/components/ui/select/Select.vue'
 import Table from '@/components/ui/table/Table.vue'
 import Menu from '@/components/ui/menu/Menu.vue'
 
@@ -259,8 +260,7 @@ function applyFilters(filters) {
   navigateWithParams({ filters, page: 1 })
 }
 
-function switchLens(event) {
-  const lens = event.target.value
+function switchLens(lens) {
   lensValue.value = lens
   filtersValue.value = {}
   sortValue.value = ''
@@ -434,9 +434,9 @@ function completeCustomAction() {
   actionDialog.value = { show: false, action: null, recordIds: [] }
 }
 
-function switchDashboard(event) {
+function switchDashboard(dashboard) {
   navigateWithParams(
-    { dashboard: event.target.value, page: 1 },
+    { dashboard, page: 1 },
     { only: ['activeDashboard', 'error'], replace: true }
   )
 }
@@ -629,19 +629,21 @@ function createUrl() {
             placeholder="Search records..."
             class="w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:border-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500 dark:focus:border-gray-600 sm:w-64"
           />
-          <select
+          <Select
             v-if="lenses?.length > 0"
-            :value="lensValue"
+            :model-value="lensValue"
+            :options="[
+              { value: allRecordsLensValue, label: 'All records' },
+              ...lenses.map((lens) => ({
+                value: lens.id,
+                label: lens.label
+              }))
+            ]"
             aria-label="Saved view"
             class="rounded-md border-0 bg-transparent py-1 pl-2 pr-7 text-sm text-gray-600 focus:ring-1 focus:ring-gray-300 dark:bg-gray-950 dark:text-gray-300 dark:focus:ring-gray-700"
             data-test="bridge-lens-select"
             @change="switchLens"
-          >
-            <option :value="allRecordsLensValue">All records</option>
-            <option v-for="lens in lenses" :key="lens.id" :value="lens.id">
-              {{ lens.label }}
-            </option>
-          </select>
+          />
           <BridgeFilterMenu
             v-if="Object.keys(filterDefinitions || {}).length > 0"
             :definitions="filterDefinitions"
@@ -675,21 +677,19 @@ function createUrl() {
           </Transition>
         </div>
         <div class="flex items-center space-x-4">
-          <select
+          <Select
             v-if="dashboards?.length > 1"
-            :value="activeDashboard?.id"
+            :model-value="activeDashboard?.id"
+            :options="
+              dashboards.map((dashboard) => ({
+                value: dashboard.id,
+                label: dashboard.label
+              }))
+            "
             @change="switchDashboard"
             aria-label="Bridge dashboard"
             class="rounded-md border-0 bg-transparent py-1 pl-2 pr-7 text-sm text-gray-600 focus:ring-1 focus:ring-gray-300 dark:bg-gray-950 dark:text-gray-300 dark:focus:ring-gray-700"
-          >
-            <option
-              v-for="dashboard in dashboards"
-              :key="dashboard.id"
-              :value="dashboard.id"
-            >
-              {{ dashboard.label }}
-            </option>
-          </select>
+          />
           <span
             v-if="total > 0"
             class="text-xs text-gray-500 dark:text-gray-400"

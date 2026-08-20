@@ -567,9 +567,8 @@ test(
       )
       await page.raw.emulateMedia({ colorScheme: 'light' })
       await page.raw.locator('#bridge-filter-title-value').fill('production')
-      await page.raw
-        .locator('#bridge-filter-published-value')
-        .selectOption('true')
+      await page.raw.locator('#bridge-filter-published-value').click()
+      await page.raw.getByRole('option', { name: 'Yes', exact: true }).click()
       await page.raw.locator('#bridge-filter-creator-value').click()
       await page.wait('text=Ada Lovelace')
       await page.screenshot(
@@ -605,9 +604,10 @@ test(
         { fullPage: true }
       )
 
+      await page.raw.locator('[data-test="bridge-lens-select"]').click()
       await page.raw
-        .locator('[data-test="bridge-lens-select"]')
-        .selectOption('recent')
+        .getByRole('option', { name: 'Recently active', exact: true })
+        .click()
       await page.raw.waitForURL(
         (url) => url.searchParams.get('lens') === 'recent'
       )
@@ -623,9 +623,10 @@ test(
         { fullPage: true }
       )
       await page.raw.emulateMedia({ colorScheme: 'light' })
+      await page.raw.locator('[data-test="bridge-lens-select"]').click()
       await page.raw
-        .locator('[data-test="bridge-lens-select"]')
-        .selectOption('')
+        .getByRole('option', { name: 'All records', exact: true })
+        .click()
       await page.raw.waitForURL((url) => !url.searchParams.has('lens'))
 
       const resourceActionsButton = page.raw.getByRole('button', {

@@ -100,14 +100,22 @@ test(
       path: path.resolve('.tmp/issue-434-log-viewer-desktop-dark.png')
     })
 
-    await viewer.locator('[data-test="log-level-filter"]').selectOption('error')
+    await viewer.locator('[data-test="log-level-filter"]').click()
+    await page.raw.getByRole('option', { name: /^Errors ·/ }).click()
+    expect(
+      await viewer
+        .locator('[data-test="log-level-filter"]')
+        .getAttribute('aria-expanded')
+    ).toBe('false')
     expect(await viewer.locator('[data-test="log-event"]').count()).toBe(1)
     await expect(page).toSee('Timeout.<anonymous>')
     await viewer.screenshot({
       path: path.resolve('.tmp/issue-434-log-viewer-error-filter.png')
     })
 
-    await viewer.locator('[data-test="log-level-filter"]').selectOption('all')
+    await page.raw.getByRole('listbox').waitFor({ state: 'hidden' })
+    await viewer.locator('[data-test="log-level-filter"]').click()
+    await page.raw.getByRole('option', { name: 'All · 5', exact: true }).click()
 
     await page.raw.evaluate(() => {
       const stream = window.__slipwayTestEventSources.find((candidate) =>

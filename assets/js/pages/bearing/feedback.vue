@@ -3,6 +3,7 @@ import { Head, InfiniteScroll, router, useForm } from '@inertiajs/vue3'
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import SelectMenu from '@/components/SelectMenu.vue'
 import ShareLinkButton from '@/components/ShareLinkButton.vue'
+import Select from '@/components/ui/select/Select.vue'
 import Tooltip from '@/components/ui/tooltip/Tooltip.vue'
 import { useBearingRealtime } from '@/composables/useBearingRealtime'
 import { useFormDraft } from '@/composables/useFormDraft'
@@ -1127,20 +1128,18 @@ function shortDate(value) {
                 >
                   Category
                 </span>
-                <select
+                <Select
                   v-model="categoryFilter"
+                  :options="[
+                    { value: 'all', label: 'All categories' },
+                    ...categories.map((category) => ({
+                      value: category.key,
+                      label: category.label
+                    }))
+                  ]"
                   data-test="bearing-feedback-category-filter"
                   class="focus:border-brand min-h-11 mt-1 w-full border-0 border-b border-dashed border-gray-300 bg-transparent px-0 text-sm focus:ring-0 dark:border-gray-700"
-                >
-                  <option value="all">All categories</option>
-                  <option
-                    v-for="category in categories"
-                    :key="category.key"
-                    :value="category.key"
-                  >
-                    {{ category.label }}
-                  </option>
-                </select>
+                />
               </label>
 
               <label class="mt-5 block">
@@ -1149,18 +1148,11 @@ function shortDate(value) {
                 >
                   Status
                 </span>
-                <select
+                <Select
                   v-model="statusFilter"
+                  :options="statusOptions"
                   class="min-h-12 mt-1 w-full border-0 border-b border-dashed border-gray-300 bg-transparent px-0 text-sm focus:border-gray-950 focus:ring-0 dark:border-gray-700 dark:focus:border-white"
-                >
-                  <option
-                    v-for="status in statusOptions"
-                    :key="status.value"
-                    :value="status.value"
-                  >
-                    {{ status.label }}
-                  </option>
-                </select>
+                />
               </label>
 
               <fieldset class="mt-7">

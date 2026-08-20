@@ -3,6 +3,7 @@ import { Link, Head, router, useForm } from '@inertiajs/vue3'
 import { inject, ref, computed } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
 import ConfirmModal from '@/components/ConfirmModal.vue'
+import Select from '@/components/ui/select/Select.vue'
 import { useToast } from '@/composables/toast'
 import { usePrecognitionValidation } from '@/composables/precognition'
 
@@ -722,15 +723,17 @@ jobs:
                   class="block text-sm font-medium text-gray-700 dark:text-gray-300"
                   >Scope (optional)</label
                 >
-                <select
+                <Select
                   v-model="newToken.projectId"
+                  :options="[
+                    { value: '', label: 'All projects' },
+                    ...projects.map((project) => ({
+                      value: project.id,
+                      label: project.name
+                    }))
+                  ]"
                   class="focus:border-brand mt-1 w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 focus:outline-none dark:border-gray-700 dark:bg-transparent dark:text-white"
-                >
-                  <option value="">All projects</option>
-                  <option v-for="p in projects" :key="p.id" :value="p.id">
-                    {{ p.name }}
-                  </option>
-                </select>
+                />
               </div>
 
               <div class="flex justify-end space-x-3 pt-2">

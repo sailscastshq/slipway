@@ -1,6 +1,7 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import BridgeRelationshipSelect from '@/components/bridge/BridgeRelationshipSelect.vue'
+import Select from '@/components/ui/select/Select.vue'
 
 const props = defineProps({
   definitions: {
@@ -307,19 +308,17 @@ onBeforeUnmount(() => {
             >
               {{ definition.label }}
             </label>
-            <select
+            <Select
               :id="fieldId(definition, 'operator')"
               v-model="draft[definition.field].operator"
+              :options="
+                definition.operators.map((operator) => ({
+                  value: operator,
+                  label: operatorLabel(operator)
+                }))
+              "
               class="border-0 bg-transparent py-0 pl-1 pr-5 text-right text-xs text-gray-500 focus:ring-0 dark:bg-gray-900 dark:text-gray-400"
-            >
-              <option
-                v-for="operator in definition.operators"
-                :key="operator"
-                :value="operator"
-              >
-                {{ operatorLabel(operator) }}
-              </option>
-            </select>
+            />
           </div>
 
           <div v-if="supportsValue(definition)">
@@ -372,35 +371,34 @@ onBeforeUnmount(() => {
               class="focus:border-brand w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
             />
 
-            <select
+            <Select
               v-else-if="definition.type === 'boolean'"
               :id="fieldId(definition, 'value')"
               v-model="draft[definition.field].value"
+              :options="[
+                { value: '', label: 'Choose…' },
+                { value: 'true', label: 'Yes' },
+                { value: 'false', label: 'No' }
+              ]"
               :aria-label="`${definition.label} value`"
               class="focus:border-brand w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 focus:outline-none focus:ring-0 dark:border-gray-700 dark:bg-gray-900 dark:text-white"
-            >
-              <option value="">Choose…</option>
-              <option value="true">Yes</option>
-              <option value="false">No</option>
-            </select>
+            />
 
-            <select
+            <Select
               v-else-if="definition.type === 'select'"
               :id="fieldId(definition, 'value')"
               v-model="draft[definition.field].value"
+              :options="[
+                { value: '', label: 'Choose…' },
+                ...(definition.options || []).map((option) => ({
+                  value: option.value,
+                  label: option.label,
+                  disabled: option.disabled
+                }))
+              ]"
               :aria-label="`${definition.label} value`"
               class="focus:border-brand w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 focus:outline-none focus:ring-0 dark:border-gray-700 dark:bg-gray-900 dark:text-white"
-            >
-              <option value="">Choose…</option>
-              <option
-                v-for="option in definition.options || []"
-                :key="String(option.value)"
-                :value="option.value"
-                :disabled="option.disabled"
-              >
-                {{ option.label }}
-              </option>
-            </select>
+            />
 
             <BridgeRelationshipSelect
               v-else-if="definition.type === 'belongsTo'"

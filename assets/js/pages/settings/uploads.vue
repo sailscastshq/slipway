@@ -2,6 +2,7 @@
 import { Link, Head, useForm } from '@inertiajs/vue3'
 import { inject, ref, computed } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
+import Select from '@/components/ui/select/Select.vue'
 import { useToast } from '@/composables/toast'
 import { usePrecognitionValidation } from '@/composables/precognition'
 
@@ -766,8 +767,15 @@ const providers = [
                   class="mb-1 block text-xs font-medium text-gray-500 dark:text-gray-400"
                   >Backup Interval</label
                 >
-                <select
+                <Select
                   v-model="scheduleForm.backupSchedule.intervalHours"
+                  :options="[
+                    { value: 6, label: 'Every 6 hours' },
+                    { value: 12, label: 'Every 12 hours' },
+                    { value: 24, label: 'Every 24 hours' },
+                    { value: 48, label: 'Every 48 hours' },
+                    { value: 168, label: 'Weekly' }
+                  ]"
                   :aria-invalid="
                     scheduleForm.invalid('backupSchedule.intervalHours')
                   "
@@ -783,13 +791,7 @@ const providers = [
                       $event
                     )
                   "
-                >
-                  <option :value="6">Every 6 hours</option>
-                  <option :value="12">Every 12 hours</option>
-                  <option :value="24">Every 24 hours</option>
-                  <option :value="48">Every 48 hours</option>
-                  <option :value="168">Weekly</option>
-                </select>
+                />
                 <p
                   v-if="scheduleForm.errors['backupSchedule.intervalHours']"
                   class="mt-1 text-sm text-red-600 dark:text-red-400"
@@ -802,8 +804,14 @@ const providers = [
                   class="mb-1 block text-xs font-medium text-gray-500 dark:text-gray-400"
                   >Retention</label
                 >
-                <select
+                <Select
                   v-model="scheduleForm.backupSchedule.retentionCount"
+                  :options="[
+                    { value: 5, label: 'Keep last 5' },
+                    { value: 10, label: 'Keep last 10' },
+                    { value: 20, label: 'Keep last 20' },
+                    { value: 50, label: 'Keep last 50' }
+                  ]"
                   :aria-invalid="
                     scheduleForm.invalid('backupSchedule.retentionCount')
                   "
@@ -819,12 +827,7 @@ const providers = [
                       $event
                     )
                   "
-                >
-                  <option :value="5">Keep last 5</option>
-                  <option :value="10">Keep last 10</option>
-                  <option :value="20">Keep last 20</option>
-                  <option :value="50">Keep last 50</option>
-                </select>
+                />
                 <p
                   v-if="scheduleForm.errors['backupSchedule.retentionCount']"
                   class="mt-1 text-sm text-red-600 dark:text-red-400"

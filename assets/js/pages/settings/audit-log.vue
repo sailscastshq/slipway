@@ -3,6 +3,7 @@ import { Head, Link, router } from '@inertiajs/vue3'
 import { computed, inject, onBeforeUnmount, ref, watch } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
 import Pagination from '@/components/ui/pagination/Pagination.vue'
+import Select from '@/components/ui/select/Select.vue'
 
 defineOptions({
   layout: AppLayout
@@ -272,14 +273,15 @@ function shortHash(hash) {
             </label>
             <label>
               <span class="sr-only">Filter audit events</span>
-              <select
+              <Select
                 v-model="group"
+                :options="[
+                  { value: 'all', label: 'All events' },
+                  { value: 'helm', label: 'Helm' }
+                ]"
                 data-test="audit-group"
                 class="rounded-md border-0 bg-gray-50 py-2 pl-3 pr-8 text-sm text-gray-700 outline-none ring-1 ring-inset ring-gray-200 focus:ring-gray-400 dark:bg-gray-900 dark:text-gray-300 dark:ring-gray-800 dark:focus:ring-gray-600"
-              >
-                <option value="all">All events</option>
-                <option value="helm">Helm</option>
-              </select>
+              />
             </label>
           </div>
         </div>
