@@ -1,5 +1,5 @@
 <script setup>
-import Input from '@/components/ui/input/Input.vue'
+import Command from '@/components/ui/command/Command.vue'
 import {
   ref,
   computed,
@@ -15,16 +15,14 @@ import { useToast } from '@/composables/toast'
 import { fuzzySearch } from '@/lib/fuzzySearch'
 import { LOCAL_STORAGE_KEYS } from '@/lib/localStorageKeys'
 
-const { isOpen, history, register, unregister, getAll, execute, close } =
+const { isOpen, history, register, unregister, getAll, execute, open, close } =
   useCommandPalette()
 const toast = useToast()
 const toggleSidebar = inject('toggleSidebar')
 const sidebarCollapsed = inject('sidebarCollapsed')
 
 const query = ref('')
-const selectedIndex = ref(0)
-const inputRef = ref(null)
-const resultsRef = ref(null)
+const commandRef = ref(null)
 const mode = ref('root')
 const parentCommand = ref(null)
 
@@ -540,76 +538,37 @@ const results = computed(() => {
   return groups
 })
 
-const flatResults = computed(() => Object.values(results.value).flat())
-
 // ─── Keyboard navigation ─────────────────────────────────────────────
 
-function handleKeydown(e) {
-  // Global: toggle palette
+function handleGlobalKeydown(e) {
   if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
     e.preventDefault()
     if (isOpen.value) {
       close()
     } else {
-      isOpen.value = true
+      open()
     }
-    return
-  }
-
-  if (!isOpen.value) return
-
-  switch (e.key) {
-    case 'ArrowDown':
-      e.preventDefault()
-      selectedIndex.value = Math.min(
-        selectedIndex.value + 1,
-        flatResults.value.length - 1
-      )
-      scrollToSelected()
-      break
-
-    case 'ArrowUp':
-      e.preventDefault()
-      selectedIndex.value = Math.max(selectedIndex.value - 1, 0)
-      scrollToSelected()
-      break
-
-    case 'Enter':
-      e.preventDefault()
-      if (flatResults.value[selectedIndex.value]) {
-        selectCommand(flatResults.value[selectedIndex.value])
-      }
-      break
-
-    case 'Escape':
-      e.preventDefault()
-      if (mode.value === 'submenu') {
-        mode.value = 'root'
-        parentCommand.value = null
-        query.value = ''
-      } else {
-        close()
-      }
-      break
-
-    case 'Backspace':
-      if (!query.value && mode.value === 'submenu') {
-        mode.value = 'root'
-        parentCommand.value = null
-      }
-      break
   }
 }
 
-function scrollToSelected() {
-  nextTick(() => {
-    const container = resultsRef.value
-    if (!container) return
-    const selected = container.querySelector('[data-selected="true"]')
-    if (selected) {
-      selected.scrollIntoView({ block: 'nearest' })
-    }
-  })
+function handleCommandKeydown(event) {
+  if (event.key !== 'Escape' || event.isComposing || event.keyCode === 229) {
+    return
+  }
+
+  event.preventDefault()
+  event.stopPropagation()
+  if (mode.value === 'submenu') {
+    returnToRootMode()
+  } else {
+    close()
+  }
+}
+
+function handleCommandBack(event) {
+  if (mode.value !== 'submenu') return
+  event.preventDefault()
+  returnToRootMode()
 }
 
 function selectCommand(cmd) {
@@ -626,7 +585,6 @@ function selectCommand(cmd) {
     mode.value = 'submenu'
     parentCommand.value = cmd
     query.value = ''
-    selectedIndex.value = 0
   } else {
     query.value = ''
     mode.value = 'root'
@@ -640,25 +598,20 @@ function selectCommand(cmd) {
 watch(isOpen, (open) => {
   if (open) {
     query.value = ''
-    selectedIndex.value = 0
     mode.value = 'root'
     parentCommand.value = null
-    nextTick(() => inputRef.value?.focus())
+    nextTick(() => commandRef.value?.focus())
   }
-})
-
-watch(query, () => {
-  selectedIndex.value = 0
 })
 
 // ─── Lifecycle ───────────────────────────────────────────────────────
 
 onMounted(() => {
-  document.addEventListener('keydown', handleKeydown)
+  document.addEventListener('keydown', handleGlobalKeydown)
 })
 
 onUnmounted(() => {
-  document.removeEventListener('keydown', handleKeydown)
+  document.removeEventListener('keydown', handleGlobalKeydown)
 })
 
 // ─── Icons ───────────────────────────────────────────────────────────
@@ -750,18 +703,29 @@ const icons = computed(() => ({
           leave-to-class="opacity-0 scale-95 translate-y-2"
           appear
         >
-          <div
-            class="relative w-full max-w-lg rounded-xl border border-gray-200 bg-white shadow-2xl dark:border-gray-700 dark:bg-gray-900"
+          <Command
+            ref="commandRef"
+            :groups="results"
+            :query="query"
+            label="Slipway commands"
+            :placeholder="
+              mode === 'submenu'
+                ? parentCommand?.title + '...'
+                : 'Type a command or search...'
+            "
+            class="relative w-full max-w-lg rounded-xl border-gray-200 bg-white text-gray-950 shadow-2xl dark:border-gray-700 dark:bg-gray-900 dark:text-white [&_[data-slot=command-group-heading]]:text-gray-400 dark:[&_[data-slot=command-group-heading]]:text-gray-500 [&_[data-slot=command-input]:focus-visible]:outline-none [&_[data-slot=command-input]]:py-3.5 [&_[data-slot=command-input]]:text-sm [&_[data-slot=command-input]]:placeholder:text-gray-400 dark:[&_[data-slot=command-input]]:placeholder:text-gray-500 [&_[data-slot=command-item][data-destructive][data-highlighted]]:bg-red-50 dark:[&_[data-slot=command-item][data-destructive][data-highlighted]]:bg-red-950 [&_[data-slot=command-item][data-destructive]]:text-red-600 dark:[&_[data-slot=command-item][data-destructive]]:text-red-400 [&_[data-slot=command-item][data-highlighted]]:bg-gray-100 [&_[data-slot=command-item][data-highlighted]]:text-gray-900 dark:[&_[data-slot=command-item][data-highlighted]]:bg-gray-800 dark:[&_[data-slot=command-item][data-highlighted]]:text-white [&_[data-slot=command-item]]:rounded-lg [&_[data-slot=command-item]]:px-2.5 [&_[data-slot=command-item]]:text-gray-700 [&_[data-slot=command-item]]:transition-colors dark:[&_[data-slot=command-item]]:text-gray-300 [&_[data-slot=command-search]]:border-gray-100 dark:[&_[data-slot=command-search]]:border-gray-800"
+            @update:query="query = $event"
+            @select="selectCommand"
+            @keydown="handleCommandKeydown"
+            @back="handleCommandBack"
           >
-            <!-- Search input -->
-            <div
-              class="flex items-center border-b border-gray-100 px-4 dark:border-gray-800"
-            >
+            <template #prefix>
               <svg
-                class="h-4 w-4 shrink-0 text-gray-400"
+                class="mr-3 h-4 w-4 shrink-0 text-gray-400"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
+                aria-hidden="true"
               >
                 <path
                   stroke-linecap="round"
@@ -770,35 +734,23 @@ const icons = computed(() => ({
                   :d="icons.search"
                 />
               </svg>
-              <Input
-                ref="inputRef"
-                v-model="query"
-                type="text"
-                class="w-full bg-transparent px-3 py-3.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:text-white dark:placeholder-gray-500"
-                :placeholder="
-                  mode === 'submenu'
-                    ? parentCommand?.title + '...'
-                    : 'Type a command or search...'
-                "
-              />
+            </template>
+
+            <template #suffix>
               <kbd
                 class="hidden shrink-0 rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-400 dark:bg-gray-800 dark:text-gray-500 sm:inline"
               >
                 ESC
               </kbd>
-            </div>
+            </template>
 
-            <!-- Results -->
-            <div
-              ref="resultsRef"
-              class="max-h-72 overflow-y-auto overscroll-contain p-1.5"
-            >
-              <!-- Breadcrumb for submenu -->
+            <template #before>
               <div
                 v-if="mode === 'submenu'"
-                class="mb-1 flex items-center gap-1 px-2 py-1 text-xs text-gray-400 dark:text-gray-500"
+                class="mx-1.5 mt-1.5 flex items-center gap-1 px-2 py-1 text-xs text-gray-400 dark:text-gray-500"
               >
                 <button
+                  type="button"
                   @click="returnToRootMode"
                   class="hover:text-gray-600 dark:hover:text-gray-300"
                 >
@@ -821,155 +773,133 @@ const icons = computed(() => ({
                   parentCommand?.title
                 }}</span>
               </div>
+            </template>
 
-              <template v-for="(commands, group) in results" :key="group">
-                <div
-                  class="px-2 pb-1 pt-2 text-[11px] font-medium uppercase tracking-wider text-gray-400 dark:text-gray-500"
-                >
-                  {{ group }}
-                </div>
-                <button
-                  v-for="cmd in commands"
-                  :key="cmd.id"
-                  @click="selectCommand(cmd)"
-                  @mouseenter="selectedIndex = flatResults.indexOf(cmd)"
-                  :data-selected="flatResults.indexOf(cmd) === selectedIndex"
-                  :class="[
-                    'flex w-full items-center gap-3 rounded-lg px-2.5 py-2 text-left text-sm transition-colors',
-                    cmd.destructive
-                      ? flatResults.indexOf(cmd) === selectedIndex
-                        ? 'bg-red-50 text-red-600 dark:bg-red-950 dark:text-red-400'
-                        : 'text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/50'
-                      : flatResults.indexOf(cmd) === selectedIndex
-                      ? 'bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-white'
-                      : 'text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-800/50'
-                  ]"
-                >
-                  <span
-                    :class="[
-                      'flex h-7 w-7 shrink-0 items-center justify-center rounded-md',
-                      cmd.destructive
-                        ? 'bg-red-50 dark:bg-red-950'
-                        : 'bg-gray-100 dark:bg-gray-800'
-                    ]"
-                  >
-                    <svg
-                      v-if="typeof icons[cmd.icon] === 'object'"
-                      :class="[
-                        'h-3.5 w-3.5',
-                        cmd.destructive
-                          ? 'text-red-500 dark:text-red-400'
-                          : 'text-gray-500 dark:text-gray-400'
-                      ]"
-                      fill="none"
-                      stroke="currentColor"
-                      :viewBox="icons[cmd.icon].viewBox"
-                    >
-                      <path
-                        v-for="(d, i) in icons[cmd.icon].paths"
-                        :key="i"
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        stroke-width="1"
-                        :d="d"
-                      />
-                    </svg>
-                    <svg
-                      v-else
-                      :class="[
-                        'h-3.5 w-3.5',
-                        cmd.destructive
-                          ? 'text-red-500 dark:text-red-400'
-                          : 'text-gray-500 dark:text-gray-400'
-                      ]"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        stroke-width="1.5"
-                        :d="icons[cmd.icon] || icons.folder"
-                      />
-                    </svg>
-                  </span>
-                  <span class="flex min-w-0 flex-1 flex-col">
-                    <span class="truncate">{{ cmd.title }}</span>
-                    <span
-                      v-if="cmd.subtitle"
-                      class="truncate text-xs text-gray-400 dark:text-gray-500"
-                      >{{ cmd.subtitle }}</span
-                    >
-                  </span>
-                  <svg
-                    v-if="cmd.children"
-                    class="h-3.5 w-3.5 shrink-0 text-gray-400"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="2"
-                      :d="icons.chevronRight"
-                    />
-                  </svg>
-                </button>
-              </template>
-
-              <!-- Empty state -->
-              <div
-                v-if="!flatResults.length && query"
-                class="py-10 text-center"
+            <template #item="{ command: cmd }">
+              <span
+                :class="[
+                  'flex h-7 w-7 shrink-0 items-center justify-center rounded-md',
+                  cmd.destructive
+                    ? 'bg-red-50 dark:bg-red-950'
+                    : 'bg-gray-100 dark:bg-gray-800'
+                ]"
               >
                 <svg
-                  class="mx-auto h-6 w-6 text-gray-300 dark:text-gray-600"
+                  v-if="typeof icons[cmd.icon] === 'object'"
+                  :class="[
+                    'h-3.5 w-3.5',
+                    cmd.destructive
+                      ? 'text-red-500 dark:text-red-400'
+                      : 'text-gray-500 dark:text-gray-400'
+                  ]"
+                  fill="none"
+                  stroke="currentColor"
+                  :viewBox="icons[cmd.icon].viewBox"
+                  aria-hidden="true"
+                >
+                  <path
+                    v-for="(d, i) in icons[cmd.icon].paths"
+                    :key="i"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="1"
+                    :d="d"
+                  />
+                </svg>
+                <svg
+                  v-else
+                  :class="[
+                    'h-3.5 w-3.5',
+                    cmd.destructive
+                      ? 'text-red-500 dark:text-red-400'
+                      : 'text-gray-500 dark:text-gray-400'
+                  ]"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
+                  aria-hidden="true"
                 >
                   <path
                     stroke-linecap="round"
                     stroke-linejoin="round"
                     stroke-width="1.5"
-                    :d="icons.search"
+                    :d="icons[cmd.icon] || icons.folder"
                   />
                 </svg>
-                <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">
-                  No results for "{{ query }}"
-                </p>
-              </div>
-            </div>
+              </span>
+              <span class="flex min-w-0 flex-1 flex-col">
+                <span class="truncate">{{ cmd.title }}</span>
+                <span
+                  v-if="cmd.subtitle"
+                  class="truncate text-xs text-gray-400 dark:text-gray-500"
+                  >{{ cmd.subtitle }}</span
+                >
+              </span>
+              <svg
+                v-if="cmd.children"
+                class="h-3.5 w-3.5 shrink-0 text-gray-400"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  :d="icons.chevronRight"
+                />
+              </svg>
+            </template>
 
-            <!-- Footer -->
-            <div
-              class="flex items-center gap-4 border-t border-gray-100 px-4 py-2 text-[11px] text-gray-400 dark:border-gray-800 dark:text-gray-500"
-            >
-              <span class="flex items-center gap-1">
-                <kbd
-                  class="rounded bg-gray-100 px-1 py-0.5 font-mono dark:bg-gray-800"
-                  >&uarr;&darr;</kbd
-                >
-                navigate
-              </span>
-              <span class="flex items-center gap-1">
-                <kbd
-                  class="rounded bg-gray-100 px-1 py-0.5 font-mono dark:bg-gray-800"
-                  >&crarr;</kbd
-                >
-                select
-              </span>
-              <span class="flex items-center gap-1">
-                <kbd
-                  class="rounded bg-gray-100 px-1 py-0.5 font-mono dark:bg-gray-800"
-                  >esc</kbd
-                >
-                close
-              </span>
-            </div>
-          </div>
+            <template #empty>
+              <svg
+                class="mx-auto h-6 w-6 text-gray-300 dark:text-gray-600"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="1.5"
+                  :d="icons.search"
+                />
+              </svg>
+              <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">
+                No results for "{{ query }}"
+              </p>
+            </template>
+
+            <template #footer>
+              <div
+                class="flex items-center gap-4 border-t border-gray-100 px-4 py-2 text-[11px] text-gray-400 dark:border-gray-800 dark:text-gray-500"
+              >
+                <span class="flex items-center gap-1">
+                  <kbd
+                    class="rounded bg-gray-100 px-1 py-0.5 font-mono dark:bg-gray-800"
+                    >&uarr;&darr;</kbd
+                  >
+                  navigate
+                </span>
+                <span class="flex items-center gap-1">
+                  <kbd
+                    class="rounded bg-gray-100 px-1 py-0.5 font-mono dark:bg-gray-800"
+                    >&crarr;</kbd
+                  >
+                  select
+                </span>
+                <span class="flex items-center gap-1">
+                  <kbd
+                    class="rounded bg-gray-100 px-1 py-0.5 font-mono dark:bg-gray-800"
+                    >esc</kbd
+                  >
+                  close
+                </span>
+              </div>
+            </template>
+          </Command>
         </Transition>
       </div>
     </Transition>
