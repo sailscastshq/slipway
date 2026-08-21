@@ -1,4 +1,4 @@
-import { ref, provide, inject } from 'vue'
+import { ref, provide, inject, nextTick } from 'vue'
 import { LOCAL_STORAGE_KEYS } from '@/lib/localStorageKeys'
 
 const COMMAND_PALETTE_KEY = Symbol('commandPalette')
@@ -26,6 +26,7 @@ function saveHistory(history) {
 export function createCommandPalette() {
   const isOpen = ref(false)
   const history = ref(loadHistory())
+  let returnFocusTo = null
 
   function register(command) {
     commands.set(command.id, {
@@ -52,23 +53,33 @@ export function createCommandPalette() {
     ].slice(0, 10)
     saveHistory(history.value)
 
-    // Close palette
-    isOpen.value = false
+    close()
 
     // Run the action
     return command.action()
   }
 
-  function open() {
+  function open(trigger) {
+    const activeElement = trigger || document.activeElement
+    returnFocusTo =
+      activeElement instanceof HTMLElement && activeElement !== document.body
+        ? activeElement
+        : null
     isOpen.value = true
   }
 
   function close() {
     isOpen.value = false
+    const focusTarget = returnFocusTo
+    returnFocusTo = null
+    nextTick(() => {
+      if (focusTarget?.isConnected) focusTarget.focus()
+    })
   }
 
   function toggle() {
-    isOpen.value = !isOpen.value
+    if (isOpen.value) close()
+    else open()
   }
 
   const palette = {
