@@ -1,0 +1,10 @@
+<%- include('error', {
+  status: 419,
+  title: 'Session expired',
+  headline: 'Your session has expired',
+  message: 'Sign in again to continue safely from where you left off.',
+  actions: [
+    { label: 'Sign in again', href: '/login' },
+    { label: 'Return to Slipway', href: '/' }
+  ]
+}) %>

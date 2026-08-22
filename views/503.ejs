@@ -1,0 +1,10 @@
+<%- include('error', {
+  status: 503,
+  title: 'Service unavailable',
+  headline: 'Slipway is temporarily unavailable',
+  message: 'We are finishing some work behind the scenes. Try again in a moment.',
+  actions: [
+    { label: 'Try again', href: '' },
+    { label: 'Return to Slipway', href: '/' }
+  ]
+}) %>

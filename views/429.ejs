@@ -1,0 +1,10 @@
+<%- include('error', {
+  status: 429,
+  title: 'Too many requests',
+  headline: 'Give it a moment',
+  message: 'Slipway is receiving too many requests from this connection. Wait a minute, then try again.',
+  actions: [
+    { label: 'Try again', href: '' },
+    { label: 'Return to Slipway', href: '/' }
+  ]
+}) %>
