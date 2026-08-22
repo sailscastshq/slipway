@@ -7,5 +7,6 @@
  */
 
 module.exports.inertia = {
-  errorPage: false
+  errorPage: 'errors/status',
+  errorStatuses: [403, 404, 419, 429, 500, 503]
 }

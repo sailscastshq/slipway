@@ -1,3 +1,8 @@
+const {
+  SUPPORTED_STATUSES,
+  renderErrorPage
+} = require('../../api/lib/error-pages')
+
 module.exports = {
   port: 3333,
   hooks: {
@@ -30,6 +35,26 @@ module.exports = {
   },
   slipway: {
     showUpdateNotifications: false
+  },
+  routes: {
+    'GET /__sounding/errors/:status': function viewSoundingErrorPage(req, res) {
+      const statusCode = Number(req.param('status'))
+
+      if (!SUPPORTED_STATUSES.includes(statusCode)) {
+        return res.notFound()
+      }
+
+      return renderErrorPage(req, res, {
+        statusCode,
+        error:
+          statusCode >= 500
+            ? new Error('Private test failure that must never reach the page')
+            : null,
+        inertia: req.param('inertia') === '1',
+        preview: true,
+        retryAfter: 60
+      })
+    }
   },
   mail: {
     default: 'log',

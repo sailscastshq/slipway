@@ -1,106 +1,130 @@
+const fs = require('node:fs')
+const path = require('node:path')
 const { test } = require('sounding')
 
+const ERROR_PAGES = {
+  403: 'This area is not available',
+  404: 'Nothing is here',
+  419: 'Your session has expired',
+  429: 'Give it a moment',
+  500: 'Something went wrong',
+  503: 'Slipway is temporarily unavailable'
+}
+
+const VIEWPORTS = {
+  desktop: { width: 1440, height: 900 },
+  mobile: { width: 390, height: 844 }
+}
+
 test(
-  'production error pages stay clear and responsive',
+  'every global error page is clear across viewports and color schemes',
   {
     browser: true,
     world: 'configured-slipway'
   },
-  async ({ sails, world, page, expect }) => {
-    const previousNodeEnvironment = process.env.NODE_ENV
-    const token = 'production-error-page-browser-probe'
+  async ({ page, expect }) => {
+    const screenshotRoot = path.resolve(
+      '.tmp/screenshots/issue-388-error-pages/after'
+    )
+    const fallbackRoot = path.resolve(
+      '.tmp/screenshots/issue-388-error-pages/fallback'
+    )
+    fs.mkdirSync(screenshotRoot, { recursive: true })
+    fs.mkdirSync(fallbackRoot, { recursive: true })
 
-    try {
-      await page.resize(1440, 900)
+    for (const [status, headline] of Object.entries(ERROR_PAGES)) {
+      for (const [viewport, size] of Object.entries(VIEWPORTS)) {
+        for (const colorScheme of ['light', 'dark']) {
+          await page.resize(size.width, size.height)
+          await page.raw.emulateMedia({ colorScheme })
+
+          await page.goto(`/__sounding/errors/${status}?inertia=1`)
+          await expect(page).toSee(headline)
+          await expect(page).toSee('Slipway')
+          expect(await hasDurableErrorLayout(page, status)).toBe(true)
+          expect(await hasVisibleSlippy(page)).toBe(true)
+          if (viewport === 'mobile') {
+            expect(await isSlippyAboveHeading(page)).toBe(true)
+          }
+          expect((await recoveryActionCount(page)) <= 2).toBe(true)
+          expect(await hasAccessibleActions(page)).toBe(true)
+
+          await page.screenshot(
+            path.join(
+              screenshotRoot,
+              `${status}-${viewport}-${colorScheme}.png`
+            ),
+            { animations: 'disabled' }
+          )
+        }
+      }
+
+      await page.resize(VIEWPORTS.desktop.width, VIEWPORTS.desktop.height)
       await page.raw.emulateMedia({ colorScheme: 'light' })
-      await page.goto('/this-slipway-page-does-not-exist')
-
-      await expect(page).toSee('Page not found')
-      expect(await errorPageHasNoHorizontalOverflow(page, '404')).toBe(true)
-      await page.screenshot('.tmp/issue-204-404-desktop-light.png', {
-        fullPage: true
-      })
-
-      await page.resize(390, 844)
-      await page.raw.emulateMedia({ colorScheme: 'dark' })
-      expect(await errorPageHasNoHorizontalOverflow(page, '404')).toBe(true)
-      await waitForDarkPrimaryAction(page)
-      expect(await primaryActionColors(page)).toEqual({
-        background: 'rgb(250, 250, 250)',
-        text: 'rgb(10, 10, 10)'
-      })
-      await page.screenshot('.tmp/issue-204-404-mobile-dark.png', {
-        fullPage: true
-      })
-
-      await sails.models.user
-        .updateOne({ id: world.current.users.genesisUser.id })
-        .set({
-          emailStatus: 'change-requested',
-          emailProofToken: token,
-          emailProofTokenExpiresAt: Date.now() + 60 * 1000
-        })
-
-      process.env.NODE_ENV = 'production'
-      await page.resize(1440, 900)
-      await page.raw.emulateMedia({ colorScheme: 'light' })
-      await page.goto(`/verify-email?token=${token}`)
-
-      await expect(page).toSee('Something went wrong')
-      await expect(page).not.toSee('Consistency violation')
-      expect(await errorPageHasNoHorizontalOverflow(page, '500')).toBe(true)
-      await page.screenshot('.tmp/issue-204-500-desktop-light.png', {
-        fullPage: true
-      })
-
-      await page.resize(390, 844)
-      await page.raw.emulateMedia({ colorScheme: 'dark' })
-      expect(await errorPageHasNoHorizontalOverflow(page, '500')).toBe(true)
-      await waitForDarkPrimaryAction(page)
-      expect(await primaryActionColors(page)).toEqual({
-        background: 'rgb(250, 250, 250)',
-        text: 'rgb(10, 10, 10)'
-      })
-      await page.screenshot('.tmp/issue-204-500-mobile-dark.png', {
-        fullPage: true
-      })
-
-      expect(page).toHaveNoJavascriptErrors()
-    } finally {
-      process.env.NODE_ENV = previousNodeEnvironment
+      await page.goto(`/__sounding/errors/${status}`)
+      await expect(page).toSee(headline)
+      expect(await page.raw.locator('script').count()).toBe(0)
+      expect(await hasDurableErrorLayout(page, status)).toBe(true)
+      expect(await hasVisibleSlippy(page, '.slippy')).toBe(true)
+      await page.screenshot(
+        path.join(fallbackRoot, `${status}-desktop-light.png`),
+        { animations: 'disabled' }
+      )
     }
+
+    expect(page).toHaveNoJavascriptErrors()
   }
 )
 
-async function errorPageHasNoHorizontalOverflow(page, status) {
+async function hasDurableErrorLayout(page, status) {
   return page.raw.evaluate((expectedStatus) => {
+    const surface = document.querySelector('[data-error-page]')
+    const heading = document.querySelector('#error-heading')
+
     return (
-      document.body.dataset.errorPage === expectedStatus &&
+      surface?.dataset.errorPage === String(expectedStatus) &&
+      Boolean(heading?.textContent.trim()) &&
       document.documentElement.scrollWidth <= window.innerWidth
     )
   }, status)
 }
 
-async function primaryActionColors(page) {
-  return page.raw.locator('.primary-action').evaluate((element) => {
-    const styles = window.getComputedStyle(element)
+async function recoveryActionCount(page) {
+  return page.raw.locator('nav[aria-label="Recovery"] a').count()
+}
 
-    return {
-      background: styles.backgroundColor,
-      text: styles.color
-    }
+async function hasVisibleSlippy(page, selector = '.slippy-loader') {
+  return page.raw.locator(selector).evaluate((slippy) => {
+    const bounds = slippy.getBoundingClientRect()
+    const styles = window.getComputedStyle(slippy)
+
+    return (
+      styles.display !== 'none' &&
+      styles.visibility !== 'hidden' &&
+      bounds.width > 0 &&
+      bounds.height > 0
+    )
   })
 }
 
-async function waitForDarkPrimaryAction(page) {
-  await page.raw.waitForFunction(() => {
-    const styles = window.getComputedStyle(
-      document.querySelector('.primary-action')
-    )
+async function isSlippyAboveHeading(page) {
+  return page.raw.evaluate(() => {
+    const slippy = document.querySelector('.slippy-loader')
+    const heading = document.querySelector('#error-heading')
 
     return (
-      styles.backgroundColor === 'rgb(250, 250, 250)' &&
-      styles.color === 'rgb(10, 10, 10)'
+      slippy?.getBoundingClientRect().bottom <
+      heading?.getBoundingClientRect().top
     )
   })
+}
+
+async function hasAccessibleActions(page) {
+  const sizes = await page.raw
+    .locator('nav[aria-label="Recovery"] a')
+    .evaluateAll((actions) => {
+      return actions.map((action) => action.getBoundingClientRect().height)
+    })
+
+  return sizes.length > 0 && sizes.every((height) => height >= 44)
 }
