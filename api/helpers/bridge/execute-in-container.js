@@ -229,6 +229,7 @@ const BOOT_ERROR_MARKER = ${JSON.stringify(BOOT_ERROR_MARKER)};
     sailsApp = require('sails');
     await new Promise((resolve, reject) => {
       sailsApp.load({
+        models: { migrate: 'safe' },
         hooks: {
           http: false,
           views: false,

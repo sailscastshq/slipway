@@ -509,9 +509,14 @@ async function helmSubprocessMain(options, createQueryTracer) {
       await new Promise((resolve, reject) => {
         sailsApp.load(
           {
-            environment: 'console',
+            // Keep the datastore and other environment-specific config from the
+            // app process that owns this container.  Not every app defines a
+            // separate `console` environment.
             bootstrap(done) {
               done()
+            },
+            models: {
+              migrate: 'safe'
             },
             hooks: {
               http: false,

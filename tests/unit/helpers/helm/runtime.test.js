@@ -44,6 +44,19 @@ await Creator.find({
   expect(result.outputBytes).toBe(Buffer.byteLength(result.output))
 })
 
+test('Helm inherits the running app environment without allowing automigrations', async ({
+  expect
+}) => {
+  const prepared = helmRuntime.prepareSource('BusinessListing.count()')
+  const runner = helmRuntime.buildRunnerSource({
+    preparedSource: prepared.source,
+    finalExpression: prepared.finalExpression
+  })
+
+  expect(runner.includes("environment: 'console'")).toBe(false)
+  expect(runner).toContain("migrate: 'safe'")
+})
+
 test('Helm captures parser-backed inline inspections without changing expression values', async ({
   sails,
   expect
