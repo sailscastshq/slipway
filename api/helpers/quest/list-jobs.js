@@ -138,7 +138,7 @@ function buildListJobsCode() {
     await new Promise((resolve, reject) => {
       sailsApp.load({
         environment: 'console',
-        environment: 'console',
+        models: { migrate: 'safe' },
         log: { level: 'silent' }
       }, (err) => {
         if (err) reject(err);

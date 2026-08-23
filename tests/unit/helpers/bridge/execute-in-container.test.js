@@ -44,6 +44,7 @@ test('Bridge reuses one production worker for warm operations', async ({
       '-e'
     ])
     expect(argumentsPassedToDocker[7]).toContain('sailsApp.load')
+    expect(argumentsPassedToDocker[7]).toContain("migrate: 'safe'")
     expect(argumentsPassedToDocker[7]).toContain('http: false')
   } finally {
     restore()

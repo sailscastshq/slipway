@@ -31,6 +31,7 @@ module.exports = {
     await new Promise((resolve, reject) => {
       sailsApp.load({
         environment: 'console',
+        models: { migrate: 'safe' },
         log: { level: 'warn' }
       }, (err) => {
         if (err) reject(err);

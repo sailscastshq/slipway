@@ -45,6 +45,7 @@ function buildIntrospectionCode() {
     sailsApp = require('sails');
     await new Promise((resolve, reject) => {
       sailsApp.load({
+        models: { migrate: 'safe' },
         hooks: { http: false, views: false, sockets: false, pubsub: false, grunt: false },
         log: { level: 'warn' }
       }, (err) => {
