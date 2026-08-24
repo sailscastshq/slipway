@@ -42,6 +42,12 @@ test(
           await expect(page).toSee(headline)
           await expect(page).toSee('Slipway')
           expect(await hasDurableErrorLayout(page, status)).toBe(true)
+          await expect(
+            page.raw.locator('[data-slot="error-state"]')
+          ).toHaveCount(1)
+          await expect(
+            page.raw.locator('[data-slot="error-state"]')
+          ).not.toHaveAttribute('role', 'alert')
           expect(await hasVisibleSlippy(page)).toBe(true)
           if (viewport === 'mobile') {
             expect(await isSlippyAboveHeading(page)).toBe(true)

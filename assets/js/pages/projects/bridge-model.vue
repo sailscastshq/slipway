@@ -20,6 +20,7 @@ import RowActions from '@/components/ui/row-actions/RowActions.vue'
 import BulkActions from '@/components/ui/bulk-actions/BulkActions.vue'
 import EmptyState from '@/components/ui/empty-state/EmptyState.vue'
 import LoadingState from '@/components/ui/loading-state/LoadingState.vue'
+import ErrorState from '@/components/ui/error-state/ErrorState.vue'
 import Spinner from '@/components/SlipwaySpinner.vue'
 import { useDataTableQuery } from '@/composables/useDataTableQuery'
 
@@ -679,30 +680,37 @@ function createUrl() {
         />
 
         <!-- Error -->
-        <div v-if="error" class="flex h-full items-center justify-center">
-          <div class="text-center">
-            <div
-              class="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-red-50 dark:bg-red-950/30"
+        <ErrorState
+          v-if="error"
+          as="section"
+          aria-labelledby="bridge-records-error-title"
+          class="h-full gap-0 p-0"
+        >
+          <div
+            class="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-red-50 dark:bg-red-950/30"
+          >
+            <svg
+              class="h-8 w-8 text-red-500 dark:text-red-400"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+              aria-hidden="true"
             >
-              <svg
-                class="h-8 w-8 text-red-500 dark:text-red-400"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="1.5"
-                  d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-                />
-              </svg>
-            </div>
-            <p class="mt-4 text-sm text-red-600 dark:text-red-400">
-              {{ error }}
-            </p>
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="1.5"
+                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+              />
+            </svg>
           </div>
-        </div>
+          <h2 id="bridge-records-error-title" class="sr-only">
+            Records could not load
+          </h2>
+          <p class="mt-4 text-sm text-red-600 dark:text-red-400">
+            {{ error }}
+          </p>
+        </ErrorState>
 
         <!-- Table -->
         <DataTable

@@ -10,6 +10,7 @@ import BridgeCollectionManager from '@/components/bridge/BridgeCollectionManager
 import ActionMenu from '@/components/ActionMenu.vue'
 import BridgeActionDialog from '@/components/bridge/BridgeActionDialog.vue'
 import BridgePageHeader from '@/components/bridge/BridgePageHeader.vue'
+import ErrorState from '@/components/ui/error-state/ErrorState.vue'
 
 defineOptions({
   layout: BridgePageLayout
@@ -412,28 +413,35 @@ function relationshipMutationBaseUrl(relationship) {
     <!-- Content -->
     <div class="flex-1 overflow-y-auto bg-gray-50 dark:bg-gray-950">
       <!-- Error -->
-      <div v-if="error" class="flex h-full items-center justify-center">
-        <div class="text-center">
-          <div
-            class="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-red-50 dark:bg-red-950/30"
+      <ErrorState
+        v-if="error"
+        as="section"
+        aria-labelledby="bridge-record-error-title"
+        class="h-full gap-0 p-0"
+      >
+        <div
+          class="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-red-50 dark:bg-red-950/30"
+        >
+          <svg
+            class="h-8 w-8 text-red-500 dark:text-red-400"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+            aria-hidden="true"
           >
-            <svg
-              class="h-8 w-8 text-red-500 dark:text-red-400"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="1.5"
-                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-              />
-            </svg>
-          </div>
-          <p class="mt-4 text-sm text-red-600 dark:text-red-400">{{ error }}</p>
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1.5"
+              d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+            />
+          </svg>
         </div>
-      </div>
+        <h1 id="bridge-record-error-title" class="sr-only">
+          This record could not load
+        </h1>
+        <p class="mt-4 text-sm text-red-600 dark:text-red-400">{{ error }}</p>
+      </ErrorState>
 
       <!-- Record detail -->
       <div v-else-if="record && modelMeta" class="p-4 sm:p-6">

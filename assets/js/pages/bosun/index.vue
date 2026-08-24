@@ -25,6 +25,7 @@ import { highlightJSON } from '@/lib/highlightJSON'
 import { formatHelmError, helmEditorDiagnostic } from '@/lib/helmResult'
 import Spinner from '@/components/SlipwaySpinner.vue'
 import LoadingState from '@/components/ui/loading-state/LoadingState.vue'
+import ErrorState from '@/components/ui/error-state/ErrorState.vue'
 import LogViewer from '@/components/LogViewer.vue'
 import { cancelHelmExecution, cancelledHelmResult } from '@/lib/helmExecution'
 
@@ -1090,13 +1091,19 @@ onUnmounted(() => {
         <template v-if="consoleMode === 'sql'">
           <!-- Error -->
           <div v-if="consoleError" class="p-4">
-            <div
-              class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 dark:border-red-900/50 dark:bg-red-950/30"
+            <ErrorState
+              as="section"
+              role="alert"
+              aria-labelledby="bosun-query-error-title"
+              class="min-h-0 items-start gap-0 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-left dark:border-red-900/50 dark:bg-red-950/30"
             >
+              <h2 id="bosun-query-error-title" class="sr-only">
+                SQL query failed
+              </h2>
               <p class="font-mono text-sm text-red-600 dark:text-red-400">
                 {{ consoleError }}
               </p>
-            </div>
+            </ErrorState>
           </div>
 
           <!-- Results table/json -->
@@ -1796,17 +1803,30 @@ onUnmounted(() => {
             >
           </LoadingState>
 
-          <div
+          <ErrorState
             v-else-if="diffError"
-            class="rounded-lg border border-red-200 bg-red-50 px-5 py-4 dark:border-red-900/50 dark:bg-red-950/30"
+            as="section"
+            role="alert"
+            aria-labelledby="bosun-diff-error-title"
+            class="min-h-0 items-start gap-0 rounded-lg border border-red-200 bg-red-50 px-5 py-4 text-left dark:border-red-900/50 dark:bg-red-950/30"
           >
-            <p class="text-sm font-medium text-red-700 dark:text-red-300">
+            <h2
+              id="bosun-diff-error-title"
+              class="text-sm font-medium text-red-700 dark:text-red-300"
+            >
               Migrate diff failed
-            </p>
+            </h2>
             <p class="mt-1 text-sm text-red-600 dark:text-red-400">
               {{ diffError }}
             </p>
-          </div>
+            <button
+              type="button"
+              class="mt-3 cursor-pointer rounded-md bg-red-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-600 focus-visible:outline-2 focus-visible:outline-offset-2 dark:bg-red-300 dark:text-red-950 dark:hover:bg-red-200"
+              @click="fetchDiff"
+            >
+              Try again
+            </button>
+          </ErrorState>
 
           <div
             v-else-if="diff?.modelCount === 0"

@@ -3,6 +3,7 @@ import { Head } from '@inertiajs/vue3'
 import { computed } from 'vue'
 import SlipwayLogo from '@/components/SlipwayLogo.vue'
 import SlippyLoader from '@/components/SlippyLoader.vue'
+import ErrorState from '@/components/ui/error-state/ErrorState.vue'
 
 const FALLBACK_PAGES = {
   403: {
@@ -104,7 +105,11 @@ const page = computed(() => {
     <main
       class="mx-auto flex w-full max-w-6xl flex-1 flex-col justify-center gap-10 px-5 py-12 sm:px-8 lg:grid lg:grid-cols-[minmax(0,1fr)_17rem] lg:items-center lg:gap-24 lg:py-16"
     >
-      <section aria-labelledby="error-heading" class="max-w-2xl">
+      <ErrorState
+        as="section"
+        aria-labelledby="error-heading"
+        class="min-h-0 max-w-2xl items-start gap-0 p-0 text-left"
+      >
         <p
           class="font-mono text-sm font-semibold tabular-nums tracking-[0.14em] text-gray-400 dark:text-gray-500"
         >
@@ -140,7 +145,7 @@ const page = computed(() => {
             {{ action.label }}
           </a>
         </nav>
-      </section>
+      </ErrorState>
 
       <SlippyLoader
         class="text-brand dark:text-brand-400 order-first h-14 w-14 shrink-0 self-center lg:order-none lg:h-24 lg:w-24 lg:self-auto lg:justify-self-center"

@@ -4,6 +4,7 @@ import { Link, Head, router, useForm } from '@inertiajs/vue3'
 import { inject, ref, onMounted, onUnmounted } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
 import Breadcrumb from '@/components/ui/breadcrumb/Breadcrumb.vue'
+import ErrorState from '@/components/ui/error-state/ErrorState.vue'
 import { usePrecognitionValidation } from '@/composables/precognition'
 
 defineOptions({
@@ -304,20 +305,27 @@ function refresh() {
         </div>
 
         <!-- Error -->
-        <div
+        <ErrorState
           v-else-if="collectionsError"
-          class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 dark:border-red-900/50 dark:bg-red-950/20"
+          as="section"
+          aria-labelledby="content-collections-error-title"
+          data-test="content-collections-error"
+          class="min-h-0 items-start gap-0 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-left dark:border-red-900/50 dark:bg-red-950/20"
         >
+          <h2 id="content-collections-error-title" class="sr-only">
+            Content collections could not load
+          </h2>
           <p class="text-sm text-red-700 dark:text-red-400">
             {{ collectionsError }}
           </p>
           <button
+            type="button"
+            class="mt-2 cursor-pointer text-sm text-red-600 underline hover:text-red-500 dark:text-red-400"
             @click="refresh"
-            class="mt-2 text-sm text-red-600 underline hover:text-red-500 dark:text-red-400"
           >
             Try again
           </button>
-        </div>
+        </ErrorState>
 
         <!-- Collections -->
         <div v-else-if="collections.length > 0" class="space-y-6">

@@ -103,7 +103,9 @@ module.exports = {
           }
         }
       } catch (err) {
-        collectionsError = err.message
+        sails.log.error('Could not load content collections', err)
+        collectionsError =
+          'Slipway could not read this app’s content collections.'
       }
     }
 

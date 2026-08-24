@@ -7,6 +7,7 @@ import BridgeDashboard from '@/components/bridge/BridgeDashboard.vue'
 import BridgePageHeader from '@/components/bridge/BridgePageHeader.vue'
 import Select from '@/components/ui/select/Select.vue'
 import Tooltip from '@/components/ui/tooltip/Tooltip.vue'
+import ErrorState from '@/components/ui/error-state/ErrorState.vue'
 
 defineOptions({
   layout: BridgePageLayout
@@ -179,55 +180,62 @@ function switchDashboard(id) {
       </div>
 
       <!-- Error -->
-      <div
+      <ErrorState
         v-else-if="modelsError"
-        class="flex h-full items-center justify-center"
+        as="section"
+        aria-labelledby="bridge-models-error-title"
+        data-test="bridge-models-error"
+        class="h-full gap-0 p-0"
       >
-        <div class="text-center">
-          <div
-            class="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-red-50 dark:bg-red-950/30"
+        <div
+          class="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-red-50 dark:bg-red-950/30"
+        >
+          <svg
+            class="h-8 w-8 text-red-500 dark:text-red-400"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+            aria-hidden="true"
           >
-            <svg
-              class="h-8 w-8 text-red-500 dark:text-red-400"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="1.5"
-                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-              />
-            </svg>
-          </div>
-          <h3 class="mt-4 text-sm font-medium text-gray-900 dark:text-white">
-            Failed to load models
-          </h3>
-          <p class="mt-1 max-w-sm text-sm text-gray-500 dark:text-gray-400">
-            {{ modelsError }}
-          </p>
-          <button
-            @click="refresh"
-            class="mt-4 inline-flex items-center gap-1.5 rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-800 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
-          >
-            <svg
-              class="h-4 w-4"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-              />
-            </svg>
-            Retry
-          </button>
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1.5"
+              d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+            />
+          </svg>
         </div>
-      </div>
+        <h2
+          id="bridge-models-error-title"
+          class="mt-4 text-sm font-medium text-gray-900 dark:text-white"
+        >
+          Failed to load models
+        </h2>
+        <p class="mt-1 max-w-sm text-sm text-gray-500 dark:text-gray-400">
+          {{ modelsError }}
+        </p>
+        <button
+          type="button"
+          class="mt-4 inline-flex cursor-pointer items-center gap-1.5 rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-800 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
+          @click="refresh"
+        >
+          <svg
+            class="h-4 w-4"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+            aria-hidden="true"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+            />
+          </svg>
+          Retry
+        </button>
+      </ErrorState>
 
       <!-- No models -->
       <div
