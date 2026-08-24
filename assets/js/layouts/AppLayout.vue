@@ -1,6 +1,6 @@
 <script setup>
 import { Link, usePage, router } from '@inertiajs/vue3'
-import { computed, ref, provide, onMounted, onUnmounted } from 'vue'
+import { computed, ref, provide, onMounted, onUnmounted, watch } from 'vue'
 import { useEventSource } from '@/composables/sse'
 import { createDeploymentFaviconManager } from '@/lib/deployment-favicon.mjs'
 import ToastContainer from '@/components/ToastContainer.vue'
@@ -11,6 +11,8 @@ import ServiceActionToast from '@/components/ServiceActionToast.vue'
 import CommandPalette from '@/components/CommandPalette.vue'
 import Avatar from '@/components/ui/avatar/Avatar.vue'
 import Menu from '@/components/ui/menu/Menu.vue'
+import Sheet from '@/components/ui/sheet/Sheet.vue'
+import Sidebar from '@/components/ui/sidebar/Sidebar.vue'
 import { createToast } from '@/composables/toast'
 import { useFlashToast } from '@/composables/flash-toast'
 import {
@@ -50,27 +52,53 @@ const isActive = (path) => {
 
 // Mobile menu state
 const mobileMenuOpen = ref(false)
+const mobileSheet = ref()
+let desktopMediaQuery
 
-const toggleMobileMenu = () => {
-  mobileMenuOpen.value = !mobileMenuOpen.value
+const toggleMobileMenu = (event) => {
+  if (mobileMenuOpen.value) {
+    mobileSheet.value?.close()
+    return
+  }
+
+  const invoker = event?.currentTarget ?? event
+  if (mobileSheet.value) mobileSheet.value.showModal(invoker)
+  else mobileMenuOpen.value = true
 }
 
 const closeMobileMenu = () => {
-  mobileMenuOpen.value = false
+  if (mobileSheet.value) mobileSheet.value.close()
+  else mobileMenuOpen.value = false
 }
 
-// Desktop sidebar collapsed state (persisted in localStorage)
-const sidebarCollapsed = ref(false)
+function handleMobileNavigation(event) {
+  if (event.target.closest('a')) closeMobileMenu()
+}
 
-const toggleSidebar = () => {
-  sidebarCollapsed.value = !sidebarCollapsed.value
-  localStorage.setItem(
+function handleDesktopViewport(event) {
+  if (event.matches) closeMobileMenu()
+}
+
+function legacySidebarDefault() {
+  if (typeof window === 'undefined') return true
+  const saved = readLocalStorageValue(
     LOCAL_STORAGE_KEYS.sidebarCollapsed,
-    String(sidebarCollapsed.value)
+    LEGACY_LOCAL_STORAGE_KEYS.sidebarCollapsed
   )
+  return saved !== 'true'
 }
 
-// Provide toggle functions to child components
+// Preserve the established page contract while Klean owns the durable state.
+const desktopSidebar = ref()
+const sidebarOpen = ref(true)
+const sidebarCollapsed = computed(() => !sidebarOpen.value)
+const defaultSidebarOpen = legacySidebarDefault()
+
+const toggleSidebar = () => desktopSidebar.value?.toggle()
+const updateSidebarOpen = (open) => {
+  sidebarOpen.value = open
+}
+
 provide('toggleMobileMenu', toggleMobileMenu)
 provide('toggleSidebar', toggleSidebar)
 provide('sidebarCollapsed', sidebarCollapsed)
@@ -208,16 +236,9 @@ function acknowledgeDeploymentFavicon() {
   }
 }
 
-// Initialize on mount
 onMounted(() => {
-  // Restore sidebar state
-  const saved = readLocalStorageValue(
-    LOCAL_STORAGE_KEYS.sidebarCollapsed,
-    LEGACY_LOCAL_STORAGE_KEYS.sidebarCollapsed
-  )
-  if (saved !== null) {
-    sidebarCollapsed.value = saved === 'true'
-  }
+  desktopMediaQuery = window.matchMedia('(min-width: 768px)')
+  desktopMediaQuery.addEventListener('change', handleDesktopViewport)
 
   document.addEventListener('visibilitychange', acknowledgeDeploymentFavicon)
   window.addEventListener('focus', acknowledgeDeploymentFavicon)
@@ -225,45 +246,30 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  desktopMediaQuery?.removeEventListener('change', handleDesktopViewport)
   disconnectDeploymentStream()
   deploymentFavicon.destroy()
   document.removeEventListener('visibilitychange', acknowledgeDeploymentFavicon)
   window.removeEventListener('focus', acknowledgeDeploymentFavicon)
   window.removeEventListener('pagehide', deploymentFavicon.reset)
 })
+
+watch(() => page.url, closeMobileMenu)
 </script>
 
 <template>
   <div class="flex h-screen overflow-hidden bg-white dark:bg-gray-950">
-    <!-- Mobile Menu Backdrop -->
-    <Transition
-      enter-active-class="transition-opacity duration-300"
-      enter-from-class="opacity-0"
-      enter-to-class="opacity-100"
-      leave-active-class="transition-opacity duration-300"
-      leave-from-class="opacity-100"
-      leave-to-class="opacity-0"
+    <!-- Mobile navigation is modal; desktop navigation remains a landmark. -->
+    <Sheet
+      v-if="loggedInUser"
+      id="primary-navigation-mobile"
+      ref="mobileSheet"
+      v-model:open="mobileMenuOpen"
+      aria-label="Primary navigation"
+      class="starting:open:-translate-x-full left-0 right-auto ml-0 mr-auto w-72 -translate-x-full flex-col border-none bg-gray-50 shadow-2xl open:flex dark:bg-gray-950 md:hidden"
+      @click="handleMobileNavigation"
     >
-      <div
-        v-if="mobileMenuOpen && loggedInUser"
-        class="fixed inset-0 z-40 bg-black/50 md:hidden"
-        @click="closeMobileMenu"
-      />
-    </Transition>
-
-    <!-- Mobile Menu Drawer -->
-    <Transition
-      enter-active-class="transition-transform duration-300 ease-out"
-      enter-from-class="-translate-x-full"
-      enter-to-class="translate-x-0"
-      leave-active-class="transition-transform duration-300 ease-in"
-      leave-from-class="translate-x-0"
-      leave-to-class="-translate-x-full"
-    >
-      <aside
-        v-if="mobileMenuOpen && loggedInUser"
-        class="fixed inset-y-0 left-0 z-50 flex w-72 flex-col bg-gray-50 dark:bg-gray-950 md:hidden"
-      >
+      <div class="contents">
         <!-- Header with Team Selector -->
         <div class="flex items-center justify-between px-3 py-4">
           <div class="relative min-w-0 flex-1">
@@ -718,16 +724,18 @@ onUnmounted(() => {
             </div>
           </Menu>
         </div>
-      </aside>
-    </Transition>
+      </div>
+    </Sheet>
 
     <!-- Desktop Sidebar -->
-    <aside
+    <Sidebar
       v-if="loggedInUser"
-      :class="[
-        'hidden flex-col border-r border-gray-200 bg-gray-50 transition-all duration-200 ease-out dark:border-gray-800 dark:bg-gray-950 md:flex',
-        sidebarCollapsed ? 'w-0 overflow-hidden border-r-0' : 'w-56'
-      ]"
+      id="primary-navigation"
+      ref="desktopSidebar"
+      :default-open="defaultSidebarOpen"
+      aria-label="Primary navigation"
+      class="hidden w-56 flex-col border-r border-gray-200 bg-gray-50 data-[state=closed]:w-0 data-[state=closed]:border-r-0 data-[state=closed]:opacity-0 dark:border-gray-800 dark:bg-gray-950 md:flex"
+      @update:open="updateSidebarOpen"
     >
       <!-- Team Selector + Collapse -->
       <div class="flex items-center justify-between px-3 py-4">
@@ -1157,7 +1165,7 @@ onUnmounted(() => {
           </div>
         </Menu>
       </div>
-    </aside>
+    </Sidebar>
 
     <!-- Main Content -->
     <main class="min-w-0 flex-1 overflow-y-auto bg-white dark:bg-gray-950">

@@ -1,42 +1,72 @@
 <script setup>
 import { usePage } from '@inertiajs/vue3'
-import { onMounted, onUnmounted, provide, ref } from 'vue'
+import { computed, onMounted, onUnmounted, provide, ref, watch } from 'vue'
 import BridgeWorkspaceSidebar from '@/components/bridge/BridgeWorkspaceSidebar.vue'
+import Sheet from '@/components/ui/sheet/Sheet.vue'
+import Sidebar from '@/components/ui/sidebar/Sidebar.vue'
 
 const STORAGE_KEY = 'slipway:bridge-sidebar-collapsed'
 const page = usePage()
 const mobileMenuOpen = ref(false)
-const sidebarCollapsed = ref(false)
+const mobileSheet = ref()
+const desktopSidebar = ref()
+const sidebarOpen = ref(true)
+const sidebarCollapsed = computed(() => !sidebarOpen.value)
+let desktopMediaQuery
 
-function toggleMobileMenu() {
-  mobileMenuOpen.value = !mobileMenuOpen.value
+function toggleMobileMenu(event) {
+  if (mobileMenuOpen.value) {
+    mobileSheet.value?.close()
+    return
+  }
+
+  const invoker = event?.currentTarget ?? event
+  if (mobileSheet.value) mobileSheet.value.showModal(invoker)
+  else mobileMenuOpen.value = true
 }
 
 function closeMobileMenu() {
-  mobileMenuOpen.value = false
+  if (mobileSheet.value) mobileSheet.value.close()
+  else mobileMenuOpen.value = false
 }
 
 function toggleSidebar() {
-  sidebarCollapsed.value = !sidebarCollapsed.value
-  localStorage.setItem(STORAGE_KEY, String(sidebarCollapsed.value))
+  desktopSidebar.value?.toggle()
 }
 
-function handleKeydown(event) {
-  if (event.key === 'Escape') closeMobileMenu()
+function updateSidebarOpen(open) {
+  sidebarOpen.value = open
 }
+
+function legacySidebarDefault() {
+  if (typeof window === 'undefined') return true
+  try {
+    return window.localStorage.getItem(STORAGE_KEY) !== 'true'
+  } catch {
+    return true
+  }
+}
+
+function handleDesktopViewport(event) {
+  if (event.matches) closeMobileMenu()
+}
+
+const defaultSidebarOpen = legacySidebarDefault()
 
 provide('toggleMobileMenu', toggleMobileMenu)
 provide('toggleSidebar', toggleSidebar)
 provide('sidebarCollapsed', sidebarCollapsed)
 
 onMounted(() => {
-  sidebarCollapsed.value = localStorage.getItem(STORAGE_KEY) === 'true'
-  document.addEventListener('keydown', handleKeydown)
+  desktopMediaQuery = window.matchMedia('(min-width: 768px)')
+  desktopMediaQuery.addEventListener('change', handleDesktopViewport)
 })
 
 onUnmounted(() => {
-  document.removeEventListener('keydown', handleKeydown)
+  desktopMediaQuery?.removeEventListener('change', handleDesktopViewport)
 })
+
+watch(() => page.url, closeMobileMenu)
 </script>
 
 <template>
@@ -44,50 +74,37 @@ onUnmounted(() => {
     class="flex h-screen min-h-0 overflow-hidden bg-white text-gray-900 dark:bg-gray-950 dark:text-white"
     data-test="bridge-workspace"
   >
-    <Transition
-      enter-active-class="transition-opacity duration-300"
-      enter-from-class="opacity-0"
-      enter-to-class="opacity-100"
-      leave-active-class="transition-opacity duration-300"
-      leave-from-class="opacity-100"
-      leave-to-class="opacity-0"
-    >
-      <button
-        v-if="mobileMenuOpen"
-        type="button"
-        class="fixed inset-0 z-40 bg-black/50 md:hidden"
-        aria-label="Close Bridge navigation"
-        @click="closeMobileMenu"
-      ></button>
-    </Transition>
-
-    <Transition
-      enter-active-class="transition-transform duration-300 ease-out"
-      enter-from-class="-translate-x-full"
-      enter-to-class="translate-x-0"
-      leave-active-class="transition-transform duration-300 ease-in"
-      leave-from-class="translate-x-0"
-      leave-to-class="-translate-x-full"
+    <Sheet
+      id="bridge-navigation-mobile"
+      ref="mobileSheet"
+      v-model:open="mobileMenuOpen"
+      aria-label="Bridge navigation"
+      class="starting:open:-translate-x-full left-0 right-auto ml-0 mr-auto w-72 -translate-x-full border-none bg-gray-50 shadow-2xl dark:bg-gray-950 md:hidden"
     >
       <BridgeWorkspaceSidebar
-        v-if="mobileMenuOpen"
         :app="page.props.app"
         :base-path="page.props.bridgeRequestBasePath"
         :workspace="page.props.bridgeWorkspace"
-        class="fixed inset-y-0 left-0 z-50 w-72 shadow-2xl md:hidden"
+        class="h-full w-72"
         @navigate="closeMobileMenu"
       />
-    </Transition>
+    </Sheet>
 
-    <BridgeWorkspaceSidebar
-      :app="page.props.app"
-      :base-path="page.props.bridgeRequestBasePath"
-      :workspace="page.props.bridgeWorkspace"
-      :class="[
-        'hidden shrink-0 transition-[width,border] duration-200 ease-out md:flex',
-        sidebarCollapsed ? 'w-0 overflow-hidden border-r-0' : 'w-56'
-      ]"
-    />
+    <Sidebar
+      id="bridge-navigation"
+      ref="desktopSidebar"
+      :default-open="defaultSidebarOpen"
+      aria-label="Bridge navigation"
+      class="hidden w-56 bg-gray-50 data-[state=closed]:w-0 data-[state=closed]:opacity-0 dark:bg-gray-950 md:flex"
+      @update:open="updateSidebarOpen"
+    >
+      <BridgeWorkspaceSidebar
+        :app="page.props.app"
+        :base-path="page.props.bridgeRequestBasePath"
+        :workspace="page.props.bridgeWorkspace"
+        class="w-56"
+      />
+    </Sidebar>
 
     <main class="min-w-0 flex-1 overflow-hidden">
       <slot />

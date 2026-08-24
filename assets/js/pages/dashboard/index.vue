@@ -102,6 +102,8 @@ function cancelDeleteProject() {
       <div class="flex items-center space-x-3">
         <!-- Mobile menu button -->
         <button
+          data-test="mobile-sidebar-toggle"
+          aria-label="Open navigation"
           @click="toggleMobileMenu"
           class="rounded-md p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white md:hidden"
         >
@@ -133,6 +135,8 @@ function cancelDeleteProject() {
         </button>
         <!-- Desktop sidebar toggle -->
         <button
+          data-test="desktop-sidebar-toggle"
+          :aria-label="sidebarCollapsed ? 'Show navigation' : 'Hide navigation'"
           @click="toggleSidebar"
           class="hidden text-gray-400 dark:text-gray-500 md:block"
         >
