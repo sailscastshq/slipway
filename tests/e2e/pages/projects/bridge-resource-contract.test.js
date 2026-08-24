@@ -589,9 +589,26 @@ test(
       await page.raw.emulateMedia({ colorScheme: 'light' })
 
       await page.raw.locator('[data-test="bridge-filter-toggle"]').click()
+      await expect(
+        page.raw.getByRole('search', { name: 'Filter records' })
+      ).toHaveAttribute('data-slot', 'filter-bar')
       await page.raw
         .locator('[data-test="bridge-filter-panel"]')
         .waitFor({ state: 'visible' })
+      await page.raw.locator('#bridge-filter-title-value').fill('discard me')
+      await page.raw.keyboard.press('Escape')
+      await expect(
+        page.raw.locator('[data-test="bridge-filter-panel"]')
+      ).not.toBeVisible()
+      expect(
+        await page.raw.evaluate(() => document.activeElement?.dataset.test)
+      ).toBe('bridge-filter-toggle')
+      expect(new URL(page.raw.url()).searchParams.has('filters')).toBe(false)
+
+      await page.raw.locator('[data-test="bridge-filter-toggle"]').click()
+      await expect(page.raw.locator('#bridge-filter-title-value')).toHaveValue(
+        ''
+      )
       await page.screenshot(
         path.join(filterScreenshotRoot, 'filter-menu-light.png'),
         { fullPage: true }
@@ -639,6 +656,25 @@ test(
         path.join(filterScreenshotRoot, 'active-filters-light.png'),
         { fullPage: true }
       )
+
+      await page.raw.locator('[data-test="bridge-filter-toggle"]').click()
+      await page.raw.getByRole('button', { name: 'Reset filters' }).click()
+      await page.raw.waitForURL((url) => !url.searchParams.has('filters'))
+      expect(
+        await page.raw.evaluate(() => document.activeElement?.dataset.test)
+      ).toBe('bridge-filter-toggle')
+
+      await page.raw.goBack()
+      await page.raw.waitForURL((url) => url.searchParams.has('filters'))
+      expect(
+        JSON.parse(new URL(page.raw.url()).searchParams.get('filters'))
+      ).toEqual({
+        title: { operator: 'contains', value: 'production' },
+        published: { operator: 'equals', value: 'true' },
+        creator: { operator: 'equals', value: creatorId }
+      })
+      await page.raw.goForward()
+      await page.raw.waitForURL((url) => !url.searchParams.has('filters'))
 
       await page.raw.locator('[data-test="bridge-lens-select"]').click()
       await page.raw

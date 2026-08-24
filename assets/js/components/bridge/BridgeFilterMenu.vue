@@ -1,8 +1,9 @@
 <script setup>
 import Input from '@/components/ui/input/Input.vue'
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import BridgeRelationshipSelect from '@/components/bridge/BridgeRelationshipSelect.vue'
 import Select from '@/components/ui/select/Select.vue'
+import FilterBar from '@/components/ui/filter-bar/FilterBar.vue'
 
 const props = defineProps({
   definitions: {
@@ -16,32 +17,19 @@ const props = defineProps({
   relationshipBaseUrl: {
     type: String,
     default: ''
-  }
+  },
+  busy: Boolean
 })
 
 const emit = defineEmits(['apply'])
 
-const root = ref(null)
+const filterBar = ref(null)
 const trigger = ref(null)
 const panel = ref(null)
 const open = ref(false)
-const draft = ref({})
-const initialSerialized = ref('{}')
 
 const filters = computed(() => Object.values(props.definitions || {}))
 const activeCount = computed(() => Object.keys(props.modelValue || {}).length)
-const hasDraft = computed(() => Object.keys(serializeDraft()).length > 0)
-const changed = computed(
-  () => stableStringify(serializeDraft()) !== initialSerialized.value
-)
-
-watch(
-  () => props.modelValue,
-  () => {
-    if (!open.value) resetDraft()
-  },
-  { deep: true, immediate: true }
-)
 
 function blankFilter(definition) {
   return {
@@ -52,25 +40,18 @@ function blankFilter(definition) {
   }
 }
 
-function resetDraft() {
-  const next = {}
-  for (const definition of filters.value) {
-    const current = props.modelValue?.[definition.field]
-    next[definition.field] = current
-      ? {
-          ...blankFilter(definition),
-          ...current,
-          from: toInputDate(definition, current.from),
-          to: toInputDate(definition, current.to)
-        }
-      : blankFilter(definition)
+function stateFor(draft, definition) {
+  const current = draft?.[definition.field]
+  if (!current) return blankFilter(definition)
+  return {
+    ...blankFilter(definition),
+    ...current,
+    from: toInputDate(definition, current.from),
+    to: toInputDate(definition, current.to)
   }
-  draft.value = next
-  initialSerialized.value = stableStringify(serializeDraft())
 }
 
 async function show() {
-  resetDraft()
   open.value = true
   await nextTick()
   panel.value?.querySelector('select, input, button:not([disabled])')?.focus()
@@ -78,7 +59,7 @@ async function show() {
 
 function hide({ restoreFocus = false } = {}) {
   open.value = false
-  resetDraft()
+  filterBar.value?.cancel()
   if (restoreFocus) nextTick(() => trigger.value?.focus())
 }
 
@@ -87,32 +68,31 @@ function toggle() {
   else show()
 }
 
-function apply() {
-  emit('apply', serializeDraft())
+function handleApply(draft) {
+  const filters = serializeDraft(draft)
+  if (stableStringify(filters) !== stableStringify(props.modelValue)) {
+    emit('apply', filters)
+  }
   open.value = false
   nextTick(() => trigger.value?.focus())
 }
 
-function clear() {
-  draft.value = Object.fromEntries(
-    filters.value.map((definition) => [
-      definition.field,
-      blankFilter(definition)
-    ])
-  )
-}
-
-function clearAndApply() {
-  clear()
-  emit('apply', {})
+function handleClear(filters) {
+  emit('apply', filters)
   open.value = false
   nextTick(() => trigger.value?.focus())
 }
 
-function serializeDraft() {
+function clearDraft(filter) {
+  for (const definition of filters.value) {
+    filter.update(definition.field, undefined)
+  }
+}
+
+function serializeDraft(draft) {
   const values = {}
   for (const definition of filters.value) {
-    const state = draft.value[definition.field]
+    const state = draft?.[definition.field]
     if (!state) continue
 
     if (['isNull', 'isNotNull'].includes(state.operator)) {
@@ -139,18 +119,33 @@ function serializeDraft() {
   return values
 }
 
+function updateField(filter, definition, patch) {
+  filter.update(definition.field, {
+    ...stateFor(filter.draft, definition),
+    ...patch
+  })
+}
+
+function hasDraft(draft) {
+  return Object.keys(serializeDraft(draft)).length > 0
+}
+
+function changed(draft) {
+  return (
+    stableStringify(serializeDraft(draft)) !== stableStringify(props.modelValue)
+  )
+}
+
 function hasValue(value) {
   return value !== '' && value !== null && value !== undefined
 }
 
-function supportsValue(definition) {
-  return !['isNull', 'isNotNull'].includes(
-    draft.value[definition.field]?.operator
-  )
+function supportsValue(draft, definition) {
+  return !['isNull', 'isNotNull'].includes(stateFor(draft, definition).operator)
 }
 
-function isRange(definition) {
-  return draft.value[definition.field]?.operator === 'between'
+function isRange(draft, definition) {
+  return stateFor(draft, definition).operator === 'between'
 }
 
 function isText(definition) {
@@ -214,7 +209,8 @@ function stableStringify(value) {
 }
 
 function handleDocumentPointerDown(event) {
-  if (open.value && root.value && !root.value.contains(event.target)) {
+  const root = filterBar.value?.root?.value || filterBar.value?.root
+  if (open.value && root && !root.contains(event.target)) {
     hide()
   }
 }
@@ -238,7 +234,17 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div ref="root" class="relative" data-test="bridge-filter-menu">
+  <FilterBar
+    ref="filterBar"
+    :model-value="modelValue"
+    :busy="busy"
+    label="Filter records"
+    class="relative"
+    data-test="bridge-filter-menu"
+    @apply="handleApply"
+    @clear="handleClear"
+    v-slot="filter"
+  >
     <button
       ref="trigger"
       type="button"
@@ -272,7 +278,7 @@ onBeforeUnmount(() => {
       </span>
     </button>
 
-    <form
+    <div
       v-if="open"
       id="bridge-filter-panel"
       ref="panel"
@@ -280,17 +286,16 @@ onBeforeUnmount(() => {
       aria-label="Filter records"
       class="absolute left-0 z-40 mt-2 w-[22rem] overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl shadow-gray-900/10 dark:border-gray-700 dark:bg-gray-900 dark:shadow-black/30"
       data-test="bridge-filter-panel"
-      @submit.prevent="apply"
     >
       <div class="flex items-center justify-between px-4 pb-2 pt-3.5">
         <p class="text-sm font-semibold text-gray-900 dark:text-white">
           Filter records
         </p>
         <button
-          v-if="hasDraft"
+          v-if="hasDraft(filter.draft)"
           type="button"
           class="text-xs font-medium text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
-          @click="clear"
+          @click="clearDraft(filter)"
         >
           Clear
         </button>
@@ -311,7 +316,7 @@ onBeforeUnmount(() => {
             </label>
             <Select
               :id="fieldId(definition, 'operator')"
-              v-model="draft[definition.field].operator"
+              :model-value="stateFor(filter.draft, definition).operator"
               :options="
                 definition.operators.map((operator) => ({
                   value: operator,
@@ -319,12 +324,15 @@ onBeforeUnmount(() => {
                 }))
               "
               class="border-0 bg-transparent py-0 pl-1 pr-5 text-right text-xs text-gray-500 focus:ring-0 dark:bg-gray-900 dark:text-gray-400"
+              @update:model-value="
+                updateField(filter, definition, { operator: $event })
+              "
             />
           </div>
 
-          <div v-if="supportsValue(definition)">
+          <div v-if="supportsValue(filter.draft, definition)">
             <div
-              v-if="isRange(definition)"
+              v-if="isRange(filter.draft, definition)"
               class="grid grid-cols-[1fr_auto_1fr] items-center gap-2"
             >
               <label :for="fieldId(definition, 'from')" class="sr-only">
@@ -332,7 +340,7 @@ onBeforeUnmount(() => {
               </label>
               <Input
                 :id="fieldId(definition, 'from')"
-                v-model="draft[definition.field].from"
+                :model-value="stateFor(filter.draft, definition).from"
                 :type="inputType(definition)"
                 :step="
                   ['number', 'currency'].includes(definition.type)
@@ -341,6 +349,9 @@ onBeforeUnmount(() => {
                 "
                 placeholder="From"
                 class="focus:border-brand min-w-0 border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
+                @update:model-value="
+                  updateField(filter, definition, { from: $event })
+                "
               />
               <span class="text-xs text-gray-400 dark:text-gray-500">to</span>
               <label :for="fieldId(definition, 'to')" class="sr-only">
@@ -348,7 +359,7 @@ onBeforeUnmount(() => {
               </label>
               <Input
                 :id="fieldId(definition, 'to')"
-                v-model="draft[definition.field].to"
+                :model-value="stateFor(filter.draft, definition).to"
                 :type="inputType(definition)"
                 :step="
                   ['number', 'currency'].includes(definition.type)
@@ -357,25 +368,31 @@ onBeforeUnmount(() => {
                 "
                 placeholder="To"
                 class="focus:border-brand min-w-0 border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
+                @update:model-value="
+                  updateField(filter, definition, { to: $event })
+                "
               />
             </div>
 
             <Input
               v-else-if="isText(definition)"
               :id="fieldId(definition, 'value')"
-              v-model="draft[definition.field].value"
+              :model-value="stateFor(filter.draft, definition).value"
               type="text"
               :aria-label="`${definition.label} value`"
               :placeholder="`${operatorLabel(
-                draft[definition.field].operator
+                stateFor(filter.draft, definition).operator
               )}…`"
               class="focus:border-brand w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
+              @update:model-value="
+                updateField(filter, definition, { value: $event })
+              "
             />
 
             <Select
               v-else-if="definition.type === 'boolean'"
               :id="fieldId(definition, 'value')"
-              v-model="draft[definition.field].value"
+              :model-value="stateFor(filter.draft, definition).value"
               :options="[
                 { value: '', label: 'Choose…' },
                 { value: 'true', label: 'Yes' },
@@ -383,12 +400,15 @@ onBeforeUnmount(() => {
               ]"
               :aria-label="`${definition.label} value`"
               class="focus:border-brand w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 focus:outline-none focus:ring-0 dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+              @update:model-value="
+                updateField(filter, definition, { value: $event })
+              "
             />
 
             <Select
               v-else-if="definition.type === 'select'"
               :id="fieldId(definition, 'value')"
-              v-model="draft[definition.field].value"
+              :model-value="stateFor(filter.draft, definition).value"
               :options="[
                 { value: '', label: 'Choose…' },
                 ...(definition.options || []).map((option) => ({
@@ -399,25 +419,34 @@ onBeforeUnmount(() => {
               ]"
               :aria-label="`${definition.label} value`"
               class="focus:border-brand w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 focus:outline-none focus:ring-0 dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+              @update:model-value="
+                updateField(filter, definition, { value: $event })
+              "
             />
 
             <BridgeRelationshipSelect
               v-else-if="definition.type === 'belongsTo'"
               :id="fieldId(definition, 'value')"
               :label="definition.label"
-              v-model="draft[definition.field].value"
+              :model-value="stateFor(filter.draft, definition).value"
               :search-url="relationshipUrl(definition)"
               :searchable="definition.relationship?.searchable !== false"
+              @update:model-value="
+                updateField(filter, definition, { value: $event })
+              "
             />
 
             <Input
               v-else
               :id="fieldId(definition, 'value')"
-              v-model="draft[definition.field].value"
+              :model-value="stateFor(filter.draft, definition).value"
               :type="inputType(definition)"
               :aria-label="`${definition.label} value`"
               step="any"
               class="focus:border-brand w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
+              @update:model-value="
+                updateField(filter, definition, { value: $event })
+              "
             />
           </div>
         </div>
@@ -427,21 +456,19 @@ onBeforeUnmount(() => {
         class="flex items-center justify-between border-t border-gray-100 px-4 py-3 dark:border-gray-800"
       >
         <button
-          type="button"
+          v-bind="filter.clearAttrs"
           class="text-xs font-medium text-gray-500 hover:text-gray-900 disabled:cursor-default disabled:opacity-40 dark:text-gray-400 dark:hover:text-white"
-          :disabled="activeCount === 0"
-          @click="clearAndApply"
         >
           Reset filters
         </button>
         <button
-          type="submit"
-          :disabled="!changed"
+          v-bind="filter.applyAttrs"
+          :disabled="busy || !changed(filter.draft)"
           class="rounded-md bg-gray-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-40 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
         >
           Apply
         </button>
       </div>
-    </form>
-  </div>
+    </div>
+  </FilterBar>
 </template>

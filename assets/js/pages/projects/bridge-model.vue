@@ -587,6 +587,7 @@ function createUrl() {
             :definitions="filterDefinitions"
             :model-value="filtersValue"
             :relationship-base-url="relationshipBaseUrl"
+            :busy="tableBusy"
             @apply="applyFilters"
           />
           <Transition
