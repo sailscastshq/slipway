@@ -24,6 +24,7 @@ import { highlightSQL } from '@/lib/highlightSQL'
 import { highlightJSON } from '@/lib/highlightJSON'
 import { formatHelmError, helmEditorDiagnostic } from '@/lib/helmResult'
 import Spinner from '@/components/SlipwaySpinner.vue'
+import LoadingState from '@/components/ui/loading-state/LoadingState.vue'
 import LogViewer from '@/components/LogViewer.vue'
 import { cancelHelmExecution, cancelledHelmResult } from '@/lib/helmExecution'
 
@@ -1746,16 +1747,21 @@ onUnmounted(() => {
         </div>
 
         <!-- ═══ Migrate Tab ═══ -->
-        <div
+        <section
           v-if="activeTab === 'migrate'"
           data-slot="tab-panel"
           data-value="migrate"
+          aria-labelledby="bosun-migrate-title"
+          :aria-busy="diffLoading ? 'true' : undefined"
         >
           <div
             class="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between"
           >
             <div>
-              <h1 class="text-xl font-semibold text-gray-900 dark:text-white">
+              <h1
+                id="bosun-migrate-title"
+                class="text-xl font-semibold text-gray-900 dark:text-white"
+              >
                 Migrate
               </h1>
               <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
@@ -1783,10 +1789,12 @@ onUnmounted(() => {
             </div>
           </div>
 
-          <div v-if="diffLoading" role="status" class="py-16 text-center">
+          <LoadingState v-if="diffLoading" class="py-16">
             <Spinner class="mx-auto h-5 w-5 text-gray-400 dark:text-gray-600" />
-            <span class="sr-only">Loading migration diff</span>
-          </div>
+            <span class="text-sm text-gray-500 dark:text-gray-400"
+              >Loading migration diff…</span
+            >
+          </LoadingState>
 
           <div
             v-else-if="diffError"
@@ -2081,17 +2089,22 @@ onUnmounted(() => {
               </div>
             </div>
           </div>
-        </div>
+        </section>
 
         <!-- ═══ Activity Tab ═══ -->
-        <div
+        <section
           v-if="activeTab === 'activity'"
           data-slot="tab-panel"
           data-value="activity"
+          aria-labelledby="bosun-activity-title"
+          :aria-busy="activityLoading ? 'true' : undefined"
         >
           <div class="mb-6 flex items-start justify-between">
             <div>
-              <h1 class="text-xl font-semibold text-gray-900 dark:text-white">
+              <h1
+                id="bosun-activity-title"
+                class="text-xl font-semibold text-gray-900 dark:text-white"
+              >
                 Activity
               </h1>
               <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
@@ -2125,10 +2138,12 @@ onUnmounted(() => {
           </div>
 
           <!-- Loading -->
-          <div v-if="activityLoading" role="status" class="py-16 text-center">
+          <LoadingState v-if="activityLoading" class="py-16">
             <Spinner class="mx-auto h-5 w-5 text-gray-400 dark:text-gray-600" />
-            <span class="sr-only">Loading migration activity</span>
-          </div>
+            <span class="text-sm text-gray-500 dark:text-gray-400"
+              >Loading activity…</span
+            >
+          </LoadingState>
 
           <!-- Empty state -->
           <div v-else-if="activities.length === 0" class="py-20 text-center">
@@ -2245,7 +2260,7 @@ onUnmounted(() => {
               </span>
             </div>
           </div>
-        </div>
+        </section>
       </div>
     </div>
     <ConfirmModal
