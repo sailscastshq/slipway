@@ -4,7 +4,6 @@ import Input from '@/components/ui/input/Input.vue'
 import Radio from '@/components/ui/radio/Radio.vue'
 import { Head, InfiniteScroll, router, useForm } from '@inertiajs/vue3'
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
-import SelectMenu from '@/components/SelectMenu.vue'
 import ShareLinkButton from '@/components/ShareLinkButton.vue'
 import Select from '@/components/ui/select/Select.vue'
 import Tooltip from '@/components/ui/tooltip/Tooltip.vue'
@@ -789,12 +788,17 @@ function shortDate(value) {
                   />
                 </svg>
 
-                <SelectMenu
-                  id="bearing-feedback-category"
-                  v-model="form.category"
-                  label="Category"
-                  :options="categoryOptions"
-                />
+                <div
+                  class="[&_[data-slot=select-content]]:min-w-44 max-w-[16rem] [&>[data-slot=select]]:w-auto [&_[data-slot=select-content]]:rounded-xl [&_[data-slot=select-content]]:shadow-xl [&_[data-slot=select-content]]:shadow-gray-950/10 dark:[&_[data-slot=select-content]]:shadow-black/30"
+                >
+                  <Select
+                    id="bearing-feedback-category"
+                    v-model="form.category"
+                    aria-label="Category"
+                    :options="categoryOptions"
+                    class="min-h-10 w-auto max-w-[16rem] rounded-lg border-0 bg-gray-100 px-3.5 py-2 text-sm font-semibold text-gray-950 shadow-none hover:bg-gray-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-950 focus-visible:ring-offset-2 dark:bg-gray-900 dark:text-white dark:hover:bg-gray-800 dark:focus-visible:ring-white dark:focus-visible:ring-offset-gray-950"
+                  />
+                </div>
               </div>
 
               <label class="mt-7 block" for="bearing-feedback-title">
