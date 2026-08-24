@@ -1,7 +1,7 @@
 <script setup>
 import Input from '@/components/ui/input/Input.vue'
 import Checkbox from '@/components/ui/checkbox/Checkbox.vue'
-import { Link, Head, router, useForm } from '@inertiajs/vue3'
+import { Link, Head, useForm } from '@inertiajs/vue3'
 import { inject, ref, computed, watch } from 'vue'
 import BridgePageLayout from '@/layouts/BridgePageLayout.vue'
 import ConfirmModal from '@/components/ConfirmModal.vue'
@@ -15,8 +15,9 @@ import BridgeFilterMenu from '@/components/bridge/BridgeFilterMenu.vue'
 import BridgePageHeader from '@/components/bridge/BridgePageHeader.vue'
 import Pagination from '@/components/ui/pagination/Pagination.vue'
 import Select from '@/components/ui/select/Select.vue'
-import Table from '@/components/ui/table/Table.vue'
+import DataTable from '@/components/ui/data-table/DataTable.vue'
 import Menu from '@/components/ui/menu/Menu.vue'
+import { useDataTableQuery } from '@/composables/useDataTableQuery'
 
 defineOptions({
   layout: BridgePageLayout
@@ -91,13 +92,10 @@ const tableReloadProps = [
   'error'
 ]
 
-// Local state for UI
-const sortValue = ref(props.sort)
-const searchInput = ref(props.search)
+// Local state for app-owned filters, lenses, and actions.
 const filtersValue = ref(props.filterState || {})
 const lensValue = ref(props.activeLens?.id || allRecordsLensValue.value)
-const selectedIds = ref(new Set())
-const selectAll = ref(false)
+const selectedIds = ref([])
 const deleteModal = ref({ show: false, recordId: null })
 const bulkDeleteModal = ref({ show: false })
 const actionDialog = ref({ show: false, action: null, recordIds: [] })
@@ -177,14 +175,6 @@ function openDeleteModal(record) {
   }
 }
 
-// Debounced search
-let searchTimeout = null
-watch(searchInput, (val) => {
-  clearTimeout(searchTimeout)
-  searchTimeout = setTimeout(() => {
-    navigateWithParams({ search: val, page: 1 }, { replace: true })
-  }, 300)
-})
 watch(
   () => props.filterState,
   (value) => {
@@ -198,52 +188,36 @@ watch(
     lensValue.value = value?.id || allRecordsLensValue.value
   }
 )
-watch(
-  () => props.sort,
-  (value) => {
-    sortValue.value = value
-  }
-)
-// Navigate with updated params
-function navigateWithParams(updates, visitOptions = {}) {
-  const params = {
-    page: updates.page ?? props.currentPage,
-    sort: updates.sort ?? sortValue.value,
-    search: updates.search ?? searchInput.value,
-    filters: JSON.stringify(updates.filters ?? filtersValue.value),
-    lens: updates.lens ?? lensValue.value,
-    dashboard:
-      updates.dashboard ??
-      (props.dashboards?.length > 1 ? props.activeDashboard?.id : '')
-  }
-
-  // Clean up defaults
-  if (params.page === 1) delete params.page
-  const defaultSort = props.modelMeta
+const tableQuery = computed(() => ({
+  page: props.currentPage,
+  sort: props.sort || '',
+  search: props.search || '',
+  filters: filtersValue.value,
+  lens: lensValue.value,
+  dashboard: props.dashboards?.length > 1 ? props.activeDashboard?.id || '' : ''
+}))
+const tableDefaults = computed(() => ({
+  page: 1,
+  sort: props.modelMeta
     ? `${props.modelMeta.sort.field} ${props.modelMeta.sort.direction}`
-    : ''
-  if (!params.sort || params.sort === defaultSort) delete params.sort
-  if (!params.search) delete params.search
-  if (params.filters === '{}') delete params.filters
-  if (
-    !params.lens ||
-    params.lens === defaultLens.value?.id ||
-    (params.lens === '__all' && !defaultLens.value)
-  ) {
-    delete params.lens
-  }
-  if (!params.dashboard) delete params.dashboard
-
-  const query = new URLSearchParams(params).toString()
-  const basePath = `${bridgeBasePath.value}/${props.modelIdentity}`
-
-  router.visit(query ? `${basePath}?${query}` : basePath, {
-    preserveState: true,
-    preserveScroll: true,
-    only: visitOptions.only || tableReloadProps,
-    replace: visitOptions.replace === true
-  })
-}
+    : '',
+  search: '',
+  filters: {},
+  lens: defaultLens.value?.id || '',
+  dashboard: ''
+}))
+const {
+  search: searchInput,
+  busy: tableBusy,
+  visit: navigateWithParams,
+  ariaSort,
+  sortButton
+} = useDataTableQuery({
+  url: computed(() => `${bridgeBasePath.value}/${props.modelIdentity}`),
+  query: tableQuery,
+  defaults: tableDefaults,
+  only: tableReloadProps
+})
 
 // Visible columns
 const visibleColumns = computed(() => {
@@ -265,49 +239,14 @@ function applyFilters(filters) {
 function switchLens(lens) {
   lensValue.value = lens
   filtersValue.value = {}
-  sortValue.value = ''
   navigateWithParams({ lens, filters: {}, sort: '', page: 1 })
 }
 
-// Sort handling
-const sortAttr = computed(() => sortValue.value.split(' ')[0])
-const sortDir = computed(() => sortValue.value.split(' ')[1] || 'ASC')
-
-function toggleSort(attr) {
-  if (props.modelMeta?.attributes[attr]?.field?.sortable === false) return
-  let newSort
-  if (sortAttr.value === attr) {
-    newSort = `${attr} ${sortDir.value === 'ASC' ? 'DESC' : 'ASC'}`
-  } else {
-    newSort = `${attr} ASC`
-  }
-  sortValue.value = newSort
-  navigateWithParams({ sort: newSort, page: 1 })
-}
+const sortAttr = computed(() => String(props.sort || '').split(' ')[0])
+const sortDir = computed(() => String(props.sort || '').split(' ')[1] || 'ASC')
 
 function fieldLabel(name) {
   return props.modelMeta?.attributes[name]?.label || name
-}
-
-// Selection
-function toggleSelectAll() {
-  if (selectAll.value) {
-    selectedIds.value = new Set()
-    selectAll.value = false
-  } else {
-    selectedIds.value = new Set(
-      props.records.map((r) => r[props.modelMeta.primaryKey])
-    )
-    selectAll.value = true
-  }
-}
-
-function toggleSelect(id) {
-  const s = new Set(selectedIds.value)
-  if (s.has(id)) s.delete(id)
-  else s.add(id)
-  selectedIds.value = s
-  selectAll.value = s.size === props.records.length
 }
 
 // Delete single record
@@ -321,8 +260,7 @@ function confirmDelete() {
       onSuccess: () => {
         toast({ message: 'Record deleted.', type: 'success' })
         deleteModal.value = { show: false, recordId: null }
-        selectedIds.value = new Set()
-        selectAll.value = false
+        selectedIds.value = []
       },
       onError: (errors) => {
         toast({
@@ -336,7 +274,7 @@ function confirmDelete() {
 
 // Bulk delete
 function confirmBulkDelete() {
-  bulkDeleteForm.ids = Array.from(selectedIds.value)
+  bulkDeleteForm.ids = [...selectedIds.value]
   bulkDeleteForm.post(
     `${bridgeBasePath.value}/${props.modelIdentity}/bulk-delete`,
     {
@@ -347,8 +285,7 @@ function confirmBulkDelete() {
           type: 'success'
         })
         bulkDeleteModal.value = { show: false }
-        selectedIds.value = new Set()
-        selectAll.value = false
+        selectedIds.value = []
       },
       onError: (errors) => {
         toast({
@@ -422,13 +359,12 @@ function handleBulkAction(item) {
     return
   }
   runCustomAction(item.action, {
-    recordIds: Array.from(selectedIds.value)
+    recordIds: [...selectedIds.value]
   })
 }
 
 function clearSelection() {
-  selectedIds.value = new Set()
-  selectAll.value = false
+  selectedIds.value = []
 }
 
 function completeCustomAction() {
@@ -662,11 +598,11 @@ function createUrl() {
             leave-to-class="opacity-0"
           >
             <div
-              v-if="selectedIds.size > 0 && hasBulkActions"
+              v-if="selectedIds.length > 0 && hasBulkActions"
               class="flex items-center space-x-2"
             >
               <span class="text-xs text-gray-500 dark:text-gray-400"
-                >{{ selectedIds.size }} selected</span
+                >{{ selectedIds.length }} selected</span
               >
               <ActionMenu
                 :items="bulkMenuItems"
@@ -755,11 +691,17 @@ function createUrl() {
         </div>
 
         <!-- Table -->
-        <div
+        <DataTable
           v-else-if="modelMeta"
+          v-model:selected="selectedIds"
+          :rows="records"
+          :row-key="(record) => record[modelMeta.primaryKey]"
+          :selectable="() => hasBulkActions"
+          :busy="tableBusy"
           class="rounded-lg border border-gray-200 dark:border-gray-800"
+          table-class="w-full text-left text-sm"
         >
-          <Table class="w-full text-left text-sm">
+          <template #default="{ pageSelection, rowSelection }">
             <caption class="sr-only">
               {{
                 modelMeta.label || modelIdentity
@@ -772,9 +714,7 @@ function createUrl() {
               <tr>
                 <th v-if="hasBulkActions" scope="col" class="w-10 px-4 py-2">
                   <Checkbox
-                    :model-value="selectAll"
-                    :indeterminate="selectedIds.size > 0 && !selectAll"
-                    @change="toggleSelectAll"
+                    v-bind="pageSelection('Select all records on this page')"
                     class="h-3.5 w-3.5 rounded border-gray-300 text-gray-900 focus:ring-gray-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
                   />
                 </th>
@@ -782,15 +722,18 @@ function createUrl() {
                   v-for="col in visibleColumns"
                   :key="col"
                   scope="col"
-                  @click="toggleSort(col)"
-                  :class="[
-                    'select-none whitespace-nowrap px-4 py-2 text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400',
+                  :aria-sort="
                     modelMeta.attributes[col]?.field?.sortable === false
-                      ? ''
-                      : 'cursor-pointer hover:text-gray-900 dark:hover:text-white'
-                  ]"
+                      ? undefined
+                      : ariaSort(col)
+                  "
+                  class="select-none whitespace-nowrap px-4 py-2 text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400"
                 >
-                  <span class="flex items-center space-x-1">
+                  <button
+                    v-if="modelMeta.attributes[col]?.field?.sortable !== false"
+                    v-bind="sortButton(col, fieldLabel(col))"
+                    class="flex cursor-pointer items-center space-x-1 hover:text-gray-900 disabled:cursor-wait dark:hover:text-white"
+                  >
                     <span>{{ fieldLabel(col) }}</span>
                     <svg
                       v-if="sortAttr === col"
@@ -798,6 +741,7 @@ function createUrl() {
                       fill="none"
                       stroke="currentColor"
                       viewBox="0 0 24 24"
+                      aria-hidden="true"
                     >
                       <path
                         v-if="sortDir === 'ASC'"
@@ -814,7 +758,8 @@ function createUrl() {
                         d="M19 9l-7 7-7-7"
                       />
                     </svg>
-                  </span>
+                  </button>
+                  <span v-else>{{ fieldLabel(col) }}</span>
                 </th>
                 <th v-if="hasRecordActions" scope="col" class="w-12 px-4 py-2">
                   <span class="sr-only">Actions</span>
@@ -851,8 +796,9 @@ function createUrl() {
               >
                 <td v-if="hasBulkActions" class="px-4 py-2">
                   <Checkbox
-                    :model-value="selectedIds.has(record[modelMeta.primaryKey])"
-                    @change="toggleSelect(record[modelMeta.primaryKey])"
+                    v-bind="
+                      rowSelection(record, `Select ${actionLabel(record)}`)
+                    "
                     class="h-3.5 w-3.5 rounded border-gray-300 text-gray-900 focus:ring-gray-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
                   />
                 </td>
@@ -941,8 +887,8 @@ function createUrl() {
                 </td>
               </tr>
             </tbody>
-          </Table>
-        </div>
+          </template>
+        </DataTable>
       </div>
     </div>
 
@@ -979,7 +925,7 @@ function createUrl() {
   <ConfirmModal
     :show="bulkDeleteModal.show"
     title="Delete selected records"
-    :message="`Are you sure you want to delete ${selectedIds.size} record(s)? This action cannot be undone.`"
+    :message="`Are you sure you want to delete ${selectedIds.length} record(s)? This action cannot be undone.`"
     confirm-label="Delete all"
     :destructive="true"
     :loading="bulkDeleteForm.processing"
