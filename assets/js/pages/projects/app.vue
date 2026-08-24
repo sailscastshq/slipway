@@ -1469,7 +1469,7 @@ onBeforeUnmount(() => {
               ref="slideRef"
               :is-production="environment.isProduction"
               :environment-name="environment.name"
-              :disabled="deploying || !checklistAllGood || !sourceIsReady"
+              :disabled="!checklistAllGood || !sourceIsReady"
               @deploy="triggerDeploy"
             />
           </div>

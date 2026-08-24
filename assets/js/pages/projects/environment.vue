@@ -1571,7 +1571,6 @@ onBeforeUnmount(() => {
                             "
                             :is-production="environment.isProduction"
                             :environment-name="environment.name"
-                            :disabled="deployingAppId === appItem.id"
                             @deploy="deployApp(appItem)"
                           />
                           <Alert
