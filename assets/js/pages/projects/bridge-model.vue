@@ -16,7 +16,7 @@ import BridgePageHeader from '@/components/bridge/BridgePageHeader.vue'
 import Pagination from '@/components/ui/pagination/Pagination.vue'
 import Select from '@/components/ui/select/Select.vue'
 import DataTable from '@/components/ui/data-table/DataTable.vue'
-import Menu from '@/components/ui/menu/Menu.vue'
+import RowActions from '@/components/ui/row-actions/RowActions.vue'
 import { useDataTableQuery } from '@/composables/useDataTableQuery'
 
 defineOptions({
@@ -829,61 +829,42 @@ function createUrl() {
                   />
                 </td>
                 <td v-if="hasRecordActions" class="px-4 py-2">
-                  <div class="relative flex justify-end" @click.stop>
-                    <button
-                      type="button"
-                      class="rounded-md p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 dark:text-gray-500 dark:hover:bg-gray-800 dark:hover:text-gray-200 dark:focus-visible:ring-gray-700"
-                      :aria-label="`Actions for ${actionLabel(record)}`"
-                      :popovertarget="`bridge-record-actions-${recordKey(
-                        record
-                      )}`"
-                    >
-                      <svg
-                        class="h-4 w-4"
-                        fill="currentColor"
-                        viewBox="0 0 20 20"
-                        aria-hidden="true"
-                      >
-                        <path
-                          d="M6 10a2 2 0 1 1-4 0 2 2 0 0 1 4 0Zm6 0a2 2 0 1 1-4 0 2 2 0 0 1 4 0Zm6 0a2 2 0 1 1-4 0 2 2 0 0 1 4 0Z"
-                        />
-                      </svg>
-                    </button>
-
-                    <Menu
+                  <div class="flex justify-end">
+                    <RowActions
                       :id="`bridge-record-actions-${recordKey(record)}`"
-                      :aria-label="`Actions for ${actionLabel(record)}`"
-                      placement="bottom-end"
-                      :offset="4"
-                      class="w-36 rounded-md border-gray-200 bg-white px-0 py-1 shadow-lg dark:border-gray-700 dark:bg-gray-900"
+                      :label="`Actions for ${actionLabel(record)}`"
+                      :data-test="`bridge-row-actions-${recordKey(record)}`"
+                      class="[&_[data-slot=row-actions-trigger]]:size-7 text-gray-400 dark:text-gray-500 [&_[data-row-actions-menu]]:w-36 [&_[data-row-actions-menu]]:min-w-0 [&_[data-row-actions-menu]]:rounded-md [&_[data-row-actions-menu]]:border-gray-200 [&_[data-row-actions-menu]]:bg-white [&_[data-row-actions-menu]]:px-0 [&_[data-row-actions-menu]]:py-1 [&_[data-row-actions-menu]]:shadow-lg dark:[&_[data-row-actions-menu]]:border-gray-700 dark:[&_[data-row-actions-menu]]:bg-gray-900 [&_[data-slot=row-actions-trigger]]:transition-colors [&_[data-slot=row-actions-trigger]]:hover:bg-gray-100 [&_[data-slot=row-actions-trigger]]:hover:text-gray-700 [&_[data-slot=row-actions-trigger]]:focus-visible:outline-none [&_[data-slot=row-actions-trigger]]:focus-visible:ring-2 [&_[data-slot=row-actions-trigger]]:focus-visible:ring-gray-300 dark:[&_[data-slot=row-actions-trigger]]:hover:bg-gray-800 dark:[&_[data-slot=row-actions-trigger]]:hover:text-gray-200 dark:[&_[data-slot=row-actions-trigger]]:focus-visible:ring-gray-700"
                     >
-                      <Link
-                        v-if="modelMeta.actions?.view !== false"
-                        :href="recordUrl(record[modelMeta.primaryKey])"
-                        prefetch
-                        role="menuitem"
-                        class="flex w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 focus:bg-gray-50 focus:outline-none dark:text-gray-300 dark:hover:bg-gray-800 dark:focus:bg-gray-800"
-                      >
-                        View record
-                      </Link>
-                      <Link
-                        v-if="modelMeta.actions?.update !== false"
-                        :href="editUrl(record[modelMeta.primaryKey])"
-                        prefetch
-                        role="menuitem"
-                        class="flex w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 focus:bg-gray-50 focus:outline-none dark:text-gray-300 dark:hover:bg-gray-800 dark:focus:bg-gray-800"
-                      >
-                        Edit record
-                      </Link>
-                      <button
-                        v-if="modelMeta.actions?.delete !== false"
-                        @click="openDeleteModal(record)"
-                        role="menuitem"
-                        class="flex w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50 focus:bg-red-50 focus:outline-none dark:text-red-400 dark:hover:bg-red-900/20 dark:focus:bg-red-900/20"
-                      >
-                        Delete record
-                      </button>
-                    </Menu>
+                      <template #menu>
+                        <Link
+                          v-if="modelMeta.actions?.view !== false"
+                          :href="recordUrl(record[modelMeta.primaryKey])"
+                          prefetch
+                          role="menuitem"
+                          class="flex w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 focus:bg-gray-50 focus:outline-none dark:text-gray-300 dark:hover:bg-gray-800 dark:focus:bg-gray-800"
+                        >
+                          View record
+                        </Link>
+                        <Link
+                          v-if="modelMeta.actions?.update !== false"
+                          :href="editUrl(record[modelMeta.primaryKey])"
+                          prefetch
+                          role="menuitem"
+                          class="flex w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 focus:bg-gray-50 focus:outline-none dark:text-gray-300 dark:hover:bg-gray-800 dark:focus:bg-gray-800"
+                        >
+                          Edit record
+                        </Link>
+                        <button
+                          v-if="modelMeta.actions?.delete !== false"
+                          @click="openDeleteModal(record)"
+                          role="menuitem"
+                          class="flex w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50 focus:bg-red-50 focus:outline-none dark:text-red-400 dark:hover:bg-red-900/20 dark:focus:bg-red-900/20"
+                        >
+                          Delete record
+                        </button>
+                      </template>
+                    </RowActions>
                   </div>
                 </td>
               </tr>
