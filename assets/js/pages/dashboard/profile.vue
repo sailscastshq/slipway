@@ -464,10 +464,13 @@ function logout() {
     >
       <template #form>
         <div class="mt-4">
-          <label class="mb-1 block text-sm text-gray-700 dark:text-gray-300"
+          <label
+            for="delete-account-password"
+            class="mb-1 block text-sm text-gray-700 dark:text-gray-300"
             >Enter your password to confirm</label
           >
           <Input
+            id="delete-account-password"
             v-model="deleteAccountForm.password"
             type="password"
             autocomplete="current-password"
