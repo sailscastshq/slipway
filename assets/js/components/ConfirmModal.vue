@@ -1,5 +1,6 @@
 <script setup>
-import { watch, onUnmounted } from 'vue'
+import { useId } from 'vue'
+import Dialog from '@/components/ui/dialog/Dialog.vue'
 import Spinner from '@/components/SlipwaySpinner.vue'
 
 const props = defineProps({
@@ -34,103 +35,68 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['confirm', 'cancel'])
+const instanceId = useId()
+const titleId = `confirm-modal-title-${instanceId}`
+const messageId = `confirm-modal-message-${instanceId}`
 
-// Handle escape key to close modal
-function handleKeydown(e) {
-  if (e.key === 'Escape' && !props.loading) {
-    emit('cancel')
-  }
+function cancel() {
+  if (!props.loading) emit('cancel')
 }
 
-watch(
-  () => props.show,
-  (isShown) => {
-    if (isShown) {
-      document.addEventListener('keydown', handleKeydown)
-    } else {
-      document.removeEventListener('keydown', handleKeydown)
-    }
-  },
-  { immediate: true }
-)
+function confirm() {
+  if (!props.loading) emit('confirm')
+}
 
-onUnmounted(() => {
-  document.removeEventListener('keydown', handleKeydown)
-})
+function handleOpenChange(open) {
+  if (!open) cancel()
+}
 </script>
 
 <template>
-  <Teleport to="body">
-    <Transition
-      enter-active-class="transition duration-200 ease-out"
-      enter-from-class="opacity-0"
-      enter-to-class="opacity-100"
-      leave-active-class="transition duration-150 ease-in"
-      leave-from-class="opacity-100"
-      leave-to-class="opacity-0"
-    >
-      <div
-        v-if="show"
-        class="fixed inset-0 z-50 flex items-center justify-center"
+  <Dialog
+    :open="show"
+    :dismissible="!loading"
+    :aria-labelledby="titleId"
+    :aria-describedby="messageId"
+    :aria-busy="loading ? 'true' : undefined"
+    data-test="confirm-modal"
+    class="transition-discrete starting:open:scale-95 starting:open:opacity-0 starting:open:backdrop:bg-black/0 z-50 max-w-sm scale-95 border-gray-200 bg-white p-6 text-gray-950 opacity-0 shadow-xl transition-[display,overlay,opacity,transform] duration-200 ease-out backdrop:bg-black/0 backdrop:transition-colors backdrop:duration-200 open:scale-100 open:opacity-100 open:backdrop:bg-black/50 motion-reduce:transition-none dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+    @update:open="handleOpenChange"
+  >
+    <h3 :id="titleId" class="text-lg font-semibold">
+      {{ title }}
+    </h3>
+    <p :id="messageId" class="mt-2 text-sm text-gray-500 dark:text-gray-400">
+      {{ message }}
+    </p>
+    <slot name="form" />
+    <div class="mt-4 flex justify-end gap-3">
+      <button
+        type="button"
+        autofocus
+        :disabled="loading"
+        class="cursor-pointer rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800"
+        @click="cancel"
       >
-        <div
-          class="fixed inset-0 bg-black/50"
-          @click="!loading && emit('cancel')"
-        />
-        <Transition
-          enter-active-class="transition duration-200 ease-out"
-          enter-from-class="scale-95 opacity-0"
-          enter-to-class="scale-100 opacity-100"
-          leave-active-class="transition duration-150 ease-in"
-          leave-from-class="scale-100 opacity-100"
-          leave-to-class="scale-95 opacity-0"
-        >
-          <div
-            v-if="show"
-            data-test="confirm-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="confirm-modal-title"
-            class="relative w-full max-w-sm rounded-lg border border-gray-200 bg-white p-6 shadow-xl dark:border-gray-700 dark:bg-gray-900"
-          >
-            <h3
-              id="confirm-modal-title"
-              class="text-lg font-semibold text-gray-900 dark:text-white"
-            >
-              {{ title }}
-            </h3>
-            <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">
-              {{ message }}
-            </p>
-            <slot name="form" />
-            <div class="mt-4 flex justify-end space-x-3">
-              <button
-                @click="emit('cancel')"
-                :disabled="loading"
-                class="rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800"
-              >
-                {{ cancelLabel }}
-              </button>
-              <button
-                @click="emit('confirm')"
-                :disabled="loading"
-                :class="[
-                  'rounded-md px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50',
-                  destructive
-                    ? 'bg-red-600 hover:bg-red-700'
-                    : 'bg-gray-900 hover:bg-gray-800 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100'
-                ]"
-              >
-                <span v-if="loading" class="flex items-center gap-2">
-                  <Spinner class="h-4 w-4" />
-                  Loading...
-                </span>
-                <span v-else>{{ confirmLabel }}</span>
-              </button>
-            </div>
-          </div>
-        </Transition>
-      </div>
-    </Transition>
-  </Teleport>
+        {{ cancelLabel }}
+      </button>
+      <button
+        type="button"
+        :disabled="loading"
+        :class="[
+          'cursor-pointer rounded-md px-3 py-1.5 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50',
+          destructive
+            ? 'bg-red-600 hover:bg-red-700'
+            : 'bg-gray-900 hover:bg-gray-800 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100'
+        ]"
+        @click="confirm"
+      >
+        <span v-if="loading" class="flex items-center gap-2">
+          <Spinner class="size-4" />
+          Loading...
+        </span>
+        <span v-else>{{ confirmLabel }}</span>
+      </button>
+    </div>
+  </Dialog>
 </template>

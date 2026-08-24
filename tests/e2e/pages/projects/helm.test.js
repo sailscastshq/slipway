@@ -315,9 +315,11 @@ test(
 
     await page.click('@helm-scratchpad-actions-trigger')
     await page.click('@helm-scratchpad-actions-close')
-    await page.wait('@confirm-modal')
-    await page.raw
-      .locator('[data-test="confirm-modal"]')
+    const closeScratchpadDialog = page.raw.locator(
+      '[data-test="confirm-modal"][open]'
+    )
+    await closeScratchpadDialog.waitFor()
+    await closeScratchpadDialog
       .getByRole('button', { name: 'Close scratchpad', exact: true })
       .click()
     expect(await tabs.count()).toBe(2)
@@ -386,7 +388,7 @@ test(
     expect((await foreignTab.textContent()).includes('Production')).toBe(true)
     await foreignTab.click()
     await page.raw
-      .locator('[data-test="confirm-modal"]')
+      .locator('[data-test="confirm-modal"][open]')
       .waitFor({ state: 'visible' })
     expect(page).toSee('Open production scratchpad?')
     expect(page).toSee('Billing / Production / billing.app')
@@ -1242,13 +1244,14 @@ test(
     await page.wait(250)
 
     await page.click('@helm-clear-history')
-    await page.raw.locator('[data-test="confirm-modal"]').waitFor()
-    await page.raw
+    const clearHistoryDialog = page.raw.locator(
+      '[data-test="confirm-modal"][open]'
+    )
+    await clearHistoryDialog.waitFor()
+    await clearHistoryDialog
       .getByRole('button', { name: 'Clear history', exact: true })
       .click()
-    await page.raw
-      .locator('[data-test="confirm-modal"]')
-      .waitFor({ state: 'detached' })
+    await clearHistoryDialog.waitFor({ state: 'detached' })
     await page.raw.locator('[data-test="helm-history-entry"]').first().waitFor()
     expect(
       await page.raw.locator('[data-test="helm-history-entry"]').count()
