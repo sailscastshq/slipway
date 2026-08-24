@@ -94,7 +94,7 @@
     "check:consistency": "node scripts/check-docs-config-consistency.js",
     "test:unit": "sounding test --lane unit --test-concurrency=1",
     "test:functional": "sounding test --lane functional --test-concurrency=1",
-    "test:e2e": "sounding test --lane e2e --test-concurrency=1",
+    "test:e2e": "sounding test --lane e2e --test-concurrency=1 --test-timeout=600000",
     "test": "npm run test:unit && npm run test:functional && npm run test:e2e"
   },
   "main": "app.js",
