@@ -535,6 +535,42 @@ test(
       await expect(page).toSee('Course title')
       await expect(page).toSee('$34.99')
       expect(await page.raw.locator('input[type="checkbox"]').count()).toBe(4)
+      const dataTable = page.raw.locator('[data-slot="data-table"]')
+      await expect(dataTable).toBeVisible()
+      await expect(dataTable.locator('table')).toHaveAttribute(
+        'data-slot',
+        'table'
+      )
+      await expect(
+        dataTable.getByRole('checkbox', {
+          name: 'Select all records on this page'
+        })
+      ).toBeVisible()
+      expect(
+        await dataTable
+          .locator('tbody input[type="checkbox"]')
+          .first()
+          .getAttribute('aria-label')
+      ).toMatch(/^Select /)
+
+      const titleHeader = dataTable
+        .getByRole('columnheader')
+        .filter({ hasText: 'Course title' })
+      expect(await titleHeader.getAttribute('aria-sort')).toBe(null)
+      await titleHeader
+        .getByRole('button', { name: 'Sort by Course title ascending' })
+        .click()
+      await page.raw.waitForURL(
+        (url) => url.searchParams.get('sort') === 'title ASC'
+      )
+      await expect(titleHeader).toHaveAttribute('aria-sort', 'ascending')
+      expect(
+        await page.raw.evaluate(
+          () => document.activeElement?.dataset.tableFocus
+        )
+      ).toBe('sort:title')
+      await page.goto(coursePath)
+      await page.wait('text=Build a production Sails app')
       await page.screenshot(
         path.join(screenshotRoot, 'course-list-light.png'),
         {
