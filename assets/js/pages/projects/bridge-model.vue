@@ -18,6 +18,7 @@ import Select from '@/components/ui/select/Select.vue'
 import DataTable from '@/components/ui/data-table/DataTable.vue'
 import RowActions from '@/components/ui/row-actions/RowActions.vue'
 import BulkActions from '@/components/ui/bulk-actions/BulkActions.vue'
+import EmptyState from '@/components/ui/empty-state/EmptyState.vue'
 import { useDataTableQuery } from '@/composables/useDataTableQuery'
 
 defineOptions({
@@ -782,9 +783,18 @@ function createUrl() {
                   "
                   class="px-4 py-12 text-center text-sm text-gray-500 dark:text-gray-400"
                 >
-                  {{
-                    hasScopedQuery ? 'No matching records.' : 'No records yet.'
-                  }}
+                  <EmptyState
+                    data-test="bridge-empty"
+                    class="min-h-0 gap-0 p-0 text-sm text-gray-500 dark:text-gray-400"
+                  >
+                    <p>
+                      {{
+                        hasScopedQuery
+                          ? 'No matching records.'
+                          : 'No records yet.'
+                      }}
+                    </p>
+                  </EmptyState>
                 </td>
               </tr>
             </tbody>

@@ -1,10 +1,11 @@
 <script setup>
 import Input from '@/components/ui/input/Input.vue'
 import { Head, Link, router } from '@inertiajs/vue3'
-import { computed, inject, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, inject, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
 import Pagination from '@/components/ui/pagination/Pagination.vue'
 import Select from '@/components/ui/select/Select.vue'
+import EmptyState from '@/components/ui/empty-state/EmptyState.vue'
 
 defineOptions({
   layout: AppLayout
@@ -31,7 +32,12 @@ const toggleSidebar = inject('toggleSidebar')
 const sidebarCollapsed = inject('sidebarCollapsed')
 const query = ref(props.filters.q || '')
 const group = ref(props.filters.group || 'all')
+const searchInput = ref()
 let searchTimer
+
+const hasAuditFilters = computed(
+  () => Boolean(query.value.trim()) || group.value !== 'all'
+)
 
 const actionLabels = {
   'deployment.triggered': 'Triggered deployment',
@@ -87,6 +93,13 @@ function refreshLogs() {
       only: ['logs', 'pagination', 'filters', 'helmAuditRetentionDays']
     }
   )
+}
+
+async function clearAuditFilters() {
+  query.value = ''
+  group.value = 'all'
+  await nextTick()
+  searchInput.value?.focus()
 }
 
 function actionLabel(action) {
@@ -264,6 +277,7 @@ function shortHash(hash) {
                 />
               </svg>
               <Input
+                ref="searchInput"
                 v-model="query"
                 data-test="audit-search"
                 type="search"
@@ -287,22 +301,35 @@ function shortHash(hash) {
           </div>
         </div>
 
-        <div
+        <EmptyState
           v-if="logs.length === 0"
+          as="section"
+          aria-labelledby="audit-empty-title"
           data-test="audit-empty"
-          class="min-h-56 flex flex-col items-center justify-center text-center"
+          class="min-h-56 gap-0 p-0"
         >
-          <p class="text-sm font-medium text-gray-700 dark:text-gray-300">
-            {{ query ? 'No matching events' : 'No audit events yet' }}
-          </p>
+          <h2
+            id="audit-empty-title"
+            class="text-sm font-medium text-gray-700 dark:text-gray-300"
+          >
+            {{ hasAuditFilters ? 'No matching events' : 'No audit events yet' }}
+          </h2>
           <p class="mt-1 text-xs text-gray-400 dark:text-gray-600">
             {{
-              query
+              hasAuditFilters
                 ? 'Try a person, action, resource, or IP address.'
                 : 'Important team activity will appear here.'
             }}
           </p>
-        </div>
+          <button
+            v-if="hasAuditFilters"
+            type="button"
+            class="mt-3 cursor-pointer rounded-md px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-100 focus-visible:outline-2 focus-visible:outline-offset-2 dark:text-gray-300 dark:hover:bg-gray-800"
+            @click="clearAuditFilters"
+          >
+            Clear filters
+          </button>
+        </EmptyState>
 
         <ol v-else data-test="audit-events" class="mt-6">
           <li
