@@ -2,8 +2,10 @@
 import { usePage } from '@inertiajs/vue3'
 import { computed, onMounted, onUnmounted, provide, ref, watch } from 'vue'
 import BridgeWorkspaceSidebar from '@/components/bridge/BridgeWorkspaceSidebar.vue'
+import ToastContainer from '@/components/ToastContainer.vue'
 import Sheet from '@/components/ui/sheet/Sheet.vue'
 import Sidebar from '@/components/ui/sidebar/Sidebar.vue'
+import { createToast } from '@/composables/toast'
 
 const STORAGE_KEY = 'slipway:bridge-sidebar-collapsed'
 const page = usePage()
@@ -13,6 +15,7 @@ const desktopSidebar = ref()
 const sidebarOpen = ref(true)
 const sidebarCollapsed = computed(() => !sidebarOpen.value)
 let desktopMediaQuery
+const toast = createToast()
 
 function toggleMobileMenu(event) {
   if (mobileMenuOpen.value) {
@@ -63,6 +66,7 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  toast.destroy()
   desktopMediaQuery?.removeEventListener('change', handleDesktopViewport)
 })
 
@@ -109,5 +113,7 @@ watch(() => page.url, closeMobileMenu)
     <main class="min-w-0 flex-1 overflow-hidden">
       <slot />
     </main>
+
+    <ToastContainer :controller="toast" />
   </div>
 </template>

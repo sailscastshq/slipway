@@ -2,8 +2,7 @@
 import { Link, Head, useForm } from '@inertiajs/vue3'
 import { inject, ref, computed, onMounted } from 'vue'
 import BridgePageLayout from '@/layouts/BridgePageLayout.vue'
-import ToastContainer from '@/components/ToastContainer.vue'
-import { createToast } from '@/composables/toast'
+import { useToast } from '@/composables/toast'
 import Spinner from '@/components/SlipwaySpinner.vue'
 import BridgeFieldInput from '@/components/bridge/BridgeFieldInput.vue'
 import {
@@ -43,7 +42,7 @@ const props = defineProps({
 const toggleMobileMenu = inject('toggleMobileMenu')
 const toggleSidebar = inject('toggleSidebar')
 const sidebarCollapsed = inject('sidebarCollapsed')
-const { toasts, toast, dismiss } = createToast()
+const toast = useToast()
 const bridgeBasePath = computed(
   () =>
     props.bridgeRequestBasePath ||
@@ -369,8 +368,6 @@ function recordUrl() {
       modelMeta?.singularLabel || modelIdentity
     } - Bridge | Slipway`"
   ></Head>
-  <ToastContainer :toasts="toasts" @dismiss="dismiss" />
-
   <div class="flex h-full flex-col">
     <BridgePageHeader
       v-if="hostBridgeOrigin"

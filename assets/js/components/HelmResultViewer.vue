@@ -3,7 +3,7 @@ import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import ActionMenu from '@/components/ActionMenu.vue'
 import HelmResultTreeNode from '@/components/HelmResultTreeNode.vue'
 import Spinner from '@/components/SlipwaySpinner.vue'
-import ToastContainer from '@/components/ToastContainer.vue'
+import { useToast } from '@/composables/toast'
 import Tooltip from '@/components/ui/tooltip/Tooltip.vue'
 import Table from '@/components/ui/table/Table.vue'
 import { highlightJSON } from '@/lib/highlightJSON'
@@ -51,11 +51,10 @@ const emit = defineEmits(['clear', 'update:view'])
 const activeView = ref(props.view === 'auto' ? 'raw' : props.view)
 const logsOpen = ref(false)
 const queriesOpen = ref(false)
-const toasts = ref([])
+const toast = useToast()
 const runningDurationMs = ref(0)
 let runningStartedAt = 0
 let runningTimer
-let toastId = 0
 
 const value = computed(() => props.result?.value)
 const tableCompatible = computed(
@@ -372,13 +371,7 @@ function downloadCsv() {
 }
 
 function notify(message) {
-  const id = ++toastId
-  toasts.value.push({ id, message, type: 'success' })
-  setTimeout(() => dismissToast(id), 3500)
-}
-
-function dismissToast(id) {
-  toasts.value = toasts.value.filter((toast) => toast.id !== id)
+  toast({ message, type: 'success', duration: 3500 })
 }
 
 function queryLabel(entry) {
@@ -785,7 +778,5 @@ function queryDetail(entry) {
         @select="handleAction"
       />
     </footer>
-
-    <ToastContainer :toasts="toasts" @dismiss="dismissToast" />
   </div>
 </template>

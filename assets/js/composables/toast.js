@@ -1,27 +1,32 @@
-import { ref, inject, provide } from 'vue'
+import { inject, provide } from 'vue'
+import { createToast as createKleanToast } from '@/components/ui/toast/toast.js'
 
 const TOAST_KEY = Symbol('toast')
+const ORDINARY_TOAST_CLASS =
+  'flex items-start space-x-3 rounded-lg border border-gray-200 bg-white p-4 shadow-lg ring-0 dark:border-gray-700 dark:bg-gray-900'
 
-export function createToast() {
-  const toasts = ref([])
-  let nextId = 0
+export function createToast(options = {}) {
+  const controller = createKleanToast({ duration: 4000, ...options })
 
-  function toast({ message, type = 'success', duration = 4000 }) {
-    const id = nextId++
-    toasts.value.push({ id, message, type })
+  function toast(input = {}, toastOptions = {}) {
+    const item =
+      typeof input === 'string'
+        ? { ...toastOptions, message: input }
+        : { ...input }
 
-    setTimeout(() => {
-      dismiss(id)
-    }, duration)
+    return controller({
+      type: 'success',
+      ...item,
+      class: [item.kind ? '' : ORDINARY_TOAST_CLASS, item.class]
+        .filter(Boolean)
+        .join(' ')
+    })
   }
 
-  function dismiss(id) {
-    toasts.value = toasts.value.filter((t) => t.id !== id)
-  }
+  Object.assign(toast, controller)
 
   provide(TOAST_KEY, toast)
-
-  return { toasts, toast, dismiss }
+  return toast
 }
 
 export function useToast() {

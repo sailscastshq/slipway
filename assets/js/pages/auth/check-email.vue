@@ -14,7 +14,7 @@ const props = defineProps({
   }
 })
 
-const { toasts, toast, dismiss } = createToast()
+const toast = createToast()
 useFlashToast(toast)
 
 const resendSecondsRemaining = ref(props.resendCooldownSecondsRemaining)
@@ -42,7 +42,10 @@ onMounted(() => {
   }, 1000)
 })
 
-onBeforeUnmount(() => clearInterval(countdownInterval))
+onBeforeUnmount(() => {
+  clearInterval(countdownInterval)
+  toast.destroy()
+})
 </script>
 
 <template>
@@ -123,5 +126,5 @@ onBeforeUnmount(() => clearInterval(countdownInterval))
     </main>
   </div>
 
-  <ToastContainer :toasts="toasts" @dismiss="dismiss" />
+  <ToastContainer :controller="toast" />
 </template>

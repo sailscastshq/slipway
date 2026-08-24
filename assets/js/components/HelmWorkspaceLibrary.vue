@@ -7,7 +7,7 @@ import HelmSnippetDialog from '@/components/HelmSnippetDialog.vue'
 import Spinner from '@/components/SlipwaySpinner.vue'
 import Tooltip from '@/components/ui/tooltip/Tooltip.vue'
 import Tabs from '@/components/ui/tabs/Tabs.vue'
-import ToastContainer from '@/components/ToastContainer.vue'
+import { useToast } from '@/composables/toast'
 
 const props = defineProps({
   tab: {
@@ -49,10 +49,9 @@ const snippetDialog = ref({ show: false, snippet: null })
 const snippetSaving = ref(false)
 const confirm = ref({ show: false, type: '', item: null })
 const confirmLoading = ref(false)
-const toasts = ref([])
+const toast = useToast()
 let historySearchTimer
 let snippetSearchTimer
-let toastId = 0
 
 const activeQuery = computed({
   get: () =>
@@ -358,13 +357,7 @@ function relativeTime(timestamp) {
 }
 
 function notify(message, type = 'success') {
-  const id = ++toastId
-  toasts.value.push({ id, message, type })
-  window.setTimeout(() => dismissToast(id), 3500)
-}
-
-function dismissToast(id) {
-  toasts.value = toasts.value.filter((toast) => toast.id !== id)
+  toast({ message, type, duration: 3500 })
 }
 
 defineExpose({ refreshHistory, openSnippetDialog })
@@ -710,6 +703,4 @@ defineExpose({ refreshHistory, openSnippetDialog })
     @cancel="confirm = { show: false, type: '', item: null }"
     @confirm="confirmDestructiveAction"
   />
-
-  <ToastContainer :toasts="toasts" @dismiss="dismissToast" />
 </template>

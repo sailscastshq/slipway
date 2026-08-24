@@ -55,8 +55,12 @@ onUnmounted(() => {
 
 <template>
   <div
-    class="flex w-80 items-start space-x-3 rounded-lg border border-gray-200 bg-white p-4 shadow-lg dark:border-gray-700 dark:bg-gray-900"
+    aria-live="off"
+    class="flex w-full items-start space-x-3 rounded-lg border border-gray-200 bg-white p-4 shadow-lg dark:border-gray-700 dark:bg-gray-900"
   >
+    <p class="sr-only" role="status" aria-live="polite" aria-atomic="true">
+      {{ actionLabel }} {{ action.serviceName }}
+    </p>
     <!-- Icon -->
     <div class="mt-0.5 shrink-0">
       <!-- Spinner for in progress -->
@@ -112,14 +116,17 @@ onUnmounted(() => {
 
     <!-- Dismiss -->
     <button
+      type="button"
       @click="dismiss"
-      class="shrink-0 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+      class="shrink-0 cursor-pointer text-gray-400 hover:text-gray-600 focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-950 dark:hover:text-gray-300 dark:focus-visible:ring-white"
+      :aria-label="`Dismiss ${actionLabel} ${action.serviceName}`"
     >
       <svg
         class="h-4 w-4"
         fill="none"
         stroke="currentColor"
         viewBox="0 0 24 24"
+        aria-hidden="true"
       >
         <path
           stroke-linecap="round"

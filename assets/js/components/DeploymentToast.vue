@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
-import { Link, router } from '@inertiajs/vue3'
+import { Link } from '@inertiajs/vue3'
 import Spinner from '@/components/SlipwaySpinner.vue'
 import { useEventSource } from '@/composables/sse'
 
@@ -15,8 +15,6 @@ const outcome = ref(props.deployment.outcome)
 const outcomeLabel = ref(props.deployment.outcomeLabel)
 const startTime = ref(props.deployment.startedAt || Date.now())
 const elapsed = ref(0)
-const dismissed = ref(false)
-const exiting = ref(false)
 let timerInterval = null
 
 const maritimeMessages = {
@@ -158,7 +156,6 @@ const { close: closeStream, connect: connectToStream } = useEventSource(
           ['running', 'stopped', 'failed', 'cancelled'].includes(data.status)
         ) {
           closeStream()
-          setTimeout(() => dismiss(), 5000)
         }
       }
     }
@@ -173,17 +170,7 @@ function startTimer() {
 }
 
 function dismiss() {
-  exiting.value = true
-  setTimeout(() => {
-    dismissed.value = true
-    emit('dismiss', props.deployment.id)
-  }, 300)
-}
-
-function goToDeployment() {
-  router.visit(
-    `/projects/${props.deployment.project.slug}/deployments/${props.deployment.id}`
-  )
+  emit('dismiss', props.deployment.id)
 }
 
 onMounted(() => {
@@ -193,6 +180,7 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  closeStream()
   if (timerInterval) clearInterval(timerInterval)
   stopMessageRotation()
 })
@@ -228,173 +216,165 @@ watch(status, (newStatus) => {
 </script>
 
 <template>
-  <Transition
-    enter-active-class="transition ease-out duration-300"
-    enter-from-class="translate-y-full opacity-0"
-    enter-to-class="translate-y-0 opacity-100"
-    leave-active-class="transition ease-in duration-200"
-    leave-from-class="translate-y-0 opacity-100"
-    leave-to-class="translate-y-full opacity-0"
+  <div
+    aria-live="off"
+    class="pointer-events-auto w-full overflow-hidden rounded-xl border border-gray-200 bg-white/95 shadow-2xl backdrop-blur-sm dark:border-gray-700/50 dark:bg-gray-900/95"
   >
-    <div
-      v-if="!dismissed"
-      :class="[
-        'pointer-events-auto w-80 overflow-hidden rounded-xl border shadow-2xl backdrop-blur-sm transition-all',
-        exiting ? 'translate-y-full opacity-0' : '',
-        'border-gray-200 bg-white/95 dark:border-gray-700/50 dark:bg-gray-900/95'
-      ]"
-    >
-      <!-- Progress bar at top -->
-      <div class="h-0.5 w-full bg-gray-200 dark:bg-gray-800">
-        <div
-          v-if="isActive"
-          :class="['h-full transition-all duration-300', statusConfig.bgColor]"
-          :style="{
-            width: isActive ? '100%' : '0%',
-            animation: isActive ? 'pulse 2s ease-in-out infinite' : 'none'
-          }"
-        ></div>
-        <div v-else :class="['h-full w-full', statusConfig.bgColor]"></div>
-      </div>
+    <!-- Progress bar at top -->
+    <div class="h-0.5 w-full bg-gray-200 dark:bg-gray-800" aria-hidden="true">
+      <div
+        v-if="isActive"
+        :class="['h-full transition-all duration-300', statusConfig.bgColor]"
+        :style="{
+          width: isActive ? '100%' : '0%',
+          animation: isActive ? 'pulse 2s ease-in-out infinite' : 'none'
+        }"
+      ></div>
+      <div v-else :class="['h-full w-full', statusConfig.bgColor]"></div>
+    </div>
 
-      <!-- Content -->
-      <div class="p-4">
-        <div class="flex items-start gap-3">
-          <!-- Status icon -->
-          <div
-            :class="[
-              'flex h-10 w-10 shrink-0 items-center justify-center rounded-lg',
-              isActive
-                ? 'bg-gray-100 dark:bg-gray-800'
-                : isSuccessful
-                ? 'bg-emerald-500/20'
-                : 'bg-red-500/20'
-            ]"
+    <!-- Content -->
+    <div class="p-4">
+      <p class="sr-only" role="status" aria-live="polite" aria-atomic="true">
+        {{ statusConfig.label }} deployment for {{ deployment.project.name }}
+        {{ deployment.environment.name }}
+      </p>
+      <div class="flex items-start gap-3">
+        <!-- Status icon -->
+        <div
+          :class="[
+            'flex h-10 w-10 shrink-0 items-center justify-center rounded-lg',
+            isActive
+              ? 'bg-gray-100 dark:bg-gray-800'
+              : isSuccessful
+              ? 'bg-emerald-500/20'
+              : 'bg-red-500/20'
+          ]"
+        >
+          <!-- Spinning loader for active states -->
+          <Spinner v-if="isActive" class="text-brand h-5 w-5 dark:text-white" />
+          <!-- Check for success -->
+          <svg
+            v-else-if="isSuccessful"
+            class="h-5 w-5 text-emerald-400"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
           >
-            <!-- Spinning loader for active states -->
-            <Spinner
-              v-if="isActive"
-              class="text-brand h-5 w-5 dark:text-white"
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M5 13l4 4L19 7"
             />
-            <!-- Check for success -->
-            <svg
-              v-else-if="isSuccessful"
-              class="h-5 w-5 text-emerald-400"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
+          </svg>
+          <!-- X for failed/cancelled -->
+          <svg
+            v-else
+            class="h-5 w-5 text-red-400"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M6 18L18 6M6 6l12 12"
+            />
+          </svg>
+        </div>
+
+        <!-- Details -->
+        <div class="min-w-0 flex-1">
+          <div class="flex items-center justify-between">
+            <p :class="['text-sm font-medium', statusConfig.color]">
+              {{ statusConfig.label }}
+            </p>
+            <button
+              type="button"
+              @click.stop="dismiss"
+              class="cursor-pointer rounded p-0.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-950 dark:text-gray-500 dark:hover:bg-gray-800 dark:hover:text-gray-300 dark:focus-visible:ring-white"
+              :aria-label="`Dismiss ${statusConfig.label.toLowerCase()} deployment for ${
+                deployment.project.name
+              }`"
             >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M5 13l4 4L19 7"
-              />
-            </svg>
-            <!-- X for failed/cancelled -->
-            <svg
-              v-else
-              class="h-5 w-5 text-red-400"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M6 18L18 6M6 6l12 12"
-              />
-            </svg>
+              <svg
+                class="h-4 w-4"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M6 18L18 6M6 6l12 12"
+                />
+              </svg>
+            </button>
           </div>
 
-          <!-- Details -->
-          <div class="min-w-0 flex-1">
-            <div class="flex items-center justify-between">
-              <p :class="['text-sm font-medium', statusConfig.color]">
-                {{ statusConfig.label }}
-              </p>
-              <button
-                @click.stop="dismiss"
-                class="rounded p-0.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:text-gray-500 dark:hover:bg-gray-800 dark:hover:text-gray-300"
-              >
-                <svg
-                  class="h-4 w-4"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M6 18L18 6M6 6l12 12"
-                  />
-                </svg>
-              </button>
-            </div>
-
-            <button
-              @click="goToDeployment"
-              class="mt-0.5 block w-full truncate text-left text-sm font-medium text-gray-900 hover:underline dark:text-white"
-            >
-              {{ deployment.project.name }}
+          <Link
+            :href="`/projects/${deployment.project.slug}/deployments/${deployment.id}`"
+            class="mt-0.5 block w-full truncate text-left text-sm font-medium text-gray-900 hover:underline dark:text-white"
+          >
+            {{ deployment.project.name }}
+            <span class="text-gray-400 dark:text-gray-500">/</span>
+            {{ deployment.environment.name }}
+            <template v-if="deployment.app">
               <span class="text-gray-400 dark:text-gray-500">/</span>
-              {{ deployment.environment.name }}
-              <template v-if="deployment.app">
-                <span class="text-gray-400 dark:text-gray-500">/</span>
-                {{ deployment.app.name }}
-              </template>
-            </button>
+              {{ deployment.app.name }}
+            </template>
+          </Link>
 
-            <p
-              v-if="isActive && maritimeMessage"
-              class="mt-1 truncate text-xs text-gray-400 dark:text-gray-500"
-            >
-              {{ maritimeMessage }}
-            </p>
+          <p
+            v-if="isActive && maritimeMessage"
+            class="mt-1 truncate text-xs text-gray-400 dark:text-gray-500"
+          >
+            {{ maritimeMessage }}
+          </p>
 
-            <div
-              class="mt-2 flex items-center gap-3 text-xs text-gray-500 dark:text-gray-400"
-            >
-              <span v-if="deployment.gitBranch" class="flex items-center gap-1">
-                <svg
-                  class="h-3 w-3"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M13 10V3L4 14h7v7l9-11h-7z"
-                  />
-                </svg>
-                {{ deployment.gitBranch }}
-              </span>
-              <span class="flex items-center gap-1">
-                <svg
-                  class="h-3 w-3"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-                  />
-                </svg>
-                {{ elapsedFormatted }}
-              </span>
-            </div>
+          <div
+            class="mt-2 flex items-center gap-3 text-xs text-gray-500 dark:text-gray-400"
+          >
+            <span v-if="deployment.gitBranch" class="flex items-center gap-1">
+              <svg
+                class="h-3 w-3"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M13 10V3L4 14h7v7l9-11h-7z"
+                />
+              </svg>
+              {{ deployment.gitBranch }}
+            </span>
+            <span class="flex items-center gap-1">
+              <svg
+                class="h-3 w-3"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                />
+              </svg>
+              {{ elapsedFormatted }}
+            </span>
           </div>
         </div>
       </div>
     </div>
-  </Transition>
+  </div>
 </template>
 
 <style scoped>
