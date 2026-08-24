@@ -4,7 +4,9 @@ const {
 } = require('../../api/lib/error-pages')
 
 module.exports = {
-  port: 3333,
+  // Port zero asks the OS for an unused listener. Sounding reads the actual
+  // bound address after lift, so sequential worlds never share a fixed port.
+  port: 0,
   hooks: {
     lookout: false,
     quest: false
