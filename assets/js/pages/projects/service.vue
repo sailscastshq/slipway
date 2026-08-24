@@ -8,7 +8,7 @@ import Breadcrumb from '@/components/ui/breadcrumb/Breadcrumb.vue'
 import { useToast } from '@/composables/toast'
 import { useServiceActions } from '@/composables/service-actions'
 import LogViewer from '@/components/LogViewer.vue'
-import Menu from '@/components/ui/menu/Menu.vue'
+import RowActions from '@/components/ui/row-actions/RowActions.vue'
 
 defineOptions({
   layout: AppLayout
@@ -570,26 +570,21 @@ onUnmounted(() => {
 
           <div class="flex items-center space-x-2">
             <!-- More menu -->
-            <div class="relative">
-              <button
-                type="button"
-                :popovertarget="`service-actions-${service.id}`"
-                :aria-label="`Actions for ${serviceName}`"
-                class="rounded-md p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-800 dark:hover:text-gray-200"
-              >
+            <RowActions
+              :id="`service-actions-${service.id}`"
+              :label="`Actions for ${serviceName}`"
+              :busy="stopping || restarting"
+              data-test="service-row-actions"
+              class="[&_[data-slot=row-actions-trigger]]:size-7 text-gray-400 [&_[data-row-actions-menu]]:w-40 [&_[data-row-actions-menu]]:rounded-lg [&_[data-row-actions-menu]]:border-gray-200 [&_[data-row-actions-menu]]:bg-white [&_[data-row-actions-menu]]:px-0 [&_[data-row-actions-menu]]:py-1 [&_[data-row-actions-menu]]:shadow-lg dark:[&_[data-row-actions-menu]]:border-gray-700 dark:[&_[data-row-actions-menu]]:bg-gray-900 [&_[data-slot=row-actions-trigger]]:hover:bg-gray-100 [&_[data-slot=row-actions-trigger]]:hover:text-gray-700 dark:[&_[data-slot=row-actions-trigger]]:hover:bg-gray-800 dark:[&_[data-slot=row-actions-trigger]]:hover:text-gray-200"
+            >
+              <template #trigger>
                 <svg class="h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
                   <circle cx="12" cy="6" r="1.5" />
                   <circle cx="12" cy="12" r="1.5" />
                   <circle cx="12" cy="18" r="1.5" />
                 </svg>
-              </button>
-              <Menu
-                :id="`service-actions-${service.id}`"
-                :aria-label="`Actions for ${serviceName}`"
-                placement="bottom-end"
-                :offset="4"
-                class="w-40 rounded-lg border-gray-200 bg-white px-0 py-1 shadow-lg dark:border-gray-700 dark:bg-gray-900"
-              >
+              </template>
+              <template #menu>
                 <div class="contents">
                   <button
                     v-if="serviceStatus === 'running'"
@@ -684,8 +679,8 @@ onUnmounted(() => {
                     Clear logs
                   </button>
                 </div>
-              </Menu>
-            </div>
+              </template>
+            </RowActions>
 
             <!-- Status badge -->
             <span
