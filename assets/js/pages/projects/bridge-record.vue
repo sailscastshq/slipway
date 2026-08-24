@@ -3,8 +3,7 @@ import { Link, Head, router, useForm } from '@inertiajs/vue3'
 import { inject, ref, computed } from 'vue'
 import BridgePageLayout from '@/layouts/BridgePageLayout.vue'
 import ConfirmModal from '@/components/ConfirmModal.vue'
-import ToastContainer from '@/components/ToastContainer.vue'
-import { createToast } from '@/composables/toast'
+import { useToast } from '@/composables/toast'
 import BridgeFieldValue from '@/components/bridge/BridgeFieldValue.vue'
 import BridgeCollectionManager from '@/components/bridge/BridgeCollectionManager.vue'
 import ActionMenu from '@/components/ActionMenu.vue'
@@ -37,7 +36,7 @@ const props = defineProps({
 const toggleMobileMenu = inject('toggleMobileMenu')
 const toggleSidebar = inject('toggleSidebar')
 const sidebarCollapsed = inject('sidebarCollapsed')
-const { toasts, toast, dismiss } = createToast()
+const toast = useToast()
 const bridgeBasePath = computed(
   () =>
     props.bridgeRequestBasePath ||
@@ -228,8 +227,6 @@ function relationshipMutationBaseUrl(relationship) {
       modelMeta?.singularLabel || modelIdentity
     } ${recordId} - Bridge | Slipway`"
   ></Head>
-  <ToastContainer :toasts="toasts" @dismiss="dismiss" />
-
   <div class="flex h-full flex-col">
     <BridgePageHeader
       v-if="hostBridgeOrigin"

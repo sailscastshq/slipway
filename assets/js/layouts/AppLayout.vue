@@ -6,8 +6,6 @@ import { createDeploymentFaviconManager } from '@/lib/deployment-favicon.mjs'
 import ToastContainer from '@/components/ToastContainer.vue'
 import UpdateBanner from '@/components/UpdateBanner.vue'
 import UpdateModal from '@/components/UpdateModal.vue'
-import DeploymentToast from '@/components/DeploymentToast.vue'
-import ServiceActionToast from '@/components/ServiceActionToast.vue'
 import CommandPalette from '@/components/CommandPalette.vue'
 import Avatar from '@/components/ui/avatar/Avatar.vue'
 import Menu from '@/components/ui/menu/Menu.vue'
@@ -172,16 +170,12 @@ function openCommandPaletteFromUserMenu() {
 }
 
 // Toast system
-const { toasts, toast, dismiss } = createToast()
+const toast = createToast({ max: 0 })
 useFlashToast(toast)
 
 // Service actions (global tracking for service start/stop/restart)
-const {
-  actions: serviceActions,
-  startAction,
-  completeAction,
-  dismissAction
-} = createServiceActions()
+const { startAction, completeAction, dismissAction } =
+  createServiceActions(toast)
 provideServiceActions({ startAction, completeAction, dismissAction })
 
 // Command palette (Cmd+K)
@@ -192,8 +186,40 @@ const { updateInfo } = useUpdateCheck()
 const showUpdateModal = ref(false)
 
 // Active deployments tracking (SSE-based — no polling)
-const activeDeployments = ref([])
+const activeDeployments = new Map()
 const deploymentFavicon = createDeploymentFaviconManager()
+const operationalToastClass =
+  'block overflow-visible bg-transparent p-0 shadow-none ring-0 dark:bg-transparent'
+
+function deploymentToastId(id) {
+  return `deployment-${id}`
+}
+
+function showDeployment(deployment) {
+  const id = String(deployment.id)
+  activeDeployments.set(id, deployment)
+  toast({
+    id: deploymentToastId(id),
+    kind: 'deployment',
+    deployment,
+    class: operationalToastClass,
+    dismissible: false,
+    duration: false
+  })
+}
+
+const unsubscribeToast = toast.subscribe(() => {
+  const visibleIds = new Set(
+    toast
+      .getSnapshot()
+      .filter((item) => item.kind === 'deployment')
+      .map((item) => String(item.deployment.id))
+  )
+
+  for (const id of activeDeployments.keys()) {
+    if (!visibleIds.has(id)) activeDeployments.delete(id)
+  }
+})
 
 const { close: disconnectDeploymentStream } = useEventSource(
   loggedInUser ? '/api/v1/deployments/active/stream' : null,
@@ -206,9 +232,7 @@ const { close: disconnectDeploymentStream } = useEventSource(
         // Only add new deployments, don't remove ones we're already tracking
         // (DeploymentToast handles its own lifecycle via per-deployment SSE)
         for (const dep of data.deployments) {
-          if (!activeDeployments.value.find((d) => d.id === dep.id)) {
-            activeDeployments.value.push(dep)
-          }
+          if (!activeDeployments.has(String(dep.id))) showDeployment(dep)
         }
       }
     }
@@ -216,18 +240,26 @@ const { close: disconnectDeploymentStream } = useEventSource(
 )
 
 function updateDeploymentStatus({ deploymentId, ...state }) {
-  const deployment = activeDeployments.value.find(
-    ({ id }) => String(id) === String(deploymentId)
-  )
+  const id = String(deploymentId)
+  const deployment = activeDeployments.get(id)
   if (deployment) Object.assign(deployment, state)
+
+  toast.update(deploymentToastId(id), {
+    deployment,
+    duration: ['running', 'stopped', 'failed', 'cancelled'].includes(
+      state.status
+    )
+      ? 5000
+      : false
+  })
 
   deploymentFavicon.noteDeploymentStatus(deploymentId, state.status)
 }
 
 function dismissDeployment(deploymentId) {
-  activeDeployments.value = activeDeployments.value.filter(
-    (d) => d.id !== deploymentId
-  )
+  const id = String(deploymentId)
+  activeDeployments.delete(id)
+  toast.dismiss(deploymentToastId(id))
 }
 
 function acknowledgeDeploymentFavicon() {
@@ -246,6 +278,8 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  unsubscribeToast()
+  toast.destroy()
   desktopMediaQuery?.removeEventListener('change', handleDesktopViewport)
   disconnectDeploymentStream()
   deploymentFavicon.destroy()
@@ -1176,26 +1210,11 @@ watch(() => page.url, closeMobileMenu)
     </main>
 
     <!-- Toasts -->
-    <ToastContainer :toasts="toasts" @dismiss="dismiss" />
-
-    <!-- Persistent Deployment & Service Action Toasts -->
-    <div
-      class="pointer-events-none fixed bottom-4 right-4 z-50 flex flex-col gap-3"
-    >
-      <ServiceActionToast
-        v-for="action in serviceActions"
-        :key="'service-' + action.id"
-        :action="action"
-        @dismiss="dismissAction"
-      />
-      <DeploymentToast
-        v-for="deployment in activeDeployments"
-        :key="'deploy-' + deployment.id"
-        :deployment="deployment"
-        @status-change="updateDeploymentStatus"
-        @dismiss="dismissDeployment"
-      />
-    </div>
+    <ToastContainer
+      :controller="toast"
+      @deployment-status-change="updateDeploymentStatus"
+      @dismiss-deployment="dismissDeployment"
+    />
 
     <!-- Command Palette (Cmd+K) -->
     <CommandPalette v-if="loggedInUser" />

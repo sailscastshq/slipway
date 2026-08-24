@@ -13,7 +13,7 @@ import {
 } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
 import ConfirmModal from '@/components/ConfirmModal.vue'
-import ToastContainer from '@/components/ToastContainer.vue'
+import { useToast } from '@/composables/toast'
 import Tooltip from '@/components/ui/tooltip/Tooltip.vue'
 import Select from '@/components/ui/select/Select.vue'
 import Table from '@/components/ui/table/Table.vue'
@@ -264,18 +264,10 @@ const importLoading = ref(false)
 const showImportModal = ref(false)
 const showImportConfirm = ref(false)
 
-// Toast state
-const toasts = ref([])
-let toastId = 0
+const toast = useToast()
 
 function showToast(message, type = 'success') {
-  const id = ++toastId
-  toasts.value.push({ id, message, type })
-  setTimeout(() => dismissToast(id), 5000)
-}
-
-function dismissToast(id) {
-  toasts.value = toasts.value.filter((t) => t.id !== id)
+  toast({ message, type, duration: 5000 })
 }
 
 // Tables state
@@ -2962,8 +2954,5 @@ onUnmounted(() => {
       @confirm="executeImport"
       @cancel="showImportConfirm = false"
     />
-
-    <!-- Toasts -->
-    <ToastContainer :toasts="toasts" @dismiss="dismissToast" />
   </div>
 </template>

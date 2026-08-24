@@ -1,12 +1,17 @@
-import { ref, provide, inject } from 'vue'
+import { provide, inject } from 'vue'
 
 const SERVICE_ACTIONS_KEY = Symbol('serviceActions')
+const OPERATIONAL_TOAST_CLASS =
+  'block overflow-visible bg-transparent p-0 shadow-none ring-0 dark:bg-transparent'
+
+function toastId(id) {
+  return `service-action-${id}`
+}
 
 /**
  * Creates the service actions state (used in AppLayout)
  */
-export function createServiceActions() {
-  const actions = ref([])
+export function createServiceActions(toast) {
   let actionId = 0
 
   function startAction({
@@ -17,7 +22,7 @@ export function createServiceActions() {
     environmentName
   }) {
     const id = ++actionId
-    actions.value.push({
+    const actionState = {
       id,
       serviceName,
       serviceType,
@@ -26,26 +31,39 @@ export function createServiceActions() {
       environmentName,
       status: 'in_progress',
       startedAt: Date.now()
+    }
+
+    toast({
+      id: toastId(id),
+      kind: 'service-action',
+      action: actionState,
+      class: OPERATIONAL_TOAST_CLASS,
+      dismissible: false,
+      duration: false
     })
     return id
   }
 
   function completeAction(id, success = true) {
-    const action = actions.value.find((a) => a.id === id)
-    if (action) {
-      action.status = success ? 'success' : 'failed'
-      // Auto-dismiss after 4 seconds
-      setTimeout(() => {
-        dismissAction(id)
-      }, 4000)
-    }
+    const item = toast
+      .getSnapshot()
+      .find((candidate) => candidate.id === toastId(id))
+    if (!item) return
+
+    toast.update(toastId(id), {
+      action: {
+        ...item.action,
+        status: success ? 'success' : 'failed'
+      },
+      duration: 4000
+    })
   }
 
   function dismissAction(id) {
-    actions.value = actions.value.filter((a) => a.id !== id)
+    toast.dismiss(toastId(id))
   }
 
-  return { actions, startAction, completeAction, dismissAction }
+  return { startAction, completeAction, dismissAction }
 }
 
 /**

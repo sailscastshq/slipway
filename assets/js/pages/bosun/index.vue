@@ -14,7 +14,7 @@ import {
 import { useEventSource } from '@/composables/sse'
 import AppLayout from '@/layouts/AppLayout.vue'
 import ConfirmModal from '@/components/ConfirmModal.vue'
-import ToastContainer from '@/components/ToastContainer.vue'
+import { useToast } from '@/composables/toast'
 import Tooltip from '@/components/ui/tooltip/Tooltip.vue'
 import Table from '@/components/ui/table/Table.vue'
 import Menu from '@/components/ui/menu/Menu.vue'
@@ -145,18 +145,10 @@ const canExecuteHelm = computed(() => {
   return Boolean(helmCode.value.trim())
 })
 
-// Toast state
-const toasts = ref([])
-let toastId = 0
+const toast = useToast()
 
 function showToast(message, type = 'success') {
-  const id = ++toastId
-  toasts.value.push({ id, message, type })
-  setTimeout(() => dismissToast(id), 5000)
-}
-
-function dismissToast(id) {
-  toasts.value = toasts.value.filter((t) => t.id !== id)
+  toast({ message, type, duration: 5000 })
 }
 
 async function loadHelmCompletionMetadata() {
@@ -2296,6 +2288,5 @@ onUnmounted(() => {
       @confirm="applyMigration"
       @cancel="showMigrateConfirm = false"
     />
-    <ToastContainer :toasts="toasts" @dismiss="dismissToast" />
   </Tabs>
 </template>
