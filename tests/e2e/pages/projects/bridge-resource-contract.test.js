@@ -729,6 +729,22 @@ test(
       const rowCheckboxes = page.raw.locator('tbody input[type="checkbox"]')
       await rowCheckboxes.nth(0).click()
       await rowCheckboxes.nth(1).click()
+      const bulkActions = page.raw.getByRole('region', {
+        name: 'Actions for selected records'
+      })
+      const pageSelection = page.raw.getByRole('checkbox', {
+        name: 'Select all records on this page'
+      })
+      await expect(bulkActions).toBeVisible()
+      await expect(bulkActions.getByRole('status')).toHaveText('2 selected')
+      await bulkActions.getByRole('button', { name: 'Clear selection' }).click()
+      await expect(bulkActions).toBeHidden()
+      await expect(pageSelection).toBeFocused()
+      expect(await rowCheckboxes.nth(0).isChecked()).toBe(false)
+      expect(await rowCheckboxes.nth(1).isChecked()).toBe(false)
+
+      await rowCheckboxes.nth(0).click()
+      await rowCheckboxes.nth(1).click()
       await page.raw
         .getByRole('button', { name: 'Actions for selected records' })
         .click()
