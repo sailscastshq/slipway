@@ -2,10 +2,11 @@
 import Input from '@/components/ui/input/Input.vue'
 import Checkbox from '@/components/ui/checkbox/Checkbox.vue'
 import { Link, Head, useForm } from '@inertiajs/vue3'
-import { inject, ref, computed } from 'vue'
+import { inject, ref, computed, nextTick } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
 import ConfirmModal from '@/components/ConfirmModal.vue'
 import Menu from '@/components/ui/menu/Menu.vue'
+import EmptyState from '@/components/ui/empty-state/EmptyState.vue'
 
 defineOptions({
   layout: AppLayout
@@ -22,6 +23,7 @@ const toggleMobileMenu = inject('toggleMobileMenu')
 const toggleSidebar = inject('toggleSidebar')
 const sidebarCollapsed = inject('sidebarCollapsed')
 const searchQuery = ref('')
+const searchInput = ref()
 const copiedSlug = ref(null)
 
 const filteredProjects = computed(() => {
@@ -33,6 +35,12 @@ const filteredProjects = computed(() => {
       (project.description && project.description.toLowerCase().includes(query))
   )
 })
+
+async function clearProjectSearch() {
+  searchQuery.value = ''
+  await nextTick()
+  searchInput.value?.focus()
+}
 
 function timeAgo(date) {
   const seconds = Math.floor((new Date() - new Date(date)) / 1000)
@@ -230,6 +238,7 @@ function cancelDeleteProject() {
         <!-- Toolbar: Search + Create Button -->
         <div class="mb-4 flex items-center justify-between">
           <Input
+            ref="searchInput"
             v-model="searchQuery"
             type="text"
             placeholder="Search projects..."
@@ -489,18 +498,34 @@ function cancelDeleteProject() {
             </div>
 
             <!-- No results -->
-            <div
+            <EmptyState
               v-if="filteredProjects.length === 0"
-              class="px-6 py-8 text-center text-sm text-gray-500"
+              as="section"
+              aria-labelledby="projects-filtered-empty-title"
+              class="min-h-0 gap-2 px-6 py-8 text-sm text-gray-500 dark:text-gray-400"
             >
-              No projects found matching "{{ searchQuery }}"
-            </div>
+              <h2 id="projects-filtered-empty-title" class="font-medium">
+                No projects found matching "{{ searchQuery }}"
+              </h2>
+              <button
+                type="button"
+                class="cursor-pointer rounded-md px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-100 focus-visible:outline-2 focus-visible:outline-offset-2 dark:text-gray-300 dark:hover:bg-gray-800"
+                @click="clearProjectSearch"
+              >
+                Clear search
+              </button>
+            </EmptyState>
           </div>
         </div>
       </div>
 
       <!-- Empty State -->
-      <div v-else class="flex flex-col items-center justify-center py-24">
+      <EmptyState
+        v-else
+        as="section"
+        aria-labelledby="projects-empty-title"
+        class="gap-0 p-0 py-24"
+      >
         <div
           class="mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-gray-100 dark:bg-gray-800"
         >
@@ -518,9 +543,12 @@ function cancelDeleteProject() {
             />
           </svg>
         </div>
-        <h3 class="mb-1 text-lg font-medium text-gray-900 dark:text-white">
+        <h1
+          id="projects-empty-title"
+          class="mb-1 text-lg font-medium text-gray-900 dark:text-white"
+        >
           No projects yet
-        </h3>
+        </h1>
         <p class="mb-6 text-sm text-gray-500">
           Get started by creating your first project.
         </p>
@@ -531,7 +559,7 @@ function cancelDeleteProject() {
           <span>+</span>
           <span>Create Project</span>
         </Link>
-      </div>
+      </EmptyState>
     </div>
 
     <ConfirmModal

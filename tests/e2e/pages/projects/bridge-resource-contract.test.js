@@ -315,13 +315,16 @@ test(
         })
       }
       if (code.includes('const total = await model.count(where);')) {
+        const where = readEmbeddedValue(code, 'where')
         resourceQueries.push({
-          where: readEmbeddedValue(code, 'where'),
+          where,
           criteria: readEmbeddedValue(code, 'criteria')
         })
+        const hasNoMatchSearch =
+          JSON.stringify(where).includes('no-matching-course')
         return successfulResult({
-          records,
-          total: records.length
+          records: hasNoMatchSearch ? [] : records,
+          total: hasNoMatchSearch ? 0 : records.length
         })
       }
       if (code.includes('await model.create(values).fetch();')) {
@@ -587,6 +590,18 @@ test(
         { fullPage: true }
       )
       await page.raw.emulateMedia({ colorScheme: 'light' })
+
+      const recordSearch = page.raw.getByPlaceholder('Search records...')
+      await recordSearch.fill('no-matching-course')
+      await page.raw.waitForURL(
+        (url) => url.searchParams.get('search') === 'no-matching-course'
+      )
+      const bridgeEmpty = page.raw.locator('[data-test="bridge-empty"]')
+      await expect(bridgeEmpty).toHaveAttribute('data-slot', 'empty-state')
+      await expect(bridgeEmpty).toHaveText('No matching records.')
+      await recordSearch.fill('')
+      await page.raw.waitForURL((url) => !url.searchParams.has('search'))
+      await page.wait('text=Build a production Sails app')
 
       await page.raw.locator('[data-test="bridge-filter-toggle"]').click()
       await expect(
