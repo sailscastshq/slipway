@@ -17,6 +17,7 @@ import Pagination from '@/components/ui/pagination/Pagination.vue'
 import Select from '@/components/ui/select/Select.vue'
 import DataTable from '@/components/ui/data-table/DataTable.vue'
 import RowActions from '@/components/ui/row-actions/RowActions.vue'
+import BulkActions from '@/components/ui/bulk-actions/BulkActions.vue'
 import { useDataTableQuery } from '@/composables/useDataTableQuery'
 
 defineOptions({
@@ -598,13 +599,13 @@ function createUrl() {
             leave-from-class="opacity-100"
             leave-to-class="opacity-0"
           >
-            <div
-              v-if="selectedIds.length > 0 && hasBulkActions"
-              class="flex items-center space-x-2"
+            <BulkActions
+              :count="hasBulkActions ? selectedIds.length : 0"
+              :busy="quickActionForm.processing || bulkDeleteForm.processing"
+              label="Actions for selected records"
+              class="[&_[data-slot=bulk-actions-clear]]:min-h-7 min-h-0 w-auto gap-2 rounded-none border-0 bg-transparent p-0 text-gray-500 shadow-none dark:bg-transparent dark:text-gray-400 [&_[data-slot=bulk-actions-clear]]:whitespace-nowrap [&_[data-slot=bulk-actions-clear]]:px-2 [&_[data-slot=bulk-actions-clear]]:text-xs [&_[data-slot=bulk-actions-summary]]:text-xs [&_[data-slot=bulk-actions-summary]]:font-normal"
+              @clear="clearSelection"
             >
-              <span class="text-xs text-gray-500 dark:text-gray-400"
-                >{{ selectedIds.length }} selected</span
-              >
               <ActionMenu
                 :items="bulkMenuItems"
                 :disabled="quickActionForm.processing"
@@ -612,7 +613,7 @@ function createUrl() {
                 test-id="bridge-bulk-action-menu"
                 @select="handleBulkAction"
               />
-            </div>
+            </BulkActions>
           </Transition>
         </div>
         <div class="flex items-center space-x-4">
@@ -716,6 +717,7 @@ function createUrl() {
                 <th v-if="hasBulkActions" scope="col" class="w-10 px-4 py-2">
                   <Checkbox
                     v-bind="pageSelection('Select all records on this page')"
+                    data-bulk-actions-focus
                     class="h-3.5 w-3.5 rounded border-gray-300 text-gray-900 focus:ring-gray-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
                   />
                 </th>
