@@ -560,13 +560,19 @@ test(
         .getByRole('columnheader')
         .filter({ hasText: 'Course title' })
       expect(await titleHeader.getAttribute('aria-sort')).toBe(null)
-      await titleHeader
-        .getByRole('button', { name: 'Sort by Course title ascending' })
-        .click()
+      const titleSortButton = dataTable.locator(
+        '[data-table-focus="sort:title"]'
+      )
+      await expect(titleSortButton).toHaveAttribute(
+        'aria-label',
+        'Sort by Course title ascending'
+      )
+      await titleSortButton.click()
       await page.raw.waitForURL(
         (url) => url.searchParams.get('sort') === 'title ASC'
       )
       await expect(titleHeader).toHaveAttribute('aria-sort', 'ascending')
+      await expect(titleSortButton).toBeFocused()
       expect(
         await page.raw.evaluate(
           () => document.activeElement?.dataset.tableFocus
@@ -592,10 +598,39 @@ test(
       await page.raw.emulateMedia({ colorScheme: 'light' })
 
       const recordSearch = page.raw.getByPlaceholder('Search records...')
+      let releaseRecordRefresh
+      let announceRecordRefresh
+      const recordRefreshStarted = new Promise((resolve) => {
+        announceRecordRefresh = resolve
+      })
+      const recordRefreshReleased = new Promise((resolve) => {
+        releaseRecordRefresh = resolve
+      })
+      await page.raw.route(`**${coursePath}?**`, async (route) => {
+        const url = new URL(route.request().url())
+        if (url.searchParams.get('search') === 'no-matching-course') {
+          announceRecordRefresh()
+          await recordRefreshReleased
+        }
+        await route.continue()
+      })
       await recordSearch.fill('no-matching-course')
+      await recordRefreshStarted
+      await expect(
+        page.raw.getByText('Build a production Sails app')
+      ).toBeVisible()
+      const bridgeLoading = page.raw.locator('[data-test="bridge-loading"]')
+      await expect(bridgeLoading).toHaveAttribute('data-slot', 'loading-state')
+      await expect(bridgeLoading).toHaveText('Refreshing records…')
+      await expect(dataTable.locator('table')).toHaveAttribute(
+        'aria-busy',
+        'true'
+      )
+      releaseRecordRefresh()
       await page.raw.waitForURL(
         (url) => url.searchParams.get('search') === 'no-matching-course'
       )
+      await expect(bridgeLoading).not.toBeVisible()
       const bridgeEmpty = page.raw.locator('[data-test="bridge-empty"]')
       await expect(bridgeEmpty).toHaveAttribute('data-slot', 'empty-state')
       await expect(bridgeEmpty).toHaveText('No matching records.')

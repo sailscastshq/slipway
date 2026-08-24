@@ -19,6 +19,8 @@ import DataTable from '@/components/ui/data-table/DataTable.vue'
 import RowActions from '@/components/ui/row-actions/RowActions.vue'
 import BulkActions from '@/components/ui/bulk-actions/BulkActions.vue'
 import EmptyState from '@/components/ui/empty-state/EmptyState.vue'
+import LoadingState from '@/components/ui/loading-state/LoadingState.vue'
+import Spinner from '@/components/SlipwaySpinner.vue'
 import { useDataTableQuery } from '@/composables/useDataTableQuery'
 
 defineOptions({
@@ -559,7 +561,7 @@ function createUrl() {
 
     <!-- Toolbar -->
     <div class="px-4 py-4 sm:px-8">
-      <div class="mx-auto flex max-w-6xl items-center justify-between">
+      <div class="relative mx-auto flex max-w-6xl items-center justify-between">
         <div class="flex items-center space-x-3">
           <Input
             v-if="(modelMeta?.search || []).length > 0"
@@ -653,6 +655,15 @@ function createUrl() {
             New
           </Link>
         </div>
+        <LoadingState
+          v-if="tableBusy && !error && modelMeta"
+          id="bridge-records-loading"
+          data-test="bridge-loading"
+          class="pointer-events-none absolute -bottom-4 right-0 min-h-0 w-auto flex-row justify-end gap-2 p-0 text-right text-xs text-gray-500 dark:text-gray-400"
+        >
+          <Spinner class="size-3.5" />
+          <span>Refreshing records…</span>
+        </LoadingState>
       </div>
     </div>
 
@@ -701,6 +712,7 @@ function createUrl() {
           :row-key="(record) => record[modelMeta.primaryKey]"
           :selectable="() => hasBulkActions"
           :busy="tableBusy"
+          :aria-describedby="tableBusy ? 'bridge-records-loading' : undefined"
           class="rounded-lg border border-gray-200 dark:border-gray-800"
           table-class="w-full text-left text-sm"
         >
