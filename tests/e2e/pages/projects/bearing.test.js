@@ -293,7 +293,9 @@ test(
         'base64'
       )
       await page.raw
-        .locator('[data-test="bearing-update-body-image-input"]')
+        .locator(
+          '[data-test="bearing-update-body-image-upload"] input[type="file"]'
+        )
         .setInputFiles({
           name: 'update-image.png',
           mimeType: 'image/png',
@@ -304,6 +306,9 @@ test(
         page.raw.locator('[data-test="bearing-update-body-visual-editor"] img')
       ).toHaveAttribute('src', updateImageUrl, { timeout: 10_000 })
       await expect(page.raw.getByRole('status')).toHaveText('Image added.')
+      await expect(
+        page.raw.locator('[data-test="bearing-update-body-image-button"]')
+      ).toBeEnabled()
       const updateTitle = page.raw.locator('#bearing-update-title')
       const updateExcerpt = page.raw.locator('#bearing-update-excerpt')
       await updateTitle.fill('Rich updates can carry images')
@@ -673,8 +678,23 @@ test(
     expect(
       await composer.getByRole('button', { name: 'Share' }).isDisabled()
     ).toBe(false)
-    await page.raw.waitForTimeout(600)
+    await page.raw.waitForFunction(() => {
+      const draft = JSON.parse(
+        window.localStorage.getItem(
+          'slipway.bearing.feedback-draft./bearing/feedback'
+        ) || 'null'
+      )
+      return (
+        draft?.data?.category === 'bug' &&
+        draft.data.title === 'Keep unfinished feedback safe' &&
+        draft.data.details ===
+          'This draft should survive an accidental refresh.'
+      )
+    })
     await page.raw.reload()
+    await expect(
+      page.raw.getByRole('status').filter({ hasText: 'Draft restored.' })
+    ).toBeVisible({ timeout: 15_000 })
     await expect(
       composer.getByRole('combobox', { name: 'Category' })
     ).toContainText('Bug')
@@ -684,7 +704,6 @@ test(
     await expect(
       composer.getByPlaceholder('Add details (optional)')
     ).toHaveValue('This draft should survive an accidental refresh.')
-    await expect(page).toSee('Draft restored.')
     await composer.getByRole('button', { name: 'Discard' }).click()
     expect(
       await composer.getByRole('button', { name: 'Share' }).isDisabled()
@@ -732,11 +751,15 @@ test(
     )
 
     try {
-      await composer.locator('input[type="file"]').setInputFiles({
-        name: 'picked-screenshot.png',
-        mimeType: 'image/png',
-        buffer: onePixelPng
-      })
+      await page.raw
+        .locator(
+          '[data-slot="file-upload"] input[data-part="input"][type="file"]'
+        )
+        .setInputFiles({
+          name: 'picked-screenshot.png',
+          mimeType: 'image/png',
+          buffer: onePixelPng
+        })
       await composer.evaluate((element) => {
         const bytes = Uint8Array.from(
           atob(
@@ -755,7 +778,16 @@ test(
             clipboardData: clipboard
           })
         )
+      })
+      await expect(composer.locator('figure')).toHaveCount(2)
 
+      await composer.evaluate((element) => {
+        const bytes = Uint8Array.from(
+          atob(
+            'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADElEQVR42mNk+M/wHwAF/gL+Xhc4VQAAAABJRU5ErkJggg=='
+          ),
+          (character) => character.charCodeAt(0)
+        )
         const dragged = new DataTransfer()
         dragged.items.add(
           new File([bytes], 'dropped-screenshot.png', { type: 'image/png' })

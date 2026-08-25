@@ -1,6 +1,13 @@
 <script setup>
 import Input from '@/components/ui/input/Input.vue'
-import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
+import {
+  computed,
+  nextTick,
+  onBeforeUnmount,
+  ref,
+  shallowRef,
+  watch
+} from 'vue'
 import { EditorContent, useEditor } from '@tiptap/vue-3'
 import { BubbleMenu } from '@tiptap/vue-3/menus'
 import StarterKit from '@tiptap/starter-kit'
@@ -11,6 +18,7 @@ import { Markdown } from '@tiptap/markdown'
 import DOMPurify from 'dompurify'
 import Alert from '@/components/ui/alert/Alert.vue'
 import Tooltip from '@/components/ui/tooltip/Tooltip.vue'
+import FileUpload from '@/components/ui/file-upload/FileUpload.vue'
 import {
   inspectMarkdown,
   looksLikeImageUrl,
@@ -109,8 +117,9 @@ const imageAlt = ref('')
 const uploading = ref(false)
 const uploadMessage = ref('')
 const uploadKind = ref('status')
-const uploadInput = ref(null)
+const selectedUploadImages = shallowRef([])
 let uploadMessageTimeout
+let selectionRejection = ''
 
 const isField = computed(() => props.variant === 'field')
 const uploadAcceptValue = computed(() => props.uploadAccept.join(','))
@@ -509,23 +518,52 @@ async function uploadImages(files, position, currentEditor) {
       images.length === 1 ? 'Image added.' : `${images.length} images added.`,
       { timeout: 3000 }
     )
+    return true
   } catch (error) {
     showUploadMessage(error.message || 'The image could not be uploaded.', {
       kind: 'alert',
       timeout: 5000
     })
+    return false
   } finally {
     uploading.value = false
   }
 }
 
-function chooseImage() {
-  uploadInput.value?.click()
+function validateUploadImage(file) {
+  if (
+    !file.type.startsWith('image/') ||
+    (props.uploadAccept.length > 0 && !props.uploadAccept.includes(file.type))
+  ) {
+    return 'That image type is not accepted.'
+  }
+  if (file.size > props.maxUploadBytes) {
+    return `${file.name} is larger than ${formatUploadBytes(
+      props.maxUploadBytes
+    )}.`
+  }
+  if (!props.uploadsConfigured || !props.uploadUrl) {
+    return 'Image uploads are not configured. Paste a public image URL or configure uploads in Settings.'
+  }
+  return true
 }
 
-async function uploadSelectedImages(event) {
-  await uploadImages(event.target.files, null, editor.value)
-  event.target.value = ''
+function handleUploadImageReject(rejection) {
+  selectionRejection = rejection.message
+  showUploadMessage(rejection.message, { kind: 'alert', timeout: 5000 })
+  queueMicrotask(() => {
+    selectionRejection = ''
+  })
+}
+
+async function uploadSelectedImages(files) {
+  const rejection = selectionRejection
+  selectionRejection = ''
+  const uploaded = await uploadImages(files, null, editor.value)
+  selectedUploadImages.value = []
+  if (uploaded && rejection) {
+    showUploadMessage(rejection, { kind: 'alert', timeout: 5000 })
+  }
 }
 
 function formatUploadBytes(bytes) {
@@ -646,24 +684,25 @@ defineExpose({
       ></textarea>
     </div>
 
-    <div
+    <FileUpload
       v-if="mode === 'visual' && showUploadControl && uploadsConfigured"
+      v-model="selectedUploadImages"
+      multiple
+      :accept="uploadAcceptValue"
+      :disabled="uploading"
+      :validate="validateUploadImage"
+      :data-test="testHandle('image-upload')"
+      @change="uploadSelectedImages"
+      @reject="handleUploadImageReject"
+      v-slot="upload"
       class="min-h-9 mt-2 flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400"
     >
-      <input
-        ref="uploadInput"
-        :data-test="testHandle('image-input')"
-        type="file"
-        :accept="uploadAcceptValue"
-        multiple
-        class="sr-only"
-        @change="uploadSelectedImages"
-      />
       <button
         type="button"
         :disabled="uploading"
-        class="min-h-9 inline-flex items-center gap-1.5 rounded-lg px-2 text-xs font-medium text-gray-700 transition hover:bg-gray-100 disabled:cursor-wait disabled:opacity-50 dark:text-gray-300 dark:hover:bg-gray-900"
-        @click="chooseImage"
+        :data-test="testHandle('image-button')"
+        class="min-h-9 inline-flex cursor-pointer items-center gap-1.5 rounded-lg px-2 text-xs font-medium text-gray-700 transition hover:bg-gray-100 disabled:cursor-wait disabled:opacity-50 dark:text-gray-300 dark:hover:bg-gray-900"
+        @click="upload.choose"
       >
         <svg
           class="size-4"
@@ -682,7 +721,7 @@ defineExpose({
         {{ uploading ? 'Uploading…' : 'Add image' }}
       </button>
       <span>or paste and drop</span>
-    </div>
+    </FileUpload>
 
     <BubbleMenu
       v-if="editor"
