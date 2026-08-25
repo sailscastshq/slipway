@@ -25,6 +25,7 @@ import Spinner from '@/components/SlipwaySpinner.vue'
 import DeploymentHistory from '@/components/DeploymentHistory.vue'
 import { configVariableSummary } from '@/lib/config-variables.mjs'
 import LogViewer from '@/components/LogViewer.vue'
+import Badge from '@/components/ui/badge/Badge.vue'
 
 defineOptions({
   layout: AppLayout
@@ -1400,19 +1401,14 @@ onBeforeUnmount(() => {
                 </div>
               </Menu>
             </div>
-            <span
-              :class="[
-                'inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium',
-                appStatusClasses(app).bg
-              ]"
-            >
+            <Badge :class="['px-3 py-1 text-xs', appStatusClasses(app).bg]">
               <span
                 :class="['h-1.5 w-1.5 rounded-full', appStatusClasses(app).dot]"
               ></span>
               <span :class="appStatusClasses(app).text">{{
                 appStatusLabel(app)
               }}</span>
-            </span>
+            </Badge>
           </div>
         </div>
 
@@ -1949,14 +1945,14 @@ onBeforeUnmount(() => {
                       </div>
                     </div>
                     <div class="flex items-center space-x-2">
-                      <span
+                      <Badge
                         :class="[
-                          'inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-medium',
+                          'rounded-md px-2 py-0.5 text-[10px]',
                           statusBadge(service.status).classes
                         ]"
                       >
                         {{ statusBadge(service.status).label }}
-                      </span>
+                      </Badge>
                       <Tooltip
                         v-if="
                           ['postgresql', 'mysql', 'mongodb', 'redis'].includes(

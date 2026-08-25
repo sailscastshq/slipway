@@ -26,6 +26,7 @@ import DockResultStatusIcon from '@/components/DockResultStatusIcon.vue'
 import { highlightSQL } from '@/lib/highlightSQL'
 import { highlightJSON } from '@/lib/highlightJSON'
 import Spinner from '@/components/SlipwaySpinner.vue'
+import Badge from '@/components/ui/badge/Badge.vue'
 
 defineOptions({
   layout: AppLayout
@@ -1159,18 +1160,18 @@ onUnmounted(() => {
           </svg>
         </div>
         <!-- Single DB badge -->
-        <span
+        <Badge
           v-else-if="databaseService && isRedis"
-          class="inline-flex h-6 w-6 items-center justify-center rounded bg-red-100 text-[9px] font-bold text-red-600 dark:bg-red-900/30 dark:text-red-400 sm:inline-flex"
+          class="size-6 justify-center rounded bg-red-100 p-0 text-[9px] font-bold text-red-600 dark:bg-red-900/30 dark:text-red-400"
         >
           Rd
-        </span>
-        <span
+        </Badge>
+        <Badge
           v-else-if="databaseService"
-          class="hidden rounded bg-gray-100 px-2 py-1 text-xs font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-400 sm:inline-block"
+          class="hidden rounded bg-gray-100 px-2 py-1 text-xs text-gray-600 dark:bg-gray-800 dark:text-gray-400 sm:inline-flex"
         >
           {{ databaseService.type }}
-        </span>
+        </Badge>
         <!-- Redis connection status -->
         <span
           v-if="isRedis && databaseService?.status === 'running'"

@@ -2,6 +2,7 @@
 import { Link, router } from '@inertiajs/vue3'
 import { onBeforeUnmount, ref, watch } from 'vue'
 import DeploymentOutcome from '@/components/DeploymentOutcome.vue'
+import Badge from '@/components/ui/badge/Badge.vue'
 
 const props = defineProps({
   history: {
@@ -238,12 +239,12 @@ function deploymentTestId(deployment) {
               {{ deployment.environment?.name || 'Unknown' }}
             </span>
             <DeploymentOutcome v-if="showStatus" :deployment="deployment" />
-            <span
+            <Badge
               v-if="deployment.app?.name"
-              class="inline-flex rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-500 dark:bg-gray-800 dark:text-gray-400"
+              class="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] text-gray-500 dark:bg-gray-800 dark:text-gray-400"
             >
               {{ deployment.app.name }}
-            </span>
+            </Badge>
             <span
               v-if="deployment.gitBranch"
               class="hidden text-xs text-gray-500 dark:text-gray-400 sm:inline"

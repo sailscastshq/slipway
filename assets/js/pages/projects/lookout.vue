@@ -9,6 +9,7 @@ import Tabs from '@/components/ui/tabs/Tabs.vue'
 import Spinner from '@/components/SlipwaySpinner.vue'
 import { useQueryState } from '@/composables/useQueryState'
 import { useEventSource } from '@/composables/sse'
+import Badge from '@/components/ui/badge/Badge.vue'
 
 defineOptions({
   layout: AppLayout
@@ -842,16 +843,17 @@ async function copyToken() {
               ]"
             >
               <span>{{ tab.label }}</span>
-              <span
+              <Badge
                 v-if="tab.count !== undefined"
                 :class="[
-                  'rounded-full px-1.5 py-0.5 text-[10px] font-medium',
+                  'px-1.5 py-0.5 text-[10px] tabular-nums',
                   activeTab === tab.id
                     ? 'bg-gray-900 text-white dark:bg-white dark:text-gray-900'
                     : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'
                 ]"
-                >{{ compactNumber(tab.count) }}</span
               >
+                {{ compactNumber(tab.count) }}
+              </Badge>
             </button>
           </nav>
         </div>
@@ -2074,11 +2076,11 @@ async function copyToken() {
                 class="flex w-full items-center gap-3 p-4 text-left"
               >
                 <!-- Count badge -->
-                <span
-                  class="inline-flex h-7 min-w-[1.75rem] shrink-0 items-center justify-center rounded-full bg-red-50 px-2 text-xs font-bold text-red-600 dark:bg-red-900/20 dark:text-red-400"
+                <Badge
+                  class="min-w-7 h-7 shrink-0 justify-center bg-red-50 px-2 text-xs font-bold tabular-nums text-red-600 dark:bg-red-900/20 dark:text-red-400"
                 >
                   {{ group.count }}
-                </span>
+                </Badge>
 
                 <!-- Exception info -->
                 <div class="min-w-0 flex-1">

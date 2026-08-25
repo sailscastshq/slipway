@@ -11,6 +11,7 @@ import Avatar from '@/components/ui/avatar/Avatar.vue'
 import Menu from '@/components/ui/menu/Menu.vue'
 import Sheet from '@/components/ui/sheet/Sheet.vue'
 import Sidebar from '@/components/ui/sidebar/Sidebar.vue'
+import Badge from '@/components/ui/badge/Badge.vue'
 import { createToast } from '@/composables/toast'
 import { useFlashToast } from '@/composables/flash-toast'
 import {
@@ -648,10 +649,11 @@ watch(() => page.url, closeMobileMenu)
                   />
                 </svg>
                 <span class="flex-1">Update available</span>
-                <span
-                  class="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-400"
-                  >{{ updateInfo.latestVersion }}</span
+                <Badge
+                  class="bg-gray-100 px-2 py-0.5 text-[10px] text-gray-600 dark:bg-gray-800 dark:text-gray-400"
                 >
+                  {{ updateInfo.latestVersion }}
+                </Badge>
               </button>
               <button
                 @click="openCommandPaletteFromMobileMenu"
@@ -1089,10 +1091,11 @@ watch(() => page.url, closeMobileMenu)
                 />
               </svg>
               <span class="flex-1">Update available</span>
-              <span
-                class="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-400"
-                >{{ updateInfo.latestVersion }}</span
+              <Badge
+                class="bg-gray-100 px-2 py-0.5 text-[10px] text-gray-600 dark:bg-gray-800 dark:text-gray-400"
               >
+                {{ updateInfo.latestVersion }}
+              </Badge>
             </button>
             <button
               @click="openCommandPaletteFromUserMenu"
