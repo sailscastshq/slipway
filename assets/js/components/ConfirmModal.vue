@@ -1,5 +1,6 @@
 <script setup>
 import { useId } from 'vue'
+import Button from '@/components/ui/button/Button.vue'
 import Dialog from '@/components/ui/dialog/Dialog.vue'
 import Spinner from '@/components/SlipwaySpinner.vue'
 
@@ -71,23 +72,24 @@ function handleOpenChange(open) {
     </p>
     <slot name="form" />
     <div class="mt-4 flex justify-end gap-3">
-      <button
+      <Button
         type="button"
         autofocus
         :disabled="loading"
-        class="cursor-pointer rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800"
+        class="min-h-0 min-w-0 cursor-pointer rounded-md border border-gray-300 bg-transparent px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 active:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:bg-transparent dark:text-gray-300 dark:hover:bg-gray-800 dark:active:bg-gray-700"
         @click="cancel"
       >
         {{ cancelLabel }}
-      </button>
-      <button
+      </Button>
+      <Button
         type="button"
         :disabled="loading"
+        :aria-busy="loading ? 'true' : undefined"
         :class="[
-          'cursor-pointer rounded-md px-3 py-1.5 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50',
+          'min-h-0 min-w-0 cursor-pointer rounded-md px-3 py-1.5 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50',
           destructive
-            ? 'bg-red-600 hover:bg-red-700'
-            : 'bg-gray-900 hover:bg-gray-800 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100'
+            ? 'bg-red-600 hover:bg-red-700 active:bg-red-800 dark:bg-red-600 dark:text-white dark:hover:bg-red-700 dark:active:bg-red-800'
+            : 'bg-gray-900 hover:bg-gray-800 active:bg-gray-700 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100 dark:active:bg-gray-200'
         ]"
         @click="confirm"
       >
@@ -96,7 +98,7 @@ function handleOpenChange(open) {
           Loading...
         </span>
         <span v-else>{{ confirmLabel }}</span>
-      </button>
+      </Button>
     </div>
   </Dialog>
 </template>

@@ -1,5 +1,6 @@
 <script setup>
 import Input from '@/components/ui/input/Input.vue'
+import Button from '@/components/ui/button/Button.vue'
 import Checkbox from '@/components/ui/checkbox/Checkbox.vue'
 import { Link, Head, useForm } from '@inertiajs/vue3'
 import { inject, ref, computed, nextTick } from 'vue'
@@ -244,14 +245,15 @@ function cancelDeleteProject() {
             placeholder="Search projects..."
             class="focus:border-brand w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500 sm:w-64"
           />
-          <Link
+          <Button
+            :as="Link"
             href="/projects/new"
-            class="flex items-center space-x-1 rounded-md bg-gray-900 px-3 py-2 text-sm font-medium text-white hover:bg-gray-800 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
+            class="min-h-0 min-w-0 gap-1 rounded-md bg-gray-900 px-3 py-2 text-sm font-medium text-white hover:bg-gray-800 active:bg-gray-700 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100 dark:active:bg-gray-200"
           >
             <span>+</span>
             <span class="hidden sm:inline">Create Project</span>
             <span class="sm:hidden">New</span>
-          </Link>
+          </Button>
         </div>
 
         <!-- Table -->
@@ -552,13 +554,14 @@ function cancelDeleteProject() {
         <p class="mb-6 text-sm text-gray-500">
           Get started by creating your first project.
         </p>
-        <Link
+        <Button
+          :as="Link"
           href="/projects/new"
-          class="flex items-center space-x-1 rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
+          class="min-h-0 min-w-0 gap-1 rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 active:bg-gray-700 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100 dark:active:bg-gray-200"
         >
           <span>+</span>
           <span>Create Project</span>
-        </Link>
+        </Button>
       </EmptyState>
     </div>
 

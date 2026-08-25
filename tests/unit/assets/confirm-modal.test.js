@@ -13,6 +13,9 @@ test('ConfirmModal composes Klean Dialog without rebuilding modal mechanics', ({
   expect(source).toContain(
     "import Dialog from '@/components/ui/dialog/Dialog.vue'"
   )
+  expect(source).toContain(
+    "import Button from '@/components/ui/button/Button.vue'"
+  )
   expect(source).toContain("import { useId } from 'vue'")
   expect(source).toContain(':dismissible="!loading"')
   expect(source).toContain(':aria-busy="loading ? \'true\' : undefined"')
@@ -20,4 +23,5 @@ test('ConfirmModal composes Klean Dialog without rebuilding modal mechanics', ({
   expect(source.includes('<Teleport')).toBe(false)
   expect(source.includes('role="dialog"')).toBe(false)
   expect(source.includes("document.addEventListener('keydown'")).toBe(false)
+  expect(source).toContain('<Button')
 })
