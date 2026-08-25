@@ -693,6 +693,9 @@ test(
     })
     await page.raw.reload()
     await expect(
+      page.raw.getByRole('status').filter({ hasText: 'Draft restored.' })
+    ).toBeVisible({ timeout: 15_000 })
+    await expect(
       composer.getByRole('combobox', { name: 'Category' })
     ).toContainText('Bug')
     await expect(composer.getByPlaceholder('Describe the problem')).toHaveValue(
@@ -701,7 +704,6 @@ test(
     await expect(
       composer.getByPlaceholder('Add details (optional)')
     ).toHaveValue('This draft should survive an accidental refresh.')
-    await expect(page).toSee('Draft restored.')
     await composer.getByRole('button', { name: 'Discard' }).click()
     expect(
       await composer.getByRole('button', { name: 'Share' }).isDisabled()
