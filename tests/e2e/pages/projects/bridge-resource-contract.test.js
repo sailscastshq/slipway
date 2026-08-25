@@ -70,6 +70,7 @@ test(
     const courseRecordId = '018f2a5c-7b34-7f8a-9c12-4a73b9d80211'
     const createdCourseRecordId = '018f2a5c-7b34-7f8a-9c12-4a73b9d80212'
     const creatorId = '018f2a5c-7b34-7f8a-9c12-4a73b9d80213'
+    const secondCreatorId = '018f2a5c-7b34-7f8a-9c12-4a73b9d80219'
     const chapterId = '018f2a5c-7b34-7f8a-9c12-4a73b9d80214'
     const lessonId = '018f2a5c-7b34-7f8a-9c12-4a73b9d80215'
     const otherCourseId = '018f2a5c-7b34-7f8a-9c12-4a73b9d80217'
@@ -183,17 +184,27 @@ test(
         const definition = readEmbeddedValue(code, 'definition')
         if (definition.identity === 'user') {
           expect(definition.where).toEqual({ role: 'admin' })
+          const isSecondPage = Number(definition.page) === 2
+          const isSearching = Boolean(definition.query)
           return successfulResult({
-            options: [
-              {
-                id: creatorId,
-                label: 'Ada Lovelace',
-                attached: false
-              }
-            ],
+            options: isSecondPage
+              ? [
+                  {
+                    id: secondCreatorId,
+                    label: 'Grace Hopper',
+                    attached: false
+                  }
+                ]
+              : [
+                  {
+                    id: creatorId,
+                    label: 'Ada Lovelace',
+                    attached: false
+                  }
+                ],
             page: definition.page,
             limit: definition.limit,
-            hasMore: false
+            hasMore: !isSearching && !isSecondPage
           })
         }
         if (definition.identity === 'course') {
@@ -673,7 +684,14 @@ test(
       await page.raw.locator('#bridge-filter-published-value').click()
       await page.raw.getByRole('option', { name: 'Yes', exact: true }).click()
       await page.raw.locator('#bridge-filter-creator-value').click()
+      await expect(
+        page.raw.locator('#bridge-filter-creator-value')
+      ).toHaveAttribute('aria-expanded', 'true')
+      await expect(
+        page.raw.locator('#bridge-filter-creator-value-content')
+      ).toBeVisible()
       await page.wait('text=Ada Lovelace')
+      await page.wait('text=Grace Hopper')
       await page.screenshot(
         path.join(filterScreenshotRoot, 'belongs-to-filter-light.png'),
         { fullPage: true }
@@ -943,23 +961,36 @@ test(
       await creatorRelationshipSelect.evaluate((element) => {
         element.scrollIntoView({ block: 'center' })
       })
+      expect(
+        await creatorRelationshipSelect.evaluate((element) => element.tagName)
+      ).toBe('INPUT')
       await creatorRelationshipSelect.click()
       await page.wait('text=Ada Lovelace')
-      const creatorSearch = page.raw.getByRole('searchbox', {
-        name: 'Search creator'
-      })
-      const creatorSearchClass = await creatorSearch.getAttribute('class')
-      expect(creatorSearchClass.includes('border-b')).toBe(true)
-      expect(creatorSearchClass.includes('border-dashed')).toBe(true)
-      expect(creatorSearchClass.includes('bg-transparent')).toBe(true)
-      expect(creatorSearchClass.includes('rounded')).toBe(false)
-      expect(creatorSearchClass.includes('ring-1')).toBe(false)
+      const creatorComboboxClass = await creatorRelationshipSelect.getAttribute(
+        'class'
+      )
+      expect(creatorComboboxClass.includes('border-b')).toBe(true)
+      expect(creatorComboboxClass.includes('border-dashed')).toBe(true)
+      expect(creatorComboboxClass.includes('bg-transparent')).toBe(true)
+      expect(creatorComboboxClass.includes('rounded-none')).toBe(true)
+      expect(creatorComboboxClass.includes('ring-1')).toBe(false)
       expect(
-        await creatorSearch.evaluate(
+        await creatorRelationshipSelect.evaluate(
           (element) => getComputedStyle(element).borderBottomStyle
         )
       ).toBe('dashed')
-      await creatorSearch.fill('Ada')
+      await creatorRelationshipSelect.press('ArrowDown')
+      expect(
+        await creatorRelationshipSelect.evaluate(
+          (element) => document.activeElement === element
+        )
+      ).toBe(true)
+      const activeOptionId = await creatorRelationshipSelect.getAttribute(
+        'aria-activedescendant'
+      )
+      expect(activeOptionId).toBeTruthy()
+      await expect(page.raw.locator(`#${activeOptionId}`)).toHaveRole('option')
+      await creatorRelationshipSelect.fill('Ada')
       await page.wait('text=Ada Lovelace')
       await page.screenshot(
         path.join(
@@ -980,6 +1011,11 @@ test(
       await page.raw
         .getByRole('option', { name: 'Ada Lovelace', exact: true })
         .click()
+      expect(
+        await creatorRelationshipSelect.evaluate(
+          (element) => document.activeElement === element
+        )
+      ).toBe(true)
       await page.raw.setViewportSize({ width: 1440, height: 900 })
       expect(await createRecordButton.isEnabled()).toBe(true)
       await createRecordButton.scrollIntoViewIfNeeded()
@@ -1327,7 +1363,10 @@ test(
       })
 
       expect(await chapterSelect.isDisabled()).toBe(true)
-      await expect(chapterSelect).toHaveText('Choose course first')
+      await expect(chapterSelect).toHaveAttribute(
+        'placeholder',
+        'Choose course first'
+      )
 
       await courseSelect.click()
       await page.raw
@@ -1342,13 +1381,17 @@ test(
       await page.raw
         .getByRole('option', { name: 'The deployment path', exact: true })
         .click()
-      await expect(chapterSelect).toHaveText('The deployment path')
+      await expect(chapterSelect).toHaveValue('The deployment path')
 
       await courseSelect.click()
       await page.raw
         .getByRole('option', { name: 'Durable UI', exact: true })
         .click()
-      await expect(chapterSelect).toHaveText('Select…')
+      await expect(chapterSelect).toHaveValue('')
+      await expect(chapterSelect).toHaveAttribute(
+        'placeholder',
+        'Search chapter in this course…'
+      )
       await chapterSelect.click()
       await page.wait('text=Durable form state')
       expect(
