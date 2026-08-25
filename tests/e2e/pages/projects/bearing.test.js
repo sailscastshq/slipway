@@ -306,6 +306,9 @@ test(
         page.raw.locator('[data-test="bearing-update-body-visual-editor"] img')
       ).toHaveAttribute('src', updateImageUrl, { timeout: 10_000 })
       await expect(page.raw.getByRole('status')).toHaveText('Image added.')
+      await expect(
+        page.raw.locator('[data-test="bearing-update-body-image-button"]')
+      ).toBeEnabled()
       const updateTitle = page.raw.locator('#bearing-update-title')
       const updateExcerpt = page.raw.locator('#bearing-update-excerpt')
       await updateTitle.fill('Rich updates can carry images')
@@ -675,7 +678,19 @@ test(
     expect(
       await composer.getByRole('button', { name: 'Share' }).isDisabled()
     ).toBe(false)
-    await page.raw.waitForTimeout(600)
+    await page.raw.waitForFunction(() => {
+      const draft = JSON.parse(
+        window.localStorage.getItem(
+          'slipway.bearing.feedback-draft./bearing/feedback'
+        ) || 'null'
+      )
+      return (
+        draft?.data?.category === 'bug' &&
+        draft.data.title === 'Keep unfinished feedback safe' &&
+        draft.data.details ===
+          'This draft should survive an accidental refresh.'
+      )
+    })
     await page.raw.reload()
     await expect(
       composer.getByRole('combobox', { name: 'Category' })
