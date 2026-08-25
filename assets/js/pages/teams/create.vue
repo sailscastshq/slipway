@@ -1,5 +1,6 @@
 <script setup>
 import Input from '@/components/ui/input/Input.vue'
+import Button from '@/components/ui/button/Button.vue'
 import { useForm, Head, Link } from '@inertiajs/vue3'
 import { inject } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
@@ -175,19 +176,21 @@ const sidebarCollapsed = inject('sidebarCollapsed')
             />
 
             <div class="flex items-center justify-end space-x-3 pt-4">
-              <Link
+              <Button
+                :as="Link"
                 href="/"
-                class="rounded-md px-3 py-1.5 text-sm text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
+                class="min-h-0 min-w-0 bg-transparent px-3 py-1.5 text-sm font-normal text-gray-500 hover:bg-transparent hover:text-gray-900 active:bg-transparent dark:bg-transparent dark:text-gray-400 dark:hover:bg-transparent dark:hover:text-white dark:active:bg-transparent"
               >
                 Cancel
-              </Link>
-              <button
+              </Button>
+              <Button
                 type="submit"
                 :disabled="form.processing || !form.name"
-                class="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
+                :aria-busy="form.processing ? 'true' : undefined"
+                class="min-h-0 min-w-0 rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 active:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100 dark:active:bg-gray-200"
               >
                 {{ form.processing ? 'Creating...' : 'Create team' }}
-              </button>
+              </Button>
             </div>
           </form>
         </div>
