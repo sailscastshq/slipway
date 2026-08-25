@@ -1,7 +1,7 @@
 <script setup>
 import Input from '@/components/ui/input/Input.vue'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
-import BridgeRelationshipSelect from '@/components/bridge/BridgeRelationshipSelect.vue'
+import BridgeRelationshipCombobox from '@/components/bridge/BridgeRelationshipCombobox.vue'
 import Select from '@/components/ui/select/Select.vue'
 import FilterBar from '@/components/ui/filter-bar/FilterBar.vue'
 
@@ -424,7 +424,7 @@ onBeforeUnmount(() => {
               "
             />
 
-            <BridgeRelationshipSelect
+            <BridgeRelationshipCombobox
               v-else-if="definition.type === 'belongsTo'"
               :id="fieldId(definition, 'value')"
               :label="definition.label"

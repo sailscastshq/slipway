@@ -4,7 +4,7 @@ import Input from '@/components/ui/input/Input.vue'
 import { router } from '@inertiajs/vue3'
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import MarkdownEditor from '@/components/content/MarkdownEditor.vue'
-import BridgeRelationshipSelect from '@/components/bridge/BridgeRelationshipSelect.vue'
+import BridgeRelationshipCombobox from '@/components/bridge/BridgeRelationshipCombobox.vue'
 import Select from '@/components/ui/select/Select.vue'
 import Switch from '@/components/ui/switch/Switch.vue'
 import {
@@ -876,7 +876,7 @@ function defaultPlaceholder(fieldType) {
         @blur="handleBlur"
       />
 
-      <BridgeRelationshipSelect
+      <BridgeRelationshipCombobox
         v-else-if="type === 'belongsTo'"
         :id="fieldId"
         :label="label"
