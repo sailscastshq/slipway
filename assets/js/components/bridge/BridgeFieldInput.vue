@@ -7,6 +7,7 @@ import MarkdownEditor from '@/components/content/MarkdownEditor.vue'
 import BridgeRelationshipCombobox from '@/components/bridge/BridgeRelationshipCombobox.vue'
 import Select from '@/components/ui/select/Select.vue'
 import Switch from '@/components/ui/switch/Switch.vue'
+import FileUpload from '@/components/ui/file-upload/FileUpload.vue'
 import {
   bridgeFieldType,
   bridgeSelectOptions,
@@ -77,7 +78,6 @@ const props = defineProps({
 
 const emit = defineEmits(['update:modelValue', 'blur', 'clear-error'])
 
-const fileInput = ref(null)
 const uploading = ref(false)
 const uploadError = ref('')
 const uploadPhase = ref('')
@@ -258,12 +258,16 @@ function toggleRichTextMode() {
   richTextEditor.value?.setMode(next)
 }
 
-async function uploadFile(event) {
-  const file = event.target.files?.[0]
-  event.target.value = ''
-  if (!file) return
+function validateUploadFile(file) {
+  if (file.size > maxBytes.value) {
+    return `Choose a file no larger than ${formatBridgeBytes(maxBytes.value)}.`
+  }
+  if (!props.uploadUrl) return 'This Bridge upload field is not configured.'
+  return true
+}
 
-  await beginUpload(file)
+function handleUploadReject(rejection) {
+  uploadError.value = rejection.message
 }
 
 async function beginUpload(file) {
@@ -955,20 +959,18 @@ function defaultPlaceholder(fieldType) {
         @blur="handleBlur"
       ></textarea>
 
-      <div
+      <FileUpload
         v-else-if="['file', 'image', 'upload'].includes(type)"
         class="space-y-3"
+        v-model="pendingUploadFile"
+        :accept="accept || undefined"
+        :disabled="field.readOnly || uploading"
+        :validate="validateUploadFile"
+        :data-test="`${fieldId}-upload`"
+        @change="beginUpload"
+        @reject="handleUploadReject"
+        v-slot="upload"
       >
-        <input
-          :id="fieldId"
-          ref="fileInput"
-          type="file"
-          class="sr-only"
-          :accept="accept || undefined"
-          :disabled="field.readOnly || uploading"
-          :data-test="`${fieldId}-input`"
-          @change="uploadFile"
-        />
         <div
           v-if="uploading"
           class="space-y-2 rounded-lg bg-gray-50 p-3 dark:bg-gray-900"
@@ -986,7 +988,7 @@ function defaultPlaceholder(fieldType) {
             <button
               v-if="uploadPhase === 'uploading' && uploadAbortController"
               type="button"
-              class="shrink-0 text-xs font-medium text-gray-500 hover:text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 dark:text-gray-400 dark:hover:text-white dark:focus-visible:ring-gray-600"
+              class="shrink-0 cursor-pointer text-xs font-medium text-gray-500 hover:text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 dark:text-gray-400 dark:hover:text-white dark:focus-visible:ring-gray-600"
               @click="cancelUpload"
             >
               Cancel
@@ -1038,8 +1040,10 @@ function defaultPlaceholder(fieldType) {
           <button
             type="button"
             :disabled="field.readOnly || uploading"
-            class="shrink-0 text-xs font-medium text-gray-500 hover:text-gray-900 disabled:opacity-50 dark:text-gray-400 dark:hover:text-white"
-            @click="fileInput?.click()"
+            :aria-invalid="visibleError ? 'true' : undefined"
+            :aria-describedby="describedBy"
+            class="shrink-0 cursor-pointer text-xs font-medium text-gray-500 hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-50 dark:text-gray-400 dark:hover:text-white"
+            @click="upload.choose"
           >
             Replace
           </button>
@@ -1048,8 +1052,10 @@ function defaultPlaceholder(fieldType) {
           <button
             type="button"
             :disabled="field.readOnly"
-            class="inline-flex h-10 items-center rounded-md bg-gray-100 px-3 text-sm font-medium text-gray-700 hover:bg-gray-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700 dark:focus-visible:ring-gray-600"
-            @click="fileInput?.click()"
+            :aria-invalid="visibleError ? 'true' : undefined"
+            :aria-describedby="describedBy"
+            class="inline-flex h-10 cursor-pointer items-center rounded-md bg-gray-100 px-3 text-sm font-medium text-gray-700 hover:bg-gray-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700 dark:focus-visible:ring-gray-600"
+            @click="upload.choose"
           >
             {{ isImageUpload ? 'Choose image' : 'Choose file' }}
           </button>
@@ -1063,25 +1069,28 @@ function defaultPlaceholder(fieldType) {
         >
           <button
             type="button"
-            class="text-xs font-medium text-gray-700 hover:text-gray-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 dark:text-gray-300 dark:hover:text-white dark:focus-visible:ring-gray-600"
+            class="cursor-pointer text-xs font-medium text-gray-700 hover:text-gray-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 dark:text-gray-300 dark:hover:text-white dark:focus-visible:ring-gray-600"
             @click="retryUpload"
           >
             Retry upload
           </button>
           <button
             type="button"
-            class="text-xs text-gray-400 hover:text-gray-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 dark:text-gray-500 dark:hover:text-gray-300 dark:focus-visible:ring-gray-600"
-            @click="fileInput?.click()"
+            :aria-invalid="visibleError ? 'true' : undefined"
+            :aria-describedby="describedBy"
+            class="cursor-pointer text-xs text-gray-400 hover:text-gray-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 dark:text-gray-500 dark:hover:text-gray-300 dark:focus-visible:ring-gray-600"
+            @click="upload.choose"
           >
             Choose another file
           </button>
         </div>
-      </div>
+      </FileUpload>
     </template>
 
     <p
       v-if="visibleError"
       :id="errorId"
+      :role="uploadError ? 'alert' : undefined"
       class="text-xs text-red-600 dark:text-red-400"
     >
       {{ visibleError }}

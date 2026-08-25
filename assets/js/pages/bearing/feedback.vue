@@ -3,10 +3,19 @@ import Textarea from '@/components/ui/textarea/Textarea.vue'
 import Input from '@/components/ui/input/Input.vue'
 import Radio from '@/components/ui/radio/Radio.vue'
 import { Head, InfiniteScroll, router, useForm } from '@inertiajs/vue3'
-import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
+import {
+  computed,
+  nextTick,
+  onMounted,
+  onUnmounted,
+  ref,
+  shallowRef,
+  watch
+} from 'vue'
 import ShareLinkButton from '@/components/ShareLinkButton.vue'
 import Select from '@/components/ui/select/Select.vue'
 import Tooltip from '@/components/ui/tooltip/Tooltip.vue'
+import FileUpload from '@/components/ui/file-upload/FileUpload.vue'
 import { useBearingRealtime } from '@/composables/useBearingRealtime'
 import { useFormDraft } from '@/composables/useFormDraft'
 
@@ -56,10 +65,7 @@ const ACCEPTED_IMAGE_TYPES = new Set([
   'image/webp'
 ])
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024
-const imageInput = ref(null)
-const previewUrls = ref(new Map())
-const isDraggingImages = ref(false)
-let imageDragDepth = 0
+const attachedImages = shallowRef([])
 const form = useForm({
   category: activeCategories.value[0]?.key || 'feature',
   title: '',
@@ -75,15 +81,8 @@ form.transform((data) => ({
       ([field, value]) => !IMAGE_FIELDS.includes(field) || isImageFile(value)
     )
   ),
-  imageCount: selectedImages.value.length
+  imageCount: attachedImages.value.length
 }))
-const selectedImages = computed(() =>
-  IMAGE_FIELDS.filter((field) => isImageFile(form[field])).map((field) => ({
-    field,
-    file: form[field],
-    previewUrl: previewUrls.value.get(field)
-  }))
-)
 const canShare = computed(() => Boolean(form.title.trim()) && !form.processing)
 const { clear: clearDraft, restored: draftRestored } = useFormDraft(
   `slipway.bearing.feedback-draft.${props.app.feedbackPath}`,
@@ -227,7 +226,6 @@ onMounted(revealFocusedFeedback)
 onUnmounted(() => {
   window.clearTimeout(filterTimer)
   for (const timer of highlightTimers.values()) window.clearTimeout(timer)
-  revokeImagePreviews()
 })
 
 function reconcileFeedback(snapshot, syncedAt) {
@@ -477,11 +475,6 @@ function discardDraft() {
   clearDraft()
 }
 
-function handleImageInput(event) {
-  addImages(event.target.files)
-  event.target.value = ''
-}
-
 function handleImagePaste(event) {
   const files = Array.from(event.clipboardData?.items || [])
     .filter((item) => item.kind === 'file' && item.type.startsWith('image/'))
@@ -489,97 +482,92 @@ function handleImagePaste(event) {
     .filter(Boolean)
   if (!files.length) return
   event.preventDefault()
-  addImages(files)
+  addPastedImages(files)
 }
 
-function handleImageDragEnter() {
-  imageDragDepth += 1
-  isDraggingImages.value = true
-}
-
-function handleImageDragLeave() {
-  imageDragDepth = Math.max(0, imageDragDepth - 1)
-  if (imageDragDepth === 0) isDraggingImages.value = false
-}
-
-function handleImageDrop(event) {
-  imageDragDepth = 0
-  isDraggingImages.value = false
-  addImages(event.dataTransfer?.files)
-}
-
-function addImages(fileList) {
+function addPastedImages(fileList) {
   const incoming = Array.from(fileList || [])
   if (!incoming.length) return
 
   form.clearErrors('images')
-  const existingSignatures = new Set(
-    selectedImages.value.map(({ file }) => imageSignature(file))
-  )
-  const availableFields = IMAGE_FIELDS.filter(
-    (field) => !isImageFile(form[field])
-  )
-  let added = 0
+  const accepted = [...attachedImages.value]
   let rejection = ''
 
   for (const file of incoming) {
-    if (!ACCEPTED_IMAGE_TYPES.has(file.type)) {
-      rejection = 'Choose AVIF, GIF, JPEG, PNG, or WebP images.'
-      continue
+    const result = validateImage(file, { files: accepted })
+    if (result === true) {
+      accepted.push(file)
+    } else {
+      rejection = typeof result === 'string' ? result : result.message
     }
-    if (file.size > MAX_IMAGE_BYTES) {
-      rejection = 'Each image must be 5 MB or smaller.'
-      continue
-    }
-    if (existingSignatures.has(imageSignature(file))) continue
-    const field = availableFields.shift()
-    if (!field) {
-      rejection = 'You can attach up to 4 images.'
-      break
-    }
-
-    form[field] = file
-    existingSignatures.add(imageSignature(file))
-    const nextPreviews = new Map(previewUrls.value)
-    nextPreviews.set(field, URL.createObjectURL(file))
-    previewUrls.value = nextPreviews
-    added += 1
   }
 
-  if (rejection) form.setError('images', rejection)
-  if (added) {
-    liveAnnouncement.value = `${added} ${
-      added === 1 ? 'image' : 'images'
-    } attached.`
+  if (accepted.length !== attachedImages.value.length) {
+    attachedImages.value = accepted
+    handleImagesChange(accepted)
+  }
+  if (rejection) {
+    form.setError('images', rejection)
+    liveAnnouncement.value = rejection
   }
 }
 
-function removeImage(field) {
-  const url = previewUrls.value.get(field)
-  if (url) URL.revokeObjectURL(url)
-  const remaining = selectedImages.value.filter(
-    (image) => image.field !== field
-  )
-  for (const imageField of IMAGE_FIELDS) form[imageField] = null
-  const nextPreviews = new Map()
-  remaining.forEach((image, index) => {
-    const imageField = IMAGE_FIELDS[index]
-    form[imageField] = image.file
-    nextPreviews.set(imageField, image.previewUrl)
+function validateImage(file, { files }) {
+  if (!ACCEPTED_IMAGE_TYPES.has(file.type)) {
+    return 'Choose AVIF, GIF, JPEG, PNG, or WebP images.'
+  }
+  if (file.size > MAX_IMAGE_BYTES) {
+    return 'Each image must be 5 MB or smaller.'
+  }
+  if (
+    files.some(
+      (candidate) => imageSignature(candidate) === imageSignature(file)
+    )
+  ) {
+    return { reason: 'duplicate', message: 'That image is already attached.' }
+  }
+  if (files.length >= IMAGE_FIELDS.length) {
+    return `You can attach up to ${IMAGE_FIELDS.length} images.`
+  }
+  return true
+}
+
+function handleImagesChange(files) {
+  syncImageFields(files)
+  form.clearErrors('images')
+  liveAnnouncement.value = `${files.length} ${
+    files.length === 1 ? 'image' : 'images'
+  } attached.`
+}
+
+function handleImageReject(rejection) {
+  const message =
+    rejection.reason === 'accept'
+      ? 'Choose AVIF, GIF, JPEG, PNG, or WebP images.'
+      : rejection.message
+  nextTick(() => {
+    form.setError('images', message)
+    liveAnnouncement.value = message
   })
-  previewUrls.value = nextPreviews
+}
+
+function syncImageFields(files) {
+  for (const imageField of IMAGE_FIELDS) form[imageField] = null
+  files.slice(0, IMAGE_FIELDS.length).forEach((file, index) => {
+    form[IMAGE_FIELDS[index]] = file
+  })
+}
+
+function removeImage(upload, file) {
+  upload.remove(file)
   form.clearErrors('images')
   liveAnnouncement.value = 'Image removed.'
 }
 
 function clearSelectedImages() {
-  revokeImagePreviews()
-  for (const field of IMAGE_FIELDS) form[field] = null
-}
-
-function revokeImagePreviews() {
-  for (const url of previewUrls.value.values()) URL.revokeObjectURL(url)
-  previewUrls.value = new Map()
+  attachedImages.value = []
+  syncImageFields([])
+  form.clearErrors('images')
 }
 
 function imageSignature(file) {
@@ -740,260 +728,263 @@ function shortDate(value) {
           :class="embedded ? 'mt-0' : 'mt-10'"
           aria-labelledby="share-feedback-heading"
         >
-          <form
+          <FileUpload
             v-if="canSubmit"
-            :class="[
-              'max-w-2xl transition duration-200',
-              isDraggingImages
-                ? '-mx-4 rounded-2xl bg-gray-50 px-4 ring-2 ring-gray-300 dark:bg-gray-900 dark:ring-gray-700'
-                : ''
-            ]"
-            @submit.prevent="submit"
-            @dragenter.prevent="handleImageDragEnter"
-            @dragover.prevent
-            @dragleave.prevent="handleImageDragLeave"
-            @drop.prevent="handleImageDrop"
-            @paste="handleImagePaste"
-            novalidate
+            v-model="attachedImages"
+            multiple
+            accept="image/avif,image/gif,image/jpeg,image/png,image/webp"
+            :disabled="form.processing"
+            :validate="validateImage"
+            @change="handleImagesChange"
+            @reject="handleImageReject"
+            v-slot="upload"
           >
-            <div>
-              <h2 id="share-feedback-heading" class="sr-only">
-                Share feedback
-              </h2>
+            <form
+              v-bind="upload.dropzone"
+              :class="[
+                'max-w-2xl transition duration-200',
+                upload.dragging
+                  ? '-mx-4 rounded-2xl bg-gray-50 px-4 ring-2 ring-gray-300 dark:bg-gray-900 dark:ring-gray-700'
+                  : ''
+              ]"
+              @submit.prevent="submit"
+              @paste="handleImagePaste"
+              novalidate
+            >
+              <div>
+                <h2 id="share-feedback-heading" class="sr-only">
+                  Share feedback
+                </h2>
 
-              <div class="flex items-center gap-3">
-                <Tooltip :text="`Posting as ${participantName}`">
-                  <span
-                    role="img"
-                    :aria-label="`Posting as ${participantName}`"
-                    tabindex="0"
-                    class="size-10 flex shrink-0 items-center justify-center rounded-full bg-gray-950 text-xs font-semibold text-white dark:bg-white dark:text-gray-950"
-                  >
-                    <span aria-hidden="true">{{ participantInitials }}</span>
-                  </span>
-                </Tooltip>
-
-                <svg
-                  aria-hidden="true"
-                  viewBox="0 0 16 16"
-                  class="size-4 shrink-0 text-gray-300 dark:text-gray-700"
-                  fill="none"
-                >
-                  <path
-                    d="m6 3.5 4.5 4.5L6 12.5"
-                    stroke="currentColor"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="1.5"
-                  />
-                </svg>
-
-                <div
-                  class="[&_[data-slot=select-content]]:min-w-44 max-w-[16rem] [&>[data-slot=select]]:w-auto [&_[data-slot=select-content]]:rounded-xl [&_[data-slot=select-content]]:shadow-xl [&_[data-slot=select-content]]:shadow-gray-950/10 dark:[&_[data-slot=select-content]]:shadow-black/30"
-                >
-                  <Select
-                    id="bearing-feedback-category"
-                    v-model="form.category"
-                    aria-label="Category"
-                    :options="categoryOptions"
-                    class="min-h-10 w-auto max-w-[16rem] rounded-lg border-0 bg-gray-100 px-3.5 py-2 text-sm font-semibold text-gray-950 shadow-none hover:bg-gray-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-950 focus-visible:ring-offset-2 dark:bg-gray-900 dark:text-white dark:hover:bg-gray-800 dark:focus-visible:ring-white dark:focus-visible:ring-offset-gray-950"
-                  />
-                </div>
-              </div>
-
-              <label class="mt-7 block" for="bearing-feedback-title">
-                <span class="sr-only">Summary</span>
-                <Input
-                  id="bearing-feedback-title"
-                  ref="titleInput"
-                  v-model="form.title"
-                  type="text"
-                  maxlength="140"
-                  required
-                  :placeholder="summaryPlaceholder"
-                  :aria-invalid="Boolean(form.errors.title)"
-                  :aria-describedby="
-                    form.errors.title
-                      ? 'bearing-feedback-title-error'
-                      : undefined
-                  "
-                  class="bearing-feedback-composer-field w-full border-0 bg-transparent p-0 text-xl font-semibold tracking-tight text-gray-950 caret-gray-950 placeholder:font-medium placeholder:text-gray-300 dark:text-white dark:caret-white dark:placeholder:text-gray-500 sm:text-2xl"
-                  @input="handleTitleInput"
-                />
-              </label>
-
-              <p
-                v-if="form.errors.title"
-                id="bearing-feedback-title-error"
-                class="mt-2 text-sm font-medium text-red-600"
-              >
-                {{ form.errors.title }}
-              </p>
-              <p
-                v-else-if="form.title.length >= 100"
-                class="mt-2 text-xs text-gray-400"
-              >
-                {{ 140 - form.title.length }} characters left
-              </p>
-
-              <label class="mt-3 block" for="bearing-feedback-details">
-                <span class="sr-only">Details (optional)</span>
-                <Textarea
-                  id="bearing-feedback-details"
-                  v-model="form.details"
-                  rows="2"
-                  maxlength="5000"
-                  placeholder="Add details (optional)"
-                  class="bearing-feedback-composer-field w-full resize-none border-0 bg-transparent p-0 text-sm leading-6 text-gray-700 caret-gray-950 placeholder:text-gray-300 dark:text-gray-300 dark:caret-white dark:placeholder:text-gray-600"
-                />
-              </label>
-
-              <div
-                v-if="selectedImages.length"
-                class="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-4"
-              >
-                <figure
-                  v-for="image in selectedImages"
-                  :key="image.field"
-                  class="group/image relative aspect-[4/3] overflow-hidden rounded-xl bg-gray-100 dark:bg-gray-900"
-                >
-                  <img
-                    :src="image.previewUrl"
-                    :alt="image.file.name"
-                    class="h-full w-full object-cover"
-                  />
-                  <Tooltip :text="`Remove ${image.file.name}`">
-                    <button
-                      type="button"
-                      :aria-label="`Remove ${image.file.name}`"
-                      class="size-8 absolute right-2 top-2 flex items-center justify-center rounded-full bg-gray-950/80 text-white shadow-sm backdrop-blur transition hover:bg-gray-950 focus-visible:ring-2 focus-visible:ring-white"
-                      @click="removeImage(image.field)"
+                <div class="flex items-center gap-3">
+                  <Tooltip :text="`Posting as ${participantName}`">
+                    <span
+                      role="img"
+                      :aria-label="`Posting as ${participantName}`"
+                      tabindex="0"
+                      class="size-10 flex shrink-0 items-center justify-center rounded-full bg-gray-950 text-xs font-semibold text-white dark:bg-white dark:text-gray-950"
                     >
-                      <svg
-                        aria-hidden="true"
-                        viewBox="0 0 16 16"
-                        class="size-3.5"
-                        fill="none"
-                      >
-                        <path
-                          d="m4.25 4.25 7.5 7.5m0-7.5-7.5 7.5"
-                          stroke="currentColor"
-                          stroke-linecap="round"
-                          stroke-width="1.5"
-                        />
-                      </svg>
-                    </button>
+                      <span aria-hidden="true">{{ participantInitials }}</span>
+                    </span>
                   </Tooltip>
-                </figure>
-              </div>
 
-              <p
-                v-if="form.errors.images"
-                id="bearing-feedback-images-error"
-                class="mt-3 text-sm font-medium text-red-600"
-              >
-                {{ form.errors.images }}
-              </p>
-            </div>
-
-            <div
-              v-if="form.progress"
-              class="mt-5"
-              role="status"
-              aria-live="polite"
-            >
-              <div
-                class="flex items-center justify-between text-xs text-gray-400"
-              >
-                <span>Uploading images</span>
-                <span>{{ form.progress.percentage }}%</span>
-              </div>
-              <div
-                class="mt-2 h-1 overflow-hidden rounded-full bg-gray-100 dark:bg-gray-900"
-              >
-                <span
-                  class="block h-full rounded-full bg-gray-950 transition-[width] duration-200 dark:bg-white"
-                  :style="{ width: `${form.progress.percentage}%` }"
-                ></span>
-              </div>
-            </div>
-
-            <div
-              class="min-h-10 mt-5 flex flex-wrap items-center justify-between gap-4"
-            >
-              <div class="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2">
-                <label
-                  for="bearing-feedback-images"
-                  class="min-h-10 inline-flex items-center gap-2 rounded-lg px-2 text-sm font-medium text-gray-500 transition hover:bg-gray-50 hover:text-gray-950 dark:text-gray-400 dark:hover:bg-gray-900 dark:hover:text-white"
-                >
                   <svg
                     aria-hidden="true"
-                    viewBox="0 0 20 20"
-                    class="size-4"
+                    viewBox="0 0 16 16"
+                    class="size-4 shrink-0 text-gray-300 dark:text-gray-700"
                     fill="none"
                   >
                     <path
-                      d="M3.75 5.75A2.25 2.25 0 0 1 6 3.5h8A2.25 2.25 0 0 1 16.25 5.75v8.5A2.25 2.25 0 0 1 14 16.5H6a2.25 2.25 0 0 1-2.25-2.25v-8.5Z"
-                      stroke="currentColor"
-                      stroke-width="1.4"
-                    />
-                    <path
-                      d="m5.75 14 3.1-3.25 2.1 2.1 1.35-1.35 1.95 2.5M7.2 7.75h.01"
+                      d="m6 3.5 4.5 4.5L6 12.5"
                       stroke="currentColor"
                       stroke-linecap="round"
                       stroke-linejoin="round"
-                      stroke-width="1.4"
+                      stroke-width="1.5"
                     />
                   </svg>
-                  <span>Add images</span>
-                  <input
-                    id="bearing-feedback-images"
-                    ref="imageInput"
-                    type="file"
-                    multiple
-                    accept="image/avif,image/gif,image/jpeg,image/png,image/webp"
-                    class="sr-only"
+
+                  <div
+                    class="[&_[data-slot=select-content]]:min-w-44 max-w-[16rem] [&>[data-slot=select]]:w-auto [&_[data-slot=select-content]]:rounded-xl [&_[data-slot=select-content]]:shadow-xl [&_[data-slot=select-content]]:shadow-gray-950/10 dark:[&_[data-slot=select-content]]:shadow-black/30"
+                  >
+                    <Select
+                      id="bearing-feedback-category"
+                      v-model="form.category"
+                      aria-label="Category"
+                      :options="categoryOptions"
+                      class="min-h-10 w-auto max-w-[16rem] rounded-lg border-0 bg-gray-100 px-3.5 py-2 text-sm font-semibold text-gray-950 shadow-none hover:bg-gray-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-950 focus-visible:ring-offset-2 dark:bg-gray-900 dark:text-white dark:hover:bg-gray-800 dark:focus-visible:ring-white dark:focus-visible:ring-offset-gray-950"
+                    />
+                  </div>
+                </div>
+
+                <label class="mt-7 block" for="bearing-feedback-title">
+                  <span class="sr-only">Summary</span>
+                  <Input
+                    id="bearing-feedback-title"
+                    ref="titleInput"
+                    v-model="form.title"
+                    type="text"
+                    maxlength="140"
+                    required
+                    :placeholder="summaryPlaceholder"
+                    :aria-invalid="Boolean(form.errors.title)"
+                    :aria-describedby="
+                      form.errors.title
+                        ? 'bearing-feedback-title-error'
+                        : undefined
+                    "
+                    class="bearing-feedback-composer-field w-full border-0 bg-transparent p-0 text-xl font-semibold tracking-tight text-gray-950 caret-gray-950 placeholder:font-medium placeholder:text-gray-300 dark:text-white dark:caret-white dark:placeholder:text-gray-500 sm:text-2xl"
+                    @input="handleTitleInput"
+                  />
+                </label>
+
+                <p
+                  v-if="form.errors.title"
+                  id="bearing-feedback-title-error"
+                  class="mt-2 text-sm font-medium text-red-600"
+                >
+                  {{ form.errors.title }}
+                </p>
+                <p
+                  v-else-if="form.title.length >= 100"
+                  class="mt-2 text-xs text-gray-400"
+                >
+                  {{ 140 - form.title.length }} characters left
+                </p>
+
+                <label class="mt-3 block" for="bearing-feedback-details">
+                  <span class="sr-only">Details (optional)</span>
+                  <Textarea
+                    id="bearing-feedback-details"
+                    v-model="form.details"
+                    rows="2"
+                    maxlength="5000"
+                    placeholder="Add details (optional)"
+                    class="bearing-feedback-composer-field w-full resize-none border-0 bg-transparent p-0 text-sm leading-6 text-gray-700 caret-gray-950 placeholder:text-gray-300 dark:text-gray-300 dark:caret-white dark:placeholder:text-gray-600"
+                  />
+                </label>
+
+                <div
+                  v-if="upload.previews.length"
+                  class="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-4"
+                >
+                  <figure
+                    v-for="preview in upload.previews"
+                    :key="imageSignature(preview.file)"
+                    class="group/image relative aspect-[4/3] overflow-hidden rounded-xl bg-gray-100 dark:bg-gray-900"
+                  >
+                    <img
+                      :src="preview.previewUrl"
+                      :alt="preview.file.name"
+                      class="h-full w-full object-cover"
+                    />
+                    <Tooltip :text="`Remove ${preview.file.name}`">
+                      <button
+                        type="button"
+                        :aria-label="`Remove ${preview.file.name}`"
+                        class="size-8 absolute right-2 top-2 flex cursor-pointer items-center justify-center rounded-full bg-gray-950/80 text-white shadow-sm backdrop-blur transition hover:bg-gray-950 focus-visible:ring-2 focus-visible:ring-white"
+                        @click="removeImage(upload, preview.file)"
+                      >
+                        <svg
+                          aria-hidden="true"
+                          viewBox="0 0 16 16"
+                          class="size-3.5"
+                          fill="none"
+                        >
+                          <path
+                            d="m4.25 4.25 7.5 7.5m0-7.5-7.5 7.5"
+                            stroke="currentColor"
+                            stroke-linecap="round"
+                            stroke-width="1.5"
+                          />
+                        </svg>
+                      </button>
+                    </Tooltip>
+                  </figure>
+                </div>
+
+                <p
+                  v-if="form.errors.images"
+                  id="bearing-feedback-images-error"
+                  role="alert"
+                  class="mt-3 text-sm font-medium text-red-600"
+                >
+                  {{ form.errors.images }}
+                </p>
+              </div>
+
+              <div
+                v-if="form.progress"
+                class="mt-5"
+                role="status"
+                aria-live="polite"
+              >
+                <div
+                  class="flex items-center justify-between text-xs text-gray-400"
+                >
+                  <span>Uploading images</span>
+                  <span>{{ form.progress.percentage }}%</span>
+                </div>
+                <div
+                  class="mt-2 h-1 overflow-hidden rounded-full bg-gray-100 dark:bg-gray-900"
+                >
+                  <span
+                    class="block h-full rounded-full bg-gray-950 transition-[width] duration-200 dark:bg-white"
+                    :style="{ width: `${form.progress.percentage}%` }"
+                  ></span>
+                </div>
+              </div>
+
+              <div
+                class="min-h-10 mt-5 flex flex-wrap items-center justify-between gap-4"
+              >
+                <div
+                  class="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2"
+                >
+                  <button
+                    type="button"
+                    class="min-h-10 inline-flex cursor-pointer items-center gap-2 rounded-lg px-2 text-sm font-medium text-gray-500 transition hover:bg-gray-50 hover:text-gray-950 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-950 dark:text-gray-400 dark:hover:bg-gray-900 dark:hover:text-white dark:focus-visible:outline-white"
                     :aria-invalid="Boolean(form.errors.images)"
                     :aria-describedby="
                       form.errors.images
                         ? 'bearing-feedback-images-error'
                         : 'bearing-feedback-images-help'
                     "
-                    @change="handleImageInput"
-                  />
-                </label>
-                <span
-                  id="bearing-feedback-images-help"
-                  class="text-xs text-gray-400"
-                >
-                  Paste or drop · {{ selectedImages.length }}/4
-                </span>
-                <p
-                  v-if="draftRestored"
-                  class="text-xs text-gray-500 dark:text-gray-400"
-                  role="status"
-                >
-                  Draft restored.
-                  <button
-                    type="button"
-                    class="font-semibold text-gray-950 hover:underline dark:text-white"
-                    @click="discardDraft"
+                    @click="upload.choose"
                   >
-                    Discard
+                    <svg
+                      aria-hidden="true"
+                      viewBox="0 0 20 20"
+                      class="size-4"
+                      fill="none"
+                    >
+                      <path
+                        d="M3.75 5.75A2.25 2.25 0 0 1 6 3.5h8A2.25 2.25 0 0 1 16.25 5.75v8.5A2.25 2.25 0 0 1 14 16.5H6a2.25 2.25 0 0 1-2.25-2.25v-8.5Z"
+                        stroke="currentColor"
+                        stroke-width="1.4"
+                      />
+                      <path
+                        d="m5.75 14 3.1-3.25 2.1 2.1 1.35-1.35 1.95 2.5M7.2 7.75h.01"
+                        stroke="currentColor"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="1.4"
+                      />
+                    </svg>
+                    <span>Add images</span>
                   </button>
-                </p>
-              </div>
+                  <span
+                    id="bearing-feedback-images-help"
+                    class="text-xs text-gray-400"
+                  >
+                    Paste or drop · {{ upload.files.length }}/4
+                  </span>
+                  <p
+                    v-if="draftRestored"
+                    class="text-xs text-gray-500 dark:text-gray-400"
+                    role="status"
+                  >
+                    Draft restored.
+                    <button
+                      type="button"
+                      class="font-semibold text-gray-950 hover:underline dark:text-white"
+                      @click="discardDraft"
+                    >
+                      Discard
+                    </button>
+                  </p>
+                </div>
 
-              <button
-                type="submit"
-                :disabled="!canShare"
-                :aria-busy="form.processing"
-                class="min-h-10 inline-flex shrink-0 items-center justify-center rounded-lg bg-gray-950 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-gray-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-950 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-30 dark:bg-white dark:text-gray-950 dark:hover:bg-gray-100 dark:focus-visible:ring-white dark:focus-visible:ring-offset-gray-950"
-              >
-                {{ form.processing ? 'Sharing…' : 'Share' }}
-              </button>
-            </div>
-          </form>
+                <button
+                  type="submit"
+                  :disabled="!canShare"
+                  :aria-busy="form.processing"
+                  class="min-h-10 inline-flex shrink-0 items-center justify-center rounded-lg bg-gray-950 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-gray-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-950 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-30 dark:bg-white dark:text-gray-950 dark:hover:bg-gray-100 dark:focus-visible:ring-white dark:focus-visible:ring-offset-gray-950"
+                >
+                  {{ form.processing ? 'Sharing…' : 'Share' }}
+                </button>
+              </div>
+            </form>
+          </FileUpload>
 
           <div
             v-else-if="bearing.acceptFeedback"

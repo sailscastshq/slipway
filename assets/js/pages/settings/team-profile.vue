@@ -5,6 +5,7 @@ import { inject, ref, computed } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
 import Spinner from '@/components/SlipwaySpinner.vue'
 import Avatar from '@/components/ui/avatar/Avatar.vue'
+import FileUpload from '@/components/ui/file-upload/FileUpload.vue'
 import { usePrecognitionValidation } from '@/composables/precognition'
 
 defineOptions({
@@ -46,41 +47,36 @@ function save() {
   })
 }
 
-function handleLogoUpload(event) {
-  const file = event.target.files?.[0]
+function validateLogo(file) {
+  if (!file.type.startsWith('image/')) return 'Please select an image file'
+  if (file.size > 5 * 1024 * 1024) return 'Image must be smaller than 5MB'
+  return true
+}
+
+function handleLogoUpload(file) {
   if (!file) return
 
   logoForm.clearErrors()
   removeLogoForm.clearErrors()
-
-  if (!file.type.startsWith('image/')) {
-    logoForm.setError('logo', 'Please select an image file')
-    return
-  }
-
-  if (file.size > 5 * 1024 * 1024) {
-    logoForm.setError('logo', 'Image must be smaller than 5MB')
-    return
-  }
-
-  const reader = new FileReader()
-  reader.onload = (e) => {
-    logoPreview.value = e.target.result
-  }
-  reader.readAsDataURL(file)
-
-  logoForm.logo = file
   logoForm.post('/settings/team-profile/logo', {
     forceFormData: true,
     preserveScroll: true,
-    onError: () => {
-      logoPreview.value = props.team.logoUrl
+    onSuccess: (page) => {
+      logoPreview.value = page.props.team?.logoUrl || props.team.logoUrl
     },
     onFinish: () => {
       logoForm.logo = null
-      event.target.value = ''
     }
   })
+}
+
+function handleLogoReject(rejection) {
+  logoForm.setError(
+    'logo',
+    rejection.reason === 'accept'
+      ? 'Please select an image file'
+      : rejection.message
+  )
 }
 
 function removeLogo() {
@@ -263,94 +259,102 @@ const initials = computed(() => {
             </p>
           </div>
           <div class="border-t border-gray-200 px-4 py-4 dark:border-gray-800">
-            <div class="flex items-center gap-4">
-              <!-- Logo preview -->
-              <div class="relative">
-                <Avatar
-                  data-test="team-profile-avatar"
-                  :src="logoPreview"
-                  :alt="`${props.team.name} team logo`"
-                  :class="[
-                    'bg-brand h-16 w-16 rounded-lg object-cover text-xl font-semibold text-white',
-                    logoPreview
-                      ? 'border border-gray-200 dark:border-gray-700'
-                      : ''
-                  ]"
-                >
-                  {{ initials }}
-                </Avatar>
-                <!-- Uploading overlay -->
-                <div
-                  v-if="uploading"
-                  role="status"
-                  class="absolute inset-0 flex items-center justify-center rounded-lg bg-black/50"
-                >
-                  <Spinner class="h-5 w-5 text-white" />
-                  <span class="sr-only">Uploading team logo</span>
+            <FileUpload
+              v-model="logoForm.logo"
+              accept="image/*"
+              :disabled="uploading || !uploadsConfigured"
+              :validate="validateLogo"
+              @change="handleLogoUpload"
+              @reject="handleLogoReject"
+              v-slot="upload"
+            >
+              <div class="flex items-center gap-4">
+                <!-- Logo preview -->
+                <div class="relative">
+                  <Avatar
+                    data-test="team-profile-avatar"
+                    :src="upload.previewUrl || logoPreview"
+                    :alt="`${props.team.name} team logo`"
+                    :class="[
+                      'bg-brand h-16 w-16 rounded-lg object-cover text-xl font-semibold text-white',
+                      upload.previewUrl || logoPreview
+                        ? 'border border-gray-200 dark:border-gray-700'
+                        : ''
+                    ]"
+                  >
+                    {{ initials }}
+                  </Avatar>
+                  <!-- Uploading overlay -->
+                  <div
+                    v-if="uploading"
+                    role="status"
+                    class="absolute inset-0 flex items-center justify-center rounded-lg bg-black/50"
+                  >
+                    <Spinner class="h-5 w-5 text-white" />
+                    <span class="sr-only">Uploading team logo</span>
+                  </div>
+                </div>
+
+                <!-- Upload controls -->
+                <div class="flex flex-col gap-2">
+                  <template v-if="uploadsConfigured">
+                    <div class="flex items-center gap-2">
+                      <button
+                        type="button"
+                        class="cursor-pointer rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800"
+                        :disabled="uploading"
+                        @click="upload.choose"
+                      >
+                        {{ logoPreview ? 'Change' : 'Upload' }}
+                      </button>
+                      <button
+                        v-if="logoPreview"
+                        type="button"
+                        @click="removeLogo"
+                        :disabled="uploading"
+                        class="cursor-pointer rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium text-red-600 hover:bg-red-50 dark:border-gray-600 dark:text-red-400 dark:hover:bg-red-900/20"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                    <p
+                      v-if="uploadError"
+                      role="alert"
+                      class="text-xs text-red-600 dark:text-red-400"
+                    >
+                      {{ uploadError }}
+                    </p>
+                  </template>
+                  <template v-else>
+                    <div
+                      class="flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50/50 px-3 py-2 dark:border-amber-900/50 dark:bg-amber-950/20"
+                    >
+                      <svg
+                        class="h-4 w-4 text-amber-500"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          stroke-width="2"
+                          d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                        />
+                      </svg>
+                      <span class="text-sm text-amber-700 dark:text-amber-400">
+                        <Link
+                          href="/settings/uploads"
+                          class="underline hover:no-underline"
+                          >Configure file storage</Link
+                        >
+                        {{ ' ' }}to enable logo uploads.
+                      </span>
+                    </div>
+                  </template>
                 </div>
               </div>
-
-              <!-- Upload controls -->
-              <div class="flex flex-col gap-2">
-                <template v-if="uploadsConfigured">
-                  <div class="flex items-center gap-2">
-                    <label
-                      class="cursor-pointer rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800"
-                    >
-                      <span>{{ logoPreview ? 'Change' : 'Upload' }}</span>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        class="hidden"
-                        @change="handleLogoUpload"
-                        :disabled="uploading"
-                      />
-                    </label>
-                    <button
-                      v-if="logoPreview"
-                      @click="removeLogo"
-                      :disabled="uploading"
-                      class="rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium text-red-600 hover:bg-red-50 dark:border-gray-600 dark:text-red-400 dark:hover:bg-red-900/20"
-                    >
-                      Remove
-                    </button>
-                  </div>
-                  <p
-                    v-if="uploadError"
-                    class="text-xs text-red-600 dark:text-red-400"
-                  >
-                    {{ uploadError }}
-                  </p>
-                </template>
-                <template v-else>
-                  <div
-                    class="flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50/50 px-3 py-2 dark:border-amber-900/50 dark:bg-amber-950/20"
-                  >
-                    <svg
-                      class="h-4 w-4 text-amber-500"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        stroke-width="2"
-                        d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                      />
-                    </svg>
-                    <span class="text-sm text-amber-700 dark:text-amber-400">
-                      <Link
-                        href="/settings/uploads"
-                        class="underline hover:no-underline"
-                        >Configure file storage</Link
-                      >
-                      {{ ' ' }}to enable logo uploads.
-                    </span>
-                  </div>
-                </template>
-              </div>
-            </div>
+            </FileUpload>
           </div>
         </div>
 

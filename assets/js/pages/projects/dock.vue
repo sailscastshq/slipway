@@ -18,6 +18,7 @@ import Tooltip from '@/components/ui/tooltip/Tooltip.vue'
 import Select from '@/components/ui/select/Select.vue'
 import Table from '@/components/ui/table/Table.vue'
 import Menu from '@/components/ui/menu/Menu.vue'
+import FileUpload from '@/components/ui/file-upload/FileUpload.vue'
 import Breadcrumb from '@/components/ui/breadcrumb/Breadcrumb.vue'
 import Tabs from '@/components/ui/tabs/Tabs.vue'
 import CodeEditor from '@/components/CodeEditor.vue'
@@ -259,6 +260,7 @@ const selectedExportTables = ref(new Set())
 const exportMode = ref('full') // 'full', 'schema', 'data'
 const importMode = ref('paste') // 'paste' or 'upload'
 const importSql = ref('')
+const importSelection = ref(null)
 const importFile = ref(null) // Raw File object for binary .dmp uploads
 const importLoading = ref(false)
 const showImportModal = ref(false)
@@ -661,6 +663,7 @@ const initialImport = new URLSearchParams(window.location.search).get('import')
 
 function openImportModal() {
   importSql.value = ''
+  importSelection.value = null
   importFile.value = null
   importMode.value = 'paste'
   showImportModal.value = true
@@ -677,6 +680,7 @@ function openImportModalFromExportActions() {
 function closeImportModal() {
   showImportModal.value = false
   importSql.value = ''
+  importSelection.value = null
   importFile.value = null
   const url = new URL(window.location)
   url.searchParams.delete('import')
@@ -701,8 +705,7 @@ const importFileLabel = computed(() => {
   return 'Upload a .sql file'
 })
 
-async function handleFileUpload(event) {
-  const file = event.target.files[0]
+async function handleFileUpload(file) {
   if (!file) return
 
   try {
@@ -719,6 +722,7 @@ async function handleFileUpload(event) {
       showToast(`Loaded ${file.name} (${formatBytes(file.size)})`, 'success')
     }
   } catch (e) {
+    importSelection.value = null
     showToast('Failed to read file', 'error')
   }
 }
@@ -2834,9 +2838,23 @@ onUnmounted(() => {
           </div>
 
           <!-- Upload mode -->
-          <div v-else>
+          <FileUpload
+            v-else
+            v-model="importSelection"
+            :accept="importAccept"
+            :disabled="importLoading"
+            @change="handleFileUpload"
+            @reject="showToast($event.message, 'error')"
+            v-slot="upload"
+          >
             <div
-              class="flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-gray-200 bg-gray-50 px-6 py-10 dark:border-gray-700 dark:bg-gray-800"
+              v-bind="upload.dropzone"
+              :class="[
+                'flex flex-col items-center justify-center rounded-lg border-2 border-dashed bg-gray-50 px-6 py-10 transition-colors duration-150 motion-reduce:transition-none dark:bg-gray-800',
+                upload.dragging
+                  ? 'border-gray-900 bg-gray-100 dark:border-white dark:bg-gray-700'
+                  : 'border-gray-200 dark:border-gray-700'
+              ]"
             >
               <svg
                 class="h-10 w-10 text-gray-400"
@@ -2854,12 +2872,15 @@ onUnmounted(() => {
               <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">
                 {{ importFileLabel }}
               </p>
-              <input
-                type="file"
-                :accept="importAccept"
-                @change="handleFileUpload"
-                class="mt-3 text-sm text-gray-500 file:mr-3 file:rounded-md file:border-0 file:bg-gray-900 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-white hover:file:bg-gray-800 dark:file:bg-white dark:file:text-gray-900"
-              />
+              <button
+                type="button"
+                class="mt-3 cursor-pointer rounded-md bg-gray-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-gray-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-900 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-200 dark:focus-visible:outline-white"
+                :disabled="importLoading"
+                @click="upload.choose"
+              >
+                {{ upload.file ? 'Choose another file' : 'Choose file' }}
+              </button>
+              <p class="mt-2 text-xs text-gray-400">or drop it here</p>
             </div>
             <div v-if="isBinaryImport" class="mt-4">
               <div
@@ -2906,7 +2927,7 @@ onUnmounted(() => {
                 "
               ></pre>
             </div>
-          </div>
+          </FileUpload>
 
           <!-- Info -->
           <p class="mt-3 text-xs text-gray-500 dark:text-gray-400">

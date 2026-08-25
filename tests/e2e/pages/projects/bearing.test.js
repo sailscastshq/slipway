@@ -293,7 +293,9 @@ test(
         'base64'
       )
       await page.raw
-        .locator('[data-test="bearing-update-body-image-input"]')
+        .locator(
+          '[data-test="bearing-update-body-image-upload"] input[type="file"]'
+        )
         .setInputFiles({
           name: 'update-image.png',
           mimeType: 'image/png',
@@ -732,11 +734,15 @@ test(
     )
 
     try {
-      await composer.locator('input[type="file"]').setInputFiles({
-        name: 'picked-screenshot.png',
-        mimeType: 'image/png',
-        buffer: onePixelPng
-      })
+      await page.raw
+        .locator(
+          '[data-slot="file-upload"] input[data-part="input"][type="file"]'
+        )
+        .setInputFiles({
+          name: 'picked-screenshot.png',
+          mimeType: 'image/png',
+          buffer: onePixelPng
+        })
       await composer.evaluate((element) => {
         const bytes = Uint8Array.from(
           atob(
@@ -755,7 +761,16 @@ test(
             clipboardData: clipboard
           })
         )
+      })
+      await expect(composer.locator('figure')).toHaveCount(2)
 
+      await composer.evaluate((element) => {
+        const bytes = Uint8Array.from(
+          atob(
+            'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADElEQVR42mNk+M/wHwAF/gL+Xhc4VQAAAABJRU5ErkJggg=='
+          ),
+          (character) => character.charCodeAt(0)
+        )
         const dragged = new DataTransfer()
         dragged.items.add(
           new File([bytes], 'dropped-screenshot.png', { type: 'image/png' })
