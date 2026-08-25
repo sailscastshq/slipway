@@ -5,6 +5,7 @@ import {
   formatBridgeFieldValue
 } from '@/lib/bridge/fields.mjs'
 import { resolveBridgeFieldComponent } from '@/lib/bridge/field-components.mjs'
+import Badge from '@/components/ui/badge/Badge.vue'
 
 const props = defineProps({
   name: {
@@ -66,17 +67,17 @@ const fieldType = computed(() => bridgeFieldType(props.attribute))
     <span class="sr-only">{{ formatted.display }}</span>
   </span>
 
-  <span
+  <Badge
     v-else-if="formatted.kind === 'boolean'"
     :class="[
-      'inline-flex rounded-full px-2 py-0.5 text-xs font-medium',
+      'px-2 py-0.5 text-xs',
       formatted.value
         ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400'
         : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'
     ]"
   >
     {{ formatted.display }}
-  </span>
+  </Badge>
 
   <a
     v-else-if="formatted.kind === 'image' && formatted.url"

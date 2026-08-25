@@ -28,6 +28,7 @@ import LoadingState from '@/components/ui/loading-state/LoadingState.vue'
 import ErrorState from '@/components/ui/error-state/ErrorState.vue'
 import LogViewer from '@/components/LogViewer.vue'
 import { cancelHelmExecution, cancelledHelmResult } from '@/lib/helmExecution'
+import Badge from '@/components/ui/badge/Badge.vue'
 
 defineOptions({
   layout: AppLayout
@@ -1620,11 +1621,11 @@ onUnmounted(() => {
               <h2 class="text-sm font-medium text-gray-900 dark:text-white">
                 Environment variables
               </h2>
-              <span
-                class="inline-flex rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-500 dark:bg-gray-800 dark:text-gray-400"
+              <Badge
+                class="bg-gray-100 px-2 py-0.5 text-xs tabular-nums text-gray-500 dark:bg-gray-800 dark:text-gray-400"
               >
                 {{ sortedEnvKeys.length }}
-              </span>
+              </Badge>
             </div>
 
             <!-- Variable rows -->
@@ -2210,14 +2211,15 @@ onUnmounted(() => {
                     class="truncate text-sm font-medium text-gray-900 dark:text-white"
                     >{{ activity.description }}</span
                   >
-                  <span
+                  <Badge
                     v-if="activity.status"
                     :class="[
-                      'inline-flex shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-medium',
+                      'shrink-0 px-1.5 py-0.5 text-[10px]',
                       statusColor(activity.status)
                     ]"
-                    >{{ activity.status }}</span
                   >
+                    {{ activity.status }}
+                  </Badge>
                 </div>
                 <div
                   class="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400"

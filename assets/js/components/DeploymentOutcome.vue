@@ -1,5 +1,6 @@
 <script setup>
 import { computed } from 'vue'
+import Badge from '@/components/ui/badge/Badge.vue'
 
 const props = defineProps({
   deployment: {
@@ -37,15 +38,15 @@ const isCurrent = computed(
 
 <template>
   <span class="inline-flex shrink-0 items-center gap-1.5">
-    <span
+    <Badge
       data-test="deployment-outcome"
       :class="[
-        'inline-flex h-5 items-center whitespace-nowrap rounded-[5px] px-1.5 text-[11px] font-medium leading-none ring-1 ring-inset',
+        'h-5 rounded-[5px] px-1.5 text-[11px] leading-none ring-1 ring-inset',
         presentation.classes
       ]"
     >
       {{ presentation.label }}
-    </span>
+    </Badge>
     <span
       v-if="isCurrent"
       data-test="current-deployment-marker"

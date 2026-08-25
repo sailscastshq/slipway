@@ -3,6 +3,7 @@ import { Link, Head } from '@inertiajs/vue3'
 import { inject } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
 import DeploymentHistory from '@/components/DeploymentHistory.vue'
+import Badge from '@/components/ui/badge/Badge.vue'
 
 defineOptions({
   layout: AppLayout
@@ -261,20 +262,20 @@ function timeAgo(date) {
               <span class="font-medium text-gray-900 dark:text-white">{{
                 env.name
               }}</span>
-              <span
+              <Badge
                 v-if="env.isProduction"
-                class="inline-flex rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
+                class="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
               >
                 Production
-              </span>
-              <span
+              </Badge>
+              <Badge
                 :class="[
-                  'inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium',
+                  'rounded-md px-2 py-0.5 text-xs',
                   badgeClasses(statusBadge(env).color)
                 ]"
               >
                 {{ statusBadge(env).label }}
-              </span>
+              </Badge>
             </div>
             <div class="flex items-center space-x-4">
               <span class="text-sm text-gray-500 dark:text-gray-400">

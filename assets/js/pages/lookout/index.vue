@@ -3,6 +3,7 @@ import Input from '@/components/ui/input/Input.vue'
 import { Link, Head, router, usePoll } from '@inertiajs/vue3'
 import { inject, ref, computed } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
+import Badge from '@/components/ui/badge/Badge.vue'
 
 defineOptions({
   layout: AppLayout
@@ -436,16 +437,16 @@ function envTelemetry(container) {
                   Root volume usage across this Slipway host.
                 </p>
               </div>
-              <span
+              <Badge
                 :class="[
-                  'inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium',
+                  'px-2.5 py-1 text-xs',
                   props.hostDisk
                     ? 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300'
                     : 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400'
                 ]"
               >
                 {{ diskStatusLabel }}
-              </span>
+              </Badge>
             </div>
           </div>
 

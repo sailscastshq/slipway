@@ -4,6 +4,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import BridgeRelationshipCombobox from '@/components/bridge/BridgeRelationshipCombobox.vue'
 import Select from '@/components/ui/select/Select.vue'
 import FilterBar from '@/components/ui/filter-bar/FilterBar.vue'
+import Badge from '@/components/ui/badge/Badge.vue'
 
 const props = defineProps({
   definitions: {
@@ -270,12 +271,12 @@ onBeforeUnmount(() => {
         />
       </svg>
       Filter
-      <span
+      <Badge
         v-if="activeCount"
-        class="min-w-4 flex h-4 items-center justify-center rounded-full bg-gray-900 px-1 text-[10px] font-semibold text-white dark:bg-white dark:text-gray-900"
+        class="min-w-4 h-4 justify-center bg-gray-900 px-1 text-[10px] font-semibold tabular-nums text-white dark:bg-white dark:text-gray-900"
       >
         {{ activeCount }}
-      </span>
+      </Badge>
     </button>
 
     <div
