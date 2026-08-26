@@ -18,7 +18,7 @@ import MarkdownEditor from '@/components/content/MarkdownEditor.vue'
 import Alert from '@/components/ui/alert/Alert.vue'
 import Select from '@/components/ui/select/Select.vue'
 import Tabs from '@/components/ui/tabs/Tabs.vue'
-import { useQueryState } from '@/composables/useQueryState'
+import { useQueryState } from '@/components/ui/durable-ui/useQueryState'
 
 defineOptions({ layout: AppLayout })
 
@@ -58,8 +58,7 @@ const navItems = [
   ['settings', 'Settings']
 ]
 const selectedView = useQueryState('view', 'overview', {
-  initialValue: props.activeView,
-  allowedValues: navItems.map(([view]) => view)
+  validate: (view) => navItems.some(([candidate]) => candidate === view)
 })
 const tablist = ref(null)
 const copiedSurface = ref(null)

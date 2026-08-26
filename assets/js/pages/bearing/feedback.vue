@@ -17,7 +17,8 @@ import Select from '@/components/ui/select/Select.vue'
 import Tooltip from '@/components/ui/tooltip/Tooltip.vue'
 import FileUpload from '@/components/ui/file-upload/FileUpload.vue'
 import { useBearingRealtime } from '@/composables/useBearingRealtime'
-import { useFormDraft } from '@/composables/useFormDraft'
+import { writeDraft } from '@/components/ui/durable-ui/core'
+import { useFormDraft } from '@/components/ui/durable-ui/useFormDraft'
 
 const props = defineProps({
   app: Object,
@@ -65,6 +66,7 @@ const ACCEPTED_IMAGE_TYPES = new Set([
   'image/webp'
 ])
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024
+const DRAFT_TTL = 60 * 60 * 1000
 const attachedImages = shallowRef([])
 const form = useForm({
   category: activeCategories.value[0]?.key || 'feature',
@@ -84,11 +86,23 @@ form.transform((data) => ({
   imageCount: attachedImages.value.length
 }))
 const canShare = computed(() => Boolean(form.title.trim()) && !form.processing)
-const { clear: clearDraft, restored: draftRestored } = useFormDraft(
-  `slipway.bearing.feedback-draft.${props.app.feedbackPath}`,
-  form,
-  { exclude: IMAGE_FIELDS }
-)
+const draftKey = `slipway.bearing.feedback-draft.${props.app.feedbackPath}`
+migrateLegacyDraft(draftKey)
+const {
+  clear: clearDraft,
+  restore: restoreDraft,
+  restored: draftRestored
+} = useFormDraft(draftKey, () => form.data(), {
+  exclude: IMAGE_FIELDS,
+  ttl: DRAFT_TTL,
+  isEmpty: (data) => !data.title?.trim() && !data.details?.trim(),
+  restore(data) {
+    for (const field of Object.keys(form.data())) {
+      if (IMAGE_FIELDS.includes(field)) continue
+      if (Object.hasOwn(data, field)) form[field] = data[field]
+    }
+  }
+})
 const search = ref(props.filters.q)
 const categoryFilter = ref(props.filters.category)
 const statusFilter = ref(props.filters.status)
@@ -221,7 +235,10 @@ watch(
   }
 )
 
-onMounted(revealFocusedFeedback)
+onMounted(() => {
+  restoreDraft()
+  revealFocusedFeedback()
+})
 
 onUnmounted(() => {
   window.clearTimeout(filterTimer)
@@ -473,6 +490,35 @@ function discardDraft() {
   clearSelectedImages()
   form.reset()
   clearDraft()
+}
+
+function migrateLegacyDraft(key) {
+  if (typeof window === 'undefined') return
+
+  let migrated = false
+  try {
+    const raw = window.localStorage.getItem(key)
+    if (!raw) return
+    const legacy = JSON.parse(raw)
+    migrated =
+      !legacy?.data || legacy.expiresAt <= Date.now()
+        ? true
+        : Boolean(
+            writeDraft(key, legacy.data, {
+              ttl: legacy.expiresAt - Date.now()
+            })
+          )
+  } catch {
+    // A malformed or unavailable legacy draft must not block the form.
+    return
+  }
+
+  if (!migrated) return
+  try {
+    window.localStorage.removeItem(key)
+  } catch {
+    // Browser storage is best-effort; the form remains usable.
+  }
 }
 
 function handleImagePaste(event) {

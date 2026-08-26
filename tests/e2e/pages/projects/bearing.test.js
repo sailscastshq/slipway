@@ -681,13 +681,13 @@ test(
     await page.raw.waitForFunction(() => {
       const draft = JSON.parse(
         window.localStorage.getItem(
-          'slipway.bearing.feedback-draft./bearing/feedback'
+          'klean:draft:slipway.bearing.feedback-draft./bearing/feedback:v1'
         ) || 'null'
       )
       return (
-        draft?.data?.category === 'bug' &&
-        draft.data.title === 'Keep unfinished feedback safe' &&
-        draft.data.details ===
+        draft?.value?.data?.category === 'bug' &&
+        draft.value.data.title === 'Keep unfinished feedback safe' &&
+        draft.value.data.details ===
           'This draft should survive an accidental refresh.'
       )
     })
@@ -708,6 +708,35 @@ test(
     expect(
       await composer.getByRole('button', { name: 'Share' }).isDisabled()
     ).toBe(true)
+
+    await page.raw.evaluate(() => {
+      window.localStorage.setItem(
+        'slipway.bearing.feedback-draft./bearing/feedback',
+        JSON.stringify({
+          data: {
+            category: 'feature',
+            title: 'Keep my legacy draft',
+            details: 'This was saved before Klean namespaced draft records.'
+          },
+          expiresAt: Date.now() + 60_000
+        })
+      )
+    })
+    await page.raw.reload()
+    await expect(
+      page.raw.getByRole('status').filter({ hasText: 'Draft restored.' })
+    ).toBeVisible({ timeout: 15_000 })
+    await expect(composer.getByPlaceholder('Describe your idea')).toHaveValue(
+      'Keep my legacy draft'
+    )
+    expect(
+      await page.raw.evaluate(() =>
+        window.localStorage.getItem(
+          'slipway.bearing.feedback-draft./bearing/feedback'
+        )
+      )
+    ).toBe(null)
+    await composer.getByRole('button', { name: 'Discard' }).click()
 
     const onePixelPng = Buffer.from(
       'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADElEQVR42mNk+M/wHwAF/gL+Xhc4VQAAAABJRU5ErkJggg==',
