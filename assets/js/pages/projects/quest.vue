@@ -5,7 +5,7 @@ import AppLayout from '@/layouts/AppLayout.vue'
 import Breadcrumb from '@/components/ui/breadcrumb/Breadcrumb.vue'
 import Tooltip from '@/components/ui/tooltip/Tooltip.vue'
 import Spinner from '@/components/SlipwaySpinner.vue'
-import { useQueryState } from '@/composables/useQueryState'
+import { useQueryState } from '@/components/ui/durable-ui/useQueryState'
 import { useEventSource } from '@/composables/sse'
 
 defineOptions({
@@ -42,10 +42,6 @@ const pauseForm = useForm({})
 const resumeForm = useForm({})
 const logContainers = ref({})
 const expandedRun = useQueryState('run', '')
-const _initialRun =
-  typeof window !== 'undefined' &&
-  new URLSearchParams(window.location.search).get('run')
-if (_initialRun) expandedRun.value = _initialRun
 
 onMounted(async () => {
   if (expandedRun.value) {
@@ -71,12 +67,6 @@ watch(
 
 // Expanded job (persisted via URL query param)
 const expandedJob = useQueryState('job', '')
-// Eagerly read URL param so the accordion is expanded on first render
-// (useQueryState defers to onMounted which can race with SSE updates)
-const _initialJob =
-  typeof window !== 'undefined' &&
-  new URLSearchParams(window.location.search).get('job')
-if (_initialJob) expandedJob.value = _initialJob
 
 function toggleExpand(jobName) {
   expandedJob.value = expandedJob.value === jobName ? '' : jobName
@@ -84,7 +74,8 @@ function toggleExpand(jobName) {
 }
 
 async function toggleRun(idx) {
-  expandedRun.value = expandedRun.value === idx ? '' : idx
+  const run = String(idx)
+  expandedRun.value = expandedRun.value === run ? '' : run
   await nextTick()
   await nextTick()
   const el = runLogContainers.value[Number(idx)]
