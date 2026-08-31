@@ -1,4 +1,14 @@
 <script setup>
+import Wrench from '@/components/ui/icons/Wrench.vue'
+import SignOut from '@/components/ui/icons/SignOut.vue'
+import Settings from '@/components/ui/icons/Settings.vue'
+import Refresh from '@/components/ui/icons/Refresh.vue'
+import Plus from '@/components/ui/icons/Plus.vue'
+import Heart from '@/components/ui/icons/Heart.vue'
+import ChevronDown from '@/components/ui/icons/ChevronDown.vue'
+import Check from '@/components/ui/icons/Check.vue'
+import ChartBar from '@/components/ui/icons/ChartBar.vue'
+import BookOpen from '@/components/ui/icons/BookOpen.vue'
 import { Link, usePage, router } from '@inertiajs/vue3'
 import { computed, ref, provide, onMounted, onUnmounted, watch } from 'vue'
 import { useEventSource } from '@/composables/sse'
@@ -12,6 +22,10 @@ import Menu from '@/components/ui/menu/Menu.vue'
 import Sheet from '@/components/ui/sheet/Sheet.vue'
 import Sidebar from '@/components/ui/sidebar/Sidebar.vue'
 import Badge from '@/components/ui/badge/Badge.vue'
+import Folder from '@/components/ui/icons/Folder.vue'
+import Search from '@/components/ui/icons/Search.vue'
+import User from '@/components/ui/icons/User.vue'
+import X from '@/components/ui/icons/X.vue'
 import { createToast } from '@/composables/toast'
 import { useFlashToast } from '@/composables/flash-toast'
 import {
@@ -329,19 +343,10 @@ watch(() => page.url, closeMobileMenu)
                   >{{ loggedInUser.team?.name || 'Team' }}</span
                 >
               </div>
-              <svg
+              <ChevronDown
                 class="h-4 w-4 shrink-0 text-gray-400 dark:text-gray-500"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M19 9l-7 7-7-7"
-                />
-              </svg>
+                stroke-width="2"
+              />
             </button>
             <!-- Team Dropdown -->
             <Menu
@@ -376,20 +381,11 @@ watch(() => page.url, closeMobileMenu)
                     {{ team.name?.charAt(0)?.toUpperCase() }}
                   </Avatar>
                   <span class="flex-1 truncate">{{ team.name }}</span>
-                  <svg
+                  <Check
                     v-if="team.id === loggedInUser.team?.id"
                     class="h-4 w-4 text-emerald-500"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="2"
-                      d="M5 13l4 4L19 7"
-                    />
-                  </svg>
+                    stroke-width="2"
+                  />
                 </button>
                 <div
                   role="separator"
@@ -399,19 +395,7 @@ watch(() => page.url, closeMobileMenu)
                   @click="createNewTeam"
                   class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800"
                 >
-                  <svg
-                    class="h-5 w-5 text-gray-400"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="2"
-                      d="M12 4v16m8-8H4"
-                    />
-                  </svg>
+                  <Plus class="h-5 w-5 text-gray-400" stroke-width="2" />
                   <span>Create team</span>
                 </button>
               </div>
@@ -419,22 +403,11 @@ watch(() => page.url, closeMobileMenu)
           </div>
           <button
             data-test="mobile-menu-close"
+            aria-label="Close navigation"
             @click="closeMobileMenu"
             class="ml-2 rounded-md p-1.5 text-gray-500 hover:bg-gray-200 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200"
           >
-            <svg
-              class="h-5 w-5"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M6 18L18 6M6 6l12 12"
-              />
-            </svg>
+            <X class="h-5 w-5" stroke-width="2" />
           </button>
         </div>
 
@@ -452,19 +425,7 @@ watch(() => page.url, closeMobileMenu)
                     : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200'
                 ]"
               >
-                <svg
-                  class="h-5 w-5"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="1.5"
-                    d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"
-                  />
-                </svg>
+                <Folder class="h-5 w-5" />
                 <span>Projects</span>
               </Link>
             </li>
@@ -479,19 +440,7 @@ watch(() => page.url, closeMobileMenu)
                     : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200'
                 ]"
               >
-                <svg
-                  class="h-5 w-5"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="1.5"
-                    d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
-                  />
-                </svg>
+                <ChartBar class="h-5 w-5" />
                 <span>Lookout</span>
               </Link>
             </li>
@@ -506,19 +455,7 @@ watch(() => page.url, closeMobileMenu)
                     : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200'
                 ]"
               >
-                <svg
-                  class="h-5 w-5"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="1.5"
-                    d="M11.42 15.17L17.25 21A2.652 2.652 0 0021 17.25l-5.877-5.877M11.42 15.17l2.496-3.03c.317-.384.74-.626 1.208-.766M11.42 15.17l-4.655 5.653a2.548 2.548 0 11-3.586-3.586l6.837-5.63m5.108-.233c.55-.164 1.163-.188 1.743-.14a4.5 4.5 0 004.486-6.336l-3.276 3.277a3.004 3.004 0 01-2.25-2.25l3.276-3.276a4.5 4.5 0 00-6.336 4.486c.091 1.076-.071 2.264-.904 2.95l-.102.085"
-                  />
-                </svg>
+                <Wrench class="h-5 w-5" />
                 <span>Bosun</span>
               </Link>
             </li>
@@ -533,19 +470,7 @@ watch(() => page.url, closeMobileMenu)
                     : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200'
                 ]"
               >
-                <svg
-                  class="h-5 w-5"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="1.5"
-                    d="M10.5 6h9.75M10.5 6a1.5 1.5 0 11-3 0m3 0a1.5 1.5 0 10-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-9.75 0h9.75"
-                  />
-                </svg>
+                <Settings class="h-5 w-5" />
                 <span>Settings</span>
               </Link>
             </li>
@@ -566,19 +491,7 @@ watch(() => page.url, closeMobileMenu)
             <span class="flex-1 truncate text-left">{{
               loggedInUser.email
             }}</span>
-            <svg
-              class="h-4 w-4 text-gray-400"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M19 9l-7 7-7-7"
-              />
-            </svg>
+            <ChevronDown class="h-4 w-4 text-gray-400" stroke-width="2" />
           </button>
           <!-- User Dropdown -->
           <Menu
@@ -594,19 +507,7 @@ watch(() => page.url, closeMobileMenu)
                 @click="handleMobileProfileClick"
                 class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
               >
-                <svg
-                  class="h-4 w-4 text-gray-400"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
-                  />
-                </svg>
+                <User class="h-4 w-4 text-gray-400" stroke-width="2" />
                 Profile
               </Link>
               <Link
@@ -614,19 +515,7 @@ watch(() => page.url, closeMobileMenu)
                 @click="handleMobileSettingsClick"
                 class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
               >
-                <svg
-                  class="h-4 w-4 text-gray-400"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M10.5 6h9.75M10.5 6a1.5 1.5 0 11-3 0m3 0a1.5 1.5 0 10-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-9.75 0h9.75"
-                  />
-                </svg>
+                <Settings class="h-4 w-4 text-gray-400" stroke-width="2" />
                 Settings
               </Link>
               <!-- Update available (conditional) -->
@@ -635,19 +524,7 @@ watch(() => page.url, closeMobileMenu)
                 @click="openUpdateModalFromMobileMenu"
                 class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
               >
-                <svg
-                  class="h-4 w-4"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                  />
-                </svg>
+                <Refresh class="h-4 w-4" stroke-width="2" />
                 <span class="flex-1">Update available</span>
                 <Badge
                   class="bg-gray-100 px-2 py-0.5 text-[10px] text-gray-600 dark:bg-gray-800 dark:text-gray-400"
@@ -659,19 +536,7 @@ watch(() => page.url, closeMobileMenu)
                 @click="openCommandPaletteFromMobileMenu"
                 class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
               >
-                <svg
-                  class="h-4 w-4 text-gray-400"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                  />
-                </svg>
+                <Search class="h-4 w-4 text-gray-400" stroke-width="2" />
                 <span class="flex-1">Search</span>
                 <kbd
                   class="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-400 dark:bg-gray-800 dark:text-gray-500"
@@ -687,19 +552,7 @@ watch(() => page.url, closeMobileMenu)
                 target="_blank"
                 class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
               >
-                <svg
-                  class="h-4 w-4 text-gray-400"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"
-                  />
-                </svg>
+                <BookOpen class="h-4 w-4 text-gray-400" stroke-width="2" />
                 Docs
               </a>
               <a
@@ -723,15 +576,7 @@ watch(() => page.url, closeMobileMenu)
                 target="_blank"
                 class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
               >
-                <svg
-                  class="h-4 w-4 text-pink-400"
-                  fill="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"
-                  />
-                </svg>
+                <Heart class="h-4 w-4 text-pink-400" />
                 Sponsor Slipway
               </a>
               <div
@@ -742,19 +587,7 @@ watch(() => page.url, closeMobileMenu)
                 @click="logout"
                 class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20"
               >
-                <svg
-                  class="h-4 w-4"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
-                  />
-                </svg>
+                <SignOut class="h-4 w-4" stroke-width="2" />
                 Sign out
               </button>
             </div>
@@ -795,19 +628,10 @@ watch(() => page.url, closeMobileMenu)
               :title="loggedInUser.team?.name || 'Team'"
               >{{ loggedInUser.team?.name || 'Team' }}</span
             >
-            <svg
+            <ChevronDown
               class="h-4 w-4 shrink-0 text-gray-400 dark:text-gray-500"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M19 9l-7 7-7-7"
-              />
-            </svg>
+              stroke-width="2"
+            />
           </button>
           <!-- Team Dropdown -->
           <Menu
@@ -842,20 +666,11 @@ watch(() => page.url, closeMobileMenu)
                   {{ team.name?.charAt(0)?.toUpperCase() }}
                 </Avatar>
                 <span class="flex-1 truncate">{{ team.name }}</span>
-                <svg
+                <Check
                   v-if="team.id === loggedInUser.team?.id"
                   class="h-4 w-4 text-emerald-500"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M5 13l4 4L19 7"
-                  />
-                </svg>
+                  stroke-width="2"
+                />
               </button>
               <div
                 role="separator"
@@ -865,19 +680,7 @@ watch(() => page.url, closeMobileMenu)
                 @click="createNewTeam"
                 class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800"
               >
-                <svg
-                  class="h-5 w-5 text-gray-400"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M12 4v16m8-8H4"
-                  />
-                </svg>
+                <Plus class="h-5 w-5 text-gray-400" stroke-width="2" />
                 <span>Create team</span>
               </button>
             </div>
@@ -898,19 +701,7 @@ watch(() => page.url, closeMobileMenu)
                   : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
               ]"
             >
-              <svg
-                class="h-4 w-4"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="1.5"
-                  d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"
-                />
-              </svg>
+              <Folder class="h-4 w-4" />
               <span>Projects</span>
             </Link>
           </li>
@@ -924,19 +715,7 @@ watch(() => page.url, closeMobileMenu)
                   : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
               ]"
             >
-              <svg
-                class="h-4 w-4"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="1.5"
-                  d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
-                />
-              </svg>
+              <ChartBar class="h-4 w-4" />
               <span>Lookout</span>
             </Link>
           </li>
@@ -950,19 +729,7 @@ watch(() => page.url, closeMobileMenu)
                   : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
               ]"
             >
-              <svg
-                class="h-4 w-4"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="1.5"
-                  d="M11.42 15.17L17.25 21A2.652 2.652 0 0021 17.25l-5.877-5.877M11.42 15.17l2.496-3.03c.317-.384.74-.626 1.208-.766M11.42 15.17l-4.655 5.653a2.548 2.548 0 11-3.586-3.586l6.837-5.63m5.108-.233c.55-.164 1.163-.188 1.743-.14a4.5 4.5 0 004.486-6.336l-3.276 3.277a3.004 3.004 0 01-2.25-2.25l3.276-3.276a4.5 4.5 0 00-6.336 4.486c.091 1.076-.071 2.264-.904 2.95l-.102.085"
-                />
-              </svg>
+              <Wrench class="h-4 w-4" />
               <span>Bosun</span>
             </Link>
           </li>
@@ -976,19 +743,7 @@ watch(() => page.url, closeMobileMenu)
                   : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
               ]"
             >
-              <svg
-                class="h-4 w-4"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="1.5"
-                  d="M10.5 6h9.75M10.5 6a1.5 1.5 0 11-3 0m3 0a1.5 1.5 0 10-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-9.75 0h9.75"
-                />
-              </svg>
+              <Settings class="h-4 w-4" />
               <span>Settings</span>
             </Link>
           </li>
@@ -1010,19 +765,7 @@ watch(() => page.url, closeMobileMenu)
           <span class="flex-1 truncate text-left">{{
             loggedInUser.email
           }}</span>
-          <svg
-            class="h-4 w-4 text-gray-400"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M19 9l-7 7-7-7"
-            />
-          </svg>
+          <ChevronDown class="h-4 w-4 text-gray-400" stroke-width="2" />
         </button>
         <!-- User Dropdown -->
         <Menu
@@ -1037,38 +780,14 @@ watch(() => page.url, closeMobileMenu)
               href="/profile"
               class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
             >
-              <svg
-                class="h-4 w-4 text-gray-400"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
-                />
-              </svg>
+              <User class="h-4 w-4 text-gray-400" stroke-width="2" />
               Profile
             </Link>
             <Link
               href="/settings"
               class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
             >
-              <svg
-                class="h-4 w-4 text-gray-400"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M10.5 6h9.75M10.5 6a1.5 1.5 0 11-3 0m3 0a1.5 1.5 0 10-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-9.75 0h9.75"
-                />
-              </svg>
+              <Settings class="h-4 w-4 text-gray-400" stroke-width="2" />
               Settings
             </Link>
             <!-- Update available (conditional) -->
@@ -1077,19 +796,7 @@ watch(() => page.url, closeMobileMenu)
               @click="openUpdateModalFromUserMenu"
               class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
             >
-              <svg
-                class="h-4 w-4"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                />
-              </svg>
+              <Refresh class="h-4 w-4" stroke-width="2" />
               <span class="flex-1">Update available</span>
               <Badge
                 class="bg-gray-100 px-2 py-0.5 text-[10px] text-gray-600 dark:bg-gray-800 dark:text-gray-400"
@@ -1101,19 +808,7 @@ watch(() => page.url, closeMobileMenu)
               @click="openCommandPaletteFromUserMenu"
               class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
             >
-              <svg
-                class="h-4 w-4 text-gray-400"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                />
-              </svg>
+              <Search class="h-4 w-4 text-gray-400" stroke-width="2" />
               <span class="flex-1">Search</span>
               <kbd
                 class="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-400 dark:bg-gray-800 dark:text-gray-500"
@@ -1129,19 +824,7 @@ watch(() => page.url, closeMobileMenu)
               target="_blank"
               class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
             >
-              <svg
-                class="h-4 w-4 text-gray-400"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"
-                />
-              </svg>
+              <BookOpen class="h-4 w-4 text-gray-400" stroke-width="2" />
               Docs
             </a>
             <a
@@ -1165,15 +848,7 @@ watch(() => page.url, closeMobileMenu)
               target="_blank"
               class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
             >
-              <svg
-                class="h-4 w-4 text-pink-400"
-                fill="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"
-                />
-              </svg>
+              <Heart class="h-4 w-4 text-pink-400" />
               Sponsor Slipway
             </a>
             <div
@@ -1184,19 +859,7 @@ watch(() => page.url, closeMobileMenu)
               @click="logout"
               class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20"
             >
-              <svg
-                class="h-4 w-4"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
-                />
-              </svg>
+              <SignOut class="h-4 w-4" stroke-width="2" />
               Sign out
             </button>
           </div>

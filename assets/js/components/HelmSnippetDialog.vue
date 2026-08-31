@@ -1,4 +1,5 @@
 <script setup>
+import X from '@/components/ui/icons/X.vue'
 import Input from '@/components/ui/input/Input.vue'
 import Radio from '@/components/ui/radio/Radio.vue'
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
@@ -143,20 +144,7 @@ function handleKeydown(event) {
                 class="rounded-md p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 dark:hover:bg-gray-800 dark:hover:text-gray-200 dark:focus-visible:ring-gray-700"
                 @click="close"
               >
-                <svg
-                  class="h-4 w-4"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                  aria-hidden="true"
-                >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M6 18 18 6M6 6l12 12"
-                  />
-                </svg>
+                <X class="h-4 w-4" stroke-width="2" />
               </button>
             </div>
 

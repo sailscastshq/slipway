@@ -1,4 +1,5 @@
 <script setup>
+import EllipsisHorizontal from '@/components/ui/icons/EllipsisHorizontal.vue'
 import Textarea from '@/components/ui/textarea/Textarea.vue'
 import Input from '@/components/ui/input/Input.vue'
 import { ref, watch } from 'vue'
@@ -44,11 +45,7 @@ function remove(event) {
       class="list-none rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-800 dark:hover:text-gray-200"
       aria-label="Release flag settings"
     >
-      <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
-        <circle cx="5" cy="12" r="1.5" />
-        <circle cx="12" cy="12" r="1.5" />
-        <circle cx="19" cy="12" r="1.5" />
-      </svg>
+      <EllipsisHorizontal class="h-4 w-4" />
     </summary>
     <form
       @submit.prevent="save"

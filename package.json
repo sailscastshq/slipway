@@ -91,6 +91,7 @@
     "start": "NODE_ENV=production node app.js",
     "lint": "prettier --check .",
     "lint:fix": "prettier --write .",
+    "audit:icons": "node scripts/audit-inline-icons.mjs",
     "check:consistency": "node scripts/check-docs-config-consistency.js",
     "test:unit": "sounding test --lane unit --test-concurrency=1",
     "test:functional": "sounding test --lane functional --test-concurrency=1",

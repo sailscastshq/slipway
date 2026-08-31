@@ -1,8 +1,12 @@
 <script setup>
+import Clock from '@/components/ui/icons/Clock.vue'
+import Bolt from '@/components/ui/icons/Bolt.vue'
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { Link } from '@inertiajs/vue3'
 import Spinner from '@/components/SlipwaySpinner.vue'
 import { useEventSource } from '@/composables/sse'
+import CheckCircle from '@/components/ui/icons/CheckCircle.vue'
+import X from '@/components/ui/icons/X.vue'
 
 const props = defineProps({
   deployment: Object
@@ -254,35 +258,13 @@ watch(status, (newStatus) => {
           <!-- Spinning loader for active states -->
           <Spinner v-if="isActive" class="text-brand h-5 w-5 dark:text-white" />
           <!-- Check for success -->
-          <svg
+          <CheckCircle
             v-else-if="isSuccessful"
             class="h-5 w-5 text-emerald-400"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M5 13l4 4L19 7"
-            />
-          </svg>
+            stroke-width="2"
+          />
           <!-- X for failed/cancelled -->
-          <svg
-            v-else
-            class="h-5 w-5 text-red-400"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M6 18L18 6M6 6l12 12"
-            />
-          </svg>
+          <X v-else class="h-5 w-5 text-red-400" stroke-width="2" />
         </div>
 
         <!-- Details -->
@@ -299,19 +281,7 @@ watch(status, (newStatus) => {
                 deployment.project.name
               }`"
             >
-              <svg
-                class="h-4 w-4"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M6 18L18 6M6 6l12 12"
-                />
-              </svg>
+              <X class="h-4 w-4" stroke-width="2" />
             </button>
           </div>
 
@@ -339,35 +309,11 @@ watch(status, (newStatus) => {
             class="mt-2 flex items-center gap-3 text-xs text-gray-500 dark:text-gray-400"
           >
             <span v-if="deployment.gitBranch" class="flex items-center gap-1">
-              <svg
-                class="h-3 w-3"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M13 10V3L4 14h7v7l9-11h-7z"
-                />
-              </svg>
+              <Bolt class="h-3 w-3" stroke-width="2" />
               {{ deployment.gitBranch }}
             </span>
             <span class="flex items-center gap-1">
-              <svg
-                class="h-3 w-3"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-                />
-              </svg>
+              <Clock class="h-3 w-3" stroke-width="2" />
               {{ elapsedFormatted }}
             </span>
           </div>

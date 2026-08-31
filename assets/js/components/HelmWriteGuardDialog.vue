@@ -1,4 +1,5 @@
 <script setup>
+import WarningTriangle from '@/components/ui/icons/WarningTriangle.vue'
 import { nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import Spinner from '@/components/SlipwaySpinner.vue'
 
@@ -104,19 +105,7 @@ function handleKeydown(event) {
               class="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-red-50 text-red-600 dark:bg-red-950/50 dark:text-red-400"
               aria-hidden="true"
             >
-              <svg
-                class="h-4 w-4"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                stroke-width="1.8"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  d="M12 9v4m0 3.25h.01M10.3 4.55 2.9 17.4a2 2 0 0 0 1.73 3h14.74a2 2 0 0 0 1.73-3L13.7 4.55a1.96 1.96 0 0 0-3.4 0Z"
-                />
-              </svg>
+              <WarningTriangle class="h-4 w-4" stroke-width="1.8" />
             </span>
             <div class="min-w-0 flex-1">
               <h2

@@ -1,4 +1,5 @@
 <script setup>
+import X from '@/components/ui/icons/X.vue'
 import { router } from '@inertiajs/vue3'
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import BridgeSearchInput from '@/components/bridge/BridgeSearchInput.vue'
@@ -194,16 +195,7 @@ onBeforeUnmount(() => {
             class="-mr-1 rounded-md p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-800 dark:hover:text-gray-200"
             @click="close"
           >
-            <svg
-              class="h-5 w-5"
-              viewBox="0 0 20 20"
-              fill="currentColor"
-              aria-hidden="true"
-            >
-              <path
-                d="M5.22 5.22a.75.75 0 0 1 1.06 0L10 8.94l3.72-3.72a.75.75 0 1 1 1.06 1.06L11.06 10l3.72 3.72a.75.75 0 1 1-1.06 1.06L10 11.06l-3.72 3.72a.75.75 0 0 1-1.06-1.06L8.94 10 5.22 6.28a.75.75 0 0 1 0-1.06Z"
-              />
-            </svg>
+            <X class="h-5 w-5" />
           </button>
         </header>
 

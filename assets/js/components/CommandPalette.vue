@@ -1,5 +1,31 @@
 <script setup>
 import Command from '@/components/ui/command/Command.vue'
+import Bell from '@/components/ui/icons/Bell.vue'
+import BookOpen from '@/components/ui/icons/BookOpen.vue'
+import ChartBar from '@/components/ui/icons/ChartBar.vue'
+import ChevronRight from '@/components/ui/icons/ChevronRight.vue'
+import CloudUpload from '@/components/ui/icons/CloudUpload.vue'
+import Code from '@/components/ui/icons/Code.vue'
+import Copy from '@/components/ui/icons/Copy.vue'
+import Database from '@/components/ui/icons/Database.vue'
+import Download from '@/components/ui/icons/Download.vue'
+import Folder from '@/components/ui/icons/Folder.vue'
+import Globe from '@/components/ui/icons/Globe.vue'
+import Heart from '@/components/ui/icons/Heart.vue'
+import Key from '@/components/ui/icons/Key.vue'
+import Plus from '@/components/ui/icons/Plus.vue'
+import Refresh from '@/components/ui/icons/Refresh.vue'
+import Rocket from '@/components/ui/icons/Rocket.vue'
+import Search from '@/components/ui/icons/Search.vue'
+import Server from '@/components/ui/icons/Server.vue'
+import Settings from '@/components/ui/icons/Settings.vue'
+import SidebarClose from '@/components/ui/icons/SidebarClose.vue'
+import SidebarOpen from '@/components/ui/icons/SidebarOpen.vue'
+import SignOut from '@/components/ui/icons/SignOut.vue'
+import Stop from '@/components/ui/icons/Stop.vue'
+import Terminal from '@/components/ui/icons/Terminal.vue'
+import User from '@/components/ui/icons/User.vue'
+import Users from '@/components/ui/icons/Users.vue'
 import {
   ref,
   computed,
@@ -615,61 +641,31 @@ onUnmounted(() => {
 })
 
 // ─── Icons ───────────────────────────────────────────────────────────
-// Using inline SVG paths to match codebase style (no emoji)
 
-const icons = computed(() => ({
-  folder:
-    'M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z',
-  chart:
-    'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z',
-  settings:
-    'M10.5 6h9.75M10.5 6a1.5 1.5 0 11-3 0m3 0a1.5 1.5 0 10-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-9.75 0h9.75',
-  globe:
-    'M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9',
-  server:
-    'M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01',
-  bell: 'M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9',
-  cloud:
-    'M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z',
-  users:
-    'M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z',
-  key: 'M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z',
-  download: 'M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4',
-  user: 'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z',
-  plus: 'M12 4v16m8-8H4',
-  book: 'M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253',
-  sidebar: {
-    viewBox: '-0.5 -0.5 16 16',
-    paths: sidebarCollapsed.value
-      ? [
-          'M12.777 14.285H2.223c-.833 0-1.508-.675-1.508-1.508V2.223c0-.833.675-1.508 1.508-1.508h10.554c.833 0 1.508.675 1.508 1.508v10.554c0 .833-.675 1.508-1.508 1.508Z',
-          'M5.615 14.285V.715',
-          'M2.6 5.992 3.919 7.5 2.6 9.008'
-        ]
-      : [
-          'M12.777 14.285H2.223c-.833 0-1.508-.675-1.508-1.508V2.223c0-.833.675-1.508 1.508-1.508h10.554c.833 0 1.508.675 1.508 1.508v10.554c0 .833-.675 1.508-1.508 1.508Z',
-          'M5.615 14.285V.715',
-          'M3.919 5.992 2.6 7.5l1.319 1.508'
-        ]
-  },
-  database:
-    'M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4',
-  heart:
-    'M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z',
-  logout:
-    'M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1',
-  rocket:
-    'M15.59 14.37a6 6 0 01-5.84 7.38v-4.8m5.84-2.58a14.98 14.98 0 006.16-12.12A14.98 14.98 0 009.63 8.41m5.96 5.96a14.926 14.926 0 01-5.841 2.58m-.119-8.54a6 6 0 00-7.381 5.84h4.8m2.581-5.84a14.927 14.927 0 00-2.58 5.84m2.699 2.7c-.103.021-.207.041-.311.06a15.09 15.09 0 01-2.448-2.448 14.9 14.9 0 01.06-.312m-2.24 2.39a4.493 4.493 0 00-1.757 4.306 4.493 4.493 0 004.306-1.758M16.5 9a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0z',
-  refresh:
-    'M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15',
-  stop: 'M5.25 7.5A2.25 2.25 0 017.5 5.25h9a2.25 2.25 0 012.25 2.25v9a2.25 2.25 0 01-2.25 2.25h-9a2.25 2.25 0 01-2.25-2.25v-9z',
-  clipboard:
-    'M15.666 3.888A2.25 2.25 0 0013.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 01-.75.75H9.75a.75.75 0 01-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 01-2.25 2.25H6.75A2.25 2.25 0 014.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 011.927-.184',
-  code: 'M17.25 6.75L22.5 12l-5.25 5.25m-10.5 0L1.5 12l5.25-5.25m7.5-3l-4.5 16.5',
-  terminal:
-    'M6.75 7.5l3 2.25-3 2.25m4.5 0h3m-9 8.25h13.5A2.25 2.25 0 0021 18V6a2.25 2.25 0 00-2.25-2.25H5.25A2.25 2.25 0 003 6v12a2.25 2.25 0 002.25 2.25z',
-  search: 'M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z',
-  chevronRight: 'M9 5l7 7-7 7'
+const iconComponents = computed(() => ({
+  bell: Bell,
+  book: BookOpen,
+  chart: ChartBar,
+  clipboard: Copy,
+  cloud: CloudUpload,
+  code: Code,
+  database: Database,
+  download: Download,
+  folder: Folder,
+  globe: Globe,
+  heart: Heart,
+  key: Key,
+  logout: SignOut,
+  plus: Plus,
+  refresh: Refresh,
+  rocket: Rocket,
+  server: Server,
+  settings: Settings,
+  sidebar: sidebarCollapsed.value ? SidebarOpen : SidebarClose,
+  stop: Stop,
+  terminal: Terminal,
+  user: User,
+  users: Users
 }))
 </script>
 
@@ -720,20 +716,10 @@ const icons = computed(() => ({
             @back="handleCommandBack"
           >
             <template #prefix>
-              <svg
+              <Search
                 class="mr-3 h-4 w-4 shrink-0 text-gray-400"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-                aria-hidden="true"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  :d="icons.search"
-                />
-              </svg>
+                stroke-width="2"
+              />
             </template>
 
             <template #suffix>
@@ -756,19 +742,7 @@ const icons = computed(() => ({
                 >
                   Commands
                 </button>
-                <svg
-                  class="h-3 w-3"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    :d="icons.chevronRight"
-                  />
-                </svg>
+                <ChevronRight class="h-3 w-3" stroke-width="2" />
                 <span class="text-gray-600 dark:text-gray-300">{{
                   parentCommand?.title
                 }}</span>
@@ -784,48 +758,15 @@ const icons = computed(() => ({
                     : 'bg-gray-100 dark:bg-gray-800'
                 ]"
               >
-                <svg
-                  v-if="typeof icons[cmd.icon] === 'object'"
+                <component
+                  :is="iconComponents[cmd.icon] || Folder"
                   :class="[
                     'h-3.5 w-3.5',
                     cmd.destructive
                       ? 'text-red-500 dark:text-red-400'
                       : 'text-gray-500 dark:text-gray-400'
                   ]"
-                  fill="none"
-                  stroke="currentColor"
-                  :viewBox="icons[cmd.icon].viewBox"
-                  aria-hidden="true"
-                >
-                  <path
-                    v-for="(d, i) in icons[cmd.icon].paths"
-                    :key="i"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="1"
-                    :d="d"
-                  />
-                </svg>
-                <svg
-                  v-else
-                  :class="[
-                    'h-3.5 w-3.5',
-                    cmd.destructive
-                      ? 'text-red-500 dark:text-red-400'
-                      : 'text-gray-500 dark:text-gray-400'
-                  ]"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                  aria-hidden="true"
-                >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="1.5"
-                    :d="icons[cmd.icon] || icons.folder"
-                  />
-                </svg>
+                />
               </span>
               <span class="flex min-w-0 flex-1 flex-col">
                 <span class="truncate">{{ cmd.title }}</span>
@@ -835,38 +776,17 @@ const icons = computed(() => ({
                   >{{ cmd.subtitle }}</span
                 >
               </span>
-              <svg
+              <ChevronRight
                 v-if="cmd.children"
                 class="h-3.5 w-3.5 shrink-0 text-gray-400"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-                aria-hidden="true"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  :d="icons.chevronRight"
-                />
-              </svg>
+                stroke-width="2"
+              />
             </template>
 
             <template #empty>
-              <svg
+              <Search
                 class="mx-auto h-6 w-6 text-gray-300 dark:text-gray-600"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-                aria-hidden="true"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="1.5"
-                  :d="icons.search"
-                />
-              </svg>
+              />
               <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">
                 No results for "{{ query }}"
               </p>

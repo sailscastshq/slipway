@@ -1,4 +1,6 @@
 <script setup>
+import SidebarClose from '@/components/ui/icons/SidebarClose.vue'
+import SidebarOpen from '@/components/ui/icons/SidebarOpen.vue'
 import { computed, inject } from 'vue'
 import Breadcrumb from '@/components/ui/breadcrumb/Breadcrumb.vue'
 
@@ -51,25 +53,7 @@ const breadcrumbItems = computed(() => [
         aria-label="Open Bridge navigation"
         @click="toggleMobileMenu"
       >
-        <svg
-          class="h-5 w-5"
-          viewBox="-0.5 -0.5 16 16"
-          fill="none"
-          stroke="currentColor"
-        >
-          <path
-            d="M12.777 14.285H2.223c-.833 0-1.508-.675-1.508-1.508V2.223c0-.833.675-1.508 1.508-1.508h10.554c.833 0 1.508.675 1.508 1.508v10.554c0 .833-.675 1.508-1.508 1.508Z"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            stroke-width="1"
-          />
-          <path
-            d="M5.615 14.285V.715M2.6 5.992 3.919 7.5 2.6 9.008"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            stroke-width="1"
-          />
-        </svg>
+        <SidebarOpen class="h-5 w-5" stroke-width="1" />
       </button>
       <button
         type="button"
@@ -77,35 +61,8 @@ const breadcrumbItems = computed(() => [
         :aria-label="sidebarCollapsed ? 'Show navigation' : 'Hide navigation'"
         @click="toggleSidebar"
       >
-        <svg
-          class="h-5 w-5"
-          viewBox="-0.5 -0.5 16 16"
-          fill="none"
-          stroke="currentColor"
-        >
-          <path
-            d="M12.777 14.285H2.223c-.833 0-1.508-.675-1.508-1.508V2.223c0-.833.675-1.508 1.508-1.508h10.554c.833 0 1.508.675 1.508 1.508v10.554c0 .833-.675 1.508-1.508 1.508Z"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            stroke-width="1"
-          />
-          <path
-            d="M5.615 14.285V.715"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            stroke-width="1"
-          />
-          <path
-            :d="
-              sidebarCollapsed
-                ? 'M2.6 5.992 3.919 7.5 2.6 9.008'
-                : 'M3.919 5.992 2.6 7.5l1.319 1.508'
-            "
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            stroke-width="1"
-          />
-        </svg>
+        <SidebarOpen v-if="sidebarCollapsed" class="h-5 w-5" stroke-width="1" />
+        <SidebarClose v-else class="h-5 w-5" stroke-width="1" />
       </button>
 
       <Breadcrumb :items="breadcrumbItems" class="flex-1" />

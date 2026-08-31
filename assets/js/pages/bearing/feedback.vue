@@ -1,4 +1,11 @@
 <script setup>
+import ChevronRight from '@/components/ui/icons/ChevronRight.vue'
+import X from '@/components/ui/icons/X.vue'
+import Search from '@/components/ui/icons/Search.vue'
+import Image from '@/components/ui/icons/Image.vue'
+import Filter from '@/components/ui/icons/Filter.vue'
+import ChevronUp from '@/components/ui/icons/ChevronUp.vue'
+import Check from '@/components/ui/icons/Check.vue'
 import Textarea from '@/components/ui/textarea/Textarea.vue'
 import Input from '@/components/ui/input/Input.vue'
 import Radio from '@/components/ui/radio/Radio.vue'
@@ -814,20 +821,10 @@ function shortDate(value) {
                     </span>
                   </Tooltip>
 
-                  <svg
+                  <ChevronRight
                     aria-hidden="true"
-                    viewBox="0 0 16 16"
                     class="size-4 shrink-0 text-gray-300 dark:text-gray-700"
-                    fill="none"
-                  >
-                    <path
-                      d="m6 3.5 4.5 4.5L6 12.5"
-                      stroke="currentColor"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="1.5"
-                    />
-                  </svg>
+                  />
 
                   <div
                     class="[&_[data-slot=select-content]]:min-w-44 max-w-[16rem] [&>[data-slot=select]]:w-auto [&_[data-slot=select-content]]:rounded-xl [&_[data-slot=select-content]]:shadow-xl [&_[data-slot=select-content]]:shadow-gray-950/10 dark:[&_[data-slot=select-content]]:shadow-black/30"
@@ -910,19 +907,7 @@ function shortDate(value) {
                         class="size-8 absolute right-2 top-2 flex cursor-pointer items-center justify-center rounded-full bg-gray-950/80 text-white shadow-sm backdrop-blur transition hover:bg-gray-950 focus-visible:ring-2 focus-visible:ring-white"
                         @click="removeImage(upload, preview.file)"
                       >
-                        <svg
-                          aria-hidden="true"
-                          viewBox="0 0 16 16"
-                          class="size-3.5"
-                          fill="none"
-                        >
-                          <path
-                            d="m4.25 4.25 7.5 7.5m0-7.5-7.5 7.5"
-                            stroke="currentColor"
-                            stroke-linecap="round"
-                            stroke-width="1.5"
-                          />
-                        </svg>
+                        <X class="size-3.5" />
                       </button>
                     </Tooltip>
                   </figure>
@@ -977,25 +962,7 @@ function shortDate(value) {
                     "
                     @click="upload.choose"
                   >
-                    <svg
-                      aria-hidden="true"
-                      viewBox="0 0 20 20"
-                      class="size-4"
-                      fill="none"
-                    >
-                      <path
-                        d="M3.75 5.75A2.25 2.25 0 0 1 6 3.5h8A2.25 2.25 0 0 1 16.25 5.75v8.5A2.25 2.25 0 0 1 14 16.5H6a2.25 2.25 0 0 1-2.25-2.25v-8.5Z"
-                        stroke="currentColor"
-                        stroke-width="1.4"
-                      />
-                      <path
-                        d="m5.75 14 3.1-3.25 2.1 2.1 1.35-1.35 1.95 2.5M7.2 7.75h.01"
-                        stroke="currentColor"
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        stroke-width="1.4"
-                      />
-                    </svg>
+                    <Image class="size-4" stroke-width="1.4" />
                     <span>Add images</span>
                   </button>
                   <span
@@ -1078,26 +1045,10 @@ function shortDate(value) {
           >
             <label class="relative min-w-0 flex-1 sm:max-w-md">
               <span class="sr-only">Search feedback</span>
-              <svg
+              <Search
                 class="size-4 pointer-events-none absolute left-1 top-1/2 -translate-y-1/2 text-gray-400"
-                viewBox="0 0 16 16"
-                fill="none"
-                aria-hidden="true"
-              >
-                <circle
-                  cx="7"
-                  cy="7"
-                  r="4.25"
-                  stroke="currentColor"
-                  stroke-width="1.4"
-                />
-                <path
-                  d="m10.25 10.25 3 3"
-                  stroke="currentColor"
-                  stroke-width="1.4"
-                  stroke-linecap="round"
-                />
-              </svg>
+                stroke-width="1.4"
+              />
               <Input
                 v-model="search"
                 type="search"
@@ -1111,19 +1062,7 @@ function shortDate(value) {
               class="min-h-11 flex shrink-0 items-center gap-2 rounded-xl bg-gray-50 px-3.5 text-sm font-medium transition hover:bg-gray-100 dark:bg-gray-900 dark:hover:bg-gray-800 sm:ml-auto"
               @click="openMobileFilters"
             >
-              <svg
-                class="size-4 text-gray-400"
-                viewBox="0 0 16 16"
-                fill="none"
-                aria-hidden="true"
-              >
-                <path
-                  d="M2.5 4.25h11M4.5 8h7m-5 3.75h3"
-                  stroke="currentColor"
-                  stroke-width="1.4"
-                  stroke-linecap="round"
-                />
-              </svg>
+              <Filter class="size-4 text-gray-400" stroke-width="1.4" />
               <span>Filter<span class="sr-only"> and sort</span></span>
               <span
                 v-if="activeFilterCount"
@@ -1226,21 +1165,11 @@ function shortDate(value) {
                       :value="option.value"
                     />
                     <span>{{ option.label }}</span>
-                    <svg
+                    <Check
                       v-if="sort === option.value"
-                      aria-hidden="true"
-                      viewBox="0 0 16 16"
                       class="size-4 shrink-0 text-gray-600 dark:text-gray-300"
-                      fill="none"
-                    >
-                      <path
-                        d="m3.5 8 2.75 2.75L12.5 4.5"
-                        stroke="currentColor"
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        stroke-width="1.6"
-                      />
-                    </svg>
+                      stroke-width="1.6"
+                    />
                   </label>
                 </div>
               </fieldset>
@@ -1299,20 +1228,7 @@ function shortDate(value) {
                   :disabled="votingFeedback.has(item.publicId)"
                   @click="toggleVote(item)"
                 >
-                  <svg
-                    class="h-3.5 w-3.5"
-                    viewBox="0 0 16 16"
-                    fill="none"
-                    aria-hidden="true"
-                  >
-                    <path
-                      d="m4 9 4-4 4 4"
-                      stroke="currentColor"
-                      stroke-width="1.5"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                    />
-                  </svg>
+                  <ChevronUp class="h-3.5 w-3.5" />
                   <span class="mt-0.5 text-sm font-semibold">{{
                     item.voteCount
                   }}</span>

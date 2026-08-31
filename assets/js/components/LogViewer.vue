@@ -1,4 +1,7 @@
 <script setup>
+import WrapText from '@/components/ui/icons/WrapText.vue'
+import Check from '@/components/ui/icons/Check.vue'
+import ArrowDown from '@/components/ui/icons/ArrowDown.vue'
 import Input from '@/components/ui/input/Input.vue'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import {
@@ -12,6 +15,8 @@ import {
 import Spinner from '@/components/SlipwaySpinner.vue'
 import Select from '@/components/ui/select/Select.vue'
 import Tooltip from '@/components/ui/tooltip/Tooltip.vue'
+import Copy from '@/components/ui/icons/Copy.vue'
+import Search from '@/components/ui/icons/Search.vue'
 
 const props = defineProps({
   lines: {
@@ -243,20 +248,10 @@ function segmentClass(type) {
         class="sm:min-w-40 relative order-3 min-w-full flex-1 sm:order-2 sm:max-w-sm"
       >
         <span class="sr-only">Search logs</span>
-        <svg
-          aria-hidden="true"
+        <Search
           class="pointer-events-none absolute left-0 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400 dark:text-zinc-600"
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-        >
-          <path
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            stroke-width="1.8"
-            d="m21 21-4.35-4.35m2.35-5.65a8 8 0 1 1-16 0 8 8 0 0 1 16 0Z"
-          />
-        </svg>
+          stroke-width="1.8"
+        />
         <Input
           v-model="query"
           data-test="log-search"
@@ -302,20 +297,7 @@ function segmentClass(type) {
             ]"
             @click="toggleFollowing"
           >
-            <svg
-              aria-hidden="true"
-              class="h-4 w-4"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="1.8"
-                d="m7 10 5 5 5-5M12 15V4M5 20h14"
-              />
-            </svg>
+            <ArrowDown class="h-4 w-4" stroke-width="1.8" />
             <span class="hidden lg:inline">{{
               following ? 'Following' : 'Follow'
             }}</span>
@@ -339,20 +321,7 @@ function segmentClass(type) {
             ]"
             @click="wrap = !wrap"
           >
-            <svg
-              aria-hidden="true"
-              class="h-4 w-4"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="1.8"
-                d="M4 7h12a4 4 0 0 1 0 8H9m0 0 3-3m-3 3 3 3M4 12h7M4 17h2"
-              />
-            </svg>
+            <WrapText class="h-4 w-4" stroke-width="1.8" />
           </button>
         </Tooltip>
 
@@ -376,36 +345,12 @@ function segmentClass(type) {
             ]"
             @click="copyVisibleLogs"
           >
-            <svg
+            <Check
               v-if="copyState === 'copied'"
-              aria-hidden="true"
               class="h-4 w-4 text-emerald-400"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="m5 13 4 4L19 7"
-              />
-            </svg>
-            <svg
-              v-else
-              aria-hidden="true"
-              class="h-4 w-4"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="1.8"
-                d="M8 8V5a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-3m-7-6h7a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2Z"
-              />
-            </svg>
+              stroke-width="2"
+            />
+            <Copy v-else class="h-4 w-4" stroke-width="1.8" />
           </button>
         </Tooltip>
       </div>

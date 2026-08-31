@@ -1,4 +1,5 @@
 <script setup>
+import ChevronRight from '@/components/ui/icons/ChevronRight.vue'
 import { computed, ref } from 'vue'
 import Slide from '@/components/ui/slide/Slide.vue'
 import Spinner from '@/components/SlipwaySpinner.vue'
@@ -68,21 +69,7 @@ defineExpose({ reset })
 
     <template #thumb="{ pending }">
       <Spinner v-if="pending" class="size-4" />
-      <svg
-        v-else
-        class="size-4 rtl:rotate-180"
-        fill="none"
-        stroke="currentColor"
-        viewBox="0 0 24 24"
-        aria-hidden="true"
-      >
-        <path
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          stroke-width="2"
-          d="m9 5 7 7-7 7"
-        />
-      </svg>
+      <ChevronRight v-else class="size-4 rtl:rotate-180" stroke-width="2" />
     </template>
   </Slide>
 </template>

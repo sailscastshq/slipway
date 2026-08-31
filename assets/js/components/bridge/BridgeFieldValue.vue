@@ -1,4 +1,5 @@
 <script setup>
+import ExternalLink from '@/components/ui/icons/ExternalLink.vue'
 import { computed } from 'vue'
 import {
   bridgeFieldType,
@@ -112,20 +113,7 @@ const fieldType = computed(() => bridgeFieldType(props.attribute))
     <span :class="isCompact ? 'max-w-52 truncate' : 'break-all'">
       {{ formatted.display }}
     </span>
-    <svg
-      class="h-3.5 w-3.5 shrink-0 text-gray-400"
-      viewBox="0 0 20 20"
-      fill="none"
-      stroke="currentColor"
-      aria-hidden="true"
-    >
-      <path
-        d="M7.5 5h-2A2.5 2.5 0 0 0 3 7.5v7A2.5 2.5 0 0 0 5.5 17h7a2.5 2.5 0 0 0 2.5-2.5v-2M11 3h6v6m0-6-8 8"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-        stroke-width="1.5"
-      />
-    </svg>
+    <ExternalLink class="h-3.5 w-3.5 shrink-0 text-gray-400" />
   </a>
 
   <a

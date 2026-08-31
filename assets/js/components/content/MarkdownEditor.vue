@@ -1,4 +1,7 @@
 <script setup>
+import WarningTriangle from '@/components/ui/icons/WarningTriangle.vue'
+import Link from '@/components/ui/icons/Link.vue'
+import ImageIcon from '@/components/ui/icons/Image.vue'
 import Input from '@/components/ui/input/Input.vue'
 import {
   computed,
@@ -612,20 +615,10 @@ defineExpose({
           : 'mx-auto mt-6 max-w-3xl border border-amber-200 bg-amber-50 px-4 py-3 dark:border-amber-900/70 dark:bg-amber-950/40'
       ]"
     >
-      <svg
+      <WarningTriangle
         class="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400"
-        fill="none"
-        viewBox="0 0 24 24"
-        stroke="currentColor"
-        aria-hidden="true"
-      >
-        <path
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          stroke-width="1.75"
-          d="M12 9v4m0 4h.01M10.3 3.9 2.8 17a2 2 0 0 0 1.7 3h15a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"
-        />
-      </svg>
+        stroke-width="1.75"
+      />
       <div>
         <p class="font-medium">{{ compatibilityTitle }}</p>
         <p class="mt-0.5 leading-5 text-amber-800 dark:text-amber-200">
@@ -704,20 +697,7 @@ defineExpose({
         class="min-h-9 inline-flex cursor-pointer items-center gap-1.5 rounded-lg px-2 text-xs font-medium text-gray-700 transition hover:bg-gray-100 disabled:cursor-wait disabled:opacity-50 dark:text-gray-300 dark:hover:bg-gray-900"
         @click="upload.choose"
       >
-        <svg
-          class="size-4"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          aria-hidden="true"
-        >
-          <path
-            d="M4 16.5 8.5 12l3 3 2-2 6.5 6.5M7.5 8.5h.01M5 4h14a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1Z"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            stroke-width="1.5"
-          />
-        </svg>
+        <ImageIcon class="size-4" />
         {{ uploading ? 'Uploading…' : 'Add image' }}
       </button>
       <span>or paste and drop</span>
@@ -782,20 +762,7 @@ defineExpose({
               ]"
               @mousedown.prevent="openLinkEditor"
             >
-              <svg
-                class="h-4 w-4"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                aria-hidden="true"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="1.75"
-                  d="m10.5 13.5 3-3m-5.1 5.1-1.5 1.5a3 3 0 0 1-4.2-4.2l3-3a3 3 0 0 1 4.2 0m5.7-1.5 1.5-1.5a3 3 0 0 1 4.2 4.2l-3 3a3 3 0 0 1-4.2 0"
-                />
-              </svg>
+              <Link class="h-4 w-4" stroke-width="1.75" />
             </button>
           </Tooltip>
           <Tooltip text="Strikethrough">

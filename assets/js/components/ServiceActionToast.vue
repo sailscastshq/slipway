@@ -1,6 +1,8 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import Spinner from '@/components/SlipwaySpinner.vue'
+import CheckCircle from '@/components/ui/icons/CheckCircle.vue'
+import X from '@/components/ui/icons/X.vue'
 
 const props = defineProps({
   action: Object
@@ -69,35 +71,17 @@ onUnmounted(() => {
         class="text-brand h-5 w-5"
       />
       <!-- Check for success -->
-      <svg
+      <CheckCircle
         v-else-if="action.status === 'success'"
         class="h-5 w-5 text-green-500 dark:text-green-400"
-        fill="none"
-        stroke="currentColor"
-        viewBox="0 0 24 24"
-      >
-        <path
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          stroke-width="2"
-          d="M5 13l4 4L19 7"
-        />
-      </svg>
+        stroke-width="2"
+      />
       <!-- X for failed -->
-      <svg
+      <X
         v-else
         class="h-5 w-5 text-red-500 dark:text-red-400"
-        fill="none"
-        stroke="currentColor"
-        viewBox="0 0 24 24"
-      >
-        <path
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          stroke-width="2"
-          d="M6 18L18 6M6 6l12 12"
-        />
-      </svg>
+        stroke-width="2"
+      />
     </div>
 
     <!-- Content -->
@@ -121,20 +105,7 @@ onUnmounted(() => {
       class="shrink-0 cursor-pointer text-gray-400 hover:text-gray-600 focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-950 dark:hover:text-gray-300 dark:focus-visible:ring-white"
       :aria-label="`Dismiss ${actionLabel} ${action.serviceName}`"
     >
-      <svg
-        class="h-4 w-4"
-        fill="none"
-        stroke="currentColor"
-        viewBox="0 0 24 24"
-        aria-hidden="true"
-      >
-        <path
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          stroke-width="2"
-          d="M6 18L18 6M6 6l12 12"
-        />
-      </svg>
+      <X class="h-4 w-4" stroke-width="2" />
     </button>
   </div>
 </template>
