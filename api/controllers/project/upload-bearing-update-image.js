@@ -16,8 +16,10 @@ module.exports = {
   exits: {
     success: { description: 'The image was uploaded.' },
     badRequest: { statusCode: 400 },
+    badGateway: { statusCode: 502 },
     forbidden: { statusCode: 403 },
-    notFound: { statusCode: 404 }
+    notFound: { statusCode: 404 },
+    unavailable: { statusCode: 503 }
   },
 
   fn: async function ({ slug, envSlug, appSlug, image }) {
@@ -45,12 +47,15 @@ module.exports = {
 
     let storage
     try {
-      storage = await sails.helpers.uploads.getStorageConfig()
-    } catch {
+      storage = await sails.helpers.uploads.getStorageConfig.with({
+        requirePublicUrl: true
+      })
+    } catch (error) {
       throw {
-        badRequest: {
-          message:
-            'Image uploads are not configured. Add a public upload provider in Settings.'
+        unavailable: {
+          code: error.code || 'PUBLIC_UPLOAD_STORAGE_NOT_CONFIGURED',
+          message: error.message,
+          settingsUrl: '/settings/uploads'
         }
       }
     }
@@ -73,11 +78,12 @@ module.exports = {
         ].join('/')
       })
     } catch (error) {
-      throw {
-        badRequest: {
-          message: error.message || 'The image could not be uploaded.'
-        }
+      const failure = presentUploadFailure(error)
+      if (failure.kind === 'request') {
+        throw { badRequest: failure.body }
       }
+      sails.log.warn(`Bearing update image upload failed: ${failure.log}`)
+      throw { badGateway: failure.body }
     }
 
     if (!images.length) {
@@ -87,3 +93,50 @@ module.exports = {
     return { imageUrl: images[0].url }
   }
 }
+
+function presentUploadFailure(error) {
+  const code = String(error?.code || '')
+  if (code.startsWith('BEARING_UPLOAD_')) {
+    return {
+      kind: 'request',
+      body: {
+        code,
+        message: error.message || 'The image could not be uploaded.'
+      },
+      log: `${code}: ${error.message || 'invalid upload'}`
+    }
+  }
+
+  const providerMessages = {
+    AccessDenied:
+      'Object storage denied the upload. Check that the access token can write objects to this bucket.',
+    CredentialsError:
+      'Object storage credentials could not be used. Check the access key and secret key in Settings → File storage.',
+    InvalidAccessKeyId:
+      'Object storage rejected the access key. Check Settings → File storage.',
+    NetworkingError:
+      'Slipway could not reach object storage. Check the endpoint in Settings → File storage and try again.',
+    NoSuchBucket:
+      'The configured object-storage bucket does not exist. Check Settings → File storage.',
+    SignatureDoesNotMatch:
+      'Object storage rejected the credentials. Check the secret key and endpoint in Settings → File storage.',
+    UnknownEndpoint:
+      'Slipway could not reach object storage. Check the endpoint in Settings → File storage and try again.'
+  }
+
+  return {
+    kind: 'provider',
+    body: {
+      code: 'UPLOAD_STORAGE_PROVIDER_FAILED',
+      message:
+        providerMessages[code] ||
+        'Object storage could not accept the image. Check Settings → File storage and try again.',
+      settingsUrl: '/settings/uploads'
+    },
+    log: `${code || error?.name || 'Error'}: ${
+      error?.message || 'unknown provider error'
+    }`
+  }
+}
+
+module.exports._private = { presentUploadFailure }

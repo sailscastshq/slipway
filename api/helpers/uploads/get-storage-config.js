@@ -4,13 +4,22 @@ module.exports = {
   description:
     'Resolve the configured S3-compatible upload credentials and public URL.',
 
+  inputs: {
+    requirePublicUrl: {
+      type: 'boolean',
+      defaultsTo: false,
+      description:
+        'Require the provider settings needed to serve uploaded objects publicly.'
+    }
+  },
+
   exits: {
     success: {
       outputType: 'ref'
     }
   },
 
-  fn: async function () {
+  fn: async function ({ requirePublicUrl }) {
     let globalEnvVars = {}
 
     try {
@@ -22,46 +31,116 @@ module.exports = {
     }
 
     const uploads = sails.config.uploads || {}
-    const config = {
-      key:
-        globalEnvVars.R2_ACCESS_KEY ||
-        globalEnvVars.S3_ACCESS_KEY ||
-        globalEnvVars.SPACES_ACCESS_KEY ||
-        uploads.key,
-      secret:
-        globalEnvVars.R2_SECRET_KEY ||
-        globalEnvVars.S3_SECRET_KEY ||
-        globalEnvVars.SPACES_SECRET_KEY ||
-        uploads.secret,
-      bucket:
-        globalEnvVars.R2_BUCKET ||
-        globalEnvVars.S3_BUCKET ||
-        globalEnvVars.SPACES_BUCKET ||
-        uploads.bucket,
-      endpoint:
-        globalEnvVars.R2_ENDPOINT ||
-        globalEnvVars.S3_ENDPOINT ||
-        globalEnvVars.SPACES_ENDPOINT ||
-        uploads.endpoint,
-      region:
-        globalEnvVars.S3_REGION ||
-        globalEnvVars.SPACES_REGION ||
-        uploads.region,
-      publicUrl:
-        globalEnvVars.R2_PUBLIC_URL ||
-        globalEnvVars.S3_PUBLIC_URL ||
-        globalEnvVars.SPACES_PUBLIC_URL ||
-        uploads.publicUrl
-    }
+    const candidates = [
+      providerConfig('r2', globalEnvVars, {
+        region: globalEnvVars.R2_REGION || 'auto'
+      }),
+      providerConfig('s3', globalEnvVars),
+      providerConfig('spaces', globalEnvVars),
+      {
+        provider: uploads.provider || 'r2',
+        key: uploads.key,
+        secret: uploads.secret,
+        bucket: uploads.bucket,
+        endpoint: uploads.endpoint,
+        region: uploads.region,
+        publicUrl: uploads.publicUrl
+      }
+    ]
+    const config = candidates.find((candidate) =>
+      isReady(candidate, { requirePublicUrl })
+    )
 
-    if (!config.key || !config.secret || !config.bucket) {
+    if (!config) {
+      const partiallyConfigured =
+        candidates.find((candidate) => isReady(candidate, {})) ||
+        candidates.find(hasAnyValue)
       const error = new Error(
-        'Upload storage is not configured. Add credentials, a bucket, and an endpoint for R2, S3, or Spaces.'
+        requirePublicUrl
+          ? publicStorageMessage(partiallyConfigured)
+          : 'Upload storage is not configured. Add credentials and a bucket for R2, S3, or Spaces.'
       )
-      error.code = 'UPLOAD_STORAGE_NOT_CONFIGURED'
+      error.code = requirePublicUrl
+        ? 'PUBLIC_UPLOAD_STORAGE_NOT_CONFIGURED'
+        : 'UPLOAD_STORAGE_NOT_CONFIGURED'
       throw error
     }
 
     return config
   }
+}
+
+function providerConfig(provider, values, overrides = {}) {
+  const prefix = provider.toUpperCase()
+  return {
+    provider,
+    key: values[`${prefix}_ACCESS_KEY`],
+    secret: values[`${prefix}_SECRET_KEY`],
+    bucket: values[`${prefix}_BUCKET`],
+    endpoint: values[`${prefix}_ENDPOINT`],
+    region: values[`${prefix}_REGION`],
+    publicUrl: values[`${prefix}_PUBLIC_URL`],
+    ...overrides
+  }
+}
+
+function isReady(config, { requirePublicUrl }) {
+  if (!config.key || !config.secret || !config.bucket) return false
+  if (
+    ['r2', 'spaces'].includes(config.provider) &&
+    !isHttpUrl(config.endpoint)
+  ) {
+    return false
+  }
+  if (['s3', 'spaces'].includes(config.provider) && !config.region) return false
+  if (requirePublicUrl && !isHttpUrl(config.publicUrl)) return false
+  return true
+}
+
+function hasAnyValue(config) {
+  return Boolean(
+    config.key ||
+      config.secret ||
+      config.bucket ||
+      config.endpoint ||
+      config.publicUrl
+  )
+}
+
+function isHttpUrl(value) {
+  try {
+    const url = new URL(String(value || ''))
+    return (
+      ['http:', 'https:'].includes(url.protocol) &&
+      Boolean(url.hostname) &&
+      !url.username &&
+      !url.password
+    )
+  } catch {
+    return false
+  }
+}
+
+function publicStorageMessage(config) {
+  if (!config) {
+    return 'Public image uploads are not configured. Add a storage provider and public URL in Settings → File storage.'
+  }
+  if (!config.key || !config.secret || !config.bucket) {
+    return 'Public image uploads need storage credentials and a bucket. Complete Settings → File storage.'
+  }
+  if (
+    ['r2', 'spaces'].includes(config.provider) &&
+    !isHttpUrl(config.endpoint)
+  ) {
+    return 'Public image uploads need a valid storage endpoint. Complete Settings → File storage.'
+  }
+  return 'Public image uploads need a valid public URL. Add the bucket public URL or custom domain in Settings → File storage.'
+}
+
+module.exports._private = {
+  hasAnyValue,
+  isHttpUrl,
+  isReady,
+  providerConfig,
+  publicStorageMessage
 }

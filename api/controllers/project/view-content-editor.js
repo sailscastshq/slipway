@@ -87,7 +87,9 @@ module.exports = {
     let uploadsConfigured = true
 
     try {
-      await sails.helpers.uploads.getStorageConfig()
+      await sails.helpers.uploads.getStorageConfig.with({
+        requirePublicUrl: true
+      })
     } catch {
       uploadsConfigured = false
     }

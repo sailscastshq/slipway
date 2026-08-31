@@ -45,6 +45,14 @@ module.exports = {
 
     const isConfigured =
       r2Configured || s3Configured || spacesConfigured || configuredViaEnv
+    let publicUploadsConfigured = true
+    try {
+      await sails.helpers.uploads.getStorageConfig.with({
+        requirePublicUrl: true
+      })
+    } catch {
+      publicUploadsConfigured = false
+    }
 
     // Determine the active provider
     let provider = null
@@ -101,6 +109,7 @@ module.exports = {
       page: 'settings/uploads',
       props: {
         isConfigured,
+        publicUploadsConfigured,
         provider,
         config,
         backupSchedule

@@ -36,15 +36,13 @@ module.exports = {
 
     let storage
     try {
-      storage = await sails.helpers.uploads.getStorageConfig()
-    } catch {
+      storage = await sails.helpers.uploads.getStorageConfig.with({
+        requirePublicUrl: true
+      })
+    } catch (error) {
       throw {
         badRequest: {
-          problems: [
-            {
-              logo: 'Image uploads are not configured. Add a public upload provider in Settings.'
-            }
-          ]
+          problems: [{ logo: error.message }]
         }
       }
     }
@@ -104,18 +102,8 @@ module.exports = {
 
     // Construct the public URL using the configured public URL base
     const fileName = uploadedFile.fd.split('/').pop()
-    let logoUrl
-    if (storage.publicUrl) {
-      const baseUrl = storage.publicUrl.replace(/\/$/, '')
-      logoUrl = `${baseUrl}/${dirname}/${fileName}`
-    } else if (storage.endpoint) {
-      const endpointClean = storage.endpoint.replace(/\/$/, '')
-      logoUrl = `${endpointClean}/${dirname}/${fileName}`
-    } else {
-      logoUrl = `https://${storage.bucket}.s3.${
-        storage.region || 'auto'
-      }.amazonaws.com/${dirname}/${fileName}`
-    }
+    const baseUrl = storage.publicUrl.replace(/\/$/, '')
+    const logoUrl = `${baseUrl}/${dirname}/${fileName}`
 
     // Update team with new logo URL
     await Team.updateOne({ id: user.team.id }).set({
