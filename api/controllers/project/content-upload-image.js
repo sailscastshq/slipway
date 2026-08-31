@@ -81,12 +81,13 @@ module.exports = {
 
     let storage
     try {
-      storage = await sails.helpers.uploads.getStorageConfig()
-    } catch {
+      storage = await sails.helpers.uploads.getStorageConfig.with({
+        requirePublicUrl: true
+      })
+    } catch (error) {
       throw {
         badRequest: {
-          message:
-            'Image uploads are not configured. Add a public upload provider in Settings.'
+          message: error.message
         }
       }
     }
@@ -146,12 +147,5 @@ module.exports = {
 }
 
 function getPublicUploadBase(storage) {
-  if (storage.publicUrl) return storage.publicUrl.replace(/\/$/, '')
-
-  if (storage.endpoint) {
-    return storage.endpoint.replace(/\/$/, '')
-  }
-
-  const region = storage.region || 'us-east-1'
-  return `https://${storage.bucket}.s3.${region}.amazonaws.com`
+  return storage.publicUrl.replace(/\/$/, '')
 }

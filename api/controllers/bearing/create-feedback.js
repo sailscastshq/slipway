@@ -90,7 +90,9 @@ module.exports = {
         if (typeof this.req.file !== 'function') {
           throw new Error('This request cannot receive image uploads.')
         }
-        storage = await sails.helpers.uploads.getStorageConfig()
+        storage = await sails.helpers.uploads.getStorageConfig.with({
+          requirePublicUrl: true
+        })
         images = await sails.helpers.bearing.uploadFeedbackImages.with({
           req: this.req,
           storage,

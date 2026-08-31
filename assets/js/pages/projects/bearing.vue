@@ -2,7 +2,7 @@
 import Input from '@/components/ui/input/Input.vue'
 import Checkbox from '@/components/ui/checkbox/Checkbox.vue'
 import Radio from '@/components/ui/radio/Radio.vue'
-import { Head, router, useForm } from '@inertiajs/vue3'
+import { Head, Link, router, useForm } from '@inertiajs/vue3'
 import {
   computed,
   inject,
@@ -724,7 +724,7 @@ onUnmounted(() => {
                 required
                 maxlength="140"
                 placeholder="What shipped?"
-                class="min-h-12 w-full border-0 border-b border-dashed border-gray-300 bg-transparent px-0 text-xl font-semibold focus:border-gray-950 focus:ring-0 dark:border-gray-700 dark:focus:border-white"
+                class="min-h-12 w-full border-0 border-b border-dashed border-gray-300 bg-transparent px-0 text-xl font-semibold outline-none focus:border-gray-950 focus:outline-none focus:ring-0 focus-visible:outline-none dark:border-gray-700 dark:focus:border-white"
               />
             </div>
             <div>
@@ -737,7 +737,7 @@ onUnmounted(() => {
                 required
                 maxlength="280"
                 placeholder="A useful one-line summary"
-                class="min-h-11 w-full border-0 border-b border-dashed border-gray-300 bg-transparent px-0 text-sm focus:border-gray-950 focus:ring-0 dark:border-gray-700 dark:focus:border-white"
+                class="min-h-11 w-full border-0 border-b border-dashed border-gray-300 bg-transparent px-0 text-sm outline-none focus:border-gray-950 focus:outline-none focus:ring-0 focus-visible:outline-none dark:border-gray-700 dark:focus:border-white"
               />
             </div>
             <div>
@@ -759,6 +759,18 @@ onUnmounted(() => {
                 required
                 deny-raw-html
               />
+              <p
+                v-if="!uploadsConfigured"
+                class="mt-2 text-xs text-gray-500 dark:text-gray-400"
+              >
+                Images need public file storage.
+                <Link
+                  href="/settings/uploads"
+                  class="font-medium text-gray-900 underline decoration-dotted underline-offset-4 dark:text-white"
+                >
+                  Finish setup
+                </Link>
+              </p>
             </div>
             <p
               v-if="updateForm.errors.update"

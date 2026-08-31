@@ -14,6 +14,7 @@ defineOptions({
 
 const props = defineProps({
   isConfigured: Boolean,
+  publicUploadsConfigured: Boolean,
   provider: String,
   config: Object,
   backupSchedule: Object
@@ -285,13 +286,13 @@ const providers = [
           <div
             :class="[
               'flex items-center gap-2 rounded-lg border px-4 py-3',
-              isConfigured
+              publicUploadsConfigured
                 ? 'border-green-200 bg-green-50/50 dark:border-green-900/50 dark:bg-green-950/20'
                 : 'border-amber-200 bg-amber-50/50 dark:border-amber-900/50 dark:bg-amber-950/20'
             ]"
           >
             <svg
-              v-if="isConfigured"
+              v-if="publicUploadsConfigured"
               class="h-4 w-4 text-green-500"
               fill="none"
               stroke="currentColor"
@@ -321,13 +322,13 @@ const providers = [
             <span
               :class="[
                 'text-sm',
-                isConfigured
+                publicUploadsConfigured
                   ? 'text-green-700 dark:text-green-400'
                   : 'text-amber-700 dark:text-amber-400'
               ]"
             >
-              <template v-if="isConfigured">
-                File storage configured via
+              <template v-if="publicUploadsConfigured">
+                Public uploads and backups are configured via
                 {{
                   provider === 'r2'
                     ? 'Cloudflare R2'
@@ -337,6 +338,10 @@ const providers = [
                     ? 'DigitalOcean Spaces'
                     : 'environment variables'
                 }}
+              </template>
+              <template v-else-if="isConfigured">
+                Backups are configured, but public uploads still need a public
+                URL. Add the bucket public URL or custom domain below.
               </template>
               <template v-else>
                 File storage not configured. Configure below to enable uploaded

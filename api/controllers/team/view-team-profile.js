@@ -15,29 +15,14 @@ module.exports = {
     )
     const team = await Team.findOne({ id: user.team.id })
 
-    // Check if uploads are configured (for logo upload)
-    let globalEnvVars = {}
+    let uploadsConfigured = true
     try {
-      const globalJson = await sails.helpers.setting.get('globalEnvVars', '{}')
-      globalEnvVars = JSON.parse(globalJson)
+      await sails.helpers.uploads.getStorageConfig.with({
+        requirePublicUrl: true
+      })
     } catch {
-      /* ignore */
+      uploadsConfigured = false
     }
-
-    const uploadsConfigured = !!(
-      (globalEnvVars.R2_ACCESS_KEY &&
-        globalEnvVars.R2_SECRET_KEY &&
-        globalEnvVars.R2_BUCKET) ||
-      (globalEnvVars.S3_ACCESS_KEY &&
-        globalEnvVars.S3_SECRET_KEY &&
-        globalEnvVars.S3_BUCKET) ||
-      (globalEnvVars.SPACES_ACCESS_KEY &&
-        globalEnvVars.SPACES_SECRET_KEY &&
-        globalEnvVars.SPACES_BUCKET) ||
-      (sails.config.uploads?.key &&
-        sails.config.uploads?.secret &&
-        sails.config.uploads?.bucket)
-    )
 
     return {
       page: 'settings/team-profile',
