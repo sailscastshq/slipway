@@ -218,7 +218,7 @@ watch(status, (newStatus) => {
 <template>
   <div
     aria-live="off"
-    class="pointer-events-auto w-full overflow-hidden rounded-xl border border-gray-200 bg-white/95 shadow-2xl backdrop-blur-sm dark:border-gray-700/50 dark:bg-gray-900/95"
+    class="pointer-events-auto w-full overflow-hidden rounded-xl border border-gray-200 bg-white/95 shadow-lg backdrop-blur-sm dark:border-gray-700/50 dark:bg-gray-900/95"
   >
     <!-- Progress bar at top -->
     <div class="h-0.5 w-full bg-gray-200 dark:bg-gray-800" aria-hidden="true">

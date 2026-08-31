@@ -624,7 +624,15 @@ test(
     await categorySelect.focus()
     await categorySelect.press('ArrowDown')
     await expect(categorySelect).toHaveAttribute('aria-expanded', 'true')
+    await expect(categorySelect).toHaveAttribute(
+      'aria-activedescendant',
+      'bearing-feedback-category-option-0'
+    )
     await categorySelect.press('ArrowDown')
+    await expect(categorySelect).toHaveAttribute(
+      'aria-activedescendant',
+      'bearing-feedback-category-option-1'
+    )
     await categorySelect.press('Enter')
     await expect(categorySelect).toContainText('Bug')
     await expect(categorySelect).toBeFocused()
