@@ -18,7 +18,7 @@ defineOptions({ inheritAttrs: false })
     data-slot="icon"
     v-bind="$attrs"
   >
-    <path d="m8 4.25 8-.5-.5 5.5 2.25 2.25-4.5 1.5-4.75 4.75-.25-6.25-2-2z" />
-    <path d="m8.5 17.5-3 3" />
+    <path d="M8 4.25h8l-1 5 2.75 2.75v1.5H6.25V12L9 9.25z" />
+    <path d="M12 13.5v7.25" />
   </svg>
 </template>
