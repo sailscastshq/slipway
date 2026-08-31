@@ -1,4 +1,14 @@
 <script setup>
+import WarningTriangle from '@/components/ui/icons/WarningTriangle.vue'
+import SidebarOpen from '@/components/ui/icons/SidebarOpen.vue'
+import SidebarClose from '@/components/ui/icons/SidebarClose.vue'
+import Refresh from '@/components/ui/icons/Refresh.vue'
+import ExternalLink from '@/components/ui/icons/ExternalLink.vue'
+import Download from '@/components/ui/icons/Download.vue'
+import ChevronDown from '@/components/ui/icons/ChevronDown.vue'
+import Check from '@/components/ui/icons/Check.vue'
+import BookOpen from '@/components/ui/icons/BookOpen.vue'
+import ArrowRight from '@/components/ui/icons/ArrowRight.vue'
 import { Head, Link } from '@inertiajs/vue3'
 import { inject, ref, watch, onUnmounted } from 'vue'
 import { useEventSource } from '@/composables/sse'
@@ -193,89 +203,19 @@ function formatDate(dateString) {
           @click="toggleMobileMenu"
           class="rounded-md p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white md:hidden"
         >
-          <svg
-            class="h-5 w-5"
-            viewBox="-0.5 -0.5 16 16"
-            fill="none"
-            stroke="currentColor"
-          >
-            <path
-              d="M12.777 14.285H2.223c-.833 0-1.508-.675-1.508-1.508V2.223c0-.833.675-1.508 1.508-1.508h10.554c.833 0 1.508.675 1.508 1.508v10.554c0 .833-.675 1.508-1.508 1.508Z"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="1"
-            />
-            <path
-              d="M5.615 14.285V.715"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="1"
-            />
-            <path
-              d="M2.6 5.992 3.919 7.5 2.6 9.008"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="1"
-            />
-          </svg>
+          <SidebarOpen class="h-5 w-5" stroke-width="1" />
         </button>
         <!-- Desktop sidebar toggle -->
         <button
           @click="toggleSidebar"
           class="hidden text-gray-400 dark:text-gray-500 md:block"
         >
-          <svg
+          <SidebarOpen
             v-if="sidebarCollapsed"
             class="h-5 w-5"
-            viewBox="-0.5 -0.5 16 16"
-            fill="none"
-            stroke="currentColor"
-          >
-            <path
-              d="M12.777 14.285H2.223c-.833 0-1.508-.675-1.508-1.508V2.223c0-.833.675-1.508 1.508-1.508h10.554c.833 0 1.508.675 1.508 1.508v10.554c0 .833-.675 1.508-1.508 1.508Z"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="1"
-            />
-            <path
-              d="M5.615 14.285V.715"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="1"
-            />
-            <path
-              d="M2.6 5.992 3.919 7.5 2.6 9.008"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="1"
-            />
-          </svg>
-          <svg
-            v-else
-            class="h-5 w-5"
-            viewBox="-0.5 -0.5 16 16"
-            fill="none"
-            stroke="currentColor"
-          >
-            <path
-              d="M12.777 14.285H2.223c-.833 0-1.508-.675-1.508-1.508V2.223c0-.833.675-1.508 1.508-1.508h10.554c.833 0 1.508.675 1.508 1.508v10.554c0 .833-.675 1.508-1.508 1.508Z"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="1"
-            />
-            <path
-              d="M5.615 14.285V.715"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="1"
-            />
-            <path
-              d="M3.919 5.992 2.6 7.5l1.319 1.508"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="1"
-            />
-          </svg>
+            stroke-width="1"
+          />
+          <SidebarClose v-else class="h-5 w-5" stroke-width="1" />
         </button>
         <nav class="flex items-center text-sm">
           <Link
@@ -295,19 +235,7 @@ function formatDate(dateString) {
           class="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
         >
           Docs
-          <svg
-            class="h-3.5 w-3.5"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
-            />
-          </svg>
+          <ExternalLink class="h-3.5 w-3.5" stroke-width="2" />
         </a>
       </div>
     </div>
@@ -325,19 +253,10 @@ function formatDate(dateString) {
             <div
               class="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-gray-100 dark:bg-gray-800"
             >
-              <svg
+              <Check
                 class="h-7 w-7 text-gray-900 dark:text-white"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M5 13l4 4L19 7"
-                />
-              </svg>
+                stroke-width="2"
+              />
             </div>
             <h1 class="text-xl font-semibold text-gray-900 dark:text-white">
               You're up to date
@@ -364,20 +283,7 @@ function formatDate(dateString) {
                 class="inline-flex items-center gap-2 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
               >
                 <Spinner v-if="checking" class="h-3.5 w-3.5" />
-                <svg
-                  v-else
-                  class="h-3.5 w-3.5"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                  />
-                </svg>
+                <Refresh v-else class="h-3.5 w-3.5" stroke-width="2" />
                 Check for updates
               </button>
             </div>
@@ -397,52 +303,16 @@ function formatDate(dateString) {
                   />
                 </svg>
                 Changelog
-                <svg
-                  class="h-3 w-3"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
-                  />
-                </svg>
+                <ExternalLink class="h-3 w-3" stroke-width="2" />
               </a>
               <a
                 href="https://docs.sailscasts.com/slipway"
                 target="_blank"
                 class="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200"
               >
-                <svg
-                  class="h-4 w-4"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"
-                  />
-                </svg>
+                <BookOpen class="h-4 w-4" stroke-width="2" />
                 Documentation
-                <svg
-                  class="h-3 w-3"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
-                  />
-                </svg>
+                <ExternalLink class="h-3 w-3" stroke-width="2" />
               </a>
             </div>
           </div>
@@ -459,19 +329,10 @@ function formatDate(dateString) {
               <div
                 class="bg-brand-100 dark:bg-brand-900/40 flex h-11 w-11 shrink-0 items-center justify-center rounded-full"
               >
-                <svg
+                <Refresh
                   class="h-5.5 w-5.5 text-brand-600 dark:text-brand-400"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                  />
-                </svg>
+                  stroke-width="2"
+                />
               </div>
               <div>
                 <h1 class="text-xl font-semibold text-gray-900 dark:text-white">
@@ -507,19 +368,10 @@ function formatDate(dateString) {
                   {{ localUpdateInfo.currentVersion }}
                 </p>
               </div>
-              <svg
+              <ArrowRight
                 class="h-5 w-5 text-gray-300 dark:text-gray-600"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M13 7l5 5m0 0l-5 5m5-5H6"
-                />
-              </svg>
+                stroke-width="2"
+              />
               <div class="text-center">
                 <p
                   class="text-brand-600 dark:text-brand-400 text-[10px] uppercase tracking-widest"
@@ -550,19 +402,10 @@ function formatDate(dateString) {
                 v-else
                 class="mb-4 flex h-10 w-10 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/40"
               >
-                <svg
+                <Check
                   class="h-5 w-5 text-green-600 dark:text-green-400"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M5 13l4 4L19 7"
-                  />
-                </svg>
+                  stroke-width="2"
+                />
               </div>
               <p class="text-sm font-medium text-gray-900 dark:text-white">
                 {{ phaseLabels[updatePhase] || 'Updating...' }}
@@ -584,19 +427,10 @@ function formatDate(dateString) {
                 class="rounded-lg border border-red-200 bg-red-50 p-4 dark:border-red-800/50 dark:bg-red-950/30"
               >
                 <div class="flex items-start space-x-3">
-                  <svg
+                  <WarningTriangle
                     class="mt-0.5 h-5 w-5 shrink-0 text-red-600 dark:text-red-400"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="2"
-                      d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"
-                    />
-                  </svg>
+                    stroke-width="2"
+                  />
                   <div>
                     <p
                       class="text-sm font-medium text-red-900 dark:text-red-100"
@@ -632,19 +466,7 @@ function formatDate(dateString) {
                 @click="applyUpdate"
                 class="inline-flex shrink-0 items-center space-x-2 rounded-md bg-gray-900 px-5 py-2.5 text-sm font-medium text-white hover:bg-gray-800 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
               >
-                <svg
-                  class="h-4 w-4"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
-                  />
-                </svg>
+                <Download class="h-4 w-4" stroke-width="2" />
                 <span>Update Now</span>
               </button>
             </div>
@@ -657,19 +479,10 @@ function formatDate(dateString) {
                 class="flex items-center justify-between text-sm font-medium text-gray-700 dark:text-gray-300"
               >
                 <span>Manual update instructions</span>
-                <svg
+                <ChevronDown
                   class="h-4 w-4 transition-transform group-open:rotate-180"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M19 9l-7 7-7-7"
-                  />
-                </svg>
+                  stroke-width="2"
+                />
               </summary>
               <div class="mt-4 space-y-3">
                 <p class="text-sm text-gray-600 dark:text-gray-400">
@@ -703,52 +516,16 @@ function formatDate(dateString) {
                   />
                 </svg>
                 Release notes
-                <svg
-                  class="h-3 w-3"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
-                  />
-                </svg>
+                <ExternalLink class="h-3 w-3" stroke-width="2" />
               </a>
               <a
                 href="https://docs.sailscasts.com/slipway/updates"
                 target="_blank"
                 class="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200"
               >
-                <svg
-                  class="h-4 w-4"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"
-                  />
-                </svg>
+                <BookOpen class="h-4 w-4" stroke-width="2" />
                 Update docs
-                <svg
-                  class="h-3 w-3"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
-                  />
-                </svg>
+                <ExternalLink class="h-3 w-3" stroke-width="2" />
               </a>
             </div>
           </div>

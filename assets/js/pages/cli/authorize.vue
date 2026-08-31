@@ -1,4 +1,5 @@
 <script setup>
+import Check from '@/components/ui/icons/Check.vue'
 import { Head, Link } from '@inertiajs/vue3'
 import { ref } from 'vue'
 import SlipwayLogo from '@/components/SlipwayLogo.vue'
@@ -74,19 +75,10 @@ async function confirmLogin() {
           <div
             class="dark:bg-green/10 flex h-16 w-16 items-center justify-center rounded-full bg-green-50"
           >
-            <svg
+            <Check
               class="dark:text-green h-8 w-8 text-green-600"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M5 13l4 4L19 7"
-              />
-            </svg>
+              stroke-width="2"
+            />
           </div>
         </div>
         <h2 class="mb-2 text-lg font-medium text-gray-900 dark:text-white">

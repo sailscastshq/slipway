@@ -1,4 +1,6 @@
 <script setup>
+import Refresh from '@/components/ui/icons/Refresh.vue'
+import X from '@/components/ui/icons/X.vue'
 import { ref, onMounted } from 'vue'
 import { Link } from '@inertiajs/vue3'
 import Tooltip from '@/components/ui/tooltip/Tooltip.vue'
@@ -56,19 +58,10 @@ onMounted(() => {
           <div
             class="bg-brand-100 dark:bg-brand-900/40 flex h-7 w-7 items-center justify-center rounded-full"
           >
-            <svg
+            <Refresh
               class="text-brand-600 dark:text-brand-400 h-3.5 w-3.5"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-              />
-            </svg>
+              stroke-width="2"
+            />
           </div>
           <p class="text-sm text-gray-700 dark:text-gray-300">
             <span class="font-medium text-gray-900 dark:text-white"
@@ -94,19 +87,7 @@ onMounted(() => {
               @click="dismiss"
               class="hover:bg-brand-100 dark:hover:bg-brand-900/30 rounded-md p-1.5 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
             >
-              <svg
-                class="h-4 w-4"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M6 18L18 6M6 6l12 12"
-                />
-              </svg>
+              <X class="h-4 w-4" stroke-width="2" />
             </button>
           </Tooltip>
         </div>

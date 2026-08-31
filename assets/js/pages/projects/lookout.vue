@@ -1,4 +1,16 @@
 <script setup>
+import SidebarOpen from '@/components/ui/icons/SidebarOpen.vue'
+import SidebarClose from '@/components/ui/icons/SidebarClose.vue'
+import ExternalLink from '@/components/ui/icons/ExternalLink.vue'
+import Database from '@/components/ui/icons/Database.vue'
+import Cube from '@/components/ui/icons/Cube.vue'
+import ChevronDown from '@/components/ui/icons/ChevronDown.vue'
+import Check from '@/components/ui/icons/Check.vue'
+import ChartBar from '@/components/ui/icons/ChartBar.vue'
+import Bolt from '@/components/ui/icons/Bolt.vue'
+import Search from '@/components/ui/icons/Search.vue'
+import Copy from '@/components/ui/icons/Copy.vue'
+import CheckCircle from '@/components/ui/icons/CheckCircle.vue'
 import Input from '@/components/ui/input/Input.vue'
 import { Link, Head, router } from '@inertiajs/vue3'
 import { inject, ref, computed, watch, onUnmounted } from 'vue'
@@ -548,88 +560,18 @@ async function copyToken() {
           @click="toggleMobileMenu"
           class="rounded-md p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white md:hidden"
         >
-          <svg
-            class="h-5 w-5"
-            viewBox="-0.5 -0.5 16 16"
-            fill="none"
-            stroke="currentColor"
-          >
-            <path
-              d="M12.777 14.285H2.223c-.833 0-1.508-.675-1.508-1.508V2.223c0-.833.675-1.508 1.508-1.508h10.554c.833 0 1.508.675 1.508 1.508v10.554c0 .833-.675 1.508-1.508 1.508Z"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="1"
-            />
-            <path
-              d="M5.615 14.285V.715"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="1"
-            />
-            <path
-              d="M2.6 5.992 3.919 7.5 2.6 9.008"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="1"
-            />
-          </svg>
+          <SidebarOpen class="h-5 w-5" stroke-width="1" />
         </button>
         <button
           @click="toggleSidebar"
           class="hidden text-gray-400 dark:text-gray-500 md:block"
         >
-          <svg
+          <SidebarOpen
             v-if="sidebarCollapsed"
             class="h-5 w-5"
-            viewBox="-0.5 -0.5 16 16"
-            fill="none"
-            stroke="currentColor"
-          >
-            <path
-              d="M12.777 14.285H2.223c-.833 0-1.508-.675-1.508-1.508V2.223c0-.833.675-1.508 1.508-1.508h10.554c.833 0 1.508.675 1.508 1.508v10.554c0 .833-.675 1.508-1.508 1.508Z"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="1"
-            />
-            <path
-              d="M5.615 14.285V.715"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="1"
-            />
-            <path
-              d="M2.6 5.992 3.919 7.5 2.6 9.008"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="1"
-            />
-          </svg>
-          <svg
-            v-else
-            class="h-5 w-5"
-            viewBox="-0.5 -0.5 16 16"
-            fill="none"
-            stroke="currentColor"
-          >
-            <path
-              d="M12.777 14.285H2.223c-.833 0-1.508-.675-1.508-1.508V2.223c0-.833.675-1.508 1.508-1.508h10.554c.833 0 1.508.675 1.508 1.508v10.554c0 .833-.675 1.508-1.508 1.508Z"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="1"
-            />
-            <path
-              d="M5.615 14.285V.715"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="1"
-            />
-            <path
-              d="M3.919 5.992 2.6 7.5l1.319 1.508"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="1"
-            />
-          </svg>
+            stroke-width="1"
+          />
+          <SidebarClose v-else class="h-5 w-5" stroke-width="1" />
         </button>
         <Breadcrumb
           :items="[
@@ -653,19 +595,7 @@ async function copyToken() {
           class="flex items-center space-x-1 text-sm text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
         >
           <span>Docs</span>
-          <svg
-            class="h-3.5 w-3.5"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
-            />
-          </svg>
+          <ExternalLink class="h-3.5 w-3.5" stroke-width="2" />
         </a>
       </div>
     </div>
@@ -750,19 +680,9 @@ async function copyToken() {
         >
           <!-- Empty state -->
           <div v-if="liveContainers.length === 0" class="py-20 text-center">
-            <svg
+            <ChartBar
               class="mx-auto h-12 w-12 text-gray-300 dark:text-gray-600"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="1.5"
-                d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
-              />
-            </svg>
+            />
             <h3 class="mt-4 text-sm font-medium text-gray-900 dark:text-white">
               No running containers
             </h3>
@@ -873,22 +793,13 @@ async function copyToken() {
                     </div>
                   </div>
 
-                  <svg
+                  <ChevronDown
                     :class="[
                       'h-4 w-4 text-gray-400 transition-transform',
                       expandedContainer === container.name ? 'rotate-180' : ''
                     ]"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="2"
-                      d="M19 9l-7 7-7-7"
-                    />
-                  </svg>
+                    stroke-width="2"
+                  />
                 </div>
               </button>
 
@@ -1277,19 +1188,10 @@ async function copyToken() {
                 />
                 <!-- Search -->
                 <div class="relative">
-                  <svg
+                  <Search
                     class="pointer-events-none absolute left-2 top-1/2 h-3 w-3 -translate-y-1/2 text-gray-400"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="2"
-                      d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                    />
-                  </svg>
+                    stroke-width="2"
+                  />
                   <Input
                     v-model="requestSearch"
                     type="text"
@@ -1359,22 +1261,13 @@ async function copyToken() {
                     {{ timeAgo(req.startedAt) }}
                   </span>
 
-                  <svg
+                  <ChevronDown
                     :class="[
                       'h-3.5 w-3.5 shrink-0 text-gray-400 transition-transform',
                       expandedRequest === req.traceId ? 'rotate-180' : ''
                     ]"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="2"
-                      d="M19 9l-7 7-7-7"
-                    />
-                  </svg>
+                    stroke-width="2"
+                  />
                 </button>
 
                 <!-- Expanded detail -->
@@ -1547,34 +1440,12 @@ async function copyToken() {
                             @click.stop="copyTraceId(req.traceId)"
                             class="shrink-0 rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:text-gray-500 dark:hover:bg-gray-800 dark:hover:text-gray-300"
                           >
-                            <svg
+                            <Check
                               v-if="copiedTraceId === req.traceId"
                               class="h-3.5 w-3.5 text-emerald-500"
-                              fill="none"
-                              stroke="currentColor"
-                              viewBox="0 0 24 24"
-                            >
-                              <path
-                                stroke-linecap="round"
-                                stroke-linejoin="round"
-                                stroke-width="2"
-                                d="M5 13l4 4L19 7"
-                              />
-                            </svg>
-                            <svg
-                              v-else
-                              class="h-3.5 w-3.5"
-                              fill="none"
-                              stroke="currentColor"
-                              viewBox="0 0 24 24"
-                            >
-                              <path
-                                stroke-linecap="round"
-                                stroke-linejoin="round"
-                                stroke-width="2"
-                                d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
-                              />
-                            </svg>
+                              stroke-width="2"
+                            />
+                            <Copy v-else class="h-3.5 w-3.5" stroke-width="2" />
                           </button>
                         </dd>
                       </div>
@@ -1595,19 +1466,7 @@ async function copyToken() {
 
           <!-- No requests -->
           <div v-else class="py-16 text-center">
-            <svg
-              class="mx-auto h-10 w-10 text-gray-300 dark:text-gray-600"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="1.5"
-                d="M13 10V3L4 14h7v7l9-11h-7z"
-              />
-            </svg>
+            <Bolt class="mx-auto h-10 w-10 text-gray-300 dark:text-gray-600" />
             <p class="mt-3 text-sm text-gray-500 dark:text-gray-400">
               No requests recorded in the last hour.
             </p>
@@ -1677,22 +1536,13 @@ async function copyToken() {
                   >{{ timeAgo(group.lastSeen) }}</span
                 >
 
-                <svg
+                <ChevronDown
                   :class="[
                     'h-4 w-4 shrink-0 text-gray-400 transition-transform',
                     expandedException === idx ? 'rotate-180' : ''
                   ]"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M19 9l-7 7-7-7"
-                  />
-                </svg>
+                  stroke-width="2"
+                />
               </button>
 
               <!-- Stack trace -->
@@ -1734,19 +1584,9 @@ async function copyToken() {
 
           <!-- No exceptions -->
           <div v-else class="py-16 text-center">
-            <svg
+            <CheckCircle
               class="mx-auto h-10 w-10 text-emerald-300 dark:text-emerald-600"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="1.5"
-                d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-              />
-            </svg>
+            />
             <p class="mt-3 text-sm text-gray-500 dark:text-gray-400">
               No exceptions in the last hour. Looking good!
             </p>
@@ -1814,19 +1654,9 @@ async function copyToken() {
 
           <!-- No queries -->
           <div v-else class="py-16 text-center">
-            <svg
+            <Database
               class="mx-auto h-10 w-10 text-gray-300 dark:text-gray-600"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="1.5"
-                d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4"
-              />
-            </svg>
+            />
             <p class="mt-3 text-sm text-gray-500 dark:text-gray-400">
               No slow queries recorded. Database is performing well.
             </p>
@@ -2031,19 +1861,7 @@ async function copyToken() {
             "
             class="py-16 text-center"
           >
-            <svg
-              class="mx-auto h-10 w-10 text-gray-300 dark:text-gray-600"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="1.5"
-                d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"
-              />
-            </svg>
+            <Cube class="mx-auto h-10 w-10 text-gray-300 dark:text-gray-600" />
             <p class="mt-3 text-sm text-gray-500 dark:text-gray-400">
               No cache operations recorded in the last hour.
             </p>
@@ -2061,19 +1879,7 @@ async function copyToken() {
             <div
               class="bg-brand/10 mx-auto flex h-12 w-12 items-center justify-center rounded-full"
             >
-              <svg
-                class="text-brand h-6 w-6"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="1.5"
-                  d="M13 10V3L4 14h7v7l9-11h-7z"
-                />
-              </svg>
+              <Bolt class="text-brand h-6 w-6" />
             </div>
             <h3
               class="mt-4 text-base font-semibold text-gray-900 dark:text-white"

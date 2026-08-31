@@ -1,4 +1,5 @@
 <script setup>
+import EllipsisHorizontal from '@/components/ui/icons/EllipsisHorizontal.vue'
 import Input from '@/components/ui/input/Input.vue'
 import Select from '@/components/ui/select/Select.vue'
 
@@ -37,16 +38,7 @@ function toggleDetails(event) {
       @keydown.enter.prevent="toggleDetails"
       class="flex cursor-pointer list-none rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 dark:hover:bg-gray-800 dark:hover:text-gray-200 dark:focus-visible:ring-gray-700 [&::-webkit-details-marker]:hidden"
     >
-      <svg
-        class="h-4 w-4"
-        fill="currentColor"
-        viewBox="0 0 24 24"
-        aria-hidden="true"
-      >
-        <circle cx="5" cy="12" r="1.5" />
-        <circle cx="12" cy="12" r="1.5" />
-        <circle cx="19" cy="12" r="1.5" />
-      </svg>
+      <EllipsisHorizontal class="h-4 w-4" />
     </summary>
 
     <div

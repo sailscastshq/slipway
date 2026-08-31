@@ -1,4 +1,10 @@
 <script setup>
+import X from '@/components/ui/icons/X.vue'
+import Trash from '@/components/ui/icons/Trash.vue'
+import Pin from '@/components/ui/icons/Pin.vue'
+import History from '@/components/ui/icons/History.vue'
+import Bookmark from '@/components/ui/icons/Bookmark.vue'
+import Search from '@/components/ui/icons/Search.vue'
 import Input from '@/components/ui/input/Input.vue'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import ActionMenu from '@/components/ActionMenu.vue'
@@ -394,36 +400,12 @@ defineExpose({ refreshHistory, openSnippetDialog })
                 : 'text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-500 dark:hover:bg-gray-800 dark:hover:text-gray-300'
             ]"
           >
-            <svg
+            <History
               v-if="item.key === 'history'"
               class="h-4 w-4"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-              aria-hidden="true"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="1.75"
-                d="M12 8v4l2.5 1.5M3.5 12a8.5 8.5 0 1 0 2.1-5.6M3.5 4.5v4h4"
-              />
-            </svg>
-            <svg
-              v-else
-              class="h-4 w-4"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-              aria-hidden="true"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="1.75"
-                d="M6.5 4.5h11v15L12 16l-5.5 3.5v-15Z"
-              />
-            </svg>
+              stroke-width="1.75"
+            />
+            <Bookmark v-else class="h-4 w-4" stroke-width="1.75" />
             <span class="sr-only">{{ item.label }}</span>
           </button>
         </Tooltip>
@@ -431,20 +413,10 @@ defineExpose({ refreshHistory, openSnippetDialog })
 
       <label class="relative min-w-0 flex-1">
         <span class="sr-only">Search {{ tab }}</span>
-        <svg
+        <Search
           class="pointer-events-none absolute left-1 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-400"
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-          aria-hidden="true"
-        >
-          <path
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            stroke-width="2"
-            d="m21 21-4.35-4.35m2.35-5.65a8 8 0 1 1-16 0 8 8 0 0 1 16 0Z"
-          />
-        </svg>
+          stroke-width="2"
+        />
         <Input
           v-model="activeQuery"
           data-test="helm-library-search"
@@ -466,20 +438,7 @@ defineExpose({ refreshHistory, openSnippetDialog })
           class="rounded-md p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 dark:text-gray-500 dark:hover:bg-red-950/40 dark:hover:text-red-400 dark:focus-visible:ring-gray-700"
           @click="confirm = { show: true, type: 'clear-history', item: null }"
         >
-          <svg
-            class="h-4 w-4"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-            stroke-width="1.75"
-            aria-hidden="true"
-          >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              d="M4.5 7.5h15M9 7.5V5.25h6V7.5m-8.25 0 .75 11.25h9l.75-11.25M10 11v4.5m4-4.5v4.5"
-            />
-          </svg>
+          <Trash class="h-4 w-4" stroke-width="1.75" />
         </button>
       </Tooltip>
       <button
@@ -499,20 +458,7 @@ defineExpose({ refreshHistory, openSnippetDialog })
         class="rounded-md p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 dark:hover:bg-gray-800 dark:hover:text-gray-200 dark:focus-visible:ring-gray-700"
         @click="emit('close')"
       >
-        <svg
-          class="h-4 w-4"
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-          aria-hidden="true"
-        >
-          <path
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            stroke-width="2"
-            d="M6 18 18 6M6 6l12 12"
-          />
-        </svg>
+        <X class="h-4 w-4" stroke-width="2" />
       </button>
     </header>
 
@@ -589,17 +535,11 @@ defineExpose({ refreshHistory, openSnippetDialog })
                   >
                 </span>
               </span>
-              <svg
+              <Pin
                 v-if="entry.pinned"
                 class="h-3.5 w-3.5 shrink-0 text-gray-400 dark:text-gray-500"
-                fill="currentColor"
-                viewBox="0 0 20 20"
                 aria-label="Pinned"
-              >
-                <path
-                  d="M7.3 2.4a1 1 0 0 1 .9-.6h3.6a1 1 0 0 1 .9.6l.8 1.8a1 1 0 0 1-.2 1.1l-1 1v3l1.4 1.4a1 1 0 0 1-.7 1.7h-2v4.1a1 1 0 0 1-2 0v-4.1H7a1 1 0 0 1-.7-1.7l1.4-1.4v-3l-1-1a1 1 0 0 1-.2-1.1l.8-1.8Z"
-                />
-              </svg>
+              />
             </button>
             <ActionMenu
               :items="historyActions(entry)"

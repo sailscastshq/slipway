@@ -51,13 +51,7 @@ test(
     await page.key('Escape')
     await page.resize(390, 844)
     await page.inLightMode()
-    await page.raw
-      .locator('button:visible')
-      .filter({
-        has: page.raw.locator('svg[viewBox="-0.5 -0.5 16 16"]')
-      })
-      .first()
-      .click()
+    await page.raw.locator('[data-test="mobile-sidebar-toggle"]').click()
     await page.raw
       .locator('button[popovertarget="mobile-user-menu"]:visible')
       .click()

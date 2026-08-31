@@ -1,4 +1,7 @@
 <script setup>
+import SidebarOpen from '@/components/ui/icons/SidebarOpen.vue'
+import SidebarClose from '@/components/ui/icons/SidebarClose.vue'
+import ExternalLink from '@/components/ui/icons/ExternalLink.vue'
 import Input from '@/components/ui/input/Input.vue'
 import { Link, Head, usePage, useForm, router } from '@inertiajs/vue3'
 import { inject, ref } from 'vue'
@@ -81,89 +84,19 @@ function logout() {
           @click="toggleMobileMenu"
           class="rounded-md p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white md:hidden"
         >
-          <svg
-            class="h-5 w-5"
-            viewBox="-0.5 -0.5 16 16"
-            fill="none"
-            stroke="currentColor"
-          >
-            <path
-              d="M12.777 14.285H2.223c-.833 0-1.508-.675-1.508-1.508V2.223c0-.833.675-1.508 1.508-1.508h10.554c.833 0 1.508.675 1.508 1.508v10.554c0 .833-.675 1.508-1.508 1.508Z"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="1"
-            />
-            <path
-              d="M5.615 14.285V.715"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="1"
-            />
-            <path
-              d="M2.6 5.992 3.919 7.5 2.6 9.008"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="1"
-            />
-          </svg>
+          <SidebarOpen class="h-5 w-5" stroke-width="1" />
         </button>
         <!-- Desktop sidebar toggle -->
         <button
           @click="toggleSidebar"
           class="hidden text-gray-400 dark:text-gray-500 md:block"
         >
-          <svg
+          <SidebarOpen
             v-if="sidebarCollapsed"
             class="h-5 w-5"
-            viewBox="-0.5 -0.5 16 16"
-            fill="none"
-            stroke="currentColor"
-          >
-            <path
-              d="M12.777 14.285H2.223c-.833 0-1.508-.675-1.508-1.508V2.223c0-.833.675-1.508 1.508-1.508h10.554c.833 0 1.508.675 1.508 1.508v10.554c0 .833-.675 1.508-1.508 1.508Z"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="1"
-            />
-            <path
-              d="M5.615 14.285V.715"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="1"
-            />
-            <path
-              d="M2.6 5.992 3.919 7.5 2.6 9.008"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="1"
-            />
-          </svg>
-          <svg
-            v-else
-            class="h-5 w-5"
-            viewBox="-0.5 -0.5 16 16"
-            fill="none"
-            stroke="currentColor"
-          >
-            <path
-              d="M12.777 14.285H2.223c-.833 0-1.508-.675-1.508-1.508V2.223c0-.833.675-1.508 1.508-1.508h10.554c.833 0 1.508.675 1.508 1.508v10.554c0 .833-.675 1.508-1.508 1.508Z"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="1"
-            />
-            <path
-              d="M5.615 14.285V.715"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="1"
-            />
-            <path
-              d="M3.919 5.992 2.6 7.5l1.319 1.508"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="1"
-            />
-          </svg>
+            stroke-width="1"
+          />
+          <SidebarClose v-else class="h-5 w-5" stroke-width="1" />
         </button>
         <nav class="flex items-center text-sm">
           <span class="font-medium text-gray-900 dark:text-white">profile</span>
@@ -176,19 +109,7 @@ function logout() {
           class="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
         >
           Docs
-          <svg
-            class="h-3.5 w-3.5"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
-            />
-          </svg>
+          <ExternalLink class="h-3.5 w-3.5" stroke-width="2" />
         </a>
       </div>
     </div>

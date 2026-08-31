@@ -1,4 +1,10 @@
 <script setup>
+import SidebarOpen from '@/components/ui/icons/SidebarOpen.vue'
+import SidebarClose from '@/components/ui/icons/SidebarClose.vue'
+import ExternalLink from '@/components/ui/icons/ExternalLink.vue'
+import EllipsisHorizontal from '@/components/ui/icons/EllipsisHorizontal.vue'
+import Edit from '@/components/ui/icons/Edit.vue'
+import Check from '@/components/ui/icons/Check.vue'
 import Input from '@/components/ui/input/Input.vue'
 import Button from '@/components/ui/button/Button.vue'
 import Checkbox from '@/components/ui/checkbox/Checkbox.vue'
@@ -8,6 +14,9 @@ import AppLayout from '@/layouts/AppLayout.vue'
 import ConfirmModal from '@/components/ConfirmModal.vue'
 import Menu from '@/components/ui/menu/Menu.vue'
 import EmptyState from '@/components/ui/empty-state/EmptyState.vue'
+import Copy from '@/components/ui/icons/Copy.vue'
+import Folder from '@/components/ui/icons/Folder.vue'
+import Trash from '@/components/ui/icons/Trash.vue'
 
 defineOptions({
   layout: AppLayout
@@ -116,31 +125,7 @@ function cancelDeleteProject() {
           @click="toggleMobileMenu"
           class="rounded-md p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white md:hidden"
         >
-          <svg
-            class="h-5 w-5"
-            viewBox="-0.5 -0.5 16 16"
-            fill="none"
-            stroke="currentColor"
-          >
-            <path
-              d="M12.777 14.285H2.223c-.833 0-1.508-.675-1.508-1.508V2.223c0-.833.675-1.508 1.508-1.508h10.554c.833 0 1.508.675 1.508 1.508v10.554c0 .833-.675 1.508-1.508 1.508Z"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="1"
-            />
-            <path
-              d="M5.615 14.285V.715"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="1"
-            />
-            <path
-              d="M2.6 5.992 3.919 7.5 2.6 9.008"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="1"
-            />
-          </svg>
+          <SidebarOpen class="h-5 w-5" stroke-width="1" />
         </button>
         <!-- Desktop sidebar toggle -->
         <button
@@ -149,58 +134,12 @@ function cancelDeleteProject() {
           @click="toggleSidebar"
           class="hidden text-gray-400 dark:text-gray-500 md:block"
         >
-          <svg
+          <SidebarOpen
             v-if="sidebarCollapsed"
             class="h-5 w-5"
-            viewBox="-0.5 -0.5 16 16"
-            fill="none"
-            stroke="currentColor"
-          >
-            <path
-              d="M12.777 14.285H2.223c-.833 0-1.508-.675-1.508-1.508V2.223c0-.833.675-1.508 1.508-1.508h10.554c.833 0 1.508.675 1.508 1.508v10.554c0 .833-.675 1.508-1.508 1.508Z"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="1"
-            />
-            <path
-              d="M5.615 14.285V.715"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="1"
-            />
-            <path
-              d="M2.6 5.992 3.919 7.5 2.6 9.008"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="1"
-            />
-          </svg>
-          <svg
-            v-else
-            class="h-5 w-5"
-            viewBox="-0.5 -0.5 16 16"
-            fill="none"
-            stroke="currentColor"
-          >
-            <path
-              d="M12.777 14.285H2.223c-.833 0-1.508-.675-1.508-1.508V2.223c0-.833.675-1.508 1.508-1.508h10.554c.833 0 1.508.675 1.508 1.508v10.554c0 .833-.675 1.508-1.508 1.508Z"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="1"
-            />
-            <path
-              d="M5.615 14.285V.715"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="1"
-            />
-            <path
-              d="M3.919 5.992 2.6 7.5l1.319 1.508"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="1"
-            />
-          </svg>
+            stroke-width="1"
+          />
+          <SidebarClose v-else class="h-5 w-5" stroke-width="1" />
         </button>
         <nav class="flex items-center text-sm">
           <span class="font-medium text-gray-900 dark:text-white"
@@ -215,19 +154,7 @@ function cancelDeleteProject() {
           class="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
         >
           Docs
-          <svg
-            class="h-3.5 w-3.5"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
-            />
-          </svg>
+          <ExternalLink class="h-3.5 w-3.5" stroke-width="2" />
         </a>
       </div>
     </div>
@@ -281,19 +208,7 @@ function cancelDeleteProject() {
                   <div
                     class="flex h-8 w-8 items-center justify-center rounded-md bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400"
                   >
-                    <svg
-                      class="h-4 w-4"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        stroke-width="1.5"
-                        d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"
-                      />
-                    </svg>
+                    <Folder class="h-4 w-4" />
                   </div>
                   <div class="group/name flex min-w-0 items-center space-x-1.5">
                     <Link
@@ -307,34 +222,16 @@ function cancelDeleteProject() {
                       class="opacity-0 transition-opacity group-hover/name:opacity-100"
                       :class="{ 'opacity-100': copiedSlug === project.slug }"
                     >
-                      <svg
+                      <Check
                         v-if="copiedSlug === project.slug"
                         class="h-3.5 w-3.5 text-green-500"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                          stroke-width="2"
-                          d="M5 13l4 4L19 7"
-                        />
-                      </svg>
-                      <svg
+                        stroke-width="2"
+                      />
+                      <Copy
                         v-else
                         class="h-3.5 w-3.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                          stroke-width="2"
-                          d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
-                        />
-                      </svg>
+                        stroke-width="2"
+                      />
                     </button>
                   </div>
                 </div>
@@ -393,15 +290,7 @@ function cancelDeleteProject() {
                     :aria-label="`Actions for ${project.name}`"
                     class="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-800 dark:hover:text-gray-300"
                   >
-                    <svg
-                      class="h-5 w-5"
-                      fill="currentColor"
-                      viewBox="0 0 20 20"
-                    >
-                      <path
-                        d="M6 10a2 2 0 11-4 0 2 2 0 014 0zm6 0a2 2 0 11-4 0 2 2 0 014 0zm6 0a2 2 0 11-4 0 2 2 0 014 0z"
-                      />
-                    </svg>
+                    <EllipsisHorizontal class="h-5 w-5" />
                   </button>
                   <!-- Dropdown -->
                   <Menu
@@ -415,19 +304,7 @@ function cancelDeleteProject() {
                       :href="`/projects/${project.slug}/settings`"
                       class="flex w-full items-center px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
                     >
-                      <svg
-                        class="mr-2 h-4 w-4"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                          stroke-width="2"
-                          d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-                        />
-                      </svg>
+                      <Edit class="mr-2 h-4 w-4" stroke-width="2" />
                       Edit
                     </Link>
                     <a
@@ -437,38 +314,14 @@ function cancelDeleteProject() {
                       class="flex w-full items-center px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
                       @click.stop
                     >
-                      <svg
-                        class="mr-2 h-4 w-4"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                          stroke-width="2"
-                          d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
-                        />
-                      </svg>
+                      <ExternalLink class="mr-2 h-4 w-4" stroke-width="2" />
                       View repo
                     </a>
                     <button
                       @click="copySlug($event, project.slug)"
                       class="flex w-full items-center px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
                     >
-                      <svg
-                        class="mr-2 h-4 w-4"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                          stroke-width="2"
-                          d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
-                        />
-                      </svg>
+                      <Copy class="mr-2 h-4 w-4" stroke-width="2" />
                       Copy slug
                     </button>
                     <div
@@ -479,19 +332,7 @@ function cancelDeleteProject() {
                       @click="deleteProject($event, project)"
                       class="flex w-full items-center px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20"
                     >
-                      <svg
-                        class="mr-2 h-4 w-4"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                          stroke-width="2"
-                          d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                        />
-                      </svg>
+                      <Trash class="mr-2 h-4 w-4" stroke-width="2" />
                       Delete
                     </button>
                   </Menu>
@@ -531,19 +372,7 @@ function cancelDeleteProject() {
         <div
           class="mb-4 flex h-12 w-12 items-center justify-center rounded-lg bg-gray-100 dark:bg-gray-800"
         >
-          <svg
-            class="h-6 w-6 text-gray-500 dark:text-gray-400"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="1.5"
-              d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"
-            />
-          </svg>
+          <Folder class="h-6 w-6 text-gray-500 dark:text-gray-400" />
         </div>
         <h1
           id="projects-empty-title"

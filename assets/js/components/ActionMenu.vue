@@ -1,4 +1,5 @@
 <script setup>
+import EllipsisHorizontal from '@/components/ui/icons/EllipsisHorizontal.vue'
 import { computed, useId } from 'vue'
 import { Link } from '@inertiajs/vue3'
 import Menu from '@/components/ui/menu/Menu.vue'
@@ -60,21 +61,7 @@ function itemClasses(item) {
       class="rounded-md p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 disabled:cursor-not-allowed disabled:opacity-40 dark:text-gray-500 dark:hover:bg-gray-800 dark:hover:text-gray-200 dark:focus-visible:ring-gray-700"
       :aria-label="label"
     >
-      <svg
-        class="h-4 w-4"
-        fill="currentColor"
-        viewBox="0 0 20 20"
-        aria-hidden="true"
-      >
-        <path
-          v-if="orientation === 'vertical'"
-          d="M10 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm0 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm0 6a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z"
-        />
-        <path
-          v-else
-          d="M6 10a2 2 0 1 1-4 0 2 2 0 0 1 4 0Zm6 0a2 2 0 1 1-4 0 2 2 0 0 1 4 0Zm6 0a2 2 0 1 1-4 0 2 2 0 0 1 4 0Z"
-        />
-      </svg>
+      <EllipsisHorizontal class="h-4 w-4" />
     </button>
 
     <Menu

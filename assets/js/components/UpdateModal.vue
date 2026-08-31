@@ -1,4 +1,10 @@
 <script setup>
+import WarningTriangle from '@/components/ui/icons/WarningTriangle.vue'
+import Refresh from '@/components/ui/icons/Refresh.vue'
+import Download from '@/components/ui/icons/Download.vue'
+import Check from '@/components/ui/icons/Check.vue'
+import ArrowRight from '@/components/ui/icons/ArrowRight.vue'
+import X from '@/components/ui/icons/X.vue'
 import { ref, watch, onUnmounted } from 'vue'
 import Spinner from '@/components/SlipwaySpinner.vue'
 import Alert from '@/components/ui/alert/Alert.vue'
@@ -169,19 +175,10 @@ function formatDate(dateString) {
             <div
               class="bg-brand-100 dark:bg-brand-900/40 flex h-10 w-10 shrink-0 items-center justify-center rounded-full"
             >
-              <svg
+              <Refresh
                 class="text-brand-600 dark:text-brand-400 h-5 w-5"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                />
-              </svg>
+                stroke-width="2"
+              />
             </div>
             <div class="min-w-0 flex-1">
               <h3 class="text-lg font-semibold text-gray-900 dark:text-white">
@@ -202,19 +199,7 @@ function formatDate(dateString) {
               @click="emit('close')"
               class="rounded-md p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
             >
-              <svg
-                class="h-5 w-5"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M6 18L18 6M6 6l12 12"
-                />
-              </svg>
+              <X class="h-5 w-5" stroke-width="2" />
             </button>
           </div>
 
@@ -235,19 +220,10 @@ function formatDate(dateString) {
                   {{ updateInfo.currentVersion }}
                 </p>
               </div>
-              <svg
+              <ArrowRight
                 class="h-4 w-4 text-gray-300 dark:text-gray-600"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M13 7l5 5m0 0l-5 5m5-5H6"
-                />
-              </svg>
+                stroke-width="2"
+              />
               <div class="text-center">
                 <p
                   class="text-brand-600 dark:text-brand-400 text-[10px] uppercase tracking-widest"
@@ -278,19 +254,10 @@ function formatDate(dateString) {
                 v-else
                 class="mb-3 flex h-7 w-7 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/40"
               >
-                <svg
+                <Check
                   class="h-4 w-4 text-green-600 dark:text-green-400"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M5 13l4 4L19 7"
-                  />
-                </svg>
+                  stroke-width="2"
+                />
               </div>
               <p class="text-sm font-medium text-gray-900 dark:text-white">
                 {{ phaseLabels[updatePhase] || 'Updating...' }}
@@ -312,19 +279,10 @@ function formatDate(dateString) {
                 class="rounded-lg border border-red-200 bg-red-50 p-3 dark:border-red-800/50 dark:bg-red-950/30"
               >
                 <div class="flex items-start space-x-2">
-                  <svg
+                  <WarningTriangle
                     class="mt-0.5 h-4 w-4 shrink-0 text-red-600 dark:text-red-400"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="2"
-                      d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"
-                    />
-                  </svg>
+                    stroke-width="2"
+                  />
                   <p class="text-sm text-red-700 dark:text-red-300">
                     {{ updateError }}
                   </p>
@@ -352,19 +310,10 @@ function formatDate(dateString) {
                 role="note"
                 class="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-inherit dark:border-amber-800/50 dark:bg-amber-950/30"
               >
-                <svg
+                <WarningTriangle
                   class="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"
-                  />
-                </svg>
+                  stroke-width="2"
+                />
                 <p class="text-sm text-amber-800 dark:text-amber-200">
                   Slipway will briefly go offline during the update.
                 </p>
@@ -380,19 +329,7 @@ function formatDate(dateString) {
                   @click="applyUpdate"
                   class="inline-flex items-center space-x-2 rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
                 >
-                  <svg
-                    class="h-4 w-4"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="2"
-                      d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
-                    />
-                  </svg>
+                  <Download class="h-4 w-4" stroke-width="2" />
                   <span>Update Now</span>
                 </button>
               </div>

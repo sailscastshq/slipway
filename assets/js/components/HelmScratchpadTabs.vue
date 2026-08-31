@@ -1,4 +1,5 @@
 <script setup>
+import Plus from '@/components/ui/icons/Plus.vue'
 import Input from '@/components/ui/input/Input.vue'
 import { computed, nextTick, ref } from 'vue'
 import ActionMenu from '@/components/ActionMenu.vue'
@@ -167,20 +168,7 @@ function createScratchpad() {
           ]"
           @click="createScratchpad"
         >
-          <svg
-            class="h-4 w-4"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            stroke-width="1.75"
-            aria-hidden="true"
-          >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              d="M12 5v14M5 12h14"
-            />
-          </svg>
+          <Plus class="h-4 w-4" stroke-width="1.75" />
         </button>
       </Tooltip>
       <ActionMenu

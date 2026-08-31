@@ -1,4 +1,9 @@
 <script setup>
+import SidebarOpen from '@/components/ui/icons/SidebarOpen.vue'
+import SidebarClose from '@/components/ui/icons/SidebarClose.vue'
+import Lock from '@/components/ui/icons/Lock.vue'
+import Key from '@/components/ui/icons/Key.vue'
+import Folder from '@/components/ui/icons/Folder.vue'
 import Input from '@/components/ui/input/Input.vue'
 import { Link, Head, router, useForm } from '@inertiajs/vue3'
 import { inject, ref, computed } from 'vue'
@@ -171,88 +176,18 @@ function timeAgo(date) {
           @click="toggleMobileMenu"
           class="rounded-md p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white md:hidden"
         >
-          <svg
-            class="h-5 w-5"
-            viewBox="-0.5 -0.5 16 16"
-            fill="none"
-            stroke="currentColor"
-          >
-            <path
-              d="M12.777 14.285H2.223c-.833 0-1.508-.675-1.508-1.508V2.223c0-.833.675-1.508 1.508-1.508h10.554c.833 0 1.508.675 1.508 1.508v10.554c0 .833-.675 1.508-1.508 1.508Z"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="1"
-            />
-            <path
-              d="M5.615 14.285V.715"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="1"
-            />
-            <path
-              d="M2.6 5.992 3.919 7.5 2.6 9.008"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="1"
-            />
-          </svg>
+          <SidebarOpen class="h-5 w-5" stroke-width="1" />
         </button>
         <button
           @click="toggleSidebar"
           class="hidden text-gray-400 dark:text-gray-500 md:block"
         >
-          <svg
+          <SidebarOpen
             v-if="sidebarCollapsed"
             class="h-5 w-5"
-            viewBox="-0.5 -0.5 16 16"
-            fill="none"
-            stroke="currentColor"
-          >
-            <path
-              d="M12.777 14.285H2.223c-.833 0-1.508-.675-1.508-1.508V2.223c0-.833.675-1.508 1.508-1.508h10.554c.833 0 1.508.675 1.508 1.508v10.554c0 .833-.675 1.508-1.508 1.508Z"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="1"
-            />
-            <path
-              d="M5.615 14.285V.715"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="1"
-            />
-            <path
-              d="M2.6 5.992 3.919 7.5 2.6 9.008"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="1"
-            />
-          </svg>
-          <svg
-            v-else
-            class="h-5 w-5"
-            viewBox="-0.5 -0.5 16 16"
-            fill="none"
-            stroke="currentColor"
-          >
-            <path
-              d="M12.777 14.285H2.223c-.833 0-1.508-.675-1.508-1.508V2.223c0-.833.675-1.508 1.508-1.508h10.554c.833 0 1.508.675 1.508 1.508v10.554c0 .833-.675 1.508-1.508 1.508Z"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="1"
-            />
-            <path
-              d="M5.615 14.285V.715"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="1"
-            />
-            <path
-              d="M3.919 5.992 2.6 7.5l1.319 1.508"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="1"
-            />
-          </svg>
+            stroke-width="1"
+          />
+          <SidebarClose v-else class="h-5 w-5" stroke-width="1" />
         </button>
         <nav class="flex items-center space-x-2 text-sm">
           <Link
@@ -450,34 +385,16 @@ function timeAgo(date) {
                 class="flex items-center justify-between rounded-lg border border-gray-200 bg-white px-4 py-3 dark:border-gray-700 dark:bg-gray-900"
               >
                 <div class="flex items-center space-x-3">
-                  <svg
+                  <Lock
                     v-if="repo.isPrivate"
                     class="h-4 w-4 text-gray-400"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="2"
-                      d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
-                    />
-                  </svg>
-                  <svg
+                    stroke-width="2"
+                  />
+                  <Folder
                     v-else
                     class="h-4 w-4 text-gray-400"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="2"
-                      d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"
-                    />
-                  </svg>
+                    stroke-width="2"
+                  />
                   <div>
                     <p
                       class="text-sm font-medium text-gray-900 dark:text-white"
@@ -545,19 +462,7 @@ function timeAgo(date) {
                   class="flex items-center justify-between bg-white px-4 py-3 first:rounded-t-lg last:rounded-b-lg dark:bg-gray-900"
                 >
                   <div class="flex items-center space-x-3">
-                    <svg
-                      class="h-4 w-4 text-amber-500"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        stroke-width="2"
-                        d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"
-                      />
-                    </svg>
+                    <Key class="h-4 w-4 text-amber-500" stroke-width="2" />
                     <div>
                       <p
                         class="text-sm font-medium text-gray-900 dark:text-white"
@@ -593,19 +498,7 @@ function timeAgo(date) {
               v-else
               class="rounded-lg border border-dashed border-gray-300 px-6 py-8 text-center dark:border-gray-700"
             >
-              <svg
-                class="mx-auto h-8 w-8 text-gray-400"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="1.5"
-                  d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"
-                />
-              </svg>
+              <Key class="mx-auto h-8 w-8 text-gray-400" />
               <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">
                 No deploy tokens yet.
               </p>

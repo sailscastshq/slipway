@@ -1,4 +1,28 @@
 <script setup>
+import WarningTriangle from '@/components/ui/icons/WarningTriangle.vue'
+import Users from '@/components/ui/icons/Users.vue'
+import Terminal from '@/components/ui/icons/Terminal.vue'
+import Stop from '@/components/ui/icons/Stop.vue'
+import SidebarOpen from '@/components/ui/icons/SidebarOpen.vue'
+import SidebarClose from '@/components/ui/icons/SidebarClose.vue'
+import Settings from '@/components/ui/icons/Settings.vue'
+import Refresh from '@/components/ui/icons/Refresh.vue'
+import MenuIcon from '@/components/ui/icons/Menu.vue'
+import Globe from '@/components/ui/icons/Globe.vue'
+import EyeOff from '@/components/ui/icons/EyeOff.vue'
+import Eye from '@/components/ui/icons/Eye.vue'
+import ExternalLink from '@/components/ui/icons/ExternalLink.vue'
+import EllipsisVertical from '@/components/ui/icons/EllipsisVertical.vue'
+import DocumentText from '@/components/ui/icons/DocumentText.vue'
+import Database from '@/components/ui/icons/Database.vue'
+import Cube from '@/components/ui/icons/Cube.vue'
+import Code from '@/components/ui/icons/Code.vue'
+import Clock from '@/components/ui/icons/Clock.vue'
+import ChevronDown from '@/components/ui/icons/ChevronDown.vue'
+import Check from '@/components/ui/icons/Check.vue'
+import ChartBar from '@/components/ui/icons/ChartBar.vue'
+import Copy from '@/components/ui/icons/Copy.vue'
+import ChevronRight from '@/components/ui/icons/ChevronRight.vue'
 import Input from '@/components/ui/input/Input.vue'
 import { Link, Head, router } from '@inertiajs/vue3'
 import {
@@ -820,89 +844,19 @@ onBeforeUnmount(() => {
           @click="toggleMobileMenu"
           class="rounded-md p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white md:hidden"
         >
-          <svg
-            class="h-5 w-5"
-            viewBox="-0.5 -0.5 16 16"
-            fill="none"
-            stroke="currentColor"
-          >
-            <path
-              d="M12.777 14.285H2.223c-.833 0-1.508-.675-1.508-1.508V2.223c0-.833.675-1.508 1.508-1.508h10.554c.833 0 1.508.675 1.508 1.508v10.554c0 .833-.675 1.508-1.508 1.508Z"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="1"
-            />
-            <path
-              d="M5.615 14.285V.715"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="1"
-            />
-            <path
-              d="M2.6 5.992 3.919 7.5 2.6 9.008"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="1"
-            />
-          </svg>
+          <SidebarOpen class="h-5 w-5" stroke-width="1" />
         </button>
         <!-- Desktop sidebar toggle -->
         <button
           @click="toggleSidebar"
           class="hidden text-gray-400 dark:text-gray-500 md:block"
         >
-          <svg
+          <SidebarOpen
             v-if="sidebarCollapsed"
             class="h-5 w-5"
-            viewBox="-0.5 -0.5 16 16"
-            fill="none"
-            stroke="currentColor"
-          >
-            <path
-              d="M12.777 14.285H2.223c-.833 0-1.508-.675-1.508-1.508V2.223c0-.833.675-1.508 1.508-1.508h10.554c.833 0 1.508.675 1.508 1.508v10.554c0 .833-.675 1.508-1.508 1.508Z"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="1"
-            />
-            <path
-              d="M5.615 14.285V.715"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="1"
-            />
-            <path
-              d="M2.6 5.992 3.919 7.5 2.6 9.008"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="1"
-            />
-          </svg>
-          <svg
-            v-else
-            class="h-5 w-5"
-            viewBox="-0.5 -0.5 16 16"
-            fill="none"
-            stroke="currentColor"
-          >
-            <path
-              d="M12.777 14.285H2.223c-.833 0-1.508-.675-1.508-1.508V2.223c0-.833.675-1.508 1.508-1.508h10.554c.833 0 1.508.675 1.508 1.508v10.554c0 .833-.675 1.508-1.508 1.508Z"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="1"
-            />
-            <path
-              d="M5.615 14.285V.715"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="1"
-            />
-            <path
-              d="M3.919 5.992 2.6 7.5l1.319 1.508"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="1"
-            />
-          </svg>
+            stroke-width="1"
+          />
+          <SidebarClose v-else class="h-5 w-5" stroke-width="1" />
         </button>
         <Breadcrumb
           :items="[
@@ -926,19 +880,7 @@ onBeforeUnmount(() => {
           class="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
         >
           Docs
-          <svg
-            class="h-3.5 w-3.5"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
-            />
-          </svg>
+          <ExternalLink class="h-3.5 w-3.5" stroke-width="2" />
         </a>
       </div>
     </div>
@@ -979,34 +921,12 @@ onBeforeUnmount(() => {
                   @click.prevent="copyToClipboard(primaryAccessUrl.value)"
                   class="rounded p-0.5 text-gray-300 opacity-0 transition-opacity hover:text-gray-500 group-hover:opacity-100 dark:text-gray-600 dark:hover:text-gray-400"
                 >
-                  <svg
+                  <Check
                     v-if="copiedText === primaryAccessUrl.value"
                     class="h-3.5 w-3.5 text-emerald-500"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="2"
-                      d="M5 13l4 4L19 7"
-                    />
-                  </svg>
-                  <svg
-                    v-else
-                    class="h-3.5 w-3.5"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="2"
-                      d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
-                    />
-                  </svg>
+                    stroke-width="2"
+                  />
+                  <Copy v-else class="h-3.5 w-3.5" stroke-width="2" />
                 </button>
                 <button
                   v-if="hasMultipleAccessUrls"
@@ -1014,22 +934,13 @@ onBeforeUnmount(() => {
                   @click.stop="domainDropdownOpen = !domainDropdownOpen"
                   class="rounded p-0.5 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
                 >
-                  <svg
+                  <ChevronDown
                     :class="[
                       'h-3.5 w-3.5 transition-transform duration-200',
                       domainDropdownOpen ? 'rotate-180' : ''
                     ]"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="2"
-                      d="M19 9l-7 7-7-7"
-                    />
-                  </svg>
+                    stroke-width="2"
+                  />
                 </button>
               </div>
 
@@ -1062,34 +973,12 @@ onBeforeUnmount(() => {
                     @click="copyToClipboard(d.value)"
                     class="rounded p-0.5 text-gray-300 opacity-0 transition-opacity hover:text-gray-500 group-hover/item:opacity-100 dark:text-gray-600 dark:hover:text-gray-400"
                   >
-                    <svg
+                    <Check
                       v-if="copiedText === d.value"
                       class="h-3.5 w-3.5 text-emerald-500"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        stroke-width="2"
-                        d="M5 13l4 4L19 7"
-                      />
-                    </svg>
-                    <svg
-                      v-else
-                      class="h-3.5 w-3.5"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        stroke-width="2"
-                        d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
-                      />
-                    </svg>
+                      stroke-width="2"
+                    />
+                    <Copy v-else class="h-3.5 w-3.5" stroke-width="2" />
                   </button>
                 </div>
               </div>
@@ -1112,11 +1001,7 @@ onBeforeUnmount(() => {
                 popovertarget="app-more-actions"
                 class="rounded-md p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-800 dark:hover:text-gray-200"
               >
-                <svg class="h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
-                  <circle cx="12" cy="6" r="1.5" />
-                  <circle cx="12" cy="12" r="1.5" />
-                  <circle cx="12" cy="18" r="1.5" />
-                </svg>
+                <EllipsisVertical class="h-4 w-4" />
               </button>
               <!-- Dropdown -->
               <Menu
@@ -1136,38 +1021,17 @@ onBeforeUnmount(() => {
                       :href="`/projects/${project.slug}/environments/${environment.slug}/helm?appSlug=${app.slug}`"
                       class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
                     >
-                      <svg
+                      <Terminal
                         class="h-4 w-4 text-gray-400"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                          stroke-width="2"
-                          d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
-                        />
-                      </svg>
+                        stroke-width="2"
+                      />
                       Helm
                     </Link>
                     <Link
                       :href="`/projects/${project.slug}/environments/${environment.slug}/apps/${app.slug}/bridge`"
                       class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
                     >
-                      <svg
-                        class="h-4 w-4 text-gray-400"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                          stroke-width="2"
-                          d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"
-                        />
-                      </svg>
+                      <Cube class="h-4 w-4 text-gray-400" stroke-width="2" />
                       Bridge
                     </Link>
                     <Link
@@ -1181,19 +1045,10 @@ onBeforeUnmount(() => {
                       }`"
                       class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
                     >
-                      <svg
+                      <Database
                         class="h-4 w-4 text-gray-400"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                          stroke-width="2"
-                          d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"
-                        />
-                      </svg>
+                        stroke-width="2"
+                      />
                       Dock
                     </Link>
                     <Link
@@ -1204,19 +1059,7 @@ onBeforeUnmount(() => {
                       :href="`/projects/${project.slug}/environments/${environment.slug}/quest`"
                       class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
                     >
-                      <svg
-                        class="h-4 w-4 text-gray-400"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                          stroke-width="2"
-                          d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-                        />
-                      </svg>
+                      <Clock class="h-4 w-4 text-gray-400" stroke-width="2" />
                       Quest
                     </Link>
                     <Link
@@ -1227,38 +1070,20 @@ onBeforeUnmount(() => {
                       :href="`/projects/${project.slug}/environments/${environment.slug}/content?appSlug=${app.slug}`"
                       class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
                     >
-                      <svg
+                      <DocumentText
                         class="h-4 w-4 text-gray-400"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                          stroke-width="2"
-                          d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                        />
-                      </svg>
+                        stroke-width="2"
+                      />
                       Content
                     </Link>
                     <Link
                       :href="`/projects/${project.slug}/environments/${environment.slug}/lookout`"
                       class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
                     >
-                      <svg
+                      <ChartBar
                         class="h-4 w-4 text-gray-400"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                          stroke-width="2"
-                          d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
-                        />
-                      </svg>
+                        stroke-width="2"
+                      />
                       Lookout
                     </Link>
                   </div>
@@ -1276,20 +1101,11 @@ onBeforeUnmount(() => {
                         v-if="restarting"
                         class="h-4 w-4 text-gray-400"
                       />
-                      <svg
+                      <Refresh
                         v-else
                         class="h-4 w-4 text-gray-400"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                          stroke-width="2"
-                          d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                        />
-                      </svg>
+                        stroke-width="2"
+                      />
                       Restart
                     </button>
                     <button
@@ -1297,13 +1113,7 @@ onBeforeUnmount(() => {
                       :disabled="stopping"
                       class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20"
                     >
-                      <svg
-                        class="h-4 w-4"
-                        fill="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <rect x="6" y="6" width="12" height="12" rx="1" />
-                      </svg>
+                      <Stop class="h-4 w-4" />
                       Stop
                     </button>
                   </div>
@@ -1313,19 +1123,7 @@ onBeforeUnmount(() => {
                       @click="openDomainModal"
                       class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
                     >
-                      <svg
-                        class="h-4 w-4 text-gray-400"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                          stroke-width="2"
-                          d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"
-                        />
-                      </svg>
+                      <Globe class="h-4 w-4 text-gray-400" stroke-width="2" />
                       Custom domain
                       <span
                         v-if="environment.domain"
@@ -1337,19 +1135,7 @@ onBeforeUnmount(() => {
                       :href="`/projects/${project.slug}/environments/${environment.slug}/apps/${app.slug}/bridge/access`"
                       class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
                     >
-                      <svg
-                        class="h-4 w-4 text-gray-400"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                          stroke-width="2"
-                          d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2m7-10a4 4 0 100-8 4 4 0 000 8zm13 10v-2a4 4 0 00-3-3.87m-1-8a4 4 0 010 7.75"
-                        />
-                      </svg>
+                      <Users class="h-4 w-4 text-gray-400" stroke-width="2" />
                       Bridge access
                     </Link>
                     <Link
@@ -1357,44 +1143,20 @@ onBeforeUnmount(() => {
                       :href="`/projects/${project.slug}/environments/${environment.slug}/apps/${app.slug}/bearing`"
                       class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
                     >
-                      <svg
+                      <ChartBar
                         class="h-4 w-4 text-gray-400"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                          stroke-width="2"
-                          d="M12 3a9 9 0 109 9M12 3v9l6 3"
-                        />
-                      </svg>
+                        stroke-width="2"
+                      />
                       Bearing
                     </Link>
                     <Link
                       :href="`/projects/${project.slug}/environments/${environment.slug}/apps/${app.slug}/settings`"
                       class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
                     >
-                      <svg
+                      <Settings
                         class="h-4 w-4 text-gray-400"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                          stroke-width="2"
-                          d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
-                        />
-                        <path
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                          stroke-width="2"
-                          d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-                        />
-                      </svg>
+                        stroke-width="2"
+                      />
                       Settings
                     </Link>
                   </div>
@@ -1421,20 +1183,10 @@ onBeforeUnmount(() => {
         >
           <div class="flex items-start justify-between gap-3 px-4 py-3">
             <div class="flex min-w-0 items-start gap-3">
-              <svg
+              <WarningTriangle
                 class="mt-0.5 h-4 w-4 shrink-0 text-amber-500"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-                aria-hidden="true"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"
-                />
-              </svg>
+                stroke-width="2"
+              />
               <div class="min-w-0">
                 <h2
                   id="deployment-source-warning-title"
@@ -1490,22 +1242,13 @@ onBeforeUnmount(() => {
                 @click="logsOpen = !logsOpen"
                 class="rounded p-0.5 hover:bg-gray-100 dark:hover:bg-gray-800"
               >
-                <svg
+                <ChevronRight
                   :class="[
                     'h-4 w-4 text-gray-400 transition-transform duration-200',
                     logsOpen ? 'rotate-90' : ''
                   ]"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M9 5l7 7-7 7"
-                  />
-                </svg>
+                  stroke-width="2"
+                />
               </button>
             </div>
             <div v-show="logsOpen">
@@ -1546,56 +1289,25 @@ onBeforeUnmount(() => {
                     @click="bulkMode ? exitBulkMode() : enterBulkMode()"
                     class="rounded p-0.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-800 dark:hover:text-gray-200"
                   >
-                    <svg
+                    <MenuIcon
                       v-if="bulkMode"
                       class="h-4 w-4"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        stroke-width="2"
-                        d="M4 6h16M4 12h16M4 18h16"
-                      />
-                    </svg>
-                    <svg
-                      v-else
-                      class="h-4 w-4"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        stroke-width="2"
-                        d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"
-                      />
-                    </svg>
+                      stroke-width="2"
+                    />
+                    <Code v-else class="h-4 w-4" stroke-width="2" />
                   </button>
                 </Tooltip>
                 <button
                   @click="envVarsOpen = !envVarsOpen"
                   class="rounded p-0.5 hover:bg-gray-100 dark:hover:bg-gray-800"
                 >
-                  <svg
+                  <ChevronRight
                     :class="[
                       'h-4 w-4 text-gray-400 transition-transform duration-200',
                       envVarsOpen ? 'rotate-90' : ''
                     ]"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="2"
-                      d="M9 5l7 7-7 7"
-                    />
-                  </svg>
+                    stroke-width="2"
+                  />
                 </button>
               </div>
             </div>
@@ -1653,40 +1365,12 @@ onBeforeUnmount(() => {
                           @click="toggleReveal(key)"
                           class="rounded p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
                         >
-                          <svg
+                          <EyeOff
                             v-if="revealedKeys.has(key)"
                             class="h-4 w-4"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                          >
-                            <path
-                              stroke-linecap="round"
-                              stroke-linejoin="round"
-                              stroke-width="2"
-                              d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L6.5 6.5m7.378 7.378L17.5 17.5M3 3l18 18"
-                            />
-                          </svg>
-                          <svg
-                            v-else
-                            class="h-4 w-4"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                          >
-                            <path
-                              stroke-linecap="round"
-                              stroke-linejoin="round"
-                              stroke-width="2"
-                              d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-                            />
-                            <path
-                              stroke-linecap="round"
-                              stroke-linejoin="round"
-                              stroke-width="2"
-                              d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
-                            />
-                          </svg>
+                            stroke-width="2"
+                          />
+                          <Eye v-else class="h-4 w-4" stroke-width="2" />
                         </button>
                         <ConfigVariableMenu
                           :variable-key="key"
@@ -1782,22 +1466,13 @@ onBeforeUnmount(() => {
                 class="rounded p-0.5 hover:bg-gray-100 dark:hover:bg-gray-800"
                 aria-label="Toggle release flags"
               >
-                <svg
+                <ChevronRight
                   :class="[
                     'h-4 w-4 text-gray-400 transition-transform duration-200',
                     releaseFlagsOpen ? 'rotate-90' : ''
                   ]"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M9 5l7 7-7 7"
-                  />
-                </svg>
+                  stroke-width="2"
+                />
               </button>
             </div>
             <div
@@ -1897,22 +1572,13 @@ onBeforeUnmount(() => {
                 @click="servicesOpen = !servicesOpen"
                 class="rounded p-0.5 hover:bg-gray-100 dark:hover:bg-gray-800"
               >
-                <svg
+                <ChevronRight
                   :class="[
                     'h-4 w-4 text-gray-400 transition-transform duration-200',
                     servicesOpen ? 'rotate-90' : ''
                   ]"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M9 5l7 7-7 7"
-                  />
-                </svg>
+                  stroke-width="2"
+                />
               </button>
             </div>
             <div v-show="servicesOpen">
@@ -1966,19 +1632,7 @@ onBeforeUnmount(() => {
                           :aria-label="`Open Dock for ${service.name}`"
                           class="rounded p-1 text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
                         >
-                          <svg
-                            class="h-4 w-4"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                          >
-                            <path
-                              stroke-linecap="round"
-                              stroke-linejoin="round"
-                              stroke-width="2"
-                              d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"
-                            />
-                          </svg>
+                          <Database class="h-4 w-4" stroke-width="2" />
                         </Link>
                       </Tooltip>
                     </div>
@@ -2003,73 +1657,23 @@ onBeforeUnmount(() => {
                       @click="toggleServiceUrlReveal(service.id)"
                       class="shrink-0 rounded p-0.5 text-gray-400 opacity-0 transition-opacity hover:text-gray-600 group-hover:opacity-100 dark:hover:text-gray-300"
                     >
-                      <svg
+                      <EyeOff
                         v-if="revealedServiceUrls.has(service.id)"
                         class="h-3.5 w-3.5"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                          stroke-width="2"
-                          d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L6.5 6.5m7.378 7.378L17.5 17.5M3 3l18 18"
-                        />
-                      </svg>
-                      <svg
-                        v-else
-                        class="h-3.5 w-3.5"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                          stroke-width="2"
-                          d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-                        />
-                        <path
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                          stroke-width="2"
-                          d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
-                        />
-                      </svg>
+                        stroke-width="2"
+                      />
+                      <Eye v-else class="h-3.5 w-3.5" stroke-width="2" />
                     </button>
                     <button
                       @click="copyToClipboard(service.connectionUrl)"
                       class="shrink-0 rounded p-0.5 text-gray-400 opacity-0 transition-opacity hover:text-gray-600 group-hover:opacity-100 dark:hover:text-gray-300"
                     >
-                      <svg
+                      <Check
                         v-if="copiedText === service.connectionUrl"
                         class="h-3.5 w-3.5 text-emerald-500"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                          stroke-width="2"
-                          d="M5 13l4 4L19 7"
-                        />
-                      </svg>
-                      <svg
-                        v-else
-                        class="h-3.5 w-3.5"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                          stroke-width="2"
-                          d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
-                        />
-                      </svg>
+                        stroke-width="2"
+                      />
+                      <Copy v-else class="h-3.5 w-3.5" stroke-width="2" />
                     </button>
                   </div>
                 </div>

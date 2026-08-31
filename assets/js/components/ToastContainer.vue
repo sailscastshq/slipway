@@ -1,4 +1,7 @@
 <script setup>
+import Check from '@/components/ui/icons/Check.vue'
+import InfoCircle from '@/components/ui/icons/InfoCircle.vue'
+import X from '@/components/ui/icons/X.vue'
 import Toast from '@/components/ui/toast/Toast.vue'
 import DeploymentToast from '@/components/DeploymentToast.vue'
 import ServiceActionToast from '@/components/ServiceActionToast.vue'
@@ -10,9 +13,9 @@ const props = defineProps({
 const emit = defineEmits(['deployment-status-change', 'dismiss-deployment'])
 
 const icons = {
-  success: 'M5 13l4 4L19 7',
-  error: 'M6 18L18 6M6 6l12 12',
-  info: 'M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z'
+  success: Check,
+  error: X,
+  info: InfoCircle
 }
 
 const colors = {
@@ -53,21 +56,12 @@ function activateAction(item, event, dismiss) {
         @dismiss="dismiss"
       />
       <template v-else>
-        <svg
+        <component
+          :is="icons[item.type] || icons.success"
           class="mt-0.5 h-5 w-5 shrink-0"
           :class="colors[item.type] || colors.success"
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-          aria-hidden="true"
-        >
-          <path
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            stroke-width="2"
-            :d="icons[item.type] || icons.success"
-          />
-        </svg>
+          stroke-width="2"
+        />
         <p
           v-if="!item.title && !item.action?.label"
           class="flex-1 text-sm text-gray-900 dark:text-white"
@@ -117,20 +111,7 @@ function activateAction(item, event, dismiss) {
           "
           @click="dismiss"
         >
-          <svg
-            class="h-4 w-4"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-            aria-hidden="true"
-          >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M6 18L18 6M6 6l12 12"
-            />
-          </svg>
+          <X class="h-4 w-4" stroke-width="2" />
         </button>
       </template>
     </template>

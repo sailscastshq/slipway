@@ -1,4 +1,5 @@
 <script setup>
+import ChevronRight from '@/components/ui/icons/ChevronRight.vue'
 import { computed } from 'vue'
 import { helmScalarPresentation, isHelmBranch } from '@/lib/helmResult'
 
@@ -48,20 +49,10 @@ function scalarClasses(type) {
       <summary
         class="flex cursor-pointer list-none items-center gap-1 rounded-sm py-0.5 pr-2 font-mono text-xs leading-5 text-gray-700 outline-none hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-300 dark:text-gray-300 dark:hover:bg-gray-900 dark:focus-visible:ring-gray-700"
       >
-        <svg
+        <ChevronRight
           class="helm-tree-chevron h-3 w-3 shrink-0 text-gray-400 transition-transform motion-reduce:transition-none dark:text-gray-600"
-          fill="none"
-          viewBox="0 0 12 12"
-          stroke="currentColor"
-          aria-hidden="true"
-        >
-          <path
-            d="m4.5 2.5 3.5 3.5-3.5 3.5"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            stroke-width="1.25"
-          />
-        </svg>
+          stroke-width="1.25"
+        />
         <span class="text-pink-600 dark:text-pink-400">{{ name }}</span>
         <span aria-hidden="true" class="text-gray-400 dark:text-gray-600"
           >:</span

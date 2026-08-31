@@ -1,4 +1,5 @@
 <script setup>
+import Filter from '@/components/ui/icons/Filter.vue'
 import Input from '@/components/ui/input/Input.vue'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import BridgeRelationshipCombobox from '@/components/bridge/BridgeRelationshipCombobox.vue'
@@ -256,20 +257,7 @@ onBeforeUnmount(() => {
       data-test="bridge-filter-toggle"
       @click="toggle"
     >
-      <svg
-        class="h-4 w-4"
-        viewBox="0 0 20 20"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="1.5"
-        aria-hidden="true"
-      >
-        <path
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          d="M3.5 5.25h13M5.75 10h8.5M8 14.75h4"
-        />
-      </svg>
+      <Filter class="h-4 w-4" stroke-width="1.5" />
       Filter
       <Badge
         v-if="activeCount"

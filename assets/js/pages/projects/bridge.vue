@@ -1,4 +1,9 @@
 <script setup>
+import WarningTriangle from '@/components/ui/icons/WarningTriangle.vue'
+import Refresh from '@/components/ui/icons/Refresh.vue'
+import Database from '@/components/ui/icons/Database.vue'
+import Cube from '@/components/ui/icons/Cube.vue'
+import ChevronRight from '@/components/ui/icons/ChevronRight.vue'
 import Input from '@/components/ui/input/Input.vue'
 import { Link, Head, router } from '@inertiajs/vue3'
 import { computed, ref } from 'vue'
@@ -123,19 +128,7 @@ function switchDashboard(id) {
             class="rounded-md p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-800 dark:hover:text-gray-300"
             @click="refresh"
           >
-            <svg
-              class="h-4 w-4"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-              />
-            </svg>
+            <Refresh class="h-4 w-4" stroke-width="2" />
           </button>
         </Tooltip>
       </template>
@@ -149,19 +142,7 @@ function switchDashboard(id) {
           <div
             class="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-gray-100 dark:bg-gray-900"
           >
-            <svg
-              class="h-8 w-8 text-gray-400 dark:text-gray-600"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="1.5"
-                d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"
-              />
-            </svg>
+            <Cube class="h-8 w-8 text-gray-400 dark:text-gray-600" />
           </div>
           <h3 class="mt-4 text-sm font-medium text-gray-900 dark:text-white">
             App not running
@@ -190,20 +171,7 @@ function switchDashboard(id) {
         <div
           class="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-red-50 dark:bg-red-950/30"
         >
-          <svg
-            class="h-8 w-8 text-red-500 dark:text-red-400"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-            aria-hidden="true"
-          >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="1.5"
-              d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-            />
-          </svg>
+          <WarningTriangle class="h-8 w-8 text-red-500 dark:text-red-400" />
         </div>
         <h2
           id="bridge-models-error-title"
@@ -219,20 +187,7 @@ function switchDashboard(id) {
           class="mt-4 inline-flex cursor-pointer items-center gap-1.5 rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-800 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
           @click="refresh"
         >
-          <svg
-            class="h-4 w-4"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-            aria-hidden="true"
-          >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-            />
-          </svg>
+          <Refresh class="h-4 w-4" stroke-width="2" />
           Retry
         </button>
       </ErrorState>
@@ -246,19 +201,7 @@ function switchDashboard(id) {
           <div
             class="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-gray-100 dark:bg-gray-900"
           >
-            <svg
-              class="h-8 w-8 text-gray-400 dark:text-gray-600"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="1.5"
-                d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"
-              />
-            </svg>
+            <Cube class="h-8 w-8 text-gray-400 dark:text-gray-600" />
           </div>
           <h3 class="mt-4 text-sm font-medium text-gray-900 dark:text-white">
             No resources available
@@ -335,19 +278,7 @@ function switchDashboard(id) {
                   <div
                     class="flex h-8 w-8 items-center justify-center rounded-md bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400"
                   >
-                    <svg
-                      class="h-4 w-4"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        stroke-width="1.5"
-                        d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4"
-                      />
-                    </svg>
+                    <Database class="h-4 w-4" />
                   </div>
                   <span
                     data-test="bridge-resource-label"
@@ -391,19 +322,7 @@ function switchDashboard(id) {
                   class="rounded p-1 text-gray-400 opacity-0 transition-opacity group-hover:opacity-100 dark:text-gray-500"
                   :aria-label="`Open ${model.label}`"
                 >
-                  <svg
-                    class="h-4 w-4"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="2"
-                      d="m9 18 6-6-6-6"
-                    />
-                  </svg>
+                  <ChevronRight class="h-4 w-4" stroke-width="2" />
                 </Link>
               </div>
             </div>

@@ -1,4 +1,8 @@
 <script setup>
+import SidebarClose from '@/components/ui/icons/SidebarClose.vue'
+import SidebarOpen from '@/components/ui/icons/SidebarOpen.vue'
+import ChevronDown from '@/components/ui/icons/ChevronDown.vue'
+import Search from '@/components/ui/icons/Search.vue'
 import Input from '@/components/ui/input/Input.vue'
 import { Head, Link, router } from '@inertiajs/vue3'
 import { computed, inject, nextTick, onBeforeUnmount, ref, watch } from 'vue'
@@ -181,25 +185,7 @@ function shortHash(hash) {
           class="rounded-md p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white md:hidden"
           @click="toggleMobileMenu"
         >
-          <svg
-            class="h-5 w-5"
-            viewBox="-0.5 -0.5 16 16"
-            fill="none"
-            stroke="currentColor"
-            aria-hidden="true"
-          >
-            <path
-              d="M12.777 14.285H2.223c-.833 0-1.508-.675-1.508-1.508V2.223c0-.833.675-1.508 1.508-1.508h10.554c.833 0 1.508.675 1.508 1.508v10.554c0 .833-.675 1.508-1.508 1.508Z"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            />
-            <path d="M5.615 14.285V.715" stroke-linecap="round" />
-            <path
-              d="M2.6 5.992 3.919 7.5 2.6 9.008"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            />
-          </svg>
+          <SidebarOpen class="h-5 w-5" />
         </button>
         <button
           type="button"
@@ -207,29 +193,8 @@ function shortHash(hash) {
           class="hidden text-gray-400 dark:text-gray-500 md:block"
           @click="toggleSidebar"
         >
-          <svg
-            class="h-5 w-5"
-            viewBox="-0.5 -0.5 16 16"
-            fill="none"
-            stroke="currentColor"
-            aria-hidden="true"
-          >
-            <path
-              d="M12.777 14.285H2.223c-.833 0-1.508-.675-1.508-1.508V2.223c0-.833.675-1.508 1.508-1.508h10.554c.833 0 1.508.675 1.508 1.508v10.554c0 .833-.675 1.508-1.508 1.508Z"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            />
-            <path d="M5.615 14.285V.715" stroke-linecap="round" />
-            <path
-              :d="
-                sidebarCollapsed
-                  ? 'M2.6 5.992 3.919 7.5 2.6 9.008'
-                  : 'M3.919 5.992 2.6 7.5l1.319 1.508'
-              "
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            />
-          </svg>
+          <SidebarOpen v-if="sidebarCollapsed" class="h-5 w-5" />
+          <SidebarClose v-else class="h-5 w-5" />
         </button>
         <nav class="flex items-center space-x-2 text-sm">
           <Link
@@ -262,20 +227,10 @@ function shortHash(hash) {
           <div class="flex items-center gap-2">
             <label class="relative min-w-0 flex-1 sm:w-64">
               <span class="sr-only">Search audit events</span>
-              <svg
+              <Search
                 class="pointer-events-none absolute left-1 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                aria-hidden="true"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="1.75"
-                  d="m21 21-4.35-4.35m2.35-5.65a8 8 0 1 1-16 0 8 8 0 0 1 16 0Z"
-                />
-              </svg>
+                stroke-width="1.75"
+              />
               <Input
                 ref="searchInput"
                 v-model="query"
@@ -380,20 +335,10 @@ function shortHash(hash) {
                     </template>
                   </span>
                 </span>
-                <svg
+                <ChevronDown
                   class="mt-1.5 h-4 w-4 shrink-0 text-gray-300 transition-transform group-open:rotate-180 motion-reduce:transition-none dark:text-gray-700"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
                   stroke-width="1.75"
-                  aria-hidden="true"
-                >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    d="m8 10 4 4 4-4"
-                  />
-                </svg>
+                />
               </summary>
 
               <dl

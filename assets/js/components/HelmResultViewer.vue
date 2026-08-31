@@ -1,4 +1,8 @@
 <script setup>
+import TableCells from '@/components/ui/icons/TableCells.vue'
+import ListTree from '@/components/ui/icons/ListTree.vue'
+import Database from '@/components/ui/icons/Database.vue'
+import ChevronDown from '@/components/ui/icons/ChevronDown.vue'
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import ActionMenu from '@/components/ActionMenu.vue'
 import HelmResultTreeNode from '@/components/HelmResultTreeNode.vue'
@@ -558,20 +562,7 @@ function queryDetail(entry) {
       <summary
         class="flex cursor-pointer list-none items-center gap-2 px-4 py-2 text-xs font-medium text-gray-500 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-gray-300 dark:text-gray-400 dark:focus-visible:ring-gray-700"
       >
-        <svg
-          class="h-3.5 w-3.5"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-          stroke-width="1.5"
-          aria-hidden="true"
-        >
-          <ellipse cx="12" cy="5" rx="7.5" ry="2.75" />
-          <path
-            stroke-linecap="round"
-            d="M4.5 5v7c0 1.52 3.36 2.75 7.5 2.75s7.5-1.23 7.5-2.75V5m-15 7v7c0 1.52 3.36 2.75 7.5 2.75s7.5-1.23 7.5-2.75v-7"
-          />
-        </svg>
+        <Database class="h-3.5 w-3.5" stroke-width="1.5" />
         <span>Queries</span>
         <span class="font-normal text-gray-400 dark:text-gray-600">
           {{ queryEntries.length
@@ -583,20 +574,10 @@ function queryDetail(entry) {
           &middot; {{ formatDuration(queryDurationMs) }}
           {{ queryTrace.truncated ? ' · truncated' : '' }}
         </span>
-        <svg
+        <ChevronDown
           class="ml-auto h-3.5 w-3.5 shrink-0 transition-transform group-open:rotate-180 motion-reduce:transition-none"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
           stroke-width="1.5"
-          aria-hidden="true"
-        >
-          <path
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            d="m6 9 6 6 6-6"
-          />
-        </svg>
+        />
       </summary>
       <ol
         v-if="queryEntries.length"
@@ -653,20 +634,10 @@ function queryDetail(entry) {
       <summary
         class="flex cursor-pointer list-none items-center gap-2 px-3 py-2 text-xs font-medium text-gray-500 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-gray-300 dark:text-gray-400 dark:focus-visible:ring-gray-700"
       >
-        <svg
+        <ChevronDown
           class="h-3 w-3 shrink-0 -rotate-90 transition-transform group-open:rotate-0 motion-reduce:transition-none"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
           stroke-width="1.75"
-          aria-hidden="true"
-        >
-          <path
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            d="m6 9 6 6 6-6"
-          />
-        </svg>
+        />
         <span>Console</span>
         <span class="font-normal text-gray-400 dark:text-gray-600"
           >{{ logs.length }} line{{ logs.length === 1 ? '' : 's'
@@ -710,36 +681,16 @@ function queryDetail(entry) {
               ]"
               @click="selectView(view)"
             >
-              <svg
+              <TableCells
                 v-if="view === 'table'"
                 class="h-4 w-4"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
                 stroke-width="1.5"
-                aria-hidden="true"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  d="M3.75 5.25h16.5v13.5H3.75V5.25Zm0 4.5h16.5M9 5.25v13.5"
-                />
-              </svg>
-              <svg
+              />
+              <ListTree
                 v-else-if="view === 'tree'"
                 class="h-4 w-4"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
                 stroke-width="1.5"
-                aria-hidden="true"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  d="M5.25 4.5v15m0-10.5h3.5m-3.5 6h3.5M8.75 7.5h10v3h-10v-3Zm0 6h10v3h-10v-3Z"
-                />
-              </svg>
+              />
               <span
                 v-else
                 class="font-mono text-xs font-bold leading-none"

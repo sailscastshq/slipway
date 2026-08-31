@@ -1,4 +1,7 @@
 <script setup>
+import ChevronRight from '@/components/ui/icons/ChevronRight.vue'
+import SidebarClose from '@/components/ui/icons/SidebarClose.vue'
+import SidebarOpen from '@/components/ui/icons/SidebarOpen.vue'
 import Input from '@/components/ui/input/Input.vue'
 import Checkbox from '@/components/ui/checkbox/Checkbox.vue'
 import Radio from '@/components/ui/radio/Radio.vue'
@@ -263,19 +266,7 @@ onUnmounted(() => {
           aria-label="Open navigation"
           @click="toggleMobileMenu"
         >
-          <svg
-            class="h-5 w-5"
-            viewBox="-0.5 -0.5 16 16"
-            fill="none"
-            stroke="currentColor"
-          >
-            <path
-              d="M12.777 14.285H2.223c-.833 0-1.508-.675-1.508-1.508V2.223c0-.833.675-1.508 1.508-1.508h10.554c.833 0 1.508.675 1.508 1.508v10.554c0 .833-.675 1.508-1.508 1.508Z"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            />
-            <path d="M5.615 14.285V.715" />
-          </svg>
+          <SidebarOpen class="h-5 w-5" />
         </button>
         <button
           type="button"
@@ -283,17 +274,8 @@ onUnmounted(() => {
           :aria-label="sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'"
           @click="toggleSidebar"
         >
-          <svg
-            class="h-5 w-5"
-            viewBox="-0.5 -0.5 16 16"
-            fill="none"
-            stroke="currentColor"
-          >
-            <path
-              d="M12.777 14.285H2.223c-.833 0-1.508-.675-1.508-1.508V2.223c0-.833.675-1.508 1.508-1.508h10.554c.833 0 1.508.675 1.508 1.508v10.554c0 .833-.675 1.508-1.508 1.508Z"
-            />
-            <path d="M5.615 14.285V.715" />
-          </svg>
+          <SidebarOpen v-if="sidebarCollapsed" class="h-5 w-5" />
+          <SidebarClose v-else class="h-5 w-5" />
         </button>
         <Breadcrumb
           :items="[
@@ -430,21 +412,11 @@ onUnmounted(() => {
                 class="flex items-center justify-between gap-2 text-xs font-medium text-gray-500 dark:text-gray-400"
               >
                 <span>{{ metric.label }}</span>
-                <svg
+                <ChevronRight
                   v-if="metric.view"
                   aria-hidden="true"
-                  viewBox="0 0 16 16"
                   class="size-3.5 opacity-0 transition group-hover:opacity-100 group-focus-visible:opacity-100"
-                  fill="none"
-                >
-                  <path
-                    d="m6 3.5 4.5 4.5L6 12.5"
-                    stroke="currentColor"
-                    stroke-width="1.5"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                  />
-                </svg>
+                />
               </p>
               <p
                 class="mt-3 text-2xl font-semibold tabular-nums tracking-tight"

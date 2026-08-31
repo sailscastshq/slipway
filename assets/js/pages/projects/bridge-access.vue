@@ -1,4 +1,7 @@
 <script setup>
+import SidebarClose from '@/components/ui/icons/SidebarClose.vue'
+import SidebarOpen from '@/components/ui/icons/SidebarOpen.vue'
+import EllipsisHorizontal from '@/components/ui/icons/EllipsisHorizontal.vue'
 import Input from '@/components/ui/input/Input.vue'
 import { Head, router, useForm } from '@inertiajs/vue3'
 import { computed, inject, ref } from 'vue'
@@ -175,19 +178,7 @@ function timeAgo(timestamp) {
           aria-label="Open navigation"
           @click.stop="toggleMobileMenu"
         >
-          <svg
-            class="h-5 w-5"
-            viewBox="-0.5 -0.5 16 16"
-            fill="none"
-            stroke="currentColor"
-          >
-            <path
-              d="M12.777 14.285H2.223c-.833 0-1.508-.675-1.508-1.508V2.223c0-.833.675-1.508 1.508-1.508h10.554c.833 0 1.508.675 1.508 1.508v10.554c0 .833-.675 1.508-1.508 1.508Z"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            />
-            <path d="M5.615 14.285V.715" />
-          </svg>
+          <SidebarOpen class="h-5 w-5" />
         </button>
         <button
           type="button"
@@ -195,17 +186,8 @@ function timeAgo(timestamp) {
           :aria-label="sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'"
           @click.stop="toggleSidebar"
         >
-          <svg
-            class="h-5 w-5"
-            viewBox="-0.5 -0.5 16 16"
-            fill="none"
-            stroke="currentColor"
-          >
-            <path
-              d="M12.777 14.285H2.223c-.833 0-1.508-.675-1.508-1.508V2.223c0-.833.675-1.508 1.508-1.508h10.554c.833 0 1.508.675 1.508 1.508v10.554c0 .833-.675 1.508-1.508 1.508Z"
-            />
-            <path d="M5.615 14.285V.715" />
-          </svg>
+          <SidebarOpen v-if="sidebarCollapsed" class="h-5 w-5" />
+          <SidebarClose v-else class="h-5 w-5" />
         </button>
         <Breadcrumb
           :items="[
@@ -447,11 +429,7 @@ function timeAgo(timestamp) {
                   :aria-label="`Manage ${grant.email}`"
                   :popovertarget="`bridge-access-actions-${grant.id}`"
                 >
-                  <svg class="h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
-                    <circle cx="6" cy="12" r="1.5" />
-                    <circle cx="12" cy="12" r="1.5" />
-                    <circle cx="18" cy="12" r="1.5" />
-                  </svg>
+                  <EllipsisHorizontal class="h-4 w-4" />
                 </button>
                 <Menu
                   :id="`bridge-access-actions-${grant.id}`"
