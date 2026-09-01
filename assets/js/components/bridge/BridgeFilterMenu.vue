@@ -3,7 +3,7 @@ import Filter from '@/components/ui/icons/Filter.vue'
 import Input from '@/components/ui/input/Input.vue'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import BridgeRelationshipCombobox from '@/components/bridge/BridgeRelationshipCombobox.vue'
-import Select from '@/components/ui/select/Select.vue'
+import BareSelect from '@/components/BareSelect.vue'
 import FilterBar from '@/components/ui/filter-bar/FilterBar.vue'
 import Badge from '@/components/ui/badge/Badge.vue'
 
@@ -303,7 +303,7 @@ onBeforeUnmount(() => {
             >
               {{ definition.label }}
             </label>
-            <Select
+            <BareSelect
               :id="fieldId(definition, 'operator')"
               :model-value="stateFor(filter.draft, definition).operator"
               :options="
@@ -312,7 +312,7 @@ onBeforeUnmount(() => {
                   label: operatorLabel(operator)
                 }))
               "
-              class="border-0 bg-transparent py-0 pl-1 pr-5 text-right text-xs text-gray-500 focus:ring-0 dark:bg-gray-900 dark:text-gray-400"
+              class="py-0 pl-1 pr-1 text-right text-xs text-gray-500 dark:text-gray-400"
               @update:model-value="
                 updateField(filter, definition, { operator: $event })
               "
@@ -378,7 +378,7 @@ onBeforeUnmount(() => {
               "
             />
 
-            <Select
+            <BareSelect
               v-else-if="definition.type === 'boolean'"
               :id="fieldId(definition, 'value')"
               :model-value="stateFor(filter.draft, definition).value"
@@ -388,13 +388,13 @@ onBeforeUnmount(() => {
                 { value: 'false', label: 'No' }
               ]"
               :aria-label="`${definition.label} value`"
-              class="focus:border-brand w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 focus:outline-none focus:ring-0 dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+              class="w-full px-1 py-1.5 text-sm text-gray-900 dark:text-white"
               @update:model-value="
                 updateField(filter, definition, { value: $event })
               "
             />
 
-            <Select
+            <BareSelect
               v-else-if="definition.type === 'select'"
               :id="fieldId(definition, 'value')"
               :model-value="stateFor(filter.draft, definition).value"
@@ -407,7 +407,7 @@ onBeforeUnmount(() => {
                 }))
               ]"
               :aria-label="`${definition.label} value`"
-              class="focus:border-brand w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 focus:outline-none focus:ring-0 dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+              class="w-full px-1 py-1.5 text-sm text-gray-900 dark:text-white"
               @update:model-value="
                 updateField(filter, definition, { value: $event })
               "

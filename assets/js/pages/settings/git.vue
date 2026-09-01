@@ -9,7 +9,7 @@ import { Link, Head, router, useForm } from '@inertiajs/vue3'
 import { inject, ref, computed } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
 import ConfirmModal from '@/components/ConfirmModal.vue'
-import Select from '@/components/ui/select/Select.vue'
+import BareSelect from '@/components/BareSelect.vue'
 import { useToast } from '@/composables/toast'
 import { usePrecognitionValidation } from '@/composables/precognition'
 
@@ -617,7 +617,7 @@ jobs:
                   class="block text-sm font-medium text-gray-700 dark:text-gray-300"
                   >Scope (optional)</label
                 >
-                <Select
+                <BareSelect
                   v-model="newToken.projectId"
                   :options="[
                     { value: '', label: 'All projects' },
@@ -626,7 +626,7 @@ jobs:
                       label: project.name
                     }))
                   ]"
-                  class="focus:border-brand mt-1 w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 focus:outline-none dark:border-gray-700 dark:bg-transparent dark:text-white"
+                  class="mt-1 w-full px-1 py-1.5 text-sm text-gray-900 dark:text-white"
                 />
               </div>
 

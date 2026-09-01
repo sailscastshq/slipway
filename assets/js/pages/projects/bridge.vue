@@ -10,7 +10,7 @@ import { computed, ref } from 'vue'
 import BridgePageLayout from '@/layouts/BridgePageLayout.vue'
 import BridgeDashboard from '@/components/bridge/BridgeDashboard.vue'
 import BridgePageHeader from '@/components/bridge/BridgePageHeader.vue'
-import Select from '@/components/ui/select/Select.vue'
+import BareSelect from '@/components/BareSelect.vue'
 import Tooltip from '@/components/ui/tooltip/Tooltip.vue'
 import ErrorState from '@/components/ui/error-state/ErrorState.vue'
 
@@ -105,7 +105,7 @@ function switchDashboard(id) {
       :breadcrumbs="[{ label: 'bridge' }]"
     >
       <template #actions>
-        <Select
+        <BareSelect
           v-if="dashboards?.length > 1"
           :model-value="activeDashboard?.id"
           :options="
@@ -116,7 +116,7 @@ function switchDashboard(id) {
           "
           @change="switchDashboard"
           aria-label="Bridge dashboard"
-          class="rounded-md border-0 bg-transparent py-1 pl-2 pr-7 text-sm text-gray-600 focus:ring-1 focus:ring-gray-300 dark:bg-gray-950 dark:text-gray-300 dark:focus:ring-gray-700"
+          class="py-1 pl-2 pr-2 text-sm text-gray-600 dark:text-gray-300"
         />
         <Tooltip
           v-if="appRunning && (modelList.length > 0 || activeDashboard)"

@@ -17,7 +17,7 @@ import BridgeDashboard from '@/components/bridge/BridgeDashboard.vue'
 import BridgeFilterMenu from '@/components/bridge/BridgeFilterMenu.vue'
 import BridgePageHeader from '@/components/bridge/BridgePageHeader.vue'
 import Pagination from '@/components/ui/pagination/Pagination.vue'
-import Select from '@/components/ui/select/Select.vue'
+import BareSelect from '@/components/BareSelect.vue'
 import DataTable from '@/components/ui/data-table/DataTable.vue'
 import RowActions from '@/components/ui/row-actions/RowActions.vue'
 import BulkActions from '@/components/ui/bulk-actions/BulkActions.vue'
@@ -503,7 +503,7 @@ function createUrl() {
             placeholder="Search records..."
             class="w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:border-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500 dark:focus:border-gray-600 sm:w-64"
           />
-          <Select
+          <BareSelect
             v-if="lenses?.length > 0"
             :model-value="lensValue"
             :options="[
@@ -514,7 +514,7 @@ function createUrl() {
               }))
             ]"
             aria-label="Saved view"
-            class="rounded-md border-0 bg-transparent py-1 pl-2 pr-7 text-sm text-gray-600 focus:ring-1 focus:ring-gray-300 dark:bg-gray-950 dark:text-gray-300 dark:focus:ring-gray-700"
+            class="py-1 pl-2 pr-2 text-sm text-gray-600 dark:text-gray-300"
             data-test="bridge-lens-select"
             @change="switchLens"
           />
@@ -552,7 +552,7 @@ function createUrl() {
           </Transition>
         </div>
         <div class="flex items-center space-x-4">
-          <Select
+          <BareSelect
             v-if="dashboards?.length > 1"
             :model-value="activeDashboard?.id"
             :options="
@@ -563,7 +563,7 @@ function createUrl() {
             "
             @change="switchDashboard"
             aria-label="Bridge dashboard"
-            class="rounded-md border-0 bg-transparent py-1 pl-2 pr-7 text-sm text-gray-600 focus:ring-1 focus:ring-gray-300 dark:bg-gray-950 dark:text-gray-300 dark:focus:ring-gray-700"
+            class="py-1 pl-2 pr-2 text-sm text-gray-600 dark:text-gray-300"
           />
           <span
             v-if="total > 0"

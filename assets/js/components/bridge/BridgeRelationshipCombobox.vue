@@ -246,7 +246,13 @@ onBeforeUnmount(() => requestController?.abort())
       :aria-invalid="invalid ? 'true' : undefined"
       :aria-describedby="describedBy || undefined"
       :data-test="`${id}-input`"
-      class="focus:border-brand min-h-11 h-11 rounded-none border-0 border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 pr-8 text-left text-sm shadow-none hover:border-gray-200 focus:outline-none dark:border-gray-700 dark:bg-transparent dark:hover:border-gray-700"
+      class="focus-visible:text-brand dark:focus-visible:text-brand-400 min-h-11 h-11 rounded-none border-0 bg-transparent px-1 py-1.5 pr-8 text-left text-sm shadow-none focus-visible:outline-none"
+      style="
+        border: 0;
+        border-radius: 0;
+        box-shadow: none;
+        background: transparent;
+      "
       @update:model-value="emit('update:modelValue', $event)"
       @update:query="handleQuery"
       @update:open="handleOpen"
