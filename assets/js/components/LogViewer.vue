@@ -13,7 +13,7 @@ import {
   serializeLogEvents
 } from '@/lib/log-viewer.mjs'
 import Spinner from '@/components/SlipwaySpinner.vue'
-import Select from '@/components/ui/select/Select.vue'
+import BareSelect from '@/components/BareSelect.vue'
 import Tooltip from '@/components/ui/tooltip/Tooltip.vue'
 import Copy from '@/components/ui/icons/Copy.vue'
 import Search from '@/components/ui/icons/Search.vue'
@@ -265,7 +265,7 @@ function segmentClass(type) {
       <div class="order-2 ml-auto flex items-center gap-1 sm:order-3">
         <label class="relative">
           <span class="sr-only">Filter logs by severity</span>
-          <Select
+          <BareSelect
             v-model="level"
             :options="[
               { value: 'all', label: `All · ${events.length}` },
@@ -275,7 +275,7 @@ function segmentClass(type) {
               }))
             ]"
             data-test="log-level-filter"
-            class="h-10 appearance-none border-0 border-b border-dashed border-gray-300 bg-transparent py-0 pl-2 pr-7 font-sans text-xs text-gray-700 outline-none focus:border-sky-500 focus:ring-0 dark:border-zinc-700 dark:text-zinc-300 dark:focus:border-sky-400"
+            class="h-10 appearance-none py-0 pl-2 pr-2 font-sans text-xs text-gray-700 dark:text-zinc-300"
           />
         </label>
 

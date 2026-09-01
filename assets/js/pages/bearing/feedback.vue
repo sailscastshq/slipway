@@ -21,6 +21,7 @@ import {
 } from 'vue'
 import ShareLinkButton from '@/components/ShareLinkButton.vue'
 import Select from '@/components/ui/select/Select.vue'
+import BareSelect from '@/components/BareSelect.vue'
 import Tooltip from '@/components/ui/tooltip/Tooltip.vue'
 import FileUpload from '@/components/ui/file-upload/FileUpload.vue'
 import { useBearingRealtime } from '@/composables/useBearingRealtime'
@@ -1111,7 +1112,7 @@ function shortDate(value) {
                 >
                   Category
                 </span>
-                <Select
+                <BareSelect
                   v-model="categoryFilter"
                   :options="[
                     { value: 'all', label: 'All categories' },
@@ -1121,7 +1122,7 @@ function shortDate(value) {
                     }))
                   ]"
                   data-test="bearing-feedback-category-filter"
-                  class="focus:border-brand min-h-11 mt-1 w-full border-0 border-b border-dashed border-gray-300 bg-transparent px-0 text-sm focus:ring-0 dark:border-gray-700"
+                  class="min-h-11 mt-1 w-full px-0 text-sm"
                 />
               </label>
 
@@ -1131,10 +1132,10 @@ function shortDate(value) {
                 >
                   Status
                 </span>
-                <Select
+                <BareSelect
                   v-model="statusFilter"
                   :options="statusOptions"
-                  class="min-h-12 mt-1 w-full border-0 border-b border-dashed border-gray-300 bg-transparent px-0 text-sm focus:border-gray-950 focus:ring-0 dark:border-gray-700 dark:focus:border-white"
+                  class="min-h-12 mt-1 w-full px-0 text-sm"
                 />
               </label>
 

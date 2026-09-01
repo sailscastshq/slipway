@@ -969,16 +969,17 @@ test(
       const creatorComboboxClass = await creatorRelationshipSelect.getAttribute(
         'class'
       )
-      expect(creatorComboboxClass.includes('border-b')).toBe(true)
-      expect(creatorComboboxClass.includes('border-dashed')).toBe(true)
+      expect(creatorComboboxClass.includes('border-0')).toBe(true)
+      expect(creatorComboboxClass.includes('border-b')).toBe(false)
+      expect(creatorComboboxClass.includes('border-dashed')).toBe(false)
       expect(creatorComboboxClass.includes('bg-transparent')).toBe(true)
       expect(creatorComboboxClass.includes('rounded-none')).toBe(true)
       expect(creatorComboboxClass.includes('ring-1')).toBe(false)
       expect(
         await creatorRelationshipSelect.evaluate(
-          (element) => getComputedStyle(element).borderBottomStyle
+          (element) => getComputedStyle(element).borderBottomWidth
         )
-      ).toBe('dashed')
+      ).toBe('0px')
       await creatorRelationshipSelect.press('ArrowDown')
       expect(
         await creatorRelationshipSelect.evaluate(

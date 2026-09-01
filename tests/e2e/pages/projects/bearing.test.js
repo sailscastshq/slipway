@@ -557,7 +557,28 @@ test(
     const categoryFilter = page.raw.locator(
       '[data-test="bearing-feedback-category-filter"]'
     )
-    await expect(categoryFilter).toHaveClass(/border-dashed/)
+    expect(
+      await categoryFilter.evaluate((element) => {
+        const style = getComputedStyle(element)
+        return {
+          borderTopWidth: style.borderTopWidth,
+          borderRightWidth: style.borderRightWidth,
+          borderBottomWidth: style.borderBottomWidth,
+          borderLeftWidth: style.borderLeftWidth,
+          borderRadius: style.borderRadius,
+          boxShadow: style.boxShadow,
+          backgroundColor: style.backgroundColor
+        }
+      })
+    ).toMatchObject({
+      borderTopWidth: '0px',
+      borderRightWidth: '0px',
+      borderBottomWidth: '0px',
+      borderLeftWidth: '0px',
+      borderRadius: '0px',
+      boxShadow: 'none',
+      backgroundColor: 'rgba(0, 0, 0, 0)'
+    })
     expect(
       await page.raw.locator('input[name="mobile-feedback-category"]').count()
     ).toBe(0)
