@@ -19,6 +19,7 @@ defineOptions({
 
 const props = defineProps({
   githubConfigured: Boolean,
+  canManageInstance: Boolean,
   githubConnected: Boolean,
   githubUser: String,
   connectedRepos: Array,
@@ -205,7 +206,13 @@ function timeAgo(date) {
     <div class="flex-1 overflow-y-auto px-4 py-6 sm:px-8 sm:py-8">
       <div class="mx-auto max-w-4xl space-y-8">
         <!-- GitHub OAuth Configuration (shown when not configured) -->
-        <section v-if="!githubConfigured">
+        <p
+          v-if="!githubConfigured && !canManageInstance"
+          class="text-sm text-gray-500"
+        >
+          Ask the instance administrator to configure GitHub OAuth.
+        </p>
+        <section v-if="!githubConfigured && canManageInstance">
           <h2 class="text-lg font-medium text-gray-900 dark:text-white">
             GitHub OAuth Setup
           </h2>

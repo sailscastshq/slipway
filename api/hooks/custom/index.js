@@ -63,7 +63,8 @@ module.exports = function defineCustomHook(sails) {
                         'fullName',
                         'initials',
                         'team',
-                        'teamRole'
+                        'teamRole',
+                        'isGenesisUser'
                       ])
                       .populate('team')
 

@@ -41,7 +41,10 @@ import {
 } from '@/lib/localStorageKeys'
 
 const page = usePage()
-const loggedInUser = page.props.loggedInUser
+const loggedInUser = computed(() => page.props.loggedInUser)
+const canManageInstance = computed(
+  () => loggedInUser.value?.isGenesisUser === true
+)
 
 const currentPath = computed(() => page.url)
 
@@ -118,14 +121,14 @@ provide('sidebarCollapsed', sidebarCollapsed)
 
 // Get user's teams (current team + owned teams)
 const userTeams = computed(() => {
-  if (!loggedInUser) return []
+  if (!loggedInUser.value) return []
   const teams = []
-  if (loggedInUser.team) {
-    teams.push(loggedInUser.team)
+  if (loggedInUser.value?.team) {
+    teams.push(loggedInUser.value?.team)
   }
   // Add owned teams if different from current
-  if (loggedInUser.ownedTeams) {
-    for (const team of loggedInUser.ownedTeams) {
+  if (loggedInUser.value?.ownedTeams) {
+    for (const team of loggedInUser.value?.ownedTeams) {
       if (!teams.find((t) => t.id === team.id)) {
         teams.push(team)
       }
@@ -444,7 +447,7 @@ watch(() => page.url, closeMobileMenu)
                 <span>Lookout</span>
               </Link>
             </li>
-            <li>
+            <li v-if="canManageInstance">
               <Link
                 href="/bosun"
                 @click="closeMobileMenu"
@@ -520,7 +523,7 @@ watch(() => page.url, closeMobileMenu)
               </Link>
               <!-- Update available (conditional) -->
               <button
-                v-if="updateInfo?.updateAvailable"
+                v-if="canManageInstance && updateInfo?.updateAvailable"
                 @click="openUpdateModalFromMobileMenu"
                 class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
               >
@@ -719,7 +722,7 @@ watch(() => page.url, closeMobileMenu)
               <span>Lookout</span>
             </Link>
           </li>
-          <li>
+          <li v-if="canManageInstance">
             <Link
               href="/bosun"
               :class="[
@@ -792,7 +795,7 @@ watch(() => page.url, closeMobileMenu)
             </Link>
             <!-- Update available (conditional) -->
             <button
-              v-if="updateInfo?.updateAvailable"
+              v-if="canManageInstance && updateInfo?.updateAvailable"
               @click="openUpdateModalFromUserMenu"
               class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
             >
@@ -870,7 +873,7 @@ watch(() => page.url, closeMobileMenu)
     <!-- Main Content -->
     <main class="min-w-0 flex-1 overflow-y-auto bg-white dark:bg-gray-950">
       <!-- Update Banner (only for logged in users) -->
-      <UpdateBanner v-if="loggedInUser" />
+      <UpdateBanner v-if="canManageInstance" />
 
       <slot></slot>
     </main>
@@ -887,7 +890,7 @@ watch(() => page.url, closeMobileMenu)
 
     <!-- Update Confirmation Modal -->
     <UpdateModal
-      v-if="showUpdateModal"
+      v-if="canManageInstance && showUpdateModal"
       :updateInfo="updateInfo"
       @close="showUpdateModal = false"
     />

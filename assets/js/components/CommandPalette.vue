@@ -53,6 +53,9 @@ const mode = ref('root')
 const parentCommand = ref(null)
 
 const page = usePage()
+const canManageInstance = computed(
+  () => page.props.loggedInUser?.isGenesisUser === true
+)
 const currentUrl = computed(() => page.url)
 const navProjects = computed(() => page.props.navProjects || [])
 const navApps = computed(() => page.props.navApps || [])
@@ -103,6 +106,7 @@ register({
 
 register({
   id: 'nav.settings.global-env',
+  instanceOnly: true,
   title: 'Global Environment Variables',
   keywords: ['env', 'variables', 'secrets', 'environment'],
   group: 'Navigation',
@@ -112,6 +116,7 @@ register({
 
 register({
   id: 'nav.settings.instance',
+  instanceOnly: true,
   title: 'Instance Settings',
   keywords: ['domain', 'server', 'hostname'],
   group: 'Navigation',
@@ -121,6 +126,7 @@ register({
 
 register({
   id: 'nav.settings.notifications',
+  instanceOnly: true,
   title: 'Notification Settings',
   keywords: ['telegram', 'email', 'alerts', 'smtp'],
   group: 'Navigation',
@@ -130,6 +136,7 @@ register({
 
 register({
   id: 'nav.settings.uploads',
+  instanceOnly: true,
   title: 'File Storage Settings',
   keywords: ['s3', 'r2', 'storage', 'uploads', 'backup'],
   group: 'Navigation',
@@ -166,6 +173,7 @@ register({
 
 register({
   id: 'nav.settings.update',
+  instanceOnly: true,
   title: 'System Updates',
   keywords: ['version', 'update', 'upgrade'],
   group: 'Navigation',
@@ -211,6 +219,7 @@ register({
 
 register({
   id: 'nav.bosun',
+  instanceOnly: true,
   title: 'Go to Bosun',
   keywords: ['bosun', 'database', 'sql', 'console', 'query'],
   group: 'Navigation',
@@ -228,14 +237,15 @@ register({
     const items = []
 
     // Bosun (instance) logs — always first
-    items.push({
-      id: 'nav.logs.bosun',
-      title: 'Slipway instance',
-      keywords: ['bosun', 'instance', 'system'],
-      group: 'Instance',
-      icon: 'terminal',
-      action: () => router.visit('/bosun?logs=1')
-    })
+    if (canManageInstance.value)
+      items.push({
+        id: 'nav.logs.bosun',
+        title: 'Slipway instance',
+        keywords: ['bosun', 'instance', 'system'],
+        group: 'Instance',
+        icon: 'terminal',
+        action: () => router.visit('/bosun?logs=1')
+      })
 
     // App logs
     navApps.value.forEach((app) => {
@@ -523,6 +533,7 @@ const allCommands = computed(() => {
   let cmds = getAll()
   // Context filtering based on current URL
   return cmds.filter((cmd) => {
+    if (cmd.instanceOnly && !canManageInstance.value) return false
     if (!cmd.context) return true
     return cmd.context(currentUrl.value)
   })

@@ -9,6 +9,7 @@
  */
 
 module.exports.policies = {
+  '*': false,
   /***************************************************************************
    *                                                                          *
    * Default policy for all controllers and actions, unless overridden.       *
@@ -46,13 +47,23 @@ module.exports.policies = {
   'lookout/*': 'is-authenticated',
 
   // System pages require authentication
-  'system/*': 'is-authenticated',
+  'system/*': ['is-authenticated', 'is-instance-admin'],
 
   // Bosun self-administration requires authentication
-  'bosun/*': 'is-authenticated',
+  'bosun/*': ['is-authenticated', 'is-instance-admin'],
 
   // Settings pages require authentication
   'setting/*': 'is-authenticated',
+  'setting/view-instance': ['is-authenticated', 'is-instance-admin'],
+  'setting/update-instance': ['is-authenticated', 'is-instance-admin'],
+  'setting/view-global-env': ['is-authenticated', 'is-instance-admin'],
+  'setting/update-global-env': ['is-authenticated', 'is-instance-admin'],
+  'setting/view-notifications': ['is-authenticated', 'is-instance-admin'],
+  'setting/update-notifications': ['is-authenticated', 'is-instance-admin'],
+  'setting/test-notification': ['is-authenticated', 'is-instance-admin'],
+  'setting/view-uploads': ['is-authenticated', 'is-instance-admin'],
+  'setting/update-uploads': ['is-authenticated', 'is-instance-admin'],
+  'setting/update-git': ['is-authenticated', 'is-instance-admin'],
 
   // Team management requires authentication
   'team/*': 'is-authenticated',
@@ -65,6 +76,7 @@ module.exports.policies = {
 
   // API v1 routes require authentication
   'api/v1/*': 'is-authenticated',
+  'api/v1/bosun/*': ['is-authenticated', 'is-instance-admin'],
 
   // CLI auth endpoints are public (user not logged in yet)
   'api/v1/cli/init-auth': true,
@@ -91,6 +103,10 @@ module.exports.policies = {
   'bearing/view-surface': true,
   'bearing/view-update': true,
   'bearing/view-update-social-image': true,
+  'bearing/toggle-vote': true,
+  'bearing/view-bootstrap': true,
+  'bearing/view-widget-config': true,
+  'bearing/redirect-to-feedback': true,
 
   // Bridge pages accept either a Slipway operator session or the dedicated,
   // app-scoped host-user session created by bridge/launch.

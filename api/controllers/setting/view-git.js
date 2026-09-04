@@ -64,6 +64,7 @@ module.exports = {
     return {
       page: 'settings/git',
       props: {
+        canManageInstance: user.isGenesisUser === true,
         githubConfigured,
         githubConnected: !!githubProvider,
         githubUser: githubProvider
