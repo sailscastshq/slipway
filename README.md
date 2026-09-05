@@ -144,7 +144,7 @@ slipway slide
 | Database      | SQLite                        | Zero-config, single-file backup        |
 | Proxy         | Caddy                         | Automatic HTTPS, Docker-native routing |
 | Containers    | Docker                        | Universal runtime, no vendor lock-in   |
-| Security      | `execFile()` everywhere       | No shell injection possible            |
+| Security      | Argument-based process calls | Avoid shell parsing; validate inputs and bound work |
 
 ## The Platform
 

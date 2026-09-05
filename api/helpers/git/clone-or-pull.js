@@ -33,7 +33,6 @@ module.exports = {
     },
     deployKeyPrivate: {
       type: 'string',
-      required: true,
       description: 'PEM-encoded private key for SSH auth'
     },
     deploymentId: {
@@ -58,12 +57,16 @@ module.exports = {
     deploymentCancellation.throwIfCancelled(signal, deploymentId)
     const exactCommit = isCommitSha(commit) ? commit : null
     // Normalize the key: fix escaped newlines and ensure trailing newline
-    let key = deployKeyPrivate.replace(/\\n/g, '\n')
+    if (!deployKeyPrivate && !/^https:\/\//i.test(cloneUrl))
+      throw new Error(
+        'Legacy repositories without a deploy key require an HTTPS URL'
+      )
+    let key = (deployKeyPrivate || '').replace(/\\n/g, '\n')
     if (!key.endsWith('\n')) {
       key += '\n'
     }
 
-    if (!key.includes('-----BEGIN')) {
+    if (deployKeyPrivate && !key.includes('-----BEGIN')) {
       throw new Error(
         'Deploy key is not in a valid SSH format — it may be corrupted or not decrypted. Re-connect the repository to regenerate the key.'
       )

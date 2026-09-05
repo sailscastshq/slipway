@@ -1,5 +1,3 @@
-const path = require('path')
-const { publishArchive } = require('../../../../lib/source-workspace')
 const fs = require('fs')
 
 module.exports = {
@@ -22,6 +20,7 @@ module.exports = {
   },
 
   exits: {
+    accepted: { statusCode: 202 },
     success: {
       statusCode: 200
     },
@@ -71,60 +70,49 @@ module.exports = {
       throw 'badRequest'
     }
 
-    const tarballPath = uploadedFiles[0].fd
-    const targetDir = path.join(sails.config.custom.slipwayAppsDir, projectSlug)
-
-    let publication
+    let operation
     try {
-      publication = await publishArchive({
-        root: sails.config.custom.slipwayAppsDir,
+      operation = await require('../../../../lib/source-operations').enqueue({
         project,
-        archive: tarballPath,
-        limits: sails.config.custom.sourceArchiveLimits
+        userId: user.id,
+        archive: uploadedFiles[0].fd
       })
     } catch (error) {
-      sails.log.warn(`Source upload rejected: ${error.message}`)
       if (error.code === 'SOURCE_BUSY')
         throw { busy: { message: error.message } }
-      throw {
-        badRequest: {
-          message:
-            'Source archive was rejected. Previous source is preserved. Check archive paths, file types, size, and available disk space.'
-        }
-      }
+      throw error
     } finally {
       await Promise.all(
         uploadedFiles.map((file) => fs.promises.rm(file.fd, { force: true }))
       )
     }
-
-    // Detect features from the pushed source and store on all environments
-    try {
-      const detectedFeatures = await sails.helpers.sails.detectFeatures(
-        targetDir
-      )
-      await Environment.update({ project: project.id }).set({
-        features: detectedFeatures
-      })
-      if (Object.keys(detectedFeatures).length > 0) {
-        sails.log.info(
-          `Features detected for ${projectSlug}: ${Object.keys(
-            detectedFeatures
-          ).join(', ')}`
-        )
+    if (this.req.get('x-slipway-source-protocol') === '2') {
+      throw {
+        accepted: {
+          message: 'Source upload queued',
+          operation:
+            require('../../../../lib/source-operations').publicOperation(
+              operation
+            )
+        }
       }
-    } catch (err) {
-      sails.log.warn(
-        `Feature detection after push failed (non-fatal): ${err.message}`
-      )
     }
-
-    sails.log.info(`Source pushed for ${projectSlug} → ${targetDir}`)
-
+    // Older CLIs expect source to be ready before they trigger a deployment.
+    // Keep compatibility without blocking the event loop.
+    while (['queued', 'running'].includes(operation.status)) {
+      await new Promise((resolve) => setTimeout(resolve, 250))
+      operation = await SourceOperation.findOne({ id: operation.id })
+    }
+    if (operation.status !== 'completed')
+      throw {
+        badRequest: {
+          message: operation.error || 'Source upload did not complete'
+        }
+      }
     return {
       message: 'Source uploaded successfully',
       project: projectSlug,
-      sourceRevision: publication.revision
+      sourceRevision: operation.sourceRevision
     }
   }
 }

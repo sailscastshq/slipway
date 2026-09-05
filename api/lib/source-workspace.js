@@ -167,6 +167,7 @@ async function publishArchive({ root, project, archive, limits, signal }) {
         errorOnExist: true,
         force: false
       })
+      signal?.throwIfAborted()
       try {
         await fsp.rename(target, previous)
         moved = true

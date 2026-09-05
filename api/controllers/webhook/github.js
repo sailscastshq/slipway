@@ -1,4 +1,3 @@
-const path = require('path')
 const { isContentCommit } = require('../../lib/content-commit')
 
 /**
@@ -160,23 +159,6 @@ async function handlePush(repo, payload) {
       id: environment.id
     }).populate('project')
     const project = envRecord.project
-
-    // Clone or pull the repo source code before building
-    const targetDir = path.join(
-      sails.config.custom.slipwayAppsDir,
-      project.slug
-    )
-    if (!repo.deployKeyPrivate) {
-      sails.log.warn(
-        `[webhook] No deploy key found for ${repo.fullName} — was the key decrypted?`
-      )
-    }
-    await sails.helpers.git.cloneOrPull.with({
-      cloneUrl: repo.cloneUrl,
-      branch,
-      targetDir,
-      deployKeyPrivate: repo.deployKeyPrivate
-    })
 
     // If repo is linked to a specific app, deploy only that app.
     // Otherwise, deploy all apps in the environment.

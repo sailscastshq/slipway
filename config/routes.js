@@ -146,6 +146,10 @@ module.exports.routes = {
    ***************************************************************************/
 
   // Projects
+  'GET /api/v1/source-operations/:operationId':
+    'api/v1/project/source-operation',
+  'DELETE /api/v1/source-operations/:operationId':
+    'api/v1/project/source-operation',
   'POST /api/v1/projects/:projectSlug/push': 'api/v1/project/push-source',
   'GET /api/v1/projects': 'api/v1/project/list-projects',
   'POST /api/v1/projects': 'api/v1/project/create-project',

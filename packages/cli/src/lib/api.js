@@ -92,7 +92,8 @@ async function apiUpload(path, fieldName, buffer, filename) {
     const response = await fetch(url, {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${token}`
+        Authorization: `Bearer ${token}`,
+        'X-Slipway-Source-Protocol': '2'
       },
       signal: AbortSignal.timeout(120000),
       body: formData
@@ -153,8 +154,7 @@ api.projects = {
   get: (id) => api.get(`/projects/${id}`),
   update: (id, data) => api.patch(`/projects/${id}`, data),
   delete: (id) => api.delete(`/projects/${id}`),
-  push: (id, tarballBuffer) =>
-    api.upload(`/projects/${id}/push`, 'source', tarballBuffer, 'source.tar.gz')
+  push: (id, tarballBuffer) => pushSource(id, tarballBuffer)
 }
 
 // Environment endpoints
@@ -204,4 +204,31 @@ api.backups = {
 api.auditLogs = {
   list: (page = 1, limit = 20) =>
     api.get(`/audit-logs?page=${page}&limit=${limit}`)
+}
+
+async function pushSource(id, tarballBuffer) {
+  let result = await api.upload(
+    `/projects/${id}/push`,
+    'source',
+    tarballBuffer,
+    'source.tar.gz'
+  )
+  if (!result.operation) return result
+  const operationId = result.operation.id
+  const deadline = Date.now() + 10 * 60 * 1000
+  while (['queued', 'running'].includes(result.operation.status)) {
+    if (Date.now() > deadline)
+      throw new Error(
+        `Source operation ${operationId} is still pending. Check /api/v1/source-operations/${operationId} before uploading again.`
+      )
+    await new Promise((resolve) => setTimeout(resolve, 750))
+    result = await api.get(`/source-operations/${operationId}`)
+  }
+  if (result.operation.status !== 'completed')
+    throw new Error(
+      `Source operation ${operationId}: ${
+        result.operation.error || result.operation.status
+      }`
+    )
+  return { sourceRevision: result.operation.sourceRevision }
 }

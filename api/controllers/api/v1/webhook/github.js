@@ -1,6 +1,3 @@
-const { execFileSync } = require('child_process')
-const fs = require('fs')
-const path = require('path')
 const { isContentCommit } = require('../../../../lib/content-commit')
 
 module.exports = {
@@ -102,58 +99,6 @@ module.exports = {
         if (!repoUrl) {
           sails.log.warn(`No repository URL configured for ${projectSlug}`)
           return { message: 'No repository URL configured' }
-        }
-
-        const targetDir = path.join(
-          sails.config.custom.slipwayAppsDir,
-          projectSlug
-        )
-
-        // Ensure apps directory exists
-        fs.mkdirSync(sails.config.custom.slipwayAppsDir, { recursive: true })
-
-        try {
-          if (fs.existsSync(path.join(targetDir, '.git'))) {
-            // Pull latest
-            execFileSync('git', ['fetch', 'origin', branch], {
-              cwd: targetDir,
-              timeout: 120000
-            })
-            execFileSync('git', ['reset', '--hard', `origin/${branch}`], {
-              cwd: targetDir,
-              timeout: 30000
-            })
-            execFileSync('git', ['clean', '-fd'], {
-              cwd: targetDir,
-              timeout: 30000
-            })
-          } else {
-            // Fresh clone
-            if (fs.existsSync(targetDir)) {
-              fs.rmSync(targetDir, { recursive: true, force: true })
-            }
-            execFileSync(
-              'git',
-              [
-                'clone',
-                '--branch',
-                branch,
-                '--single-branch',
-                '--depth',
-                '1',
-                repoUrl,
-                targetDir
-              ],
-              {
-                timeout: 120000
-              }
-            )
-          }
-        } catch (err) {
-          sails.log.error(
-            `Failed to clone/pull for ${projectSlug}: ${err.message}`
-          )
-          return { message: `Git error: ${err.message}` }
         }
 
         // Find the default environment (production) and trigger deploy

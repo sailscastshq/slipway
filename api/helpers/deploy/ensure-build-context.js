@@ -180,10 +180,19 @@ async function inspectBuildContext({ project, environment, app }) {
     project.slug
   )
   const hasSource = hasSourceFiles(contextPath)
-  const repository = await findConnectedRepository(app, environment)
+  let repository = await findConnectedRepository(app, environment)
+  if (!repository && project.repositoryUrl) {
+    repository = {
+      cloneUrl: project.repositoryUrl,
+      defaultBranch: project.autoDeployBranch || 'main',
+      publicRepository: true
+    }
+  }
   const hasConnectedRepository = Boolean(repository)
   const canHydrate = Boolean(
-    repository && repository.cloneUrl && repository.deployKeyPrivate
+    repository &&
+      repository.cloneUrl &&
+      (repository.deployKeyPrivate || repository.publicRepository)
   )
 
   let sourceMode = 'none'
