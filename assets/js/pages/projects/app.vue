@@ -1,4 +1,8 @@
 <script setup>
+import {
+  mutationFailureMessage,
+  assertMutationResponse
+} from '@/lib/mutation-feedback'
 import WarningTriangle from '@/components/ui/icons/WarningTriangle.vue'
 import Users from '@/components/ui/icons/Users.vue'
 import Terminal from '@/components/ui/icons/Terminal.vue'
@@ -139,14 +143,18 @@ const stopping = ref(false)
 async function restartApp() {
   restarting.value = true
   try {
-    await fetch(
-      `/api/v1/projects/${props.project.slug}/environments/${props.environment.slug}/apps/${props.app.slug}/restart`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
-      }
+    await assertMutationResponse(
+      await fetch(
+        `/api/v1/projects/${props.project.slug}/environments/${props.environment.slug}/apps/${props.app.slug}/restart`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
+        }
+      )
     )
     router.reload({ only: ['app'] })
+  } catch (error) {
+    toast({ message: mutationFailureMessage(error), type: 'error' })
   } finally {
     restarting.value = false
   }
@@ -155,14 +163,18 @@ async function restartApp() {
 async function stopApp() {
   stopping.value = true
   try {
-    await fetch(
-      `/api/v1/projects/${props.project.slug}/environments/${props.environment.slug}/apps/${props.app.slug}/stop`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
-      }
+    await assertMutationResponse(
+      await fetch(
+        `/api/v1/projects/${props.project.slug}/environments/${props.environment.slug}/apps/${props.app.slug}/stop`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
+        }
+      )
     )
     router.reload({ only: ['app'] })
+  } catch (error) {
+    toast({ message: mutationFailureMessage(error), type: 'error' })
   } finally {
     stopping.value = false
   }
@@ -238,6 +250,8 @@ async function saveCustomDomain() {
       const err = await res.json().catch(() => null)
       toast({ message: err?.message || 'Failed to save domain', type: 'error' })
     }
+  } catch (error) {
+    toast({ message: mutationFailureMessage(error), type: 'error' })
   } finally {
     savingDomain.value = false
   }

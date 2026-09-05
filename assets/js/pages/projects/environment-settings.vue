@@ -1,4 +1,8 @@
 <script setup>
+import {
+  mutationFailureMessage,
+  assertMutationResponse
+} from '@/lib/mutation-feedback'
 import SidebarOpen from '@/components/ui/icons/SidebarOpen.vue'
 import SidebarClose from '@/components/ui/icons/SidebarClose.vue'
 import ExternalLink from '@/components/ui/icons/ExternalLink.vue'
@@ -37,6 +41,7 @@ const form = useForm({
 const { applyResponseProblems, revalidateWhenInvalid, validateOnBlur } =
   usePrecognitionValidation(form)
 const saving = ref(false)
+const saveError = ref('')
 
 const isDirty = computed(
   () =>
@@ -50,6 +55,7 @@ const purgeData = ref(false)
 async function save() {
   if (saving.value) return
   saving.value = true
+  saveError.value = ''
 
   try {
     const res = await fetch(settingsUrl, {
@@ -72,6 +78,9 @@ async function save() {
         type: 'error'
       })
     }
+  } catch (error) {
+    saveError.value = mutationFailureMessage(error)
+    toast({ message: saveError.value, type: 'error' })
   } finally {
     saving.value = false
   }
@@ -239,14 +248,24 @@ function openDeleteEnvironment() {
             </button>
           </div>
 
-          <div class="flex justify-end">
+          <div class="flex flex-col items-end gap-3">
             <button
               type="submit"
               :disabled="saving || form.hasErrors || !isDirty"
               class="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
             >
-              {{ saving ? 'Saving...' : 'Save changes' }}
+              {{
+                saving ? 'Saving...' : saveError ? 'Retry save' : 'Save changes'
+              }}
             </button>
+            <p
+              v-if="saveError"
+              role="alert"
+              data-test="environment-save-error"
+              class="order-first w-full text-sm text-red-600 dark:text-red-400"
+            >
+              {{ saveError }}
+            </p>
           </div>
         </form>
 

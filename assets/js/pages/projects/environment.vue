@@ -1,4 +1,8 @@
 <script setup>
+import {
+  mutationFailureMessage,
+  assertMutationResponse
+} from '@/lib/mutation-feedback'
 import WarningTriangle from '@/components/ui/icons/WarningTriangle.vue'
 import Upload from '@/components/ui/icons/Upload.vue'
 import StopCircle from '@/components/ui/icons/StopCircle.vue'
@@ -270,12 +274,14 @@ async function deployApp(appItem) {
 
 async function restartSingleApp(appItem) {
   try {
-    await fetch(
-      `/api/v1/projects/${props.project.slug}/environments/${props.environment.slug}/apps/${appItem.slug}/restart`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
-      }
+    await assertMutationResponse(
+      await fetch(
+        `/api/v1/projects/${props.project.slug}/environments/${props.environment.slug}/apps/${appItem.slug}/restart`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
+        }
+      )
     )
     router.reload({ only: ['apps', 'app'] })
   } catch {
@@ -285,12 +291,14 @@ async function restartSingleApp(appItem) {
 
 async function stopSingleApp(appItem) {
   try {
-    await fetch(
-      `/api/v1/projects/${props.project.slug}/environments/${props.environment.slug}/apps/${appItem.slug}/stop`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
-      }
+    await assertMutationResponse(
+      await fetch(
+        `/api/v1/projects/${props.project.slug}/environments/${props.environment.slug}/apps/${appItem.slug}/stop`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
+        }
+      )
     )
     router.reload({ only: ['apps', 'app'] })
   } catch {
@@ -784,7 +792,11 @@ async function stopService(service) {
       headers: { 'Content-Type': 'application/json' }
     })
     completeAction(actionId, res.ok)
+    await assertMutationResponse(res)
     router.reload({ only: ['environment'] })
+  } catch (error) {
+    completeAction(actionId, false)
+    toast({ message: mutationFailureMessage(error), type: 'error' })
   } finally {
     stoppingServiceId.value = null
   }
@@ -808,6 +820,9 @@ async function startService(service) {
     })
     completeAction(actionId, res.ok)
     router.reload({ only: ['environment'] })
+  } catch (error) {
+    completeAction(actionId, false)
+    toast({ message: mutationFailureMessage(error), type: 'error' })
   } finally {
     startingServiceId.value = null
   }
@@ -875,11 +890,13 @@ async function triggerBackup(service) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' }
     })
-    if (!res.ok) return
+    await assertMutationResponse(res)
     const data = await res.json()
     router.reload({ only: ['environment'] })
     backupStreamUrl.value = `/api/v1/backups/${data.backup.id}/stream`
     connectBackupStream()
+  } catch (error) {
+    toast({ message: mutationFailureMessage(error), type: 'error' })
   } finally {
     backingUpServiceId.value = null
   }
