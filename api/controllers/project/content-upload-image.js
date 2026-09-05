@@ -58,7 +58,7 @@ module.exports = {
 
   fn: async function ({ slug, envSlug }) {
     const user = await User.findOne({
-      id: this.req.session.userId
+      id: this.req.auth?.userId || this.req.session.userId
     }).populate('team')
     if (!user) {
       throw { forbidden: { message: 'Sign in before uploading an image.' } }

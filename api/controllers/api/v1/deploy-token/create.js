@@ -53,7 +53,9 @@ module.exports = {
     scopes,
     expiresInDays
   }) {
-    const user = await User.findOne({ id: this.req.session.userId })
+    const user = await User.findOne({
+      id: this.req.auth?.userId || this.req.session.userId
+    })
 
     const problems = sails.helpers.setting.validate(
       { name, scopes, expiresInDays },

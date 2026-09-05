@@ -50,7 +50,10 @@ module.exports = {
       if (error.code === 'reauthenticate') {
         throw { reauthenticate: error.raw || error }
       }
-      if (error.code === 'forbidden' && !this.req.session.userId) {
+      if (
+        error.code === 'forbidden' &&
+        !(this.req.auth?.userId || this.req.session.userId)
+      ) {
         throw 'forbidden'
       }
       if (error.code === 'forbidden' && appSlug) {
@@ -59,9 +62,10 @@ module.exports = {
         }
       }
       throw {
-        notFound: this.req.session.userId
-          ? `/projects/${slug}/environments/${envSlug}`
-          : '/login'
+        notFound:
+          this.req.auth?.userId || this.req.session.userId
+            ? `/projects/${slug}/environments/${envSlug}`
+            : '/login'
       }
     }
     const {

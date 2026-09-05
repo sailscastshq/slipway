@@ -41,7 +41,9 @@ module.exports = {
   },
 
   fn: async function ({ slug, envSlug, appSlug, repoId, branch }) {
-    const user = await User.findOne({ id: this.req.session.userId })
+    const user = await User.findOne({
+      id: this.req.auth?.userId || this.req.session.userId
+    })
     const redirectUrl = `/projects/${slug}/environments/${envSlug}/apps/${appSlug}/settings`
 
     const project = await Project.findOne({ slug }).populate('team')

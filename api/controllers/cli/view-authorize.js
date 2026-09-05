@@ -49,11 +49,13 @@ module.exports = {
     }
 
     // Check if user is logged in
-    const isLoggedIn = !!this.req.session.userId
+    const isLoggedIn = !!(this.req.auth?.userId || this.req.session.userId)
     let user = null
 
     if (isLoggedIn) {
-      user = await User.findOne({ id: this.req.session.userId })
+      user = await User.findOne({
+        id: this.req.auth?.userId || this.req.session.userId
+      })
     }
 
     return {

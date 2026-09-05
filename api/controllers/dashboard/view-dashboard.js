@@ -11,9 +11,9 @@ module.exports = {
 
   fn: async function () {
     // Get the logged-in user with their team
-    const user = await User.findOne({ id: this.req.session.userId }).populate(
-      'team'
-    )
+    const user = await User.findOne({
+      id: this.req.auth?.userId || this.req.session.userId
+    }).populate('team')
 
     // Fetch projects for the user's team
     let projects = []

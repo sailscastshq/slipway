@@ -48,9 +48,9 @@ module.exports = {
   },
 
   fn: async function ({ slug, envSlug, collection, file, appSlug, sourceSha }) {
-    const user = await User.findOne({ id: this.req.session.userId }).populate(
-      'team'
-    )
+    const user = await User.findOne({
+      id: this.req.auth?.userId || this.req.session.userId
+    }).populate('team')
     if (!user) {
       throw { notFound: '/login' }
     }

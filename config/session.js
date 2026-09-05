@@ -13,7 +13,8 @@ module.exports.session = {
   // Slipway can serve Bridge through another Sails app's origin. Use a
   // product-specific cookie name so the two apps never overwrite each
   // other's `sails.sid` while still retaining normal session-backed CSRF.
-  name: 'slipway.sid',
+  // Expire legacy sessions that could have been minted from CLI tokens.
+  name: 'slipway.sid.v2',
 
   /***************************************************************************
    *                                                                          *

@@ -54,7 +54,7 @@ test(
     const deleted = await browser.request.post('/api/v1/bosun/eval', {
       code: '1+1'
     })
-    expect(deleted).toHaveStatus(403)
+    expect(deleted).toHaveStatus(401)
   }
 )
 

@@ -31,9 +31,9 @@ module.exports = {
   },
 
   fn: async function ({ slug, envSlug, serviceId }) {
-    const user = await User.findOne({ id: this.req.session.userId }).populate(
-      'team'
-    )
+    const user = await User.findOne({
+      id: this.req.auth?.userId || this.req.session.userId
+    }).populate('team')
 
     const project = await Project.findOne({ slug, team: user.team.id })
 

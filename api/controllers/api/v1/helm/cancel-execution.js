@@ -22,7 +22,7 @@ module.exports = {
     return {
       cancelled: await sails.helpers.helm.cancelExecution(
         executionId,
-        this.req.session.userId
+        this.req.auth?.userId || this.req.session.userId
       )
     }
   }

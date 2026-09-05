@@ -31,7 +31,9 @@ module.exports = {
   },
 
   fn: async function ({ serviceId, command }) {
-    const user = await User.findOne({ id: this.req.session.userId })
+    const user = await User.findOne({
+      id: this.req.auth?.userId || this.req.session.userId
+    })
 
     const service = await Service.findOne({ id: serviceId })
       .populate('environment')

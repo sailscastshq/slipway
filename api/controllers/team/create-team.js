@@ -23,7 +23,7 @@ module.exports = {
   },
 
   fn: async function ({ name }) {
-    const userId = this.req.session.userId
+    const userId = this.req.auth?.userId || this.req.session.userId
 
     // Create the new team with the current user as owner
     const team = await Team.create({

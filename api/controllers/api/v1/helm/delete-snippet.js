@@ -27,7 +27,7 @@ module.exports = {
   fn: async function ({ projectSlug, environmentSlug, id }) {
     const scope = await sails.helpers.helm
       .resolveProjectScope(
-        this.req.session.userId,
+        this.req.auth?.userId || this.req.session.userId,
         projectSlug,
         environmentSlug
       )

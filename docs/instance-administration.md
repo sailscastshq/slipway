@@ -17,3 +17,15 @@ their instance authority.
 
 This uses the existing installation-founder identity, so existing installations
 do not need a schema migration or manual role backfill.
+
+## Credential revocation
+
+Bearer tokens authenticate only the request that presents them. They never log
+a browser session in, and a supplied invalid token cannot fall back to a browser
+cookie. Revoking a token closes its active operator streams; removing a user
+closes that user's operator streams. Each new authenticated request also checks
+that its user still exists.
+
+This upgrade changes the session cookie name once to discard legacy sessions
+that might have originated from a CLI token. Browser users must sign in again.
+Existing valid CLI tokens continue to work until explicitly revoked.

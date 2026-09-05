@@ -9,6 +9,8 @@
  * 2. If not logged in → redirect to /login
  * 3. Otherwise → proceed
  */
+const authenticateRequest = require('../lib/authenticate-request')
+
 module.exports = async function (req, res, proceed) {
   // Check if this is an Inertia request (browser with Inertia)
   // Inertia requests should always redirect, not return JSON
@@ -28,7 +30,7 @@ module.exports = async function (req, res, proceed) {
   }
 
   // Second check: Is user logged in?
-  if (!req.session.userId) {
+  if (!(await authenticateRequest(req, { bearer: false }))) {
     if (isPureApi) {
       return res.status(401).json({
         error: 'Unauthorized',

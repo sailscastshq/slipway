@@ -24,7 +24,7 @@ module.exports = {
   },
 
   fn: async function ({ password }) {
-    const userId = this.req.session.userId
+    const userId = this.req.auth?.userId || this.req.session.userId
     const user = await User.findOne({ id: userId }).intercept(
       'notFound',
       () => {
@@ -46,6 +46,7 @@ module.exports = {
     })
 
     delete this.req.session.userId
+    sails.sse?.revoke?.({ userId })
 
     return '/login'
   }

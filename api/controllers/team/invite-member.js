@@ -36,7 +36,9 @@ module.exports = {
   },
 
   fn: async function ({ email, role }) {
-    const currentUser = await User.findOne({ id: this.req.session.userId })
+    const currentUser = await User.findOne({
+      id: this.req.auth?.userId || this.req.session.userId
+    })
 
     // Only owners and admins can invite
     if (!['owner', 'admin'].includes(currentUser.teamRole)) {

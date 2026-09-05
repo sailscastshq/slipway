@@ -28,9 +28,9 @@ module.exports = {
   },
 
   fn: async function ({ slug, purgeData }) {
-    const user = await User.findOne({ id: this.req.session.userId }).populate(
-      'team'
-    )
+    const user = await User.findOne({
+      id: this.req.auth?.userId || this.req.session.userId
+    }).populate('team')
     const requestKey = `project:${slug}`
     const project = await Project.findOne({ slug, team: user.team.id })
     const targetKey = project ? `project:${project.id}` : undefined

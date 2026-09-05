@@ -38,7 +38,9 @@ module.exports = {
     const req = this.req
     const res = this.res
 
-    const user = await User.findOne({ id: req.session.userId }).populate('team')
+    const user = await User.findOne({
+      id: req.auth?.userId || req.session.userId
+    }).populate('team')
     if (!user) throw 'notFound'
 
     const service = await Service.findOne({ id: serviceId }).populate(

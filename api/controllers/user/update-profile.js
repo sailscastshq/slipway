@@ -107,7 +107,7 @@ module.exports = {
       throw 'precognitionSuccess'
     }
 
-    const userId = this.req.session.userId
+    const userId = this.req.auth?.userId || this.req.session.userId
     const user = await User.findOne({ id: userId }).select([
       'password',
       'email'

@@ -32,7 +32,7 @@ module.exports = {
   fn: function ({ executionId, req, res }) {
     const execution = helmExecutions.register({
       executionId,
-      userId: req.session.userId
+      userId: req.auth?.userId || req.session.userId
     })
     const onResponseClose = () => {
       if (!res.writableEnded) {

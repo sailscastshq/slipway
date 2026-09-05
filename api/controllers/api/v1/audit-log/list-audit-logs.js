@@ -36,7 +36,9 @@ module.exports = {
   },
 
   fn: async function ({ page, limit, q, group }) {
-    const user = await User.findOne({ id: this.req.session.userId })
+    const user = await User.findOne({
+      id: this.req.auth?.userId || this.req.session.userId
+    })
     if (!['owner', 'admin'].includes(user.teamRole)) throw 'forbidden'
 
     this.res.set('Cache-Control', 'private, no-store')

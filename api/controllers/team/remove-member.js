@@ -21,7 +21,9 @@ module.exports = {
   },
 
   fn: async function ({ userId }) {
-    const currentUser = await User.findOne({ id: this.req.session.userId })
+    const currentUser = await User.findOne({
+      id: this.req.auth?.userId || this.req.session.userId
+    })
 
     // Only owners and admins can remove members
     if (!['owner', 'admin'].includes(currentUser.teamRole)) {
@@ -62,6 +64,7 @@ module.exports = {
     // Remove user from team (nullify team association) and destroy their CLI tokens
     await CliToken.destroy({ user: userId })
     await User.destroyOne({ id: userId })
+    sails.sse?.revoke?.({ userId })
 
     this.req.addFlash(
       'success',

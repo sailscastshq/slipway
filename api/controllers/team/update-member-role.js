@@ -33,7 +33,9 @@ module.exports = {
   },
 
   fn: async function ({ userId, role }) {
-    const currentUser = await User.findOne({ id: this.req.session.userId })
+    const currentUser = await User.findOne({
+      id: this.req.auth?.userId || this.req.session.userId
+    })
 
     // Only owners can change roles
     if (currentUser.teamRole !== 'owner') {

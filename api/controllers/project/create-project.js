@@ -29,7 +29,7 @@ module.exports = {
   },
 
   fn: async function ({ name, description }) {
-    const userId = this.req.session.userId
+    const userId = this.req.auth?.userId || this.req.session.userId
 
     // Get the user's team
     const user = await User.findOne({ id: userId }).populate('team')

@@ -48,7 +48,9 @@ module.exports = {
     const req = this.req
     const res = this.res
 
-    const user = await User.findOne({ id: req.session.userId }).populate('team')
+    const user = await User.findOne({
+      id: req.auth?.userId || req.session.userId
+    }).populate('team')
     const project = await Project.findOne({
       slug: projectSlug,
       team: user.team.id

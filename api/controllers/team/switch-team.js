@@ -21,7 +21,7 @@ module.exports = {
   },
 
   fn: async function ({ teamId }) {
-    const userId = this.req.session.userId
+    const userId = this.req.auth?.userId || this.req.session.userId
 
     // Check if user is a member of the target team or owns it
     const team = await Team.findOne({ id: teamId })

@@ -35,7 +35,7 @@ module.exports = {
 
   fn: async function ({ code }) {
     // User must be logged in
-    if (!this.req.session.userId) {
+    if (!(this.req.auth?.userId || this.req.session.userId)) {
       throw 'unauthorized'
     }
 
@@ -48,9 +48,9 @@ module.exports = {
     }
 
     // Get the logged-in user with their team
-    const user = await User.findOne({ id: this.req.session.userId }).populate(
-      'team'
-    )
+    const user = await User.findOne({
+      id: this.req.auth?.userId || this.req.session.userId
+    }).populate('team')
 
     if (!user) {
       throw 'unauthorized'
