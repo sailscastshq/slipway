@@ -4,6 +4,7 @@ module.exports = {
   description: 'Restore a backup into its original service (API).',
 
   inputs: {
+    writesPaused: { type: 'boolean', defaultsTo: false },
     backupId: {
       type: 'string',
       required: true,
@@ -26,7 +27,7 @@ module.exports = {
     }
   },
 
-  fn: async function ({ backupId }) {
+  fn: async function ({ backupId, writesPaused }) {
     const user = await User.findOne({
       id: this.req.auth?.userId || this.req.session.userId
     })
@@ -74,29 +75,28 @@ module.exports = {
       }
     }
 
-    // Audit log
-    await sails.helpers.audit.log.with({
-      action: 'backup.restored',
-      resourceType: 'backup',
-      resourceId: backup.id,
-      details: {
-        serviceName: backup.service.name,
-        serviceType: backup.service.type
-      },
-      userId: user.id,
-      teamId: project.team.id,
-      ipAddress: this.req.ip
-    })
-
-    // Run restore asynchronously
-    sails.helpers.backup
-      .restoreBackup(backup.id)
-      .then(() => sails.log.info(`Backup ${backup.id} restored successfully`))
-      .catch((err) => sails.log.error(`Backup restore failed: ${err.message}`))
-
-    return {
-      message: 'Restore started',
-      backupId: backup.id
+    if (!writesPaused)
+      throw {
+        badRequest: {
+          problems: [
+            {
+              writesPaused:
+                'Pause application and external database writes, then confirm they are paused before restoring.'
+            }
+          ]
+        }
+      }
+    let operation
+    try {
+      operation = await require('../../../../lib/restore-operations').enqueue({
+        backup,
+        service: backup.service,
+        teamId: project.team.id,
+        userId: user.id
+      })
+    } catch (error) {
+      throw { badRequest: { problems: [{ service: error.message }] } }
     }
+    return { message: 'Restore queued', backupId: backup.id, operation }
   }
 }

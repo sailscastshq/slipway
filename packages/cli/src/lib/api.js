@@ -197,7 +197,8 @@ api.services = {
 api.backups = {
   create: (serviceId) => api.post(`/services/${serviceId}/backups`),
   list: (serviceId) => api.get(`/services/${serviceId}/backups`),
-  restore: (backupId) => api.post(`/backups/${backupId}/restore`)
+  restore: (backupId) =>
+    api.post(`/backups/${backupId}/restore`, { writesPaused: true })
 }
 
 // Audit log endpoints

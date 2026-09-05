@@ -173,7 +173,7 @@ const commands = {
   'backup:restore': {
     description: 'Restore a database backup',
     args: '<backup-id>',
-    options: {}
+    options: { 'writes-paused': { type: 'boolean', default: false } }
   },
 
   // Admin commands

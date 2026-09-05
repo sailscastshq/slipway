@@ -14,12 +14,7 @@ module.exports.bootstrap = async function () {
   await sails.helpers.auth.ensureSchema()
   await sails.helpers.git.ensureWebhookSchema()
   await sails.helpers.source.ensureSchema()
-  if (
-    sails.config.environment !== 'console' &&
-    sails.config.environment !== 'test'
-  ) {
-    await require('../api/lib/source-operations').recover()
-  }
+  await sails.helpers.backup.ensureRestoreSchema()
   // Production uses `migrate: safe`; create coordinator tables before any
   // deployment job queries run on an existing installation.
   await sails.helpers.cleanup.ensureSchema()
@@ -33,6 +28,13 @@ module.exports.bootstrap = async function () {
   await sails.helpers.deploy.ensureQueueSchema()
   await sails.helpers.service.ensureVersionSchema()
   await sails.helpers.helm.ensureWorkspaceSchema()
+  if (
+    sails.config.environment !== 'console' &&
+    sails.config.environment !== 'test'
+  ) {
+    await require('../api/lib/source-operations').recover()
+    await require('../api/lib/restore-operations').recover()
+  }
 
   // Initialize CLI tokens map for Bearer token authentication
   sails.cliTokens = new Map()

@@ -46,10 +46,22 @@ module.exports = {
     if (!project || project.team !== user.team.id) throw 'notFound'
 
     if (!service.containerName) throw 'notFound'
-    if (service.status === 'upgrading') {
-      throw { conflict: { message: 'The service is currently upgrading.' } }
+    if (['upgrading', 'restoring', 'changing'].includes(service.status)) {
+      throw {
+        conflict: { message: 'The service has an active upgrade or restore.' }
+      }
     }
 
+    const claimed = await Service.updateOne({
+      id: service.id,
+      status: service.status
+    }).set({ status: 'changing' })
+    if (!claimed)
+      throw {
+        conflict: {
+          message: 'Another service operation started. Refresh and retry.'
+        }
+      }
     try {
       const dockerPath = sails.config.docker?.binaryPath || 'docker'
 
@@ -73,6 +85,10 @@ module.exports = {
     } catch (err) {
       sails.log.error(`Failed to start/restart service: ${err.message}`)
       throw 'notFound'
+    } finally {
+      await Service.updateOne({ id: service.id, status: 'changing' }).set({
+        status: service.status
+      })
     }
   }
 }

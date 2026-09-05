@@ -58,6 +58,13 @@ module.exports = {
       throw 'forbidden'
     }
 
+    if (service && ['upgrading', 'restoring'].includes(service.status))
+      throw {
+        cleanupFailed: {
+          message: 'Wait for the active service operation before deleting it.'
+        }
+      }
+
     try {
       const cleanup = await sails.helpers.cleanup.run.with({
         targetKey,

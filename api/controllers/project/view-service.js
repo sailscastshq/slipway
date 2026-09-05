@@ -73,9 +73,16 @@ module.exports = {
       lastBackup = backups[0] || null
     }
 
+    const [restoreOperation] = await RestoreOperation.find({
+      service: service.id
+    })
+      .sort('id DESC')
+      .limit(1)
+
     return {
       page: 'projects/service',
       props: {
+        restoreOperation: restoreOperation || null,
         project: {
           id: project.id,
           name: project.name,
