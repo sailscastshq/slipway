@@ -13,6 +13,7 @@ module.exports = {
   },
 
   exits: {
+    badRequest: { responseType: 'badRequest' },
     success: {
       responseType: 'inertiaRedirect',
       description: 'User account deleted successfully.'
@@ -33,12 +34,37 @@ module.exports = {
       }
     )
 
-    const passwordMatch = await sails.helpers.passwords
+    await sails.helpers.passwords
       .checkPassword(password, user.password)
       .intercept('incorrect', () => {
         delete this.req.session.userId
         return { unauthorized: '/login' }
       })
+
+    if (user.isGenesisUser) {
+      throw {
+        badRequest: {
+          problems: [
+            {
+              password:
+                'The installation administrator cannot delete their own account.'
+            }
+          ]
+        }
+      }
+    }
+    if (await Team.count({ owner: userId })) {
+      throw {
+        badRequest: {
+          problems: [
+            {
+              password:
+                'Transfer or delete the teams you own before deleting your account.'
+            }
+          ]
+        }
+      }
+    }
 
     await User.destroy({ id: userId }).intercept('error', (err) => {
       sails.log.error('Error deleting account:', err)

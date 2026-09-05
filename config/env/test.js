@@ -4,6 +4,7 @@ const {
 } = require('../../api/lib/error-pages')
 
 module.exports = {
+  custom: { setupToken: 'sounding-installation-claim-token' },
   // Port zero asks the OS for an unused listener. Sounding reads the actual
   // bound address after lift, so sequential worlds never share a fixed port.
   port: 0,

@@ -7,6 +7,7 @@ import Spinner from '@/components/SlipwaySpinner.vue'
 import { usePrecognitionValidation } from '@/composables/precognition'
 
 const form = useForm({
+  setupToken: '',
   email: '',
   password: '',
   confirmPassword: ''
@@ -32,6 +33,7 @@ const passwordsMatch = computed(() => {
 
 const isFormValid = computed(() => {
   return (
+    form.setupToken &&
     form.email &&
     passwordIsValid.value &&
     containsSpecialChars.value &&
@@ -76,6 +78,33 @@ const isFormValid = computed(() => {
       </div>
 
       <form @submit.prevent="form.post('/setup')" class="space-y-4">
+        <div>
+          <label
+            for="setupToken"
+            class="text-sm font-medium text-gray-900 dark:text-white"
+            >Installation claim token</label
+          >
+          <Input
+            id="setupToken"
+            v-model="form.setupToken"
+            type="password"
+            autocomplete="off"
+            required
+            aria-describedby="setup-token-help setup-token-error"
+            :aria-invalid="Boolean(form.errors.setupToken)"
+            class="mt-2 h-12 w-full"
+          />
+          <p id="setup-token-help" class="mt-2 text-xs text-gray-500">
+            Copy the token shown by the installer or in your server logs.
+          </p>
+          <p
+            id="setup-token-error"
+            role="alert"
+            class="mt-1 text-xs text-red-600"
+          >
+            {{ form.errors.setupToken }}
+          </p>
+        </div>
         <div>
           <Input
             id="email"

@@ -6,7 +6,11 @@
  */
 module.exports = async function (req, res, proceed) {
   // Check if Slipway is already set up (set in bootstrap.js)
-  if (sails.config.custom.slipwayIsSetup) {
+  if (
+    sails.config.custom.slipwayIsSetup ||
+    (await Setting.findOne({ key: 'installationCompleted' })) ||
+    (await User.findOne({ isGenesisUser: true }))
+  ) {
     // Slipway is configured, don't allow access to setup/register
     if (req.wantsJSON) {
       return res.forbidden({ message: 'Slipway is already configured.' })

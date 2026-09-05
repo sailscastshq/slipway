@@ -32,13 +32,32 @@ module.exports.bootstrap = async function () {
   // Check if Slipway has been set up (genesis user exists)
   const genesisUser = await User.findOne({ isGenesisUser: true })
 
-  // Store setup status in config for middleware/policies to use
-  sails.config.custom.slipwayIsSetup = !!genesisUser
-
-  if (genesisUser) {
-    sails.log.info('Slipway is configured. Genesis user:', genesisUser.email)
-  } else {
-    sails.log.info('Slipway needs initial setup. Visit /setup to configure.')
+  // A completed installation stays closed even if its founder is removed outside the app.
+  let installation = await Setting.findOne({ key: 'installationCompleted' })
+  if (genesisUser && !installation) {
+    installation = await Setting.findOrCreate(
+      { key: 'installationCompleted' },
+      { key: 'installationCompleted', value: 'true' }
+    )
+  }
+  sails.config.custom.slipwayIsSetup = Boolean(installation || genesisUser)
+  if (!sails.config.custom.slipwayIsSetup) {
+    sails.config.custom.setupToken =
+      process.env.SLIPWAY_SETUP_TOKEN ||
+      require('node:crypto').randomBytes(32).toString('hex')
+    if (sails.config.environment !== 'test') {
+      sails.log.info('Slipway needs initial setup. Visit /setup to configure.')
+      if (!process.env.SLIPWAY_SETUP_TOKEN) {
+        sails.log.warn(
+          'Slipway installation claim token:',
+          sails.config.custom.setupToken
+        )
+      } else {
+        sails.log.info(
+          'Use SLIPWAY_SETUP_TOKEN from the server environment to claim this installation.'
+        )
+      }
+    }
   }
 
   const skipInfraBootstrap = sails.config.environment === 'test'

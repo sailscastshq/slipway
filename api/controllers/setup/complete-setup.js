@@ -10,6 +10,7 @@ module.exports = {
     'Create the genesis user and default team to complete Slipway setup.',
 
   inputs: {
+    setupToken: { type: 'string', maxLength: 256 },
     email: {
       type: 'string',
       isEmail: true,
@@ -42,7 +43,12 @@ module.exports = {
     }
   },
 
-  fn: async function ({ email: userEmail, password, confirmPassword }) {
+  fn: async function ({
+    email: userEmail,
+    password,
+    confirmPassword,
+    setupToken
+  }) {
     if (
       sails.inertia.shouldValidate('password', this.req) &&
       !hasSpecialCharacter(password)
@@ -75,6 +81,28 @@ module.exports = {
       throw 'precognitionSuccess'
     }
 
+    const crypto = require('node:crypto')
+    const expected = sails.config.custom.setupToken
+    const digest = (value) =>
+      crypto
+        .createHash('sha256')
+        .update(value || '')
+        .digest()
+    if (
+      !expected ||
+      !crypto.timingSafeEqual(digest(setupToken), digest(expected))
+    ) {
+      throw {
+        badRequest: {
+          problems: [
+            {
+              setupToken: 'Enter the installation claim token from your server.'
+            }
+          ]
+        }
+      }
+    }
+
     const email = userEmail.toLowerCase()
 
     // Derive display name from email (part before @)
@@ -86,61 +114,58 @@ module.exports = {
     // Auto-generate team name
     const teamName = `${fullName}'s Team`
 
-    // Double-check that setup hasn't already been completed
-    const existingGenesisUser = await User.findOne({ isGenesisUser: true })
-    if (existingGenesisUser) {
-      throw {
-        badRequest: {
-          problems: [{ setup: 'Slipway has already been configured.' }]
-        }
-      }
-    }
-
     let genesisUser
     let defaultTeam
 
     try {
-      // Create the genesis user
-      genesisUser = await User.create({
-        fullName,
-        email,
-        password,
-        emailStatus: 'verified', // Genesis user is auto-verified
-        isGenesisUser: true,
-        teamRole: 'owner'
-      }).fetch()
+      await require('../../lib/with-datastore-transaction')(async (db) => {
+        // The unique setting and all founder records commit or roll back together.
+        await Setting.create({
+          key: 'installationCompleted',
+          value: 'true'
+        }).usingConnection(db)
+        // Create the genesis user
+        genesisUser = await User.create({
+          fullName,
+          email,
+          password,
+          emailStatus: 'verified', // Genesis user is auto-verified
+          isGenesisUser: true,
+          teamRole: 'owner'
+        })
+          .usingConnection(db)
+          .fetch()
 
-      // Create the default team owned by genesis user
-      defaultTeam = await Team.create({
-        name: teamName,
-        owner: genesisUser.id
-      }).fetch()
+        // Create the default team owned by genesis user
+        defaultTeam = await Team.create({
+          name: teamName,
+          owner: genesisUser.id
+        })
+          .usingConnection(db)
+          .fetch()
 
-      // Update user with their team
-      await User.updateOne({ id: genesisUser.id }).set({
-        team: defaultTeam.id
+        // Update user with their team
+        await User.updateOne({ id: genesisUser.id })
+          .set({
+            team: defaultTeam.id
+          })
+          .usingConnection(db)
       })
     } catch (error) {
-      // Clean up if something went wrong
-      if (genesisUser) {
-        await User.destroyOne({ id: genesisUser.id })
-      }
-      if (defaultTeam) {
-        await Team.destroyOne({ id: defaultTeam.id })
-      }
-
-      sails.log.error('Setup error:', error)
-
       if (error.code === 'E_UNIQUE') {
         throw {
           badRequest: {
             problems: [
-              { email: 'An account with this email address already exists.' }
+              {
+                setup:
+                  'Setup has already completed, or this account already exists. Refresh to continue.'
+              }
             ]
           }
         }
       }
 
+      sails.log.error('Setup error:', error)
       throw {
         badRequest: {
           problems: [
@@ -152,6 +177,7 @@ module.exports = {
 
     // Update the setup status so the policy blocks future access
     sails.config.custom.slipwayIsSetup = true
+    delete sails.config.custom.setupToken
 
     // Log in the genesis user
     await establishSession(this.req, genesisUser)

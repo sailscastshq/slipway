@@ -75,7 +75,8 @@ run_slipway_container() {
         -e SLIPWAY_APP_PORT_HOST="$SLIPWAY_APP_PORT_HOST" \
         -e SLIPWAY_APP_PORT_START="$SLIPWAY_APP_PORT_START" \
         -e SLIPWAY_APP_PORT_END="$SLIPWAY_APP_PORT_END" \
-        -e SESSION_SECRET="$SESSION_SECRET" \
+        -e SLIPWAY_SETUP_TOKEN="${SLIPWAY_SETUP_TOKEN:-}" \
+    -e SESSION_SECRET="$SESSION_SECRET" \
         -e DATA_ENCRYPTION_KEY="$DATA_ENCRYPTION_KEY" \
         "$SLIPWAY_IMAGE"
 }
@@ -348,6 +349,7 @@ if [ -f "$SLIPWAY_ENV_FILE" ]; then
 else
     # First install: generate new secrets and persist them
     echo "Generating secrets..."
+    SLIPWAY_SETUP_TOKEN=$(openssl rand -hex 32)
     SESSION_SECRET=$(openssl rand -hex 32)
     DATA_ENCRYPTION_KEY=$(openssl rand -base64 32)
 fi
@@ -397,6 +399,7 @@ fi
 if [ "$IS_UPDATE" = false ]; then
     mkdir -p "$(dirname "$SLIPWAY_ENV_FILE")"
     cat > "$SLIPWAY_ENV_FILE" <<EOF
+SLIPWAY_SETUP_TOKEN=$SLIPWAY_SETUP_TOKEN
 SESSION_SECRET=$SESSION_SECRET
 DATA_ENCRYPTION_KEY=$DATA_ENCRYPTION_KEY
 SLIPWAY_URL=$SLIPWAY_URL
@@ -515,6 +518,9 @@ fi
 echo -e "${GREEN}========================================================${NC}"
 echo ""
 echo "  Dashboard: $SLIPWAY_URL"
+if [ "$IS_UPDATE" = false ]; then
+    echo "  Installation claim token: $SLIPWAY_SETUP_TOKEN"
+fi
 if [ "$SLIPWAY_INGRESS" = "cloudflare-tunnel" ]; then
     echo "  Public ingress: Cloudflare Tunnel (Caddy listens on loopback)"
 elif is_public_bind_host "$SLIPWAY_PROXY_HOST"; then

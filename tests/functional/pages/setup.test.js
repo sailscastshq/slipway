@@ -23,6 +23,7 @@ test('setup validates with Precognition without creating anything', async ({
       'Precognition-Validate-Only': 'email'
     })
     .post('/setup', {
+      setupToken: sails.config.custom.setupToken,
       email: 'founder@example.com',
       password: 'secret123!',
       confirmPassword: 'secret123!'
@@ -38,6 +39,7 @@ test('setup validates with Precognition without creating anything', async ({
 
 test('setup returns a field error for invalid Precognition input', async ({
   expect,
+  sails,
   request
 }) => {
   const guest = await withCsrfFromPage(request, '/setup')
@@ -61,6 +63,7 @@ test('setup returns a field error for invalid Precognition input', async ({
 
 test('setup validates password confirmation before submit', async ({
   expect,
+  sails,
   request
 }) => {
   const guest = await withCsrfFromPage(request, '/setup')
@@ -70,6 +73,7 @@ test('setup validates password confirmation before submit', async ({
       'Precognition-Validate-Only': 'confirmPassword'
     })
     .post('/setup', {
+      setupToken: sails.config.custom.setupToken,
       email: 'founder@example.com',
       password: 'secret123!',
       confirmPassword: 'different123!'
@@ -89,6 +93,7 @@ test('setup creates the genesis owner and default team', async ({
   const guest = await withCsrfFromPage(request, '/setup')
 
   const response = await guest.request.post('/setup', {
+    setupToken: sails.config.custom.setupToken,
     email: 'founder@example.com',
     password: 'secret123!',
     confirmPassword: 'secret123!'

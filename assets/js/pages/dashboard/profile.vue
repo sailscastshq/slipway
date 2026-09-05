@@ -58,8 +58,15 @@ function deleteAccount() {
 }
 
 function executeDeleteAccount() {
-  deleteAccountForm.delete('/profile')
-  showDeleteModal.value = false
+  deleteAccountForm.delete('/profile', {
+    preserveScroll: true,
+    onSuccess: () => {
+      showDeleteModal.value = false
+    },
+    onError: () => {
+      showDeleteModal.value = true
+    }
+  })
 }
 
 function cancelDeleteAccount() {
@@ -395,11 +402,21 @@ function logout() {
           >
           <Input
             id="delete-account-password"
+            :aria-invalid="Boolean(deleteAccountForm.errors.password)"
+            aria-describedby="delete-account-error"
             v-model="deleteAccountForm.password"
             type="password"
             autocomplete="current-password"
             class="focus:border-brand w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
           />
+          <p
+            v-if="deleteAccountForm.errors.password"
+            id="delete-account-error"
+            role="alert"
+            class="mt-2 text-sm text-red-600"
+          >
+            {{ deleteAccountForm.errors.password }}
+          </p>
         </div>
       </template>
     </ConfirmModal>
