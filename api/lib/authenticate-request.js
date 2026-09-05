@@ -14,11 +14,15 @@ module.exports = async function authenticateRequest(
     const token = await CliToken.findOne({
       token: crypto.createHash('sha256').update(raw).digest('hex')
     })
-    if (token?.expiresAt && !(new Date(token.expiresAt).getTime() > Date.now())) {
+    if (
+      token?.expiresAt &&
+      !(new Date(token.expiresAt).getTime() > Date.now())
+    ) {
       return null
     }
     const user = token ? await User.findOne({ id: token.user }) : null
-    if (!user) return null
+    if (!user || (token.authVersion || '') !== (user.authVersion || ''))
+      return null
     req.auth = { userId: user.id, tokenId: token.id, method: 'bearer' }
     CliToken.updateOne(token.id)
       .set({ lastUsedAt: new Date() })
@@ -29,7 +33,7 @@ module.exports = async function authenticateRequest(
   const user = req.session?.userId
     ? await User.findOne({ id: req.session.userId })
     : null
-  if (!user) {
+  if (!user || (req.session.authVersion || '') !== (user.authVersion || '')) {
     if (req.session) delete req.session.userId
     return null
   }

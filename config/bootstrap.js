@@ -10,6 +10,8 @@
  */
 
 module.exports.bootstrap = async function () {
+  // User hydration may occur in subsequent helpers on safe-migrate upgrades.
+  await sails.helpers.auth.ensureSchema()
   // Production uses `migrate: safe`; create coordinator tables before any
   // deployment job queries run on an existing installation.
   await sails.helpers.cleanup.ensureSchema()

@@ -1,3 +1,5 @@
+const establishSession = require('../../lib/establish-session')
+
 const hasSpecialCharacter = (value) =>
   /[`!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?~]/.test(value)
 
@@ -152,7 +154,7 @@ module.exports = {
     sails.config.custom.slipwayIsSetup = true
 
     // Log in the genesis user
-    this.req.session.userId = genesisUser.id
+    await establishSession(this.req, genesisUser)
 
     sails.log.info(
       `Slipway setup complete. Genesis user: ${genesisUser.email}, Team: ${defaultTeam.name}`

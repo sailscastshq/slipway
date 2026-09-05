@@ -191,7 +191,8 @@ function logout() {
                 id="profile-email-description"
                 class="mt-1 text-xs text-gray-400 dark:text-gray-500"
               >
-                Changing your email requires verification
+                Changing your email requires verification and your current
+                password below.
               </p>
             </div>
             <div class="flex items-center justify-end px-4 py-3">
@@ -216,7 +217,9 @@ function logout() {
               Change Password
             </h2>
             <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-              Ensure your account is using a strong, random password.
+              Enter your current password to change your email or password.
+              Changing your password signs out other sessions and revokes CLI
+              tokens.
             </p>
           </div>
           <div

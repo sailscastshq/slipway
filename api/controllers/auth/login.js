@@ -1,3 +1,5 @@
+const establishSession = require('../../lib/establish-session')
+
 module.exports = {
   friendlyName: 'Login',
 
@@ -88,12 +90,15 @@ and exposed as a shared data via loggedInUser prop.)`,
       }
     }
 
-    if (rememberMe) {
-      this.req.session.cookie.maxAge =
-        sails.config.custom.rememberMeCookieMaxAge
-    }
-
-    this.req.session.userId = user.id
+    await establishSession(
+      this.req,
+      user,
+      rememberMe
+        ? {
+            maxAge: sails.config.custom.rememberMeCookieMaxAge
+          }
+        : {}
+    )
 
     // Support redirect after login (e.g., for CLI auth flow)
     // Only allow relative URLs to prevent open redirect vulnerabilities

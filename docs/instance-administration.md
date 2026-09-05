@@ -29,3 +29,16 @@ that its user still exists.
 This upgrade changes the session cookie name once to discard legacy sessions
 that might have originated from a CLI token. Browser users must sign in again.
 Existing valid CLI tokens continue to work until explicitly revoked.
+
+## Passwords and recovery
+
+Signing in, completing setup, or recovering an account rotates the browser
+session. Changing or resetting a password invalidates previously issued browser
+sessions and CLI tokens, and closes existing operator streams. Reset links can
+only succeed once, including concurrent submissions. A reset also cancels any
+pending email change or old verification link. Email changes require the current
+password as well as verification of the new address.
+
+The authentication-version columns are added before user hydration on upgrades
+using safe migrations. Existing credentials remain valid until the account's
+password changes or the credential is explicitly revoked.

@@ -9,6 +9,12 @@ module.exports = {
   tableName: 'users',
 
   attributes: {
+    authVersion: {
+      type: 'string',
+      defaultsTo: '',
+      columnName: 'auth_version',
+      protect: true
+    },
     //  ╔═╗╦═╗╦╔╦╗╦╔╦╗╦╦  ╦╔═╗╔═╗
     //  ╠═╝╠╦╝║║║║║ ║ ║╚╗╔╝║╣ ╚═╗
     //  ╩  ╩╚═╩╩ ╩╩ ╩ ╩ ╚╝ ╚═╝╚═╝
@@ -113,6 +119,7 @@ module.exports = {
       if (
         ![
           'password',
+          'authVersion',
           'passwordResetToken',
           'passwordResetTokenExpiresAt',
           'emailProofToken',
@@ -136,6 +143,7 @@ module.exports = {
   },
   beforeUpdate: async function (valuesToSet, proceed) {
     if (valuesToSet.password) {
+      valuesToSet.authVersion = require('node:crypto').randomUUID()
       valuesToSet.password = await sails.helpers.passwords.hashPassword(
         valuesToSet.password
       )

@@ -1,3 +1,5 @@
+const establishSession = require('../../lib/establish-session')
+
 const hasSpecialCharacter = (value) =>
   /[`!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?~]/.test(value)
 
@@ -113,12 +115,29 @@ module.exports = {
       'email'
     ])
 
+    email = email.trim().toLowerCase()
+    if ((password || email !== user.email) && !currentPassword) {
+      throw {
+        invalid: {
+          problems: [
+            {
+              currentPassword:
+                'Current password is required to change your email or password.'
+            }
+          ]
+        }
+      }
+    }
+
     if (currentPassword) {
       await sails.helpers.passwords
         .checkPassword(currentPassword, user.password)
         .intercept('incorrect', () => {
-          delete this.req.session.userId
-          return { unauthorized: '/login' }
+          return {
+            invalid: {
+              problems: [{ currentPassword: 'Current password is incorrect.' }]
+            }
+          }
         })
     }
 
@@ -148,7 +167,27 @@ module.exports = {
       updatedData.password = password
     }
 
-    await User.updateOne({ id: userId }).set(updatedData)
+    const updated = await User.updateOne({
+      id: userId,
+      password: user.password
+    }).set(updatedData)
+    if (!updated) {
+      throw {
+        invalid: {
+          problems: [
+            {
+              currentPassword:
+                'Your account changed. Sign in again before retrying.'
+            }
+          ]
+        }
+      }
+    }
+    if (password) {
+      sails.sse?.revoke?.({ userId })
+      await CliToken.destroy({ user: userId })
+      await establishSession(this.req, updated)
+    }
 
     // Refresh the cached loggedInUser data so the UI shows updated info
     sails.inertia.refreshOnce('loggedInUser')

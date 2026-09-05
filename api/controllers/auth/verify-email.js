@@ -1,3 +1,5 @@
+const establishSession = require('../../lib/establish-session')
+
 module.exports = {
   friendlyName: 'Verify email',
 
@@ -49,7 +51,7 @@ module.exports = {
         emailProofTokenExpiresAt: 0
       })
 
-      this.req.session.userId = user.id
+      await establishSession(this.req, user)
       delete this.req.session.userEmail
 
       return '/verify-email/success'
@@ -71,7 +73,7 @@ module.exports = {
         email: user.emailChangeCandidate,
         emailChangeCandidate: ''
       })
-      this.req.session.userId = user.id
+      await establishSession(this.req, user)
       return '/'
     } else {
       throw new Error(
