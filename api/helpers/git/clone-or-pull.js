@@ -69,19 +69,20 @@ module.exports = {
       )
     }
 
-    // Write deploy key to a temp file
-    const keyFile = path.join(
-      os.tmpdir(),
-      `slipway-deploy-key-${Date.now()}-${Math.random().toString(36).slice(2)}`
-    )
-    sails.log.debug(
-      `[git] Writing deploy key (${key.length} chars, format: ${key
-        .substring(0, 36)
-        .trim()})`
-    )
-    fs.writeFileSync(keyFile, key, { mode: 0o600, encoding: 'utf8' })
-
-    const sshCommand = `ssh -i ${keyFile} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null`
+    const keyDir = fs.mkdtempSync(path.join(os.tmpdir(), 'slipway-deploy-key-'))
+    const keyFile = path.join(keyDir, 'identity')
+    let sshCommand
+    try {
+      fs.writeFileSync(keyFile, key, {
+        mode: 0o600,
+        encoding: 'utf8',
+        flag: 'wx'
+      })
+      sshCommand = require('../../lib/git-ssh-command')(keyFile)
+    } catch (error) {
+      fs.rmSync(keyDir, { recursive: true, force: true })
+      throw error
+    }
     const env = { ...process.env, GIT_SSH_COMMAND: sshCommand }
     const timeout = 120_000
 
@@ -133,6 +134,7 @@ module.exports = {
             '--single-branch',
             '--depth',
             '1',
+            '--',
             cloneUrl,
             targetDir
           ],
@@ -165,7 +167,7 @@ module.exports = {
     } finally {
       // Always clean up the key file
       try {
-        fs.unlinkSync(keyFile)
+        fs.rmSync(keyDir, { recursive: true, force: true })
       } catch {
         /* ignore */
       }
