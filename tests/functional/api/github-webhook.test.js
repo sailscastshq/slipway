@@ -6,7 +6,7 @@ const PR_ACTIONS = ['opened', 'reopened', 'synchronize', 'closed']
 
 test(
   'GitHub pull request webhooks never create deployment resources',
-  { world: 'configured-slipway' },
+  { transport: 'http', world: 'configured-slipway' },
   async ({ sails, world, request, expect }) => {
     const current = world.current
     const secret = 'signed-pull-request-secret'
