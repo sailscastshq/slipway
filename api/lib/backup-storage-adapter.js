@@ -8,5 +8,5 @@ module.exports = function createBackupStorageAdapter(config) {
   if (config.endpoint) options.endpoint = config.endpoint
   if (config.region) options.region = config.region
 
-  return require('skipper-s3')(options)
+  return require('./s3-upload-adapter')(options)
 }

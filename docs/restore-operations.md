@@ -10,7 +10,9 @@ state, visible at `/api/v1/restore-operations/:id` and on the service page.
 The queue allows 20 operations and two workers. An atomic service transition
 excludes a simultaneous restore or version upgrade. New Dock connections and
 backups cannot select a restoring service; restart/stop/delete controls refuse
-active restores. Existing external database sessions must be paused by the
+active restores. Project and environment cleanup also pause before removing
+traffic or containers while a restore is active; pending cleanup blocks new
+restores. Existing external database sessions must be paused by the
 operator before admission.
 
 The worker first creates and verifies a safety snapshot, records its ID, then

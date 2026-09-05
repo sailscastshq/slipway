@@ -79,9 +79,13 @@ function checkNodeSupport() {
 
   for (const packagePath of packagePaths) {
     const packageJson = readJson(packagePath)
-    if (packageJson.engines?.node !== supportedNodeRange) {
+    const expectedRange =
+      packagePath === 'package.json'
+        ? '^22.20.0 || >=24.12.0'
+        : supportedNodeRange
+    if (packageJson.engines?.node !== expectedRange) {
       failures.push(
-        `${packagePath} must declare engines.node as ${supportedNodeRange}`
+        `${packagePath} must declare engines.node as ${expectedRange}`
       )
     }
   }

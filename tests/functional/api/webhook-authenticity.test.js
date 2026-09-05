@@ -7,24 +7,20 @@ test(
   async ({ request, world, sails, expect }) => {
     const current = world.current
     const secret = 'webhook-test-secret'
-    const project = await world
-      .create('project')
-      .with({
-        slug: 'webhook-bytes',
-        team: current.teams.genesisTeam.id,
-        createdBy: current.users.genesisUser.id,
-        webhookSecret: secret
-      })
+    const project = await world.create('project').with({
+      slug: 'webhook-bytes',
+      team: current.teams.genesisTeam.id,
+      createdBy: current.users.genesisUser.id,
+      webhookSecret: secret
+    })
     const provider = await world
       .create('gitprovider')
       .with({ team: current.teams.genesisTeam.id })
-    await world
-      .create('gitrepository')
-      .with({
-        externalId: '3298',
-        webhookSecret: secret,
-        provider: provider.id
-      })
+    await world.create('gitrepository').with({
+      externalId: '3298',
+      webhookSecret: secret,
+      provider: provider.id
+    })
     const raw =
       ' { "repository" : { "id" : 3298 }, "zen" : "Écrire et déployer 🚢" }\n'
     const signature =

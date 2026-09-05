@@ -1,4 +1,5 @@
 const fs = require('fs')
+let receivingUploads = 0
 
 module.exports = {
   friendlyName: 'Push source',
@@ -51,66 +52,90 @@ module.exports = {
       throw 'forbidden'
     }
 
-    // Receive the uploaded tarball via Skipper
-    const uploadedFiles = await new Promise((resolve, reject) => {
-      this.req.file('source').upload(
-        {
-          maxBytes: 500 * 1024 * 1024 // 500MB max
-        },
-        (err, files) => {
-          if (err) return reject(err)
-          resolve(files)
+    if (receivingUploads >= 2)
+      throw {
+        busy: {
+          message:
+            'Two source uploads are already being received. Retry shortly.'
         }
-      )
-    })
-
-    if (!uploadedFiles || uploadedFiles.length === 0) {
-      throw 'badRequest'
-    }
-
-    let operation
+      }
+    receivingUploads++
     try {
-      operation = await require('../../../../lib/source-operations').enqueue({
-        project,
-        userId: user.id,
-        archive: uploadedFiles[0].fd
+      await fs.promises.mkdir(sails.config.custom.slipwayAppsDir, {
+        recursive: true
       })
-    } catch (error) {
-      if (error.code === 'SOURCE_BUSY')
-        throw { busy: { message: error.message } }
-      throw error
-    } finally {
-      await Promise.all(
-        uploadedFiles.map((file) => fs.promises.rm(file.fd, { force: true }))
+      const disk = await fs.promises.statfs(sails.config.custom.slipwayAppsDir)
+      const uploadBudget = Math.min(
+        500 * 1024 * 1024,
+        Math.floor((disk.bavail * disk.bsize - 256 * 1024 * 1024) / 4)
       )
-    }
-    if (this.req.get('x-slipway-source-protocol') === '2') {
-      throw {
-        accepted: {
-          message: 'Source upload queued',
-          operation:
-            require('../../../../lib/source-operations').publicOperation(
-              operation
-            )
+      if (uploadBudget <= 0)
+        throw {
+          busy: { message: 'Insufficient disk space to receive source safely.' }
+        }
+      // Receive the uploaded tarball via Skipper
+      const uploadedFiles = await new Promise((resolve, reject) => {
+        this.req.file('source').upload(
+          {
+            maxBytes: uploadBudget
+          },
+          (err, files) => {
+            if (err) return reject(err)
+            resolve(files)
+          }
+        )
+      })
+
+      if (!uploadedFiles || uploadedFiles.length === 0) {
+        throw 'badRequest'
+      }
+
+      let operation
+      try {
+        operation = await require('../../../../lib/source-operations').enqueue({
+          project,
+          userId: user.id,
+          archive: uploadedFiles[0].fd
+        })
+      } catch (error) {
+        if (error.code === 'SOURCE_BUSY')
+          throw { busy: { message: error.message } }
+        throw error
+      } finally {
+        await Promise.all(
+          uploadedFiles.map((file) => fs.promises.rm(file.fd, { force: true }))
+        )
+      }
+      if (this.req.get('x-slipway-source-protocol') === '2') {
+        throw {
+          accepted: {
+            message: 'Source upload queued',
+            operation:
+              require('../../../../lib/source-operations').publicOperation(
+                operation
+              )
+          }
         }
       }
-    }
-    // Older CLIs expect source to be ready before they trigger a deployment.
-    // Keep compatibility without blocking the event loop.
-    while (['queued', 'running'].includes(operation.status)) {
-      await new Promise((resolve) => setTimeout(resolve, 250))
-      operation = await SourceOperation.findOne({ id: operation.id })
-    }
-    if (operation.status !== 'completed')
-      throw {
-        badRequest: {
-          message: operation.error || 'Source upload did not complete'
-        }
+      // Older CLIs expect source to be ready before they trigger a deployment.
+      // Keep compatibility without blocking the event loop.
+      while (['queued', 'running'].includes(operation.status)) {
+        await new Promise((resolve) => setTimeout(resolve, 250))
+        operation = await SourceOperation.findOne({ id: operation.id })
       }
-    return {
-      message: 'Source uploaded successfully',
-      project: projectSlug,
-      sourceRevision: operation.sourceRevision
+      if (operation.status !== 'completed')
+        throw {
+          badRequest: {
+            message: operation.error || 'Source upload did not complete'
+          }
+        }
+      return {
+        message: 'Source uploaded successfully',
+        project: projectSlug,
+        sourceRevision: operation.sourceRevision
+      }
+    } finally {
+      receivingUploads--
     }
   }
 }

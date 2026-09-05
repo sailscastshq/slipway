@@ -188,6 +188,7 @@ function handlePopoverOpen(nextOpen) {
 
 function openSelect(edge = 'selected') {
   if (props.disabled) return
+  clearTimeout(closeTimer)
   suppressNativeReopen = false
   pendingEdge = edge
   syncTriggerWidth()
@@ -358,6 +359,7 @@ function handleKeydown(event) {
 }
 
 function handleTriggerClick() {
+  clearTimeout(closeTimer)
   suppressNativeReopen = false
   if (!isOpen.value) pendingEdge = 'selected'
   syncTriggerWidth()
@@ -562,7 +564,7 @@ defineExpose({
               class="min-h-11 data-highlighted:bg-gray-100 data-highlighted:text-gray-950 data-disabled:cursor-not-allowed data-disabled:opacity-40 dark:data-highlighted:bg-white/10 dark:data-highlighted:text-white flex cursor-pointer items-center justify-between gap-3 rounded px-3 py-2 text-sm text-gray-700 outline-none dark:text-gray-200"
               @pointermove="!option.disabled && (highlightedIndex = index)"
               @pointerdown.prevent
-              @click="choose(index)"
+              @click.stop.prevent="choose(index)"
             >
               <span class="min-w-0 flex-1 truncate">
                 <slot

@@ -547,8 +547,12 @@ test(
     expect(await page.raw.locator('.cm-inline-diagnostic').count()).toBe(0)
     await selectFromSecondLine(page)
     await page.inDarkMode()
+    const runtimeFinished = page.raw.waitForResponse(`**${endpoint}`)
     await page.click('@helm-run')
-    await page.wait('@helm-error')
+    await runtimeFinished
+    await expect(
+      page.raw.locator('[data-test="helm-error-location"]')
+    ).toHaveText('Line 3, column 9')
 
     expectHelmSubmission(expect, submitted[1], {
       code: selectedSource,

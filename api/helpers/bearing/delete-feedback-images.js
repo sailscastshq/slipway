@@ -1,4 +1,4 @@
-const AWS = require('aws-sdk')
+const createClient = require('../../lib/s3-client')
 
 module.exports = {
   friendlyName: 'Delete Bearing feedback images',
@@ -29,26 +29,14 @@ module.exports = {
       .map((Key) => ({ Key }))
     if (!objects.length) return
 
-    const client = new AWS.S3({
-      accessKeyId: storage.key,
-      secretAccessKey: storage.secret,
-      region: storage.region || 'auto',
-      ...(storage.endpoint
-        ? { endpoint: storage.endpoint, s3ForcePathStyle: true }
-        : {}),
-      signatureVersion: 'v4',
-      httpOptions: {
-        connectTimeout: 5000,
-        timeout: 30_000
-      },
-      maxRetries: 2
-    })
-
-    await client
-      .deleteObjects({
+    const client = createClient(storage)
+    try {
+      await client.deleteObjects({
         Bucket: storage.bucket,
         Delete: { Objects: objects, Quiet: true }
       })
-      .promise()
+    } finally {
+      client.destroy()
+    }
   }
 }

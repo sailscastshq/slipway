@@ -50,8 +50,8 @@ async function extractArchive(
 ) {
   const stat = await fsp.statfs(path.dirname(destination))
   const available = stat.bavail * stat.bsize - 256 * MiB
-  // Publication temporarily needs a second copy for the mutable content workspace.
-  const budget = Math.min(maxBytes, Math.floor(available / 2))
+  // Two workers may publish concurrently, each with a second mutable workspace copy.
+  const budget = Math.min(maxBytes, Math.floor(available / 4))
   if (budget <= 0) throw new Error('Insufficient free disk space for source')
   await fsp.mkdir(destination, { recursive: true, mode: 0o700 })
   const deadline = AbortSignal.timeout(timeoutMs)

@@ -422,7 +422,7 @@ test(
       expect(calls.removeVolume).toContain('cleanup-purge-volume')
       expect(calls.removeImage).toContain('slipway/cleanup-purge:current')
       expect(calls.removeImage).toContain('slipway/cleanup-purge:release')
-      expect(calls.removeSource.length).toBe(1)
+      expect(calls.removeSource.length).toBe(2)
       expect(result.retainedArtifacts).toEqual({})
     })
   }
@@ -505,3 +505,61 @@ async function captureError(promise) {
   }
   throw new Error('Expected cleanup to fail')
 }
+
+test(
+  'cleanup pauses before traffic removal during restore and blocks new restores',
+  { world: cleanupWorld('cleanup-restore-exclusion') },
+  async ({ sails, world, expect }) => {
+    const current = world.current
+    const project = current.projects.deploymentTarget
+    const service = await world.create('service').with({
+      environment: current.environments.production.id,
+      name: 'restoring-db',
+      status: 'restoring'
+    })
+    const backup = await world.create('backup').with({
+      service: service.id,
+      status: 'completed',
+      s3Key: 'restore-fixture.sql'
+    })
+    const inputs = {
+      targetKey: `project:${project.id}`,
+      scopeType: 'project',
+      resourceId: project.id,
+      teamId: current.teams.genesisTeam.id,
+      userId: current.users.genesisUser.id
+    }
+    await withCleanupStubs(sails, {}, async (calls) => {
+      let failure
+      try {
+        await sails.helpers.cleanup.run.with(inputs)
+      } catch (error) {
+        failure = error
+      }
+      expect(failure.message.includes('restore is active')).toBe(true)
+      expect(calls.removeRoute.length).toBe(0)
+      expect(calls.stopContainer.length).toBe(0)
+      await sails.models.service
+        .updateOne({ id: service.id })
+        .set({ status: 'running' })
+      let admission
+      try {
+        await require('../../../../api/lib/restore-operations').enqueue({
+          service,
+          backup,
+          teamId: inputs.teamId,
+          userId: inputs.userId
+        })
+      } catch (error) {
+        admission = error
+      }
+      expect(admission.message.includes('Cleanup is pending')).toBe(true)
+      expect(
+        (await sails.models.service.findOne({ id: service.id })).status
+      ).toBe('running')
+      expect((await sails.helpers.cleanup.run.with(inputs)).status).toBe(
+        'complete'
+      )
+    })
+  }
+)

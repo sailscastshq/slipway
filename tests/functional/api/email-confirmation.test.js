@@ -41,14 +41,12 @@ test(
       fullName: 'Other User',
       password: 'secret123!'
     })
-    await sails.models.user
-      .updateOne({ id: owner.id })
-      .set({
-        emailStatus: 'change-requested',
-        emailChangeCandidate: 'taken@example.com',
-        emailProofToken: 'taken-proof',
-        emailProofTokenExpiresAt: Date.now() + 60000
-      })
+    await sails.models.user.updateOne({ id: owner.id }).set({
+      emailStatus: 'change-requested',
+      emailChangeCandidate: 'taken@example.com',
+      emailProofToken: 'taken-proof',
+      emailProofTokenExpiresAt: Date.now() + 60000
+    })
     const response = await request.get('/verify-email?token=taken-proof')
     expect(response).toHaveStatus(409)
     expect(response.data.message).toContain('no longer available')

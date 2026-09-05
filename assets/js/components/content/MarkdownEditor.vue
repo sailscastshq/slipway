@@ -510,9 +510,10 @@ async function uploadImages(files, position, currentEditor) {
       const imageUrl = normalizeImageUrl(result.imageUrl || result.url)
       if (!imageUrl) throw new Error('The upload returned an unsafe image URL.')
 
+      // An upload can finish after the user has moved to another field.
+      // Insert into the retained editor selection without stealing focus.
       currentEditor
         .chain()
-        .focus()
         .setImage({ src: imageUrl, alt: file.name.replace(/\.[^.]+$/, '') })
         .run()
     }

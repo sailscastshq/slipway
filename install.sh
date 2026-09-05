@@ -433,7 +433,7 @@ docker run -d \
     -v /var/run/docker.sock:/var/run/docker.sock:ro \
     -v "$SLIPWAY_CERTS_VOLUME:/data" \
     -e CADDY_INGRESS_NETWORKS="$SLIPWAY_NETWORK" \
-    lucaslorentz/caddy-docker-proxy:latest
+    lucaslorentz/caddy-docker-proxy:2.13.1
 echo -e "${GREEN}Caddy proxy running${NC}"
 
 # 7. Resolve and pull the target Slipway image

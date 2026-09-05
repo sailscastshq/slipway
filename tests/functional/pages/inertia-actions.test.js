@@ -27,13 +27,15 @@ test(
     const user = await sails.models.user.findOne({
       id: current.users.genesisUser.id
     })
-    expect(user.team).toBe(destination.id)
-
+    expect(user.team).toBe(current.teams.genesisTeam.id)
     const destinationPage = await browser.request.get('/')
     expect(destinationPage).toHaveInertiaProp(
       'flash.success',
       'Switched to Operations.'
     )
+    expect(
+      (await browser.request.get('/settings/team')).data.props.team.id
+    ).toBe(destination.id)
   }
 )
 
@@ -180,10 +182,11 @@ test(
     const restores = []
 
     try {
-      sails.helpers.backup.restoreBackup = (backupId) => {
+      const restore = async ({ backupId }) => {
         restores.push(backupId)
-        return Promise.resolve()
       }
+      restore.with = restore
+      sails.helpers.backup.restoreBackup = restore
       const browser = await withCsrfFromPage(
         request,
         '/settings/team-profile',
@@ -192,7 +195,7 @@ test(
 
       const response = await browser.request.post(
         `/backups/${backup.id}/restore`,
-        {}
+        { writesPaused: true }
       )
 
       expect(response).toHaveStatus(409)
@@ -200,7 +203,18 @@ test(
         'x-inertia-location',
         `/projects/archive/environments/staging/services/${service.id}`
       )
-      expect(restores).toEqual([backup.id])
+      for (let i = 0; i < 100; i++) {
+        const operation = await sails.models.restoreoperation.findOne({
+          backup: backup.id
+        })
+        if (operation?.status === 'completed') break
+        await new Promise((resolve) => setTimeout(resolve, 10))
+      }
+      expect(restores).toEqual([String(backup.id)])
+      expect(
+        (await sails.models.restoreoperation.findOne({ backup: backup.id }))
+          .status
+      ).toBe('completed')
     } finally {
       sails.helpers.backup.restoreBackup = originalRestore
     }

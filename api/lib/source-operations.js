@@ -134,12 +134,14 @@ async function run() {
   pumping = true
   try {
     let operation
-    while ((operation = await claim()))
+    while ((operation = await claim())) {
+      const claimedId = operation.id
       execute(operation).catch((error) =>
         sails.log.error(
-          `Source operation ${operation.id} failed: ${error.message}`
+          `Source operation ${claimedId} failed: ${error.message}`
         )
       )
+    }
   } finally {
     pumping = false
   }

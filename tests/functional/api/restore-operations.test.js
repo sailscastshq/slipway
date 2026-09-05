@@ -34,20 +34,16 @@ test(
     fake.with = fake
     sails.helpers.backup.restoreBackup = fake
     try {
-      const service = await world
-        .create('service')
-        .with({
-          environment: world.current.environments.production.id,
-          status: 'running',
-          name: 'restore-db'
-        })
-      const backup = await world
-        .create('backup')
-        .with({
-          service: service.id,
-          status: 'completed',
-          s3Key: 'fixture.dmp'
-        })
+      const service = await world.create('service').with({
+        environment: world.current.environments.production.id,
+        status: 'running',
+        name: 'restore-db'
+      })
+      const backup = await world.create('backup').with({
+        service: service.id,
+        status: 'completed',
+        s3Key: 'fixture.dmp'
+      })
       const args = {
         service,
         backup,

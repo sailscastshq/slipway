@@ -87,3 +87,75 @@ test(
     }
   }
 )
+
+test(
+  'protocol 2 HTTP upload returns a trackable revision and rejects corrupt replacement safely',
+  {
+    transport: 'http',
+    world: {
+      name: 'configured-slipway',
+      context: { deploymentTarget: { slug: 'source-http-upload' } }
+    }
+  },
+  async ({ sails, world, request, expect }) => {
+    const crypto = require('node:crypto'),
+      tar = require('tar-stream'),
+      zlib = require('node:zlib')
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), 'source-http-'))
+    const oldRoot = sails.config.custom.slipwayAppsDir
+    sails.config.custom.slipwayAppsDir = root
+    const raw = crypto.randomBytes(32).toString('hex')
+    await sails.models.clitoken.create({
+      user: world.current.users.genesisUser.id,
+      token: crypto.createHash('sha256').update(raw).digest('hex')
+    })
+    const sender = request.withHeaders({
+      authorization: `Bearer sl_${raw}`,
+      'x-slipway-source-protocol': '2'
+    })
+    const project = world.current.projects.deploymentTarget
+    try {
+      const pack = tar.pack(),
+        chunks = []
+      const collecting = (async () => {
+        for await (const chunk of pack) chunks.push(chunk)
+      })()
+      pack.entry({ name: 'app.js' }, 'original source')
+      pack.finalize()
+      await collecting
+      async function submit(bytes) {
+        const form = new FormData()
+        form.append('source', new Blob([bytes]), 'source.tar.gz')
+        const result = await sender.post(
+          `/api/v1/projects/${project.slug}/push`,
+          form
+        )
+        expect(result).toHaveStatus(202)
+        let op
+        for (let i = 0; i < 200; i++) {
+          op = (
+            await sender.get(
+              `/api/v1/source-operations/${result.data.operation.id}`
+            )
+          ).data.operation
+          if (!['queued', 'running'].includes(op.status)) return op
+          await new Promise((resolve) => setTimeout(resolve, 10))
+        }
+        throw new Error('Source operation did not finish')
+      }
+      const completed = await submit(zlib.gzipSync(Buffer.concat(chunks)))
+      expect(completed.status).toBe('completed')
+      expect(completed.sourceRevision.length).toBe(36)
+      expect((await submit(Buffer.from('invalid archive'))).status).toBe(
+        'failed'
+      )
+      expect(
+        await fs.readFile(path.join(root, project.slug, 'app.js'), 'utf8')
+      ).toBe('original source')
+    } finally {
+      await new Promise((resolve) => setTimeout(resolve, 100))
+      sails.config.custom.slipwayAppsDir = oldRoot
+      await fs.rm(root, { recursive: true, force: true })
+    }
+  }
+)

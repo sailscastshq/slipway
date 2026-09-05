@@ -1,7 +1,22 @@
 const transaction = require('./with-datastore-transaction')
 let pumping = false
 async function enqueue({ backup, service, teamId, userId }) {
+  const environmentId = Number(service.environment?.id || service.environment)
+  const environment = await Environment.findOne({ id: environmentId })
+  if (!environment) throw new Error('The service environment is unavailable.')
   const operation = await transaction(async (db) => {
+    const cleanup = await CleanupOperation.findOne({
+      status: { nin: ['complete'] },
+      or: [
+        { scopeType: 'project', projectId: environment.project },
+        { scopeType: 'environment', environmentId },
+        { scopeType: 'service', serviceId: service.id }
+      ]
+    }).usingConnection(db)
+    if (cleanup)
+      throw new Error(
+        'Cleanup is pending for this service. Complete or resume cleanup before starting a restore.'
+      )
     if (
       (await RestoreOperation.count({
         status: { in: ['queued', 'running'] }
@@ -128,12 +143,14 @@ async function run() {
   pumping = true
   try {
     let op
-    while ((op = await claim()))
+    while ((op = await claim())) {
+      const claimedId = op.id
       execute(op).catch((error) =>
         sails.log.error(
-          `Restore ${op.id} could not persist its result: ${error.message}`
+          `Restore ${claimedId} could not persist its result: ${error.message}`
         )
       )
+    }
   } finally {
     pumping = false
   }

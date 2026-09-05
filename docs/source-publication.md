@@ -5,7 +5,7 @@ Only regular files and directories are accepted. Absolute paths, traversal,
 links, duplicate files, empty archives, and corrupt gzip/tar data are rejected.
 The defaults cap expanded archive bytes at 1 GiB, entries at 20,000, and
 extraction at 60 seconds. Available disk space can lower that budget; 256 MiB
-is reserved and publication's second copy is included. Operators can lower
+is reserved and both concurrent workers' publication copies are included. Operators can lower
 `custom.sourceArchiveLimits` (`maxBytes`, `maxEntries`, `timeoutMs`).
 
 Publication preserves the old workspace until validation and copying finish.

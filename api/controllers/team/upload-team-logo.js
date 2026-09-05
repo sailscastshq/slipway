@@ -4,7 +4,7 @@
  * Handles team logo uploads to S3-compatible storage.
  */
 
-const { v4: uuidv4 } = require('uuid')
+const { randomUUID: uuidv4 } = require('node:crypto')
 
 module.exports = {
   friendlyName: 'Upload team logo',
@@ -57,7 +57,7 @@ module.exports = {
     const uploadedFiles = await new Promise((resolve, reject) => {
       req.file('logo').upload(
         {
-          adapter: require('skipper-s3'),
+          adapter: require('../../lib/s3-upload-adapter'),
           key: storage.key,
           secret: storage.secret,
           bucket: storage.bucket,
