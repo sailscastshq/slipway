@@ -1,36 +1,17 @@
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs'
+import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { homedir } from 'node:os'
+import { credentialStore } from './credential-store.js'
 
 // Global config stored in ~/.slipway/config.json
 const CONFIG_DIR = join(homedir(), '.slipway')
-const CONFIG_FILE = join(CONFIG_DIR, 'config.json')
+const store = credentialStore(CONFIG_DIR)
 
 // Project config stored in .slipway.json in the project directory
 export const PROJECT_CONFIG_FILE = '.slipway.json'
 
-function ensureConfigDir() {
-  if (!existsSync(CONFIG_DIR)) {
-    mkdirSync(CONFIG_DIR, { recursive: true })
-  }
-}
-
-function readConfig() {
-  ensureConfigDir()
-  if (!existsSync(CONFIG_FILE)) {
-    return { server: '', token: '', user: null, team: null }
-  }
-  try {
-    return JSON.parse(readFileSync(CONFIG_FILE, 'utf8'))
-  } catch {
-    return { server: '', token: '', user: null, team: null }
-  }
-}
-
-function writeConfig(config) {
-  ensureConfigDir()
-  writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2))
-}
+const readConfig = () => store.read()
+const writeConfig = (config) => store.write(config)
 
 export function getProjectConfig() {
   const configPath = join(process.cwd(), PROJECT_CONFIG_FILE)
@@ -62,8 +43,8 @@ export function setCredentials({ server, token, user, team }) {
   const config = readConfig()
   if (server) config.server = server
   if (token) config.token = token
-  if (user) config.user = user
-  if (team) config.team = team
+  if (user !== undefined) config.user = user
+  if (team !== undefined) config.team = team
   writeConfig(config)
 }
 

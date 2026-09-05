@@ -24,6 +24,7 @@ async function apiRequest(method, path, options = {}) {
 
   const fetchOptions = {
     method,
+    signal: AbortSignal.timeout(30000),
     headers
   }
 
@@ -64,6 +65,10 @@ async function apiRequest(method, path, options = {}) {
     if (error instanceof APIError) {
       throw error
     }
+    if (error.name === 'TimeoutError')
+      throw new Error(
+        'Slipway request timed out after 30 seconds. Check the server before retrying a change.'
+      )
     throw new Error(`Failed to connect to Slipway server: ${error.message}`)
   }
 }
@@ -89,6 +94,7 @@ async function apiUpload(path, fieldName, buffer, filename) {
       headers: {
         Authorization: `Bearer ${token}`
       },
+      signal: AbortSignal.timeout(120000),
       body: formData
     })
 
@@ -123,6 +129,10 @@ async function apiUpload(path, fieldName, buffer, filename) {
     if (error instanceof APIError) {
       throw error
     }
+    if (error.name === 'TimeoutError')
+      throw new Error(
+        'Slipway upload timed out after 2 minutes. Check the project before retrying.'
+      )
     throw new Error(`Failed to upload to Slipway server: ${error.message}`)
   }
 }
