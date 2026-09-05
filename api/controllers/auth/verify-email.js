@@ -26,10 +26,7 @@ module.exports = {
     },
     emailAlreadyInUse: {
       statusCode: 409,
-      viewTemplatePath: '500',
-      description: 'The email address is no longer available.',
-      extendedDescription:
-        'This is an edge case that is not always anticipated by websites and APIs.  Since it is pretty rare, the 500 server error page is used as a simple catch-all.  If this becomes important in the future, this could easily be expanded into a custom error page or resolution flow.  But for context: this behavior of showing the 500 server error page mimics how popular apps like Slack behave under the same circumstances.'
+      description: 'The requested email address is no longer available.'
     }
   },
 
@@ -44,14 +41,21 @@ module.exports = {
       throw 'invalidOrExpiredToken'
     }
 
+    const criteria = {
+      id: user.id,
+      emailProofToken: token,
+      emailProofTokenExpiresAt: { '>': Date.now() },
+      authVersion: user.authVersion || ''
+    }
     if (user.emailStatus == 'unverified') {
-      await User.updateOne({ id: user.id }).set({
+      const updated = await User.updateOne(criteria).set({
         emailStatus: 'verified',
         emailProofToken: '',
         emailProofTokenExpiresAt: 0
       })
 
-      await establishSession(this.req, user)
+      if (!updated) throw 'invalidOrExpiredToken'
+      await establishSession(this.req, updated)
       delete this.req.session.userEmail
 
       return '/verify-email/success'
@@ -62,18 +66,37 @@ module.exports = {
         )
       }
 
-      if ((await User.count({ email: user.emailChangeCandidate })) > 0) {
-        throw 'emailAlreadyInUse'
+      const email = user.emailChangeCandidate.trim().toLowerCase()
+      if ((await User.count({ email, id: { '!=': user.id } })) > 0) {
+        throw {
+          emailAlreadyInUse: {
+            message:
+              'This email address is no longer available. Sign in and request another address from your profile.'
+          }
+        }
       }
 
-      await User.updateOne({ id: user.id }).set({
-        emailStatus: 'confirmed',
-        emailProofToken: '',
-        emailProofTokenExpiresAt: 0,
-        email: user.emailChangeCandidate,
-        emailChangeCandidate: ''
-      })
-      await establishSession(this.req, user)
+      const updated = await User.updateOne(criteria)
+        .set({
+          emailStatus: 'verified',
+          authVersion: require('node:crypto').randomUUID(),
+          passwordResetToken: '',
+          passwordResetTokenExpiresAt: 0,
+          emailProofToken: '',
+          emailProofTokenExpiresAt: 0,
+          email,
+          emailChangeCandidate: ''
+        })
+        .intercept('E_UNIQUE', () => ({
+          emailAlreadyInUse: {
+            message:
+              'This email address is no longer available. Request another address from your profile.'
+          }
+        }))
+      if (!updated) throw 'invalidOrExpiredToken'
+      sails.sse?.revoke?.({ userId: user.id })
+      await CliToken.destroy({ user: user.id })
+      await establishSession(this.req, updated)
       return '/'
     } else {
       throw new Error(
