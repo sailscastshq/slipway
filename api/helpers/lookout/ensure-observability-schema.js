@@ -114,6 +114,27 @@ module.exports = {
       )
     `)
 
+    await datastore.sendNativeQuery(`CREATE TABLE IF NOT EXISTS telemetry_ingestion_budgets (
+      id INTEGER PRIMARY KEY AUTOINCREMENT, environment TEXT NOT NULL UNIQUE,
+      window_start INTEGER NOT NULL DEFAULT 0, events INTEGER NOT NULL DEFAULT 0,
+      bytes INTEGER NOT NULL DEFAULT 0, requests INTEGER NOT NULL DEFAULT 0,
+      rejected_events INTEGER NOT NULL DEFAULT 0, rejected_requests INTEGER NOT NULL DEFAULT 0,
+      created_at INTEGER, updated_at INTEGER
+    )`)
+    for (const table of [
+      'telemetry_spans',
+      'telemetry_exceptions',
+      'telemetry_metrics'
+    ]) {
+      await datastore.sendNativeQuery(
+        `UPDATE ${table} SET created_at=? WHERE created_at IS NULL OR created_at>?`,
+        [Date.now(), Date.now()]
+      )
+      await datastore.sendNativeQuery(
+        `CREATE INDEX IF NOT EXISTS ${table}_receipt_retention ON ${table} (created_at, id)`
+      )
+    }
+
     const indexes = [
       [
         'container_metrics_environment_recorded_at',

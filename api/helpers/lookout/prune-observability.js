@@ -47,19 +47,19 @@ module.exports = {
       {
         key: 'spans',
         table: 'telemetry_spans',
-        timestamp: 'started_at',
+        timestamp: 'created_at',
         cutoff: now - telemetryRetentionMs
       },
       {
         key: 'exceptions',
         table: 'telemetry_exceptions',
-        timestamp: 'occurred_at',
+        timestamp: 'created_at',
         cutoff: now - telemetryRetentionMs
       },
       {
         key: 'metrics',
         table: 'telemetry_metrics',
-        timestamp: 'recorded_at',
+        timestamp: 'created_at',
         cutoff: now - telemetryRetentionMs
       }
     ]

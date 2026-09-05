@@ -31,6 +31,7 @@ defineOptions({
 })
 
 const props = defineProps({
+  ingestion: Object,
   project: Object,
   environment: Object,
   appName: String,
@@ -551,6 +552,15 @@ async function copyToken() {
 <template>
   <Head :title="`Lookout - ${project.name} | Slipway`"></Head>
   <div class="flex h-full flex-col">
+    <p
+      v-if="ingestion?.rejectedRequests"
+      role="status"
+      class="border-b border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-100"
+    >
+      Ingestion protection rejected {{ ingestion.rejectedEvents }} events across
+      {{ ingestion.rejectedRequests }} requests. Check the app's telemetry
+      payloads and per-minute limits.
+    </p>
     <!-- Header -->
     <div
       class="flex items-center justify-between border-b border-gray-200 py-4 pl-4 pr-4 dark:border-gray-800 sm:pl-4 sm:pr-8"

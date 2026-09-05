@@ -190,6 +190,10 @@ async function removeObservabilityRecords(snapshot) {
     removed.containerMetrics = await destroyByCriteria(ContainerMetric, {
       environment: { in: environmentNumbers }
     })
+    removed.telemetryIngestionBudgets = await destroyByCriteria(
+      TelemetryIngestionBudget,
+      { environment: { in: environmentStrings } }
+    )
     removed.telemetrySpans = await destroyByCriteria(TelemetrySpan, {
       environment: { in: environmentStrings }
     })

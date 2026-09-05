@@ -341,7 +341,10 @@ module.exports = {
         },
         appName: app ? app.name : project.name,
         containers,
-        telemetry
+        telemetry,
+        ingestion: await TelemetryIngestionBudget.findOne({
+          environment: String(environment.id)
+        })
       }
     }
   }

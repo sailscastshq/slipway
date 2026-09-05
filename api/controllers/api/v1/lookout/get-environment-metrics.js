@@ -48,6 +48,10 @@ module.exports = {
     })
     if (!environment) throw 'notFound'
 
+    const ingestion = await TelemetryIngestionBudget.findOne({
+      environment: String(environment.id)
+    })
+
     // Get app and services for this environment
     const app =
       (await App.findOne({ environment: environment.id, isDefault: true })) ||
@@ -64,7 +68,7 @@ module.exports = {
     }
 
     if (containerNames.length === 0) {
-      return { containers: [], history: {} }
+      return { containers: [], history: {}, ingestion }
     }
 
     // Get latest metrics
@@ -150,6 +154,6 @@ module.exports = {
       })
     }
 
-    return { containers }
+    return { containers, ingestion }
   }
 }

@@ -108,6 +108,9 @@ module.exports.custom = {
   // telemetry for 7 days. Maintenance uses bounded batches so pruning cannot
   // hold a long SQLite write lock on a busy host.
   observability: {
+    ingestionEventsPerMinute: 3000,
+    ingestionBytesPerMinute: 2 * 1024 * 1024,
+    ingestionRequestsPerMinute: 120,
     containerMetricsRetentionMs: 24 * 60 * 60 * 1000,
     applicationTelemetryRetentionMs: 7 * 24 * 60 * 60 * 1000,
     telemetryConnectionStaleMs: 3 * 60 * 1000,
