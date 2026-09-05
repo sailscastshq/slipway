@@ -1,4 +1,5 @@
 <script setup>
+import Alert from '@/components/ui/alert/Alert.vue'
 import Upload from '@/components/ui/icons/Upload.vue'
 import TableCells from '@/components/ui/icons/TableCells.vue'
 import SidebarOpen from '@/components/ui/icons/SidebarOpen.vue'
@@ -1466,13 +1467,14 @@ onUnmounted(() => {
         >
           <!-- Error -->
           <div v-if="queryError" class="p-4">
-            <div
+            <Alert
+              role="alert"
               class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 dark:border-red-900/50 dark:bg-red-950/30"
             >
               <p class="font-mono text-sm text-red-600 dark:text-red-400">
                 {{ queryError }}
               </p>
-            </div>
+            </Alert>
           </div>
 
           <!-- Compact command-only results -->
@@ -2029,14 +2031,15 @@ onUnmounted(() => {
           <span class="sr-only">Loading database schema</span>
         </div>
 
-        <div
+        <Alert
+          role="alert"
           v-else-if="schemaError"
           class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 dark:border-red-900/50 dark:bg-red-950/30"
         >
           <p class="text-sm text-red-600 dark:text-red-400">
             {{ schemaError }}
           </p>
-        </div>
+        </Alert>
 
         <div v-else-if="schema" class="space-y-4">
           <!-- Filter dropdown -->
@@ -2230,7 +2233,8 @@ onUnmounted(() => {
           <span class="sr-only">Loading migration diff</span>
         </div>
 
-        <div
+        <Alert
+          role="alert"
           v-else-if="diffError"
           class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 dark:border-red-900/50 dark:bg-red-950/30"
         >
@@ -2241,7 +2245,7 @@ onUnmounted(() => {
           >
             Try again
           </button>
-        </div>
+        </Alert>
 
         <div v-else-if="diff" class="space-y-6">
           <div class="flex items-center justify-between">
@@ -2350,7 +2354,8 @@ onUnmounted(() => {
             </div>
 
             <!-- Status -->
-            <div
+            <Alert
+              role="status"
               v-if="filteredStatements.length > 0"
               class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 dark:border-amber-900/50 dark:bg-amber-950/30"
             >
@@ -2358,7 +2363,7 @@ onUnmounted(() => {
                 {{ filteredStatements.length }} change(s) for
                 {{ selectedModels.size }} model(s)
               </p>
-            </div>
+            </Alert>
             <div
               v-else
               class="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 dark:border-gray-800 dark:bg-gray-900/30"

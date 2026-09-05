@@ -1,4 +1,5 @@
 <script setup>
+import Alert from '@/components/ui/alert/Alert.vue'
 import WarningTriangle from '@/components/ui/icons/WarningTriangle.vue'
 import SidebarOpen from '@/components/ui/icons/SidebarOpen.vue'
 import SidebarClose from '@/components/ui/icons/SidebarClose.vue'
@@ -210,7 +211,8 @@ const providers = [
 
         <!-- Status indicator -->
         <div class="mb-6">
-          <div
+          <Alert
+            role="status"
             :class="[
               'flex items-center gap-2 rounded-lg border px-4 py-3',
               publicUploadsConfigured
@@ -257,7 +259,7 @@ const providers = [
                 content and database backups.
               </template>
             </span>
-          </div>
+          </Alert>
         </div>
 
         <!-- Provider selection -->

@@ -1,4 +1,5 @@
 <script setup>
+import Alert from '@/components/ui/alert/Alert.vue'
 import { computed, nextTick, onUnmounted, ref, watch } from 'vue'
 import { useForm } from '@inertiajs/vue3'
 import BridgeFieldInput from '@/components/bridge/BridgeFieldInput.vue'
@@ -279,13 +280,13 @@ function handleKeydown(event) {
                   @clear-error="clearFieldError(field)"
                 />
               </div>
-              <p
+              <Alert
                 v-if="form.errors.error"
                 role="alert"
-                class="mt-4 text-sm text-red-600 dark:text-red-400"
+                class="mt-4 border border-red-200 bg-red-50 text-sm text-red-900 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-200"
               >
                 {{ form.errors.error }}
-              </p>
+              </Alert>
             </div>
 
             <div class="flex justify-end gap-3 px-6 pb-6 pt-4">

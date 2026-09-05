@@ -744,13 +744,13 @@ onUnmounted(() => {
                 </Link>
               </p>
             </div>
-            <p
+            <Alert
               v-if="updateForm.errors.update"
               role="alert"
-              class="text-sm text-red-600 dark:text-red-400"
+              class="border border-red-200 bg-red-50 text-sm text-red-900 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-200"
             >
               {{ updateForm.errors.update }}
-            </p>
+            </Alert>
             <fieldset v-if="feedback.length">
               <legend class="text-xs font-medium text-gray-500">
                 Delivered feedback

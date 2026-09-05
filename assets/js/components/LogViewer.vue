@@ -1,4 +1,5 @@
 <script setup>
+import Alert from '@/components/ui/alert/Alert.vue'
 import WrapText from '@/components/ui/icons/WrapText.vue'
 import Check from '@/components/ui/icons/Check.vue'
 import ArrowDown from '@/components/ui/icons/ArrowDown.vue'
@@ -174,7 +175,7 @@ function levelLabel(value) {
 
 function badgeClass(event) {
   return {
-    error: 'text-rose-700 dark:text-rose-300',
+    error: 'text-rose-700',
     warning: 'text-amber-700 dark:text-amber-300',
     info: 'text-sky-700 dark:text-sky-300',
     debug: 'text-gray-500 dark:text-zinc-500'
@@ -194,7 +195,7 @@ function eventClass(event) {
 
 function segmentClass(type) {
   return {
-    error: 'font-semibold text-rose-700 dark:text-rose-300',
+    error: 'font-semibold',
     warning: 'font-medium text-amber-700 dark:text-amber-300',
     info: 'text-sky-700 dark:text-sky-300',
     debug: 'text-gray-500 dark:text-zinc-500',
@@ -203,7 +204,7 @@ function segmentClass(type) {
     path: 'text-cyan-700 dark:text-cyan-300',
     tag: 'text-gray-500 dark:text-zinc-500',
     'status-error':
-      'rounded bg-rose-100 px-1 font-semibold text-rose-700 dark:bg-rose-500/15 dark:text-rose-300',
+      'rounded bg-rose-100 px-1 font-semibold dark:bg-rose-500/15',
     'status-warning':
       'rounded bg-amber-100 px-1 font-semibold text-amber-700 dark:bg-amber-500/15 dark:text-amber-300',
     'status-redirect': 'text-sky-700 dark:text-sky-300',
@@ -356,14 +357,14 @@ function segmentClass(type) {
       </div>
     </div>
 
-    <div
+    <Alert
       v-if="error && events.length > 0"
-      class="flex shrink-0 items-center gap-2 border-b border-amber-200 bg-amber-50 px-3 py-2 font-sans text-xs text-amber-800 dark:border-amber-400/10 dark:bg-amber-400/[0.06] dark:text-amber-200/80"
+      class="flex shrink-0 items-center gap-2 rounded-none border-b border-amber-200 bg-amber-50 px-3 py-2 font-sans text-xs text-amber-800 dark:border-amber-400/10 dark:bg-amber-400/[0.06] dark:text-amber-200/80"
       role="status"
     >
       <span class="h-1.5 w-1.5 shrink-0 rounded-full bg-amber-300"></span>
       Kept the logs already received. Reconnecting to live output…
-    </div>
+    </Alert>
 
     <div
       ref="viewport"
@@ -378,13 +379,13 @@ function segmentClass(type) {
       >
         {{ inactiveMessage }}
       </div>
-      <div
+      <Alert
         v-else-if="error && events.length === 0"
         role="status"
-        class="flex h-full items-center justify-center px-6 text-center font-sans text-sm text-rose-700 dark:text-rose-300"
+        class="flex h-full items-center justify-center border border-red-200 bg-red-50 px-6 text-center font-sans text-sm text-red-900 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-200"
       >
         {{ error }}
-      </div>
+      </Alert>
       <div
         v-else-if="!connected && events.length === 0"
         class="flex h-full items-center justify-center font-sans text-sm text-gray-500 dark:text-zinc-500"

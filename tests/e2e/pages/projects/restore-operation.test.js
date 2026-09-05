@@ -44,6 +44,10 @@ test(
       .getByRole('heading', { name: 'Database restoration' })
       .waitFor()
     await expect(page).toSee('interrupted')
+    await expect(page.raw.getByRole('alert')).toHaveAttribute(
+      'data-slot',
+      'alert'
+    )
     await expect(page).toSee(`Safety snapshot: ${backup.id}`)
     expect(
       await page.raw

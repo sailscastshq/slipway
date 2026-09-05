@@ -275,7 +275,8 @@ function formatDate(dateString) {
 
             <!-- Error State -->
             <div v-else-if="updateError" class="space-y-3">
-              <div
+              <Alert
+                role="alert"
                 class="rounded-lg border border-red-200 bg-red-50 p-3 dark:border-red-800/50 dark:bg-red-950/30"
               >
                 <div class="flex items-start space-x-2">
@@ -287,7 +288,7 @@ function formatDate(dateString) {
                     {{ updateError }}
                   </p>
                 </div>
-              </div>
+              </Alert>
               <div class="flex items-center space-x-3">
                 <button
                   @click="applyUpdate"

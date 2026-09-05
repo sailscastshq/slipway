@@ -1,4 +1,5 @@
 <script setup>
+import Alert from '@/components/ui/alert/Alert.vue'
 import {
   mutationFailureMessage,
   assertMutationResponse
@@ -1188,12 +1189,13 @@ onBeforeUnmount(() => {
           </div>
         </div>
 
-        <section
+        <Alert
+          as="section"
           v-if="!sourceIsReady"
           role="alert"
           aria-labelledby="deployment-source-warning-title"
           data-test="deployment-source-warning"
-          class="mb-4 rounded-lg border border-amber-200 bg-amber-50/50 dark:border-amber-900/50 dark:bg-amber-950/20"
+          class="mb-4 rounded-lg border border-amber-200 bg-amber-50/50 p-0 dark:border-amber-900/50 dark:bg-amber-950/20"
         >
           <div class="flex items-start justify-between gap-3 px-4 py-3">
             <div class="flex min-w-0 items-start gap-3">
@@ -1222,7 +1224,7 @@ onBeforeUnmount(() => {
               Configure source
             </Link>
           </div>
-        </section>
+        </Alert>
 
         <!-- Slide to Deploy -->
         <div class="mb-10 flex justify-end">

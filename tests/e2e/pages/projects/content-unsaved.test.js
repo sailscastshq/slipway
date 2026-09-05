@@ -53,6 +53,11 @@ test(
       await page.raw.getByRole('button', { name: 'Keep editing' }).click()
       expect(await source.inputValue()).toContain('Keep this draft')
       await page.raw.reload()
+      await page.raw.getByRole('button', { name: 'Restore draft' }).waitFor()
+      await page.screenshot(
+        '.github/screenshots/audit-content-unsaved/recovery.png',
+        { fullPage: true, animations: 'disabled' }
+      )
       await page.raw.getByRole('button', { name: 'Restore draft' }).click()
       expect(await source.inputValue()).toContain('Keep this draft')
       expect(unloads > 0).toBe(true)

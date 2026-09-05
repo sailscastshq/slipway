@@ -1,4 +1,5 @@
 <script setup>
+import Alert from '@/components/ui/alert/Alert.vue'
 import StatusOnline from '@/components/ui/icons/StatusOnline.vue'
 import SidebarOpen from '@/components/ui/icons/SidebarOpen.vue'
 import SidebarClose from '@/components/ui/icons/SidebarClose.vue'
@@ -463,7 +464,8 @@ function refresh() {
         </div>
 
         <!-- Error -->
-        <div
+        <Alert
+          role="alert"
           v-else-if="liveError"
           class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 dark:border-red-900/50 dark:bg-red-950/20"
         >
@@ -474,7 +476,7 @@ function refresh() {
           >
             Try again
           </button>
-        </div>
+        </Alert>
 
         <!-- Jobs list -->
         <div v-else-if="liveJobs.length > 0" class="space-y-6">

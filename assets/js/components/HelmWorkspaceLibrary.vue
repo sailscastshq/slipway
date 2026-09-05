@@ -1,4 +1,5 @@
 <script setup>
+import Alert from '@/components/ui/alert/Alert.vue'
 import X from '@/components/ui/icons/X.vue'
 import Trash from '@/components/ui/icons/Trash.vue'
 import Pin from '@/components/ui/icons/Pin.vue'
@@ -614,9 +615,13 @@ defineExpose({ refreshHistory, openSnippetDialog })
       v-if="requestError || (tab === 'history' && history.length > 0)"
       class="shrink-0 px-3 py-1.5 text-[11px]"
     >
-      <p v-if="requestError" class="text-red-600 dark:text-red-400">
+      <Alert
+        role="alert"
+        v-if="requestError"
+        class="border border-red-200 bg-red-50 text-red-900 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-200"
+      >
         {{ requestError }}
-      </p>
+      </Alert>
       <p v-else class="text-gray-400 dark:text-gray-600">
         Unpinned runs are kept for {{ retentionDays }} days. Results and logs
         are never saved.

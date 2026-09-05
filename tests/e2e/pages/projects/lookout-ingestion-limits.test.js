@@ -23,6 +23,11 @@ test(
     await expect(page).toSee(
       'Ingestion protection rejected 250 events across 2 requests.'
     )
+    await expect(
+      page.raw
+        .getByRole('status')
+        .filter({ hasText: 'Some telemetry was rejected' })
+    ).toHaveAttribute('data-slot', 'alert')
     fs.mkdirSync('.github/screenshots/audit-telemetry-limits', {
       recursive: true
     })

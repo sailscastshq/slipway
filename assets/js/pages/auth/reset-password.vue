@@ -1,4 +1,5 @@
 <script setup>
+import Alert from '@/components/ui/alert/Alert.vue'
 import Input from '@/components/ui/input/Input.vue'
 import { Link, Head, useForm } from '@inertiajs/vue3'
 import { computed } from 'vue'
@@ -69,12 +70,13 @@ const isFormValid = computed(() => {
       </div>
 
       <!-- Error message -->
-      <div
+      <Alert
+        role="alert"
         v-if="form.errors.token"
         class="mb-6 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-600 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-400"
       >
         {{ form.errors.token }}
-      </div>
+      </Alert>
 
       <form @submit.prevent="form.post('/reset-password')" class="space-y-4">
         <div>

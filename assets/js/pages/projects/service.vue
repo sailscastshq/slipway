@@ -1,4 +1,5 @@
 <script setup>
+import Alert from '@/components/ui/alert/Alert.vue'
 import StopCircle from '@/components/ui/icons/StopCircle.vue'
 import SidebarOpen from '@/components/ui/icons/SidebarOpen.vue'
 import SidebarClose from '@/components/ui/icons/SidebarClose.vue'
@@ -450,9 +451,13 @@ onUnmounted(() => {
             <p v-if="restoreOperation.snapshotId">
               Safety snapshot: {{ restoreOperation.snapshotId }}
             </p>
-            <p v-if="restoreOperation.error" class="text-red-600">
+            <Alert
+              role="alert"
+              v-if="restoreOperation.error"
+              class="border border-red-200 bg-red-50 text-red-900 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-200"
+            >
               {{ restoreOperation.error }}
-            </p>
+            </Alert>
             <p v-else-if="restoreOperation.status === 'completed'">
               Restore completed. Verify the database before resuming writes.
             </p>
@@ -461,7 +466,11 @@ onUnmounted(() => {
               restoration completes.
             </p>
           </div>
-          <p v-if="restoreError" class="mt-3 text-sm text-red-600" role="alert">
+          <Alert
+            v-if="restoreError"
+            class="mt-3 border border-red-200 bg-red-50 text-sm text-red-900 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-200"
+            role="alert"
+          >
             {{ restoreError }}
             <button
               v-if="restoreOperation"
@@ -470,7 +479,7 @@ onUnmounted(() => {
             >
               Refresh status
             </button>
-          </p>
+          </Alert>
           <div
             v-if="
               service.lastBackup?.status === 'completed' &&

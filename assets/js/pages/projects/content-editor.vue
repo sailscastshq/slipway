@@ -1,4 +1,5 @@
 <script setup>
+import Alert from '@/components/ui/alert/Alert.vue'
 import SidebarOpen from '@/components/ui/icons/SidebarOpen.vue'
 import SidebarClose from '@/components/ui/icons/SidebarClose.vue'
 import ChevronRight from '@/components/ui/icons/ChevronRight.vue'
@@ -379,10 +380,10 @@ function handleKeydown(e) {
 <template>
   <Head :title="`${file} - ${collection} | ${project.name}`"></Head>
   <div class="flex h-full flex-col" @keydown="handleKeydown">
-    <div
+    <Alert
       v-if="recoveredDraft"
       role="status"
-      class="border-b bg-amber-50 px-4 py-3 text-sm text-amber-950 dark:bg-amber-950 dark:text-amber-100"
+      class="mx-4 mt-4 w-auto border border-amber-200 bg-amber-50 text-amber-950 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-100"
     >
       An unsaved draft is available in this tab (kept for 30 minutes).
       <button type="button" class="ml-3 underline" @click="restoreDraft">
@@ -391,15 +392,15 @@ function handleKeydown(e) {
       <button type="button" class="ml-3 underline" @click="clearDraft">
         Discard draft
       </button>
-    </div>
-    <p
+    </Alert>
+    <Alert
       v-if="draftError"
       role="alert"
-      class="bg-amber-50 p-3 text-sm text-amber-950"
+      class="mx-4 mt-4 w-auto border border-amber-200 bg-amber-50 text-amber-950 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-100"
     >
       Draft recovery is unavailable in this browser. Save your work before
       leaving.
-    </p>
+    </Alert>
     <ConfirmModal
       :show="Boolean(pendingVisit)"
       title="Unsaved changes"
@@ -573,21 +574,21 @@ function handleKeydown(e) {
             >
               Save & Deploy
             </button>
-            <p
+            <Alert
               v-if="
                 saveForm.errors.content ||
                 saveForm.errors.deploy ||
                 saveForm.errors.appSlug
               "
               role="alert"
-              class="border-t border-gray-100 px-3 py-2 text-xs leading-5 text-red-600 dark:border-gray-700 dark:text-red-400"
+              class="border border-t border-gray-100 border-red-200 bg-red-50 px-3 py-2 text-xs leading-5 text-red-900 dark:border-gray-700 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-200"
             >
               {{
                 saveForm.errors.content ||
                 saveForm.errors.deploy ||
                 saveForm.errors.appSlug
               }}
-            </p>
+            </Alert>
           </Menu>
         </div>
       </div>
