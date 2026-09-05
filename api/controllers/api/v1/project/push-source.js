@@ -1,5 +1,5 @@
 const path = require('path')
-const { execFileSync } = require('child_process')
+const { publishArchive } = require('../../../../lib/source-workspace')
 const fs = require('fs')
 
 module.exports = {
@@ -28,6 +28,7 @@ module.exports = {
     notFound: {
       statusCode: 404
     },
+    busy: { statusCode: 503 },
     forbidden: {
       statusCode: 403
     },
@@ -73,36 +74,28 @@ module.exports = {
     const tarballPath = uploadedFiles[0].fd
     const targetDir = path.join(sails.config.custom.slipwayAppsDir, projectSlug)
 
-    // Ensure the apps directory exists
-    fs.mkdirSync(sails.config.custom.slipwayAppsDir, { recursive: true })
-
-    // Clear existing source and recreate directory
-    if (fs.existsSync(targetDir)) {
-      fs.rmSync(targetDir, { recursive: true, force: true })
-    }
-    fs.mkdirSync(targetDir, { recursive: true })
-
-    // Extract the tarball (using execFileSync to avoid shell injection)
+    let publication
     try {
-      execFileSync('tar', ['xzf', tarballPath, '-C', targetDir], {
-        timeout: 60000
+      publication = await publishArchive({
+        root: sails.config.custom.slipwayAppsDir,
+        project,
+        archive: tarballPath,
+        limits: sails.config.custom.sourceArchiveLimits
       })
-    } catch (err) {
-      // Clean up uploaded file
-      try {
-        fs.unlinkSync(tarballPath)
-      } catch {
-        /* ignore */
+    } catch (error) {
+      sails.log.warn(`Source upload rejected: ${error.message}`)
+      if (error.code === 'SOURCE_BUSY')
+        throw { busy: { message: error.message } }
+      throw {
+        badRequest: {
+          message:
+            'Source archive was rejected. Previous source is preserved. Check archive paths, file types, size, and available disk space.'
+        }
       }
-      sails.log.error(`Failed to extract source tarball: ${err.message}`)
-      throw 'badRequest'
-    }
-
-    // Clean up the uploaded temp file
-    try {
-      fs.unlinkSync(tarballPath)
-    } catch {
-      /* ignore */
+    } finally {
+      await Promise.all(
+        uploadedFiles.map((file) => fs.promises.rm(file.fd, { force: true }))
+      )
     }
 
     // Detect features from the pushed source and store on all environments
@@ -130,7 +123,8 @@ module.exports = {
 
     return {
       message: 'Source uploaded successfully',
-      project: projectSlug
+      project: projectSlug,
+      sourceRevision: publication.revision
     }
   }
 }

@@ -1,3 +1,4 @@
+const { withSourceLock } = require('../../lib/source-workspace')
 const fs = require('fs')
 const path = require('path')
 
@@ -106,150 +107,161 @@ module.exports = {
 
     const contentFeature = environment.features['sails-content']
     const contentDir = contentFeature.contentDir || 'content'
-    const appPath = `${sails.config.custom.slipwayAppsDir}/${project.slug}`
-    const resolved = await sails.helpers.deploy.resolveTargetApp
-      .with({
-        environment,
-        appSlug
-      })
-      .intercept('appNotFound', () => ({
-        badRequest: {
-          problems: [{ appSlug: 'Choose an app that still exists.' }]
+    return withSourceLock(
+      sails.config.custom.slipwayAppsDir,
+      project,
+      async () => {
+        const appPath = `${sails.config.custom.slipwayAppsDir}/${project.slug}`
+        const resolved = await sails.helpers.deploy.resolveTargetApp
+          .with({
+            environment,
+            appSlug
+          })
+          .intercept('appNotFound', () => ({
+            badRequest: {
+              problems: [{ appSlug: 'Choose an app that still exists.' }]
+            }
+          }))
+        const targetApp = resolved.app
+
+        // Determine file path and type
+        let filePath = path.join(appPath, contentDir, collection, `${file}.md`)
+        let fileType = 'markdown'
+
+        if (!fs.existsSync(filePath)) {
+          filePath = path.join(appPath, contentDir, collection, `${file}.json`)
+          fileType = 'json'
         }
-      }))
-    const targetApp = resolved.app
 
-    // Determine file path and type
-    let filePath = path.join(appPath, contentDir, collection, `${file}.md`)
-    let fileType = 'markdown'
+        // For new files, default to markdown
+        if (!fs.existsSync(filePath)) {
+          filePath = path.join(appPath, contentDir, collection, `${file}.md`)
+          fileType = 'markdown'
+        }
 
-    if (!fs.existsSync(filePath)) {
-      filePath = path.join(appPath, contentDir, collection, `${file}.json`)
-      fileType = 'json'
-    }
+        const problems = sails.helpers.content.validate(
+          {
+            frontmatter,
+            body,
+            raw,
+            fileType
+          },
+          sails.inertia.validateOnly(this.req)
+        )
+        if (problems.length) {
+          throw { badRequest: { problems } }
+        }
 
-    // For new files, default to markdown
-    if (!fs.existsSync(filePath)) {
-      filePath = path.join(appPath, contentDir, collection, `${file}.md`)
-      fileType = 'markdown'
-    }
+        if (sails.inertia.isPrecognitive(this.req)) {
+          throw 'precognitionSuccess'
+        }
 
-    const problems = sails.helpers.content.validate(
-      {
-        frontmatter,
-        body,
-        raw,
-        fileType
-      },
-      sails.inertia.validateOnly(this.req)
-    )
-    if (problems.length) {
-      throw { badRequest: { problems } }
-    }
+        const useRawMarkdown =
+          fileType === 'markdown' &&
+          raw !== undefined &&
+          frontmatter === undefined &&
+          body === undefined
+        const content =
+          fileType === 'json' || useRawMarkdown
+            ? raw
+            : serializeFrontmatter(frontmatter, body)
 
-    if (sails.inertia.isPrecognitive(this.req)) {
-      throw 'precognitionSuccess'
-    }
+        if (deploy) {
+          const sourceReadiness =
+            await sails.helpers.deploy.getSourceReadiness.with({
+              project,
+              environment,
+              app: targetApp
+            })
 
-    const useRawMarkdown =
-      fileType === 'markdown' &&
-      raw !== undefined &&
-      frontmatter === undefined &&
-      body === undefined
-    const content =
-      fileType === 'json' || useRawMarkdown
-        ? raw
-        : serializeFrontmatter(frontmatter, body)
-
-    if (deploy) {
-      const sourceReadiness =
-        await sails.helpers.deploy.getSourceReadiness.with({
-          project,
-          environment,
-          app: targetApp
-        })
-
-      if (!sourceReadiness.available) {
-        throw {
-          badRequest: {
-            problems: [{ deploy: sourceReadiness.message }]
+          if (!sourceReadiness.available) {
+            throw {
+              badRequest: {
+                problems: [{ deploy: sourceReadiness.message }]
+              }
+            }
           }
         }
+
+        const relativeFilePath = path.posix.join(
+          String(contentDir).replace(/\\/g, '/'),
+          collection,
+          `${file}.${fileType === 'json' ? 'json' : 'md'}`
+        )
+        const commitMessage = `chore(content): update ${collection}/${file}`
+        const persistence = await sails.helpers.git.commitContentFile
+          .with({
+            environment,
+            app: targetApp,
+            user,
+            filePath: relativeFilePath,
+            content,
+            operation: 'update',
+            expectedSha: sourceSha,
+            message: commitMessage
+          })
+          .intercept('conflict', (error) => ({
+            badRequest: {
+              problems: [{ content: (error.raw || error).message }]
+            }
+          }))
+          .intercept('writeUnavailable', (error) => ({
+            badRequest: {
+              problems: [{ content: (error.raw || error).message }]
+            }
+          }))
+
+        // Keep the local build context in sync only after the source-of-truth
+        // write succeeds. Repository deployments will refresh this exact commit.
+        const collectionPath = path.dirname(filePath)
+        if (!fs.existsSync(collectionPath)) {
+          fs.mkdirSync(collectionPath, { recursive: true })
+        }
+        fs.writeFileSync(filePath, content, 'utf8')
+
+        sails.log.info(`[content] Updated ${collection}/${file} in ${slug}`)
+
+        // Trigger deploy if requested
+        if (deploy) {
+          const queued = await sails.helpers.deploy.triggerDeployment
+            .with({
+              project,
+              environment,
+              user,
+              app: targetApp,
+              gitCommit: persistence.commitSha,
+              gitBranch: persistence.branch,
+              gitMessage: commitMessage,
+              triggerType: 'content',
+              ipAddress: this.req.ip
+            })
+            .intercept('sourceUnavailable', (error) => ({
+              badRequest: {
+                problems: [{ deploy: (error.raw || error).message }]
+              }
+            }))
+          const deployment = queued.deployment
+
+          sails.log.info(
+            `[content] Deployment ${deployment.id} triggered for content change`
+          )
+
+          // Redirect to deployment page
+          return `/projects/${slug}/deployments/${deployment.id}`
+        }
+
+        // Stay on the same page (Inertia will reload props)
+        const envPath =
+          envSlug !== 'production' ? `/environments/${envSlug}` : ''
+        return `/projects/${slug}${envPath}/content/${collection}/${file}?appSlug=${encodeURIComponent(
+          targetApp.slug
+        )}`
       }
-    }
-
-    const relativeFilePath = path.posix.join(
-      String(contentDir).replace(/\\/g, '/'),
-      collection,
-      `${file}.${fileType === 'json' ? 'json' : 'md'}`
-    )
-    const commitMessage = `chore(content): update ${collection}/${file}`
-    const persistence = await sails.helpers.git.commitContentFile
-      .with({
-        environment,
-        app: targetApp,
-        user,
-        filePath: relativeFilePath,
-        content,
-        operation: 'update',
-        expectedSha: sourceSha,
-        message: commitMessage
-      })
-      .intercept('conflict', (error) => ({
-        badRequest: {
-          problems: [{ content: (error.raw || error).message }]
-        }
-      }))
-      .intercept('writeUnavailable', (error) => ({
-        badRequest: {
-          problems: [{ content: (error.raw || error).message }]
-        }
-      }))
-
-    // Keep the local build context in sync only after the source-of-truth
-    // write succeeds. Repository deployments will refresh this exact commit.
-    const collectionPath = path.dirname(filePath)
-    if (!fs.existsSync(collectionPath)) {
-      fs.mkdirSync(collectionPath, { recursive: true })
-    }
-    fs.writeFileSync(filePath, content, 'utf8')
-
-    sails.log.info(`[content] Updated ${collection}/${file} in ${slug}`)
-
-    // Trigger deploy if requested
-    if (deploy) {
-      const queued = await sails.helpers.deploy.triggerDeployment
-        .with({
-          project,
-          environment,
-          user,
-          app: targetApp,
-          gitCommit: persistence.commitSha,
-          gitBranch: persistence.branch,
-          gitMessage: commitMessage,
-          triggerType: 'content',
-          ipAddress: this.req.ip
-        })
-        .intercept('sourceUnavailable', (error) => ({
-          badRequest: {
-            problems: [{ deploy: (error.raw || error).message }]
-          }
-        }))
-      const deployment = queued.deployment
-
-      sails.log.info(
-        `[content] Deployment ${deployment.id} triggered for content change`
-      )
-
-      // Redirect to deployment page
-      return `/projects/${slug}/deployments/${deployment.id}`
-    }
-
-    // Stay on the same page (Inertia will reload props)
-    const envPath = envSlug !== 'production' ? `/environments/${envSlug}` : ''
-    return `/projects/${slug}${envPath}/content/${collection}/${file}?appSlug=${encodeURIComponent(
-      targetApp.slug
-    )}`
+    ).catch((error) => {
+      if (error.code === 'SOURCE_BUSY')
+        throw { badRequest: { problems: [{ content: error.message }] } }
+      throw error
+    })
   }
 }
 

@@ -1,5 +1,6 @@
 const fs = require('fs')
 const path = require('path')
+const workspace = require('../../lib/source-workspace')
 const deploymentCancellation = require('../../lib/deployment-cancellation')
 
 module.exports = {
@@ -9,6 +10,7 @@ module.exports = {
     'Ensure a deployable source tree exists for a project before Docker build runs.',
 
   inputs: {
+    sourceRevision: { type: 'string', allowNull: true },
     project: {
       type: 'ref',
       required: true
@@ -51,6 +53,7 @@ module.exports = {
   },
 
   fn: async function ({
+    sourceRevision,
     project,
     environment,
     app,
@@ -61,6 +64,19 @@ module.exports = {
     signal
   }) {
     deploymentCancellation.throwIfCancelled(signal, deploymentId)
+    if (sourceRevision) {
+      return {
+        contextPath: await workspace.snapshot({
+          root: sails.config.custom.slipwayAppsDir,
+          project,
+          deploymentId,
+          sourceRevision,
+          signal
+        }),
+        hydrated: false,
+        sourceMode: 'pushed'
+      }
+    }
     const readiness = await inspectBuildContext({
       project,
       environment,
@@ -70,13 +86,34 @@ module.exports = {
 
     if (readiness.hasSource && (!refreshRepository || !readiness.canHydrate)) {
       return {
-        contextPath,
+        contextPath: deploymentId
+          ? await workspace.snapshot({
+              root: sails.config.custom.slipwayAppsDir,
+              project,
+              deploymentId,
+              signal
+            })
+          : contextPath,
         hydrated: false,
         sourceMode: readiness.sourceMode
       }
     }
 
     if (readiness.canHydrate) {
+      const buildPath = deploymentId
+        ? await fs.promises.mkdtemp(
+            await (async () => {
+              const parent = path.join(
+                require('os').tmpdir(),
+                'slipway',
+                'deployments',
+                String(deploymentId)
+              )
+              await fs.promises.mkdir(parent, { recursive: true, mode: 0o700 })
+              return path.join(parent, 'repository-')
+            })()
+          )
+        : contextPath
       const branch = resolveDeployBranch(repo, environment.slug, gitBranch)
       const sourceState = readiness.hasSource
         ? `Refreshing source from ${repo.fullName || repo.cloneUrl}`
@@ -91,12 +128,14 @@ module.exports = {
           cloneUrl: repo.cloneUrl,
           branch,
           ...(gitCommit ? { commit: gitCommit } : {}),
-          targetDir: contextPath,
+          targetDir: buildPath,
           deployKeyPrivate: repo.deployKeyPrivate,
           deploymentId,
           ...(signal ? { signal } : {})
         })
       } catch (err) {
+        if (deploymentId)
+          await fs.promises.rm(buildPath, { recursive: true, force: true })
         if (signal?.aborted) {
           throw deploymentCancellation.cancellationError(signal, deploymentId)
         }
@@ -108,9 +147,9 @@ module.exports = {
       }
 
       deploymentCancellation.throwIfCancelled(signal, deploymentId)
-      if (hasSourceFiles(contextPath)) {
+      if (hasSourceFiles(buildPath)) {
         return {
-          contextPath,
+          contextPath: buildPath,
           hydrated: true,
           branch,
           sourceMode: 'repository'

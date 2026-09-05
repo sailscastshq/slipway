@@ -8,6 +8,16 @@ module.exports = {
 
   fn: async function () {
     const datastore = sails.getDatastore()
+    const columns = await datastore.sendNativeQuery(
+      'PRAGMA table_info(deployments)'
+    )
+    if (
+      !(columns.rows || []).some((column) => column.name === 'source_revision')
+    ) {
+      await datastore.sendNativeQuery(
+        'ALTER TABLE deployments ADD COLUMN source_revision TEXT'
+      )
+    }
 
     await datastore.sendNativeQuery(`
       CREATE TABLE IF NOT EXISTS deployment_jobs (

@@ -13,6 +13,11 @@ module.exports = {
   tableName: 'deployments',
 
   attributes: {
+    sourceRevision: {
+      type: 'string',
+      allowNull: true,
+      columnName: 'source_revision'
+    },
     status: {
       type: 'string',
       isIn: [

@@ -5,6 +5,7 @@ module.exports = {
     'Resolve, preflight, record, and queue a deployment through the shared durable pipeline.',
 
   inputs: {
+    sourceRevision: { type: 'string', regex: /^[a-f0-9-]{36}$/ },
     project: {
       type: 'ref',
       required: true
@@ -56,6 +57,7 @@ module.exports = {
   },
 
   fn: async function ({
+    sourceRevision,
     project,
     environment,
     user,
@@ -67,6 +69,26 @@ module.exports = {
     triggerType,
     ipAddress
   }) {
+    if (sourceRevision) {
+      const fs = require('node:fs/promises')
+      const { revisionPath } = require('../../lib/source-workspace')
+      try {
+        await fs.access(
+          revisionPath(
+            sails.config.custom.slipwayAppsDir,
+            project,
+            sourceRevision
+          )
+        )
+      } catch {
+        throw {
+          sourceUnavailable: {
+            message:
+              'Uploaded source revision is unavailable. Push source again.'
+          }
+        }
+      }
+    }
     const resolved = await sails.helpers.deploy.resolveTargetApp
       .with({
         environment,
@@ -118,6 +140,7 @@ module.exports = {
     const queued = await sails.helpers.deploy.queueDeployment
       .with({
         values: {
+          sourceRevision,
           gitCommit: finalGitCommit,
           gitBranch: finalGitBranch,
           gitMessage: finalGitMessage,

@@ -30,8 +30,13 @@ test('pushed source accepts deployment records without git metadata', async ({
       refreshRepository: true
     })
 
+    expect(result.contextPath === contextPath).toBe(false)
+    expect(
+      fs.readFileSync(path.join(result.contextPath, 'Dockerfile'), 'utf8')
+    ).toBe('FROM node:22\n')
+    fs.rmSync(result.contextPath, { recursive: true, force: true })
     expect(result).toEqual({
-      contextPath,
+      contextPath: result.contextPath,
       hydrated: false,
       sourceMode: 'pushed'
     })
@@ -107,21 +112,26 @@ test('missing build context is hydrated from a connected repository', async ({
       deploymentId: 'dep-1'
     })
 
-    expect(result.contextPath).toBe(path.join(tempRoot, 'sailscasts'))
+    expect(
+      result.contextPath.startsWith(
+        path.join(os.tmpdir(), 'slipway', 'deployments', 'dep-1')
+      )
+    ).toBe(true)
     expect(result.hydrated).toBe(true)
     expect(result.branch).toBe('production')
     expect(cloneCalls).toEqual([
       {
         cloneUrl: 'git@github.com:acme/sailscasts.git',
         branch: 'production',
-        targetDir: path.join(tempRoot, 'sailscasts'),
+        targetDir: result.contextPath,
         deployKeyPrivate:
           '-----BEGIN TEST KEY-----\nabc\n-----END TEST KEY-----',
         deploymentId: 'dep-1'
       }
     ])
     expect(buildLogs[0]).toContain('Build context missing at')
-    expect(fs.existsSync(path.join(tempRoot, 'sailscasts'))).toBe(true)
+    expect(fs.existsSync(result.contextPath)).toBe(true)
+    fs.rmSync(result.contextPath, { recursive: true, force: true })
   } finally {
     global.sails = originalSails
     global.GitRepository = originalGitRepository

@@ -84,10 +84,14 @@ export default async function slide(options) {
   }
 
   // 2. Upload source to server
+  let sourceRevision
   const pushSpin = createSpinner('Pushing source...').start()
 
   try {
-    await api.projects.push(project.project, tarballBuffer)
+    ;({ sourceRevision } = await api.projects.push(
+      project.project,
+      tarballBuffer
+    ))
     pushSpin.succeed('Source pushed')
   } catch (err) {
     pushSpin.fail('Failed to push source')
@@ -102,6 +106,7 @@ export default async function slide(options) {
       project.project,
       environment,
       {
+        sourceRevision,
         message: options.message,
         appSlug: options.app,
         ...getGitInfo()

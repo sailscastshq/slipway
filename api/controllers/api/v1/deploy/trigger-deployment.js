@@ -4,6 +4,7 @@ module.exports = {
   description: 'Trigger a new deployment for an environment.',
 
   inputs: {
+    sourceRevision: { type: 'string', regex: /^[a-f0-9-]{36}$/ },
     projectSlug: {
       type: 'string',
       required: true,
@@ -48,6 +49,7 @@ module.exports = {
   },
 
   fn: async function ({
+    sourceRevision,
     projectSlug,
     environmentSlug,
     gitCommit,
@@ -82,6 +84,7 @@ module.exports = {
 
     const queued = await sails.helpers.deploy.triggerDeployment
       .with({
+        sourceRevision,
         project,
         environment,
         user,
