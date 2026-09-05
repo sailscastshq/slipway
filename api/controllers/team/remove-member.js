@@ -13,7 +13,7 @@ module.exports = {
 
   exits: {
     success: {
-      responseType: 'redirect'
+      responseType: 'inertiaRedirect'
     },
     notFound: {
       statusCode: 404
@@ -21,26 +21,30 @@ module.exports = {
   },
 
   fn: async function ({ userId }) {
-    const currentUser = await User.findOne({
-      id: this.req.auth?.userId || this.req.session.userId
-    })
+    const currentUser = await User.forRequest(this.req)
 
     // Only owners and admins can remove members
     if (!['owner', 'admin'].includes(currentUser.teamRole)) {
-      this.req.addFlash('error', "You don't have permission to remove members.")
+      sails.inertia.flash(
+        'error',
+        "You don't have permission to remove members."
+      )
       return '/settings/team'
     }
 
     // Can't remove yourself
-    if (userId === currentUser.id) {
-      this.req.addFlash('error', 'You cannot remove yourself from the team.')
+    if (Number(userId) === Number(currentUser.id)) {
+      sails.inertia.flash('error', 'You cannot remove yourself from the team.')
       return '/settings/team'
     }
 
-    const targetUser = await User.findOne({
-      id: userId,
+    const membership = await TeamMembership.findOne({
+      user: userId,
       team: currentUser.team
-    })
+    }).populate('user')
+    const targetUser = membership?.user
+      ? { ...membership.user, teamRole: membership.role }
+      : null
 
     if (!targetUser) {
       throw 'notFound'
@@ -48,25 +52,31 @@ module.exports = {
 
     // Can't remove the owner
     if (targetUser.teamRole === 'owner') {
-      this.req.addFlash('error', 'Cannot remove the team owner.')
+      sails.inertia.flash('error', 'Cannot remove the team owner.')
       return '/settings/team'
     }
 
     // Admins can't remove other admins
     if (currentUser.teamRole === 'admin' && targetUser.teamRole === 'admin') {
-      this.req.addFlash(
+      sails.inertia.flash(
         'error',
         'Admins cannot remove other admins. Ask the team owner.'
       )
       return '/settings/team'
     }
 
-    // Remove user from team (nullify team association) and destroy their CLI tokens
-    await CliToken.destroy({ user: userId })
-    await User.destroyOne({ id: userId })
+    await TeamMembership.destroyOne({ id: membership.id })
+    const tokens = await CliToken.find({ user: userId, team: currentUser.team })
+    await CliToken.destroy({ user: userId, team: currentUser.team })
+    for (const token of tokens) sails.sse?.revoke?.({ tokenId: token.id })
+    // Clear only the legacy default, retaining the account and other memberships.
+    await User.updateOne({ id: userId, team: currentUser.team }).set({
+      team: null,
+      teamRole: 'member'
+    })
     sails.sse?.revoke?.({ userId })
 
-    this.req.addFlash(
+    sails.inertia.flash(
       'success',
       `Removed ${targetUser.fullName} from the team.`
     )

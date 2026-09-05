@@ -24,9 +24,7 @@ module.exports = {
   },
 
   fn: async function ({ owner, repo }) {
-    const user = await User.findOne({
-      id: this.req.auth?.userId || this.req.session.userId
-    })
+    const user = await User.forRequest(this.req)
 
     const provider = await GitProvider.findOne({
       team: user.team,

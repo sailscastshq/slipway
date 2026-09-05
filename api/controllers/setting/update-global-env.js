@@ -36,9 +36,7 @@ module.exports = {
   },
 
   fn: async function ({ envVars, envSource, envVarMetadata }) {
-    const user = await User.findOne({
-      id: this.req.auth?.userId || this.req.session.userId
-    })
+    const user = await User.forRequest(this.req)
 
     const problems = sails.helpers.setting.validate(
       { envVars, envSource },

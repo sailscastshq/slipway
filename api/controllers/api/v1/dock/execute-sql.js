@@ -44,9 +44,7 @@ module.exports = {
   },
 
   fn: async function ({ projectSlug, environmentSlug, query, serviceId }) {
-    const user = await User.findOne({
-      id: this.req.auth?.userId || this.req.session.userId
-    })
+    const user = await User.forRequest(this.req)
     const project = await Project.findOne({ slug: projectSlug }).populate(
       'team'
     )

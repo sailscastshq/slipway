@@ -10,9 +10,7 @@ module.exports = {
   },
 
   fn: async function () {
-    const user = await User.findOne({
-      id: this.req.auth?.userId || this.req.session.userId
-    }).populate('team')
+    const user = await User.forRequest(this.req, { populateTeam: true })
     const team = await Team.findOne({ id: user.team.id })
 
     let uploadsConfigured = true

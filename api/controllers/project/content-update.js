@@ -81,9 +81,7 @@ module.exports = {
     appSlug,
     sourceSha
   }) {
-    const user = await User.findOne({
-      id: this.req.auth?.userId || this.req.session.userId
-    }).populate('team')
+    const user = await User.forRequest(this.req, { populateTeam: true })
     if (!user) {
       throw { notFound: '/login' }
     }

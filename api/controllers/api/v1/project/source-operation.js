@@ -8,9 +8,7 @@ module.exports = {
       'project'
     )
     if (!op?.project) throw 'notFound'
-    const user = await User.findOne({
-      id: this.req.auth?.userId || this.req.session.userId
-    })
+    const user = await User.forRequest(this.req)
     if (op.project.team !== user.team) throw 'forbidden'
     const result =
       this.req.method === 'DELETE' ? await operations.cancel(operationId) : op

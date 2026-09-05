@@ -53,9 +53,7 @@ module.exports = {
     let user = null
 
     if (isLoggedIn) {
-      user = await User.findOne({
-        id: this.req.auth?.userId || this.req.session.userId
-      })
+      user = await User.forRequest(this.req)
     }
 
     return {

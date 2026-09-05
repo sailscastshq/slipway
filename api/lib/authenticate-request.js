@@ -27,12 +27,24 @@ module.exports = async function authenticateRequest(
       userId: user.id,
       tokenId: token.id,
       method: 'bearer',
+      teamId: token.team,
       authVersion: user.authVersion || ''
+    }
+    if (
+      !token.team ||
+      !(await TeamMembership.findOne({
+        user: user.id,
+        team: token.team,
+        status: 'active'
+      }))
+    ) {
+      delete req.auth
+      return null
     }
     CliToken.updateOne(token.id)
       .set({ lastUsedAt: new Date() })
       .catch(() => {})
-    return user
+    return User.forRequest(req)
   }
 
   const user = req.session?.userId
@@ -42,11 +54,32 @@ module.exports = async function authenticateRequest(
     if (req.session) delete req.session.userId
     return null
   }
+  let activeTeamId = req.session.activeTeamId || user.team
+  if (
+    !(
+      activeTeamId &&
+      (await TeamMembership.findOne({
+        user: user.id,
+        team: activeTeamId,
+        status: 'active'
+      }))
+    )
+  ) {
+    const [fallback] = await TeamMembership.find({
+      user: user.id,
+      status: 'active'
+    })
+      .sort('id ASC')
+      .limit(1)
+    activeTeamId = fallback?.team || null
+  }
+  req.session.activeTeamId = activeTeamId
   req.auth = {
+    teamId: activeTeamId,
     userId: user.id,
     method: 'session',
     sessionId: req.sessionID,
     authVersion: user.authVersion || ''
   }
-  return user
+  return User.forRequest(req)
 }

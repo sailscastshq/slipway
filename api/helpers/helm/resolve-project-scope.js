@@ -17,9 +17,8 @@ module.exports = {
       type: 'string',
       required: true
     },
-    appSlug: {
-      type: 'string'
-    }
+    appSlug: { type: 'string' },
+    req: { type: 'ref' }
   },
 
   exits: {
@@ -27,8 +26,10 @@ module.exports = {
     forbidden: {}
   },
 
-  fn: async function ({ userId, projectSlug, environmentSlug, appSlug }) {
-    const user = await User.findOne({ id: userId })
+  fn: async function ({ userId, projectSlug, environmentSlug, appSlug, req }) {
+    const user = req
+      ? await User.forRequest(req)
+      : await User.findOne({ id: userId })
     const project = await Project.findOne({ slug: projectSlug }).populate(
       'team'
     )

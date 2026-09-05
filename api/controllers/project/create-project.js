@@ -32,7 +32,7 @@ module.exports = {
     const userId = this.req.auth?.userId || this.req.session.userId
 
     // Get the user's team
-    const user = await User.findOne({ id: userId }).populate('team')
+    const user = await User.forRequest(this.req, { populateTeam: true })
 
     if (!user || !user.team) {
       throw 'invalid'

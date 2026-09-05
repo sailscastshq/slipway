@@ -50,6 +50,31 @@ module.exports = {
     }
   },
 
+  afterCreate: async function (team, proceed) {
+    try {
+      await TeamMembership.findOrCreate(
+        { key: `${team.owner}:${team.id}` },
+        {
+          key: `${team.owner}:${team.id}`,
+          user: team.owner,
+          team: team.id,
+          role: 'owner'
+        }
+      )
+      return proceed()
+    } catch (error) {
+      return proceed(error)
+    }
+  },
+  afterDestroy: async function (team, proceed) {
+    try {
+      await TeamMembership.destroy({ team: team.id })
+      await CliToken.destroy({ team: team.id })
+      return proceed()
+    } catch (error) {
+      return proceed(error)
+    }
+  },
   beforeCreate: async function (values, proceed) {
     if (!values.slug && values.name) {
       values.slug = values.name

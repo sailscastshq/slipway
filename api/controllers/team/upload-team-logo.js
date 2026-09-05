@@ -47,9 +47,7 @@ module.exports = {
       }
     }
 
-    const user = await User.findOne({
-      id: req.auth?.userId || req.session.userId
-    }).populate('team')
+    const user = await User.forRequest(req, { populateTeam: true })
 
     // Generate unique filename
     const fileId = uuidv4()

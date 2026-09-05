@@ -23,6 +23,7 @@ module.exports = {
   fn: async function (inputs) {
     const context = await sails.helpers.flag.resolveApp
       .with({
+        req: this.req,
         userId: String(this.req.auth?.userId || this.req.session.userId),
         projectSlug: inputs.projectSlug,
         environmentSlug: inputs.environmentSlug,

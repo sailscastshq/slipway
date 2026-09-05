@@ -26,9 +26,7 @@ module.exports = {
   },
 
   fn: async function ({ id, purgeData }) {
-    const user = await User.findOne({
-      id: this.req.auth?.userId || this.req.session.userId
-    })
+    const user = await User.forRequest(this.req)
     const requestKey = `service:${id}`
     const targetKey = `service:${id}`
     const [service, existingOperation] = await Promise.all([

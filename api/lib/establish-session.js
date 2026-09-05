@@ -14,11 +14,13 @@ module.exports = async function establishSession(req, user, { maxAge } = {}) {
   if (previousSessionId) sails.sse?.revoke?.({ sessionId: previousSessionId })
   req.session.userId = user.id
   req.session.authVersion = user.authVersion || ''
+  req.session.activeTeamId = user.team?.id || user.team || null
   if (maxAge !== undefined && req.session.cookie)
     req.session.cookie.maxAge = maxAge
   req.auth = {
     userId: user.id,
     method: 'session',
+    teamId: req.session.activeTeamId,
     sessionId: req.sessionID,
     authVersion: user.authVersion || ''
   }

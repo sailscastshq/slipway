@@ -25,9 +25,7 @@ module.exports = {
   },
 
   fn: async function ({ database }) {
-    const user = await User.findOne({
-      id: this.req.auth?.userId || this.req.session.userId
-    })
+    const user = await User.forRequest(this.req)
     if (!user) {
       throw 'notFound'
     }

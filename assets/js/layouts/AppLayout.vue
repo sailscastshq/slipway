@@ -383,7 +383,11 @@ watch(() => page.url, closeMobileMenu)
                   >
                     {{ team.name?.charAt(0)?.toUpperCase() }}
                   </Avatar>
-                  <span class="flex-1 truncate">{{ team.name }}</span>
+                  <span class="flex-1 truncate">{{
+                    team.membershipStatus === 'invited'
+                      ? `Join ${team.name}`
+                      : team.name
+                  }}</span>
                   <Check
                     v-if="team.id === loggedInUser.team?.id"
                     class="h-4 w-4 text-emerald-500"
@@ -668,7 +672,11 @@ watch(() => page.url, closeMobileMenu)
                 >
                   {{ team.name?.charAt(0)?.toUpperCase() }}
                 </Avatar>
-                <span class="flex-1 truncate">{{ team.name }}</span>
+                <span class="flex-1 truncate">{{
+                  team.membershipStatus === 'invited'
+                    ? `Join ${team.name}`
+                    : team.name
+                }}</span>
                 <Check
                   v-if="team.id === loggedInUser.team?.id"
                   class="h-4 w-4 text-emerald-500"

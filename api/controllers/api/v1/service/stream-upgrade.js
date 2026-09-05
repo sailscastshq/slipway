@@ -20,9 +20,7 @@ module.exports = {
   },
 
   fn: async function ({ serviceId }) {
-    const user = await User.findOne({
-      id: this.req.auth?.userId || this.req.session.userId
-    }).populate('team')
+    const user = await User.forRequest(this.req, { populateTeam: true })
     const service = await Service.findOne({ id: serviceId }).populate(
       'environment'
     )

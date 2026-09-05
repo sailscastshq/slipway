@@ -41,59 +41,57 @@ module.exports = function defineCustomHook(sails) {
           skipAssets: true,
           fn: async function (req, res, next) {
             if (req.session.userId) {
-              // Use once() to cache the logged-in user data on the client.
-              // This avoids fetching the same user data on every navigation.
-              // The data is cached until:
-              // - The user logs out (session cleared)
-              // - The user explicitly refreshes
-              // - The prop is marked as .fresh() after profile updates
+              // Memberships and roles are live so the switcher reflects revocation and invitations.
               const userId = req.session.userId
               sails.inertia.share(
                 'loggedInUser',
-                sails.inertia.once(
-                  resolveSharedProp(async () => {
-                    if (!userId) {
-                      return null
-                    }
-                    const user = await User.findOne({
-                      id: userId
-                    })
-                      .select([
-                        'email',
-                        'fullName',
-                        'initials',
-                        'team',
-                        'teamRole',
-                        'isGenesisUser'
-                      ])
-                      .populate('team')
+                resolveSharedProp(async () => {
+                  if (!userId) {
+                    return null
+                  }
+                  const user = await User.forRequest(req, {
+                    populateTeam: true,
+                    select: [
+                      'email',
+                      'fullName',
+                      'initials',
+                      'team',
+                      'teamRole',
+                      'isGenesisUser'
+                    ]
+                  })
 
-                    if (!user) {
-                      sails.log.warn(
-                        'Somehow, the user record for the logged-in user (`' +
-                          req.session.userId +
-                          '`) has gone missing....'
-                      )
-                      delete req.session.userId
-                      return null
-                    }
+                  if (!user) {
+                    sails.log.warn(
+                      'Somehow, the user record for the logged-in user (`' +
+                        req.session.userId +
+                        '`) has gone missing....'
+                    )
+                    delete req.session.userId
+                    return null
+                  }
 
-                    // Also fetch teams owned by this user (for team switching)
-                    const ownedTeams = await Team.find({
-                      owner: user.id
-                    }).select(['id', 'name', 'slug', 'logoUrl'])
+                  const memberships = await TeamMembership.find({
+                    user: user.id
+                  }).populate('team')
+                  const ownedTeams = memberships
+                    .filter((item) => item.team)
+                    .map((item) => ({
+                      id: item.team.id,
+                      name: item.team.name,
+                      slug: item.team.slug,
+                      logoUrl: item.team.logoUrl,
+                      membershipStatus: item.status
+                    }))
 
-                    return { ...user, ownedTeams }
-                  }, null)
-                )
+                  return { ...user, ownedTeams }
+                }, null)
               )
 
               sails.inertia.share(
                 'navProjects',
                 resolveSharedProp(async () => {
-                  const user = await User.findOne({ id: userId }).select([
-                    'team'
-                  ])
+                  const user = await User.forRequest(req, { select: ['team'] })
                   if (!user || !user.team) {
                     return []
                   }
@@ -107,9 +105,9 @@ module.exports = function defineCustomHook(sails) {
                 'navApps',
                 resolveSharedProp(async () => {
                   try {
-                    const user = await User.findOne({ id: userId }).select([
-                      'team'
-                    ])
+                    const user = await User.forRequest(req, {
+                      select: ['team']
+                    })
                     if (!user || !user.team) {
                       return []
                     }
@@ -175,9 +173,9 @@ module.exports = function defineCustomHook(sails) {
                 'navServices',
                 resolveSharedProp(async () => {
                   try {
-                    const user = await User.findOne({ id: userId }).select([
-                      'team'
-                    ])
+                    const user = await User.forRequest(req, {
+                      select: ['team']
+                    })
                     if (!user || !user.team) {
                       return []
                     }

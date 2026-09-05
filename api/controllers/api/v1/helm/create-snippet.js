@@ -46,7 +46,9 @@ module.exports = {
       .resolveProjectScope(
         this.req.auth?.userId || this.req.session.userId,
         projectSlug,
-        environmentSlug
+        environmentSlug,
+        undefined,
+        this.req
       )
       .intercept('notFound', 'notFound')
       .intercept('forbidden', 'forbidden')

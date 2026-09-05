@@ -114,6 +114,26 @@ module.exports = {
       columnName: 'is_genesis_user'
     }
   },
+  forRequest: async function (req, options) {
+    return require('../lib/request-user')(req, options)
+  },
+  afterCreate: async function (user, proceed) {
+    try {
+      if (user.team)
+        await TeamMembership.findOrCreate(
+          { key: `${user.id}:${user.team}` },
+          {
+            key: `${user.id}:${user.team}`,
+            user: user.id,
+            team: user.team,
+            role: user.teamRole || 'member'
+          }
+        )
+      return proceed()
+    } catch (error) {
+      return proceed(error)
+    }
+  },
   customToJSON: function () {
     return Object.keys(this).reduce((result, key) => {
       if (
@@ -130,6 +150,14 @@ module.exports = {
       }
       return result
     }, {})
+  },
+  afterDestroy: async function (user, proceed) {
+    try {
+      await TeamMembership.destroy({ user: user.id })
+      return proceed()
+    } catch (error) {
+      return proceed(error)
+    }
   },
   beforeCreate: async function (valuesToSet, proceed) {
     valuesToSet.initials = sails.helpers.getUserInitials(valuesToSet.fullName)

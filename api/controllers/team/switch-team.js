@@ -33,20 +33,23 @@ module.exports = {
       }
     }
 
-    // Check if user is owner or member
-    const isOwner = team.owner === userId
-    const isMember = await User.findOne({ id: userId, team: teamId })
-
-    if (!isOwner && !isMember) {
+    const membership = await TeamMembership.findOne({
+      user: userId,
+      team: teamId
+    })
+    if (!membership)
       throw {
         invalid: {
           problems: [{ teamId: 'You do not have access to that team.' }]
         }
       }
-    }
-
-    // Update user's current team
-    await User.updateOne({ id: userId }).set({ team: teamId })
+    if (membership.status === 'invited')
+      await TeamMembership.updateOne({ id: membership.id }).set({
+        status: 'active'
+      })
+    this.req.session.activeTeamId = teamId
+    if (this.req.auth) this.req.auth.teamId = teamId
+    sails.sse?.revoke?.({ sessionId: this.req.sessionID })
 
     sails.inertia.refreshOnce('loggedInUser')
     sails.inertia.flash('success', `Switched to ${team.name}.`)

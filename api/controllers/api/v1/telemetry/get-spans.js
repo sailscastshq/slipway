@@ -44,9 +44,7 @@ module.exports = {
     slow,
     status
   }) {
-    const user = await User.findOne({
-      id: this.req.auth?.userId || this.req.session.userId
-    }).populate('team')
+    const user = await User.forRequest(this.req, { populateTeam: true })
     if (!user) return this.res.status(401).json({ error: 'Unauthorized' })
 
     const project = await Project.findOne({

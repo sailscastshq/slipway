@@ -36,9 +36,7 @@ module.exports = {
   },
 
   fn: async function ({ name, description, repositoryUrl, dockerfilePath }) {
-    const user = await User.findOne({
-      id: this.req.auth?.userId || this.req.session.userId
-    })
+    const user = await User.forRequest(this.req)
 
     if (!user.team) {
       throw {

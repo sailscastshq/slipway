@@ -40,7 +40,8 @@ module.exports = {
         this.req.auth?.userId || this.req.session.userId,
         projectSlug,
         environmentSlug,
-        appSlug
+        appSlug,
+        this.req
       )
       .intercept('notFound', 'notFound')
       .intercept('forbidden', 'forbidden')

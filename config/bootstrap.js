@@ -12,6 +12,7 @@
 module.exports.bootstrap = async function () {
   // User hydration may occur in subsequent helpers on safe-migrate upgrades.
   await sails.helpers.auth.ensureSchema()
+  await sails.helpers.team.ensureSchema()
   await sails.helpers.git.ensureWebhookSchema()
   await sails.helpers.source.ensureSchema()
   await sails.helpers.backup.ensureRestoreSchema()

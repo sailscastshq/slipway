@@ -20,7 +20,7 @@ module.exports = {
     let user
 
     if (this.req.session.userId) {
-      user = await User.findOne({ id: this.req.session.userId })
+      user = await User.forRequest(this.req)
     } else if (this.req.session.userEmail) {
       user = await User.findOne({ email: this.req.session.userEmail })
     }

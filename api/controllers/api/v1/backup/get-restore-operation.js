@@ -5,9 +5,7 @@ module.exports = {
   fn: async function ({ operationId }) {
     const operation = await RestoreOperation.findOne({ id: operationId })
     if (!operation) throw 'notFound'
-    const user = await User.findOne({
-      id: this.req.auth?.userId || this.req.session.userId
-    })
+    const user = await User.forRequest(this.req)
     if (operation.team !== user.team) throw 'forbidden'
     return { operation }
   }

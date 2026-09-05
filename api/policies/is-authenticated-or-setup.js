@@ -40,6 +40,8 @@ module.exports = async function (req, res, proceed) {
     return res.redirect('/login')
   }
 
+  if (!req.auth?.teamId) return res.redirect('/teams/create')
+
   // User is authenticated
   return proceed()
 }

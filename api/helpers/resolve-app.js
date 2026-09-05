@@ -52,9 +52,7 @@ module.exports = {
     appSlug,
     requireRunning
   }) {
-    const user = await User.findOne({
-      id: req.auth?.userId || req.session.userId
-    })
+    const user = await User.forRequest(req)
     if (!user) {
       throw 'forbidden'
     }
