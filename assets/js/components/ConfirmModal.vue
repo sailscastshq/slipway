@@ -70,6 +70,7 @@ function handleOpenChange(open) {
     <p :id="messageId" class="mt-2 text-sm text-gray-500 dark:text-gray-400">
       {{ message }}
     </p>
+    <!-- Form fields only: keep dialogs to the two actions in the footer. -->
     <slot name="form" />
     <div class="mt-4 flex justify-end gap-3">
       <Button

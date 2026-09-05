@@ -28,6 +28,10 @@ test(
       await expect(page).toSee(
         'Could not apply routing settings. Previous settings were preserved. Check Caddy and retry'
       )
+      await expect(page.raw.getByRole('alert')).toHaveAttribute(
+        'data-slot',
+        'alert'
+      )
       expect(
         await page.raw.getByRole('button', { name: 'Retry apply' }).isEnabled()
       ).toBe(true)

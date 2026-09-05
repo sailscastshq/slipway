@@ -30,6 +30,10 @@ test(
     })
     await page.raw.getByRole('button', { name: 'Save changes' }).click()
     await page.raw.locator('[data-test="environment-save-error"]').waitFor()
+    await expect(
+      page.raw.locator('[data-test="environment-save-error"]')
+    ).toHaveAttribute('data-slot', 'alert')
+    await expect(page.raw.getByRole('alert')).toHaveCount(1)
     expect(await page.raw.locator('#name').inputValue()).toBe(
       'Edited while offline'
     )

@@ -1,8 +1,9 @@
 # Unsaved content
 
-Content Manager warns before leaving a dirty editor. Save and leave continues
-only after a successful save; validation and server failures keep the editor
-open. Edits made while a save is in flight remain unsaved.
+Content Manager warns before leaving a dirty editor with exactly two actions:
+Keep editing or Discard and leave. Save from the editor before navigating away;
+validation and server failures preserve edits. Edits made while a save is in
+flight remain unsaved.
 
 A recovery copy is kept in session storage for the current tab, scoped to the
 signed-in user, project, environment, app, collection, and file. It expires after

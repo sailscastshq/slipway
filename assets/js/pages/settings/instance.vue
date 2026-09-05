@@ -1,4 +1,5 @@
 <script setup>
+import Alert from '@/components/ui/alert/Alert.vue'
 import SidebarOpen from '@/components/ui/icons/SidebarOpen.vue'
 import SidebarClose from '@/components/ui/icons/SidebarClose.vue'
 import ExternalLink from '@/components/ui/icons/ExternalLink.vue'
@@ -101,13 +102,14 @@ function save() {
         </div>
 
         <form @submit.prevent="save" class="space-y-6">
-          <p
+          <Alert
             v-if="form.errors.routing"
             role="alert"
-            class="text-sm text-red-600 dark:text-red-400"
+            class="border border-red-200 bg-red-50 text-red-900 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-200"
           >
-            {{ form.errors.routing }}
-          </p>
+            <p class="font-medium">Routing update failed</p>
+            <p class="mt-1 leading-6">{{ form.errors.routing }}</p>
+          </Alert>
           <!-- Instance Name -->
           <div class="rounded-lg border border-gray-200 dark:border-gray-800">
             <div class="px-4 py-3">

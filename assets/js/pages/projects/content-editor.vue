@@ -71,7 +71,6 @@ let draftTimer
 let removeNavigationGuard
 let allowVisit = false
 let discardedOnLeave = false
-let leaveAfterSave = false
 
 function clearDraft() {
   try {
@@ -118,11 +117,6 @@ function leaveEditor() {
 }
 function cancelPendingVisit() {
   pendingVisit.value = null
-  leaveAfterSave = false
-}
-function saveAndLeave() {
-  leaveAfterSave = true
-  saveContent(false)
 }
 function beforeUnload(event) {
   persistDraft()
@@ -280,11 +274,8 @@ function submitContent() {
       }
       if (!hasChanges.value) clearDraft()
       else persistDraft()
-      if (leaveAfterSave && !hasChanges.value) leaveEditor()
-      leaveAfterSave = false
     },
     onError: () => {
-      leaveAfterSave = false
       pendingVisit.value = null
       showSaveMenu.value = true
     }
@@ -310,7 +301,6 @@ function saveContent(triggerDeploy = false) {
           ],
     onPrecognitionSuccess: submitContent,
     onValidationError: () => {
-      leaveAfterSave = false
       pendingVisit.value = null
       showSaveMenu.value = true
     }
@@ -413,25 +403,14 @@ function handleKeydown(e) {
     <ConfirmModal
       :show="Boolean(pendingVisit)"
       title="Unsaved changes"
-      message="Save your changes before leaving, or discard them."
+      message="You have unsaved changes. Keep editing to save them, or discard them and leave."
       confirm-label="Discard and leave"
       cancel-label="Keep editing"
       :destructive="true"
       :loading="saveForm.processing || saveForm.validating"
       @confirm="leaveEditor"
       @cancel="cancelPendingVisit"
-    >
-      <template #form
-        ><button
-          type="button"
-          class="mt-4 rounded-md bg-gray-900 px-3 py-2 text-sm text-white dark:bg-white dark:text-gray-900"
-          :disabled="saveForm.processing || saveForm.validating"
-          @click="saveAndLeave"
-        >
-          Save and leave
-        </button></template
-      >
-    </ConfirmModal>
+    />
     <!-- Header -->
     <div
       class="flex items-center justify-between gap-2 border-b border-gray-200 px-3 py-2 dark:border-gray-800 sm:px-6 sm:py-3"

@@ -1,4 +1,5 @@
 <script setup>
+import Alert from '@/components/ui/alert/Alert.vue'
 import {
   mutationFailureMessage,
   assertMutationResponse
@@ -80,7 +81,6 @@ async function save() {
     }
   } catch (error) {
     saveError.value = mutationFailureMessage(error)
-    toast({ message: saveError.value, type: 'error' })
   } finally {
     saving.value = false
   }
@@ -258,14 +258,15 @@ function openDeleteEnvironment() {
                 saving ? 'Saving...' : saveError ? 'Retry save' : 'Save changes'
               }}
             </button>
-            <p
+            <Alert
               v-if="saveError"
               role="alert"
               data-test="environment-save-error"
-              class="order-first w-full text-sm text-red-600 dark:text-red-400"
+              class="order-first border border-red-200 bg-red-50 text-red-900 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-200"
             >
-              {{ saveError }}
-            </p>
+              <p class="font-medium">Save interrupted</p>
+              <p class="mt-1 leading-6">{{ saveError }}</p>
+            </Alert>
           </div>
         </form>
 

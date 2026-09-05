@@ -40,6 +40,9 @@ test(
       await source.fill('{"title":"Keep this draft"}')
       await page.raw.locator('[data-slot="breadcrumb"] a').first().click()
       await page.raw.getByRole('button', { name: 'Keep editing' }).waitFor()
+      await expect(
+        page.raw.getByRole('dialog').getByRole('button')
+      ).toHaveCount(2)
       fs.mkdirSync('.github/screenshots/audit-content-unsaved', {
         recursive: true
       })
@@ -60,16 +63,20 @@ test(
       expect(await source.inputValue()).toContain('Keep this draft')
       await source.fill('invalid JSON')
       await page.raw.locator('[data-slot="breadcrumb"] a').first().click()
-      await page.raw
-        .getByRole('button', { name: 'Save and leave', exact: true })
-        .click()
+      await page.raw.getByRole('button', { name: 'Keep editing' }).click()
+      await source.focus()
+      await page.key('ControlOrMeta+s')
       await page.raw.locator('#content-raw-error').waitFor()
       expect(await source.inputValue()).toBe('invalid JSON')
       await source.fill('{"title":"Keep this draft"}')
-      await page.raw.locator('[data-slot="breadcrumb"] a').first().click()
       await page.raw
-        .getByRole('button', { name: 'Save and leave', exact: true })
+        .locator('[data-test="content-save-menu"] button')
+        .first()
         .click()
+      await expect(
+        page.raw.getByRole('button', { name: 'Save', exact: true })
+      ).toBeDisabled()
+      await page.raw.locator('[data-slot="breadcrumb"] a').first().click()
       await page.raw.waitForURL((url) => url.pathname === '/')
       expect(
         fs.readFileSync(path.join(folder, 'draft.json'), 'utf8')
@@ -78,6 +85,13 @@ test(
       expect(
         await page.raw.getByRole('button', { name: 'Restore draft' }).count()
       ).toBe(0)
+      await source.fill('{"title":"Discard this edit"}')
+      await page.raw.locator('[data-slot="breadcrumb"] a').first().click()
+      await page.raw.getByRole('button', { name: 'Discard and leave' }).click()
+      await page.raw.waitForURL((url) => url.pathname === '/')
+      expect(
+        fs.readFileSync(path.join(folder, 'draft.json'), 'utf8')
+      ).toContain('Keep this draft')
       expect(page).toHaveNoJavascriptErrors()
     } finally {
       sails.config.custom.slipwayAppsDir = original
