@@ -32,6 +32,7 @@ const { revalidateWhenInvalid, validateOnBlur } =
   usePrecognitionValidation(form)
 
 function save() {
+  form.clearErrors('routing')
   form.patch('/settings/instance', { preserveScroll: true })
 }
 </script>
@@ -100,6 +101,13 @@ function save() {
         </div>
 
         <form @submit.prevent="save" class="space-y-6">
+          <p
+            v-if="form.errors.routing"
+            role="alert"
+            class="text-sm text-red-600 dark:text-red-400"
+          >
+            {{ form.errors.routing }}
+          </p>
           <!-- Instance Name -->
           <div class="rounded-lg border border-gray-200 dark:border-gray-800">
             <div class="px-4 py-3">
@@ -226,10 +234,20 @@ function save() {
           <div class="flex justify-end">
             <button
               type="submit"
-              :disabled="form.processing || form.hasErrors || !form.isDirty"
+              :disabled="
+                form.processing ||
+                (form.hasErrors && !form.errors.routing) ||
+                !form.isDirty
+              "
               class="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
             >
-              {{ form.processing ? 'Saving...' : 'Save changes' }}
+              {{
+                form.processing
+                  ? 'Saving...'
+                  : form.errors.routing
+                  ? 'Retry apply'
+                  : 'Save changes'
+              }}
             </button>
           </div>
         </form>

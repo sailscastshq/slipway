@@ -5,6 +5,7 @@ module.exports = {
     'Generate Caddy route configuration for an environment (supports multi-app).',
 
   inputs: {
+    domainOverride: { type: 'ref' },
     environmentId: {
       type: 'string',
       required: true,
@@ -27,7 +28,7 @@ module.exports = {
     }
   },
 
-  fn: async function ({ environmentId, apps }) {
+  fn: async function ({ environmentId, apps, domainOverride }) {
     const environment = await Environment.findOne({
       id: environmentId
     }).populate('project')
@@ -51,7 +52,9 @@ module.exports = {
     }
 
     const { fullDomain, domains } = await Environment.resolveDomains(
-      environmentId
+      domainOverride !== undefined
+        ? { ...environment, domain: domainOverride }
+        : environment
     )
     const routeId = `slipway-${environment.project.slug}-${environment.slug}`
 

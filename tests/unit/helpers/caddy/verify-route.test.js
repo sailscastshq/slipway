@@ -132,3 +132,21 @@ async function captureError(promise) {
 
   throw new Error('Expected operation to fail.')
 }
+
+test('a matching upstream on the old hostname cannot verify a new domain', async ({
+  expect
+}) => {
+  const helper = loadHelperWithExec(async () => ({
+    stdout:
+      '{"match":[{"host":["old.example.com"]}],"handle":[{"upstreams":[{"dial":"slipway:1337"}]}]}',
+    stderr: ''
+  }))
+  const error = await captureError(
+    helper.fn({
+      expectedUpstreams: ['slipway:1337'],
+      expectedDomains: ['new.example.com'],
+      timeoutMs: 1
+    })
+  )
+  expect(error.message).toContain('missing hosts new.example.com')
+})
