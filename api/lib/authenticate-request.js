@@ -23,7 +23,12 @@ module.exports = async function authenticateRequest(
     const user = token ? await User.findOne({ id: token.user }) : null
     if (!user || (token.authVersion || '') !== (user.authVersion || ''))
       return null
-    req.auth = { userId: user.id, tokenId: token.id, method: 'bearer' }
+    req.auth = {
+      userId: user.id,
+      tokenId: token.id,
+      method: 'bearer',
+      authVersion: user.authVersion || ''
+    }
     CliToken.updateOne(token.id)
       .set({ lastUsedAt: new Date() })
       .catch(() => {})
@@ -37,6 +42,11 @@ module.exports = async function authenticateRequest(
     if (req.session) delete req.session.userId
     return null
   }
-  req.auth = { userId: user.id, method: 'session', sessionId: req.sessionID }
+  req.auth = {
+    userId: user.id,
+    method: 'session',
+    sessionId: req.sessionID,
+    authVersion: user.authVersion || ''
+  }
   return user
 }

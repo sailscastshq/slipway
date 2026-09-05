@@ -16,5 +16,10 @@ module.exports = async function establishSession(req, user, { maxAge } = {}) {
   req.session.authVersion = user.authVersion || ''
   if (maxAge !== undefined && req.session.cookie)
     req.session.cookie.maxAge = maxAge
-  req.auth = { userId: user.id, method: 'session', sessionId: req.sessionID }
+  req.auth = {
+    userId: user.id,
+    method: 'session',
+    sessionId: req.sessionID,
+    authVersion: user.authVersion || ''
+  }
 }

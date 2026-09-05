@@ -79,9 +79,9 @@ module.exports.policies = {
   'api/v1/bosun/*': ['is-authenticated', 'is-instance-admin'],
 
   // CLI auth endpoints are public (user not logged in yet)
-  'api/v1/cli/init-auth': true,
-  'api/v1/cli/check-auth': true,
-  'api/v1/cli/stream-auth': true,
+  'api/v1/cli/init-auth': 'rate-limit-cli-auth',
+  'api/v1/cli/check-auth': 'rate-limit-cli-auth',
+  'api/v1/cli/stream-auth': 'rate-limit-cli-auth',
   // confirm-auth requires auth (user confirms in browser while logged in)
 
   // Telemetry ingest is public (token-verified in controller)
@@ -132,5 +132,5 @@ module.exports.policies = {
   'api/v1/webhook/github': true,
 
   // CLI authorization page (handles its own auth state display)
-  'cli/view-authorize': true
+  'cli/view-authorize': 'rate-limit-cli-auth'
 }

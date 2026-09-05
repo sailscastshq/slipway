@@ -1,82 +1,30 @@
-/**
- * stream-cli-auth.js
- *
- * @description :: SSE endpoint for CLI authentication.
- *                 Streams auth status updates to the CLI.
- */
-
 module.exports = {
   friendlyName: 'Stream CLI auth',
-
-  description: 'Server-Sent Events stream for CLI authentication status.',
-
-  inputs: {
-    code: {
-      type: 'string',
-      required: true,
-      description: 'The CLI auth session code.'
-    }
-  },
-
+  inputs: {},
   exits: {
-    success: {
-      description: 'SSE stream started.'
-    },
-    notFound: {
-      statusCode: 404,
-      description: 'Session not found.'
-    }
+    success: {},
+    unauthorized: { statusCode: 401 },
+    busy: { statusCode: 429 }
   },
-
-  fn: async function ({ code }) {
-    const req = this.req
-    const res = this.res
-
-    const authSessions = sails.helpers.cli.authSessions()
-    const session = authSessions.get(code)
-
-    if (!session) {
-      throw 'notFound'
+  fn: async function () {
+    const header = this.req.headers.authorization || ''
+    if (!header.startsWith('Device ')) throw 'unauthorized'
+    const deviceCode = header.slice(7)
+    const sessions = sails.helpers.cli.authSessions()
+    const release = sessions.acquireStream(deviceCode)
+    if (!release) throw 'busy'
+    const stream = this.res.sse()
+    const poll = () => {
+      const result = sessions.readDevice(deviceCode)
+      stream.send(result || { status: 'expired', closed: true })
+      if (!result || result.status === 'authenticated') stream.close()
     }
-
-    const stream = res.sse()
-
-    // Send initial status
-    stream.send({ status: 'pending' })
-
-    // Poll for status changes (the session is updated when user confirms)
-    const checkInterval = setInterval(() => {
-      const currentSession = authSessions.get(code)
-
-      if (!currentSession) {
-        // Session expired or deleted
-        stream.send({ status: 'expired' })
-        clearInterval(checkInterval)
-        stream.close()
-        return
-      }
-
-      if (currentSession.status === 'authenticated') {
-        stream.send({
-          status: 'authenticated',
-          token: currentSession.sessionToken,
-          user: currentSession.user
-        })
-        // Clean up the session
-        authSessions.delete(code)
-        clearInterval(checkInterval)
-        stream.close()
-        return
-      }
-
-      // Send heartbeat to keep connection alive
-      stream.heartbeat()
-    }, 1000)
-
+    const interval = setInterval(poll, 1000)
     stream.onClose(() => {
-      clearInterval(checkInterval)
+      clearInterval(interval)
+      release()
     })
-
+    poll()
     return stream.wait()
   }
 }

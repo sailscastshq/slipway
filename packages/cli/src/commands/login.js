@@ -72,7 +72,9 @@ export default async function login(options) {
     // Step 1: Request a login session from the server
     const initResponse = await fetch(`${serverUrl}/api/v1/cli/auth/init`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' }
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ protocolVersion: 2 }),
+      signal: AbortSignal.timeout(15000)
     })
 
     if (!initResponse.ok) {
@@ -80,7 +82,9 @@ export default async function login(options) {
       error(body.message || 'Failed to initialize login session')
     }
 
-    const { code, loginUrl } = await initResponse.json()
+    const { code, deviceCode, loginUrl, expiresAt } = await initResponse.json()
+    if (!deviceCode)
+      error('This server must be updated to support secure CLI authorization.')
 
     // Step 2: Show login info and wait for user to press ENTER
     console.log(`  ${c.dim('Your confirmation code:')} ${c.bold(code)}`)
@@ -106,9 +110,14 @@ export default async function login(options) {
     // Step 3: Wait for authentication via polling (show dots for progress)
     process.stdout.write('  Checking')
 
-    const result = await waitForAuthPolling(serverUrl, code, () => {
-      process.stdout.write('.')
-    })
+    const result = await waitForAuthPolling(
+      serverUrl,
+      deviceCode,
+      expiresAt,
+      () => {
+        process.stdout.write('.')
+      }
+    )
 
     console.log() // New line after dots
 
@@ -150,11 +159,19 @@ export default async function login(options) {
 /**
  * Wait for auth via polling
  */
-async function waitForAuthPolling(serverUrl, code, onProgress) {
-  const maxAttempts = 120 // 2 minutes
+async function waitForAuthPolling(
+  serverUrl,
+  deviceCode,
+  expiresAt,
+  onProgress
+) {
+  const deadline = Math.min(
+    Number(expiresAt) || Date.now(),
+    Date.now() + 5 * 60 * 1000
+  )
   let attempts = 0
 
-  while (attempts < maxAttempts) {
+  while (Date.now() < deadline) {
     await sleep(1000)
     attempts++
 
@@ -165,7 +182,8 @@ async function waitForAuthPolling(serverUrl, code, onProgress) {
       const response = await fetch(`${serverUrl}/api/v1/cli/auth/check`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code })
+        body: JSON.stringify({ deviceCode }),
+        signal: AbortSignal.timeout(10000)
       })
 
       if (response.ok) {
@@ -184,6 +202,11 @@ async function waitForAuthPolling(serverUrl, code, onProgress) {
           }
         }
         // Still pending, continue polling
+      } else if (response.status === 429) {
+        return {
+          authenticated: false,
+          error: 'Too many login attempts. Try again later.'
+        }
       } else if (response.status === 404) {
         // Session expired on server side, keep trying a few more times
         if (attempts > 5) {

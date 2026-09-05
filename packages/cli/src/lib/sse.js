@@ -10,7 +10,10 @@ import { getCredentials } from './config.js'
  * @param {function} options.onClose - Called when stream closes
  * @returns {function} - Call to abort the connection
  */
-export function connectSSE(path, { onMessage, onError, onClose }) {
+export function connectSSE(
+  path,
+  { onMessage, onError, onClose, headers = {} }
+) {
   const { server, token } = getCredentials()
   const url = `${server}/api/v1${path}`
 
@@ -21,7 +24,8 @@ export function connectSSE(path, { onMessage, onError, onClose }) {
       const response = await fetch(url, {
         headers: {
           Accept: 'text/event-stream',
-          Authorization: token ? `Bearer ${token}` : undefined
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          ...headers
         },
         signal: controller.signal
       })
@@ -97,6 +101,9 @@ export function subscribeToDeployment(deploymentId, callbacks) {
 /**
  * Subscribe to CLI auth confirmation
  */
-export function subscribeToAuthConfirmation(code, callbacks) {
-  return connectSSE(`/cli/auth/stream?code=${code}`, callbacks)
+export function subscribeToAuthConfirmation(deviceCode, callbacks) {
+  return connectSSE(`/cli/auth/stream`, {
+    ...callbacks,
+    headers: { Authorization: `Device ${deviceCode}` }
+  })
 }

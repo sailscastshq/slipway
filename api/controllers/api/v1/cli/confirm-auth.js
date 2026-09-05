@@ -55,43 +55,46 @@ module.exports = {
     if (!user) {
       throw 'unauthorized'
     }
+    const authVersion =
+      this.req.auth?.authVersion ?? this.req.session.authVersion ?? ''
+    if ((user.authVersion || '') !== authVersion) throw 'unauthorized'
 
-    // Generate a session token for the CLI
-    const crypto = require('crypto')
+    if (!authSessions.claim(code)) throw 'notFound'
+    const crypto = require('node:crypto')
     const rawToken = crypto.randomBytes(32).toString('hex')
-    const sessionToken = `sl_${rawToken}`
-
-    // Confirm the session with user and team info
-    const confirmed = authSessions.confirm(
-      code,
-      {
-        id: user.id,
-        email: user.email,
-        fullName: user.fullName,
-        team: user.team
-          ? {
-              id: user.team.id,
-              name: user.team.name,
-              slug: user.team.slug
-            }
-          : null
-      },
-      sessionToken
-    )
-
-    // Store this token in the database for persistence
-    // Hash only the random part (without sl_ prefix) for lookup
-    const hashedToken = crypto
-      .createHash('sha256')
-      .update(rawToken)
-      .digest('hex')
-
-    await CliToken.create({
-      token: hashedToken,
-      user: user.id,
-      name: 'CLI',
-      lastUsedAt: new Date()
-    })
+    let persisted
+    try {
+      persisted = await CliToken.create({
+        token: crypto.createHash('sha256').update(rawToken).digest('hex'),
+        user: user.id,
+        name: 'CLI',
+        lastUsedAt: new Date()
+      }).fetch()
+      const currentUser = await User.findOne({ id: user.id })
+      if (!currentUser || (currentUser.authVersion || '') !== authVersion) {
+        await CliToken.destroyOne({ id: persisted.id })
+        throw 'unauthorized'
+      }
+      const confirmed = authSessions.confirm(
+        code,
+        {
+          id: user.id,
+          email: user.email,
+          fullName: user.fullName,
+          team: user.team
+            ? { id: user.team.id, name: user.team.name, slug: user.team.slug }
+            : null
+        },
+        `sl_${rawToken}`
+      )
+      if (!confirmed) {
+        await CliToken.destroyOne({ id: persisted.id })
+        throw 'notFound'
+      }
+    } catch (error) {
+      authSessions.releaseClaim(code)
+      throw error
+    }
 
     return {
       success: true,
