@@ -36,14 +36,15 @@ const CURRENT_CLASSES =
 
 function itemClass(index) {
   return twMerge(
-    'flex min-w-0 shrink-0 items-center gap-1.5',
+    'flex min-w-0 items-center gap-1.5',
     isCollapsed(index) ? 'hidden' : undefined,
     props.currentOnlyOnMobile &&
       !isCollapsed(index) &&
       index !== lastIndex.value
       ? 'hidden sm:flex'
       : undefined,
-    index === lastIndex.value ? 'shrink' : undefined
+    index === 0 ? 'shrink-0' : undefined,
+    index === lastIndex.value && index > 0 ? 'max-w-[50%] shrink-0' : undefined
   )
 }
 
@@ -67,7 +68,7 @@ function separatorClass(index) {
     v-bind="rootAttrs"
     data-slot="breadcrumb"
     :aria-label="label"
-    :class="twMerge('@container min-w-0', attrs.class)"
+    :class="twMerge('min-w-0', attrs.class)"
   >
     <ol
       data-slot="list"

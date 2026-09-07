@@ -1110,9 +1110,9 @@ onBeforeUnmount(() => {
   <div class="flex h-full flex-col" @click="closeAllDropdowns">
     <!-- Header -->
     <div
-      class="flex items-center justify-between border-b border-gray-200 py-4 pl-4 pr-4 dark:border-gray-800 sm:pl-4 sm:pr-8"
+      class="flex items-center justify-between gap-3 border-b border-gray-200 py-4 pl-4 pr-4 dark:border-gray-800 sm:pl-4 sm:pr-8"
     >
-      <div class="flex items-center space-x-3">
+      <div class="flex min-w-0 items-center space-x-3">
         <button
           @click="toggleMobileMenu"
           class="rounded-md p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white md:hidden"
