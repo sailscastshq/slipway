@@ -394,7 +394,7 @@ onUnmounted(() => {
     <div
       class="sticky top-0 z-10 flex h-12 shrink-0 items-center justify-between border-b border-gray-200 bg-white px-4 dark:border-gray-800 dark:bg-gray-950"
     >
-      <div class="flex items-center space-x-3">
+      <div class="flex min-w-0 items-center space-x-3">
         <button
           @click="toggleMobileMenu"
           class="rounded-md p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white md:hidden"
