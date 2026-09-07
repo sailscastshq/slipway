@@ -1587,7 +1587,7 @@ onBeforeUnmount(() => {
                         { value: '/admin', label: '/admin' },
                         { value: 'none', label: 'None (worker)' }
                       ]"
-                      class="focus:border-brand rounded-md border border-gray-200 bg-white px-2 py-1.5 text-sm text-gray-900 focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+                      class="focus:border-brand rounded-none border-0 border-b border-dashed border-gray-200 bg-transparent px-2 py-1.5 text-sm text-gray-900 focus:outline-none dark:border-gray-700 dark:bg-transparent dark:text-white"
                     />
                   </div>
 
@@ -1638,7 +1638,7 @@ onBeforeUnmount(() => {
                             }))
                           "
                           @change="selectBranch"
-                          class="focus:border-brand rounded-md border border-gray-200 bg-white px-2 py-1 text-sm text-gray-900 focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+                          class="focus:border-brand rounded-none border-0 border-b border-dashed border-gray-200 bg-transparent px-2 py-1 text-sm text-gray-900 focus:outline-none dark:border-gray-700 dark:bg-transparent dark:text-white"
                         />
                         <span v-else-if="loadingBranches" role="status">
                           <Spinner class="h-4 w-4 text-gray-400" />
@@ -2030,14 +2030,16 @@ onBeforeUnmount(() => {
                     <Input
                       v-model="newServiceName"
                       type="text"
+                      aria-label="Service name"
                       placeholder="service name (e.g. main-db)"
-                      class="focus:border-brand w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 font-mono text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500 sm:flex-1"
+                      class="focus:border-brand w-full min-w-0 border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 font-mono text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500 sm:flex-1"
                       @keydown.enter="createService"
                     />
                     <Select
                       v-model="newServiceType"
+                      aria-label="Service type"
                       :options="serviceTypes"
-                      class="focus:border-brand rounded-md border border-gray-200 bg-white px-2 py-1.5 text-sm text-gray-900 focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+                      class="focus:border-brand rounded-none border-0 border-b border-dashed border-gray-200 bg-transparent px-2 py-1.5 text-sm text-gray-900 focus:outline-none dark:border-gray-700 dark:bg-transparent dark:text-white"
                     />
                     <Select
                       v-if="!customServiceVersion"
@@ -2054,7 +2056,7 @@ onBeforeUnmount(() => {
                         { value: '__custom__', label: 'Custom version…' }
                       ]"
                       aria-label="Service version"
-                      class="focus:border-brand rounded-md border border-gray-200 bg-white px-2 py-1.5 text-sm text-gray-900 focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+                      class="focus:border-brand rounded-none border-0 border-b border-dashed border-gray-200 bg-transparent px-2 py-1.5 text-sm text-gray-900 focus:outline-none dark:border-gray-700 dark:bg-transparent dark:text-white"
                       @change="handleServiceVersionChange"
                     />
                     <div v-else class="flex items-center gap-2">
@@ -2269,14 +2271,14 @@ onBeforeUnmount(() => {
                       v-model="newKey"
                       type="text"
                       placeholder="KEY"
-                      class="focus:border-brand w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 font-mono text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500 sm:flex-1"
+                      class="focus:border-brand w-full min-w-0 border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 font-mono text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500 sm:flex-1"
                       @keydown.enter="addVar"
                     />
                     <Input
                       v-model="newValue"
                       type="text"
                       placeholder="value"
-                      class="focus:border-brand w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 font-mono text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500 sm:flex-1"
+                      class="focus:border-brand w-full min-w-0 border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 font-mono text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500 sm:flex-1"
                       @keydown.enter="addVar"
                     />
                     <button

@@ -445,7 +445,7 @@ function timeAgo(date) {
                       { value: 'member', label: 'Member' },
                       { value: 'admin', label: 'Admin' }
                     ]"
-                    class="focus:border-brand w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+                    class="focus:border-brand w-full rounded-none border-0 border-b border-dashed border-gray-200 bg-transparent px-3 py-2 text-sm text-gray-900 focus:outline-none dark:border-gray-700 dark:bg-transparent dark:text-white"
                   />
                 </div>
                 <div class="flex justify-end space-x-3">

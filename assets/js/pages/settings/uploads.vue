@@ -669,7 +669,7 @@ const providers = [
                   :aria-invalid="
                     scheduleForm.invalid('backupSchedule.intervalHours')
                   "
-                  class="focus:border-brand w-full rounded-md border border-gray-200 bg-transparent px-3 py-1.5 text-sm text-gray-900 focus:outline-none dark:border-gray-700 dark:text-white"
+                  class="focus:border-brand w-full rounded-none border-0 border-b border-dashed border-gray-200 bg-transparent px-3 py-1.5 text-sm text-gray-900 focus:outline-none dark:border-gray-700 dark:text-white"
                   @change="
                     revalidateScheduleWhenInvalid(
                       'backupSchedule.intervalHours'
@@ -705,7 +705,7 @@ const providers = [
                   :aria-invalid="
                     scheduleForm.invalid('backupSchedule.retentionCount')
                   "
-                  class="focus:border-brand w-full rounded-md border border-gray-200 bg-transparent px-3 py-1.5 text-sm text-gray-900 focus:outline-none dark:border-gray-700 dark:text-white"
+                  class="focus:border-brand w-full rounded-none border-0 border-b border-dashed border-gray-200 bg-transparent px-3 py-1.5 text-sm text-gray-900 focus:outline-none dark:border-gray-700 dark:text-white"
                   @change="
                     revalidateScheduleWhenInvalid(
                       'backupSchedule.retentionCount'
