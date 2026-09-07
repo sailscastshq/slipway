@@ -283,14 +283,17 @@ onBeforeUnmount(() => {
     :class="viewportClasses"
     :style="[motionStyle, attrs.style]"
   >
-    <ol data-slot="toast-list" class="m-0 flex w-full list-none flex-col p-0">
+    <ol
+      data-slot="toast-list"
+      class="m-0 flex w-full min-w-0 list-none flex-col p-0"
+    >
       <li
         v-for="item in items"
         :key="item.id"
         data-klean-toast-row
         :data-state="item.state"
         aria-atomic="true"
-        class="grid grid-rows-[1fr] pb-3"
+        class="grid min-w-0 grid-cols-1 grid-rows-[1fr] pb-3"
         @mouseenter="activeController.pause(item.id, 'hover')"
         @mouseleave="activeController.resume(item.id, 'hover')"
         @focusin="activeController.pause(item.id, 'focus')"
@@ -304,7 +307,7 @@ onBeforeUnmount(() => {
           :data-to="resolvedTo"
           :class="
             twMerge(
-              'dark:ring-white/15 pointer-events-auto grid min-h-0 w-full grid-cols-[minmax(0,1fr)_auto] items-start gap-3 overflow-hidden rounded-xl bg-white px-4 py-3 text-gray-950 shadow-xl ring-1 ring-gray-950/10 dark:bg-gray-950 dark:text-white',
+              'wrap-anywhere dark:ring-white/15 pointer-events-auto grid min-h-0 w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] items-start gap-3 overflow-hidden rounded-xl bg-white px-4 py-3 text-gray-950 shadow-xl ring-1 ring-gray-950/10 dark:bg-gray-950 dark:text-white',
               item.class
             )
           "
@@ -337,7 +340,7 @@ onBeforeUnmount(() => {
                 :href="item.action.href"
                 :class="
                   twMerge(
-                    'min-h-8 mt-2 inline-flex items-center text-sm font-semibold text-gray-950 underline decoration-gray-300 underline-offset-4 hover:decoration-current focus-visible:rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-950 dark:text-white dark:decoration-gray-600 dark:focus-visible:ring-white',
+                    'min-h-8 mt-2 inline-flex max-w-full items-center whitespace-normal text-left text-sm font-semibold text-gray-950 underline decoration-gray-300 underline-offset-4 hover:decoration-current focus-visible:rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-950 dark:text-white dark:decoration-gray-600 dark:focus-visible:ring-white',
                     item.action.class
                   )
                 "
@@ -351,7 +354,7 @@ onBeforeUnmount(() => {
                 data-slot="toast-action"
                 :class="
                   twMerge(
-                    'min-h-8 mt-2 inline-flex cursor-pointer items-center text-sm font-semibold text-gray-950 hover:text-gray-600 focus-visible:rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-950 dark:text-white dark:hover:text-gray-300 dark:focus-visible:ring-white',
+                    'min-h-8 mt-2 inline-flex max-w-full cursor-pointer items-center whitespace-normal text-left text-sm font-semibold text-gray-950 hover:text-gray-600 focus-visible:rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-950 dark:text-white dark:hover:text-gray-300 dark:focus-visible:ring-white',
                     item.action.class
                   )
                 "
