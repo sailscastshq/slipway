@@ -1,4 +1,5 @@
 <script setup>
+import Alert from '@/components/ui/alert/Alert.vue'
 import WarningTriangle from '@/components/ui/icons/WarningTriangle.vue'
 import { nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import Spinner from '@/components/SlipwaySpinner.vue'
@@ -152,14 +153,14 @@ function handleKeydown(event) {
             is a safety heuristic—not a security sandbox.
           </p>
 
-          <p
+          <Alert
             v-if="error"
             data-test="helm-write-guard-error"
             role="alert"
-            class="mt-3 text-xs text-red-600 dark:text-red-400"
+            class="mt-3 border border-red-200 bg-red-50 text-xs text-red-900 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-200"
           >
             {{ error }}
-          </p>
+          </Alert>
 
           <div class="mt-5 flex items-center justify-end gap-2">
             <button

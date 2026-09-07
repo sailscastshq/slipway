@@ -1,6 +1,7 @@
 name: Tests
 
 on:
+  workflow_call:
   push:
     branches: [main]
   pull_request:
@@ -13,6 +14,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.sha }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
@@ -21,7 +24,7 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci --no-audit
 
       - name: Run Prettier check
         run: npm run lint
@@ -40,6 +43,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.sha }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
@@ -48,7 +53,7 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci --no-audit
 
       - name: Install Playwright browsers
         if: matrix.lane == 'e2e'

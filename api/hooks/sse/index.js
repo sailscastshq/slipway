@@ -14,6 +14,7 @@
 module.exports = function defineSseHook(sails) {
   // Every res.sse() stream, including raw controller-managed streams.
   const activeStreams = new Set()
+  const streamPrincipals = new Map()
   // Level 2: channel → Set<SseStream>
   const channels = new Map()
 
@@ -22,6 +23,7 @@ module.exports = function defineSseHook(sails) {
       stream.close()
     }
     activeStreams.clear()
+    streamPrincipals.clear()
     channels.clear()
   }
 
@@ -31,6 +33,23 @@ module.exports = function defineSseHook(sails) {
 
       // Expose Level 2 pub/sub on sails.sse
       sails.sse = {
+        revoke: function ({ userId, tokenId, sessionId }) {
+          for (const [stream, principal] of streamPrincipals) {
+            if (
+              (userId !== undefined &&
+                String(principal.userId) === String(userId)) ||
+              (tokenId !== undefined &&
+                String(principal.tokenId) === String(tokenId)) ||
+              (sessionId !== undefined && principal.sessionId === sessionId)
+            ) {
+              stream.send({
+                closed: true,
+                error: 'Authentication revoked. Sign in again.'
+              })
+              stream.close()
+            }
+          }
+        },
         /**
          * Subscribe a request to a named channel.
          * Returns a Promise that keeps Sails alive until disconnect.
@@ -129,6 +148,7 @@ module.exports = function defineSseHook(sails) {
                 closed = true
                 if (stream) {
                   activeStreams.delete(stream)
+                  streamPrincipals.delete(stream)
                 }
                 for (const fn of cleanupFns) {
                   try {
@@ -240,6 +260,7 @@ module.exports = function defineSseHook(sails) {
               }
 
               activeStreams.add(stream)
+              if (req.auth) streamPrincipals.set(stream, { ...req.auth })
               const heartbeatInterval = setInterval(() => {
                 stream.heartbeat()
               }, 15 * 1000)

@@ -1,4 +1,6 @@
-const AWS = require('aws-sdk')
+const createClient = require('../../lib/s3-client')
+const { PutObjectCommand, UploadPartCommand } = require('@aws-sdk/client-s3')
+const { getSignedUrl } = require('@aws-sdk/s3-request-presigner')
 
 const MAX_PARTS = 10_000
 
@@ -90,9 +92,10 @@ module.exports = {
 
       if (operation === 'createMultipart') {
         requireContentType(contentType)
-        const created = await client
-          .createMultipartUpload({ ...base, ContentType: contentType })
-          .promise()
+        const created = await client.createMultipartUpload({
+          ...base,
+          ContentType: contentType
+        })
         if (!created.UploadId) {
           throw new Error(
             'Object storage did not return a multipart upload ID.'
@@ -129,13 +132,11 @@ module.exports = {
 
       if (operation === 'completeMultipart') {
         const normalizedParts = normalizeCompletedParts(parts)
-        const completed = await client
-          .completeMultipartUpload({
-            ...base,
-            UploadId: uploadId,
-            MultipartUpload: { Parts: normalizedParts }
-          })
-          .promise()
+        const completed = await client.completeMultipartUpload({
+          ...base,
+          UploadId: uploadId,
+          MultipartUpload: { Parts: normalizedParts }
+        })
         return {
           etag: normalizeEtag(completed.ETag),
           location: completed.Location || null
@@ -143,13 +144,11 @@ module.exports = {
       }
 
       if (operation === 'abortMultipart') {
-        await client
-          .abortMultipartUpload({ ...base, UploadId: uploadId })
-          .promise()
+        await client.abortMultipartUpload({ ...base, UploadId: uploadId })
         return { aborted: true }
       }
 
-      const metadata = await client.headObject(base).promise()
+      const metadata = await client.headObject(base)
       if (!Number.isSafeInteger(metadata.ContentLength)) {
         throw new Error('Object storage did not return a valid object size.')
       }
@@ -166,33 +165,19 @@ module.exports = {
         throw error
       }
       throw cause
+    } finally {
+      client.destroy()
     }
   }
 }
 
-function createClient(storage) {
-  return new AWS.S3({
-    accessKeyId: storage.key,
-    secretAccessKey: storage.secret,
-    region: storage.region || 'us-east-1',
-    ...(storage.endpoint
-      ? { endpoint: storage.endpoint, s3ForcePathStyle: true }
-      : {}),
-    signatureVersion: 'v4',
-    httpOptions: {
-      connectTimeout: 5000,
-      timeout: 30_000
-    },
-    maxRetries: 3
-  })
-}
-
 function signedUrl(client, operation, options) {
-  return new Promise((resolve, reject) => {
-    client.getSignedUrl(operation, options, (error, url) => {
-      if (error) reject(error)
-      else resolve(url)
-    })
+  const { Expires, ...input } = options
+  const Command =
+    operation === 'putObject' ? PutObjectCommand : UploadPartCommand
+  return getSignedUrl(client, new Command(input), {
+    expiresIn: Expires,
+    signableHeaders: new Set(['content-type'])
   })
 }
 
@@ -200,9 +185,10 @@ async function listParts(client, base) {
   const parts = []
   let partNumberMarker
   do {
-    const page = await client
-      .listParts({ ...base, PartNumberMarker: partNumberMarker })
-      .promise()
+    const page = await client.listParts({
+      ...base,
+      PartNumberMarker: partNumberMarker
+    })
     for (const part of page.Parts || []) {
       if (
         Number.isInteger(part.PartNumber) &&

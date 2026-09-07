@@ -10,18 +10,31 @@ module.exports = {
 
   description: 'Create a new CLI authentication session.',
 
-  inputs: {},
+  inputs: { protocolVersion: { type: 'number', defaultsTo: 1 } },
 
   exits: {
+    upgradeRequired: { statusCode: 426 },
+    busy: { statusCode: 429 },
     success: {
       description: 'CLI auth session created.'
     }
   },
 
-  fn: async function () {
+  fn: async function ({ protocolVersion }) {
+    this.res.set('Cache-Control', 'no-store')
+    if (protocolVersion !== 2) {
+      throw {
+        upgradeRequired: {
+          message: 'Update the Slipway CLI to use secure device authorization.'
+        }
+      }
+    }
     const authSessions = sails.helpers.cli.authSessions()
 
-    const { code, expiresAt } = authSessions.create()
+    const created = authSessions.create()
+    if (!created)
+      throw { busy: { message: 'CLI authorization is busy. Try again later.' } }
+    const { code, deviceCode, expiresAt } = created
 
     // Build the authorization URL using instance URL (from DB, env, or config)
     const instanceUrl = await sails.helpers.getInstanceUrl()
@@ -29,6 +42,8 @@ module.exports = {
 
     return {
       code,
+      deviceCode,
+      protocolVersion: 2,
       loginUrl,
       expiresAt
     }

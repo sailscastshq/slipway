@@ -1,4 +1,9 @@
 <script setup>
+import Alert from '@/components/ui/alert/Alert.vue'
+import {
+  mutationFailureMessage,
+  assertMutationResponse
+} from '@/lib/mutation-feedback'
 import WarningTriangle from '@/components/ui/icons/WarningTriangle.vue'
 import Users from '@/components/ui/icons/Users.vue'
 import Terminal from '@/components/ui/icons/Terminal.vue'
@@ -139,14 +144,18 @@ const stopping = ref(false)
 async function restartApp() {
   restarting.value = true
   try {
-    await fetch(
-      `/api/v1/projects/${props.project.slug}/environments/${props.environment.slug}/apps/${props.app.slug}/restart`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
-      }
+    await assertMutationResponse(
+      await fetch(
+        `/api/v1/projects/${props.project.slug}/environments/${props.environment.slug}/apps/${props.app.slug}/restart`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
+        }
+      )
     )
     router.reload({ only: ['app'] })
+  } catch (error) {
+    toast({ message: mutationFailureMessage(error), type: 'error' })
   } finally {
     restarting.value = false
   }
@@ -155,14 +164,18 @@ async function restartApp() {
 async function stopApp() {
   stopping.value = true
   try {
-    await fetch(
-      `/api/v1/projects/${props.project.slug}/environments/${props.environment.slug}/apps/${props.app.slug}/stop`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
-      }
+    await assertMutationResponse(
+      await fetch(
+        `/api/v1/projects/${props.project.slug}/environments/${props.environment.slug}/apps/${props.app.slug}/stop`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
+        }
+      )
     )
     router.reload({ only: ['app'] })
+  } catch (error) {
+    toast({ message: mutationFailureMessage(error), type: 'error' })
   } finally {
     stopping.value = false
   }
@@ -238,6 +251,8 @@ async function saveCustomDomain() {
       const err = await res.json().catch(() => null)
       toast({ message: err?.message || 'Failed to save domain', type: 'error' })
     }
+  } catch (error) {
+    toast({ message: mutationFailureMessage(error), type: 'error' })
   } finally {
     savingDomain.value = false
   }
@@ -1174,12 +1189,13 @@ onBeforeUnmount(() => {
           </div>
         </div>
 
-        <section
+        <Alert
+          as="section"
           v-if="!sourceIsReady"
           role="alert"
           aria-labelledby="deployment-source-warning-title"
           data-test="deployment-source-warning"
-          class="mb-4 rounded-lg border border-amber-200 bg-amber-50/50 dark:border-amber-900/50 dark:bg-amber-950/20"
+          class="mb-4 rounded-lg border border-amber-200 bg-amber-50/50 p-0 dark:border-amber-900/50 dark:bg-amber-950/20"
         >
           <div class="flex items-start justify-between gap-3 px-4 py-3">
             <div class="flex min-w-0 items-start gap-3">
@@ -1208,7 +1224,7 @@ onBeforeUnmount(() => {
               Configure source
             </Link>
           </div>
-        </section>
+        </Alert>
 
         <!-- Slide to Deploy -->
         <div class="mb-10 flex justify-end">

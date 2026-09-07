@@ -1,4 +1,5 @@
 <script setup>
+import Alert from '@/components/ui/alert/Alert.vue'
 import X from '@/components/ui/icons/X.vue'
 import Input from '@/components/ui/input/Input.vue'
 import Radio from '@/components/ui/radio/Radio.vue'
@@ -231,14 +232,14 @@ function handleKeydown(event) {
                 </div>
               </div>
 
-              <p
+              <Alert
                 v-if="error"
                 data-test="helm-snippet-error"
                 role="alert"
-                class="text-sm text-red-600 dark:text-red-400"
+                class="border border-red-200 bg-red-50 text-sm text-red-900 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-200"
               >
                 {{ error }}
-              </p>
+              </Alert>
             </div>
           </div>
 

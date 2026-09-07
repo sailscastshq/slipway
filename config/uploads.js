@@ -18,7 +18,7 @@
 
 module.exports.uploads = {
   provider: 'r2',
-  adapter: require('skipper-s3'),
+  adapter: require('../api/lib/s3-upload-adapter'),
   key: process.env.R2_ACCESS_KEY,
   secret: process.env.R2_SECRET_KEY,
   bucket: process.env.R2_BUCKET,

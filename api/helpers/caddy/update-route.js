@@ -10,6 +10,7 @@ module.exports = {
     'Replace an environment route through a verified caddy-docker-proxy label container.',
 
   inputs: {
+    domainOverride: { type: 'ref' },
     environmentId: {
       type: 'string',
       required: true,
@@ -43,7 +44,13 @@ module.exports = {
     }
   },
 
-  fn: async function ({ environmentId, apps, routeVersion, deferCommit }) {
+  fn: async function ({
+    environmentId,
+    apps,
+    routeVersion,
+    deferCommit,
+    domainOverride
+  }) {
     const environmentApps = Array.isArray(apps)
       ? apps
       : await App.find({ environment: environmentId })
@@ -52,7 +59,8 @@ module.exports = {
       : environmentApps
     const config = await sails.helpers.caddy.generateRouteConfig.with({
       environmentId,
-      apps: environmentApps
+      apps: environmentApps,
+      domainOverride
     })
 
     if (!config) {
@@ -130,7 +138,10 @@ module.exports = {
 
       // Keep the previous route active while Caddy accepts the candidate.
       // This lets the deployment commit App state before retiring anything.
-      await sails.helpers.caddy.verifyRoute.with({ expectedUpstreams })
+      await sails.helpers.caddy.verifyRoute.with({
+        expectedUpstreams,
+        expectedDomains: config.domains
+      })
 
       const transaction = {
         routeId: routeContainerName,
@@ -139,6 +150,8 @@ module.exports = {
         previousExists: oldExists,
         previousWasRunning: oldWasRunning,
         previousUpstreams,
+        candidateDomains: config.domains,
+        previousDomains: await Environment.getDomains(environmentId),
         candidateUpstreams: expectedUpstreams
       }
       const result = {

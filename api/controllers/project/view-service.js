@@ -31,9 +31,7 @@ module.exports = {
   },
 
   fn: async function ({ slug, envSlug, serviceId }) {
-    const user = await User.findOne({ id: this.req.session.userId }).populate(
-      'team'
-    )
+    const user = await User.forRequest(this.req, { populateTeam: true })
 
     const project = await Project.findOne({ slug, team: user.team.id })
 
@@ -73,9 +71,16 @@ module.exports = {
       lastBackup = backups[0] || null
     }
 
+    const [restoreOperation] = await RestoreOperation.find({
+      service: service.id
+    })
+      .sort('id DESC')
+      .limit(1)
+
     return {
       page: 'projects/service',
       props: {
+        restoreOperation: restoreOperation || null,
         project: {
           id: project.id,
           name: project.name,

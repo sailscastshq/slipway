@@ -42,6 +42,7 @@ module.exports = {
   },
 
   exits: {
+    routeFailed: { statusCode: 503 },
     success: {
       statusCode: 200
     },
@@ -69,7 +70,7 @@ module.exports = {
     envVarMetadata,
     resourceLimits
   }) {
-    const user = await User.findOne({ id: this.req.session.userId })
+    const user = await User.forRequest(this.req)
 
     const project = await Project.findOne({ slug: projectSlug }).populate(
       'team'
@@ -184,7 +185,43 @@ module.exports = {
       updates.envVarMetadata = normalizedMetadata
     }
 
-    await Environment.updateOne({ id: environment.id }).set(updates)
+    let route
+    try {
+      if (domain !== undefined)
+        route = await sails.helpers.caddy.updateRoute.with({
+          environmentId: String(environment.id),
+          domainOverride: domain,
+          deferCommit: true
+        })
+      await Environment.updateOne({ id: environment.id }).set(updates)
+      if (route?.transaction)
+        await sails.helpers.caddy.finishRouteUpdate.with({
+          action: 'commit',
+          transaction: route.transaction
+        })
+    } catch (error) {
+      if (route?.transaction) {
+        await Environment.updateOne({ id: environment.id }).set(
+          Object.fromEntries(
+            Object.keys(updates).map((key) => [key, environment[key]])
+          )
+        )
+        // The route commit helper restores the previous candidate on failure.
+        await sails.helpers.caddy.finishRouteUpdate
+          .with({ action: 'rollback', transaction: route.transaction })
+          .catch((rollback) => {
+            error.rollbackError = rollback
+          })
+      }
+      sails.log.warn('Environment route update failed:', error.message || error)
+      throw {
+        routeFailed: {
+          message: error.rollbackError
+            ? 'Route update and recovery failed. Check the proxy before retrying.'
+            : 'The proxy could not apply this change. Previous settings were preserved. Check Caddy and retry.'
+        }
+      }
+    }
 
     if (envVars !== undefined || envVarMetadata !== undefined) {
       await sails.helpers.configuration.recordEnvVarChanges.with({
@@ -204,19 +241,6 @@ module.exports = {
     // If resource limits changed, update the App record
     if (resourceLimits !== undefined) {
       await App.update({ environment: environment.id }).set({ resourceLimits })
-    }
-
-    // If domain changed, update Caddy route
-    if (domain !== undefined) {
-      try {
-        await sails.helpers.caddy.updateRoute(environment.id)
-      } catch (err) {
-        // Log but don't fail - Caddy update is best-effort
-        sails.log.warn(
-          'Failed to update Caddy route after domain change:',
-          err.message
-        )
-      }
     }
 
     // Audit log

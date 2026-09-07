@@ -26,7 +26,7 @@ module.exports = {
     }
   },
   fn: async function ({ id, type }) {
-    const user = await User.findOne({ id: this.req.session.userId })
+    const user = await User.forRequest(this.req)
     const deployment = await Deployment.findOne(id).populate('environment')
 
     if (!deployment) {

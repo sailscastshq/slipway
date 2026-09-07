@@ -1,3 +1,4 @@
+const { withSourceLock } = require('../../lib/source-workspace')
 const fs = require('fs')
 const path = require('path')
 
@@ -56,9 +57,7 @@ module.exports = {
     title,
     appSlug
   }) {
-    const user = await User.findOne({ id: this.req.session.userId }).populate(
-      'team'
-    )
+    const user = await User.forRequest(this.req, { populateTeam: true })
     if (!user) {
       throw { notFound: '/login' }
     }
@@ -82,104 +81,121 @@ module.exports = {
 
     const contentFeature = environment.features['sails-content']
     const contentDir = contentFeature.contentDir || 'content'
-    const appPath = `${sails.config.custom.slipwayAppsDir}/${project.slug}`
-    const resolved = await sails.helpers.deploy.resolveTargetApp
-      .with({ environment, appSlug })
-      .intercept('appNotFound', () => ({
-        badRequest: {
-          problems: [{ appSlug: 'Choose an app that still exists.' }]
-        }
-      }))
+    return withSourceLock(
+      sails.config.custom.slipwayAppsDir,
+      project,
+      async () => {
+        const appPath = `${sails.config.custom.slipwayAppsDir}/${project.slug}`
+        const resolved = await sails.helpers.deploy.resolveTargetApp
+          .with({ environment, appSlug })
+          .intercept('appNotFound', () => ({
+            badRequest: {
+              problems: [{ appSlug: 'Choose an app that still exists.' }]
+            }
+          }))
 
-    const validateOnly = sails.inertia.validateOnly(this.req)
-    const problems = sails.helpers.content.validate(
-      { contentSlug, title },
-      validateOnly
-    )
-    if (problems.length) {
-      throw {
-        badRequest: { problems }
+        const validateOnly = sails.inertia.validateOnly(this.req)
+        const problems = sails.helpers.content.validate(
+          { contentSlug, title },
+          validateOnly
+        )
+        if (problems.length) {
+          throw {
+            badRequest: { problems }
+          }
+        }
+
+        const safeSlug = contentSlug.trim()
+
+        const collectionPath = path.join(appPath, contentDir, collection)
+        const filePath = path.join(collectionPath, `${safeSlug}.md`)
+
+        // Check if file already exists
+        if (
+          sails.inertia.shouldValidate('contentSlug', this.req) &&
+          fs.existsSync(filePath)
+        ) {
+          throw {
+            badRequest: {
+              problems: [
+                { contentSlug: 'This content slug is already in use.' }
+              ]
+            }
+          }
+        }
+
+        if (sails.inertia.isPrecognitive(this.req)) {
+          throw 'precognitionSuccess'
+        }
+
+        // Build frontmatter
+        const frontmatter = {}
+        if (title) frontmatter.title = title
+        frontmatter.createdAt = new Date().toISOString()
+
+        // Generate content
+        let content = '---\n'
+        for (const [key, value] of Object.entries(frontmatter)) {
+          if (
+            typeof value === 'string' &&
+            (value.includes(':') || value.includes('#'))
+          ) {
+            content += `${key}: '${value}'\n`
+          } else {
+            content += `${key}: ${value}\n`
+          }
+        }
+        content += '---\n\n'
+        content += `# ${
+          title || safeSlug
+        }\n\nStart writing your content here.\n`
+
+        const relativeFilePath = path.posix.join(
+          String(contentDir).replace(/\\/g, '/'),
+          collection,
+          `${safeSlug}.md`
+        )
+        await sails.helpers.git.commitContentFile
+          .with({
+            environment,
+            app: resolved.app,
+            user,
+            filePath: relativeFilePath,
+            content,
+            operation: 'create',
+            message: `chore(content): create ${collection}/${safeSlug}`
+          })
+          .intercept('conflict', (error) => ({
+            badRequest: {
+              problems: [{ contentSlug: (error.raw || error).message }]
+            }
+          }))
+          .intercept('writeUnavailable', (error) => ({
+            badRequest: {
+              problems: [{ contentSlug: (error.raw || error).message }]
+            }
+          }))
+
+        if (!fs.existsSync(collectionPath)) {
+          fs.mkdirSync(collectionPath, { recursive: true })
+        }
+        fs.writeFileSync(filePath, content, 'utf8')
+
+        sails.log.info(
+          `[content] Created ${collection}/${safeSlug}.md in ${slug}`
+        )
+
+        // Redirect to editor
+        const envPath =
+          envSlug !== 'production' ? `/environments/${envSlug}` : ''
+        return `/projects/${slug}${envPath}/content/${collection}/${safeSlug}?appSlug=${encodeURIComponent(
+          resolved.app.slug
+        )}`
       }
-    }
-
-    const safeSlug = contentSlug.trim()
-
-    const collectionPath = path.join(appPath, contentDir, collection)
-    const filePath = path.join(collectionPath, `${safeSlug}.md`)
-
-    // Check if file already exists
-    if (
-      sails.inertia.shouldValidate('contentSlug', this.req) &&
-      fs.existsSync(filePath)
-    ) {
-      throw {
-        badRequest: {
-          problems: [{ contentSlug: 'This content slug is already in use.' }]
-        }
-      }
-    }
-
-    if (sails.inertia.isPrecognitive(this.req)) {
-      throw 'precognitionSuccess'
-    }
-
-    // Build frontmatter
-    const frontmatter = {}
-    if (title) frontmatter.title = title
-    frontmatter.createdAt = new Date().toISOString()
-
-    // Generate content
-    let content = '---\n'
-    for (const [key, value] of Object.entries(frontmatter)) {
-      if (
-        typeof value === 'string' &&
-        (value.includes(':') || value.includes('#'))
-      ) {
-        content += `${key}: '${value}'\n`
-      } else {
-        content += `${key}: ${value}\n`
-      }
-    }
-    content += '---\n\n'
-    content += `# ${title || safeSlug}\n\nStart writing your content here.\n`
-
-    const relativeFilePath = path.posix.join(
-      String(contentDir).replace(/\\/g, '/'),
-      collection,
-      `${safeSlug}.md`
-    )
-    await sails.helpers.git.commitContentFile
-      .with({
-        environment,
-        app: resolved.app,
-        user,
-        filePath: relativeFilePath,
-        content,
-        operation: 'create',
-        message: `chore(content): create ${collection}/${safeSlug}`
-      })
-      .intercept('conflict', (error) => ({
-        badRequest: {
-          problems: [{ contentSlug: (error.raw || error).message }]
-        }
-      }))
-      .intercept('writeUnavailable', (error) => ({
-        badRequest: {
-          problems: [{ contentSlug: (error.raw || error).message }]
-        }
-      }))
-
-    if (!fs.existsSync(collectionPath)) {
-      fs.mkdirSync(collectionPath, { recursive: true })
-    }
-    fs.writeFileSync(filePath, content, 'utf8')
-
-    sails.log.info(`[content] Created ${collection}/${safeSlug}.md in ${slug}`)
-
-    // Redirect to editor
-    const envPath = envSlug !== 'production' ? `/environments/${envSlug}` : ''
-    return `/projects/${slug}${envPath}/content/${collection}/${safeSlug}?appSlug=${encodeURIComponent(
-      resolved.app.slug
-    )}`
+    ).catch((error) => {
+      if (error.code === 'SOURCE_BUSY')
+        throw { badRequest: { problems: [{ content: error.message }] } }
+      throw error
+    })
   }
 }

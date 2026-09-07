@@ -1,4 +1,5 @@
 <script setup>
+import Alert from '@/components/ui/alert/Alert.vue'
 import { computed } from 'vue'
 import { Link } from '@inertiajs/vue3'
 import ActionMenu from '@/components/ActionMenu.vue'
@@ -241,12 +242,13 @@ function partitionWidth(card, value) {
           </Link>
         </div>
 
-        <p
+        <Alert
+          role="alert"
           v-if="card.error"
-          class="mt-5 text-sm text-red-600 dark:text-red-400"
+          class="mt-5 border border-red-200 bg-red-50 text-sm text-red-900 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-200"
         >
           This card is temporarily unavailable.
-        </p>
+        </Alert>
 
         <ol
           v-else-if="card.type === 'recent' && card.records?.length"

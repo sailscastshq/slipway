@@ -19,6 +19,7 @@ test(
     }
   },
   async ({ sails, world, login, page, expect }) => {
+    page.raw.on('dialog', (dialog) => dialog.accept())
     const current = world.current
     const tempRoot = fs.mkdtempSync(
       path.join(os.tmpdir(), 'slipway-content-manager-ui-')

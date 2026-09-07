@@ -1,4 +1,5 @@
 <script setup>
+import Alert from '@/components/ui/alert/Alert.vue'
 import StopCircle from '@/components/ui/icons/StopCircle.vue'
 import SidebarOpen from '@/components/ui/icons/SidebarOpen.vue'
 import SidebarClose from '@/components/ui/icons/SidebarClose.vue'
@@ -12,7 +13,7 @@ import Trash from '@/components/ui/icons/Trash.vue'
 import Copy from '@/components/ui/icons/Copy.vue'
 import ChevronRight from '@/components/ui/icons/ChevronRight.vue'
 import Input from '@/components/ui/input/Input.vue'
-import { Link, Head, usePage } from '@inertiajs/vue3'
+import { Link, Head, usePage, router } from '@inertiajs/vue3'
 import { inject, ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { useEventSource } from '@/composables/sse'
 import AppLayout from '@/layouts/AppLayout.vue'
@@ -29,6 +30,7 @@ defineOptions({
 const props = defineProps({
   project: Object,
   environment: Object,
+  restoreOperation: Object,
   service: Object
 })
 
@@ -52,6 +54,61 @@ const editingName = ref(false)
 const editedName = ref('')
 const savingName = ref(false)
 const nameInput = ref(null)
+
+const restoreOperation = ref(props.restoreOperation)
+const writesPaused = ref(false)
+const restoreBusy = ref(false)
+const restoreError = ref('')
+let restorePoll
+async function refreshRestore() {
+  if (!restoreOperation.value) return
+  try {
+    const response = await fetch(
+      `/api/v1/restore-operations/${restoreOperation.value.id}`
+    )
+    if (!response.ok)
+      throw new Error(
+        'Could not refresh restore status. Keep writes paused and retry.'
+      )
+    restoreOperation.value = (await response.json()).operation
+    restoreError.value = ''
+    if (['queued', 'running'].includes(restoreOperation.value.status))
+      restorePoll = setTimeout(refreshRestore, 2000)
+    else router.reload({ only: ['service'] })
+  } catch (error) {
+    restoreError.value = error.message
+  }
+}
+async function startRestore() {
+  restoreBusy.value = true
+  restoreError.value = ''
+  try {
+    const response = await fetch(
+      `/api/v1/backups/${props.service.lastBackup.id}/restore`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-csrf-token': page.props._csrf || ''
+        },
+        body: JSON.stringify({ writesPaused: writesPaused.value })
+      }
+    )
+    const data = await response.json()
+    if (!response.ok)
+      throw new Error(
+        data.message ||
+          'Restore could not be queued. Refresh service status before retrying.'
+      )
+    restoreOperation.value = data.operation
+    serviceStatus.value = 'restoring'
+    await refreshRestore()
+  } catch (error) {
+    restoreError.value = error.message
+  } finally {
+    restoreBusy.value = false
+  }
+}
 
 // Computed
 const serviceTypeLabel = computed(() => {
@@ -317,11 +374,14 @@ function handleClickOutside(e) {
 }
 
 onMounted(() => {
+  if (['queued', 'running'].includes(restoreOperation.value?.status))
+    refreshRestore()
   if (serviceStatus.value === 'running') connectToLogs()
   document.addEventListener('click', handleClickOutside)
 })
 
 onUnmounted(() => {
+  clearTimeout(restorePoll)
   document.removeEventListener('click', handleClickOutside)
 })
 </script>
@@ -372,6 +432,80 @@ onUnmounted(() => {
     <!-- Content -->
     <div class="flex-1 overflow-y-auto px-4 py-6 sm:px-8 sm:py-8">
       <div class="mx-auto max-w-6xl">
+        <section
+          v-if="restoreOperation || service.lastBackup?.status === 'completed'"
+          class="mb-8 rounded-lg border border-gray-200 p-5 dark:border-gray-700"
+          aria-label="Database restoration"
+        >
+          <h2 class="font-medium">Database restoration</h2>
+          <div
+            v-if="restoreOperation"
+            class="mt-3 space-y-2 text-sm"
+            role="status"
+          >
+            <p>
+              Restore {{ restoreOperation.id }}:
+              <strong>{{ restoreOperation.status }}</strong> ·
+              {{ restoreOperation.stage }}
+            </p>
+            <p v-if="restoreOperation.snapshotId">
+              Safety snapshot: {{ restoreOperation.snapshotId }}
+            </p>
+            <Alert
+              role="alert"
+              v-if="restoreOperation.error"
+              class="border border-red-200 bg-red-50 text-red-900 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-200"
+            >
+              {{ restoreOperation.error }}
+            </Alert>
+            <p v-else-if="restoreOperation.status === 'completed'">
+              Restore completed. Verify the database before resuming writes.
+            </p>
+            <p v-else>
+              Keep application and external database writes paused until
+              restoration completes.
+            </p>
+          </div>
+          <Alert
+            v-if="restoreError"
+            class="mt-3 border border-red-200 bg-red-50 text-sm text-red-900 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-200"
+            role="alert"
+          >
+            {{ restoreError }}
+            <button
+              v-if="restoreOperation"
+              class="underline"
+              @click="refreshRestore"
+            >
+              Refresh status
+            </button>
+          </Alert>
+          <div
+            v-if="
+              service.lastBackup?.status === 'completed' &&
+              !['queued', 'running'].includes(restoreOperation?.status)
+            "
+            class="mt-4 space-y-3 text-sm"
+          >
+            <p>
+              Restore backup {{ service.lastBackup.id }} into this database.
+              This replaces existing data.
+            </p>
+            <label class="flex items-start gap-2"
+              ><input v-model="writesPaused" type="checkbox" class="mt-1" />I
+              have paused application and external database writes.</label
+            >
+            <button
+              class="rounded bg-gray-900 px-3 py-2 text-white disabled:opacity-40 dark:bg-gray-100 dark:text-gray-900"
+              :disabled="
+                !writesPaused || restoreBusy || service.status !== 'running'
+              "
+              @click="startRestore"
+            >
+              {{ restoreBusy ? 'Queuing restore…' : 'Restore backup' }}
+            </button>
+          </div>
+        </section>
         <!-- Service Info -->
         <div class="mb-8 flex items-start justify-between">
           <div>

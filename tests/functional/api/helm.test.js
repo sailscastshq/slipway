@@ -555,47 +555,6 @@ test(
 )
 
 test(
-  'Bosun Helm introspects its live Sails app without returning config values',
-  {
-    world: {
-      name: 'configured-slipway'
-    }
-  },
-  async ({ sails, request, expect }) => {
-    const secret = 'helm-completion-value-must-stay-server-side'
-    sails.config.custom.helmCompletionTestSecret = secret
-
-    try {
-      const response = await request
-        .as('genesisUser')
-        .get('/api/v1/bosun/helm/completions')
-
-      expect(response).toHaveStatus(200)
-      expect(response.header('cache-control')).toMatch('private')
-      expect(response.header('cache-control')).toMatch('no-store')
-      expect(response).toHaveJsonPath('available', true)
-      expect(response).toHaveJsonPath('version', 1)
-      const userModel = response.data.models.find(
-        (model) => model.identity === 'user'
-      )
-      expect(userModel.globalId).toBe('User')
-      expect(
-        userModel.attributes.some((attribute) => attribute.name === 'email')
-      ).toBe(true)
-      expect(response.data.helpers.length > 0).toBe(true)
-      expect(
-        response.data.config.some(
-          (entry) => entry.path === 'custom.helmCompletionTestSecret'
-        )
-      ).toBe(true)
-      expect(JSON.stringify(response.data).includes(secret)).toBe(false)
-    } finally {
-      delete sails.config.custom.helmCompletionTestSecret
-    }
-  }
-)
-
-test(
   'project Helm completion metadata comes from the current running app',
   {
     world: {

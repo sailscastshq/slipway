@@ -51,7 +51,7 @@ test('public cli auth initialization is explicitly exempt from csrf', async ({
   post,
   expect
 }) => {
-  const response = await post('/api/v1/cli/auth/init', {})
+  const response = await post('/api/v1/cli/auth/init', { protocolVersion: 2 })
 
   expect(response).toHaveStatus(200)
   expect(response.data.code).toBeTruthy()

@@ -26,7 +26,7 @@ module.exports = {
   },
 
   fn: async function ({ id, purgeData }) {
-    const user = await User.findOne({ id: this.req.session.userId })
+    const user = await User.forRequest(this.req)
     const requestKey = `service:${id}`
     const targetKey = `service:${id}`
     const [service, existingOperation] = await Promise.all([
@@ -55,6 +55,13 @@ module.exports = {
     if (user.teamRole !== 'owner' && user.teamRole !== 'admin') {
       throw 'forbidden'
     }
+
+    if (service && ['upgrading', 'restoring'].includes(service.status))
+      throw {
+        cleanupFailed: {
+          message: 'Wait for the active service operation before deleting it.'
+        }
+      }
 
     try {
       const cleanup = await sails.helpers.cleanup.run.with({

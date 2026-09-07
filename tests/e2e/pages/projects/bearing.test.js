@@ -259,7 +259,12 @@ test(
     )
     const updateImageDirectory = `bearing/teams/${current.users.genesisUser.team}/projects/${project.id}/apps/${app.id}/updates/assets`
     const updateImageUrl = `https://assets.example.test/${updateImageDirectory}/update-image.png`
+    let finishUpload
+    const uploadGate = new Promise((resolve) => {
+      finishUpload = resolve
+    })
     await page.raw.route('**/bearing/updates/images', async (route) => {
+      await uploadGate
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -301,6 +306,10 @@ test(
           mimeType: 'image/png',
           buffer: updateImage
         })
+      const updateTitle = page.raw.locator('#bearing-update-title')
+      const updateExcerpt = page.raw.locator('#bearing-update-excerpt')
+      await updateExcerpt.focus()
+      finishUpload()
 
       await expect(
         page.raw.locator('[data-test="bearing-update-body-visual-editor"] img')
@@ -309,8 +318,8 @@ test(
       await expect(
         page.raw.locator('[data-test="bearing-update-body-image-button"]')
       ).toBeEnabled()
-      const updateTitle = page.raw.locator('#bearing-update-title')
-      const updateExcerpt = page.raw.locator('#bearing-update-excerpt')
+      await page.raw.evaluate(() => new Promise(requestAnimationFrame))
+      await expect(updateExcerpt).toBeFocused()
       await updateTitle.fill('Rich updates can carry images')
       await updateExcerpt.fill('Drag, drop, and paste now use Slipway storage.')
       await expect(updateTitle).toHaveValue('Rich updates can carry images')
@@ -326,6 +335,7 @@ test(
       })
       expect(drafted.body).toContain(updateImageUrl)
     } finally {
+      finishUpload()
       await page.raw.unroute('**/bearing/updates/images')
     }
 

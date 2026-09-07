@@ -32,7 +32,7 @@ module.exports = {
   },
 
   fn: async function ({ req, projectSlug, environmentSlug, appSlug }) {
-    const user = await User.findOne({ id: req.session.userId })
+    const user = await User.forRequest(req)
     if (!user || !['owner', 'admin'].includes(user.teamRole)) {
       throw 'forbidden'
     }

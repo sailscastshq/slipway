@@ -31,9 +31,7 @@ module.exports = {
   },
 
   fn: async function ({ projectSlug, environmentSlug }) {
-    const user = await User.findOne({ id: this.req.session.userId }).populate(
-      'team'
-    )
+    const user = await User.forRequest(this.req, { populateTeam: true })
     if (!user) throw 'notFound'
 
     const project = await Project.findOne({
@@ -47,6 +45,10 @@ module.exports = {
       slug: environmentSlug
     })
     if (!environment) throw 'notFound'
+
+    const ingestion = await TelemetryIngestionBudget.findOne({
+      environment: String(environment.id)
+    })
 
     // Get app and services for this environment
     const app =
@@ -64,7 +66,7 @@ module.exports = {
     }
 
     if (containerNames.length === 0) {
-      return { containers: [], history: {} }
+      return { containers: [], history: {}, ingestion }
     }
 
     // Get latest metrics
@@ -150,6 +152,6 @@ module.exports = {
       })
     }
 
-    return { containers }
+    return { containers, ingestion }
   }
 }

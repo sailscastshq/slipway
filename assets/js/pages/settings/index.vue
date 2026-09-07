@@ -31,9 +31,14 @@ const canManage = computed(() =>
   ['owner', 'admin'].includes(page.props.loggedInUser?.teamRole)
 )
 
+const canManageInstance = computed(
+  () => page.props.loggedInUser?.isGenesisUser === true
+)
+
 const rawCategories = [
   {
     name: 'Instance',
+    instanceOnly: true,
     items: [
       {
         title: 'Instance',
@@ -103,6 +108,7 @@ const rawCategories = [
     items: [
       {
         title: 'Updates',
+        instanceOnly: true,
         description:
           'Check for Slipway updates and view installation instructions.',
         href: '/settings/update',
@@ -123,9 +129,14 @@ const rawCategories = [
 const filteredCategories = computed(() => {
   const q = search.value.toLowerCase().trim()
   const categories = rawCategories
+    .filter((category) => !category.instanceOnly || canManageInstance.value)
     .map((category) => ({
       ...category,
-      items: category.items.filter((item) => !item.adminOnly || canManage.value)
+      items: category.items.filter(
+        (item) =>
+          (!item.adminOnly || canManage.value) &&
+          (!item.instanceOnly || canManageInstance.value)
+      )
     }))
     .filter((category) => category.items.length > 0)
   if (!q) return categories

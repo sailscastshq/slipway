@@ -1,3 +1,5 @@
+const establishSession = require('../../lib/establish-session')
+
 const hasSpecialCharacter = (value) =>
   /[`!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?~]/.test(value)
 
@@ -85,15 +87,24 @@ module.exports = {
     if (!user || user.passwordResetTokenExpiresAt <= Date.now()) {
       throw 'invalidOrExpiredToken'
     }
-    await User.updateOne({ id: user.id }).set({
+    const updated = await User.updateOne({
+      id: user.id,
+      passwordResetToken: token,
+      passwordResetTokenExpiresAt: { '>': Date.now() }
+    }).set({
       password,
       passwordResetToken: '',
-      passwordResetTokenExpiresAt: 0
+      passwordResetTokenExpiresAt: 0,
+      emailProofToken: '',
+      emailProofTokenExpiresAt: 0,
+      emailChangeCandidate: '',
+      emailStatus: 'verified'
     })
 
-    this.req.session.userId = user.id
-
-    delete this.req.session.userEmail
+    if (!updated) throw 'invalidOrExpiredToken'
+    sails.sse?.revoke?.({ userId: user.id })
+    await CliToken.destroy({ user: user.id })
+    await establishSession(this.req, updated)
 
     return '/reset-password/success'
   }

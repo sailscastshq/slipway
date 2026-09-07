@@ -93,7 +93,7 @@ module.exports = {
       const stats = fs.statSync(tmpFile)
       const sizeBytes = stats.size
 
-      const skipperS3 = require('skipper-s3')
+      const skipperS3 = require('../../lib/s3-upload-adapter')
       const adapterOpts = {
         key: uploadsConfig.key,
         secret: uploadsConfig.secret,
@@ -114,7 +114,7 @@ module.exports = {
         readStream.headers = { 'content-type': 'application/octet-stream' }
         readStream.byteCount = sizeBytes
 
-        readStream.pipe(receiver)
+        receiver.end(readStream)
 
         receiver.on('finish', () => resolve())
         receiver.on('error', (err) => reject(err))

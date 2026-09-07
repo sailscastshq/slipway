@@ -67,7 +67,7 @@ const contentId = computed(() => `${controlId.value}-content`)
 const listboxId = computed(() => `${controlId.value}-listbox`)
 const triggerClasses = computed(() =>
   twMerge(
-    'flex min-h-11 w-full cursor-pointer items-center justify-between gap-3 rounded-md border border-gray-300 bg-white px-3 py-2 text-left text-base text-gray-950 shadow-sm outline-none transition-colors duration-150 hover:border-gray-400 focus-visible:border-gray-950 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-950 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 aria-invalid:border-red-600 aria-invalid:focus-visible:outline-red-600 dark:border-gray-700 dark:bg-gray-950 dark:text-white dark:hover:border-gray-600 dark:focus-visible:border-white dark:focus-visible:outline-white dark:disabled:bg-gray-900 dark:disabled:text-gray-500 dark:aria-invalid:border-red-500 dark:aria-invalid:focus-visible:outline-red-500 motion-reduce:transition-none',
+    'flex min-w-0 cursor-pointer items-center justify-between gap-3 text-left outline-none transition-colors duration-150 focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed motion-reduce:transition-none',
     attrs.class
   )
 )
@@ -188,6 +188,7 @@ function handlePopoverOpen(nextOpen) {
 
 function openSelect(edge = 'selected') {
   if (props.disabled) return
+  clearTimeout(closeTimer)
   suppressNativeReopen = false
   pendingEdge = edge
   syncTriggerWidth()
@@ -358,6 +359,7 @@ function handleKeydown(event) {
 }
 
 function handleTriggerClick() {
+  clearTimeout(closeTimer)
   suppressNativeReopen = false
   if (!isOpen.value) pendingEdge = 'selected'
   syncTriggerWidth()
@@ -434,7 +436,7 @@ defineExpose({
         ? ''
         : undefined
     "
-    class="relative grid w-full"
+    class="contents"
   >
     <button
       ref="trigger"
@@ -562,7 +564,7 @@ defineExpose({
               class="min-h-11 data-highlighted:bg-gray-100 data-highlighted:text-gray-950 data-disabled:cursor-not-allowed data-disabled:opacity-40 dark:data-highlighted:bg-white/10 dark:data-highlighted:text-white flex cursor-pointer items-center justify-between gap-3 rounded px-3 py-2 text-sm text-gray-700 outline-none dark:text-gray-200"
               @pointermove="!option.disabled && (highlightedIndex = index)"
               @pointerdown.prevent
-              @click="choose(index)"
+              @click.stop.prevent="choose(index)"
             >
               <span class="min-w-0 flex-1 truncate">
                 <slot

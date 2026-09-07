@@ -138,13 +138,13 @@ slipway slide
 
 **Key technology choices:**
 
-| Component     | Choice                        | Why                                    |
-| ------------- | ----------------------------- | -------------------------------------- |
-| App framework | Sails.js + Vue 3 + Inertia.js | Dogfooding the stack                   |
-| Database      | SQLite                        | Zero-config, single-file backup        |
-| Proxy         | Caddy                         | Automatic HTTPS, Docker-native routing |
-| Containers    | Docker                        | Universal runtime, no vendor lock-in   |
-| Security      | `execFile()` everywhere       | No shell injection possible            |
+| Component     | Choice                        | Why                                                 |
+| ------------- | ----------------------------- | --------------------------------------------------- |
+| App framework | Sails.js + Vue 3 + Inertia.js | Dogfooding the stack                                |
+| Database      | SQLite                        | Zero-config, single-file backup                     |
+| Proxy         | Caddy                         | Automatic HTTPS, Docker-native routing              |
+| Containers    | Docker                        | Universal runtime, no vendor lock-in                |
+| Security      | Argument-based process calls  | Avoid shell parsing; validate inputs and bound work |
 
 ## The Platform
 
@@ -164,6 +164,7 @@ Slipway includes integrated tools that work with your deployed Sails apps:
 - A Linux VPS with 1GB+ RAM (we recommend [Hetzner Cloud](https://www.hetzner.com/cloud/))
 - Docker (auto-installed by the install script)
 - Node.js 22+ on your local machine (for the CLI)
+- For the Slipway server/build toolchain: Node.js 22.20+ on the 22.x line, or 24.12+
 
 ## Documentation
 

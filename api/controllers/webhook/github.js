@@ -1,4 +1,3 @@
-const path = require('path')
 const { isContentCommit } = require('../../lib/content-commit')
 
 /**
@@ -12,6 +11,8 @@ module.exports = {
   inputs: {},
 
   exits: {
+    invalidDelivery: { statusCode: 400 },
+    busy: { statusCode: 503 },
     success: {
       statusCode: 200
     },
@@ -52,7 +53,7 @@ module.exports = {
     }
 
     // Verify webhook signature
-    const rawBody = JSON.stringify(payload)
+    const rawBody = this.req.rawBody
     const isValid = await sails.helpers.git.verifyWebhookSignature(
       rawBody,
       signature,
@@ -64,28 +65,34 @@ module.exports = {
       throw 'forbidden'
     }
 
-    // Handle event based on type
-    switch (event) {
-      case 'push':
-        return await handlePush(repo, payload)
+    return await require('../../lib/with-webhook-delivery')(
+      `repository:${repo.id}`,
+      deliveryId,
+      async () => {
+        // Handle event based on type
+        switch (event) {
+          case 'push':
+            return await handlePush(repo, payload)
 
-      case 'pull_request':
-      case 'delete':
-        sails.log.verbose(`[webhook] Ignoring unsupported event: ${event}`)
-        return {
-          received: true,
-          action: 'ignored',
-          reason: 'unsupported_event'
+          case 'pull_request':
+          case 'delete':
+            sails.log.verbose(`[webhook] Ignoring unsupported event: ${event}`)
+            return {
+              received: true,
+              action: 'ignored',
+              reason: 'unsupported_event'
+            }
+
+          case 'ping':
+            sails.log.info(`[webhook] Ping received for ${repo.fullName}`)
+            return { received: true, action: 'pong' }
+
+          default:
+            sails.log.verbose(`[webhook] Ignoring event: ${event}`)
+            return { received: true, action: 'ignored' }
         }
-
-      case 'ping':
-        sails.log.info(`[webhook] Ping received for ${repo.fullName}`)
-        return { received: true, action: 'pong' }
-
-      default:
-        sails.log.verbose(`[webhook] Ignoring event: ${event}`)
-        return { received: true, action: 'ignored' }
-    }
+      }
+    )
   }
 }
 
@@ -152,23 +159,6 @@ async function handlePush(repo, payload) {
       id: environment.id
     }).populate('project')
     const project = envRecord.project
-
-    // Clone or pull the repo source code before building
-    const targetDir = path.join(
-      sails.config.custom.slipwayAppsDir,
-      project.slug
-    )
-    if (!repo.deployKeyPrivate) {
-      sails.log.warn(
-        `[webhook] No deploy key found for ${repo.fullName} — was the key decrypted?`
-      )
-    }
-    await sails.helpers.git.cloneOrPull.with({
-      cloneUrl: repo.cloneUrl,
-      branch,
-      targetDir,
-      deployKeyPrivate: repo.deployKeyPrivate
-    })
 
     // If repo is linked to a specific app, deploy only that app.
     // Otherwise, deploy all apps in the environment.

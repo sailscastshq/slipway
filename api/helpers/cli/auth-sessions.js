@@ -1,103 +1,110 @@
-/**
- * cli/auth-sessions.js
- *
- * @description :: In-memory storage for CLI authentication sessions.
- *                 These are short-lived (5 min) and don't need persistence.
- */
+const crypto = require('node:crypto')
 
-// In-memory store for pending CLI auth sessions
 const sessions = new Map()
+const devices = new Map()
+const streams = new Set()
+const MAX_SESSIONS = 1024
+const MAX_STREAMS = 128
+const TTL = 5 * 60 * 1000
+const hash = (value) => crypto.createHash('sha256').update(value).digest('hex')
 
-// Keep stale auth codes from piling up without pinning the test process open.
-const cleanupInterval = setInterval(() => {
-  const now = Date.now()
-  for (const [code, session] of sessions) {
-    if (session.expiresAt < now) {
-      sessions.delete(code)
-    }
-  }
-}, 60 * 1000) // Every minute
+function remove(code) {
+  const session = sessions.get(code)
+  if (session) devices.delete(session.deviceHash)
+  sessions.delete(code)
+}
 
-if (typeof cleanupInterval.unref === 'function') {
-  cleanupInterval.unref()
+function get(code) {
+  const session = sessions.get(code)
+  if (session && session.expiresAt > Date.now()) return session
+  remove(code)
+  return null
+}
+
+function prune() {
+  for (const code of sessions.keys()) get(code)
+}
+const cleanup = setInterval(prune, 60000)
+cleanup.unref?.()
+
+function deviceSession(deviceCode) {
+  if (!/^[a-f0-9]{64}$/.test(deviceCode || '')) return null
+  return get(devices.get(hash(deviceCode)))
 }
 
 module.exports = {
   friendlyName: 'CLI auth sessions',
-
-  description: 'Manage in-memory CLI authentication sessions.',
-
+  description:
+    'Bounded device authorization with separate human and device secrets.',
   sync: true,
-
   inputs: {},
-
   fn: function () {
     return {
-      /**
-       * Create a new pending auth session
-       * @returns {{ code: string, expiresAt: number }}
-       */
       create() {
-        // Generate 8-character code (avoiding ambiguous chars)
+        prune()
+        if (sessions.size >= MAX_SESSIONS) return null
         const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
-        let code = ''
-        for (let i = 0; i < 8; i++) {
-          code += chars[Math.floor(Math.random() * chars.length)]
-        }
-
-        const expiresAt = Date.now() + 5 * 60 * 1000 // 5 minutes
-
-        sessions.set(code, {
-          status: 'pending',
-          expiresAt,
-          user: null,
-          sessionToken: null
-        })
-
-        return { code, expiresAt }
+        let code
+        do {
+          code = Array.from(
+            { length: 8 },
+            () => chars[crypto.randomInt(chars.length)]
+          ).join('')
+        } while (sessions.has(code))
+        const deviceCode = crypto.randomBytes(32).toString('hex')
+        const deviceHash = hash(deviceCode)
+        const expiresAt = Date.now() + TTL
+        sessions.set(code, { code, deviceHash, expiresAt, status: 'pending' })
+        devices.set(deviceHash, code)
+        return { code, deviceCode, expiresAt }
       },
-
-      /**
-       * Get a session by code
-       * @param {string} code
-       * @returns {object|null}
-       */
+      // Browser code lookup never exposes the device secret or CLI token.
       get(code) {
-        const session = sessions.get(code)
-        if (!session) return null
-        if (session.expiresAt < Date.now()) {
-          sessions.delete(code)
-          return null
-        }
+        const session = get(code)
         return session
+          ? { status: session.status, expiresAt: session.expiresAt }
+          : null
       },
-
-      /**
-       * Confirm a session (called when user authenticates in browser)
-       * @param {string} code
-       * @param {object} user
-       * @param {string} sessionToken
-       * @returns {boolean}
-       */
-      confirm(code, user, sessionToken) {
-        const session = sessions.get(code)
-        if (!session || session.expiresAt < Date.now()) {
-          return false
-        }
-
-        session.status = 'authenticated'
-        session.user = user
-        session.sessionToken = sessionToken
+      claim(code) {
+        const session = get(code)
+        if (!session || session.status !== 'pending') return false
+        session.status = 'confirming'
         return true
       },
-
-      /**
-       * Delete a session
-       * @param {string} code
-       */
-      delete(code) {
-        sessions.delete(code)
-      }
+      releaseClaim(code) {
+        const session = get(code)
+        if (session?.status === 'confirming') session.status = 'pending'
+      },
+      confirm(code, user, sessionToken) {
+        const session = get(code)
+        if (!session || session.status !== 'confirming') return false
+        Object.assign(session, { status: 'authenticated', user, sessionToken })
+        return true
+      },
+      readDevice(deviceCode) {
+        const session = deviceSession(deviceCode)
+        if (!session) return null
+        if (session.status !== 'authenticated') return { status: 'pending' }
+        const result = {
+          status: 'authenticated',
+          token: session.sessionToken,
+          user: session.user
+        }
+        remove(session.code)
+        return result
+      },
+      acquireStream(deviceCode) {
+        const session = deviceSession(deviceCode)
+        if (
+          !session ||
+          streams.size >= MAX_STREAMS ||
+          streams.has(session.deviceHash)
+        )
+          return null
+        streams.add(session.deviceHash)
+        return () => streams.delete(session.deviceHash)
+      },
+      delete: remove
     }
   }
 }

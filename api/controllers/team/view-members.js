@@ -12,13 +12,18 @@ module.exports = {
   },
 
   fn: async function () {
-    const user = await User.findOne({ id: this.req.session.userId }).populate(
-      'team'
-    )
+    const user = await User.forRequest(this.req, { populateTeam: true })
 
-    const members = await User.find({ team: user.team.id }).sort(
-      'createdAt ASC'
-    )
+    const memberships = await TeamMembership.find({ team: user.team.id })
+      .populate('user')
+      .sort('createdAt ASC')
+    const members = memberships
+      .filter((membership) => membership.user)
+      .map((membership) => ({
+        ...membership.user,
+        teamRole: membership.role,
+        membershipStatus: membership.status
+      }))
 
     return {
       page: 'settings/team',
@@ -35,6 +40,7 @@ module.exports = {
           initials: m.initials,
           teamRole: m.teamRole,
           emailStatus: m.emailStatus,
+          membershipStatus: m.membershipStatus,
           createdAt: m.createdAt
         })),
         currentUserRole: user.teamRole

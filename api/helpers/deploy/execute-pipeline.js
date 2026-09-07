@@ -171,6 +171,7 @@ module.exports = {
           environment,
           app: targetApp,
           deploymentId,
+          sourceRevision: deployment?.sourceRevision,
           gitBranch: deployment?.gitBranch,
           gitCommit: deployment?.gitCommit,
           refreshRepository: true,

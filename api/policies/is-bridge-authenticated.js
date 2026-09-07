@@ -2,9 +2,13 @@ const {
   isHostOriginRequest,
   publicBridgeCallbackPath
 } = require('../lib/bridge-paths')
+const authenticateRequest = require('../lib/authenticate-request')
 
 module.exports = async function (req, res, proceed) {
-  if (req.session.userId || req.session.bridgeAccessId) {
+  if (
+    (await authenticateRequest(req, { bearer: false })) ||
+    (!req.headers.authorization && req.session.bridgeAccessId)
+  ) {
     return proceed()
   }
 

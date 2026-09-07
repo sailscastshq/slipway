@@ -1,4 +1,5 @@
 <script setup>
+import Alert from '@/components/ui/alert/Alert.vue'
 import SidebarOpen from '@/components/ui/icons/SidebarOpen.vue'
 import SidebarClose from '@/components/ui/icons/SidebarClose.vue'
 import ExternalLink from '@/components/ui/icons/ExternalLink.vue'
@@ -79,12 +80,13 @@ const sidebarCollapsed = inject('sidebarCollapsed')
           </p>
 
           <!-- Error message -->
-          <div
+          <Alert
+            role="alert"
             v-if="form.errors.name"
             class="mb-6 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-600 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-400"
           >
             {{ form.errors.name }}
-          </div>
+          </Alert>
 
           <form @submit.prevent="submit" class="space-y-4">
             <Input

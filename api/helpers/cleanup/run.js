@@ -185,6 +185,18 @@ module.exports = {
       if (operation.stages?.[stageName]?.status === 'complete') continue
 
       try {
+        const serviceIds = operation.snapshot.records?.serviceIds || []
+        if (
+          serviceIds.length &&
+          (await Service.count({
+            id: { in: serviceIds },
+            status: 'restoring'
+          }))
+        ) {
+          throw new Error(
+            'A database restore is active. Wait for its result before resuming cleanup.'
+          )
+        }
         const outcome = await handler(operation)
         const stages = {
           ...(operation.stages || {}),

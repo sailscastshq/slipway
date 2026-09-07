@@ -1,4 +1,5 @@
 <script setup>
+import Alert from '@/components/ui/alert/Alert.vue'
 import SidebarOpen from '@/components/ui/icons/SidebarOpen.vue'
 import SidebarClose from '@/components/ui/icons/SidebarClose.vue'
 import Refresh from '@/components/ui/icons/Refresh.vue'
@@ -334,7 +335,7 @@ const serviceTypeLabel = {
             </dd>
           </dl>
 
-          <div
+          <Alert
             v-if="upgradeState"
             :class="[
               'rounded-lg border px-4 py-3',
@@ -405,7 +406,7 @@ const serviceTypeLabel = {
             >
               {{ upgradeState.recovery.instructions }}
             </p>
-          </div>
+          </Alert>
 
           <div
             v-if="selectedUpgrade && !upgradeInProgress"
@@ -435,7 +436,8 @@ const serviceTypeLabel = {
                 {{ selectedUpgrade.guidance }}
               </p>
 
-              <div
+              <Alert
+                role="status"
                 v-if="!backupConfigured"
                 class="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/20 dark:text-amber-300"
               >
@@ -446,7 +448,7 @@ const serviceTypeLabel = {
                 >
                   Open storage settings
                 </Link>
-              </div>
+              </Alert>
 
               <label
                 for="upgrade-confirmation"

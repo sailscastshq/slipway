@@ -31,9 +31,7 @@ module.exports = {
   },
 
   fn: async function ({ slug, envSlug }) {
-    const user = await User.findOne({ id: this.req.session.userId }).populate(
-      'team'
-    )
+    const user = await User.forRequest(this.req, { populateTeam: true })
     if (!user) {
       throw { notFound: '/login' }
     }
@@ -341,7 +339,10 @@ module.exports = {
         },
         appName: app ? app.name : project.name,
         containers,
-        telemetry
+        telemetry,
+        ingestion: await TelemetryIngestionBudget.findOne({
+          environment: String(environment.id)
+        })
       }
     }
   }

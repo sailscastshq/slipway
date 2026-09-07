@@ -1,4 +1,5 @@
 <script setup>
+import Alert from '@/components/ui/alert/Alert.vue'
 import SidebarOpen from '@/components/ui/icons/SidebarOpen.vue'
 import SidebarClose from '@/components/ui/icons/SidebarClose.vue'
 import InfoCircle from '@/components/ui/icons/InfoCircle.vue'
@@ -239,16 +240,17 @@ const initials = computed(() => {
                         Remove
                       </button>
                     </div>
-                    <p
+                    <Alert
                       v-if="uploadError"
                       role="alert"
-                      class="text-xs text-red-600 dark:text-red-400"
+                      class="border border-red-200 bg-red-50 text-xs text-red-900 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-200"
                     >
                       {{ uploadError }}
-                    </p>
+                    </Alert>
                   </template>
                   <template v-else>
-                    <div
+                    <Alert
+                      role="status"
                       class="flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50/50 px-3 py-2 dark:border-amber-900/50 dark:bg-amber-950/20"
                     >
                       <InfoCircle
@@ -263,7 +265,7 @@ const initials = computed(() => {
                         >
                         {{ ' ' }}to enable logo uploads.
                       </span>
-                    </div>
+                    </Alert>
                   </template>
                 </div>
               </div>

@@ -25,7 +25,7 @@ module.exports = {
 
   fn: async function ({ id }) {
     const { inspectVersion } = require('../../../../lib/service-image-policy')
-    const user = await User.findOne({ id: this.req.session.userId })
+    const user = await User.forRequest(this.req)
 
     const service = await Service.findOne(id).populate('environment')
 

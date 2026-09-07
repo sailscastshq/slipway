@@ -29,7 +29,8 @@ module.exports = {
       defaultsTo: false,
       description:
         'Skip a second safety snapshot when restoring a verified upgrade backup into an empty candidate.'
-    }
+    },
+    onProgress: { type: 'ref' }
   },
 
   exits: {
@@ -39,6 +40,7 @@ module.exports = {
   },
 
   fn: async function ({
+    onProgress,
     backupId,
     signal,
     targetContainerName,
@@ -76,7 +78,8 @@ module.exports = {
       capacityInputs
     )
     if (!skipSafetySnapshot) {
-      await createVerifiedSafetySnapshot({ service, signal })
+      const snapshot = await createVerifiedSafetySnapshot({ service, signal })
+      await onProgress?.('download', { snapshotId: snapshot.id })
     }
 
     const extension = getExtension(service.type)
@@ -110,6 +113,7 @@ module.exports = {
       await verifyDatabaseDump(tmpFile, service.type)
       sails.log.info(`Backup downloaded: ${transfer.bytes} bytes`)
 
+      await onProgress?.('import')
       await sails.helpers.streams.runProcess.with({
         command: sails.config.docker?.binaryPath || 'docker',
         args: restoreArgs,

@@ -12,7 +12,7 @@ module.exports = {
   },
 
   fn: async function () {
-    const user = await User.findOne({ id: this.req.session.userId })
+    const user = await User.forRequest(this.req)
 
     const tokens = await CliToken.find({ user: user.id }).sort('createdAt DESC')
 

@@ -4,6 +4,7 @@ module.exports = {
   description: 'Trigger a new deployment for an environment.',
 
   inputs: {
+    sourceRevision: { type: 'string', regex: /^[a-f0-9-]{36}$/ },
     projectSlug: {
       type: 'string',
       required: true,
@@ -48,6 +49,7 @@ module.exports = {
   },
 
   fn: async function ({
+    sourceRevision,
     projectSlug,
     environmentSlug,
     gitCommit,
@@ -55,7 +57,7 @@ module.exports = {
     gitMessage,
     appSlug
   }) {
-    const user = await User.findOne({ id: this.req.session.userId })
+    const user = await User.forRequest(this.req)
 
     const project = await Project.findOne({ slug: projectSlug }).populate(
       'team'
@@ -80,6 +82,7 @@ module.exports = {
 
     const queued = await sails.helpers.deploy.triggerDeployment
       .with({
+        sourceRevision,
         project,
         environment,
         user,

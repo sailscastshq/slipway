@@ -30,9 +30,7 @@ module.exports = {
   },
 
   fn: async function ({ slug, envSlug, appSlug }) {
-    const user = await User.findOne({ id: this.req.session.userId }).populate(
-      'team'
-    )
+    const user = await User.forRequest(this.req, { populateTeam: true })
 
     const project = await Project.findOne({ slug, team: user.team.id })
 

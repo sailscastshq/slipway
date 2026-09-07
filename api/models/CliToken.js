@@ -8,6 +8,13 @@
 module.exports = {
   tableName: 'cli_tokens',
   attributes: {
+    team: { model: 'team', columnName: 'team_id' },
+    authVersion: {
+      type: 'string',
+      defaultsTo: '',
+      columnName: 'auth_version',
+      protect: true
+    },
     token: {
       type: 'string',
       required: true,
@@ -36,5 +43,12 @@ module.exports = {
       description: 'When this token expires (null = never)',
       columnName: 'expires_at'
     }
+  },
+  beforeCreate: async function (values, proceed) {
+    const user = await User.findOne({ id: values.user })
+    if (!user) return proceed(new Error('Token user no longer exists'))
+    values.authVersion = user.authVersion || ''
+    if (!values.team) values.team = user.team
+    return proceed()
   }
 }

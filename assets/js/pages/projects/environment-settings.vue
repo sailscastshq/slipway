@@ -1,4 +1,9 @@
 <script setup>
+import Alert from '@/components/ui/alert/Alert.vue'
+import {
+  mutationFailureMessage,
+  assertMutationResponse
+} from '@/lib/mutation-feedback'
 import SidebarOpen from '@/components/ui/icons/SidebarOpen.vue'
 import SidebarClose from '@/components/ui/icons/SidebarClose.vue'
 import ExternalLink from '@/components/ui/icons/ExternalLink.vue'
@@ -37,6 +42,7 @@ const form = useForm({
 const { applyResponseProblems, revalidateWhenInvalid, validateOnBlur } =
   usePrecognitionValidation(form)
 const saving = ref(false)
+const saveError = ref('')
 
 const isDirty = computed(
   () =>
@@ -50,6 +56,7 @@ const purgeData = ref(false)
 async function save() {
   if (saving.value) return
   saving.value = true
+  saveError.value = ''
 
   try {
     const res = await fetch(settingsUrl, {
@@ -72,6 +79,8 @@ async function save() {
         type: 'error'
       })
     }
+  } catch (error) {
+    saveError.value = mutationFailureMessage(error)
   } finally {
     saving.value = false
   }
@@ -239,14 +248,25 @@ function openDeleteEnvironment() {
             </button>
           </div>
 
-          <div class="flex justify-end">
+          <div class="flex flex-col items-end gap-3">
             <button
               type="submit"
               :disabled="saving || form.hasErrors || !isDirty"
               class="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
             >
-              {{ saving ? 'Saving...' : 'Save changes' }}
+              {{
+                saving ? 'Saving...' : saveError ? 'Retry save' : 'Save changes'
+              }}
             </button>
+            <Alert
+              v-if="saveError"
+              role="alert"
+              data-test="environment-save-error"
+              class="order-first border border-red-200 bg-red-50 text-red-900 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-200"
+            >
+              <p class="font-medium">Save interrupted</p>
+              <p class="mt-1 leading-6">{{ saveError }}</p>
+            </Alert>
           </div>
         </form>
 

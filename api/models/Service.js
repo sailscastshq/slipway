@@ -53,7 +53,15 @@ module.exports = {
 
     status: {
       type: 'string',
-      isIn: ['creating', 'running', 'stopped', 'upgrading', 'failed'],
+      isIn: [
+        'creating',
+        'running',
+        'stopped',
+        'upgrading',
+        'restoring',
+        'changing',
+        'failed'
+      ],
       defaultsTo: 'creating',
       description: 'Current status of the service'
     },

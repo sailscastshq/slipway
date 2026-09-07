@@ -3,9 +3,14 @@ const { test } = require('sounding')
 test(
   'setup can be completed through the real browser',
   { browser: true },
-  async ({ page, expect }) => {
+  async ({ sails, page, expect }) => {
     await page.goto('/setup')
+    await page.raw.locator('#setupToken').fill(sails.config.custom.setupToken)
 
+    await page.screenshot(
+      '.github/screenshots/audit-setup-lifecycle/setup.png',
+      { fullPage: true }
+    )
     await page.fill('#email', 'not-an-email')
     await page.raw.locator('#email').blur()
     await page.raw.locator('#setup-email-error').waitFor({ state: 'visible' })

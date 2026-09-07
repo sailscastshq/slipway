@@ -1,4 +1,5 @@
 <script setup>
+import Alert from '@/components/ui/alert/Alert.vue'
 import Check from '@/components/ui/icons/Check.vue'
 import { Head, Link } from '@inertiajs/vue3'
 import { ref } from 'vue'
@@ -120,12 +121,13 @@ async function confirmLogin() {
         </div>
 
         <!-- Error message -->
-        <div
+        <Alert
+          role="alert"
           v-if="error"
           class="mb-6 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-600 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-400"
         >
           {{ error }}
-        </div>
+        </Alert>
 
         <button
           @click="confirmLogin"

@@ -23,7 +23,7 @@ module.exports = {
   },
 
   fn: async function ({ page }) {
-    const user = await User.findOne({ id: this.req.session.userId })
+    const user = await User.forRequest(this.req)
 
     // Find GitHub provider for user's team
     const provider = await GitProvider.findOne({

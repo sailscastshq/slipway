@@ -1,4 +1,5 @@
 <script setup>
+import Alert from '@/components/ui/alert/Alert.vue'
 import Clock from '@/components/ui/icons/Clock.vue'
 import Database from '@/components/ui/icons/Database.vue'
 import SidebarOpen from '@/components/ui/icons/SidebarOpen.vue'
@@ -462,12 +463,13 @@ const categoryIcons = {
                           : 'Send test message'
                       }}
                     </button>
-                    <p
+                    <Alert
+                      role="alert"
                       v-if="testForm.errors.discord"
-                      class="mt-2 text-sm text-red-600 dark:text-red-400"
+                      class="mt-2 border border-red-200 bg-red-50 text-sm text-red-900 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-200"
                     >
                       {{ testForm.errors.discord }}
-                    </p>
+                    </Alert>
                   </div>
                 </div>
               </div>
@@ -562,12 +564,13 @@ const categoryIcons = {
                         testing === 'slack' ? 'Sending...' : 'Send test message'
                       }}
                     </button>
-                    <p
+                    <Alert
+                      role="alert"
                       v-if="testForm.errors.slack"
-                      class="mt-2 text-sm text-red-600 dark:text-red-400"
+                      class="mt-2 border border-red-200 bg-red-50 text-sm text-red-900 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-200"
                     >
                       {{ testForm.errors.slack }}
-                    </p>
+                    </Alert>
                   </div>
                 </div>
               </div>
@@ -749,12 +752,13 @@ const categoryIcons = {
                           : 'Send test message'
                       }}
                     </button>
-                    <p
+                    <Alert
+                      role="alert"
                       v-if="testForm.errors.telegram"
-                      class="mt-2 text-sm text-red-600 dark:text-red-400"
+                      class="mt-2 border border-red-200 bg-red-50 text-sm text-red-900 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-200"
                     >
                       {{ testForm.errors.telegram }}
-                    </p>
+                    </Alert>
                   </div>
                 </div>
               </div>
@@ -960,12 +964,13 @@ const categoryIcons = {
                         testing === 'email' ? 'Sending...' : 'Send test email'
                       }}
                     </button>
-                    <p
+                    <Alert
+                      role="alert"
                       v-if="testForm.errors.email"
-                      class="mt-2 text-sm text-red-600 dark:text-red-400"
+                      class="mt-2 border border-red-200 bg-red-50 text-sm text-red-900 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-200"
                     >
                       {{ testForm.errors.email }}
-                    </p>
+                    </Alert>
                   </div>
                 </div>
               </div>
@@ -1054,12 +1059,13 @@ const categoryIcons = {
                           : 'Send test webhook'
                       }}
                     </button>
-                    <p
+                    <Alert
+                      role="alert"
                       v-if="testForm.errors.webhook"
-                      class="mt-2 text-sm text-red-600 dark:text-red-400"
+                      class="mt-2 border border-red-200 bg-red-50 text-sm text-red-900 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-200"
                     >
                       {{ testForm.errors.webhook }}
-                    </p>
+                    </Alert>
                   </div>
                 </div>
               </div>

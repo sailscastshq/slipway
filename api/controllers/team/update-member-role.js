@@ -19,7 +19,7 @@ module.exports = {
 
   exits: {
     success: {
-      responseType: 'redirect'
+      responseType: 'inertiaRedirect'
     },
     notFound: {
       statusCode: 404
@@ -33,11 +33,11 @@ module.exports = {
   },
 
   fn: async function ({ userId, role }) {
-    const currentUser = await User.findOne({ id: this.req.session.userId })
+    const currentUser = await User.forRequest(this.req)
 
     // Only owners can change roles
     if (currentUser.teamRole !== 'owner') {
-      this.req.addFlash('error', 'Only team owners can change roles.')
+      sails.inertia.flash('error', 'Only team owners can change roles.')
       return '/settings/team'
     }
 
@@ -47,15 +47,18 @@ module.exports = {
     }
 
     // Can't change own role
-    if (userId === currentUser.id) {
-      this.req.addFlash('error', 'You cannot change your own role.')
+    if (Number(userId) === Number(currentUser.id)) {
+      sails.inertia.flash('error', 'You cannot change your own role.')
       return '/settings/team'
     }
 
-    const targetUser = await User.findOne({
-      id: userId,
+    const membership = await TeamMembership.findOne({
+      user: userId,
       team: currentUser.team
-    })
+    }).populate('user')
+    const targetUser = membership?.user
+      ? { ...membership.user, teamRole: membership.role }
+      : null
 
     if (!targetUser) {
       throw 'notFound'
@@ -63,7 +66,7 @@ module.exports = {
 
     // Can't change owner role
     if (targetUser.teamRole === 'owner') {
-      this.req.addFlash('error', "Cannot change the team owner's role.")
+      sails.inertia.flash('error', "Cannot change the team owner's role.")
       return '/settings/team'
     }
 
@@ -71,9 +74,10 @@ module.exports = {
       throw 'precognitionSuccess'
     }
 
-    await User.updateOne({ id: userId }).set({ teamRole: role })
+    await TeamMembership.updateOne({ id: membership.id }).set({ role })
+    sails.sse?.revoke?.({ userId })
 
-    this.req.addFlash(
+    sails.inertia.flash(
       'success',
       `Updated ${targetUser.fullName}'s role to ${role}.`
     )

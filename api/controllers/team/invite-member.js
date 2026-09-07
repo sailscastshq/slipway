@@ -22,7 +22,7 @@ module.exports = {
 
   exits: {
     success: {
-      responseType: 'redirect'
+      responseType: 'inertiaRedirect'
     },
     conflict: {
       statusCode: 409
@@ -36,11 +36,11 @@ module.exports = {
   },
 
   fn: async function ({ email, role }) {
-    const currentUser = await User.findOne({ id: this.req.session.userId })
+    const currentUser = await User.forRequest(this.req)
 
     // Only owners and admins can invite
     if (!['owner', 'admin'].includes(currentUser.teamRole)) {
-      throw { redirect: '/settings/team' }
+      return '/settings/team'
     }
 
     const problems = sails.helpers.setting.validate(
@@ -55,25 +55,42 @@ module.exports = {
     // Check if user already exists
     const existingUser = await User.findOne({ email: email.toLowerCase() })
 
-    if (existingUser) {
-      if (existingUser.team === currentUser.team) {
-        throw {
-          invalid: {
-            problems: [
-              { email: 'This person is already a member of the team.' }
-            ]
-          }
-        }
-      }
+    if (
+      existingUser &&
+      (await TeamMembership.findOne({
+        user: existingUser.id,
+        team: currentUser.team
+      }))
+    ) {
       throw {
         invalid: {
-          problems: [{ email: 'This account already belongs to another team.' }]
+          problems: [
+            {
+              email:
+                'This person is already a member of or invited to the team.'
+            }
+          ]
         }
       }
     }
 
     if (sails.inertia.isPrecognitive(this.req)) {
       throw 'precognitionSuccess'
+    }
+
+    if (existingUser) {
+      await TeamMembership.create({
+        key: `${existingUser.id}:${currentUser.team}`,
+        user: existingUser.id,
+        team: currentUser.team,
+        role,
+        status: 'invited'
+      })
+      sails.inertia.flash(
+        'success',
+        `Invited ${email}. They can accept from their team switcher.`
+      )
+      return '/settings/team'
     }
 
     // Create new user account with a temporary password
@@ -112,7 +129,7 @@ module.exports = {
       }
     })
 
-    this.req.addFlash(
+    sails.inertia.flash(
       'success',
       `Invited ${email}. They'll receive an email to set up their account.`
     )

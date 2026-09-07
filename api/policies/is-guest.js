@@ -1,6 +1,6 @@
+const authenticateRequest = require('../lib/authenticate-request')
+
 module.exports = async function (req, res, proceed) {
-  if (!req.session.userId) {
-    return proceed()
-  }
+  if (!(await authenticateRequest(req, { bearer: false }))) return proceed()
   return res.redirect('/')
 }

@@ -21,7 +21,7 @@ module.exports = {
   },
 
   fn: async function ({ id }) {
-    const user = await User.findOne({ id: this.req.session.userId })
+    const user = await User.forRequest(this.req)
 
     const token = await CliToken.findOne({ id, user: user.id })
 
@@ -30,6 +30,7 @@ module.exports = {
     }
 
     await CliToken.destroyOne(id)
+    sails.sse?.revoke?.({ tokenId: id })
 
     sails.inertia.flash('success', 'CLI token revoked.')
     return '/settings/api-keys'

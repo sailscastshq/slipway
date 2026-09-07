@@ -277,6 +277,7 @@ function span({ environmentId, startedAt }) {
     name: 'GET /health',
     duration: 1,
     startedAt,
+    createdAt: startedAt,
     environment: String(environmentId)
   }
 }
@@ -286,12 +287,14 @@ function exception({ environmentId, occurredAt }) {
     exceptionType: 'Error',
     message: 'Test error',
     occurredAt,
+    createdAt: occurredAt,
     environment: String(environmentId)
   }
 }
 
 function metric({ environmentId, recordedAt }) {
   return {
+    createdAt: recordedAt,
     name: 'test.metric',
     value: 1,
     recordedAt,

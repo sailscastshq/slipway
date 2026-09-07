@@ -36,12 +36,7 @@ module.exports = {
   },
 
   fn: async function ({ envVars, envSource, envVarMetadata }) {
-    const user = await User.findOne({ id: this.req.session.userId })
-
-    // Only owners and admins can modify global env vars
-    if (user.teamRole !== 'owner' && user.teamRole !== 'admin') {
-      throw 'forbidden'
-    }
+    const user = await User.forRequest(this.req)
 
     const problems = sails.helpers.setting.validate(
       { envVars, envSource },

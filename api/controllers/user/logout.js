@@ -14,6 +14,8 @@ module.exports = {
   fn: async function () {
     sails.inertia.flushShared('loggedInUser')
     delete this.req.session.userId
+    if (this.req.sessionID)
+      sails.sse?.revoke?.({ sessionId: this.req.sessionID })
     return '/login'
   }
 }

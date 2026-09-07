@@ -1,4 +1,5 @@
 <script setup>
+import Alert from '@/components/ui/alert/Alert.vue'
 import SidebarOpen from '@/components/ui/icons/SidebarOpen.vue'
 import SidebarClose from '@/components/ui/icons/SidebarClose.vue'
 import ExternalLink from '@/components/ui/icons/ExternalLink.vue'
@@ -31,6 +32,7 @@ defineOptions({
 })
 
 const props = defineProps({
+  ingestion: Object,
   project: Object,
   environment: Object,
   appName: String,
@@ -602,6 +604,18 @@ async function copyToken() {
 
     <!-- Content -->
     <div class="flex-1 overflow-y-auto px-4 py-6 sm:px-8 sm:py-8">
+      <Alert
+        v-if="ingestion?.rejectedRequests"
+        role="status"
+        class="mx-auto mb-6 max-w-5xl border border-amber-200 bg-amber-50 text-amber-950 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-100"
+      >
+        <p class="font-medium">Some telemetry was rejected</p>
+        <p class="mt-1 leading-6">
+          Ingestion protection rejected {{ ingestion.rejectedEvents }} events
+          across {{ ingestion.rejectedRequests }} requests. Check the app's
+          telemetry payloads and per-minute limits.
+        </p>
+      </Alert>
       <Tabs
         v-model="activeTab"
         aria-label="Lookout sections"

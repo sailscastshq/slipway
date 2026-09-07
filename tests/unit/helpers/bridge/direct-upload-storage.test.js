@@ -26,7 +26,9 @@ test('Bridge signs a short-lived direct PUT for the exact R2 object', async ({
   )
   expect(signed.searchParams.get('X-Amz-Algorithm')).toBe('AWS4-HMAC-SHA256')
   expect(signed.searchParams.get('X-Amz-Expires')).toBe('3600')
-  expect(signed.searchParams.get('Content-Type')).toBe('video/mp4')
+  expect(signed.searchParams.get('X-Amz-SignedHeaders')).toContain(
+    'content-type'
+  )
 })
 
 test('Bridge signs only explicit numbered multipart parts', async ({

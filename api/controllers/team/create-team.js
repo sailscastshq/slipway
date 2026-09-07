@@ -23,7 +23,7 @@ module.exports = {
   },
 
   fn: async function ({ name }) {
-    const userId = this.req.session.userId
+    const userId = this.req.auth?.userId || this.req.session.userId
 
     // Create the new team with the current user as owner
     const team = await Team.create({
@@ -31,8 +31,9 @@ module.exports = {
       owner: userId
     }).fetch()
 
-    // Switch the user to the new team
-    await User.updateOne({ id: userId }).set({ team: team.id })
+    // Active browser context is separate from persistent membership.
+    this.req.session.activeTeamId = team.id
+    if (this.req.auth) this.req.auth.teamId = team.id
 
     // Clear Inertia cache to refresh loggedInUser
     sails.inertia.flushShared('loggedInUser')

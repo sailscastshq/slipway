@@ -46,9 +46,11 @@ module.exports = {
   }) {
     const scope = await sails.helpers.helm
       .resolveProjectScope(
-        this.req.session.userId,
+        this.req.auth?.userId || this.req.session.userId,
         projectSlug,
-        environmentSlug
+        environmentSlug,
+        undefined,
+        this.req
       )
       .intercept('notFound', 'notFound')
       .intercept('forbidden', 'forbidden')

@@ -57,7 +57,7 @@ module.exports = {
     publicUrl,
     backupSchedule
   }) {
-    const user = await User.findOne({ id: this.req.session.userId })
+    const user = await User.forRequest(this.req)
     let globalEnvVars = {}
     try {
       const globalJson = await sails.helpers.setting.get('globalEnvVars', '{}')

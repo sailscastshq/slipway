@@ -121,7 +121,7 @@ function uploadField({ req, upstream, field, storage, directory, publicBase }) {
     const source = upstream || req.file(field)
     source.upload(
       {
-        adapter: require('skipper-s3'),
+        adapter: require('../../lib/s3-upload-adapter'),
         key: storage.key,
         secret: storage.secret,
         bucket: storage.bucket,

@@ -1,4 +1,5 @@
 <script setup>
+import Alert from '@/components/ui/alert/Alert.vue'
 import SidebarOpen from '@/components/ui/icons/SidebarOpen.vue'
 import SidebarClose from '@/components/ui/icons/SidebarClose.vue'
 import ExternalLink from '@/components/ui/icons/ExternalLink.vue'
@@ -32,6 +33,7 @@ const { revalidateWhenInvalid, validateOnBlur } =
   usePrecognitionValidation(form)
 
 function save() {
+  form.clearErrors('routing')
   form.patch('/settings/instance', { preserveScroll: true })
 }
 </script>
@@ -100,6 +102,14 @@ function save() {
         </div>
 
         <form @submit.prevent="save" class="space-y-6">
+          <Alert
+            v-if="form.errors.routing"
+            role="alert"
+            class="border border-red-200 bg-red-50 text-red-900 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-200"
+          >
+            <p class="font-medium">Routing update failed</p>
+            <p class="mt-1 leading-6">{{ form.errors.routing }}</p>
+          </Alert>
           <!-- Instance Name -->
           <div class="rounded-lg border border-gray-200 dark:border-gray-800">
             <div class="px-4 py-3">
@@ -226,10 +236,20 @@ function save() {
           <div class="flex justify-end">
             <button
               type="submit"
-              :disabled="form.processing || form.hasErrors || !form.isDirty"
+              :disabled="
+                form.processing ||
+                (form.hasErrors && !form.errors.routing) ||
+                !form.isDirty
+              "
               class="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
             >
-              {{ form.processing ? 'Saving...' : 'Save changes' }}
+              {{
+                form.processing
+                  ? 'Saving...'
+                  : form.errors.routing
+                  ? 'Retry apply'
+                  : 'Save changes'
+              }}
             </button>
           </div>
         </form>

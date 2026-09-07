@@ -1,4 +1,5 @@
 <script setup>
+import Alert from '@/components/ui/alert/Alert.vue'
 import TableCells from '@/components/ui/icons/TableCells.vue'
 import Stop from '@/components/ui/icons/Stop.vue'
 import SidebarOpen from '@/components/ui/icons/SidebarOpen.vue'
@@ -1701,7 +1702,7 @@ onUnmounted(() => {
                 </button>
               </div>
 
-              <div
+              <Alert
                 v-if="blockedStatements.length > 0"
                 class="border-t border-red-200 bg-red-50 px-4 py-4 dark:border-red-900/60 dark:bg-red-950/30"
                 role="alert"
@@ -1716,7 +1717,7 @@ onUnmounted(() => {
                   Bosun cannot prove that every schema object would survive.
                   Apply is disabled instead of guessing.
                 </p>
-              </div>
+              </Alert>
 
               <div class="grid gap-4 px-4 py-4 sm:grid-cols-4">
                 <div
@@ -1883,12 +1884,13 @@ onUnmounted(() => {
                   </span>
                 </div>
 
-                <div
+                <Alert
+                  role="alert"
                   v-if="statement.reason"
                   class="border-b border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-300"
                 >
                   {{ statement.reason }}
-                </div>
+                </Alert>
 
                 <div
                   v-if="statement.changedColumns?.length"

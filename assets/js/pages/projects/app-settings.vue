@@ -1,4 +1,8 @@
 <script setup>
+import {
+  mutationFailureMessage,
+  assertMutationResponse
+} from '@/lib/mutation-feedback'
 import Tag from '@/components/ui/icons/Tag.vue'
 import SidebarOpen from '@/components/ui/icons/SidebarOpen.vue'
 import SidebarClose from '@/components/ui/icons/SidebarClose.vue'
@@ -123,21 +127,25 @@ async function saveSettings({ restart = false } = {}) {
     }
 
     if (restart) {
-      await fetch(
-        `/api/v1/projects/${props.project.slug}/environments/${props.environment.slug}/apps/${props.app.slug}/restart`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-csrf-token': page.props._csrf || ''
+      await assertMutationResponse(
+        await fetch(
+          `/api/v1/projects/${props.project.slug}/environments/${props.environment.slug}/apps/${props.app.slug}/restart`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-csrf-token': page.props._csrf || ''
+            }
           }
-        }
+        )
       )
       toast({ message: 'Settings saved and app restarted', type: 'success' })
     } else {
       toast({ message: 'App settings saved', type: 'success' })
     }
     router.reload()
+  } catch (error) {
+    toast({ message: mutationFailureMessage(error), type: 'error' })
   } finally {
     saving.value = false
     savingAndRestarting.value = false

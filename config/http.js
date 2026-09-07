@@ -23,6 +23,17 @@ module.exports.http = {
    ****************************************************************************/
 
   middleware: {
+    bodyParser: require('skipper')({
+      verify(req, _res, buffer) {
+        const pathname = String(req.url || '').split('?')[0]
+        if (
+          pathname === '/webhook/github' ||
+          /^\/api\/v1\/webhooks\/github\/[^/]+$/.test(pathname)
+        ) {
+          req.rawBody = Buffer.from(buffer)
+        }
+      }
+    }),
     /***************************************************************************
      *                                                                          *
      * The order in which middleware should be run for HTTP requests.           *

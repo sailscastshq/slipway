@@ -1,4 +1,5 @@
 <script setup>
+import Alert from '@/components/ui/alert/Alert.vue'
 import WarningTriangle from '@/components/ui/icons/WarningTriangle.vue'
 import SidebarOpen from '@/components/ui/icons/SidebarOpen.vue'
 import SidebarClose from '@/components/ui/icons/SidebarClose.vue'
@@ -423,7 +424,8 @@ function formatDate(dateString) {
 
             <!-- Error State -->
             <div v-else-if="updateError" class="space-y-4">
-              <div
+              <Alert
+                role="alert"
                 class="rounded-lg border border-red-200 bg-red-50 p-4 dark:border-red-800/50 dark:bg-red-950/30"
               >
                 <div class="flex items-start space-x-3">
@@ -442,7 +444,7 @@ function formatDate(dateString) {
                     </p>
                   </div>
                 </div>
-              </div>
+              </Alert>
               <div class="flex items-center space-x-3">
                 <button
                   @click="applyUpdate"

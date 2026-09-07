@@ -6,27 +6,18 @@ module.exports = {
   description: 'Verify GitHub webhook HMAC-SHA256 signature.',
 
   inputs: {
-    payload: {
-      type: 'string',
-      required: true,
-      description: 'Raw request body as string'
-    },
-    signature: {
-      type: 'string',
-      required: true,
-      description: 'X-Hub-Signature-256 header value'
-    },
-    secret: {
-      type: 'string',
-      required: true,
-      description: 'Webhook secret'
-    }
+    payload: { type: 'ref' },
+    signature: { type: 'string' },
+    secret: { type: 'string' }
   },
 
   fn: async function ({ payload, signature, secret }) {
-    if (!signature || !signature.startsWith('sha256=')) {
+    if (
+      !Buffer.isBuffer(payload) ||
+      !secret ||
+      !/^sha256=[a-f0-9]{64}$/.test(signature || '')
+    )
       return false
-    }
 
     const expectedSignature =
       'sha256=' +

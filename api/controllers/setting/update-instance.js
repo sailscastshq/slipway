@@ -32,7 +32,7 @@ module.exports = {
   },
 
   fn: async function ({ instanceDomain, instanceName, acmeEmail }) {
-    const user = await User.findOne({ id: this.req.session.userId })
+    const user = await User.forRequest(this.req)
     const problems = sails.helpers.setting.validate(
       {
         instanceDomain,
@@ -49,44 +49,73 @@ module.exports = {
       throw 'precognitionSuccess'
     }
 
-    if (instanceDomain !== undefined) {
-      // Clean up the domain - remove protocol and trailing slashes
-      let cleanDomain = instanceDomain
-        .trim()
-        .replace(/^https?:\/\//, '')
-        .replace(/\/+$/, '')
-      await sails.helpers.setting.set('instanceDomain', cleanDomain)
-
-      // Update Caddy route for the dashboard domain
-      if (cleanDomain) {
-        try {
-          await sails.helpers.caddy.updateDashboardRoute(cleanDomain)
-        } catch (err) {
-          sails.log.warn('Failed to create Caddy dashboard route:', err.message)
-        }
-      } else {
-        try {
+    const before = {}
+    for (const key of ['instanceDomain', 'instanceName', 'acmeEmail'])
+      before[key] = await sails.helpers.setting.get(key, '')
+    const desired = {
+      instanceDomain:
+        instanceDomain === undefined
+          ? before.instanceDomain
+          : instanceDomain
+              .trim()
+              .replace(/^https?:\/\//, '')
+              .replace(/\/+$/, ''),
+      instanceName:
+        instanceName === undefined ? before.instanceName : instanceName.trim(),
+      acmeEmail: acmeEmail === undefined ? before.acmeEmail : acmeEmail.trim()
+    }
+    let route
+    try {
+      if (instanceDomain !== undefined || acmeEmail !== undefined) {
+        if (desired.instanceDomain)
+          route = await sails.helpers.caddy.updateDashboardRoute.with({
+            domain: desired.instanceDomain,
+            acmeEmail: desired.acmeEmail || '',
+            deferCommit: true
+          })
+        else if (before.instanceDomain) {
           await sails.helpers.caddy.removeDashboardRoute()
-        } catch (err) {
-          sails.log.warn('Failed to remove Caddy dashboard route:', err.message)
+          await sails.helpers.caddy.verifyRoute.with({
+            expectedUpstreams: [],
+            excludedDomains: [before.instanceDomain]
+          })
         }
       }
-    }
-
-    if (instanceName !== undefined) {
-      await sails.helpers.setting.set('instanceName', instanceName.trim())
-    }
-
-    if (acmeEmail !== undefined) {
-      const cleanEmail = acmeEmail.trim()
-      await sails.helpers.setting.set('acmeEmail', cleanEmail)
-
-      // Configure Caddy TLS if email is provided
-      if (cleanEmail) {
-        try {
-          await sails.helpers.caddy.configureTls.with({ acmeEmail: cleanEmail })
-        } catch (err) {
-          sails.log.warn('Failed to configure Caddy TLS:', err.message)
+      for (const [key, value] of Object.entries(desired))
+        await sails.helpers.setting.set(key, value || '')
+      if (route?.transaction)
+        await sails.helpers.caddy.finishRouteUpdate.with({
+          action: 'commit',
+          transaction: route.transaction
+        })
+    } catch (error) {
+      for (const [key, value] of Object.entries(before))
+        await sails.helpers.setting.set(key, value || '')
+      if (route?.transaction)
+        await sails.helpers.caddy.finishRouteUpdate
+          .with({ action: 'rollback', transaction: route.transaction })
+          .catch((rollback) => {
+            error.rollbackError = rollback
+          })
+      else if (before.instanceDomain && !desired.instanceDomain)
+        await sails.helpers.caddy
+          .updateDashboardRoute(before.instanceDomain)
+          .catch((rollback) => {
+            error.rollbackError = rollback
+          })
+      sails.log.warn(
+        'Instance routing settings failed:',
+        error.message || error
+      )
+      throw {
+        invalid: {
+          problems: [
+            {
+              routing: error.rollbackError
+                ? 'Routing update and recovery failed. Inspect Caddy before retrying.'
+                : 'Could not apply routing settings. Previous settings were preserved. Check Caddy and retry.'
+            }
+          ]
         }
       }
     }

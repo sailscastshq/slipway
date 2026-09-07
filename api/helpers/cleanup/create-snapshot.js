@@ -136,7 +136,14 @@ module.exports = {
       }))
     const sourcePaths =
       scopeType === 'project'
-        ? [path.join(sails.config.custom.slipwayAppsDir, String(project.slug))]
+        ? [
+            path.join(sails.config.custom.slipwayAppsDir, String(project.slug)),
+            path.join(
+              sails.config.custom.slipwayAppsDir,
+              '.sources',
+              String(project.slug)
+            )
+          ]
         : []
     const buildContexts = deploymentJobs
       .filter((job) => job.buildContextPath)

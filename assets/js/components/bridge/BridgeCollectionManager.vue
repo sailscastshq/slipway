@@ -1,4 +1,5 @@
 <script setup>
+import Alert from '@/components/ui/alert/Alert.vue'
 import X from '@/components/ui/icons/X.vue'
 import { router } from '@inertiajs/vue3'
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
@@ -276,13 +277,13 @@ onBeforeUnmount(() => {
           >
             Loading…
           </p>
-          <p
+          <Alert
             v-if="error"
-            class="px-5 py-4 text-sm text-red-600 dark:text-red-400"
+            class="border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-900 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-200"
             role="alert"
           >
             {{ error }}
-          </p>
+          </Alert>
           <button
             v-if="hasMore && !loading"
             type="button"

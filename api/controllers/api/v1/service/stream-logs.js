@@ -38,7 +38,7 @@ module.exports = {
     const req = this.req
     const res = this.res
 
-    const user = await User.findOne({ id: req.session.userId }).populate('team')
+    const user = await User.forRequest(req, { populateTeam: true })
     if (!user) throw 'notFound'
 
     const service = await Service.findOne({ id: serviceId }).populate(

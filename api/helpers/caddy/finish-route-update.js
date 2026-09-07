@@ -35,6 +35,12 @@ module.exports = {
 
     try {
       await commitRoute(transaction)
+      if (transaction.routeId === 'slipway-route-dashboard')
+        await tolerateDockerError(sails.config.docker?.binaryPath || 'docker', [
+          'rm',
+          '-f',
+          'slipway-route-bootstrap'
+        ])
       return { action: 'committed', routeId: transaction.routeId }
     } catch (error) {
       try {
@@ -58,6 +64,7 @@ async function commitRoute(transaction) {
     if (transaction.previousWasRunning) {
       await execFileAsync(dockerPath, ['stop', transaction.routeId])
       await sails.helpers.caddy.verifyRoute.with({
+        expectedDomains: transaction.candidateDomains || [],
         expectedUpstreams: transaction.candidateUpstreams,
         excludedUpstreams: retiredUpstreams
       })
@@ -125,15 +132,23 @@ async function rollbackRoute(transaction) {
     }
     if (transaction.previousUpstreams.length > 0) {
       await sails.helpers.caddy.verifyRoute.with({
+        expectedDomains: transaction.previousDomains || [],
         expectedUpstreams: transaction.previousUpstreams,
         excludedUpstreams: candidateOnlyUpstreams
       })
     }
   } else if (!transaction.previousExists) {
-    await sails.helpers.caddy.verifyRoute.with({
-      expectedUpstreams: [],
-      excludedUpstreams: candidateOnlyUpstreams
-    })
+    const excludedDomains = difference(
+      transaction.candidateDomains || [],
+      transaction.previousDomains || []
+    )
+    if (excludedDomains.length || candidateOnlyUpstreams.length) {
+      await sails.helpers.caddy.verifyRoute.with({
+        expectedUpstreams: [],
+        excludedDomains,
+        excludedUpstreams: excludedDomains.length ? [] : candidateOnlyUpstreams
+      })
+    }
   }
 }
 

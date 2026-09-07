@@ -1,4 +1,5 @@
 <script setup>
+import Alert from '@/components/ui/alert/Alert.vue'
 import SidebarOpen from '@/components/ui/icons/SidebarOpen.vue'
 import SidebarClose from '@/components/ui/icons/SidebarClose.vue'
 import ChevronRight from '@/components/ui/icons/ChevronRight.vue'
@@ -6,8 +7,8 @@ import ChevronLeft from '@/components/ui/icons/ChevronLeft.vue'
 import ChevronDown from '@/components/ui/icons/ChevronDown.vue'
 import Trash from '@/components/ui/icons/Trash.vue'
 import Input from '@/components/ui/input/Input.vue'
-import { Link, Head, useForm } from '@inertiajs/vue3'
-import { computed, inject, ref, watch } from 'vue'
+import { Link, Head, useForm, router, usePage } from '@inertiajs/vue3'
+import { computed, inject, ref, watch, onMounted, onBeforeUnmount } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
 import ConfirmModal from '@/components/ConfirmModal.vue'
 import MarkdownEditor from '@/components/content/MarkdownEditor.vue'
@@ -46,7 +47,122 @@ const frontmatter = ref(props.content?.frontmatter || {})
 const body = ref(props.content?.body || '')
 const raw = ref(props.content?.raw || '')
 const updatedAt = ref(props.content?.updatedAt || '')
-const hasChanges = ref(false)
+const snapshot = () =>
+  JSON.stringify({
+    frontmatter: frontmatter.value,
+    body: body.value,
+    raw: raw.value
+  })
+const savedSnapshot = ref(snapshot())
+const hasChanges = computed(() => snapshot() !== savedSnapshot.value)
+const pendingVisit = ref(null)
+const recoveredDraft = ref(null)
+const draftError = ref(false)
+const draftKey =
+  'slipway:content-draft:' +
+  JSON.stringify([
+    usePage().props.loggedInUser.id,
+    props.project.id,
+    props.environment.id,
+    props.app.id,
+    props.collection,
+    props.file
+  ])
+let draftTimer
+let removeNavigationGuard
+let allowVisit = false
+let discardedOnLeave = false
+
+function clearDraft() {
+  try {
+    sessionStorage.removeItem(draftKey)
+  } catch {
+    /* unavailable storage */
+  }
+  recoveredDraft.value = null
+}
+function persistDraft() {
+  clearTimeout(draftTimer)
+  if (!hasChanges.value || discardedOnLeave) return
+  try {
+    sessionStorage.setItem(
+      draftKey,
+      JSON.stringify({
+        data: JSON.parse(snapshot()),
+        sourceSha: saveForm.sourceSha,
+        expiresAt: Date.now() + 30 * 60 * 1000
+      })
+    )
+    draftError.value = false
+  } catch {
+    draftError.value = true
+  }
+}
+function restoreDraft() {
+  const draft = recoveredDraft.value
+  frontmatter.value = draft.data.frontmatter
+  body.value = draft.data.body
+  raw.value = draft.data.raw
+  saveForm.sourceSha = draft.sourceSha
+  recoveredDraft.value = null
+}
+function leaveEditor() {
+  const visit = pendingVisit.value
+  if (!visit) return
+  pendingVisit.value = null
+  discardedOnLeave = true
+  clearDraft()
+  allowVisit = true
+  router.visit(visit.url, { ...visit })
+  allowVisit = false
+}
+function cancelPendingVisit() {
+  pendingVisit.value = null
+}
+function beforeUnload(event) {
+  persistDraft()
+  if (hasChanges.value) {
+    event.preventDefault()
+    event.returnValue = ''
+  }
+}
+onMounted(() => {
+  try {
+    const draft = JSON.parse(sessionStorage.getItem(draftKey) || 'null')
+    if (
+      draft?.expiresAt > Date.now() &&
+      draft?.data &&
+      typeof draft.data.body === 'string' &&
+      typeof draft.data.raw === 'string' &&
+      draft.data.frontmatter &&
+      JSON.stringify(draft.data) !== savedSnapshot.value
+    )
+      recoveredDraft.value = draft
+    else clearDraft()
+  } catch {
+    clearDraft()
+  }
+  window.addEventListener('beforeunload', beforeUnload)
+  removeNavigationGuard = router.on('before', (event) => {
+    const visit = event.detail.visit
+    const ownAction =
+      visit.method === 'post' &&
+      [getActionPath('update'), getActionPath('delete')].includes(
+        visit.url.pathname
+      )
+    if (allowVisit || ownAction || !hasChanges.value) return
+    event.preventDefault()
+    persistDraft()
+    pendingVisit.value = visit
+  })
+})
+onBeforeUnmount(() => {
+  clearTimeout(draftTimer)
+  // Back/forward navigation is not cancellable in Inertia; preserve the draft.
+  if (!allowVisit) persistDraft()
+  window.removeEventListener('beforeunload', beforeUnload)
+  removeNavigationGuard?.()
+})
 
 // Editor mode
 const editorMode = ref(fileType.value === 'markdown' ? 'visual' : 'source')
@@ -146,17 +262,22 @@ function revalidateEditorField(field) {
 }
 
 function submitContent() {
+  syncSaveForm()
+  const submittedSnapshot = snapshot()
   saveForm.post(getActionPath('update'), {
     preserveScroll: true,
     onSuccess: (page) => {
-      hasChanges.value = false
+      savedSnapshot.value = submittedSnapshot
       // Update updatedAt from refreshed props
       if (page.props.content) {
         updatedAt.value = page.props.content.updatedAt
         saveForm.sourceSha = page.props.content.sourceSha
       }
+      if (!hasChanges.value) clearDraft()
+      else persistDraft()
     },
     onError: () => {
+      pendingVisit.value = null
       showSaveMenu.value = true
     }
   })
@@ -181,6 +302,7 @@ function saveContent(triggerDeploy = false) {
           ],
     onPrecognitionSuccess: submitContent,
     onValidationError: () => {
+      pendingVisit.value = null
       showSaveMenu.value = true
     }
   })
@@ -206,6 +328,8 @@ function deleteContent() {
   deleteForm.sourceSha = saveForm.sourceSha
   deleteForm.post(getActionPath('delete'), {
     onSuccess: () => {
+      savedSnapshot.value = snapshot()
+      clearDraft()
       deleteModalOpen.value = false
     },
     onError: (errors) => {
@@ -222,7 +346,9 @@ function deleteContent() {
 watch(
   [frontmatter, body, raw],
   () => {
-    hasChanges.value = true
+    discardedOnLeave = false
+    clearTimeout(draftTimer)
+    draftTimer = setTimeout(persistDraft, 300)
   },
   { deep: true }
 )
@@ -254,6 +380,38 @@ function handleKeydown(e) {
 <template>
   <Head :title="`${file} - ${collection} | ${project.name}`"></Head>
   <div class="flex h-full flex-col" @keydown="handleKeydown">
+    <Alert
+      v-if="recoveredDraft"
+      role="status"
+      class="mx-4 mt-4 w-auto border border-amber-200 bg-amber-50 text-amber-950 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-100"
+    >
+      An unsaved draft is available in this tab (kept for 30 minutes).
+      <button type="button" class="ml-3 underline" @click="restoreDraft">
+        Restore draft
+      </button>
+      <button type="button" class="ml-3 underline" @click="clearDraft">
+        Discard draft
+      </button>
+    </Alert>
+    <Alert
+      v-if="draftError"
+      role="alert"
+      class="mx-4 mt-4 w-auto border border-amber-200 bg-amber-50 text-amber-950 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-100"
+    >
+      Draft recovery is unavailable in this browser. Save your work before
+      leaving.
+    </Alert>
+    <ConfirmModal
+      :show="Boolean(pendingVisit)"
+      title="Unsaved changes"
+      message="You have unsaved changes. Keep editing to save them, or discard them and leave."
+      confirm-label="Discard and leave"
+      cancel-label="Keep editing"
+      :destructive="true"
+      :loading="saveForm.processing || saveForm.validating"
+      @confirm="leaveEditor"
+      @cancel="cancelPendingVisit"
+    />
     <!-- Header -->
     <div
       class="flex items-center justify-between gap-2 border-b border-gray-200 px-3 py-2 dark:border-gray-800 sm:px-6 sm:py-3"
@@ -416,21 +574,21 @@ function handleKeydown(e) {
             >
               Save & Deploy
             </button>
-            <p
+            <Alert
               v-if="
                 saveForm.errors.content ||
                 saveForm.errors.deploy ||
                 saveForm.errors.appSlug
               "
               role="alert"
-              class="border-t border-gray-100 px-3 py-2 text-xs leading-5 text-red-600 dark:border-gray-700 dark:text-red-400"
+              class="border border-t border-gray-100 border-red-200 bg-red-50 px-3 py-2 text-xs leading-5 text-red-900 dark:border-gray-700 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-200"
             >
               {{
                 saveForm.errors.content ||
                 saveForm.errors.deploy ||
                 saveForm.errors.appSlug
               }}
-            </p>
+            </Alert>
           </Menu>
         </div>
       </div>

@@ -125,6 +125,7 @@ test('cancelling a first route verifies that the candidate was removed', async (
     expect(verified).toEqual([
       {
         expectedUpstreams: [],
+        excludedDomains: [],
         excludedUpstreams: transaction.candidateUpstreams
       }
     ])

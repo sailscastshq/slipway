@@ -57,9 +57,7 @@ module.exports = {
   },
 
   fn: async function ({ slug, envSlug }) {
-    const user = await User.findOne({
-      id: this.req.session.userId
-    }).populate('team')
+    const user = await User.forRequest(this.req, { populateTeam: true })
     if (!user) {
       throw { forbidden: { message: 'Sign in before uploading an image.' } }
     }
@@ -97,7 +95,7 @@ module.exports = {
     const uploadedFiles = await new Promise((resolve, reject) => {
       this.req.file('image').upload(
         {
-          adapter: require('skipper-s3'),
+          adapter: require('../../lib/s3-upload-adapter'),
           key: storage.key,
           secret: storage.secret,
           bucket: storage.bucket,

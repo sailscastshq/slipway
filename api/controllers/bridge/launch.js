@@ -81,8 +81,10 @@ module.exports = {
       }
     }
 
+    const existingAuthVersion = this.req.session.authVersion
     const existingUserId = this.req.session.userId
     await regenerateSession(this.req)
+    if (existingUserId) this.req.session.authVersion = existingAuthVersion
     if (existingUserId) {
       this.req.session.userId = existingUserId
     }

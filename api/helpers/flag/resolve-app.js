@@ -7,7 +7,8 @@ module.exports = {
     userId: { type: 'string', required: true },
     projectSlug: { type: 'string', required: true },
     environmentSlug: { type: 'string', required: true },
-    appSlug: { type: 'string', required: true }
+    appSlug: { type: 'string', required: true },
+    req: { type: 'ref' }
   },
 
   exits: {
@@ -15,8 +16,10 @@ module.exports = {
     notFound: {}
   },
 
-  fn: async function ({ userId, projectSlug, environmentSlug, appSlug }) {
-    const user = await User.findOne({ id: userId })
+  fn: async function ({ userId, projectSlug, environmentSlug, appSlug, req }) {
+    const user = req
+      ? await User.forRequest(req)
+      : await User.findOne({ id: userId })
     if (!user) throw 'notFound'
 
     const project = await Project.findOne({
