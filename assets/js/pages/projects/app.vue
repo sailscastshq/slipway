@@ -1,4 +1,5 @@
 <script setup>
+import DeploymentReadiness from '@/components/DeploymentReadiness.vue'
 import Dialog from '@/components/ui/dialog/Dialog.vue'
 import Button from '@/components/ui/button/Button.vue'
 import Alert from '@/components/ui/alert/Alert.vue'
@@ -72,7 +73,7 @@ const props = defineProps({
   deploymentHistory: Object,
   services: Array,
   backupConfigured: Boolean,
-  checklist: Array,
+  readiness: Object,
   sourceReadiness: Object,
   releaseFlags: Array,
   canManageBridge: Boolean,
@@ -87,13 +88,6 @@ const toast = useToast()
 // --- Deploy ---
 const deploying = ref(false)
 const slideRef = ref(null)
-
-const checklistAllGood = computed(() => {
-  return (
-    (props.checklist || []).length === 1 &&
-    props.checklist[0].severity === 'success'
-  )
-})
 
 const sourceIsReady = computed(() => props.sourceReadiness?.available === true)
 
@@ -1234,6 +1228,11 @@ onBeforeUnmount(() => {
           </div>
         </Alert>
 
+        <DeploymentReadiness
+          :report="readiness"
+          @refresh="router.reload({ only: ['readiness'] })"
+        />
+
         <!-- Slide to Deploy -->
         <div class="mb-10 flex justify-end">
           <div class="w-56">
@@ -1241,7 +1240,7 @@ onBeforeUnmount(() => {
               ref="slideRef"
               :is-production="environment.isProduction"
               :environment-name="environment.name"
-              :disabled="!checklistAllGood || !sourceIsReady"
+              :disabled="readiness?.canDeploy === false || !sourceIsReady"
               @deploy="triggerDeploy"
             />
           </div>

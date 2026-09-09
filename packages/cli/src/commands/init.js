@@ -8,7 +8,8 @@ import {
   isLoggedIn
 } from '../lib/config.js'
 import { error, createSpinner, warn } from '../lib/utils.js'
-import { prompt, confirm } from '../lib/prompt.js'
+import { prompt } from '../lib/prompt.js'
+import { renderReadiness } from './readiness.js'
 
 export default async function init(options) {
   if (!isLoggedIn()) {
@@ -44,30 +45,6 @@ export default async function init(options) {
   const projectName =
     options.name || (await prompt('  Project name', suggestedName))
 
-  // Check for Dockerfile
-  const dockerfilePath = join(process.cwd(), 'Dockerfile')
-  const hasDockerfile = existsSync(dockerfilePath)
-
-  if (!hasDockerfile) {
-    console.log()
-    warn('No Dockerfile found in current directory.')
-    console.log(
-      `  ${c.dim(
-        'Slipway requires a Dockerfile to build and deploy your app.'
-      )}`
-    )
-    console.log()
-
-    const proceed = await confirm('  Continue anyway?', true)
-
-    if (!proceed) {
-      console.log(
-        `  ${c.dim('Run `slipway init` again after adding a Dockerfile.')}`
-      )
-      return
-    }
-  }
-
   const spin = createSpinner('Creating project...').start()
 
   try {
@@ -88,6 +65,17 @@ export default async function init(options) {
     console.log(`  ${c.dim('Project:')} ${project.name}`)
     console.log(`  ${c.dim('Slug:')} ${project.slug}`)
     console.log(`  ${c.dim('Environment:')} production`)
+    try {
+      renderReadiness(await api.environments.readiness(project.slug))
+      console.log(
+        'Push source, then run slipway readiness to inspect the same source as the dashboard.'
+      )
+    } catch {
+      warn(
+        'Project created. Run slipway readiness after pushing source to inspect deployment requirements.'
+      )
+    }
+
     console.log()
     console.log(
       `  ${c.dim('Run')} ${c.highlight('slipway slide')} ${c.dim(

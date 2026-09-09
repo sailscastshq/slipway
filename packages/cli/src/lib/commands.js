@@ -81,6 +81,15 @@ export const commands = {
       message: { type: 'string', short: 'm' }
     }
   },
+  readiness: {
+    description:
+      'Inspect server-owned deployment readiness for the current source',
+    options: {
+      env: { type: 'string', short: 'e', default: 'production' },
+      app: { type: 'string', short: 'a' },
+      json: { type: 'boolean' }
+    }
+  },
   deployments: {
     description: 'List recent deployments',
     options: {

@@ -1,4 +1,5 @@
 <script setup>
+import DeploymentReadiness from '@/components/DeploymentReadiness.vue'
 import {
   mutationFailureMessage,
   assertMutationResponse
@@ -71,7 +72,7 @@ const props = defineProps({
   envVars: Object,
   envVarMetadata: Object,
   deploymentHistory: Object,
-  checklist: Array,
+  readiness: Object,
   serviceVersions: Object,
   backupConfigured: Boolean,
   githubConnected: Boolean,
@@ -533,7 +534,7 @@ async function saveEnvVars(vars, metadata = localMetadata) {
       throw new Error('Environment variables could not be saved.')
     }
     router.reload({
-      only: ['envVars', 'envVarMetadata', 'environment', 'checklist'],
+      only: ['envVars', 'envVarMetadata', 'environment', 'readiness'],
       preserveScroll: true
     })
     return true
@@ -757,7 +758,7 @@ async function createService() {
     customServiceVersion.value = false
     addServiceOpen.value = false
     router.reload({
-      only: ['environment', 'envVars', 'envVarMetadata', 'checklist']
+      only: ['environment', 'envVars', 'envVarMetadata', 'readiness']
     })
   } catch (err) {
     completeAction(actionId, false)
@@ -849,7 +850,7 @@ async function executeDeleteService() {
       })
     }
     router.reload({
-      only: ['environment', 'envVars', 'envVarMetadata', 'checklist']
+      only: ['environment', 'envVars', 'envVarMetadata', 'readiness']
     })
   } catch (error) {
     toast({
@@ -1044,19 +1045,6 @@ function timeAgo(date) {
 const sortedVarKeys = computed(() => Object.keys(localVars).sort())
 const services = computed(() => props.environment.services || [])
 
-const checklistWarnings = computed(() => {
-  return (props.checklist || []).filter(
-    (c) => c.severity === 'warning' || c.severity === 'info'
-  )
-})
-
-const checklistAllGood = computed(() => {
-  return (
-    (props.checklist || []).length === 1 &&
-    props.checklist[0].severity === 'success'
-  )
-})
-
 // --- Checklist actions ---
 function handleChecklistAction(action) {
   if (!action) return
@@ -1231,80 +1219,12 @@ onBeforeUnmount(() => {
           </div>
         </div>
 
-        <!-- Deployment Checklist -->
-        <div
-          v-if="checklist && checklist.length > 0 && !checklistAllGood"
-          class="mb-10"
-        >
-          <Alert
-            data-test="deployment-checklist"
-            role="note"
-            class="rounded-lg border border-amber-200 bg-amber-50/50 p-0 text-base text-inherit dark:border-amber-900/50 dark:bg-amber-950/20"
-          >
-            <div class="flex items-center gap-2 px-4 py-3">
-              <WarningTriangle
-                class="h-4 w-4 text-amber-500"
-                stroke-width="2"
-              />
-              <h2
-                class="text-sm font-medium text-amber-800 dark:text-amber-300"
-              >
-                Deployment checklist
-              </h2>
-              <span
-                class="inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-700 dark:bg-amber-900/40 dark:text-amber-400"
-              >
-                {{ checklistWarnings.length }}
-              </span>
-            </div>
-            <ul
-              class="divide-y divide-amber-200/50 border-t border-amber-200/50 dark:divide-amber-900/30 dark:border-amber-900/30"
-            >
-              <li
-                v-for="item in checklist"
-                :key="item.key"
-                class="flex items-start justify-between gap-3 px-4 py-2.5"
-              >
-                <div class="flex items-start gap-3">
-                  <WarningTriangle
-                    v-if="item.severity === 'warning'"
-                    class="mt-0.5 h-4 w-4 shrink-0 text-amber-500"
-                    stroke-width="2"
-                  />
-                  <InfoCircle
-                    v-else-if="item.severity === 'info'"
-                    class="mt-0.5 h-4 w-4 shrink-0 text-blue-500"
-                    stroke-width="2"
-                  />
-                  <Check
-                    v-else
-                    class="mt-0.5 h-4 w-4 shrink-0 text-green-500"
-                    stroke-width="2"
-                  />
-                  <div>
-                    <p class="text-sm text-gray-800 dark:text-gray-200">
-                      {{ item.label }}
-                    </p>
-                    <p
-                      v-if="item.suggestion"
-                      class="mt-0.5 text-xs text-gray-500 dark:text-gray-400"
-                    >
-                      {{ item.suggestion }}
-                    </p>
-                  </div>
-                </div>
-                <button
-                  v-if="item.action"
-                  type="button"
-                  @click="handleChecklistAction(item.action)"
-                  class="shrink-0 rounded-md border border-amber-300 bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700 hover:bg-amber-100 dark:border-amber-800 dark:bg-amber-900/30 dark:text-amber-400 dark:hover:bg-amber-900/50"
-                >
-                  {{ item.action.label }}
-                </button>
-              </li>
-            </ul>
-          </Alert>
-        </div>
+        <DeploymentReadiness
+          :report="readiness"
+          allow-actions
+          @action="handleChecklistAction"
+          @refresh="router.reload({ only: ['readiness'] })"
+        />
 
         <!-- Accordion: Apps, Services, Env Vars -->
         <div
