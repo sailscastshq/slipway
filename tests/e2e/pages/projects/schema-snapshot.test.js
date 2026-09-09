@@ -26,16 +26,14 @@ test(
     sails.config.custom.slipwayAppsDir = root
     try {
       const current = world.current
-      const database = await world
-        .create('service')
-        .with({
-          name: 'primary-db',
-          type: 'postgresql',
-          version: '17',
-          status: 'running',
-          environment: current.environments.production.id,
-          database: 'app'
-        })
+      const database = await world.create('service').with({
+        name: 'primary-db',
+        type: 'postgresql',
+        version: '17',
+        status: 'running',
+        environment: current.environments.production.id,
+        database: 'app'
+      })
       await page.raw.route('**/dock/tables?**', (route) =>
         route.fulfill({
           status: 200,
