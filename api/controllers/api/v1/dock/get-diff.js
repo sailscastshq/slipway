@@ -160,6 +160,11 @@ module.exports = {
     return {
       databaseType: service.type,
       diff,
+      state: diff.state,
+      verification: {
+        unsupported: diff.unsupported || [],
+        preservedObjects: diff.preserved?.length || 0
+      },
       statements,
       hasPendingChanges: statements.length > 0,
       hasBlockedChanges: statements.some((statement) => statement.blocked),

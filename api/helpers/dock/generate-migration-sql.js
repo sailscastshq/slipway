@@ -42,6 +42,20 @@ module.exports = {
 
   fn: async function ({ diff, dbType, models, schema }) {
     const statements = []
+    if (diff.state === 'unverified' || diff.unsupported?.length) {
+      return {
+        statements: (
+          diff.unsupported || [{ reason: 'Schema verification is incomplete.' }]
+        ).map((item) => ({
+          type: 'unverified_schema',
+          table: item.tableName,
+          column: item.columnName,
+          blocked: true,
+          reason: item.reason,
+          sql: '-- Automatic migration blocked: ' + item.reason
+        }))
+      }
+    }
 
     // MongoDB: generate createCollection commands
     if (dbType === 'mongodb') {
@@ -113,7 +127,8 @@ module.exports = {
 
     // Generate CREATE INDEX statements
     for (const idx of diff.indexesToCreate) {
-      const indexName = `idx_${idx.tableName}_${idx.columnName}`
+      const indexName =
+        idx.indexName || `idx_${idx.tableName}_${idx.columnName}`
       const uniqueKeyword = idx.unique ? 'UNIQUE ' : ''
       const sql = `CREATE ${uniqueKeyword}INDEX ${quote}${indexName}${quote} ON ${quote}${idx.tableName}${quote} (${quote}${idx.columnName}${quote});`
       statements.push({
@@ -213,7 +228,8 @@ function generateSqliteStatements(diff, models, schema) {
     const sql = generateSqliteIndexSql(
       idx.tableName,
       idx.columnName,
-      idx.unique
+      idx.unique,
+      idx.indexName
     )
     statements.push({
       type: 'create_index',
@@ -865,9 +881,11 @@ function generateSqliteIndexStatements(tableName, model) {
   return statements
 }
 
-function generateSqliteIndexSql(tableName, columnName, isUnique) {
+function generateSqliteIndexSql(tableName, columnName, isUnique, indexName) {
   const uniqueKeyword = isUnique ? 'UNIQUE ' : ''
-  return `CREATE ${uniqueKeyword}INDEX IF NOT EXISTS \`idx_${tableName}_${columnName}\` ON \`${tableName}\` (\`${columnName}\`);`
+  return `CREATE ${uniqueKeyword}INDEX IF NOT EXISTS \`${
+    indexName || `idx_${tableName}_${columnName}`
+  }\` ON \`${tableName}\` (\`${columnName}\`);`
 }
 
 function findModelByTableName(models, tableName) {

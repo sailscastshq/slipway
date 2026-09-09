@@ -8,6 +8,30 @@ on:
     branches: [main]
 
 jobs:
+  schema-contract:
+    name: Schema contract (${{ matrix.dialect }})
+    timeout-minutes: 15
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - dialect: postgresql
+            image: postgres:16-alpine
+          - dialect: mysql
+            image: mysql:8.4
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: 'npm'
+      - run: npm ci --no-audit
+      - run: docker pull '${{ matrix.image }}'
+      - run: node scripts/verify-schema-diff-containers.js
+        env:
+          SLIPWAY_SCHEMA_TEST_DIALECT: ${{ matrix.dialect }}
+
   lint:
     timeout-minutes: 10
     runs-on: ubuntu-latest
@@ -34,7 +58,7 @@ jobs:
 
   test:
     name: Test (${{ matrix.lane }})
-    timeout-minutes: 10
+    timeout-minutes: 15
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
