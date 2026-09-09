@@ -43,7 +43,12 @@ module.exports = {
 
     if (retentionPolicy === 'retain') {
       result.retained = {
-        backupObjects: artifacts.backupObjects || [],
+        backupObjects: (artifacts.backupObjects || []).map(
+          ({ backupId, objectKey, s3Key }) => ({
+            backupId,
+            objectKey: objectKey || s3Key
+          })
+        ),
         volumeNames: artifacts.volumeNames || [],
         imageNames: artifacts.imageNames || [],
         sourcePaths: artifacts.sourcePaths || []
@@ -53,7 +58,10 @@ module.exports = {
 
     for (const backup of artifacts.backupObjects || []) {
       await sails.helpers.backup.deleteBackupObject.with({
-        s3Key: backup.s3Key
+        objectKey: backup.objectKey || backup.s3Key,
+        storageConfig: backup.storage
+          ? require('../../lib/sealed-backup-storage').open(backup.storage)
+          : undefined
       })
       result.backupObjects += 1
     }

@@ -25,6 +25,7 @@ module.exports.bootstrap = async function () {
   await sails.helpers.bridge.ensureSchema()
   await sails.helpers.bearing.ensureSchema()
   await sails.helpers.configuration.ensureSchema()
+  await sails.helpers.backup.ensureStorageSchema()
   await sails.helpers.flag.ensureSchema()
   await sails.helpers.deploy.ensureQueueSchema()
   await sails.helpers.service.ensureVersionSchema()

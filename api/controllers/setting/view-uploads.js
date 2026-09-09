@@ -112,7 +112,10 @@ module.exports = {
         publicUploadsConfigured,
         provider,
         config,
-        backupSchedule
+        backupSchedule,
+        backupStorage: require('../../lib/backup-storage-config').publicConfig(
+          await require('../../lib/backup-storage-config').saved()
+        )
       }
     }
   }

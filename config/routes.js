@@ -110,6 +110,7 @@ module.exports.routes = {
   // File storage settings
   'GET /settings/uploads': 'setting/view-uploads',
   'PATCH /settings/uploads': 'setting/update-uploads',
+  'POST /settings/backup-storage': 'setting/update-backup-storage',
 
   // Team profile settings
   'GET /settings/team-profile': 'team/view-team-profile',

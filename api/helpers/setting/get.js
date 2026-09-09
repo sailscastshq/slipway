@@ -11,7 +11,8 @@ const SENSITIVE_KEYS = [
   'discordWebhookUrl',
   'slackWebhookUrl',
   'webhookUrl',
-  'globalEnvVars'
+  'globalEnvVars',
+  'backupStorageConfig'
 ]
 
 module.exports = {
@@ -42,7 +43,10 @@ module.exports = {
     // Check cache first (cache-aside pattern)
     const cacheKey = `setting:${key}`
     try {
-      const cached = await sails.cache.get(cacheKey)
+      if (SENSITIVE_KEYS.includes(key)) await sails.cache.delete(cacheKey)
+      const cached = SENSITIVE_KEYS.includes(key)
+        ? null
+        : await sails.cache.get(cacheKey)
       if (cached !== null && cached !== undefined) {
         return cached === '__null__' ? defaultValue || null : cached
       }
@@ -66,7 +70,8 @@ module.exports = {
 
         if (result !== undefined) {
           try {
-            await sails.cache.set(cacheKey, result, 900_000)
+            if (!SENSITIVE_KEYS.includes(key))
+              await sails.cache.set(cacheKey, result, 900_000)
           } catch (err) {
             /* best-effort */
           }

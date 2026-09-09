@@ -1,4 +1,5 @@
 <script setup>
+import BackupStorageSettings from '@/components/BackupStorageSettings.vue'
 import Alert from '@/components/ui/alert/Alert.vue'
 import WarningTriangle from '@/components/ui/icons/WarningTriangle.vue'
 import SidebarOpen from '@/components/ui/icons/SidebarOpen.vue'
@@ -27,9 +28,11 @@ const props = defineProps({
   publicUploadsConfigured: Boolean,
   provider: String,
   config: Object,
+  backupStorage: Object,
   backupSchedule: Object
 })
 
+const savedBackupStorage = ref(props.backupStorage)
 const toggleMobileMenu = inject('toggleMobileMenu')
 const toggleSidebar = inject('toggleSidebar')
 const sidebarCollapsed = inject('sidebarCollapsed')
@@ -600,9 +603,14 @@ const providers = [
           </div>
         </form>
 
+        <BackupStorageSettings
+          :configuration="backupStorage"
+          @saved="savedBackupStorage = $event"
+        />
+
         <!-- Scheduled Backups -->
         <div
-          v-if="isConfigured"
+          v-if="isConfigured || savedBackupStorage?.hasCredentials"
           class="mt-8 rounded-lg border border-gray-200 dark:border-gray-800"
         >
           <div class="px-4 py-3">

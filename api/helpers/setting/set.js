@@ -11,7 +11,8 @@ const SENSITIVE_KEYS = [
   'discordWebhookUrl',
   'slackWebhookUrl',
   'webhookUrl',
-  'globalEnvVars'
+  'globalEnvVars',
+  'backupStorageConfig'
 ]
 
 module.exports = {

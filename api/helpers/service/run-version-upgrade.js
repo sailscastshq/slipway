@@ -71,7 +71,7 @@ module.exports = {
       })
       if (
         completedBackup.status !== 'completed' ||
-        !completedBackup.s3Key ||
+        !(completedBackup.objectKey || completedBackup.s3Key) ||
         !completedBackup.sizeBytes
       ) {
         throw new Error(
