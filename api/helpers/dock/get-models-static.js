@@ -103,13 +103,7 @@ module.exports = {
     sails.log.verbose(
       `[dock] Total models found: ${Object.keys(models).length}`
     )
-    return {
-      models,
-      authoritative: false,
-      formatVersion: 0,
-      error:
-        'Source files alone cannot confirm the database schema. Deploy the app before comparing changes.'
-    }
+    return { models }
   }
 }
 
