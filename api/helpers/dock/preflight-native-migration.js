@@ -125,19 +125,22 @@ module.exports = {
         [
           'run',
           '-d',
-          '--rm',
           '--name',
           name,
           '--network',
           'none',
           '--memory',
-          '512m',
+          pg ? '512m' : '1g',
           '--pids-limit',
           '256',
           '--cap-drop',
           'ALL',
           '--cap-add',
           'CHOWN',
+          '--cap-add',
+          'DAC_OVERRIDE',
+          '--cap-add',
+          'KILL',
           '--cap-add',
           'FOWNER',
           '--cap-add',
@@ -193,6 +196,21 @@ module.exports = {
           ready = true
           break
         } catch (_) {
+          const state = JSON.parse(
+            (
+              await exec(
+                docker,
+                ['inspect', '--format', '{{json .State}}', name],
+                { timeout: 3000, maxBuffer: 1024 * 1024 }
+              )
+            ).stdout
+          )
+          if (!state.Running)
+            throw new Error(
+              `The isolated database exited with code ${state.ExitCode}${
+                state.OOMKilled ? ' after reaching its memory limit' : ''
+              }.`
+            )
           await new Promise((resolve) => setTimeout(resolve, 500))
         }
       }
