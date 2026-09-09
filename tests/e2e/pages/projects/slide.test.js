@@ -27,6 +27,7 @@ test(
     const sourceRoot = path.join(appsRoot, project.slug)
 
     fs.mkdirSync(sourceRoot, { recursive: true })
+    fs.writeFileSync(path.join(sourceRoot, 'Dockerfile'), 'FROM node:24-alpine\n')
     fs.writeFileSync(
       path.join(sourceRoot, 'package.json'),
       JSON.stringify({ name: 'slide-source', private: true })
@@ -108,6 +109,7 @@ test(
       await expect(slide).toHaveAccessibleName('Slide to Production')
       await expect(slide).toHaveAttribute('data-slot', 'slide')
       await expect(slide).toHaveAttribute('type', 'button')
+      await expect(slide).toBeEnabled()
 
       const bounds = await slide.boundingBox()
       if (!bounds) throw new Error('Slide geometry was unavailable')
