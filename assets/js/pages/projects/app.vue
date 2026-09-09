@@ -1,4 +1,6 @@
 <script setup>
+import Dialog from '@/components/ui/dialog/Dialog.vue'
+import Button from '@/components/ui/button/Button.vue'
 import Alert from '@/components/ui/alert/Alert.vue'
 import {
   mutationFailureMessage,
@@ -214,9 +216,12 @@ function closeAllDropdowns() {
 const newDomain = ref(props.environment.domain || '')
 const savingDomain = ref(false)
 const domainModalOpen = ref(false)
+const domainReadiness = ref(props.environment.domainReadiness)
+const domainError = ref('')
 
 function openDomainModal() {
   newDomain.value = props.environment.domain || ''
+  domainError.value = ''
   domainModalOpen.value = true
 }
 
@@ -229,6 +234,7 @@ function closeDomainModal() {
 async function saveCustomDomain() {
   if (savingDomain.value) return
   savingDomain.value = true
+  domainError.value = ''
   try {
     const res = await fetch(
       `/api/v1/projects/${props.project.slug}/environments/${props.environment.slug}`,
@@ -239,9 +245,11 @@ async function saveCustomDomain() {
       }
     )
     if (res.ok) {
+      const result = await res.json()
+      domainReadiness.value = result.domainReadiness
       toast({
         message: newDomain.value.trim()
-          ? 'Custom domain saved'
+          ? 'Environment domain saved. DNS and HTTPS still need verification.'
           : 'Custom domain removed',
         type: 'success'
       })
@@ -249,10 +257,10 @@ async function saveCustomDomain() {
       router.reload({ only: ['environment'] })
     } else {
       const err = await res.json().catch(() => null)
-      toast({ message: err?.message || 'Failed to save domain', type: 'error' })
+      domainError.value = err?.message || 'Failed to save domain'
     }
   } catch (error) {
-    toast({ message: mutationFailureMessage(error), type: 'error' })
+    domainError.value = mutationFailureMessage(error)
   } finally {
     savingDomain.value = false
   }
@@ -1722,71 +1730,87 @@ onBeforeUnmount(() => {
     </div>
 
     <!-- Custom Domain Modal -->
-    <Teleport to="body">
-      <Transition
-        enter-active-class="transition duration-200 ease-out"
-        enter-from-class="opacity-0"
-        enter-to-class="opacity-100"
-        leave-active-class="transition duration-150 ease-in"
-        leave-from-class="opacity-100"
-        leave-to-class="opacity-0"
+    <Dialog
+      v-model:open="domainModalOpen"
+      :dismissible="!savingDomain"
+      aria-labelledby="domain-title"
+      aria-describedby="domain-description"
+      class="max-w-md"
+    >
+      <h3 id="domain-title" class="text-lg font-semibold">
+        Environment domain
+      </h3>
+      <p
+        id="domain-description"
+        class="mt-2 text-sm text-gray-500 dark:text-gray-400"
       >
-        <div
-          v-if="domainModalOpen"
-          class="fixed inset-0 z-50 flex items-center justify-center"
+        One custom hostname is shared by the routed apps in this environment.
+        Leave it empty to restore fallback access.
+      </p>
+      <label for="custom-domain" class="mt-4 block text-sm font-medium"
+        >Hostname</label
+      >
+      <Input
+        id="custom-domain"
+        v-model="newDomain"
+        type="text"
+        placeholder="app.example.com"
+        :disabled="savingDomain"
+        :aria-invalid="domainError ? 'true' : undefined"
+        :aria-describedby="domainError ? 'domain-error' : undefined"
+        class="focus:border-brand w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-2 text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
+        @keydown.enter.prevent="saveCustomDomain"
+      />
+      <Alert class="mt-4 text-sm" role="status">
+        <dl class="space-y-1">
+          <div>
+            <dt class="inline font-medium">DNS target:</dt>
+            <dd class="ml-1 inline break-all">
+              {{ environment.serverIp || 'Check your server public address' }}
+            </dd>
+          </div>
+          <div>
+            <dt class="inline font-medium">Route:</dt>
+            <dd class="ml-1 inline">
+              {{
+                domainReadiness?.route === 'verified' &&
+                newDomain.trim() === (domainReadiness.domain || '')
+                  ? 'Verified at last save'
+                  : 'Not verified in this view'
+              }}
+            </dd>
+          </div>
+          <div>
+            <dt class="inline font-medium">DNS / TLS:</dt>
+            <dd class="ml-1 inline">Not verified</dd>
+          </div>
+        </dl>
+        <p class="mt-2">
+          Point DNS to this server and allow public ports 80 and 443. Open the
+          HTTPS URL to verify certificate issuance.
+        </p>
+      </Alert>
+      <Alert
+        v-if="domainError"
+        id="domain-error"
+        role="alert"
+        class="mt-4 bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-300"
+        >{{ domainError }}</Alert
+      >
+      <div class="mt-4 flex justify-end gap-3">
+        <Button
+          @click="closeDomainModal"
+          :disabled="savingDomain"
+          class="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-950 dark:text-gray-300 dark:hover:bg-gray-800"
+          >Cancel</Button
         >
-          <div class="fixed inset-0 bg-black/50" @click="closeDomainModal" />
-          <Transition
-            enter-active-class="transition duration-200 ease-out"
-            enter-from-class="scale-95 opacity-0"
-            enter-to-class="scale-100 opacity-100"
-            leave-active-class="transition duration-150 ease-in"
-            leave-from-class="scale-100 opacity-100"
-            leave-to-class="scale-95 opacity-0"
-          >
-            <div
-              v-if="domainModalOpen"
-              class="relative w-full max-w-sm rounded-lg border border-gray-200 bg-white p-6 shadow-xl dark:border-gray-700 dark:bg-gray-900"
-            >
-              <h3 class="text-lg font-semibold text-gray-900 dark:text-white">
-                Custom domain
-              </h3>
-              <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">
-                Point your domain to
-                <code
-                  class="rounded bg-gray-100 px-1 py-0.5 font-mono text-xs dark:bg-gray-800"
-                  >{{ environment.serverIp }}</code
-                >
-                with an A record. SSL is provisioned automatically.
-              </p>
-              <div class="mt-4">
-                <Input
-                  v-model="newDomain"
-                  type="text"
-                  placeholder="app.example.com"
-                  class="focus:border-brand w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-2 text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500"
-                  @keydown.enter="saveCustomDomain"
-                />
-              </div>
-              <div class="mt-4 flex justify-end space-x-3">
-                <button
-                  @click="closeDomainModal"
-                  class="rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800"
-                >
-                  Cancel
-                </button>
-                <button
-                  @click="saveCustomDomain"
-                  :disabled="savingDomain"
-                  class="rounded-md bg-gray-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
-                >
-                  {{ savingDomain ? 'Saving...' : 'Save' }}
-                </button>
-              </div>
-            </div>
-          </Transition>
-        </div>
-      </Transition>
-    </Teleport>
+        <Button
+          @click="saveCustomDomain"
+          :disabled="savingDomain"
+          class="rounded-md bg-gray-900 px-3 py-1.5 text-sm font-medium text-white dark:bg-white dark:text-gray-900"
+          >{{ savingDomain ? 'Saving...' : 'Save' }}</Button
+        >
+      </div>
+    </Dialog>
   </div>
 </template>

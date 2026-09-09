@@ -12,7 +12,7 @@ This CLI has **no npm dependencies**. It uses only Node.js 22+ built-ins:
 - Native `fetch` → HTTP requests
 - Native `WebSocket` → log streaming, Helm REPL
 
-This means instant startup, no supply chain risk, and zero maintenance overhead.
+The CLI starts without installing third-party runtime dependencies.
 
 ## Commands
 
@@ -22,33 +22,43 @@ slipway slide                    # Primary command
 slipway deploy                   # Alias
 slipway launch                   # Alias
 
-# Apps
-slipway app:create myapp
-slipway app:list
-slipway app:info myapp
-slipway app:destroy myapp
+# Project context
+slipway init
+slipway link my-project
 
-# Databases (unified)
-slipway db:create mydb --type=postgres
-slipway db:link mydb myapp       # Auto-sets DATABASE_URL
-slipway db:connect mydb          # Opens psql/mysql/redis-cli
-slipway db:list
-slipway db:backup mydb
+# Databases
+slipway db:create main-db --type=postgresql
+slipway db:url main-db
+slipway services
+slipway backup:create main-db
 
-# Domains
-slipway domain:add myapp example.com
-slipway domain:list myapp
-slipway domain:remove myapp example.com
+# One custom domain per environment (run in a linked project)
+slipway environment:update production --domain app.example.com
+slipway environment:update production --domain ""  # Remove custom domain
+slipway environments
 
-# Environment
-slipway env:set myapp KEY=value
-slipway env:list myapp
+# Environment variables
+slipway env:set KEY=value --env production
+slipway env --env production
 
 # Operations
-slipway helm myapp               # Sails REPL (like Tinkerwell)
-slipway logs myapp -t            # Tail logs
-slipway dev                      # Local dev mode
+slipway terminal --env production
+slipway logs --env production --follow
 ```
+
+## Custom domains
+
+A custom hostname belongs to an environment and is shared by its routed apps.
+Setting another hostname replaces the previous custom hostname. A generated
+hostname, when configured, remains available as a fallback.
+
+Point DNS to your Slipway server before saving. A verified proxy route does not
+prove DNS propagation or certificate issuance. HTTPS becomes available after
+DNS and public ingress allow automatic certificate provisioning. Open the HTTPS
+URL to verify it. Slipway does not provide certificate inspection commands.
+
+To remove a custom hostname, pass an empty string as shown above. Access then
+uses the configured generated hostname or the available direct-access route.
 
 ## Installation
 

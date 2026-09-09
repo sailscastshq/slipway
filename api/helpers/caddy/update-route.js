@@ -63,46 +63,40 @@ module.exports = {
       domainOverride
     })
 
-    if (!config) {
+    const dockerPath = sails.config.docker?.binaryPath || 'docker'
+    const network = sails.config.custom.slipwayNetwork || 'slipway'
+    if (!config || !config.domains?.length || !config.route) {
+      if (domainOverride) {
+        const error = new Error(
+          'Deploy a routed app before assigning a custom domain.'
+        )
+        error.code = 'DOMAIN_REQUIRES_DEPLOYMENT'
+        throw error
+      }
       const environment = await Environment.findOne({
         id: environmentId
       }).populate('project')
-      if (!environment) {
-        throw 'noApp'
+      if (!environment) throw 'noApp'
+      const routeId = `slipway-route-${environment.project.slug}-${environment.slug}`
+      const state = await getContainerState(dockerPath, routeId)
+      const transaction = {
+        removal: true,
+        routeId,
+        previousExists: state.exists,
+        previousWasRunning: state.running,
+        previousDomains: await Environment.getDomains(environmentId),
+        candidateDomains: [],
+        previousUpstreams: [],
+        candidateUpstreams: []
       }
-
-      const emptyRouteContainerName = `slipway-route-${environment.project.slug}-${environment.slug}`
-      const dockerPath = sails.config.docker?.binaryPath || 'docker'
-      await tolerateDockerError(dockerPath, [
-        'rm',
-        '-f',
-        emptyRouteContainerName
-      ])
-      sails.log.info(
-        `Removed the empty Caddy route for environment ${environmentId}`
-      )
-      return {
-        domains: [],
-        routeId: emptyRouteContainerName,
-        action: 'removed'
-      }
+      if (!deferCommit)
+        await sails.helpers.caddy.finishRouteUpdate.with({
+          action: 'commit',
+          transaction
+        })
+      return { domains: [], routeId, action: 'removed', transaction }
     }
-
-    const dockerPath = sails.config.docker?.binaryPath || 'docker'
-    const network = sails.config.custom.slipwayNetwork || 'slipway'
     const routeContainerName = `slipway-route-${config.projectSlug}-${config.environmentSlug}`
-
-    if (!config.domains || config.domains.length === 0 || !config.route) {
-      await tolerateDockerError(dockerPath, ['rm', '-f', routeContainerName])
-      sails.log.info(
-        `No hostname route configured for environment ${environmentId}; direct IP access remains available`
-      )
-      return {
-        domains: [],
-        routeId: routeContainerName,
-        action: 'removed'
-      }
-    }
 
     const routableApps = environmentApps.filter(
       (app) => app.hostPort && app.routePath !== null

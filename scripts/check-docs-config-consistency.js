@@ -6,20 +6,38 @@ const supportedNodeMajor = 22
 const supportedNodeRange = `>=${supportedNodeMajor}.0.0`
 const failures = []
 
-checkReadmeLinks()
-checkNodeSupport()
-
-if (failures.length > 0) {
-  console.error('Documentation/config consistency checks failed:')
-  for (const failure of failures) {
-    console.error(`- ${failure}`)
+async function main() {
+  checkReadmeLinks()
+  checkNodeSupport()
+  const { commands, aliases } = await import(
+    '../packages/cli/src/lib/commands.js'
+  )
+  const known = new Set([...Object.keys(commands), ...Object.keys(aliases)])
+  const documents = process.argv.slice(2)
+  for (const file of ['README.md', 'packages/cli/README.md', ...documents]) {
+    const markdown = fs.readFileSync(path.resolve(appRoot, file), 'utf8')
+    for (const match of markdown.matchAll(
+      /(?:^\s*(?:\$\s*)?|`)slipway\s+([a-z][a-z:-]*)/gm
+    )) {
+      if (!known.has(match[1]))
+        failures.push(`${file} documents unknown CLI command: ${match[1]}`)
+    }
   }
-  process.exit(1)
+  if (failures.length > 0) {
+    console.error('Documentation/config consistency checks failed:')
+    for (const failure of failures) console.error(`- ${failure}`)
+    process.exitCode = 1
+  } else {
+    console.log(
+      `Documentation links, CLI commands, and Node.js ${supportedNodeMajor}+ requirements are consistent.`
+    )
+  }
 }
 
-console.log(
-  `Documentation links and Node.js ${supportedNodeMajor}+ requirements are consistent.`
-)
+main().catch((error) => {
+  console.error(error.message)
+  process.exitCode = 1
+})
 
 function checkReadmeLinks() {
   for (const readmePath of findReadmes(appRoot)) {
