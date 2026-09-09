@@ -99,6 +99,7 @@ module.exports.policies = {
   // Bridge handoff endpoints authenticate with a dedicated app credential or
   // a short-lived, single-use launch code.
   'api/v1/bridge/exchange': 'rate-limit-bridge-exchange',
+  'api/v1/bridge/support': 'rate-limit-bridge-exchange',
   'bridge/launch': true,
   'api/v1/bearing/exchange': 'rate-limit-bridge-exchange',
   'bearing/session': true,

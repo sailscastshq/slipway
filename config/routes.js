@@ -418,6 +418,14 @@ module.exports.routes = {
 
   // Bridge UI
   'GET /bridge/launch': 'bridge/launch',
+  'POST /api/v1/bridge/support/:grantId/revoke':
+    'project/bridge-support-revoke',
+  'POST /api/v1/bridge/support': {
+    action: 'api/v1/bridge/support',
+    csrf: false
+  },
+  'POST /projects/:slug/environments/:envSlug/apps/:appSlug/bridge/:modelIdentity/:recordId/support':
+    'project/bridge-support-start',
   'POST /api/v1/bridge/exchange': {
     action: 'api/v1/bridge/exchange',
     csrf: false

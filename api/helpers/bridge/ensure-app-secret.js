@@ -31,6 +31,8 @@ module.exports = {
 
     const bridgeSecret = `slb_${crypto.randomBytes(32).toString('base64url')}`
     await App.updateOne({ id: app.id }).set({ bridgeSecret })
+    if (rotate)
+      await require('../../lib/bridge-support-grants').revokeApp(app.id)
 
     app = await App.findOne({ id: app.id }).decrypt()
     return app.bridgeSecret

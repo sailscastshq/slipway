@@ -12,6 +12,7 @@ import BridgeCollectionManager from '@/components/bridge/BridgeCollectionManager
 import ActionMenu from '@/components/ActionMenu.vue'
 import BridgeActionDialog from '@/components/bridge/BridgeActionDialog.vue'
 import BridgePageHeader from '@/components/bridge/BridgePageHeader.vue'
+import BridgeSupportDialog from '@/components/bridge/BridgeSupportDialog.vue'
 import ErrorState from '@/components/ui/error-state/ErrorState.vue'
 
 defineOptions({
@@ -29,6 +30,7 @@ const props = defineProps({
   bridgeWorkspace: Object,
   modelIdentity: String,
   recordId: String,
+  canStartSupport: Boolean,
   appRunning: Boolean,
   modelMeta: Object,
   record: Object,
@@ -55,6 +57,7 @@ const bridgeApiBasePath = computed(
       : `/api/v1/projects/${props.project.slug}/environments/${props.environment.slug}/bridge`)
 )
 
+const supportOpen = ref(false)
 const deleteModal = ref({ show: false })
 const deleteForm = useForm({})
 const quickActionForm = useForm({})
@@ -68,6 +71,9 @@ const customRecordActions = computed(() =>
   )
 )
 const recordMenuItems = computed(() => [
+  ...(props.canStartSupport
+    ? [{ key: 'support-view', label: 'View as this user', builtIn: true }]
+    : []),
   ...(props.modelMeta?.actions?.update !== false
     ? [{ key: 'edit', label: 'Edit record', builtIn: true }]
     : []),
@@ -179,6 +185,10 @@ function runCustomAction(action) {
 }
 
 function handleRecordAction(item) {
+  if (item.key === 'support-view') {
+    supportOpen.value = true
+    return
+  }
   if (item.key === 'edit') {
     router.visit(editUrl())
     return
@@ -502,6 +512,16 @@ function relationshipMutationBaseUrl(relationship) {
     </div>
   </div>
 
+  <BridgeSupportDialog
+    :show="supportOpen"
+    :app-name="app.name"
+    :url="`/projects/${project.slug}/environments/${environment.slug}/apps/${
+      app.slug
+    }/bridge/${encodePathSegment(modelIdentity)}/${encodePathSegment(
+      recordId
+    )}/support`"
+    @close="supportOpen = false"
+  />
   <ConfirmModal
     :show="deleteModal.show"
     title="Delete record"

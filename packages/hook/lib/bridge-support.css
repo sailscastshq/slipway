@@ -1,0 +1,48 @@
+#slipway-support-banner {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  z-index: 2147483647 !important;
+  display: flex !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  box-sizing: border-box;
+  min-height: 48px;
+  padding: 12px 20px;
+  background: #171717;
+  color: #fff;
+  border-bottom: 1px solid #525252;
+  font: 14px/1.5 system-ui, sans-serif;
+}
+#slipway-support-banner a {
+  color: #fff;
+  text-decoration: underline;
+  white-space: nowrap;
+}
+.slipway-support-message {
+  max-width: 36rem;
+  margin: 12vh auto;
+  padding: 24px;
+  font: 16px/1.6 system-ui, sans-serif;
+}
+.slipway-support-message a {
+  color: inherit;
+  text-decoration: underline;
+}
+@media (max-width: 480px) {
+  #slipway-support-banner {
+    padding: 10px 12px;
+    align-items: flex-start;
+    font-size: 12px;
+  }
+}
+@media (prefers-color-scheme: dark) {
+  .slipway-support-message {
+    color: #eee;
+    background: #171717;
+  }
+}

@@ -53,8 +53,13 @@ module.exports = function defineSlipwayHook(sails) {
   let flagsConfig = {}
   let releaseFlags = null
   let wakeRuntime = null
+  let supportRuntime = null
 
   return {
+    supportView: {
+      stop: () => supportRuntime?.stop(),
+      refresh: () => supportRuntime?.refresh()
+    },
     wake: {
       resolveIdentity: (req) =>
         wakeRuntime ? wakeRuntime.resolveIdentity(req) : Promise.resolve(null),
@@ -68,6 +73,7 @@ module.exports = function defineSlipwayHook(sails) {
         identity: {},
         wake: { enabled: false, identity: {} },
         bridge: {
+          impersonation: { enabled: false },
           enabled: false,
           loginPath: '/login',
           identity: {
@@ -164,6 +170,7 @@ module.exports = function defineSlipwayHook(sails) {
       }
 
       require('./lib/wake-install')(sails, wake, () => wakeRuntime)
+      require('./lib/bridge-support-install')(sails, () => supportRuntime)
 
       if (process.env.SLIPWAY_BEARING_ENABLED === 'true') {
         sails.config.slipway.bearing.enabled = true
@@ -193,6 +200,17 @@ module.exports = function defineSlipwayHook(sails) {
       wakeRuntime.start()
       config = sails.config.slipway.lookout || {}
       bridgeConfig = sails.config.slipway.bridge || {}
+      if (bridgeConfig.impersonation?.enabled) {
+        try {
+          supportRuntime = require('./lib/bridge-support-runtime')(sails)
+          supportRuntime.start()
+          sails.once('lower', () => supportRuntime.stop().catch(() => {}))
+        } catch {
+          sails.log.warn(
+            'Support viewing is disabled because its configuration is incomplete.'
+          )
+        }
+      }
       bearingConfig = sails.config.slipway.bearing || {}
       flagsConfig = sails.config.slipway.flags || {
         enabled: true,
@@ -368,7 +386,7 @@ module.exports = function defineSlipwayHook(sails) {
       }
       // Final flush
       flush(true)
-      return done()
+      return Promise.resolve(supportRuntime?.stop()).then(() => done(), done)
     }
   }
 
