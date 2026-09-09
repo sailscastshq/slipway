@@ -61,6 +61,7 @@ module.exports = {
       return {
         page: 'projects/dock',
         props: {
+          canManageDatabase: ['owner', 'admin'].includes(user.teamRole),
           project: {
             id: project.id,
             name: project.name,
@@ -99,6 +100,7 @@ module.exports = {
     return {
       page: 'projects/dock',
       props: {
+        canManageDatabase: ['owner', 'admin'].includes(user.teamRole),
         project: {
           id: project.id,
           name: project.name,

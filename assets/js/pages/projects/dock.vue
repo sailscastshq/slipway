@@ -52,6 +52,7 @@ const props = defineProps({
   environment: Object,
   databaseService: Object, // null when in picker mode
   availableServices: Array,
+  canManageDatabase: Boolean,
   appRunning: Boolean
 })
 
@@ -109,7 +110,13 @@ const validTabs = computed(() => {
 })
 const initialTab = new URLSearchParams(window.location.search).get('tab')
 const activeTab = ref(
-  validTabs.value.includes(initialTab) ? initialTab : 'console'
+  validTabs.value.includes(initialTab)
+    ? initialTab
+    : !props.canManageDatabase && !isRedis.value
+    ? isMongoDB.value
+      ? 'collections'
+      : 'tables'
+    : 'console'
 )
 
 // Sync tab to URL
@@ -333,7 +340,7 @@ function apiUrl(endpoint, extraParams = '') {
 
 // Execute SQL query
 async function executeQuery() {
-  if (!query.value.trim()) return
+  if (!props.canManageDatabase || !query.value.trim()) return
 
   queryLoading.value = true
   queryResult.value = null
@@ -577,12 +584,18 @@ function deselectAllModels() {
 
 // Show migration confirmation modal
 function confirmMigration() {
-  if (!filteredStatements.value.length || hasBlockedStatements.value) return
+  if (
+    !props.canManageDatabase ||
+    !filteredStatements.value.length ||
+    hasBlockedStatements.value
+  )
+    return
   showMigrateConfirm.value = true
 }
 
 // Apply migration
 async function applyMigration() {
+  if (!props.canManageDatabase) return
   showMigrateConfirm.value = false
   migrateLoading.value = true
 
@@ -678,6 +691,7 @@ function clearExportTableSelection() {
 const initialImport = new URLSearchParams(window.location.search).get('import')
 
 function openImportModal() {
+  if (!props.canManageDatabase) return
   importSql.value = ''
   importSelection.value = null
   importFile.value = null
@@ -744,6 +758,7 @@ async function handleFileUpload(file) {
 }
 
 function confirmImport() {
+  if (!props.canManageDatabase) return
   if (!importFile.value && !importSql.value.trim()) {
     showToast('No data to import', 'error')
     return
@@ -752,6 +767,7 @@ function confirmImport() {
 }
 
 async function executeImport() {
+  if (!props.canManageDatabase) return
   showImportConfirm.value = false
   importLoading.value = true
 
@@ -1033,7 +1049,7 @@ onMounted(() => {
     }
   }
   // Open import modal if ?import=1 in URL
-  if (initialImport) {
+  if (initialImport && props.canManageDatabase) {
     openImportModal()
   }
 })
@@ -1239,8 +1255,16 @@ onUnmounted(() => {
     </div>
 
     <!-- Database management UI (service selected) -->
+    <Alert
+      v-if="databaseService && !isRedis && !canManageDatabase"
+      role="status"
+      class="mb-4 shrink-0"
+    >
+      Team members can browse data and schema. Running SQL, importing data, and
+      applying migrations require a team owner or administrator.
+    </Alert>
     <Tabs
-      v-else
+      v-if="!isPickerMode"
       :model-value="activeTab"
       aria-label="Database sections"
       class="flex min-h-0 flex-1 flex-col overflow-hidden"
@@ -1447,7 +1471,7 @@ onUnmounted(() => {
           </div>
           <button
             @click="executeQuery"
-            :disabled="queryLoading || !query.trim()"
+            :disabled="!canManageDatabase || queryLoading || !query.trim()"
             class="rounded-md bg-gray-900 px-4 py-1.5 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
           >
             <span v-if="queryLoading">Running...</span>
@@ -2427,7 +2451,11 @@ onUnmounted(() => {
       >
         <!-- Apply migration button (migrate tab only) -->
         <button
-          v-if="activeTab === 'migrate' && filteredStatements.length > 0"
+          v-if="
+            canManageDatabase &&
+            activeTab === 'migrate' &&
+            filteredStatements.length > 0
+          "
           @click="confirmMigration"
           :disabled="migrateLoading || hasBlockedStatements"
           class="flex h-8 items-center rounded-md bg-gray-900 px-3 text-sm font-medium text-white transition-colors hover:bg-gray-800 disabled:opacity-50 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
@@ -2494,7 +2522,7 @@ onUnmounted(() => {
         </div>
 
         <!-- Import button -->
-        <Tooltip text="Import" placement="top">
+        <Tooltip v-if="canManageDatabase" text="Import" placement="top">
           <button
             type="button"
             aria-label="Import database"
