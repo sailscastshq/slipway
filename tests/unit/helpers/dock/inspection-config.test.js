@@ -11,8 +11,27 @@ test('Dock inspection honors app rc settings while suppressing build hooks and a
     person: {
       tableName: 'people',
       primaryKey: 'id',
-      attributes: { id: { type: 'number' } },
-      schema: {}
+      attributes: {
+        id: { type: 'number' },
+        owner: { model: 'user' },
+        children: { collection: 'child' }
+      },
+      schema: {
+        id: {
+          type: 'number',
+          autoMigrations: {
+            columnType: '_numberkey',
+            autoIncrement: true,
+            unique: true
+          }
+        },
+        owner: {
+          type: 'string',
+          foreignKey: true,
+          columnName: 'owner_id',
+          autoMigrations: { columnType: '_stringkey' }
+        }
+      }
     }
   }
   const app = {
@@ -73,5 +92,12 @@ test('Dock inspection honors app rc settings while suppressing build hooks and a
     completed = true
   })
   expect(completed).toBe(true)
-  expect(JSON.parse(output.join('')).person.tableName).toBe('people')
+  const person = JSON.parse(output.join('')).person
+  expect(person.tableName).toBe('people')
+  expect(person.attributes.id.autoIncrement).toBe(true)
+  expect(person.attributes.id.unique).toBe(true)
+  expect(person.attributes.owner.columnName).toBe('owner_id')
+  expect(person.attributes.owner.foreignKey).toBe(true)
+  expect(person.attributes.owner.columnType).toBe('_stringkey')
+  expect(person.attributes.children).toBe(undefined)
 })

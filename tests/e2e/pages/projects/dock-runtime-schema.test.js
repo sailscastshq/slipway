@@ -69,6 +69,21 @@ else process.exit(1);
         environment: current.environments.production.id,
         database: 'app'
       })
+      const overlapping = await Promise.all([
+        sails.helpers.dock.getModels('runtime-app'),
+        sails.helpers.dock.getModels('runtime-app'),
+        sails.helpers.dock.getModels('another-runtime-app')
+      ])
+      for (const result of overlapping) {
+        expect(result.models.person.tableName).toBe('people')
+        expect(result.error).toBe(undefined)
+      }
+      const inspectionCalls = fs
+        .readFileSync(calls, 'utf8')
+        .trim()
+        .split('\n')
+        .map(JSON.parse)
+      expect(inspectionCalls.filter((call) => call[0] === 'run').length).toBe(2)
       const response = await request
         .as('genesisUser')
         .get('/api/v1/projects/runtime-schema/dock/models')
