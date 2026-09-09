@@ -193,6 +193,11 @@ module.exports = {
         id: candidate.id,
         environmentId: normalizeId(candidate.environment),
         managementMode: candidate.managementMode,
+        containerName: candidate.containerName,
+        type: candidate.type,
+        customState: candidate.customState,
+        internalHost: candidate.internalHost,
+        internalPort: candidate.internalPort,
         envVarKey: candidate.envVarKey || null
       })),
       artifacts: {
@@ -272,6 +277,8 @@ function serviceContainerNames(service) {
 }
 
 function serviceVolumeNames(service) {
+  if (service.type === 'custom')
+    return (service.customState?.volumes || []).map((v) => v.name)
   if (service.managementMode === 'external') return []
   return [
     service.imageMetadata?.volumeName,

@@ -15,7 +15,12 @@ module.exports = {
       (result.rows || result || []).map((row) => row.name)
     )
 
+    await datastore.sendNativeQuery(
+      `CREATE TABLE IF NOT EXISTS custom_service_reviews (id INTEGER PRIMARY KEY AUTOINCREMENT, token TEXT UNIQUE NOT NULL, actor INTEGER NOT NULL, environment INTEGER NOT NULL, definition TEXT, image_reference TEXT NOT NULL, image_metadata TEXT, expires_at INTEGER NOT NULL, service_id INTEGER, created_at INTEGER, updated_at INTEGER)`
+    )
     const columns = [
+      ['custom_definition', 'TEXT'],
+      ['custom_state', "TEXT NOT NULL DEFAULT '{}'"],
       ['management_mode', "TEXT NOT NULL DEFAULT 'managed'"],
       ['external_connection', 'TEXT'],
       ['external_verification', "TEXT NOT NULL DEFAULT '{}'"],
@@ -31,5 +36,9 @@ module.exports = {
         )
       }
     }
+    await Service.update({
+      type: 'custom',
+      status: { in: ['creating', 'changing'] }
+    }).set({ status: 'failed' })
   }
 }

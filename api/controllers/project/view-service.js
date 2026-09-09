@@ -84,6 +84,10 @@ module.exports = {
       page: 'projects/service',
       props: {
         restoreOperation: restoreOperation || null,
+        canManageCustomServices: ['owner', 'admin'].includes(user.teamRole),
+        availableApps: (await App.find({ environment: environment.id })).map(
+          (app) => ({ id: app.id, name: app.name })
+        ),
         project: {
           id: project.id,
           name: project.name,
@@ -97,6 +101,7 @@ module.exports = {
         service: {
           id: service.id,
           managementMode: service.managementMode,
+          customState: service.customState,
           externalVerification: service.externalVerification,
           externalTlsMode: service.externalVerification?.tlsMode || null,
           envVarKey: service.envVarKey,

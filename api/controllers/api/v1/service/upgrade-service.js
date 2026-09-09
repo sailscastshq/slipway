@@ -45,6 +45,13 @@ module.exports = {
     const project = await Project.findOne({ id: environment.project.id })
     if (!project || project.team !== user.team.id) throw 'notFound'
 
+    if (service.type === 'custom')
+      throw {
+        badRequest: {
+          message:
+            'Custom service runtime changes are not supported yet. The saved image and settings are preserved.'
+        }
+      }
     if (service.managementMode === 'external')
       throw {
         badRequest: {

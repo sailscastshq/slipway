@@ -24,6 +24,8 @@ module.exports = {
     if (service?.managementMode === 'external')
       throw new Error('External databases have no Slipway-managed container.')
     if (!service) throw new Error('Service not found')
+    if (service.type === 'custom')
+      return require('../../lib/custom-service').start(service)
 
     let imageReference = service.imageReference
     let imageMetadata = service.imageMetadata || {}

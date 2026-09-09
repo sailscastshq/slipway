@@ -9,6 +9,14 @@
  */
 
 module.exports.routes = {
+  'POST /api/v1/projects/:projectSlug/environments/:environmentSlug/services/custom/review':
+    'api/v1/service/review-custom',
+  'POST /api/v1/services/custom': 'api/v1/service/create-custom',
+  'PATCH /api/v1/services/:serviceId/custom-links':
+    'api/v1/service/link-custom',
+  'POST /api/v1/services/:serviceId/custom-state':
+    'api/v1/service/refresh-custom',
+
   'POST /api/v1/projects/:projectSlug/environments/:environmentSlug/services/external':
     { action: 'api/v1/service/create-external' },
   'PATCH /api/v1/services/:serviceId/external': {

@@ -24,7 +24,7 @@ async function apiRequest(method, path, options = {}) {
 
   const fetchOptions = {
     method,
-    signal: AbortSignal.timeout(30000),
+    signal: AbortSignal.timeout(options.timeoutMs || 30000),
     headers
   }
 
@@ -141,7 +141,8 @@ async function apiUpload(path, fieldName, buffer, filename) {
 // Convenience methods
 export const api = {
   get: (path) => apiRequest('GET', path),
-  post: (path, body) => apiRequest('POST', path, { body }),
+  post: (path, body, options = {}) =>
+    apiRequest('POST', path, { ...options, body }),
   patch: (path, body) => apiRequest('PATCH', path, { body }),
   delete: (path) => apiRequest('DELETE', path),
   upload: apiUpload

@@ -43,6 +43,11 @@ module.exports = {
     const project = await Project.findOne({ id: environment.project.id })
     if (!project || project.team !== user.team.id) throw 'notFound'
 
+    if (
+      service.type === 'custom' &&
+      !['owner', 'admin'].includes(user.teamRole)
+    )
+      throw 'notFound'
     if (service.managementMode === 'external')
       throw {
         conflict: {
@@ -50,7 +55,11 @@ module.exports = {
         }
       }
     if (!service.containerName) throw 'notFound'
-    if (['upgrading', 'restoring', 'changing'].includes(service.status)) {
+    if (
+      ['upgrading', 'restoring', 'changing', 'creating'].includes(
+        service.status
+      )
+    ) {
       throw {
         conflict: { message: 'The service has an active upgrade or restore.' }
       }
@@ -67,6 +76,17 @@ module.exports = {
         }
       }
     try {
+      if (service.type === 'custom')
+        await require('../../../../lib/custom-service').available(
+          environment.id,
+          project.id,
+          service.id
+        )
+      if (service.type === 'custom')
+        return await require('../../../../lib/custom-service').start(
+          await Service.findOne({ id: service.id }).decrypt(),
+          true
+        )
       const dockerPath = sails.config.docker?.binaryPath || 'docker'
 
       // Use different commands based on container state

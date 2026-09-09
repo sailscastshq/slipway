@@ -1,4 +1,5 @@
 <script setup>
+import CustomServiceForm from '@/components/CustomServiceForm.vue'
 import ExternalPostgresFields from '@/components/ExternalPostgresFields.vue'
 import DeploymentReadiness from '@/components/DeploymentReadiness.vue'
 import {
@@ -666,6 +667,10 @@ const externalConfiguration = ref({
   caCertificate: '',
   allowInsecure: false
 })
+function closeCustomService() {
+  addServiceOpen.value = false
+  newServiceType.value = 'postgresql'
+}
 const creatingService = ref(false)
 const deletingServiceId = ref(null)
 const deletingExternalService = computed(() =>
@@ -686,7 +691,8 @@ const serviceTypes = [
   { value: 'mysql', label: 'MySQL' },
   { value: 'redis', label: 'Redis' },
   { value: 'mongodb', label: 'MongoDB' },
-  { value: 'external-postgresql', label: 'External PostgreSQL' }
+  { value: 'external-postgresql', label: 'External PostgreSQL' },
+  { value: 'custom', label: 'Custom image' }
 ]
 
 const selectedServicePolicy = computed(
@@ -1995,100 +2001,120 @@ onBeforeUnmount(() => {
               </div>
               <div class="px-4 pb-3">
                 <div v-if="addServiceOpen" class="space-y-3">
-                  <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
-                    <Input
-                      v-model="newServiceName"
-                      type="text"
-                      aria-label="Service name"
-                      placeholder="service name (e.g. main-db)"
-                      class="focus:border-brand w-full min-w-0 border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 font-mono text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500 sm:flex-1"
-                      @keydown.enter="createService"
-                    />
-                    <Select
-                      v-model="newServiceType"
-                      aria-label="Service type"
-                      :options="serviceTypes"
-                      class="focus:border-brand rounded-none border-0 border-b border-dashed border-gray-200 bg-transparent px-2 py-1.5 text-sm text-gray-900 focus:outline-none dark:border-gray-700 dark:bg-transparent dark:text-white"
-                    />
-                    <Select
-                      v-if="
-                        !customServiceVersion &&
-                        newServiceType !== 'external-postgresql'
-                      "
-                      v-model="newServiceVersion"
-                      :options="[
-                        ...(selectedServicePolicy?.versions || []).map(
-                          (entry) => ({
-                            value: entry.version,
-                            label: `${entry.version}${
-                              entry.recommended ? ' · recommended' : ''
-                            }`
-                          })
-                        ),
-                        { value: '__custom__', label: 'Custom version…' }
-                      ]"
-                      aria-label="Service version"
-                      class="focus:border-brand rounded-none border-0 border-b border-dashed border-gray-200 bg-transparent px-2 py-1.5 text-sm text-gray-900 focus:outline-none dark:border-gray-700 dark:bg-transparent dark:text-white"
-                      @change="handleServiceVersionChange"
-                    />
+                  <CustomServiceForm
+                    v-if="newServiceType === 'custom'"
+                    :project-slug="project.slug"
+                    :environment-slug="environment.slug"
+                    :apps="apps"
+                    @cancel="closeCustomService"
+                  />
+                  <template v-else>
                     <div
-                      v-else-if="newServiceType !== 'external-postgresql'"
-                      class="flex items-center gap-2"
+                      class="flex flex-col gap-2 sm:flex-row sm:items-center"
                     >
                       <Input
-                        v-model="newServiceVersion"
+                        v-model="newServiceName"
                         type="text"
-                        inputmode="decimal"
-                        aria-label="Custom service version"
-                        placeholder="e.g. 17.4"
-                        class="focus:border-brand w-24 border-b border-dashed border-amber-300 bg-transparent px-1 py-1.5 font-mono text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:border-amber-800 dark:text-white dark:placeholder-gray-500"
+                        aria-label="Service name"
+                        placeholder="service name (e.g. main-db)"
+                        class="focus:border-brand w-full min-w-0 border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 font-mono text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500 sm:flex-1"
+                        @keydown.enter="createService"
                       />
-                      <button
-                        type="button"
-                        class="text-xs text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
-                        @click="useTestedServiceVersion"
+                      <Select
+                        v-model="newServiceType"
+                        aria-label="Service type"
+                        :options="serviceTypes"
+                        class="focus:border-brand rounded-none border-0 border-b border-dashed border-gray-200 bg-transparent px-2 py-1.5 text-sm text-gray-900 focus:outline-none dark:border-gray-700 dark:bg-transparent dark:text-white"
+                      />
+                      <Select
+                        v-if="
+                          !customServiceVersion &&
+                          !['external-postgresql', 'custom'].includes(
+                            newServiceType
+                          )
+                        "
+                        v-model="newServiceVersion"
+                        :options="[
+                          ...(selectedServicePolicy?.versions || []).map(
+                            (entry) => ({
+                              value: entry.version,
+                              label: `${entry.version}${
+                                entry.recommended ? ' · recommended' : ''
+                              }`
+                            })
+                          ),
+                          { value: '__custom__', label: 'Custom version…' }
+                        ]"
+                        aria-label="Service version"
+                        class="focus:border-brand rounded-none border-0 border-b border-dashed border-gray-200 bg-transparent px-2 py-1.5 text-sm text-gray-900 focus:outline-none dark:border-gray-700 dark:bg-transparent dark:text-white"
+                        @change="handleServiceVersionChange"
+                      />
+                      <div
+                        v-else-if="
+                          !['external-postgresql', 'custom'].includes(
+                            newServiceType
+                          )
+                        "
+                        class="flex items-center gap-2"
                       >
-                        Use tested
+                        <Input
+                          v-model="newServiceVersion"
+                          type="text"
+                          inputmode="decimal"
+                          aria-label="Custom service version"
+                          placeholder="e.g. 17.4"
+                          class="focus:border-brand w-24 border-b border-dashed border-amber-300 bg-transparent px-1 py-1.5 font-mono text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:border-amber-800 dark:text-white dark:placeholder-gray-500"
+                        />
+                        <button
+                          type="button"
+                          class="text-xs text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+                          @click="useTestedServiceVersion"
+                        >
+                          Use tested
+                        </button>
+                      </div>
+                    </div>
+                    <ExternalPostgresFields
+                      v-if="newServiceType === 'external-postgresql'"
+                      v-model="externalConfiguration"
+                    />
+                    <p
+                      v-if="customServiceVersion && !selectedVersionSupported"
+                      class="text-xs text-amber-700 dark:text-amber-400"
+                    >
+                      Custom versions are outside Slipway's tested matrix. The
+                      numeric tag will be pinned exactly after Docker resolves
+                      it.
+                    </p>
+                    <div class="flex items-center justify-end space-x-2">
+                      <button
+                        @click="addServiceOpen = false"
+                        class="rounded-md px-3 py-1.5 text-sm text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        @click="createService"
+                        :disabled="
+                          !newServiceName.trim() ||
+                          (!['external-postgresql', 'custom'].includes(
+                            newServiceType
+                          ) &&
+                            !newServiceVersion.trim()) ||
+                          creatingService
+                        "
+                        class="rounded-md bg-gray-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
+                      >
+                        {{
+                          creatingService
+                            ? 'Saving...'
+                            : newServiceType === 'external-postgresql'
+                            ? 'Connect'
+                            : 'Create'
+                        }}
                       </button>
                     </div>
-                  </div>
-                  <ExternalPostgresFields
-                    v-if="newServiceType === 'external-postgresql'"
-                    v-model="externalConfiguration"
-                  />
-                  <p
-                    v-if="customServiceVersion && !selectedVersionSupported"
-                    class="text-xs text-amber-700 dark:text-amber-400"
-                  >
-                    Custom versions are outside Slipway's tested matrix. The
-                    numeric tag will be pinned exactly after Docker resolves it.
-                  </p>
-                  <div class="flex items-center justify-end space-x-2">
-                    <button
-                      @click="addServiceOpen = false"
-                      class="rounded-md px-3 py-1.5 text-sm text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      @click="createService"
-                      :disabled="
-                        !newServiceName.trim() ||
-                        (newServiceType !== 'external-postgresql' &&
-                          !newServiceVersion.trim()) ||
-                        creatingService
-                      "
-                      class="rounded-md bg-gray-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
-                    >
-                      {{
-                        creatingService
-                          ? 'Saving...'
-                          : newServiceType === 'external-postgresql'
-                          ? 'Connect'
-                          : 'Create'
-                      }}
-                    </button>
-                  </div>
+                  </template>
                 </div>
                 <button
                   v-else

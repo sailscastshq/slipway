@@ -61,10 +61,12 @@ module.exports = {
       /* Legacy mutable records stay visibly unresolved. */
     }
 
+    if (service.type === 'custom') versionSupport = 'custom-image'
     return {
       service: {
         id: service.id,
         managementMode: service.managementMode,
+        customState: service.customState,
         externalVerification: service.externalVerification,
         name: service.name,
         type: service.type,

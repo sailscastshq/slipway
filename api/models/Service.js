@@ -19,10 +19,17 @@ module.exports = {
     type: {
       type: 'string',
       required: true,
-      isIn: ['postgresql', 'mysql', 'redis', 'mongodb'],
+      isIn: ['postgresql', 'mysql', 'redis', 'mongodb', 'custom'],
       description: 'Type of service'
     },
 
+    customDefinition: {
+      type: 'json',
+      encrypt: true,
+      protect: true,
+      columnName: 'custom_definition'
+    },
+    customState: { type: 'json', defaultsTo: {}, columnName: 'custom_state' },
     managementMode: {
       type: 'string',
       isIn: ['managed', 'external'],
@@ -164,7 +171,8 @@ module.exports = {
   },
 
   toPublic: function (service) {
-    const { password, externalConnection, ...publicService } = service
+    const { password, externalConnection, customDefinition, ...publicService } =
+      service
     return publicService
   },
 

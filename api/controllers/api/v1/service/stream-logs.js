@@ -56,6 +56,15 @@ module.exports = {
 
     if (!service.containerName) throw 'notFound'
 
+    const custom = require('../../../../lib/custom-service')
+    const definition =
+      service.type === 'custom'
+        ? (await Service.findOne({ id: service.id }).decrypt()).customDefinition
+        : null
+    if (service.type === 'custom' && !(await custom.inspectContainer(service)))
+      throw 'notFound'
+    const redact = (line) =>
+      definition ? custom.redactLogs(line, definition) : line
     const stream = res.sse()
 
     // Send initial connected message
@@ -80,12 +89,12 @@ module.exports = {
 
     const stdoutLines = createLineFramer({
       onLine(line) {
-        stream.send({ log: line })
+        stream.send({ log: redact(line) })
       }
     })
     const stderrLines = createLineFramer({
       onLine(line) {
-        stream.send({ log: line })
+        stream.send({ log: redact(line) })
       }
     })
 

@@ -23,9 +23,18 @@ module.exports = {
       observability: await removeObservabilityRecords(snapshot),
       default: {}
     }
+    const customServices = (services || []).filter(
+      (service) => service.type === 'custom'
+    )
     const environmentVars = await getEnvironmentVarUpdates(services)
 
     await sails.getDatastore().transaction(async (db) => {
+      for (const service of customServices)
+        await require('../../lib/custom-service').links(
+          { ...service, environment: service.environmentId },
+          [],
+          db
+        )
       for (const update of environmentVars) {
         await Environment.updateOne({ id: update.environmentId })
           .set({

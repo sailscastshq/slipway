@@ -5,6 +5,24 @@ export const aliases = {
 }
 
 export const commands = {
+  'service:review': {
+    description: 'Review a private custom image before creation',
+    args: '<image>',
+    options: {
+      env: { type: 'string', default: 'production' },
+      name: { type: 'string' },
+      port: { type: 'string' },
+      app: { type: 'string' },
+      definition: { type: 'string' },
+      json: { type: 'boolean' }
+    }
+  },
+  'service:create': {
+    description: 'Create exactly the previously reviewed custom service',
+    args: '<review-id>',
+    options: {}
+  },
+
   // Auth commands
   login: {
     description: 'Authenticate with your Slipway server',
