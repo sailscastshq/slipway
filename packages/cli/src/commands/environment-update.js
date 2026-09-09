@@ -28,7 +28,7 @@ export default async function environmentUpdate(options, positionals) {
   }
 
   try {
-    const { environment } = await api.environments.update(
+    const { environment, domainReadiness } = await api.environments.update(
       project.project,
       slug,
       updates
@@ -46,6 +46,22 @@ export default async function environmentUpdate(options, positionals) {
     )
     if (environment.domain) {
       console.log(`  ${c.dim('Domain:')} ${environment.domain}`)
+    }
+    if (domainReadiness) {
+      console.log(
+        `  ${c.dim('DNS target:')} ${
+          domainReadiness.dnsTarget || 'Check your server public address'
+        }`
+      )
+      console.log(
+        `  ${c.dim('Route:')} ${
+          domainReadiness.route === 'verified'
+            ? 'Verified at save'
+            : 'Not verified'
+        }`
+      )
+      console.log(`  ${c.dim('DNS / TLS:')} Not verified`)
+      console.log(`  ${domainReadiness.nextAction}`)
     }
     console.log()
   } catch (err) {

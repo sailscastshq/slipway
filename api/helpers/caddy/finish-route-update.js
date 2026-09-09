@@ -55,6 +55,19 @@ module.exports = {
 
 async function commitRoute(transaction) {
   const dockerPath = sails.config.docker?.binaryPath || 'docker'
+  if (transaction.removal) {
+    if (transaction.previousExists && transaction.previousWasRunning) {
+      await execFileAsync(dockerPath, ['stop', transaction.routeId])
+    }
+    if (transaction.previousDomains?.length) {
+      await sails.helpers.caddy.verifyRoute.with({
+        expectedUpstreams: [],
+        excludedDomains: transaction.previousDomains
+      })
+    }
+    // Retain the stopped container as the recovery snapshot until a later update.
+    return
+  }
   const retiredUpstreams = difference(
     transaction.previousUpstreams,
     transaction.candidateUpstreams
@@ -65,6 +78,10 @@ async function commitRoute(transaction) {
       await execFileAsync(dockerPath, ['stop', transaction.routeId])
       await sails.helpers.caddy.verifyRoute.with({
         expectedDomains: transaction.candidateDomains || [],
+        excludedDomains: difference(
+          transaction.previousDomains || [],
+          transaction.candidateDomains || []
+        ),
         expectedUpstreams: transaction.candidateUpstreams,
         excludedUpstreams: retiredUpstreams
       })
@@ -93,6 +110,17 @@ async function commitRoute(transaction) {
 
 async function rollbackRoute(transaction) {
   const dockerPath = sails.config.docker?.binaryPath || 'docker'
+  if (transaction.removal) {
+    if (transaction.previousExists && transaction.previousWasRunning) {
+      await execFileAsync(dockerPath, ['start', transaction.routeId])
+      if (transaction.previousDomains?.length)
+        await sails.helpers.caddy.verifyRoute.with({
+          expectedUpstreams: [],
+          expectedDomains: transaction.previousDomains
+        })
+    }
+    return
+  }
   const candidateOnlyUpstreams = difference(
     transaction.candidateUpstreams,
     transaction.previousUpstreams

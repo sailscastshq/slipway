@@ -227,3 +227,64 @@ async function captureError(promise) {
 
   throw new Error('Expected operation to fail.')
 }
+
+test('domain removal verifies retired hosts and restores the route if verification fails', async ({
+  sails,
+  expect
+}) => {
+  const transaction = {
+    ...routeTransaction(),
+    removal: true,
+    previousDomains: ['old.example.com'],
+    candidateDomains: []
+  }
+  const docker = fakeDocker({ [transaction.routeId]: true })
+  const helper = loadHelperWithExec(docker.exec)
+  const original = sails.helpers.caddy.verifyRoute
+  const checks = []
+  sails.helpers.caddy.verifyRoute = machineStub(async (options) => {
+    checks.push(options)
+    if (options.excludedDomains) throw new Error('Retired host is still active')
+  })
+  try {
+    const error = await captureError(
+      helper.fn({ action: 'commit', transaction })
+    )
+    expect(error.message).toContain('Retired host is still active')
+    expect(docker.state(transaction.routeId)).toEqual({
+      exists: true,
+      running: true
+    })
+    expect(checks[0].excludedDomains).toEqual(['old.example.com'])
+    expect(checks[1].expectedDomains).toEqual(['old.example.com'])
+  } finally {
+    sails.helpers.caddy.verifyRoute = original
+  }
+})
+
+test('successful domain removal retains a stopped recovery container', async ({
+  sails,
+  expect
+}) => {
+  const transaction = {
+    ...routeTransaction(),
+    removal: true,
+    previousDomains: ['old.example.com'],
+    candidateDomains: []
+  }
+  const docker = fakeDocker({ [transaction.routeId]: true })
+  const helper = loadHelperWithExec(docker.exec)
+  const original = sails.helpers.caddy.verifyRoute
+  sails.helpers.caddy.verifyRoute = machineStub(async (options) => {
+    expect(options.excludedDomains).toEqual(['old.example.com'])
+  })
+  try {
+    await helper.fn({ action: 'commit', transaction })
+    expect(docker.state(transaction.routeId)).toEqual({
+      exists: true,
+      running: false
+    })
+  } finally {
+    sails.helpers.caddy.verifyRoute = original
+  }
+})

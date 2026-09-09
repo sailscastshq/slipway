@@ -23,10 +23,12 @@ test(
     const originalFinish = sails.helpers.caddy.finishRouteUpdate
     let phase = 'stage-fails'
     const stage = async (options) => {
-      expect(options.domainOverride).toBe('new.example.com')
+      expect(options.domainOverride).toBe(
+        phase === 'remove' ? '' : 'new.example.com'
+      )
       expect(
         (await sails.models.environment.findOne({ id: env.id })).domain
-      ).toBe('old.example.com')
+      ).toBe(phase === 'remove' ? 'new.example.com' : 'old.example.com')
       if (phase === 'stage-fails') throw new Error('Caddy unavailable')
       return { transaction: { test: true } }
     }
@@ -55,12 +57,22 @@ test(
         expect(unchanged.name).toBe(env.name)
       }
       phase = 'success'
-      expect(
-        await browser.request.patch(endpoint, { domain: 'new.example.com' })
-      ).toHaveStatus(200)
+      const saved = await browser.request.patch(endpoint, {
+        domain: 'new.example.com'
+      })
+      expect(saved).toHaveStatus(200)
+      expect(saved.data.domainReadiness.route).toBe('verified')
+      expect(saved.data.domainReadiness.tls).toBe('unverified')
+      expect(saved.data.domainReadiness.dns).toBe('unverified')
       expect(
         (await sails.models.environment.findOne({ id: env.id })).domain
       ).toBe('new.example.com')
+      phase = 'remove'
+      const removed = await browser.request.patch(endpoint, { domain: '' })
+      expect(removed).toHaveStatus(200)
+      expect(
+        (await sails.models.environment.findOne({ id: env.id })).domain
+      ).toBe('')
     } finally {
       sails.helpers.caddy.updateRoute = originalUpdate
       sails.helpers.caddy.finishRouteUpdate = originalFinish

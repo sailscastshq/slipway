@@ -1,3 +1,5 @@
+const domainReadiness = require('../../lib/domain-readiness')
+
 module.exports = {
   friendlyName: 'View app',
 
@@ -218,6 +220,10 @@ module.exports = {
           generatedDomain,
           domains,
           serverIp,
+          domainReadiness: domainReadiness({
+            domain: environment.domain,
+            serverIp
+          }),
           services
         },
         app: {

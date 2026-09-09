@@ -22,24 +22,23 @@ function routeWorld(slug) {
 }
 
 test(
-  'an empty app snapshot removes the environment route',
+  'an empty app snapshot stages route removal without deleting the recovery container',
   { world: routeWorld('empty-route-removal') },
   async ({ world, expect }) => {
     const calls = []
     const helper = loadHelperWithExec(async (dockerPath, args) => {
-      calls.push({ dockerPath, args })
-      return { stdout: '', stderr: '' }
+      calls.push(args)
+      return { stdout: 'true', stderr: '' }
     })
-
     const result = await helper.fn({
       environmentId: world.current.environments.production.id,
-      apps: []
+      apps: [],
+      deferCommit: true
     })
-
     expect(result.action).toBe('removed')
-    expect(calls.map(({ args }) => args)).toEqual([
-      ['rm', '-f', result.routeId]
-    ])
+    expect(result.transaction.removal).toBe(true)
+    expect(result.transaction.previousWasRunning).toBe(true)
+    expect(calls.every((args) => args[0] === 'inspect')).toBe(true)
   }
 )
 
@@ -313,3 +312,25 @@ async function captureError(promise) {
 
   throw new Error('Expected operation to fail.')
 }
+
+test(
+  'a custom domain cannot be saved without a routable deployment',
+  { world: routeWorld('domain-before-deploy') },
+  async ({ world, expect }) => {
+    const calls = []
+    const helper = loadHelperWithExec(async (binary, args) => {
+      calls.push(args)
+      return { stdout: '', stderr: '' }
+    })
+    const error = await captureError(
+      helper.fn({
+        environmentId: world.current.environments.production.id,
+        apps: [],
+        domainOverride: 'app.example.com',
+        deferCommit: true
+      })
+    )
+    expect(error.code).toBe('DOMAIN_REQUIRES_DEPLOYMENT')
+    expect(calls).toEqual([])
+  }
+)

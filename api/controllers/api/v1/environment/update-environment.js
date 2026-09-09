@@ -1,3 +1,5 @@
+const domainReadiness = require('../../../../lib/domain-readiness')
+
 module.exports = {
   friendlyName: 'Update environment',
 
@@ -216,9 +218,12 @@ module.exports = {
       sails.log.warn('Environment route update failed:', error.message || error)
       throw {
         routeFailed: {
-          message: error.rollbackError
-            ? 'Route update and recovery failed. Check the proxy before retrying.'
-            : 'The proxy could not apply this change. Previous settings were preserved. Check Caddy and retry.'
+          message:
+            error.code === 'DOMAIN_REQUIRES_DEPLOYMENT'
+              ? 'Deploy a routed app before assigning a custom domain. Previous settings were preserved.'
+              : error.rollbackError
+              ? 'Route update and recovery failed. Check the proxy before retrying.'
+              : 'The proxy could not apply this change. Previous settings were preserved. Check Caddy and retry.'
         }
       }
     }
@@ -267,6 +272,17 @@ module.exports = {
       telemetryToken,
       ...publicEnvironment
     } = updatedEnv
-    return { environment: publicEnvironment }
+    return {
+      environment: publicEnvironment,
+      ...(domain !== undefined
+        ? {
+            domainReadiness: domainReadiness({
+              domain,
+              serverIp: await sails.helpers.getServerIp(),
+              routeVerified: Boolean(route?.transaction)
+            })
+          }
+        : {})
+    }
   }
 }
