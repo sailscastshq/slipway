@@ -11,6 +11,8 @@ module.exports = function postgresMigrationSession(service) {
     [
       'exec',
       '-i',
+      '-e',
+      'PGPASSWORD',
       service.containerName,
       'psql',
       '-U',
@@ -24,7 +26,10 @@ module.exports = function postgresMigrationSession(service) {
       '-P',
       'pager=off'
     ],
-    { stdio: ['pipe', 'pipe', 'pipe'] }
+    {
+      stdio: ['pipe', 'pipe', 'pipe'],
+      env: { ...process.env, PGPASSWORD: service.password || '' }
+    }
   )
   let pending = null,
     closed = false

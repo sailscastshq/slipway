@@ -121,6 +121,8 @@ async function executePostgres({ dockerPath, service, query, startTime }) {
   const args = [
     'exec',
     '-i',
+    '-e',
+    'PGPASSWORD',
     service.containerName,
     'psql',
     '-U',

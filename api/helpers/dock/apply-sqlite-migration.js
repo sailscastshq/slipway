@@ -11,13 +11,13 @@ module.exports = {
       type: 'string',
       required: true
     },
-    connection: {
-      type: 'ref',
-      description: 'Server-owned transaction connection'
-    },
     statements: {
       type: 'ref',
       required: true
+    },
+    connection: {
+      type: 'ref',
+      description: 'Server-owned transaction connection'
     }
   },
 
