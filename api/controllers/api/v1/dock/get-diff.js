@@ -79,18 +79,14 @@ module.exports = {
     let modelsResult
     let modelsSource = 'static'
 
-    if (app && app.status === 'running' && app.containerName) {
+    if (app && app.containerName) {
       // Try running app first
       modelsResult = await sails.helpers.dock.getModels(app.containerName)
       modelsSource = 'runtime'
     }
 
-    // Fall back to static parsing if runtime failed or app not running
-    if (
-      !modelsResult ||
-      modelsResult.error ||
-      Object.keys(modelsResult.models || {}).length === 0
-    ) {
+    // Source-text parsing is diagnostic only; it never replaces a failed runtime snapshot.
+    if (!modelsResult) {
       try {
         modelsResult = await sails.helpers.dock.getModelsStatic(project.slug)
         modelsSource = 'static'
@@ -118,6 +114,23 @@ module.exports = {
       }
     }
 
+    if (
+      modelsResult.error ||
+      modelsResult.authoritative !== true ||
+      modelsResult.formatVersion !== 1
+    ) {
+      throw {
+        badRequest: {
+          error:
+            modelsResult.error ||
+            'The app schema snapshot is not authoritative. Refresh it from the deployed app before comparing changes.',
+          code: 'modelsSnapshotUnavailable',
+          authoritative: false,
+          statements: []
+        }
+      }
+    }
+
     // Get current schema
     const schemaResult = await sails.helpers.dock.getSchema(service)
 
@@ -125,14 +138,6 @@ module.exports = {
       throw {
         badRequest: {
           error: `Failed to get schema: ${schemaResult.error}`
-        }
-      }
-    }
-
-    if (modelsResult.error) {
-      throw {
-        badRequest: {
-          error: `Failed to get models: ${modelsResult.error}`
         }
       }
     }

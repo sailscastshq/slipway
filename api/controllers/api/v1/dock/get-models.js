@@ -56,8 +56,10 @@ module.exports = {
       (await App.findOne({ environment: environment.id, isDefault: true })) ||
       (await App.findOne({ environment: environment.id }))
 
-    if (!app || app.status !== 'running' || !app.containerName) {
-      throw { badRequest: 'App is not running.' }
+    if (!app || !app.containerName) {
+      throw {
+        badRequest: 'Deploy the target revision before reading its schema.'
+      }
     }
 
     // Get models from the running container
