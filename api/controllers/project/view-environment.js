@@ -86,7 +86,15 @@ module.exports = {
           const backups = await Backup.find({ service: service.id })
             .sort('createdAt DESC')
             .limit(1)
-          lastBackup = backups[0] || null
+          const latest = backups[0]
+          lastBackup = latest
+            ? {
+                id: latest.id,
+                status: latest.status,
+                completedAt: latest.completedAt,
+                sizeBytes: latest.sizeBytes
+              }
+            : null
         }
         return {
           ...service,
