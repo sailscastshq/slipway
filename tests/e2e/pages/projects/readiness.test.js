@@ -3,7 +3,7 @@ const fs = require('node:fs/promises')
 const os = require('node:os')
 const path = require('node:path')
 test(
-  'shared readiness keeps advisory deploy enabled and renders blockers with Klean on mobile and desktop',
+  'readiness disappears without blockers and clears after resolving the final blocker',
   {
     browser: true,
     world: {
@@ -53,17 +53,10 @@ test(
         `/projects/readiness-ui/environments/production/apps/${current.apps.web.slug}`
       )
       const report = page.raw.locator('[data-test="deployment-checklist"]')
-      await expect(report).toHaveAttribute('data-slot', 'alert')
-      await expect(report).toContainText('0 blockers')
+      await expect(report).toHaveCount(0)
       const slide = page.raw.locator('[data-slot="slide"]')
       await expect(slide).toBeEnabled()
-      await report.locator('summary').click()
-      await expect(report).toContainText('Bridge and Lookout')
-      await expect(report).toContainText(
-        'A database connection URL is configured'
-      )
-      expect((await report.textContent()).includes('password@')).toBe(false)
-      const output = path.resolve('output/issue-373')
+      const output = path.resolve('output/issue-542')
       await fs.mkdir(output, { recursive: true })
       for (const [width, colorScheme] of [
         [1280, 'light'],
@@ -76,17 +69,41 @@ test(
             () => document.documentElement.scrollWidth <= window.innerWidth
           )
         ).toBe(true)
-        await report.getByRole('heading', { level: 2 }).scrollIntoViewIfNeeded()
+        await expect(report).toHaveCount(0)
         await page.screenshot(path.join(output, `readiness-${width}.png`), {
           animations: 'disabled'
         })
       }
       await fs.rm(path.join(appPath, 'Dockerfile'))
-      await report.getByRole('button', { name: 'Refresh', exact: true }).click()
+      await page.raw.reload()
       await expect(report).toContainText('1 blocker')
       await expect(slide).toBeDisabled()
+      await expect(report).toHaveAttribute('role', 'alert')
+      await expect(report).toHaveAttribute('data-slot', 'alert')
+      await expect(report).toContainText('Bridge and Lookout')
+      await expect(report).toContainText(
+        'A database connection URL is configured'
+      )
+      expect((await report.textContent()).includes('password@')).toBe(false)
+      await expect(
+        report.getByText('Resolve the required checks before deployment.')
+      ).toBeVisible()
       await report.getByRole('heading', { level: 2 }).scrollIntoViewIfNeeded()
       await page.screenshot(path.join(output, 'blocker-390.png'), {
+        animations: 'disabled'
+      })
+      await fs.writeFile(
+        path.join(appPath, 'Dockerfile'),
+        'FROM node:22-alpine'
+      )
+      await report.getByRole('button', { name: 'Refresh', exact: true }).click()
+      await expect(report).toHaveCount(0)
+      await expect(slide).toBeEnabled()
+      // Missing local source is not a claim about the running application's health.
+      await fs.rm(appPath, { recursive: true })
+      await page.goto('/projects/readiness-ui/environments/production')
+      await expect(report).toHaveCount(0)
+      await page.screenshot(path.join(output, 'environment-cleared-390.png'), {
         animations: 'disabled'
       })
       expect(page).toHaveNoJavascriptErrors()
