@@ -116,6 +116,25 @@ test(
       .getByRole('button', { name: 'Edit connection', exact: true })
       .click()
     await expect(panel.locator('#external-postgres-dsn')).toHaveValue('')
+    await page.goto('/projects/external-pg-ui/environments/production?services')
+    await page.raw
+      .getByRole('button', {
+        name: 'Actions for customer-database',
+        exact: true
+      })
+      .click()
+    await page.raw
+      .getByRole('menuitem', { name: 'Delete', exact: true })
+      .click()
+    await expect(
+      page.raw.getByText(
+        'The connection and its managed environment variables will be removed. The provider database is unchanged, and backups are retained by default.'
+      )
+    ).toBeVisible()
+    await expect(
+      page.raw.getByRole('button', { name: 'Remove connection', exact: true })
+    ).toBeVisible()
+    await page.raw.getByRole('button', { name: 'Cancel', exact: true }).click()
     expect(page).toHaveNoJavascriptErrors()
   }
 )

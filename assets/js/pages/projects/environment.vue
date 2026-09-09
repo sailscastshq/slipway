@@ -668,6 +668,13 @@ const externalConfiguration = ref({
 })
 const creatingService = ref(false)
 const deletingServiceId = ref(null)
+const deletingExternalService = computed(() =>
+  (props.environment.services || []).some(
+    (service) =>
+      service.id === deletingServiceId.value &&
+      service.managementMode === 'external'
+  )
+)
 const deletingService = ref(false)
 const purgeServiceData = ref(false)
 const stoppingServiceId = ref(null)
@@ -2292,9 +2299,15 @@ onBeforeUnmount(() => {
     <!-- Delete Service Confirmation -->
     <ConfirmModal
       :show="!!deletingServiceId"
-      title="Delete service"
-      message="The service and its container will be removed. Its data volume and backups are retained by default for recovery."
-      confirm-label="Delete service"
+      :title="deletingExternalService ? 'Remove connection' : 'Delete service'"
+      :message="
+        deletingExternalService
+          ? 'The connection and its managed environment variables will be removed. The provider database is unchanged, and backups are retained by default.'
+          : 'The service and its container will be removed. Its data volume and backups are retained by default for recovery.'
+      "
+      :confirm-label="
+        deletingExternalService ? 'Remove connection' : 'Delete service'
+      "
       :destructive="true"
       :loading="deletingService"
       @confirm="executeDeleteService"
@@ -2307,7 +2320,11 @@ onBeforeUnmount(() => {
             class="mt-0.5 h-4 w-4 rounded border-gray-300 text-red-600 focus:ring-red-500 dark:border-gray-600 dark:bg-gray-800"
           />
           <span class="text-sm text-gray-700 dark:text-gray-300">
-            Also permanently delete the data volume and backups
+            {{
+              deletingExternalService
+                ? 'Also permanently delete the backups'
+                : 'Also permanently delete the data volume and backups'
+            }}
           </span>
         </label>
       </template>
