@@ -10,12 +10,12 @@ module.exports = {
   description: 'Introspect sails.models from a running app container.',
 
   inputs: {
-    datastore: { type: 'string', defaultsTo: 'default' },
     containerName: {
       type: 'string',
       required: true,
       description: 'Docker container name of the running app'
-    }
+    },
+    datastore: { type: 'string', defaultsTo: 'default' }
   },
 
   exits: {
