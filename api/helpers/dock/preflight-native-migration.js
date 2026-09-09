@@ -181,15 +181,28 @@ module.exports = {
           await exec(
             docker,
             pg
-              ? ['exec', name, 'pg_isready', '-U', 'postgres']
+              ? [
+                  'exec',
+                  name,
+                  'pg_isready',
+                  '-h',
+                  '127.0.0.1',
+                  '-U',
+                  'postgres'
+                ]
               : [
                   'exec',
                   name,
-                  'mysqladmin',
+                  'mysql',
+                  '--protocol=tcp',
+                  '-h',
+                  '127.0.0.1',
                   '-u',
                   'root',
                   `-p${password}`,
-                  'ping'
+                  '-e',
+                  'SELECT 1',
+                  'fixture'
                 ],
             { timeout: 3000, maxBuffer: 1024 * 1024 }
           )

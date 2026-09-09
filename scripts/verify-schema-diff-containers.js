@@ -73,11 +73,38 @@ async function main() {
     )
     let ready = false
     for (let attempt = 0; attempt < 60; attempt++) {
-      const result = await sails.helpers.dock.executeSql(service, 'SELECT 1')
-      if (result.success) {
+      try {
+        execFileSync(
+          'docker',
+          pg
+            ? [
+                'exec',
+                containerName,
+                'pg_isready',
+                '-h',
+                '127.0.0.1',
+                '-U',
+                'postgres'
+              ]
+            : [
+                'exec',
+                containerName,
+                'mysql',
+                '--protocol=tcp',
+                '-h',
+                '127.0.0.1',
+                '-u',
+                'root',
+                '-pdisposable-schema-fixture',
+                '-e',
+                'SELECT 1',
+                'fixture'
+              ],
+          { stdio: 'pipe', timeout: 3000 }
+        )
         ready = true
         break
-      }
+      } catch (_) {}
       await new Promise((resolve) => setTimeout(resolve, 1000))
     }
     assert.ok(ready, 'Fixture database did not become ready')
