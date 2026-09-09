@@ -1,3 +1,5 @@
+const { createHash } = require('node:crypto')
+
 module.exports = {
   friendlyName: 'List GitHub Branches',
 
@@ -19,7 +21,8 @@ module.exports = {
   },
 
   fn: async function ({ accessToken, owner, repo }) {
-    const cacheKey = `github:branches:${owner}/${repo}`
+    const scope = createHash('sha256').update(accessToken).digest('hex')
+    const cacheKey = `github:branches:v2:${scope}:${owner}/${repo}`
     try {
       const cached = await sails.cache.get(cacheKey)
       if (cached) {

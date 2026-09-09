@@ -85,12 +85,19 @@ module.exports = {
     }
 
     // Get repo details from GitHub
-    const repos = await sails.helpers.git.listGithubRepos(
-      provider.clientSecret,
-      1,
-      100
-    )
-    const repoInfo = repos.find((r) => r.id === repoId)
+    let repoInfo
+    try {
+      repoInfo = await sails.helpers.git.getGithubRepo(
+        provider.clientSecret,
+        repoId
+      )
+    } catch {
+      sails.inertia.flash(
+        'error',
+        'Could not load this repository from GitHub. Please retry.'
+      )
+      return redirectUrl
+    }
 
     if (!repoInfo) {
       sails.inertia.flash('error', 'Repository not found on GitHub')

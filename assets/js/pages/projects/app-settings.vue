@@ -1,4 +1,6 @@
 <script setup>
+import { useGithubRepositories } from '@/composables/useGithubRepositories'
+import RepositoryLoadStatus from '@/components/RepositoryLoadStatus.vue'
 import {
   mutationFailureMessage,
   assertMutationResponse
@@ -181,9 +183,14 @@ const connectForm = useForm({
   branch: null
 })
 
-const repos = ref([])
-const loadingRepos = ref(false)
-const repoSearch = ref('')
+const {
+  repoSearch,
+  filteredRepos,
+  loadingRepos,
+  reposError,
+  reposComplete,
+  fetchRepos
+} = useGithubRepositories()
 const repoDropdownOpen = ref(false)
 const selectedRepo = ref(null)
 
@@ -191,26 +198,6 @@ const selectedRepo = ref(null)
 const branches = ref([])
 const loadingBranches = ref(false)
 const selectedBranch = ref(null)
-
-const filteredRepos = computed(() => {
-  if (!repoSearch.value) return repos.value
-  const q = repoSearch.value.toLowerCase()
-  return repos.value.filter((r) => r.fullName.toLowerCase().includes(q))
-})
-
-async function fetchRepos() {
-  if (!props.githubConnected || repos.value.length > 0) return
-  loadingRepos.value = true
-  try {
-    const res = await fetch('/api/v1/git/repos')
-    const data = await res.json()
-    repos.value = data.repos || []
-  } catch {
-    repos.value = []
-  } finally {
-    loadingRepos.value = false
-  }
-}
 
 async function fetchBranches(repo) {
   loadingBranches.value = true
@@ -832,11 +819,16 @@ async function deleteApp() {
                     leave-to-class="transform opacity-0 scale-95"
                   >
                     <div
-                      v-if="repoDropdownOpen && !loadingRepos"
+                      v-if="repoDropdownOpen"
                       class="absolute left-0 right-0 z-30 mt-1 max-h-48 overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-900"
                     >
+                      <RepositoryLoadStatus
+                        :loading="loadingRepos"
+                        :error="reposError"
+                        @retry="fetchRepos"
+                      />
                       <div
-                        v-if="filteredRepos.length === 0"
+                        v-if="reposComplete && filteredRepos.length === 0"
                         class="px-3 py-4 text-center text-sm text-gray-500 dark:text-gray-400"
                       >
                         No repositories found
