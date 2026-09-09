@@ -409,10 +409,7 @@ function findRenameSourceColumn(existingColumns, attrName, columnName) {
  */
 function mapWaterlineToSql(attr, attrName, dbType, modelPrimaryKey) {
   // If explicit columnType is set, use it directly (adapters do this too)
-  if (
-    attr.columnType &&
-    (dbType === 'sqlite' || !attr.columnType.startsWith('_'))
-  ) {
+  if (attr.columnType) {
     return {
       sqlType:
         dbType === 'sqlite'

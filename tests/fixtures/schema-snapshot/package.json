@@ -1,8 +1,0 @@
-{
-  "name": "schema-snapshot-fixture",
-  "private": true,
-  "dependencies": {
-    "sails-hook-orm": "*",
-    "sails-hook-content": "0.0.13"
-  }
-}

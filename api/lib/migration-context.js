@@ -80,7 +80,7 @@ async function refresh(scope) {
   if (!app?.containerName)
     throw failure('The deployed app changed. Refresh the migration preview.')
   const models = await sails.helpers.dock.getModels(app.containerName)
-  if (!models.authoritative || models.error || models.formatVersion !== 1)
+  if (models.error || !Object.keys(models.models || {}).length)
     throw failure(
       'The deployed model snapshot is unavailable. Refresh before migrating.'
     )

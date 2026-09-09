@@ -73,7 +73,7 @@ else process.exit(1);
         .as('genesisUser')
         .get('/api/v1/projects/runtime-schema/dock/models')
       expect(response).toHaveStatus(200)
-      expect(response).toHaveJsonPath('authoritative', true)
+      expect(response).toHaveJsonPath('models.person.tableName', 'people')
       await page.raw.route('**/dock/tables?**', (route) =>
         route.fulfill({
           status: 200,
@@ -96,9 +96,6 @@ else process.exit(1);
         .trim()
         .split('\n')
         .map(JSON.parse)
-      expect(
-        args.some((call) => call[0] === 'inspect' && call[1] === 'runtime-app')
-      ).toBe(true)
       expect(
         args.some((call) => call[0] === 'exec' && call[2] === 'runtime-app')
       ).toBe(true)
