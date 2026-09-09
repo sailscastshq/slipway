@@ -1,4 +1,8 @@
-const { spawn } = require('child_process')
+const { spawn, execFile } = require('node:child_process')
+const { promisify } = require('node:util')
+const { randomUUID } = require('node:crypto')
+const execFileAsync = promisify(execFile)
+let inspectionActive = false
 
 module.exports = {
   friendlyName: 'Get Waterline models',
@@ -21,37 +25,106 @@ module.exports = {
   },
 
   fn: async function ({ containerName }) {
-    const code = buildIntrospectionCode()
-    const result = await executeInContainer(containerName, code)
-
-    if (!result.success) {
-      return { models: {}, error: result.error }
+    if (inspectionActive) {
+      return {
+        models: {},
+        error: 'Another schema inspection is running. Retry in a moment.'
+      }
     }
-
+    inspectionActive = true
+    const dockerPath = sails.config.docker?.binaryPath || 'docker'
+    const snapshotName = `slipway-schema-${randomUUID()}`
+    let created = false
     try {
+      const { stdout } = await execFileAsync(
+        dockerPath,
+        ['inspect', containerName],
+        {
+          timeout: 5000,
+          maxBuffer: 1024 * 1024
+        }
+      )
+      const inspection = JSON.parse(stdout)[0]
+      if (!inspection?.Image) throw new Error('Container unavailable')
+      const code = buildIntrospectionCode(inspection.Config?.Env || [])
+      const args = [
+        'run',
+        '--rm',
+        '-i',
+        '--name',
+        snapshotName,
+        '--memory',
+        '512m',
+        '--cpus',
+        '0.5',
+        '--pids-limit',
+        '128',
+        '--cap-drop',
+        'ALL',
+        '--security-opt',
+        'no-new-privileges',
+        '--network',
+        inspection.HostConfig?.NetworkMode || 'none',
+        '--volumes-from',
+        `${containerName}:ro`,
+        '--workdir',
+        inspection.Config?.WorkingDir || '/app',
+        '--user',
+        inspection.Config?.User || '0',
+        '--entrypoint',
+        'node',
+        inspection.Image,
+        '--max-old-space-size=256'
+      ]
+      created = true
+      const result = await executeInContainer(args, code)
+      if (!result.success) {
+        return {
+          models: {},
+          error:
+            'The app schema could not be loaded. Check its datastore connection and retry.'
+        }
+      }
       const models = JSON.parse(result.output)
+      if (!Object.keys(models).length) throw new Error('No models')
       return { models }
-    } catch (err) {
-      return { models: {}, error: 'Failed to parse models: ' + err.message }
+    } catch {
+      return {
+        models: {},
+        error:
+          'The deployed app schema is unavailable. Check the app container and retry.'
+      }
+    } finally {
+      if (created)
+        await execFileAsync(dockerPath, ['rm', '-f', snapshotName], {
+          timeout: 5000
+        }).catch(() => {})
+      inspectionActive = false
     }
   }
 }
 
-function buildIntrospectionCode() {
+function buildIntrospectionCode(environment = []) {
   return `
 (async () => {
   let sailsApp;
   try {
+    for (const value of ${JSON.stringify(environment)}) {
+      const separator = value.indexOf('=');
+      if (separator > 0) process.env[value.slice(0, separator)] = value.slice(separator + 1);
+    }
     // Keep inspection from invoking an app's model-level auto-migrations.
     const path = require('node:path');
     const ormPath = path.dirname(require.resolve('sails-hook-orm'));
     const utils = require(require.resolve('waterline-utils', { paths: [ormPath] }));
     utils.autoMigrations = function(_strategy, _ontology, done) { done(); };
     sailsApp = require('sails');
+    const runtimeConfig = require('sails/accessible/rc')('sails');
     await new Promise((resolve, reject) => {
       sailsApp.load({
-        models: { migrate: 'safe' },
-        hooks: { http: false, views: false, sockets: false, pubsub: false, grunt: false },
+        ...runtimeConfig,
+        models: { ...runtimeConfig.models, migrate: 'safe' },
+        loadHooks: ['moduleloader', 'userconfig', 'userhooks', 'orm'],
         log: { level: 'warn' }
       }, (err) => {
         if (err) reject(err);
@@ -111,26 +184,24 @@ function buildIntrospectionCode() {
 `
 }
 
-function executeInContainer(containerName, code) {
+function executeInContainer(args, code) {
   return new Promise((resolve) => {
     const dockerPath = sails.config.docker?.binaryPath || 'docker'
-    const proc = spawn(
-      dockerPath,
-      ['exec', '-i', containerName, 'timeout', '-s', 'KILL', '20', 'node'],
-      {
-        timeout: 25000 // Bound both the Docker client and its inspection child
-      }
-    )
+    const proc = spawn(dockerPath, args, {
+      timeout: 25000 // Bound both the Docker client and its inspection child
+    })
 
     let stdout = ''
     let stderr = ''
 
     proc.stdout.on('data', (data) => {
       stdout += data.toString()
+      if (Buffer.byteLength(stdout) > 4 * 1024 * 1024) proc.kill()
     })
 
     proc.stderr.on('data', (data) => {
       stderr += data.toString()
+      if (Buffer.byteLength(stderr) > 1024 * 1024) proc.kill()
     })
 
     proc.stdin.on('error', () => {})
