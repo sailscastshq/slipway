@@ -63,7 +63,7 @@ module.exports = {
       throw {
         badRequest: {
           message:
-            'Custom service runtime changes are not supported yet. The saved image and settings are preserved.'
+            'Use the reviewed image and configuration update to change this custom service.'
         }
       }
     if (service.managementMode === 'external' && resourceLimits !== undefined)

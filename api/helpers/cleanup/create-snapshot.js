@@ -271,6 +271,9 @@ function serviceContainerNames(service) {
   return [
     ...(service.type === 'custom'
       ? [
+          ...(service.customState?.retainedContainers || []),
+          service.customState?.update?.candidateName,
+          service.customState?.update?.previousName,
           `slipway-route-service-${service.id}`,
           ...(service.publicRoute?.retainedRoutes || []),
           service.publicRoute?.operation?.transaction?.candidateRouteId,

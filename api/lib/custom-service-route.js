@@ -43,7 +43,7 @@ async function review(service, actor, domain, port) {
     .trim()
     .toLowerCase()
   const removal = !domain
-  if (service.publicRoute?.operation)
+  if (service.publicRoute?.operation || service.customState?.update)
     custom.fail('Recover the unfinished route change before starting another.')
   if (
     !removal &&
@@ -177,6 +177,7 @@ async function apply(item, actor) {
       if (
         !current ||
         current.publicRoute?.operation ||
+        current.customState?.update ||
         ['creating', 'changing', 'upgrading', 'restoring'].includes(
           current.status
         ) ||

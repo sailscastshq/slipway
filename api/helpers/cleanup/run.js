@@ -410,12 +410,20 @@ async function removeContainers(operation) {
   for (const containerName of containerNames) {
     try {
       const customService = operation.snapshot.services?.find(
-        (s) => s.type === 'custom' && s.containerName === containerName
+        (s) =>
+          s.type === 'custom' &&
+          [
+            s.containerName,
+            ...(s.customState?.retainedContainers || []),
+            s.customState?.update?.candidateName,
+            s.customState?.update?.previousName
+          ].includes(containerName)
       )
       if (customService)
-        await require('../../lib/custom-service').inspectContainer(
-          customService
-        )
+        await require('../../lib/custom-service').inspectContainer({
+          ...customService,
+          containerName
+        })
       await sails.helpers.docker.stopContainer.with({ containerName })
       removed += 1
     } catch (error) {

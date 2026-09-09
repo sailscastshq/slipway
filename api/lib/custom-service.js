@@ -293,6 +293,41 @@ async function observe(service, persist = true) {
     })
   return { status, customState }
 }
+async function createContainer(service, definition) {
+  let privateDirectory
+  try {
+    let envFile
+    if (Object.keys(definition.env).length) {
+      // Linux child-process stdin is a socket, which Docker cannot reopen
+      // as an env file. Keep the file in RAM on Linux and private elsewhere.
+      privateDirectory = await fs.mkdtemp(
+        path.join(
+          process.platform === 'linux' ? '/dev/shm' : os.tmpdir(),
+          'slipway-custom-env-'
+        )
+      )
+      envFile = path.join(privateDirectory, 'environment')
+      await fs.writeFile(
+        envFile,
+        Object.entries(definition.env)
+          .map(([k, v]) => `${k}=${v}`)
+          .join('\n') + '\n',
+        { mode: 0o600, flag: 'wx' }
+      )
+    }
+    await sails.helpers.streams.runProcess.with({
+      command: docker(),
+      args: argsFor(service, definition, envFile),
+      maxOutputBytes: 8192,
+      maxStderrBytes: 8192,
+      captureStdout: true,
+      timeoutMs: 30000
+    })
+  } finally {
+    if (privateDirectory)
+      await fs.rm(privateDirectory, { recursive: true, force: true })
+  }
+}
 async function start(service, restart = false) {
   const definition = service.customDefinition
   imageName(definition.image)
@@ -325,39 +360,7 @@ async function start(service, restart = false) {
             volume.name
           ])
       }
-      let privateDirectory
-      try {
-        let envFile
-        if (Object.keys(definition.env).length) {
-          // Linux child-process stdin is a socket, which Docker cannot reopen
-          // as an env file. Keep the file in RAM on Linux and private elsewhere.
-          privateDirectory = await fs.mkdtemp(
-            path.join(
-              process.platform === 'linux' ? '/dev/shm' : os.tmpdir(),
-              'slipway-custom-env-'
-            )
-          )
-          envFile = path.join(privateDirectory, 'environment')
-          await fs.writeFile(
-            envFile,
-            Object.entries(definition.env)
-              .map(([k, v]) => `${k}=${v}`)
-              .join('\n') + '\n',
-            { mode: 0o600, flag: 'wx' }
-          )
-        }
-        await sails.helpers.streams.runProcess.with({
-          command: docker(),
-          args: argsFor(service, definition, envFile),
-          maxOutputBytes: 8192,
-          maxStderrBytes: 8192,
-          captureStdout: true,
-          timeoutMs: 30000
-        })
-      } finally {
-        if (privateDirectory)
-          await fs.rm(privateDirectory, { recursive: true, force: true })
-      }
+      await createContainer(service, definition)
     }
     await command([
       restart && existing?.State.Running ? 'restart' : 'start',
@@ -509,6 +512,7 @@ module.exports = {
   inspectImage,
   publicDefinition,
   argsFor,
+  createContainer,
   observe,
   start,
   authorize,

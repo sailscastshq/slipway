@@ -27,7 +27,11 @@ module.exports = {
         appIds.some((id) => !/^\d+$/.test(String(id)))
       )
         custom.fail('Choose valid apps in this environment.')
-      if (['creating', 'changing'].includes(service.status))
+      if (
+        service.customState?.update ||
+        service.publicRoute?.operation ||
+        ['creating', 'changing'].includes(service.status)
+      )
         custom.fail('Wait for the active service operation.')
       await require('../../../../lib/with-datastore-transaction')(
         async (db) => {
@@ -40,7 +44,12 @@ module.exports = {
           const current = await Service.findOne({
             id: service.id
           }).usingConnection(db)
-          if (!current || ['creating', 'changing'].includes(current.status))
+          if (
+            !current ||
+            current.customState?.update ||
+            current.publicRoute?.operation ||
+            ['creating', 'changing'].includes(current.status)
+          )
             custom.fail('Wait for the active service operation.')
           await custom.links(current, appIds, db)
           await AuditLog.create({

@@ -22,6 +22,7 @@ module.exports = {
       `CREATE TABLE IF NOT EXISTS domain_claims (id INTEGER PRIMARY KEY AUTOINCREMENT, domain TEXT NOT NULL UNIQUE, owner TEXT NOT NULL, created_at INTEGER, updated_at INTEGER)`
     )
     const columns = [
+      ['custom_recovery', 'TEXT'],
       ['public_route', "TEXT NOT NULL DEFAULT '{}'"],
       ['custom_definition', 'TEXT'],
       ['custom_state', "TEXT NOT NULL DEFAULT '{}'"],
