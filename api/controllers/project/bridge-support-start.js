@@ -52,15 +52,14 @@ module.exports = {
     })
     const app = await App.findOne({ id: resolvedApp.id }).decrypt()
     if (!app.bridgeEnabled || !app.bridgeSecret) throw 'forbidden'
-    if (
-      (await AuditLog.count({
-        user: user.id,
-        action: {
-          in: ['bridge.impersonation.requested', 'bridge.impersonation.denied']
-        },
-        createdAt: { '>': Date.now() - 60000 }
-      })) >= 5
+    const attempt = await sails.getDatastore().sendNativeQuery(
+      `INSERT INTO bridge_support_budgets(actor,window_start,requests) VALUES(?,?,1)
+       ON CONFLICT(actor) DO UPDATE SET window_start=excluded.window_start,
+       requests=CASE WHEN window_start<>excluded.window_start THEN 1 ELSE requests+1 END
+       WHERE window_start<>excluded.window_start OR requests<5`,
+      [user.id, Math.floor(Date.now() / 60000) * 60000]
     )
+    if (attempt.changes !== 1)
       throw {
         badRequest: {
           message: 'Too many support-view attempts. Wait a minute and retry.'

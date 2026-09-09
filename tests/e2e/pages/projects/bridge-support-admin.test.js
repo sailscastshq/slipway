@@ -183,6 +183,15 @@ test(
         resourceId: String(app.id)
       })
       assert.ok(!JSON.stringify(events).includes(token))
+      const burst = await Promise.all(
+        Array.from({ length: 4 }, () => attempt('incorrect'))
+      )
+      assert.equal(
+        burst.filter((result) =>
+          result.data?.message?.startsWith('Too many support-view attempts')
+        ).length,
+        2
+      )
       const owner = await world
         .create('user')
         .with({ email: 'support-owner@example.test' })

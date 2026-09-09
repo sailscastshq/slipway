@@ -369,6 +369,10 @@ module.exports = function supportRuntime(sails) {
       overlay(req, session, identity.values)
     } catch {
       clear(res)
+      sessions.delete(hash(token))
+      event(session, 'denied').catch(() =>
+        sails.log.warn('Support denial audit delivery failed.')
+      )
       return page(res, 'The target is no longer available for support viewing.')
     }
     res.set('Cache-Control', 'no-store')

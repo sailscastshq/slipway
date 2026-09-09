@@ -70,6 +70,9 @@ module.exports = {
     await datastore.sendNativeQuery(
       'CREATE INDEX IF NOT EXISTS bridge_support_grants_app_status ON bridge_support_grants(app, status)'
     )
+    await datastore.sendNativeQuery(
+      'CREATE TABLE IF NOT EXISTS bridge_support_budgets (actor INTEGER PRIMARY KEY, window_start INTEGER NOT NULL, requests INTEGER NOT NULL)'
+    )
     const result = await datastore.sendNativeQuery('PRAGMA table_info(apps)')
     const existing = new Set(
       (result.rows || result || []).map((row) => row.name)
