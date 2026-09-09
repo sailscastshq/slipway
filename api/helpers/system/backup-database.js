@@ -1,12 +1,13 @@
 const fs = require('fs')
 const path = require('path')
 const os = require('os')
+const { randomUUID } = require('node:crypto')
 
 module.exports = {
   friendlyName: 'Backup database',
 
   description:
-    'Create a pre-update snapshot of app.db and upload it to S3-compatible storage. Never throws — skips gracefully if S3 is not configured or on any error.',
+    'Create a pre-update snapshot of app.db and upload it to private backup storage. Never throws — skips gracefully if storage is not configured or on any error.',
 
   inputs: {},
 
@@ -19,58 +20,14 @@ module.exports = {
   fn: async function () {
     const dbPath = path.resolve(sails.config.appPath, 'db', 'app.db')
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
-    const tmpFile = path.join(os.tmpdir(), `slipway-pre-update-${timestamp}.db`)
+    const tmpFile = path.join(
+      os.tmpdir(),
+      `slipway-pre-update-${timestamp}-${randomUUID()}.db`
+    )
 
+    let ownsFile = false
     try {
-      // 1. Resolve S3 credentials (same pattern as run-backup.js lines 38-51)
-      let globalEnvVars = {}
-      try {
-        const globalJson = await sails.helpers.setting.get(
-          'globalEnvVars',
-          '{}'
-        )
-        globalEnvVars = JSON.parse(globalJson)
-      } catch {
-        /* ignore */
-      }
-
-      const uploadsConfig = {
-        key:
-          globalEnvVars.R2_ACCESS_KEY ||
-          globalEnvVars.S3_ACCESS_KEY ||
-          globalEnvVars.SPACES_ACCESS_KEY ||
-          (sails.config.uploads || {}).key,
-        secret:
-          globalEnvVars.R2_SECRET_KEY ||
-          globalEnvVars.S3_SECRET_KEY ||
-          globalEnvVars.SPACES_SECRET_KEY ||
-          (sails.config.uploads || {}).secret,
-        bucket:
-          globalEnvVars.R2_BUCKET ||
-          globalEnvVars.S3_BUCKET ||
-          globalEnvVars.SPACES_BUCKET ||
-          (sails.config.uploads || {}).bucket,
-        endpoint:
-          globalEnvVars.R2_ENDPOINT ||
-          globalEnvVars.S3_ENDPOINT ||
-          globalEnvVars.SPACES_ENDPOINT ||
-          (sails.config.uploads || {}).endpoint,
-        region:
-          globalEnvVars.S3_REGION ||
-          globalEnvVars.SPACES_REGION ||
-          (sails.config.uploads || {}).region
-      }
-
-      if (
-        !uploadsConfig.key ||
-        !uploadsConfig.secret ||
-        !uploadsConfig.bucket
-      ) {
-        sails.log.info(
-          '[slipway] Skipping pre-update backup — S3 storage not configured'
-        )
-        return { skipped: true, reason: 'S3 not configured' }
-      }
+      const storageConfig = await sails.helpers.backup.getStorageConfig()
 
       // 2. Create a consistent SQLite snapshot via better-sqlite3's backup API
       if (!fs.existsSync(dbPath)) {
@@ -80,50 +37,59 @@ module.exports = {
         return { skipped: true, reason: 'Database file not found' }
       }
 
+      const limits = sails.config.custom.databaseOperations
+      const capacity = await sails.helpers.streams.getDiskCapacity.with({
+        directory: os.tmpdir(),
+        maxBytes: limits.backupMaxBytes,
+        reserveBytes: limits.minFreeDiskBytes
+      })
       const Database = require('better-sqlite3')
       const db = new Database(dbPath, { readonly: true })
       try {
-        await db.backup(tmpFile)
+        const reserved = await fs.promises.open(tmpFile, 'wx', 0o600)
+        ownsFile = true
+        await reserved.close()
+        const pageSize = db.pragma('page_size', { simple: true })
+        const deadline = Date.now() + limits.backupTimeoutMs
+        await db.backup(tmpFile, {
+          progress({ totalPages }) {
+            if (totalPages * pageSize > capacity.allowedBytes)
+              throw new Error(
+                'Pre-update snapshot exceeds the backup size limit.'
+              )
+            if (Date.now() > deadline)
+              throw new Error(
+                'Pre-update snapshot exceeded the backup deadline.'
+              )
+            return 128
+          }
+        })
       } finally {
         db.close()
       }
 
-      // 3. Upload the snapshot to S3
-      const s3Key = `backups/slipway-system/${timestamp}.db`
-      const stats = fs.statSync(tmpFile)
-      const sizeBytes = stats.size
-
-      const skipperS3 = require('../../lib/s3-upload-adapter')
-      const adapterOpts = {
-        key: uploadsConfig.key,
-        secret: uploadsConfig.secret,
-        bucket: uploadsConfig.bucket,
-        s3ForcePathStyle: true
-      }
-      if (uploadsConfig.endpoint) adapterOpts.endpoint = uploadsConfig.endpoint
-      if (uploadsConfig.region) adapterOpts.region = uploadsConfig.region
-      const adapter = skipperS3(adapterOpts)
-
-      await new Promise((resolve, reject) => {
-        const receiver = adapter.receive({ dirname: '', saveAs: s3Key })
-        const readStream = fs.createReadStream(tmpFile)
-
-        readStream.skipperFd = s3Key
-        readStream.fd = s3Key
-        readStream.filename = path.basename(s3Key)
-        readStream.headers = { 'content-type': 'application/octet-stream' }
-        readStream.byteCount = sizeBytes
-
-        receiver.end(readStream)
-
-        receiver.on('finish', () => resolve())
-        receiver.on('error', (err) => reject(err))
+      const objectKey = `backups/slipway-system/${timestamp}-${randomUUID()}.db`
+      const sizeBytes = fs.statSync(tmpFile).size
+      const metadata = await sails.helpers.backup.uploadObject.with({
+        sourcePath: tmpFile,
+        objectKey,
+        sizeBytes,
+        storageConfig,
+        maxBytes: limits.backupMaxBytes,
+        timeoutMs: limits.backupTimeoutMs
       })
-
       sails.log.info(
-        `[slipway] Pre-update backup uploaded: ${s3Key} (${sizeBytes} bytes)`
+        `[slipway] Pre-update backup uploaded: ${objectKey} (${sizeBytes} bytes)`
       )
-      return { skipped: false, s3Key, sizeBytes }
+      return {
+        skipped: false,
+        objectKey,
+        s3Key: storageConfig.provider === 'azure' ? null : objectKey,
+        provider: storageConfig.provider,
+        container: storageConfig.bucket,
+        sizeBytes,
+        ...metadata
+      }
     } catch (err) {
       sails.log.warn(
         `[slipway] Pre-update backup failed (update will continue): ${err.message}`
@@ -131,7 +97,7 @@ module.exports = {
       return { skipped: true, reason: err.message }
     } finally {
       try {
-        fs.unlinkSync(tmpFile)
+        if (ownsFile) fs.unlinkSync(tmpFile)
       } catch {
         /* ignore */
       }

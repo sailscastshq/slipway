@@ -152,7 +152,15 @@ module.exports = {
           const backups = await Backup.find({ service: service.id })
             .sort('createdAt DESC')
             .limit(1)
-          lastBackup = backups[0] || null
+          const latest = backups[0]
+          lastBackup = latest
+            ? {
+                id: latest.id,
+                status: latest.status,
+                completedAt: latest.completedAt,
+                sizeBytes: latest.sizeBytes
+              }
+            : null
         }
         return {
           ...service,
@@ -169,17 +177,8 @@ module.exports = {
     try {
       const globalJson = await sails.helpers.setting.get('globalEnvVars', '{}')
       globalEnvVars = JSON.parse(globalJson)
-      backupConfigured = !!(
-        (globalEnvVars.R2_ACCESS_KEY ||
-          globalEnvVars.S3_ACCESS_KEY ||
-          globalEnvVars.SPACES_ACCESS_KEY) &&
-        (globalEnvVars.R2_SECRET_KEY ||
-          globalEnvVars.S3_SECRET_KEY ||
-          globalEnvVars.SPACES_SECRET_KEY) &&
-        (globalEnvVars.R2_BUCKET ||
-          globalEnvVars.S3_BUCKET ||
-          globalEnvVars.SPACES_BUCKET)
-      )
+      await sails.helpers.backup.getStorageConfig()
+      backupConfigured = true
     } catch {
       /* ignore */
     }

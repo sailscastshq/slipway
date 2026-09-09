@@ -10,32 +10,30 @@ module.exports = {
   },
 
   fn: async function () {
-    // 1. Check if uploads/storage is configured at all
-    let globalEnvVars = {}
-    try {
-      const globalJson = await sails.helpers.setting.get('globalEnvVars', '{}')
-      globalEnvVars = JSON.parse(globalJson)
-    } catch {
-      /* ignore */
+    // Retry cleanup before new work, preserving records when deletion is unavailable.
+    const failed = await Backup.find({
+      status: 'failed',
+      objectKey: { '!=': null }
+    }).limit(100)
+    for (const backup of failed.filter(
+      (item) => item.objectKey && item.storage?.cleanupPending
+    )) {
+      try {
+        await sails.helpers.backup.deleteBackupObject.with({
+          objectKey: backup.objectKey,
+          backupId: backup.id
+        })
+        await Backup.updateOne({ id: backup.id }).set({
+          objectKey: null,
+          storage: { ...backup.storage, cleanupPending: false }
+        })
+      } catch {
+        /* Retry on the next scheduled run. */
+      }
     }
-
-    const hasKey =
-      globalEnvVars.R2_ACCESS_KEY ||
-      globalEnvVars.S3_ACCESS_KEY ||
-      globalEnvVars.SPACES_ACCESS_KEY ||
-      (sails.config.uploads || {}).key
-    const hasSecret =
-      globalEnvVars.R2_SECRET_KEY ||
-      globalEnvVars.S3_SECRET_KEY ||
-      globalEnvVars.SPACES_SECRET_KEY ||
-      (sails.config.uploads || {}).secret
-    const hasBucket =
-      globalEnvVars.R2_BUCKET ||
-      globalEnvVars.S3_BUCKET ||
-      globalEnvVars.SPACES_BUCKET ||
-      (sails.config.uploads || {}).bucket
-
-    if (!hasKey || !hasSecret || !hasBucket) {
+    try {
+      await sails.helpers.backup.getStorageConfig()
+    } catch {
       sails.log.verbose('Scheduled backups: storage not configured, skipping')
       return
     }
@@ -110,13 +108,17 @@ module.exports = {
 
         for (const old of toDelete) {
           // Delete from S3 if key exists
-          if (old.s3Key) {
+          if (old.objectKey || old.s3Key) {
             try {
-              await sails.helpers.backup.deleteBackupObject(old.s3Key)
+              await sails.helpers.backup.deleteBackupObject.with({
+                objectKey: old.objectKey || old.s3Key,
+                backupId: old.id
+              })
             } catch (err) {
               sails.log.warn(
-                `Failed to delete S3 object ${old.s3Key}: ${err.message}`
+                `Could not delete backup object ${old.id}: ${err.message}`
               )
+              continue
             }
           }
           await Backup.destroyOne({ id: old.id })

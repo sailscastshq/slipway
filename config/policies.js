@@ -63,6 +63,7 @@ module.exports.policies = {
   'setting/test-notification': ['is-authenticated', 'is-instance-admin'],
   'setting/view-uploads': ['is-authenticated', 'is-instance-admin'],
   'setting/update-uploads': ['is-authenticated', 'is-instance-admin'],
+  'setting/update-backup-storage': ['is-authenticated', 'is-instance-admin'],
   'setting/update-git': ['is-authenticated', 'is-instance-admin'],
 
   // Team management requires authentication

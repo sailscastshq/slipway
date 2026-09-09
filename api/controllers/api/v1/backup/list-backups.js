@@ -55,6 +55,8 @@ module.exports = {
         status: b.status,
         type: b.type,
         s3Key: b.s3Key,
+        objectKey: b.objectKey || b.s3Key,
+        storage: b.storage,
         sizeBytes: b.sizeBytes,
         durationMs: b.durationMs,
         errorMessage: b.errorMessage,

@@ -51,7 +51,7 @@ module.exports = {
       throw new Error('Backup or service not found')
     }
 
-    if (backup.status !== 'completed' || !backup.s3Key) {
+    if (backup.status !== 'completed' || !(backup.objectKey || backup.s3Key)) {
       throw new Error(
         'Only a completed backup with a storage key can be restored'
       )
@@ -60,7 +60,7 @@ module.exports = {
     const service = await Service.findOne({ id: backup.service }).decrypt()
     if (!service) throw new Error('Backup service not found')
 
-    const storageConfig = await sails.helpers.backup.getStorageConfig()
+    const storageConfig = await sails.helpers.backup.getStorageConfig(backupId)
     const limits = sails.config.custom.databaseOperations
     const restoreTarget = {
       ...service,
@@ -90,10 +90,13 @@ module.exports = {
 
     try {
       sails.log.info(
-        `Restoring backup ${backupId}: downloading ${backup.s3Key}`
+        `Restoring backup ${backupId}: downloading ${
+          backup.objectKey || backup.s3Key
+        }`
       )
       const transfer = await sails.helpers.backup.downloadObject.with({
-        s3Key: backup.s3Key,
+        objectKey: backup.objectKey || backup.s3Key,
+        checksum: backup.storage?.checksum,
         destinationPath: tmpFile,
         storageConfig,
         maxBytes: capacity.allowedBytes,
@@ -165,7 +168,7 @@ async function createVerifiedSafetySnapshot({ service, signal }) {
   const verified = await Backup.findOne({ id: snapshot.id })
   if (
     verified?.status !== 'completed' ||
-    !verified.s3Key ||
+    !(verified.objectKey || verified.s3Key) ||
     !verified.sizeBytes
   ) {
     const reason = verified?.errorMessage || 'snapshot was not verified'

@@ -1,70 +1,47 @@
 const fs = require('node:fs')
-
-const createBackupStorageAdapter = require('../../lib/backup-storage-adapter')
-
+const createStorage = require('../../lib/object-storage')
 module.exports = {
   friendlyName: 'Download backup object',
-
   description:
-    'Stream an S3-compatible backup object to disk with a byte limit.',
-
+    'Download a private backup with bounded streaming and checksum verification.',
   inputs: {
-    s3Key: {
-      type: 'string',
-      required: true
-    },
-    destinationPath: {
-      type: 'string',
-      required: true
-    },
-    storageConfig: {
-      type: 'ref',
-      required: true
-    },
-    maxBytes: {
-      type: 'number',
-      required: true,
-      min: 1
-    },
-    signal: {
-      type: 'ref',
-      description: 'Optional AbortSignal.'
-    },
-    timeoutMs: {
-      type: 'number',
-      required: true,
-      min: 1
-    }
+    s3Key: { type: 'string', description: 'Legacy alias for objectKey' },
+    destinationPath: { type: 'string', required: true },
+    storageConfig: { type: 'ref', required: true },
+    maxBytes: { type: 'number', required: true, min: 1 },
+    signal: { type: 'ref' },
+    timeoutMs: { type: 'number', required: true, min: 1 },
+    objectKey: { type: 'string' },
+    checksum: { type: 'string' }
   },
-
-  exits: {
-    success: {
-      outputType: 'ref'
-    }
-  },
-
+  exits: { success: { outputType: 'ref' } },
   fn: async function ({
     s3Key,
+    objectKey,
     destinationPath,
     storageConfig,
     maxBytes,
     signal,
-    timeoutMs
+    timeoutMs,
+    checksum
   }) {
-    const adapter = createBackupStorageAdapter(storageConfig)
-
+    const handle = await fs.promises.open(destinationPath, 'wx', 0o600)
+    const output = handle.createWriteStream()
     try {
-      return await sails.helpers.streams.copy.with({
-        input: adapter.read(s3Key),
-        output: fs.createWriteStream(destinationPath, { flags: 'wx' }),
+      return await createStorage(storageConfig).getObject({
+        objectKey: objectKey || s3Key,
+        output,
         maxBytes,
-        label: 'Downloaded backup',
+        timeoutMs,
         signal,
-        timeoutMs
+        checksum
       })
     } catch (error) {
-      error.message = `Backup download failed: ${error.message}`
+      output.destroy()
+      await fs.promises.rm(destinationPath, { force: true })
       throw error
+    } finally {
+      output.destroy()
     }
   }
 }

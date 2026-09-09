@@ -8,6 +8,24 @@ on:
     branches: [main]
 
 jobs:
+  storage-contract:
+    name: Private storage contract
+    timeout-minutes: 10
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: 'npm'
+      - run: npm ci --no-audit
+      - name: Install pinned local emulators
+        run: npm install --prefix "$RUNNER_TEMP/storage-emulators" --ignore-scripts --no-audit --no-fund azurite@3.37.0 s3rver@3.7.1
+      - name: Exercise private storage and backup lifecycle
+        run: node_modules/.bin/sounding test --file tests/contracts/object-storage.test.js
+        env:
+          SLIPWAY_STORAGE_EMULATORS: ${{ runner.temp }}/storage-emulators/node_modules
+
   schema-contract:
     name: Schema contract (${{ matrix.dialect }})
     timeout-minutes: 15

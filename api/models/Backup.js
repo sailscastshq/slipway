@@ -26,8 +26,22 @@ module.exports = {
     s3Key: {
       type: 'string',
       allowNull: true,
-      description: 'Storage path in S3 bucket',
+      description: 'Legacy S3 object key; read through the compatibility path',
       columnName: 's3_key'
+    },
+
+    objectKey: { type: 'string', allowNull: true, columnName: 'object_key' },
+    storage: {
+      type: 'json',
+      defaultsTo: {},
+      description: 'Provider-neutral container, checksum, and upload metadata'
+    },
+    storageCredentials: {
+      type: 'json',
+      encrypt: true,
+      protect: true,
+      columnName: 'storage_credentials',
+      description: 'Encrypted configuration bound to this backup'
     },
 
     sizeBytes: {

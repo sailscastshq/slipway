@@ -1,12 +1,2 @@
-module.exports = function createBackupStorageAdapter(config) {
-  const options = {
-    key: config.key,
-    secret: config.secret,
-    bucket: config.bucket,
-    s3ForcePathStyle: true
-  }
-  if (config.endpoint) options.endpoint = config.endpoint
-  if (config.region) options.region = config.region
-
-  return require('./s3-upload-adapter')(options)
-}
+// Compatibility entry point. Backup operations use the provider-neutral contract.
+module.exports = require('./object-storage')

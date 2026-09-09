@@ -128,12 +128,19 @@ module.exports = {
       ...deployments.map((candidate) => candidate.imageName),
       ...deploymentJobs.map((candidate) => candidate.imageName)
     ])
-    const backupObjects = backups
-      .filter((candidate) => candidate.s3Key)
-      .map((candidate) => ({
+    const backupObjects = []
+    for (const candidate of backups.filter(
+      (item) => item.objectKey || item.s3Key
+    )) {
+      const storageConfig = await sails.helpers.backup.getStorageConfig(
+        candidate.id
+      )
+      backupObjects.push({
         backupId: candidate.id,
-        s3Key: candidate.s3Key
-      }))
+        objectKey: candidate.objectKey || candidate.s3Key,
+        storage: require('../../lib/sealed-backup-storage').seal(storageConfig)
+      })
+    }
     const sourcePaths =
       scopeType === 'project'
         ? [

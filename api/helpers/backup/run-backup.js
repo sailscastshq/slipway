@@ -2,6 +2,7 @@ const fs = require('node:fs')
 const fsPromises = require('node:fs/promises')
 const os = require('node:os')
 const path = require('node:path')
+const { randomUUID } = require('node:crypto')
 
 const verifyDatabaseDump = require('../../lib/verify-database-dump')
 
@@ -36,7 +37,9 @@ module.exports = {
     const startedAt = Date.now()
     let service
     let tmpDirectory
-    let s3Key
+    let objectKey
+    let storageConfig
+    let storageMetadata
     let uploadAttempted = false
 
     await Backup.updateOne({ id: backupId }).set({
@@ -50,7 +53,7 @@ module.exports = {
       service = await Service.findOne({ id: backup.service }).decrypt()
       if (!service) throw new Error('Backup service not found')
 
-      const storageConfig = await sails.helpers.backup.getStorageConfig()
+      storageConfig = await sails.helpers.backup.getStorageConfig()
       const dumpArgs = getDumpArgs(service)
       if (!dumpArgs) {
         throw new Error(
@@ -67,7 +70,18 @@ module.exports = {
 
       const extension = getExtension(service.type)
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
-      s3Key = `backups/${environment.project.slug}/${environment.slug}/${service.name}/${timestamp}.${extension}`
+      objectKey = `backups/${environment.project.slug}/${environment.slug}/${
+        service.name
+      }/${timestamp}-${randomUUID()}.${extension}`
+
+      storageMetadata = {
+        provider: storageConfig.provider || 's3',
+        container: storageConfig.bucket
+      }
+      await Backup.updateOne({ id: backupId }).set({
+        storageCredentials: storageConfig,
+        storage: storageMetadata
+      })
 
       const limits = sails.config.custom.databaseOperations
       const capacity = await sails.helpers.streams.getDiskCapacity.with({
@@ -85,7 +99,7 @@ module.exports = {
       await sails.helpers.streams.runProcess.with({
         command: dockerBinary,
         args: ['exec', service.containerName, ...dumpArgs],
-        output: fs.createWriteStream(tmpFile, { flags: 'wx' }),
+        output: fs.createWriteStream(tmpFile, { flags: 'wx', mode: 0o600 }),
         timeoutMs: limits.backupTimeoutMs,
         maxOutputBytes: capacity.allowedBytes,
         maxStderrBytes: limits.maxProcessStderrBytes,
@@ -99,9 +113,9 @@ module.exports = {
 
       uploadAttempted = true
 
-      await sails.helpers.backup.uploadObject.with({
+      const uploaded = await sails.helpers.backup.uploadObject.with({
         sourcePath: tmpFile,
-        s3Key,
+        objectKey,
         sizeBytes: stats.size,
         storageConfig,
         maxBytes: capacity.allowedBytes,
@@ -112,25 +126,32 @@ module.exports = {
       const completedAt = Date.now()
       await Backup.updateOne({ id: backupId }).set({
         status: 'completed',
-        s3Key,
+        objectKey,
+        s3Key: storageConfig.provider === 'azure' ? null : objectKey,
+        storage: { ...storageMetadata, ...uploaded, uploadedAt: completedAt },
         sizeBytes: stats.size,
         completedAt,
         durationMs: completedAt - startedAt
       })
 
       sails.log.info(
-        `Backup completed: ${s3Key} (${formatBytes(stats.size)} in ${
+        `Backup completed: ${objectKey} (${formatBytes(stats.size)} in ${
           completedAt - startedAt
         }ms)`
       )
       sails.sse.publish(`backup:${backupId}`, { status: 'completed' })
     } catch (error) {
-      if (uploadAttempted && s3Key) {
+      let cleanupPending = false
+      if (uploadAttempted && objectKey) {
         try {
-          await sails.helpers.backup.deleteBackupObject(s3Key)
+          await sails.helpers.backup.deleteBackupObject.with({
+            objectKey,
+            storageConfig
+          })
         } catch (cleanupError) {
+          cleanupPending = true
           sails.log.warn(
-            `Could not clean up partial backup ${s3Key}: ${cleanupError.message}`
+            `Could not clean up partial backup ${objectKey}: ${cleanupError.message}`
           )
         }
       }
@@ -139,6 +160,8 @@ module.exports = {
       await Backup.updateOne({ id: backupId }).set({
         status: 'failed',
         s3Key: null,
+        objectKey: cleanupPending ? objectKey : null,
+        storage: { ...storageMetadata, cleanupPending },
         sizeBytes: null,
         errorMessage: error.message,
         completedAt,

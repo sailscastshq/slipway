@@ -284,7 +284,13 @@ test(
     const backup = await world.create('backup').with({
       service: service.id,
       status: 'completed',
-      s3Key: 'backups/cleanup-retain.sql'
+      s3Key: 'backups/cleanup-retain.sql',
+      storageCredentials: {
+        provider: 's3',
+        bucket: 'backups',
+        key: 'access',
+        secret: 'private'
+      }
     })
 
     await withCleanupStubs(sails, {}, async (calls) => {
@@ -305,7 +311,7 @@ test(
         'cleanup-retained-volume'
       )
       expect(result.retainedArtifacts.backupObjects).toEqual([
-        { backupId: backup.id, s3Key: backup.s3Key }
+        { backupId: backup.id, objectKey: backup.s3Key }
       ])
       expect(calls.removeVolume.length).toBe(0)
       expect(calls.deleteBackupObject.length).toBe(0)
@@ -399,7 +405,13 @@ test(
     await world.create('backup').with({
       service: service.id,
       status: 'completed',
-      s3Key: 'backups/cleanup-purge.sql'
+      s3Key: 'backups/cleanup-purge.sql',
+      storageCredentials: {
+        provider: 's3',
+        bucket: 'backups',
+        key: 'access',
+        secret: 'private'
+      }
     })
     await world.create('deployment').with({
       environment: environment.id,
@@ -465,7 +477,8 @@ async function withCleanupStubs(sails, overrides, run) {
     const stub = async (inputs) => {
       if (name === 'removeVolume') calls[name].push(inputs.volumeName)
       else if (name === 'removeImage') calls[name].push(inputs.imageName)
-      else if (name === 'deleteBackupObject') calls[name].push(inputs.s3Key)
+      else if (name === 'deleteBackupObject')
+        calls[name].push(inputs.objectKey || inputs.s3Key)
       else calls[name].push(inputs)
       return implementation(inputs)
     }
@@ -520,7 +533,13 @@ test(
     const backup = await world.create('backup').with({
       service: service.id,
       status: 'completed',
-      s3Key: 'restore-fixture.sql'
+      s3Key: 'restore-fixture.sql',
+      storageCredentials: {
+        provider: 's3',
+        bucket: 'backups',
+        key: 'access',
+        secret: 'private'
+      }
     })
     const inputs = {
       targetKey: `project:${project.id}`,

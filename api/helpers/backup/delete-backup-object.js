@@ -1,26 +1,23 @@
-const createBackupStorageAdapter = require('../../lib/backup-storage-adapter')
-
+const createStorage = require('../../lib/object-storage')
 module.exports = {
-  friendlyName: 'Delete S3 object',
-
-  description: 'Delete a single object from S3-compatible storage by key.',
-
+  friendlyName: 'Delete backup object',
+  description:
+    'Delete an object using its original private storage configuration.',
   inputs: {
-    s3Key: {
-      type: 'string',
-      required: true
-    }
+    s3Key: { type: 'string', description: 'Legacy alias for objectKey' },
+    backupId: { type: 'string' },
+    storageConfig: { type: 'ref' },
+    objectKey: { type: 'string' },
+    signal: { type: 'ref' }
   },
-
-  fn: async function ({ s3Key }) {
-    const storageConfig = await sails.helpers.backup.getStorageConfig()
-    const adapter = createBackupStorageAdapter(storageConfig)
-
-    await new Promise((resolve, reject) => {
-      adapter.rm(s3Key, (error) => {
-        if (error) return reject(error)
-        resolve()
-      })
+  fn: async function ({ s3Key, objectKey, backupId, storageConfig, signal }) {
+    const config =
+      storageConfig ||
+      (await sails.helpers.backup.getStorageConfig.with({ backupId }))
+    await createStorage(config).deleteObject({
+      objectKey: objectKey || s3Key,
+      timeoutMs: 30000,
+      signal
     })
   }
 }

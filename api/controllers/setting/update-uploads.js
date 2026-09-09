@@ -139,6 +139,8 @@ module.exports = {
       }
     }
 
+    await sails.helpers.backup.bindLegacyStorage()
+
     // Preserve existing credentials before clearing
     const existingCredentials = {
       R2_ACCESS_KEY: globalEnvVars.R2_ACCESS_KEY,
