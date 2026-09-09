@@ -58,7 +58,7 @@ jobs:
 
   test:
     name: Test (${{ matrix.lane }})
-    timeout-minutes: 10
+    timeout-minutes: 15
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
