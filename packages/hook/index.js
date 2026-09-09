@@ -170,6 +170,7 @@ module.exports = function defineSlipwayHook(sails) {
       }
 
       require('./lib/wake-install')(sails, wake, () => wakeRuntime)
+      require('./lib/wake-helpers')(sails, () => wakeRuntime)
       require('./lib/bridge-support-install')(sails, () => supportRuntime)
 
       if (process.env.SLIPWAY_BEARING_ENABLED === 'true') {
@@ -198,6 +199,7 @@ module.exports = function defineSlipwayHook(sails) {
         hookVersion
       )
       wakeRuntime.start()
+      sails.once('lower', () => wakeRuntime.stop())
       config = sails.config.slipway.lookout || {}
       bridgeConfig = sails.config.slipway.bridge || {}
       if (bridgeConfig.impersonation?.enabled) {

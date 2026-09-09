@@ -2,8 +2,13 @@ module.exports = {
   friendlyName: 'Ensure Wake analytics schema',
   inputs: {},
   fn: async function () {
-    const db = sails.getDatastore('analytics')
     sails.wakeStorageReady = false
+    if (sails.wakeStorageFallback)
+      throw Error('Wake persistent storage is unavailable')
+    const db = sails.getDatastore('analytics')
+    db.manager.pragma('synchronous=FULL')
+    db.manager.pragma('busy_timeout=100')
+    db.manager.pragma('cache_size=-65536')
     await db.sendNativeQuery(`CREATE TABLE IF NOT EXISTS wake_events (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       app TEXT NOT NULL, environment TEXT NOT NULL, deployment TEXT NOT NULL,
@@ -38,6 +43,7 @@ module.exports = {
           `ALTER TABLE wake_events ADD COLUMN ${name} ${definition}`
         )
     }
+    require('../../lib/wake-store').schema(db.manager)
     sails.wakeStorageReady = true
   }
 }

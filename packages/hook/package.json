@@ -1,7 +1,7 @@
 {
   "name": "sails-hook-slipway",
-  "version": "0.0.9",
-  "description": "Connect Sails apps to Slipway with Lookout, Bridge, release flags, and Bearing feedback.",
+  "version": "0.0.10",
+  "description": "Connect Sails apps to Slipway with Lookout, Bridge support views, Wake analytics, release flags, and Bearing feedback.",
   "main": "index.js",
   "keywords": [
     "sails",

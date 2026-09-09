@@ -8,7 +8,12 @@ module.exports = {
     const app = await App.findOne({ id: appId })
     if (!app) throw 'notFound'
     if (!app.wakeEnabled) return { state: 'disabled' }
-    if (!sails.wakeStorageReady) return { state: 'unavailable' }
+    if (
+      !sails.wakeStorageReady ||
+      (sails.wakeLastStorageFailure &&
+        Date.now() - sails.wakeLastStorageFailure < 120000)
+    )
+      return { state: 'unavailable' }
     try {
       const result = await sails
         .getDatastore('analytics')
@@ -27,6 +32,7 @@ module.exports = {
         return { state: 'unavailable' }
       return {
         state: connection.collection_ready ? 'collecting' : 'foundation_only',
+        valueReady: connection.protocol >= 3,
         hookVersion: connection.hook_version,
         protocol: connection.protocol
       }

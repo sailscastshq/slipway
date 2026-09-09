@@ -413,6 +413,15 @@ module.exports.routes = {
     'project/view-dock',
 
   // App-authenticated runtime traffic; never browser collection endpoints.
+  'GET /projects/:slug/environments/:envSlug/apps/:appSlug/wake': {
+    action: 'project/view-wake'
+  },
+  'POST /projects/:slug/environments/:envSlug/apps/:appSlug/wake/settings': {
+    action: 'project/update-wake'
+  },
+  'DELETE /projects/:slug/environments/:envSlug/apps/:appSlug/wake/visitors/:visitor':
+    { action: 'project/delete-wake-visitor' },
+  'POST /api/v1/wake/revenue': { action: 'api/v1/wake/revenue', csrf: false },
   'POST /api/v1/wake/ingest': { action: 'api/v1/wake/ingest', csrf: false },
   'POST /api/v1/wake/register': { action: 'api/v1/wake/register', csrf: false },
 

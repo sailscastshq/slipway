@@ -157,6 +157,7 @@ Slipway includes integrated tools that work with your deployed Sails apps:
 | **Dock**    | SQL console, schema diff, and migration tool for your databases                                                                          |
 | **Quest**   | Job scheduler dashboard for [sails-hook-quest](https://docs.sailscasts.com/quest)                                                        |
 | **Content** | CMS for [sails-content](https://docs.sailscasts.com/content) markdown files                                                              |
+| **Wake**    | Optional [product analytics](docs/wake.md): acquisition, journeys, goals, and currency-separated revenue receipts                        |
 | **Lookout** | Infrastructure monitoring via [sails-hook-slipway](packages/hook) telemetry with [bounded retention](docs/observability-retention.md)    |
 
 ## Requirements

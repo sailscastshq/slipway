@@ -1,12 +1,12 @@
 # Wake collection — TBJS runtime contract
 
-This is phase two of #499. Collection is implemented in the bundled hook; Wake remains off by default and has no public dashboard toggle yet. Revenue delivery, reports, retention/deletion, and general-availability release are later phases. Do not publish or enable this as the completed Wake product.
+The collector is part of [Wake](wake.md), with public Overview, Journeys, and Settings, durable payment receipts, retention, and deletion. Wake remains off by default.
 
 ## Configuration
 
 App-owned `wakeSettings` are managed on Slipway. Defaults are first-party mode, consent required, and GPC/DNT respected. Allowed origins come from the environment's configured/generated HTTPS domains plus explicit normalized overrides. Paths can be excluded exactly or with a trailing wildcard. Internal settings changes rotate the app credential and require redeployment.
 
-The runtime requests protocol 2 and receives a two-minute configuration lease, refreshed every minute. Revocation rejects ingest immediately, and the hook clears queued events on revocation, failed refresh, settings changes, or expired lease. Protocol 1 registration remains compatible and cannot claim collection readiness.
+The runtime requests protocol 3 (protocol 2 collection remains compatible) and receives a two-minute configuration lease, refreshed every minute. Revocation rejects ingest immediately, and the hook clears queued events on revocation, failed refresh, settings changes, or expired lease. Protocol 1 registration remains compatible and cannot claim collection readiness.
 
 ## Browser installation and consent
 
@@ -27,7 +27,7 @@ window.slipway.wake.consent(false) // withdraw and clear analytics identifiers
 
 Before the external script loads, calls can be placed in `window.slipway.wake.q` as arrays such as `['consent', true]` or `['track', 'start-checkout']`. Startup calls are bounded; goal calls are discarded when initial consent/configuration does not permit collection. No history of pre-consent pageviews is replayed.
 
-The consent preference is stored separately from analytics identifiers. Explicit withdrawal stays effective after refresh even if the app does not require a consent prompt; consent changes are synchronized between tabs. Withdrawal aborts the current browser send, discards local events, requests removal of the signed analytics cookie, and discards still-queued events for that visitor on the host. Already accepted/delivered events are not retroactively deleted; deletion is a separate later feature.
+The consent preference is stored separately from analytics identifiers. Explicit withdrawal stays effective after refresh even if the app does not require a consent prompt; consent changes are synchronized between tabs. Withdrawal aborts the current browser send, discards local events, requests removal of the signed analytics cookie, and discards still-queued events for that visitor on the host. Already accepted/delivered events are not retroactively deleted; authorized visitor deletion is a separate operation in Journeys.
 
 ## Events and privacy
 
