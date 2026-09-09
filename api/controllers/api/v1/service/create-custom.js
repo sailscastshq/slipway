@@ -11,7 +11,7 @@ module.exports = {
     const review = await CustomServiceReview.findOne({
       token: reviewId
     }).decrypt()
-    if (!review)
+    if (!review || review.imageMetadata?.purpose)
       throw {
         badRequest: { message: 'This review expired. Review the image again.' }
       }

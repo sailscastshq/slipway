@@ -30,11 +30,21 @@ module.exports = {
   fn: async function ({ action, transaction }) {
     if (action === 'rollback') {
       await rollbackRoute(transaction)
+      if (transaction.claimOwner && !transaction.retainClaims)
+        await require('../../lib/domain-claims').release(
+          transaction.claimOwner,
+          transaction.previousDomains || []
+        )
       return { action: 'rolled_back', routeId: transaction.routeId }
     }
 
     try {
       await commitRoute(transaction)
+      if (transaction.claimOwner && !transaction.retainClaims)
+        await require('../../lib/domain-claims').release(
+          transaction.claimOwner,
+          transaction.candidateDomains || []
+        )
       if (transaction.routeId === 'slipway-route-dashboard')
         await tolerateDockerError(sails.config.docker?.binaryPath || 'docker', [
           'rm',
@@ -45,6 +55,11 @@ module.exports = {
     } catch (error) {
       try {
         await rollbackRoute(transaction)
+        if (transaction.claimOwner && !transaction.retainClaims)
+          await require('../../lib/domain-claims').release(
+            transaction.claimOwner,
+            transaction.previousDomains || []
+          )
       } catch (rollbackError) {
         error.rollbackError = rollbackError
       }
@@ -99,7 +114,7 @@ async function commitRoute(transaction) {
     transaction.routeId
   ])
 
-  if (transaction.previousExists) {
+  if (transaction.previousExists && !transaction.retainPrevious) {
     await tolerateDockerError(dockerPath, [
       'rm',
       '-f',
@@ -161,11 +176,15 @@ async function rollbackRoute(transaction) {
     if (transaction.previousUpstreams.length > 0) {
       await sails.helpers.caddy.verifyRoute.with({
         expectedDomains: transaction.previousDomains || [],
+        excludedDomains: difference(
+          transaction.candidateDomains || [],
+          transaction.previousDomains || []
+        ),
         expectedUpstreams: transaction.previousUpstreams,
         excludedUpstreams: candidateOnlyUpstreams
       })
     }
-  } else if (!transaction.previousExists) {
+  } else {
     const excludedDomains = difference(
       transaction.candidateDomains || [],
       transaction.previousDomains || []

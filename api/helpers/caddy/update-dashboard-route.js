@@ -66,7 +66,12 @@ module.exports = {
     if (email && sails.config.custom.slipwayIngress !== 'cloudflare-tunnel')
       args.push('--label', `caddy.tls=${email}`)
     args.push('alpine', 'sleep', 'infinity')
+    await require('../../lib/domain-claims').reserve(
+      [domain, oldDomain].filter(Boolean),
+      'dashboard'
+    )
     const transaction = {
+      claimOwner: 'dashboard',
       routeId,
       candidateRouteId,
       previousRouteId,
@@ -96,7 +101,11 @@ module.exports = {
         transaction
       }
     } catch (error) {
-      await run(['rm', '-f', candidateRouteId]).catch(() => {})
+      await sails.helpers.caddy.finishRouteUpdate
+        .with({ action: 'rollback', transaction })
+        .catch((rollbackError) => {
+          error.rollbackError = rollbackError
+        })
       throw error
     }
   }

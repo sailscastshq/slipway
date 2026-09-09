@@ -102,6 +102,7 @@ module.exports = {
           id: service.id,
           managementMode: service.managementMode,
           customState: service.customState,
+          publicRoute: service.publicRoute,
           externalVerification: service.externalVerification,
           externalTlsMode: service.externalVerification?.tlsMode || null,
           envVarKey: service.envVarKey,

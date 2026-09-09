@@ -1,4 +1,5 @@
 <script setup>
+import CustomServiceRoute from '@/components/CustomServiceRoute.vue'
 import CustomServiceStatus from '@/components/CustomServiceStatus.vue'
 import ExternalDatabaseStatus from '@/components/ExternalDatabaseStatus.vue'
 import Alert from '@/components/ui/alert/Alert.vue'
@@ -707,6 +708,11 @@ onUnmounted(() => {
             v-if="service.type === 'custom'"
             :service="service"
             :apps="availableApps"
+            :can-manage="canManageCustomServices"
+          />
+          <CustomServiceRoute
+            v-if="service.type === 'custom'"
+            :service="service"
             :can-manage="canManageCustomServices"
           />
           <ExternalDatabaseStatus

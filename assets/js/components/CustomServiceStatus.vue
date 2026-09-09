@@ -87,8 +87,8 @@ function edit() {
       {{ new Date(service.customState.observedAt).toLocaleString() }}
     </p>
     <p class="text-xs text-gray-500">
-      Private service. Data is retained by default on removal. Image and runtime
-      changes are not available yet.
+      Data is retained by default on removal. Image and runtime changes are not
+      available yet.
     </p>
     <p v-if="service.internalPort" class="break-all text-xs">
       Connections use {{ service.customState?.linkPrefix }}_HOST and

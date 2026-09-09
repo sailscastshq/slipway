@@ -45,7 +45,7 @@ for (const failVerification of [false, true])
       }
     }
     sails.helpers.caddy.finishRouteUpdate = {
-      with: async () => calls.push(['commit'])
+      with: async ({ action }) => calls.push([action])
     }
     delete require.cache[require.resolve(helperPath)]
     try {
@@ -59,6 +59,7 @@ for (const failVerification of [false, true])
       if (failVerification) {
         expect(error.message).toBe('Caddy rejected candidate')
         expect(calls.some((args) => args[0] === 'commit')).toBe(false)
+        expect(calls.some((args) => args[0] === 'rollback')).toBe(true)
         expect(
           calls.some(
             (args) =>

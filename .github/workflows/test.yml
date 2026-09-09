@@ -44,7 +44,8 @@ jobs:
           cache: 'npm'
       - run: npm ci --no-audit
       - run: docker pull node:22-alpine
-      - run: node_modules/.bin/sounding test --file tests/contracts/custom-services.test.js
+      - run: docker pull lucaslorentz/caddy-docker-proxy@sha256:f3ebe7e762bccf17ce38b88420f80ce63f69dc548eea0cd6e5f29db2ae2ea062
+      - run: node_modules/.bin/sounding test --file tests/contracts/custom-services.test.js --file tests/contracts/custom-service-routes.test.js --test-concurrency=1
 
   external-postgresql-contract:
     name: External PostgreSQL contract

@@ -29,6 +29,7 @@ module.exports = {
       protect: true,
       columnName: 'custom_definition'
     },
+    publicRoute: { type: 'json', defaultsTo: {}, columnName: 'public_route' },
     customState: { type: 'json', defaultsTo: {}, columnName: 'custom_state' },
     managementMode: {
       type: 'string',
