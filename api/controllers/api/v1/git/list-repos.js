@@ -9,7 +9,9 @@ module.exports = {
   inputs: {
     page: {
       type: 'number',
-      defaultsTo: 1
+      defaultsTo: 1,
+      min: 1,
+      custom: Number.isSafeInteger
     }
   },
 
@@ -37,7 +39,7 @@ module.exports = {
     }
 
     // Get repos from GitHub
-    const repos = await sails.helpers.git.listGithubRepos(
+    const { repos, hasMore } = await sails.helpers.git.listGithubRepos(
       provider.clientSecret,
       page
     )
@@ -55,7 +57,7 @@ module.exports = {
         isConnected: connectedIds.has(repo.id)
       })),
       page,
-      hasMore: repos.length === 30
+      hasMore
     }
   }
 }

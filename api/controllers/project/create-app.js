@@ -129,12 +129,10 @@ module.exports = {
         }).decrypt()
 
         if (provider) {
-          const repos = await sails.helpers.git.listGithubRepos(
+          const repoInfo = await sails.helpers.git.getGithubRepo(
             provider.clientSecret,
-            1,
-            100
+            repoId
           )
-          const repoInfo = repos.find((r) => r.id === repoId)
 
           if (repoInfo) {
             // Generate deploy key
@@ -222,6 +220,11 @@ module.exports = {
         )
         // App was still created, just no repo link
       }
+      sails.inertia.flash(
+        'error',
+        'App created, but the repository could not be connected. Retry in app settings.'
+      )
+      return `/projects/${slug}/environments/${envSlug}`
     }
 
     sails.inertia.flash('success', 'App created')
