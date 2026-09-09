@@ -11,6 +11,8 @@
 module.exports.routes = {
   'POST /api/v1/projects/:projectSlug/environments/:environmentSlug/services/custom/review':
     'api/v1/service/review-custom',
+  'POST /api/v1/services/:serviceId/custom-update':
+    'api/v1/service/update-custom',
   'POST /api/v1/services/:serviceId/public-route':
     'api/v1/service/public-route',
   'POST /api/v1/services/custom': 'api/v1/service/create-custom',

@@ -56,6 +56,8 @@ module.exports = {
       }
     if (!service.containerName) throw 'notFound'
     if (
+      service.customState?.update ||
+      service.publicRoute?.operation ||
       ['upgrading', 'restoring', 'changing', 'creating'].includes(
         service.status
       )

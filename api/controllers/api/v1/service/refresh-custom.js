@@ -17,7 +17,11 @@ module.exports = {
       throw 'forbidden'
     }
     try {
-      if (['creating', 'changing'].includes(service.status))
+      if (
+        service.customState?.update ||
+        service.publicRoute?.operation ||
+        ['creating', 'changing'].includes(service.status)
+      )
         return { status: service.status, customState: service.customState }
       const claimed = await Service.updateOne({
         id: service.id,

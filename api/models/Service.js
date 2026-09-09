@@ -29,6 +29,12 @@ module.exports = {
       protect: true,
       columnName: 'custom_definition'
     },
+    customRecovery: {
+      type: 'json',
+      encrypt: true,
+      protect: true,
+      columnName: 'custom_recovery'
+    },
     publicRoute: { type: 'json', defaultsTo: {}, columnName: 'public_route' },
     customState: { type: 'json', defaultsTo: {}, columnName: 'custom_state' },
     managementMode: {
@@ -172,8 +178,13 @@ module.exports = {
   },
 
   toPublic: function (service) {
-    const { password, externalConnection, customDefinition, ...publicService } =
-      service
+    const {
+      password,
+      externalConnection,
+      customDefinition,
+      customRecovery,
+      ...publicService
+    } = service
     return publicService
   },
 
