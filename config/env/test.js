@@ -31,6 +31,7 @@ module.exports = {
       adapter: 'sails-sqlite',
       url: ':memory:'
     },
+    analytics: { adapter: 'sails-sqlite', url: ':memory:' },
     cache: {
       adapter: 'sails-sqlite',
       url: ':memory:'

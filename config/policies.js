@@ -90,6 +90,8 @@ module.exports.policies = {
 
   // Telemetry ingest is public (token-verified in controller)
   'api/v1/telemetry/ingest': true,
+  'api/v1/wake/ingest': true,
+  'api/v1/wake/register': true,
 
   // Deployed apps fetch release flags with their environment telemetry token.
   'api/v1/flag/get-config': true,

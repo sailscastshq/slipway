@@ -40,6 +40,8 @@ module.exports.datastores = {
     url: './db/observability.db'
   },
 
+  analytics: { adapter: 'sails-sqlite', url: './db/analytics.db' },
+
   cache: {
     adapter: 'sails-sqlite',
     url: './db/stash.db'
