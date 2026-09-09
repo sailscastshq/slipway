@@ -1,4 +1,5 @@
 <script setup>
+import { apiErrorMessage } from '@/lib/api-error'
 import Alert from '@/components/ui/alert/Alert.vue'
 import TableCells from '@/components/ui/icons/TableCells.vue'
 import Stop from '@/components/ui/icons/Stop.vue'
@@ -448,8 +449,7 @@ async function fetchDiff() {
     if (!response.ok) {
       diff.value = null
       selectedModels.value = new Set()
-      diffError.value =
-        data.error || data.message || 'Failed to load schema diff'
+      diffError.value = apiErrorMessage(data, 'Failed to load schema diff')
       return
     }
 
