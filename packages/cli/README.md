@@ -76,3 +76,7 @@ npx slipway-cli
 ---
 
 _Where your apps slide into production._
+
+### Deployment readiness
+
+Run `slipway readiness --env production` after pushing source. Add `--app web` to select an app, or `--json` to return the same structured report used by the dashboard. Required checks block deployment; recommendations and optional capabilities do not. See the [readiness contract](../../docs/deployment-readiness.md) for source fingerprints, external connections, and explicitly required variables.

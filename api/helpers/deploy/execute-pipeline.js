@@ -178,6 +178,28 @@ module.exports = {
           signal
         })
       deployBuildContextPath = contextPath
+      let readiness = await sails.helpers.environment.getReadiness.with({
+        environmentId: environment.id,
+        ...(targetApp ? { appId: targetApp.id } : {}),
+        contextPath,
+        appConfiguration: targetApp
+      })
+      await Deployment.appendBuildLog(
+        deploymentId,
+        `Readiness source ${readiness.sourceRevision || 'unverified'}: ${
+          readiness.summary.blocker
+        } blockers, ${readiness.summary.warning} recommendations.\n`
+      )
+      if (!readiness.canDeploy) {
+        const failure = new Error(
+          readiness.items
+            .filter((item) => item.status === 'blocker')
+            .map((item) => `${item.title}: ${item.fix}`)
+            .join(' ')
+        )
+        failure.code = 'DEPLOYMENT_NOT_READY'
+        throw failure
+      }
 
       // 4. Build the Docker image (use app's dockerfilePath, fall back to project's)
       const dockerfilePath =
@@ -229,6 +251,17 @@ module.exports = {
           environmentId: String(environment.id),
           ...(targetApp?.id ? { appId: String(targetApp.id) } : {})
         })
+      readiness = await sails.helpers.environment.getReadiness.with({
+        environmentId: environment.id,
+        ...(targetApp ? { appId: targetApp.id } : {}),
+        contextPath,
+        appConfiguration: targetApp,
+        runtimeValues: runtimeConfig.values
+      })
+      if (!readiness.canDeploy)
+        throw new Error(
+          'Deployment configuration changed and now has readiness blockers. Refresh the report.'
+        )
       const envVars = { ...runtimeConfig.values }
 
       // 7b. Auto-inject Slipway telemetry env vars for sails-hook-slipway
@@ -329,14 +362,39 @@ module.exports = {
 
       // 10. HTTP health check on the new container (Docker DNS, with localhost fallback for local dev)
       await recordStage('health_check')
-      await sails.helpers.docker.healthCheck.with({
-        containerName: deployContainerName,
-        port: 1337,
-        hostPort: deployHostPort,
-        path: healthPath,
-        deploymentId,
-        signal
-      })
+      const probeKey = `readiness-health-${targetApp?.id || environment.id}`
+      try {
+        await sails.helpers.docker.healthCheck.with({
+          containerName: deployContainerName,
+          port: 1337,
+          hostPort: deployHostPort,
+          path: healthPath,
+          deploymentId,
+          signal
+        })
+        await sails.helpers.setting
+          .set(
+            probeKey,
+            JSON.stringify({
+              version: readiness.version,
+              success: true,
+              checkedAt: Date.now()
+            })
+          )
+          .catch(() => {})
+      } catch (error) {
+        await sails.helpers.setting
+          .set(
+            probeKey,
+            JSON.stringify({
+              version: readiness.version,
+              success: false,
+              checkedAt: Date.now()
+            })
+          )
+          .catch(() => {})
+        throw error
+      }
 
       // === Health check passed — switch traffic ===
 

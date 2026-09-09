@@ -188,9 +188,10 @@ module.exports = {
     const inheritedVars = { ...globalEnvVars, ...(environment.envVars || {}) }
 
     // Generate deployment checklist
-    const checklist = await sails.helpers.environment.generateChecklist(
-      environment.id
-    )
+    const readiness = await sails.helpers.environment.getReadiness.with({
+      environmentId: environment.id,
+      appId: app.id
+    })
     const sourceReadiness = await sails.helpers.deploy.getSourceReadiness.with({
       project,
       environment,
@@ -248,7 +249,7 @@ module.exports = {
         deploymentHistory,
         services,
         backupConfigured,
-        checklist,
+        readiness,
         sourceReadiness,
         releaseFlags,
         canManageBridge: ['owner', 'admin'].includes(user.teamRole),

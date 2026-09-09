@@ -159,6 +159,14 @@ api.projects = {
 
 // Environment endpoints
 api.environments = {
+  readiness: (project, env = 'production', app) =>
+    api.get(
+      `/projects/${encodeURIComponent(
+        project
+      )}/environments/${encodeURIComponent(env)}/readiness${
+        app ? `?app=${encodeURIComponent(app)}` : ''
+      }`
+    ),
   list: (projectId) => api.get(`/projects/${projectId}/environments`),
   create: (projectId, data) =>
     api.post(`/projects/${projectId}/environments`, data),

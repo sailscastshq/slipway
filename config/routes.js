@@ -172,6 +172,8 @@ module.exports.routes = {
   // Deploy
   'POST /api/v1/projects/:projectSlug/deploy':
     'api/v1/deploy/trigger-deployment',
+  'GET /api/v1/projects/:projectSlug/environments/:environmentSlug/readiness':
+    'api/v1/environment/get-readiness',
   'POST /api/v1/projects/:projectSlug/environments/:environmentSlug/deploy':
     'api/v1/deploy/trigger-deployment',
   'POST /api/v1/projects/:projectSlug/rollback':

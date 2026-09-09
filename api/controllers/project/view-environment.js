@@ -158,9 +158,9 @@ module.exports = {
     })
 
     // Generate deployment checklist
-    const checklist = await sails.helpers.environment.generateChecklist(
-      environment.id
-    )
+    const readiness = await sails.helpers.environment.getReadiness.with({
+      environmentId: environment.id
+    })
     const managedEnvVarKeys = (environment.services || [])
       .map((service) => service.envVarKey)
       .filter(Boolean)
@@ -209,7 +209,7 @@ module.exports = {
         envVars: environment.envVars || {},
         envVarMetadata,
         deploymentHistory,
-        checklist,
+        readiness,
         serviceVersions: getPublicMatrix(),
         backupConfigured,
         githubConnected,

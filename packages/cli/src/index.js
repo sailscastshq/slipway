@@ -27,7 +27,7 @@ function showHelp() {
     Authentication: ['login', 'logout', 'whoami'],
     Project: ['projects', 'project:update', 'init', 'link'],
     Environments: ['environments', 'environment:create', 'environment:update'],
-    Deployment: ['push', 'slide', 'deployments', 'logs'],
+    Deployment: ['push', 'slide', 'readiness', 'deployments', 'logs'],
     Database: ['db:create', 'db:url'],
     Services: ['services'],
     Backups: ['backup:create', 'backup:list', 'backup:restore'],

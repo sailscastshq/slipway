@@ -65,9 +65,10 @@ test(
 
     const checklist = page.raw.locator('[data-test="deployment-checklist"]')
     await expect(checklist).toBeVisible()
-    await expect(checklist).toContainText('Deployment checklist')
+    await expect(checklist).toContainText('Deployment readiness')
+    await checklist.locator('summary').click()
     await expect(checklist).toContainText('Generate')
-    expect(await checklist.locator('ul > li').count()).toBe(2)
+    expect((await checklist.locator('ul > li').count()) > 2).toBe(true)
     await checklist.screenshot({
       path: path.join(screenshotRoot, 'checklist-desktop-light.png')
     })
