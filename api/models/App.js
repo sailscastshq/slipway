@@ -186,6 +186,7 @@ module.exports = {
       defaultsTo: false,
       columnName: 'wake_enabled'
     },
+    wakeSettings: { type: 'json', defaultsTo: {}, columnName: 'wake_settings' },
     wakeSecret: {
       type: 'string',
       allowNull: true,

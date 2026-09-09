@@ -36,9 +36,29 @@ module.exports = {
       )
         throw new Error('payload')
       normalized = normalize(events)
+      const app = await App.findOne({ id: appId })
+      const contract = require('../../../../../packages/hook/lib/wake-contract')
+      const settings = contract.settings(app.wakeSettings)
+      normalized = normalized.filter(
+        (event) =>
+          !contract.excluded(
+            event.path,
+            settings,
+            app.routePath === '/' ? '' : app.routePath || ''
+          )
+      )
+      if (app.wakeSettings?.mode === 'cookieless') {
+        normalized = normalized.map((event) => ({
+          ...event,
+          visitorId: null,
+          sessionId: null,
+          hostUserId: null
+        }))
+      }
     } catch {
       throw 'badRequest'
     }
+    if (!normalized.length) return { accepted: 0, duplicates: 0 }
     try {
       const db = sails.getDatastore('analytics')
       if (!(await budget(db, scope.app, normalized.length, bytes)))
@@ -55,12 +75,17 @@ module.exports = {
         now,
         event.path,
         event.visitorId,
-        event.sessionId
+        event.sessionId,
+        event.hostUserId,
+        JSON.stringify(event.dimensions),
+        event.provenance
       ])
       const result = await db.sendNativeQuery(
         `INSERT INTO wake_events
-        (app, environment, deployment, event_id, kind, name, occurred_at, received_at, path, visitor_id, session_id)
-        VALUES ${normalized.map(() => '(?,?,?,?,?,?,?,?,?,?,?)').join(',')}
+        (app, environment, deployment, event_id, kind, name, occurred_at, received_at, path, visitor_id, session_id, host_user_id, dimensions, provenance)
+        VALUES ${normalized
+          .map(() => '(?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
+          .join(',')}
         ON CONFLICT(app, event_id) DO NOTHING`,
         values
       )

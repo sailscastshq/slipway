@@ -1,6 +1,6 @@
 # Wake foundation (issue #499)
 
-This is the first implementation phase of Wake. It is not a released analytics feature. There is no user-facing enablement switch, collector, payment helper, or dashboard yet. The parent issue stays open.
+This document records the first implementation phase of Wake. See [Wake collection](wake-collection.md) for the subsequent protocol 2 collector and current privacy behavior. It is not a released analytics feature. There is no user-facing enablement switch, collector, payment helper, or dashboard yet. The parent issue stays open.
 
 ## Implemented boundary
 

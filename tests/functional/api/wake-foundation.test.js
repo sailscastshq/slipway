@@ -98,7 +98,7 @@ test(
     )
     for (const extra of [
       { kind: 'revenue', amount: 100 },
-      { hostUserId: 'forged' },
+      { provenance: 'forged' },
       { properties: { password: 'secret' } },
       { occurredAt: Date.now() + 900000 }
     ]) {
@@ -228,8 +228,17 @@ test(
       session: { userId: current.users.genesisUser.id },
       ip: '127.0.0.1'
     }
+    await api.post('/api/v1/wake/register', {
+      ...scope,
+      hookVersion: '0.0.9',
+      protocol: 1
+    })
     const result = await sails.helpers.wake.setEnabled.with({ ...input, req })
     assert.deepEqual(result, { enabled: true, requiresRedeploy: true })
+    assert.equal(
+      (await sails.helpers.wake.resolveState(String(app.id))).state,
+      'waiting_for_runtime'
+    )
     assert.equal(
       (await api.post('/api/v1/wake/ingest', { ...scope, events: [event()] }))
         .status,
@@ -251,7 +260,7 @@ test(
 )
 
 test(
-  'Wake runtime registers with real Sails HTTP independently of Lookout and stays foundation-only',
+  'Wake runtime registers with real Sails HTTP independently of Lookout and receives a collection lease',
   options(),
   async ({ sails, world, request }) => {
     const { app, scope, token } = await fixture(sails, world, request)
@@ -272,10 +281,10 @@ test(
       const deadline = Date.now() + 5000
       while (runtime.getStatus() === 'connecting' && Date.now() < deadline)
         await new Promise((resolve) => setTimeout(resolve, 20))
-      assert.equal(runtime.getStatus(), 'foundation_only')
+      assert.equal(runtime.getStatus(), 'collecting')
       assert.equal(
         (await sails.helpers.wake.resolveState(String(app.id))).state,
-        'foundation_only'
+        'collecting'
       )
     } finally {
       runtime.stop()
@@ -301,5 +310,41 @@ test(
       [String(app.id)]
     )
     assert.equal(rows.rows.length, 1)
+  }
+)
+
+test(
+  'Wake current privacy settings strip in-flight identities and exclude newly blocked paths',
+  options(),
+  async ({ sails, world, request }) => {
+    const { api, scope, db, app } = await fixture(sails, world, request)
+    await sails.models.app.updateOne({ id: app.id }).set({
+      wakeSettings: { mode: 'cookieless', excludedPaths: ['/private*'] }
+    })
+    const response = await api.post('/api/v1/wake/ingest', {
+      ...scope,
+      events: [
+        {
+          ...event('event_privacy_1'),
+          sessionId: 'session_12345678',
+          hostUserId: 'creator-id',
+          provenance: 'browser'
+        }
+      ]
+    })
+    assert.equal(response.status, 200)
+    const rows = await db.sendNativeQuery(
+      'SELECT * FROM wake_events WHERE app=?',
+      [String(app.id)]
+    )
+    assert.equal(rows.rows[0].visitor_id, null)
+    assert.equal(rows.rows[0].session_id, null)
+    assert.equal(rows.rows[0].host_user_id, null)
+    const excluded = await api.post('/api/v1/wake/ingest', {
+      ...scope,
+      events: [{ ...event('event_privacy_2'), path: '/private/account' }]
+    })
+    assert.equal(excluded.status, 200)
+    assert.equal(excluded.data.accepted, 0)
   }
 )

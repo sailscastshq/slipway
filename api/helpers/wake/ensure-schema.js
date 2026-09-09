@@ -26,6 +26,18 @@ module.exports = {
       requests INTEGER NOT NULL DEFAULT 0, events INTEGER NOT NULL DEFAULT 0,
       bytes INTEGER NOT NULL DEFAULT 0, rejected INTEGER NOT NULL DEFAULT 0
     )`)
+    const columns = await db.sendNativeQuery('PRAGMA table_info(wake_events)')
+    const names = new Set(columns.rows.map((row) => row.name))
+    for (const [name, definition] of [
+      ['host_user_id', 'TEXT'],
+      ['dimensions', "TEXT NOT NULL DEFAULT '{}'"],
+      ['provenance', "TEXT NOT NULL DEFAULT 'runtime'"]
+    ]) {
+      if (!names.has(name))
+        await db.sendNativeQuery(
+          `ALTER TABLE wake_events ADD COLUMN ${name} ${definition}`
+        )
+    }
     sails.wakeStorageReady = true
   }
 }

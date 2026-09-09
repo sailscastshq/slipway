@@ -20,7 +20,10 @@ function normalize(events, now = Date.now()) {
       'occurredAt',
       'path',
       'visitorId',
-      'sessionId'
+      'sessionId',
+      'hostUserId',
+      'dimensions',
+      'provenance'
     ]
     if (
       !event ||
@@ -54,7 +57,24 @@ function normalize(events, now = Date.now()) {
     for (const key of ['visitorId', 'sessionId'])
       if (event[key] != null && !identifier(event[key]))
         throw new Error('invalid identifier')
+    if (
+      event.hostUserId != null &&
+      (typeof event.hostUserId !== 'string' ||
+        event.hostUserId.length > 256 ||
+        /[\x00-\x1f\x7f]/.test(event.hostUserId))
+    )
+      throw new Error('invalid user')
+    if (
+      event.provenance != null &&
+      !['browser', 'server'].includes(event.provenance)
+    )
+      throw new Error('invalid provenance')
     return {
+      hostUserId: event.hostUserId || null,
+      dimensions: require('../../packages/hook/lib/wake-contract').dimensions(
+        event.dimensions
+      ),
+      provenance: event.provenance || 'runtime',
       id: event.id,
       kind: event.kind,
       name,

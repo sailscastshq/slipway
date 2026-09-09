@@ -7,7 +7,8 @@ module.exports = {
     const names = new Set((result.rows || result).map((column) => column.name))
     for (const [name, definition] of [
       ['wake_enabled', 'BOOLEAN NOT NULL DEFAULT 0'],
-      ['wake_secret', 'TEXT']
+      ['wake_secret', 'TEXT'],
+      ['wake_settings', "TEXT NOT NULL DEFAULT '{}'"]
     ]) {
       if (!names.has(name)) {
         await db.sendNativeQuery(
