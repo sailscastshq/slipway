@@ -67,6 +67,25 @@ module.exports = {
     }
 
     for (const volumeName of artifacts.volumeNames || []) {
+      const service = snapshot.services?.find(
+        (s) =>
+          s.type === 'custom' &&
+          s.customState?.volumes?.some((v) => v.name === volumeName)
+      )
+      if (service) {
+        const custom = require('../../lib/custom-service')
+        try {
+          const volume = JSON.parse(
+            (await custom.command(['volume', 'inspect', volumeName])).stdout
+          )[0]
+          if (volume.Labels?.['slipway.custom-service'] !== String(service.id))
+            custom.fail(
+              'The data volume belongs to another resource. It was left unchanged.'
+            )
+        } catch (error) {
+          if (!/No such volume/i.test(error.stderr || '')) throw error
+        }
+      }
       const removed = await sails.helpers.docker.removeVolume.with({
         volumeName
       })

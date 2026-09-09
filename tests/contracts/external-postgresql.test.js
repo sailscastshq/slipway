@@ -52,10 +52,16 @@ test(
       let ready = false
       for (let attempt = 0; attempt < 60; attempt++) {
         try {
+          // The initialization server accepts Unix sockets but not TCP.
+          // Wait for the final server rather than racing its bootstrap shutdown.
           await command([
             'exec',
+            '-e',
+            'PGPASSWORD=fixture-password',
             name,
             'psql',
+            '-h',
+            '127.0.0.1',
             '-U',
             'postgres',
             '-d',

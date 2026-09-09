@@ -29,7 +29,7 @@ function showHelp() {
     Environments: ['environments', 'environment:create', 'environment:update'],
     Deployment: ['push', 'slide', 'readiness', 'deployments', 'logs'],
     Database: ['db:create', 'db:url'],
-    Services: ['services'],
+    Services: ['services', 'service:review', 'service:create'],
     Backups: ['backup:create', 'backup:list', 'backup:restore'],
     'Env Variables': ['env', 'env:set', 'env:unset'],
     Container: ['terminal', 'run'],

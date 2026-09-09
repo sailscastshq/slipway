@@ -1,4 +1,5 @@
 <script setup>
+import CustomServiceStatus from '@/components/CustomServiceStatus.vue'
 import ExternalDatabaseStatus from '@/components/ExternalDatabaseStatus.vue'
 import Alert from '@/components/ui/alert/Alert.vue'
 import StopCircle from '@/components/ui/icons/StopCircle.vue'
@@ -37,6 +38,8 @@ defineOptions({
 })
 
 const props = defineProps({
+  canManageCustomServices: Boolean,
+  availableApps: { type: Array, default: () => [] },
   project: Object,
   environment: Object,
   restoreOperation: Object,
@@ -131,7 +134,8 @@ const serviceTypeLabel = computed(() => {
     postgresql: 'PostgreSQL',
     mysql: 'MySQL',
     redis: 'Redis',
-    mongodb: 'MongoDB'
+    mongodb: 'MongoDB',
+    custom: 'Custom image'
   }
   return labels[props.service.type] || props.service.type
 })
@@ -160,7 +164,7 @@ const serviceTypeBadge = computed(() => {
   }
   return (
     badges[props.service.type] || {
-      label: props.service.type,
+      label: serviceTypeLabel.value,
       classes: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400'
     }
   )
@@ -699,6 +703,12 @@ onUnmounted(() => {
         <div
           class="rounded-xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900"
         >
+          <CustomServiceStatus
+            v-if="service.type === 'custom'"
+            :service="service"
+            :apps="availableApps"
+            :can-manage="canManageCustomServices"
+          />
           <ExternalDatabaseStatus
             v-if="service.managementMode === 'external'"
             :service="service"

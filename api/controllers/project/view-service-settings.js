@@ -54,7 +54,7 @@ module.exports = {
     if (!service)
       throw { notFound: `/projects/${slug}/environments/${envSlug}` }
 
-    if (service.managementMode === 'external')
+    if (service.managementMode === 'external' || service.type === 'custom')
       throw {
         notFound: `/projects/${slug}/environments/${envSlug}/services/${service.id}`
       }

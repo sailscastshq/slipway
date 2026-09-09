@@ -56,7 +56,12 @@ module.exports = {
       throw 'forbidden'
     }
 
-    if (service && ['upgrading', 'restoring'].includes(service.status))
+    if (
+      service &&
+      ['upgrading', 'restoring', 'creating', 'changing'].includes(
+        service.status
+      )
+    )
       throw {
         cleanupFailed: {
           message: 'Wait for the active service operation before deleting it.'

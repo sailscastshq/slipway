@@ -105,6 +105,18 @@ module.exports = {
           break
         }
       }
+      for (const [key, metadata] of Object.entries(app.envVarMetadata || {})) {
+        if (
+          metadata.managed &&
+          metadata.description?.startsWith('custom-service:') &&
+          (nextEnvVars[key] !== currentEnvVars[key] ||
+            (envVarMetadata &&
+              JSON.stringify(envVarMetadata[key]) !== JSON.stringify(metadata)))
+        )
+          problems.push({
+            envVars: `${key} is managed by a custom service. Change its app connections instead.`
+          })
+      }
       problems.push(
         ...sails.helpers.configuration.validateEnvVarMetadata(
           nextEnvVars,

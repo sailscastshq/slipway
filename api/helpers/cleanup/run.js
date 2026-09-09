@@ -97,6 +97,16 @@ module.exports = {
         throw 'notFound'
       }
 
+      if (
+        await Service.count({
+          id: { in: snapshot.records.serviceIds },
+          type: 'custom',
+          status: { in: ['creating', 'changing'] }
+        })
+      )
+        throw new Error(
+          'Wait for the active custom service operation before cleanup.'
+        )
       try {
         operation = await CleanupOperation.create({
           targetKey,
@@ -197,6 +207,17 @@ module.exports = {
             'A database restore is active. Wait for its result before resuming cleanup.'
           )
         }
+        if (
+          serviceIds.length &&
+          (await Service.count({
+            id: { in: serviceIds },
+            type: 'custom',
+            status: { in: ['creating', 'changing'] }
+          }))
+        )
+          throw new Error(
+            'A custom service operation is active. Wait before resuming cleanup.'
+          )
         const outcome = await handler(operation)
         const stages = {
           ...(operation.stages || {}),
@@ -342,6 +363,13 @@ async function removeContainers(operation) {
 
   for (const containerName of containerNames) {
     try {
+      const customService = operation.snapshot.services?.find(
+        (s) => s.type === 'custom' && s.containerName === containerName
+      )
+      if (customService)
+        await require('../../lib/custom-service').inspectContainer(
+          customService
+        )
       await sails.helpers.docker.stopContainer.with({ containerName })
       removed += 1
     } catch (error) {

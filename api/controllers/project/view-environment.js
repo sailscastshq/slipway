@@ -221,6 +221,7 @@ module.exports = {
     }
 
     function getVersionSupport(service) {
+      if (service.type === 'custom') return 'custom-image'
       if (service.managementMode === 'external') return 'external'
       try {
         return inspectVersion(service.type, service.version, {
