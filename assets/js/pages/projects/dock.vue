@@ -2286,7 +2286,7 @@ onUnmounted(() => {
                   >(from source files)</span
                 >
                 <span v-else class="text-gray-400 dark:text-gray-500"
-                  >(from running app)</span
+                  >(from deployed app)</span
                 >
               </p>
             </div>

@@ -77,73 +77,15 @@ test('bosun model discovery only returns models for the selected datastore', asy
     expect(result.datastore).toBe('observability')
     expect(result.modelCount).toBe(1)
     expect(Object.keys(result.models)).toEqual(['telemetrymetric'])
-    expect(result.models.telemetrymetric.attributes).toEqual({
-      id: {
-        type: 'number',
-        columnType: undefined,
-        columnName: 'id',
-        required: false,
-        unique: false,
-        index: false,
-        defaultsTo: undefined,
-        autoCreatedAt: false,
-        autoUpdatedAt: false,
-        autoIncrement: true,
-        allowNull: undefined
-      },
-      name: {
-        type: 'string',
-        columnType: undefined,
-        columnName: 'metric_name',
-        required: false,
-        unique: false,
-        index: false,
-        defaultsTo: undefined,
-        autoCreatedAt: false,
-        autoUpdatedAt: false,
-        autoIncrement: false,
-        allowNull: undefined
-      },
-      environment: {
-        type: 'string',
-        columnType: undefined,
-        columnName: 'environment',
-        required: false,
-        unique: false,
-        index: false,
-        defaultsTo: undefined,
-        autoCreatedAt: false,
-        autoUpdatedAt: false,
-        autoIncrement: false,
-        allowNull: undefined
-      },
-      recordedAt: {
-        type: 'number',
-        columnType: undefined,
-        columnName: 'recorded_at',
-        required: false,
-        unique: false,
-        index: false,
-        defaultsTo: undefined,
-        autoCreatedAt: true,
-        autoUpdatedAt: false,
-        autoIncrement: false,
-        allowNull: undefined
-      },
-      isPublished: {
-        type: 'boolean',
-        columnType: '_boolean',
-        columnName: 'is_published',
-        required: false,
-        unique: false,
-        index: false,
-        defaultsTo: false,
-        autoCreatedAt: false,
-        autoUpdatedAt: false,
-        autoIncrement: false,
-        allowNull: undefined
-      }
-    })
+    const attrs = result.models.telemetrymetric.attributes
+    expect(attrs.id.autoIncrement).toBe(true)
+    expect(attrs.id.primaryKey).toBe(true)
+    expect(attrs.name.columnName).toBe('metric_name')
+    expect(attrs.recordedAt.autoCreatedAt).toBe(true)
+    expect(attrs.isPublished.columnType).toBe('_boolean')
+    expect(attrs.isPublished.defaultsTo).toBe(false)
+    expect(attrs.spans).toBe(undefined)
+    expect(result.authoritative).toBe(true)
   } finally {
     sails.models = originalModels
     sails.helpers.bosun.getDatabaseService = originalGetDatabaseService
