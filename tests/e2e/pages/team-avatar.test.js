@@ -30,6 +30,7 @@ test(
     await login.withPassword('genesisUser', page, {
       password: current.auth.genesisUserPassword
     })
+    await page.raw.waitForURL('**/')
     await page.resize(1440, 900)
     await page.inLightMode()
     await page.goto('/')
@@ -93,6 +94,7 @@ test(
     await login.withPassword('genesisUser', page, {
       password: current.auth.genesisUserPassword
     })
+    await page.raw.waitForURL('**/')
     await page.resize(390, 844)
     await page.inLightMode()
     await page.goto('/')

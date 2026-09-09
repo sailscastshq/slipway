@@ -1,6 +1,16 @@
 name: Release
 
 on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing release tag to publish'
+        required: true
+        type: string
+      skip_verification:
+        description: 'Publish after local verification (maintainer hotfix only)'
+        type: boolean
+        default: false
   release:
     types: [published]
 
@@ -10,12 +20,14 @@ env:
 
 jobs:
   verify:
+    if: ${{ !inputs.skip_verification }}
     uses: ./.github/workflows/test.yml
     permissions:
       contents: read
 
   build-and-push:
     needs: verify
+    if: ${{ !cancelled() && (needs.verify.result == 'success' || (github.event_name == 'workflow_dispatch' && inputs.skip_verification)) }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -24,7 +36,14 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
-          ref: ${{ github.sha }}
+          ref: ${{ inputs.tag || github.event.release.tag_name }}
+
+      - name: Validate release tag
+        env:
+          RELEASE_TAG: ${{ inputs.tag || github.event.release.tag_name }}
+        run: |
+          [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || exit 1
+          test "$(node -p "require('./package.json').version")" = "${RELEASE_TAG#v}"
 
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v4
@@ -39,8 +58,8 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{version}},value=${{ inputs.tag || github.event.release.tag_name }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ inputs.tag || github.event.release.tag_name }}
             type=raw,value=latest
 
       - name: Build and push Docker image
