@@ -183,6 +183,14 @@ test(
         resourceId: String(app.id)
       })
       assert.ok(!JSON.stringify(events).includes(token))
+      // Anchor the budget independently of the time spent taking screenshots.
+      const windowStart = Date.now() - 10000
+      await sails
+        .getDatastore()
+        .sendNativeQuery(
+          'UPDATE bridge_support_budgets SET window_start=?, requests=3 WHERE actor=?',
+          [windowStart, world.current.users.genesisUser.id]
+        )
       const burst = await Promise.all(
         Array.from({ length: 4 }, () => attempt('incorrect'))
       )
@@ -191,6 +199,25 @@ test(
           result.data?.message?.startsWith('Too many support-view attempts')
         ).length,
         2
+      )
+      const budget = await sails
+        .getDatastore()
+        .sendNativeQuery(
+          'SELECT window_start, requests FROM bridge_support_budgets WHERE actor=?',
+          [world.current.users.genesisUser.id]
+        )
+      assert.equal(budget.rows[0].window_start, windowStart)
+      assert.equal(budget.rows[0].requests, 5)
+      await sails
+        .getDatastore()
+        .sendNativeQuery(
+          'UPDATE bridge_support_budgets SET window_start=? WHERE actor=?',
+          [Date.now() - 61000, world.current.users.genesisUser.id]
+        )
+      const retry = await attempt('incorrect')
+      assert.equal(retry.status, 400)
+      assert.ok(
+        !retry.data?.message?.startsWith('Too many support-view attempts')
       )
       const owner = await world
         .create('user')

@@ -54,10 +54,11 @@ module.exports = {
     if (!app.bridgeEnabled || !app.bridgeSecret) throw 'forbidden'
     const attempt = await sails.getDatastore().sendNativeQuery(
       `INSERT INTO bridge_support_budgets(actor,window_start,requests) VALUES(?,?,1)
-       ON CONFLICT(actor) DO UPDATE SET window_start=excluded.window_start,
-       requests=CASE WHEN window_start<>excluded.window_start THEN 1 ELSE requests+1 END
-       WHERE window_start<>excluded.window_start OR requests<5`,
-      [user.id, Math.floor(Date.now() / 60000) * 60000]
+       ON CONFLICT(actor) DO UPDATE SET
+       requests=CASE WHEN window_start<=excluded.window_start-60000 THEN 1 ELSE requests+1 END,
+       window_start=CASE WHEN window_start<=excluded.window_start-60000 THEN excluded.window_start ELSE window_start END
+       WHERE window_start<=excluded.window_start-60000 OR requests<5`,
+      [user.id, Date.now()]
     )
     if (attempt.changes !== 1)
       throw {
