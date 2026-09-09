@@ -4,6 +4,7 @@ import Alert from '@/components/ui/alert/Alert.vue'
 import Button from '@/components/ui/button/Button.vue'
 const props = defineProps({ report: Object, allowActions: Boolean })
 defineEmits(['refresh', 'action'])
+const blocked = computed(() => props.report?.canDeploy === false)
 const groups = computed(() => [
   {
     title: 'Required before deployment',
@@ -28,50 +29,65 @@ const groups = computed(() => [
 <template>
   <Alert
     v-if="report"
+    :key="blocked ? 'blocked' : 'advisory'"
+    :as="blocked ? 'section' : 'details'"
     data-test="deployment-checklist"
-    role="note"
-    class="mb-8 rounded-lg border border-gray-200 bg-white p-4 text-gray-900 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-100"
+    :role="blocked ? 'alert' : undefined"
+    :class="
+      blocked
+        ? 'mb-8 rounded-lg border border-red-200 bg-red-50 p-4 text-gray-900 dark:border-red-900 dark:bg-red-950/20 dark:text-gray-100'
+        : 'mb-6 rounded-none bg-transparent p-0 text-gray-600 dark:bg-transparent dark:text-gray-400'
+    "
   >
-    <div class="flex items-start justify-between gap-3">
-      <div class="min-w-0">
-        <h2 class="text-sm font-semibold">
-          Deployment readiness<span v-if="report.appName">
-            · {{ report.appName }}</span
-          >
-        </h2>
-        <p class="mt-1 text-sm text-gray-600 dark:text-gray-400">
-          {{ report.summary.blocker }}
-          {{ report.summary.blocker === 1 ? 'blocker' : 'blockers' }} ·
-          {{ report.summary.warning }} recommendations
-        </p>
-      </div>
-      <Button
-        class="min-h-8 min-w-0 bg-transparent px-2 py-1 text-gray-600 hover:bg-gray-100 dark:bg-transparent dark:text-gray-300 dark:hover:bg-gray-800"
-        @click="$emit('refresh')"
-        >Refresh</Button
-      >
-    </div>
-    <p class="mt-1 text-xs text-gray-500">
-      Source
-      {{
-        report.sourceRevision
-          ? report.sourceRevision.slice(0, 12)
-          : 'not yet verified'
-      }}
-      · Health path <span class="break-all">{{ report.healthPath }}</span>
-    </p>
-    <p
-      v-if="!report.canDeploy"
-      class="mt-3 text-sm font-medium text-red-700 dark:text-red-300"
+    <component
+      :is="blocked ? 'div' : 'summary'"
+      :class="blocked ? '' : 'cursor-pointer text-sm'"
     >
-      Resolve the required checks before deployment.
-    </p>
-    <p v-else class="mt-3 text-sm text-gray-600 dark:text-gray-400">
-      Recommendations do not prevent deployment. The candidate must pass its
-      HTTP health probe before traffic switches.
-    </p>
-    <details class="mt-3" :open="!report.canDeploy">
-      <summary class="cursor-pointer text-sm font-medium">View checks</summary>
+      <h2
+        :class="
+          blocked ? 'text-sm font-semibold' : 'inline text-sm font-medium'
+        "
+      >
+        Deployment readiness<span v-if="report.appName">
+          · {{ report.appName }}</span
+        >
+      </h2>
+      <span :class="blocked ? 'mt-1 block text-sm' : 'ml-2 text-xs'">
+        {{ report.summary.blocker }}
+        {{ report.summary.blocker === 1 ? 'blocker' : 'blockers' }}
+      </span>
+    </component>
+    <div class="mt-3">
+      <div class="flex items-start justify-between gap-3">
+        <p class="min-w-0 text-xs text-gray-500">
+          <template v-if="report.sourceRevision"
+            >Source {{ report.sourceRevision.slice(0, 12) }}</template
+          >
+          <template v-else>Local source inspection unavailable</template>
+          · Health path <span class="break-all">{{ report.healthPath }}</span>
+        </p>
+        <Button
+          class="min-h-8 min-w-0 shrink-0 bg-transparent px-2 py-1 text-gray-600 hover:bg-gray-100 dark:bg-transparent dark:text-gray-300 dark:hover:bg-gray-800"
+          @click="$emit('refresh')"
+          >Refresh</Button
+        >
+      </div>
+      <p v-if="!report.sourceRevision" class="mt-2 text-xs text-gray-500">
+        These checks could not fully inspect the local source. They do not
+        describe the running app's health. Deployment checks use the candidate's
+        source snapshot.
+      </p>
+      <p
+        v-if="blocked"
+        class="mt-3 text-sm font-medium text-red-700 dark:text-red-300"
+      >
+        Resolve the required checks before deployment.
+      </p>
+      <p v-else class="mt-3 text-sm">
+        No deployment blockers. {{ report.summary.warning }} advisory checks
+        remain. The candidate must pass its HTTP health probe before traffic
+        switches.
+      </p>
       <section
         v-for="group in groups.filter((group) => group.items.length)"
         :key="group.title"
@@ -122,6 +138,6 @@ const groups = computed(() => [
       <p class="mt-3 text-xs text-gray-500">
         Redeploy after changing app configuration.
       </p>
-    </details>
+    </div>
   </Alert>
 </template>

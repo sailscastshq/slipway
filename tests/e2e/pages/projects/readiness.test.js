@@ -55,6 +55,11 @@ test(
       const report = page.raw.locator('[data-test="deployment-checklist"]')
       await expect(report).toHaveAttribute('data-slot', 'alert')
       await expect(report).toContainText('0 blockers')
+      expect(await report.evaluate((el) => el.tagName)).toBe('DETAILS')
+      expect(await report.evaluate((el) => el.open)).toBe(false)
+      await expect(
+        report.getByRole('button', { name: 'Refresh', exact: true })
+      ).not.toBeVisible()
       const slide = page.raw.locator('[data-slot="slide"]')
       await expect(slide).toBeEnabled()
       await report.locator('summary').click()
@@ -63,7 +68,7 @@ test(
         'A database connection URL is configured'
       )
       expect((await report.textContent()).includes('password@')).toBe(false)
-      const output = path.resolve('output/issue-373')
+      const output = path.resolve('output/issue-542')
       await fs.mkdir(output, { recursive: true })
       for (const [width, colorScheme] of [
         [1280, 'light'],
@@ -76,19 +81,52 @@ test(
             () => document.documentElement.scrollWidth <= window.innerWidth
           )
         ).toBe(true)
+        await report.locator('summary').click()
+        await expect(
+          report.getByRole('button', { name: 'Refresh', exact: true })
+        ).not.toBeVisible()
         await report.getByRole('heading', { level: 2 }).scrollIntoViewIfNeeded()
         await page.screenshot(path.join(output, `readiness-${width}.png`), {
           animations: 'disabled'
         })
+        await report.locator('summary').click()
       }
       await fs.rm(path.join(appPath, 'Dockerfile'))
       await report.getByRole('button', { name: 'Refresh', exact: true }).click()
       await expect(report).toContainText('1 blocker')
       await expect(slide).toBeDisabled()
+      await expect(report).toHaveAttribute('role', 'alert')
+      await expect(
+        report.getByText('Resolve the required checks before deployment.')
+      ).toBeVisible()
       await report.getByRole('heading', { level: 2 }).scrollIntoViewIfNeeded()
       await page.screenshot(path.join(output, 'blocker-390.png'), {
         animations: 'disabled'
       })
+      await fs.writeFile(
+        path.join(appPath, 'Dockerfile'),
+        'FROM node:22-alpine'
+      )
+      await report.getByRole('button', { name: 'Refresh', exact: true }).click()
+      await expect(report).toContainText('0 blockers')
+      expect(await report.evaluate((el) => el.open)).toBe(false)
+      await expect(slide).toBeEnabled()
+      // Missing local source is not a claim about the running application's health.
+      await fs.rm(appPath, { recursive: true })
+      await page.goto('/projects/readiness-ui/environments/production')
+      expect(await report.evaluate((el) => el.open)).toBe(false)
+      await report.locator('summary').click()
+      await expect(
+        report.getByText('Local source inspection unavailable', {
+          exact: false
+        })
+      ).toBeVisible()
+      await expect(
+        report.getByText("the running app's health", { exact: false })
+      ).toBeVisible()
+      expect(
+        (await report.textContent()).includes('Source not yet verified')
+      ).toBe(false)
       expect(page).toHaveNoJavascriptErrors()
     } finally {
       sails.config.custom.slipwayAppsDir = old

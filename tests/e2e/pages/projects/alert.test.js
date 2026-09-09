@@ -132,7 +132,8 @@ test(
     if (capturePhase === 'after') {
       expect(await checklist.getAttribute('data-slot')).toBe('alert')
       expect(await sourceRequired.getAttribute('data-slot')).toBe('alert')
-      expect(await checklist.getAttribute('role')).toBe('note')
+      expect(await checklist.getAttribute('role')).toBe(null)
+      expect(await checklist.evaluate((el) => el.tagName)).toBe('DETAILS')
       expect(await sourceRequired.getAttribute('role')).toBe('note')
     }
 
