@@ -8,6 +8,30 @@ on:
     branches: [main]
 
 jobs:
+  shipwright-assets:
+    name: Shipwright assets
+    timeout-minutes: 10
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: 'npm'
+      - run: npm ci --no-audit
+      - run: npx playwright install --with-deps chromium
+      - name: Verify Sails dev assets and Vue HMR
+        run: node_modules/.bin/sounding test --file tests/contracts/shipwright-hmr.test.js
+      - name: Verify production manifest and browser assets
+        run: NODE_ENV=production node tests/contracts/shipwright-production.cjs
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: shipwright-assets
+          path: .tmp/sounding/artifacts/shipwright
+          if-no-files-found: ignore
+          retention-days: 7
+
   custom-services-contract:
     name: Custom services contract
     timeout-minutes: 10

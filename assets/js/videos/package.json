@@ -1,0 +1,10 @@
+{
+  "name": "@slipway/videos",
+  "private": true,
+  "version": "0.0.0",
+  "devDependencies": {
+    "pellicule": "^0.1.1",
+    "@rsbuild/core": "^1.7.6",
+    "@rsbuild/plugin-vue": "^1.2.9"
+  }
+}
