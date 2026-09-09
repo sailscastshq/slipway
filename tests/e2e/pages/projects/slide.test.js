@@ -27,7 +27,10 @@ test(
     const sourceRoot = path.join(appsRoot, project.slug)
 
     fs.mkdirSync(sourceRoot, { recursive: true })
-    fs.writeFileSync(path.join(sourceRoot, 'Dockerfile'), 'FROM node:24-alpine\n')
+    fs.writeFileSync(
+      path.join(sourceRoot, 'Dockerfile'),
+      'FROM node:24-alpine\n'
+    )
     fs.writeFileSync(
       path.join(sourceRoot, 'package.json'),
       JSON.stringify({ name: 'slide-source', private: true })
