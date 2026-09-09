@@ -19,21 +19,29 @@ module.exports = {
     version: {
       type: 'string',
       required: true
-    }
+    },
+    signal: { type: 'ref' },
+    timeoutMs: { type: 'number', min: 1, defaultsTo: 300000 }
   },
 
-  fn: async function ({ type, version }) {
+  fn: async function ({ type, version, signal, timeoutMs }) {
     const selection = inspectVersion(type, version, { useDefault: false })
     const dockerPath = sails.config.docker?.binaryPath || 'docker'
-    const localImage = await inspectImage(dockerPath, selection.imageTag)
+    signal?.throwIfAborted()
+    const localImage = await inspectImage(dockerPath, selection.imageTag, {
+      signal,
+      timeoutMs: Math.min(timeoutMs, 30000)
+    })
     let usedLocalFallback = false
 
     try {
       await execFileAsync(dockerPath, ['pull', selection.imageTag], {
-        timeout: 300000,
+        timeout: timeoutMs,
+        signal,
         maxBuffer: 1024 * 1024
       })
     } catch (error) {
+      signal?.throwIfAborted()
       if (!localImage) {
         const unavailable = new Error(
           `${
@@ -54,7 +62,10 @@ module.exports = {
 
     const image =
       (usedLocalFallback ? localImage : null) ||
-      (await inspectImage(dockerPath, selection.imageTag))
+      (await inspectImage(dockerPath, selection.imageTag, {
+        signal,
+        timeoutMs: Math.min(timeoutMs, 30000)
+      }))
 
     if (!image) {
       const unavailable = new Error(
@@ -90,13 +101,18 @@ module.exports = {
   }
 }
 
-async function inspectImage(dockerPath, reference) {
+async function inspectImage(
+  dockerPath,
+  reference,
+  { signal, timeoutMs = 30000 } = {}
+) {
   try {
     const { stdout } = await execFileAsync(
       dockerPath,
       ['image', 'inspect', reference],
       {
-        timeout: 30000,
+        timeout: timeoutMs,
+        signal,
         maxBuffer: 2 * 1024 * 1024
       }
     )

@@ -80,7 +80,10 @@ module.exports = {
     // Enrich services with connection URLs and last backup
     const services = await Promise.all(
       (environment.services || []).map(async (service) => {
-        const connectionUrl = await Service.getConnectionUrl(service.id)
+        const connectionUrl =
+          service.managementMode === 'external'
+            ? null
+            : await Service.getConnectionUrl(service.id)
         let lastBackup = null
         if (Service.isBackupSupported(service.type)) {
           const backups = await Backup.find({ service: service.id })
@@ -97,7 +100,7 @@ module.exports = {
             : null
         }
         return {
-          ...service,
+          ...Service.toPublic(service),
           connectionUrl,
           lastBackup,
           backupSupported: Service.isBackupSupported(service.type),
@@ -203,7 +206,10 @@ module.exports = {
         },
         app: app ? omitPrivateAppFields(app) : null,
         apps: appsWithHealth.map(omitPrivateAppFields),
-        envVars: environment.envVars || {},
+        envVars: require('../../lib/external-postgresql').redactEnv(
+          environment.envVars || {},
+          environment.services
+        ),
         envVarMetadata,
         deploymentHistory,
         readiness,
@@ -215,6 +221,7 @@ module.exports = {
     }
 
     function getVersionSupport(service) {
+      if (service.managementMode === 'external') return 'external'
       try {
         return inspectVersion(service.type, service.version, {
           useDefault: false

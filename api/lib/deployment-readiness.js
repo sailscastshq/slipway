@@ -266,6 +266,13 @@ function report({
     dbUrl,
     adapterProtocols[adapter] || adapterProtocols[dbPackage] || dbProtocols
   )
+  const verifiedExternalDatabase = services.some(
+    (service) =>
+      service.managementMode === 'external' &&
+      service.status === 'reachable' &&
+      service.envVarKey === 'DATABASE_URL' &&
+      service.runtimeConnectionVerified
+  )
   const managedDatabase = services.some(
     (service) =>
       ['postgresql', 'mysql', 'mongodb'].includes(service.type) &&
@@ -286,7 +293,9 @@ function report({
       ? 'pass'
       : 'warning',
     'Datastore connection',
-    externalDatabase
+    verifiedExternalDatabase
+      ? 'The registered external database passed its last connection and read-permission check. The app still verifies its own connection at startup.'
+      : externalDatabase
       ? 'A database connection URL is configured. Reachability is checked when the app starts.'
       : managedDatabase
       ? 'A managed database is running. Verify the app connection configuration.'

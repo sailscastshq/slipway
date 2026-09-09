@@ -192,6 +192,7 @@ module.exports = {
       services: services.map((candidate) => ({
         id: candidate.id,
         environmentId: normalizeId(candidate.environment),
+        managementMode: candidate.managementMode,
         envVarKey: candidate.envVarKey || null
       })),
       artifacts: {
@@ -255,6 +256,12 @@ async function findByIds(model, attribute, ids) {
 }
 
 function serviceContainerNames(service) {
+  if (service.managementMode === 'external') {
+    const pending = service.externalVerification?.cleanupContainer
+    return /^slipway-pg-client-[a-f0-9-]{36}$/.test(pending || '')
+      ? [pending]
+      : []
+  }
   return [
     service.containerName,
     service.imageMetadata?.previous?.containerName,
@@ -265,6 +272,7 @@ function serviceContainerNames(service) {
 }
 
 function serviceVolumeNames(service) {
+  if (service.managementMode === 'external') return []
   return [
     service.imageMetadata?.volumeName,
     service.imageMetadata?.previous?.volumeName,

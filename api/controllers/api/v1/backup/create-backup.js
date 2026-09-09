@@ -59,10 +59,19 @@ module.exports = {
     }
 
     // Check service is running
-    if (service.status !== 'running') {
+    if (
+      service.managementMode === 'external'
+        ? service.status !== 'reachable'
+        : service.status !== 'running'
+    ) {
       throw {
         badRequest: {
-          problems: [{ status: 'Service must be running to create a backup.' }]
+          problems: [
+            {
+              status:
+                'Verify the external database connection, or start the managed service, before creating a backup.'
+            }
+          ]
         }
       }
     }

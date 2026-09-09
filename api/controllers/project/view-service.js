@@ -58,7 +58,10 @@ module.exports = {
     }
 
     // Get connection URL
-    const connectionUrl = await Service.getConnectionUrl(service.id)
+    const connectionUrl =
+      service.managementMode === 'external'
+        ? null
+        : await Service.getConnectionUrl(service.id)
 
     // Get last backup if supported
     let lastBackup = null
@@ -93,6 +96,10 @@ module.exports = {
         },
         service: {
           id: service.id,
+          managementMode: service.managementMode,
+          externalVerification: service.externalVerification,
+          externalTlsMode: service.externalVerification?.tlsMode || null,
+          envVarKey: service.envVarKey,
           name: service.name,
           type: service.type,
           version: service.version,

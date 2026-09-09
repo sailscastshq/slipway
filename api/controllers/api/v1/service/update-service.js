@@ -54,6 +54,12 @@ module.exports = {
     const project = await Project.findOne({ id: environment.project.id })
     if (!project || project.team !== user.team.id) throw 'notFound'
 
+    if (service.managementMode === 'external' && resourceLimits !== undefined)
+      throw {
+        badRequest: {
+          message: 'Database resources are managed by the external provider.'
+        }
+      }
     const updates = {}
 
     const problems = sails.helpers.configuration.validate({

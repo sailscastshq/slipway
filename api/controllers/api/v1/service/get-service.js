@@ -46,7 +46,10 @@ module.exports = {
       throw 'forbidden'
     }
 
-    const connectionUrl = await Service.getConnectionUrl(service.id)
+    const connectionUrl =
+      service.managementMode === 'external'
+        ? null
+        : await Service.getConnectionUrl(service.id)
     let versionSupport = 'unresolved'
     try {
       versionSupport = inspectVersion(service.type, service.version, {
@@ -61,6 +64,8 @@ module.exports = {
     return {
       service: {
         id: service.id,
+        managementMode: service.managementMode,
+        externalVerification: service.externalVerification,
         name: service.name,
         type: service.type,
         version: service.version,

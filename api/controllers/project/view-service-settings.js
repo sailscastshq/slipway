@@ -54,6 +54,11 @@ module.exports = {
     if (!service)
       throw { notFound: `/projects/${slug}/environments/${envSlug}` }
 
+    if (service.managementMode === 'external')
+      throw {
+        notFound: `/projects/${slug}/environments/${envSlug}/services/${service.id}`
+      }
+
     const policy = getPolicy(service.type)
     let versionSupport = 'unresolved'
     try {

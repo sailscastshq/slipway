@@ -58,6 +58,10 @@ module.exports = {
     }
 
     const service = await Service.findOne({ id: backup.service }).decrypt()
+    if (service?.managementMode === 'external')
+      throw new Error(
+        'External database restore is disabled. Restore the logical backup using your database provider’s verified recovery procedure.'
+      )
     if (!service) throw new Error('Backup service not found')
 
     const storageConfig = await sails.helpers.backup.getStorageConfig(backupId)

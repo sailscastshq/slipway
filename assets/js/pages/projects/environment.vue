@@ -1,4 +1,5 @@
 <script setup>
+import ExternalPostgresFields from '@/components/ExternalPostgresFields.vue'
 import DeploymentReadiness from '@/components/DeploymentReadiness.vue'
 import {
   mutationFailureMessage,
@@ -659,6 +660,12 @@ const newServiceVersion = ref(
   props.serviceVersions?.postgresql?.defaultVersion || '17'
 )
 const customServiceVersion = ref(false)
+const externalConfiguration = ref({
+  dsn: '',
+  sslMode: 'verify-full',
+  caCertificate: '',
+  allowInsecure: false
+})
 const creatingService = ref(false)
 const deletingServiceId = ref(null)
 const deletingService = ref(false)
@@ -671,7 +678,8 @@ const serviceTypes = [
   { value: 'postgresql', label: 'PostgreSQL' },
   { value: 'mysql', label: 'MySQL' },
   { value: 'redis', label: 'Redis' },
-  { value: 'mongodb', label: 'MongoDB' }
+  { value: 'mongodb', label: 'MongoDB' },
+  { value: 'external-postgresql', label: 'External PostgreSQL' }
 ]
 
 const selectedServicePolicy = computed(
@@ -733,14 +741,21 @@ async function createService() {
 
   try {
     const res = await fetch(
-      `/api/v1/projects/${props.project.slug}/environments/${props.environment.slug}/services`,
+      `/api/v1/projects/${props.project.slug}/environments/${
+        props.environment.slug
+      }/services${
+        newServiceType.value === 'external-postgresql' ? '/external' : ''
+      }`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: serviceName,
           type: serviceType,
-          version: newServiceVersion.value
+          version: newServiceVersion.value,
+          ...(newServiceType.value === 'external-postgresql'
+            ? { configuration: externalConfiguration.value }
+            : {})
         })
       }
     )
@@ -753,6 +768,12 @@ async function createService() {
       throw new Error(message)
     }
     completeAction(actionId, res.ok)
+    externalConfiguration.value = {
+      dsn: '',
+      sslMode: 'verify-full',
+      caCertificate: '',
+      allowInsecure: false
+    }
     newServiceName.value = ''
     newServiceVersion.value = selectedServicePolicy.value?.defaultVersion || ''
     customServiceVersion.value = false
@@ -972,6 +993,19 @@ function appStatusLabel(app) {
 
 function statusBadge(status) {
   const map = {
+    reachable: {
+      label: 'Reachable',
+      classes:
+        'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+    },
+    unreachable: {
+      label: 'Unreachable',
+      classes: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+    },
+    unverified: {
+      label: 'Unverified',
+      classes: 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'
+    },
     running: {
       label: 'Running',
       classes:
@@ -1750,7 +1784,12 @@ onBeforeUnmount(() => {
                         >
                         <span
                           class="ml-2 text-xs text-gray-400 dark:text-gray-500"
-                          >{{ service.type }} {{ service.version }}</span
+                          >{{ service.type }}
+                          {{
+                            service.managementMode === 'external'
+                              ? '· External'
+                              : service.version
+                          }}</span
                         >
                         <span
                           v-if="service.versionSupport === 'unresolved'"
@@ -1917,7 +1956,10 @@ onBeforeUnmount(() => {
                       <template v-else> No backups yet </template>
                     </div>
                     <button
-                      v-if="backupConfigured && service.status === 'running'"
+                      v-if="
+                        backupConfigured &&
+                        ['running', 'reachable'].includes(service.status)
+                      "
                       @click="triggerBackup(service)"
                       :disabled="backingUpServiceId === service.id"
                       class="rounded px-2 py-0.5 text-xs font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-700 disabled:opacity-50 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200"
@@ -1962,7 +2004,10 @@ onBeforeUnmount(() => {
                       class="focus:border-brand rounded-none border-0 border-b border-dashed border-gray-200 bg-transparent px-2 py-1.5 text-sm text-gray-900 focus:outline-none dark:border-gray-700 dark:bg-transparent dark:text-white"
                     />
                     <Select
-                      v-if="!customServiceVersion"
+                      v-if="
+                        !customServiceVersion &&
+                        newServiceType !== 'external-postgresql'
+                      "
                       v-model="newServiceVersion"
                       :options="[
                         ...(selectedServicePolicy?.versions || []).map(
@@ -1979,7 +2024,10 @@ onBeforeUnmount(() => {
                       class="focus:border-brand rounded-none border-0 border-b border-dashed border-gray-200 bg-transparent px-2 py-1.5 text-sm text-gray-900 focus:outline-none dark:border-gray-700 dark:bg-transparent dark:text-white"
                       @change="handleServiceVersionChange"
                     />
-                    <div v-else class="flex items-center gap-2">
+                    <div
+                      v-else-if="newServiceType !== 'external-postgresql'"
+                      class="flex items-center gap-2"
+                    >
                       <Input
                         v-model="newServiceVersion"
                         type="text"
@@ -1997,6 +2045,10 @@ onBeforeUnmount(() => {
                       </button>
                     </div>
                   </div>
+                  <ExternalPostgresFields
+                    v-if="newServiceType === 'external-postgresql'"
+                    v-model="externalConfiguration"
+                  />
                   <p
                     v-if="customServiceVersion && !selectedVersionSupported"
                     class="text-xs text-amber-700 dark:text-amber-400"
@@ -2015,12 +2067,19 @@ onBeforeUnmount(() => {
                       @click="createService"
                       :disabled="
                         !newServiceName.trim() ||
-                        !newServiceVersion.trim() ||
+                        (newServiceType !== 'external-postgresql' &&
+                          !newServiceVersion.trim()) ||
                         creatingService
                       "
                       class="rounded-md bg-gray-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
                     >
-                      {{ creatingService ? 'Creating...' : 'Create' }}
+                      {{
+                        creatingService
+                          ? 'Saving...'
+                          : newServiceType === 'external-postgresql'
+                          ? 'Connect'
+                          : 'Create'
+                      }}
                     </button>
                   </div>
                 </div>

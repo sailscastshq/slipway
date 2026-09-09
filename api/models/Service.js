@@ -23,6 +23,24 @@ module.exports = {
       description: 'Type of service'
     },
 
+    managementMode: {
+      type: 'string',
+      isIn: ['managed', 'external'],
+      defaultsTo: 'managed',
+      columnName: 'management_mode'
+    },
+    externalConnection: {
+      type: 'json',
+      encrypt: true,
+      protect: true,
+      columnName: 'external_connection'
+    },
+    externalVerification: {
+      type: 'json',
+      defaultsTo: {},
+      columnName: 'external_verification'
+    },
+
     version: {
       type: 'string',
       required: true,
@@ -54,6 +72,9 @@ module.exports = {
     status: {
       type: 'string',
       isIn: [
+        'unverified',
+        'reachable',
+        'unreachable',
         'creating',
         'running',
         'stopped',
@@ -142,6 +163,11 @@ module.exports = {
     }
   },
 
+  toPublic: function (service) {
+    const { password, externalConnection, ...publicService } = service
+    return publicService
+  },
+
   /**
    * Whether this service type supports backups
    */
@@ -196,6 +222,11 @@ module.exports = {
   getConnectionUrl: async function (serviceId) {
     const service = await Service.findOne({ id: serviceId }).decrypt()
     if (!service) return null
+
+    if (service.managementMode === 'external')
+      return require('../lib/external-postgresql').connectionUrl(
+        service.externalConnection
+      )
 
     switch (service.type) {
       case 'postgresql':

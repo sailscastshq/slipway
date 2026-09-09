@@ -55,6 +55,13 @@ module.exports = {
       throw 'forbidden'
     }
 
+    if (backup.service.managementMode === 'external')
+      throw {
+        badRequest: {
+          message:
+            'External database restore is disabled. Use your database provider’s verified recovery procedure.'
+        }
+      }
     if (backup.status !== 'completed') {
       throw {
         badRequest: {

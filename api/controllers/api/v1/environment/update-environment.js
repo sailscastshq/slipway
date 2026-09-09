@@ -100,6 +100,18 @@ module.exports = {
       domain,
       resourceLimits
     })
+    const services = await Service.find({ environment: environment.id })
+    if (envVars && typeof envVars === 'object' && !Array.isArray(envVars)) {
+      for (const service of services.filter(
+        (service) => service.managementMode === 'external' && service.envVarKey
+      )) {
+        if (
+          envVars[service.envVarKey] ===
+          require('../../../../lib/external-postgresql').hidden
+        )
+          envVars[service.envVarKey] = environment.envVars[service.envVarKey]
+      }
+    }
     const nextEnvVars =
       envVars === undefined ? environment.envVars || {} : envVars
     if (envVars !== undefined || envVarMetadata !== undefined) {
@@ -111,9 +123,17 @@ module.exports = {
       )
     }
 
-    const services = await Service.find({ environment: environment.id })
     const managedKeys = services
-      .map((service) => service.envVarKey)
+      .flatMap((service) =>
+        service.managementMode === 'external'
+          ? [
+              service.envVarKey,
+              ...(environment.envVars?.[`${service.envVarKey}_CA_CERT`]
+                ? [`${service.envVarKey}_CA_CERT`]
+                : [])
+            ]
+          : [service.envVarKey]
+      )
       .filter(Boolean)
     const currentEnvVarMetadata =
       sails.helpers.configuration.normalizeEnvVarMetadata.with({

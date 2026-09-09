@@ -45,6 +45,13 @@ module.exports = {
     const project = await Project.findOne({ id: environment.project.id })
     if (!project || project.team !== user.team.id) throw 'notFound'
 
+    if (service.managementMode === 'external')
+      throw {
+        badRequest: {
+          message:
+            'External database upgrades are managed by the database provider.'
+        }
+      }
     if (confirmation !== service.name) {
       throw {
         badRequest: {
