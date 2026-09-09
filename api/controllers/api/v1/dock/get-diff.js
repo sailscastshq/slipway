@@ -150,19 +150,46 @@ module.exports = {
     )
 
     // Generate SQL for the diff
-    const { statements } = await sails.helpers.dock.generateMigrationSql(
+    let { statements } = await sails.helpers.dock.generateMigrationSql(
       diff,
       service.type,
       modelsResult.models,
       schemaResult.tables
     )
 
+    let preflight
+    if (
+      ['postgresql', 'mysql'].includes(service.type) &&
+      statements.length &&
+      !statements.some((item) => item.blocked)
+    ) {
+      preflight = await sails.helpers.dock.preflightNativeMigration(
+        service,
+        statements,
+        schemaResult.tables
+      )
+      statements = preflight.statements
+    }
+    const blocked = statements.filter((item) => item.blocked)
     return {
+      preflight: preflight
+        ? {
+            verified: preflight.verified,
+            affectedRows: preflight.affectedRows,
+            engineImage: preflight.engineImage
+          }
+        : undefined,
       databaseType: service.type,
       diff,
-      state: diff.state,
+      state: blocked.length ? 'unverified' : diff.state,
       verification: {
-        unsupported: diff.unsupported || [],
+        unsupported: blocked.length
+          ? blocked.map((item) => ({
+              tableName: item.table || 'Migration',
+              columnName: item.column,
+              reason: item.reason
+            }))
+          : diff.unsupported || [],
         preservedObjects: diff.preserved?.length || 0
       },
       statements,

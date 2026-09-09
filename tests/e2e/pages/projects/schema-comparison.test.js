@@ -91,7 +91,7 @@ test(
       await page.goto(
         `/projects/schema-comparison/environments/production/dock/${database.id}?tab=migrate`
       )
-      const output = path.resolve('output/issue-370')
+      const output = path.resolve('output/issue-371')
       fs.mkdirSync(output, { recursive: true })
       for (const state of ['up_to_date', 'changes_pending', 'unverified']) {
         if (state === 'changes_pending')
@@ -100,6 +100,8 @@ test(
           models.person.attributes.id.autoIncrement = false
         await compare()
         expect(payload.state).toBe(state)
+        if (state === 'changes_pending')
+          payload.preflight = { verified: true, affectedRows: { people: 1 } }
         await page.raw
           .getByRole('button', { name: 'Refresh', exact: true })
           .click()
@@ -111,6 +113,12 @@ test(
           await expect(
             page.raw.getByRole('button', { name: 'Apply', exact: true })
           ).toBeEnabled()
+        if (state === 'changes_pending')
+          await expect(
+            page.raw
+              .getByRole('status')
+              .filter({ hasText: 'Preview validated' })
+          ).toHaveAttribute('data-slot', 'alert')
         if (state === 'unverified') {
           const alert = page.raw
             .getByRole('alert')

@@ -1,3 +1,5 @@
+const { nativeStatements } = require('../../lib/native-migration-contract')
+
 /**
  * Generate migration SQL statements from a schema diff.
  *
@@ -78,68 +80,7 @@ module.exports = {
       }
     }
 
-    // SQL databases
-    const quote = dbType === 'postgresql' ? '"' : '`'
-
-    // Generate RENAME COLUMN statements
-    for (const col of diff.columnsToRename || []) {
-      const sql = generateRenameColumn(col, dbType, quote)
-      statements.push({
-        type: 'rename_column',
-        table: col.tableName,
-        column: col.toColumnName,
-        fromColumn: col.fromColumnName,
-        sql
-      })
-    }
-
-    // Generate CREATE TABLE statements
-    for (const table of diff.tablesToCreate) {
-      const sql = generateCreateTable(table, dbType, quote)
-      statements.push({
-        type: 'create_table',
-        table: table.tableName,
-        sql
-      })
-    }
-
-    // Generate ADD COLUMN statements
-    for (const col of diff.columnsToAdd) {
-      const sql = generateAddColumn(col, dbType, quote)
-      statements.push({
-        type: 'add_column',
-        table: col.tableName,
-        column: col.columnName,
-        sql
-      })
-    }
-
-    // Generate MODIFY COLUMN statements
-    for (const col of diff.columnsToModify) {
-      const sql = generateModifyColumn(col, dbType, quote)
-      statements.push({
-        type: 'modify_column',
-        table: col.tableName,
-        column: col.columnName,
-        sql
-      })
-    }
-
-    // Generate CREATE INDEX statements
-    for (const idx of diff.indexesToCreate) {
-      const indexName =
-        idx.indexName || `idx_${idx.tableName}_${idx.columnName}`
-      const uniqueKeyword = idx.unique ? 'UNIQUE ' : ''
-      const sql = `CREATE ${uniqueKeyword}INDEX ${quote}${indexName}${quote} ON ${quote}${idx.tableName}${quote} (${quote}${idx.columnName}${quote});`
-      statements.push({
-        type: 'create_index',
-        table: idx.tableName,
-        column: idx.columnName,
-        sql
-      })
-    }
-
-    return { statements }
+    return { statements: nativeStatements(diff, dbType, schema, models) }
   }
 }
 
@@ -151,7 +92,7 @@ function generateSqliteStatements(diff, models, schema) {
     statements.push({
       type: 'create_table',
       table: table.tableName,
-      sql: generateCreateTable(table, 'sqlite', '`')
+      sql: generateSqliteCreateTable(table.tableName, table.columns)
     })
 
     const model = findModelByTableName(models, table.tableName)
@@ -246,57 +187,6 @@ function generateSqliteStatements(diff, models, schema) {
  * Generate CREATE TABLE statement
  * Follows the same pattern as sails-postgresql/mysql define.js
  */
-function generateCreateTable(table, dbType, quote) {
-  if (dbType === 'sqlite') {
-    return generateSqliteCreateTable(table.tableName, table.columns)
-  }
-
-  const columnDefs = []
-  const primaryKeys = []
-
-  for (const col of table.columns) {
-    let def = `${quote}${col.name}${quote} `
-
-    // Handle PostgreSQL SERIAL (auto-increment is in the type itself)
-    if (dbType === 'postgresql' && col.autoIncrement) {
-      def += 'SERIAL'
-    } else if (dbType === 'mysql' && col.autoIncrement) {
-      // MySQL: type + AUTO_INCREMENT
-      def += col.sqlType
-      def += ' AUTO_INCREMENT'
-    } else {
-      def += col.sqlType
-    }
-
-    // NOT NULL (unless nullable)
-    if (!col.nullable) {
-      def += ' NOT NULL'
-    }
-
-    // UNIQUE constraint
-    if (col.unique && !col.primaryKey) {
-      def += ' UNIQUE'
-    }
-
-    // Track primary keys
-    if (col.primaryKey) {
-      primaryKeys.push(col.name)
-    }
-
-    columnDefs.push(`  ${def}`)
-  }
-
-  // Add PRIMARY KEY constraint at the end (how adapters do it)
-  if (primaryKeys.length > 0) {
-    const pkCols = primaryKeys.map((pk) => `${quote}${pk}${quote}`).join(', ')
-    columnDefs.push(`  PRIMARY KEY (${pkCols})`)
-  }
-
-  return `CREATE TABLE IF NOT EXISTS ${quote}${
-    table.tableName
-  }${quote} (\n${columnDefs.join(',\n')}\n);`
-}
-
 /**
  * Generate ADD COLUMN statement
  */
@@ -348,35 +238,6 @@ function generateRenameColumn(col, dbType, quote) {
 /**
  * Generate MODIFY COLUMN statement
  */
-function generateModifyColumn(col, dbType, quote) {
-  if (dbType === 'postgresql') {
-    // PostgreSQL uses ALTER COLUMN ... TYPE
-    let sql = `ALTER TABLE ${quote}${col.tableName}${quote} ALTER COLUMN ${quote}${col.columnName}${quote}`
-    sql += ` TYPE ${col.expected.sqlType}`
-
-    // Handle nullability change separately in PostgreSQL
-    if (col.expected.nullable !== col.current.nullable) {
-      sql += `;\nALTER TABLE ${quote}${col.tableName}${quote} ALTER COLUMN ${quote}${col.columnName}${quote}`
-      sql += col.expected.nullable ? ' DROP NOT NULL' : ' SET NOT NULL'
-    }
-
-    return sql + ';'
-  } else {
-    // MySQL uses MODIFY COLUMN
-    let sql = `ALTER TABLE ${quote}${col.tableName}${quote} MODIFY COLUMN ${quote}${col.columnName}${quote} ${col.expected.sqlType}`
-
-    if (!col.expected.nullable) {
-      sql += ' NOT NULL'
-    }
-
-    if (col.expected.autoIncrement) {
-      sql += ' AUTO_INCREMENT'
-    }
-
-    return sql + ';'
-  }
-}
-
 function generateSqliteCreateTable(tableName, columns) {
   const columnDefs = []
   const primaryKeys = []
@@ -892,98 +753,6 @@ function findModelByTableName(models, tableName) {
   return Object.values(models).find(
     (model) => (model.tableName || model.identity) === tableName
   )
-}
-
-function mapSqliteModelColumn(attr, attrName, modelPrimaryKey) {
-  const isPrimaryKey = attr.primaryKey || attrName === modelPrimaryKey
-  const isAutoIncrement = attr.autoIncrement || false
-  const isTimestamp = attr.autoCreatedAt || attr.autoUpdatedAt
-  const isForeignKey = attr.foreignKey || false
-
-  return {
-    sqlType: mapSqliteType(
-      attr,
-      isPrimaryKey,
-      isAutoIncrement,
-      isTimestamp,
-      isForeignKey
-    ),
-    nullable: !attr.required && attr.allowNull !== false,
-    defaultValue: attr.defaultsTo,
-    autoIncrement: isAutoIncrement,
-    unique: attr.unique || false,
-    primaryKey: isPrimaryKey
-  }
-}
-
-function mapSqliteType(
-  attr,
-  isPrimaryKey,
-  isAutoIncrement,
-  isTimestamp,
-  isForeignKey
-) {
-  if (attr.columnType) {
-    return normalizeSqliteType(attr.columnType)
-  }
-
-  if (isAutoIncrement || isTimestamp) {
-    return 'INTEGER'
-  }
-
-  switch (attr.type) {
-    case 'string':
-    case 'text':
-      return 'TEXT'
-    case 'number':
-      return isPrimaryKey || isForeignKey ? 'INTEGER' : 'INTEGER'
-    case 'boolean':
-      return 'INTEGER'
-    case 'json':
-    case 'ref':
-      return 'TEXT'
-    default:
-      return 'TEXT'
-  }
-}
-
-function normalizeSqliteType(type) {
-  const normalized = String(type)
-    .toLowerCase()
-    .trim()
-    .replace(/\(\d+(?:,\s*\d+)?\)/, '')
-
-  switch (normalized) {
-    case '_string':
-    case '_text':
-    case '_mediumtext':
-    case '_longtext':
-      return 'TEXT'
-    case '_number':
-    case '_numberkey':
-    case '_numbertimestamp':
-    case 'int':
-    case 'integer':
-      return 'INTEGER'
-    case '_json':
-      return 'TEXT'
-    case '_boolean':
-      return 'INTEGER'
-    case 'float':
-    case 'double':
-    case 'real':
-      return 'REAL'
-    case 'boolean':
-      return 'INTEGER'
-    case 'date':
-    case 'datetime':
-      return 'TEXT'
-    case 'binary':
-    case 'blob':
-      return 'BLOB'
-    default:
-      return normalized.toUpperCase()
-  }
 }
 
 /**

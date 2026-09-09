@@ -79,4 +79,18 @@ function satisfiesIndex(index, column, unique) {
   )
 }
 
-module.exports = { typeFingerprint, indexFingerprint, satisfiesIndex }
+function isPhysicalType(value) {
+  return (
+    typeof value === 'string' &&
+    /^(?:_(?:number(?:key|timestamp)?|string(?:key|timestamp)?|boolean|json|ref|text|mediumtext|longtext)|smallserial|serial|bigserial|tinyint|smallint|mediumint|int|integer|bigint|numeric|decimal|real|float|double(?: precision)?|varchar|character varying|char|character|text|tinytext|mediumtext|longtext|boolean|bool|jsonb?|uuid|date|time|timestamp|timestamptz|datetime|binary|varbinary|blob|tinyblob|mediumblob|longblob)(?:\(\d+(?:,\s*\d+)?\))?(?: unsigned)?$/i.test(
+      value
+    )
+  )
+}
+
+module.exports = {
+  typeFingerprint,
+  indexFingerprint,
+  satisfiesIndex,
+  isPhysicalType
+}

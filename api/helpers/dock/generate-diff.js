@@ -2,7 +2,8 @@ const crypto = require('node:crypto')
 const {
   typeFingerprint,
   indexFingerprint,
-  satisfiesIndex
+  satisfiesIndex,
+  isPhysicalType
 } = require('../../lib/schema-contract')
 
 /**
@@ -215,15 +216,7 @@ module.exports = {
               (attr.physical?.notNull !== undefined &&
                 existingCol.nullable !== expected.nullable)
             ) {
-              if (
-                existingCol.generated ||
-                (dbType === 'mysql' &&
-                  ((existingCol.defaultValue !== null &&
-                    existingCol.defaultValue !== undefined) ||
-                    existingCol.extra ||
-                    existingCol.collation ||
-                    existingCol.comment))
-              )
+              if (existingCol.generated)
                 diff.unsupported.push({
                   tableName,
                   columnName,
@@ -301,19 +294,6 @@ module.exports = {
             'A non-null column needs a verified backfill before it can be added.'
         })
     }
-    for (const table of diff.tablesToCreate) {
-      const model = models[table.model]
-      if (
-        dbType !== 'sqlite' &&
-        Object.values(model.attributes).some(
-          (attr) => attr.index && !attr.unique
-        )
-      )
-        diff.unsupported.push({
-          tableName: table.tableName,
-          reason: 'New-table indexes require a complete native creation plan.'
-        })
-    }
     for (const change of diff.columnsToModify) {
       if (
         dbType === 'sqlite' &&
@@ -356,11 +336,18 @@ module.exports = {
     for (const model of Object.values(models)) {
       for (const [name, attr] of Object.entries(model.attributes)) {
         if (
-          attr.columnType &&
-          !/^[_a-zA-Z][a-zA-Z0-9_ ]*(?:\(\d+(?:,\s*\d+)?\))?(?: unsigned)?$/.test(
-            attr.columnType
+          dbType === 'sqlite' &&
+          [model.tableName, attr.columnName || name].some((value) =>
+            /[`\0]/.test(value)
           )
-        ) {
+        )
+          diff.unsupported.push({
+            tableName: model.tableName,
+            columnName: attr.columnName || name,
+            reason:
+              'This SQLite identifier requires a reviewed native migration.'
+          })
+        if (attr.columnType && !isPhysicalType(attr.columnType)) {
           diff.unsupported.push({
             tableName: model.tableName,
             columnName: attr.columnName || name,
@@ -600,7 +587,7 @@ function getMysqlType(
 ) {
   // Timestamps typically use BIGINT
   if (isTimestamp) {
-    return 'BIGINT'
+    return waterlineType === 'string' ? 'VARCHAR(255)' : 'BIGINT'
   }
 
   // Map Waterline types to MySQL types

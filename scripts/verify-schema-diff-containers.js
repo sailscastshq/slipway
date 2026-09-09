@@ -7,6 +7,7 @@ const execute = require('../api/helpers/dock/execute-sql')
 const getSchema = require('../api/helpers/dock/get-schema')
 const generateDiff = require('../api/helpers/dock/generate-diff')
 const generateSql = require('../api/helpers/dock/generate-migration-sql')
+const preflight = require('../api/helpers/dock/preflight-native-migration')
 
 async function main() {
   const type = process.env.SLIPWAY_SCHEMA_TEST_DIALECT || 'postgresql'
@@ -83,8 +84,12 @@ async function main() {
     await query(
       `CREATE TABLE accounts (id ${
         pg ? 'SERIAL' : 'INTEGER AUTO_INCREMENT'
-      } PRIMARY KEY, email VARCHAR(32) NOT NULL DEFAULT '', balance NUMERIC(8,2)); CREATE INDEX idx_accounts_email ON accounts(email); CREATE INDEX accounts_composite ON accounts(balance DESC, email);`
+      } PRIMARY KEY, email VARCHAR(32) NOT NULL DEFAULT '', balance NUMERIC(8,2)); CREATE INDEX idx_accounts_email ON accounts(email); CREATE INDEX accounts_composite ON accounts(balance DESC, email); INSERT INTO accounts(email, balance) VALUES ('one@example.test', 12.34);`
     )
+    if (!pg)
+      await query(
+        "ALTER TABLE accounts MODIFY COLUMN email varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '' COMMENT 'native, (preserved)'; ALTER TABLE accounts ADD COLUMN email_length INTEGER GENERATED ALWAYS AS (CHAR_LENGTH(email)) STORED;"
+      )
     if (pg)
       await query(
         'CREATE INDEX accounts_expression ON accounts(lower(email)); CREATE INDEX accounts_partial ON accounts(email) WHERE balance > 0;'
@@ -142,6 +147,17 @@ async function main() {
       diff,
       dbType: type
     })
+    await query(
+      "INSERT INTO accounts(email, balance) VALUES ('one@example.test', 12.34)"
+    )
+    const duplicates = await preflight.fn({
+      service,
+      schema: before,
+      statements: migration.statements
+    })
+    assert.equal(duplicates.verified, false)
+    assert.ok(duplicates.reason.includes('duplicate values'))
+    await query('DELETE FROM accounts WHERE id = 2')
     for (const statement of migration.statements) await query(statement.sql)
     const after = await snapshot()
     const clean = await generateDiff.fn({ models, schema: after, dbType: type })
@@ -178,24 +194,132 @@ async function main() {
       })
       assert.ok(blocked.statements.every((statement) => statement.blocked))
       await query('DROP VIEW account_names')
-      const executable = await generateSql.fn({
-        models,
-        schema: after,
-        diff: changed,
-        dbType: type
-      })
-      for (const statement of executable.statements) await query(statement.sql)
+    }
+    const executable = await generateSql.fn({
+      models,
+      schema: after,
+      diff: changed,
+      dbType: type
+    })
+    assert.ok(
+      executable.statements.every((statement) => !statement.blocked),
+      JSON.stringify(executable)
+    )
+    const checked = await preflight.fn({
+      service,
+      statements: executable.statements,
+      schema: after
+    })
+    assert.equal(checked.verified, true, checked.reason)
+    assert.equal(checked.affectedRows.accounts, 1)
+    assert.equal(
+      (await snapshot()).accounts.columns[1].type,
+      after.accounts.columns[1].type
+    )
+    for (const statement of executable.statements) await query(statement.sql)
+    const finalSchema = await snapshot()
+    assert.equal(
+      (await generateDiff.fn({ models, schema: finalSchema, dbType: type }))
+        .state,
+      'up_to_date'
+    )
+    assert.equal(
+      finalSchema.accounts.columns[1].defaultValue,
+      before.accounts.columns[1].defaultValue
+    )
+    assert.equal(
+      finalSchema.accounts.columns[1].comment,
+      before.accounts.columns[1].comment
+    )
+    assert.equal(
+      finalSchema.accounts.columns[1].collation,
+      before.accounts.columns[1].collation
+    )
+    if (!pg)
       assert.equal(
-        (
-          await generateDiff.fn({
-            models,
-            schema: await snapshot(),
-            dbType: type
-          })
-        ).state,
-        'up_to_date'
+        finalSchema.accounts.columns.find(
+          (column) => column.name === 'email_length'
+        ).generated,
+        before.accounts.columns.find((column) => column.name === 'email_length')
+          .generated
       )
-    } else assert.equal(changed.state, 'unverified')
+    assert.equal(
+      finalSchema.accounts.columns[1].nullable,
+      before.accounts.columns[1].nullable
+    )
+    const data = await query('SELECT email, balance FROM accounts')
+    assert.equal(data.rows[0].email, 'one@example.test')
+    assert.equal(Number(data.rows[0].balance), 12.34)
+    const invalid = await preflight.fn({
+      service,
+      schema: finalSchema,
+      statements: [
+        {
+          type: 'add_column',
+          table: 'accounts',
+          sql: 'ALTER TABLE accounts ADD COLUMN ephemeral_column INTEGER;'
+        },
+        {
+          type: 'modify_column',
+          table: 'accounts',
+          sql: 'ALTER TABLE accounts ALTER COLUMN missing_column TYPE INTEGER;'
+        }
+      ]
+    })
+    assert.equal(invalid.verified, false)
+    assert.ok(invalid.statements.every((statement) => statement.blocked))
+    assert.equal(
+      (await snapshot()).accounts.columns.some(
+        (column) => column.name === 'ephemeral_column'
+      ),
+      false
+    )
+    models.note = {
+      tableName: 'notes',
+      primaryKey: 'id',
+      attributes: {
+        id: {
+          type: 'number',
+          columnType: pg ? 'BIGSERIAL' : 'BIGINT',
+          autoIncrement: true
+        },
+        caption: { type: 'string', index: true },
+        createdAt: {
+          type: 'string',
+          autoCreatedAt: true,
+          columnType: '_stringtimestamp'
+        }
+      }
+    }
+    const createDiff = await generateDiff.fn({
+      models,
+      schema: finalSchema,
+      dbType: type
+    })
+    const createPlan = await generateSql.fn({
+      models,
+      schema: finalSchema,
+      diff: createDiff,
+      dbType: type
+    })
+    assert.equal(createPlan.statements.length, 2)
+    const createCheck = await preflight.fn({
+      service,
+      schema: finalSchema,
+      statements: createPlan.statements
+    })
+    assert.equal(createCheck.verified, true, createCheck.reason)
+    for (const statement of createPlan.statements) await query(statement.sql)
+    assert.equal(
+      (
+        await generateDiff.fn({
+          models,
+          schema: await snapshot(),
+          dbType: type
+        })
+      ).state,
+      'up_to_date'
+    )
     console.log(
       `${type}: catalog definitions, index semantics, stable round trip, and protected changes verified.`
     )
