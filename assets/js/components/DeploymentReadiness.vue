@@ -28,35 +28,23 @@ const groups = computed(() => [
 </script>
 <template>
   <Alert
-    v-if="report"
-    :key="blocked ? 'blocked' : 'advisory'"
-    :as="blocked ? 'section' : 'details'"
+    v-if="report && blocked"
+    as="section"
     data-test="deployment-checklist"
-    :role="blocked ? 'alert' : undefined"
-    :class="
-      blocked
-        ? 'mb-8 rounded-lg border border-red-200 bg-red-50 p-4 text-gray-900 dark:border-red-900 dark:bg-red-950/20 dark:text-gray-100'
-        : 'mb-6 rounded-none bg-transparent p-0 text-gray-600 dark:bg-transparent dark:text-gray-400'
-    "
+    role="alert"
+    class="mb-8 rounded-lg border border-red-200 bg-red-50 p-4 text-gray-900 dark:border-red-900 dark:bg-red-950/20 dark:text-gray-100"
   >
-    <component
-      :is="blocked ? 'div' : 'summary'"
-      :class="blocked ? '' : 'cursor-pointer text-sm'"
-    >
-      <h2
-        :class="
-          blocked ? 'text-sm font-semibold' : 'inline text-sm font-medium'
-        "
-      >
+    <div>
+      <h2 class="text-sm font-semibold">
         Deployment readiness<span v-if="report.appName">
           · {{ report.appName }}</span
         >
       </h2>
-      <span :class="blocked ? 'mt-1 block text-sm' : 'ml-2 text-xs'">
+      <span class="mt-1 block text-sm">
         {{ report.summary.blocker }}
         {{ report.summary.blocker === 1 ? 'blocker' : 'blockers' }}
       </span>
-    </component>
+    </div>
     <div class="mt-3">
       <div class="flex items-start justify-between gap-3">
         <p class="min-w-0 text-xs text-gray-500">
@@ -77,16 +65,8 @@ const groups = computed(() => [
         describe the running app's health. Deployment checks use the candidate's
         source snapshot.
       </p>
-      <p
-        v-if="blocked"
-        class="mt-3 text-sm font-medium text-red-700 dark:text-red-300"
-      >
+      <p class="mt-3 text-sm font-medium text-red-700 dark:text-red-300">
         Resolve the required checks before deployment.
-      </p>
-      <p v-else class="mt-3 text-sm">
-        No deployment blockers. {{ report.summary.warning }} advisory checks
-        remain. The candidate must pass its HTTP health probe before traffic
-        switches.
       </p>
       <section
         v-for="group in groups.filter((group) => group.items.length)"

@@ -64,49 +64,9 @@ test(
     await page.goto(environmentPath)
 
     const checklist = page.raw.locator('[data-test="deployment-checklist"]')
-    await expect(checklist).toBeVisible()
-    await expect(checklist).toContainText('Deployment readiness')
-    await checklist.locator('summary').click()
-    await expect(checklist).toContainText('Generate')
-    expect((await checklist.locator('ul > li').count()) > 2).toBe(true)
-    await checklist.screenshot({
-      path: path.join(screenshotRoot, 'checklist-desktop-light.png')
-    })
-
-    await page.raw.emulateMedia({ colorScheme: 'dark' })
-    await checklist.screenshot({
-      path: path.join(screenshotRoot, 'checklist-desktop-dark.png')
-    })
-
-    await page.raw.setViewportSize({ width: 390, height: 844 })
-    await checklist.screenshot({
-      path: path.join(screenshotRoot, 'checklist-mobile-dark.png')
-    })
-
+    await expect(checklist).toHaveCount(0)
     await page.raw.setViewportSize({ width: 1440, height: 1000 })
     await page.raw.emulateMedia({ colorScheme: 'light' })
-
-    let checklistSaveRequests = 0
-    const countChecklistSave = (request) => {
-      if (
-        request.method() === 'PATCH' &&
-        new URL(request.url()).pathname ===
-          `/api/v1/projects/${project.slug}/environments/${environment.slug}`
-      ) {
-        checklistSaveRequests += 1
-      }
-    }
-    page.raw.on('request', countChecklistSave)
-    const checklistSaveFinished = page.raw.waitForResponse(
-      (response) =>
-        response.request().method() === 'PATCH' &&
-        new URL(response.url()).pathname ===
-          `/api/v1/projects/${project.slug}/environments/${environment.slug}`
-    )
-    await checklist.getByRole('button', { name: 'Generate' }).click()
-    await checklistSaveFinished
-    page.raw.off('request', countChecklistSave)
-    expect(checklistSaveRequests).toBe(1)
 
     const appActions = page.raw.locator(`[data-test="app-actions-${app.slug}"]`)
     await appActions.focus()
@@ -130,10 +90,8 @@ test(
       })
 
     if (capturePhase === 'after') {
-      expect(await checklist.getAttribute('data-slot')).toBe('alert')
+      await expect(checklist).toHaveCount(0)
       expect(await sourceRequired.getAttribute('data-slot')).toBe('alert')
-      expect(await checklist.getAttribute('role')).toBe(null)
-      expect(await checklist.evaluate((el) => el.tagName)).toBe('DETAILS')
       expect(await sourceRequired.getAttribute('role')).toBe('note')
     }
 
