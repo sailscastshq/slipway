@@ -21,27 +21,25 @@ test(
       healthCommand: ['wget', 'http://localhost:8080'],
       appIds: []
     })
-    const service = await world
-      .create('service')
-      .with({
-        type: 'custom',
-        name: 'helper',
-        version: definition.image,
-        environment: world.current.environments.production.id,
-        status: 'running',
-        containerName: 'slipway-update-test',
-        containerId: 'original',
-        internalHost: 'slipway-update-test',
-        internalPort: 8080,
-        imageReference: image.Id,
-        customDefinition: definition,
-        customState: {
-          volumes: [],
-          image: definition.image,
-          appIds: [],
-          linkPrefix: 'HELPER'
-        }
-      })
+    const service = await world.create('service').with({
+      type: 'custom',
+      name: 'helper',
+      version: definition.image,
+      environment: world.current.environments.production.id,
+      status: 'running',
+      containerName: 'slipway-update-test',
+      containerId: 'original',
+      internalHost: 'slipway-update-test',
+      internalPort: 8080,
+      imageReference: image.Id,
+      customDefinition: definition,
+      customState: {
+        volumes: [],
+        image: definition.image,
+        appIds: [],
+        linkPrefix: 'HELPER'
+      }
+    })
     const originals = {
       command: custom.command,
       inspect: custom.inspectContainer,
