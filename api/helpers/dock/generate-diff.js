@@ -408,6 +408,26 @@ function findRenameSourceColumn(existingColumns, attrName, columnName) {
  * logical boolean contract, so healthy schemas do not churn.
  */
 function mapWaterlineToSql(attr, attrName, dbType, modelPrimaryKey) {
+  const logicalColumnType = attr.columnType?.startsWith('_')
+    ? attr.columnType
+    : undefined
+  // Resolve ORM logical column types exactly as sails-postgresql does.
+  // Unknown/custom SQL still passes through the native migration validator.
+  if (dbType === 'postgresql' && attr.columnType) {
+    const logicalTypes = {
+      _number: attr.autoIncrement ? 'SERIAL' : 'REAL',
+      _numberkey: attr.autoIncrement ? 'SERIAL' : 'INTEGER',
+      _numbertimestamp: attr.autoIncrement ? 'BIGSERIAL' : 'BIGINT',
+      _string: 'TEXT',
+      _stringkey: 'VARCHAR',
+      _stringtimestamp: 'VARCHAR',
+      _boolean: 'BOOLEAN',
+      _json: 'JSON',
+      _ref: 'TEXT'
+    }
+    const physicalType = logicalTypes[attr.columnType.toLowerCase()]
+    if (physicalType) attr = { ...attr, columnType: physicalType }
+  }
   // If explicit columnType is set, use it directly (adapters do this too)
   if (attr.columnType) {
     return {
@@ -416,6 +436,7 @@ function mapWaterlineToSql(attr, attrName, dbType, modelPrimaryKey) {
           ? normalizeSqlitePhysicalType(attr.columnType)
           : attr.columnType,
       logicalType: attr.type,
+      logicalColumnType,
       nullable: attr.physical?.notNull !== true,
       defaultValue: undefined,
       autoIncrement: attr.autoIncrement || false,
@@ -623,6 +644,23 @@ function getMysqlType(
  */
 function needsModification(existing, expected, dbType) {
   const current = typeFingerprint(existing.type, dbType)
+  // An implicit ORM type does not request narrowing an existing compatible
+  // native column. Explicit columnType declarations still compare exactly.
+  if (dbType === 'postgresql' && expected.logicalColumnType) {
+    const compatible = {
+      _string: /^(text|varchar(?:\(\d+\))?|char(?:\(\d+\))?)$/,
+      _stringkey: /^(text|varchar(?:\(\d+\))?|char(?:\(\d+\))?)$/,
+      _stringtimestamp: /^(text|varchar(?:\(\d+\))?)$/,
+      _number:
+        /^(smallint|integer|bigint|real|double precision|numeric(?:\(\d+(?:,\d+)?\))?)$/,
+      _numberkey: /^(smallint|integer|bigint)$/,
+      _numbertimestamp: /^bigint$/,
+      _boolean: /^boolean$/,
+      _json: /^jsonb?$/,
+      _ref: /^text$/
+    }
+    if (compatible[expected.logicalColumnType]?.test(current)) return false
+  }
   if (
     dbType === 'sqlite' &&
     expected.logicalType === 'boolean' &&

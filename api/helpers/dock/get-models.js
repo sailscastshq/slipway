@@ -2,7 +2,8 @@ const { spawn, execFile } = require('node:child_process')
 const { promisify } = require('node:util')
 const { randomUUID } = require('node:crypto')
 const execFileAsync = promisify(execFile)
-let inspectionActive = false
+let inspectionQueue = Promise.resolve()
+const pendingInspections = new Map()
 
 module.exports = {
   friendlyName: 'Get Waterline models',
@@ -25,82 +26,90 @@ module.exports = {
   },
 
   fn: async function ({ containerName }) {
-    if (inspectionActive) {
-      return {
-        models: {},
-        error: 'Another schema inspection is running. Retry in a moment.'
-      }
+    if (pendingInspections.has(containerName)) {
+      return pendingInspections.get(containerName)
     }
-    inspectionActive = true
-    const dockerPath = sails.config.docker?.binaryPath || 'docker'
-    const snapshotName = `slipway-schema-${randomUUID()}`
-    let created = false
+    const inspection = inspectionQueue.then(() =>
+      inspectContainer(containerName)
+    )
+    pendingInspections.set(containerName, inspection)
+    inspectionQueue = inspection.catch(() => {})
     try {
-      const { stdout } = await execFileAsync(
-        dockerPath,
-        ['inspect', containerName],
-        {
-          timeout: 5000,
-          maxBuffer: 1024 * 1024
-        }
-      )
-      const inspection = JSON.parse(stdout)[0]
-      if (!inspection?.Image) throw new Error('Container unavailable')
-      const code = buildIntrospectionCode(inspection.Config?.Env || [])
-      const args = [
-        'run',
-        '--rm',
-        '-i',
-        '--name',
-        snapshotName,
-        '--memory',
-        '512m',
-        '--cpus',
-        '0.5',
-        '--pids-limit',
-        '128',
-        '--cap-drop',
-        'ALL',
-        '--security-opt',
-        'no-new-privileges',
-        '--network',
-        inspection.HostConfig?.NetworkMode || 'none',
-        '--volumes-from',
-        `${containerName}:ro`,
-        '--workdir',
-        inspection.Config?.WorkingDir || '/app',
-        '--user',
-        inspection.Config?.User || '0',
-        '--entrypoint',
-        'node',
-        inspection.Image,
-        '--max-old-space-size=256'
-      ]
-      created = true
-      const result = await executeInContainer(args, code)
-      if (!result.success) {
-        return {
-          models: {},
-          error:
-            'The app schema could not be loaded. Check its datastore connection and retry.'
-        }
+      return await inspection
+    } finally {
+      pendingInspections.delete(containerName)
+    }
+  }
+}
+
+async function inspectContainer(containerName) {
+  const dockerPath = sails.config.docker?.binaryPath || 'docker'
+  const snapshotName = `slipway-schema-${randomUUID()}`
+  let created = false
+  try {
+    const { stdout } = await execFileAsync(
+      dockerPath,
+      ['inspect', containerName],
+      {
+        timeout: 5000,
+        maxBuffer: 1024 * 1024
       }
-      const models = JSON.parse(result.output)
-      if (!Object.keys(models).length) throw new Error('No models')
-      return { models }
-    } catch {
+    )
+    const inspection = JSON.parse(stdout)[0]
+    if (!inspection?.Image) throw new Error('Container unavailable')
+    const code = buildIntrospectionCode(inspection.Config?.Env || [])
+    const args = [
+      'run',
+      '--rm',
+      '-i',
+      '--name',
+      snapshotName,
+      '--memory',
+      '512m',
+      '--cpus',
+      '0.5',
+      '--pids-limit',
+      '128',
+      '--cap-drop',
+      'ALL',
+      '--security-opt',
+      'no-new-privileges',
+      '--network',
+      inspection.HostConfig?.NetworkMode || 'none',
+      '--volumes-from',
+      `${containerName}:ro`,
+      '--workdir',
+      inspection.Config?.WorkingDir || '/app',
+      '--user',
+      inspection.Config?.User || '0',
+      '--entrypoint',
+      'node',
+      inspection.Image,
+      '--max-old-space-size=256'
+    ]
+    created = true
+    const result = await executeInContainer(args, code)
+    if (!result.success) {
       return {
         models: {},
         error:
-          'The deployed app schema is unavailable. Check the app container and retry.'
+          'The app schema could not be loaded. Check its datastore connection and retry.'
       }
-    } finally {
-      if (created)
-        await execFileAsync(dockerPath, ['rm', '-f', snapshotName], {
-          timeout: 5000
-        }).catch(() => {})
-      inspectionActive = false
     }
+    const models = JSON.parse(result.output)
+    if (!Object.keys(models).length) throw new Error('No models')
+    return { models }
+  } catch {
+    return {
+      models: {},
+      error:
+        'The deployed app schema is unavailable. Check the app container and retry.'
+    }
+  } finally {
+    if (created)
+      await execFileAsync(dockerPath, ['rm', '-f', snapshotName], {
+        timeout: 5000
+      }).catch(() => {})
   }
 }
 
@@ -144,12 +153,13 @@ function buildIntrospectionCode(environment = []) {
         attributes: {}
       };
 
-      for (const [attrName, attr] of Object.entries(model.attributes)) {
+      for (const [attrName, originalAttr] of Object.entries({ ...model.attributes, ...model.schema })) {
+        const attr = { ...model.attributes[attrName], ...originalAttr };
         const schemaAttr = model.schema?.[attrName] || {};
         const columnName = schemaAttr.columnName || attr.columnName || attrName;
 
         // Skip associations for now
-        if (attr.collection || attr.model) continue;
+        if (attr.collection || (attr.model && !schemaAttr.foreignKey)) continue;
 
         models[identity].attributes[attrName] = {
           type: attr.type,
@@ -160,7 +170,11 @@ function buildIntrospectionCode(environment = []) {
             schemaAttr.autoMigrations?.columnType,
           columnName,
           required: attr.required || false,
-          unique: attr.unique || false,
+          unique: attr.unique ?? attr.autoMigrations?.unique ?? false,
+          autoIncrement: attr.autoIncrement ?? attr.autoMigrations?.autoIncrement ?? false,
+          primaryKey: attr.primaryKey ?? (attrName === model.primaryKey),
+          foreignKey: Boolean(schemaAttr.foreignKey),
+          physical: { notNull: attr.autoMigrations?.notNull },
           defaultsTo: attr.defaultsTo,
           autoCreatedAt: attr.autoCreatedAt || false,
           autoUpdatedAt: attr.autoUpdatedAt || false,

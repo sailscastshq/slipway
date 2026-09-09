@@ -200,3 +200,103 @@ test('schema diff treats SQLite boolean storage forms as one logical contract', 
 
   expect(diff.columnsToModify).toEqual([])
 })
+
+test('PostgreSQL runtime types produce executable table creation and preserve existing identities', async ({
+  sails,
+  expect
+}) => {
+  const models = {
+    person: {
+      tableName: 'people',
+      primaryKey: 'id',
+      attributes: {
+        id: { type: 'number', columnType: '_numberkey', autoIncrement: true },
+        owner: { type: 'string', columnType: '_stringkey', foreignKey: true },
+        createdAt: { type: 'number', columnType: '_numbertimestamp' },
+        name: { type: 'string', columnType: '_string' },
+        active: { type: 'boolean', columnType: '_boolean' },
+        profile: { type: 'json', columnType: '_json' }
+      }
+    }
+  }
+  const diff = await sails.helpers.dock.generateDiff(models, {}, 'postgresql')
+  const {
+    nativeStatements
+  } = require('../../../../api/lib/native-migration-contract')
+  const statements = nativeStatements(diff, 'postgresql', {}, models)
+  expect(statements[0].blocked).toBe(undefined)
+  expect(statements[0].sql.includes('"id" SERIAL')).toBe(true)
+  expect(statements[0].sql.includes('"owner" VARCHAR')).toBe(true)
+  expect(statements[0].sql.includes('"createdAt" BIGINT')).toBe(true)
+  const current = {
+    people: {
+      catalogComplete: true,
+      columns: diff.tablesToCreate[0].columns.map((c) => ({
+        name: c.name,
+        type: c.name === 'id' ? 'integer' : c.sqlType.toLowerCase(),
+        nullable: c.nullable,
+        primaryKey: c.primaryKey,
+        autoIncrement: c.autoIncrement
+      })),
+      indexes: []
+    }
+  }
+  const unchanged = await sails.helpers.dock.generateDiff(
+    models,
+    current,
+    'postgresql'
+  )
+  expect(unchanged.unsupported).toEqual([])
+  expect(unchanged.columnsToModify).toEqual([])
+})
+
+test('implicit PostgreSQL model types preserve existing native widths and JSON storage', async ({
+  sails,
+  expect
+}) => {
+  const diff = await sails.helpers.dock.generateDiff(
+    {
+      person: {
+        tableName: 'people',
+        primaryKey: 'id',
+        attributes: {
+          id: { type: 'number', columnType: '_numberkey', autoIncrement: true },
+          name: { type: 'string', columnType: '_string' },
+          profile: { type: 'json', columnType: '_json' }
+        }
+      }
+    },
+    {
+      people: {
+        catalogComplete: true,
+        columns: [
+          {
+            name: 'id',
+            type: 'bigint',
+            primaryKey: true,
+            autoIncrement: true,
+            nullable: false
+          },
+          {
+            name: 'name',
+            type: 'character varying(255)',
+            primaryKey: false,
+            autoIncrement: false,
+            nullable: false
+          },
+          {
+            name: 'profile',
+            type: 'jsonb',
+            primaryKey: false,
+            autoIncrement: false,
+            nullable: true
+          }
+        ],
+        indexes: []
+      }
+    },
+    'postgresql'
+  )
+  expect(diff.columnsToModify).toEqual([])
+  expect(diff.unsupported).toEqual([])
+})
