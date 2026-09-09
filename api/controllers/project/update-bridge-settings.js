@@ -40,6 +40,8 @@ module.exports = {
       })
     }
     await App.updateOne({ id: app.id }).set({ bridgeEnabled: enabled })
+    if (!enabled)
+      await require('../../lib/bridge-support-grants').revokeApp(app.id)
 
     await sails.helpers.audit.log.with({
       action: enabled ? 'bridge.enabled' : 'bridge.disabled',

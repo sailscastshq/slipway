@@ -181,9 +181,25 @@ module.exports = {
       }
     }
 
+    let canStartSupport = false
+    if (
+      appRunning &&
+      app.bridgeEnabled &&
+      !resolved.access &&
+      ['owner', 'admin'].includes(resolved.user?.teamRole)
+    ) {
+      try {
+        const descriptor = await sails.helpers.bridge.supportDescriptor.with({
+          containerName: app.containerName
+        })
+        canStartSupport =
+          descriptor.enabled === true && descriptor.model === modelIdentity
+      } catch {}
+    }
     return {
       page: 'projects/bridge-record',
       props: {
+        canStartSupport,
         project: {
           id: project.id,
           name: project.name,

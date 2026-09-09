@@ -61,6 +61,15 @@ module.exports = {
       ON bridge_launch_codes (expires_at, used_at)
     `)
 
+    await datastore.sendNativeQuery(
+      `CREATE TABLE IF NOT EXISTS bridge_support_grants (id INTEGER PRIMARY KEY AUTOINCREMENT, token_hash TEXT UNIQUE NOT NULL, credential_hash TEXT NOT NULL, app INTEGER NOT NULL, actor INTEGER NOT NULL, scope TEXT NOT NULL, expires_at INTEGER NOT NULL, consumed_at INTEGER, ends_at INTEGER NOT NULL, status TEXT NOT NULL DEFAULT 'issued', created_at INTEGER, updated_at INTEGER)`
+    )
+    await datastore.sendNativeQuery(
+      `CREATE TABLE IF NOT EXISTS bridge_support_events (id INTEGER PRIMARY KEY AUTOINCREMENT, event_id TEXT UNIQUE NOT NULL, grant INTEGER NOT NULL, action TEXT NOT NULL, created_at INTEGER, updated_at INTEGER)`
+    )
+    await datastore.sendNativeQuery(
+      'CREATE INDEX IF NOT EXISTS bridge_support_grants_app_status ON bridge_support_grants(app, status)'
+    )
     const result = await datastore.sendNativeQuery('PRAGMA table_info(apps)')
     const existing = new Set(
       (result.rows || result || []).map((row) => row.name)
