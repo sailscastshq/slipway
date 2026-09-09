@@ -5,7 +5,9 @@ module.exports = {
     appId: { type: 'string', required: true },
     deploymentId: { type: 'string', required: true },
     hookVersion: { type: 'string', required: true },
-    protocol: { type: 'number', required: true }
+    protocol: { type: 'number', required: true },
+    runtimeId: { type: 'string', maxLength: 32 },
+    stats: { type: 'ref' }
   },
   exits: {
     unauthorized: { statusCode: 401 },
@@ -13,7 +15,14 @@ module.exports = {
     rateLimited: { statusCode: 429 },
     unavailable: { statusCode: 503 }
   },
-  fn: async function ({ appId, deploymentId, hookVersion, protocol }) {
+  fn: async function ({
+    appId,
+    deploymentId,
+    hookVersion,
+    protocol,
+    runtimeId,
+    stats
+  }) {
     let scope
     try {
       scope = await sails.helpers.wake.authenticate.with({
@@ -28,13 +37,19 @@ module.exports = {
     if (
       !/^\d+\.\d+\.\d+(?:-[a-zA-Z0-9.-]+)?$/.test(hookVersion) ||
       hookVersion.length > 64 ||
-      ![1, 2].includes(protocol)
+      ![1, 2, 3].includes(protocol)
     )
       throw 'badRequest'
     if (!sails.wakeStorageReady) throw 'unavailable'
     try {
       const db = sails.getDatastore('analytics')
       if (!(await budget(db, scope.app, 0, 256))) throw 'rateLimited'
+      if (runtimeId && stats)
+        require('../../../../lib/wake-store').runtimeStats(
+          scope.app,
+          runtimeId,
+          stats
+        )
       const app = await App.findOne({ id: appId })
       const { domains } = await Environment.resolveDomains(app.environment)
       const settings =
@@ -45,7 +60,7 @@ module.exports = {
             ...(app.wakeSettings?.allowedOrigins || [])
           ]
         })
-      const ready = protocol === 2 && settings.allowedOrigins.length > 0
+      const ready = protocol >= 2 && settings.allowedOrigins.length > 0
       await db.sendNativeQuery(
         `INSERT INTO wake_connections
         (app, environment, deployment, hook_version, protocol, collection_ready, last_seen_at)
@@ -66,7 +81,7 @@ module.exports = {
       return protocol === 1
         ? { protocol: 1, collectionReady: false, leaseMs: 0 }
         : {
-            protocol: 2,
+            protocol,
             collectionReady: ready,
             leaseMs: ready ? 120000 : 0,
             settings

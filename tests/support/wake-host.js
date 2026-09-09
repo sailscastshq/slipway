@@ -3,7 +3,8 @@ const fs = require('node:fs/promises')
 const os = require('node:os')
 const path = require('node:path')
 const crypto = require('node:crypto')
-const defineHook = require('../../packages/hook')
+const defineHook = require(process.env.SLIPWAY_HOOK_PACKAGE_UNDER_TEST ||
+  '../../packages/hook')
 module.exports = async function wakeHost(
   sails,
   world,

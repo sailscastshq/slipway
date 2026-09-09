@@ -99,6 +99,7 @@ function createSails() {
     after(event, callback) {
       if (event === 'hook:helpers:loaded') callback()
     },
+    once: () => {},
     on: () => {},
     models: {}
   }

@@ -90,6 +90,7 @@ module.exports.policies = {
 
   // Telemetry ingest is public (token-verified in controller)
   'api/v1/telemetry/ingest': true,
+  'api/v1/wake/revenue': true,
   'api/v1/wake/ingest': true,
   'api/v1/wake/register': true,
 

@@ -23,6 +23,13 @@ module.exports = {
       observability: await removeObservabilityRecords(snapshot),
       default: {}
     }
+    // Analytics cleanup is independent and idempotent. A storage failure leaves
+    // the cleanup operation retryable rather than claiming history was removed.
+    if (records.appIds?.length) {
+      if (!sails.wakeStorageReady) await sails.helpers.wake.ensureSchema()
+      for (const appId of records.appIds)
+        require('../../lib/wake-store').deleteApp(String(appId))
+    }
     const customServices = (services || []).filter(
       (service) => service.type === 'custom'
     )

@@ -376,3 +376,7 @@ its declared inputs before evaluation. An app-defined helper at the same
 identity is preserved. See the
 [release flag guide](https://docs.sailscasts.com/slipway/release-flags) for
 rollout behavior and Lookout comparisons.
+
+## Wake and read-only Bridge support views
+
+Version 0.0.10 adds the full Wake collection/goals/revenue runtime and opt-in read-only support sessions. Both capabilities remain disabled until explicitly configured. See [Wake setup, privacy, revenue replay and retention](../../docs/wake.md) and [Bridge support configuration and safety boundaries](../../docs/bridge-support.md). Custom session mappings are inherited from `slipway.identity`; Wake also supports anonymous sessionless apps.

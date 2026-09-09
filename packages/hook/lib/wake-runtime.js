@@ -28,7 +28,14 @@ module.exports = function createWakeRuntime(sails, config, hookVersion) {
   let identityWaiting = 0,
     policyEpoch = 0
   const transports = new Set()
-  const stats = { received: 0, dropped: 0, rejected: 0, delivered: 0 }
+  const stats = {
+    received: 0,
+    dropped: 0,
+    rejected: 0,
+    delivered: 0,
+    failedDelivery: 0
+  }
+  const runtimeId = require('node:crypto').randomBytes(16).toString('hex')
   const prefix = normalizeRoutePrefix(config.routePath)
   config = { ...config, routePath: prefix || '/' }
   const ready = () =>
@@ -128,7 +135,16 @@ module.exports = function createWakeRuntime(sails, config, hookVersion) {
     activeRegistration = true
     if (!ready()) status = 'connecting'
     try {
-      const response = await send('register', { protocol: 2, hookVersion })
+      const response = await send('register', {
+        protocol: 3,
+        hookVersion,
+        runtimeId,
+        stats: {
+          dropped: stats.dropped,
+          rejected: stats.rejected,
+          failedDelivery: stats.failedDelivery
+        }
+      })
       if (stopped) return
       if (response.status === 401) {
         reset('revoked')
@@ -137,7 +153,7 @@ module.exports = function createWakeRuntime(sails, config, hookVersion) {
       }
       if (
         response.status !== 200 ||
-        response.body?.protocol !== 2 ||
+        ![2, 3].includes(response.body?.protocol) ||
         response.body.collectionReady !== true ||
         response.body.leaseMs !== 120000
       ) {
@@ -176,8 +192,12 @@ module.exports = function createWakeRuntime(sails, config, hookVersion) {
       if (response.status === 401) reset('revoked')
       if (response.status === 200 && Number.isInteger(response.body?.accepted))
         stats.delivered += response.body.accepted
-      else stats.dropped += batch.length
+      else {
+        stats.dropped += batch.length
+        stats.failedDelivery++
+      }
     } catch {
+      stats.failedDelivery++
       stats.dropped += batch.length
     } finally {
       activeFlush = false
@@ -378,6 +398,131 @@ module.exports = function createWakeRuntime(sails, config, hookVersion) {
       incoming--
     }
   }
+  async function permittedIds(req) {
+    if (!ready() || blocked(req) || policy.mode !== 'first-party') return null
+    const value = visitor.read(
+      req,
+      visitor.cookieName(config),
+      config.secret,
+      Date.now()
+    )
+    if (!value) return null
+    if (identityWaiting >= 16) return null
+    const epoch = policyEpoch
+    identityWaiting++
+    let timeout, principal
+    try {
+      principal = await Promise.race([
+        identity(req).finally(() => identityWaiting--),
+        new Promise((_, reject) => {
+          timeout = setTimeout(() => reject(Error('Identity deadline')), 500)
+        })
+      ])
+    } catch {
+      return null
+    } finally {
+      clearTimeout(timeout)
+    }
+    if (epoch !== policyEpoch || !ready() || blocked(req)) return null
+    const subject = principal
+      ? require('node:crypto')
+          .createHmac('sha256', config.secret)
+          .update('wake-subject:' + principal.id)
+          .digest('hex')
+      : null
+    if (value.subject && value.subject !== subject) return null
+    return {
+      visitorId: value.visitor,
+      sessionId: Date.now() - value.seen < 30 * 60000 ? value.session : null,
+      hostUserId: principal?.id || null
+    }
+  }
+  async function attribution(req) {
+    const ids = await permittedIds(req)
+    return ids
+      ? require('./wake-value-contract').attribution(
+          config.secret,
+          config.appId,
+          ids.visitorId
+        )
+      : null
+  }
+  async function track({ name, req, properties, eventId, occurredAt }) {
+    if (!ready() || blocked(req)) return { accepted: false }
+    const value = require('./wake-value-contract')
+    if (!/^[a-z][a-z0-9_.-]{0,63}$/.test(name))
+      throw value.failure('invalid_goal')
+    const safe = value.properties(properties)
+    const epoch = policyEpoch
+    const ids = await permittedIds(req)
+    if (epoch !== policyEpoch || !ready() || blocked(req))
+      return { accepted: false }
+    // A cookie is only created by permitted browser collection. Without one,
+    // consent-gated server goals must wait for explicit permitted collection.
+    if (policy.requireConsent && !ids) return { accepted: false }
+    const pathname = contract.cleanPath(req.originalUrl || req.url || '/')
+    if (contract.excluded(pathname, policy, prefix)) return { accepted: false }
+    const now = Date.now(),
+      time = occurredAt === undefined ? now : occurredAt
+    if (
+      !Number.isSafeInteger(time) ||
+      time > now + 300000 ||
+      time < now - 30 * 86400000
+    )
+      throw value.failure('invalid_time')
+    const id = eventId || require('node:crypto').randomBytes(16).toString('hex')
+    if (!/^[A-Za-z0-9_-]{8,128}$/.test(id)) throw value.failure('invalid_id')
+    if (queue.length >= 1000) {
+      queue.shift()
+      stats.dropped++
+    }
+    queue.push({
+      id,
+      kind: 'goal',
+      name,
+      occurredAt: time,
+      path: pathname,
+      dimensions: contract.dimensions(),
+      properties: safe,
+      provenance: 'server',
+      visitorId: ids?.visitorId || null,
+      sessionId: ids?.sessionId || null,
+      hostUserId: ids?.hostUserId || null
+    })
+    stats.received++
+    return { accepted: true }
+  }
+  let revenuePending = 0
+  async function revenue(inputs) {
+    const contract = require('./wake-value-contract')
+    const payment = contract.payment(
+      Object.fromEntries(
+        Object.entries(inputs).filter(
+          ([, value]) => value !== undefined && value !== ''
+        )
+      )
+    )
+    if (!config.enabled || stopped || revenuePending >= 4)
+      throw Object.assign(
+        Error('Wake unavailable; retry from the durable payment record.'),
+        { retriable: true }
+      )
+    revenuePending++
+    try {
+      const response = await send('revenue', { payment })
+      if (response.status !== 200 || typeof response.body?.receipt !== 'string')
+        throw Object.assign(Error('Wake receipt was not committed.'), {
+          status: response.status,
+          retriable: ![400, 409].includes(response.status)
+        })
+      return response.body
+    } catch (error) {
+      if (error.retriable === undefined) error.retriable = true
+      throw error
+    } finally {
+      revenuePending--
+    }
+  }
   function configuration(req, res) {
     res.setHeader('cache-control', 'no-store')
     const host = String(req.headers.host || '')
@@ -430,6 +575,9 @@ module.exports = function createWakeRuntime(sails, config, hookVersion) {
   }
   return {
     resolveIdentity: identity,
+    track,
+    attribution,
+    revenue,
     getStatus: () =>
       ready() ? 'collecting' : status === 'collecting' ? 'unavailable' : status,
     getStats: () => ({ ...stats, queued: queue.length }),

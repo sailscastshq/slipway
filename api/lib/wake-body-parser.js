@@ -5,7 +5,7 @@ module.exports = function withWakeBodyLimit(defaultParser) {
   const parser = skipper({ limit: LIMITS.bytes })
   return function parseBody(req, res, next) {
     const pathname = String(req.url || '').split('?')[0]
-    if (!/^\/api\/v1\/wake\/(ingest|register)\/?$/i.test(pathname))
+    if (!/^\/api\/v1\/wake\/(ingest|register|revenue)\/?$/i.test(pathname))
       return defaultParser(req, res, next)
     if (
       !/^application\/json(?:\s*;|$)/i.test(

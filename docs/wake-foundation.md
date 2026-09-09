@@ -1,6 +1,6 @@
 # Wake foundation (issue #499)
 
-This document records the first implementation phase of Wake. See [Wake collection](wake-collection.md) for the subsequent protocol 2 collector and current privacy behavior. It is not a released analytics feature. There is no user-facing enablement switch, collector, payment helper, or dashboard yet. The parent issue stays open.
+This is the historical foundation contract. The completed feature, supported hook version, enablement, reporting, and operational boundaries are documented in [Wake](wake.md). The phase-specific limitations below describe the original foundation, not the current release.
 
 ## Implemented boundary
 

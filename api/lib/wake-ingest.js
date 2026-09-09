@@ -23,7 +23,8 @@ function normalize(events, now = Date.now()) {
       'sessionId',
       'hostUserId',
       'dimensions',
-      'provenance'
+      'provenance',
+      'properties'
     ]
     if (
       !event ||
@@ -69,7 +70,13 @@ function normalize(events, now = Date.now()) {
       !['browser', 'server'].includes(event.provenance)
     )
       throw new Error('invalid provenance')
+    if (event.properties && event.provenance !== 'server')
+      throw new Error('invalid properties provenance')
     return {
+      properties:
+        require('../../packages/hook/lib/wake-value-contract').properties(
+          event.properties
+        ),
       hostUserId: event.hostUserId || null,
       dimensions: require('../../packages/hook/lib/wake-contract').dimensions(
         event.dimensions

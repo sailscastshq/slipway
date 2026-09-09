@@ -1042,6 +1042,11 @@ onBeforeUnmount(() => {
                 class="w-48 rounded-lg border-gray-200 bg-white px-0 py-1 shadow-lg dark:border-gray-700 dark:bg-gray-900"
               >
                 <div class="contents">
+                  <Link
+                    :href="`/projects/${project.slug}/environments/${environment.slug}/apps/${app.slug}/wake`"
+                    class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+                    >Wake</Link
+                  >
                   <!-- Platform tools -->
                   <div
                     v-if="app.status === 'running'"

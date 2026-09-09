@@ -2,7 +2,7 @@ const crypto = require('node:crypto')
 module.exports = {
   friendlyName: 'Set Wake availability',
   description:
-    'Internal foundation helper; no user-facing enablement until collection is complete.',
+    'Authorize and update app-scoped collection settings; enabling rotates runtime credentials.',
   inputs: {
     req: { type: 'ref', required: true },
     projectSlug: { type: 'string', required: true },

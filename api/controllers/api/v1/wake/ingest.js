@@ -63,38 +63,15 @@ module.exports = {
       const db = sails.getDatastore('analytics')
       if (!(await budget(db, scope.app, normalized.length, bytes)))
         throw 'rateLimited'
-      const now = Date.now()
-      const values = normalized.flatMap((event) => [
-        scope.app,
-        scope.environment,
-        scope.deployment,
-        event.id,
-        event.kind,
-        event.name,
-        event.occurredAt,
-        now,
-        event.path,
-        event.visitorId,
-        event.sessionId,
-        event.hostUserId,
-        JSON.stringify(event.dimensions),
-        event.provenance
-      ])
-      const result = await db.sendNativeQuery(
-        `INSERT INTO wake_events
-        (app, environment, deployment, event_id, kind, name, occurred_at, received_at, path, visitor_id, session_id, host_user_id, dimensions, provenance)
-        VALUES ${normalized
-          .map(() => '(?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
-          .join(',')}
-        ON CONFLICT(app, event_id) DO NOTHING`,
-        values
+      const result = require('../../../../lib/wake-store').ingest(
+        scope,
+        normalized
       )
-      return {
-        accepted: result.changes,
-        duplicates: normalized.length - result.changes
-      }
+      sails.wakeLastStorageFailure = 0
+      return result
     } catch (error) {
       if (error === 'rateLimited') throw error
+      sails.wakeLastStorageFailure = Date.now()
       throw 'unavailable'
     }
   }
