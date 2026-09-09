@@ -169,17 +169,8 @@ module.exports = {
     try {
       const globalJson = await sails.helpers.setting.get('globalEnvVars', '{}')
       globalEnvVars = JSON.parse(globalJson)
-      backupConfigured = !!(
-        (globalEnvVars.R2_ACCESS_KEY ||
-          globalEnvVars.S3_ACCESS_KEY ||
-          globalEnvVars.SPACES_ACCESS_KEY) &&
-        (globalEnvVars.R2_SECRET_KEY ||
-          globalEnvVars.S3_SECRET_KEY ||
-          globalEnvVars.SPACES_SECRET_KEY) &&
-        (globalEnvVars.R2_BUCKET ||
-          globalEnvVars.S3_BUCKET ||
-          globalEnvVars.SPACES_BUCKET)
-      )
+      await sails.helpers.backup.getStorageConfig()
+      backupConfigured = true
     } catch {
       /* ignore */
     }

@@ -2,7 +2,12 @@ const { test } = require('sounding')
 const { withCsrfFromPage } = require('../../support/csrf-request')
 test(
   'private backup configuration is restricted to the instance administrator and returns no saved secrets',
-  { world: { name: 'configured-slipway' } },
+  {
+    world: {
+      name: 'configured-slipway',
+      context: { deploymentTarget: { slug: 'azure-backup-actions' } }
+    }
+  },
   async ({ sails, world, request, expect }) => {
     await sails.helpers.setting.set(
       'backupStorageConfig',
@@ -22,6 +27,16 @@ test(
     expect(JSON.stringify(page.data).includes('never-return-this-key')).toBe(
       false
     )
+    for (const url of [
+      '/projects/azure-backup-actions/environments/production',
+      '/projects/azure-backup-actions/environments/production/apps/web'
+    ]) {
+      const target = await owner.request.get(url, {
+        headers: { 'X-Inertia': 'true' }
+      })
+      expect(target).toHaveStatus(200)
+      expect(target.data.props.backupConfigured).toBe(true)
+    }
     const invalid = await owner.request.post('/settings/backup-storage', {
       configuration: {
         provider: 'azure',
