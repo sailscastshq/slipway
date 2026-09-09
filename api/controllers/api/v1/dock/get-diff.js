@@ -1,3 +1,6 @@
+const plans = require('../../../../lib/migration-plans')
+const migrationContext = require('../../../../lib/migration-context')
+
 module.exports = {
   friendlyName: 'Get schema diff',
 
@@ -170,6 +173,34 @@ module.exports = {
       )
       statements = preflight.statements
     }
+    let plan
+    if (statements.length && !statements.some((item) => item.blocked)) {
+      if (!['sqlite', 'postgresql'].includes(service.type)) {
+        statements = statements.map((item) => ({
+          ...item,
+          blocked: true,
+          reason:
+            'Automatic migration is unavailable until a whole-plan recovery workflow is verified for this engine. Use a reviewed manual migration with a verified backup.'
+        }))
+      } else if (['owner', 'admin'].includes(user.teamRole)) {
+        const target = migrationContext.target(service, {
+          kind: 'dock',
+          projectId: project.id,
+          environmentId: environment.id,
+          serviceId: service.id,
+          appId: app.id
+        })
+        plan = await plans.create({
+          actor: user,
+          target,
+          models: modelsResult.models,
+          source: await migrationContext.source(service, app),
+          schema: schemaResult.tables,
+          statements
+        })
+        if (plan) statements = plan.statements
+      }
+    }
     const blocked = statements.filter((item) => item.blocked)
     return {
       preflight: preflight
@@ -179,6 +210,9 @@ module.exports = {
             engineImage: preflight.engineImage
           }
         : undefined,
+      plan: plan
+        ? { id: plan.id, hash: plan.hash, expiresAt: plan.expiresAt }
+        : null,
       databaseType: service.type,
       diff,
       state: blocked.length ? 'unverified' : diff.state,

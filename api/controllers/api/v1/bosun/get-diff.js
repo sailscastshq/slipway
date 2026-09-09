@@ -1,3 +1,6 @@
+const plans = require('../../../../lib/migration-plans')
+const migrationContext = require('../../../../lib/migration-context')
+
 module.exports = {
   friendlyName: 'Get Bosun schema diff',
 
@@ -64,19 +67,34 @@ module.exports = {
       service.type
     )
 
-    const { statements } = await sails.helpers.dock.generateMigrationSql(
+    let { statements } = await sails.helpers.dock.generateMigrationSql(
       diff,
       service.type,
       modelsResult.models,
       schemaResult.tables
     )
 
+    let plan
+    if (statements.length && !statements.some((item) => item.blocked)) {
+      plan = await plans.create({
+        actor: user,
+        target: migrationContext.target(service, { kind: 'bosun', database }),
+        models: modelsResult.models,
+        source: await migrationContext.source(service),
+        schema: schemaResult.tables,
+        statements
+      })
+      if (plan) statements = plan.statements
+    }
     const blocked = statements.filter((item) => item.blocked)
     return {
       database,
       databaseType: service.type,
       datastore: modelsResult.datastore,
       modelCount: modelsResult.modelCount,
+      plan: plan
+        ? { id: plan.id, hash: plan.hash, expiresAt: plan.expiresAt }
+        : null,
       diff,
       state: blocked.length ? 'unverified' : diff.state,
       verification: {

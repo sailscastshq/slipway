@@ -347,6 +347,10 @@ async function main() {
       ).state,
       'up_to_date'
     )
+    if (pg)
+      await require('../tests/fixtures/verify-postgres-migration-plans')(
+        service
+      )
     console.log(
       `${type}: catalog definitions, index semantics, stable round trip, and protected changes verified.`
     )

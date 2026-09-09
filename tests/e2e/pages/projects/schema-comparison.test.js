@@ -51,7 +51,18 @@ test(
       )
       payload = {
         diff,
-        statements,
+        statements: statements.map((statement, index) => ({
+          ...statement,
+          operationId: `operation-${index}`
+        })),
+        plan:
+          diff.state === 'changes_pending'
+            ? {
+                id: 'reviewed-plan',
+                hash: 'reviewed-hash',
+                expiresAt: Date.now() + 300000
+              }
+            : null,
         state: diff.state,
         verification: { unsupported: diff.unsupported },
         hasPendingChanges: statements.length > 0,
@@ -77,6 +88,19 @@ test(
           body: JSON.stringify({ tables: [] })
         })
       )
+      let submitted
+      await page.raw.route('**/dock/migrate?**', (route) => {
+        submitted = route.request().postDataJSON()
+        return route.fulfill({
+          status: 400,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            success: false,
+            error:
+              'The app or database changed after this preview. Refresh and review a new migration plan.'
+          })
+        })
+      })
       await page.raw.route('**/dock/diff?**', (route) =>
         route.fulfill({
           status: 200,
@@ -91,7 +115,7 @@ test(
       await page.goto(
         `/projects/schema-comparison/environments/production/dock/${database.id}?tab=migrate`
       )
-      const output = path.resolve('output/issue-371')
+      const output = path.resolve('output/issue-372')
       fs.mkdirSync(output, { recursive: true })
       for (const state of ['up_to_date', 'changes_pending', 'unverified']) {
         if (state === 'changes_pending')
@@ -146,6 +170,33 @@ test(
             )
           ).toBe(true)
           await page.screenshot(path.join(output, `${state}-${width}.png`), {
+            animations: 'disabled'
+          })
+        }
+        if (state === 'changes_pending') {
+          await page.raw
+            .getByRole('button', { name: 'Apply', exact: true })
+            .click()
+          const dialog = page.raw.getByRole('dialog')
+          await expect(dialog).toBeVisible()
+          expect(await dialog.getByRole('button').count()).toBe(2)
+          await dialog
+            .getByRole('button', { name: 'Apply', exact: true })
+            .click()
+          const alert = page.raw
+            .getByRole('alert')
+            .filter({ hasText: 'changed after this preview' })
+          await expect(alert).toHaveAttribute('data-slot', 'alert')
+          await expect(alert).toBeVisible()
+          await expect(dialog).toBeHidden()
+          expect(submitted.planId).toBe('reviewed-plan')
+          expect(submitted.planHash).toBe('reviewed-hash')
+          expect(submitted.operationIds.length > 0).toBe(true)
+          expect(submitted.statements).toBe(undefined)
+          await expect(
+            page.raw.getByRole('button', { name: 'Apply', exact: true })
+          ).toBeDisabled()
+          await page.screenshot(path.join(output, 'stale-plan-390.png'), {
             animations: 'disabled'
           })
         }

@@ -14,6 +14,10 @@ module.exports = {
     statements: {
       type: 'ref',
       required: true
+    },
+    connection: {
+      type: 'ref',
+      description: 'Server-owned transaction connection'
     }
   },
 
@@ -23,13 +27,13 @@ module.exports = {
     }
   },
 
-  fn: async function ({ databasePath, statements }) {
+  fn: async function ({ databasePath, statements, connection }) {
     let db
     const results = []
     let foreignKeysWereEnabled = false
 
     try {
-      db = new Database(databasePath, { fileMustExist: true })
+      db = connection || new Database(databasePath, { fileMustExist: true })
       const rebuildStatements = statements.filter(
         (statement) => statement.type === 'rebuild_table'
       )
@@ -53,7 +57,7 @@ module.exports = {
         db.pragma('foreign_keys = OFF')
       }
 
-      db.exec('BEGIN IMMEDIATE;')
+      if (!connection) db.exec('BEGIN IMMEDIATE;')
 
       for (const statement of statements) {
         db.exec(statement.sql)
@@ -68,7 +72,7 @@ module.exports = {
         verifySqliteRebuild(db, statement, rowCountsBefore.get(statement.table))
       }
 
-      db.exec('COMMIT;')
+      if (!connection) db.exec('COMMIT;')
 
       return {
         success: true,
@@ -78,7 +82,7 @@ module.exports = {
       }
     } catch (error) {
       try {
-        db?.exec('ROLLBACK;')
+        if (!connection) db?.exec('ROLLBACK;')
       } catch {
         // Ignore rollback failures when no transaction is open.
       }
@@ -102,7 +106,7 @@ module.exports = {
         ]
       }
     } finally {
-      if (db) {
+      if (db && !connection) {
         if (foreignKeysWereEnabled) {
           db.pragma('foreign_keys = ON')
         }

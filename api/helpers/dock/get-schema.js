@@ -315,7 +315,9 @@ function getSqliteSchema(service) {
   let db
 
   try {
-    db = new Database(service.path, { readonly: true })
+    db =
+      service.transaction?.database ||
+      new Database(service.path, { readonly: true })
     const tableRows = db
       .prepare(
         `
@@ -427,7 +429,7 @@ function getSqliteSchema(service) {
   } catch (error) {
     return { tables: {}, error: error.message }
   } finally {
-    if (db) {
+    if (db && !service.transaction?.database) {
       db.close()
     }
   }

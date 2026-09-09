@@ -162,10 +162,6 @@ function generateSqliteStatements(diff, models, schema) {
   }
 
   for (const idx of diff.indexesToCreate) {
-    if (rebuiltTables.has(idx.tableName)) {
-      continue
-    }
-
     const sql = generateSqliteIndexSql(
       idx.tableName,
       idx.columnName,

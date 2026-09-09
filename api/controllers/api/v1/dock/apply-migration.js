@@ -1,3 +1,6 @@
+const plans = require('../../../../lib/migration-plans')
+const migrationContext = require('../../../../lib/migration-context')
+
 module.exports = {
   friendlyName: 'Apply migration',
 
@@ -12,16 +15,9 @@ module.exports = {
       type: 'string',
       defaultsTo: 'production'
     },
-    statements: {
-      type: 'ref',
-      required: true,
-      description: 'Array of SQL statements to execute'
-    },
-    dryRun: {
-      type: 'boolean',
-      defaultsTo: false,
-      description: 'If true, only validate without executing'
-    }
+    planId: { type: 'string' },
+    planHash: { type: 'string' },
+    operationIds: { type: 'ref' }
   },
 
   exits: {
@@ -39,7 +35,13 @@ module.exports = {
     }
   },
 
-  fn: async function ({ projectSlug, environmentSlug, statements, dryRun }) {
+  fn: async function ({
+    projectSlug,
+    environmentSlug,
+    planId,
+    planHash,
+    operationIds
+  }) {
     const user = await User.forRequest(this.req)
     const project = await Project.findOne({ slug: projectSlug }).populate(
       'team'
@@ -65,94 +67,53 @@ module.exports = {
       throw 'notFound'
     }
 
-    // Get database service - use serviceId from query params if available
-    const serviceId = this.req.query.service
-    let dbResult
-    try {
-      dbResult = await sails.helpers.dock.getDatabaseService(
-        environment.id,
-        serviceId
-      )
-    } catch (err) {
-      throw { badRequest: 'No database service found for this environment.' }
-    }
-
-    const { service } = dbResult
-
-    if (!Array.isArray(statements) || statements.length === 0) {
-      throw { badRequest: 'No statements provided.' }
-    }
-
-    const blockedStatement = statements.find(
-      (statement) =>
-        statement &&
-        typeof statement === 'object' &&
-        (statement.blocked || statement.type === 'blocked_rebuild')
+    if (
+      this.req.body?.statements !== undefined ||
+      this.req.body?.dryRun !== undefined
     )
-
-    if (blockedStatement) {
       throw {
-        badRequest:
-          blockedStatement.reason ||
-          `Slipway blocked the ${
-            blockedStatement.table || 'database'
-          } migration.`
+        badRequest: {
+          error:
+            'Executable SQL is not accepted here. Refresh and submit a server-created migration plan.',
+          code: 'invalidMigrationPlan'
+        }
       }
-    }
-
-    // Extract SQL from statement objects
-    const sqlStatements = statements.map((s) =>
-      typeof s === 'string' ? s : s.sql
+    const { service } = await sails.helpers.dock.getDatabaseService(
+      environment.id,
+      this.req.query.service
     )
-
-    if (dryRun) {
-      // Just return what would be executed
-      return {
-        dryRun: true,
-        statements: sqlStatements,
-        message: 'Dry run complete. No changes made.'
+    const app =
+      (await App.findOne({ environment: environment.id, isDefault: true })) ||
+      (await App.findOne({ environment: environment.id }))
+    if (!app)
+      throw {
+        badRequest: {
+          error: 'No deployed app is available for this migration.'
+        }
       }
-    }
-
-    // Execute each statement
-    const results = []
-    let successCount = 0
-    let errorCount = 0
-
-    for (const sql of sqlStatements) {
-      const result = await sails.helpers.dock.executeSql(service, sql)
-
-      if (result.success) {
-        successCount++
-        results.push({
-          sql,
-          success: true,
-          message: result.message || 'OK'
-        })
-      } else {
-        errorCount++
-        results.push({
-          sql,
-          success: false,
-          error: result.error
-        })
-        // Stop on first error
-        break
+    try {
+      const target = migrationContext.target(service, {
+        kind: 'dock',
+        projectId: project.id,
+        environmentId: environment.id,
+        serviceId: service.id,
+        appId: app.id
+      })
+      const entry = plans.claim({
+        id: planId,
+        hash: planHash,
+        actor: user,
+        target,
+        operationIds
+      })
+      return await sails.helpers.dock.applyServerPlan(entry, user)
+    } catch (error) {
+      throw {
+        badRequest: {
+          error: error.message,
+          code: error.code || 'invalidMigrationPlan'
+        }
       }
-    }
-
-    // Log the migration
-    sails.log.info(
-      `[dock] Migration applied in ${project.slug}/${environmentSlug} by ${user.fullName}: ${successCount} succeeded, ${errorCount} failed`
-    )
-
-    return {
-      success: errorCount === 0,
-      executed: successCount,
-      failed: errorCount,
-      results,
-      appliedBy: user.fullName,
-      appliedAt: new Date().toISOString()
     }
   }
 }
