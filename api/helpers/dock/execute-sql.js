@@ -46,6 +46,8 @@ module.exports = {
   },
 
   fn: async function ({ service, query, format }) {
+    if (typeof service.transaction?.query === 'function')
+      return service.transaction.query(query)
     const dockerPath = sails.config.docker?.binaryPath || 'docker'
     const startTime = Date.now()
 

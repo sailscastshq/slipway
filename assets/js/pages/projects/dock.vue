@@ -272,6 +272,7 @@ function syncSchemaFilterToUrl() {
 const diff = ref(null)
 const diffLoading = ref(false)
 const diffError = ref(null)
+const migrationError = ref(null)
 const migrateLoading = ref(false)
 const selectedModels = ref(new Set())
 const showMigrateConfirm = ref(false)
@@ -513,6 +514,7 @@ async function fetchSchema() {
 async function fetchDiff() {
   diffLoading.value = true
   diffError.value = null
+  migrationError.value = null
 
   try {
     const res = await fetch(apiUrl('/diff'))
@@ -586,6 +588,7 @@ function deselectAllModels() {
 function confirmMigration() {
   if (
     !props.canManageDatabase ||
+    !diff.value?.plan ||
     !filteredStatements.value.length ||
     hasBlockedStatements.value
   )
@@ -598,18 +601,30 @@ async function applyMigration() {
   if (!props.canManageDatabase) return
   showMigrateConfirm.value = false
   migrateLoading.value = true
+  migrationError.value = null
 
   try {
     const res = await fetch(apiUrl('/migrate'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ statements: filteredStatements.value })
+      body: JSON.stringify({
+        planId: diff.value?.plan?.id,
+        planHash: diff.value?.plan?.hash,
+        operationIds: filteredStatements.value.map(
+          (statement) => statement.operationId
+        )
+      })
     })
 
     const data = await res.json()
 
     if (!res.ok || !data.success) {
-      showToast(data.error || data.message || 'Migration failed', 'error')
+      migrationError.value =
+        data.error ||
+        data.message ||
+        'Migration failed. Refresh the schema before retrying.'
+      diff.value.plan = null
+      diff.value.preflight = null
     } else {
       showToast(
         `Migration applied: ${data.executed} statement(s) executed`,
@@ -618,7 +633,10 @@ async function applyMigration() {
       await fetchDiff()
     }
   } catch (e) {
-    showToast(e.message, 'error')
+    migrationError.value =
+      'The migration result could not be confirmed. Refresh the schema before continuing.'
+    diff.value.plan = null
+    diff.value.preflight = null
   } finally {
     migrateLoading.value = false
   }
@@ -2272,6 +2290,12 @@ onUnmounted(() => {
         </Alert>
 
         <div v-else-if="diff" class="space-y-6">
+          <Alert
+            v-if="migrationError"
+            role="alert"
+            class="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300"
+            >{{ migrationError }}</Alert
+          >
           <div class="flex items-center justify-between">
             <div>
               <h3 class="text-sm font-medium text-gray-900 dark:text-white">
@@ -2517,7 +2541,7 @@ onUnmounted(() => {
             filteredStatements.length > 0
           "
           @click="confirmMigration"
-          :disabled="migrateLoading || hasBlockedStatements"
+          :disabled="migrateLoading || hasBlockedStatements || !diff?.plan"
           class="flex h-8 items-center rounded-md bg-gray-900 px-3 text-sm font-medium text-white transition-colors hover:bg-gray-800 disabled:opacity-50 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
         >
           {{ migrateLoading ? 'Applying...' : 'Apply' }}

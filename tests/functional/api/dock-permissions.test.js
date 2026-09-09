@@ -65,7 +65,7 @@ test(
             '/api/v1/projects/dock-permissions/dock/migrate',
             { statements: ['SELECT 1'], dryRun: true }
           )
-        ).toHaveStatus(200)
+        ).toHaveStatus(400)
         expect(
           await browser.request.post(
             '/api/v1/projects/dock-permissions/dock/sql',

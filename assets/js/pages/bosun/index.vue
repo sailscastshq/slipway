@@ -128,6 +128,7 @@ const resultView = ref('table')
 // ─── Migrate state ───
 const diff = ref(null)
 const diffError = ref(null)
+const migrationError = ref(null)
 const diffLoading = ref(false)
 const migrateLoading = ref(false)
 const selectedModels = ref(new Set())
@@ -437,6 +438,7 @@ function exportAction(fn) {
 async function fetchDiff() {
   diffLoading.value = true
   diffError.value = null
+  migrationError.value = null
 
   try {
     const params = new URLSearchParams({ database: selectedDatabase.value })
@@ -497,7 +499,9 @@ const blockedStatements = computed(() =>
 
 const canApplyMigration = computed(
   () =>
-    filteredStatements.value.length > 0 && blockedStatements.value.length === 0
+    Boolean(diff.value?.plan) &&
+    filteredStatements.value.length > 0 &&
+    blockedStatements.value.length === 0
 )
 
 const diffSummary = computed(() => {
@@ -544,8 +548,10 @@ function confirmMigration() {
 }
 
 async function applyMigration() {
+  if (!diff.value?.plan) return
   showMigrateConfirm.value = false
   migrateLoading.value = true
+  migrationError.value = null
 
   try {
     const response = await fetch('/api/v1/bosun/migrate', {
@@ -553,14 +559,23 @@ async function applyMigration() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         database: selectedDatabase.value,
-        statements: filteredStatements.value
+        planId: diff.value?.plan?.id,
+        planHash: diff.value?.plan?.hash,
+        operationIds: filteredStatements.value.map(
+          (statement) => statement.operationId
+        )
       })
     })
 
     const data = await response.json()
 
     if (!response.ok || !data.success) {
-      showToast(data.error || data.message || 'Migration failed', 'error')
+      migrationError.value =
+        data.error ||
+        data.message ||
+        'Migration failed. Refresh the schema before retrying.'
+      diff.value.plan = null
+      diff.value.preflight = null
       return
     }
 
@@ -570,7 +585,10 @@ async function applyMigration() {
     )
     await fetchDiff()
   } catch (error) {
-    showToast(error.message || 'Migration failed', 'error')
+    migrationError.value =
+      'The migration result could not be confirmed. Refresh the schema before continuing.'
+    diff.value.plan = null
+    diff.value.preflight = null
   } finally {
     migrateLoading.value = false
   }
@@ -1699,6 +1717,12 @@ onUnmounted(() => {
           </div>
 
           <div v-else class="space-y-6">
+            <Alert
+              v-if="migrationError"
+              role="alert"
+              class="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300"
+              >{{ migrationError }}</Alert
+            >
             <div class="rounded-lg border border-gray-200 dark:border-gray-800">
               <div
                 class="flex flex-col gap-4 border-b border-gray-200 px-4 py-4 dark:border-gray-800 sm:flex-row sm:items-start sm:justify-between"

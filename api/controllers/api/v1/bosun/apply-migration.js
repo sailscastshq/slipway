@@ -1,3 +1,6 @@
+const plans = require('../../../../lib/migration-plans')
+const migrationContext = require('../../../../lib/migration-context')
+
 module.exports = {
   friendlyName: 'Apply Bosun migration',
 
@@ -10,14 +13,9 @@ module.exports = {
       defaultsTo: 'app',
       isIn: ['app', 'observability', 'cache']
     },
-    statements: {
-      type: 'ref',
-      required: true
-    },
-    dryRun: {
-      type: 'boolean',
-      defaultsTo: false
-    }
+    planId: { type: 'string' },
+    planHash: { type: 'string' },
+    operationIds: { type: 'ref' }
   },
 
   exits: {
@@ -32,95 +30,48 @@ module.exports = {
     }
   },
 
-  fn: async function ({ database, statements, dryRun }) {
+  fn: async function ({ database, planId, planHash, operationIds }) {
     const user = await User.forRequest(this.req)
     if (!user) {
       throw 'notFound'
     }
 
-    if (!Array.isArray(statements) || statements.length === 0) {
-      throw { badRequest: 'No statements provided.' }
-    }
-
-    const requestedTables = new Set(
-      statements
-        .filter((statement) => statement && typeof statement === 'object')
-        .map((statement) => statement.table)
-        .filter(Boolean)
-    )
-
-    if (requestedTables.size === 0) {
-      throw { badRequest: 'Select at least one current schema change.' }
-    }
-
-    const service = await sails.helpers.bosun.getDatabaseService(database)
-    const modelsResult = await sails.helpers.bosun.getModels(database)
-    const schemaResult = await sails.helpers.dock.getSchema(service)
-
-    if (schemaResult.error) {
-      throw { badRequest: `Failed to get schema: ${schemaResult.error}` }
-    }
-
-    const diff = await sails.helpers.dock.generateDiff(
-      modelsResult.models,
-      schemaResult.tables,
-      service.type
-    )
-    const generated = await sails.helpers.dock.generateMigrationSql(
-      diff,
-      service.type,
-      modelsResult.models,
-      schemaResult.tables
-    )
-    const migrationStatements = generated.statements.filter(
-      (statement) => !statement.table || requestedTables.has(statement.table)
-    )
-
-    if (migrationStatements.length === 0) {
+    if (!user.isGenesisUser)
       throw {
-        badRequest:
-          'The selected schema changes are no longer pending. Refresh the migration tab.'
+        badRequest: { error: 'Instance administrator access is required.' }
       }
-    }
-    const blockedStatement = migrationStatements.find(
-      (statement) => statement.blocked || statement.type === 'blocked_rebuild'
-    )
-
-    if (blockedStatement) {
-      throw {
-        badRequest:
-          blockedStatement.reason ||
-          `Bosun blocked the ${blockedStatement.table || 'SQLite'} migration.`
-      }
-    }
-
     if (
-      migrationStatements.some(
-        (statement) => !statement || typeof statement.sql !== 'string'
-      )
-    ) {
-      throw { badRequest: 'Every migration statement must contain SQL.' }
-    }
-
-    const sqlStatements = migrationStatements.map((statement) => statement.sql)
-
-    if (dryRun) {
-      return {
-        dryRun: true,
-        statements: sqlStatements,
-        message: 'Dry run complete. No changes made.'
-      }
-    }
-
-    const result = await sails.helpers.dock.applySqliteMigration(
-      service.path,
-      migrationStatements
+      this.req.body?.statements !== undefined ||
+      this.req.body?.dryRun !== undefined
     )
-
-    return {
-      ...result,
-      appliedBy: user.fullName,
-      appliedAt: new Date().toISOString()
+      throw {
+        badRequest: {
+          error:
+            'Executable SQL is not accepted here. Refresh and submit a server-created migration plan.',
+          code: 'invalidMigrationPlan'
+        }
+      }
+    const service = await sails.helpers.bosun.getDatabaseService(database)
+    try {
+      const target = migrationContext.target(service, {
+        kind: 'bosun',
+        database
+      })
+      const entry = plans.claim({
+        id: planId,
+        hash: planHash,
+        actor: user,
+        target,
+        operationIds
+      })
+      return await sails.helpers.dock.applyServerPlan(entry, user)
+    } catch (error) {
+      throw {
+        badRequest: {
+          error: error.message,
+          code: error.code || 'invalidMigrationPlan'
+        }
+      }
     }
   }
 }
