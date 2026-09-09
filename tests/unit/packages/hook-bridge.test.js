@@ -343,6 +343,7 @@ async function createBridgeRoute({
     after: (event, callback) => {
       if (event === 'hook:helpers:loaded') callback()
     },
+    once: () => {},
     on: () => {}
   }
   const hook = defineSlipwayHook(sails)
