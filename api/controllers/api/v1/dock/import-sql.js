@@ -51,7 +51,10 @@ module.exports = {
       throw 'notFound'
     }
 
-    if (project.team.id !== user.team) {
+    if (
+      project.team.id !== user.team ||
+      !['owner', 'admin'].includes(user.teamRole)
+    ) {
       throw 'forbidden'
     }
 
