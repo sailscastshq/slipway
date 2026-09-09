@@ -196,6 +196,7 @@ module.exports = {
         containerName: candidate.containerName,
         type: candidate.type,
         customState: candidate.customState,
+        publicRoute: candidate.publicRoute,
         internalHost: candidate.internalHost,
         internalPort: candidate.internalPort,
         envVarKey: candidate.envVarKey || null
@@ -268,6 +269,14 @@ function serviceContainerNames(service) {
       : []
   }
   return [
+    ...(service.type === 'custom'
+      ? [
+          `slipway-route-service-${service.id}`,
+          ...(service.publicRoute?.retainedRoutes || []),
+          service.publicRoute?.operation?.transaction?.candidateRouteId,
+          service.publicRoute?.operation?.transaction?.previousRouteId
+        ]
+      : []),
     service.containerName,
     service.imageMetadata?.previous?.containerName,
     service.upgradeState?.candidateContainerName,

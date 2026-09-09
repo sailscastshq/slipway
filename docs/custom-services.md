@@ -1,4 +1,4 @@
-# Private custom-image services
+# Custom-image services
 
 Custom images run one private container alongside an environment's existing services. Use them for a trusted container that needs a private endpoint or background process. PostgreSQL, MySQL, Redis and MongoDB keep their existing managed workflows; external PostgreSQL also remains available.
 
@@ -24,7 +24,17 @@ Environment values and saved definitions are encrypted in Slipway's database. Re
 
 Removing a custom service uses Slipway's resumable cleanup. Data is retained by default; explicitly choosing purge removes its owned volumes. Container and volume ownership are checked before removal. A failed launch remains visible for diagnosis and cleanup.
 
-Custom images have logs, private connections, health, start/stop/restart and removal. They do not gain Sails-specific Bridge, Helm, Quest or database schema tooling. Generic backup/restore, public HTTP routes, image/runtime edits and credential rotation are not available in this first version. Plan credentials before creation; reviewed updates and stateful recovery are tracked in #528, and public routing in #527.
+Custom images have logs, private connections, health, start/stop/restart and removal. They do not gain Sails-specific Bridge, Helm, Quest or database schema tooling. Generic backup/restore, image/runtime edits and credential rotation are not available yet. Plan credentials before creation; reviewed updates and stateful recovery are tracked in #528.
+
+## Public HTTP access
+
+Services stay private until an owner or administrator opens **Public HTTP access → Add public route** on the service page. Enter one hostname and the internal HTTP port, review the exact endpoint, then publish. This uses the existing Caddy ingress; it never binds a Docker host port. Publishing does not add authentication: configure access controls in the underlying service before exposing private data. Raw TCP/UDP ingress is not supported.
+
+Reviews belong to the operator, expire after ten minutes, and become invalid when the service endpoint or saved route changes. Domains are claimed across service, app/environment and dashboard routes. A candidate route must be accepted by Caddy before the previous route is retired. Route acceptance, DNS propagation and TLS issuance remain distinct: the UI reports DNS/TLS as unverified and directs the operator to check the HTTPS URL. Cloudflare Tunnel keeps TLS at the existing edge boundary.
+
+**Remove route** is also reviewed and returns the service to private networking without changing its volumes or app connections. A failed change restores the previous route when possible. If recovery cannot finish, the operation and both domain claims remain saved; **Recover previous route** retries recovery. After an interrupted process restart, the operation remains visible and recoverable. Do not manually delete candidate/previous route containers while recovery is pending. Service/environment/project cleanup removes these routing artifacts before removing service records and preserves data according to the chosen retention policy.
+
+Publishing, removal, failure recovery and the initiating operator are recorded in the audit log. No DNS provider credentials or TLS guarantees are implied by a successful route review.
 
 ## Instance policy
 

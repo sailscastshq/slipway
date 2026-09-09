@@ -265,6 +265,49 @@ module.exports = {
 async function removeTraffic(operation) {
   const routes = operation.snapshot.artifacts?.routes || []
   const outcomes = []
+  for (const service of operation.snapshot.services || []) {
+    if (service.type !== 'custom') continue
+    const publicRoute = service.publicRoute || {}
+    const names = [
+      `slipway-route-service-${service.id}`,
+      ...(publicRoute.retainedRoutes || []),
+      publicRoute.operation?.transaction?.candidateRouteId,
+      publicRoute.operation?.transaction?.previousRouteId
+    ].filter(Boolean)
+    const custom = require('../../lib/custom-service')
+    for (const name of names) {
+      try {
+        const container = JSON.parse(
+          (await custom.command(['inspect', name])).stdout
+        )[0]
+        if (
+          container.Config?.Labels?.['slipway.service-route'] !==
+          String(service.id)
+        )
+          custom.fail(
+            'A route container belongs to another resource. It was left unchanged.'
+          )
+        await custom.command(['rm', '-f', name])
+      } catch (error) {
+        if (error.code !== 'DOCKER_MISSING') throw error
+      }
+    }
+    const domains = [
+      ...new Set(
+        [
+          publicRoute.domain,
+          ...(publicRoute.operation?.transaction?.candidateDomains || []),
+          ...(publicRoute.operation?.transaction?.previousDomains || [])
+        ].filter(Boolean)
+      )
+    ]
+    if (domains.length)
+      await sails.helpers.caddy.verifyRoute.with({
+        expectedUpstreams: [],
+        excludedDomains: domains
+      })
+    await require('../../lib/domain-claims').release(`service:${service.id}`)
+  }
 
   for (const route of routes) {
     if (route.action === 'update') {
@@ -286,6 +329,9 @@ async function removeTraffic(operation) {
         projectSlug: route.projectSlug,
         environmentSlug: route.environmentSlug
       })
+    )
+    await require('../../lib/domain-claims').release(
+      `environment:${route.environmentId}`
     )
   }
 

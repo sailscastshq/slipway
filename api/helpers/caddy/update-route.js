@@ -80,6 +80,7 @@ module.exports = {
       const routeId = `slipway-route-${environment.project.slug}-${environment.slug}`
       const state = await getContainerState(dockerPath, routeId)
       const transaction = {
+        claimOwner: `environment:${environmentId}`,
         removal: true,
         routeId,
         previousExists: state.exists,
@@ -96,6 +97,15 @@ module.exports = {
         })
       return { domains: [], routeId, action: 'removed', transaction }
     }
+    await require('../../lib/domain-claims').reserve(
+      [
+        ...new Set([
+          ...config.domains,
+          ...(await Environment.getDomains(environmentId))
+        ])
+      ],
+      `environment:${environmentId}`
+    )
     const routeContainerName = `slipway-route-${config.projectSlug}-${config.environmentSlug}`
 
     const routableApps = environmentApps.filter(
@@ -138,6 +148,7 @@ module.exports = {
       })
 
       const transaction = {
+        claimOwner: `environment:${environmentId}`,
         routeId: routeContainerName,
         candidateRouteId: candidateName,
         previousRouteId: previousName,
@@ -185,6 +196,12 @@ module.exports = {
       } catch (rollbackError) {
         error.rollbackError = rollbackError
       }
+
+      if (!error.rollbackError)
+        await require('../../lib/domain-claims').release(
+          `environment:${environmentId}`,
+          await Environment.getDomains(environmentId)
+        )
 
       sails.log.error(
         `Caddy route replacement failed for ${config.domains.join(', ')}: ${
