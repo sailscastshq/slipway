@@ -14,24 +14,22 @@ test(
     }
   },
   async ({ sails, world, login, page, expect }) => {
-    const service = await world
-      .create('service')
-      .with({
-        type: 'custom',
-        name: 'Search',
-        version: 'search:1.4',
-        status: 'running',
-        containerName: 'slipway-custom-search',
-        containerId: 'search',
-        internalPort: 8080,
-        environment: world.current.environments.production.id,
-        customState: {
-          image: 'search:1.4',
-          health: 'healthy',
-          appIds: [],
-          volumes: []
-        }
-      })
+    const service = await world.create('service').with({
+      type: 'custom',
+      name: 'Search',
+      version: 'search:1.4',
+      status: 'running',
+      containerName: 'slipway-custom-search',
+      containerId: 'search',
+      internalPort: 8080,
+      environment: world.current.environments.production.id,
+      customState: {
+        image: 'search:1.4',
+        health: 'healthy',
+        appIds: [],
+        volumes: []
+      }
+    })
     const originalCommand = custom.command,
       originalVerify = sails.helpers.caddy.verifyRoute,
       originalFinish = sails.helpers.caddy.finishRouteUpdate
