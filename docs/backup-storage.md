@@ -9,6 +9,8 @@ Settings → File storage → Backup storage controls database backups separatel
 
 A connection test uploads a small temporary object, downloads and verifies it, checks anonymous reads, and deletes it. Save runs the same test before committing configuration. No public URL is required for backups. Anonymous checks cover the object endpoint and a configured public delivery URL; separate CDN aliases, future policy changes, and provider version-retention policies remain the operator's responsibility. Use a private bucket/container and deny anonymous access at the provider.
 
+S3 credentials need object read/write/delete permissions and permission to abort multipart uploads for failed-transfer cleanup. Use the provider’s equivalent least-privilege policy.
+
 ## Azure
 
 Enter the account and existing private container. Prefer a container-scoped SAS token with **read, write, delete** permissions and a future expiry. Account keys are also supported. Both are encrypted at rest and omitted from browser props and logs. Blank credential fields retain the saved value. Custom endpoints are optional; HTTP requires an explicit trusted-private-network opt-in.

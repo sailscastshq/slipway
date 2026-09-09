@@ -37,20 +37,39 @@ module.exports = {
         return { skipped: true, reason: 'Database file not found' }
       }
 
+      const limits = sails.config.custom.databaseOperations
+      const capacity = await sails.helpers.streams.getDiskCapacity.with({
+        directory: os.tmpdir(),
+        maxBytes: limits.backupMaxBytes,
+        reserveBytes: limits.minFreeDiskBytes
+      })
       const Database = require('better-sqlite3')
       const db = new Database(dbPath, { readonly: true })
       try {
         const reserved = await fs.promises.open(tmpFile, 'wx', 0o600)
         ownsFile = true
         await reserved.close()
-        await db.backup(tmpFile)
+        const pageSize = db.pragma('page_size', { simple: true })
+        const deadline = Date.now() + limits.backupTimeoutMs
+        await db.backup(tmpFile, {
+          progress({ totalPages }) {
+            if (totalPages * pageSize > capacity.allowedBytes)
+              throw new Error(
+                'Pre-update snapshot exceeds the backup size limit.'
+              )
+            if (Date.now() > deadline)
+              throw new Error(
+                'Pre-update snapshot exceeded the backup deadline.'
+              )
+            return 128
+          }
+        })
       } finally {
         db.close()
       }
 
       const objectKey = `backups/slipway-system/${timestamp}-${randomUUID()}.db`
       const sizeBytes = fs.statSync(tmpFile).size
-      const limits = sails.config.custom.databaseOperations
       const metadata = await sails.helpers.backup.uploadObject.with({
         sourcePath: tmpFile,
         objectKey,
