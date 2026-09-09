@@ -26,7 +26,15 @@ async function main() {
     helpers: {
       dock: {
         executeSql: (service, query) =>
-          execute.fn({ service, query, format: 'json' })
+          execute.fn({ service, query, format: 'json' }).then((result) => {
+            if (!result.success)
+              console.error(
+                'Disposable fixture query failed:',
+                query,
+                result.error
+              )
+            return result
+          })
       }
     }
   }

@@ -463,10 +463,10 @@ async function inventoryNativeObjects(service, tables) {
     }
   } else {
     const triggers = await rows(
-      'SELECT EVENT_OBJECT_TABLE as table_name, TRIGGER_NAME as name, ACTION_STATEMENT as sql, ACTION_TIMING as timing, EVENT_MANIPULATION as event FROM information_schema.TRIGGERS WHERE TRIGGER_SCHEMA = DATABASE() ORDER BY EVENT_OBJECT_TABLE, TRIGGER_NAME'
+      'SELECT EVENT_OBJECT_TABLE as table_name, TRIGGER_NAME as name, ACTION_STATEMENT as `sql`, ACTION_TIMING as timing, EVENT_MANIPULATION as event FROM information_schema.TRIGGERS WHERE TRIGGER_SCHEMA = DATABASE() ORDER BY EVENT_OBJECT_TABLE, TRIGGER_NAME'
     )
     const views = await rows(
-      'SELECT TABLE_NAME as name, VIEW_DEFINITION as sql, CHECK_OPTION as check_option, SECURITY_TYPE as security_type FROM information_schema.VIEWS WHERE TABLE_SCHEMA = DATABASE() ORDER BY TABLE_NAME'
+      'SELECT TABLE_NAME as name, VIEW_DEFINITION as `sql`, CHECK_OPTION as check_option, SECURITY_TYPE as security_type FROM information_schema.VIEWS WHERE TABLE_SCHEMA = DATABASE() ORDER BY TABLE_NAME'
     )
     for (const table of Object.values(tables)) {
       const definitions = await rows(
