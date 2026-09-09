@@ -8,10 +8,18 @@ module.exports = {
     projectSlug: { type: 'string', required: true },
     envSlug: { type: 'string', required: true },
     appSlug: { type: 'string', required: true },
-    enabled: { type: 'boolean', required: true }
+    enabled: { type: 'boolean', required: true },
+    settings: { type: 'ref' }
   },
   exits: { forbidden: {}, notFound: {}, unavailable: {} },
-  fn: async function ({ req, projectSlug, envSlug, appSlug, enabled }) {
+  fn: async function ({
+    req,
+    projectSlug,
+    envSlug,
+    appSlug,
+    enabled,
+    settings
+  }) {
     if (!req.session?.userId && !req.auth?.userId) throw 'forbidden'
     let resolved
     try {
@@ -33,8 +41,25 @@ module.exports = {
       : null
     await App.updateOne({ id: app.id }).set({
       wakeEnabled: enabled,
-      wakeSecret: secret
+      wakeSecret: secret,
+      ...(settings === undefined
+        ? {}
+        : {
+            wakeSettings:
+              require('../../../packages/hook/lib/wake-contract').settings(
+                settings
+              )
+          })
     })
+    try {
+      await sails
+        .getDatastore('analytics')
+        .sendNativeQuery('DELETE FROM wake_connections WHERE app=?', [
+          String(app.id)
+        ])
+    } catch {
+      sails.wakeStorageReady = false
+    }
     await sails.helpers.audit.log.with({
       action: 'wake.settings.updated',
       resourceType: 'app',

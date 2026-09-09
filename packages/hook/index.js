@@ -58,7 +58,10 @@ module.exports = function defineSlipwayHook(sails) {
     wake: {
       resolveIdentity: (req) =>
         wakeRuntime ? wakeRuntime.resolveIdentity(req) : Promise.resolve(null),
-      getStatus: () => wakeRuntime?.getStatus() || 'disabled'
+      getStatus: () => wakeRuntime?.getStatus() || 'disabled',
+      getStats: () => wakeRuntime?.getStats(),
+      flush: () => wakeRuntime?.flush(),
+      refresh: () => wakeRuntime?.register()
     },
     defaults: {
       slipway: {
@@ -160,6 +163,8 @@ module.exports = function defineSlipwayHook(sails) {
           wake[key] = process.env[variable]
       }
 
+      require('./lib/wake-install')(sails, wake, () => wakeRuntime)
+
       if (process.env.SLIPWAY_BEARING_ENABLED === 'true') {
         sails.config.slipway.bearing.enabled = true
       }
@@ -207,6 +212,38 @@ module.exports = function defineSlipwayHook(sails) {
     routes: {
       before: {
         'all /*': function (req, res, next) {
+          if (wakeRuntime?.canInject()) {
+            let streamed = false
+            const write = res.write,
+              end = res.end,
+              send = res.send
+            res.send = function (body, ...rest) {
+              const html =
+                String(res.getHeader('content-type') || '').includes(
+                  'text/html'
+                ) ||
+                (typeof body === 'string' &&
+                  /^\s*(?:<!doctype|<html)/i.test(body))
+              if (html) {
+                delete req.headers['if-none-match']
+                delete req.headers['if-modified-since']
+              }
+              return send.call(this, body, ...rest)
+            }
+            res.write = function (...args) {
+              streamed = true
+              return write.apply(this, args)
+            }
+            res.end = function (...args) {
+              res.write = write
+              res.end = end
+              res.send = send
+              return end.apply(
+                this,
+                wakeRuntime.inject(req, res, args, streamed)
+              )
+            }
+          }
           const telemetryEnabled = Boolean(
             config.telemetryUrl && config.telemetryToken && config.enabled
           )

@@ -13,7 +13,7 @@ module.exports = {
       const result = await sails
         .getDatastore('analytics')
         .sendNativeQuery(
-          'SELECT deployment, hook_version, protocol, last_seen_at FROM wake_connections WHERE app=?',
+          'SELECT deployment, hook_version, protocol, collection_ready, last_seen_at FROM wake_connections WHERE app=?',
           [String(app.id)]
         )
       const connection = result.rows[0]
@@ -26,7 +26,7 @@ module.exports = {
       if (Date.now() - connection.last_seen_at > 120000)
         return { state: 'unavailable' }
       return {
-        state: 'foundation_only',
+        state: connection.collection_ready ? 'collecting' : 'foundation_only',
         hookVersion: connection.hook_version,
         protocol: connection.protocol
       }
