@@ -1,6 +1,7 @@
 const { execFile } = require('node:child_process')
 const { promisify } = require('node:util')
-const { Readable } = require('node:stream')
+const fs = require('node:fs/promises')
+const os = require('node:os')
 const path = require('node:path')
 const execute = promisify(execFile)
 const fail = (message) => {
@@ -205,7 +206,7 @@ function publicDefinition(definition) {
     healthCommand: healthCommand.length ? ['[custom health check]'] : []
   }
 }
-function argsFor(service, definition) {
+function argsFor(service, definition, envFile) {
   const args = [
     'create',
     '--name',
@@ -249,7 +250,7 @@ function argsFor(service, definition) {
       '--health-retries',
       '3'
     )
-  if (Object.keys(definition.env).length) args.push('--env-file', '/dev/stdin')
+  if (Object.keys(definition.env).length) args.push('--env-file', envFile)
   args.push(service.imageReference, ...definition.command)
   return args
 }
@@ -324,21 +325,39 @@ async function start(service, restart = false) {
             volume.name
           ])
       }
-      const input = Readable.from([
-        Object.entries(definition.env)
-          .map(([k, v]) => `${k}=${v}`)
-          .join('\n') + '\n'
-      ])
-      await sails.helpers.streams.runProcess.with({
-        command: docker(),
-        args: argsFor(service, definition),
-        input,
-        maxInputBytes: 256 * 1024,
-        maxOutputBytes: 8192,
-        maxStderrBytes: 8192,
-        captureStdout: true,
-        timeoutMs: 30000
-      })
+      let privateDirectory
+      try {
+        let envFile
+        if (Object.keys(definition.env).length) {
+          // Linux child-process stdin is a socket, which Docker cannot reopen
+          // as an env file. Keep the file in RAM on Linux and private elsewhere.
+          privateDirectory = await fs.mkdtemp(
+            path.join(
+              process.platform === 'linux' ? '/dev/shm' : os.tmpdir(),
+              'slipway-custom-env-'
+            )
+          )
+          envFile = path.join(privateDirectory, 'environment')
+          await fs.writeFile(
+            envFile,
+            Object.entries(definition.env)
+              .map(([k, v]) => `${k}=${v}`)
+              .join('\n') + '\n',
+            { mode: 0o600, flag: 'wx' }
+          )
+        }
+        await sails.helpers.streams.runProcess.with({
+          command: docker(),
+          args: argsFor(service, definition, envFile),
+          maxOutputBytes: 8192,
+          maxStderrBytes: 8192,
+          captureStdout: true,
+          timeoutMs: 30000
+        })
+      } finally {
+        if (privateDirectory)
+          await fs.rm(privateDirectory, { recursive: true, force: true })
+      }
     }
     await command([
       restart && existing?.State.Running ? 'restart' : 'start',

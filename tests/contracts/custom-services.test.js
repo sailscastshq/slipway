@@ -1,6 +1,8 @@
 const { test } = require('sounding')
 const assert = require('node:assert/strict')
 const crypto = require('node:crypto')
+const fs = require('node:fs/promises')
+const os = require('node:os')
 const custom = require('../../api/lib/custom-service')
 const { withCsrfFromPage } = require('../support/csrf-request')
 test(
@@ -18,6 +20,12 @@ test(
       originalInspect = custom.inspectImage
     const resources = []
     const command = custom.command
+    const privateRoot = process.platform === 'linux' ? '/dev/shm' : os.tmpdir()
+    const privateFiles = async () =>
+      (await fs.readdir(privateRoot))
+        .filter((name) => name.startsWith('slipway-custom-env-'))
+        .sort()
+    const privateBefore = await privateFiles()
     let madeNetwork = false
     try {
       const metadata = JSON.parse(
@@ -54,15 +62,18 @@ test(
         const result = await browser.request.post('/api/v1/services/custom', {
           reviewId: response.data.review.id
         })
+        const service = await sails.models.service
+          .findOne({
+            environment: world.current.environments.production.id,
+            name
+          })
+          .decrypt()
+        if (service) resources.push(service)
         assert.equal(
           result.statusCode || result.status,
           201,
           JSON.stringify(result.data)
         )
-        const service = await sails.models.service
-          .findOne({ id: result.data.service.id })
-          .decrypt()
-        resources.push(service)
         return { service, reviewId: response.data.review.id }
       }
       const { service, reviewId } = await create('http-helper', {
@@ -76,6 +87,11 @@ test(
         ],
         appIds: [String(world.current.apps.web.id)]
       })
+      assert.deepEqual(
+        await privateFiles(),
+        privateBefore,
+        'private environment files are removed after Docker reads them'
+      )
       assert.equal(service.status, 'running')
       assert.equal(
         service.customState.health,
