@@ -218,6 +218,14 @@ module.exports = {
           await sails.helpers.bearing.ensureAppSecret(String(existingApp.id))
       }
 
+      Object.assign(
+        envVars,
+        await sails.helpers.wake.runtimeConfig.with({
+          appId: existingApp?.id ? String(existingApp.id) : '',
+          deploymentId: String(rollbackId)
+        })
+      )
+
       const fingerprint =
         sails.helpers.configuration.fingerprintRuntimeConfig.with({
           values: envVars,

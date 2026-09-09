@@ -24,6 +24,15 @@ module.exports.bootstrap = async function () {
   // every modeled column even when a helper only needs one of them.
   await sails.helpers.bridge.ensureSchema()
   await sails.helpers.bearing.ensureSchema()
+  // App columns must exist before any helper hydrates the App model.
+  await sails.helpers.wake.ensureAppSchema()
+  try {
+    await sails.helpers.wake.ensureSchema()
+  } catch {
+    sails.log.warn(
+      'Wake analytics storage is unavailable; collection is disabled.'
+    )
+  }
   await sails.helpers.configuration.ensureSchema()
   await sails.helpers.backup.ensureStorageSchema()
   await sails.helpers.flag.ensureSchema()

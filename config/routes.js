@@ -408,6 +408,10 @@ module.exports.routes = {
   'GET /projects/:slug/environments/:envSlug/dock/:serviceId?':
     'project/view-dock',
 
+  // App-authenticated runtime traffic; never browser collection endpoints.
+  'POST /api/v1/wake/ingest': { action: 'api/v1/wake/ingest', csrf: false },
+  'POST /api/v1/wake/register': { action: 'api/v1/wake/register', csrf: false },
+
   // Bridge UI
   'GET /bridge/launch': 'bridge/launch',
   'POST /api/v1/bridge/exchange': {

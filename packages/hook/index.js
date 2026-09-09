@@ -52,11 +52,18 @@ module.exports = function defineSlipwayHook(sails) {
   let bearingConfig = {}
   let flagsConfig = {}
   let releaseFlags = null
+  let wakeRuntime = null
 
   return {
+    wake: {
+      resolveIdentity: (req) =>
+        wakeRuntime ? wakeRuntime.resolveIdentity(req) : Promise.resolve(null),
+      getStatus: () => wakeRuntime?.getStatus() || 'disabled'
+    },
     defaults: {
       slipway: {
         identity: {},
+        wake: { enabled: false, identity: {} },
         bridge: {
           enabled: false,
           loginPath: '/login',
@@ -135,6 +142,24 @@ module.exports = function defineSlipwayHook(sails) {
           process.env.SLIPWAY_BRIDGE_ROUTE_PATH
       }
 
+      const wake = (sails.config.slipway.wake ||= {
+        enabled: false,
+        identity: {}
+      })
+      if (process.env.SLIPWAY_WAKE_ENABLED !== undefined) {
+        wake.enabled = process.env.SLIPWAY_WAKE_ENABLED === 'true'
+      }
+      for (const [key, variable] of Object.entries({
+        ingestUrl: 'SLIPWAY_WAKE_INGEST_URL',
+        appId: 'SLIPWAY_WAKE_APP_ID',
+        deploymentId: 'SLIPWAY_WAKE_DEPLOYMENT_ID',
+        secret: 'SLIPWAY_WAKE_SECRET',
+        routePath: 'SLIPWAY_WAKE_ROUTE_PATH'
+      })) {
+        if (process.env[variable] !== undefined)
+          wake[key] = process.env[variable]
+      }
+
       if (process.env.SLIPWAY_BEARING_ENABLED === 'true') {
         sails.config.slipway.bearing.enabled = true
       }
@@ -155,6 +180,12 @@ module.exports = function defineSlipwayHook(sails) {
     },
 
     initialize: function (done) {
+      wakeRuntime = require('./lib/wake-runtime')(
+        sails,
+        sails.config.slipway.wake || {},
+        hookVersion
+      )
+      wakeRuntime.start()
       config = sails.config.slipway.lookout || {}
       bridgeConfig = sails.config.slipway.bridge || {}
       bearingConfig = sails.config.slipway.bearing || {}
@@ -291,6 +322,7 @@ module.exports = function defineSlipwayHook(sails) {
     },
 
     teardown: function (done) {
+      wakeRuntime?.stop()
       if (flushTimer) {
         clearInterval(flushTimer)
       }

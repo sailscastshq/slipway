@@ -181,6 +181,19 @@ module.exports = {
       columnName: 'bearing_secret'
     },
 
+    wakeEnabled: {
+      type: 'boolean',
+      defaultsTo: false,
+      columnName: 'wake_enabled'
+    },
+    wakeSecret: {
+      type: 'string',
+      allowNull: true,
+      encrypt: true,
+      protect: true,
+      columnName: 'wake_secret'
+    },
+
     // Associations
     environment: {
       model: 'environment',
