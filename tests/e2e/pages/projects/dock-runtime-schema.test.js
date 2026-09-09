@@ -34,7 +34,7 @@ test(
 const args = process.argv.slice(2);
 fs.appendFileSync(${JSON.stringify(calls)}, JSON.stringify(args) + '\\n');
 if (args[0] === 'inspect') process.stdout.write(JSON.stringify([{State:{Running:true},Image:'sha256:fixture',Config:{Env:[]}}]));
-else if (args[0] === 'exec') { process.stdin.resume(); process.stdin.on('end', () => process.stdout.write(${JSON.stringify(
+else if (args[0] === 'run') { process.stdin.resume(); process.stdin.on('end', () => process.stdout.write(${JSON.stringify(
         JSON.stringify(models)
       )})); }
 else process.exit(1);
@@ -97,7 +97,9 @@ else process.exit(1);
         .split('\n')
         .map(JSON.parse)
       expect(
-        args.some((call) => call[0] === 'exec' && call[2] === 'runtime-app')
+        args.some(
+          (call) => call[0] === 'run' && call.includes('runtime-app:ro')
+        )
       ).toBe(true)
       const output = path.resolve('output/issue-544')
       fs.mkdirSync(output, { recursive: true })
