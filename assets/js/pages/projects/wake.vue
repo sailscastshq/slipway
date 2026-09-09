@@ -25,6 +25,7 @@ const props = defineProps({
   journeys: Object,
   filters: Object,
   tab: String,
+  filterError: String,
   visitor: String
 })
 const base = `/projects/${props.project.slug}/environments/${props.environment.slug}/apps/${props.app.slug}`
@@ -256,6 +257,9 @@ async function removeVisitor() {
           class="rounded-lg border border-gray-200 p-4 text-sm dark:border-gray-700"
           >{{ notice }}</Alert
         >
+        <Alert v-if="filterError" role="alert" :class="alert">{{
+          filterError
+        }}</Alert>
         <Alert v-if="stateText" :class="alert">{{ stateText }}</Alert>
         <Alert
           v-if="state.state === 'collecting' && state.valueReady === false"

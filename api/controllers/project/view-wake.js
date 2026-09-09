@@ -32,11 +32,19 @@ module.exports = {
       throw 'forbidden'
     }
     const reports = require('../../lib/wake-report')
-    let filters
+    let filters,
+      filterError = ''
     try {
       filters = reports.range(inputs)
     } catch {
-      throw 'badRequest'
+      filters = reports.range()
+      filterError =
+        'The date or currency filter is invalid. Showing the last seven UTC days in USD; choose a range within the last thirteen months.'
+    }
+    if (inputs.visitor && !/^[A-Za-z0-9_-]{8,128}$/.test(inputs.visitor)) {
+      inputs.visitor = ''
+      filterError =
+        'The visitor filter is invalid. Choose a visitor from the list.'
     }
     let report = null,
       journeys = null,
@@ -68,6 +76,7 @@ module.exports = {
         report,
         journeys,
         filters,
+        filterError,
         tab: inputs.tab,
         visitor: inputs.visitor || ''
       }

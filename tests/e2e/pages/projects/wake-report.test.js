@@ -136,25 +136,26 @@ test(
       (await api.get(base.replace('wake-report', 'unowned'))).status,
       403
     )
-    assert.equal(
-      (
-        await api.post(base + '/settings', {
-          enabled: true,
-          settings: {
-            mode: 'first-party',
-            allowedOrigins: ['https://example.test'],
-            requireConsent: true,
-            respectPrivacySignals: true,
-            excludedPaths: []
-          }
-        })
-      ).status,
-      200
-    )
+    await page.raw
+      .getByLabel('Additional allowed origins', { exact: true })
+      .fill('https://example.test')
+    await page.raw
+      .getByRole('button', { name: 'Save settings', exact: true })
+      .click()
+    await expect(
+      page.raw.getByText(
+        'Saved. Redeploy this app to activate the new settings.',
+        { exact: true }
+      )
+    ).toBeVisible()
     await page.goto(base + '?tab=settings')
     await expect(
       page.raw.getByText('Waiting for redeploy.', { exact: false })
     ).toBeVisible()
+    await page.goto(base + '?from=2020-01-01')
+    await expect(page.raw.getByRole('alert')).toContainText(
+      'The date or currency filter is invalid'
+    )
     sails.wakeStorageReady = false
     try {
       await page.goto(base)
