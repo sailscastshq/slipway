@@ -71,15 +71,22 @@ module.exports = {
       schemaResult.tables
     )
 
+    const blocked = statements.filter((item) => item.blocked)
     return {
       database,
       databaseType: service.type,
       datastore: modelsResult.datastore,
       modelCount: modelsResult.modelCount,
       diff,
-      state: diff.state,
+      state: blocked.length ? 'unverified' : diff.state,
       verification: {
-        unsupported: diff.unsupported || [],
+        unsupported: blocked.length
+          ? blocked.map((item) => ({
+              tableName: item.table || 'Migration',
+              columnName: item.column,
+              reason: item.reason
+            }))
+          : diff.unsupported || [],
         preservedObjects: diff.preserved?.length || 0
       },
       statements,

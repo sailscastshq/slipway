@@ -82,7 +82,7 @@ module.exports = {
 
       throw new Error(`Unsupported database type: ${service.type}`)
     } catch (error) {
-      sails.log.error(`[dock] Query execution failed: ${error.message}`)
+      sails.log.error('[dock] Query execution failed.')
       const duration = Date.now() - startTime
       const message = getProcessErrorMessage(error)
       const statement = {
@@ -162,7 +162,7 @@ async function executePostgres({ dockerPath, service, query, startTime }) {
   } catch (error) {
     processError = error
     stdout = error.stdout || ''
-    stderr = error.stderr || error.message
+    stderr = error.stderr || getProcessErrorMessage(error)
   }
 
   const duration = Date.now() - startTime
@@ -221,7 +221,7 @@ async function executeMysql({ dockerPath, service, query, startTime }) {
   } catch (error) {
     processError = error
     stdout = error.stdout || ''
-    stderr = error.stderr || error.message
+    stderr = error.stderr || getProcessErrorMessage(error)
   }
 
   const duration = Date.now() - startTime
@@ -364,7 +364,13 @@ function createMarker() {
 }
 
 function getProcessErrorMessage(error) {
-  return String(error.stderr || error.message || 'Query failed')
+  return String(
+    error.stderr ||
+      (error.cmd || error.spawnargs
+        ? 'Database process failed. Check connectivity and retry.'
+        : error.message) ||
+      'Query failed'
+  )
     .trim()
     .split(/\r?\n/)
     .pop()

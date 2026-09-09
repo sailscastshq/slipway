@@ -2420,6 +2420,43 @@ onUnmounted(() => {
               </p>
             </div>
 
+            <Alert
+              v-if="diff.preflight?.verified"
+              role="status"
+              class="rounded-lg border border-blue-200 bg-blue-50 p-4 text-blue-800 dark:border-blue-900 dark:bg-blue-950/30 dark:text-blue-300"
+            >
+              <h3 class="text-sm font-medium">Preview validated</h3>
+              <p class="mt-1 text-sm">
+                Checked against your database engine. Applying these changes may
+                lock or rebuild affected tables.
+              </p>
+              <p class="mt-1 text-sm">
+                Existing rows in affected tables:
+                {{
+                  Object.values(diff.preflight.affectedRows || {})
+                    .reduce((total, count) => total + count, 0)
+                    .toLocaleString()
+                }}.
+              </p>
+            </Alert>
+            <dl
+              v-if="diff.diff?.columnsToModify?.length"
+              class="divide-y divide-gray-200 rounded-lg border border-gray-200 px-4 dark:divide-gray-800 dark:border-gray-800"
+            >
+              <div
+                v-for="column in diff.diff.columnsToModify"
+                :key="`${column.tableName}.${column.columnName}`"
+                class="py-3 text-sm"
+              >
+                <dt class="break-words font-medium">
+                  {{ column.tableName }}.{{ column.columnName }}
+                </dt>
+                <dd class="mt-1 break-words text-gray-500 dark:text-gray-400">
+                  {{ column.current.type }} → {{ column.expected.sqlType }}
+                </dd>
+              </div>
+            </dl>
+
             <!-- Migration SQL/Commands with syntax highlighting -->
             <div
               v-if="filteredStatements.length > 0"
