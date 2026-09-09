@@ -72,6 +72,8 @@ module.exports = {
 
       return {
         id: service.id,
+        managementMode: service.managementMode,
+        externalVerification: service.externalVerification,
         name: service.name,
         type: service.type,
         version: service.version,

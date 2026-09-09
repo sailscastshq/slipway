@@ -107,6 +107,11 @@ module.exports = {
     return {
       environment: {
         ...publicEnvironment,
+        envVars: require('../../../../lib/external-postgresql').redactEnv(
+          environment.envVars || {},
+          environment.services
+        ),
+        services: environment.services.map(Service.toPublic),
         fullDomain,
         generatedDomain,
         domains,

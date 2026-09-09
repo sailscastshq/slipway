@@ -155,6 +155,8 @@ async function getEnvironmentVarUpdates(services) {
     if (!service.envVarKey) continue
     const keys = keysByEnvironment.get(service.environmentId) || new Set()
     keys.add(service.envVarKey)
+    if (service.managementMode === 'external')
+      keys.add(`${service.envVarKey}_CA_CERT`)
     keysByEnvironment.set(service.environmentId, keys)
   }
 

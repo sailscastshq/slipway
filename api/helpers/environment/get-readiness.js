@@ -64,7 +64,20 @@ module.exports = {
       ...readiness.report({
         source,
         env: runtimeValues || configuration.values,
-        services: environment.services,
+        services: environment.services.map((service) => ({
+          ...service,
+          runtimeConnectionVerified:
+            service.externalVerification?.connectionFingerprint ===
+            crypto
+              .createHmac('sha256', key)
+              .update(
+                String(
+                  (runtimeValues || configuration.values)[service.envVarKey] ||
+                    ''
+                )
+              )
+              .digest('hex')
+        })),
         dockerfile:
           app?.dockerfilePath ||
           environment.project.dockerfilePath ||

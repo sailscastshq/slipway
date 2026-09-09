@@ -16,6 +16,9 @@ module.exports = {
     )
 
     const columns = [
+      ['management_mode', "TEXT NOT NULL DEFAULT 'managed'"],
+      ['external_connection', 'TEXT'],
+      ['external_verification', "TEXT NOT NULL DEFAULT '{}'"],
       ['image_reference', 'TEXT'],
       ['image_metadata', 'TEXT'],
       ['upgrade_state', 'TEXT']

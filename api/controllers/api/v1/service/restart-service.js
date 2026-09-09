@@ -43,6 +43,12 @@ module.exports = {
     const project = await Project.findOne({ id: environment.project.id })
     if (!project || project.team !== user.team.id) throw 'notFound'
 
+    if (service.managementMode === 'external')
+      throw {
+        conflict: {
+          message: 'External databases have no Slipway-managed container.'
+        }
+      }
     if (!service.containerName) throw 'notFound'
     if (['upgrading', 'restoring', 'changing'].includes(service.status)) {
       throw {

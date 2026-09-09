@@ -10,6 +10,15 @@ module.exports = {
   },
 
   fn: async function () {
+    for (const service of await Service.find({
+      managementMode: 'external',
+      status: 'unreachable'
+    })) {
+      if (service.externalVerification?.cleanupContainer)
+        await sails.helpers.service
+          .cleanupExternalClient(String(service.id))
+          .catch(() => {})
+    }
     // Retry cleanup before new work, preserving records when deletion is unavailable.
     const failed = await Backup.find({
       status: 'failed',
@@ -58,7 +67,12 @@ module.exports = {
     if (now - lastRunAt < intervalMs) return
 
     // 3. Find all running services that support backups
-    const services = await Service.find({ status: 'running' })
+    const services = await Service.find({
+      or: [
+        { managementMode: 'managed', status: 'running' },
+        { managementMode: 'external', status: 'reachable' }
+      ]
+    })
     const backupableServices = services.filter((s) =>
       Service.isBackupSupported(s.type)
     )

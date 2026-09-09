@@ -1,4 +1,5 @@
 <script setup>
+import ExternalDatabaseStatus from '@/components/ExternalDatabaseStatus.vue'
 import Alert from '@/components/ui/alert/Alert.vue'
 import StopCircle from '@/components/ui/icons/StopCircle.vue'
 import SidebarOpen from '@/components/ui/icons/SidebarOpen.vue'
@@ -14,7 +15,15 @@ import Copy from '@/components/ui/icons/Copy.vue'
 import ChevronRight from '@/components/ui/icons/ChevronRight.vue'
 import Input from '@/components/ui/input/Input.vue'
 import { Link, Head, usePage, router } from '@inertiajs/vue3'
-import { inject, ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
+import {
+  inject,
+  ref,
+  computed,
+  onMounted,
+  onUnmounted,
+  nextTick,
+  watch
+} from 'vue'
 import { useEventSource } from '@/composables/sse'
 import AppLayout from '@/layouts/AppLayout.vue'
 import Breadcrumb from '@/components/ui/breadcrumb/Breadcrumb.vue'
@@ -47,6 +56,12 @@ const logsOpen = ref(true)
 const stopping = ref(false)
 const restarting = ref(false)
 const serviceStatus = ref(props.service.status)
+watch(
+  () => props.service.status,
+  (value) => {
+    serviceStatus.value = value
+  }
+)
 const copiedUrl = ref(false)
 const revealedUrl = ref(false)
 const serviceName = ref(props.service.name)
@@ -179,11 +194,19 @@ const statusClasses = computed(() => {
       text: 'text-red-700 dark:text-red-400'
     }
   }
-  return map[serviceStatus.value] || map.stopped
+  return (
+    map[
+      { reachable: 'running', unreachable: 'failed' }[serviceStatus.value] ||
+        serviceStatus.value
+    ] || map.stopped
+  )
 })
 
 const statusLabel = computed(() => {
   const labels = {
+    reachable: 'Reachable',
+    unreachable: 'Unreachable',
+    unverified: 'Unverified',
     running: 'Running',
     stopped: 'Stopped',
     creating: 'Creating',
@@ -433,7 +456,10 @@ onUnmounted(() => {
     <div class="flex-1 overflow-y-auto px-4 py-6 sm:px-8 sm:py-8">
       <div class="mx-auto max-w-6xl">
         <section
-          v-if="restoreOperation || service.lastBackup?.status === 'completed'"
+          v-if="
+            service.managementMode !== 'external' &&
+            (restoreOperation || service.lastBackup?.status === 'completed')
+          "
           class="mb-8 rounded-lg border border-gray-200 p-5 dark:border-gray-700"
           aria-label="Database restoration"
         >
@@ -507,11 +533,11 @@ onUnmounted(() => {
           </div>
         </section>
         <!-- Service Info -->
-        <div class="mb-8 flex items-start justify-between">
-          <div>
-            <div class="flex items-center space-x-3">
+        <div class="mb-8 flex flex-wrap items-start justify-between gap-3">
+          <div class="min-w-0 max-w-full">
+            <div class="flex flex-wrap items-center gap-3">
               <!-- Editable name -->
-              <div class="name-editor">
+              <div class="name-editor min-w-0 max-w-full">
                 <div v-if="editingName" class="flex items-center gap-2">
                   <Input
                     ref="nameInput"
@@ -529,7 +555,7 @@ onUnmounted(() => {
                 <h1
                   v-else
                   @click.stop="startEditingName"
-                  class="cursor-pointer text-xl font-semibold text-gray-900 underline decoration-gray-300 decoration-dashed underline-offset-4 hover:decoration-gray-400 dark:text-white dark:decoration-gray-600 dark:hover:decoration-gray-500"
+                  class="cursor-pointer break-all text-xl font-semibold text-gray-900 underline decoration-gray-300 decoration-dashed underline-offset-4 hover:decoration-gray-400 dark:text-white dark:decoration-gray-600 dark:hover:decoration-gray-500"
                   title="Click to rename"
                 >
                   {{ serviceName }}
@@ -586,9 +612,15 @@ onUnmounted(() => {
               <span
                 class="inline-flex items-center rounded-md bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600 ring-1 ring-inset ring-gray-500/10 dark:bg-gray-800 dark:text-gray-400 dark:ring-gray-500/20"
               >
-                Internal
+                {{
+                  service.managementMode === 'external'
+                    ? 'External'
+                    : 'Internal'
+                }}
               </span>
-              <span class="font-mono text-sm text-gray-600 dark:text-gray-400">
+              <span
+                class="min-w-0 break-all font-mono text-sm text-gray-600 dark:text-gray-400"
+              >
                 {{ service.internalHost }}:{{ service.internalPort }}
               </span>
             </div>
@@ -597,6 +629,7 @@ onUnmounted(() => {
           <div class="flex items-center space-x-2">
             <!-- More menu -->
             <RowActions
+              v-if="service.managementMode !== 'external'"
               :id="`service-actions-${service.id}`"
               :label="`Actions for ${serviceName}`"
               :busy="stopping || restarting"
@@ -666,8 +699,12 @@ onUnmounted(() => {
         <div
           class="rounded-xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900"
         >
+          <ExternalDatabaseStatus
+            v-if="service.managementMode === 'external'"
+            :service="service"
+          />
           <!-- Logs Section -->
-          <div>
+          <div v-if="service.managementMode !== 'external'">
             <div class="flex items-center justify-between px-4 py-3">
               <button
                 @click="logsOpen = !logsOpen"

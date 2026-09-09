@@ -94,7 +94,12 @@ onUnmounted(() => {
         }}</span>
       </p>
       <p class="mt-0.5 text-xs text-gray-400 dark:text-gray-500">
-        {{ action.serviceType }} · {{ elapsedFormatted }}
+        {{
+          action.serviceType === 'external-postgresql'
+            ? 'External PostgreSQL'
+            : action.serviceType
+        }}
+        · {{ elapsedFormatted }}
       </p>
     </div>
 

@@ -8,6 +8,20 @@ on:
     branches: [main]
 
 jobs:
+  external-postgresql-contract:
+    name: External PostgreSQL contract
+    timeout-minutes: 10
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: 'npm'
+      - run: npm ci --no-audit
+      - run: docker pull postgres:17-alpine
+      - run: node_modules/.bin/sounding test --file tests/contracts/external-postgresql.test.js
+
   storage-contract:
     name: Private storage contract
     timeout-minutes: 10

@@ -9,7 +9,7 @@ module.exports = {
   inputs: {},
 
   fn: async function () {
-    const services = await Service.find()
+    const services = await Service.find({ managementMode: 'managed' })
     const candidates = services.filter(
       (service) =>
         (service.version === 'latest' &&

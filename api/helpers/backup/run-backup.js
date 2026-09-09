@@ -96,16 +96,27 @@ module.exports = {
       const tmpFile = path.join(tmpDirectory, `database.${extension}`)
       const dockerBinary = sails.config.docker?.binaryPath || 'docker'
 
-      await sails.helpers.streams.runProcess.with({
-        command: dockerBinary,
-        args: ['exec', service.containerName, ...dumpArgs],
-        output: fs.createWriteStream(tmpFile, { flags: 'wx', mode: 0o600 }),
-        timeoutMs: limits.backupTimeoutMs,
-        maxOutputBytes: capacity.allowedBytes,
-        maxStderrBytes: limits.maxProcessStderrBytes,
-        signal,
-        killGraceMs: limits.killGraceMs
-      })
+      if (service.managementMode === 'external') {
+        await sails.helpers.service.runExternalClient.with({
+          serviceId: String(service.id),
+          operation: 'dump',
+          output: fs.createWriteStream(tmpFile, { flags: 'wx', mode: 0o600 }),
+          timeoutMs: limits.backupTimeoutMs,
+          maxBytes: capacity.allowedBytes,
+          signal
+        })
+      } else {
+        await sails.helpers.streams.runProcess.with({
+          command: dockerBinary,
+          args: ['exec', service.containerName, ...dumpArgs],
+          output: fs.createWriteStream(tmpFile, { flags: 'wx', mode: 0o600 }),
+          timeoutMs: limits.backupTimeoutMs,
+          maxOutputBytes: capacity.allowedBytes,
+          maxStderrBytes: limits.maxProcessStderrBytes,
+          signal,
+          killGraceMs: limits.killGraceMs
+        })
+      }
 
       const stats = await fsPromises.stat(tmpFile)
       if (stats.size === 0) throw new Error('Dump produced an empty file')
