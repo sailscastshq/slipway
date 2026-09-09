@@ -157,7 +157,7 @@ function buildIntrospectionCode(datastore = 'default', environment = []) {
     await new Promise((resolve, reject) => {
       sailsApp.load({
         models: { migrate: 'safe' },
-        hooks: { http: false, views: false, sockets: false, pubsub: false, grunt: false, shipwright: false, quest: false },
+        hooks: { http: false, views: false, sockets: false, pubsub: false, grunt: false, shipwright: false, content: false, quest: false },
         log: { level: 'warn' }
       }, (err) => {
         if (err) reject(err);
