@@ -1,3 +1,10 @@
+const crypto = require('node:crypto')
+const {
+  typeFingerprint,
+  indexFingerprint,
+  satisfiesIndex
+} = require('../../lib/schema-contract')
+
 /**
  * Generate schema diff between Waterline models and database schema.
  *
@@ -45,7 +52,10 @@ module.exports = {
       columnsToAdd: [],
       columnsToModify: [],
       columnsToDrop: [],
-      indexesToCreate: []
+      indexesToCreate: [],
+      unsupported: [],
+      preserved: [],
+      state: 'up_to_date'
     }
 
     const existingTables = new Set(Object.keys(schema))
@@ -69,6 +79,7 @@ module.exports = {
         // MongoDB doesn't have column-level schema enforcement
         // so we don't check for columns to add/modify
       }
+      diff.state = diff.tablesToCreate.length ? 'changes_pending' : 'up_to_date'
       return diff
     }
 
@@ -106,14 +117,32 @@ module.exports = {
           primaryKey: primaryKeyColumn
         })
       } else {
+        if (!existingTable.catalogComplete)
+          diff.unsupported.push({
+            tableName,
+            reason: 'The database catalog inventory is incomplete.'
+          })
+        diff.preserved.push({
+          tableName,
+          kind: 'native definitions',
+          columns: existingTable.columns,
+          indexes: (existingTable.indexes || []).map((index) => ({
+            ...index,
+            fingerprint: indexFingerprint(index)
+          })),
+          constraints: existingTable.constraints || [],
+          triggers: existingTable.triggers || [],
+          views: existingTable.views || [],
+          sql: existingTable.sql || null
+        })
         // Table exists - check columns
         const existingColumns = new Map(
-          existingTable.columns.map((col) => [col.name.toLowerCase(), col])
+          existingTable.columns.map((col) => [col.name, col])
         )
 
         for (const [attrName, attr] of Object.entries(model.attributes)) {
           const columnName = attr.columnName || attrName
-          const existingCol = existingColumns.get(columnName.toLowerCase())
+          const existingCol = existingColumns.get(columnName)
 
           if (!existingCol) {
             const renameFrom = findRenameSourceColumn(
@@ -123,6 +152,21 @@ module.exports = {
             )
 
             if (renameFrom) {
+              const expected = mapWaterlineToSql(
+                attr,
+                attrName,
+                dbType,
+                model.primaryKey
+              )
+              if (needsModification(renameFrom, expected, dbType))
+                diff.unsupported.push({
+                  tableName,
+                  columnName,
+                  reason:
+                    'Renaming and changing a column definition together requires a reviewed native migration.',
+                  current: renameFrom,
+                  expected
+                })
               diff.columnsToRename.push({
                 tableName,
                 fromColumnName: renameFrom.name,
@@ -144,7 +188,50 @@ module.exports = {
               dbType,
               model.primaryKey
             )
-            if (needsModification(existingCol, expected, dbType)) {
+            // Preserve native defaults/nullability unless the physical contract
+            // explicitly manages them; application validation is not DDL.
+            if (attr.physical?.notNull === undefined)
+              expected.nullable = existingCol.nullable
+            const identityChanged =
+              existingCol.autoIncrement !== undefined &&
+              Boolean(existingCol.autoIncrement) !== expected.autoIncrement
+            const keyChanged =
+              existingCol.primaryKey !== undefined &&
+              Boolean(existingCol.primaryKey) !==
+                (dbType === 'sqlite'
+                  ? expected.autoIncrement
+                  : expected.primaryKey)
+            if (identityChanged || keyChanged)
+              diff.unsupported.push({
+                tableName,
+                columnName,
+                reason:
+                  'Changing primary keys or identity generation requires a reviewed native migration.',
+                current: existingCol,
+                expected
+              })
+            if (
+              needsModification(existingCol, expected, dbType) ||
+              (attr.physical?.notNull !== undefined &&
+                existingCol.nullable !== expected.nullable)
+            ) {
+              if (
+                existingCol.generated ||
+                (dbType === 'mysql' &&
+                  ((existingCol.defaultValue !== null &&
+                    existingCol.defaultValue !== undefined) ||
+                    existingCol.extra ||
+                    existingCol.collation ||
+                    existingCol.comment))
+              )
+                diff.unsupported.push({
+                  tableName,
+                  columnName,
+                  reason:
+                    'This column has native properties that need a preserving migration.',
+                  current: existingCol,
+                  expected
+                })
               diff.columnsToModify.push({
                 tableName,
                 columnName,
@@ -164,42 +251,133 @@ module.exports = {
       if (!existingTable) continue // New tables handled above
 
       const existingIndexes = existingTable.indexes || []
-      const renamedColumns = new Set(
+      const renamedColumns = new Map(
         diff.columnsToRename
           .filter((column) => column.tableName === tableName)
-          .map((column) => column.toColumnName.toLowerCase())
+          .map((column) => [column.toColumnName, column.fromColumnName])
       )
-      // Build a set of indexed column names for quick lookup
-      const indexedColumns = new Set()
-      for (const idx of existingIndexes) {
-        // Single-column indexes: track by column name
-        if (idx.columns && idx.columns.length === 1) {
-          indexedColumns.add(idx.columns[0].toLowerCase())
-        }
-      }
-
       for (const [attrName, attr] of Object.entries(model.attributes)) {
         const columnName = attr.columnName || attrName
         const needsIndex = attr.unique || attr.index
 
-        if (renamedColumns.has(columnName.toLowerCase())) {
-          continue
-        }
-
-        if (needsIndex && !indexedColumns.has(columnName.toLowerCase())) {
+        if (
+          needsIndex &&
+          !existingIndexes.some((index) =>
+            satisfiesIndex(
+              index,
+              renamedColumns.get(columnName) || columnName,
+              Boolean(attr.unique)
+            )
+          )
+        ) {
           // Check it's not the primary key (PKs already have indexes)
-          const isPK = attrName === model.primaryKey || attr.primaryKey
+          const isPK =
+            dbType === 'sqlite'
+              ? attr.autoIncrement
+              : attrName === model.primaryKey || attr.primaryKey
           if (!isPK) {
             diff.indexesToCreate.push({
               tableName,
               columnName,
-              unique: attr.unique || false
+              unique: attr.unique || false,
+              indexName: availableIndexName(
+                tableName,
+                columnName,
+                Boolean(attr.unique),
+                existingIndexes
+              )
             })
           }
         }
       }
     }
 
+    for (const addition of diff.columnsToAdd) {
+      if (addition.nullable === false)
+        diff.unsupported.push({
+          tableName: addition.tableName,
+          columnName: addition.columnName,
+          reason:
+            'A non-null column needs a verified backfill before it can be added.'
+        })
+    }
+    for (const table of diff.tablesToCreate) {
+      const model = models[table.model]
+      if (
+        dbType !== 'sqlite' &&
+        Object.values(model.attributes).some(
+          (attr) => attr.index && !attr.unique
+        )
+      )
+        diff.unsupported.push({
+          tableName: table.tableName,
+          reason: 'New-table indexes require a complete native creation plan.'
+        })
+    }
+    for (const change of diff.columnsToModify) {
+      if (
+        dbType === 'sqlite' &&
+        change.current.nullable !== change.expected.nullable
+      )
+        diff.unsupported.push({
+          tableName: change.tableName,
+          columnName: change.columnName,
+          reason:
+            'Changing native nullability requires a verified backfill and constraint migration.'
+        })
+      const table = schema[change.tableName]
+      if (
+        dbType !== 'sqlite' &&
+        ((table.views || []).length || (table.triggers || []).length)
+      )
+        diff.unsupported.push({
+          tableName: change.tableName,
+          columnName: change.columnName,
+          reason:
+            'Native views or triggers require a dependency-aware migration.',
+          current: change.current,
+          expected: change.expected
+        })
+    }
+    for (const [tableName, table] of Object.entries(schema)) {
+      if (!modelTables.has(tableName)) {
+        diff.preserved.push({
+          tableName,
+          kind: 'unmanaged table',
+          sql: table.sql || null
+        })
+        if (!table.catalogComplete)
+          diff.unsupported.push({
+            tableName,
+            reason: 'An unmanaged table could not be inventoried.'
+          })
+      }
+    }
+    for (const model of Object.values(models)) {
+      for (const [name, attr] of Object.entries(model.attributes)) {
+        if (
+          attr.columnType &&
+          !/^[_a-zA-Z][a-zA-Z0-9_ ]*(?:\(\d+(?:,\s*\d+)?\))?(?: unsigned)?$/.test(
+            attr.columnType
+          )
+        ) {
+          diff.unsupported.push({
+            tableName: model.tableName,
+            columnName: attr.columnName || name,
+            reason:
+              'This custom column definition requires a reviewed native migration.'
+          })
+        }
+      }
+    }
+    diff.state = diff.unsupported.length
+      ? 'unverified'
+      : Object.entries(diff).some(
+          ([key, value]) =>
+            /To(Create|Add|Modify|Rename|Drop)$/.test(key) && value.length
+        )
+      ? 'changes_pending'
+      : 'up_to_date'
     return diff
   }
 }
@@ -209,7 +387,7 @@ function findRenameSourceColumn(existingColumns, attrName, columnName) {
     return null
   }
 
-  return existingColumns.get(attrName.toLowerCase()) || null
+  return existingColumns.get(attrName) || null
 }
 
 /**
@@ -254,11 +432,14 @@ function mapWaterlineToSql(attr, attrName, dbType, modelPrimaryKey) {
           ? normalizeSqlitePhysicalType(attr.columnType)
           : attr.columnType,
       logicalType: attr.type,
-      nullable: !attr.required && attr.allowNull !== false,
-      defaultValue: attr.defaultsTo,
+      nullable: attr.physical?.notNull !== true,
+      defaultValue: undefined,
       autoIncrement: attr.autoIncrement || false,
       unique: attr.unique || false,
-      primaryKey: attr.primaryKey || attrName === modelPrimaryKey
+      primaryKey:
+        dbType === 'sqlite'
+          ? Boolean(attr.autoIncrement)
+          : Boolean(attr.primaryKey || attrName === modelPrimaryKey)
     }
   }
 
@@ -271,13 +452,15 @@ function mapWaterlineToSql(attr, attrName, dbType, modelPrimaryKey) {
   let sqlType
 
   if (dbType === 'postgresql') {
-    sqlType = getPostgresType(
-      attr.type,
-      isPrimaryKey,
-      isAutoIncrement,
-      isTimestamp,
-      isForeignKey
-    )
+    sqlType = ['_stringkey', '_stringtimestamp'].includes(attr.columnType)
+      ? 'VARCHAR'
+      : getPostgresType(
+          attr.type,
+          isPrimaryKey,
+          isAutoIncrement,
+          isTimestamp,
+          isForeignKey
+        )
   } else if (dbType === 'sqlite') {
     sqlType = getSqliteType(
       attr,
@@ -299,11 +482,11 @@ function mapWaterlineToSql(attr, attrName, dbType, modelPrimaryKey) {
   return {
     sqlType,
     logicalType: attr.type,
-    nullable: !attr.required && attr.allowNull !== false,
-    defaultValue: attr.defaultsTo,
+    nullable: attr.physical?.notNull !== true,
+    defaultValue: undefined,
     autoIncrement: isAutoIncrement,
     unique: attr.unique || false,
-    primaryKey: isPrimaryKey
+    primaryKey: dbType === 'sqlite' ? isAutoIncrement : isPrimaryKey
   }
 }
 
@@ -371,7 +554,7 @@ function getPostgresType(
 
   // Timestamps typically use BIGINT (for epoch ms) or timestamptz
   if (isTimestamp) {
-    return 'BIGINT'
+    return waterlineType === 'string' ? 'VARCHAR' : 'BIGINT'
   }
 
   // Map Waterline types to PostgreSQL types
@@ -455,83 +638,20 @@ function getMysqlType(
  * Check if column needs modification
  */
 function needsModification(existing, expected, dbType) {
-  const normalizedExisting = normalizeType(existing.type)
-  const normalizedExpected = normalizeType(expected.sqlType)
-
+  const current = typeFingerprint(existing.type, dbType)
   if (
     dbType === 'sqlite' &&
     expected.logicalType === 'boolean' &&
-    isSqliteBooleanStorageType(normalizedExisting)
-  ) {
+    ['boolean', 'bool', 'integer', 'int', 'text'].includes(current)
+  )
     return false
-  }
-
-  return !typesMatch(normalizedExisting, normalizedExpected, dbType)
+  return current !== typeFingerprint(expected.sqlType, dbType)
 }
 
-function isSqliteBooleanStorageType(type) {
-  return ['boolean', 'bool', 'integer', 'int', 'text'].includes(type)
-}
-
-/**
- * Normalize a SQL type for comparison by lowercasing and removing length specifiers.
- */
 function normalizeType(type) {
-  if (!type) return ''
-
-  return type
-    .toLowerCase()
+  return String(type || '')
     .trim()
-    .replace(/\(\d+(?:,\s*\d+)?\)/, '')
-}
-
-/**
- * Check if two types are equivalent (accounting for aliases)
- */
-function typesMatch(existing, expected, dbType) {
-  if (existing === expected) return true
-
-  // PostgreSQL type aliases
-  const pgAliases = {
-    'character varying': 'varchar',
-    'double precision': 'real',
-    int4: 'integer',
-    int8: 'bigint',
-    float8: 'double precision',
-    serial: 'integer', // SERIAL is essentially INTEGER with auto-increment
-    bigserial: 'bigint',
-    'timestamp with time zone': 'timestamptz',
-    'timestamp without time zone': 'timestamp'
-  }
-
-  // MySQL type aliases
-  const mysqlAliases = {
-    int: 'integer',
-    bool: 'tinyint',
-    boolean: 'tinyint'
-  }
-
-  const sqliteAliases = {
-    int: 'integer',
-    bool: 'integer',
-    boolean: 'integer',
-    varchar: 'text',
-    char: 'text',
-    character: 'text',
-    json: 'text'
-  }
-
-  const aliases =
-    dbType === 'postgresql'
-      ? pgAliases
-      : dbType === 'sqlite'
-      ? sqliteAliases
-      : mysqlAliases
-
-  // Try to match via aliases
-  const resolveAlias = (t) => aliases[t] || t
-
-  return resolveAlias(existing) === resolveAlias(expected)
+    .toLowerCase()
 }
 
 function normalizeSqlitePhysicalType(type) {
@@ -539,6 +659,8 @@ function normalizeSqlitePhysicalType(type) {
 
   switch (normalized) {
     case '_string':
+    case '_stringkey':
+    case '_stringtimestamp':
     case '_text':
     case '_mediumtext':
     case '_longtext':
@@ -568,4 +690,18 @@ function normalizeSqlitePhysicalType(type) {
     default:
       return normalized ? normalized.toUpperCase() : 'TEXT'
   }
+}
+
+function availableIndexName(table, column, unique, indexes) {
+  const base =
+    'sw_' +
+    crypto
+      .createHash('sha256')
+      .update(JSON.stringify([table, column, unique]))
+      .digest('hex')
+      .slice(0, 24)
+  let name = base
+  for (let n = 1; indexes.some((index) => index.name === name); n++)
+    name = `${base}_${n}`
+  return name
 }

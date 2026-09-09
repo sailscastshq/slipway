@@ -1663,6 +1663,28 @@ onUnmounted(() => {
             </p>
           </div>
 
+          <Alert
+            v-else-if="diff?.state === 'unverified'"
+            role="alert"
+            class="rounded-lg border border-amber-200 bg-amber-50 p-4 text-amber-800 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-300"
+          >
+            <h3 class="text-sm font-medium">Schema needs review</h3>
+            <p class="mt-1 text-sm">
+              Automatic migration is unavailable because some definitions could
+              not be verified.
+            </p>
+            <ul class="mt-2 list-inside list-disc space-y-1 text-sm">
+              <li
+                v-for="(item, index) in diff.verification?.unsupported"
+                :key="index"
+              >
+                {{ item.tableName
+                }}<template v-if="item.columnName"
+                  >.{{ item.columnName }}</template
+                >: {{ item.reason }}
+              </li>
+            </ul>
+          </Alert>
           <div
             v-else-if="!diff?.hasPendingChanges"
             class="rounded-lg border border-green-200 bg-green-50 px-6 py-8 text-center dark:border-green-900/50 dark:bg-green-950/30"

@@ -51,6 +51,9 @@ module.exports = function canonicalModelSnapshot(allModels, datastore) {
           referencedPhysical?.columnType,
         columnName: schema.columnName || attr.columnName || attrName,
         primaryKey: attrName === primaryKey,
+        // Only adapter directives describe database constraints. required and
+        // defaultsTo remain application validation, not SQL NOT NULL/defaults.
+        physical: { ...physical },
         required: Boolean(attr.required),
         unique: Boolean(
           physical.unique ??
