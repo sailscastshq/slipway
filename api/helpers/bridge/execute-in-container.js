@@ -231,8 +231,8 @@ const BOOT_ERROR_MARKER = ${JSON.stringify(BOOT_ERROR_MARKER)};
       sailsApp.load({
         models: { migrate: 'safe' },
         hooks: {
-          http: false,
-          views: false,
+          // renderView (used by Sails Mail) requires both hooks. load(), unlike
+          // lift(), initializes them without starting an HTTP listener.
           sockets: false,
           pubsub: false,
           grunt: false,
