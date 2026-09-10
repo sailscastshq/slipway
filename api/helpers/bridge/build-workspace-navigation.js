@@ -51,6 +51,7 @@ module.exports = {
       )
       .map((resource) => ({
         identity: resource.identity,
+        ...(resource.slug ? { slug: resource.slug } : {}),
         label: resource.label,
         singularLabel: resource.singularLabel
       }))

@@ -276,12 +276,21 @@ test(
         'Publish course failed'
       )
       publishError = null
-      const hostSuccess = await hostClient.post(hostAction, {
-        recordId: courseId,
-        values: { note: 'Draft note' }
-      })
+      contract.resources.course.slug = 'learning-path'
+      contract.resources.course.actionDefinitions.publish.slug =
+        'publish-course'
+      const hostSuccess = await hostClient.post(
+        hostAction.replace(
+          '/course/actions/publish',
+          '/learning-path/actions/publish-course'
+        ),
+        {
+          recordId: courseId,
+          values: { note: 'Draft note' }
+        }
+      )
       expect(hostSuccess).toHaveStatus(302)
-      expect(hostSuccess).toRedirectTo(`/bridge/course/${courseId}`)
+      expect(hostSuccess).toRedirectTo(`/bridge/learning-path/${courseId}`)
     } finally {
       sails.helpers.bridge.introspectModels = originalIntrospectModels
       sails.helpers.bridge.buildSailsWrapper = originalBuildSailsWrapper
@@ -387,6 +396,32 @@ test(
       )
       expect(validBulk).toHaveStatus(302)
       expect(actionExecutionCount).toBe(1)
+      contract.resources.course.slug = 'learning-path'
+      const canonical = await browser.request.post(
+        basePath.replace('/course/', '/learning-path/') +
+          '/regenerate-licenses',
+        {
+          recordIds: ['018f2a5c-7b34-7f8a-9c12-4a73b9d80243'],
+          values: {}
+        }
+      )
+      expect(canonical).toHaveStatus(302)
+      expect(canonical).toRedirectTo(
+        basePath.replace('/course/actions', '/learning-path')
+      )
+      expect(actionExecutionCount).toBe(2)
+      const legacy = await browser.request.post(
+        `${basePath}/regenerateLicenses`,
+        {
+          recordIds: ['018f2a5c-7b34-7f8a-9c12-4a73b9d80243'],
+          values: {}
+        }
+      )
+      expect(legacy).toHaveStatus(302)
+      expect(legacy).toRedirectTo(
+        basePath.replace('/course/actions', '/learning-path')
+      )
+      expect(actionExecutionCount).toBe(3)
     } finally {
       sails.helpers.bridge.introspectModels = originalIntrospectModels
       sails.helpers.bridge.buildSailsWrapper = originalBuildSailsWrapper

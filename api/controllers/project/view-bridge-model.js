@@ -163,6 +163,7 @@ module.exports = {
           actor
         })
         modelMeta = loaded.resource
+        modelIdentity = modelMeta.identity
         if (bridgeHostOrigin) {
           try {
             bridgeWorkspace =

@@ -148,9 +148,9 @@ module.exports = {
     }
 
     // Redirect back to record view
-    return `${bridgeBasePath}/${modelIdentity}/${encodeURIComponent(
-      String(recordId)
-    )}`
+    return `${bridgeBasePath}/${
+      loaded.resource.slug || loaded.resource.identity
+    }/${encodeURIComponent(String(recordId))}`
   }
 }
 

@@ -123,7 +123,7 @@ module.exports = {
             `teams/${safeSegment(project.team)}`,
             `projects/${safeSegment(project.id)}`,
             `environments/${safeSegment(environment.id)}`,
-            safeSegment(modelIdentity),
+            safeSegment(loaded.resource.identity),
             safeSegment(fieldName)
           ]
     const directory = [...namespace, objectPathConfig.directory]

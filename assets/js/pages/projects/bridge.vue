@@ -78,7 +78,7 @@ function assocCount(model) {
 }
 
 function bridgeModelUrl(identity) {
-  return `${bridgeBasePath.value}/${identity}`
+  return `${bridgeBasePath.value}/${props.models?.[identity]?.slug || identity}`
 }
 
 function refresh() {

@@ -1241,3 +1241,49 @@ or sent to the browser. Inertia failures redirect back with errors so the action
 dialog and its entered values remain available. The same behavior applies to
 project routes and app-domain Bridge routes. CamelCase helper identities remain
 valid and do not need to match the action's URL key.
+
+## Public URL slugs
+
+Keep model keys and custom action names as JavaScript identifiers. Bridge uses
+kebab-case action URLs automatically: `requestChanges` becomes `request-changes`
+and `exportAttendees` becomes `export-attendees`. The helper and authorization
+hook still receive the original identifiers.
+
+Set a resource's `slug` to give it a shorter public URL without renaming its
+Waterline model or database table:
+
+```js
+module.exports.slipway = {
+  bridge: {
+    resources: {
+      conferenceevent: {
+        slug: 'event',
+        actions: {
+          requestChanges: {
+            scope: 'record',
+            helper: 'bridge.requestChanges'
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+This produces `/bridge/event` and `/bridge/event/actions/request-changes` on an
+app's Bridge domain, with the same suffixes in Slipway's project navigation.
+Actions can also set `slug` explicitly. Slugs must start with a lowercase letter
+and contain lowercase letters, digits, or single separating hyphens. Reserved
+route names and collisions with another slug or original identifier are rejected.
+Built-in actions such as `create`, `update`, and `delete` retain their routes.
+
+Navigation, forms, uploads, related-record links, and successful mutation
+redirects use canonical slugs. Existing original-identifier URLs continue to
+work directly, including POST requests: Bridge resolves them before authorization
+and executes once, without redirecting the request body. Changing an explicit
+slug does not preserve the previous custom slug as an alias; only the original
+identifier remains a permanent compatibility path.
+
+Changing a URL slug does not change helper names, authorization action names,
+audit identifiers, upload storage namespaces, or database tables. Deploy the
+application's configuration change and refresh Bridge to load its contract.

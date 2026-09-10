@@ -38,6 +38,14 @@ module.exports = {
       requireRunning: true
     })
     const { project, environment, app, actor, actorId } = resolved
+    const loaded = await sails.helpers.bridge.loadResource.with({
+      containerName: app.containerName,
+      environmentId: environment.id,
+      modelIdentity,
+      action: recordId ? 'update' : 'create',
+      actor,
+      ...(recordId ? { recordId } : {})
+    })
     const payload = await sails.helpers.bridge.verifyDirectUploadIntent.with({
       intent: uploadIntent,
       context: {
@@ -45,7 +53,7 @@ module.exports = {
         projectId: project.id,
         environmentId: environment.id,
         appId: app.id,
-        resource: modelIdentity,
+        resource: loaded.resource.identity,
         field: fieldName
       }
     })
@@ -55,14 +63,6 @@ module.exports = {
       throw new Error('This upload session belongs to a different record.')
     }
 
-    const loaded = await sails.helpers.bridge.loadResource.with({
-      containerName: app.containerName,
-      environmentId: environment.id,
-      modelIdentity,
-      action: recordId ? 'update' : 'create',
-      actor,
-      ...(recordId ? { recordId } : {})
-    })
     const surface = recordId ? 'edit' : 'create'
     const attribute = loaded.resource.attributes?.[fieldName]
     if (

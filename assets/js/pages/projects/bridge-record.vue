@@ -42,6 +42,9 @@ const toggleMobileMenu = inject('toggleMobileMenu')
 const toggleSidebar = inject('toggleSidebar')
 const sidebarCollapsed = inject('sidebarCollapsed')
 const toast = useToast()
+const resourceSlug = computed(
+  () => props.modelMeta?.slug || props.modelIdentity
+)
 const bridgeBasePath = computed(
   () =>
     props.bridgeRequestBasePath ||
@@ -131,7 +134,7 @@ function fieldLabel(name) {
 
 function confirmDelete() {
   deleteForm.post(
-    `${bridgeBasePath.value}/${props.modelIdentity}/${encodePathSegment(
+    `${bridgeBasePath.value}/${resourceSlug.value}/${encodePathSegment(
       props.recordId
     )}/delete`,
     {
@@ -150,8 +153,8 @@ function confirmDelete() {
 
 function customActionUrl(action) {
   return `${bridgeBasePath.value}/${
-    props.modelIdentity
-  }/actions/${encodePathSegment(action.name)}`
+    resourceSlug.value
+  }/actions/${encodePathSegment(action.slug || action.name)}`
 }
 
 function actionNeedsDialog(action) {
@@ -204,10 +207,10 @@ function bridgeUrl() {
   return bridgeBasePath.value
 }
 function modelUrl() {
-  return `${bridgeBasePath.value}/${props.modelIdentity}`
+  return `${bridgeBasePath.value}/${resourceSlug.value}`
 }
 function editUrl() {
-  return `${bridgeBasePath.value}/${props.modelIdentity}/${encodePathSegment(
+  return `${bridgeBasePath.value}/${resourceSlug.value}/${encodePathSegment(
     props.recordId
   )}/edit`
 }
@@ -221,14 +224,14 @@ function relationshipOptionsUrl(relationship) {
     recordId: String(props.recordId)
   })
   return `${bridgeApiBasePath.value}/${
-    props.modelIdentity
+    resourceSlug.value
   }/relationships/${encodePathSegment(
     relationship.alias
   )}/options?${params.toString()}`
 }
 
 function relationshipMutationBaseUrl(relationship) {
-  return `${bridgeBasePath.value}/${props.modelIdentity}/${encodePathSegment(
+  return `${bridgeBasePath.value}/${resourceSlug.value}/${encodePathSegment(
     props.recordId
   )}/relationships/${encodePathSegment(relationship.alias)}`
 }
@@ -439,7 +442,12 @@ function relationshipMutationBaseUrl(relationship) {
                     </template>
                     <Link
                       v-else
-                      :href="relatedRecordUrl(assoc.resource, assoc.record.id)"
+                      :href="
+                        relatedRecordUrl(
+                          assoc.slug || assoc.identity,
+                          assoc.record.id
+                        )
+                      "
                       :title="String(assoc.record.id)"
                       class="font-medium text-gray-900 hover:underline dark:text-white"
                     >
@@ -496,7 +504,9 @@ function relationshipMutationBaseUrl(relationship) {
                   class="px-4 py-1.5"
                 >
                   <Link
-                    :href="relatedRecordUrl(assoc.identity, related.id)"
+                    :href="
+                      relatedRecordUrl(assoc.slug || assoc.identity, related.id)
+                    "
                     :title="String(related.id)"
                     class="block min-w-0"
                   >
@@ -523,7 +533,7 @@ function relationshipMutationBaseUrl(relationship) {
     :app-name="app.name"
     :url="`/projects/${project.slug}/environments/${environment.slug}/apps/${
       app.slug
-    }/bridge/${encodePathSegment(modelIdentity)}/${encodePathSegment(
+    }/bridge/${encodePathSegment(resourceSlug)}/${encodePathSegment(
       recordId
     )}/support`"
     @close="supportOpen = false"

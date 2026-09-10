@@ -92,6 +92,7 @@ module.exports = {
           recordId
         })
         modelMeta = loaded.resource
+        modelIdentity = modelMeta.identity
         if (bridgeHostOrigin) {
           try {
             bridgeWorkspace =

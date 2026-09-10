@@ -92,14 +92,7 @@ module.exports = {
     const descriptor = await sails.helpers.bridge.supportDescriptor.with({
       containerName: app.containerName
     })
-    if (!descriptor.enabled || descriptor.model !== modelIdentity)
-      throw {
-        badRequest: {
-          message:
-            'This app has not approved this identity model and its read-only support pages.'
-        }
-      }
-    await sails.helpers.bridge.loadResource.with({
+    const loaded = await sails.helpers.bridge.loadResource.with({
       containerName: app.containerName,
       environmentId: environment.id,
       modelIdentity,
@@ -107,6 +100,14 @@ module.exports = {
       action: 'view',
       actor
     })
+    modelIdentity = loaded.resource.identity
+    if (!descriptor.enabled || descriptor.model !== modelIdentity)
+      throw {
+        badRequest: {
+          message:
+            'This app has not approved this identity model and its read-only support pages.'
+        }
+      }
     const appUrl = await sails.helpers.bridge.getAppUrl.with({
       app,
       environment,
@@ -142,7 +143,7 @@ module.exports = {
             )}/environments/${encodeURIComponent(
               environment.slug
             )}/apps/${encodeURIComponent(app.slug)}/bridge/${encodeURIComponent(
-              modelIdentity
+              loaded.resource.slug || modelIdentity
             )}/${encodeURIComponent(recordId)}`,
             ip: String(this.req.ip || '').slice(0, 64),
             userAgent: String(this.req.headers['user-agent'] || '').slice(

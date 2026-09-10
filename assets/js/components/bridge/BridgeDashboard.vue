@@ -42,7 +42,9 @@ const detailCards = computed(() =>
 )
 
 function resourceUrl(identity) {
-  return `${props.bridgeBasePath}/${identity}`
+  return `${props.bridgeBasePath}/${
+    props.resources[identity]?.slug || identity
+  }`
 }
 
 function actionUrl(card) {

@@ -218,7 +218,7 @@ module.exports = {
 }
 
 function actionRedirect({ bridgeBasePath, resource, loaded }) {
-  const modelPath = `${bridgeBasePath}/${resource.identity}`
+  const modelPath = `${bridgeBasePath}/${resource.slug || resource.identity}`
   if (loaded.actionDefinition.scope !== 'record') return modelPath
   return `${modelPath}/${encodeURIComponent(String(loaded.recordId))}`
 }
