@@ -3,7 +3,7 @@ const fs = require('node:fs')
 const path = require('node:path')
 
 test(
-  'Bridge Klean calendar supports historical dates, local time, clearing, and mobile overlays',
+  'Bridge SchedulePicker combines date and time with historical records and mobile overlays',
   {
     browser: true,
     world: {
@@ -13,6 +13,14 @@ test(
   },
   async ({ sails, world, login, page, expect }) => {
     const original = { ...sails.helpers.bridge }
+    const storedInstant = '2020-02-29T14:35:27.123Z'
+    let savedValues
+    let persistedRecord = {
+      id: 42,
+      title: 'Historical event',
+      startsAt: storedInstant,
+      day: '2020-02-29'
+    }
     const contract = await sails.helpers.bridge.normalizeResourceContract.with({
       models: {
         event: {
@@ -66,6 +74,13 @@ test(
       if (code.includes('const records = await'))
         output = { records: [], total: 0 }
       if (code.includes('const fieldErrors = {};')) output = { fieldErrors: {} }
+      if (code.includes('const record = await model.findOne(criteria)'))
+        output = { record: persistedRecord }
+      if (code.includes('await model.updateOne(criteria).set(values);')) {
+        savedValues = JSON.parse(code.match(/const values = (.*);/)[1])
+        persistedRecord = { ...persistedRecord, ...savedValues }
+        output = { record: persistedRecord }
+      }
       return {
         success: true,
         output: JSON.stringify(output),
@@ -84,9 +99,10 @@ test(
       const date = page.raw.locator('input#bridge-event-startsAt')
       await expect(date).toBeVisible()
       expect(await date.getAttribute('type')).toBe('text')
-      await date.fill('2020-02-29')
-      await page.raw.getByLabel('Starts at time (24-hour)').fill('14:35')
-      const out = path.resolve('output/issue-556')
+      await date.fill('February 29, 2020 at 14:35')
+      await date.press('Enter')
+      expect(await date.evaluate((node) => node.checkValidity())).toBe(true)
+      const out = path.resolve('output/issue-562')
       fs.mkdirSync(out, { recursive: true })
       for (const [width, color] of [
         [1280, 'light'],
@@ -95,29 +111,40 @@ test(
         await page.raw.setViewportSize({ width, height: 900 })
         await page.raw.emulateMedia({ colorScheme: color })
         await date.focus()
-        await page.raw.keyboard.press('ArrowDown')
+        await date.press('ArrowDown')
+        const picker = page.raw.locator(
+          '[data-slot="schedule-picker-popover"]:visible'
+        )
         await expect(page.raw.getByRole('grid')).toBeVisible()
-        await page.raw.waitForFunction(() => {
-          const grid = document.querySelector('[role="grid"]')
-          const box = grid?.getBoundingClientRect()
-          return box && box.x >= 0 && box.right <= innerWidth
-        })
-        const box = await page.raw.getByRole('grid').boundingBox()
+        await expect(picker.getByLabel('Hour', { exact: true })).toBeVisible()
+        await expect(picker.getByLabel('Minute', { exact: true })).toHaveValue(
+          '35'
+        )
+        const box = await picker.boundingBox()
         expect(box.x >= 0 && box.x + box.width <= width).toBe(true)
-        await page.screenshot(path.join(out, `bridge-calendar-${width}.png`), {
-          animations: 'disabled'
-        })
-        await page.raw.keyboard.press('Escape')
+        await page.screenshot(
+          path.join(out, `bridge-schedule-open-${width}.png`),
+          { animations: 'disabled' }
+        )
+        await date.press('Escape')
         await expect(date).toBeFocused()
+        await date.blur()
+        await page.screenshot(
+          path.join(out, `bridge-schedule-closed-${width}.png`),
+          { animations: 'disabled' }
+        )
       }
-      await expect(date).toHaveValue('2020-02-29')
-      await expect(page.raw.getByLabel('Starts at time (24-hour)')).toHaveValue(
-        '14:35'
-      )
+      expect(
+        await page.raw.locator('#bridge-event-startsAt-time').count()
+      ).toBe(0)
+      await date.fill('not a valid date')
+      await date.press('Enter')
+      expect(await date.evaluate((node) => node.checkValidity())).toBe(false)
+      await date.fill('January 15, 2030 at 09:15')
+      await date.press('Enter')
+      expect(await date.evaluate((node) => node.checkValidity())).toBe(true)
       await date.fill('')
-      await expect(page.raw.getByLabel('Starts at time (24-hour)')).toHaveValue(
-        ''
-      )
+      await expect(date).toHaveValue('')
       expect(
         await page.raw
           .locator('input[type="date"],input[type="datetime-local"]')
@@ -128,11 +155,12 @@ test(
       )
       await page.raw.locator('[data-test="bridge-filter-toggle"]').click()
       const from = page.raw.locator('#bridge-filter-startsAt-from')
-      await from.fill('2020-02-29')
+      await from.fill('February 29, 2020 at 14:35')
+      await from.press('Enter')
       await from.focus()
       await page.raw.keyboard.press('ArrowDown')
       await expect(page.raw.getByRole('grid')).toBeVisible()
-      await page.screenshot(path.join(out, 'bridge-filter-calendar-390.png'), {
+      await page.screenshot(path.join(out, 'bridge-filter-schedule-390.png'), {
         animations: 'disabled'
       })
       await page.raw.keyboard.press('Escape')
@@ -145,6 +173,37 @@ test(
         .getByRole('button', { name: 'Apply', exact: true })
         .click()
       await page.raw.waitForURL((url) => url.searchParams.has('filters'))
+      const cdp = await page.raw.context().newCDPSession(page.raw)
+      try {
+        for (const timezoneId of ['Africa/Lagos', 'America/New_York']) {
+          await cdp.send('Emulation.setTimezoneOverride', { timezoneId })
+          await page.goto(
+            '/projects/date-controls/environments/production/bridge/event/42/edit'
+          )
+          const expected = await page.raw.evaluate(
+            (iso) =>
+              new Intl.DateTimeFormat(navigator.language, {
+                dateStyle: 'medium',
+                timeStyle: 'medium'
+              }).format(new Date(iso)),
+            storedInstant
+          )
+          await expect(date).toHaveValue(expected)
+          await date.focus()
+          await date.press('ArrowDown')
+          await date.press('Escape')
+          await page.raw
+            .locator('#bridge-event-title')
+            .fill(`Historical event ${timezoneId}`)
+          await page.raw
+            .getByRole('button', { name: 'Save changes', exact: true })
+            .click()
+          await page.raw.waitForURL((url) => url.pathname.endsWith('/event/42'))
+          expect(savedValues.startsAt).toBe(storedInstant)
+        }
+      } finally {
+        await cdp.detach()
+      }
       expect(page).toHaveNoJavascriptErrors()
     } finally {
       Object.assign(sails.helpers.bridge, original)

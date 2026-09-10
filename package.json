@@ -28,6 +28,7 @@
     "@codemirror/view": "^6.43.6",
     "@floating-ui/dom": "^1.8.0",
     "@inertiajs/vue3": "^3.4.0",
+    "@internationalized/date": "^3.12.4",
     "@lezer/highlight": "^1.2.3",
     "@resvg/resvg-js": "^2.6.2",
     "@sailscastshq/connect-sqlite": "^1.1.0",
@@ -44,6 +45,7 @@
     "@tiptap/starter-kit": "^3.31.3",
     "@tiptap/vue-3": "^3.31.3",
     "acorn": "^8.18.0",
+    "chrono-node": "^2.10.1",
     "csrf": "^3.1.0",
     "dejavu-fonts-ttf": "2.37.3",
     "dompurify": "^3.4.13",
@@ -69,6 +71,7 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.61.1",
+    "@rsbuild/plugin-tailwindcss": "^2.0.3",
     "@rsbuild/plugin-vue": "^2.0.1",
     "create-sails-generator": "^1.0.0",
     "prettier": "^2.8.8",
@@ -78,8 +81,7 @@
     "sails.io.js": "^1.2.1",
     "socket.io-client": "^4.7.5",
     "sounding": "^0.2.0",
-    "tailwindcss": "^4.1.16",
-    "@rsbuild/plugin-tailwindcss": "^2.0.3"
+    "tailwindcss": "^4.1.16"
   },
   "scripts": {
     "dev": "node --watch-path=api --watch-path=config app.js",

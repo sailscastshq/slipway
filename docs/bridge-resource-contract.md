@@ -786,6 +786,27 @@ status: {
 }
 ```
 
+### Date and time fields
+
+`type: 'datetime'` and `type: 'timestamp'` use Klean SchedulePicker: one field
+with a combined calendar and time popover. Bridge enables historical dates
+internally, so existing records can be edited as well as future events.
+Date-only fields (`type: 'date'`) keep the calendar-only picker.
+
+Existing configuration stays the same:
+
+```js
+// bridge.resources.<resource>.fields (or the fluent resource fields object)
+startsAt: { type: 'datetime' },
+endsAt: { type: 'datetime' },
+cfpClosesAt: { type: 'datetime' }
+```
+
+No `allowPast` or `schedulePicker` key is needed in `config/slipway.js`.
+These fields display in the browser's timezone and submit ISO instants.
+Opening and saving an unchanged record preserves seconds and milliseconds.
+Datetime filters use the same combined control.
+
 ### Currency and lifecycle callbacks
 
 Currency fields distinguish the value stored in the database from the value
