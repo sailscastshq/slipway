@@ -709,14 +709,27 @@ watch(logsOpen, (open) => {
 })
 
 // ─── Computed ───
-const heapPercent = computed(() => {
-  if (!props.processInfo.memoryUsage) return 0
-  return Math.round(
-    (props.processInfo.memoryUsage.heapUsed /
-      props.processInfo.memoryUsage.heapTotal) *
-      100
-  )
+const memory = computed(() => {
+  const usage = props.processInfo.memoryUsage || {}
+  const bytes = (value) =>
+    typeof value === 'number' && Number.isFinite(value) && value >= 0
+      ? value
+      : null
+  const heapUsed = bytes(usage.heapUsed)
+  const heapTotal = bytes(usage.heapTotal)
+  const comparable = heapUsed !== null && heapTotal > 0 && heapUsed <= heapTotal
+  return {
+    heapUsed,
+    heapTotal,
+    rss: bytes(usage.rss),
+    percent: comparable ? Math.round((heapUsed / heapTotal) * 100) : null,
+    unused: comparable ? heapTotal - heapUsed : null
+  }
 })
+
+function formatMemoryBytes(value) {
+  return value === null ? 'Unavailable' : formatBytes(value)
+}
 
 const statCards = computed(() => [
   { label: 'Projects', value: props.stats.projects || 0 },
@@ -1355,68 +1368,100 @@ onUnmounted(() => {
           <!-- Memory + Databases -->
           <div class="mb-8 grid gap-6 lg:grid-cols-2">
             <!-- Memory -->
-            <div class="rounded-lg border border-gray-200 dark:border-gray-800">
+            <section
+              aria-labelledby="bosun-memory-heading"
+              data-test="bosun-memory"
+              class="min-w-0 rounded-lg border border-gray-200 dark:border-gray-800"
+            >
               <div
                 class="border-b border-gray-200 px-4 py-3 dark:border-gray-800"
               >
-                <h3 class="text-sm font-medium text-gray-900 dark:text-white">
+                <h3
+                  id="bosun-memory-heading"
+                  class="text-sm font-medium text-gray-900 dark:text-white"
+                >
                   Memory
                 </h3>
               </div>
               <div class="space-y-4 px-4 py-4">
-                <!-- Heap usage with bar -->
                 <div>
-                  <div class="flex items-center justify-between text-xs">
-                    <span class="text-gray-500 dark:text-gray-400"
-                      >Heap Used</span
+                  <div
+                    class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 text-xs"
+                  >
+                    <Tooltip
+                      text="Used / currently allocated JavaScript heap. Allocation can grow; this is not the server or container memory limit."
+                      placement="top"
                     >
+                      <span
+                        tabindex="0"
+                        data-test="bosun-heap-help"
+                        class="cursor-help rounded text-gray-500 outline-offset-2 dark:text-gray-400"
+                        >JavaScript heap</span
+                      >
+                    </Tooltip>
                     <span
                       class="font-mono font-medium text-gray-900 dark:text-white"
                     >
-                      {{ formatBytes(processInfo.memoryUsage?.heapUsed) }}
-                      <span class="text-gray-400 dark:text-gray-600"
-                        >/
-                        {{
-                          formatBytes(processInfo.memoryUsage?.heapTotal)
-                        }}</span
+                      {{ formatMemoryBytes(memory.heapUsed) }}
+                      <span
+                        class="font-sans font-normal text-gray-500 dark:text-gray-400"
+                        >/</span
                       >
+                      {{ formatMemoryBytes(memory.heapTotal) }}
                     </span>
                   </div>
                   <div
+                    v-if="memory.percent !== null"
+                    role="meter"
+                    aria-label="JavaScript heap utilization"
+                    aria-valuemin="0"
+                    aria-valuemax="100"
+                    :aria-valuenow="memory.percent"
+                    :aria-valuetext="`${memory.percent}% of allocated JavaScript heap used`"
                     class="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-gray-100 dark:bg-gray-800"
                   >
                     <div
-                      class="h-full rounded-full bg-blue-500 transition-all"
-                      :style="{ width: heapPercent + '%' }"
+                      class="h-full rounded-full bg-blue-500"
+                      :style="{ width: memory.percent + '%' }"
                     ></div>
                   </div>
                   <div
-                    class="mt-1 flex justify-between text-[10px] text-gray-400 dark:text-gray-500"
+                    v-if="memory.percent !== null"
+                    class="mt-1 flex flex-wrap justify-between gap-x-3 gap-y-1 text-[10px] text-gray-500 dark:text-gray-400"
                   >
-                    <span>{{ heapPercent }}% used</span>
+                    <span>{{ memory.percent }}% of allocated heap</span>
+                    <span>{{ formatMemoryBytes(memory.unused) }} unused</span>
+                  </div>
+                  <p
+                    v-else
+                    class="mt-1 text-xs text-gray-500 dark:text-gray-400"
+                  >
+                    Heap utilization unavailable.
+                  </p>
+                </div>
+                <div>
+                  <div
+                    class="flex flex-wrap items-baseline justify-between gap-2"
+                  >
+                    <Tooltip
+                      text="Resident memory for the Slipway process, including memory outside the JavaScript heap. Excludes other apps and server processes."
+                      placement="top"
+                    >
+                      <span
+                        tabindex="0"
+                        data-test="bosun-rss-help"
+                        class="cursor-help rounded text-xs text-gray-500 outline-offset-2 dark:text-gray-400"
+                        >Slipway process (RSS)</span
+                      >
+                    </Tooltip>
                     <span
-                      >{{
-                        formatBytes(
-                          processInfo.memoryUsage?.heapTotal -
-                            processInfo.memoryUsage?.heapUsed
-                        )
-                      }}
-                      free</span
+                      class="font-mono text-sm font-medium text-gray-900 dark:text-white"
+                      >{{ formatMemoryBytes(memory.rss) }}</span
                     >
                   </div>
                 </div>
-                <!-- RSS -->
-                <div class="flex items-center justify-between">
-                  <span class="text-xs text-gray-500 dark:text-gray-400"
-                    >RSS (Total)</span
-                  >
-                  <span
-                    class="font-mono text-sm font-medium text-gray-900 dark:text-white"
-                    >{{ formatBytes(processInfo.memoryUsage?.rss) }}</span
-                  >
-                </div>
               </div>
-            </div>
+            </section>
 
             <!-- Databases -->
             <div class="rounded-lg border border-gray-200 dark:border-gray-800">
