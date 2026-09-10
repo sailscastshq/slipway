@@ -138,6 +138,6 @@ module.exports = {
     }
 
     // Redirect back to model list
-    return `${bridgeBasePath}/${modelIdentity}`
+    return `${bridgeBasePath}/${resource.slug || resource.identity}`
   }
 }

@@ -87,8 +87,9 @@ module.exports = {
     }
     const { environment, app, actor, bridgeBasePath } = resolved
 
+    let loaded
     try {
-      const loaded = await sails.helpers.bridge.loadResource.with({
+      loaded = await sails.helpers.bridge.loadResource.with({
         containerName: app.containerName,
         environmentId: environment.id,
         modelIdentity,
@@ -181,9 +182,9 @@ module.exports = {
       throw { badRequest: { error: error.message } }
     }
 
-    return `${bridgeBasePath}/${modelIdentity}/${encodeURIComponent(
-      String(recordId)
-    )}`
+    return `${bridgeBasePath}/${
+      loaded.resource.slug || loaded.resource.identity
+    }/${encodeURIComponent(String(recordId))}`
   }
 }
 

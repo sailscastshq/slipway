@@ -1,5 +1,7 @@
 'use strict'
 
+const { slugFor, assertUnique } = require('../../lib/bridge-url-slugs')
+
 module.exports = {
   friendlyName: 'Normalize Bridge resource contract',
 
@@ -80,6 +82,7 @@ function normalizeBridgeResourceContract({ models, config = {} }) {
     'timestamp'
   ]
   const CUSTOM_ACTION_OPTION_KEYS = [
+    'slug',
     'scope',
     'helper',
     'label',
@@ -141,6 +144,7 @@ function normalizeBridgeResourceContract({ models, config = {} }) {
     'upload'
   ]
   const RESOURCE_OPTION_KEYS = [
+    'slug',
     'label',
     'singularLabel',
     'title',
@@ -260,6 +264,13 @@ function normalizeBridgeResourceContract({ models, config = {} }) {
     config.authorization,
     config.identity,
     resources
+  )
+  assertUnique(
+    Object.entries(resources).map(([identity, resource]) => [
+      identity,
+      resource.slug || identity
+    ]),
+    'resource'
   )
   for (const [identity, resource] of Object.entries(resources)) {
     const rawResource = configuredResources[identity]
@@ -387,8 +398,10 @@ function normalizeBridgeResourceContract({ models, config = {} }) {
       readString(raw.singularLabel) || singularizeLabel(label)
 
     const normalizedActions = normalizeActions(identity, raw.actions)
+    const slug = slugFor(identity, raw.slug)
     const resource = {
       identity: model.identity || identity,
+      ...(slug !== identity ? { slug } : {}),
       globalId: model.globalId,
       tableName: model.tableName || identity,
       primaryKey,
@@ -1253,6 +1266,13 @@ function normalizeBridgeResourceContract({ models, config = {} }) {
         definitions[action] = normalizeCustomAction(identity, action, value)
       }
     }
+    assertUnique(
+      Object.keys(permissions).map((name) => [
+        name,
+        definitions[name]?.slug || name
+      ]),
+      'action'
+    )
     return { permissions, definitions }
   }
 
@@ -1298,8 +1318,10 @@ function normalizeBridgeResourceContract({ models, config = {} }) {
 
     const label = readString(rawAction.label) || humanize(name)
     const destructive = rawAction.destructive === true
+    const slug = slugFor(name, rawAction.slug)
     return {
       name,
+      ...(slug !== name ? { slug } : {}),
       scope: rawAction.scope,
       helper: normalizedHelper.identity,
       ...(normalizedHelper.invocation

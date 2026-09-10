@@ -57,11 +57,13 @@ module.exports = {
       throw error
     }
 
-    const hasResource = Object.prototype.hasOwnProperty.call(
-      contract.models || {},
-      modelIdentity
+    // Legacy identifiers remain valid aliases; normalization rejects ambiguity.
+    const resourceKey = Object.keys(contract.models || {}).find(
+      (identity) =>
+        identity === modelIdentity ||
+        contract.models[identity].slug === modelIdentity
     )
-    let resource = hasResource ? contract.models[modelIdentity] : null
+    let resource = resourceKey ? contract.models[resourceKey] : null
 
     if (!resource || resource.hidden) {
       const error = new Error(
@@ -69,6 +71,14 @@ module.exports = {
       )
       error.code = 'BRIDGE_RESOURCE_NOT_FOUND'
       throw error
+    }
+
+    modelIdentity = resource.identity
+    if (action) {
+      const canonicalAction = Object.values(
+        resource.actionDefinitions || {}
+      ).find((definition) => definition.slug === action)
+      if (canonicalAction) action = canonicalAction.name
     }
 
     if (

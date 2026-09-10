@@ -46,6 +46,9 @@ const toggleMobileMenu = inject('toggleMobileMenu')
 const toggleSidebar = inject('toggleSidebar')
 const sidebarCollapsed = inject('sidebarCollapsed')
 const toast = useToast()
+const resourceSlug = computed(
+  () => props.modelMeta?.slug || props.modelIdentity
+)
 const bridgeBasePath = computed(
   () =>
     props.bridgeRequestBasePath ||
@@ -64,10 +67,10 @@ const bridgeApiBasePath = computed(
 const isEdit = computed(() => props.mode === 'edit')
 const actionUrl = computed(() =>
   isEdit.value
-    ? `${bridgeBasePath.value}/${props.modelIdentity}/${encodePathSegment(
+    ? `${bridgeBasePath.value}/${resourceSlug.value}/${encodePathSegment(
         props.recordId
       )}/update`
-    : `${bridgeBasePath.value}/${props.modelIdentity}/create`
+    : `${bridgeBasePath.value}/${resourceSlug.value}/create`
 )
 
 function encodePathSegment(value) {
@@ -291,7 +294,7 @@ function handleSubmit() {
 }
 
 function uploadUrl(field) {
-  return `${bridgeBasePath.value}/${props.modelIdentity}/${field.name}/upload`
+  return `${bridgeBasePath.value}/${resourceSlug.value}/${field.name}/upload`
 }
 
 function relationshipSearchUrl(field) {
@@ -313,7 +316,7 @@ function relationshipSearchUrl(field) {
     params.set('recordId', String(props.recordId))
   }
   return `${bridgeApiBasePath.value}/${
-    props.modelIdentity
+    resourceSlug.value
   }/relationships/${encodePathSegment(field.name)}/options?${params.toString()}`
 }
 
@@ -356,10 +359,10 @@ function bridgeUrl() {
   return bridgeBasePath.value
 }
 function modelUrl() {
-  return `${bridgeBasePath.value}/${props.modelIdentity}`
+  return `${bridgeBasePath.value}/${resourceSlug.value}`
 }
 function recordUrl() {
-  return `${bridgeBasePath.value}/${props.modelIdentity}/${encodePathSegment(
+  return `${bridgeBasePath.value}/${resourceSlug.value}/${encodePathSegment(
     props.recordId
   )}`
 }

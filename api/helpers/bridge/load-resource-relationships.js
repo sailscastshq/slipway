@@ -48,6 +48,7 @@ module.exports = {
         type: relationship.type,
         label: relationship.label,
         identity: relatedResource.identity,
+        ...(relatedResource.slug ? { slug: relatedResource.slug } : {}),
         primaryKey: relatedResource.primaryKey,
         title: relatedResource.title,
         fields: relationship.fields,

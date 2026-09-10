@@ -64,7 +64,11 @@ const filteredResources = computed(() => {
 })
 
 function resourceUrl(identity) {
-  return `${normalizedBasePath.value}/${identity}`
+  return `${normalizedBasePath.value}/${
+    props.workspace?.resources?.find(
+      (resource) => resource.identity === identity
+    )?.slug || identity
+  }`
 }
 
 function isResourceActive(identity) {

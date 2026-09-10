@@ -65,6 +65,9 @@ const toggleMobileMenu = inject('toggleMobileMenu')
 const toggleSidebar = inject('toggleSidebar')
 const sidebarCollapsed = inject('sidebarCollapsed')
 const toast = useToast()
+const resourceSlug = computed(
+  () => props.modelMeta?.slug || props.modelIdentity
+)
 const bridgeBasePath = computed(
   () =>
     props.bridgeRequestBasePath ||
@@ -74,11 +77,11 @@ const bridgeBasePath = computed(
 )
 const relationshipBaseUrl = computed(() => {
   if (props.bridgeRequestApiBasePath) {
-    return `${props.bridgeRequestApiBasePath}/${props.modelIdentity}/relationships`
+    return `${props.bridgeRequestApiBasePath}/${resourceSlug.value}/relationships`
   }
   const appPath =
     props.appScoped && props.app?.slug ? `/apps/${props.app.slug}` : ''
-  return `/api/v1/projects/${props.project.slug}/environments/${props.environment.slug}${appPath}/bridge/${props.modelIdentity}/relationships`
+  return `/api/v1/projects/${props.project.slug}/environments/${props.environment.slug}${appPath}/bridge/${resourceSlug.value}/relationships`
 })
 const defaultLens = computed(() =>
   (props.lenses || []).find((definition) => definition.default)
@@ -221,7 +224,7 @@ const {
   ariaSort,
   sortButton
 } = useDataTableQuery({
-  url: computed(() => `${bridgeBasePath.value}/${props.modelIdentity}`),
+  url: computed(() => `${bridgeBasePath.value}/${resourceSlug.value}`),
   query: tableQuery,
   defaults: tableDefaults,
   only: tableReloadProps
@@ -260,7 +263,7 @@ function fieldLabel(name) {
 // Delete single record
 function confirmDelete() {
   deleteForm.post(
-    `${bridgeBasePath.value}/${props.modelIdentity}/${encodePathSegment(
+    `${bridgeBasePath.value}/${resourceSlug.value}/${encodePathSegment(
       deleteModal.value.recordId
     )}/delete`,
     {
@@ -284,7 +287,7 @@ function confirmDelete() {
 function confirmBulkDelete() {
   bulkDeleteForm.ids = [...selectedIds.value]
   bulkDeleteForm.post(
-    `${bridgeBasePath.value}/${props.modelIdentity}/bulk-delete`,
+    `${bridgeBasePath.value}/${resourceSlug.value}/bulk-delete`,
     {
       preserveScroll: true,
       onSuccess: () => {
@@ -316,8 +319,8 @@ function actionMenuItem(action) {
 
 function customActionUrl(action) {
   return `${bridgeBasePath.value}/${
-    props.modelIdentity
-  }/actions/${encodePathSegment(action.name)}`
+    resourceSlug.value
+  }/actions/${encodePathSegment(action.slug || action.name)}`
 }
 
 function actionNeedsDialog(action) {
@@ -392,17 +395,17 @@ function bridgeUrl() {
   return bridgeBasePath.value
 }
 function recordUrl(id) {
-  return `${bridgeBasePath.value}/${props.modelIdentity}/${encodePathSegment(
+  return `${bridgeBasePath.value}/${resourceSlug.value}/${encodePathSegment(
     id
   )}`
 }
 function editUrl(id) {
-  return `${bridgeBasePath.value}/${props.modelIdentity}/${encodePathSegment(
+  return `${bridgeBasePath.value}/${resourceSlug.value}/${encodePathSegment(
     id
   )}/edit`
 }
 function createUrl() {
-  return `${bridgeBasePath.value}/${props.modelIdentity}/new`
+  return `${bridgeBasePath.value}/${resourceSlug.value}/new`
 }
 </script>
 

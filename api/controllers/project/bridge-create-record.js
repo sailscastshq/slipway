@@ -121,10 +121,12 @@ module.exports = {
 
       if (recordId !== undefined && recordId !== null) {
         return `${bridgeBasePath}/${
-          loaded.resource.identity
+          loaded.resource.slug || loaded.resource.identity
         }/${encodeURIComponent(String(recordId))}`
       }
-      return `${bridgeBasePath}/${loaded.resource.identity}`
+      return `${bridgeBasePath}/${
+        loaded.resource.slug || loaded.resource.identity
+      }`
     } catch (error) {
       throw { badRequest: toBadRequest(error) }
     }
