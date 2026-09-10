@@ -31,6 +31,7 @@ module.exports = {
     await new Promise((resolve, reject) => {
       sailsApp.load({
         environment: 'console',
+        hooks: { shipwright: false, content: false },
         models: { migrate: 'safe' },
         log: { level: 'warn' }
       }, (err) => {

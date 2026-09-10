@@ -159,3 +159,111 @@ async function readBootCount(bootCountPath) {
   const boots = await fs.readFile(bootCountPath, 'utf8')
   return boots.trim().split('\n').length
 }
+
+for (const withContent of [true, false]) {
+  test(`Bridge worker preserves live assets across restarts (content: ${withContent})`, async ({
+    sails,
+    expect
+  }) => {
+    const fixture = await createFakeDockerFixture()
+    const restore = useFakeDocker(sails, fixture)
+    try {
+      // Execute the real generated worker source locally instead of Docker.
+      await fs.writeFile(
+        fixture.dockerPath,
+        `#!/usr/bin/env node
+process.chdir(${JSON.stringify(fixture.directory)})
+process.env.NODE_ENV = 'production'
+eval(process.argv[9])
+`,
+        { mode: 0o755 }
+      )
+      await fs.symlink(
+        path.resolve('node_modules'),
+        path.join(fixture.directory, 'node_modules')
+      )
+      await fs.writeFile(
+        path.join(fixture.directory, 'package.json'),
+        JSON.stringify({
+          name: 'worker-fixture',
+          dependencies: { sails: '*', 'sails-hook-orm': '*' }
+        })
+      )
+      for (const directory of [
+        'config',
+        'api/models',
+        'api/helpers',
+        '.tmp/public',
+        'api/hooks/shipwright',
+        ...(withContent ? ['api/hooks/content'] : [])
+      ]) {
+        await fs.mkdir(path.join(fixture.directory, directory), {
+          recursive: true
+        })
+      }
+      await fs.writeFile(
+        path.join(fixture.directory, 'config/models.js'),
+        `module.exports.models = { migrate: 'safe', attributes: { id: { type: 'number', autoIncrement: true } } }`
+      )
+      await fs.writeFile(
+        path.join(fixture.directory, 'config/datastores.js'),
+        `module.exports.datastores = { default: { adapter: 'sails-disk', inMemoryOnly: true } }`
+      )
+      await fs.writeFile(
+        path.join(fixture.directory, 'api/models/Person.js'),
+        `module.exports = { attributes: { name: { type: 'string' } } }`
+      )
+      await fs.writeFile(
+        path.join(fixture.directory, 'api/helpers/greeting.js'),
+        `module.exports = { sync: true, fn: () => 'hello' }`
+      )
+      for (const hook of ['shipwright', ...(withContent ? ['content'] : [])]) {
+        await fs.writeFile(
+          path.join(fixture.directory, 'api/hooks', hook, 'index.js'),
+          `module.exports = function () { return { initialize(done) { require('fs').rmSync('.tmp/public', { recursive: true, force: true }); done(new Error('Asset build hook ran inside worker')) } } }`
+        )
+      }
+      const assets = {
+        'manifest.json': '{"app.js":"app.123.js"}',
+        'app.123.js': 'console.log("live")',
+        'app.css': 'body{color:black}'
+      }
+      for (const [name, contents] of Object.entries(assets))
+        await fs.writeFile(
+          path.join(fixture.directory, '.tmp/public', name),
+          contents
+        )
+      const run = (code) =>
+        sails.helpers.bridge.executeInContainer.with({
+          containerName: `fixture-${withContent}`,
+          code,
+          timeout: 15000
+        })
+      for (let attempt = 0; attempt < 2; attempt++) {
+        const result = await run(
+          `return { model: sails.models.person.identity, greeting: await sails.helpers.greeting(), migrate: sails.config.models.migrate, shipwright: !!sails.hooks.shipwright, content: !!sails.hooks.content }`
+        )
+        expect(result.error).toBe(null)
+        expect(JSON.parse(result.output)).toEqual({
+          model: 'person',
+          greeting: 'hello',
+          migrate: 'safe',
+          shipwright: false,
+          content: false
+        })
+        const failed = await run('process.exit(1)')
+        expect(failed.success).toBe(false)
+        for (const [name, contents] of Object.entries(assets))
+          expect(
+            await fs.readFile(
+              path.join(fixture.directory, '.tmp/public', name),
+              'utf8'
+            )
+          ).toBe(contents)
+      }
+    } finally {
+      restore()
+      await fs.rm(fixture.directory, { recursive: true, force: true })
+    }
+  })
+}
