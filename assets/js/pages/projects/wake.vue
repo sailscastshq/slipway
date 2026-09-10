@@ -1,4 +1,5 @@
 <script setup>
+import DateInput from '@/components/DateInput.vue'
 import { computed, inject, ref, watch } from 'vue'
 import { Head, Link, router } from '@inertiajs/vue3'
 import AppLayout from '@/layouts/AppLayout.vue'
@@ -278,7 +279,7 @@ async function removeVisitor() {
           @submit.prevent="navigate()"
         >
           <label class="min-w-0 text-sm"
-            >From (UTC)<Input
+            >From (UTC)<DateInput
               v-model="from"
               aria-label="From (UTC)"
               type="date"
@@ -286,7 +287,7 @@ async function removeVisitor() {
               :class="[field, 'dark:[color-scheme:dark]']"
           /></label>
           <label class="min-w-0 text-sm"
-            >Through (UTC)<Input
+            >Through (UTC)<DateInput
               v-model="to"
               aria-label="Through (UTC)"
               type="date"

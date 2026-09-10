@@ -108,6 +108,19 @@ test(
           ),
           true
         )
+        if (tab === 'overview') {
+          const date = page.raw.getByLabel('From (UTC)', { exact: true })
+          await date.focus()
+          await page.raw.keyboard.press('ArrowDown')
+          await expect(page.raw.getByRole('grid')).toBeVisible()
+          const pickerOutput = path.resolve('output/issue-556')
+          await fs.mkdir(pickerOutput, { recursive: true })
+          await page.screenshot(
+            path.join(pickerOutput, `wake-calendar-${width}.png`),
+            { animations: 'disabled' }
+          )
+          await page.raw.keyboard.press('Escape')
+        }
         await page.screenshot(path.join(output, `${tab}-${width}.png`), {
           animations: 'disabled'
         })

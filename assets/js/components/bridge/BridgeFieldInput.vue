@@ -1,4 +1,5 @@
 <script setup>
+import DateInput from '@/components/DateInput.vue'
 import Textarea from '@/components/ui/textarea/Textarea.vue'
 import Input from '@/components/ui/input/Input.vue'
 import { router } from '@inertiajs/vue3'
@@ -828,33 +829,19 @@ function defaultPlaceholder(fieldType) {
         @blur="handleBlur"
       />
 
-      <Input
-        v-else-if="type === 'date'"
+      <DateInput
+        v-else-if="['date', 'datetime', 'timestamp'].includes(type)"
         :id="fieldId"
-        :value="modelValue"
-        type="date"
+        :model-value="modelValue || ''"
+        :type="type"
+        :time-label="`${label} time (24-hour)`"
         :disabled="field.readOnly"
         :required="attribute.required"
         :aria-invalid="visibleError ? 'true' : undefined"
         :aria-describedby="describedBy"
         :data-test="`${fieldId}-input`"
         :class="inputClass"
-        @input="update($event.target.value)"
-        @blur="handleBlur"
-      />
-
-      <Input
-        v-else-if="['datetime', 'timestamp'].includes(type)"
-        :id="fieldId"
-        :value="modelValue"
-        type="datetime-local"
-        :disabled="field.readOnly"
-        :required="attribute.required"
-        :aria-invalid="visibleError ? 'true' : undefined"
-        :aria-describedby="describedBy"
-        :data-test="`${fieldId}-input`"
-        :class="inputClass"
-        @input="update($event.target.value)"
+        @update:model-value="update"
         @blur="handleBlur"
       />
 
