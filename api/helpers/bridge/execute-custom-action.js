@@ -56,6 +56,7 @@ module.exports = {
     }
 
     const actionCode = `
+      try {
       const helperIdentity = ${JSON.stringify(action.helper)};
       const invocation = ${JSON.stringify(action.invocation || null)};
       const envelope = {
@@ -137,6 +138,23 @@ module.exports = {
             ? result.message
             : undefined
       };
+      } catch (error) {
+        const source = error && error.raw || error || {};
+        const validation = source.code === 'BRIDGE_ACTION_VALIDATION_FAILED';
+        return { __slipwayActionFailure: {
+          name: String(error && error.name || 'Error').slice(0, 100),
+          code: String(source.code || 'BRIDGE_ACTION_EXECUTION_FAILED').slice(0, 100),
+          diagnostic: String(error && (error.stack || error.message) || error).slice(0, 16000),
+          publicMessage: validation && typeof source.publicMessage === 'string' ? source.publicMessage.slice(0, 500) : null,
+          fieldErrors: validation && source.fieldErrors && typeof source.fieldErrors === 'object' ? Object.fromEntries(
+            Object.entries(source.fieldErrors).filter(([key, value]) =>
+              ${JSON.stringify(
+                Object.keys(action.fields || {})
+              )}.includes(key) && typeof value === 'string'
+            ).map(([key, value]) => [key, value.slice(0, 500)])
+          ) : {}
+        } };
+      }
     `
     const wrappedCode = await sails.helpers.bridge.buildSailsWrapper(actionCode)
     const result = await sails.helpers.bridge.executeInContainer(
@@ -145,12 +163,15 @@ module.exports = {
     )
 
     if (!result.success) {
-      throw bridgeActionError(
-        action.invocation
-          ? `${action.label || action.name} failed.`
-          : result.error || `${action.label || action.name} failed.`,
+      const error = bridgeActionError(
+        `${action.label || action.name} failed.`,
         'BRIDGE_ACTION_EXECUTION_FAILED'
       )
+      error.diagnostic = {
+        message: String(result.error || 'Worker failed.').slice(0, 16000),
+        exitCode: result.exitCode
+      }
+      throw error
     }
 
     let output
@@ -161,6 +182,22 @@ module.exports = {
         'The target app returned an invalid Bridge action result.',
         'BRIDGE_ACTION_EXECUTION_FAILED'
       )
+    }
+
+    if (output?.__slipwayActionFailure) {
+      const failure = output.__slipwayActionFailure
+      const error = bridgeActionError(
+        safeMessage(failure.publicMessage) ||
+          `${action.label || action.name} failed.`,
+        'BRIDGE_ACTION_EXECUTION_FAILED'
+      )
+      error.fieldErrors = failure.fieldErrors || {}
+      error.diagnostic = {
+        name: failure.name,
+        code: failure.code,
+        message: failure.diagnostic
+      }
+      throw error
     }
 
     return {

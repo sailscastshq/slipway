@@ -384,6 +384,9 @@ test('Bridge invokes an allowlisted domain helper with named values and maps its
     }
     expect(normalizedError.message).toBe('Issue License failed.')
     expect(normalizedError.message.includes('sk_live_nope')).toBe(false)
+    expect(normalizedError.diagnostic.message).toContain(
+      'provider failure containing plaintext secret sk_live_nope'
+    )
   } finally {
     sails.helpers.bridge.buildSailsWrapper = originalBuildSailsWrapper
     sails.helpers.bridge.executeInContainer = originalExecuteInContainer
