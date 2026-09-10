@@ -812,6 +812,44 @@ Set `submit: 'minor'` when the target model expects Bridge itself to submit
 `minimumFractionDigits` and `maximumFractionDigits` default to `2` and may be
 overridden for currencies with a different precision.
 
+### Array chips
+
+Explicitly configure a JSON attribute as `type: 'chips'` to edit an array as
+removable values. Ordinary JSON fields keep their existing editor.
+
+```js
+donationPresetsUsd: {
+  type: 'chips',
+  label: 'Suggested donations (USD)',
+  items: {
+    type: 'currency',
+    currency: {
+      code: 'USD',
+      locale: 'en-US',
+      storage: 'minor',
+      submit: 'minor'
+    }
+  }
+}
+```
+
+Use `NGN` and `en-NG` for naira. Users enter major units: `5` dollars is
+stored as `500` cents and `1000` naira as `100000` kobo. Existing arrays are
+converted for editing and converted back once on submission. Clearing all
+chips saves `[]`. Enter adds a value without submitting the form; each remove
+button is keyboard accessible. Uncommitted input is added on blur.
+
+Currency chips require matching `storage` and `submit` units; the scalar
+currency lifecycle-callback convention is not supported for array items.
+Precision defaults to two decimal places and supports zero through six.
+Amounts must be positive and fit within JavaScript's safe integer range when
+expressed in minor units. Invalid amounts, excess decimal places, duplicates,
+and arrays longer than 100 items are rejected on both client and server.
+
+For text arrays use `items: { type: 'text' }` (also the default). Text values
+are trimmed and must contain 1–1000 characters. Enable this configuration in
+an app only after deploying a Slipway version that supports chips.
+
 ### Custom components
 
 The optional `component` value names a component registered with Slipway's

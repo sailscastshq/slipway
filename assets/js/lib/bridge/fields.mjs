@@ -1,3 +1,4 @@
+import { chipsInputValue, normalizeChip } from './chips.mjs'
 const TEXT_TYPES = new Set([
   'text',
   'textarea',
@@ -17,6 +18,7 @@ export function toBridgeFieldInputValue(attribute, value) {
   const defaultValue = attribute.field?.default ?? attribute.defaultsTo
   const resolved = value === undefined ? defaultValue : value
 
+  if (type === 'chips') return chipsInputValue(resolved, attribute.field?.items)
   if (type === 'boolean') return Boolean(resolved ?? false)
   if (type === 'json') {
     if (resolved === undefined || resolved === null) return ''
@@ -46,6 +48,22 @@ export function validateBridgeFieldValue({ attribute, value, isEdit = false }) {
   }
   if (isEmpty(value, type)) return ''
 
+  if (type === 'chips') {
+    try {
+      if (!Array.isArray(value) || value.length > 100)
+        throw new Error('Use at most 100 values.')
+      if (attribute.required && !value.length)
+        return `${attribute.label || 'This field'} is required.`
+      const normalized = value.map((item) =>
+        normalizeChip(item, attribute.field?.items)
+      )
+      if (new Set(normalized).size !== normalized.length)
+        throw new Error('Remove duplicate values.')
+      return ''
+    } catch (error) {
+      return error.message
+    }
+  }
   if (type === 'json') {
     try {
       JSON.parse(value)

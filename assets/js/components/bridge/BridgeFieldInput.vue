@@ -1,4 +1,6 @@
 <script setup>
+import Chips from '@/components/ui/chips/Chips.vue'
+import { normalizeChip } from '@/lib/bridge/chips.mjs'
 import Textarea from '@/components/ui/textarea/Textarea.vue'
 import Input from '@/components/ui/input/Input.vue'
 import { router } from '@inertiajs/vue3'
@@ -221,6 +223,18 @@ const uploadStatus = computed(() => {
   }
   return ''
 })
+function chipLabel(value) {
+  const items = attribute.value.field?.items
+  if (items?.type !== 'currency') return value
+  const currency = items.currency
+  return new Intl.NumberFormat(currency.locale, {
+    style: 'currency',
+    currency: currency.code,
+    minimumFractionDigits: 0,
+    maximumFractionDigits: currency.maximumFractionDigits
+  }).format(Number(value))
+}
+
 const currencySymbol = computed(() => {
   const currency = attribute.value.field?.currency || {}
   try {
@@ -807,6 +821,32 @@ function defaultPlaceholder(fieldType) {
           @blur="handleBlur"
         />
       </div>
+
+      <Chips
+        v-else-if="type === 'chips'"
+        :id="fieldId"
+        :model-value="Array.isArray(modelValue) ? modelValue : []"
+        :normalize-value="
+          (value) => normalizeChip(value, attribute.field?.items)
+        "
+        :format-value="chipLabel"
+        :disabled="field.readOnly"
+        :readonly="field.readOnly"
+        :required="attribute.required"
+        :aria-invalid="visibleError ? 'true' : undefined"
+        :aria-describedby="describedBy"
+        :placeholder="
+          attribute.field?.items?.type === 'currency'
+            ? 'Add amount, press Enter'
+            : 'Add value, press Enter'
+        "
+        :inputmode="
+          attribute.field?.items?.type === 'currency' ? 'decimal' : 'text'
+        "
+        :class="`${inputClass} min-h-11 focus-within:border-brand h-auto py-2`"
+        @update:model-value="update"
+        @blur="handleBlur"
+      />
 
       <Input
         v-else-if="type === 'number'"
