@@ -236,6 +236,9 @@ const BOOT_ERROR_MARKER = ${JSON.stringify(BOOT_ERROR_MARKER)};
           sockets: false,
           pubsub: false,
           grunt: false,
+          // Workers share live assets; never run build or static-generation hooks.
+          shipwright: false,
+          content: false,
           flash: false,
           session: false
         },
