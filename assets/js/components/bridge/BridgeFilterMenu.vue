@@ -198,8 +198,7 @@ function toInputDate(definition, value) {
   }
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return ''
-  const offset = date.getTimezoneOffset() * 60_000
-  return new Date(date.getTime() - offset).toISOString().slice(0, 16)
+  return date.toISOString()
 }
 
 function stableStringify(value) {
@@ -343,7 +342,6 @@ onBeforeUnmount(() => {
                     : Input
                 "
                 :id="fieldId(definition, 'from')"
-                :time-label="`${definition.label} from time (24-hour)`"
                 :model-value="stateFor(filter.draft, definition).from"
                 :type="inputType(definition)"
                 :step="
@@ -368,7 +366,6 @@ onBeforeUnmount(() => {
                     : Input
                 "
                 :id="fieldId(definition, 'to')"
-                :time-label="`${definition.label} to time (24-hour)`"
                 :model-value="stateFor(filter.draft, definition).to"
                 :type="inputType(definition)"
                 :step="

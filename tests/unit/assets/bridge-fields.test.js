@@ -117,3 +117,36 @@ test('Bridge custom field components are registered per surface', async ({
     clearBridgeFieldComponents()
   }
 })
+
+test('Bridge datetime hydration preserves instants and precision across timezones', async ({
+  expect
+}) => {
+  const { toBridgeFieldInputValue, prepareBridgeFieldSubmission } =
+    await import('../../../assets/js/lib/bridge/fields.mjs')
+  const originalTimezone = process.env.TZ
+  try {
+    for (const timezone of ['UTC', 'Africa/Lagos', 'America/New_York']) {
+      process.env.TZ = timezone
+      for (const type of ['datetime', 'timestamp']) {
+        const attribute = { type: 'ref', field: { type } }
+        for (const value of [
+          '2020-02-29T14:35:27.123Z',
+          '2026-11-01T01:30:42.987-04:00',
+          0
+        ]) {
+          const input = toBridgeFieldInputValue(attribute, value)
+          expect(input).toBe(new Date(value).toISOString())
+          expect(
+            prepareBridgeFieldSubmission({ attribute, value: input }).value
+          ).toBe(new Date(value).toISOString())
+        }
+        expect(
+          prepareBridgeFieldSubmission({ attribute, value: '' }).value
+        ).toBe(null)
+      }
+    }
+  } finally {
+    if (originalTimezone === undefined) delete process.env.TZ
+    else process.env.TZ = originalTimezone
+  }
+})

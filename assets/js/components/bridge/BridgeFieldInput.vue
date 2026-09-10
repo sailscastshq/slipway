@@ -874,7 +874,6 @@ function defaultPlaceholder(fieldType) {
         :id="fieldId"
         :model-value="modelValue || ''"
         :type="type"
-        :time-label="`${label} time (24-hour)`"
         :disabled="field.readOnly"
         :required="attribute.required"
         :aria-invalid="visibleError ? 'true' : undefined"
