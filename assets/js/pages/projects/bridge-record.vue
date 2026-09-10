@@ -398,6 +398,12 @@ function relationshipMutationBaseUrl(relationship) {
                   v-for="[name, attr] in regularAttrs"
                   :key="name"
                   class="flex px-4 py-3"
+                  :class="
+                    attr.field?.type === 'richtext' &&
+                    attr.field?.format === 'markdown'
+                      ? 'flex-col gap-2 sm:flex-row sm:gap-0'
+                      : ''
+                  "
                 >
                   <dt
                     class="w-40 shrink-0 text-sm font-medium text-gray-500 dark:text-gray-400"
