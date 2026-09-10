@@ -428,6 +428,22 @@ function mapWaterlineToSql(attr, attrName, dbType, modelPrimaryKey) {
     const physicalType = logicalTypes[attr.columnType.toLowerCase()]
     if (physicalType) attr = { ...attr, columnType: physicalType }
   }
+  // Resolve the same ORM aliases as sails-mysql before validating native SQL.
+  if (dbType === 'mysql' && attr.columnType) {
+    const logicalTypes = {
+      _number: 'REAL',
+      _numberkey: 'INTEGER',
+      _numbertimestamp: 'BIGINT',
+      _string: 'VARCHAR(255)',
+      _stringkey: 'VARCHAR(255)',
+      _stringtimestamp: 'VARCHAR(255)',
+      _boolean: 'BOOLEAN',
+      _json: 'LONGTEXT',
+      _ref: 'LONGTEXT'
+    }
+    const physicalType = logicalTypes[attr.columnType.toLowerCase()]
+    if (physicalType) attr = { ...attr, columnType: physicalType }
+  }
   // If explicit columnType is set, use it directly (adapters do this too)
   if (attr.columnType) {
     return {

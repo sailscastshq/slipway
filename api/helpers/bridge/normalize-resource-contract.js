@@ -130,6 +130,7 @@ function normalizeBridgeResourceContract({ models, config = {} }) {
     'select',
     'belongsTo',
     'json',
+    'chips',
     'date',
     'datetime',
     'timestamp',
@@ -181,6 +182,7 @@ function normalizeBridgeResourceContract({ models, config = {} }) {
     'sensitive',
     'visibility',
     'currency',
+    'items',
     'relation',
     'upload',
     'component'
@@ -570,6 +572,36 @@ function normalizeBridgeResourceContract({ models, config = {} }) {
           )
         }
       }
+      if (fieldOptions[name].type === 'chips') {
+        if (rawAttributes[name]?.type !== 'json')
+          throw new Error(
+            `Bridge chips field "${identity}.${name}" requires a JSON attribute.`
+          )
+        const items = fieldOptions[name].items || { type: 'text' }
+        if (!isPlainObject(items) || !['text', 'currency'].includes(items.type))
+          throw new Error(
+            `Bridge chips field "${identity}.${name}".items.type must be text or currency.`
+          )
+        rejectUnknownKeys(
+          items,
+          ['type', 'currency'],
+          `Bridge field "${identity}.${name}".items`
+        )
+        if (items.type === 'currency') {
+          validateCurrency(identity, name, items.currency)
+          const currency = normalizeCurrency(items.currency)
+          if (currency.maximumFractionDigits > 6)
+            throw new Error(
+              'Chips currencies support at most six fractional digits.'
+            )
+          if (currency.storage !== currency.submit)
+            throw new Error(
+              'Chips currency storage and submit must match to preserve round trips.'
+            )
+        } else if (items.currency !== undefined)
+          throw new Error('Text chips do not accept currency options.')
+      } else if (fieldOptions[name].items !== undefined)
+        throw new Error('Field items require type chips.')
       validateFieldOptions(identity, name, fieldOptions[name].options)
       validateCurrency(identity, name, fieldOptions[name].currency)
       validateUpload(identity, name, fieldOptions[name].upload)
@@ -634,6 +666,15 @@ function normalizeBridgeResourceContract({ models, config = {} }) {
         rawField.options ?? attribute.isIn ?? attribute.validations?.isIn
       if (optionSource !== undefined) {
         safeField.options = normalizeFieldOptions(optionSource)
+      }
+      if (safeField.type === 'chips') {
+        const items = rawField.items || { type: 'text' }
+        safeField.items = {
+          type: items.type,
+          ...(items.type === 'currency'
+            ? { currency: normalizeCurrency(items.currency) }
+            : {})
+        }
       }
       if (safeField.type === 'currency') {
         safeField.currency = normalizeCurrency(rawField.currency)

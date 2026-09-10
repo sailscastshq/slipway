@@ -214,6 +214,45 @@ function normalizeFieldValue({ value, attribute, type, field, label }) {
     throw new Error(`${label} is required.`)
   }
 
+  if (type === 'chips') {
+    if (!Array.isArray(value) || value.length > 100)
+      throw new Error(`${label} must contain at most 100 values.`)
+    if (attribute.required && !value.length)
+      throw new Error(`${label} is required.`)
+    const values = value.map((item) => {
+      if (field.items?.type !== 'currency') {
+        if (typeof item !== 'string' || !item.trim() || item.length > 1000)
+          throw new Error(`${label} must contain non-empty text values.`)
+        return item.trim()
+      }
+      if (!['number', 'string'].includes(typeof item))
+        throw new Error(`${label} must contain positive amounts.`)
+      const digits = field.items.currency.maximumFractionDigits
+      const match = String(item).match(/^(\d+)(?:\.(\d+))?$/)
+      if (
+        String(item).length > 40 ||
+        !match ||
+        (match[2]?.length || 0) > digits
+      )
+        throw new Error(
+          `${label} contains an invalid amount or excess decimal places.`
+        )
+      const minor =
+        BigInt(match[1]) * 10n ** BigInt(digits) +
+        BigInt((match[2] || '').padEnd(digits, '0') || '0')
+      if (minor <= 0n || minor > BigInt(Number.MAX_SAFE_INTEGER))
+        throw new Error(
+          `${label} contains an amount outside the supported range.`
+        )
+      return field.items.currency.submit === 'minor'
+        ? Number(minor)
+        : Number(item)
+    })
+    if (new Set(values).size !== values.length)
+      throw new Error(`${label} contains duplicate values.`)
+    return values
+  }
+
   if (type === 'boolean') {
     if (typeof value !== 'boolean') {
       throw new Error(`${label} must be true or false.`)
