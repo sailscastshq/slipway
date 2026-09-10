@@ -36,7 +36,10 @@ test(
     const targetPublish = async (inputs) => {
       actionExecutionCount += 1
       helperInputs = inputs
-      if (publishError) throw new Error(publishError)
+      if (publishError)
+        throw publishError instanceof Error
+          ? publishError
+          : new Error(publishError)
       return {
         message: 'Course published for 12 students.',
         internalReceipt: 'must not enter Slipway audit details'
@@ -143,7 +146,7 @@ test(
           note: 'A denied attempt.'
         }
       })
-      expect(denied).toHaveStatus(400)
+      expect(denied).toHaveStatus(303)
       expect(denied).toHaveHeader('x-exit', 'badRequest')
       expect(actionExecutionCount).toBe(1)
 
@@ -156,9 +159,13 @@ test(
           note: 'This submitted value must not enter the audit log.'
         }
       })
-      expect(failed).toHaveStatus(400)
+      expect(failed).toHaveStatus(303)
       expect(failed).toHaveHeader('x-exit', 'badRequest')
       expect(actionExecutionCount).toBe(2)
+      expect(failed.session.errors.error[0]).toContain('Publish course failed')
+      expect(
+        JSON.stringify(failed.session.errors).includes('Publishing provider')
+      ).toBe(false)
 
       const failureAudit = await sails.models.auditlog.findOne({
         action: 'bridge.action.failed',
@@ -166,11 +173,115 @@ test(
         resourceId: courseId
       })
       expect(Boolean(failureAudit)).toBe(true)
-      expect(failureAudit.details.error).toBe(
-        'Publishing provider unavailable. Try again shortly.'
+      expect(failureAudit.details.error).toBe('Publish course failed.')
+      expect(failureAudit.details.requestId).toMatch(/^[a-f0-9-]{36}$/)
+      expect(failureAudit.details.failureCode).toBe(
+        'BRIDGE_ACTION_EXECUTION_FAILED'
       )
       expect(failureAudit.details.values).toBe(undefined)
       expect(failureAudit.details.note).toBe(undefined)
+
+      // Exercise the same authenticated app-origin route Caddy forwards to.
+      await sails.models.app
+        .updateOne({ id: app.id })
+        .set({ bridgeEnabled: true, routePath: '/' })
+      await sails.models.environment
+        .updateOne({ id: environment.id })
+        .set({ domain: 'action-host.example' })
+      const secret = await sails.helpers.bridge.ensureAppSecret.with({
+        appId: String(app.id),
+        rotate: true
+      })
+      const access = await world.create('bridgeaccess').with({
+        email: 'action-editor@example.com',
+        role: 'editor',
+        status: 'active',
+        hostUserId: 'host-editor',
+        activatedAt: Date.now(),
+        app: app.id,
+        environment: environment.id,
+        project: project.id,
+        team: current.teams.genesisTeam.id,
+        invitedBy: user.id
+      })
+      const exchange = await request
+        .withHeaders({
+          authorization: `Bearer ${secret}`,
+          accept: 'application/json'
+        })
+        .post('/api/v1/bridge/exchange', {
+          appId: String(app.id),
+          hostOrigin: true,
+          hostUser: {
+            id: access.hostUserId,
+            email: access.email,
+            fullName: 'Host Editor',
+            emailVerified: true
+          }
+        })
+      expect(exchange).toHaveStatus(201)
+      const launchUrl = new URL(exchange.data.launchUrl)
+      const launch = await request.get(`/bridge/launch${launchUrl.search}`, {
+        headers: {
+          host: 'action-host.example',
+          'x-forwarded-host': 'action-host.example'
+        }
+      })
+      expect(launch).toHaveStatus(302)
+      const tokens = new (require('csrf'))()
+      const csrfSecret = tokens.secretSync()
+      const hostClient = request
+        .withSession({ ...launch.session, csrfSecret })
+        .withHeaders({
+          host: 'action-host.example',
+          'x-forwarded-host': 'action-host.example',
+          'x-inertia': 'true',
+          'x-csrf-token': tokens.create(csrfSecret),
+          referer: `https://action-host.example/bridge/course/${courseId}`
+        })
+      const hostAction = `/projects/${project.slug}/environments/${environment.slug}/apps/${app.slug}/bridge/course/actions/publish`
+      publishError = Object.assign(new Error('private validation reason'), {
+        code: 'BRIDGE_ACTION_VALIDATION_FAILED',
+        publicMessage: 'Please revise the note.',
+        fieldErrors: {
+          note: 'Explain the requested changes.',
+          unknown: 'Must not escape the schema'
+        }
+      })
+      const validation = await hostClient.post(hostAction, {
+        recordId: courseId,
+        values: { note: 'Draft note' }
+      })
+      expect(validation).toHaveStatus(303)
+      expect(validation).toRedirectTo(
+        `https://action-host.example/bridge/course/${courseId}`
+      )
+      expect(validation.session.errors.note[0]).toContain(
+        'Explain the requested changes'
+      )
+      expect(validation.session.errors.error[0]).toContain(
+        'Please revise the note'
+      )
+      expect(validation.session.errors.unknown).toBe(undefined)
+      expect(
+        JSON.stringify(validation.session.errors).includes('private validation')
+      ).toBe(false)
+      publishError = 'private host exception'
+      const hostFailure = await hostClient.post(hostAction, {
+        recordId: courseId,
+        values: { note: 'Draft note' }
+      })
+      expect(hostFailure).toHaveStatus(303)
+      expect(hostFailure.session.errors.error[0]).toContain(
+        'Publish course failed'
+      )
+      publishError = null
+      const hostSuccess = await hostClient.post(hostAction, {
+        recordId: courseId,
+        values: { note: 'Draft note' }
+      })
+      expect(hostSuccess).toHaveStatus(302)
+      expect(hostSuccess).toRedirectTo(`/bridge/course/${courseId}`)
     } finally {
       sails.helpers.bridge.introspectModels = originalIntrospectModels
       sails.helpers.bridge.buildSailsWrapper = originalBuildSailsWrapper
@@ -253,7 +364,7 @@ test(
           injected: 'not allowed'
         }
       })
-      expect(invalidFields).toHaveStatus(400)
+      expect(invalidFields).toHaveStatus(303)
 
       const oversizedBulk = await browser.request.post(
         `${basePath}/regenerateLicenses`,
@@ -262,7 +373,7 @@ test(
           values: {}
         }
       )
-      expect(oversizedBulk).toHaveStatus(400)
+      expect(oversizedBulk).toHaveStatus(303)
 
       const validBulk = await browser.request.post(
         `${basePath}/regenerateLicenses`,

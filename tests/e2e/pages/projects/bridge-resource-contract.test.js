@@ -117,6 +117,7 @@ test(
     let createdValues
     let updatedValues
     let inlineUploadRequestBody = ''
+    let publishFailure = null
     const resourceQueries = []
 
     await sails.models.app
@@ -378,6 +379,17 @@ test(
       }
       if (code.includes('const helperIdentity =')) {
         const helperIdentity = readEmbeddedValue(code, 'helperIdentity')
+        if (helperIdentity === 'bridge.publishCourse' && publishFailure) {
+          const helper = {
+            with: async () => {
+              throw publishFailure
+            }
+          }
+          const run = new Function('sails', `return (async () => {${code}})();`)
+          return successfulResult(
+            await run({ helpers: { bridge: { publishCourse: helper } } })
+          )
+        }
         return successfulResult({
           message:
             helperIdentity === 'bridge.syncCatalog'
@@ -1298,8 +1310,59 @@ test(
         { fullPage: true }
       )
       await page.raw.emulateMedia({ colorScheme: 'light' })
+      publishFailure = Object.assign(
+        new Error('private validation diagnostic'),
+        {
+          code: 'BRIDGE_ACTION_VALIDATION_FAILED',
+          publicMessage: 'Please revise the release note.',
+          fieldErrors: { releaseNote: 'Explain what changed for students.' }
+        }
+      )
+      await publishButton.click()
+      await expect(
+        page.raw
+          .getByRole('alert')
+          .filter({ hasText: 'Please revise the release note' })
+      ).toBeVisible()
+      await expect(page.raw.getByLabel('Release note')).toHaveValue(
+        'Ready for students.'
+      )
+      const errorShots = path.resolve('output/issue-569')
+      fs.mkdirSync(errorShots, { recursive: true })
+      for (const [width, color] of [
+        [1280, 'light'],
+        [390, 'dark']
+      ]) {
+        await page.raw.setViewportSize({ width, height: 900 })
+        await page.raw.emulateMedia({ colorScheme: color })
+        await page.screenshot(
+          path.join(errorShots, `bridge-action-validation-${width}.png`),
+          { animations: 'disabled' }
+        )
+      }
+      await page.raw
+        .getByLabel('Release note')
+        .fill('The new course covers safe deployments.')
+      publishFailure = new Error(
+        'private provider credential sk_test_do_not_show'
+      )
+      await publishButton.click()
+      await expect(
+        page.raw.getByRole('alert').filter({ hasText: 'Publish course failed' })
+      ).toBeVisible()
+      expect(
+        (await page.raw.locator('body').textContent()).includes(
+          'sk_test_do_not_show'
+        )
+      ).toBe(false)
+      await expect(page.raw.getByLabel('Release note')).toHaveValue(
+        'The new course covers safe deployments.'
+      )
+      publishFailure = null
       await publishButton.click()
       await page.wait('text=Course published.')
+      await page.raw.setViewportSize({ width: 1440, height: 900 })
+      await page.raw.emulateMedia({ colorScheme: 'light' })
 
       await page.screenshot(
         path.join(fieldEngineScreenshotRoot, 'typed-record-light.png'),

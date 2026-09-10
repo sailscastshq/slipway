@@ -1,3 +1,5 @@
+const { randomUUID } = require('node:crypto')
+
 module.exports = {
   friendlyName: 'Execute Bridge action',
 
@@ -80,7 +82,7 @@ module.exports = {
       }
       if (error.code === 'forbidden') throw 'forbidden'
       if (error.code === 'notFound') throw { notFound: '/' }
-      throw { badRequest: { error: 'App is not running' } }
+      throw { badRequest: { errors: { error: 'App is not running' } } }
     }
     const { project, environment, app, actor, auditUserId, bridgeBasePath } =
       resolved
@@ -148,19 +150,49 @@ module.exports = {
           : {})
       })
     } catch (error) {
+      const requestId = randomUUID()
+      const diagnostic = error.diagnostic || {
+        message: error.stack || error.message
+      }
+      if (error.code !== 'BRIDGE_ACTION_EXECUTION_FAILED') {
+        error = Object.assign(
+          new Error(`${action.label || action.name} failed.`),
+          {
+            code: 'BRIDGE_ACTION_EXECUTION_FAILED',
+            diagnostic
+          }
+        )
+      }
+      sails.log.error('[bridge.action.failed]', {
+        requestId,
+        appId: app.id,
+        action: action.name,
+        helper: action.helper,
+        diagnostic: error.diagnostic || {
+          message: error.stack || error.message
+        }
+      })
       await sails.helpers.audit.log.with({
         action: 'bridge.action.failed',
         resourceType: 'bridgeAction',
         resourceId: auditResourceId(loaded.resource, action, loaded),
         details: {
           ...auditDetails,
-          error: safeAuditError(error.message)
+          error: safeAuditError(error.message),
+          requestId,
+          failureCode:
+            error.diagnostic?.code ||
+            error.code ||
+            'BRIDGE_ACTION_EXECUTION_FAILED',
+          ...(error.diagnostic?.exitCode !== undefined
+            ? { exitCode: error.diagnostic.exitCode }
+            : {})
         },
         ...(auditUserId ? { userId: auditUserId } : {}),
         teamId: auditTeamId(project),
         ipAddress: this.req.ip
       })
-      throw { badRequest: { error: error.message } }
+      throw { badRequest: toBadRequest(error) }
     }
 
     await sails.helpers.audit.log.with({
@@ -212,11 +244,10 @@ function auditTeamId(project) {
 }
 
 function toBadRequest(error) {
-  if (!error?.fieldErrors) return { error: error.message }
   return {
-    error: error.message,
-    problems: Object.entries(error.fieldErrors).map(([field, message]) => ({
-      [field]: message
-    }))
+    errors: {
+      error: error.message || 'The action could not be completed.',
+      ...(error.fieldErrors || {})
+    }
   }
 }

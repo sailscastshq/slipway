@@ -1218,3 +1218,26 @@ reference is validated against the resource contract, related records are
 loaded from the target app, missing context blocks the upload, and the final
 path is sanitized against traversal. `scope: 'bucket'` is explicit because it
 intentionally omits Slipway's default team/project/environment namespace.
+
+### Custom-action validation failures
+
+Helpers can deliberately return safe validation feedback by throwing an error
+with the `BRIDGE_ACTION_VALIDATION_FAILED` code. `publicMessage` is the form
+message; `fieldErrors` may contain messages for fields declared by that action:
+
+```js
+throw Object.assign(new Error('Private diagnostic context'), {
+  code: 'BRIDGE_ACTION_VALIDATION_FAILED',
+  publicMessage: 'Please revise the note.',
+  fieldErrors: { note: 'Explain the requested changes.' }
+})
+```
+
+Only use those public properties for text intended for the person completing
+the action. Other exceptions display a generic failure message. Their diagnostic
+information is logged server-side with an identifier also stored in the action's
+failure audit event. Submitted values and stacks are not added to audit details
+or sent to the browser. Inertia failures redirect back with errors so the action
+dialog and its entered values remain available. The same behavior applies to
+project routes and app-domain Bridge routes. CamelCase helper identities remain
+valid and do not need to match the action's URL key.
