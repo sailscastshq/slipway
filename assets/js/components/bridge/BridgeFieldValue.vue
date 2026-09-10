@@ -6,6 +6,10 @@ import {
   formatBridgeFieldValue
 } from '@/lib/bridge/fields.mjs'
 import { resolveBridgeFieldComponent } from '@/lib/bridge/field-components.mjs'
+import {
+  renderBridgeMarkdown,
+  bridgeMarkdownPreview
+} from '@/lib/bridge/markdown.mjs'
 import Badge from '@/components/ui/badge/Badge.vue'
 
 const props = defineProps({
@@ -35,6 +39,14 @@ const customComponent = computed(() =>
 )
 const isCompact = computed(() => props.context === 'list')
 const fieldType = computed(() => bridgeFieldType(props.attribute))
+const markdownHtml = computed(() =>
+  formatted.value.kind === 'markdown' ? renderBridgeMarkdown(props.value) : ''
+)
+const markdownPreview = computed(() =>
+  isCompact.value && formatted.value.kind === 'markdown'
+    ? bridgeMarkdownPreview(markdownHtml.value)
+    : ''
+)
 </script>
 
 <template>
@@ -131,6 +143,17 @@ const fieldType = computed(() => bridgeFieldType(props.attribute))
   >
 
   <span
+    v-else-if="formatted.kind === 'markdown' && isCompact"
+    class="max-w-72 block truncate"
+    >{{ markdownPreview }}</span
+  >
+  <div
+    v-else-if="formatted.kind === 'markdown'"
+    class="bridge-markdown min-w-0 max-w-full break-words text-sm leading-6"
+    v-html="markdownHtml"
+  />
+
+  <span
     v-else
     :class="[
       fieldType === 'currency' ? 'tabular-nums' : '',
@@ -145,3 +168,56 @@ const fieldType = computed(() => bridgeFieldType(props.attribute))
     {{ formatted.display }}
   </span>
 </template>
+
+<style scoped>
+.bridge-markdown :deep(p) {
+  margin: 0.5em 0;
+}
+.bridge-markdown :deep(:first-child) {
+  margin-top: 0;
+}
+.bridge-markdown :deep(h1),
+.bridge-markdown :deep(h2),
+.bridge-markdown :deep(h3),
+.bridge-markdown :deep(h4) {
+  margin: 1em 0 0.5em;
+  font-weight: 600;
+  font-size: 1.1em;
+}
+.bridge-markdown :deep(ul) {
+  list-style: disc;
+  padding-left: 1.5em;
+}
+.bridge-markdown :deep(ol) {
+  list-style: decimal;
+  padding-left: 1.5em;
+}
+.bridge-markdown :deep(li) {
+  margin: 0.25em 0;
+}
+.bridge-markdown :deep(a) {
+  color: var(--color-brand);
+  text-decoration: underline;
+}
+.bridge-markdown :deep(pre) {
+  max-width: 100%;
+  overflow-x: auto;
+  padding: 0.75rem;
+  background: var(--color-gray-100);
+  border-radius: 0.375rem;
+  margin: 0.75em 0;
+}
+.bridge-markdown :deep(code) {
+  font-family: monospace;
+  font-size: 0.9em;
+}
+.bridge-markdown :deep(blockquote) {
+  border-left: 2px solid var(--color-gray-300);
+  padding-left: 1em;
+}
+@media (prefers-color-scheme: dark) {
+  .bridge-markdown :deep(pre) {
+    background: var(--color-gray-900);
+  }
+}
+</style>

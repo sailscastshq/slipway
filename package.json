@@ -48,7 +48,7 @@
     "chrono-node": "^2.10.1",
     "csrf": "^3.1.0",
     "dejavu-fonts-ttf": "2.37.3",
-    "dompurify": "^3.4.13",
+    "dompurify": "^3.4.15",
     "express-rate-limit": "^8.5.1",
     "inertia-sails": "^1.5.0",
     "marked": "^17.0.6",

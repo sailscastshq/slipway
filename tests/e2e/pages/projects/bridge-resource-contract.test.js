@@ -1048,7 +1048,7 @@ test(
       await page.raw.emulateMedia({ colorScheme: 'light' })
 
       const descriptionEditor = page.raw.locator(
-        '[data-test="bridge-course-description-visual-editor"]'
+        '[data-slot="rich-text-content"][aria-labelledby="bridge-course-description-label"]'
       )
       expect(await descriptionEditor.count()).toBe(1)
       expect(await descriptionEditor.getAttribute('aria-labelledby')).toBe(
@@ -1069,7 +1069,9 @@ test(
           'Boring releases are good.'
         )
       ).toBe(true)
-      await page.wait('@bridge-course-description-format-menu')
+      await expect(
+        page.raw.getByRole('toolbar', { name: 'Text formatting' })
+      ).toBeVisible()
       await page.screenshot(
         path.join(screenshotRoot, 'course-richtext-light.png'),
         { fullPage: true }
@@ -1082,7 +1084,7 @@ test(
         })
         .click()
       const descriptionSource = page.raw.locator(
-        '[data-test="bridge-course-description-markdown-source"]'
+        'textarea#bridge-course-description'
       )
       expect(await descriptionSource.inputValue()).toContain(
         '**Boring releases are good.**'
@@ -1200,7 +1202,7 @@ test(
         })
         .click()
       const persistedDescriptionSource = page.raw.locator(
-        '[data-test="bridge-course-description-markdown-source"]'
+        'textarea#bridge-course-description'
       )
       expect(await persistedDescriptionSource.inputValue()).toBe(
         createdMarkdown
@@ -1241,7 +1243,7 @@ test(
         .click()
       expect(
         await page.raw
-          .locator('[data-test="bridge-course-description-markdown-source"]')
+          .locator('textarea#bridge-course-description')
           .inputValue()
       ).toBe(updatedMarkdown)
 

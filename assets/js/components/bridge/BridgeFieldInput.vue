@@ -6,7 +6,7 @@ import Textarea from '@/components/ui/textarea/Textarea.vue'
 import Input from '@/components/ui/input/Input.vue'
 import { router } from '@inertiajs/vue3'
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
-import MarkdownEditor from '@/components/content/MarkdownEditor.vue'
+import RichText from '@/components/ui/rich-text/RichText.vue'
 import BridgeRelationshipCombobox from '@/components/bridge/BridgeRelationshipCombobox.vue'
 import Select from '@/components/ui/select/Select.vue'
 import Switch from '@/components/ui/switch/Switch.vue'
@@ -91,7 +91,6 @@ const pendingUploadFile = ref(null)
 const uploadSession = ref(null)
 const richTextEditor = ref(null)
 const richTextMode = ref('visual')
-const richTextCompatibility = ref({ supported: true })
 
 const attribute = computed(() => props.field.attr)
 const type = computed(() => bridgeFieldType(attribute.value))
@@ -271,6 +270,37 @@ function handleBlur() {
 function toggleRichTextMode() {
   const next = richTextMode.value === 'source' ? 'visual' : 'source'
   richTextEditor.value?.setMode(next)
+}
+
+async function uploadRichTextImage(file, { signal }) {
+  const accepted = attribute.value.field?.upload?.accept || []
+  if (
+    accepted.length &&
+    !accepted.some(
+      (type) =>
+        type === file.type ||
+        (type.endsWith('/*') && file.type.startsWith(type.slice(0, -1)))
+    )
+  ) {
+    throw new Error('That image type is not accepted.')
+  }
+  if (file.size > maxBytes.value)
+    throw new Error(`Image exceeds ${formatBridgeBytes(maxBytes.value)}.`)
+  const body = new FormData()
+  body.append('file', file)
+  body.append('values', JSON.stringify(uploadPathValues.value))
+  const response = await fetch(props.uploadUrl, {
+    method: 'POST',
+    body,
+    signal
+  })
+  const result = await response.json().catch(() => ({}))
+  if (!response.ok)
+    throw new Error(result.message || 'The image could not be uploaded.')
+  return {
+    src: result.imageUrl || result.url,
+    alt: file.name.replace(/\.[^.]+$/, '')
+  }
 }
 
 function validateUploadFile(file) {
@@ -755,10 +785,6 @@ function defaultPlaceholder(fieldType) {
           :aria-label="`Edit ${label} as ${
             richTextMode === 'source' ? 'Visual' : 'Markdown'
           }`"
-          :disabled="
-            richTextMode === 'source' &&
-            richTextCompatibility.supported === false
-          "
           class="text-xs font-medium text-gray-400 hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-40 dark:text-gray-500 dark:hover:text-white"
           @click="toggleRichTextMode"
         >
@@ -925,31 +951,28 @@ function defaultPlaceholder(fieldType) {
         @blur="handleBlur"
       />
 
-      <MarkdownEditor
+      <RichText
         v-else-if="
           type === 'richtext' &&
           attribute.field?.format?.toLowerCase() === 'markdown'
         "
         ref="richTextEditor"
-        :model-value="modelValue"
-        variant="field"
-        :editor-id="fieldId"
+        :key="`${modelIdentity}-${recordId || 'new'}-${name}`"
+        :model-value="modelValue ?? ''"
+        format="markdown"
+        :id="fieldId"
         :placeholder="placeholder"
-        :aria-label="label"
         :aria-labelledby="`${fieldId}-label`"
         :aria-describedby="describedBy"
+        :aria-invalid="visibleError ? 'true' : undefined"
         :required="attribute.required"
-        :uploads-configured="richTextUploadsConfigured"
-        :upload-url="uploadUrl"
-        upload-field-name="file"
-        :upload-accept="attribute.field?.upload?.accept || []"
-        :max-upload-bytes="attribute.field?.upload?.maxBytes"
-        :upload-values="uploadPathValues"
-        deny-raw-html
+        :readonly="field.readOnly"
+        :maxlength="attribute.maxLength || undefined"
+        :upload="richTextUploadsConfigured ? uploadRichTextImage : undefined"
+        class="bridge-rich-text focus-within:border-brand rounded-none border-0 border-b border-dashed border-gray-200 bg-transparent shadow-none focus-within:outline-none dark:border-gray-700 dark:bg-transparent"
         @update:model-value="update"
         @blur="handleBlur"
         @mode-change="richTextMode = $event"
-        @compatibility-change="richTextCompatibility = $event"
       />
 
       <Textarea
@@ -1141,5 +1164,25 @@ function defaultPlaceholder(fieldType) {
 .bridge-number-input::-webkit-inner-spin-button {
   margin: 0;
   -webkit-appearance: none;
+}
+</style>
+
+<style scoped>
+.bridge-rich-text :deep([data-slot='rich-text-content']) {
+  min-height: 10rem;
+  padding: 0.5rem 0.25rem;
+  font-size: 0.9375rem;
+}
+.bridge-rich-text :deep([data-slot='rich-text-toolbar']) {
+  background: transparent;
+  padding: 0.25rem 0;
+  gap: 0.25rem;
+}
+.bridge-rich-text :deep([data-slot='rich-text-mode']) {
+  display: none;
+}
+.bridge-rich-text :deep([data-slot='rich-text-source']:not(.sr-only)) {
+  min-height: 10rem;
+  padding: 0.5rem 0.25rem;
 }
 </style>

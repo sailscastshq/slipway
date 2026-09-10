@@ -265,6 +265,13 @@ export function formatBridgeFieldValue(
     return { kind: 'email', display: String(value), email: String(value) }
   }
 
+  if (
+    type === 'richtext' &&
+    attribute.field?.format?.toLowerCase() === 'markdown'
+  ) {
+    return { kind: 'markdown', display: String(value) }
+  }
+
   const string = String(value)
   return {
     kind: type === 'richtext' || type === 'textarea' ? 'longtext' : 'text',
