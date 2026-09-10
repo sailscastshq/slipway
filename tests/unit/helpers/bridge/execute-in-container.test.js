@@ -45,7 +45,7 @@ test('Bridge reuses one production worker for warm operations', async ({
     ])
     expect(argumentsPassedToDocker[7]).toContain('sailsApp.load')
     expect(argumentsPassedToDocker[7]).toContain("migrate: 'safe'")
-    expect(argumentsPassedToDocker[7]).toContain('http: false')
+    expect(argumentsPassedToDocker[7].includes('http: false')).toBe(false)
   } finally {
     restore()
     delete process.env.SLIPWAY_FAKE_DOCKER_EXIT_AFTER
@@ -161,7 +161,7 @@ async function readBootCount(bootCountPath) {
 }
 
 for (const withContent of [true, false]) {
-  test(`Bridge worker preserves live assets across restarts (content: ${withContent})`, async ({
+  test(`Bridge worker renders mail without listeners and preserves live assets (content: ${withContent})`, async ({
     sails,
     expect
   }) => {
@@ -186,13 +186,19 @@ eval(process.argv[9])
         path.join(fixture.directory, 'package.json'),
         JSON.stringify({
           name: 'worker-fixture',
-          dependencies: { sails: '*', 'sails-hook-orm': '*' }
+          dependencies: {
+            sails: '*',
+            'sails-hook-orm': '*',
+            'sails-hook-mail': '*'
+          }
         })
       )
       for (const directory of [
         'config',
         'api/models',
         'api/helpers',
+        'views/emails',
+        'views/layouts',
         '.tmp/public',
         'api/hooks/shipwright',
         ...(withContent ? ['api/hooks/content'] : [])
@@ -201,6 +207,10 @@ eval(process.argv[9])
           recursive: true
         })
       }
+      await fs.writeFile(
+        path.join(fixture.directory, 'config/globals.js'),
+        `module.exports.globals = { sails: true, _: false, async: false, models: false }`
+      )
       await fs.writeFile(
         path.join(fixture.directory, 'config/models.js'),
         `module.exports.models = { migrate: 'safe', attributes: { id: { type: 'number', autoIncrement: true } } }`
@@ -216,6 +226,18 @@ eval(process.argv[9])
       await fs.writeFile(
         path.join(fixture.directory, 'api/helpers/greeting.js'),
         `module.exports = { sync: true, fn: () => 'hello' }`
+      )
+      await fs.writeFile(
+        path.join(fixture.directory, 'config/mail.js'),
+        `module.exports.mail = { default: 'log', from: { address: 'test@example.com', name: 'Bridge test' }, mailers: { log: { transport: 'log' } } }`
+      )
+      await fs.writeFile(
+        path.join(fixture.directory, 'views/emails/feedback.ejs'),
+        '<p>Feedback: <%= note %></p>'
+      )
+      await fs.writeFile(
+        path.join(fixture.directory, 'views/layouts/mail.ejs'),
+        '<main><%- body %></main>'
       )
       for (const hook of ['shipwright', ...(withContent ? ['content'] : [])]) {
         await fs.writeFile(
@@ -251,6 +273,35 @@ eval(process.argv[9])
           shipwright: false,
           content: false
         })
+        // Actual Sails Mail rendering, captured at its local log transport.
+        // Repeat without restarting to exercise the warm runtime too.
+        for (let send = 0; send < 2; send++) {
+          const mailed = await run(`
+            const log = sails.log;
+            let message = '';
+            sails.log = Object.assign((text) => { message += text; }, log);
+            try {
+              await sails.helpers.mail.send.with({ template: 'feedback', to: 'recipient@example.com', subject: 'Feedback', templateData: { note: 'Update <outline>' } });
+              return { message, listening: sails.hooks.http.server.listening, address: sails.hooks.http.server.address() };
+            } finally { sails.log = log; }
+          `)
+          expect(mailed.error).toBe(null)
+          const output = JSON.parse(mailed.output)
+          expect(output.message).toContain(
+            '<main><p>Feedback: Update &lt;outline&gt;</p></main>'
+          )
+          expect(output.listening).toBe(false)
+          expect(output.address).toBe(null)
+        }
+        const partialFailure = await run(`
+          await sails.models.person.create({ name: 'Saved before mail failure' });
+          await sails.helpers.mail.send.with({ template: 'missing-template', to: 'recipient@example.com', subject: 'Feedback' });
+        `)
+        expect(partialFailure.success).toBe(false)
+        const persisted = await run(
+          `return await sails.models.person.count({ name: 'Saved before mail failure' })`
+        )
+        expect(JSON.parse(persisted.output)).toBe(1)
         const failed = await run('process.exit(1)')
         expect(failed.success).toBe(false)
         for (const [name, contents] of Object.entries(assets))
