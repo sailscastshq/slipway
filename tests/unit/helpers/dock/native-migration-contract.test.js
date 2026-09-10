@@ -114,3 +114,33 @@ test('new native tables include ordinary indexes and preserve identity widths an
   expect(statements[1].sql).toContain('CREATE INDEX')
   expect(statements[1].sql).toContain('ON "order""details" ("name")')
 })
+
+test('MySQL ORM timestamps produce executable table and index plans', async ({
+  expect
+}) => {
+  const models = {
+    note: {
+      tableName: 'notes',
+      primaryKey: 'id',
+      attributes: {
+        id: { type: 'number', columnType: '_numberkey', autoIncrement: true },
+        caption: { type: 'string', index: true },
+        createdAt: {
+          type: 'string',
+          autoCreatedAt: true,
+          columnType: '_stringtimestamp'
+        }
+      }
+    }
+  }
+  const diff = await require('../../../../api/helpers/dock/generate-diff').fn({
+    models,
+    schema: {},
+    dbType: 'mysql'
+  })
+  const statements = nativeStatements(diff, 'mysql', {}, models)
+  expect(statements.length).toBe(2)
+  expect(Boolean(statements[0].blocked)).toBe(false)
+  expect(statements[0].sql).toContain('`createdAt` VARCHAR(255)')
+  expect(statements[1].sql).toContain('CREATE INDEX')
+})
