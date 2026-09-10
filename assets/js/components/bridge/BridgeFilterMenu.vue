@@ -1,4 +1,5 @@
 <script setup>
+import DateInput from '@/components/DateInput.vue'
 import Filter from '@/components/ui/icons/Filter.vue'
 import Input from '@/components/ui/input/Input.vue'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
@@ -48,6 +49,7 @@ function stateFor(draft, definition) {
   return {
     ...blankFilter(definition),
     ...current,
+    value: toInputDate(definition, current.value),
     from: toInputDate(definition, current.from),
     to: toInputDate(definition, current.to)
   }
@@ -159,7 +161,7 @@ function isText(definition) {
 function inputType(definition) {
   if (definition.type === 'date') return 'date'
   if (['datetime', 'timestamp'].includes(definition.type)) {
-    return 'datetime-local'
+    return definition.type
   }
   return 'number'
 }
@@ -218,7 +220,9 @@ function handleDocumentPointerDown(event) {
 }
 
 function handleKeydown(event) {
-  if (event.key === 'Escape' && open.value) {
+  // Let the inner Klean overlay handle Escape before closing its parent.
+  if (panel.value?.querySelector('[popover][data-state="open"]')) return
+  if (event.key === 'Escape' && open.value && !event.defaultPrevented) {
     event.preventDefault()
     hide({ restoreFocus: true })
   }
@@ -322,13 +326,24 @@ onBeforeUnmount(() => {
           <div v-if="supportsValue(filter.draft, definition)">
             <div
               v-if="isRange(filter.draft, definition)"
-              class="grid grid-cols-[1fr_auto_1fr] items-center gap-2"
+              class="grid items-center gap-2"
+              :class="
+                ['datetime', 'timestamp'].includes(definition.type)
+                  ? 'grid-cols-1'
+                  : 'grid-cols-[1fr_auto_1fr]'
+              "
             >
               <label :for="fieldId(definition, 'from')" class="sr-only">
                 {{ definition.label }} from
               </label>
-              <Input
+              <component
+                :is="
+                  ['date', 'datetime', 'timestamp'].includes(definition.type)
+                    ? DateInput
+                    : Input
+                "
                 :id="fieldId(definition, 'from')"
+                :time-label="`${definition.label} from time (24-hour)`"
                 :model-value="stateFor(filter.draft, definition).from"
                 :type="inputType(definition)"
                 :step="
@@ -346,8 +361,14 @@ onBeforeUnmount(() => {
               <label :for="fieldId(definition, 'to')" class="sr-only">
                 {{ definition.label }} to
               </label>
-              <Input
+              <component
+                :is="
+                  ['date', 'datetime', 'timestamp'].includes(definition.type)
+                    ? DateInput
+                    : Input
+                "
                 :id="fieldId(definition, 'to')"
+                :time-label="`${definition.label} to time (24-hour)`"
                 :model-value="stateFor(filter.draft, definition).to"
                 :type="inputType(definition)"
                 :step="
@@ -425,7 +446,12 @@ onBeforeUnmount(() => {
               "
             />
 
-            <Input
+            <component
+              :is="
+                ['date', 'datetime', 'timestamp'].includes(definition.type)
+                  ? DateInput
+                  : Input
+              "
               v-else
               :id="fieldId(definition, 'value')"
               :model-value="stateFor(filter.draft, definition).value"
