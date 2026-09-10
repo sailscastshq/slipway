@@ -29,13 +29,22 @@ test(
       await expect(card).toBeVisible()
       await expect(card).toContainText('170.2 MB')
       await expect(card).toContainText('180.4 MB')
-      await expect(card).toContainText('94% of allocated heap used')
-      await expect(card).toContainText('10.2 MB unused in heap')
-      await expect(card).toContainText('Slipway process memory (RSS)')
+      await expect(card).toContainText('94% of allocated heap')
+      await expect(card).toContainText('10.2 MB unused')
+      await expect(card).toContainText('Slipway process (RSS)')
       await expect(card).toContainText('1.1 GB')
-      await expect(card).toContainText(
-        'not the server or container memory limit'
-      )
+      for (const [selector, explanation] of [
+        ['bosun-heap-help', 'not the server or container memory limit'],
+        ['bosun-rss-help', 'Excludes other apps and server processes']
+      ]) {
+        const label = card.locator(`[data-test="${selector}"]`)
+        await label.focus()
+        await expect(page.raw.getByRole('tooltip')).toBeVisible()
+        await expect(page.raw.getByRole('tooltip')).toContainText(explanation)
+        await page.raw.keyboard.press('Escape')
+        await expect(page.raw.getByRole('tooltip')).not.toBeVisible()
+        await label.blur()
+      }
       expect(await card.getByRole('meter').getAttribute('aria-valuenow')).toBe(
         '94'
       )

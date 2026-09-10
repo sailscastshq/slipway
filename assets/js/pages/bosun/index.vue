@@ -1388,29 +1388,32 @@ onUnmounted(() => {
                   <div
                     class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 text-xs"
                   >
-                    <span class="text-gray-500 dark:text-gray-400"
-                      >JavaScript heap</span
+                    <Tooltip
+                      text="Used / currently allocated JavaScript heap. Allocation can grow; this is not the server or container memory limit."
+                      placement="top"
                     >
+                      <span
+                        tabindex="0"
+                        data-test="bosun-heap-help"
+                        class="cursor-help rounded text-gray-500 outline-offset-2 dark:text-gray-400"
+                        >JavaScript heap</span
+                      >
+                    </Tooltip>
                     <span
                       class="font-mono font-medium text-gray-900 dark:text-white"
                     >
                       {{ formatMemoryBytes(memory.heapUsed) }}
                       <span
                         class="font-sans font-normal text-gray-500 dark:text-gray-400"
-                        >used /</span
+                        >/</span
                       >
                       {{ formatMemoryBytes(memory.heapTotal) }}
-                      <span
-                        class="font-sans font-normal text-gray-500 dark:text-gray-400"
-                        >allocated</span
-                      >
                     </span>
                   </div>
                   <div
                     v-if="memory.percent !== null"
                     role="meter"
                     aria-label="JavaScript heap utilization"
-                    aria-describedby="bosun-heap-description"
                     aria-valuemin="0"
                     aria-valuemax="100"
                     :aria-valuenow="memory.percent"
@@ -1426,11 +1429,8 @@ onUnmounted(() => {
                     v-if="memory.percent !== null"
                     class="mt-1 flex flex-wrap justify-between gap-x-3 gap-y-1 text-[10px] text-gray-500 dark:text-gray-400"
                   >
-                    <span>{{ memory.percent }}% of allocated heap used</span>
-                    <span
-                      >{{ formatMemoryBytes(memory.unused) }} unused in
-                      heap</span
-                    >
+                    <span>{{ memory.percent }}% of allocated heap</span>
+                    <span>{{ formatMemoryBytes(memory.unused) }} unused</span>
                   </div>
                   <p
                     v-else
@@ -1438,32 +1438,27 @@ onUnmounted(() => {
                   >
                     Heap utilization unavailable.
                   </p>
-                  <p
-                    id="bosun-heap-description"
-                    class="mt-2 text-xs leading-relaxed text-gray-500 dark:text-gray-400"
-                  >
-                    The allocated heap can grow. This is not the server or
-                    container memory limit.
-                  </p>
                 </div>
                 <div>
                   <div
                     class="flex flex-wrap items-baseline justify-between gap-2"
                   >
-                    <span class="text-xs text-gray-500 dark:text-gray-400"
-                      >Slipway process memory (RSS)</span
+                    <Tooltip
+                      text="Resident memory for the Slipway process, including memory outside the JavaScript heap. Excludes other apps and server processes."
+                      placement="top"
                     >
+                      <span
+                        tabindex="0"
+                        data-test="bosun-rss-help"
+                        class="cursor-help rounded text-xs text-gray-500 outline-offset-2 dark:text-gray-400"
+                        >Slipway process (RSS)</span
+                      >
+                    </Tooltip>
                     <span
                       class="font-mono text-sm font-medium text-gray-900 dark:text-white"
                       >{{ formatMemoryBytes(memory.rss) }}</span
                     >
                   </div>
-                  <p
-                    class="mt-2 text-xs leading-relaxed text-gray-500 dark:text-gray-400"
-                  >
-                    Resident memory for Slipway, including memory outside the
-                    JavaScript heap. Excludes other apps and server processes.
-                  </p>
                 </div>
               </div>
             </section>
