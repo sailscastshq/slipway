@@ -236,6 +236,10 @@ const BOOT_ERROR_MARKER = ${JSON.stringify(BOOT_ERROR_MARKER)};
           sockets: false,
           pubsub: false,
           grunt: false,
+          // A Bridge worker shares the running app's filesystem. Never rebuild
+          // or clean its public assets while loading models and helpers.
+          shipwright: false,
+          content: false,
           flash: false,
           session: false
         },
