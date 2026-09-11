@@ -97,4 +97,17 @@ function effective(action, record) {
     )
   }
 }
-module.exports = { normalize, matches, fields, validate, effective }
+function changedMessage(resource, fields) {
+  const subject = String(resource.singularLabel || 'record').toLowerCase()
+  return fields.length === 1 && fields[0] === 'status'
+    ? `This ${subject}'s status changed. Reopen the action to review it before sending.`
+    : `This ${subject}'s action fields changed. Reopen the action to review them before sending.`
+}
+module.exports = {
+  normalize,
+  matches,
+  fields,
+  validate,
+  effective,
+  changedMessage
+}

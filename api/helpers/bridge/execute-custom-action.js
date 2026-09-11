@@ -1,3 +1,5 @@
+const conditions = require('../../lib/bridge-action-conditions')
+
 module.exports = {
   friendlyName: 'Execute Bridge custom action',
 
@@ -109,17 +111,33 @@ module.exports = {
         conditionState
           ? `
       const conditionFields = ${JSON.stringify(conditionState.fields)};
-      const current = await sails.models[${JSON.stringify(
+      let current;
+      try {
+      current = await sails.models[${JSON.stringify(
         resource.identity
       )}].findOne(${JSON.stringify({
               [resource.primaryKey]: recordId
-            })}).select(conditionFields);
-      if (!current || JSON.stringify(conditionFields.map(field => current[field])) !== ${JSON.stringify(
+            })}).select([...conditionFields]);
+      } catch (cause) {
+        const error = new Error('Could not reload record conditions.', { cause });
+        error.code = 'BRIDGE_ACTION_VALIDATION_FAILED';
+        error.publicMessage = 'Could not load the record to check this action. Try again; nothing was sent.';
+        throw error;
+      }
+      if (!current) {
+        const error = new Error('Record disappeared before execution.');
+        error.code = 'BRIDGE_ACTION_VALIDATION_FAILED';
+        error.publicMessage = 'This record no longer exists. Nothing was sent.';
+        throw error;
+      }
+      if (JSON.stringify(conditionFields.map(field => current[field])) !== ${JSON.stringify(
         JSON.stringify(conditionState.values)
       )}) {
         const error = new Error('Record conditions changed.');
         error.code = 'BRIDGE_ACTION_VALIDATION_FAILED';
-        error.publicMessage = 'This action is no longer current. Reopen it and try again.';
+        error.publicMessage = ${JSON.stringify(
+          conditions.changedMessage(resource, conditionState.fields)
+        )};
         throw error;
       }
       `
