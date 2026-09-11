@@ -26,6 +26,7 @@ module.exports = {
       type: 'string',
       required: true
     },
+    conditionToken: { type: 'string', maxLength: 128 },
     values: {
       type: 'ref',
       defaultsTo: {}
@@ -63,6 +64,7 @@ module.exports = {
     modelIdentity,
     actionName,
     values,
+    conditionToken,
     recordId,
     recordIds
   }) {
@@ -89,6 +91,7 @@ module.exports = {
 
     let loaded
     let allowedValues
+    let context
     try {
       loaded = await sails.helpers.bridge.loadResource.with({
         containerName: app.containerName,
@@ -106,8 +109,35 @@ module.exports = {
         error.code = 'BRIDGE_ACTION_NOT_FOUND'
         throw error
       }
+      context = await sails.helpers.bridge.loadActionContext.with({
+        containerName: app.containerName,
+        resource: loaded.resource,
+        action: loaded.actionDefinition,
+        actor,
+        recordId: loaded.recordId,
+        conditionToken,
+        verify: true
+      })
+      loaded.actionDefinition = context.action
+      const visibleValues =
+        context.conditionState &&
+        values &&
+        typeof values === 'object' &&
+        !Array.isArray(values)
+          ? Object.fromEntries(
+              Object.entries(values).filter(
+                ([name]) =>
+                  !loaded.resource.actionDefinitions[context.action.name]
+                    .fields[name]?.visibleWhen ||
+                  Object.prototype.hasOwnProperty.call(
+                    context.action.fields,
+                    name
+                  )
+              )
+            )
+          : values
       allowedValues = await sails.helpers.bridge.allowActionValues.with({
-        values,
+        values: visibleValues,
         resource: loaded.resource,
         action: loaded.actionDefinition
       })
@@ -144,6 +174,9 @@ module.exports = {
         action,
         actor,
         values: allowedValues,
+        ...(context.conditionState
+          ? { conditionState: context.conditionState }
+          : {}),
         ...(loaded.recordId !== undefined ? { recordId: loaded.recordId } : {}),
         ...(loaded.recordIds !== undefined
           ? { recordIds: loaded.recordIds }

@@ -3,7 +3,7 @@ import WarningTriangle from '@/components/ui/icons/WarningTriangle.vue'
 import SidebarOpen from '@/components/ui/icons/SidebarOpen.vue'
 import SidebarClose from '@/components/ui/icons/SidebarClose.vue'
 import { Link, Head, router, useForm } from '@inertiajs/vue3'
-import { inject, ref, computed } from 'vue'
+import { inject, ref, computed, watch, onUnmounted } from 'vue'
 import BridgePageLayout from '@/layouts/BridgePageLayout.vue'
 import ConfirmModal from '@/components/ConfirmModal.vue'
 import { useToast } from '@/composables/toast'
@@ -165,7 +165,59 @@ function actionNeedsDialog(action) {
   )
 }
 
-function runCustomAction(action) {
+const openingAction = ref(false)
+let actionRequest = null
+function cancelActionRequest() {
+  actionRequest?.abort()
+  actionRequest = null
+  openingAction.value = false
+  actionDialog.value = { show: false, action: null }
+}
+watch(() => [props.modelIdentity, props.recordId], cancelActionRequest)
+onUnmounted(cancelActionRequest)
+
+async function runCustomAction(action) {
+  const conditional =
+    action.visibleWhen ||
+    Object.values(action.fields || {}).some((field) => field.visibleWhen)
+  if (conditional) {
+    actionRequest?.abort()
+    const request = new AbortController()
+    actionRequest = request
+    openingAction.value = true
+    try {
+      const response = await fetch(
+        `${customActionUrl(action)}/context?${new URLSearchParams({
+          recordId: String(props.recordId)
+        })}`,
+        {
+          signal: request.signal,
+          credentials: 'same-origin',
+          headers: { Accept: 'application/json' }
+        }
+      )
+      const context = await response.json()
+      if (!response.ok)
+        throw new Error(
+          context.error || 'Could not open this action. Try again.'
+        )
+      if (actionRequest !== request) return
+      actionDialog.value = {
+        show: true,
+        action: context.action,
+        conditionToken: context.conditionToken
+      }
+    } catch (error) {
+      if (error.name !== 'AbortError' && actionRequest === request)
+        toast({ type: 'error', message: error.message })
+    } finally {
+      if (actionRequest === request) {
+        openingAction.value = false
+        actionRequest = null
+      }
+    }
+    return
+  }
   if (actionNeedsDialog(action)) {
     actionDialog.value = { show: true, action }
     return
@@ -260,7 +312,7 @@ function relationshipMutationBaseUrl(relationship) {
         <ActionMenu
           v-if="record"
           :items="recordMenuItems"
-          :disabled="quickActionForm.processing"
+          :disabled="quickActionForm.processing || openingAction"
           :label="`Actions for ${
             record[modelMeta?.title] ||
             modelMeta?.singularLabel ||
@@ -344,7 +396,7 @@ function relationshipMutationBaseUrl(relationship) {
       <ActionMenu
         v-if="record"
         :items="recordMenuItems"
-        :disabled="quickActionForm.processing"
+        :disabled="quickActionForm.processing || openingAction"
         :label="`Actions for ${
           record[modelMeta?.title] || modelMeta?.singularLabel || modelIdentity
         }`"
@@ -557,6 +609,7 @@ function relationshipMutationBaseUrl(relationship) {
     "
     :model-identity="modelIdentity"
     :record-id="recordId"
+    :condition-token="actionDialog.conditionToken"
     @cancel="actionDialog = { show: false, action: null }"
     @complete="actionDialog = { show: false, action: null }"
   />

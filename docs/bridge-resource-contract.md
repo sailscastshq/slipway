@@ -1219,6 +1219,17 @@ loaded from the target app, missing context blocks the upload, and the final
 path is sanitized against traversal. `scope: 'bucket'` is explicit because it
 intentionally omits Slipway's default team/project/environment namespace.
 
+### Mail from custom actions
+
+Action helpers can use the target app's configured template-based mail helpers.
+Bridge's worker initializes the app's views and rendering support without
+starting another HTTP listener. Keep normal mail-provider and template settings
+in the application; no extra Bridge field setting is needed.
+
+An action is not automatically transactional. If it saves a record and then mail
+fails, the saved change can remain. Make decision helpers idempotent when users
+may retry, and do not assume a failure rolls back earlier work.
+
 ### Custom-action validation failures
 
 Helpers can deliberately return safe validation feedback by throwing an error
@@ -1287,3 +1298,78 @@ identifier remains a permanent compatibility path.
 Changing a URL slug does not change helper names, authorization action names,
 audit identifiers, upload storage namespaces, or database tables. Deploy the
 application's configuration change and refresh Bridge to load its contract.
+
+### Conditional record actions and fields
+
+::: warning Availability
+This configuration requires the Slipway release containing issue #575. It is not supported by v0.0.73. Upgrade Slipway before deploying it in an application.
+:::
+
+Use `visibleWhen` to show an action or its fields according to the current saved
+record. Conditions are data, not functions or executable expressions:
+
+```js
+// config/slipway.js, inside bridge.resources.proposal
+{
+  show: ['id', 'title', 'status'],
+  actions: {
+    sendDecision: {
+      label: 'Send decision',
+      scope: 'record',
+      visibleWhen: {
+        'record.status': { in: ['accepted', 'rejected'] }
+      },
+      helper: 'bridge.decision',
+      fields: {
+        acceptanceMessage: {
+          type: 'textarea',
+          label: 'Message to the speaker',
+          visibleWhen: { 'record.status': 'accepted' }
+        },
+        reason: {
+          type: 'textarea',
+          label: 'Reason for rejection',
+          required: true,
+          visibleWhen: { 'record.status': 'rejected' }
+        }
+      }
+    }
+  }
+}
+```
+
+An accepted proposal shows only the optional message. A rejected proposal shows
+only the required rejection reason. Other statuses hide **Send decision**.
+The helper still receives `recordId`, the actor/resource envelope, and only the
+visible field values. Existing direct-helper bindings work too.
+
+Supported conditions are scalar equality (`'record.status': 'accepted'`) and
+membership (`'record.status': { in: ['accepted', 'rejected'] }`). Multiple entries
+are combined using AND. Comparisons do not coerce types: `1` and `'1'` differ.
+A missing field does not match, even when the expected value is `null`.
+
+References must be `record.<field>` and point to non-sensitive scalar fields on
+the resource's `show` surface. Nested paths, relationships, JSON, currency
+fields, private fields, and unsupported operators are rejected. Conditions
+currently require `scope: 'record'`; resource and bulk actions cannot use them.
+The user must also be allowed to view the record and execute the action.
+Visibility never replaces authorization.
+
+Opening the action fetches the saved state again. The dialog shows only visible
+fields, excludes hidden fields from required validation, and resets entered
+values on reopening or changing records. Conditional actions always open a
+dialog, even when no input fields remain.
+
+Submissions carry a short-lived, signed state token. Bridge checks the current
+record and configuration before validating visible inputs, and checks the
+referenced values again immediately before calling the helper. A changed state,
+expired dialog, or newly denied action stops execution through the normal
+Inertia error flow; the user must reopen the action. Hidden submitted values are
+discarded; they are not silently reused for another decision. Tokens expire
+after 15 minutes and are bound to the actor, app/container, record, and action.
+
+These checks are not a database transaction or an exactly-once delivery system.
+If a decision helper must atomically claim a record or avoid duplicate emails,
+keep that domain-specific transaction/idempotency logic in the application's
+helper. Unconditional actions and existing camelCase identifiers/URL slugs keep
+their current behavior.

@@ -127,6 +127,7 @@ module.exports.policies = {
   'project/bridge-update-record': 'is-bridge-authenticated',
   'project/bridge-delete-record': 'is-bridge-authenticated',
   'project/bridge-bulk-delete': 'is-bridge-authenticated',
+  'project/bridge-action-context': 'is-bridge-authenticated',
   'project/bridge-execute-action': 'is-bridge-authenticated',
   'project/bridge-relationship-options': 'is-bridge-authenticated',
   'project/bridge-update-relationship': 'is-bridge-authenticated',

@@ -25,6 +25,7 @@ const props = defineProps({
     type: String,
     required: true
   },
+  conditionToken: String,
   recordId: {
     type: [String, Number],
     default: null
@@ -161,6 +162,7 @@ function submit() {
   form
     .transform(() => ({
       values,
+      ...(props.conditionToken ? { conditionToken: props.conditionToken } : {}),
       ...(props.action.scope === 'record' ? { recordId: props.recordId } : {}),
       ...(props.action.scope === 'bulk' ? { recordIds: props.recordIds } : {})
     }))
