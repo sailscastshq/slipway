@@ -26,7 +26,7 @@ module.exports = {
       type: 'string',
       required: true
     },
-    conditionToken: { type: 'string', maxLength: 128 },
+    conditionToken: { type: 'string', maxLength: 512 },
     values: {
       type: 'ref',
       defaultsTo: {}

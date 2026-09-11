@@ -76,6 +76,8 @@ async function setup(sails, world) {
       proposal: {
         findOne: (criteria) => ({
           select: async (fields) => {
+            if (state.readFailure) throw new Error('Private database failure')
+            if (!fields.includes('id')) fields.push('id')
             const record = state.records[criteria.id]
             return record
               ? Object.fromEntries(

@@ -48,10 +48,11 @@ module.exports = {
         recordId: loaded.recordId
       })
       return { action: context.action, conditionToken: context.conditionToken }
-    } catch {
+    } catch (error) {
       return this.res.status(409).json({
-        error:
-          'This action is no longer available. Refresh the record and try again.'
+        error: error.code?.startsWith('BRIDGE_ACTION_CONTEXT_')
+          ? error.message
+          : 'This action is no longer available. Refresh the record and try again.'
       })
     }
   }

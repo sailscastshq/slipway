@@ -16,7 +16,7 @@ test(
     const state = await setup(sails, world)
     const base =
       '/projects/conditional-actions/environments/production/bridge/submission'
-    const out = path.resolve('output/issue-575')
+    const out = path.resolve('output/issue-577')
     fs.mkdirSync(out, { recursive: true })
     try {
       await login.withPassword('genesisUser', page, {
@@ -60,6 +60,9 @@ test(
       await submit.click()
       await expect(dialog).toBeHidden()
       expect(state.calls.length).toBe(1)
+      await page.screenshot(path.join(out, 'decision-sent-desktop.png'), {
+        animations: 'disabled'
+      })
       expect(Object.keys(state.calls[0].values).includes('reason')).toBe(false)
 
       await page.goto(`${base}/2`)
@@ -81,7 +84,7 @@ test(
       ).toBe(true)
       state.records[2].status = 'accepted'
       await submit.click()
-      await expect(dialog.getByRole('alert')).toContainText('Reopen')
+      await expect(dialog.getByRole('alert')).toContainText('status changed')
       await expect(reason).toHaveValue('The program is full this year.')
       expect(state.calls.length).toBe(1)
       await page.screenshot(path.join(out, 'stale-decision-mobile.png'), {
