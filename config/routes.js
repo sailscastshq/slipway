@@ -509,6 +509,8 @@ module.exports.routes = {
     'project/bridge-delete-record',
   'POST /projects/:slug/environments/:envSlug/apps/:appSlug/bridge/:modelIdentity/bulk-delete':
     'project/bridge-bulk-delete',
+  'GET /projects/:slug/environments/:envSlug/apps/:appSlug/bridge/:modelIdentity/actions/:actionName/context':
+    'project/bridge-action-context',
   'POST /projects/:slug/environments/:envSlug/apps/:appSlug/bridge/:modelIdentity/actions/:actionName':
     'project/bridge-execute-action',
   'GET /api/v1/projects/:slug/environments/:envSlug/apps/:appSlug/bridge/:modelIdentity/relationships/:relationshipAlias/options':
@@ -569,8 +571,12 @@ module.exports.routes = {
     'project/bridge-bulk-delete',
   'POST /projects/:slug/environments/:envSlug/bridge/:modelIdentity/bulk-delete':
     'project/bridge-bulk-delete',
+  'GET /projects/:slug/bridge/:modelIdentity/actions/:actionName/context':
+    'project/bridge-action-context',
   'POST /projects/:slug/bridge/:modelIdentity/actions/:actionName':
     'project/bridge-execute-action',
+  'GET /projects/:slug/environments/:envSlug/bridge/:modelIdentity/actions/:actionName/context':
+    'project/bridge-action-context',
   'POST /projects/:slug/environments/:envSlug/bridge/:modelIdentity/actions/:actionName':
     'project/bridge-execute-action',
   // Bridge relationship search is JSON transport for async comboboxes.

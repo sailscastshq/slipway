@@ -1,5 +1,7 @@
 'use strict'
 
+const conditions = require('../../lib/bridge-action-conditions')
+
 const { slugFor, assertUnique } = require('../../lib/bridge-url-slugs')
 
 module.exports = {
@@ -82,6 +84,7 @@ function normalizeBridgeResourceContract({ models, config = {} }) {
     'timestamp'
   ]
   const CUSTOM_ACTION_OPTION_KEYS = [
+    'visibleWhen',
     'slug',
     'scope',
     'helper',
@@ -106,6 +109,7 @@ function normalizeBridgeResourceContract({ models, config = {} }) {
     'recordIds'
   ]
   const CUSTOM_ACTION_FIELD_OPTION_KEYS = [
+    'visibleWhen',
     'type',
     'label',
     'help',
@@ -463,6 +467,9 @@ function normalizeBridgeResourceContract({ models, config = {} }) {
       attributes,
       associations
     }
+
+    for (const action of Object.values(resource.actionDefinitions))
+      conditions.validate(action, resource)
 
     if (!resource.list.includes(primaryKey)) {
       resource.list.unshift(primaryKey)
@@ -1321,6 +1328,9 @@ function normalizeBridgeResourceContract({ models, config = {} }) {
     const slug = slugFor(name, rawAction.slug)
     return {
       name,
+      ...(rawAction.visibleWhen !== undefined
+        ? { visibleWhen: conditions.normalize(rawAction.visibleWhen, path) }
+        : {}),
       ...(slug !== name ? { slug } : {}),
       scope: rawAction.scope,
       helper: normalizedHelper.identity,
@@ -1481,6 +1491,9 @@ function normalizeBridgeResourceContract({ models, config = {} }) {
           : 'string',
       label: readString(rawField.label) || humanize(fieldName),
       required: rawField.required === true,
+      ...(rawField.visibleWhen !== undefined
+        ? { visibleWhen: conditions.normalize(rawField.visibleWhen, path) }
+        : {}),
       ...(rawField.min !== undefined ? { min: rawField.min } : {}),
       ...(rawField.max !== undefined ? { max: rawField.max } : {}),
       ...(rawField.minLength !== undefined

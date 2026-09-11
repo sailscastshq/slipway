@@ -21,6 +21,7 @@ module.exports = {
       type: 'ref',
       required: true
     },
+    conditionState: { type: 'ref' },
     values: {
       type: 'ref',
       defaultsTo: {}
@@ -45,6 +46,7 @@ module.exports = {
     action,
     actor,
     values,
+    conditionState,
     recordId,
     recordIds
   }) {
@@ -103,6 +105,26 @@ module.exports = {
         }
       }
 
+      ${
+        conditionState
+          ? `
+      const conditionFields = ${JSON.stringify(conditionState.fields)};
+      const current = await sails.models[${JSON.stringify(
+        resource.identity
+      )}].findOne(${JSON.stringify({
+              [resource.primaryKey]: recordId
+            })}).select(conditionFields);
+      if (!current || JSON.stringify(conditionFields.map(field => current[field])) !== ${JSON.stringify(
+        JSON.stringify(conditionState.values)
+      )}) {
+        const error = new Error('Record conditions changed.');
+        error.code = 'BRIDGE_ACTION_VALIDATION_FAILED';
+        error.publicMessage = 'This action is no longer current. Reopen it and try again.';
+        throw error;
+      }
+      `
+          : ''
+      }
       const result = await helper.with(inputs);
       if (result === undefined || result === null) return {};
       if (invocation && invocation.result && invocation.result.message) {

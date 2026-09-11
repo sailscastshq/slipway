@@ -1,3 +1,4 @@
+const conditions = require('../../lib/bridge-action-conditions')
 module.exports = {
   friendlyName: 'View Bridge record',
 
@@ -182,6 +183,15 @@ module.exports = {
       }
     }
 
+    if (modelMeta && record) {
+      for (const [name, action] of Object.entries(
+        modelMeta.actionDefinitions || {}
+      )) {
+        if (!conditions.matches(action.visibleWhen, record)) {
+          delete modelMeta.actionDefinitions[name]
+        }
+      }
+    }
     let canStartSupport = false
     if (
       appRunning &&
