@@ -5,6 +5,7 @@
 <p>The complete platform for Sails.js — deploy, manage, monitor, and debug your apps on your own infrastructure.</p>
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Fund my work on FLOSSAfrica](https://flossafrica.com/badge.svg)](https://flossafrica.com/m/dominuskelvin?p=slipway)
 
 </div>
 
