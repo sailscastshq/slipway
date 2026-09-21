@@ -37,6 +37,8 @@ module.exports = {
       type: 'boolean',
       defaultsTo: true
     },
+    containerContext: { type: 'boolean', defaultsTo: false },
+    appContext: { type: 'ref' },
     timeoutMs: {
       type: 'number',
       min: 1
@@ -63,6 +65,8 @@ module.exports = {
     sourceStartLine,
     sourceStartColumn,
     bootstrapSails,
+    containerContext,
+    appContext,
     timeoutMs,
     executionId,
     signal
@@ -92,6 +96,8 @@ module.exports = {
       sourceStartLine,
       sourceStartColumn,
       bootstrapSails,
+      containerContext,
+      appContext,
       timeoutMs: executionTimeoutMs,
       maxLogBytes: limits.maxLogBytes,
       maxResultBytes: limits.maxResultBytes,

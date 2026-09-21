@@ -28,6 +28,9 @@ export function useHelmScratchpads(targetSource) {
   const activeTab = computed(
     () => tabs.value.find((tab) => tab.id === activeId.value) || null
   )
+  const visibleTabs = computed(() =>
+    tabs.value.filter((tab) => tab.target.key === currentTargetKey.value)
+  )
   const canCreate = computed(() => tabs.value.length < HELM_SCRATCHPAD_LIMIT)
 
   const code = computed({
@@ -72,7 +75,7 @@ export function useHelmScratchpads(targetSource) {
         console.warn('Could not save Helm scratchpads:', error)
       }
     },
-    { deep: true }
+    { deep: true, immediate: true, flush: 'sync' }
   )
 
   function initialize() {
@@ -90,7 +93,11 @@ export function useHelmScratchpads(targetSource) {
       tab.target.key === target.key ? { ...tab, target } : tab
     )
     let targetTabs = tabs.value.filter((tab) => tab.target.key === target.key)
-    if (targetTabs.length === 0) {
+    if (
+      targetTabs.length === 0 &&
+      !Object.hasOwn(activeByTarget.value, target.key) &&
+      canCreate.value
+    ) {
       const tab = createHelmScratchpad({
         name: nextHelmScratchpadName(tabs.value, target.key),
         target
@@ -103,7 +110,7 @@ export function useHelmScratchpads(targetSource) {
     if (!targetTabs.some((tab) => tab.id === remembered)) {
       activeByTarget.value = {
         ...activeByTarget.value,
-        [target.key]: targetTabs[0].id
+        [target.key]: targetTabs[0]?.id || ''
       }
     }
     ready.value = true
@@ -158,7 +165,13 @@ export function useHelmScratchpads(targetSource) {
 
   function move(id, offset) {
     const index = tabs.value.findIndex((tab) => tab.id === id)
-    const nextIndex = index + offset
+    const targetTabs = tabs.value.filter(
+      (tab) => tab.target.key === currentTargetKey.value
+    )
+    const targetIndex = targetTabs.findIndex((tab) => tab.id === id)
+    const neighbor = targetTabs[targetIndex + offset]
+    if (!neighbor) return
+    const nextIndex = tabs.value.findIndex((tab) => tab.id === neighbor.id)
     if (index < 0 || nextIndex < 0 || nextIndex >= tabs.value.length) return
     const nextTabs = [...tabs.value]
     const [tab] = nextTabs.splice(index, 1)
@@ -176,14 +189,6 @@ export function useHelmScratchpads(targetSource) {
       (tab) => tab.target.key === closing.target.key
     )
     delete runtime.value[id]
-
-    if (
-      nextForTarget.length === 0 &&
-      closing.target.key === currentTargetKey.value
-    ) {
-      create()
-      return
-    }
 
     if (activeByTarget.value[closing.target.key] === id) {
       const next =
@@ -242,7 +247,7 @@ export function useHelmScratchpads(targetSource) {
   }
 
   return {
-    tabs,
+    tabs: visibleTabs,
     activeId,
     activeTab,
     currentTarget,

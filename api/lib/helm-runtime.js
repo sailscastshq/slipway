@@ -1,4 +1,5 @@
 const acorn = require('acorn')
+const resolveHelmAppContext = require('./helm-app-context')
 const createHelmQueryTracer = require('./helm-query-tracer')
 
 const START_MARKER = '___SLIPWAY_HELM_RESULT_START___'
@@ -278,6 +279,8 @@ function buildRunnerSource({
   sourceStartLine = 1,
   sourceStartColumn = 1,
   bootstrapSails = true,
+  containerContext = false,
+  appContext = null,
   timeoutMs = 30000,
   maxLogBytes = 64 * 1024,
   maxResultBytes = 128 * 1024,
@@ -297,6 +300,8 @@ function buildRunnerSource({
     sourceStartLine,
     sourceStartColumn,
     bootstrapSails,
+    containerContext,
+    appContext,
     timeoutMs,
     maxLogBytes,
     maxResultBytes,
@@ -307,7 +312,7 @@ function buildRunnerSource({
     endMarker: END_MARKER,
     logMarker: LOG_MARKER,
     filename: VIRTUAL_FILENAME
-  })}, ${queryTracerSource})`
+  })}, ${queryTracerSource}, (${resolveHelmAppContext.toString()}))`
 }
 
 function parseRunnerOutput(stdout) {
@@ -454,7 +459,11 @@ function formatBytes(bytes) {
   return `${Math.round(bytes / 1024)} KB`
 }
 
-async function helmSubprocessMain(options, createQueryTracer) {
+async function helmSubprocessMain(
+  options,
+  createQueryTracer,
+  resolveAppContext
+) {
   const fs = require('node:fs')
   const vm = require('node:vm')
   const AsyncLocalStorage = options.traceQueries
@@ -505,10 +514,31 @@ async function helmSubprocessMain(options, createQueryTracer) {
 
   try {
     if (options.bootstrapSails) {
-      sailsApp = require('sails')
+      const appContext = options.containerContext
+        ? resolveAppContext()
+        : options.appContext
+      if (appContext?.env) {
+        // docker exec inherits container variables, not npm/entrypoint exports.
+        // Preserve only Helm's own execution marker for cancellation.
+        const executionId = process.env.SLIPWAY_HELM_EXECUTION_ID
+        for (const key of Object.keys(process.env)) delete process.env[key]
+        Object.assign(process.env, appContext.env)
+        if (executionId) process.env.SLIPWAY_HELM_EXECUTION_ID = executionId
+      }
+      if (appContext?.appPath) process.chdir(appContext.appPath)
+      if (appContext?.argv) process.argv = appContext.argv
+      const appRequire = require('node:module').createRequire(
+        require('node:path').join(process.cwd(), 'package.json')
+      )
+      const rc = appRequire('sails/accessible/rc')('sails')
+      if (appContext?.environment) rc.environment = appContext.environment
+      const merge = require('node:module').createRequire(
+        appRequire.resolve('sails')
+      )('@sailshq/lodash').merge
+      sailsApp = appRequire('sails')
       await new Promise((resolve, reject) => {
         sailsApp.load(
-          {
+          merge({}, rc, {
             // Keep the datastore and other environment-specific config from the
             // app process that owns this container.  Not every app defines a
             // separate `console` environment.
@@ -534,7 +564,7 @@ async function helmSubprocessMain(options, createQueryTracer) {
               csrf: false
             },
             log: { level: 'silent' }
-          },
+          }),
           (error) => {
             if (error) reject(error)
             else resolve()

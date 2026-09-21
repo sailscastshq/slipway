@@ -134,3 +134,13 @@ function targetFixture() {
     app: { id: 3, name: 'hagfish.app', slug: 'hagfish-app' }
   }
 }
+
+test('Helm remembers an explicitly empty scratchpad workspace', async ({
+  expect
+}) => {
+  const { parseHelmScratchpadState, serializeHelmScratchpadState } =
+    await import('../../../assets/js/lib/helmScratchpads.mjs')
+  const state = { tabs: [], activeByTarget: { 'project:production:app': '' } }
+  const restored = parseHelmScratchpadState(serializeHelmScratchpadState(state))
+  expect(restored).toEqual(state)
+})

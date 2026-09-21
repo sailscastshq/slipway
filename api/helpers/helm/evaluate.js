@@ -40,6 +40,10 @@ module.exports = {
       sourceStartLine,
       sourceStartColumn,
       bootstrapSails: true,
+      appContext: {
+        appPath: sails.config.appPath,
+        environment: sails.config.environment
+      },
       signal
     })
   }

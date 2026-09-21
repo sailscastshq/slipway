@@ -6,7 +6,7 @@ import Play from '@/components/ui/icons/Play.vue'
 import History from '@/components/ui/icons/History.vue'
 import ExternalLink from '@/components/ui/icons/ExternalLink.vue'
 import Bookmark from '@/components/ui/icons/Bookmark.vue'
-import { Head, router, usePage } from '@inertiajs/vue3'
+import { Head, usePage } from '@inertiajs/vue3'
 import {
   inject,
   ref,
@@ -31,10 +31,6 @@ import Tabs from '@/components/ui/tabs/Tabs.vue'
 import { useHelmScratchpads } from '@/composables/useHelmScratchpads'
 import { helmEditorDiagnostic } from '@/lib/helmResult'
 import { cancelHelmExecution, cancelledHelmResult } from '@/lib/helmExecution'
-import {
-  helmScratchpadIsModified,
-  helmScratchpadTargetTitle
-} from '@/lib/helmScratchpads.mjs'
 
 defineOptions({
   layout: AppLayout
@@ -107,7 +103,6 @@ const writeArm = ref(null)
 const writeArmRemaining = ref(0)
 const armingWrites = ref(false)
 const inspectingSource = ref(false)
-const targetSwitch = ref({ show: false, tab: null })
 const closeScratchpadGuard = ref({ show: false, tab: null })
 const editorSelection = ref({
   hasSelection: false,
@@ -131,7 +126,13 @@ const runLabel = computed(() =>
   editorSelection.value.hasSelection ? 'Run selection' : 'Run'
 )
 const canExecute = computed(() => {
-  if (!isRunning.value || running.value || inspectingSource.value) return false
+  if (
+    !activeScratchpad.value ||
+    !isRunning.value ||
+    running.value ||
+    inspectingSource.value
+  )
+    return false
   if (editorSelection.value.hasSelection) {
     return editorSelection.value.hasExecutableSelection
   }
@@ -141,22 +142,15 @@ const helmLibraryUrl = computed(
   () =>
     `/api/v1/projects/${props.project.slug}/environments/${props.environment.slug}/helm`
 )
-const targetSwitchMessage = computed(() => {
-  const target = targetSwitch.value.tab?.target
-  return target
-    ? `This scratchpad runs against ${helmScratchpadTargetTitle(
-        target
-      )}. Confirm the production target before continuing.`
-    : ''
-})
 const closeScratchpadMessage = computed(() => {
   const tab = closeScratchpadGuard.value.tab
   return tab
-    ? `“${tab.name}” has changes that have not been executed or saved as a snippet.`
+    ? `“${tab.name}” will be deleted, including its saved code in this browser. This cannot be undone.`
     : ''
 })
 
 async function execute(sourceOverride) {
+  if (!activeScratchpad.value) return
   let execution
   if (typeof sourceOverride === 'string') {
     if (
@@ -500,24 +494,11 @@ async function activateScratchpad(tab) {
     editor.value?.focus()
     return
   }
-
-  if (tab.target.environment.isProduction) {
-    targetSwitch.value = { show: true, tab }
-    return
-  }
-  openScratchpadTarget(tab)
 }
 
 function activateScratchpadById(id) {
   const tab = scratchpadTabs.value.find((item) => item.id === id)
   if (tab) activateScratchpad(tab)
-}
-
-function openScratchpadTarget(tab = targetSwitch.value.tab) {
-  if (!tab) return
-  targetSwitch.value = { show: false, tab: null }
-  scratchpads.activate(tab.id)
-  router.visit(tab.target.href)
 }
 
 async function createScratchpad() {
@@ -540,7 +521,10 @@ async function duplicateScratchpad(tab) {
 
 function requestCloseScratchpad(tab) {
   if (!tab || running.value || inspectingSource.value) return
-  if (helmScratchpadIsModified(tab)) {
+  if (
+    tab.source.trim() &&
+    tab.source.trim() !== '// Access your Sails models, helpers, and config'
+  ) {
     closeScratchpadGuard.value = { show: true, tab }
     return
   }
@@ -762,8 +746,27 @@ watch(code, () => {
       />
     </Tabs>
 
+    <div
+      v-if="!activeScratchpad"
+      class="flex flex-1 flex-col items-center justify-center gap-3 text-sm text-gray-500"
+    >
+      <p>No scratchpads for this app.</p>
+      <button
+        type="button"
+        :disabled="!canCreateScratchpad"
+        class="rounded-md px-3 py-2 font-medium text-gray-900 hover:bg-gray-100 dark:text-white dark:hover:bg-gray-800"
+        @click="createScratchpad"
+      >
+        New scratchpad
+      </button>
+      <p v-if="!canCreateScratchpad">
+        Scratchpad limit reached. Delete an unused scratchpad in another app to
+        make room.
+      </p>
+    </div>
     <!-- Main content - Tinkerwell style -->
     <div
+      v-else
       id="helm-scratchpad-panel"
       role="tabpanel"
       :aria-labelledby="
@@ -845,19 +848,10 @@ watch(code, () => {
     />
 
     <ConfirmModal
-      :show="targetSwitch.show"
-      title="Open production scratchpad?"
-      :message="targetSwitchMessage"
-      confirm-label="Open production"
-      @cancel="targetSwitch = { show: false, tab: null }"
-      @confirm="openScratchpadTarget"
-    />
-
-    <ConfirmModal
       :show="closeScratchpadGuard.show"
-      title="Close modified scratchpad?"
+      title="Delete scratchpad?"
       :message="closeScratchpadMessage"
-      confirm-label="Close scratchpad"
+      confirm-label="Delete scratchpad"
       destructive
       @cancel="closeScratchpadGuard = { show: false, tab: null }"
       @confirm="closeScratchpad"
