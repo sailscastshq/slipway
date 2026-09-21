@@ -1106,9 +1106,17 @@ test(
           name: 'Edit Course description as Visual'
         })
         .click()
-      await descriptionEditor.click()
-      await page.raw.keyboard.press('ControlOrMeta+End')
+      // Set up the synthetic paste at the document end in the editor state,
+      // not just the DOM selection left behind by the formatting toolbar.
+      await descriptionEditor.evaluate((element) => {
+        const editor = element.editor
+        editor.commands.setTextSelection(editor.state.doc.content.size - 1)
+        editor.view.focus()
+      })
       await page.raw.keyboard.press('Enter')
+      await expect(descriptionEditor.locator('p strong')).toHaveText(
+        'Boring releases are good.'
+      )
       await descriptionEditor.evaluate((element) => {
         const bytes = Uint8Array.from(
           atob(

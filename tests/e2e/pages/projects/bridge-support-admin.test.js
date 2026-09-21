@@ -44,7 +44,14 @@ test(
       with: async () => ({ enabled: true, model: 'creator' })
     }
     sails.helpers.bridge.loadResource = {
-      with: async () => ({ resource, recordId: 'customer', contract: {} })
+      with: async ({ modelIdentity }) => ({
+        resource: {
+          ...resource,
+          identity: modelIdentity === 'creators' ? 'creator' : modelIdentity
+        },
+        recordId: 'customer',
+        contract: {}
+      })
     }
     sails.helpers.bridge.executeInContainer = async () => ({
       success: true,
@@ -112,7 +119,11 @@ test(
         ).status,
         400
       )
-      const result = await attempt(world.current.auth.genesisUserPassword)
+      // A public resource slug resolves to its canonical model identity.
+      const result = await attempt(
+        world.current.auth.genesisUserPassword,
+        base.replace('/creator/', '/creators/') + '/support'
+      )
       assert.equal(result.status, 200, JSON.stringify(result.data))
       const token = new URL(result.data.url).hash.slice(1)
       const grant = await sails.models.bridgesupportgrant.findOne({
