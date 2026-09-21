@@ -45,7 +45,7 @@ function scalarClasses(type) {
 
 <template>
   <li class="min-w-max">
-    <details v-if="branch" class="helm-tree-branch">
+    <details v-if="branch" :open="depth === 0" class="helm-tree-branch">
       <summary
         class="flex cursor-pointer list-none items-center gap-1 rounded-sm py-0.5 pr-2 font-mono text-xs leading-5 text-gray-700 outline-none hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-300 dark:text-gray-300 dark:hover:bg-gray-900 dark:focus-visible:ring-gray-700"
       >
