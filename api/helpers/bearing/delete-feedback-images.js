@@ -4,7 +4,7 @@ module.exports = {
   friendlyName: 'Delete Bearing feedback images',
 
   description:
-    'Remove uploaded Bearing images when the feedback record cannot be saved.',
+    'Remove uploaded Bearing images after failed creation or before deletion.',
 
   inputs: {
     storage: {
@@ -31,10 +31,15 @@ module.exports = {
 
     const client = createClient(storage)
     try {
-      await client.deleteObjects({
+      const result = await client.deleteObjects({
         Bucket: storage.bucket,
         Delete: { Objects: objects, Quiet: true }
       })
+      if (result.Errors?.length) {
+        throw new Error(
+          'Some feedback images could not be deleted. Please retry.'
+        )
+      }
     } finally {
       client.destroy()
     }

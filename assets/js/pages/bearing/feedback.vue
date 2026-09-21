@@ -371,7 +371,9 @@ async function revealFocusedFeedback() {
 }
 
 function feedbackPermalink(item) {
-  return `${props.app.feedbackPath}/${encodeURIComponent(item.publicId)}`
+  return `${props.app.feedbackPath}/${encodeURIComponent(item.publicId)}${
+    props.embedded ? '?embedded=1' : ''
+  }`
 }
 
 function mergeFeedbackItem(current, incoming) {
@@ -1256,7 +1258,10 @@ function shortDate(value) {
                   </div>
                   <p
                     v-if="item.details"
-                    class="mt-2 line-clamp-2 text-sm leading-6 text-gray-500 dark:text-gray-400"
+                    class="mt-2 whitespace-pre-wrap break-words text-sm leading-6 text-gray-500 dark:text-gray-400"
+                    :class="{
+                      'line-clamp-2': item.publicId !== focusedFeedbackId
+                    }"
                   >
                     {{ item.details }}
                   </p>

@@ -91,6 +91,8 @@ module.exports.routes = {
     'project/update-bearing-settings',
   'PATCH /projects/:slug/environments/:envSlug/apps/:appSlug/bearing/feedback/:publicId':
     'project/update-bearing-feedback',
+  'DELETE /projects/:slug/environments/:envSlug/apps/:appSlug/bearing/feedback/:publicId':
+    'project/delete-bearing-feedback',
   'POST /projects/:slug/environments/:envSlug/apps/:appSlug/bearing/updates':
     'project/create-bearing-update',
   'POST /api/v1/projects/:slug/environments/:envSlug/apps/:appSlug/bearing/updates/images':
