@@ -18,6 +18,7 @@ import {
 import AppLayout from '@/layouts/AppLayout.vue'
 import Breadcrumb from '@/components/ui/breadcrumb/Breadcrumb.vue'
 import MarkdownEditor from '@/components/content/MarkdownEditor.vue'
+import ConfirmModal from '@/components/ConfirmModal.vue'
 import Alert from '@/components/ui/alert/Alert.vue'
 import Select from '@/components/ui/select/Select.vue'
 import Tabs from '@/components/ui/tabs/Tabs.vue'
@@ -32,6 +33,7 @@ const props = defineProps({
   bearing: Object,
   activeView: String,
   feedback: Array,
+  focusedFeedback: Object,
   attentionFeedback: Array,
   updates: Array,
   counts: Object,
@@ -160,6 +162,33 @@ function toggleCategory(category) {
   ).length
   if (category.active && activeCount === 1) return
   category.active = !category.active
+}
+
+const feedbackToDelete = ref(null)
+const deletingFeedback = ref(false)
+const displayedFeedback = computed(() =>
+  props.focusedFeedback ? [props.focusedFeedback] : props.feedback
+)
+function feedbackLink(item) {
+  return `${bearingPath.value}?view=feedback&publicId=${encodeURIComponent(
+    item.publicId
+  )}`
+}
+function deleteFeedback() {
+  if (!feedbackToDelete.value || deletingFeedback.value) return
+  deletingFeedback.value = true
+  router.delete(
+    `${bearingPath.value}/feedback/${feedbackToDelete.value.publicId}`,
+    {
+      preserveScroll: true,
+      onSuccess: () => {
+        feedbackToDelete.value = null
+      },
+      onFinish: () => {
+        deletingFeedback.value = false
+      }
+    }
+  )
 }
 
 function moveFeedback(item, status) {
@@ -454,7 +483,7 @@ onUnmounted(() => {
                   <button
                     type="button"
                     class="min-h-16 group flex w-full items-center justify-between gap-4 rounded-xl bg-gray-50 px-4 py-3 text-left transition hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-950 focus-visible:ring-offset-2 dark:bg-gray-900 dark:hover:bg-gray-800 dark:focus-visible:ring-white dark:focus-visible:ring-offset-gray-950"
-                    @click="selectView('feedback')"
+                    @click="router.get(feedbackLink(item))"
                   >
                     <span class="min-w-0">
                       <span class="block truncate text-sm font-medium">{{
@@ -585,43 +614,88 @@ onUnmounted(() => {
             </div>
             <span class="text-sm text-gray-400">{{ feedback.length }}</span>
           </div>
+          <Link
+            v-if="focusedFeedback"
+            :href="`${bearingPath}?view=feedback`"
+            class="mt-4 inline-block text-sm underline"
+            >Back to feedback</Link
+          >
           <div class="mt-6 divide-y divide-gray-200 dark:divide-gray-800">
-            <article v-for="item in feedback" :key="item.publicId" class="py-5">
+            <article
+              v-for="item in displayedFeedback"
+              :key="item.publicId"
+              class="py-5"
+            >
               <div
                 class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between"
               >
                 <div class="min-w-0">
                   <div class="flex items-center gap-2">
-                    <h3 class="font-medium">{{ item.title }}</h3>
+                    <h3 class="font-medium">
+                      <Link
+                        :href="feedbackLink(item)"
+                        class="hover:underline"
+                        >{{ item.title }}</Link
+                      >
+                    </h3>
                     <span class="text-xs text-gray-400"
                       >▲ {{ item.voteCount }}</span
                     >
                   </div>
                   <p
                     v-if="item.details"
-                    class="mt-1 line-clamp-2 text-sm leading-6 text-gray-500 dark:text-gray-400"
+                    class="mt-1 whitespace-pre-wrap break-words text-sm leading-6 text-gray-500 dark:text-gray-400"
+                    :class="{ 'line-clamp-2': !focusedFeedback }"
                   >
                     {{ item.details }}
                   </p>
+                  <div
+                    v-if="focusedFeedback && item.images?.length"
+                    class="mt-4 grid gap-3"
+                  >
+                    <a
+                      v-for="(image, index) in item.images"
+                      :key="image.url"
+                      :href="image.url"
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      <img
+                        :src="image.url"
+                        :alt="`${item.title} — image ${index + 1}`"
+                        class="max-h-96 rounded-lg object-contain"
+                      />
+                    </a>
+                  </div>
                   <p class="mt-2 text-xs text-gray-400">
                     {{ item.authorName }} · {{ item.category }}
                   </p>
                 </div>
-                <label class="shrink-0">
-                  <span class="sr-only">Status for {{ item.title }}</span>
-                  <Select
-                    :model-value="item.status"
-                    :options="[
-                      { value: 'reviewing', label: 'Reviewing' },
-                      { value: 'planned', label: 'Planned' },
-                      { value: 'in_progress', label: 'In progress' },
-                      { value: 'shipped', label: 'Shipped' },
-                      { value: 'closed', label: 'Closed' }
-                    ]"
-                    class="min-h-10 rounded-lg border-0 bg-gray-50 px-3 text-sm focus:ring-2 focus:ring-gray-400 dark:bg-gray-900"
-                    @change="moveFeedback(item, $event)"
-                  />
-                </label>
+                <div class="flex shrink-0 items-center gap-3">
+                  <label>
+                    <span class="sr-only">Status for {{ item.title }}</span>
+                    <Select
+                      :model-value="item.status"
+                      :options="[
+                        { value: 'reviewing', label: 'Reviewing' },
+                        { value: 'planned', label: 'Planned' },
+                        { value: 'in_progress', label: 'In progress' },
+                        { value: 'shipped', label: 'Shipped' },
+                        { value: 'closed', label: 'Closed' }
+                      ]"
+                      class="min-h-10 rounded-lg border-0 bg-gray-50 px-3 text-sm focus:ring-2 focus:ring-gray-400 dark:bg-gray-900"
+                      @change="moveFeedback(item, $event)"
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    class="text-sm text-red-600 hover:underline"
+                    :aria-label="`Delete ${item.title}`"
+                    @click="feedbackToDelete = item"
+                  >
+                    Delete
+                  </button>
+                </div>
               </div>
             </article>
             <p
@@ -656,7 +730,9 @@ onUnmounted(() => {
                   :key="item.publicId"
                   class="rounded-xl bg-gray-50 p-4 dark:bg-gray-900"
                 >
-                  <h3 class="text-sm font-medium">{{ item.title }}</h3>
+                  <h3 class="text-sm font-medium">
+                    <Link :href="feedbackLink(item)">{{ item.title }}</Link>
+                  </h3>
                   <p class="mt-2 text-xs text-gray-400">
                     ▲ {{ item.voteCount }}
                   </p>
@@ -1260,4 +1336,16 @@ onUnmounted(() => {
       </Tabs>
     </main>
   </div>
+  <ConfirmModal
+    :show="Boolean(feedbackToDelete)"
+    title="Delete feedback?"
+    :message="`Delete “${
+      feedbackToDelete?.title || ''
+    }” and its votes and attachments? This cannot be undone.`"
+    confirm-label="Delete feedback"
+    destructive
+    :loading="deletingFeedback"
+    @confirm="deleteFeedback"
+    @cancel="feedbackToDelete = null"
+  />
 </template>

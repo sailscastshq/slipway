@@ -863,3 +863,188 @@ function expectHeadValue(expect, head, selector, expected) {
 function escapeRegExp(value) {
   return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
+
+test(
+  'Bearing managers can inspect and delete feedback without exposing other apps',
+  {
+    world: {
+      name: 'configured-slipway',
+      context: {
+        deploymentTarget: {
+          slug: 'feedback-management',
+          name: 'Feedback Management'
+        }
+      }
+    }
+  },
+  async ({ sails, world, request, visit, expect }) => {
+    const current = world.current
+    const app = current.apps.web
+    const environment = current.environments.production
+    const project = current.projects.deploymentTarget
+    const path = bearingPath(project, environment, app)
+    const space = await sails.models.bearingspace
+      .create({
+        publicSlug: 'delete-feedback',
+        app: app.id,
+        createdBy: current.users.genesisUser.id
+      })
+      .fetch()
+    const feedback = await sails.models.bearingfeedback
+      .create({
+        title: 'Read all of this feedback',
+        details: 'First line\nSecond line\nLast line',
+        app: app.id,
+        space: space.id
+      })
+      .fetch()
+    await sails.models.bearingvote.create({
+      voterKey: 'delete-feedback-vote',
+      feedback: feedback.id,
+      space: space.id
+    })
+    const update = await sails.models.bearingupdate
+      .create({
+        title: 'Related update',
+        slug: 'related-update',
+        excerpt: 'A related update',
+        body: 'Shipped',
+        app: app.id,
+        space: space.id,
+        author: current.users.genesisUser.id
+      })
+      .fetch()
+    await sails.models.bearingupdatelink.create({
+      linkKey: 'delete-feedback-link',
+      update: update.id,
+      feedback: feedback.id,
+      space: space.id
+    })
+    const detail = await visit.as('genesisUser')(
+      `${path}?view=feedback&publicId=${feedback.publicId}`
+    )
+    expect(detail).toHaveInertiaProps({
+      'focusedFeedback.publicId': feedback.publicId,
+      'focusedFeedback.details': feedback.details,
+      'focusedFeedback.images': []
+    })
+    const member = await world.create('user').with({
+      email: 'feedback-delete-member@example.com',
+      team: current.teams.genesisTeam.id,
+      teamRole: 'member'
+    })
+    const memberClient = await withCsrfFromPage(request, '/', member)
+    const denied = await memberClient.request.delete(
+      `${path}/feedback/${feedback.publicId}`
+    )
+    expect(denied).toHaveHeader('x-inertia-location', '/')
+    expect(await sails.models.bearingfeedback.count({ id: feedback.id })).toBe(
+      1
+    )
+    const manager = await withCsrfFromPage(request, path, 'genesisUser')
+    const otherApp = await sails.models.app
+      .create({ slug: 'other-feedback-app', environment: environment.id })
+      .fetch()
+    const otherSpace = await sails.models.bearingspace
+      .create({
+        publicSlug: 'other-feedback-space',
+        app: otherApp.id,
+        createdBy: current.users.genesisUser.id
+      })
+      .fetch()
+    const otherFeedback = await sails.models.bearingfeedback
+      .create({
+        title: 'Private to another app',
+        app: otherApp.id,
+        space: otherSpace.id
+      })
+      .fetch()
+    const crossApp = await manager.request.delete(
+      `${path}/feedback/${otherFeedback.publicId}`
+    )
+    expect(crossApp).toHaveHeader('x-inertia-location', path)
+    expect(
+      await sails.models.bearingfeedback.count({ id: otherFeedback.id })
+    ).toBe(1)
+    const crossAppDetail = await visit.as('genesisUser')(
+      `${path}?view=feedback&publicId=${otherFeedback.publicId}`
+    )
+    expect(crossAppDetail).toRedirectTo(`${path}?view=feedback`)
+    const wrongApp = await manager.request.delete(
+      `${path.replace(`/apps/${app.slug}/`, '/apps/missing-app/')}/feedback/${
+        feedback.publicId
+      }`
+    )
+    expect(wrongApp).toHaveHeader('x-inertia-location', '/')
+    expect(await sails.models.bearingfeedback.count({ id: feedback.id })).toBe(
+      1
+    )
+    const images = [
+      {
+        objectPath: 'bearing/test/image.png',
+        url: 'https://images.example.com/image.png'
+      }
+    ]
+    await sails.models.bearingfeedback
+      .updateOne({ id: feedback.id })
+      .set({ images })
+    const originalStorage = sails.helpers.uploads.getStorageConfig
+    const originalDeleteImages = sails.helpers.bearing.deleteFeedbackImages
+    let removedImages
+    try {
+      sails.helpers.uploads.getStorageConfig = {
+        with: async () => ({ bucket: 'test' })
+      }
+      sails.helpers.bearing.deleteFeedbackImages = {
+        with: async () => {
+          throw new Error('Storage unavailable')
+        }
+      }
+      const failed = await manager.request.delete(
+        `${path}/feedback/${feedback.publicId}`
+      )
+      expect(failed).toHaveHeader(
+        'x-inertia-location',
+        `${path}?view=feedback&publicId=${feedback.publicId}`
+      )
+      expect(
+        await sails.models.bearingfeedback.count({ id: feedback.id })
+      ).toBe(1)
+      expect(
+        await sails.models.bearingvote.count({ feedback: feedback.id })
+      ).toBe(1)
+      sails.helpers.bearing.deleteFeedbackImages = {
+        with: async ({ images }) => {
+          removedImages = images
+        }
+      }
+      const deleted = await manager.request.delete(
+        `${path}/feedback/${feedback.publicId}`
+      )
+      expect(deleted).toHaveHeader(
+        'x-inertia-location',
+        `${path}?view=feedback`
+      )
+      expect(removedImages).toEqual(images)
+    } finally {
+      sails.helpers.uploads.getStorageConfig = originalStorage
+      sails.helpers.bearing.deleteFeedbackImages = originalDeleteImages
+    }
+    expect(await sails.models.bearingfeedback.count({ id: feedback.id })).toBe(
+      0
+    )
+    expect(
+      await sails.models.bearingvote.count({ feedback: feedback.id })
+    ).toBe(0)
+    expect(
+      await sails.models.bearingupdatelink.count({ feedback: feedback.id })
+    ).toBe(0)
+    expect(await sails.models.bearingupdate.count({ id: update.id })).toBe(1)
+    expect(
+      await sails.models.auditlog.count({
+        action: 'bearing.feedback.deleted',
+        resourceId: String(feedback.id)
+      })
+    ).toBe(1)
+  }
+)

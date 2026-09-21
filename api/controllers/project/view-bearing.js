@@ -9,6 +9,7 @@ module.exports = {
     slug: { type: 'string', required: true },
     envSlug: { type: 'string', required: true },
     appSlug: { type: 'string', required: true },
+    publicId: { type: 'string', maxLength: 40 },
     view: {
       type: 'string',
       isIn: ['overview', 'feedback', 'roadmap', 'updates', 'settings'],
@@ -22,7 +23,7 @@ module.exports = {
     forbidden: { responseType: 'redirect' }
   },
 
-  fn: async function ({ slug, envSlug, appSlug, view }) {
+  fn: async function ({ slug, envSlug, appSlug, view, publicId }) {
     const resolved = await resolveManager(this.req, {
       slug,
       envSlug,
@@ -62,6 +63,15 @@ module.exports = {
         ])
       : [[], [], [], emptyCounts()]
 
+    const focusedFeedback =
+      publicId && space
+        ? await BearingFeedback.findOne({ publicId, space: space.id }).populate(
+            'author'
+          )
+        : null
+    if (publicId && !focusedFeedback)
+      throw { notFound: `${this.req.path}?view=feedback` }
+
     return {
       page: 'projects/bearing',
       props: {
@@ -78,7 +88,10 @@ module.exports = {
           appUrl
         },
         bearing: serializeSpace(space, app),
-        activeView: view,
+        activeView: publicId ? 'feedback' : view,
+        focusedFeedback: focusedFeedback
+          ? serializeManagerFeedback(focusedFeedback)
+          : null,
         feedback: feedback.map(serializeManagerFeedback),
         attentionFeedback: attentionFeedback.map(serializeManagerFeedback),
         updates: updates.map(serializeManagerUpdate),
@@ -131,6 +144,7 @@ function serializeManagerFeedback(item) {
     publicId: item.publicId,
     title: item.title,
     details: item.details,
+    images: item.images || [],
     category: item.category,
     status: item.status,
     voteCount: item.voteCount,
