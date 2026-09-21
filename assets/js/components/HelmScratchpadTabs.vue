@@ -60,17 +60,26 @@ async function beginRename(tab = activeTab.value) {
   renamingId.value = tab.id
   renameValue.value = tab.name
   await nextTick()
+  renameInput.value?.focus()
   renameInput.value?.select()
 }
 
-function commitRename() {
+async function commitRename(returnFocus = false) {
   if (!renamingId.value) return
-  emit('rename', renamingId.value, renameValue.value)
+  const id = renamingId.value
   renamingId.value = ''
+  emit('rename', id, renameValue.value)
+  if (returnFocus) {
+    await nextTick()
+    document.getElementById(`helm-scratchpad-${id}-tab`)?.focus()
+  }
 }
 
-function cancelRename() {
+async function cancelRename() {
+  const id = renamingId.value
   renamingId.value = ''
+  await nextTick()
+  document.getElementById(`helm-scratchpad-${id}-tab`)?.focus()
 }
 
 function setRenameInput(element) {
@@ -111,13 +120,13 @@ function createScratchpad() {
           data-test="helm-scratchpad-rename"
           maxlength="64"
           aria-label="Scratchpad name"
-          class="h-8 w-40 shrink-0 rounded-md bg-white px-2 text-xs font-medium text-gray-900 shadow-sm outline-none ring-1 ring-gray-300 focus:ring-2 focus:ring-gray-400 dark:bg-gray-900 dark:text-white dark:ring-gray-700 dark:focus:ring-gray-600"
-          @blur="commitRename"
-          @keydown.enter.prevent="commitRename"
+          class="focus:border-brand h-8 w-40 shrink-0 rounded-none border-0 border-b border-dashed border-gray-200 bg-transparent px-0.5 text-xs font-medium text-gray-900 outline-none focus:ring-0 dark:border-gray-700 dark:text-white"
+          @blur="commitRename()"
+          @keydown.enter.prevent="commitRename(true)"
           @keydown.escape.prevent="cancelRename"
         />
         <button
-          v-else
+          v-show="renamingId !== tab.id"
           :id="`helm-scratchpad-${tab.id}-tab`"
           type="button"
           :data-value="tab.id"
@@ -131,7 +140,7 @@ function createScratchpad() {
               ? 'font-medium text-gray-900 dark:text-white'
               : 'text-gray-400 hover:text-gray-700 dark:text-gray-500 dark:hover:text-gray-300'
           ]"
-          @dblclick="beginRename(tab)"
+          @click="tab.id === activeId && beginRename(tab)"
         >
           <span class="truncate">{{ tab.name }}</span>
           <span

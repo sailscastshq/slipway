@@ -255,10 +255,24 @@ test(
     expect(await tabs.count()).toBe(2)
     await page.fill('@helm-editor', 'await Creator.find().limit(1)')
 
-    await page.click('@helm-scratchpad-actions-trigger')
-    await page.click('@helm-scratchpad-actions-rename')
-    await page.fill('@helm-scratchpad-rename', 'Creator audit')
-    await page.key('Enter')
+    await tabs.nth(1).click()
+    const rename = page.raw.getByRole('textbox', { name: 'Scratchpad name' })
+    await expect(rename).toBeFocused()
+    expect(
+      await rename.evaluate((el) => getComputedStyle(el).borderBottomStyle)
+    ).toBe('dashed')
+    await rename.fill('Creator audit')
+    await page.screenshot('.tmp/issue-590-helm-rename-light.png')
+    await page.click('@helm-editor')
+    await expect(rename).toHaveCount(0)
+    await tabs.nth(1).click()
+    await rename.fill('Discard this name')
+    await rename.press('Escape')
+    await expect(tabs.nth(1)).toBeFocused()
+    await tabs.nth(1).click()
+    await rename.fill('Creator audit')
+    await rename.press('Enter')
+    await expect(tabs.nth(1)).toBeFocused()
     expect((await tabs.nth(1).textContent()).includes('Creator audit')).toBe(
       true
     )
@@ -331,6 +345,7 @@ test(
 
     await page.reload()
     expect(await tabs.count()).toBe(2)
+    await expect(tabs.nth(1)).toContainText('Creator audit')
     expect(page).toSee('Run JavaScript to see results')
     expect(
       (
@@ -635,7 +650,9 @@ test(
       .grantPermissions(['clipboard-read', 'clipboard-write'])
     await page.raw.route(`**${endpoint}`, async (route) => {
       const { code } = route.request().postDataJSON()
-      const result = code.includes('nested')
+      const result = code.includes('nested records')
+        ? { ...nestedHelmResult(), value: [nestedHelmResult().value.course] }
+        : code.includes('nested')
         ? nestedHelmResult()
         : {
             ...flatHelmResult(),
@@ -721,7 +738,9 @@ test(
     await page.wait('@helm-result-tree')
 
     const tree = page.raw.locator('[data-test="helm-result-tree"]')
-    await tree.locator('summary').filter({ hasText: 'course' }).click()
+    await expect(
+      tree.getByText('Building production Sails applications', { exact: true })
+    ).toBeVisible()
     await tree.locator('summary').filter({ hasText: 'chapters' }).click()
     await tree.locator('summary').filter({ hasText: '0' }).click()
     expect(
@@ -749,6 +768,33 @@ test(
       await page.raw.locator('[data-test="helm-result-raw"]').textContent()
     ).toContain('<img data-helm-xss')
     await page.screenshot('.tmp/issue-269-project-raw-console-dark.png')
+
+    await page.click('@helm-view-tree')
+    await page.fill('@helm-editor', '// nested records\nawait Course.find()')
+    await page.click('@helm-run')
+    await page.wait('@helm-result-tree')
+    await expect(
+      tree.getByText('Building production Sails applications', { exact: true })
+    ).toBeVisible()
+    const record = tree.locator(':scope > li > details').first()
+    await expect(record).toHaveAttribute('open', '')
+    const chapters = record
+      .locator('details')
+      .filter({
+        has: page.raw.locator(':scope > summary', { hasText: 'chapters' })
+      })
+      .first()
+    expect(await chapters.getAttribute('open')).toBe(null)
+    await page.screenshot('.tmp/issue-590-helm-records-dark.png')
+    await record.locator(':scope > summary').click()
+    await expect(
+      tree.getByText('Building production Sails applications', { exact: true })
+    ).not.toBeVisible()
+    await record.locator(':scope > summary').click()
+    await expect(
+      tree.getByText('Building production Sails applications', { exact: true })
+    ).toBeVisible()
+
     expect(page).toHaveNoSmoke()
   }
 )
