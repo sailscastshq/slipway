@@ -38,6 +38,32 @@ SLIPWAY_HELM_HISTORY_MAX_ENTRIES=200
 Pinned entries are exempt from both automatic retention and the default clear
 action. They remain until the user unpins or explicitly deletes them.
 
+## Scratchpads
+
+Scratchpad tabs show only the selected project, environment, and app. Other apps'
+scratchpads remain saved and reappear when you return to those apps. Each tab has
+a direct delete button. Deleting code requires confirmation; deleting the final
+tab leaves an empty workspace, including after reload, until you choose **New
+scratchpad**. Source and tab preferences are stored in this browser, not query
+results.
+
+## Runtime configuration
+
+Helm starts an isolated Node process inside the selected running container. Before
+loading Sails, it reads the app process's launch environment, command arguments,
+and working directory from Linux `/proc`. It then uses Sails' normal rc loader so
+`.sailsrc`, `sails_*` overrides, production configuration, and custom environments
+are honored. Relative SQLite paths resolve from the app's working directory.
+Helm keeps migrations set to `safe` and skips the app bootstrap.
+
+If the running app cannot be identified or multiple distinct app runtimes are
+present, Helm refuses execution instead of guessing which datastore to use.
+Standard Node script and Sails CLI entrypoints are supported. Put environment
+configuration in container variables or Sails configuration: custom changes made
+inside an app entrypoint cannot be recovered from `/proc`, and Node preload/eval
+or env-file launch modes are not supported by runtime discovery. No application
+environment variables or database credentials are included in discovery errors.
+
 ## Production context and write arming
 
 Helm's breadcrumb identifies the active project, environment, and app. Slipway

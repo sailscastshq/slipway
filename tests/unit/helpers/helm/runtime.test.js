@@ -585,6 +585,8 @@ test('project Helm and Bosun Helm delegate to the same bounded runner', async ({
     expect(calls[1].sourceStartLine).toBe(8)
     expect(calls[1].sourceStartColumn).toBe(3)
     expect(calls[1].bootstrapSails).toBe(true)
+    expect(calls[1].containerContext).toBe(true)
+    expect(calls[0].appContext.environment).toBe(sails.config.environment)
   } finally {
     sails.helpers.helm.run = originalRun
   }

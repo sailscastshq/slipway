@@ -1,4 +1,5 @@
 <script setup>
+import X from '@/components/ui/icons/X.vue'
 import Plus from '@/components/ui/icons/Plus.vue'
 import Input from '@/components/ui/input/Input.vue'
 import { computed, nextTick, ref } from 'vue'
@@ -50,7 +51,7 @@ const actions = computed(() => {
       disabled: activeIndex.value >= props.tabs.length - 1
     },
     { key: 'save', label: 'Save as snippet' },
-    { key: 'close', label: 'Close scratchpad', destructive: true }
+    { key: 'close', label: 'Delete scratchpad', destructive: true }
   ]
 })
 
@@ -146,6 +147,16 @@ function createScratchpad() {
           <span v-if="helmScratchpadIsModified(tab)" class="sr-only">
             Modified
           </span>
+        </button>
+        <button
+          v-if="renamingId !== tab.id"
+          type="button"
+          :aria-label="`Delete ${tab.name}`"
+          :disabled="disabled"
+          class="shrink-0 rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-400 dark:hover:bg-gray-800 dark:hover:text-white"
+          @click.stop="emit('close', tab)"
+        >
+          <X class="h-3.5 w-3.5" />
         </button>
       </template>
     </div>

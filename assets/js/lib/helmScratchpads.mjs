@@ -83,7 +83,8 @@ export function parseHelmScratchpadState(value) {
       if (
         typeof targetKey === 'string' &&
         typeof tabId === 'string' &&
-        tabs.some((tab) => tab.id === tabId && tab.target.key === targetKey)
+        (tabId === '' ||
+          tabs.some((tab) => tab.id === tabId && tab.target.key === targetKey))
       ) {
         activeByTarget[targetKey] = tabId
       }

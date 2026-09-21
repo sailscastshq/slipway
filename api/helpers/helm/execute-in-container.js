@@ -85,6 +85,7 @@ module.exports = {
         sourceStartLine,
         sourceStartColumn,
         bootstrapSails: true,
+        containerContext: true,
         executionId,
         signal
       })

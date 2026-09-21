@@ -320,7 +320,7 @@ test(
     )
     await closeScratchpadDialog.waitFor()
     await closeScratchpadDialog
-      .getByRole('button', { name: 'Close scratchpad', exact: true })
+      .getByRole('button', { name: 'Delete scratchpad', exact: true })
       .click()
     expect(await tabs.count()).toBe(2)
 
@@ -384,18 +384,39 @@ test(
     })
     await page.inDarkMode()
     await page.reload()
-    const foreignTab = page.raw.getByRole('tab', { name: /Billing repair/ })
-    expect((await foreignTab.textContent()).includes('Production')).toBe(true)
-    await foreignTab.click()
-    await page.raw
-      .locator('[data-test="confirm-modal"][open]')
-      .waitFor({ state: 'visible' })
-    expect(page).toSee('Open production scratchpad?')
-    expect(page).toSee('Billing / Production / billing.app')
-    await page.raw.waitForTimeout(250)
-    await page.screenshot(
-      '.tmp/issue-276-helm-production-switch-warning-dark.png'
+    await expect(
+      page.raw.getByRole('tab', { name: /Billing repair/ })
+    ).toHaveCount(0)
+    const stored = await page.raw.evaluate(() =>
+      JSON.parse(window.localStorage.getItem('slipway:helm-scratchpads'))
     )
+    expect(stored.tabs.some((tab) => tab.id === 'remote-production-tab')).toBe(
+      true
+    )
+
+    // Every tab has a direct delete button. Deleting the last one stays deleted.
+    while (await tabs.count()) {
+      await page.raw
+        .locator('[data-test="helm-scratchpads"]')
+        .getByRole('button', { name: /^Delete / })
+        .first()
+        .click()
+      const confirmation = page.raw.getByRole('button', {
+        name: 'Delete scratchpad',
+        exact: true
+      })
+      if (await confirmation.isVisible()) await confirmation.click()
+    }
+    await expect(
+      page.raw.getByText('No scratchpads for this app.')
+    ).toBeVisible()
+    await page.reload()
+    await expect(tabs).toHaveCount(0)
+    await expect(
+      page.raw.getByText('No scratchpads for this app.')
+    ).toBeVisible()
+    await page.click('@helm-scratchpad-create')
+    await expect(tabs).toHaveCount(1)
     expect(page).toHaveNoSmoke()
   }
 )
