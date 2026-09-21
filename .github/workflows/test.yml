@@ -7,6 +7,12 @@ on:
   pull_request:
     branches: [main]
 
+# Superseded PR/branch runs add no signal. Reusable release verification keeps
+# its own run ID so a later push cannot cancel a release's checks.
+concurrency:
+  group: tests-${{ github.workflow }}-${{ github.event.pull_request.number || (github.event_name == 'push' && github.ref) || github.run_id }}
+  cancel-in-progress: true
+
 jobs:
   shipwright-assets:
     name: Shipwright assets
@@ -134,7 +140,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        lane: [unit, functional, e2e]
+        lane: [unit, functional]
 
     steps:
       - uses: actions/checkout@v6
@@ -150,23 +156,46 @@ jobs:
       - name: Install dependencies
         run: npm ci --no-audit
 
-      - name: Install Playwright browsers
-        if: matrix.lane == 'e2e'
-        run: |
-          if find tests/e2e/pages -type f -name '*.test.js' | grep -q .; then
-            npx playwright install --with-deps chromium
-          else
-            echo "No browser e2e tests found"
-          fi
-
       - name: Run ${{ matrix.lane }} tests
-        run: npm run test:${{ matrix.lane }}
+        run: npm run test:${{ matrix.lane }} -- --profile
 
+  browser:
+    name: Browser shard (${{ matrix.shard }}/3)
+    timeout-minutes: 15
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: 'npm'
+      - run: npm ci --no-audit
+      - run: npx playwright install --with-deps chromium
+      # Sounding partitions files; each runner retains --test-concurrency=1.
+      - name: Run browser tests
+        run: npm run test:e2e -- --shard=${{ matrix.shard }}/3 --profile
       - name: Upload Sounding browser failure artifacts
-        if: failure() && matrix.lane == 'e2e'
+        if: failure()
         uses: actions/upload-artifact@v6
         with:
-          name: sounding-browser-artifacts
+          name: sounding-browser-artifacts-${{ matrix.shard }}
           path: .tmp/sounding/artifacts
           if-no-files-found: ignore
           retention-days: 7
+
+  e2e:
+    # Preserve the existing required check name and fail if any shard fails,
+    # is cancelled, or is skipped. A green shard alone is not a passing suite.
+    name: Test (e2e)
+    needs: browser
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require every browser shard to pass
+        env:
+          BROWSER_RESULT: ${{ needs.browser.result }}
+        run: test "$BROWSER_RESULT" = success
