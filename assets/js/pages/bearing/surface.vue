@@ -297,7 +297,15 @@ function isoDate(value) {
               </template>
               <template v-else>
                 <div class="flex flex-wrap items-center gap-2.5">
-                  <h2 class="text-base font-semibold">{{ item.title }}</h2>
+                  <h2 class="text-base font-semibold">
+                    <a
+                      :href="`${app.feedbackPath}/${encodeURIComponent(
+                        item.publicId
+                      )}`"
+                      class="hover:underline"
+                      >{{ item.title }}</a
+                    >
+                  </h2>
                   <span
                     class="rounded-full bg-white px-2 py-0.5 text-[11px] font-medium text-gray-600 shadow-sm dark:bg-gray-800 dark:text-gray-300"
                   >
@@ -310,6 +318,24 @@ function isoDate(value) {
                 >
                   {{ item.details }}
                 </p>
+                <div
+                  v-if="item.images?.length"
+                  class="mt-4 flex flex-wrap gap-2"
+                >
+                  <a
+                    v-for="(image, index) in item.images"
+                    :key="image.url"
+                    :href="image.url"
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    <img
+                      :src="image.url"
+                      :alt="`${item.title} — image ${index + 1}`"
+                      class="max-h-32 rounded-lg object-contain"
+                    />
+                  </a>
+                </div>
               </template>
             </article>
           </div>

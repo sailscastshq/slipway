@@ -62,8 +62,22 @@ const navItems = [
   ['updates', 'Updates'],
   ['settings', 'Settings']
 ]
-const selectedView = useQueryState('view', 'overview', {
+const queryView = useQueryState('view', 'overview', {
   validate: (view) => navItems.some(([candidate]) => candidate === view)
+})
+const selectedView = computed({
+  get: () => (props.focusedFeedback ? 'feedback' : queryView.value),
+  set(view) {
+    if (props.focusedFeedback && view !== 'feedback') {
+      router.get(
+        `${bearingPath.value}?view=${view}`,
+        {},
+        { preserveScroll: true }
+      )
+      return
+    }
+    queryView.value = view
+  }
 })
 const tablist = ref(null)
 const copiedSurface = ref(null)
@@ -650,8 +664,8 @@ onUnmounted(() => {
                     {{ item.details }}
                   </p>
                   <div
-                    v-if="focusedFeedback && item.images?.length"
-                    class="mt-4 grid gap-3"
+                    v-if="item.images?.length"
+                    class="mt-4 flex flex-wrap gap-3"
                   >
                     <a
                       v-for="(image, index) in item.images"
@@ -663,7 +677,8 @@ onUnmounted(() => {
                       <img
                         :src="image.url"
                         :alt="`${item.title} — image ${index + 1}`"
-                        class="max-h-96 rounded-lg object-contain"
+                        class="rounded-lg object-contain"
+                        :class="focusedFeedback ? 'max-h-96' : 'max-h-32'"
                       />
                     </a>
                   </div>
