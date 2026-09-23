@@ -473,9 +473,7 @@ onUnmounted(() => {
             </component>
           </div>
 
-          <div
-            class="mt-12 grid gap-12 lg:grid-cols-[minmax(0,1.6fr)_minmax(17rem,0.8fr)] lg:gap-16"
-          >
+          <div class="mt-12 max-w-4xl">
             <section aria-labelledby="bearing-attention-heading">
               <div class="flex items-center justify-between gap-4">
                 <div>
@@ -542,103 +540,6 @@ onUnmounted(() => {
                   New feedback will appear here for review.
                 </p>
               </div>
-            </section>
-
-            <section
-              v-if="publicSurfaces.length"
-              aria-labelledby="bearing-public-surfaces-heading"
-            >
-              <div>
-                <h2
-                  id="bearing-public-surfaces-heading"
-                  class="text-lg font-semibold tracking-tight"
-                >
-                  Public surfaces
-                </h2>
-                <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                  What customers can open on {{ app.name }}.
-                </p>
-              </div>
-              <ul class="mt-5 space-y-5">
-                <li
-                  v-for="surface in publicSurfaces"
-                  :key="surface.key"
-                  :data-test="`bearing-public-surface-${surface.key}`"
-                  class="min-h-16 group flex flex-col items-stretch gap-1 sm:flex-row sm:items-center sm:justify-between sm:gap-3"
-                >
-                  <div class="min-w-0">
-                    <div class="flex items-center gap-2">
-                      <h3 class="text-sm font-medium">{{ surface.label }}</h3>
-                      <span
-                        :class="[
-                          'inline-flex items-center gap-1 text-[11px] font-medium',
-                          surface.enabled
-                            ? 'text-emerald-600 dark:text-emerald-400'
-                            : 'text-gray-400'
-                        ]"
-                      >
-                        <span
-                          :class="[
-                            'size-1.5 rounded-full',
-                            surface.enabled
-                              ? 'bg-emerald-500'
-                              : 'bg-gray-300 dark:bg-gray-600'
-                          ]"
-                        ></span>
-                        {{ surface.enabled ? 'On' : 'Off' }}
-                      </span>
-                    </div>
-                    <p class="mt-1 truncate text-xs text-gray-400">
-                      {{ publicUrlPath(surface.url) }}
-                    </p>
-                  </div>
-                  <div
-                    class="flex w-full shrink-0 items-center justify-end gap-1 sm:w-auto"
-                  >
-                    <template v-if="surface.enabled">
-                      <button
-                        type="button"
-                        class="size-10 inline-flex items-center justify-center rounded-md text-gray-500 hover:bg-gray-50 hover:text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-950 dark:text-gray-400 dark:hover:bg-gray-900 dark:hover:text-white dark:focus-visible:ring-white"
-                        :aria-label="`${
-                          copiedSurface === surface.key ? 'Copied' : 'Copy'
-                        } ${surface.label} link`"
-                        :title="`${
-                          copiedSurface === surface.key ? 'Copied' : 'Copy'
-                        } ${surface.label} link`"
-                        @click="copyPublicUrl(surface)"
-                      >
-                        <Check
-                          v-if="copiedSurface === surface.key"
-                          class="size-4 text-emerald-600 dark:text-emerald-400"
-                        />
-                        <Copy v-else class="size-4" />
-                      </button>
-                      <a
-                        :href="surface.url"
-                        target="_blank"
-                        rel="noreferrer"
-                        class="size-10 inline-flex items-center justify-center rounded-md text-gray-700 hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-950 dark:text-gray-200 dark:hover:bg-gray-900 dark:focus-visible:ring-white"
-                        :aria-label="`Open ${surface.label}`"
-                        :title="`Open ${surface.label}`"
-                      >
-                        <ExternalLink class="size-4" />
-                      </a>
-                    </template>
-                    <button
-                      v-else
-                      type="button"
-                      class="min-h-10 rounded-md px-2 text-xs font-medium text-gray-500 hover:bg-gray-50 hover:text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-950 dark:text-gray-400 dark:hover:bg-gray-900 dark:hover:text-white dark:focus-visible:ring-white"
-                      @click="selectView('settings')"
-                    >
-                      Turn on
-                      <span class="sr-only"> {{ surface.label }}</span>
-                    </button>
-                  </div>
-                </li>
-              </ul>
-              <p class="sr-only" aria-live="polite">
-                {{ copiedSurface ? `${copiedSurface} link copied.` : '' }}
-              </p>
             </section>
           </div>
         </section>
@@ -1272,93 +1173,109 @@ onUnmounted(() => {
               <p
                 class="mt-1 text-sm leading-6 text-gray-500 dark:text-gray-400"
               >
-                Customers see familiar labels on your domain, not the Bearing
-                product name.
+                Share these pages on {{ app.name }}. Roadmap and Updates can be
+                published separately.
               </p>
             </div>
 
-            <div class="mt-5 space-y-4">
-              <div class="px-4">
-                <p class="text-sm font-medium text-gray-950 dark:text-white">
-                  Feedback
-                </p>
-                <a
-                  v-if="publicUrls"
-                  :href="publicUrls.feedback"
-                  target="_blank"
-                  rel="noreferrer"
-                  class="mt-1 block text-xs text-gray-500 hover:text-gray-950 dark:text-gray-400 dark:hover:text-white"
-                >
-                  {{ publicUrls.feedback }}
-                </a>
-              </div>
-
-              <div class="flex items-start justify-between gap-6 px-4">
-                <div>
+            <ul class="mt-5 space-y-5">
+              <li
+                v-for="surface in publicSurfaces"
+                :key="surface.key"
+                :data-test="`bearing-public-surface-${surface.key}`"
+                class="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4"
+              >
+                <div class="min-w-0 flex-1">
                   <p class="text-sm font-medium text-gray-950 dark:text-white">
-                    Roadmap
+                    {{ surface.label }}
                   </p>
-                  <code
-                    v-if="publicUrls"
-                    class="mt-1 block text-xs text-gray-500 dark:text-gray-400"
-                    >{{ publicUrls.roadmap }}</code
+                  <p
+                    class="mt-1 truncate text-xs text-gray-500 dark:text-gray-400"
+                    :title="surface.url"
                   >
-                </div>
-                <button
-                  type="button"
-                  role="switch"
-                  :aria-checked="form.showPublicRoadmap"
-                  aria-label="Show public roadmap"
-                  :class="[
-                    'relative inline-flex h-6 w-10 shrink-0 rounded-full p-0.5 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-gray-950',
-                    form.showPublicRoadmap
-                      ? 'bg-gray-950 dark:bg-white'
-                      : 'bg-gray-300 dark:bg-gray-700'
-                  ]"
-                  @click="toggle('showPublicRoadmap')"
-                >
-                  <span
-                    :class="[
-                      'h-5 w-5 rounded-full bg-white shadow-sm transition dark:bg-gray-950',
-                      form.showPublicRoadmap ? 'translate-x-4' : 'translate-x-0'
-                    ]"
-                  ></span>
-                </button>
-              </div>
-
-              <div class="flex items-start justify-between gap-6 px-4">
-                <div>
-                  <p class="text-sm font-medium text-gray-950 dark:text-white">
-                    Updates
+                    {{ publicUrlPath(surface.url) }}
                   </p>
-                  <code
-                    v-if="publicUrls"
-                    class="mt-1 block text-xs text-gray-500 dark:text-gray-400"
-                    >{{ publicUrls.updates }}</code
-                  >
                 </div>
-                <button
-                  type="button"
-                  role="switch"
-                  :aria-checked="form.showPublicUpdates"
-                  aria-label="Show public updates"
-                  :class="[
-                    'relative inline-flex h-6 w-10 shrink-0 rounded-full p-0.5 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-gray-950',
-                    form.showPublicUpdates
-                      ? 'bg-gray-950 dark:bg-white'
-                      : 'bg-gray-300 dark:bg-gray-700'
-                  ]"
-                  @click="toggle('showPublicUpdates')"
-                >
-                  <span
+                <div class="flex shrink-0 items-center gap-1">
+                  <template v-if="surface.enabled">
+                    <button
+                      type="button"
+                      class="size-10 inline-flex items-center justify-center rounded-md text-gray-500 hover:bg-gray-100 hover:text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-950 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white dark:focus-visible:ring-white"
+                      :aria-label="`${
+                        copiedSurface === surface.key ? 'Copied' : 'Copy'
+                      } ${surface.label} link`"
+                      :title="`${
+                        copiedSurface === surface.key ? 'Copied' : 'Copy'
+                      } ${surface.label} link`"
+                      @click="copyPublicUrl(surface)"
+                    >
+                      <Check
+                        v-if="copiedSurface === surface.key"
+                        class="size-4 text-emerald-600 dark:text-emerald-400"
+                      />
+                      <Copy v-else class="size-4" />
+                    </button>
+                    <a
+                      :href="surface.url"
+                      target="_blank"
+                      rel="noreferrer"
+                      class="size-10 inline-flex items-center justify-center rounded-md text-gray-700 hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-950 dark:text-gray-200 dark:hover:bg-gray-800 dark:focus-visible:ring-white"
+                      :aria-label="`Open ${surface.label}`"
+                      :title="`Open ${surface.label}`"
+                    >
+                      <ExternalLink class="size-4" />
+                    </a>
+                  </template>
+                  <span v-else class="mr-2 text-xs text-gray-400"
+                    >Not published</span
+                  >
+                  <button
+                    v-if="surface.key !== 'feedback'"
+                    type="button"
+                    role="switch"
+                    :aria-checked="
+                      surface.key === 'roadmap'
+                        ? form.showPublicRoadmap
+                        : form.showPublicUpdates
+                    "
+                    :aria-label="`Show public ${surface.label.toLowerCase()}`"
                     :class="[
-                      'h-5 w-5 rounded-full bg-white shadow-sm transition dark:bg-gray-950',
-                      form.showPublicUpdates ? 'translate-x-4' : 'translate-x-0'
+                      'relative ml-2 inline-flex h-6 w-10 shrink-0 rounded-full p-0.5 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-gray-950',
+                      (
+                        surface.key === 'roadmap'
+                          ? form.showPublicRoadmap
+                          : form.showPublicUpdates
+                      )
+                        ? 'bg-gray-950 dark:bg-white'
+                        : 'bg-gray-300 dark:bg-gray-700'
                     ]"
-                  ></span>
-                </button>
-              </div>
-            </div>
+                    @click="
+                      toggle(
+                        surface.key === 'roadmap'
+                          ? 'showPublicRoadmap'
+                          : 'showPublicUpdates'
+                      )
+                    "
+                  >
+                    <span
+                      :class="[
+                        'h-5 w-5 rounded-full bg-white shadow-sm transition dark:bg-gray-950',
+                        (
+                          surface.key === 'roadmap'
+                            ? form.showPublicRoadmap
+                            : form.showPublicUpdates
+                        )
+                          ? 'translate-x-4'
+                          : 'translate-x-0'
+                      ]"
+                    ></span>
+                  </button>
+                </div>
+              </li>
+            </ul>
+            <p class="sr-only" aria-live="polite">
+              {{ copiedSurface ? `${copiedSurface} link copied.` : '' }}
+            </p>
           </section>
 
           <section aria-labelledby="bearing-widget-heading">

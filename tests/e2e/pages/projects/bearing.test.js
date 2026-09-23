@@ -91,6 +91,15 @@ test(
     await expect(page).toSee('Feature')
     await expect(page).toSee('Bug')
     await expect(page).toSee('In-app widget')
+    await expect(page).toSee('Public pages')
+    await expect(
+      page.raw.locator('[data-test="bearing-public-surface-feedback"]')
+    ).toContainText('product.example.com/bearing/feedback')
+    await expect(
+      page.raw
+        .locator('[data-test="bearing-public-surface-feedback"]')
+        .getByRole('link', { name: 'Open Feedback' })
+    ).toHaveAttribute('href', 'https://product.example.com/bearing/feedback')
     expect(
       await page.raw
         .getByRole('radio', { name: 'Logged-in users only' })
@@ -101,6 +110,15 @@ test(
     await page.screenshot(path.join(screenshotRoot, 'settings-default.png'), {
       fullPage: true
     })
+    await page.raw
+      .getByRole('heading', { name: 'Public pages' })
+      .scrollIntoViewIfNeeded()
+    await page.screenshot(
+      path.join(screenshotRoot, 'settings-public-pages.png'),
+      {
+        animations: 'disabled'
+      }
+    )
     await page.raw.emulateMedia({ colorScheme: 'dark' })
     await page.screenshot(path.join(screenshotRoot, 'settings-dark.png'), {
       fullPage: true,
@@ -116,6 +134,15 @@ test(
     await page.screenshot(path.join(screenshotRoot, 'settings-mobile.png'), {
       fullPage: true
     })
+    await page.raw
+      .getByRole('heading', { name: 'Public pages' })
+      .scrollIntoViewIfNeeded()
+    await page.screenshot(
+      path.join(screenshotRoot, 'settings-public-pages-mobile.png'),
+      {
+        animations: 'disabled'
+      }
+    )
     await page.raw.emulateMedia({ colorScheme: 'dark' })
     await page.screenshot(
       path.join(screenshotRoot, 'settings-mobile-dark.png'),
@@ -180,21 +207,10 @@ test(
 
       if (view === 'overview') {
         await expect(page).toSee('Needs attention')
-        await expect(page).toSee('Public surfaces')
+        await expect(page.raw.getByText('Public pages')).toHaveCount(0)
         await expect(
           page.raw.locator('[data-test="bearing-metric-feedback"]')
         ).toContainText('3')
-        await expect(
-          page.raw.locator('[data-test="bearing-public-surface-feedback"]')
-        ).toContainText('On')
-        await expect(
-          page.raw
-            .locator('[data-test="bearing-public-surface-feedback"]')
-            .getByRole('link', { name: /Open Feedback/ })
-        ).toHaveAttribute(
-          'href',
-          'https://product.example.com/bearing/feedback'
-        )
 
         await page.raw.emulateMedia({ colorScheme: 'dark' })
         await page.raw.waitForTimeout(100)
@@ -211,16 +227,6 @@ test(
         await page.screenshot(
           path.join(screenshotRoot, 'operator-overview-mobile.png'),
           { fullPage: true, animations: 'disabled' }
-        )
-        await page.raw
-          .locator('[data-test="bearing-public-surface-updates"]')
-          .scrollIntoViewIfNeeded()
-        await page.screenshot(
-          path.join(
-            screenshotRoot,
-            'operator-overview-mobile-public-surfaces.png'
-          ),
-          { animations: 'disabled' }
         )
         await page.resize(1440, 1000)
       } else {
@@ -284,13 +290,13 @@ test(
     await sails.models.bearingspace
       .updateOne({ id: space.id })
       .set({ showPublicRoadmap: false })
-    await page.goto(`${bearingPath}?view=overview`)
+    await page.goto(`${bearingPath}?view=settings`)
     const disabledRoadmap = page.raw.locator(
       '[data-test="bearing-public-surface-roadmap"]'
     )
-    await expect(disabledRoadmap).toContainText('Off')
+    await expect(disabledRoadmap).toContainText('Not published')
     await expect(
-      disabledRoadmap.getByRole('button', { name: /Turn on Roadmap/ })
+      disabledRoadmap.getByRole('switch', { name: 'Show public roadmap' })
     ).toBeVisible()
     await expect(disabledRoadmap.getByRole('link')).toHaveCount(0)
 
