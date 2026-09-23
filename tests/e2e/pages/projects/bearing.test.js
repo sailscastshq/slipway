@@ -166,20 +166,19 @@ test(
     }
     page.raw.on('request', recordTabInertiaRequest)
 
-    await page.raw.getByRole('tab', { name: 'Overview' }).click()
+    await page.goto(bearingPath)
     await page.raw.waitForFunction(() => window.location.search === '')
     await expect(
-      page.raw.getByRole('tabpanel', { name: 'Overview' })
+      page.raw.getByRole('tabpanel', { name: 'Feedback' })
     ).toBeVisible()
-
-    await page.raw.getByRole('tab', { name: 'Feedback' }).click()
-    await page.raw.waitForFunction(
-      () =>
-        new URLSearchParams(window.location.search).get('view') === 'feedback'
-    )
     await expect(
       page.raw.getByRole('tab', { name: 'Feedback' })
     ).toHaveAttribute('aria-selected', 'true')
+    await page.goto(`${bearingPath}?view=overview`)
+    await expect(
+      page.raw.getByRole('tabpanel', { name: 'Feedback' })
+    ).toBeVisible()
+    await page.goto(bearingPath)
 
     await page.raw.getByRole('tab', { name: 'Feedback' }).press('ArrowRight')
     await expect(
@@ -191,7 +190,7 @@ test(
     ).toHaveAttribute('aria-selected', 'true')
     expect(tabInertiaRequests).toEqual([])
 
-    for (const view of ['overview', 'feedback', 'roadmap']) {
+    for (const view of ['feedback', 'roadmap']) {
       const label = view[0].toUpperCase() + view.slice(1)
       const tab = page.raw.getByRole('tab', { name: label })
       await tab.click()
@@ -205,45 +204,19 @@ test(
         animations: 'disabled'
       })
 
-      if (view === 'overview') {
-        await expect(page).toSee('Needs attention')
-        await expect(page.raw.getByText('Public pages')).toHaveCount(0)
-        await expect(
-          page.raw.locator('[data-test="bearing-metric-feedback"]')
-        ).toContainText('3')
-
-        await page.raw.emulateMedia({ colorScheme: 'dark' })
-        await page.raw.waitForTimeout(100)
-        await page.screenshot(
-          path.join(screenshotRoot, 'operator-overview-dark.png'),
-          { fullPage: true, animations: 'disabled' }
-        )
-        await page.raw.emulateMedia({ colorScheme: 'light' })
-
-        await page.resize(390, 844)
-        await expect(
-          page.raw.getByRole('tab', { name: 'Overview' })
-        ).toBeInViewport()
-        await page.screenshot(
-          path.join(screenshotRoot, 'operator-overview-mobile.png'),
-          { fullPage: true, animations: 'disabled' }
-        )
-        await page.resize(1440, 1000)
-      } else {
-        await page.raw.emulateMedia({ colorScheme: 'dark' })
-        await page.screenshot(
-          path.join(screenshotRoot, `operator-${view}-dark.png`),
-          { fullPage: true, animations: 'disabled' }
-        )
-        await page.raw.emulateMedia({ colorScheme: 'light' })
-        await page.resize(390, 844)
-        await expect(tab).toBeInViewport()
-        await page.screenshot(
-          path.join(screenshotRoot, `operator-${view}-mobile.png`),
-          { fullPage: true, animations: 'disabled' }
-        )
-        await page.resize(1440, 1000)
-      }
+      await page.raw.emulateMedia({ colorScheme: 'dark' })
+      await page.screenshot(
+        path.join(screenshotRoot, `operator-${view}-dark.png`),
+        { fullPage: true, animations: 'disabled' }
+      )
+      await page.raw.emulateMedia({ colorScheme: 'light' })
+      await page.resize(390, 844)
+      await expect(tab).toBeInViewport()
+      await page.screenshot(
+        path.join(screenshotRoot, `operator-${view}-mobile.png`),
+        { fullPage: true, animations: 'disabled' }
+      )
+      await page.resize(1440, 1000)
     }
     page.raw.off('request', recordTabInertiaRequest)
 

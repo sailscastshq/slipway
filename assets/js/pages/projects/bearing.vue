@@ -1,6 +1,5 @@
 <script setup>
 import Check from '@/components/ui/icons/Check.vue'
-import ChevronRight from '@/components/ui/icons/ChevronRight.vue'
 import Copy from '@/components/ui/icons/Copy.vue'
 import ExternalLink from '@/components/ui/icons/ExternalLink.vue'
 import SidebarClose from '@/components/ui/icons/SidebarClose.vue'
@@ -34,12 +33,9 @@ const props = defineProps({
   environment: Object,
   app: Object,
   bearing: Object,
-  activeView: String,
   feedback: Array,
   focusedFeedback: Object,
-  attentionFeedback: Array,
   updates: Array,
-  counts: Object,
   publicUrls: Object,
   uploadsConfigured: Boolean,
   hookDetected: Boolean
@@ -59,13 +55,12 @@ const updateImageUploadPath = computed(
     `/api/v1/projects/${props.project.slug}/environments/${props.environment.slug}/apps/${props.app.slug}/bearing/updates/images`
 )
 const navItems = [
-  ['overview', 'Overview'],
   ['feedback', 'Feedback'],
   ['roadmap', 'Roadmap'],
   ['updates', 'Updates'],
   ['settings', 'Settings']
 ]
-const queryView = useQueryState('view', 'overview', {
+const queryView = useQueryState('view', 'feedback', {
   validate: (view) => navItems.some(([candidate]) => candidate === view)
 })
 const selectedView = computed({
@@ -91,17 +86,6 @@ const roadmapGroups = computed(() =>
     items: props.feedback.filter((item) => item.status === status)
   }))
 )
-const overviewMetrics = computed(() => [
-  { label: 'Feedback', value: props.counts.feedback, view: 'feedback' },
-  { label: 'Votes', value: props.counts.votes, view: 'feedback' },
-  { label: 'Planned', value: props.counts.planned, view: 'roadmap' },
-  { label: 'People', value: props.counts.participants },
-  {
-    label: 'Updates',
-    value: props.counts.publishedUpdates,
-    view: 'updates'
-  }
-])
 const publicSurfaces = computed(() => {
   if (!props.publicUrls) return []
 
@@ -432,120 +416,7 @@ onUnmounted(() => {
         </div>
 
         <section
-          v-if="selectedView === 'overview'"
-          id="bearing-panel-overview"
-          data-slot="tab-panel"
-          data-value="overview"
-          class="mt-9"
-        >
-          <div
-            class="grid grid-cols-2 gap-x-7 gap-y-1 min-[360px]:grid-cols-3 sm:grid-cols-5"
-          >
-            <component
-              :is="metric.view ? 'button' : 'div'"
-              v-for="metric in overviewMetrics"
-              :key="metric.label"
-              :data-test="`bearing-metric-${metric.label.toLowerCase()}`"
-              :type="metric.view ? 'button' : undefined"
-              :class="[
-                'group py-2 text-left',
-                metric.view
-                  ? 'rounded-sm transition hover:text-gray-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-950 dark:hover:text-gray-300 dark:focus-visible:ring-white'
-                  : ''
-              ]"
-              @click="metric.view && selectView(metric.view)"
-            >
-              <p
-                class="flex items-center gap-1 text-xs font-medium text-gray-500 dark:text-gray-400"
-              >
-                <span>{{ metric.label }}</span>
-                <ChevronRight
-                  v-if="metric.view"
-                  aria-hidden="true"
-                  class="size-3 opacity-0 transition group-hover:opacity-100 group-focus-visible:opacity-100"
-                />
-              </p>
-              <p
-                class="mt-1 text-3xl font-semibold tabular-nums tracking-tight"
-              >
-                {{ metric.value }}
-              </p>
-            </component>
-          </div>
-
-          <div class="mt-12 max-w-4xl">
-            <section aria-labelledby="bearing-attention-heading">
-              <div class="flex items-center justify-between gap-4">
-                <div>
-                  <h2
-                    id="bearing-attention-heading"
-                    class="text-lg font-semibold tracking-tight"
-                  >
-                    Needs attention
-                  </h2>
-                  <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                    Feedback waiting for a decision.
-                  </p>
-                </div>
-                <button
-                  v-if="attentionFeedback.length"
-                  type="button"
-                  class="min-h-10 shrink-0 rounded-lg px-2.5 text-xs font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-950 dark:text-gray-400 dark:hover:bg-gray-900 dark:hover:text-white dark:focus-visible:ring-white"
-                  @click="selectView('feedback')"
-                >
-                  View all
-                </button>
-              </div>
-              <ul v-if="attentionFeedback.length" class="mt-5 space-y-2">
-                <li v-for="item in attentionFeedback" :key="item.publicId">
-                  <button
-                    type="button"
-                    class="min-h-20 group flex w-full items-center justify-between gap-4 rounded-xl bg-gray-50 px-4 py-3 text-left transition hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-950 dark:bg-gray-900 dark:hover:bg-gray-800 dark:focus-visible:ring-white"
-                    @click="router.get(feedbackLink(item))"
-                  >
-                    <img
-                      v-if="item.images?.length"
-                      :src="item.images[0].url"
-                      :alt="`${item.title} — image 1`"
-                      class="h-12 w-16 shrink-0 rounded-md object-cover"
-                    />
-                    <span class="min-w-0 flex-1">
-                      <span
-                        class="block break-words text-base font-medium tracking-tight"
-                        >{{ item.title }}</span
-                      >
-                      <span
-                        class="mt-1.5 block text-xs capitalize text-gray-500 dark:text-gray-400"
-                        >{{ item.category }}</span
-                      >
-                    </span>
-                    <span
-                      class="flex shrink-0 items-center gap-4 text-xs tabular-nums text-gray-400"
-                    >
-                      ▲ {{ item.voteCount }}
-                      <ChevronRight
-                        aria-hidden="true"
-                        class="size-4 transition-transform group-hover:translate-x-0.5"
-                      />
-                    </span>
-                  </button>
-                </li>
-              </ul>
-              <div
-                v-else
-                class="mt-5 rounded-xl bg-gray-50 px-5 py-6 dark:bg-gray-900"
-              >
-                <p class="text-sm font-medium">You are caught up.</p>
-                <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                  New feedback will appear here for review.
-                </p>
-              </div>
-            </section>
-          </div>
-        </section>
-
-        <section
-          v-else-if="selectedView === 'feedback'"
+          v-if="selectedView === 'feedback'"
           id="bearing-panel-feedback"
           data-slot="tab-panel"
           data-value="feedback"
@@ -553,15 +424,19 @@ onUnmounted(() => {
         >
           <div class="flex items-end justify-between gap-4">
             <div>
-              <h2 class="text-base font-semibold">Customer feedback</h2>
+              <h2 class="text-base font-semibold">Review feedback</h2>
               <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                Review requests without losing the customer behind them.
+                Customer requests from this app.
               </p>
             </div>
             <span
               v-if="!focusedFeedback"
               class="hidden shrink-0 text-sm text-gray-400 sm:inline"
-              >{{ feedback.length }} requests</span
+              >{{
+                feedback.length === 100
+                  ? 'Latest 100 requests'
+                  : `${feedback.length} requests`
+              }}</span
             >
           </div>
           <Link

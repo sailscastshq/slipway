@@ -131,14 +131,14 @@ test(
 )
 
 test(
-  'Bearing overview totals stay exact beyond the bounded management lists',
+  'Bearing feedback landing stays bounded without overview aggregates',
   {
     world: {
       name: 'configured-slipway',
       context: {
         deploymentTarget: {
-          slug: 'bearing-exact-overview-counts',
-          name: 'Bearing Exact Overview Counts'
+          slug: 'bearing-bounded-feedback-list',
+          name: 'Bearing Bounded Feedback List'
         }
       }
     }
@@ -150,7 +150,7 @@ test(
     const project = current.projects.deploymentTarget
     const space = await sails.models.bearingspace
       .create({
-        publicSlug: 'exact-overview-counts',
+        publicSlug: 'bounded-feedback-list',
         app: app.id,
         createdBy: current.users.genesisUser.id
       })
@@ -169,18 +169,6 @@ test(
       await sails.models.bearingfeedback.create(feedback)
     }
     const now = Date.now()
-    for (const participant of Array.from({ length: 101 }, (_, index) => ({
-      participantKey: `generated-by-lifecycle-${index}`,
-      hostUserId: `customer-${index}`,
-      displayName: `Customer ${index}`,
-      email: `customer-${index}@example.com`,
-      emailVerifiedAt: now,
-      firstSeenAt: now,
-      lastSeenAt: now,
-      space: space.id
-    }))) {
-      await sails.models.bearingparticipant.create(participant)
-    }
     for (const update of Array.from({ length: 51 }, (_, index) => ({
       publicId: `bup_exact_${index}`,
       title: `Update ${index + 1}`,
@@ -202,16 +190,9 @@ test(
 
     expect(page).toHaveStatus(200)
     expect(page.data.props.feedback.length).toBe(100)
-    expect(page.data.props.participants).toBe(undefined)
     expect(page.data.props.updates.length).toBe(50)
-    expect(page.data.props.attentionFeedback.length).toBe(5)
-    expect(page.data.props.counts).toEqual({
-      feedback: 101,
-      votes: 202,
-      planned: 1,
-      participants: 101,
-      publishedUpdates: 51
-    })
+    expect(page.data.props.attentionFeedback).toBe(undefined)
+    expect(page.data.props.counts).toBe(undefined)
   }
 )
 
