@@ -132,17 +132,20 @@ function uploadRequest(files, started) {
         upload(options, done) {
           started.push(field)
           const incoming = files[field]
-          options.saveAs(incoming, (error, generatedName) => {
-            if (error) return done(error)
-            done(null, [
-              {
-                fd: `${options.dirname}/${generatedName}`,
-                filename: incoming.filename,
-                size: incoming.size,
-                type: incoming.type
-              }
-            ])
-          })
+          options.saveAs(
+            { ...incoming, headers: { 'content-type': incoming.type } },
+            (error, generatedName) => {
+              if (error) return done(error)
+              done(null, [
+                {
+                  fd: `${options.dirname}/${generatedName}`,
+                  filename: incoming.filename,
+                  size: incoming.size,
+                  type: incoming.type
+                }
+              ])
+            }
+          )
         }
       }
     }

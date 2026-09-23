@@ -130,37 +130,52 @@ function uploadField({ req, upstream, field, storage, directory, publicBase }) {
         dirname: directory,
         maxBytes: MAX_IMAGE_BYTES,
         saveAs: (incoming, proceed) => {
-          const extension = IMAGE_EXTENSIONS[incoming.type]
-          if (!extension) {
-            const error = new Error(
-              'Choose an AVIF, GIF, JPEG, PNG, or WebP image.'
-            )
-            error.code = 'BEARING_UPLOAD_TYPE_NOT_ALLOWED'
-            proceed(error)
-            return
-          }
-          proceed(null, `${crypto.randomUUID()}.${extension}`)
+          const type = incoming.headers?.['content-type']
+          // Skipper's incoming stream has headers, not a `type` property. A
+          // saveAs error can leave its multipart stream pending, so stage an
+          // unsupported type and reject it after the receiver finishes.
+          proceed(
+            null,
+            `${crypto.randomUUID()}.${IMAGE_EXTENSIONS[type] || 'bin'}`
+          )
         }
       },
-      (error, files) => {
+      async (error, files) => {
         if (error) {
           reject(normalizeUploadError(error))
           return
         }
 
-        resolve(
-          (files || []).map((file) => {
-            const fileName = String(file.fd).split('/').pop()
-            const objectPath = `${directory}/${fileName}`
-            return {
-              url: `${publicBase}/${objectPath}`,
-              objectPath,
-              name: fileName,
-              size: file.size,
-              type: file.type
-            }
-          })
-        )
+        const images = (files || []).map((file) => {
+          const fileName = String(file.fd).split('/').pop()
+          const objectPath = `${directory}/${fileName}`
+          return {
+            url: `${publicBase}/${objectPath}`,
+            objectPath,
+            name: fileName,
+            size: file.size,
+            type: file.type
+          }
+        })
+        if (images.some((image) => !IMAGE_EXTENSIONS[image.type])) {
+          try {
+            await sails.helpers.bearing.deleteFeedbackImages.with({
+              storage,
+              images
+            })
+          } catch (cleanupError) {
+            sails.log.warn(
+              `Could not clean up a rejected Bearing image: ${cleanupError.message}`
+            )
+          }
+          const invalid = new Error(
+            'Choose an AVIF, GIF, JPEG, PNG, or WebP image.'
+          )
+          invalid.code = 'BEARING_UPLOAD_TYPE_NOT_ALLOWED'
+          reject(invalid)
+          return
+        }
+        resolve(images)
       }
     )
   })

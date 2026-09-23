@@ -451,6 +451,8 @@ module.exports.routes = {
     'bearing/view-feedback',
   'POST /_slipway/bearing/host/:projectSlug/:environmentSlug/:appSlug/feedback':
     'bearing/create-feedback',
+  'POST /_slipway/bearing/host/:projectSlug/:environmentSlug/:appSlug/feedback/:publicId/images':
+    'bearing/add-feedback-images',
   'POST /_slipway/bearing/host/:projectSlug/:environmentSlug/:appSlug/feedback/:publicId/vote':
     'bearing/toggle-vote',
   'GET /_slipway/bearing/host/:projectSlug/:environmentSlug/:appSlug/realtime':
