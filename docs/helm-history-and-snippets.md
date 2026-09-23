@@ -55,6 +55,9 @@ and working directory from Linux `/proc`. It then uses Sails' normal rc loader s
 `.sailsrc`, `sails_*` overrides, production configuration, and custom environments
 are honored. Relative SQLite paths resolve from the app's working directory.
 Helm keeps migrations set to `safe` and skips the app bootstrap.
+It also disables Quest auto-start for this temporary lift, while leaving
+`sails.quest` available for explicit calls, so opening Helm does not start
+another copy of scheduled jobs.
 
 If the running app cannot be identified or multiple distinct app runtimes are
 present, Helm refuses execution instead of guessing which datastore to use.

@@ -55,6 +55,9 @@ test('Helm inherits the running app environment without allowing automigrations'
 
   expect(runner.includes("environment: 'console'")).toBe(false)
   expect(runner).toContain("migrate: 'safe'")
+  expect(runner).toContain('autoStart: false')
+  expect(runner).toContain('quest: {')
+  expect(runner.includes('quest: false')).toBe(false)
 })
 
 test('Helm captures parser-backed inline inspections without changing expression values', async ({
