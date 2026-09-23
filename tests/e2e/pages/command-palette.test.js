@@ -10,7 +10,18 @@ const screenshotRoot = path.resolve(
 
 test(
   'command palette preserves its visual and interaction contract with Klean Command',
-  { browser: true, world: 'configured-slipway' },
+  {
+    browser: true,
+    world: {
+      name: 'configured-slipway',
+      context: {
+        deploymentTarget: {
+          slug: 'palette-on-demand',
+          name: 'Palette on demand'
+        }
+      }
+    }
+  },
   async ({ world, login, page, expect }) => {
     fs.mkdirSync(screenshotRoot, { recursive: true })
 
@@ -34,6 +45,9 @@ test(
       'input[placeholder="Type a command or search..."]'
     )
     await expect(input).toBeVisible()
+    await expect(
+      page.raw.getByText('Loading projects, apps, and services…')
+    ).toBeHidden()
     await page.raw.mouse.move(720, 463)
     await page.wait(100)
     await page.screenshot(
@@ -85,6 +99,13 @@ test(
       await page.key('Enter')
       await expect(
         page.raw.getByText('Commands', { exact: true })
+      ).toBeVisible()
+      await expect(
+        page.raw
+          .getByRole('listbox', { name: 'Slipway commands results' })
+          .getByText(world.current.projects.deploymentTarget.name, {
+            exact: true
+          })
       ).toBeVisible()
       await page.key('Backspace')
       await expect(page.raw.getByText('Commands', { exact: true })).toBeHidden()

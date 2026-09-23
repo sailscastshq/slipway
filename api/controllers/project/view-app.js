@@ -1,5 +1,10 @@
 const domainReadiness = require('../../lib/domain-readiness')
 
+function once(callback) {
+  let pending
+  return () => (pending ||= Promise.resolve().then(callback))
+}
+
 module.exports = {
   friendlyName: 'View app',
 
@@ -69,194 +74,230 @@ module.exports = {
     })
     if (!app) throw { notFound: `/projects/${slug}/environments/${envSlug}` }
 
-    // Decrypt app to get envVars
-    const decryptedApp = await App.findOne({ id: app.id }).decrypt()
-
-    // Check container health for this app
-    let containerHealth = null
-    let containerStatus = null
-    if (app.containerName) {
-      try {
-        containerStatus = await sails.helpers.docker.getContainerStatus(
-          app.containerName
-        )
-        containerHealth = containerStatus.health
-      } catch (err) {
-        if (err.code === 'notFound' || err === 'notFound') {
-          await App.updateOne({ id: app.id }).set({ status: 'stopped' })
-          app.status = 'stopped'
-        }
-      }
-    }
-
-    const serverIp = await sails.helpers.getServerIp()
-    let directAccess = null
-    if (app.hostPort && app.routePath !== null) {
-      let portBinding = null
-      if (app.containerName && containerStatus?.running) {
+    const loadContainerState = once(async () => {
+      let containerHealth = null
+      let containerStatus = null
+      if (app.containerName) {
         try {
-          portBinding = await sails.helpers.docker.getPortBinding.with({
-            containerName: app.containerName,
-            containerPort: app.port || 1337,
-            hostPort: app.hostPort,
-            host: sails.config.custom.slipwayPortHost || '127.0.0.1'
-          })
-        } catch (error) {
-          portBinding = {
-            valid: false,
-            diagnostic: error.message || String(error)
+          containerStatus = await sails.helpers.docker.getContainerStatus(
+            app.containerName
+          )
+          containerHealth = containerStatus.health
+        } catch (err) {
+          if (err.code === 'notFound' || err === 'notFound') {
+            await App.updateOne({ id: app.id }).set({ status: 'stopped' })
+            app.status = 'stopped'
           }
         }
       }
+      return { containerHealth, containerStatus }
+    })
+    const loadAccess = once(async () => {
+      const { containerHealth, containerStatus } = await loadContainerState()
+      const serverIp = await sails.helpers.getServerIp()
+      let directAccess = null
+      if (app.hostPort && app.routePath !== null) {
+        let portBinding = null
+        if (app.containerName && containerStatus?.running) {
+          try {
+            portBinding = await sails.helpers.docker.getPortBinding.with({
+              containerName: app.containerName,
+              containerPort: app.port || 1337,
+              hostPort: app.hostPort,
+              host: sails.config.custom.slipwayPortHost || '127.0.0.1'
+            })
+          } catch (error) {
+            portBinding = {
+              valid: false,
+              diagnostic: error.message || String(error)
+            }
+          }
+        }
 
-      directAccess = await sails.helpers.deploy.getDirectAccess.with({
+        directAccess = await sails.helpers.deploy.getDirectAccess.with({
+          serverIp,
+          hostPort: app.hostPort,
+          routePath: app.routePath,
+          containerRunning: containerStatus
+            ? Boolean(containerStatus.running)
+            : app.status === 'running',
+          portBinding
+        })
+      }
+      const directUrl = directAccess?.url || null
+      const { fullDomain, generatedDomain, domains, primaryUrl, accessUrls } =
+        await Environment.resolveAppUrls(environment.id, {
+          directUrl,
+          directHint: directAccess?.firewallHint || null
+        })
+      return {
+        containerHealth,
+        directAccess,
         serverIp,
-        hostPort: app.hostPort,
-        routePath: app.routePath,
-        containerRunning: containerStatus
-          ? Boolean(containerStatus.running)
-          : app.status === 'running',
-        portBinding
+        fullDomain,
+        generatedDomain,
+        domains,
+        primaryUrl,
+        accessUrls
+      }
+    })
+
+    const loadDeploymentHistory = async () => {
+      const { containerHealth } = await loadContainerState()
+      const appWithHealth = { ...app, containerHealth }
+      return sails.helpers.deployment.getHistory.with({
+        projectSlug: project.slug,
+        environments: [environment],
+        apps: [appWithHealth],
+        currentApps: [appWithHealth],
+        scopedApp: appWithHealth,
+        includeLegacy: app.isDefault,
+        filters: {
+          status: deploymentStatus,
+          environment: '',
+          app: '',
+          source: deploymentSource
+        },
+        cursor: deploymentCursor || null
       })
     }
-    const directUrl = directAccess?.url || null
-    const { fullDomain, generatedDomain, domains, primaryUrl, accessUrls } =
-      await Environment.resolveAppUrls(environment.id, {
-        directUrl,
-        directHint: directAccess?.firewallHint || null
-      })
-
-    const appWithHealth = { ...app, containerHealth }
-    const deploymentHistory = await sails.helpers.deployment.getHistory.with({
-      projectSlug: project.slug,
-      environments: [environment],
-      apps: [appWithHealth],
-      currentApps: [appWithHealth],
-      scopedApp: appWithHealth,
-      includeLegacy: app.isDefault,
-      filters: {
-        status: deploymentStatus,
-        environment: '',
-        app: '',
-        source: deploymentSource
-      },
-      cursor: deploymentCursor || null
-    })
 
     // Enrich services with connection URLs and last backup
-    const services = await Promise.all(
-      (environment.services || []).map(async (service) => {
-        const connectionUrl =
-          service.managementMode === 'external'
-            ? null
-            : await Service.getConnectionUrl(service.id)
-        let lastBackup = null
-        if (Service.isBackupSupported(service.type)) {
-          const backups = await Backup.find({ service: service.id })
-            .sort('createdAt DESC')
-            .limit(1)
-          const latest = backups[0]
-          lastBackup = latest
-            ? {
-                id: latest.id,
-                status: latest.status,
-                completedAt: latest.completedAt,
-                sizeBytes: latest.sizeBytes
-              }
-            : null
-        }
-        return {
-          ...Service.toPublic(service),
-          connectionUrl,
-          lastBackup,
-          backupSupported: Service.isBackupSupported(service.type)
-        }
-      })
-    )
+    const loadServices = () =>
+      Promise.all(
+        (environment.services || []).map(async (service) => {
+          const connectionUrl =
+            service.managementMode === 'external'
+              ? null
+              : await Service.getConnectionUrl(service.id)
+          let lastBackup = null
+          if (Service.isBackupSupported(service.type)) {
+            const backups = await Backup.find({ service: service.id })
+              .sort('createdAt DESC')
+              .limit(1)
+            const latest = backups[0]
+            lastBackup = latest
+              ? {
+                  id: latest.id,
+                  status: latest.status,
+                  completedAt: latest.completedAt,
+                  sizeBytes: latest.sizeBytes
+                }
+              : null
+          }
+          return {
+            ...Service.toPublic(service),
+            connectionUrl,
+            lastBackup,
+            backupSupported: Service.isBackupSupported(service.type)
+          }
+        })
+      )
 
     // Check if backup storage is configured
-    let backupConfigured = false
-    let globalEnvVars = {}
-    try {
-      const globalJson = await sails.helpers.setting.get('globalEnvVars', '{}')
-      globalEnvVars = JSON.parse(globalJson)
-      await sails.helpers.backup.getStorageConfig()
-      backupConfigured = true
-    } catch {
-      /* ignore */
-    }
-
-    // Build inherited vars (global + environment)
-    const inheritedVars = { ...globalEnvVars, ...(environment.envVars || {}) }
-
-    // Generate deployment checklist
-    const readiness = await sails.helpers.environment.getReadiness.with({
-      environmentId: environment.id,
-      appId: app.id
+    // Inertia resolves only requested props on partial reloads. Keep unrelated
+    // deployment, service, and configuration work out of focused refreshes.
+    const loadDecryptedApp = once(() => App.findOne({ id: app.id }).decrypt())
+    const loadBackupSettings = once(async () => {
+      let backupConfigured = false
+      let globalEnvVars = {}
+      try {
+        const globalJson = await sails.helpers.setting.get(
+          'globalEnvVars',
+          '{}'
+        )
+        globalEnvVars = JSON.parse(globalJson)
+        await sails.helpers.backup.getStorageConfig()
+        backupConfigured = true
+      } catch {
+        /* ignore */
+      }
+      return { backupConfigured, globalEnvVars }
     })
-    const sourceReadiness = await sails.helpers.deploy.getSourceReadiness.with({
-      project,
-      environment,
-      app
-    })
-    const bridgeUrl = await sails.helpers.bridge.getAppUrl.with({
-      app,
-      environment,
-      project
-    })
-    const releaseFlags = (
-      await FeatureFlag.find({
-        environment: environment.id,
-        app: app.id
-      }).sort('key ASC')
-    ).map((flag) => sails.helpers.flag.present(flag))
+    const loadEnrichedServices = once(loadServices)
     const publicEnvironment = omitPrivateEnvironmentFields(environment)
-    const publicApp = omitPrivateAppFields(app)
 
     return {
       page: 'projects/app',
       props: {
         project,
-        environment: {
-          ...publicEnvironment,
-          fullDomain,
-          generatedDomain,
-          domains,
-          serverIp,
-          domainReadiness: domainReadiness({
-            domain: environment.domain,
-            serverIp
-          }),
-          services
+        environment: async () => {
+          const { fullDomain, generatedDomain, domains, serverIp } =
+            await loadAccess()
+          return {
+            ...publicEnvironment,
+            fullDomain,
+            generatedDomain,
+            domains,
+            serverIp,
+            domainReadiness: domainReadiness({
+              domain: environment.domain,
+              serverIp
+            }),
+            services: await loadEnrichedServices()
+          }
         },
-        app: {
-          ...publicApp,
-          containerHealth,
-          directAccess,
-          primaryUrl,
-          accessUrls,
-          bridgeUrl: bridgeUrl ? `${bridgeUrl}/bridge` : null
+        app: async () => {
+          const { containerHealth, directAccess, primaryUrl, accessUrls } =
+            await loadAccess()
+          const bridgeUrl = await sails.helpers.bridge.getAppUrl.with({
+            app,
+            environment,
+            project
+          })
+          return {
+            ...omitPrivateAppFields(app),
+            containerHealth,
+            directAccess,
+            primaryUrl,
+            accessUrls,
+            bridgeUrl: bridgeUrl ? `${bridgeUrl}/bridge` : null
+          }
         },
-        appEnvVars: decryptedApp.secureEnvVars || decryptedApp.envVars || {},
-        appEnvVarMetadata:
-          sails.helpers.configuration.normalizeEnvVarMetadata.with({
+        appEnvVars: async () => {
+          const decryptedApp = await loadDecryptedApp()
+          return decryptedApp.secureEnvVars || decryptedApp.envVars || {}
+        },
+        appEnvVarMetadata: async () => {
+          const decryptedApp = await loadDecryptedApp()
+          return sails.helpers.configuration.normalizeEnvVarMetadata.with({
             values: decryptedApp.secureEnvVars || decryptedApp.envVars || {},
             metadata: decryptedApp.envVarMetadata || {},
             currentValues:
               decryptedApp.secureEnvVars || decryptedApp.envVars || {},
             currentMetadata: decryptedApp.envVarMetadata || {},
             recordChanges: false
+          })
+        },
+        inheritedVars: async () => {
+          const { globalEnvVars } = await loadBackupSettings()
+          return require('../../lib/external-postgresql').redactEnv(
+            { ...globalEnvVars, ...(environment.envVars || {}) },
+            environment.services
+          )
+        },
+        deploymentHistory: loadDeploymentHistory,
+        services: loadEnrichedServices,
+        backupConfigured: async () =>
+          (await loadBackupSettings()).backupConfigured,
+        readiness: () =>
+          sails.helpers.environment.getReadiness.with({
+            environmentId: environment.id,
+            appId: app.id
           }),
-        inheritedVars: require('../../lib/external-postgresql').redactEnv(
-          inheritedVars,
-          environment.services
-        ),
-        deploymentHistory,
-        services,
-        backupConfigured,
-        readiness,
-        sourceReadiness,
-        releaseFlags,
+        sourceReadiness: () =>
+          sails.helpers.deploy.getSourceReadiness.with({
+            project,
+            environment,
+            app
+          }),
+        releaseFlags: async () =>
+          (
+            await FeatureFlag.find({
+              environment: environment.id,
+              app: app.id
+            }).sort('key ASC')
+          ).map((flag) => sails.helpers.flag.present(flag)),
         canManageBridge: ['owner', 'admin'].includes(user.teamRole),
         canManageBearing: ['owner', 'admin'].includes(user.teamRole)
       }

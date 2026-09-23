@@ -60,6 +60,7 @@ const currentUrl = computed(() => page.url)
 const navProjects = computed(() => page.props.navProjects || [])
 const navApps = computed(() => page.props.navApps || [])
 const navServices = computed(() => page.props.navServices || [])
+const loadingResources = ref(false)
 
 function returnToRootMode() {
   mode.value = 'root'
@@ -637,6 +638,16 @@ watch(isOpen, (open) => {
     query.value = ''
     mode.value = 'root'
     parentCommand.value = null
+    // These props are optional: fetch the current team's resources only when
+    // someone opens the palette, so ordinary navigation stays lightweight.
+    loadingResources.value = true
+    router.reload({
+      only: ['navProjects', 'navApps', 'navServices'],
+      preserveState: true,
+      onFinish: () => {
+        loadingResources.value = false
+      }
+    })
     nextTick(() => commandRef.value?.focus())
   }
 })
@@ -742,6 +753,12 @@ const iconComponents = computed(() => ({
             </template>
 
             <template #before>
+              <p
+                v-if="loadingResources"
+                class="px-3 py-2 text-xs text-gray-500 dark:text-gray-400"
+              >
+                Loading projects, apps, and services…
+              </p>
               <div
                 v-if="mode === 'submenu'"
                 class="mx-1.5 mt-1.5 flex items-center gap-1 px-2 py-1 text-xs text-gray-400 dark:text-gray-500"

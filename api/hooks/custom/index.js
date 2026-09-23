@@ -14,6 +14,10 @@ module.exports = function defineCustomHook(sails) {
     return () => sharedPropWork.run(callback, shutdownFallback)
   }
 
+  function optionalSharedProp(callback, shutdownFallback) {
+    return sails.inertia.optional(resolveSharedProp(callback, shutdownFallback))
+  }
+
   return {
     /**
      * Runs when this Sails app loads/lifts.
@@ -90,7 +94,7 @@ module.exports = function defineCustomHook(sails) {
 
               sails.inertia.share(
                 'navProjects',
-                resolveSharedProp(async () => {
+                optionalSharedProp(async () => {
                   const user = await User.forRequest(req, { select: ['team'] })
                   if (!user || !user.team) {
                     return []
@@ -103,7 +107,7 @@ module.exports = function defineCustomHook(sails) {
 
               sails.inertia.share(
                 'navApps',
-                resolveSharedProp(async () => {
+                optionalSharedProp(async () => {
                   try {
                     const user = await User.forRequest(req, {
                       select: ['team']
@@ -171,7 +175,7 @@ module.exports = function defineCustomHook(sails) {
 
               sails.inertia.share(
                 'navServices',
-                resolveSharedProp(async () => {
+                optionalSharedProp(async () => {
                   try {
                     const user = await User.forRequest(req, {
                       select: ['team']
