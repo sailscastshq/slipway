@@ -332,7 +332,7 @@ function isoDate(value) {
                     <img
                       :src="image.url"
                       :alt="`${item.title} — image ${index + 1}`"
-                      class="max-h-32 rounded-lg object-contain"
+                      class="h-24 w-36 rounded-lg object-cover"
                     />
                   </a>
                 </div>

@@ -677,8 +677,12 @@ onUnmounted(() => {
                       <img
                         :src="image.url"
                         :alt="`${item.title} — image ${index + 1}`"
-                        class="rounded-lg object-contain"
-                        :class="focusedFeedback ? 'max-h-96' : 'max-h-32'"
+                        class="rounded-lg"
+                        :class="
+                          focusedFeedback
+                            ? 'max-h-96 max-w-full object-contain'
+                            : 'h-24 w-36 object-cover'
+                        "
                       />
                     </a>
                   </div>
