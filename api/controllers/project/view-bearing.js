@@ -9,12 +9,7 @@ module.exports = {
     slug: { type: 'string', required: true },
     envSlug: { type: 'string', required: true },
     appSlug: { type: 'string', required: true },
-    publicId: { type: 'string', maxLength: 40 },
-    view: {
-      type: 'string',
-      isIn: ['overview', 'feedback', 'roadmap', 'updates', 'settings'],
-      defaultsTo: 'overview'
-    }
+    publicId: { type: 'string', maxLength: 40 }
   },
 
   exits: {
@@ -23,7 +18,7 @@ module.exports = {
     forbidden: { responseType: 'redirect' }
   },
 
-  fn: async function ({ slug, envSlug, appSlug, view, publicId }) {
+  fn: async function ({ slug, envSlug, appSlug, publicId }) {
     const resolved = await resolveManager(this.req, {
       slug,
       envSlug,
@@ -44,24 +39,19 @@ module.exports = {
       environment,
       project
     })
-    const [feedback, attentionFeedback, updates, counts] = space
+    const [feedback, updates] = space
       ? await Promise.all([
           BearingFeedback.find({ space: space.id })
             .populate('author')
             .sort(['updatedAt DESC', 'id DESC'])
             .limit(100),
-          BearingFeedback.find({ space: space.id, status: 'reviewing' })
-            .populate('author')
-            .sort(['voteCount DESC', 'updatedAt DESC', 'id DESC'])
-            .limit(5),
           sails.helpers.bearing.listUpdates.with({
             spaceId: String(space.id),
             status: 'all',
             limit: 50
-          }),
-          loadCounts(space.id)
+          })
         ])
-      : [[], [], [], emptyCounts()]
+      : [[], []]
 
     const focusedFeedback =
       publicId && space
@@ -88,14 +78,11 @@ module.exports = {
           appUrl
         },
         bearing: serializeSpace(space, app),
-        activeView: publicId ? 'feedback' : view,
         focusedFeedback: focusedFeedback
           ? serializeManagerFeedback(focusedFeedback)
           : null,
         feedback: feedback.map(serializeManagerFeedback),
-        attentionFeedback: attentionFeedback.map(serializeManagerFeedback),
         updates: updates.map(serializeManagerUpdate),
-        counts,
         publicUrls: appUrl
           ? {
               feedback: `${appUrl}/bearing/feedback`,
@@ -107,35 +94,6 @@ module.exports = {
         hookDetected: Boolean(environment.features?.['sails-hook-slipway'])
       }
     }
-  }
-}
-
-async function loadCounts(spaceId) {
-  const [feedback, votes, planned, participants, publishedUpdates] =
-    await Promise.all([
-      BearingFeedback.count({ space: spaceId }),
-      BearingFeedback.sum('voteCount').where({ space: spaceId }),
-      BearingFeedback.count({ space: spaceId, status: 'planned' }),
-      BearingParticipant.count({ space: spaceId }),
-      BearingUpdate.count({ space: spaceId, status: 'published' })
-    ])
-
-  return {
-    feedback,
-    votes: Number(votes || 0),
-    planned,
-    participants,
-    publishedUpdates
-  }
-}
-
-function emptyCounts() {
-  return {
-    feedback: 0,
-    votes: 0,
-    planned: 0,
-    participants: 0,
-    publishedUpdates: 0
   }
 }
 

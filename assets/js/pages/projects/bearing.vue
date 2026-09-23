@@ -1,5 +1,7 @@
 <script setup>
-import ChevronRight from '@/components/ui/icons/ChevronRight.vue'
+import Check from '@/components/ui/icons/Check.vue'
+import Copy from '@/components/ui/icons/Copy.vue'
+import ExternalLink from '@/components/ui/icons/ExternalLink.vue'
 import SidebarClose from '@/components/ui/icons/SidebarClose.vue'
 import SidebarOpen from '@/components/ui/icons/SidebarOpen.vue'
 import Input from '@/components/ui/input/Input.vue'
@@ -31,12 +33,9 @@ const props = defineProps({
   environment: Object,
   app: Object,
   bearing: Object,
-  activeView: String,
   feedback: Array,
   focusedFeedback: Object,
-  attentionFeedback: Array,
   updates: Array,
-  counts: Object,
   publicUrls: Object,
   uploadsConfigured: Boolean,
   hookDetected: Boolean
@@ -56,13 +55,12 @@ const updateImageUploadPath = computed(
     `/api/v1/projects/${props.project.slug}/environments/${props.environment.slug}/apps/${props.app.slug}/bearing/updates/images`
 )
 const navItems = [
-  ['overview', 'Overview'],
   ['feedback', 'Feedback'],
   ['roadmap', 'Roadmap'],
   ['updates', 'Updates'],
   ['settings', 'Settings']
 ]
-const queryView = useQueryState('view', 'overview', {
+const queryView = useQueryState('view', 'feedback', {
   validate: (view) => navItems.some(([candidate]) => candidate === view)
 })
 const selectedView = computed({
@@ -88,17 +86,6 @@ const roadmapGroups = computed(() =>
     items: props.feedback.filter((item) => item.status === status)
   }))
 )
-const overviewMetrics = computed(() => [
-  { label: 'Feedback', value: props.counts.feedback, view: 'feedback' },
-  { label: 'Votes', value: props.counts.votes, view: 'feedback' },
-  { label: 'Planned', value: props.counts.planned, view: 'roadmap' },
-  { label: 'People', value: props.counts.participants },
-  {
-    label: 'Updates',
-    value: props.counts.publishedUpdates,
-    view: 'updates'
-  }
-])
 const publicSurfaces = computed(() => {
   if (!props.publicUrls) return []
 
@@ -344,22 +331,24 @@ onUnmounted(() => {
       <Tabs
         v-model="selectedView"
         aria-label="Bearing sections"
-        class="mx-auto max-w-3xl"
+        class="mx-auto max-w-6xl"
       >
         <div
           class="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between"
         >
           <div>
             <div class="flex items-center gap-2.5">
-              <h1 class="text-xl font-semibold text-gray-950 dark:text-white">
+              <h1
+                class="text-2xl font-semibold tracking-tight text-gray-950 dark:text-white"
+              >
                 Bearing
               </h1>
               <span
                 :class="[
-                  'inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium',
+                  'inline-flex items-center gap-1.5 text-xs font-medium',
                   form.enabled
-                    ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300'
-                    : 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400'
+                    ? 'text-emerald-700 dark:text-emerald-300'
+                    : 'text-gray-500 dark:text-gray-400'
                 ]"
               >
                 <span
@@ -368,14 +357,13 @@ onUnmounted(() => {
                     form.enabled ? 'bg-emerald-500' : 'bg-gray-400'
                   ]"
                 ></span>
-                {{ form.enabled ? 'On' : 'Off' }}
+                {{ form.enabled ? 'Live' : 'Off' }}
               </span>
             </div>
             <p
               class="mt-1 max-w-xl text-sm leading-6 text-gray-500 dark:text-gray-400"
             >
-              Collect feedback, show what is planned, and publish what shipped
-              on {{ app.name }}'s own domain.
+              Feedback and updates for {{ app.name }}.
             </p>
           </div>
           <button
@@ -407,20 +395,20 @@ onUnmounted(() => {
         <div
           ref="tablist"
           data-slot="tabs-list"
-          class="mt-8 flex items-center gap-1 overflow-x-auto py-1"
+          class="mt-10 flex items-center gap-7 overflow-x-auto"
         >
           <button
-            v-for="(item, index) in navItems"
+            v-for="item in navItems"
             :id="`bearing-tab-${item[0]}`"
             :key="item[0]"
             type="button"
             :data-value="item[0]"
             :aria-controls="`bearing-panel-${item[0]}`"
             :class="[
-              'min-h-10 shrink-0 rounded-md px-3 py-1.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-400 dark:focus-visible:ring-gray-600',
+              'min-h-11 shrink-0 border-b-2 px-0.5 pb-3 pt-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-400 dark:focus-visible:ring-gray-600',
               selectedView === item[0]
-                ? 'bg-gray-900 text-white dark:bg-white dark:text-gray-900'
-                : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-300'
+                ? 'border-gray-950 text-gray-950 dark:border-white dark:text-white'
+                : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-900 dark:text-gray-400 dark:hover:border-gray-600 dark:hover:text-white'
             ]"
           >
             {{ item[1] }}
@@ -428,205 +416,28 @@ onUnmounted(() => {
         </div>
 
         <section
-          v-if="selectedView === 'overview'"
-          id="bearing-panel-overview"
-          data-slot="tab-panel"
-          data-value="overview"
-          class="mt-10"
-        >
-          <div
-            class="grid grid-cols-2 gap-3 min-[360px]:grid-cols-3 sm:grid-cols-5"
-          >
-            <component
-              :is="metric.view ? 'button' : 'div'"
-              v-for="metric in overviewMetrics"
-              :key="metric.label"
-              :data-test="`bearing-metric-${metric.label.toLowerCase()}`"
-              :type="metric.view ? 'button' : undefined"
-              :class="[
-                'group rounded-xl bg-gray-50 p-4 text-left dark:bg-gray-900',
-                metric.view
-                  ? 'transition hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-950 focus-visible:ring-offset-2 dark:hover:bg-gray-800 dark:focus-visible:ring-white dark:focus-visible:ring-offset-gray-950'
-                  : ''
-              ]"
-              @click="metric.view && selectView(metric.view)"
-            >
-              <p
-                class="flex items-center justify-between gap-2 text-xs font-medium text-gray-500 dark:text-gray-400"
-              >
-                <span>{{ metric.label }}</span>
-                <ChevronRight
-                  v-if="metric.view"
-                  aria-hidden="true"
-                  class="size-3.5 opacity-0 transition group-hover:opacity-100 group-focus-visible:opacity-100"
-                />
-              </p>
-              <p
-                class="mt-3 text-2xl font-semibold tabular-nums tracking-tight"
-              >
-                {{ metric.value }}
-              </p>
-            </component>
-          </div>
-
-          <div class="mt-10 grid gap-10 lg:grid-cols-[1.1fr_0.9fr]">
-            <section aria-labelledby="bearing-attention-heading">
-              <div class="flex items-center justify-between gap-4">
-                <div>
-                  <h2
-                    id="bearing-attention-heading"
-                    class="text-sm font-semibold"
-                  >
-                    Needs attention
-                  </h2>
-                  <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                    Feedback waiting for a decision.
-                  </p>
-                </div>
-                <button
-                  v-if="attentionFeedback.length"
-                  type="button"
-                  class="min-h-10 shrink-0 rounded-lg px-2.5 text-xs font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-950 dark:text-gray-400 dark:hover:bg-gray-900 dark:hover:text-white dark:focus-visible:ring-white"
-                  @click="selectView('feedback')"
-                >
-                  View all
-                </button>
-              </div>
-              <ul v-if="attentionFeedback.length" class="mt-4 space-y-2">
-                <li v-for="item in attentionFeedback" :key="item.publicId">
-                  <button
-                    type="button"
-                    class="min-h-16 group flex w-full items-center justify-between gap-4 rounded-xl bg-gray-50 px-4 py-3 text-left transition hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-950 focus-visible:ring-offset-2 dark:bg-gray-900 dark:hover:bg-gray-800 dark:focus-visible:ring-white dark:focus-visible:ring-offset-gray-950"
-                    @click="router.get(feedbackLink(item))"
-                  >
-                    <span class="min-w-0">
-                      <span class="block truncate text-sm font-medium">{{
-                        item.title
-                      }}</span>
-                      <span
-                        class="mt-1 block text-xs capitalize text-gray-400"
-                        >{{ item.category }}</span
-                      >
-                    </span>
-                    <span class="shrink-0 text-xs tabular-nums text-gray-400"
-                      >▲ {{ item.voteCount }}</span
-                    >
-                  </button>
-                </li>
-              </ul>
-              <div
-                v-else
-                class="mt-4 rounded-xl bg-gray-50 px-4 py-5 dark:bg-gray-900"
-              >
-                <p class="text-sm font-medium">You are caught up.</p>
-                <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                  New feedback will appear here for review.
-                </p>
-              </div>
-            </section>
-
-            <section
-              v-if="publicSurfaces.length"
-              aria-labelledby="bearing-public-surfaces-heading"
-            >
-              <div>
-                <h2
-                  id="bearing-public-surfaces-heading"
-                  class="text-sm font-semibold"
-                >
-                  Public surfaces
-                </h2>
-                <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                  What customers can open on {{ app.name }}.
-                </p>
-              </div>
-              <ul class="mt-4 space-y-2">
-                <li
-                  v-for="surface in publicSurfaces"
-                  :key="surface.key"
-                  :data-test="`bearing-public-surface-${surface.key}`"
-                  class="min-h-16 group flex items-center justify-between gap-3 rounded-xl bg-gray-50 px-4 py-3 dark:bg-gray-900"
-                >
-                  <div class="min-w-0">
-                    <div class="flex items-center gap-2">
-                      <h3 class="text-sm font-medium">{{ surface.label }}</h3>
-                      <span
-                        :class="[
-                          'inline-flex items-center gap-1 text-[11px] font-medium',
-                          surface.enabled
-                            ? 'text-emerald-600 dark:text-emerald-400'
-                            : 'text-gray-400'
-                        ]"
-                      >
-                        <span
-                          :class="[
-                            'size-1.5 rounded-full',
-                            surface.enabled
-                              ? 'bg-emerald-500'
-                              : 'bg-gray-300 dark:bg-gray-600'
-                          ]"
-                        ></span>
-                        {{ surface.enabled ? 'On' : 'Off' }}
-                      </span>
-                    </div>
-                    <p class="mt-1 truncate text-xs text-gray-400">
-                      {{ publicUrlPath(surface.url) }}
-                    </p>
-                  </div>
-                  <div class="flex shrink-0 items-center gap-1">
-                    <template v-if="surface.enabled">
-                      <button
-                        type="button"
-                        class="min-h-10 rounded-lg px-2.5 text-xs font-medium text-gray-500 hover:bg-white hover:text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-950 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white dark:focus-visible:ring-white"
-                        :aria-label="`Copy ${surface.label} link`"
-                        @click="copyPublicUrl(surface)"
-                      >
-                        {{ copiedSurface === surface.key ? 'Copied' : 'Copy' }}
-                      </button>
-                      <a
-                        :href="surface.url"
-                        target="_blank"
-                        rel="noreferrer"
-                        class="min-h-10 inline-flex items-center rounded-lg px-2.5 text-xs font-medium text-gray-700 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-950 dark:text-gray-200 dark:hover:bg-gray-700 dark:focus-visible:ring-white"
-                      >
-                        Open
-                        <span class="sr-only"> {{ surface.label }}</span>
-                      </a>
-                    </template>
-                    <button
-                      v-else
-                      type="button"
-                      class="min-h-10 rounded-lg px-2.5 text-xs font-medium text-gray-500 hover:bg-white hover:text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-950 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white dark:focus-visible:ring-white"
-                      @click="selectView('settings')"
-                    >
-                      Turn on
-                      <span class="sr-only"> {{ surface.label }}</span>
-                    </button>
-                  </div>
-                </li>
-              </ul>
-              <p class="sr-only" aria-live="polite">
-                {{ copiedSurface ? `${copiedSurface} link copied.` : '' }}
-              </p>
-            </section>
-          </div>
-        </section>
-
-        <section
-          v-else-if="selectedView === 'feedback'"
+          v-if="selectedView === 'feedback'"
           id="bearing-panel-feedback"
           data-slot="tab-panel"
           data-value="feedback"
-          class="mt-10"
+          class="mt-10 max-w-5xl"
         >
           <div class="flex items-end justify-between gap-4">
             <div>
-              <h2 class="text-base font-semibold">Customer feedback</h2>
+              <h2 class="text-base font-semibold">Review feedback</h2>
               <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                Review requests without losing the customer behind them.
+                Customer requests from this app.
               </p>
             </div>
-            <span class="text-sm text-gray-400">{{ feedback.length }}</span>
+            <span
+              v-if="!focusedFeedback"
+              class="hidden shrink-0 text-sm text-gray-400 sm:inline"
+              >{{
+                feedback.length === 100
+                  ? 'Latest 100 requests'
+                  : `${feedback.length} requests`
+              }}</span
+            >
           </div>
           <Link
             v-if="focusedFeedback"
@@ -634,38 +445,47 @@ onUnmounted(() => {
             class="mt-4 inline-block text-sm underline"
             >Back to feedback</Link
           >
-          <div class="mt-6 divide-y divide-gray-200 dark:divide-gray-800">
-            <article
-              v-for="item in displayedFeedback"
-              :key="item.publicId"
-              class="py-5"
-            >
+          <div :class="focusedFeedback ? 'mt-8' : 'mt-9 space-y-10'">
+            <article v-for="item in displayedFeedback" :key="item.publicId">
               <div
-                class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between"
+                :class="
+                  focusedFeedback
+                    ? 'grid gap-10 lg:grid-cols-[minmax(0,1fr)_14rem] lg:gap-14'
+                    : 'flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between'
+                "
               >
-                <div class="min-w-0">
+                <div class="min-w-0 flex-1">
                   <div class="flex items-center gap-2">
-                    <h3 class="font-medium">
+                    <h3
+                      class="font-semibold tracking-tight"
+                      :class="focusedFeedback ? 'text-2xl' : 'text-base'"
+                    >
                       <Link
                         :href="feedbackLink(item)"
                         class="hover:underline"
                         >{{ item.title }}</Link
                       >
                     </h3>
-                    <span class="text-xs text-gray-400"
+                    <span v-if="!focusedFeedback" class="text-xs text-gray-400"
                       >▲ {{ item.voteCount }}</span
                     >
                   </div>
                   <p
                     v-if="item.details"
-                    class="mt-1 whitespace-pre-wrap break-words text-sm leading-6 text-gray-500 dark:text-gray-400"
-                    :class="{ 'line-clamp-2': !focusedFeedback }"
+                    class="mt-2 whitespace-pre-wrap break-words leading-6 text-gray-500 dark:text-gray-400"
+                    :class="[
+                      focusedFeedback ? 'text-base' : 'text-sm',
+                      { 'line-clamp-2': !focusedFeedback }
+                    ]"
                   >
                     {{ item.details }}
                   </p>
+                  <p class="mt-2 text-xs text-gray-400">
+                    {{ item.authorName }} · {{ item.category }}
+                  </p>
                   <div
                     v-if="item.images?.length"
-                    class="mt-4 flex flex-wrap gap-3"
+                    class="mt-5 flex flex-wrap gap-3"
                   >
                     <a
                       v-for="(image, index) in item.images"
@@ -686,13 +506,35 @@ onUnmounted(() => {
                       />
                     </a>
                   </div>
-                  <p class="mt-2 text-xs text-gray-400">
-                    {{ item.authorName }} · {{ item.category }}
-                  </p>
                 </div>
-                <div class="flex shrink-0 items-center gap-3">
+                <div
+                  :class="
+                    focusedFeedback
+                      ? 'flex flex-col items-start gap-8'
+                      : 'flex shrink-0 items-center gap-3'
+                  "
+                >
+                  <div v-if="focusedFeedback">
+                    <p
+                      class="text-xs font-medium text-gray-500 dark:text-gray-400"
+                    >
+                      Votes
+                    </p>
+                    <p class="mt-1 text-2xl font-semibold tabular-nums">
+                      {{ item.voteCount }}
+                    </p>
+                  </div>
                   <label>
-                    <span class="sr-only">Status for {{ item.title }}</span>
+                    <span
+                      :class="
+                        focusedFeedback
+                          ? 'mb-2 block text-xs font-medium text-gray-500 dark:text-gray-400'
+                          : 'sr-only'
+                      "
+                      >{{
+                        focusedFeedback ? 'Status' : `Status for ${item.title}`
+                      }}</span
+                    >
                     <Select
                       :model-value="item.status"
                       :options="[
@@ -707,12 +549,13 @@ onUnmounted(() => {
                     />
                   </label>
                   <button
+                    v-if="focusedFeedback"
                     type="button"
                     class="text-sm text-red-600 hover:underline"
                     :aria-label="`Delete ${item.title}`"
                     @click="feedbackToDelete = item"
                   >
-                    Delete
+                    Delete feedback
                   </button>
                 </div>
               </div>
@@ -733,24 +576,26 @@ onUnmounted(() => {
           data-value="roadmap"
           class="mt-10"
         >
-          <div class="grid gap-4 lg:grid-cols-3">
+          <div class="grid gap-8 lg:grid-cols-3 lg:gap-10">
             <section v-for="group in roadmapGroups" :key="group.status">
-              <div class="flex items-center justify-between px-1">
-                <h2 class="text-sm font-semibold">
+              <div class="flex items-center justify-between">
+                <h2 class="text-base font-semibold tracking-tight">
                   {{ roadmapLabel(group.status) }}
                 </h2>
                 <span class="text-xs text-gray-400">{{
                   group.items.length
                 }}</span>
               </div>
-              <div class="mt-3 space-y-2">
+              <div class="mt-5 space-y-5">
                 <article
                   v-for="item in group.items"
                   :key="item.publicId"
-                  class="rounded-xl bg-gray-50 p-4 dark:bg-gray-900"
+                  class="py-1"
                 >
-                  <h3 class="text-sm font-medium">
-                    <Link :href="feedbackLink(item)">{{ item.title }}</Link>
+                  <h3 class="text-sm font-medium leading-6">
+                    <Link :href="feedbackLink(item)" class="hover:underline">{{
+                      item.title
+                    }}</Link>
                   </h3>
                   <p class="mt-2 text-xs text-gray-400">
                     ▲ {{ item.voteCount }}
@@ -758,7 +603,7 @@ onUnmounted(() => {
                 </article>
                 <p
                   v-if="!group.items.length"
-                  class="px-2 py-8 text-center text-xs text-gray-400"
+                  class="py-4 text-xs text-gray-400"
                 >
                   Nothing here.
                 </p>
@@ -772,7 +617,7 @@ onUnmounted(() => {
           id="bearing-panel-updates"
           data-slot="tab-panel"
           data-value="updates"
-          class="mt-10"
+          class="mt-10 max-w-3xl"
         >
           <form class="space-y-5" @submit.prevent="saveUpdate(false)">
             <div>
@@ -893,8 +738,8 @@ onUnmounted(() => {
               </button>
             </div>
           </form>
-          <div class="mt-12 divide-y divide-gray-200 dark:divide-gray-800">
-            <article v-for="item in updates" :key="item.publicId" class="py-5">
+          <div class="mt-12 space-y-10">
+            <article v-for="item in updates" :key="item.publicId">
               <div class="flex items-start justify-between gap-4">
                 <div>
                   <p
@@ -925,7 +770,7 @@ onUnmounted(() => {
           id="bearing-panel-settings"
           data-slot="tab-panel"
           data-value="settings"
-          class="mt-10 space-y-12"
+          class="mt-10 max-w-3xl space-y-12"
           @submit.prevent="save"
         >
           <section aria-labelledby="bearing-availability-heading">
@@ -1193,93 +1038,109 @@ onUnmounted(() => {
               <p
                 class="mt-1 text-sm leading-6 text-gray-500 dark:text-gray-400"
               >
-                Customers see familiar labels on your domain, not the Bearing
-                product name.
+                Share these pages on {{ app.name }}. Roadmap and Updates can be
+                published separately.
               </p>
             </div>
 
-            <div class="mt-5 space-y-4">
-              <div class="px-4">
-                <p class="text-sm font-medium text-gray-950 dark:text-white">
-                  Feedback
-                </p>
-                <a
-                  v-if="publicUrls"
-                  :href="publicUrls.feedback"
-                  target="_blank"
-                  rel="noreferrer"
-                  class="mt-1 block text-xs text-gray-500 hover:text-gray-950 dark:text-gray-400 dark:hover:text-white"
-                >
-                  {{ publicUrls.feedback }}
-                </a>
-              </div>
-
-              <div class="flex items-start justify-between gap-6 px-4">
-                <div>
+            <ul class="mt-5 space-y-5">
+              <li
+                v-for="surface in publicSurfaces"
+                :key="surface.key"
+                :data-test="`bearing-public-surface-${surface.key}`"
+                class="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4"
+              >
+                <div class="min-w-0 flex-1">
                   <p class="text-sm font-medium text-gray-950 dark:text-white">
-                    Roadmap
+                    {{ surface.label }}
                   </p>
-                  <code
-                    v-if="publicUrls"
-                    class="mt-1 block text-xs text-gray-500 dark:text-gray-400"
-                    >{{ publicUrls.roadmap }}</code
+                  <p
+                    class="mt-1 truncate text-xs text-gray-500 dark:text-gray-400"
+                    :title="surface.url"
                   >
-                </div>
-                <button
-                  type="button"
-                  role="switch"
-                  :aria-checked="form.showPublicRoadmap"
-                  aria-label="Show public roadmap"
-                  :class="[
-                    'relative inline-flex h-6 w-10 shrink-0 rounded-full p-0.5 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-gray-950',
-                    form.showPublicRoadmap
-                      ? 'bg-gray-950 dark:bg-white'
-                      : 'bg-gray-300 dark:bg-gray-700'
-                  ]"
-                  @click="toggle('showPublicRoadmap')"
-                >
-                  <span
-                    :class="[
-                      'h-5 w-5 rounded-full bg-white shadow-sm transition dark:bg-gray-950',
-                      form.showPublicRoadmap ? 'translate-x-4' : 'translate-x-0'
-                    ]"
-                  ></span>
-                </button>
-              </div>
-
-              <div class="flex items-start justify-between gap-6 px-4">
-                <div>
-                  <p class="text-sm font-medium text-gray-950 dark:text-white">
-                    Updates
+                    {{ publicUrlPath(surface.url) }}
                   </p>
-                  <code
-                    v-if="publicUrls"
-                    class="mt-1 block text-xs text-gray-500 dark:text-gray-400"
-                    >{{ publicUrls.updates }}</code
-                  >
                 </div>
-                <button
-                  type="button"
-                  role="switch"
-                  :aria-checked="form.showPublicUpdates"
-                  aria-label="Show public updates"
-                  :class="[
-                    'relative inline-flex h-6 w-10 shrink-0 rounded-full p-0.5 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-gray-950',
-                    form.showPublicUpdates
-                      ? 'bg-gray-950 dark:bg-white'
-                      : 'bg-gray-300 dark:bg-gray-700'
-                  ]"
-                  @click="toggle('showPublicUpdates')"
-                >
-                  <span
+                <div class="flex shrink-0 items-center gap-1">
+                  <template v-if="surface.enabled">
+                    <button
+                      type="button"
+                      class="size-10 inline-flex items-center justify-center rounded-md text-gray-500 hover:bg-gray-100 hover:text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-950 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white dark:focus-visible:ring-white"
+                      :aria-label="`${
+                        copiedSurface === surface.key ? 'Copied' : 'Copy'
+                      } ${surface.label} link`"
+                      :title="`${
+                        copiedSurface === surface.key ? 'Copied' : 'Copy'
+                      } ${surface.label} link`"
+                      @click="copyPublicUrl(surface)"
+                    >
+                      <Check
+                        v-if="copiedSurface === surface.key"
+                        class="size-4 text-emerald-600 dark:text-emerald-400"
+                      />
+                      <Copy v-else class="size-4" />
+                    </button>
+                    <a
+                      :href="surface.url"
+                      target="_blank"
+                      rel="noreferrer"
+                      class="size-10 inline-flex items-center justify-center rounded-md text-gray-700 hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-950 dark:text-gray-200 dark:hover:bg-gray-800 dark:focus-visible:ring-white"
+                      :aria-label="`Open ${surface.label}`"
+                      :title="`Open ${surface.label}`"
+                    >
+                      <ExternalLink class="size-4" />
+                    </a>
+                  </template>
+                  <span v-else class="mr-2 text-xs text-gray-400"
+                    >Not published</span
+                  >
+                  <button
+                    v-if="surface.key !== 'feedback'"
+                    type="button"
+                    role="switch"
+                    :aria-checked="
+                      surface.key === 'roadmap'
+                        ? form.showPublicRoadmap
+                        : form.showPublicUpdates
+                    "
+                    :aria-label="`Show public ${surface.label.toLowerCase()}`"
                     :class="[
-                      'h-5 w-5 rounded-full bg-white shadow-sm transition dark:bg-gray-950',
-                      form.showPublicUpdates ? 'translate-x-4' : 'translate-x-0'
+                      'relative ml-2 inline-flex h-6 w-10 shrink-0 rounded-full p-0.5 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-gray-950',
+                      (
+                        surface.key === 'roadmap'
+                          ? form.showPublicRoadmap
+                          : form.showPublicUpdates
+                      )
+                        ? 'bg-gray-950 dark:bg-white'
+                        : 'bg-gray-300 dark:bg-gray-700'
                     ]"
-                  ></span>
-                </button>
-              </div>
-            </div>
+                    @click="
+                      toggle(
+                        surface.key === 'roadmap'
+                          ? 'showPublicRoadmap'
+                          : 'showPublicUpdates'
+                      )
+                    "
+                  >
+                    <span
+                      :class="[
+                        'h-5 w-5 rounded-full bg-white shadow-sm transition dark:bg-gray-950',
+                        (
+                          surface.key === 'roadmap'
+                            ? form.showPublicRoadmap
+                            : form.showPublicUpdates
+                        )
+                          ? 'translate-x-4'
+                          : 'translate-x-0'
+                      ]"
+                    ></span>
+                  </button>
+                </div>
+              </li>
+            </ul>
+            <p class="sr-only" aria-live="polite">
+              {{ copiedSurface ? `${copiedSurface} link copied.` : '' }}
+            </p>
           </section>
 
           <section aria-labelledby="bearing-widget-heading">

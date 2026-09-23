@@ -307,8 +307,17 @@ function isoDate(value) {
                     >
                   </h2>
                   <span
-                    class="rounded-full bg-white px-2 py-0.5 text-[11px] font-medium text-gray-600 shadow-sm dark:bg-gray-800 dark:text-gray-300"
+                    class="inline-flex items-center gap-1.5 text-xs font-medium text-gray-500 dark:text-gray-400"
                   >
+                    <span
+                      aria-hidden="true"
+                      :class="[
+                        'size-1.5 rounded-full',
+                        item.status === 'in_progress'
+                          ? 'bg-emerald-500'
+                          : 'bg-gray-400 dark:bg-gray-500'
+                      ]"
+                    ></span>
                     {{ statusLabel(item.status) }}
                   </span>
                 </div>
