@@ -120,11 +120,18 @@ module.exports = {
       voter,
       spaceId: resolved.space.id
     })
-    const serializedFeedback = feedback.map((item) =>
-      serializeFeedback(item, {
+    const serializedFeedback = feedback.map((item) => ({
+      ...serializeFeedback(item, {
         viewerHasVoted: votedFeedbackIds.has(String(item.id))
-      })
-    )
+      }),
+      viewerCanAddImages: Boolean(
+        resolved.participant &&
+          !item.submittedAnonymously &&
+          String(item.author?.id || item.author) ===
+            String(resolved.participant.id) &&
+          (item.images || []).length < 4
+      )
+    }))
     const feedbackPath = `${resolved.publicBasePath}/feedback`
     const publicPath = focusedFeedback
       ? `${feedbackPath}/${encodeURIComponent(focusedFeedback.publicId)}`

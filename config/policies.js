@@ -106,6 +106,7 @@ module.exports.policies = {
   'bearing/session': true,
   'bearing/view-feedback': true,
   'bearing/create-feedback': true,
+  'bearing/add-feedback-images': true,
   'bearing/subscribe-realtime': true,
   'bearing/view-social-image': true,
   'bearing/view-surface': true,

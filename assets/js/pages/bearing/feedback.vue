@@ -76,6 +76,20 @@ const ACCEPTED_IMAGE_TYPES = new Set([
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024
 const DRAFT_TTL = 60 * 60 * 1000
 const attachedImages = shallowRef([])
+const additionalImages = shallowRef([])
+const addingImagesTo = ref(null)
+const additionalForm = useForm({
+  image0: null,
+  image1: null,
+  image2: null,
+  image3: null
+})
+additionalForm.transform((data) => ({
+  ...Object.fromEntries(
+    Object.entries(data).filter(([, value]) => isImageFile(value))
+  ),
+  imageCount: additionalImages.value.length
+}))
 const form = useForm({
   category: activeCategories.value[0]?.key || 'feature',
   title: '',
@@ -378,8 +392,17 @@ function feedbackPermalink(item) {
 
 function mergeFeedbackItem(current, incoming) {
   if (!incoming) return current
-  if (!current || Object.hasOwn(incoming, 'viewerHasVoted')) return incoming
-  return { ...incoming, viewerHasVoted: current.viewerHasVoted === true }
+  if (!current) return incoming
+  return {
+    ...incoming,
+    viewerHasVoted: Object.hasOwn(incoming, 'viewerHasVoted')
+      ? incoming.viewerHasVoted
+      : current.viewerHasVoted === true,
+    viewerCanAddImages: Object.hasOwn(incoming, 'viewerCanAddImages')
+      ? incoming.viewerCanAddImages
+      : current.viewerCanAddImages === true &&
+        (incoming.images || []).length < 4
+  }
 }
 
 async function toggleVote(item) {
@@ -624,6 +647,49 @@ function clearSelectedImages() {
   attachedImages.value = []
   syncImageFields([])
   form.clearErrors('images')
+}
+
+function beginAddingImages(item) {
+  addingImagesTo.value = item.publicId
+  additionalImages.value = []
+  additionalForm.reset()
+  additionalForm.clearErrors()
+}
+
+function validateAdditionalImage(file, { files }) {
+  const result = validateImage(file, { files })
+  if (result !== true) return result
+  const item = feedbackItems.value.find(
+    (candidate) => candidate.publicId === addingImagesTo.value
+  )
+  if ((item?.images?.length || 0) + files.length >= IMAGE_FIELDS.length) {
+    return 'This feedback can have up to 4 images.'
+  }
+  return true
+}
+
+function handleAdditionalImagesChange(files) {
+  for (const field of IMAGE_FIELDS) additionalForm[field] = null
+  files.forEach((file, index) => {
+    additionalForm[IMAGE_FIELDS[index]] = file
+  })
+  additionalForm.clearErrors('images')
+}
+
+function saveAdditionalImages(item) {
+  if (!additionalImages.value.length || additionalForm.processing) return
+  additionalForm.post(
+    `${props.app.feedbackPath}/${encodeURIComponent(item.publicId)}/images`,
+    {
+      preserveScroll: true,
+      onSuccess: () => {
+        addingImagesTo.value = null
+        additionalImages.value = []
+        additionalForm.reset()
+        liveAnnouncement.value = 'Screenshots added to your feedback.'
+      }
+    }
+  )
 }
 
 function imageSignature(file) {
@@ -1287,6 +1353,98 @@ function shortDate(value) {
                         class="max-h-80 w-full object-cover transition duration-300 hover:scale-[1.015]"
                       />
                     </a>
+                  </div>
+                  <div v-if="item.viewerCanAddImages" class="mt-4">
+                    <button
+                      v-if="addingImagesTo !== item.publicId"
+                      type="button"
+                      class="min-h-9 inline-flex items-center gap-2 rounded-md text-sm font-medium text-gray-500 hover:text-gray-950 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-950 dark:text-gray-400 dark:hover:text-white dark:focus-visible:outline-white"
+                      @click="beginAddingImages(item)"
+                    >
+                      <Image class="size-4" stroke-width="1.4" />
+                      Add screenshots
+                    </button>
+                    <FileUpload
+                      v-else
+                      v-model="additionalImages"
+                      multiple
+                      accept="image/avif,image/gif,image/jpeg,image/png,image/webp"
+                      :disabled="additionalForm.processing"
+                      :validate="validateAdditionalImage"
+                      @change="handleAdditionalImagesChange"
+                      @reject="
+                        additionalForm.setError('images', $event.message)
+                      "
+                      v-slot="upload"
+                    >
+                      <form
+                        class="rounded-xl bg-white p-4 dark:bg-gray-800"
+                        @submit.prevent="saveAdditionalImages(item)"
+                      >
+                        <p class="text-sm font-medium">Add screenshots</p>
+                        <p
+                          class="mt-1 text-xs text-gray-500 dark:text-gray-400"
+                        >
+                          {{ item.images?.length || 0 }}/4 attached to this
+                          feedback · up to 5 MB each
+                        </p>
+                        <div
+                          v-if="upload.files.length"
+                          class="mt-3 flex flex-wrap gap-2"
+                        >
+                          <span
+                            v-for="file in upload.files"
+                            :key="imageSignature(file)"
+                            class="inline-flex items-center gap-2 rounded-md bg-gray-100 px-2 py-1 text-xs dark:bg-gray-700"
+                          >
+                            {{ file.name }}
+                            <button
+                              type="button"
+                              :aria-label="`Remove ${file.name}`"
+                              @click="upload.remove(file)"
+                            >
+                              <X class="size-3" />
+                            </button>
+                          </span>
+                        </div>
+                        <p
+                          v-if="additionalForm.errors.images"
+                          class="mt-2 text-xs text-red-600"
+                          role="alert"
+                        >
+                          {{ additionalForm.errors.images }}
+                        </p>
+                        <div class="mt-3 flex flex-wrap items-center gap-3">
+                          <button
+                            type="button"
+                            class="text-sm font-medium text-gray-600 hover:text-gray-950 dark:text-gray-300 dark:hover:text-white"
+                            @click="upload.choose"
+                          >
+                            Choose images
+                          </button>
+                          <button
+                            type="submit"
+                            :disabled="
+                              !upload.files.length || additionalForm.processing
+                            "
+                            class="rounded-lg bg-gray-950 px-3 py-2 text-sm font-medium text-white disabled:opacity-40 dark:bg-white dark:text-gray-950"
+                          >
+                            {{
+                              additionalForm.processing
+                                ? 'Uploading…'
+                                : 'Save screenshots'
+                            }}
+                          </button>
+                          <button
+                            type="button"
+                            class="text-sm text-gray-500"
+                            @click="addingImagesTo = null"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </form>
+                    </FileUpload>
                   </div>
                   <p class="mt-3 text-xs text-gray-400">
                     {{ item.authorName }} · {{ shortDate(item.createdAt) }}
