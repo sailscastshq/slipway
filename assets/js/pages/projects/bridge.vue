@@ -273,6 +273,7 @@ function switchDashboard(id) {
                 <Link
                   :href="bridgeModelUrl(model.identity)"
                   prefetch
+                  cache-for="5s"
                   class="flex items-center space-x-3"
                 >
                   <div

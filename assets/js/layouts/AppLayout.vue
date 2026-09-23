@@ -138,10 +138,12 @@ const userTeams = computed(() => {
 })
 
 function switchTeam(teamId) {
+  router.flushAll()
   router.post(
     '/switch-team',
     { teamId },
     {
+      onSuccess: () => router.flushAll(),
       onError: (errors) => {
         toast({
           message: errors.teamId || 'Slipway could not switch teams.',
@@ -158,6 +160,7 @@ function createNewTeam() {
 
 function logout() {
   deploymentFavicon.reset()
+  router.flushAll()
   router.delete('/logout')
 }
 
@@ -423,6 +426,8 @@ watch(() => page.url, closeMobileMenu)
           <ul class="space-y-1">
             <li>
               <Link
+                prefetch
+                cache-for="5s"
                 href="/"
                 @click="closeMobileMenu"
                 :class="[
@@ -438,6 +443,8 @@ watch(() => page.url, closeMobileMenu)
             </li>
             <li>
               <Link
+                prefetch
+                cache-for="5s"
                 href="/lookout"
                 @click="closeMobileMenu"
                 :class="[
@@ -453,6 +460,8 @@ watch(() => page.url, closeMobileMenu)
             </li>
             <li v-if="canManageInstance">
               <Link
+                prefetch
+                cache-for="5s"
                 href="/bosun"
                 @click="closeMobileMenu"
                 :class="[
@@ -468,6 +477,8 @@ watch(() => page.url, closeMobileMenu)
             </li>
             <li>
               <Link
+                prefetch
+                cache-for="5s"
                 href="/settings"
                 @click="closeMobileMenu"
                 :class="[
@@ -510,6 +521,8 @@ watch(() => page.url, closeMobileMenu)
           >
             <div class="contents">
               <Link
+                prefetch
+                cache-for="5s"
                 href="/profile"
                 @click="handleMobileProfileClick"
                 class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
@@ -518,6 +531,8 @@ watch(() => page.url, closeMobileMenu)
                 Profile
               </Link>
               <Link
+                prefetch
+                cache-for="5s"
                 href="/settings"
                 @click="handleMobileSettingsClick"
                 class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
@@ -704,6 +719,8 @@ watch(() => page.url, closeMobileMenu)
         <ul class="space-y-1">
           <li>
             <Link
+              prefetch
+              cache-for="5s"
               href="/"
               :class="[
                 'flex items-center space-x-3 rounded-md px-2 py-2 text-sm transition-colors',
@@ -718,6 +735,8 @@ watch(() => page.url, closeMobileMenu)
           </li>
           <li>
             <Link
+              prefetch
+              cache-for="5s"
               href="/lookout"
               :class="[
                 'flex items-center space-x-3 rounded-md px-2 py-2 text-sm transition-colors',
@@ -732,6 +751,8 @@ watch(() => page.url, closeMobileMenu)
           </li>
           <li v-if="canManageInstance">
             <Link
+              prefetch
+              cache-for="5s"
               href="/bosun"
               :class="[
                 'flex items-center space-x-3 rounded-md px-2 py-2 text-sm transition-colors',
@@ -746,6 +767,8 @@ watch(() => page.url, closeMobileMenu)
           </li>
           <li>
             <Link
+              prefetch
+              cache-for="5s"
               href="/settings"
               :class="[
                 'flex items-center space-x-3 rounded-md px-2 py-2 text-sm transition-colors',
@@ -788,6 +811,8 @@ watch(() => page.url, closeMobileMenu)
         >
           <div class="contents">
             <Link
+              prefetch
+              cache-for="5s"
               href="/profile"
               class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
             >
@@ -795,6 +820,8 @@ watch(() => page.url, closeMobileMenu)
               Profile
             </Link>
             <Link
+              prefetch
+              cache-for="5s"
               href="/settings"
               class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
             >

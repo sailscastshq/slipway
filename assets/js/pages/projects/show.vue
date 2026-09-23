@@ -96,6 +96,8 @@ function timeAgo(date) {
         </button>
         <nav class="flex items-center space-x-2 text-sm">
           <Link
+            prefetch
+            cache-for="5s"
             href="/"
             class="text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
           >
@@ -151,6 +153,8 @@ function timeAgo(date) {
             Environments
           </h2>
           <Link
+            prefetch
+            cache-for="5s"
             :href="`/projects/${project.slug}/environments/new`"
             class="flex items-center space-x-1 rounded-md bg-gray-900 px-3 py-2 text-sm font-medium text-white hover:bg-gray-800 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
           >
@@ -163,6 +167,8 @@ function timeAgo(date) {
           class="divide-y divide-gray-200 rounded-lg border border-gray-200 bg-white dark:divide-gray-800 dark:border-gray-800 dark:bg-gray-950"
         >
           <Link
+            prefetch
+            cache-for="5s"
             v-for="env in environments"
             :key="env.id"
             :href="`/projects/${project.slug}/environments/${env.slug}`"

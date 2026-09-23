@@ -584,6 +584,7 @@ function createUrl() {
             v-if="modelMeta?.actions?.create !== false"
             :href="createUrl()"
             prefetch
+            cache-for="5s"
             class="inline-flex items-center rounded-md bg-gray-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-gray-800 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
           >
             <span class="mr-1">+</span>
@@ -776,6 +777,7 @@ function createUrl() {
                           v-if="modelMeta.actions?.view !== false"
                           :href="recordUrl(record[modelMeta.primaryKey])"
                           prefetch
+                          cache-for="5s"
                           role="menuitem"
                           class="flex w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 focus:bg-gray-50 focus:outline-none dark:text-gray-300 dark:hover:bg-gray-800 dark:focus:bg-gray-800"
                         >
@@ -785,6 +787,7 @@ function createUrl() {
                           v-if="modelMeta.actions?.update !== false"
                           :href="editUrl(record[modelMeta.primaryKey])"
                           prefetch
+                          cache-for="5s"
                           role="menuitem"
                           class="flex w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 focus:bg-gray-50 focus:outline-none dark:text-gray-300 dark:hover:bg-gray-800 dark:focus:bg-gray-800"
                         >

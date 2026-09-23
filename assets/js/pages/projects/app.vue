@@ -1641,6 +1641,8 @@ onBeforeUnmount(() => {
                       </span>
                       <div>
                         <Link
+                          prefetch
+                          cache-for="5s"
                           :href="`/projects/${project.slug}/environments/${environment.slug}/services/${service.id}`"
                           class="text-sm font-medium text-gray-900 underline decoration-gray-300 decoration-dashed underline-offset-2 hover:text-gray-700 dark:text-white dark:decoration-gray-600 dark:hover:text-gray-300"
                           >{{ service.name }}</Link
@@ -1733,6 +1735,8 @@ onBeforeUnmount(() => {
                 class="border-t border-gray-200 px-4 py-3 dark:border-gray-800"
               >
                 <Link
+                  prefetch
+                  cache-for="5s"
                   :href="`/projects/${project.slug}/environments/${environment.slug}?services=1`"
                   class="text-sm text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
                 >

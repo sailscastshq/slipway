@@ -212,6 +212,8 @@ function cancelDeleteProject() {
                   </div>
                   <div class="group/name flex min-w-0 items-center space-x-1.5">
                     <Link
+                      prefetch
+                      cache-for="5s"
                       :href="`/projects/${project.slug}`"
                       class="font-medium text-gray-900 underline decoration-gray-300 decoration-dashed underline-offset-2 hover:text-gray-700 dark:text-white dark:decoration-gray-600 dark:hover:text-gray-300"
                     >
@@ -301,6 +303,8 @@ function cancelDeleteProject() {
                     class="w-40 rounded-md border-gray-200 bg-white px-0 py-1 shadow-lg dark:border-gray-700 dark:bg-gray-900"
                   >
                     <Link
+                      prefetch
+                      cache-for="5s"
                       :href="`/projects/${project.slug}/settings`"
                       class="flex w-full items-center px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
                     >
