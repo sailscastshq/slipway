@@ -339,6 +339,83 @@ test(
 )
 
 test(
+  'production Helm requires a write arm before running a Quest script',
+  {
+    world: {
+      name: 'configured-slipway',
+      context: {
+        deploymentTarget: {
+          slug: 'production-helm-quest-arm',
+          name: 'Production Helm Quest Arm'
+        }
+      }
+    }
+  },
+  async ({ sails, world, request, expect }) => {
+    const current = world.current
+    const project = current.projects.deploymentTarget
+    const environment = current.environments.production
+    const app = current.apps.web
+    const originalExecute = sails.helpers.helm.executeInContainer
+    let executions = 0
+
+    await sails.models.app.updateOne({ id: app.id }).set({
+      status: 'running',
+      containerName: 'production-helm-quest-arm-web'
+    })
+    sails.helpers.helm.executeInContainer = async () => {
+      executions += 1
+      return RESULT
+    }
+
+    try {
+      const base = `/api/v1/projects/${project.slug}/environments/${environment.slug}`
+      const browser = await withCsrfFromPage(
+        request,
+        `/projects/${project.slug}/environments/${environment.slug}/helm`,
+        'genesisUser'
+      )
+      const source =
+        "await sails.quest.run('reconcile-withdrawals', { handle: 'dominuskelvin' })"
+
+      const inspection = await browser.request.post(
+        `${base}/helm/inspect-source`,
+        { code: source }
+      )
+      expect(inspection).toHaveStatus(200)
+      expect(inspection).toHaveJsonPath('requiresWriteArm', true)
+      expect(inspection).toHaveJsonPath(
+        'classification.findings.0.label',
+        'Run a Quest job'
+      )
+
+      const blocked = await browser.request.post(`${base}/execute`, {
+        code: source,
+        executionId: 'ae70268f-2f7d-4b4f-843d-498aa57de15b'
+      })
+      expect(blocked).toHaveStatus(409)
+      expect(blocked).toHaveJsonPath('code', 'HELM_WRITES_NOT_ARMED')
+      expect(executions).toBe(0)
+
+      const armed = await browser.request.post(`${base}/helm/arm-writes`, {
+        code: source
+      })
+      expect(armed).toHaveStatus(201)
+
+      const executed = await browser.request.post(`${base}/execute`, {
+        code: source,
+        writeArmToken: armed.data.token,
+        executionId: '9625a26d-f190-45ba-b537-a0dafc5f643e'
+      })
+      expect(executed).toHaveStatus(200)
+      expect(executions).toBe(1)
+    } finally {
+      sails.helpers.helm.executeInContainer = originalExecute
+    }
+  }
+)
+
+test(
   'project Helm history is durable, searchable, scoped, and preserves pins when cleared',
   {
     world: {

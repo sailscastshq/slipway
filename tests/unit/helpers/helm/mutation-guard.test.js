@@ -59,6 +59,30 @@ await sails.helpers.mail.sendTemplate.with({ to: 'builder@example.com' })
   ])
 })
 
+test('Helm treats Quest execution as a write while leaving Quest inspection read-only', ({
+  sails,
+  expect
+}) => {
+  const execution = sails.helpers.helm.classifyMutations(`
+await sails.quest.run('reconcile-withdrawals', { handle: 'dominuskelvin' })
+await sails.quest['start']('nightly-report')
+`)
+
+  expect(execution.mutating).toBe(true)
+  expect(execution.findings.map((finding) => finding.method)).toEqual([
+    'run',
+    'start'
+  ])
+  expect(execution.findings[0].label).toBe('Run a Quest job')
+  expect(execution.findings[0].line).toBe(2)
+
+  const inspection = sails.helpers.helm.classifyMutations(`
+typeof sails.quest?.run
+sails.quest.list()
+`)
+  expect(inspection.mutating).toBe(false)
+})
+
 test('Helm mutation classification remains explicitly incomplete when source cannot be parsed', ({
   sails,
   expect

@@ -55,6 +55,9 @@ and working directory from Linux `/proc`. It then uses Sails' normal rc loader s
 `.sailsrc`, `sails_*` overrides, production configuration, and custom environments
 are honored. Relative SQLite paths resolve from the app's working directory.
 Helm keeps migrations set to `safe` and skips the app bootstrap.
+It also disables Quest auto-start for this temporary lift, while leaving
+`sails.quest` available for explicit calls, so opening Helm does not start
+another copy of scheduled jobs.
 
 If the running app cannot be identified or multiple distinct app runtimes are
 present, Helm refuses execution instead of guessing which datastore to use.
@@ -63,6 +66,16 @@ configuration in container variables or Sails configuration: custom changes made
 inside an app entrypoint cannot be recovered from `/proc`, and Node preload/eval
 or env-file launch modes are not supported by runtime discovery. No application
 environment variables or database credentials are included in discovery errors.
+
+If the selected app has `sails-hook-quest` installed, Helm exposes its runtime
+API as `sails.quest`. To run a Sails script with inputs, use
+`await sails.quest.run('job-name', { inputName: 'value' })`, not
+`sails.hooks.quest.run(...)`. Quest launches the script from the selected
+app's container, using that app's Quest script environment when configured.
+In production, running or changing Quest jobs triggers
+Helm's write-arm flow because scripts can change data or cause other side
+effects. Checking `typeof sails.quest?.run` does not trigger that flow or run a
+job.
 
 ## Production context and write arming
 

@@ -34,6 +34,16 @@ const EXTERNAL_METHODS = new Map([
   ['sendTemplate', 'Send a message']
 ])
 
+const QUEST_MUTATIONS = new Map([
+  ['run', 'Run a Quest job'],
+  ['start', 'Start Quest jobs'],
+  ['stop', 'Stop Quest jobs'],
+  ['pause', 'Pause a Quest job'],
+  ['resume', 'Resume a Quest job'],
+  ['add', 'Add a Quest job'],
+  ['remove', 'Remove a Quest job']
+])
+
 module.exports = {
   friendlyName: 'Classify Helm mutations',
 
@@ -87,6 +97,15 @@ module.exports = {
       const property = memberPropertyName(callee)
       const identifier = callee?.type === 'Identifier' ? callee.name : null
       const path = memberPath(callee)
+
+      if (path.startsWith('sails.quest.') && QUEST_MUTATIONS.has(property)) {
+        addFinding(findings, node, {
+          kind: 'external-side-effect',
+          method: property,
+          label: QUEST_MUTATIONS.get(property)
+        })
+        return
+      }
 
       if (property && MODEL_MUTATIONS.has(property)) {
         addFinding(findings, node, {

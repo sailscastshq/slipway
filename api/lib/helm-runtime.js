@@ -548,6 +548,11 @@ async function helmSubprocessMain(
             models: {
               migrate: 'safe'
             },
+            // Keep Quest's API available, but do not start a second scheduler
+            // whenever Helm lifts a temporary copy of the app.
+            quest: {
+              autoStart: false
+            },
             hooks: {
               http: false,
               views: false,
