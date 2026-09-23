@@ -1,6 +1,9 @@
 const fs = require('node:fs')
 const path = require('node:path')
 const { test } = require('sounding')
+const screenshotDataUrl = `data:image/svg+xml,${encodeURIComponent(
+  '<svg xmlns="http://www.w3.org/2000/svg" width="320" height="200" viewBox="0 0 320 200"><rect width="320" height="200" fill="#f3f4f6"/><rect x="18" y="18" width="284" height="164" rx="12" fill="white"/><rect x="18" y="18" width="284" height="26" rx="12" fill="#111827"/><circle cx="34" cy="31" r="4" fill="#9ca3af"/><rect x="38" y="63" width="117" height="12" rx="6" fill="#374151"/><rect x="38" y="88" width="240" height="8" rx="4" fill="#d1d5db"/><rect x="38" y="104" width="204" height="8" rx="4" fill="#d1d5db"/><rect x="38" y="130" width="90" height="30" rx="7" fill="#2563eb"/></svg>'
+)}`
 
 test(
   'Bearing settings present identified participation as the calm default',
@@ -49,6 +52,10 @@ test(
         title: item[0],
         status: item[1],
         voteCount: item[2],
+        images:
+          item[0] === 'Review the new feedback loop'
+            ? [{ url: screenshotDataUrl, type: 'image/svg+xml', size: 540 }]
+            : [],
         category: 'feature',
         submittedAnonymously: true,
         app: app.id,
@@ -234,6 +241,46 @@ test(
     }
     page.raw.off('request', recordTabInertiaRequest)
 
+    await page.goto(`${bearingPath}?view=feedback`)
+    const feedbackRow = page.raw
+      .locator('#bearing-panel-feedback article')
+      .filter({ hasText: 'Review the new feedback loop' })
+    await expect(feedbackRow.locator('img')).toBeVisible()
+    expect((await feedbackRow.locator('img').boundingBox()).width > 100).toBe(
+      true
+    )
+    await feedbackRow
+      .getByRole('link', { name: 'Review the new feedback loop', exact: true })
+      .click()
+    await expect(
+      page.raw.getByRole('link', { name: 'Back to feedback' })
+    ).toBeVisible()
+    await expect(
+      page.raw.getByRole('tab', { name: 'Feedback' })
+    ).toHaveAttribute('aria-selected', 'true')
+    await expect(page.raw.locator('#bearing-panel-feedback img')).toBeVisible()
+    await page.screenshot(
+      path.join(screenshotRoot, 'operator-feedback-detail.png'),
+      { fullPage: true }
+    )
+    await page.raw.getByRole('tab', { name: 'Roadmap' }).click()
+    await expect(
+      page.raw.getByRole('tabpanel', { name: 'Roadmap' })
+    ).toBeVisible()
+    await page.raw.waitForFunction(
+      () => !new URLSearchParams(window.location.search).has('publicId')
+    )
+    await page.raw
+      .locator('#bearing-panel-roadmap')
+      .getByRole('link', { name: 'Publish a public roadmap' })
+      .click()
+    await expect(
+      page.raw.getByRole('link', { name: 'Back to feedback' })
+    ).toBeVisible()
+    await expect(
+      page.raw.getByRole('tab', { name: 'Feedback' })
+    ).toHaveAttribute('aria-selected', 'true')
+
     await sails.models.bearingspace
       .updateOne({ id: space.id })
       .set({ showPublicRoadmap: false })
@@ -411,6 +458,7 @@ test(
         title: 'A weekly digest for the projects I follow',
         details:
           'One useful summary would be easier to scan than a trail of individual updates.',
+        images: [{ url: screenshotDataUrl, type: 'image/svg+xml', size: 540 }],
         status: 'planned',
         voteCount: 14,
         app: app.id,
@@ -990,6 +1038,24 @@ test(
 
     await page.goto('/bearing/roadmap')
     await expect(page).toSee('Where we are heading')
+    const roadmapCard = page.raw
+      .locator('.bearing-feedback-card')
+      .filter({ hasText: 'A weekly digest for the projects I follow' })
+    await expect(roadmapCard.locator('img')).toBeVisible()
+    expect((await roadmapCard.locator('img').boundingBox()).width > 100).toBe(
+      true
+    )
+    await roadmapCard
+      .getByRole('link', {
+        name: 'A weekly digest for the projects I follow',
+        exact: true
+      })
+      .click()
+    await page.raw.waitForURL('**/bearing/feedback/bfd_weekly-digest')
+    await expect(page.raw.locator('body')).toContainText(
+      'A weekly digest for the projects I follow'
+    )
+    await page.goto('/bearing/roadmap')
     await page.screenshot(path.join(screenshotRoot, 'roadmap-public.png'), {
       fullPage: true
     })
