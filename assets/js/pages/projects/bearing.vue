@@ -132,6 +132,29 @@ const updateForm = useForm({
   feedbackIds: [],
   publish: false
 })
+const editingDraft = ref(null)
+const draftToDelete = ref(null)
+const deletingDraft = ref(false)
+
+function editDraft(item) {
+  if (item.status !== 'draft') return
+  editingDraft.value = item.publicId
+  updateForm.clearErrors()
+  updateForm.title = item.title
+  updateForm.excerpt = item.excerpt
+  updateForm.body = item.body
+  updateForm.feedbackIds = item.linkedFeedback.map(
+    (feedback) => feedback.publicId
+  )
+  updateForm.publish = false
+  nextTick(() => document.getElementById('bearing-update-title')?.focus())
+}
+
+function clearDraft() {
+  editingDraft.value = null
+  updateForm.reset()
+  updateForm.clearErrors()
+}
 
 function save() {
   form.patch(bearingPath.value, { preserveScroll: true })
@@ -202,9 +225,28 @@ function moveFeedback(item, status) {
 
 function saveUpdate(publish) {
   updateForm.publish = publish
-  updateForm.post(`${bearingPath.value}/updates`, {
+  const path = editingDraft.value
+    ? `${bearingPath.value}/updates/${editingDraft.value}`
+    : `${bearingPath.value}/updates`
+  updateForm[editingDraft.value ? 'patch' : 'post'](path, {
     preserveScroll: true,
-    onSuccess: () => updateForm.reset()
+    onSuccess: clearDraft
+  })
+}
+
+function deleteDraft() {
+  if (!draftToDelete.value || deletingDraft.value) return
+  const publicId = draftToDelete.value.publicId
+  deletingDraft.value = true
+  router.delete(`${bearingPath.value}/updates/${publicId}`, {
+    preserveScroll: true,
+    onSuccess: () => {
+      if (editingDraft.value === publicId) clearDraft()
+      draftToDelete.value = null
+    },
+    onFinish: () => {
+      deletingDraft.value = false
+    }
   })
 }
 
@@ -621,7 +663,19 @@ onUnmounted(() => {
         >
           <form class="space-y-5" @submit.prevent="saveUpdate(false)">
             <div>
-              <h2 class="text-base font-semibold">Write an update</h2>
+              <div class="flex items-center justify-between gap-4">
+                <h2 class="text-base font-semibold">
+                  {{ editingDraft ? 'Edit draft' : 'Write an update' }}
+                </h2>
+                <button
+                  v-if="editingDraft"
+                  type="button"
+                  class="text-sm text-gray-500 hover:text-gray-950 dark:hover:text-white"
+                  @click="clearDraft"
+                >
+                  New update
+                </button>
+              </div>
               <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
                 Publishing also marks every linked request as shipped.
               </p>
@@ -721,7 +775,7 @@ onUnmounted(() => {
                 "
                 class="min-h-10 disabled:opacity-35 rounded-lg bg-gray-100 px-4 text-sm font-medium dark:bg-gray-800"
               >
-                Save draft
+                {{ editingDraft ? 'Save changes' : 'Save draft' }}
               </button>
               <button
                 type="button"
@@ -736,12 +790,43 @@ onUnmounted(() => {
               >
                 Publish update
               </button>
+              <button
+                v-if="editingDraft"
+                type="button"
+                class="min-h-10 rounded-lg px-3 text-sm font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30"
+                @click="
+                  draftToDelete = updates.find(
+                    (item) => item.publicId === editingDraft
+                  )
+                "
+              >
+                Delete draft
+              </button>
             </div>
           </form>
           <div class="mt-12 space-y-10">
             <article v-for="item in updates" :key="item.publicId">
               <div class="flex items-start justify-between gap-4">
-                <div>
+                <button
+                  v-if="item.status === 'draft'"
+                  type="button"
+                  class="min-w-0 flex-1 text-left focus-visible:rounded focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-950 dark:focus-visible:outline-white"
+                  :aria-label="`Edit draft ${item.title}`"
+                  @click="editDraft(item)"
+                >
+                  <span
+                    class="block text-xs font-medium uppercase tracking-wider text-gray-400"
+                    >Draft</span
+                  >
+                  <span class="mt-1 block font-medium hover:underline">{{
+                    item.title
+                  }}</span>
+                  <span
+                    class="mt-1 block text-sm text-gray-500 dark:text-gray-400"
+                    >{{ item.excerpt }}</span
+                  >
+                </button>
+                <div v-else>
                   <p
                     class="text-xs font-medium uppercase tracking-wider text-gray-400"
                   >
@@ -1227,5 +1312,15 @@ onUnmounted(() => {
     :loading="deletingFeedback"
     @confirm="deleteFeedback"
     @cancel="feedbackToDelete = null"
+  />
+  <ConfirmModal
+    :show="Boolean(draftToDelete)"
+    title="Delete draft?"
+    :message="`Delete “${draftToDelete?.title || ''}”? This cannot be undone.`"
+    confirm-label="Delete draft"
+    destructive
+    :loading="deletingDraft"
+    @confirm="deleteDraft"
+    @cancel="draftToDelete = null"
   />
 </template>
