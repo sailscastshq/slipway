@@ -1,3 +1,8 @@
+function once(callback) {
+  let pending
+  return () => (pending ||= Promise.resolve().then(callback))
+}
+
 module.exports = {
   friendlyName: 'View environment',
 
@@ -69,154 +74,155 @@ module.exports = {
       throw { notFound: `/projects/${slug}` }
     }
 
-    // Get all app records (multi-app support)
-    let allApps = await App.find({ environment: environment.id })
-    let app = allApps.find((a) => a.isDefault) || allApps[0] || null
-
-    const { fullDomain, generatedDomain, domains } =
-      await Environment.resolveDomains(environment.id)
-    const serverIp = await sails.helpers.getServerIp()
-
-    // Enrich services with connection URLs and last backup
-    const services = await Promise.all(
-      (environment.services || []).map(async (service) => {
-        const connectionUrl =
-          service.managementMode === 'external'
-            ? null
-            : await Service.getConnectionUrl(service.id)
-        let lastBackup = null
-        if (Service.isBackupSupported(service.type)) {
-          const backups = await Backup.find({ service: service.id })
-            .sort('createdAt DESC')
-            .limit(1)
-          const latest = backups[0]
-          lastBackup = latest
-            ? {
-                id: latest.id,
-                status: latest.status,
-                completedAt: latest.completedAt,
-                sizeBytes: latest.sizeBytes
-              }
-            : null
-        }
-        return {
-          ...Service.toPublic(service),
-          connectionUrl,
-          lastBackup,
-          backupSupported: Service.isBackupSupported(service.type),
-          versionSupport: getVersionSupport(service)
-        }
-      })
+    const loadAllApps = once(() => App.find({ environment: environment.id }))
+    const loadDomains = once(() => Environment.resolveDomains(environment.id))
+    const loadServerIp = once(() => sails.helpers.getServerIp())
+    const loadServices = once(() =>
+      Promise.all(
+        (environment.services || []).map(async (service) => {
+          const connectionUrl =
+            service.managementMode === 'external'
+              ? null
+              : await Service.getConnectionUrl(service.id)
+          let lastBackup = null
+          if (Service.isBackupSupported(service.type)) {
+            const backups = await Backup.find({ service: service.id })
+              .sort('createdAt DESC')
+              .limit(1)
+            const latest = backups[0]
+            lastBackup = latest
+              ? {
+                  id: latest.id,
+                  status: latest.status,
+                  completedAt: latest.completedAt,
+                  sizeBytes: latest.sizeBytes
+                }
+              : null
+          }
+          return {
+            ...Service.toPublic(service),
+            connectionUrl,
+            lastBackup,
+            backupSupported: Service.isBackupSupported(service.type),
+            versionSupport: getVersionSupport(service)
+          }
+        })
+      )
     )
-
-    // Check if backup storage is configured
-    let backupConfigured = false
-    try {
-      await sails.helpers.backup.getStorageConfig()
-      backupConfigured = true
-    } catch {
-      /* ignore */
-    }
-
-    // Check container status for all apps
-    const appsWithHealth = []
-    for (const a of allApps) {
-      let containerExists = false
-      let containerHealth = null
-      if (a.containerName) {
-        try {
-          const containerStatus = await sails.helpers.docker.getContainerStatus(
-            a.containerName
-          )
-          containerExists = true
-          containerHealth = containerStatus.health
-        } catch (err) {
-          if (err.code === 'notFound' || err === 'notFound') {
-            await App.updateOne({ id: a.id }).set({ status: 'stopped' })
-            a.status = 'stopped'
+    const loadAppsWithHealth = once(async () => {
+      const allApps = await loadAllApps()
+      const appsWithHealth = []
+      for (const a of allApps) {
+        let containerExists = false
+        let containerHealth = null
+        if (a.containerName) {
+          try {
+            const containerStatus =
+              await sails.helpers.docker.getContainerStatus(a.containerName)
+            containerExists = true
+            containerHealth = containerStatus.health
+          } catch (err) {
+            if (err.code === 'notFound' || err === 'notFound') {
+              await App.updateOne({ id: a.id }).set({ status: 'stopped' })
+              a.status = 'stopped'
+            }
           }
         }
+        appsWithHealth.push({ ...a, containerHealth, containerExists })
       }
-      appsWithHealth.push({ ...a, containerHealth, containerExists })
-    }
-
-    // Update default app reference after potential status changes
-    app = appsWithHealth.find((a) => a.isDefault) || appsWithHealth[0] || null
-
-    const deploymentHistory = await sails.helpers.deployment.getHistory.with({
-      projectSlug: project.slug,
-      environments: [environment],
-      apps: appsWithHealth,
-      currentApps: appsWithHealth,
-      filters: {
-        status: deploymentStatus,
-        environment: '',
-        app: deploymentApp,
-        source: deploymentSource
-      },
-      cursor: deploymentCursor || null
+      return appsWithHealth
     })
-
-    // Generate deployment checklist
-    const readiness = await sails.helpers.environment.getReadiness.with({
-      environmentId: environment.id
-    })
-    const managedEnvVarKeys = (environment.services || [])
-      .map((service) => service.envVarKey)
-      .filter(Boolean)
-    const envVarMetadata =
-      sails.helpers.configuration.normalizeEnvVarMetadata.with({
-        values: environment.envVars || {},
-        metadata: environment.envVarMetadata || {},
-        currentValues: environment.envVars || {},
-        currentMetadata: environment.envVarMetadata || {},
-        managedKeys: managedEnvVarKeys,
-        recordChanges: false
-      })
-
-    // Check if GitHub is connected for this team
-    const gitProvider = await GitProvider.findOne({
-      team: user.team.id,
-      type: 'github',
-      isActive: true
-    })
-    const githubConnected = !!gitProvider
-    const sourceReadinessByApp = {}
-    for (const appRecord of appsWithHealth) {
-      sourceReadinessByApp[appRecord.id] =
-        await sails.helpers.deploy.getSourceReadiness.with({
-          project,
-          environment,
-          app: appRecord
-        })
-    }
     const publicEnvironment = omitPrivateEnvironmentFields(environment)
 
     return {
       page: 'projects/environment',
       props: {
         project,
-        environment: {
-          ...publicEnvironment,
-          fullDomain,
-          generatedDomain,
-          domains,
-          serverIp,
-          services
+        environment: async () => {
+          const [{ fullDomain, generatedDomain, domains }, serverIp, services] =
+            await Promise.all([loadDomains(), loadServerIp(), loadServices()])
+          return {
+            ...publicEnvironment,
+            fullDomain,
+            generatedDomain,
+            domains,
+            serverIp,
+            services
+          }
         },
-        app: app ? omitPrivateAppFields(app) : null,
-        apps: appsWithHealth.map(omitPrivateAppFields),
+        app: async () => {
+          const apps = await loadAppsWithHealth()
+          const app = apps.find((item) => item.isDefault) || apps[0] || null
+          return app ? omitPrivateAppFields(app) : null
+        },
+        apps: async () =>
+          (await loadAppsWithHealth()).map(omitPrivateAppFields),
         envVars: require('../../lib/external-postgresql').redactEnv(
           environment.envVars || {},
           environment.services
         ),
-        envVarMetadata,
-        deploymentHistory,
-        readiness,
-        serviceVersions: getPublicMatrix(),
-        backupConfigured,
-        githubConnected,
-        sourceReadinessByApp
+        envVarMetadata: () => {
+          const managedEnvVarKeys = (environment.services || [])
+            .map((service) => service.envVarKey)
+            .filter(Boolean)
+          return sails.helpers.configuration.normalizeEnvVarMetadata.with({
+            values: environment.envVars || {},
+            metadata: environment.envVarMetadata || {},
+            currentValues: environment.envVars || {},
+            currentMetadata: environment.envVarMetadata || {},
+            managedKeys: managedEnvVarKeys,
+            recordChanges: false
+          })
+        },
+        deploymentHistory: async () => {
+          const appsWithHealth = await loadAppsWithHealth()
+          return sails.helpers.deployment.getHistory.with({
+            projectSlug: project.slug,
+            environments: [environment],
+            apps: appsWithHealth,
+            currentApps: appsWithHealth,
+            filters: {
+              status: deploymentStatus,
+              environment: '',
+              app: deploymentApp,
+              source: deploymentSource
+            },
+            cursor: deploymentCursor || null
+          })
+        },
+        readiness: () =>
+          sails.helpers.environment.getReadiness.with({
+            environmentId: environment.id
+          }),
+        serviceVersions: getPublicMatrix,
+        backupConfigured: async () => {
+          try {
+            await sails.helpers.backup.getStorageConfig()
+            return true
+          } catch {
+            return false
+          }
+        },
+        githubConnected: async () =>
+          Boolean(
+            await GitProvider.findOne({
+              team: user.team.id,
+              type: 'github',
+              isActive: true
+            })
+          ),
+        sourceReadinessByApp: async () => {
+          const sourceReadinessByApp = {}
+          for (const appRecord of await loadAppsWithHealth()) {
+            sourceReadinessByApp[appRecord.id] =
+              await sails.helpers.deploy.getSourceReadiness.with({
+                project,
+                environment,
+                app: appRecord
+              })
+          }
+          return sourceReadinessByApp
+        }
       }
     }
 
