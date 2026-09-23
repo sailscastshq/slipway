@@ -436,7 +436,7 @@ onUnmounted(() => {
           class="mt-9"
         >
           <div
-            class="grid grid-cols-2 gap-x-7 gap-y-1 border-b border-gray-200 pb-8 dark:border-gray-800 min-[360px]:grid-cols-3 sm:grid-cols-5"
+            class="grid grid-cols-2 gap-x-7 gap-y-1 min-[360px]:grid-cols-3 sm:grid-cols-5"
           >
             <component
               :is="metric.view ? 'button' : 'div'"
@@ -471,7 +471,7 @@ onUnmounted(() => {
           </div>
 
           <div
-            class="mt-10 grid gap-12 lg:grid-cols-[minmax(0,1.6fr)_minmax(17rem,0.8fr)] lg:gap-16"
+            class="mt-12 grid gap-12 lg:grid-cols-[minmax(0,1.6fr)_minmax(17rem,0.8fr)] lg:gap-16"
           >
             <section aria-labelledby="bearing-attention-heading">
               <div class="flex items-center justify-between gap-4">
@@ -495,14 +495,11 @@ onUnmounted(() => {
                   View all
                 </button>
               </div>
-              <ul
-                v-if="attentionFeedback.length"
-                class="mt-5 border-t border-gray-200 dark:border-gray-800"
-              >
+              <ul v-if="attentionFeedback.length" class="mt-5 space-y-2">
                 <li v-for="item in attentionFeedback" :key="item.publicId">
                   <button
                     type="button"
-                    class="min-h-20 group flex w-full items-center justify-between gap-4 border-b border-gray-200 px-1 py-4 text-left transition hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-950 dark:border-gray-800 dark:hover:bg-gray-900 dark:focus-visible:ring-white"
+                    class="min-h-20 group flex w-full items-center justify-between gap-4 rounded-xl bg-gray-50 px-4 py-3 text-left transition hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-950 dark:bg-gray-900 dark:hover:bg-gray-800 dark:focus-visible:ring-white"
                     @click="router.get(feedbackLink(item))"
                   >
                     <img
@@ -513,7 +510,7 @@ onUnmounted(() => {
                     />
                     <span class="min-w-0 flex-1">
                       <span
-                        class="block truncate text-base font-medium tracking-tight"
+                        class="block break-words text-base font-medium tracking-tight"
                         >{{ item.title }}</span
                       >
                       <span
@@ -535,7 +532,7 @@ onUnmounted(() => {
               </ul>
               <div
                 v-else
-                class="mt-5 border-t border-gray-200 py-6 dark:border-gray-800"
+                class="mt-5 rounded-xl bg-gray-50 px-5 py-6 dark:bg-gray-900"
               >
                 <p class="text-sm font-medium">You are caught up.</p>
                 <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
@@ -547,7 +544,6 @@ onUnmounted(() => {
             <section
               v-if="publicSurfaces.length"
               aria-labelledby="bearing-public-surfaces-heading"
-              class="lg:border-l lg:border-gray-200 lg:pl-10 dark:lg:border-gray-800"
             >
               <div>
                 <h2
@@ -560,12 +556,12 @@ onUnmounted(() => {
                   What customers can open on {{ app.name }}.
                 </p>
               </div>
-              <ul class="mt-5 border-t border-gray-200 dark:border-gray-800">
+              <ul class="mt-5 space-y-5">
                 <li
                   v-for="surface in publicSurfaces"
                   :key="surface.key"
                   :data-test="`bearing-public-surface-${surface.key}`"
-                  class="min-h-20 group flex items-center justify-between gap-3 border-b border-gray-200 py-3 dark:border-gray-800"
+                  class="min-h-16 group flex flex-col items-stretch gap-1 sm:flex-row sm:items-center sm:justify-between sm:gap-3"
                 >
                   <div class="min-w-0">
                     <div class="flex items-center gap-2">
@@ -593,7 +589,9 @@ onUnmounted(() => {
                       {{ publicUrlPath(surface.url) }}
                     </p>
                   </div>
-                  <div class="flex shrink-0 items-center gap-1">
+                  <div
+                    class="flex w-full shrink-0 items-center justify-end gap-1 sm:w-auto"
+                  >
                     <template v-if="surface.enabled">
                       <button
                         type="button"
@@ -659,7 +657,11 @@ onUnmounted(() => {
             >Back to feedback</Link
           >
           <div
-            class="mt-6 divide-y divide-gray-200 border-t border-gray-200 dark:divide-gray-800 dark:border-gray-800"
+            :class="
+              focusedFeedback
+                ? 'mt-8'
+                : 'mt-7 divide-y divide-gray-200 dark:divide-gray-800'
+            "
           >
             <article
               v-for="item in displayedFeedback"
@@ -805,11 +807,11 @@ onUnmounted(() => {
                   group.items.length
                 }}</span>
               </div>
-              <div class="mt-4 border-t border-gray-200 dark:border-gray-800">
+              <div class="mt-5 space-y-5">
                 <article
                   v-for="item in group.items"
                   :key="item.publicId"
-                  class="border-b border-gray-200 py-4 dark:border-gray-800"
+                  class="py-1"
                 >
                   <h3 class="text-sm font-medium leading-6">
                     <Link :href="feedbackLink(item)" class="hover:underline">{{
@@ -822,7 +824,7 @@ onUnmounted(() => {
                 </article>
                 <p
                   v-if="!group.items.length"
-                  class="py-8 text-xs text-gray-400"
+                  class="py-4 text-xs text-gray-400"
                 >
                   Nothing here.
                 </p>
