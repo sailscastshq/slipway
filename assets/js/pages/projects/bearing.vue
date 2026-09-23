@@ -1,5 +1,8 @@
 <script setup>
+import Check from '@/components/ui/icons/Check.vue'
 import ChevronRight from '@/components/ui/icons/ChevronRight.vue'
+import Copy from '@/components/ui/icons/Copy.vue'
+import ExternalLink from '@/components/ui/icons/ExternalLink.vue'
 import SidebarClose from '@/components/ui/icons/SidebarClose.vue'
 import SidebarOpen from '@/components/ui/icons/SidebarOpen.vue'
 import Input from '@/components/ui/input/Input.vue'
@@ -595,20 +598,30 @@ onUnmounted(() => {
                     <template v-if="surface.enabled">
                       <button
                         type="button"
-                        class="min-h-10 rounded-md px-2 text-xs font-medium text-gray-500 hover:bg-gray-50 hover:text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-950 dark:text-gray-400 dark:hover:bg-gray-900 dark:hover:text-white dark:focus-visible:ring-white"
-                        :aria-label="`Copy ${surface.label} link`"
+                        class="size-10 inline-flex items-center justify-center rounded-md text-gray-500 hover:bg-gray-50 hover:text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-950 dark:text-gray-400 dark:hover:bg-gray-900 dark:hover:text-white dark:focus-visible:ring-white"
+                        :aria-label="`${
+                          copiedSurface === surface.key ? 'Copied' : 'Copy'
+                        } ${surface.label} link`"
+                        :title="`${
+                          copiedSurface === surface.key ? 'Copied' : 'Copy'
+                        } ${surface.label} link`"
                         @click="copyPublicUrl(surface)"
                       >
-                        {{ copiedSurface === surface.key ? 'Copied' : 'Copy' }}
+                        <Check
+                          v-if="copiedSurface === surface.key"
+                          class="size-4 text-emerald-600 dark:text-emerald-400"
+                        />
+                        <Copy v-else class="size-4" />
                       </button>
                       <a
                         :href="surface.url"
                         target="_blank"
                         rel="noreferrer"
-                        class="min-h-10 inline-flex items-center rounded-md px-2 text-xs font-medium text-gray-700 hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-950 dark:text-gray-200 dark:hover:bg-gray-900 dark:focus-visible:ring-white"
+                        class="size-10 inline-flex items-center justify-center rounded-md text-gray-700 hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-950 dark:text-gray-200 dark:hover:bg-gray-900 dark:focus-visible:ring-white"
+                        :aria-label="`Open ${surface.label}`"
+                        :title="`Open ${surface.label}`"
                       >
-                        Open
-                        <span class="sr-only"> {{ surface.label }}</span>
+                        <ExternalLink class="size-4" />
                       </a>
                     </template>
                     <button
