@@ -21,6 +21,7 @@ import AppLayout from '@/layouts/AppLayout.vue'
 import Breadcrumb from '@/components/ui/breadcrumb/Breadcrumb.vue'
 import MarkdownEditor from '@/components/content/MarkdownEditor.vue'
 import ConfirmModal from '@/components/ConfirmModal.vue'
+import ActionMenu from '@/components/ActionMenu.vue'
 import Alert from '@/components/ui/alert/Alert.vue'
 import Select from '@/components/ui/select/Select.vue'
 import Tabs from '@/components/ui/tabs/Tabs.vue'
@@ -667,14 +668,31 @@ onUnmounted(() => {
                 <h2 class="text-base font-semibold">
                   {{ editingDraft ? 'Edit draft' : 'Write an update' }}
                 </h2>
-                <button
-                  v-if="editingDraft"
-                  type="button"
-                  class="text-sm text-gray-500 hover:text-gray-950 dark:hover:text-white"
-                  @click="clearDraft"
-                >
-                  New update
-                </button>
+                <div v-if="editingDraft" class="flex items-center gap-3">
+                  <button
+                    type="button"
+                    class="text-sm text-gray-500 hover:text-gray-950 dark:hover:text-white"
+                    @click="clearDraft"
+                  >
+                    New update
+                  </button>
+                  <ActionMenu
+                    :items="[
+                      {
+                        key: 'delete',
+                        label: 'Delete draft',
+                        destructive: true
+                      }
+                    ]"
+                    label="Draft actions"
+                    test-id="bearing-draft-actions"
+                    @select="
+                      draftToDelete = updates.find(
+                        (item) => item.publicId === editingDraft
+                      )
+                    "
+                  />
+                </div>
               </div>
               <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
                 Publishing also marks every linked request as shipped.
@@ -789,18 +807,6 @@ onUnmounted(() => {
                 @click="saveUpdate(true)"
               >
                 Publish update
-              </button>
-              <button
-                v-if="editingDraft"
-                type="button"
-                class="min-h-10 rounded-lg px-3 text-sm font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30"
-                @click="
-                  draftToDelete = updates.find(
-                    (item) => item.publicId === editingDraft
-                  )
-                "
-              >
-                Delete draft
               </button>
             </div>
           </form>
