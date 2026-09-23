@@ -169,7 +169,7 @@ test(
       const tab = page.raw.getByRole('tab', { name: label })
       await tab.click()
       await expect(tab).toHaveAttribute('aria-selected', 'true')
-      await expect(tab).toHaveClass(/bg-gray-900/)
+      await expect(tab).toHaveClass(/border-gray-950/)
       await expect(
         page.raw.getByRole('tabpanel', { name: label })
       ).toBeVisible()
