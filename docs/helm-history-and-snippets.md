@@ -64,6 +64,16 @@ inside an app entrypoint cannot be recovered from `/proc`, and Node preload/eval
 or env-file launch modes are not supported by runtime discovery. No application
 environment variables or database credentials are included in discovery errors.
 
+If the selected app has `sails-hook-quest` installed, Helm exposes its runtime
+API as `sails.quest`. To run a Sails script with inputs, use
+`await sails.quest.run('job-name', { inputName: 'value' })`, not
+`sails.hooks.quest.run(...)`. Quest launches the script from the selected
+app's container, using that app's Quest script environment when configured.
+In production, running or changing Quest jobs triggers
+Helm's write-arm flow because scripts can change data or cause other side
+effects. Checking `typeof sails.quest?.run` does not trigger that flow or run a
+job.
+
 ## Production context and write arming
 
 Helm's breadcrumb identifies the active project, environment, and app. Slipway
