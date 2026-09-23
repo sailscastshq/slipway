@@ -669,6 +669,8 @@ onUnmounted(() => {
                     {{ restarting ? 'Starting...' : 'Start' }}
                   </button>
                   <Link
+                    prefetch
+                    cache-for="5s"
                     :href="`/projects/${project.slug}/environments/${environment.slug}/services/${service.id}/settings`"
                     class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
                   >

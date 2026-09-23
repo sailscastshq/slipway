@@ -1237,6 +1237,8 @@ onBeforeUnmount(() => {
                   </div>
                   <div class="pt-1">
                     <Link
+                      prefetch
+                      cache-for="5s"
                       :href="`/projects/${project.slug}/environments/${environment.slug}/settings`"
                       class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
                     >
@@ -1306,6 +1308,8 @@ onBeforeUnmount(() => {
                   <div class="flex items-center space-x-3">
                     <div class="flex items-center space-x-2">
                       <Link
+                        prefetch
+                        cache-for="5s"
                         :href="`/projects/${project.slug}/environments/${environment.slug}/apps/${appItem.slug}`"
                         class="text-sm font-medium text-gray-900 underline decoration-gray-300 decoration-dashed underline-offset-2 hover:text-gray-700 dark:text-white dark:decoration-gray-600 dark:hover:text-gray-300"
                       >
@@ -1445,6 +1449,8 @@ onBeforeUnmount(() => {
                         <!-- Settings -->
                         <div class="pt-1">
                           <Link
+                            prefetch
+                            cache-for="5s"
                             :href="`/projects/${project.slug}/environments/${environment.slug}/apps/${appItem.slug}/settings`"
                             class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
                           >
@@ -1783,6 +1789,8 @@ onBeforeUnmount(() => {
                       </span>
                       <div>
                         <Link
+                          prefetch
+                          cache-for="5s"
                           :href="`/projects/${project.slug}/environments/${environment.slug}/services/${service.id}`"
                           class="text-sm font-medium text-gray-900 underline decoration-gray-300 decoration-dashed underline-offset-2 hover:text-gray-700 dark:text-white dark:decoration-gray-600 dark:hover:text-gray-300"
                           >{{ service.name }}</Link
@@ -1873,6 +1881,8 @@ onBeforeUnmount(() => {
                             }}
                           </button>
                           <Link
+                            prefetch
+                            cache-for="5s"
                             :href="`/projects/${project.slug}/environments/${environment.slug}/services/${service.id}/settings`"
                             class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-800"
                           >

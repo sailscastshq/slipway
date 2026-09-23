@@ -224,6 +224,14 @@ const filteredCategories = computed(() => {
                 v-for="(item, i) in category.items"
                 :key="item.href"
                 :href="item.href"
+                :prefetch="
+                  ![
+                    '/settings/global-env',
+                    '/settings/cli-tokens',
+                    '/settings/audit-log'
+                  ].includes(item.href)
+                "
+                cache-for="5s"
                 :class="[
                   'flex items-center justify-between px-4 py-4 transition-colors hover:bg-gray-50 dark:hover:bg-gray-900/50',
                   i > 0 ? 'border-t border-gray-200 dark:border-gray-800' : ''
