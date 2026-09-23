@@ -174,6 +174,125 @@ test(
     expect(
       Boolean(await sails.models.bearingupdate.findOne({ id: disposable.id }))
     ).toBe(false)
+
+    await sails.helpers.setting.set(
+      'globalEnvVars',
+      JSON.stringify({
+        R2_ACCESS_KEY: 'test-key',
+        R2_SECRET_KEY: 'test-secret',
+        R2_BUCKET: 'slipway-test',
+        R2_ENDPOINT: 'https://r2.example.test',
+        R2_PUBLIC_URL: 'https://assets.example.test'
+      })
+    )
+    const directory = `bearing/teams/${author.team}/projects/${project.id}/apps/${app.id}/updates/assets`
+    const uniquePath = `${directory}/11111111-1111-4111-8111-111111111111.png`
+    const sharedPath = `${directory}/22222222-2222-4222-8222-222222222222.png`
+    const ownedDraft = await sails.models.bearingupdate
+      .create({
+        title: 'Draft with owned images',
+        slug: 'draft-with-owned-images',
+        excerpt: 'Images should be cleaned up.',
+        body: `![Unique](https://assets.example.test/${uniquePath})\n\n![Shared](https://assets.example.test/${sharedPath})`,
+        status: 'draft',
+        author: author.id,
+        app: app.id,
+        space: space.id
+      })
+      .fetch()
+    await sails.models.bearingupdate.create({
+      title: 'Published update using the shared image',
+      slug: 'published-update-using-the-shared-image',
+      excerpt: 'Keep this image.',
+      body: `![Shared](https://assets.example.test/${sharedPath})`,
+      status: 'published',
+      publishedAt: Date.now(),
+      author: author.id,
+      app: app.id,
+      space: space.id
+    })
+    const originalDeleteImages = sails.helpers.bearing.deleteFeedbackImages
+    const removed = []
+    try {
+      sails.helpers.bearing.deleteFeedbackImages = {
+        with: async ({ images }) => removed.push(...images)
+      }
+      await page.goto(`${bearingPath}?view=updates`)
+      await page.raw
+        .getByRole('button', { name: `Edit draft ${ownedDraft.title}` })
+        .click()
+      await page.raw.getByRole('button', { name: 'Draft actions' }).click()
+      await page.raw
+        .locator('[data-test="bearing-draft-actions-delete"]')
+        .click()
+      await Promise.all([
+        page.raw.waitForResponse(
+          (response) =>
+            response.url().includes(`/updates/${ownedDraft.publicId}`) &&
+            response.request().method() === 'DELETE'
+        ),
+        page.raw
+          .getByRole('button', { name: 'Delete draft', exact: true })
+          .last()
+          .click()
+      ])
+      await expect(
+        page.raw.getByRole('button', { name: `Edit draft ${ownedDraft.title}` })
+      ).toHaveCount(0)
+    } finally {
+      sails.helpers.bearing.deleteFeedbackImages = originalDeleteImages
+    }
+    expect(removed).toEqual([{ objectPath: uniquePath }])
+    expect(
+      Boolean(await sails.models.bearingupdate.findOne({ id: ownedDraft.id }))
+    ).toBe(false)
+
+    const retryDraft = await sails.models.bearingupdate
+      .create({
+        title: 'Retry image cleanup',
+        slug: 'retry-image-cleanup',
+        excerpt: 'Storage may be unavailable.',
+        body: `![Unique](https://assets.example.test/${uniquePath})`,
+        status: 'draft',
+        author: author.id,
+        app: app.id,
+        space: space.id
+      })
+      .fetch()
+    try {
+      sails.helpers.bearing.deleteFeedbackImages = {
+        with: async () => {
+          throw new Error('Storage unavailable')
+        }
+      }
+      await page.goto(`${bearingPath}?view=updates`)
+      await page.raw
+        .getByRole('button', { name: `Edit draft ${retryDraft.title}` })
+        .click()
+      await page.raw.getByRole('button', { name: 'Draft actions' }).click()
+      await page.raw
+        .locator('[data-test="bearing-draft-actions-delete"]')
+        .click()
+      await Promise.all([
+        page.raw.waitForResponse(
+          (response) =>
+            response.url().includes(`/updates/${retryDraft.publicId}`) &&
+            response.request().method() === 'DELETE'
+        ),
+        page.raw
+          .getByRole('button', { name: 'Delete draft', exact: true })
+          .last()
+          .click()
+      ])
+      await expect(
+        page.raw.getByRole('button', { name: `Edit draft ${retryDraft.title}` })
+      ).toHaveCount(1)
+    } finally {
+      sails.helpers.bearing.deleteFeedbackImages = originalDeleteImages
+    }
+    expect(
+      Boolean(await sails.models.bearingupdate.findOne({ id: retryDraft.id }))
+    ).toBe(true)
     expect(page).toHaveNoJavascriptErrors()
   }
 )

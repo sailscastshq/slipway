@@ -1,3 +1,8 @@
+const {
+  imageUrls,
+  ownedImagePaths
+} = require('../../lib/bearing-update-images')
+
 module.exports = {
   friendlyName: 'Delete Bearing draft',
 
@@ -41,6 +46,79 @@ module.exports = {
         })
       : null
     if (!draft) throw { notFound: path }
+
+    const directory = [
+      'bearing',
+      'teams',
+      resolved.user.team,
+      'projects',
+      resolved.project.id,
+      'apps',
+      resolved.app.id,
+      'updates',
+      'assets'
+    ].join('/')
+    const candidateUrls = imageUrls(draft.body)
+    if (candidateUrls.size) {
+      let storage
+      try {
+        storage = await sails.helpers.uploads.getStorageConfig.with({
+          requirePublicUrl: true
+        })
+      } catch (error) {
+        // An external image must not prevent a draft from being discarded.
+        if ([...candidateUrls].some((url) => url.includes(`/${directory}/`))) {
+          sails.inertia.flash(
+            'error',
+            'The draft could not be deleted because file storage is unavailable. Restore storage settings and try again.'
+          )
+          return path
+        }
+      }
+
+      if (storage) {
+        const owned = ownedImagePaths(draft.body, {
+          publicUrl: storage.publicUrl,
+          directory
+        })
+        if (owned.size) {
+          const otherUpdates = await BearingUpdate.find({
+            space: space.id,
+            app: resolved.app.id,
+            id: { '!=': draft.id }
+          }).select(['body'])
+          const shared = new Set(
+            otherUpdates.flatMap((update) => [
+              ...ownedImagePaths(update.body, {
+                publicUrl: storage.publicUrl,
+                directory
+              })
+            ])
+          )
+          const images = [...owned]
+            .filter((objectPath) => !shared.has(objectPath))
+            .map((objectPath) => ({ objectPath }))
+          if (images.length) {
+            try {
+              await sails.helpers.bearing.deleteFeedbackImages.with({
+                storage,
+                images
+              })
+            } catch (error) {
+              sails.log.warn(
+                'Bearing draft image deletion failed:',
+                error.message
+              )
+              sails.inertia.flash(
+                'error',
+                'The draft could not be deleted because its images could not be removed. Please try again.'
+              )
+              return path
+            }
+          }
+        }
+      }
+    }
 
     await sails.getDatastore().transaction(async (db) => {
       await BearingUpdateLink.destroy({

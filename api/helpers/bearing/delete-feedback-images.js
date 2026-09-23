@@ -1,7 +1,7 @@
 const createClient = require('../../lib/s3-client')
 
 module.exports = {
-  friendlyName: 'Delete Bearing feedback images',
+  friendlyName: 'Delete Bearing images',
 
   description:
     'Remove uploaded Bearing images after failed creation or before deletion.',
@@ -37,7 +37,7 @@ module.exports = {
       })
       if (result.Errors?.length) {
         throw new Error(
-          'Some feedback images could not be deleted. Please retry.'
+          'Some Bearing images could not be deleted. Please retry.'
         )
       }
     } finally {
