@@ -395,7 +395,7 @@ onUnmounted(() => {
         <div
           ref="tablist"
           data-slot="tabs-list"
-          class="mt-10 flex items-center gap-7 overflow-x-auto border-b border-gray-200 dark:border-gray-800"
+          class="mt-10 flex items-center gap-7 overflow-x-auto"
         >
           <button
             v-for="item in navItems"
@@ -405,7 +405,7 @@ onUnmounted(() => {
             :data-value="item[0]"
             :aria-controls="`bearing-panel-${item[0]}`"
             :class="[
-              'min-h-11 -mb-px shrink-0 border-b-2 px-0.5 pb-3 pt-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-400 dark:focus-visible:ring-gray-600',
+              'min-h-11 shrink-0 border-b-2 px-0.5 pb-3 pt-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-400 dark:focus-visible:ring-gray-600',
               selectedView === item[0]
                 ? 'border-gray-950 text-gray-950 dark:border-white dark:text-white'
                 : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-900 dark:text-gray-400 dark:hover:border-gray-600 dark:hover:text-white'
@@ -445,18 +445,8 @@ onUnmounted(() => {
             class="mt-4 inline-block text-sm underline"
             >Back to feedback</Link
           >
-          <div
-            :class="
-              focusedFeedback
-                ? 'mt-8'
-                : 'mt-7 divide-y divide-gray-200 dark:divide-gray-800'
-            "
-          >
-            <article
-              v-for="item in displayedFeedback"
-              :key="item.publicId"
-              class="py-6"
-            >
+          <div :class="focusedFeedback ? 'mt-8' : 'mt-9 space-y-10'">
+            <article v-for="item in displayedFeedback" :key="item.publicId">
               <div
                 :class="
                   focusedFeedback
@@ -520,7 +510,7 @@ onUnmounted(() => {
                 <div
                   :class="
                     focusedFeedback
-                      ? 'flex flex-col items-start gap-8 border-t border-gray-200 pt-6 dark:border-gray-800 lg:border-l lg:border-t-0 lg:pl-8 lg:pt-0'
+                      ? 'flex flex-col items-start gap-8'
                       : 'flex shrink-0 items-center gap-3'
                   "
                 >
@@ -748,8 +738,8 @@ onUnmounted(() => {
               </button>
             </div>
           </form>
-          <div class="mt-12 divide-y divide-gray-200 dark:divide-gray-800">
-            <article v-for="item in updates" :key="item.publicId" class="py-5">
+          <div class="mt-12 space-y-10">
+            <article v-for="item in updates" :key="item.publicId">
               <div class="flex items-start justify-between gap-4">
                 <div>
                   <p
