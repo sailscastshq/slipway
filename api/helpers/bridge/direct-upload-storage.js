@@ -104,7 +104,16 @@ module.exports = {
         return { uploadId: created.UploadId }
       }
 
-      requireUploadId(uploadId)
+      if (
+        [
+          'signParts',
+          'listParts',
+          'completeMultipart',
+          'abortMultipart'
+        ].includes(operation)
+      ) {
+        requireUploadId(uploadId)
+      }
 
       if (operation === 'signParts') {
         const numbers = normalizePartNumbers(partNumbers)
