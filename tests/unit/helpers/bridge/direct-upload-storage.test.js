@@ -1,3 +1,4 @@
+const http = require('node:http')
 const { test } = require('sounding')
 
 const storage = {
@@ -29,6 +30,45 @@ test('Bridge signs a short-lived direct PUT for the exact R2 object', async ({
   expect(signed.searchParams.get('X-Amz-SignedHeaders')).toContain(
     'content-type'
   )
+})
+
+test('Bridge verifies a single upload without multipart state', async ({
+  sails,
+  expect
+}) => {
+  const server = http.createServer((req, res) => {
+    expect(req.method).toBe('HEAD')
+    expect(req.url).toBe('/course-videos/sponsors/opaque-logo.webp')
+    res.writeHead(200, {
+      'Content-Length': '4096',
+      'Content-Type': 'image/webp',
+      ETag: '"verified-logo"'
+    })
+    res.end()
+  })
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve))
+  const { port } = server.address()
+
+  try {
+    const result = await sails.helpers.bridge.directUploadStorage.with({
+      operation: 'head',
+      storage: {
+        ...storage,
+        endpoint: `http://127.0.0.1:${port}`
+      },
+      objectPath: 'sponsors/opaque-logo.webp'
+    })
+
+    expect(result).toEqual({
+      size: 4096,
+      type: 'image/webp',
+      etag: 'verified-logo'
+    })
+  } finally {
+    await new Promise((resolve, reject) =>
+      server.close((error) => (error ? reject(error) : resolve()))
+    )
+  }
 })
 
 test('Bridge signs only explicit numbered multipart parts', async ({
