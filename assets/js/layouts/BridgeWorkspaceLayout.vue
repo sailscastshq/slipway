@@ -6,6 +6,7 @@ import ToastContainer from '@/components/ToastContainer.vue'
 import Sheet from '@/components/ui/sheet/Sheet.vue'
 import Sidebar from '@/components/ui/sidebar/Sidebar.vue'
 import { createToast } from '@/composables/toast'
+import { useFlashToast } from '@/composables/flash-toast'
 
 const STORAGE_KEY = 'slipway:bridge-sidebar-collapsed'
 const page = usePage()
@@ -16,6 +17,7 @@ const sidebarOpen = ref(true)
 const sidebarCollapsed = computed(() => !sidebarOpen.value)
 let desktopMediaQuery
 const toast = createToast()
+useFlashToast(toast)
 
 function toggleMobileMenu(event) {
   if (mobileMenuOpen.value) {
