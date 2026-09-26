@@ -8,6 +8,11 @@ Slipway keeps three test lanes:
 
 When a test can be proven with request or Inertia helpers, it belongs in `functional`.
 When the browser itself matters, it belongs in `e2e`.
+Add a browser scenario to the existing test file for its owning page (for
+example, a Bridge record action toast belongs in `projects/bridge-record.test.js`). Use a
+separate file when it covers a distinct page or needs an independent,
+expensive fixture; keep the browser shards balanced instead of growing one
+page file without bound.
 
 Run the complete Sounding 0.2 suite with `npm test`, or a single lane with
 `npm run test:unit`, `npm run test:functional`, or `npm run test:e2e`.
