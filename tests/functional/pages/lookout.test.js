@@ -1,5 +1,70 @@
 const crypto = require('node:crypto')
+const fs = require('node:fs')
+const os = require('node:os')
+const path = require('node:path')
 const { test } = require('sounding')
+
+test(
+  'Lookout gives an authorized app owner an on-demand Bridge process snapshot',
+  {
+    world: {
+      name: 'configured-slipway',
+      context: {
+        deploymentTarget: {
+          slug: 'lookout-bridge-process',
+          name: 'Lookout Bridge process'
+        }
+      }
+    }
+  },
+  async ({ sails, world, request, expect }) => {
+    const containerName = 'slipway-lookout-bridge-process-web'
+    const app = world.current.apps.web
+    await sails.models.app.updateOne({ id: app.id }).set({ containerName })
+
+    const tempDirectory = fs.mkdtempSync(
+      path.join(os.tmpdir(), 'slipway-lookout-process-')
+    )
+    const fakeDocker = path.join(tempDirectory, 'docker')
+    fs.writeFileSync(
+      fakeDocker,
+      '#!/bin/sh\n' +
+        "printf '%s\\n' 'PID RSS COMMAND' '10 225280 node app.js' '42 90112 slipway-bridge-worker'\n"
+    )
+    fs.chmodSync(fakeDocker, 0o755)
+    const originalDockerConfig = sails.config.docker
+    sails.config.docker = { ...originalDockerConfig, binaryPath: fakeDocker }
+
+    try {
+      const url = `/api/v1/lookout/metrics/${containerName}`
+      const unauthorized = await request.get(url)
+      expect(unauthorized).toHaveStatus(401)
+
+      const response = await request.as('genesisUser').get(url)
+      expect(response).toHaveStatus(200)
+      expect(response).toHaveJsonPath('diagnostic.version', 2)
+      expect(response).toHaveJsonPath(
+        'diagnostic.processSnapshot.bridgeWorkerCount',
+        1
+      )
+      expect(response).toHaveJsonPath(
+        'diagnostic.processSnapshot.bridgeWorkerRssMiB',
+        88
+      )
+
+      fs.writeFileSync(fakeDocker, '#!/bin/sh\nexit 1\n')
+      const dockerUnavailable = await request.as('genesisUser').get(url)
+      expect(dockerUnavailable).toHaveStatus(200)
+      expect(dockerUnavailable).toHaveJsonPath(
+        'diagnostic.processSnapshot.available',
+        false
+      )
+    } finally {
+      sails.config.docker = originalDockerConfig
+      fs.rmSync(tempDirectory, { recursive: true, force: true })
+    }
+  }
+)
 
 test(
   'Lookout exposes collector and retention health in its existing dashboard',

@@ -13,6 +13,13 @@ test('performance packet summarizes measured memory pressure without claiming a 
     containerType: 'app',
     configuredMemoryLimit: '512m',
     generatedAt: 180000,
+    processSnapshot: {
+      available: true,
+      observedAt: 179000,
+      processCount: 2,
+      bridgeWorkerCount: 1,
+      bridgeWorkerRssMiB: 88
+    },
     metrics: [
       sample(0, 300, 58.6, 0.04),
       sample(60000, 400, 78.1, 1),
@@ -32,6 +39,8 @@ test('performance packet summarizes measured memory pressure without claiming a 
     maxPercent: 91.4
   })
   expect(diagnostic.cpu.latestPercent).toBe(0.02)
+  expect(diagnostic.version).toBe(2)
+  expect(diagnostic.processSnapshot.bridgeWorkerRssMiB).toBe(88)
   expect(diagnostic.evidenceLimits.join(' ')).toContain(
     'not proof of a memory leak'
   )

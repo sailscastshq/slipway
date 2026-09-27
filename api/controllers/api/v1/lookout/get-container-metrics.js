@@ -8,6 +8,9 @@
 const {
   buildPerformanceDiagnostic
 } = require('../../../../lib/performance-diagnostic')
+const {
+  getContainerProcessSnapshot
+} = require('../../../../lib/container-process-snapshot')
 
 module.exports = {
   friendlyName: 'Get container metrics',
@@ -68,6 +71,13 @@ module.exports = {
       recordedAt: m.recordedAt
     }))
 
+    // Inspect processes only for this authorized detail request. The regular
+    // Lookout collector never pays for a Docker process scan.
+    const processSnapshot = await getContainerProcessSnapshot(
+      containerName,
+      sails.config.docker?.binaryPath || 'docker'
+    )
+
     return {
       containerName,
       containerType: app ? 'app' : 'service',
@@ -79,7 +89,8 @@ module.exports = {
         containerType: app ? 'app' : 'service',
         configuredMemoryLimit:
           app?.resourceLimits?.memory || service?.resourceLimits?.memory,
-        metrics: mapped
+        metrics: mapped,
+        processSnapshot
       })
     }
   }
