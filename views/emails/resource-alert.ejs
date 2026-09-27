@@ -16,12 +16,15 @@
     </tr>
     <tr>
       <td style="padding: 10px 0; border-bottom: 1px solid #f4f4f5; color: #a1a1aa; font-size: 13px; font-weight: 500; vertical-align: top;">Memory</td>
-      <td style="padding: 10px 0; border-bottom: 1px solid #f4f4f5; font-size: 14px; color: <%= memHigh ? '#dc2626' : '#18181b' %>; font-weight: <%= memHigh ? '600' : 'normal' %>;"><%= memoryPercent %>%</td>
+      <td style="padding: 10px 0; border-bottom: 1px solid #f4f4f5; font-size: 14px; color: <%= memHigh ? '#dc2626' : '#18181b' %>; font-weight: <%= memHigh ? '600' : 'normal' %>;"><%= memoryPercent %>%<% if (memoryDetail) { %> (<%= memoryDetail %>)<% } %></td>
     </tr>
   </table>
   <p style="color: #52525b; font-size: 14px; line-height: 1.7; margin: 0 0 24px 0;">
-    This container is working up a sweat! Resources have crossed the alert threshold &mdash; might be worth scaling up or investigating what&rsquo;s going on.
+    This container has sustained high resource use. You will only receive another alert after it recovers and enters a new high period.
   </p>
+  <% if (lookoutUrl) { %>
+    <p style="margin: 0 0 24px; font-size: 14px;"><a href="<%= lookoutUrl %>" style="color: #2563eb;">View container metrics in Lookout</a></p>
+  <% } %>
   <div style="border-top: 1px solid #f4f4f5; padding-top: 20px;">
     <p style="color: #a1a1aa; font-size: 12px; margin: 0;">&mdash; Slippy, from <strong style="color: #71717a;"><%= instanceName %></strong></p>
   </div>

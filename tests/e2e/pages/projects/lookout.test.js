@@ -103,6 +103,16 @@ test(
     await expect(lineCharts).toHaveCount(2, { timeout: 15_000 })
     await page.raw.waitForTimeout(250)
     await expect(page).toSee('24-Hour History')
+    await page.raw
+      .context()
+      .grantPermissions(['clipboard-read', 'clipboard-write'])
+    await page.raw.locator('[data-test="copy-performance-diagnostic"]').click()
+    const diagnostic = JSON.parse(
+      await page.raw.evaluate(() => navigator.clipboard.readText())
+    )
+    expect(diagnostic.scope.containerName).toBe(containerName)
+    expect(diagnostic.memory.latestUsageMiB).toBe(328)
+    expect(diagnostic.memory.dockerLimitMiB).toBe(1024)
     const chartPoints = page.raw.locator('[data-slot="line-chart-hit"]')
     await expect(chartPoints).toHaveCount(8)
     await chartPoints.first().focus()

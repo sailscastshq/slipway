@@ -45,6 +45,12 @@ module.exports = {
         cutoff: now - containerRetentionMs
       },
       {
+        key: 'resourceAlertStates',
+        table: 'resource_alert_states',
+        timestamp: 'last_sample_at',
+        cutoff: now - telemetryRetentionMs
+      },
+      {
         key: 'spans',
         table: 'telemetry_spans',
         timestamp: 'created_at',

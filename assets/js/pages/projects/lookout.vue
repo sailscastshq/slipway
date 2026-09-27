@@ -273,24 +273,29 @@ watch(tabs, (availableTabs) => {
 // Expanded container for detail view (synced with URL query param)
 const expandedContainer = useQueryState('container', '')
 const detailMetrics = ref(null)
+const detailDiagnostic = ref(null)
 const loadingDetail = ref(false)
+const diagnosticCopied = ref(false)
 
 function toggleExpand(containerName) {
   if (expandedContainer.value === containerName) {
     expandedContainer.value = ''
-    detailMetrics.value = null
     return
   }
   expandedContainer.value = containerName
-  loadDetailMetrics(containerName)
 }
 
 // Load detail metrics when page opens with ?container= in URL
-watch(expandedContainer, (name) => {
-  if (name && !detailMetrics.value) {
-    loadDetailMetrics(name)
-  }
-})
+watch(
+  expandedContainer,
+  (name) => {
+    detailMetrics.value = null
+    detailDiagnostic.value = null
+    diagnosticCopied.value = false
+    if (name) loadDetailMetrics(name)
+  },
+  { immediate: true }
+)
 
 async function loadDetailMetrics(containerName) {
   loadingDetail.value = true
@@ -300,13 +305,25 @@ async function loadDetailMetrics(containerName) {
     )
     if (res.ok) {
       const data = await res.json()
-      detailMetrics.value = data.metrics
+      if (expandedContainer.value === containerName) {
+        detailMetrics.value = data.metrics
+        detailDiagnostic.value = data.diagnostic || null
+      }
     }
   } catch (err) {
     // Silently fail
   } finally {
-    loadingDetail.value = false
+    if (expandedContainer.value === containerName) loadingDetail.value = false
   }
+}
+
+async function copyPerformanceDiagnostic() {
+  if (!detailDiagnostic.value) return
+  await navigator.clipboard.writeText(
+    JSON.stringify(detailDiagnostic.value, null, 2)
+  )
+  diagnosticCopied.value = true
+  setTimeout(() => (diagnosticCopied.value = false), 2000)
 }
 
 // Request filtering & search
@@ -970,11 +987,32 @@ async function copyToken() {
 
                       <!-- 24h chart -->
                       <div v-if="detailMetrics">
-                        <h3
-                          class="mb-3 text-sm font-medium text-gray-700 dark:text-gray-300"
+                        <div
+                          class="mb-3 flex items-center justify-between gap-3"
                         >
-                          24-Hour History
-                        </h3>
+                          <h3
+                            class="text-sm font-medium text-gray-700 dark:text-gray-300"
+                          >
+                            24-Hour History
+                          </h3>
+                          <button
+                            v-if="detailDiagnostic"
+                            data-test="copy-performance-diagnostic"
+                            type="button"
+                            class="inline-flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
+                            title="Copy measured resource trends and evidence limits. Nothing is sent automatically."
+                            @click="copyPerformanceDiagnostic"
+                          >
+                            <Check
+                              v-if="diagnosticCopied"
+                              class="h-3.5 w-3.5"
+                            />
+                            <Copy v-else class="h-3.5 w-3.5" />
+                            {{
+                              diagnosticCopied ? 'Copied' : 'Copy diagnostics'
+                            }}
+                          </button>
+                        </div>
                         <div class="grid gap-4 sm:grid-cols-2">
                           <LineChart
                             :data="

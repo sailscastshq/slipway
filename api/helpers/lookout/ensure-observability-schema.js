@@ -31,6 +31,22 @@ module.exports = {
     `)
 
     await datastore.sendNativeQuery(`
+      CREATE TABLE IF NOT EXISTS resource_alert_states (
+        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+        created_at INTEGER,
+        updated_at INTEGER,
+        container_name TEXT NOT NULL UNIQUE,
+        cpu_active INTEGER NOT NULL DEFAULT 0,
+        memory_active INTEGER NOT NULL DEFAULT 0,
+        cpu_high_samples INTEGER NOT NULL DEFAULT 0,
+        memory_high_samples INTEGER NOT NULL DEFAULT 0,
+        cpu_recovery_samples INTEGER NOT NULL DEFAULT 0,
+        memory_recovery_samples INTEGER NOT NULL DEFAULT 0,
+        last_sample_at INTEGER NOT NULL
+      )
+    `)
+
+    await datastore.sendNativeQuery(`
       CREATE TABLE IF NOT EXISTS telemetry_spans (
         id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
         created_at INTEGER,

@@ -5,6 +5,10 @@
  * Used for detailed charts when drilling into a specific container.
  */
 
+const {
+  buildPerformanceDiagnostic
+} = require('../../../../lib/performance-diagnostic')
+
 module.exports = {
   friendlyName: 'Get container metrics',
 
@@ -67,7 +71,16 @@ module.exports = {
     return {
       containerName,
       containerType: app ? 'app' : 'service',
-      metrics: downsample(mapped, 200)
+      metrics: downsample(mapped, 200),
+      diagnostic: buildPerformanceDiagnostic({
+        project: project.slug,
+        environment: environment.slug,
+        containerName,
+        containerType: app ? 'app' : 'service',
+        configuredMemoryLimit:
+          app?.resourceLimits?.memory || service?.resourceLimits?.memory,
+        metrics: mapped
+      })
     }
   }
 }
