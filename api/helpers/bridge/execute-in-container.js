@@ -5,6 +5,7 @@ const BOOT_ERROR_MARKER = '___SLIPWAY_BRIDGE_WORKER_BOOT_ERROR___'
 const MAX_CODE_BYTES = 512 * 1024
 const MAX_OUTPUT_BYTES = 2 * 1024 * 1024
 const MAX_STDERR_BYTES = 64 * 1024
+const DEFAULT_IDLE_TIMEOUT_MS = 5 * 60 * 1000
 const workers = new Map()
 let nextJobId = 1
 let teardownRegistered = false
@@ -30,6 +31,11 @@ module.exports = {
       type: 'number',
       defaultsTo: 60000,
       description: 'Timeout in milliseconds'
+    },
+    idleTimeoutMs: {
+      type: 'number',
+      defaultsTo: DEFAULT_IDLE_TIMEOUT_MS,
+      description: 'How long to keep an unused Bridge worker alive'
     }
   },
 
@@ -39,18 +45,27 @@ module.exports = {
     }
   },
 
-  fn: async function ({ containerName, code, timeout }) {
+  fn: async function ({ containerName, code, timeout, idleTimeoutMs }) {
+    if (Buffer.byteLength(code) > MAX_CODE_BYTES) {
+      return failure('Bridge worker code exceeded the safe limit.')
+    }
     registerTeardown()
 
     const dockerPath = sails.config.docker?.binaryPath || 'docker'
     const key = `${dockerPath}\u0000${containerName}`
     let worker = workers.get(key)
+    if (worker?.closed) {
+      // An idle worker is still lowering Sails. Wait for it to exit so the
+      // replacement cannot briefly double the app container's memory use.
+      await worker.closedPromise
+      worker = workers.get(key)
+    }
     if (!worker || worker.closed) {
       worker = createWorker({ key, dockerPath, containerName })
       workers.set(key, worker)
     }
 
-    return execute(worker, code, timeout)
+    return execute(worker, code, timeout, Math.max(1, idleTimeoutMs))
   }
 }
 
@@ -69,10 +84,15 @@ function createWorker({ key, dockerPath, containerName }) {
     key,
     proc,
     pending: new Map(),
+    idleTimer: null,
+    idleTimeoutMs: DEFAULT_IDLE_TIMEOUT_MS,
     stdout: '',
     stderr: '',
     closed: false
   }
+  worker.closedPromise = new Promise((resolve) => {
+    worker.resolveClosed = resolve
+  })
 
   proc.stdout.on('data', (data) => {
     worker.stdout += data.toString()
@@ -96,7 +116,11 @@ function createWorker({ key, dockerPath, containerName }) {
   })
 
   proc.on('close', (exitCode) => {
-    if (worker.closed) return
+    worker.resolveClosed()
+    if (worker.closed) {
+      if (workers.get(worker.key) === worker) workers.delete(worker.key)
+      return
+    }
     const detail = worker.stderr.trim()
     failWorker(
       worker,
@@ -112,14 +136,14 @@ function createWorker({ key, dockerPath, containerName }) {
   return worker
 }
 
-function execute(worker, code, timeout) {
+function execute(worker, code, timeout, idleTimeoutMs) {
   return new Promise((resolve) => {
-    if (Buffer.byteLength(code) > MAX_CODE_BYTES) {
-      return resolve(failure('Bridge worker code exceeded the safe limit.'))
-    }
     if (worker.closed || !worker.proc.stdin.writable) {
       return resolve(failure('Bridge worker is unavailable.'))
     }
+
+    clearIdleTimer(worker)
+    worker.idleTimeoutMs = idleTimeoutMs
 
     const id = nextJobId++
     const timer = setTimeout(() => {
@@ -178,12 +202,50 @@ function consumeWorkerOutput(worker) {
       error: typeof result.error === 'string' ? result.error : null,
       exitCode: result.success === true ? 0 : 1
     })
+    scheduleIdleShutdown(worker)
+  }
+}
+
+function clearIdleTimer(worker) {
+  if (worker.idleTimer) clearTimeout(worker.idleTimer)
+  worker.idleTimer = null
+}
+
+function scheduleIdleShutdown(worker) {
+  if (worker.closed || worker.pending.size > 0) return
+  clearIdleTimer(worker)
+  worker.idleTimer = setTimeout(
+    () => retireIdleWorker(worker),
+    worker.idleTimeoutMs
+  )
+  worker.idleTimer.unref?.()
+}
+
+function retireIdleWorker(worker) {
+  if (worker.closed || worker.pending.size > 0) return
+  if (workers.get(worker.key) !== worker) return
+
+  worker.closed = true
+  clearIdleTimer(worker)
+
+  // Closing stdin lets the worker lower Sails before it exits. Bound that
+  // shutdown in case the app's lower hook stalls.
+  const forceStop = setTimeout(() => {
+    if (!worker.proc.killed) worker.proc.kill('SIGTERM')
+  }, 7000)
+  forceStop.unref?.()
+  worker.proc.once('close', () => clearTimeout(forceStop))
+  try {
+    worker.proc.stdin.end()
+  } catch {
+    worker.proc.kill('SIGTERM')
   }
 }
 
 function failWorker(worker, message, exitCode = 1) {
   if (worker.closed) return
   worker.closed = true
+  clearIdleTimer(worker)
   if (workers.get(worker.key) === worker) workers.delete(worker.key)
 
   for (const pending of worker.pending.values()) {
@@ -289,6 +351,8 @@ const BOOT_ERROR_MARKER = ${JSON.stringify(BOOT_ERROR_MARKER)};
 
   input.on('close', () => {
     queue.finally(() => {
+      const forceExit = setTimeout(() => process.exit(1), 5000);
+      forceExit.unref();
       if (sailsApp && sailsApp.lower) {
         sailsApp.lower(() => process.exit());
       } else {

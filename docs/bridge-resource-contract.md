@@ -4,6 +4,12 @@ Bridge works without configuration by discovering the Waterline models in a
 running Sails application. Applications that need a curated administration
 surface can define a versioned resource contract in `config/slipway.js`.
 
+Bridge starts its separate Sails worker only when an operator first uses it.
+The worker is reused during active work and shuts down after five idle minutes,
+returning its memory to the app container. The first request after an idle
+period may take longer while the worker loads the application's models and
+helpers.
+
 ```js
 module.exports.slipway = {
   bridge: {
