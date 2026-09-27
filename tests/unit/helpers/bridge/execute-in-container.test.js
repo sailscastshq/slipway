@@ -86,6 +86,78 @@ test('Bridge replaces a timed-out worker before the next operation', async ({
   }
 })
 
+test('Bridge retires an idle worker and starts another on the next operation', async ({
+  sails,
+  expect
+}) => {
+  const fixture = await createFakeDockerFixture()
+  const restore = useFakeDocker(sails, fixture)
+  process.env.SLIPWAY_FAKE_DOCKER_CLOSE_DELAY_MS = '120'
+
+  try {
+    const first = await sails.helpers.bridge.executeInContainer.with({
+      containerName: 'sailscasts-idle',
+      code: 'return { operation: "first" }',
+      idleTimeoutMs: 50
+    })
+    expect(first.success).toBe(true)
+    expect(await readBootCount(fixture.bootCountPath)).toBe(1)
+
+    await sleep(70)
+    const second = sails.helpers.bridge.executeInContainer.with({
+      containerName: 'sailscasts-idle',
+      code: 'return { operation: "second" }',
+      idleTimeoutMs: 50
+    })
+    await sleep(30)
+    expect(await readBootCount(fixture.bootCountPath)).toBe(1)
+    expect((await second).success).toBe(true)
+    expect(await readExitCount(fixture.exitCountPath)).toBe(1)
+    expect(await readBootCount(fixture.bootCountPath)).toBe(2)
+  } finally {
+    restore()
+    delete process.env.SLIPWAY_FAKE_DOCKER_CLOSE_DELAY_MS
+    await fs.rm(fixture.directory, { recursive: true, force: true })
+  }
+})
+
+test('Bridge keeps a worker alive while any operation is pending', async ({
+  sails,
+  expect
+}) => {
+  const fixture = await createFakeDockerFixture()
+  const restore = useFakeDocker(sails, fixture)
+
+  try {
+    const slow = sails.helpers.bridge.executeInContainer.with({
+      containerName: 'sailscasts-active',
+      code: '/* slow */ return { operation: "slow" }',
+      idleTimeoutMs: 50
+    })
+    await sleep(70)
+    const fast = await sails.helpers.bridge.executeInContainer.with({
+      containerName: 'sailscasts-active',
+      code: 'return { operation: "fast" }',
+      idleTimeoutMs: 50
+    })
+    expect(fast.success).toBe(true)
+    expect((await slow).success).toBe(true)
+    expect(await readBootCount(fixture.bootCountPath)).toBe(1)
+
+    await sleep(100)
+    const afterIdle = await sails.helpers.bridge.executeInContainer.with({
+      containerName: 'sailscasts-active',
+      code: 'return { operation: "after idle" }',
+      idleTimeoutMs: 50
+    })
+    expect(afterIdle.success).toBe(true)
+    expect(await readBootCount(fixture.bootCountPath)).toBe(2)
+  } finally {
+    restore()
+    await fs.rm(fixture.directory, { recursive: true, force: true })
+  }
+})
+
 async function createFakeDockerFixture() {
   const directory = await fs.mkdtemp(
     path.join(os.tmpdir(), 'slipway-bridge-worker-')
@@ -93,6 +165,7 @@ async function createFakeDockerFixture() {
   const dockerPath = path.join(directory, 'docker')
   const argumentsPath = path.join(directory, 'arguments.json')
   const bootCountPath = path.join(directory, 'boot-count.txt')
+  const exitCountPath = path.join(directory, 'exit-count.txt')
 
   await fs.writeFile(
     dockerPath,
@@ -103,35 +176,44 @@ async function createFakeDockerFixture() {
       "const marker = '___SLIPWAY_BRIDGE_WORKER_RESULT___'",
       'const argumentsPath = process.env.SLIPWAY_FAKE_DOCKER_ARGS_PATH',
       'const bootCountPath = process.env.SLIPWAY_FAKE_DOCKER_BOOT_COUNT_PATH',
+      'const exitCountPath = process.env.SLIPWAY_FAKE_DOCKER_EXIT_COUNT_PATH',
       "fs.appendFileSync(bootCountPath, 'boot\\n')",
+      "process.on('exit', () => fs.appendFileSync(exitCountPath, 'exit\\n'))",
       'fs.writeFileSync(argumentsPath, JSON.stringify(process.argv.slice(2)))',
       'const input = readline.createInterface({ input: process.stdin })',
       'let handled = 0',
       "input.on('line', (line) => {",
       '  const job = JSON.parse(line)',
       "  if (job.code.includes('never finishes')) return",
-      '  handled += 1',
-      '  const response = {',
-      '    id: job.id,',
-      '    success: true,',
-      '    output: JSON.stringify({ code: job.code }),',
-      '    error: null',
-      '  }',
-      "  process.stdout.write('target app noise\\n' + marker + JSON.stringify(response) + '\\n', () => {",
-      '    if (handled === Number(process.env.SLIPWAY_FAKE_DOCKER_EXIT_AFTER || 0)) process.exit(0)',
-      '  })',
+      '  setTimeout(() => {',
+      '    handled += 1',
+      '    const response = {',
+      '      id: job.id,',
+      '      success: true,',
+      '      output: JSON.stringify({ code: job.code }),',
+      '      error: null',
+      '    }',
+      "    process.stdout.write('target app noise\\n' + marker + JSON.stringify(response) + '\\n', () => {",
+      '      if (handled === Number(process.env.SLIPWAY_FAKE_DOCKER_EXIT_AFTER || 0)) process.exit(0)',
+      '    })',
+      "  }, job.code.includes('/* slow */') ? 120 : 0)",
+      '})',
+      "input.on('close', () => {",
+      '  const delay = Number(process.env.SLIPWAY_FAKE_DOCKER_CLOSE_DELAY_MS || 0)',
+      '  if (delay > 0) setTimeout(() => {}, delay)',
       '})'
     ].join('\n'),
     { mode: 0o755 }
   )
 
-  return { directory, dockerPath, argumentsPath, bootCountPath }
+  return { directory, dockerPath, argumentsPath, bootCountPath, exitCountPath }
 }
 
 function useFakeDocker(sails, fixture) {
   const previousDockerConfig = sails.config.docker
   const previousArgumentsPath = process.env.SLIPWAY_FAKE_DOCKER_ARGS_PATH
   const previousBootCountPath = process.env.SLIPWAY_FAKE_DOCKER_BOOT_COUNT_PATH
+  const previousExitCountPath = process.env.SLIPWAY_FAKE_DOCKER_EXIT_COUNT_PATH
 
   sails.config.docker = {
     ...(previousDockerConfig || {}),
@@ -139,6 +221,7 @@ function useFakeDocker(sails, fixture) {
   }
   process.env.SLIPWAY_FAKE_DOCKER_ARGS_PATH = fixture.argumentsPath
   process.env.SLIPWAY_FAKE_DOCKER_BOOT_COUNT_PATH = fixture.bootCountPath
+  process.env.SLIPWAY_FAKE_DOCKER_EXIT_COUNT_PATH = fixture.exitCountPath
 
   return function restore() {
     sails.config.docker = previousDockerConfig
@@ -146,6 +229,10 @@ function useFakeDocker(sails, fixture) {
     restoreEnvironment(
       'SLIPWAY_FAKE_DOCKER_BOOT_COUNT_PATH',
       previousBootCountPath
+    )
+    restoreEnvironment(
+      'SLIPWAY_FAKE_DOCKER_EXIT_COUNT_PATH',
+      previousExitCountPath
     )
   }
 }
@@ -158,6 +245,15 @@ function restoreEnvironment(name, value) {
 async function readBootCount(bootCountPath) {
   const boots = await fs.readFile(bootCountPath, 'utf8')
   return boots.trim().split('\n').length
+}
+
+async function readExitCount(exitCountPath) {
+  const exits = await fs.readFile(exitCountPath, 'utf8')
+  return exits.trim().split('\n').length
+}
+
+function sleep(milliseconds) {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds))
 }
 
 for (const withContent of [true, false]) {
@@ -255,11 +351,12 @@ eval(process.argv[9])
           path.join(fixture.directory, '.tmp/public', name),
           contents
         )
-      const run = (code) =>
+      const run = (code, idleTimeoutMs) =>
         sails.helpers.bridge.executeInContainer.with({
           containerName: `fixture-${withContent}`,
           code,
-          timeout: 15000
+          timeout: 15000,
+          ...(idleTimeoutMs ? { idleTimeoutMs } : {})
         })
       for (let attempt = 0; attempt < 2; attempt++) {
         const result = await run(
@@ -312,6 +409,15 @@ eval(process.argv[9])
             )
           ).toBe(contents)
       }
+
+      const beforeIdle = await run('return process.pid', 50)
+      expect(beforeIdle.success).toBe(true)
+      await sleep(150)
+      const afterIdle = await run('return process.pid', 50)
+      expect(afterIdle.success).toBe(true)
+      expect(
+        JSON.parse(afterIdle.output) !== JSON.parse(beforeIdle.output)
+      ).toBe(true)
     } finally {
       restore()
       await fs.rm(fixture.directory, { recursive: true, force: true })
