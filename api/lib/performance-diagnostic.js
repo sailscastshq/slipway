@@ -5,6 +5,7 @@ function buildPerformanceDiagnostic({
   containerType,
   configuredMemoryLimit,
   metrics,
+  processSnapshot = null,
   generatedAt = Date.now()
 }) {
   const samples = metrics
@@ -22,7 +23,7 @@ function buildPerformanceDiagnostic({
 
   return {
     kind: 'slipway.container-performance-diagnostic',
-    version: 1,
+    version: 2,
     generatedAt,
     scope: {
       project,
@@ -67,10 +68,11 @@ function buildPerformanceDiagnostic({
           maxPercent: Math.max(...samples.map((sample) => sample.cpuPercent))
         }
       : null,
+    processSnapshot,
     evidenceLimits: [
-      'Docker container memory does not separate JavaScript heap, native memory, or other processes.',
+      'A process RSS snapshot includes shared pages and cannot be added up to explain Docker container memory.',
       'A rising container trend is not proof of a memory leak; compare after garbage collection and across comparable workloads.',
-      'This packet does not include traffic, per-process memory, heap profiles, restarts, or application logs.'
+      'This packet does not include traffic, JavaScript heap profiles, restarts, or application logs.'
     ]
   }
 }

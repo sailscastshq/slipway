@@ -281,6 +281,7 @@ function closeAllWorkers() {
 
 function buildWorkerSource() {
   return `
+process.title = 'slipway-bridge-worker';
 const readline = require('node:readline');
 const RESULT_MARKER = ${JSON.stringify(RESULT_MARKER)};
 const BOOT_ERROR_MARKER = ${JSON.stringify(BOOT_ERROR_MARKER)};
