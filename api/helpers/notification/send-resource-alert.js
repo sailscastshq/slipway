@@ -17,6 +17,15 @@ module.exports = {
       type: 'number',
       required: true
     },
+    memoryUsage: {
+      type: 'number'
+    },
+    memoryLimit: {
+      type: 'number'
+    },
+    lookoutUrl: {
+      type: 'string'
+    },
     cpuHigh: {
       type: 'boolean',
       required: true
@@ -31,6 +40,9 @@ module.exports = {
     containerName,
     cpuPercent,
     memoryPercent,
+    memoryUsage,
+    memoryLimit,
+    lookoutUrl,
     cpuHigh,
     memHigh
   }) {
@@ -52,6 +64,12 @@ module.exports = {
     if (cpuHigh) issues.push(`CPU at ${cpuPercent.toFixed(1)}%`)
     if (memHigh) issues.push(`Memory at ${memoryPercent.toFixed(1)}%`)
     const issueText = issues.join(', ')
+    const memoryDetail =
+      Number.isFinite(memoryUsage) &&
+      Number.isFinite(memoryLimit) &&
+      memoryLimit > 0
+        ? `${formatBytes(memoryUsage)} of ${formatBytes(memoryLimit)}`
+        : null
 
     // Send Telegram notification (HTML format)
     const telegramEnabled = await sails.helpers.setting.get(
@@ -65,9 +83,12 @@ module.exports = {
         message += `<b>CPU:</b> ${cpuPercent.toFixed(1)}%\n`
       }
       if (memHigh) {
-        message += `<b>Memory:</b> ${memoryPercent.toFixed(1)}%\n`
+        message += `<b>Memory:</b> ${memoryPercent.toFixed(1)}%${
+          memoryDetail ? ` (${memoryDetail})` : ''
+        }\n`
       }
-      message += `\nThis container is working up a sweat! Might be worth scaling up or investigating.\n`
+      message += `\nThis is a sustained resource incident. Another alert will be sent only after recovery and a new high period.\n`
+      if (lookoutUrl) message += `\nLookout: ${escapeHtml(lookoutUrl)}\n`
       message += `\n<b>\u2014 Slippy \uD83D\uDC19, from ${escapeHtml(
         instanceName
       )}</b>`
@@ -86,7 +107,9 @@ module.exports = {
       let message = `\u26A0\uFE0F *Things are heating up*\n\n`
       message += `*Container:* ${containerName}\n`
       message += `*Issue:* ${issueText}\n`
-      message += `This container is working up a sweat! Might be worth scaling up or investigating.\n`
+      if (memHigh && memoryDetail) message += `*Memory:* ${memoryDetail}\n`
+      message += `This is a sustained resource incident. Another alert will be sent only after recovery and a new high period.\n`
+      if (lookoutUrl) message += `Lookout: ${lookoutUrl}\n`
       message += `\n*\u2014 Slippy \uD83D\uDC19, from ${instanceName}*`
 
       await sails.helpers.notification.sendSlack
@@ -118,10 +141,13 @@ module.exports = {
         if (memHigh) {
           fields.push({
             name: 'Memory',
-            value: `${memoryPercent.toFixed(1)}%`,
+            value: `${memoryPercent.toFixed(1)}%${
+              memoryDetail ? ` (${memoryDetail})` : ''
+            }`,
             inline: true
           })
         }
+        if (lookoutUrl) fields.push({ name: 'Lookout', value: lookoutUrl })
 
         await fetch(discordWebhookUrl, {
           method: 'POST',
@@ -131,7 +157,7 @@ module.exports = {
               {
                 title: '\u26A0\uFE0F Things are heating up',
                 description:
-                  'This container is working up a sweat! Might be worth scaling up or investigating.',
+                  'Sustained resource pressure. Another alert follows only after recovery and a new high period.',
                 color: 0xf59e0b,
                 fields,
                 footer: {
@@ -158,6 +184,8 @@ module.exports = {
             containerName,
             cpuPercent,
             memoryPercent,
+            memoryDetail,
+            lookoutUrl,
             cpuHigh,
             memHigh,
             instanceName
@@ -179,6 +207,9 @@ module.exports = {
             containerName,
             cpuPercent,
             memoryPercent,
+            memoryUsage,
+            memoryLimit,
+            lookoutUrl,
             cpuHigh,
             memHigh,
             instanceName
@@ -195,4 +226,11 @@ function escapeHtml(text) {
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
+}
+
+function formatBytes(bytes) {
+  if (bytes >= 1024 * 1024 * 1024) {
+    return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GiB`
+  }
+  return `${(bytes / (1024 * 1024)).toFixed(0)} MiB`
 }

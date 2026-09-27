@@ -3,7 +3,7 @@
  *
  * Collects Docker container resource metrics on a 30-second interval.
  * Stores snapshots in the ContainerMetric model.
- * Triggers resource alerts when CPU or memory exceeds 90% for 3 consecutive samples (~90s).
+ * Triggers one alert per sustained high-resource incident, after 3 samples.
  *
  * Also:
  * - Lifecycle reconciliation: converges app/service status with Docker state
@@ -11,6 +11,9 @@
  */
 
 module.exports = function defineLookoutHook(sails) {
+  const {
+    advanceResourceAlertState
+  } = require('../../lib/resource-alert-state')
   let pollInterval = null
   let logInterval = null
   let cycleRunning = false
@@ -111,7 +114,7 @@ module.exports = function defineLookoutHook(sails) {
     try {
       const result = await sails.helpers.lookout.collectContainerMetrics()
       for (const sample of result.alertSamples) {
-        await checkResourceAlert(sample.stat, sample.containerName, Date.now())
+        await checkResourceAlert(sample, Date.now())
       }
     } catch (err) {
       sails.log.warn('Lookout: Error collecting metrics:', err.message)
@@ -162,52 +165,49 @@ module.exports = function defineLookoutHook(sails) {
     }
   }
 
-  async function checkResourceAlert(stat, containerName, now) {
-    const cpuHigh = stat.cpuPercent > 90
-    const memHigh = stat.memPercent > 90
-
-    if (!cpuHigh && !memHigh) {
-      return
+  async function checkResourceAlert(
+    { stat, containerName, environmentId },
+    now
+  ) {
+    const previous = await ResourceAlertState.findOne({ containerName })
+    const { state, cpuHigh, memHigh } = advanceResourceAlertState(
+      previous,
+      stat,
+      now
+    )
+    if (previous) {
+      await ResourceAlertState.updateOne({ id: previous.id }).set(state)
+    } else {
+      await ResourceAlertState.create({ containerName, ...state })
     }
 
-    // Check cooldown
-    const lastAlert = alertCooldowns.get(containerName)
-    if (lastAlert && now - lastAlert < ALERT_COOLDOWN_MS) {
-      return
+    if (!cpuHigh && !memHigh) return
+
+    let lookoutUrl
+    try {
+      const environment = await Environment.findOne({
+        id: environmentId
+      }).populate('project')
+      if (environment?.project?.slug) {
+        const baseUrl = sails.config.custom.baseUrl?.replace(/\/$/, '')
+        if (baseUrl) {
+          lookoutUrl = `${baseUrl}/projects/${environment.project.slug}/environments/${environment.slug}/lookout`
+        }
+      }
+    } catch (error) {
+      sails.log.verbose('Lookout: Could not resolve alert link:', error.message)
     }
-
-    // Require sustained high usage: check last 3 consecutive samples (~90s)
-    // to filter out transient spikes from GC, request bursts, etc.
-    const SUSTAINED_SAMPLES = 3
-    const recentMetrics = await ContainerMetric.find({
-      where: { containerName },
-      sort: 'recordedAt DESC',
-      limit: SUSTAINED_SAMPLES
-    })
-
-    // Not enough history yet — skip alerting until we have enough samples
-    if (recentMetrics.length < SUSTAINED_SAMPLES) {
-      return
-    }
-
-    const sustainedCpuHigh =
-      cpuHigh && recentMetrics.every((m) => m.cpuPercent > 90)
-    const sustainedMemHigh =
-      memHigh && recentMetrics.every((m) => m.memoryPercent > 90)
-
-    if (!sustainedCpuHigh && !sustainedMemHigh) {
-      return
-    }
-
-    alertCooldowns.set(containerName, now)
 
     try {
       await sails.helpers.notification.sendResourceAlert.with({
         containerName,
         cpuPercent: stat.cpuPercent,
         memoryPercent: stat.memPercent,
-        cpuHigh: sustainedCpuHigh,
-        memHigh: sustainedMemHigh
+        memoryUsage: stat.memUsage,
+        memoryLimit: stat.memLimit,
+        lookoutUrl,
+        cpuHigh,
+        memHigh
       })
     } catch (alertErr) {
       sails.log.verbose(

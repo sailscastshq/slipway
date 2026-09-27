@@ -52,7 +52,8 @@ module.exports = {
           })
           alertSamples.push({
             stat,
-            containerName: owner.containerName
+            containerName: owner.containerName,
+            environmentId: owner.environment.id
           })
         }
       }
