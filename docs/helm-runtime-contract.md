@@ -37,12 +37,14 @@ fingerprint with the one recorded by the running app. A mismatch stops the
 execution before user code runs. Helm does not transmit the fingerprint or
 its underlying credentials to the browser.
 
-Applications that mutate `process.env` after Node starts cannot be
-reconstructed safely from `/proc`; the environment fingerprint makes Helm
-report this instead of silently using the startup values. Applications that
-derive datastore settings from non-reproducible runtime state will likewise
-fail the datastore comparison. Fix the startup configuration or run the
-operation as an app-owned Quest job. A contract does not make arbitrary
+Applications can change `process.env` while Sails loads, but `/proc` exposes
+only their launch environment. Helm now compares the hook's recorded
+post-load environment fingerprint with the isolated Sails lift's post-load
+fingerprint, before it runs operator code. Reproducible changes are accepted;
+different effective environments fail closed. Applications that derive
+datastore settings from non-reproducible runtime state likewise fail the
+datastore comparison. Fix the startup configuration or run the operation as
+an app-owned Quest job. A contract does not make arbitrary
 user code safe: production write arming, timeouts, cancellation, bounded
 output, and auditing still apply.
 
