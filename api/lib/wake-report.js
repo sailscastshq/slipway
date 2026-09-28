@@ -1,8 +1,5 @@
 const store = require('./wake-store')
-const {
-  DAY,
-  RETENTION_DAYS
-} = require('../../packages/hook/lib/wake-value-contract')
+const { DAY, RETENTION_DAYS } = require('./contracts/wake-value-contract')
 function range(query = {}, now = Date.now()) {
   const today = Math.floor(now / DAY) * DAY
   const parse = (text, fallback) => {
