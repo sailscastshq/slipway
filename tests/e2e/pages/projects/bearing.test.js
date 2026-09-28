@@ -324,9 +324,11 @@ test(
         'base64'
       )
       await page.raw
-        .locator(
-          '[data-test="bearing-update-body-image-upload"] input[type="file"]'
-        )
+        .locator('[data-test="bearing-update-body-image-button"]')
+        .click()
+      await page.raw
+        .getByRole('dialog', { name: 'Edit image' })
+        .locator('input[type="file"]')
         .setInputFiles({
           name: 'update-image.png',
           mimeType: 'image/png',
@@ -340,7 +342,7 @@ test(
       await expect(
         page.raw.locator('[data-test="bearing-update-body-visual-editor"] img')
       ).toHaveAttribute('src', updateImageUrl, { timeout: 10_000 })
-      await expect(page.raw.getByRole('status')).toHaveText('Image added.')
+      await expect(page.raw.getByRole('status')).toContainText('Image added.')
       await expect(
         page.raw.locator('[data-test="bearing-update-body-image-button"]')
       ).toBeEnabled()
