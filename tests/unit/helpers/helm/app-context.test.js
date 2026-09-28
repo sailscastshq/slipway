@@ -66,6 +66,12 @@ test('Helm uses a live deployment contract for custom entrypoints and rejects st
     fs.mkdirSync(appPath)
     fs.writeFileSync(path.join(procRoot, 'self/stat'), stat)
     fs.writeFileSync(
+      path.join(procRoot, 'self/environ'),
+      Object.entries(env)
+        .map(([key, value]) => `${key}=${value}`)
+        .join('\0') + '\0'
+    )
+    fs.writeFileSync(
       path.join(procRoot, 'self/cmdline'),
       `${process.execPath}\0/opt/custom-start.js\0--token=production-secret\0`
     )
@@ -84,7 +90,9 @@ test('Helm uses a live deployment contract for custom entrypoints and rejects st
     fs.symlinkSync(process.execPath, path.join(procRoot, String(pid), 'exe'))
     const fakeRuntime = {
       platform: 'linux',
-      env,
+      // Sails may change process.env after launch. /proc retains the startup
+      // snapshot used by Helm's isolated execution process.
+      env: { ...env, ADDED_AFTER_START: 'changed' },
       argv: [
         process.execPath,
         '/opt/custom-start.js',

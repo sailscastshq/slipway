@@ -18,6 +18,11 @@ URLs, credentials, or result values. Files are mode 0600 and are removed on
 normal shutdown. The directory lives in the app container, not in Slipway's
 database or the image.
 
+Version 0.0.12 fingerprints the launch environment from `/proc/self/environ`
+instead of the mutable `process.env`, matching the snapshot Helm verifies.
+Apps using 0.0.11 can report a stale contract after ordinary startup code
+changes `process.env`; update the hook and redeploy the app to refresh it.
+
 Slipway injects `SLIPWAY_APP_ID` and `SLIPWAY_DEPLOYMENT_ID` for every new app
 deployment, including rollback and worker-only apps. When Helm opens the
 selected container, it checks the contract against those IDs, the live PID's
@@ -37,14 +42,16 @@ fingerprint with the one recorded by the running app. A mismatch stops the
 execution before user code runs. Helm does not transmit the fingerprint or
 its underlying credentials to the browser.
 
-Applications that mutate `process.env` after Node starts cannot be
-reconstructed safely from `/proc`; the environment fingerprint makes Helm
-report this instead of silently using the startup values. Applications that
-derive datastore settings from non-reproducible runtime state will likewise
-fail the datastore comparison. Fix the startup configuration or run the
-operation as an app-owned Quest job. A contract does not make arbitrary
-user code safe: production write arming, timeouts, cancellation, bounded
-output, and auditing still apply.
+The hook fingerprints `/proc/self/environ`, the same launch environment Helm
+reads from the verified app process. Changes to `process.env` while Sails
+starts are not available from `/proc`; Helm therefore does not copy those
+changes into its isolated process. If they affect datastore selection, the
+effective datastore comparison stops the snippet before it runs. Applications
+that derive datastore settings from other non-reproducible runtime state will
+likewise fail that comparison. Move the required settings into the app's launch
+environment or run the operation as an app-owned Quest job. A contract does
+not make arbitrary user code safe: production write arming, timeouts,
+cancellation, bounded output, and auditing still apply.
 
 ## Reproduce the performance comparison
 
