@@ -57,9 +57,7 @@ test(
       page.raw.getByRole('link', { name: 'Finish setup' })
     ).toHaveAttribute('href', '/settings/uploads')
     await expect(
-      page.raw.locator(
-        '[data-test="bearing-update-body-image-upload"] input[type="file"]'
-      )
+      page.raw.locator('[data-test="bearing-update-body-image-button"]')
     ).toHaveCount(0)
 
     const updateTitle = page.raw.locator('#bearing-update-title')

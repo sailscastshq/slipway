@@ -33,6 +33,9 @@ test('Content Manager keeps unsupported Markdown in source mode', async ({
   const { inspectMarkdown } = await import(
     '../../../assets/js/lib/content/markdown.mjs'
   )
+  const { inspectMarkdown: inspectKleanMarkdown } = await import(
+    '../../../assets/js/components/ui/rich-text/rich-text.js'
+  )
   const fixtures = [
     ['| Name | Status |\n| --- | --- |\n| Slipway | Ready |\n', 'tables'],
     ['- [x] Ship it\n', 'task-lists'],
@@ -47,7 +50,15 @@ test('Content Manager keeps unsupported Markdown in source mode', async ({
 
     expect(result.supported).toBe(false)
     expect(result.issues.some(({ code }) => code === expectedCode)).toBe(true)
+    expect(inspectKleanMarkdown(markdown).supported).toBe(false)
   }
+
+  // Older documents can contain SVG references. Keep their source intact
+  // instead of loading an image URL that the Klean visual editor rejects.
+  expect(
+    inspectKleanMarkdown('![Preview](https://example.com/preview.svg)')
+      .supported
+  ).toBe(false)
 })
 
 test('Content Manager accepts harmless prose whitespace normalization', async ({

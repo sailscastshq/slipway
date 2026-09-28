@@ -206,9 +206,18 @@ test(
         'confidence'
       )
 
+      await visualEditor.locator('strong').selectText()
+      await page.raw.getByRole('button', { name: 'Add link' }).click()
+      const linkDialog = page.raw.getByRole('dialog', { name: 'Edit link' })
+      await linkDialog.getByPlaceholder('https://example.com').fill('/docs')
+      await linkDialog.getByRole('button', { name: 'Apply link' }).click()
+      await expect(visualEditor.locator('a[href="/docs"]')).toContainText(
+        'confidence'
+      )
+
       await page.click('@content-source-mode')
       const markdownSource = page.raw.locator(
-        '[data-test="content-markdown-source"]'
+        '[data-test="content-editor"] [data-slot="rich-text-source"]'
       )
       expect(await markdownSource.inputValue()).toContain('# Release notes')
       expect(await markdownSource.inputValue()).toContain('**confidence**')

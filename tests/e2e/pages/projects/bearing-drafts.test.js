@@ -1,7 +1,8 @@
 const fs = require('node:fs')
 const path = require('node:path')
 const { test } = require('sounding')
-const previewImageUrl = 'https://assets.example.test/bearing/preview.svg'
+const { Resvg } = require('@resvg/resvg-js')
+const previewImageUrl = 'https://assets.example.test/bearing/preview.png'
 const previewImage =
   '<svg xmlns="http://www.w3.org/2000/svg" width="320" height="200" viewBox="0 0 320 200"><rect width="320" height="200" rx="12" fill="#f3f4f6"/><rect x="18" y="18" width="284" height="164" rx="8" fill="white"/><rect x="18" y="18" width="284" height="26" fill="#111827"/><circle cx="34" cy="31" r="4" fill="#9ca3af"/><rect x="38" y="63" width="117" height="12" rx="6" fill="#374151"/><rect x="38" y="88" width="240" height="8" rx="4" fill="#d1d5db"/><rect x="38" y="104" width="204" height="8" rx="4" fill="#d1d5db"/><rect x="38" y="130" width="90" height="30" rx="7" fill="#2563eb"/></svg>'
 
@@ -65,8 +66,8 @@ test(
     await page.raw.route(previewImageUrl, (route) =>
       route.fulfill({
         status: 200,
-        contentType: 'image/svg+xml',
-        body: previewImage
+        contentType: 'image/png',
+        body: new Resvg(previewImage).render().asPng()
       })
     )
     const bearingPath = `/projects/${project.slug}/environments/${environment.slug}/apps/${app.slug}/bearing`
@@ -101,6 +102,13 @@ test(
       animations: 'disabled'
     })
 
+    await page.raw.getByRole('button', { name: 'Edit image' }).click()
+    const imageDialog = page.raw.getByRole('dialog', { name: 'Edit image' })
+    await imageDialog
+      .getByPlaceholder('What does this image show?')
+      .fill('Invoice pagination preview')
+    await imageDialog.getByRole('button', { name: 'Update image' }).click()
+
     await page.raw
       .locator('#bearing-update-title')
       .fill('Invoice lists keep their place')
@@ -113,6 +121,7 @@ test(
     expect(saved.title).toBe('Invoice lists keep their place')
     expect(saved.excerpt).toBe('Pagination now stays at the end.')
     expect(saved.body).toContain(previewImageUrl)
+    expect(saved.body).toContain('Invoice pagination preview')
     expect(await sails.models.bearingupdate.count({ space: space.id })).toBe(1)
 
     await page.raw

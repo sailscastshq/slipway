@@ -103,6 +103,7 @@ const nativeAttrs = computed(() => {
     value: _value,
     id: _id,
     'data-slot': _slot,
+    'data-test': _test,
     'aria-label': _label,
     'aria-describedby': _description,
     'aria-invalid': _invalid,
@@ -376,6 +377,7 @@ function syncEditorAttributes(current = editor.value) {
             role: 'textbox',
             'aria-multiline': 'true',
             'data-slot': 'rich-text-content',
+            'data-test': attrs['data-test'],
             class: contentClass,
             id: `${fieldId.value}-editor`,
             'aria-label': accessibleLabel.value,
@@ -1017,6 +1019,7 @@ defineExpose({
     </p>
     <p
       data-slot="rich-text-status"
+      role="status"
       aria-live="polite"
       aria-atomic="true"
       :class="
