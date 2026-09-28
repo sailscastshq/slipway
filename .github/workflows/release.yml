@@ -7,6 +7,10 @@ on:
         description: 'Existing release tag to publish'
         required: true
         type: string
+      rebuild_current_version:
+        description: 'Build the current version from main instead of the existing tag (image-only hotfix)'
+        type: boolean
+        default: false
       skip_verification:
         description: 'Publish after local verification (maintainer hotfix only)'
         type: boolean
@@ -36,7 +40,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
-          ref: ${{ inputs.tag || github.event.release.tag_name }}
+          ref: ${{ inputs.rebuild_current_version && 'main' || inputs.tag || github.event.release.tag_name }}
 
       - name: Validate release tag
         env:
@@ -62,10 +66,25 @@ jobs:
             type=semver,pattern={{major}}.{{minor}},value=${{ inputs.tag || github.event.release.tag_name }}
             type=raw,value=latest
 
-      - name: Build and push Docker image
+      - name: Build Docker image
         uses: docker/build-push-action@v7
         with:
           context: .
-          push: true
+          load: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+
+      - name: Smoke-test packaged Helm and Wake modules
+        env:
+          RELEASE_TAG: ${{ inputs.tag || github.event.release.tag_name }}
+        run: |
+          docker run --rm --entrypoint node "${REGISTRY}/${IMAGE_NAME}:${RELEASE_TAG#v}" -e \
+            "require('./api/lib/helm-completions'); require('./api/lib/helm-runtime'); require('./api/lib/wake-report'); require('./api/lib/wake-store')"
+
+      - name: Push verified Docker image
+        env:
+          IMAGE_TAGS: ${{ steps.meta.outputs.tags }}
+        run: |
+          while IFS= read -r image_tag; do
+            if [ -n "$image_tag" ]; then docker push "$image_tag"; fi
+          done <<< "$IMAGE_TAGS"

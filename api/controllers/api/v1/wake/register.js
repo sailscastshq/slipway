@@ -53,7 +53,7 @@ module.exports = {
       const app = await App.findOne({ id: appId })
       const { domains } = await Environment.resolveDomains(app.environment)
       const settings =
-        require('../../../../../packages/hook/lib/wake-contract').settings({
+        require('../../../../lib/contracts/wake-contract').settings({
           ...app.wakeSettings,
           allowedOrigins: [
             ...domains.map((domain) => `https://${domain}`),

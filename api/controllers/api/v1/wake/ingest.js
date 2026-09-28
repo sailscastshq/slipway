@@ -37,7 +37,7 @@ module.exports = {
         throw new Error('payload')
       normalized = normalize(events)
       const app = await App.findOne({ id: appId })
-      const contract = require('../../../../../packages/hook/lib/wake-contract')
+      const contract = require('../../../../lib/contracts/wake-contract')
       const settings = contract.settings(app.wakeSettings)
       normalized = normalized.filter(
         (event) =>

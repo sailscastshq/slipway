@@ -45,10 +45,9 @@ module.exports = {
       ...(settings === undefined
         ? {}
         : {
-            wakeSettings:
-              require('../../../packages/hook/lib/wake-contract').settings(
-                settings
-              )
+            wakeSettings: require('../../lib/contracts/wake-contract').settings(
+              settings
+            )
           })
     })
     try {

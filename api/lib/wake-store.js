@@ -4,7 +4,7 @@ const {
   payment,
   readAttribution,
   failure
-} = require('../../packages/hook/lib/wake-value-contract')
+} = require('./contracts/wake-value-contract')
 const visitorHash = (app, id) =>
   require('node:crypto')
     .createHash('sha256')

@@ -134,6 +134,19 @@ jobs:
       - name: Check docs and runtime consistency
         run: npm run check:consistency
 
+      - name: Keep dashboard runtime independent of package source
+        run: '! rg "packages/hook" api --glob "*.js"'
+
+      - name: Verify dashboard contracts reach the Docker build context
+        run: |
+          docker build -f - . <<'DOCKERFILE'
+          FROM node:22-alpine
+          WORKDIR /app
+          COPY api/lib/helm-completions.js api/lib/
+          COPY api/lib/contracts/ api/lib/contracts/
+          RUN node -e "require('./api/lib/helm-completions'); require('./api/lib/contracts/helm-config-fingerprint'); require('./api/lib/contracts/wake-contract'); require('./api/lib/contracts/wake-value-contract')"
+          DOCKERFILE
+
   test:
     name: Test (${{ matrix.lane }})
     timeout-minutes: 15

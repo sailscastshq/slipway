@@ -29,8 +29,9 @@ module.exports = {
       )
     )
       throw 'badRequest'
-    const normalized =
-      require('../../../packages/hook/lib/wake-contract').settings(settings)
+    const normalized = require('../../lib/contracts/wake-contract').settings(
+      settings
+    )
     if (
       !['first-party', 'cookieless'].includes(settings.mode) ||
       !Array.isArray(settings.allowedOrigins) ||

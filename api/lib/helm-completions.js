@@ -6,7 +6,7 @@ const EMPTY_HELM_COMPLETIONS = Object.freeze({
   config: []
 })
 
-const collectSailsCompletionMetadata = require('../../packages/hook/lib/helm-completion-metadata')
+const collectSailsCompletionMetadata = require('./contracts/helm-completion-metadata')
 
 function buildSailsCompletionSource() {
   return `return (${collectSailsCompletionMetadata.toString()})(sails)`

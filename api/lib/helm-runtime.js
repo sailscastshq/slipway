@@ -1,6 +1,6 @@
 const acorn = require('acorn')
 const resolveHelmAppContext = require('./helm-app-context')
-const fingerprintHelmDatastores = require('../../packages/hook/lib/helm-config-fingerprint')
+const fingerprintHelmDatastores = require('./contracts/helm-config-fingerprint')
 const createHelmQueryTracer = require('./helm-query-tracer')
 
 const START_MARKER = '___SLIPWAY_HELM_RESULT_START___'

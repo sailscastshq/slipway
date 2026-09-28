@@ -1,4 +1,5 @@
-# Packages (CLI and hook are separate npm packages, not part of the dashboard image)
+# The CLI and hook are independent packages. Dashboard-owned protocol code
+# lives under api/lib/contracts and is included in the image.
 packages/
 
 # Development and testing
