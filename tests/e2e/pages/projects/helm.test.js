@@ -488,7 +488,14 @@ test(
           message: 'Unexpected end of input',
           line: 2,
           column: 1,
-          frames: ['    at new Script (node:vm:117:7)'],
+          frames: [
+            '    at new Script (node:vm:117:7)',
+            ...Array.from(
+              { length: 35 },
+              (_, index) =>
+                `    at applicationFrame${index} (app.js:${index + 1}:7)`
+            )
+          ],
           durationMs: 2
         })
       } else if (request.code.includes('creator.publicId')) {
@@ -568,7 +575,38 @@ test(
         .locator('[data-test="helm-error-stack-content"]')
         .textContent()
     ).toContain('node:vm:117:7')
-    await page.screenshot('.tmp/issue-270-project-stack-light.png')
+    const stackFitsOneScroller = await page.script(() => {
+      const stack = document.querySelector(
+        '[data-test="helm-error-stack-content"]'
+      )
+      const output = document.querySelector('[data-test="helm-output-scroll"]')
+      return {
+        stackHasOwnScroll: stack.scrollHeight > stack.clientHeight,
+        outputScrolls: output.scrollHeight > output.clientHeight
+      }
+    })
+    expect(stackFitsOneScroller.stackHasOwnScroll).toBe(false)
+    expect(stackFitsOneScroller.outputScrolls).toBe(true)
+    await page.screenshot('.tmp/issue-622-helm-stack-top-light.png')
+    await page.script(() => {
+      const output = document.querySelector('[data-test="helm-output-scroll"]')
+      output.scrollTop = output.scrollHeight
+    })
+    expect(
+      await page.script(() => {
+        const stack = document.querySelector(
+          '[data-test="helm-error-stack-content"]'
+        )
+        const output = document.querySelector(
+          '[data-test="helm-output-scroll"]'
+        )
+        return (
+          stack.getBoundingClientRect().bottom <=
+          output.getBoundingClientRect().bottom + 1
+        )
+      })
+    ).toBe(true)
+    await page.screenshot('.tmp/issue-622-helm-stack-end-light.png')
 
     const documentSource = [
       'const outsideSelection = true',
