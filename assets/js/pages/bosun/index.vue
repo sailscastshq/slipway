@@ -1,4 +1,5 @@
 <script setup>
+import AppNavbarVersion from '@/components/AppNavbarVersion.vue'
 import { apiErrorMessage } from '@/lib/api-error'
 import Alert from '@/components/ui/alert/Alert.vue'
 import TableCells from '@/components/ui/icons/TableCells.vue'
@@ -53,7 +54,6 @@ const props = defineProps({
   stats: { type: Object, default: () => ({}) },
   databases: { type: Object, default: () => ({}) },
   processInfo: { type: Object, default: () => ({}) },
-  version: { type: String, default: 'unknown' },
   instanceEnvVars: { type: Object, default: () => ({}) }
 })
 
@@ -861,15 +861,6 @@ onUnmounted(() => {
         <span class="font-medium text-gray-900 dark:text-white">Bosun</span>
       </div>
       <div class="flex items-center space-x-2 sm:space-x-3">
-        <Tooltip text="Slipway version" placement="bottom">
-          <span
-            aria-label="Slipway version"
-            data-test="bosun-version"
-            tabindex="0"
-            class="rounded bg-gray-100 px-2 py-1 text-xs font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-400"
-            >v{{ version }}</span
-          >
-        </Tooltip>
         <a
           href="https://docs.sailscasts.com/slipway/bosun"
           target="_blank"
@@ -878,6 +869,8 @@ onUnmounted(() => {
           <span>Docs</span>
           <ExternalLink class="h-3.5 w-3.5" stroke-width="2" />
         </a>
+
+        <AppNavbarVersion />
       </div>
     </div>
 

@@ -1,4 +1,5 @@
 <script setup>
+import AppNavbarVersion from '@/components/AppNavbarVersion.vue'
 import Alert from '@/components/ui/alert/Alert.vue'
 import WarningTriangle from '@/components/ui/icons/WarningTriangle.vue'
 import SidebarOpen from '@/components/ui/icons/SidebarOpen.vue'
@@ -238,6 +239,8 @@ function formatDate(dateString) {
           Docs
           <ExternalLink class="h-3.5 w-3.5" stroke-width="2" />
         </a>
+
+        <AppNavbarVersion />
       </div>
     </div>
 

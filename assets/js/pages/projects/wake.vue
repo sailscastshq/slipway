@@ -1,4 +1,5 @@
 <script setup>
+import AppNavbarVersion from '@/components/AppNavbarVersion.vue'
 import DateInput from '@/components/DateInput.vue'
 import { computed, inject, ref, watch } from 'vue'
 import { Head, Link, router } from '@inertiajs/vue3'
@@ -216,6 +217,8 @@ async function removeVisitor() {
           { label: 'Wake' }
         ]"
       />
+
+      <div class="ml-auto shrink-0 pl-2"><AppNavbarVersion /></div>
     </header>
     <main
       class="min-w-0 flex-1 overflow-y-auto px-4 py-8 text-gray-950 dark:text-white sm:px-8"

@@ -1,4 +1,5 @@
 <script setup>
+import AppNavbarVersion from '@/components/AppNavbarVersion.vue'
 import SidebarClose from '@/components/ui/icons/SidebarClose.vue'
 import SidebarOpen from '@/components/ui/icons/SidebarOpen.vue'
 import ChevronDown from '@/components/ui/icons/ChevronDown.vue'
@@ -208,6 +209,8 @@ function shortHash(hash) {
           >
         </nav>
       </div>
+
+      <div class="ml-auto shrink-0 pl-2"><AppNavbarVersion /></div>
     </header>
 
     <main class="flex-1 overflow-y-auto px-4 py-6 sm:px-8 sm:py-8">

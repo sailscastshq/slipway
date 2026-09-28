@@ -1,4 +1,5 @@
 <script setup>
+import AppNavbarVersion from '@/components/AppNavbarVersion.vue'
 import SidebarOpen from '@/components/ui/icons/SidebarOpen.vue'
 import SidebarClose from '@/components/ui/icons/SidebarClose.vue'
 import Filter from '@/components/ui/icons/Filter.vue'
@@ -232,6 +233,8 @@ function envTelemetry(container) {
         </button>
         <span class="font-medium text-gray-900 dark:text-white">Lookout</span>
       </div>
+
+      <div class="ml-auto shrink-0 pl-2"><AppNavbarVersion /></div>
     </div>
 
     <!-- Content -->

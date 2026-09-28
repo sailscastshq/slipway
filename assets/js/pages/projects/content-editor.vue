@@ -1,4 +1,5 @@
 <script setup>
+import AppNavbarVersion from '@/components/AppNavbarVersion.vue'
 import Alert from '@/components/ui/alert/Alert.vue'
 import SidebarOpen from '@/components/ui/icons/SidebarOpen.vue'
 import SidebarClose from '@/components/ui/icons/SidebarClose.vue'
@@ -591,6 +592,8 @@ function handleKeydown(e) {
             </Alert>
           </Menu>
         </div>
+
+        <AppNavbarVersion />
       </div>
     </div>
 

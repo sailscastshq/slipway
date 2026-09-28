@@ -1,4 +1,5 @@
 <script setup>
+import AppNavbarVersion from '@/components/AppNavbarVersion.vue'
 import CustomServiceUpdate from '@/components/CustomServiceUpdate.vue'
 import CustomServiceRoute from '@/components/CustomServiceRoute.vue'
 import CustomServiceStatus from '@/components/CustomServiceStatus.vue'
@@ -456,6 +457,8 @@ onUnmounted(() => {
           ]"
         />
       </div>
+
+      <div class="ml-auto shrink-0 pl-2"><AppNavbarVersion /></div>
     </div>
 
     <!-- Content -->

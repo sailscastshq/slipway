@@ -1,4 +1,5 @@
 <script setup>
+import AppNavbarVersion from '@/components/AppNavbarVersion.vue'
 import DeploymentReadiness from '@/components/DeploymentReadiness.vue'
 import Dialog from '@/components/ui/dialog/Dialog.vue'
 import Button from '@/components/ui/button/Button.vue'
@@ -912,6 +913,8 @@ onBeforeUnmount(() => {
           Docs
           <ExternalLink class="h-3.5 w-3.5" stroke-width="2" />
         </a>
+
+        <AppNavbarVersion />
       </div>
     </div>
 

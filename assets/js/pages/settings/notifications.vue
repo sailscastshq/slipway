@@ -1,4 +1,5 @@
 <script setup>
+import AppNavbarVersion from '@/components/AppNavbarVersion.vue'
 import Alert from '@/components/ui/alert/Alert.vue'
 import Clock from '@/components/ui/icons/Clock.vue'
 import Database from '@/components/ui/icons/Database.vue'
@@ -290,6 +291,8 @@ const categoryIcons = {
           Docs
           <ExternalLink class="h-3.5 w-3.5" stroke-width="2" />
         </a>
+
+        <AppNavbarVersion />
       </div>
     </div>
 
