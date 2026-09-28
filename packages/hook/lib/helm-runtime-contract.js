@@ -19,19 +19,6 @@ function environmentFingerprint(env) {
     .digest('hex')
 }
 
-function readStartupEnvironment(filesystem, procRoot) {
-  return Object.fromEntries(
-    filesystem
-      .readFileSync(`${procRoot}/self/environ`, 'utf8')
-      .split('\0')
-      .filter((entry) => entry.includes('='))
-      .map((entry) => {
-        const index = entry.indexOf('=')
-        return [entry.slice(0, index), entry.slice(index + 1)]
-      })
-  )
-}
-
 function startTicks(stat) {
   const fields = stat
     .slice(stat.lastIndexOf(')') + 1)
@@ -107,12 +94,7 @@ function registerHelmRuntime({
     executable: runtime.execPath,
     argvStartIndex,
     environmentSource: 'process-start',
-    // Helm reads /proc/<pid>/environ, which represents the launch environment.
-    // process.env can change while Sails loads and cannot be reconstructed by
-    // the isolated runner. The datastore fingerprint guards effective config.
-    environmentFingerprint: environmentFingerprint(
-      readStartupEnvironment(filesystem, procRoot)
-    ),
+    environmentFingerprint: environmentFingerprint(runtime.env),
     datastoreFingerprint: sailsApp ? fingerprintHelmDatastores(sailsApp) : null,
     completionMetadata
   }
