@@ -646,6 +646,25 @@ test('project Helm cancellation also stops the exact container execution', async
   }
 })
 
+test('Helm returns verified completion metadata without lifting Sails', async ({
+  sails,
+  expect
+}) => {
+  const metadata = {
+    version: 1,
+    truncated: false,
+    models: [{ identity: 'creator', globalId: 'Creator', attributes: [] }],
+    helpers: [],
+    config: []
+  }
+  const result = await runHelm(sails, 'throw new Error("source ran")', {
+    metadataOnly: true,
+    appContext: { completionMetadata: metadata }
+  })
+  expect(result.success).toBe(true)
+  expect(result.value).toEqual(metadata)
+})
+
 async function runHelm(sails, source, options = {}) {
   return sails.helpers.helm.run.with({
     command: process.execPath,

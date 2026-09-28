@@ -5,6 +5,195 @@ const os = require('node:os')
 const path = require('node:path')
 const { spawnSync } = require('node:child_process')
 const runtime = require('../../../../api/lib/helm-runtime')
+const {
+  registerHelmRuntime
+} = require('../../../../packages/hook/lib/helm-runtime-contract')
+const fingerprintHelmDatastores = require('../../../../packages/hook/lib/helm-config-fingerprint')
+const expectedHelmRuntime = require('../../../../api/lib/helm-expected-runtime')
+
+test('Helm requires the contract for a current deployment with the new hook', async ({
+  expect
+}) => {
+  const app = { id: 7, currentDeployment: { id: 99 } }
+  const current = await expectedHelmRuntime(app, async () => ({
+    hookVersion: '0.0.11',
+    deployment: '99'
+  }))
+  expect(current).toEqual({ appId: '7', deploymentId: '99', required: true })
+  const old = await expectedHelmRuntime(app, async () => ({
+    hookVersion: '0.0.10',
+    deployment: '99'
+  }))
+  expect(old.required).toBe(false)
+  const rolledBack = await expectedHelmRuntime(app, async () => ({
+    hookVersion: '0.0.11',
+    deployment: '98'
+  }))
+  expect(rolledBack.required).toBe(false)
+})
+
+test('Helm uses a live deployment contract for custom entrypoints and rejects stale processes', ({
+  expect
+}) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'helm-contract-'))
+  const procRoot = path.join(root, 'proc')
+  const contractDir = path.join(root, 'contracts')
+  const appPath = path.join(root, 'app')
+  const pid = 410
+  const env = {
+    SLIPWAY_APP_ID: '7',
+    SLIPWAY_DEPLOYMENT_ID: '99',
+    NODE_ENV: 'production',
+    DATABASE_URL: 'production-secret'
+  }
+  const sailsApp = {
+    config: {
+      environment: 'production',
+      datastores: {
+        default: { adapter: 'sails-sqlite', url: './production.db' }
+      },
+      models: { datastore: 'default' }
+    }
+  }
+  const statFields = Array(20).fill('0')
+  statFields[0] = 'S'
+  statFields[1] = '1'
+  statFields[19] = '12345'
+  const stat = `${pid} (custom entrypoint) ${statFields.join(' ')}`
+  try {
+    fs.mkdirSync(path.join(procRoot, String(pid)), { recursive: true })
+    fs.mkdirSync(path.join(procRoot, 'self'))
+    fs.mkdirSync(appPath)
+    fs.writeFileSync(path.join(procRoot, 'self/stat'), stat)
+    fs.writeFileSync(
+      path.join(procRoot, 'self/cmdline'),
+      `${process.execPath}\0/opt/custom-start.js\0--token=production-secret\0`
+    )
+    fs.writeFileSync(path.join(procRoot, String(pid), 'stat'), stat)
+    fs.writeFileSync(
+      path.join(procRoot, String(pid), 'cmdline'),
+      `${process.execPath}\0/opt/custom-start.js\0--token=production-secret\0`
+    )
+    fs.writeFileSync(
+      path.join(procRoot, String(pid), 'environ'),
+      Object.entries(env)
+        .map(([key, value]) => `${key}=${value}`)
+        .join('\0') + '\0'
+    )
+    fs.symlinkSync(appPath, path.join(procRoot, String(pid), 'cwd'))
+    fs.symlinkSync(process.execPath, path.join(procRoot, String(pid), 'exe'))
+    const fakeRuntime = {
+      platform: 'linux',
+      env,
+      argv: [
+        process.execPath,
+        '/opt/custom-start.js',
+        '--token=production-secret'
+      ],
+      execArgv: [],
+      execPath: process.execPath,
+      pid,
+      cwd: () => appPath
+    }
+    const unregister = registerHelmRuntime({
+      appId: '7',
+      deploymentId: '99',
+      sailsApp,
+      runtime: fakeRuntime,
+      directory: contractDir,
+      procRoot
+    })
+    expect(typeof unregister).toBe('function')
+    const contractPath = path.join(contractDir, `7-99-${pid}.json`)
+    expect(fs.statSync(contractPath).mode & 0o777).toBe(0o600)
+    expect(
+      fs.readFileSync(contractPath, 'utf8').includes('production-secret')
+    ).toBe(false)
+    expect(
+      registerHelmRuntime({
+        appId: '7',
+        deploymentId: '99',
+        runtime: {
+          ...fakeRuntime,
+          argv: [process.execPath, '/app/node_modules/.bin/sails', 'run', 'job']
+        },
+        directory: contractDir,
+        procRoot
+      })
+    ).toBe(null)
+    const options = {
+      procRoot,
+      contractDir,
+      ownPid: 999,
+      expectedRuntime: { appId: '7', deploymentId: '99' }
+    }
+    const context = resolveContext(options)
+    expect(context.appPath).toBe(appPath)
+    expect(context.argv).toEqual(fakeRuntime.argv)
+    expect(context.env.DATABASE_URL).toBe('production-secret')
+    expect(context.datastoreFingerprint).toBe(
+      fingerprintHelmDatastores(sailsApp)
+    )
+    expect(context.completionMetadata.version).toBe(1)
+
+    let wrongDeployment
+    try {
+      resolveContext({
+        ...options,
+        expectedRuntime: { appId: '7', deploymentId: '100' }
+      })
+    } catch (caught) {
+      wrongDeployment = caught
+    }
+    expect(wrongDeployment.code).toBe('HELM_APP_CONTEXT_UNAVAILABLE')
+
+    fs.appendFileSync(
+      path.join(procRoot, String(pid), 'environ'),
+      'EXTRA=changed\0'
+    )
+    let changedEnvironment
+    try {
+      resolveContext(options)
+    } catch (caught) {
+      changedEnvironment = caught
+    }
+    expect(changedEnvironment.code).toBe('HELM_APP_CONTEXT_UNAVAILABLE')
+    fs.writeFileSync(
+      path.join(procRoot, String(pid), 'environ'),
+      Object.entries(env)
+        .map(([key, value]) => `${key}=${value}`)
+        .join('\0') + '\0'
+    )
+
+    fs.writeFileSync(
+      path.join(procRoot, String(pid), 'stat'),
+      stat.replace('12345', '12346')
+    )
+    let error
+    try {
+      resolveContext(options)
+    } catch (caught) {
+      error = caught
+    }
+    expect(error.code).toBe('HELM_APP_CONTEXT_UNAVAILABLE')
+    expect(error.message.includes('production-secret')).toBe(false)
+    unregister()
+    let missingContract
+    try {
+      resolveContext({
+        ...options,
+        expectedRuntime: { ...options.expectedRuntime, required: true }
+      })
+    } catch (caught) {
+      missingContract = caught
+    }
+    expect(missingContract.message).toContain(
+      'not published its Helm runtime contract'
+    )
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true })
+  }
+})
 
 test('Helm resolves the app process environment and rejects ambiguous or missing runtimes', async ({
   expect
@@ -164,6 +353,7 @@ test('Helm reads the deployed SQLite database with rc overrides and safe migrati
       )
       db.close()
     }
+    let productionFingerprint
     for (const [environment, extra, expected] of [
       ['production', {}, 'production'],
       ['staging', {}, 'staging'],
@@ -174,7 +364,7 @@ test('Helm reads the deployed SQLite database with rc overrides and safe migrati
       ]
     ]) {
       const prepared = runtime.prepareSource(
-        '({users:await User.find(), environment:sails.config.environment, migrate:sails.config.models.migrate, retained:sails.config.custom.retained})'
+        '({users:await User.find(), environment:sails.config.environment, migrate:sails.config.models.migrate, retained:sails.config.custom.retained, configJson:JSON.stringify({environment:sails.config.environment,datastores:sails.config.datastores,models:{datastore:sails.config.models.datastore,connection:sails.config.models.connection}})})'
       )
       const script = runtime.buildRunnerSource({
         preparedSource: prepared.source,
@@ -206,7 +396,51 @@ test('Helm reads the deployed SQLite database with rc overrides and safe migrati
       expect(envelope.value.environment).toBe(environment)
       expect(envelope.value.migrate).toBe('safe')
       expect(envelope.value.retained).toBe('rc-value')
+      if (expected === 'production') {
+        productionFingerprint = fingerprintHelmDatastores({
+          config: JSON.parse(envelope.value.configJson)
+        })
+      }
     }
+    const prepared = runtime.prepareSource('await User.find()')
+    const verifiedScript = runtime.buildRunnerSource({
+      preparedSource: prepared.source,
+      bootstrapSails: true,
+      appContext: {
+        appPath: root,
+        env: { PATH: process.env.PATH, HOME: root, NODE_ENV: 'production' },
+        argv: [process.execPath, 'app.js'],
+        datastoreFingerprint: productionFingerprint
+      },
+      timeoutMs: 10000
+    })
+    const verifiedProcess = spawnSync(process.execPath, [], {
+      input: verifiedScript,
+      encoding: 'utf8',
+      timeout: 15000
+    })
+    const verified = runtime.parseRunnerOutput(verifiedProcess.stdout)
+    expect(verified.success).toBe(true)
+    expect(verified.value[0].name).toBe('production')
+    const mismatchScript = runtime.buildRunnerSource({
+      preparedSource: prepared.source,
+      bootstrapSails: true,
+      appContext: {
+        appPath: root,
+        env: { PATH: process.env.PATH, HOME: root, NODE_ENV: 'production' },
+        argv: [process.execPath, 'app.js'],
+        datastoreFingerprint: '0'.repeat(64)
+      },
+      timeoutMs: 10000
+    })
+    const mismatchProcess = spawnSync(process.execPath, [], {
+      input: mismatchScript,
+      encoding: 'utf8',
+      timeout: 15000
+    })
+    const mismatch = runtime.parseRunnerOutput(mismatchProcess.stdout)
+    expect(mismatch.success).toBe(false)
+    expect(mismatch.error.code).toBe('HELM_DATASTORE_MISMATCH')
     expect(fs.existsSync(path.join(root, 'dev.db'))).toBe(false)
   } finally {
     fs.rmSync(root, { recursive: true, force: true })

@@ -118,6 +118,35 @@ test('container completion source uses the same secret-free collector', ({
   )
 })
 
+test('project completion reads the app snapshot before considering a Sails lift', async ({
+  sails,
+  expect
+}) => {
+  const original = sails.helpers.helm.executeInContainer
+  const calls = []
+  const metadata = collectSailsCompletionMetadata(
+    completionSailsFixture().fakeSails
+  )
+  const fakeExecute = async (options) => {
+    calls.push(options)
+    return { success: true, value: metadata }
+  }
+  fakeExecute.with = fakeExecute
+  sails.helpers.helm.executeInContainer = fakeExecute
+  try {
+    const result = await sails.helpers.helm.getCompletions.with({
+      containerName: 'web-production',
+      expectedRuntime: { appId: '7', deploymentId: '99', required: true }
+    })
+    expect(result.available).toBe(true)
+    expect(result.models[0].globalId).toBe('Creator')
+    expect(calls.length).toBe(1)
+    expect(calls[0].metadataOnly).toBe(true)
+  } finally {
+    sails.helpers.helm.executeInContainer = original
+  }
+})
+
 test('Helm completion metadata is bounded for unusually large apps', ({
   expect
 }) => {

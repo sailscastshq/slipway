@@ -168,6 +168,10 @@ module.exports = {
           ...(existingApp?.id ? { appId: String(existingApp.id) } : {})
         })
       const envVars = { ...runtimeConfig.values }
+      if (existingApp?.id) {
+        envVars.SLIPWAY_APP_ID = String(existingApp.id)
+        envVars.SLIPWAY_DEPLOYMENT_ID = String(rollbackId)
+      }
       const envRecord = await Environment.findOne({
         id: environment.id
       }).decrypt()

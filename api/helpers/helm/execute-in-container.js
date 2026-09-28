@@ -34,7 +34,9 @@ module.exports = {
     signal: {
       type: 'ref',
       description: 'Optional AbortSignal for user cancellation.'
-    }
+    },
+    expectedRuntime: { type: 'ref' },
+    metadataOnly: { type: 'boolean', defaultsTo: false }
   },
 
   exits: {
@@ -49,7 +51,9 @@ module.exports = {
     sourceStartLine,
     sourceStartColumn,
     executionId,
-    signal
+    signal,
+    expectedRuntime,
+    metadataOnly
   }) {
     const dockerPath = sails.config.docker?.binaryPath || 'docker'
     let stopPromise
@@ -86,6 +90,8 @@ module.exports = {
         sourceStartColumn,
         bootstrapSails: true,
         containerContext: true,
+        expectedRuntime,
+        metadataOnly,
         executionId,
         signal
       })

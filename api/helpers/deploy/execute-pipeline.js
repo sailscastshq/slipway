@@ -264,6 +264,11 @@ module.exports = {
         )
       const envVars = { ...runtimeConfig.values }
 
+      if (targetApp?.id) {
+        envVars.SLIPWAY_APP_ID = String(targetApp.id)
+        envVars.SLIPWAY_DEPLOYMENT_ID = String(deploymentId)
+      }
+
       // 7b. Auto-inject Slipway telemetry env vars for sails-hook-slipway
       if (envRecord.telemetryToken) {
         const telemetryHost =
