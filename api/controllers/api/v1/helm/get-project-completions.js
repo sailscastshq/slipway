@@ -1,3 +1,5 @@
+const { getHelmCompletions } = require('../../../../lib/helm-completion-cache')
+
 module.exports = {
   friendlyName: 'Get project Helm completions',
 
@@ -12,6 +14,9 @@ module.exports = {
     environmentSlug: {
       type: 'string',
       required: true
+    },
+    appSlug: {
+      type: 'string'
     }
   },
 
@@ -27,7 +32,7 @@ module.exports = {
     }
   },
 
-  fn: async function ({ projectSlug, environmentSlug }) {
+  fn: async function ({ projectSlug, environmentSlug, appSlug }) {
     const user = await User.forRequest(this.req)
     const project = await Project.findOne({ slug: projectSlug }).populate(
       'team'
@@ -42,9 +47,12 @@ module.exports = {
     })
     if (!environment) throw 'notFound'
 
-    const app =
-      (await App.findOne({ environment: environment.id, isDefault: true })) ||
-      (await App.findOne({ environment: environment.id }))
+    const app = appSlug
+      ? await App.findOne({ environment: environment.id, slug: appSlug })
+      : (await App.findOne({ environment: environment.id, isDefault: true })) ||
+        (await App.findOne({ environment: environment.id }))
+
+    if (appSlug && !app) throw 'notFound'
 
     this.res.set('Cache-Control', 'private, no-store')
 
@@ -60,7 +68,16 @@ module.exports = {
     }
 
     try {
-      return await sails.helpers.helm.getCompletions(app.containerName)
+      const key = JSON.stringify([
+        app.id,
+        app.containerName,
+        app.imageId,
+        app.imageName,
+        app.currentDeployment
+      ])
+      return await getHelmCompletions(key, () =>
+        sails.helpers.helm.getCompletions(app.containerName)
+      )
     } catch {
       return {
         available: false,

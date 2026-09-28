@@ -648,12 +648,14 @@ test(
     const current = world.current
     const originalGetCompletions = sails.helpers.helm.getCompletions
     let inspectedContainer
+    let inspectionCount = 0
 
     await sails.models.app.updateOne({ id: current.apps.web.id }).set({
       status: 'running',
       containerName: 'helm-completion-contract-web'
     })
     sails.helpers.helm.getCompletions = async (containerName) => {
+      inspectionCount++
       inspectedContainer = containerName
       return COMPLETIONS
     }
@@ -675,6 +677,51 @@ test(
       expect(response).toHaveJsonPath('models.0.globalId', 'Creator')
       expect(response).toHaveJsonPath('models.0.attributes.0.name', 'firstName')
       expect(response).toHaveJsonPath('helpers.0.path', 'mail.sendTemplate')
+
+      const repeated = await request
+        .as('genesisUser')
+        .get(
+          `/api/v1/projects/${projectSlug}/environments/${environmentSlug}/helm/completions?appSlug=${current.apps.web.slug}`
+        )
+      expect(repeated).toHaveStatus(200)
+      expect(inspectedContainer).toBe('helm-completion-contract-web')
+      expect(inspectionCount).toBe(1)
+
+      await sails.models.app.create({
+        name: 'Worker',
+        slug: 'worker',
+        environment: current.environments.production.id,
+        isDefault: false,
+        status: 'running',
+        containerName: 'helm-completion-contract-worker'
+      })
+      const workerResponse = await request
+        .as('genesisUser')
+        .get(
+          `/api/v1/projects/${projectSlug}/environments/${environmentSlug}/helm/completions?appSlug=worker`
+        )
+      expect(workerResponse).toHaveStatus(200)
+      expect(inspectedContainer).toBe('helm-completion-contract-worker')
+      expect(inspectionCount).toBe(2)
+
+      await sails.models.app.updateOne({ id: current.apps.web.id }).set({
+        containerName: 'helm-completion-contract-web-next'
+      })
+      const deployedAgain = await request
+        .as('genesisUser')
+        .get(
+          `/api/v1/projects/${projectSlug}/environments/${environmentSlug}/helm/completions?appSlug=${current.apps.web.slug}`
+        )
+      expect(deployedAgain).toHaveStatus(200)
+      expect(inspectedContainer).toBe('helm-completion-contract-web-next')
+      expect(inspectionCount).toBe(3)
+
+      const missingApp = await request
+        .as('genesisUser')
+        .get(
+          `/api/v1/projects/${projectSlug}/environments/${environmentSlug}/helm/completions?appSlug=missing-app`
+        )
+      expect(missingApp).toHaveStatus(404)
     } finally {
       sails.helpers.helm.getCompletions = originalGetCompletions
     }

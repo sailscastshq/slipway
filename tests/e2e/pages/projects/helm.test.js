@@ -959,6 +959,10 @@ test(
     await page.key('ControlOrMeta+Enter')
     await page.wait(100)
     expect(submitted.length).toBe(submissionCount)
+    await page.resize(390, 844)
+    expect(
+      await page.raw.locator('[data-test="helm-run"] span').last().isVisible()
+    ).toBe(true)
     expect(page).toHaveNoSmoke()
   }
 )
