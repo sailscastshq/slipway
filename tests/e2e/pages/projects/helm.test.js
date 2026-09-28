@@ -1470,13 +1470,16 @@ test(
     })
     await updateCheckFinished
 
-    await page.raw.route('**/helm/completions', async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify(HELM_COMPLETION_METADATA)
-      })
-    })
+    await page.raw.route(
+      `**/helm/completions?appSlug=${current.apps.web.slug}`,
+      async (route) => {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify(HELM_COMPLETION_METADATA)
+        })
+      }
+    )
     await page.raw.route('**/execute', async (route) => {
       executionCount++
       await route.fulfill({
