@@ -1,5 +1,6 @@
 const acorn = require('acorn')
 const resolveHelmAppContext = require('./helm-app-context')
+const fingerprintHelmDatastores = require('../../packages/hook/lib/helm-config-fingerprint')
 const createHelmQueryTracer = require('./helm-query-tracer')
 
 const START_MARKER = '___SLIPWAY_HELM_RESULT_START___'
@@ -281,6 +282,8 @@ function buildRunnerSource({
   bootstrapSails = true,
   containerContext = false,
   appContext = null,
+  expectedRuntime = null,
+  metadataOnly = false,
   timeoutMs = 30000,
   maxLogBytes = 64 * 1024,
   maxResultBytes = 128 * 1024,
@@ -302,6 +305,8 @@ function buildRunnerSource({
     bootstrapSails,
     containerContext,
     appContext,
+    expectedRuntime,
+    metadataOnly,
     timeoutMs,
     maxLogBytes,
     maxResultBytes,
@@ -312,7 +317,7 @@ function buildRunnerSource({
     endMarker: END_MARKER,
     logMarker: LOG_MARKER,
     filename: VIRTUAL_FILENAME
-  })}, ${queryTracerSource}, (${resolveHelmAppContext.toString()}))`
+  })}, ${queryTracerSource}, (${resolveHelmAppContext.toString()}), (${fingerprintHelmDatastores.toString()}))`
 }
 
 function parseRunnerOutput(stdout) {
@@ -462,7 +467,8 @@ function formatBytes(bytes) {
 async function helmSubprocessMain(
   options,
   createQueryTracer,
-  resolveAppContext
+  resolveAppContext,
+  fingerprintDatastores
 ) {
   const fs = require('node:fs')
   const vm = require('node:vm')
@@ -513,9 +519,28 @@ async function helmSubprocessMain(
   }, options.timeoutMs)
 
   try {
+    if (options.metadataOnly) {
+      const appContext = options.containerContext
+        ? resolveAppContext({ expectedRuntime: options.expectedRuntime })
+        : options.appContext
+      sendResult(
+        completeResult({
+          success: true,
+          value: appContext?.completionMetadata || null,
+          logs: [],
+          output: '',
+          error: null,
+          durationMs: Date.now() - startedAt,
+          truncated: false,
+          inspections: [],
+          queryTrace: null
+        })
+      )
+      return
+    }
     if (options.bootstrapSails) {
       const appContext = options.containerContext
-        ? resolveAppContext()
+        ? resolveAppContext({ expectedRuntime: options.expectedRuntime })
         : options.appContext
       if (appContext?.env) {
         // docker exec inherits container variables, not npm/entrypoint exports.
@@ -576,6 +601,16 @@ async function helmSubprocessMain(
           }
         )
       })
+      if (
+        appContext?.datastoreFingerprint &&
+        fingerprintDatastores(sailsApp) !== appContext.datastoreFingerprint
+      ) {
+        const mismatch = new Error(
+          'Helm loaded different datastore settings than the running app. Check startup-time configuration and redeploy before running code.'
+        )
+        mismatch.code = 'HELM_DATASTORE_MISMATCH'
+        throw mismatch
+      }
     }
 
     if (queryTrace && sailsApp) {

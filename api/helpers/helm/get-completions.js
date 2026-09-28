@@ -18,7 +18,8 @@ module.exports = {
       type: 'string',
       description:
         'Optional running app container. When omitted, inspect this Sails app.'
-    }
+    },
+    expectedRuntime: { type: 'ref' }
   },
 
   exits: {
@@ -27,7 +28,7 @@ module.exports = {
     }
   },
 
-  fn: async function ({ containerName }) {
+  fn: async function ({ containerName, expectedRuntime }) {
     if (!containerName) {
       return {
         available: true,
@@ -35,13 +36,28 @@ module.exports = {
       }
     }
 
-    const result = await sails.helpers.helm.executeInContainer.with({
-      containerName,
-      source: buildSailsCompletionSource(),
-      sourceStartLine: 1,
-      sourceStartColumn: 1,
-      executionId: crypto.randomUUID()
-    })
+    const execute = (metadataOnly) =>
+      sails.helpers.helm.executeInContainer.with({
+        containerName,
+        expectedRuntime,
+        metadataOnly,
+        source: metadataOnly ? 'undefined' : buildSailsCompletionSource(),
+        sourceStartLine: 1,
+        sourceStartColumn: 1,
+        executionId: crypto.randomUUID()
+      })
+
+    if (expectedRuntime) {
+      const fast = await execute(true)
+      if (fast?.success && isHelmCompletionMetadata(fast.value)) {
+        return { available: true, ...fast.value }
+      }
+      if (fast?.error?.code === 'HELM_APP_CONTEXT_UNAVAILABLE') {
+        return { available: false, ...emptyHelmCompletions() }
+      }
+    }
+
+    const result = await execute(false)
 
     if (!result?.success || !isHelmCompletionMetadata(result.value)) {
       return {

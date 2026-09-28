@@ -32,12 +32,19 @@ const { injectBearingWidget } = require('./lib/bearing-widget')
 const { normalizeQuestDiagnostic } = require('./lib/quest-diagnostics')
 const buildFlagsEnabledHelper = require('./lib/helpers/flags/enabled')
 const hookVersion = require('./package.json').version
+const { registerHelmRuntime } = require('./lib/helm-runtime-contract')
 const {
   ACCESS_DENIED_MESSAGE,
   renderBridgeAccessDenied
 } = require('./lib/render-bridge-access-denied')
 
 module.exports = function defineSlipwayHook(sails) {
+  const isHelmRuntime = Boolean(process.env.SLIPWAY_HELM_EXECUTION_ID)
+  const isQuestCommand =
+    /^sails(?:\.js)?$/.test(
+      require('node:path').basename(process.argv[1] || '')
+    ) && process.argv[2] === 'run'
+  const isTransientRuntime = isHelmRuntime || isQuestCommand
   // Telemetry buffers
   let spanBuffer = []
   let exceptionBuffer = []
@@ -54,6 +61,7 @@ module.exports = function defineSlipwayHook(sails) {
   let releaseFlags = null
   let wakeRuntime = null
   let supportRuntime = null
+  let unregisterHelmRuntime = null
 
   return {
     supportView: {
@@ -114,12 +122,16 @@ module.exports = function defineSlipwayHook(sails) {
 
       if (envUrl) sails.config.slipway.lookout.telemetryUrl = envUrl
       if (envToken) sails.config.slipway.lookout.telemetryToken = envToken
-      if (process.env.SLIPWAY_TELEMETRY_APP_ID) {
+      if (process.env.SLIPWAY_APP_ID || process.env.SLIPWAY_TELEMETRY_APP_ID) {
         sails.config.slipway.lookout.appId =
-          process.env.SLIPWAY_TELEMETRY_APP_ID
+          process.env.SLIPWAY_APP_ID || process.env.SLIPWAY_TELEMETRY_APP_ID
       }
-      if (process.env.SLIPWAY_TELEMETRY_DEPLOYMENT_ID) {
+      if (
+        process.env.SLIPWAY_DEPLOYMENT_ID ||
+        process.env.SLIPWAY_TELEMETRY_DEPLOYMENT_ID
+      ) {
         sails.config.slipway.lookout.deploymentId =
+          process.env.SLIPWAY_DEPLOYMENT_ID ||
           process.env.SLIPWAY_TELEMETRY_DEPLOYMENT_ID
       }
 
@@ -193,16 +205,34 @@ module.exports = function defineSlipwayHook(sails) {
     },
 
     initialize: function (done) {
+      const publishHelmRuntime = () => {
+        try {
+          unregisterHelmRuntime = registerHelmRuntime({
+            appId: sails.config.slipway.lookout.appId,
+            deploymentId: sails.config.slipway.lookout.deploymentId,
+            sailsApp: sails
+          })
+        } catch (error) {
+          sails.log.warn(
+            `sails-hook-slipway: Helm runtime registration failed: ${
+              error.code || error.name
+            }`
+          )
+        }
+      }
+      sails.after('hook:helpers:loaded', publishHelmRuntime)
+      sails.after('hook:orm:loaded', publishHelmRuntime)
+      sails.after('ready', publishHelmRuntime)
       wakeRuntime = require('./lib/wake-runtime')(
         sails,
         sails.config.slipway.wake || {},
         hookVersion
       )
-      wakeRuntime.start()
+      if (!isTransientRuntime) wakeRuntime.start()
       sails.once('lower', () => wakeRuntime.stop())
       config = sails.config.slipway.lookout || {}
       bridgeConfig = sails.config.slipway.bridge || {}
-      if (bridgeConfig.impersonation?.enabled) {
+      if (!isTransientRuntime && bridgeConfig.impersonation?.enabled) {
         try {
           supportRuntime = require('./lib/bridge-support-runtime')(sails)
           supportRuntime.start()
@@ -379,6 +409,15 @@ module.exports = function defineSlipwayHook(sails) {
     },
 
     teardown: function (done) {
+      try {
+        unregisterHelmRuntime?.()
+      } catch (error) {
+        sails.log.warn(
+          `sails-hook-slipway: Helm runtime cleanup failed: ${
+            error.code || error.name
+          }`
+        )
+      }
       wakeRuntime?.stop()
       if (flushTimer) {
         clearInterval(flushTimer)
@@ -610,6 +649,7 @@ module.exports = function defineSlipwayHook(sails) {
   }
 
   function initializeTelemetry(done) {
+    if (isHelmRuntime) return done()
     if (!config.telemetryUrl || !config.telemetryToken) {
       sails.log.verbose(
         'sails-hook-slipway: No telemetry endpoint configured, skipping.'
@@ -996,7 +1036,7 @@ module.exports = function defineSlipwayHook(sails) {
   }
 
   function buildRegistration() {
-    if (!config.appId) return null
+    if (isHelmRuntime || isQuestCommand || !config.appId) return null
     return {
       appId: String(config.appId),
       deploymentId: config.deploymentId
@@ -1187,6 +1227,7 @@ module.exports = function defineSlipwayHook(sails) {
       }
 
       if (
+        !isHelmRuntime &&
         (flagsConfig.enabled || bearingConfig.enabled) &&
         flagsConfig.url &&
         flagsConfig.token

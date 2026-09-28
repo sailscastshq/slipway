@@ -1,4 +1,5 @@
 const { getHelmCompletions } = require('../../../../lib/helm-completion-cache')
+const expectedHelmRuntime = require('../../../../lib/helm-expected-runtime')
 
 module.exports = {
   friendlyName: 'Get project Helm completions',
@@ -76,7 +77,9 @@ module.exports = {
         app.currentDeployment
       ])
       return await getHelmCompletions(key, () =>
-        sails.helpers.helm.getCompletions(app.containerName)
+        expectedHelmRuntime(app).then((runtime) =>
+          sails.helpers.helm.getCompletions(app.containerName, runtime)
+        )
       )
     } catch {
       return {

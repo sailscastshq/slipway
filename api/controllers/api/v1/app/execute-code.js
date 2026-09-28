@@ -1,3 +1,5 @@
+const expectedHelmRuntime = require('../../../../lib/helm-expected-runtime')
+
 module.exports = {
   friendlyName: 'Execute code',
 
@@ -147,7 +149,8 @@ module.exports = {
         sourceStartLine,
         sourceStartColumn,
         executionId,
-        execution.signal
+        execution.signal,
+        await expectedHelmRuntime(app)
       )
       await sails.helpers.helm.recordExecution.with({
         scope,
