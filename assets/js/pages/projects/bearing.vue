@@ -1,4 +1,5 @@
 <script setup>
+import AppNavbarVersion from '@/components/AppNavbarVersion.vue'
 import Check from '@/components/ui/icons/Check.vue'
 import Copy from '@/components/ui/icons/Copy.vue'
 import ExternalLink from '@/components/ui/icons/ExternalLink.vue'
@@ -366,6 +367,8 @@ onUnmounted(() => {
           ]"
         />
       </div>
+
+      <div class="ml-auto shrink-0 pl-2"><AppNavbarVersion /></div>
     </header>
 
     <main

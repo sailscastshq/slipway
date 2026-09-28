@@ -45,6 +45,10 @@ module.exports = function defineCustomHook(sails) {
           skipAssets: true,
           fn: async function (req, res, next) {
             if (req.session.userId) {
+              sails.inertia.share(
+                'slipwayVersion',
+                sails.config.slipway.version
+              )
               // Memberships and roles are live so the switcher reflects revocation and invitations.
               const userId = req.session.userId
               sails.inertia.share(
@@ -221,6 +225,7 @@ module.exports = function defineCustomHook(sails) {
               res.setHeader('Cache-Control', 'no-cache, no-store')
               return next()
             } else {
+              sails.inertia.flushShared('slipwayVersion')
               sails.inertia.flushShared('loggedInUser')
               sails.inertia.flushShared('navProjects')
               sails.inertia.flushShared('navApps')

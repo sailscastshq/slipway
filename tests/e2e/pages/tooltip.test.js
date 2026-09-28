@@ -38,7 +38,7 @@ test(
     }
     await page.goto('/bosun')
 
-    const trigger = page.raw.locator('[data-test="bosun-version"]')
+    const trigger = page.raw.locator('[data-test="slipway-version"]')
     await trigger.focus()
 
     const tooltip = page.raw.getByRole('tooltip', {
@@ -51,13 +51,13 @@ test(
     )
     expect(
       await page.raw.evaluate(() => document.activeElement?.dataset.test)
-    ).toBe('bosun-version')
+    ).toBe('slipway-version')
 
     await page.key('Escape')
     await tooltip.waitFor({ state: 'hidden' })
     expect(
       await page.raw.evaluate(() => document.activeElement?.dataset.test)
-    ).toBe('bosun-version')
+    ).toBe('slipway-version')
 
     await trigger.hover()
     await tooltip.waitFor({ state: 'visible' })
@@ -74,6 +74,18 @@ test(
     await tooltip.waitFor({ state: 'visible' })
     await expectInvertedTooltip(tooltip, expect, 'light')
     await page.screenshot(path.join(screenshotRoot, 'tooltip-dark.png'), {
+      animations: 'disabled'
+    })
+
+    await page.goto('/')
+    expect(
+      await page.raw.locator('[data-test="slipway-version"]').count()
+    ).toBe(1)
+    await page.raw.setViewportSize({ width: 375, height: 812 })
+    expect(
+      await page.raw.locator('[data-test="slipway-version"]').isVisible()
+    ).toBe(true)
+    await page.screenshot(path.join(screenshotRoot, 'version-mobile.png'), {
       animations: 'disabled'
     })
 

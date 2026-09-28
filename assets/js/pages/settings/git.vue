@@ -1,4 +1,5 @@
 <script setup>
+import AppNavbarVersion from '@/components/AppNavbarVersion.vue'
 import SidebarOpen from '@/components/ui/icons/SidebarOpen.vue'
 import SidebarClose from '@/components/ui/icons/SidebarClose.vue'
 import Lock from '@/components/ui/icons/Lock.vue'
@@ -200,6 +201,8 @@ function timeAgo(date) {
           <span class="font-medium text-gray-900 dark:text-white">git</span>
         </nav>
       </div>
+
+      <div class="ml-auto shrink-0 pl-2"><AppNavbarVersion /></div>
     </div>
 
     <!-- Content -->

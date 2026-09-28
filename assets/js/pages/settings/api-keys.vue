@@ -1,4 +1,5 @@
 <script setup>
+import AppNavbarVersion from '@/components/AppNavbarVersion.vue'
 import SidebarOpen from '@/components/ui/icons/SidebarOpen.vue'
 import SidebarClose from '@/components/ui/icons/SidebarClose.vue'
 import Key from '@/components/ui/icons/Key.vue'
@@ -155,6 +156,8 @@ function timeAgo(date) {
           Docs
           <ExternalLink class="h-3.5 w-3.5" stroke-width="2" />
         </a>
+
+        <AppNavbarVersion />
       </div>
     </div>
 

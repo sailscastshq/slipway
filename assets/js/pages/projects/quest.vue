@@ -1,4 +1,5 @@
 <script setup>
+import AppNavbarVersion from '@/components/AppNavbarVersion.vue'
 import Alert from '@/components/ui/alert/Alert.vue'
 import StatusOnline from '@/components/ui/icons/StatusOnline.vue'
 import SidebarOpen from '@/components/ui/icons/SidebarOpen.vue'
@@ -406,6 +407,8 @@ function refresh() {
           <span>Docs</span>
           <ExternalLink class="h-3.5 w-3.5" stroke-width="2" />
         </a>
+
+        <AppNavbarVersion />
       </div>
     </div>
 

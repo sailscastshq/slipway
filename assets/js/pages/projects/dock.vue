@@ -1,4 +1,5 @@
 <script setup>
+import AppNavbarVersion from '@/components/AppNavbarVersion.vue'
 import { apiErrorMessage } from '@/lib/api-error'
 import Alert from '@/components/ui/alert/Alert.vue'
 import Upload from '@/components/ui/icons/Upload.vue'
@@ -1156,6 +1157,8 @@ onUnmounted(() => {
           <span>Docs</span>
           <ExternalLink class="h-3.5 w-3.5" stroke-width="2" />
         </a>
+
+        <AppNavbarVersion />
       </div>
     </div>
 

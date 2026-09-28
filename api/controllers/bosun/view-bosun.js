@@ -82,15 +82,6 @@ module.exports = {
       pid: process.pid
     }
 
-    // Slipway version
-    let version = 'unknown'
-    try {
-      const pkg = require(path.resolve(sails.config.appPath, 'package.json'))
-      version = pkg.version
-    } catch {
-      /* ignore */
-    }
-
     // Instance environment variables (from process.env + saved overrides)
     const knownKeys = [
       'SESSION_SECRET',
@@ -131,7 +122,6 @@ module.exports = {
         },
         databases,
         processInfo,
-        version,
         instanceEnvVars
       }
     }
