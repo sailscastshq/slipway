@@ -42,6 +42,9 @@ module.exports = function resolveHelmAppContext({
       const cwd = fs.readlinkSync(`${procRoot}/${pid}/cwd`)
       const relativeScript = path.relative(cwd, path.resolve(cwd, script))
       const isSailsCli = /(?:^|[/\\])sails(?:\.js)?$/.test(script)
+      // A standalone Quest/Sails job is not the app server, even when it is
+      // the only Sails process visible during a restart.
+      if (isSailsCli && argv[scriptIndex + 1] === 'run') continue
       if (
         !isSailsCli &&
         (relativeScript.startsWith('..') ||
@@ -64,6 +67,7 @@ module.exports = function resolveHelmAppContext({
       )
       if (env.SLIPWAY_HELM_EXECUTION_ID) continue
       candidates.push({
+        pid: Number(pid),
         appPath: cwd,
         env,
         argv: [argv[0], script, ...argv.slice(scriptIndex + 1)]
@@ -76,26 +80,46 @@ module.exports = function resolveHelmAppContext({
         throw error
     }
   }
-  const contexts = new Map(
-    candidates.map((candidate) => [
-      JSON.stringify({
-        appPath: candidate.appPath,
-        env: Object.fromEntries(
-          Object.entries(candidate.env).sort(([a], [b]) => a.localeCompare(b))
-        ),
-        argv: candidate.argv
-      }),
-      candidate
-    ])
-  )
-  if (contexts.size !== 1) {
+  const candidatePids = new Set(candidates.map(({ pid }) => pid))
+  let roots
+  try {
+    roots = candidates.filter(({ pid }) => {
+      const seen = new Set([pid])
+      let current = pid
+      while (current > 1) {
+        // /proc stat wraps the command in parentheses; the command itself can
+        // contain spaces or ')' so split only after its final closing bracket.
+        const stat = fs.readFileSync(`${procRoot}/${current}/stat`, 'utf8')
+        const fields = stat
+          .slice(stat.lastIndexOf(')') + 1)
+          .trim()
+          .split(/\s+/)
+        const parent = Number(fields[1])
+        if (!Number.isInteger(parent) || parent < 1 || seen.has(parent)) {
+          throw new Error('Invalid process ancestry')
+        }
+        if (candidatePids.has(parent)) return false
+        seen.add(parent)
+        current = parent
+      }
+      return true
+    })
+  } catch {
     const error = new Error(
-      contexts.size
+      'Helm could not verify the running app process tree. Try again after the app settles.'
+    )
+    error.code = 'HELM_APP_CONTEXT_UNAVAILABLE'
+    throw error
+  }
+  if (roots.length !== 1) {
+    const error = new Error(
+      roots.length
         ? 'Helm found multiple app runtimes in this container. It cannot safely choose a database.'
         : 'Helm could not identify the running Sails app. Ensure it is running with a standard Node entrypoint and container-level environment variables.'
     )
     error.code = 'HELM_APP_CONTEXT_UNAVAILABLE'
     throw error
   }
-  return contexts.values().next().value
+  const { pid, ...context } = roots[0]
+  return context
 }

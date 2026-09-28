@@ -417,7 +417,10 @@ function queryDetail(entry) {
         >
           <p
             :data-test="`${testId}-error-summary`"
-            :class="['text-sm font-medium leading-5', errorSummaryClasses]"
+            :class="[
+              'break-words text-sm font-medium leading-5',
+              errorSummaryClasses
+            ]"
           >
             {{ errorText }}
           </p>
@@ -440,7 +443,7 @@ function queryDetail(entry) {
             </summary>
             <pre
               :data-test="`${testId}-error-stack-content`"
-              class="mt-2 max-h-52 overflow-auto whitespace-pre-wrap font-mono leading-5 text-gray-600 dark:text-gray-400"
+              class="mt-2 whitespace-pre-wrap break-words font-mono leading-5 text-gray-600 dark:text-gray-400"
               >{{ errorStack }}</pre
             >
           </details>

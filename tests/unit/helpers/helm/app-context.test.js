@@ -12,10 +12,13 @@ test('Helm resolves the app process environment and rejects ambiguous or missing
   const files = {
     '/proc/10/cmdline': 'node\0/app/app.js\0--environment=staging\0',
     '/proc/10/environ': 'NODE_ENV=staging\0TOKEN=a=b\0',
+    '/proc/10/stat': '10 (node) S 1 0 0 0',
     '/app/package.json': JSON.stringify({ dependencies: { sails: '*' } }),
     '/proc/11/cmdline': 'node\0-e\0worker()\0',
+    '/proc/11/stat': '11 (node) S 10 0 0 0',
     '/proc/12/cmdline':
-      'node\0/usr/local/lib/node_modules/npm/bin/npm-cli.js\0start\0'
+      'node\0/usr/local/lib/node_modules/npm/bin/npm-cli.js\0start\0',
+    '/proc/12/stat': '12 (node) S 1 0 0 0'
   }
   const fakeFs = {
     readdirSync: () => ['10', '11', '12', 'self'],
@@ -32,6 +35,7 @@ test('Helm resolves the app process environment and rejects ambiguous or missing
   expect(context.argv).toEqual(['node', '/app/app.js', '--environment=staging'])
   files['/proc/11/cmdline'] = 'node\0/app/other.js\0'
   files['/proc/11/environ'] = 'NODE_ENV=production\0'
+  files['/proc/11/stat'] = '11 (node) S 1 0 0 0'
   let error
   try {
     resolveContext({ fs: fakeFs, ownPid: 99 })
@@ -40,14 +44,74 @@ test('Helm resolves the app process environment and rejects ambiguous or missing
   }
   expect(error.code).toBe('HELM_APP_CONTEXT_UNAVAILABLE')
   expect(error.message.includes('TOKEN')).toBe(false)
-  delete files['/proc/10/cmdline']
-  delete files['/proc/11/cmdline']
+  files['/proc/11/cmdline'] = files['/proc/10/cmdline']
+  files['/proc/11/environ'] = files['/proc/10/environ']
+  error = null
   try {
     resolveContext({ fs: fakeFs, ownPid: 99 })
   } catch (caught) {
     error = caught
   }
   expect(error.code).toBe('HELM_APP_CONTEXT_UNAVAILABLE')
+  delete files['/proc/10/cmdline']
+  delete files['/proc/11/cmdline']
+  error = null
+  try {
+    resolveContext({ fs: fakeFs, ownPid: 99 })
+  } catch (caught) {
+    error = caught
+  }
+  expect(error.code).toBe('HELM_APP_CONTEXT_UNAVAILABLE')
+})
+
+test('Helm uses the server runtime when Quest runs a child Sails script', ({
+  expect
+}) => {
+  const files = {
+    '/proc/10/cmdline': 'node\0/app/app.js\0',
+    '/proc/10/environ': 'NODE_ENV=production\0DATABASE_URL=production-secret\0',
+    '/proc/10/stat': '10 (app server) S 1 0 0 0',
+    '/proc/20/cmdline':
+      'node\0/app/node_modules/.bin/sails\0run\0reconcile-withdrawals\0',
+    '/proc/20/environ': 'NODE_ENV=production\0DATABASE_URL=script-override\0',
+    '/proc/20/stat': '20 (quest worker) S 30 0 0 0',
+    '/proc/30/stat': '30 (shell) S 10 0 0 0',
+    '/app/package.json': JSON.stringify({ dependencies: { sails: '*' } })
+  }
+  const fakeFs = {
+    readdirSync: () => ['10', '20', '30'],
+    readFileSync: (name) => {
+      if (files[name] === undefined)
+        throw Object.assign(new Error('Missing'), { code: 'ENOENT' })
+      return files[name]
+    },
+    readlinkSync: () => '/app'
+  }
+
+  const context = resolveContext({ fs: fakeFs, ownPid: 99 })
+  expect(context.argv).toEqual(['node', '/app/app.js'])
+  expect(context.env.DATABASE_URL).toBe('production-secret')
+
+  delete files['/proc/10/cmdline']
+  let missingAppError
+  try {
+    resolveContext({ fs: fakeFs, ownPid: 99 })
+  } catch (caught) {
+    missingAppError = caught
+  }
+  expect(missingAppError.code).toBe('HELM_APP_CONTEXT_UNAVAILABLE')
+  files['/proc/10/cmdline'] = 'node\0/app/app.js\0'
+
+  files['/proc/20/cmdline'] = 'node\0/app/worker.js\0'
+  delete files['/proc/20/stat']
+  let error
+  try {
+    resolveContext({ fs: fakeFs, ownPid: 99 })
+  } catch (caught) {
+    error = caught
+  }
+  expect(error.code).toBe('HELM_APP_CONTEXT_UNAVAILABLE')
+  expect(error.message.includes('production-secret')).toBe(false)
 })
 
 test('Helm reads the deployed SQLite database with rc overrides and safe migrations', async ({

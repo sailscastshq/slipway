@@ -488,7 +488,14 @@ test(
           message: 'Unexpected end of input',
           line: 2,
           column: 1,
-          frames: ['    at new Script (node:vm:117:7)'],
+          frames: [
+            '    at new Script (node:vm:117:7)',
+            ...Array.from(
+              { length: 35 },
+              (_, index) =>
+                `    at applicationFrame${index} (app.js:${index + 1}:7)`
+            )
+          ],
           durationMs: 2
         })
       } else if (request.code.includes('creator.publicId')) {
@@ -568,7 +575,38 @@ test(
         .locator('[data-test="helm-error-stack-content"]')
         .textContent()
     ).toContain('node:vm:117:7')
-    await page.screenshot('.tmp/issue-270-project-stack-light.png')
+    const stackFitsOneScroller = await page.script(() => {
+      const stack = document.querySelector(
+        '[data-test="helm-error-stack-content"]'
+      )
+      const output = document.querySelector('[data-test="helm-output-scroll"]')
+      return {
+        stackHasOwnScroll: stack.scrollHeight > stack.clientHeight,
+        outputScrolls: output.scrollHeight > output.clientHeight
+      }
+    })
+    expect(stackFitsOneScroller.stackHasOwnScroll).toBe(false)
+    expect(stackFitsOneScroller.outputScrolls).toBe(true)
+    await page.screenshot('.tmp/issue-622-helm-stack-top-light.png')
+    await page.script(() => {
+      const output = document.querySelector('[data-test="helm-output-scroll"]')
+      output.scrollTop = output.scrollHeight
+    })
+    expect(
+      await page.script(() => {
+        const stack = document.querySelector(
+          '[data-test="helm-error-stack-content"]'
+        )
+        const output = document.querySelector(
+          '[data-test="helm-output-scroll"]'
+        )
+        return (
+          stack.getBoundingClientRect().bottom <=
+          output.getBoundingClientRect().bottom + 1
+        )
+      })
+    ).toBe(true)
+    await page.screenshot('.tmp/issue-622-helm-stack-end-light.png')
 
     const documentSource = [
       'const outsideSelection = true',
@@ -959,6 +997,10 @@ test(
     await page.key('ControlOrMeta+Enter')
     await page.wait(100)
     expect(submitted.length).toBe(submissionCount)
+    await page.resize(390, 844)
+    expect(
+      await page.raw.locator('[data-test="helm-run"] span').last().isVisible()
+    ).toBe(true)
     expect(page).toHaveNoSmoke()
   }
 )
@@ -1428,13 +1470,16 @@ test(
     })
     await updateCheckFinished
 
-    await page.raw.route('**/helm/completions', async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify(HELM_COMPLETION_METADATA)
-      })
-    })
+    await page.raw.route(
+      `**/helm/completions?appSlug=${current.apps.web.slug}`,
+      async (route) => {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify(HELM_COMPLETION_METADATA)
+        })
+      }
+    )
     await page.raw.route('**/execute', async (route) => {
       executionCount++
       await route.fulfill({

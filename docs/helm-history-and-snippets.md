@@ -59,13 +59,19 @@ It also disables Quest auto-start for this temporary lift, while leaving
 `sails.quest` available for explicit calls, so opening Helm does not start
 another copy of scheduled jobs.
 
-If the running app cannot be identified or multiple distinct app runtimes are
-present, Helm refuses execution instead of guessing which datastore to use.
+Helm selects the root running Sails process, even while Quest or another Sails
+CLI job runs beneath it. If the running app cannot be identified or independent
+app roots are present, Helm refuses execution instead of guessing which
+datastore to use. A standalone `sails run` job is never treated as the app.
 Standard Node script and Sails CLI entrypoints are supported. Put environment
 configuration in container variables or Sails configuration: custom changes made
 inside an app entrypoint cannot be recovered from `/proc`, and Node preload/eval
 or env-file launch modes are not supported by runtime discovery. No application
 environment variables or database credentials are included in discovery errors.
+
+Model, helper, and config completion metadata comes from the selected app. A
+short deployment-scoped cache avoids a new Sails lift on every window focus;
+Helm still starts a fresh isolated process for each code execution.
 
 If the selected app has `sails-hook-quest` installed, Helm exposes its runtime
 API as `sails.quest`. To run a Sails script with inputs, use

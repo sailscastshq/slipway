@@ -113,6 +113,7 @@ const editorSelection = ref({
 let executionSequence = 0
 let activeExecution = null
 let completionRequestSequence = 0
+let lastCompletionLoadAt = 0
 let writeArmTimer = null
 
 const isRunning = computed(() => props.appStatus === 'running')
@@ -281,7 +282,9 @@ async function execute(sourceOverride) {
       scratchpads.markCurrentSourceSaved(code.value)
     }
 
-    await revealHistory()
+    if (libraryOpen.value && libraryTab.value === 'history') {
+      await library.value?.refreshHistory()
+    }
   } catch (err) {
     if (activeExecution?.sequence !== currentExecution.sequence) return
     requestError.value = err.message || 'Network error'
@@ -548,11 +551,15 @@ async function saveScratchpadAsSnippet() {
 }
 
 async function loadCompletionMetadata() {
+  if (Date.now() - lastCompletionLoadAt < 30_000) return
+  lastCompletionLoadAt = Date.now()
   const sequence = ++completionRequestSequence
 
   try {
     const response = await fetch(
-      `/api/v1/projects/${props.project.slug}/environments/${props.environment.slug}/helm/completions`,
+      `/api/v1/projects/${props.project.slug}/environments/${
+        props.environment.slug
+      }/helm/completions?appSlug=${encodeURIComponent(props.app?.slug || '')}`,
       {
         headers: {
           Accept: 'application/json'
@@ -565,7 +572,9 @@ async function loadCompletionMetadata() {
     const metadata = await response.json()
     if (sequence !== completionRequestSequence) return
     completionMetadata.value = metadata.available ? metadata : null
+    if (!metadata.available) lastCompletionLoadAt = 0
   } catch {
+    lastCompletionLoadAt = 0
     if (sequence === completionRequestSequence) {
       completionMetadata.value = null
     }
@@ -588,6 +597,15 @@ watch(code, () => {
   editor.value?.clearInspections()
   if (writeArm.value && writeArm.value.source !== code.value) clearWriteArm()
 })
+
+watch(
+  () => props.target?.container,
+  () => {
+    completionMetadata.value = null
+    lastCompletionLoadAt = 0
+    loadCompletionMetadata()
+  }
+)
 </script>
 <template>
   <Head
@@ -631,14 +649,16 @@ watch(code, () => {
           class="flex items-center space-x-1.5 text-xs text-green-600 dark:text-green-400"
         >
           <span class="h-1.5 w-1.5 rounded-full bg-green-500"></span>
-          <span class="hidden sm:inline">connected</span>
+          <span class="hidden sm:inline">{{ app?.name }} running</span>
         </span>
         <span
           v-else
           class="flex items-center space-x-1.5 text-xs text-gray-400"
         >
           <span class="h-1.5 w-1.5 rounded-full bg-gray-400"></span>
-          <span class="hidden sm:inline">not running</span>
+          <span class="hidden sm:inline"
+            >{{ app?.name || 'App' }} not running</span
+          >
         </span>
 
         <div class="flex items-center">
@@ -693,7 +713,7 @@ watch(code, () => {
           <Spinner v-if="stopping || inspectingSource" class="h-3 w-3" />
           <Stop v-else-if="running" class="h-3 w-3" />
           <Play v-else class="h-3 w-3" />
-          <span class="hidden sm:inline">{{
+          <span>{{
             stopping
               ? 'Stopping'
               : running
