@@ -6,7 +6,8 @@ const path = require('node:path')
 const { spawnSync } = require('node:child_process')
 const runtime = require('../../../../api/lib/helm-runtime')
 const {
-  registerHelmRuntime
+  registerHelmRuntime,
+  environmentFingerprint
 } = require('../../../../packages/hook/lib/helm-runtime-contract')
 const fingerprintHelmDatastores = require('../../../../packages/hook/lib/helm-config-fingerprint')
 const expectedHelmRuntime = require('../../../../api/lib/helm-expected-runtime')
@@ -82,9 +83,10 @@ test('Helm uses a live deployment contract for custom entrypoints and rejects st
     )
     fs.symlinkSync(appPath, path.join(procRoot, String(pid), 'cwd'))
     fs.symlinkSync(process.execPath, path.join(procRoot, String(pid), 'exe'))
+    const effectiveEnv = { ...env, VIPSHOME: '/app/node_modules/sharp/vendor' }
     const fakeRuntime = {
       platform: 'linux',
-      env,
+      env: effectiveEnv,
       argv: [
         process.execPath,
         '/opt/custom-start.js',
@@ -131,6 +133,10 @@ test('Helm uses a live deployment contract for custom entrypoints and rejects st
     expect(context.appPath).toBe(appPath)
     expect(context.argv).toEqual(fakeRuntime.argv)
     expect(context.env.DATABASE_URL).toBe('production-secret')
+    expect(context.env.VIPSHOME).toBe(undefined)
+    expect(context.environmentFingerprint).toBe(
+      environmentFingerprint(effectiveEnv)
+    )
     expect(context.datastoreFingerprint).toBe(
       fingerprintHelmDatastores(sailsApp)
     )
@@ -151,13 +157,8 @@ test('Helm uses a live deployment contract for custom entrypoints and rejects st
       path.join(procRoot, String(pid), 'environ'),
       'EXTRA=changed\0'
     )
-    let changedEnvironment
-    try {
-      resolveContext(options)
-    } catch (caught) {
-      changedEnvironment = caught
-    }
-    expect(changedEnvironment.code).toBe('HELM_APP_CONTEXT_UNAVAILABLE')
+    const changedEnvironment = resolveContext(options)
+    expect(changedEnvironment.env.EXTRA).toBe('changed')
     fs.writeFileSync(
       path.join(procRoot, String(pid), 'environ'),
       Object.entries(env)
@@ -335,7 +336,7 @@ test('Helm reads the deployed SQLite database with rc overrides and safe migrati
     )
     fs.writeFileSync(
       path.join(root, 'config/env/production.js'),
-      "module.exports={datastores:{default:{url:'./production.db'}}}"
+      "process.env.HELM_RUNTIME_ONLY='reproducible';module.exports={datastores:{default:{url:'./production.db'}}}"
     )
     fs.writeFileSync(
       path.join(root, 'config/env/staging.js'),
@@ -410,6 +411,12 @@ test('Helm reads the deployed SQLite database with rc overrides and safe migrati
         appPath: root,
         env: { PATH: process.env.PATH, HOME: root, NODE_ENV: 'production' },
         argv: [process.execPath, 'app.js'],
+        environmentFingerprint: environmentFingerprint({
+          PATH: process.env.PATH,
+          HOME: root,
+          NODE_ENV: 'production',
+          HELM_RUNTIME_ONLY: 'reproducible'
+        }),
         datastoreFingerprint: productionFingerprint
       },
       timeoutMs: 10000
@@ -417,11 +424,34 @@ test('Helm reads the deployed SQLite database with rc overrides and safe migrati
     const verifiedProcess = spawnSync(process.execPath, [], {
       input: verifiedScript,
       encoding: 'utf8',
+      env: { ...process.env, SLIPWAY_HELM_EXECUTION_ID: 'test-execution' },
       timeout: 15000
     })
     const verified = runtime.parseRunnerOutput(verifiedProcess.stdout)
     expect(verified.success).toBe(true)
     expect(verified.value[0].name).toBe('production')
+    const environmentMismatchScript = runtime.buildRunnerSource({
+      preparedSource: prepared.source,
+      bootstrapSails: true,
+      appContext: {
+        appPath: root,
+        env: { PATH: process.env.PATH, HOME: root, NODE_ENV: 'production' },
+        argv: [process.execPath, 'app.js'],
+        environmentFingerprint: '0'.repeat(64),
+        datastoreFingerprint: productionFingerprint
+      },
+      timeoutMs: 10000
+    })
+    const environmentMismatchProcess = spawnSync(process.execPath, [], {
+      input: environmentMismatchScript,
+      encoding: 'utf8',
+      timeout: 15000
+    })
+    const environmentMismatch = runtime.parseRunnerOutput(
+      environmentMismatchProcess.stdout
+    )
+    expect(environmentMismatch.success).toBe(false)
+    expect(environmentMismatch.error.code).toBe('HELM_ENVIRONMENT_MISMATCH')
     const mismatchScript = runtime.buildRunnerSource({
       preparedSource: prepared.source,
       bootstrapSails: true,

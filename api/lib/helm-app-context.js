@@ -10,7 +10,6 @@ module.exports = function resolveHelmAppContext({
   contractDir = '/tmp/slipway-helm-runtimes'
 } = {}) {
   const path = require('node:path')
-  const crypto = require('node:crypto')
   const unavailable = (message) => {
     const error = new Error(message)
     error.code = 'HELM_APP_CONTEXT_UNAVAILABLE'
@@ -69,6 +68,7 @@ module.exports = function resolveHelmAppContext({
             pid === ownPid ||
             name !== `${appId}-${deploymentId}-${pid}.json` ||
             contract.environmentSource !== 'process-start' ||
+            !/^[0-9a-f]{64}$/.test(contract.environmentFingerprint || '') ||
             !/^[0-9a-f]{64}$/.test(contract.datastoreFingerprint || '') ||
             !Number.isSafeInteger(contract.argvStartIndex) ||
             contract.argvStartIndex < 1
@@ -101,22 +101,12 @@ module.exports = function resolveHelmAppContext({
             env.SLIPWAY_HELM_EXECUTION_ID
           )
             continue
-          const fingerprint = crypto
-            .createHash('sha256')
-            .update(
-              JSON.stringify(
-                Object.keys(env)
-                  .sort()
-                  .map((key) => [key, String(env[key])])
-              )
-            )
-            .digest('hex')
-          if (fingerprint !== contract.environmentFingerprint) continue
           contexts.push({
             pid,
             appPath: cwd,
             env,
             argv,
+            environmentFingerprint: contract.environmentFingerprint,
             datastoreFingerprint: contract.datastoreFingerprint,
             completionMetadata: contract.completionMetadata || null
           })
@@ -138,7 +128,7 @@ module.exports = function resolveHelmAppContext({
         throw unavailable(
           contexts.length
             ? 'Helm found multiple verified runtimes for this app. Run one app process per container.'
-            : 'The app runtime contract is stale or its startup environment changed. Restart or redeploy the app, then try again.'
+            : 'The app runtime contract no longer matches the selected process. Restart or redeploy the app, then try again.'
         )
       const { pid, ...context } = contexts[0]
       return context

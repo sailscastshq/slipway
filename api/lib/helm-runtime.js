@@ -601,6 +601,30 @@ async function helmSubprocessMain(
           }
         )
       })
+      if (appContext?.environmentFingerprint) {
+        // The app records its environment after Sails loads. /proc exposes only
+        // the launch environment, so verify reproducibility at the same stage
+        // in this isolated lift, before evaluating any operator code.
+        const crypto = require('node:crypto')
+        const fingerprint = crypto
+          .createHash('sha256')
+          .update(
+            JSON.stringify(
+              Object.keys(process.env)
+                .filter((key) => key !== 'SLIPWAY_HELM_EXECUTION_ID')
+                .sort()
+                .map((key) => [key, String(process.env[key])])
+            )
+          )
+          .digest('hex')
+        if (fingerprint !== appContext.environmentFingerprint) {
+          const mismatch = new Error(
+            'Helm loaded different environment settings than the running app. Check startup-time configuration before running code.'
+          )
+          mismatch.code = 'HELM_ENVIRONMENT_MISMATCH'
+          throw mismatch
+        }
+      }
       if (
         appContext?.datastoreFingerprint &&
         fingerprintDatastores(sailsApp) !== appContext.datastoreFingerprint
