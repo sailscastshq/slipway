@@ -32,7 +32,6 @@ defineOptions({
 })
 
 const props = defineProps({
-  ingestion: Object,
   project: Object,
   environment: Object,
   appName: String,
@@ -647,41 +646,6 @@ async function copyToken() {
               · hook {{ effectiveTelemetryState.hookVersion }}
             </span>
           </p>
-        </div>
-
-        <div
-          v-if="ingestion?.rejectedRequests"
-          role="status"
-          data-test="lookout-ingestion-status"
-          class="mb-6 text-sm text-amber-700 dark:text-amber-300"
-        >
-          <details class="group">
-            <summary
-              class="flex cursor-pointer list-none items-center gap-2 font-medium focus-visible:rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2"
-            >
-              <span
-                aria-hidden="true"
-                class="h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500"
-              ></span>
-              <span>
-                {{ Number(ingestion.rejectedEvents).toLocaleString() }} events
-                rejected across
-                {{ Number(ingestion.rejectedRequests).toLocaleString() }}
-                requests
-              </span>
-              <ChevronDown
-                aria-hidden="true"
-                class="h-3.5 w-3.5 shrink-0 transition-transform group-open:rotate-180"
-                stroke-width="2"
-              />
-            </summary>
-            <p
-              class="ml-3.5 mt-2 text-xs leading-5 text-gray-500 dark:text-gray-400"
-            >
-              Ingestion protection rejected these events. Check the app's
-              telemetry payloads and per-minute limits.
-            </p>
-          </details>
         </div>
 
         <div

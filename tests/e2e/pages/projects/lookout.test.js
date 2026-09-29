@@ -175,7 +175,7 @@ test(
 )
 
 test(
-  'Lookout makes rejected telemetry visible',
+  'Lookout keeps historical rejection counts out of the main view',
   {
     browser: true,
     world: {
@@ -223,12 +223,9 @@ test(
       password: world.current.auth.genesisUserPassword
     })
     await page.goto('/projects/ingestion-feedback/lookout')
-    const ingestionStatus = page.raw.locator(
-      '[data-test="lookout-ingestion-status"]'
-    )
-    await expect(ingestionStatus).toHaveAttribute('role', 'status')
-    await expect(ingestionStatus).toContainText(
-      '250 events rejected across 2 requests'
+    await expect(page.raw.getByText('250 events rejected')).toHaveCount(0)
+    await expect(page.raw.getByText('Some telemetry was rejected')).toHaveCount(
+      0
     )
     await expect(page).toSee('Connected — waiting for traffic')
     fs.mkdirSync('.github/screenshots/audit-telemetry-limits', {
@@ -243,10 +240,5 @@ test(
       fullPage: true,
       animations: 'disabled'
     })
-    await ingestionStatus.locator('summary').focus()
-    await ingestionStatus.locator('summary').press('Enter')
-    await expect(ingestionStatus).toContainText(
-      "Check the app's telemetry payloads and per-minute limits."
-    )
   }
 )
