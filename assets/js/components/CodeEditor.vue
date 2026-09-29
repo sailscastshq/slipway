@@ -806,9 +806,9 @@ defineExpose({
   overflow: auto;
 }
 
-.code-editor :deep(.cm-editor.cm-focused) {
-  outline: 1px solid var(--color-brand-200);
-  outline-offset: -1px;
+.code-editor :deep(.cm-editor.cm-focused),
+.code-editor :deep(.cm-editor.cm-focused:focus-visible) {
+  outline: none;
 }
 
 .code-editor :deep(.cm-content:focus-visible) {
@@ -860,10 +860,6 @@ defineExpose({
 }
 
 @media (prefers-color-scheme: dark) {
-  .code-editor :deep(.cm-editor.cm-focused) {
-    outline-color: var(--color-brand-800);
-  }
-
   .code-editor :deep(.cm-inline-diagnostic) {
     color: var(--color-red-400);
   }
