@@ -1,6 +1,5 @@
 <script setup>
 import AppNavbarVersion from '@/components/AppNavbarVersion.vue'
-import Alert from '@/components/ui/alert/Alert.vue'
 import SidebarOpen from '@/components/ui/icons/SidebarOpen.vue'
 import SidebarClose from '@/components/ui/icons/SidebarClose.vue'
 import ExternalLink from '@/components/ui/icons/ExternalLink.vue'
@@ -235,17 +234,12 @@ const telemetryNotice = computed(() => {
   return notices[status.state] || null
 })
 
+const telemetryConnected = computed(() =>
+  ['connected_quiet', 'receiving'].includes(effectiveTelemetryState.value.state)
+)
+
 const telemetryNoticeClasses = computed(() => {
   const tone = telemetryNotice.value?.tone
-  if (tone === 'success') {
-    return {
-      shell:
-        'border-emerald-200 bg-emerald-50/70 dark:border-emerald-900/70 dark:bg-emerald-950/20',
-      dot: 'bg-emerald-500',
-      title: 'text-emerald-950 dark:text-emerald-100',
-      detail: 'text-emerald-800/80 dark:text-emerald-300/80'
-    }
-  }
   if (tone === 'warning') {
     return {
       shell:
@@ -624,35 +618,74 @@ async function copyToken() {
 
     <!-- Content -->
     <div class="flex-1 overflow-y-auto px-4 py-6 sm:px-8 sm:py-8">
-      <Alert
-        v-if="ingestion?.rejectedRequests"
-        role="status"
-        class="mx-auto mb-6 max-w-5xl border border-amber-200 bg-amber-50 text-amber-950 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-100"
-      >
-        <p class="font-medium">Some telemetry was rejected</p>
-        <p class="mt-1 leading-6">
-          Ingestion protection rejected {{ ingestion.rejectedEvents }} events
-          across {{ ingestion.rejectedRequests }} requests. Check the app's
-          telemetry payloads and per-minute limits.
-        </p>
-      </Alert>
       <Tabs
         v-model="activeTab"
         aria-label="Lookout sections"
         class="mx-auto max-w-5xl"
       >
         <!-- Header -->
-        <div class="mb-6">
-          <h1 class="text-xl font-semibold text-gray-900 dark:text-white">
-            Lookout
-          </h1>
-          <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            Observability for {{ appName }}.
+        <div class="mb-6 flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h1 class="text-xl font-semibold text-gray-900 dark:text-white">
+              Lookout
+            </h1>
+            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+              Observability for {{ appName }}.
+            </p>
+          </div>
+          <p
+            v-if="telemetryConnected"
+            role="status"
+            class="flex items-center gap-2 pt-1 text-xs text-gray-500 dark:text-gray-400"
+          >
+            <span
+              aria-hidden="true"
+              class="h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500"
+            ></span>
+            <span>{{ telemetryNotice.title }}</span>
+            <span v-if="effectiveTelemetryState.hookVersion">
+              · hook {{ effectiveTelemetryState.hookVersion }}
+            </span>
           </p>
         </div>
 
         <div
-          v-if="telemetryNotice"
+          v-if="ingestion?.rejectedRequests"
+          role="status"
+          data-test="lookout-ingestion-status"
+          class="mb-6 text-sm text-amber-700 dark:text-amber-300"
+        >
+          <details class="group">
+            <summary
+              class="flex cursor-pointer list-none items-center gap-2 font-medium focus-visible:rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2"
+            >
+              <span
+                aria-hidden="true"
+                class="h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500"
+              ></span>
+              <span>
+                {{ Number(ingestion.rejectedEvents).toLocaleString() }} events
+                rejected across
+                {{ Number(ingestion.rejectedRequests).toLocaleString() }}
+                requests
+              </span>
+              <ChevronDown
+                aria-hidden="true"
+                class="h-3.5 w-3.5 shrink-0 transition-transform group-open:rotate-180"
+                stroke-width="2"
+              />
+            </summary>
+            <p
+              class="ml-3.5 mt-2 text-xs leading-5 text-gray-500 dark:text-gray-400"
+            >
+              Ingestion protection rejected these events. Check the app's
+              telemetry payloads and per-minute limits.
+            </p>
+          </details>
+        </div>
+
+        <div
+          v-if="telemetryNotice && !telemetryConnected"
           :class="telemetryNoticeClasses.shell"
           class="mb-6 flex items-start gap-3 rounded-lg border px-4 py-3"
         >
