@@ -67,7 +67,8 @@ const breadcrumbs = computed(() => [
     ? [
         {
           label: props.app.name.toLowerCase(),
-          title: props.app.name
+          title: props.app.name,
+          href: `/projects/${props.project.slug}/environments/${props.environment.slug}/apps/${props.app.slug}`
         }
       ]
     : []),
