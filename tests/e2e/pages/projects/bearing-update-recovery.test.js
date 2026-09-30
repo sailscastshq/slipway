@@ -44,6 +44,19 @@ test(
     const body = page.raw.locator(
       '[data-test="bearing-update-body-visual-editor"]'
     )
+    await title.fill('A reverted title')
+    await page.raw.waitForFunction(() =>
+      Object.keys(sessionStorage).some((key) =>
+        key.startsWith('slipway:bearing-update-draft:[')
+      )
+    )
+    await title.fill('')
+    await page.raw.waitForFunction(
+      () =>
+        !Object.keys(sessionStorage).some((key) =>
+          key.startsWith('slipway:bearing-update-draft:[')
+        )
+    )
     await title.fill('Unsaved invoice update')
     await summary.fill('A useful summary')
     await body.fill('Useful unsaved details.')

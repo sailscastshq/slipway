@@ -234,6 +234,7 @@ function beforeUpdateUnload(event) {
 watch(snapshot, () => {
   clearTimeout(recoveryTimer)
   if (hasUpdateChanges.value) recoveryTimer = setTimeout(persistUpdate, 300)
+  else if (!recoveredUpdate.value) clearRecovery()
 })
 
 function loadDraft(item) {
