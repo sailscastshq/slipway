@@ -448,10 +448,11 @@ defineExpose({
 
 :deep(.tiptap img) {
   margin: 2rem 0;
-  max-height: 36rem;
-  width: 100%;
+  display: block;
+  max-width: 100%;
+  max-height: none;
+  height: auto;
   border-radius: 0.65rem;
-  object-fit: cover;
 }
 
 :deep(.tiptap img.ProseMirror-selectednode) {
