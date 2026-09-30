@@ -22,7 +22,7 @@ module.exports = {
   },
 
   exits: {
-    success: { responseType: 'inertiaRedirect' },
+    success: { responseType: 'bearingUpdateRedirect' },
     badRequest: { responseType: 'badRequest' },
     notFound: { responseType: 'inertiaRedirect' },
     forbidden: { responseType: 'inertiaRedirect' }

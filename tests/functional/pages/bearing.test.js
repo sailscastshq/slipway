@@ -581,11 +581,8 @@ test(
       feedbackIds: [feedback.publicId],
       publish: true
     })
-    expect(published).toHaveStatus(409)
-    expect(published).toHaveHeader(
-      'x-inertia-location',
-      `${managementPath}?view=updates`
-    )
+    expect(published).toHaveStatus(303)
+    expect(published).toHaveHeader('location', `${managementPath}?view=updates`)
     expect(
       (await sails.models.bearingfeedback.findOne({ id: feedback.id })).status
     ).toBe('shipped')
