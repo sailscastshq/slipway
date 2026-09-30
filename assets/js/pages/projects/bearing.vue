@@ -8,7 +8,7 @@ import SidebarOpen from '@/components/ui/icons/SidebarOpen.vue'
 import Input from '@/components/ui/input/Input.vue'
 import Checkbox from '@/components/ui/checkbox/Checkbox.vue'
 import Radio from '@/components/ui/radio/Radio.vue'
-import { Head, Link, router, useForm } from '@inertiajs/vue3'
+import { Head, Link, router, useForm, usePage } from '@inertiajs/vue3'
 import {
   computed,
   inject,
@@ -138,8 +138,109 @@ const editingDraft = ref(null)
 const draftToDelete = ref(null)
 const deletingDraft = ref(false)
 
-function editDraft(item) {
+const snapshot = () =>
+  JSON.stringify({
+    title: updateForm.title,
+    excerpt: updateForm.excerpt,
+    body: updateForm.body,
+    feedbackIds: [...updateForm.feedbackIds]
+  })
+const savedSnapshot = ref(snapshot())
+const hasUpdateChanges = computed(() => snapshot() !== savedSnapshot.value)
+const recoveredUpdate = ref(null)
+const recoveryError = ref(false)
+const saveNotice = ref('')
+const pendingUpdateAction = ref(null)
+const recoveryKey =
+  'slipway:bearing-update-draft:' +
+  JSON.stringify([
+    usePage().props.loggedInUser.id,
+    props.project.id,
+    props.environment.id,
+    props.app.id
+  ])
+let recoveryTimer
+let removeUpdateGuard
+let allowUpdateVisit = false
+
+function clearRecovery() {
+  clearTimeout(recoveryTimer)
+  try {
+    sessionStorage.removeItem(recoveryKey)
+  } catch {
+    /* unavailable storage */
+  }
+  recoveredUpdate.value = null
+}
+function persistUpdate() {
+  clearTimeout(recoveryTimer)
+  if (!hasUpdateChanges.value) return
+  try {
+    sessionStorage.setItem(
+      recoveryKey,
+      JSON.stringify({
+        data: JSON.parse(snapshot()),
+        editingDraft: editingDraft.value,
+        savedSnapshot: savedSnapshot.value,
+        expiresAt: Date.now() + 30 * 60 * 1000
+      })
+    )
+    recoveryError.value = false
+  } catch {
+    recoveryError.value = true
+  }
+}
+function restoreUpdate() {
+  const draft = recoveredUpdate.value
+  if (!draft) return
+  for (const key of ['title', 'excerpt', 'body', 'feedbackIds'])
+    updateForm[key] = draft.data[key]
+  editingDraft.value = props.updates.some(
+    (item) => item.publicId === draft.editingDraft && item.status === 'draft'
+  )
+    ? draft.editingDraft
+    : null
+  savedSnapshot.value = editingDraft.value
+    ? draft.savedSnapshot
+    : JSON.stringify({ title: '', excerpt: '', body: '', feedbackIds: [] })
+  recoveredUpdate.value = null
+  selectedView.value = 'updates'
+  persistUpdate()
+}
+function requestUpdateAction(action) {
+  if (updateForm.processing) return
+  if (hasUpdateChanges.value || recoveredUpdate.value)
+    pendingUpdateAction.value = action
+  else action()
+}
+function discardUpdateAndContinue() {
+  const action = pendingUpdateAction.value
+  pendingUpdateAction.value = null
+  clearDraft()
+  allowUpdateVisit = true
+  try {
+    action?.()
+  } finally {
+    allowUpdateVisit = false
+  }
+}
+function beforeUpdateUnload(event) {
+  persistUpdate()
+  if (hasUpdateChanges.value) {
+    event.preventDefault()
+    event.returnValue = ''
+  }
+}
+watch(snapshot, () => {
+  clearTimeout(recoveryTimer)
+  if (hasUpdateChanges.value) recoveryTimer = setTimeout(persistUpdate, 300)
+  else if (!recoveredUpdate.value) clearRecovery()
+})
+
+function loadDraft(item) {
   if (item.status !== 'draft') return
+  clearRecovery()
+  saveNotice.value = ''
   editingDraft.value = item.publicId
   updateForm.clearErrors()
   updateForm.title = item.title
@@ -149,13 +250,20 @@ function editDraft(item) {
     (feedback) => feedback.publicId
   )
   updateForm.publish = false
+  savedSnapshot.value = snapshot()
   nextTick(() => document.getElementById('bearing-update-title')?.focus())
 }
 
+function editDraft(item) {
+  requestUpdateAction(() => loadDraft(item))
+}
 function clearDraft() {
+  clearRecovery()
+  saveNotice.value = ''
   editingDraft.value = null
   updateForm.reset()
   updateForm.clearErrors()
+  savedSnapshot.value = snapshot()
 }
 
 function save() {
@@ -226,18 +334,44 @@ function moveFeedback(item, status) {
 }
 
 function saveUpdate(publish) {
+  if (updateForm.processing || deletingDraft.value || recoveredUpdate.value)
+    return
+  const submitted = snapshot()
+  const submittedId = editingDraft.value
+  saveNotice.value = ''
   updateForm.publish = publish
   const path = editingDraft.value
     ? `${bearingPath.value}/updates/${editingDraft.value}`
     : `${bearingPath.value}/updates`
   updateForm[editingDraft.value ? 'patch' : 'post'](path, {
     preserveScroll: true,
-    onSuccess: clearDraft
+    onSuccess: (page) => {
+      if (snapshot() === submitted) {
+        clearDraft()
+        return
+      }
+      savedSnapshot.value = submitted
+      editingDraft.value = publish
+        ? null
+        : submittedId || page.props.flash?.bearingSavedUpdateId || null
+      if (publish)
+        savedSnapshot.value = JSON.stringify({
+          title: '',
+          excerpt: '',
+          body: '',
+          feedbackIds: []
+        })
+      saveNotice.value = publish
+        ? 'Update published. Your newer edits are kept here as a new update.'
+        : 'Draft saved. Your newer edits are still unsaved.'
+      persistUpdate()
+    }
   })
 }
 
 function deleteDraft() {
-  if (!draftToDelete.value || deletingDraft.value) return
+  if (!draftToDelete.value || deletingDraft.value || updateForm.processing)
+    return
   const publicId = draftToDelete.value.publicId
   deletingDraft.value = true
   router.delete(`${bearingPath.value}/updates/${publicId}`, {
@@ -318,10 +452,44 @@ function publicUrlPath(url) {
 
 watch(selectedView, revealSelectedTab)
 onMounted(() => {
+  try {
+    const draft = JSON.parse(sessionStorage.getItem(recoveryKey) || 'null')
+    if (
+      draft?.expiresAt > Date.now() &&
+      typeof draft.savedSnapshot === 'string' &&
+      draft.data &&
+      ['title', 'excerpt', 'body'].every(
+        (key) => typeof draft.data[key] === 'string'
+      ) &&
+      Array.isArray(draft.data.feedbackIds) &&
+      draft.data.feedbackIds.every((id) => typeof id === 'string') &&
+      (draft.editingDraft === null || typeof draft.editingDraft === 'string')
+    )
+      recoveredUpdate.value = draft
+    else clearRecovery()
+  } catch {
+    clearRecovery()
+  }
+  window.addEventListener('beforeunload', beforeUpdateUnload)
+  removeUpdateGuard = router.on('before', (event) => {
+    const visit = event.detail.visit
+    if (
+      allowUpdateVisit ||
+      visit.method !== 'get' ||
+      (!hasUpdateChanges.value && !recoveredUpdate.value)
+    )
+      return
+    event.preventDefault()
+    persistUpdate()
+    pendingUpdateAction.value = () => router.visit(visit.url, { ...visit })
+  })
   revealSelectedTab()
   window.addEventListener('resize', revealSelectedTab)
 })
 onUnmounted(() => {
+  persistUpdate()
+  window.removeEventListener('beforeunload', beforeUpdateUnload)
+  removeUpdateGuard?.()
   window.removeEventListener('resize', revealSelectedTab)
   window.clearTimeout(copyResetTimer)
 })
@@ -374,6 +542,19 @@ onUnmounted(() => {
     <main
       class="flex-1 overflow-y-auto px-4 py-8 text-gray-950 dark:text-white sm:px-8 sm:py-12"
     >
+      <Alert v-if="recoveredUpdate" role="status" class="mb-5">
+        An unsaved update is available in this tab (kept for 30 minutes).
+        <button type="button" class="ml-3 underline" @click="restoreUpdate">
+          Restore update
+        </button>
+        <button type="button" class="ml-3 underline" @click="clearRecovery">
+          Discard update
+        </button>
+      </Alert>
+      <Alert v-if="recoveryError" role="alert" class="mb-5"
+        >Draft recovery is unavailable in this browser. Save your work before
+        leaving.</Alert
+      >
       <Tabs
         v-model="selectedView"
         aria-label="Bearing sections"
@@ -665,153 +846,164 @@ onUnmounted(() => {
           data-value="updates"
           class="mt-10 max-w-3xl"
         >
+          <p v-if="saveNotice" role="status" class="mb-5 text-sm">
+            {{ saveNotice }}
+          </p>
           <form class="space-y-5" @submit.prevent="saveUpdate(false)">
-            <div>
-              <div class="flex items-center justify-between gap-4">
-                <h2 class="text-base font-semibold">
-                  {{ editingDraft ? 'Edit draft' : 'Write an update' }}
-                </h2>
-                <div v-if="editingDraft" class="flex items-center gap-3">
-                  <button
-                    type="button"
-                    class="text-sm text-gray-500 hover:text-gray-950 dark:hover:text-white"
-                    @click="clearDraft"
-                  >
-                    New update
-                  </button>
-                  <ActionMenu
-                    :items="[
-                      {
-                        key: 'delete',
-                        label: 'Delete draft',
-                        destructive: true
-                      }
-                    ]"
-                    label="Draft actions"
-                    test-id="bearing-draft-actions"
-                    @select="
-                      draftToDelete = updates.find(
-                        (item) => item.publicId === editingDraft
-                      )
-                    "
-                  />
-                </div>
-              </div>
-              <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                Publishing also marks every linked request as shipped.
-              </p>
-            </div>
-            <div>
-              <label for="bearing-update-title" class="sr-only">
-                Update title
-              </label>
-              <Input
-                id="bearing-update-title"
-                v-model="updateForm.title"
-                required
-                maxlength="140"
-                placeholder="What shipped?"
-                class="min-h-12 w-full border-0 border-b border-dashed border-gray-300 bg-transparent px-0 text-xl font-semibold outline-none focus:border-gray-950 focus:outline-none focus:ring-0 focus-visible:outline-none dark:border-gray-700 dark:focus:border-white"
-              />
-            </div>
-            <div>
-              <label for="bearing-update-excerpt" class="sr-only">
-                Update summary
-              </label>
-              <Input
-                id="bearing-update-excerpt"
-                v-model="updateForm.excerpt"
-                required
-                maxlength="280"
-                placeholder="A useful one-line summary"
-                class="min-h-11 w-full border-0 border-b border-dashed border-gray-300 bg-transparent px-0 text-sm outline-none focus:border-gray-950 focus:outline-none focus:ring-0 focus-visible:outline-none dark:border-gray-700 dark:focus:border-white"
-              />
-            </div>
-            <div>
-              <p
-                id="bearing-update-body-label"
-                class="mb-1 text-xs font-medium text-gray-500 dark:text-gray-400"
-              >
-                Update body
-              </p>
-              <MarkdownEditor
-                v-model="updateForm.body"
-                variant="field"
-                editor-id="bearing-update-body"
-                :uploads-configured="uploadsConfigured"
-                :upload-url="updateImageUploadPath"
-                show-upload-control
-                aria-labelledby="bearing-update-body-label"
-                placeholder="Tell customers what changed and why it matters."
-                required
-                deny-raw-html
-              />
-              <p
-                v-if="!uploadsConfigured"
-                class="mt-2 text-xs text-gray-500 dark:text-gray-400"
-              >
-                Images need public file storage.
-                <Link
-                  href="/settings/uploads"
-                  class="font-medium text-gray-900 underline decoration-dotted underline-offset-4 dark:text-white"
-                >
-                  Finish setup
-                </Link>
-              </p>
-            </div>
-            <Alert
-              v-if="updateForm.errors.update"
-              role="alert"
-              class="border border-red-200 bg-red-50 text-sm text-red-900 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-200"
+            <fieldset
+              :disabled="Boolean(recoveredUpdate)"
+              :inert="Boolean(recoveredUpdate)"
+              class="space-y-5"
             >
-              {{ updateForm.errors.update }}
-            </Alert>
-            <fieldset v-if="feedback.length">
-              <legend class="text-xs font-medium text-gray-500">
-                Delivered feedback
-              </legend>
-              <div class="mt-3 flex max-h-36 flex-wrap gap-2 overflow-y-auto">
-                <label
-                  v-for="item in feedback"
-                  :key="item.publicId"
-                  class="has-[:checked]:bg-gray-950 has-[:checked]:text-white dark:has-[:checked]:bg-white dark:has-[:checked]:text-gray-950 cursor-pointer rounded-full bg-gray-50 px-3 py-2 text-xs dark:bg-gray-900"
-                >
-                  <Checkbox
-                    v-model="updateForm.feedbackIds"
-                    class="sr-only"
-                    :value="item.publicId"
-                  />
-                  {{ item.title }}
+              <div>
+                <div class="flex items-center justify-between gap-4">
+                  <h2 class="text-base font-semibold">
+                    {{ editingDraft ? 'Edit draft' : 'Write an update' }}
+                  </h2>
+                  <div v-if="editingDraft" class="flex items-center gap-3">
+                    <button
+                      type="button"
+                      class="text-sm text-gray-500 hover:text-gray-950 dark:hover:text-white"
+                      :disabled="updateForm.processing"
+                      @click="requestUpdateAction(clearDraft)"
+                    >
+                      New update
+                    </button>
+                    <ActionMenu
+                      :items="[
+                        {
+                          key: 'delete',
+                          label: 'Delete draft',
+                          destructive: true
+                        }
+                      ]"
+                      label="Draft actions"
+                      :disabled="updateForm.processing"
+                      test-id="bearing-draft-actions"
+                      @select="
+                        draftToDelete = updates.find(
+                          (item) => item.publicId === editingDraft
+                        )
+                      "
+                    />
+                  </div>
+                </div>
+                <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                  Publishing also marks every linked request as shipped.
+                </p>
+              </div>
+              <div>
+                <label for="bearing-update-title" class="sr-only">
+                  Update title
                 </label>
+                <Input
+                  id="bearing-update-title"
+                  v-model="updateForm.title"
+                  required
+                  maxlength="140"
+                  placeholder="What shipped?"
+                  class="min-h-12 w-full border-0 border-b border-dashed border-gray-300 bg-transparent px-0 text-xl font-semibold outline-none focus:border-gray-950 focus:outline-none focus:ring-0 focus-visible:outline-none dark:border-gray-700 dark:focus:border-white"
+                />
+              </div>
+              <div>
+                <label for="bearing-update-excerpt" class="sr-only">
+                  Update summary
+                </label>
+                <Input
+                  id="bearing-update-excerpt"
+                  v-model="updateForm.excerpt"
+                  required
+                  maxlength="280"
+                  placeholder="A useful one-line summary"
+                  class="min-h-11 w-full border-0 border-b border-dashed border-gray-300 bg-transparent px-0 text-sm outline-none focus:border-gray-950 focus:outline-none focus:ring-0 focus-visible:outline-none dark:border-gray-700 dark:focus:border-white"
+                />
+              </div>
+              <div>
+                <p
+                  id="bearing-update-body-label"
+                  class="mb-1 text-xs font-medium text-gray-500 dark:text-gray-400"
+                >
+                  Update body
+                </p>
+                <MarkdownEditor
+                  v-model="updateForm.body"
+                  variant="field"
+                  editor-id="bearing-update-body"
+                  :uploads-configured="uploadsConfigured"
+                  :upload-url="updateImageUploadPath"
+                  show-upload-control
+                  aria-labelledby="bearing-update-body-label"
+                  placeholder="Tell customers what changed and why it matters."
+                  required
+                  deny-raw-html
+                />
+                <p
+                  v-if="!uploadsConfigured"
+                  class="mt-2 text-xs text-gray-500 dark:text-gray-400"
+                >
+                  Images need public file storage.
+                  <Link
+                    href="/settings/uploads"
+                    class="font-medium text-gray-900 underline decoration-dotted underline-offset-4 dark:text-white"
+                  >
+                    Finish setup
+                  </Link>
+                </p>
+              </div>
+              <Alert
+                v-if="updateForm.errors.update || updateForm.errors.feedbackIds"
+                role="alert"
+                class="border border-red-200 bg-red-50 text-sm text-red-900 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-200"
+              >
+                {{ updateForm.errors.update || updateForm.errors.feedbackIds }}
+              </Alert>
+              <fieldset v-if="feedback.length">
+                <legend class="text-xs font-medium text-gray-500">
+                  Delivered feedback
+                </legend>
+                <div class="mt-3 flex max-h-36 flex-wrap gap-2 overflow-y-auto">
+                  <label
+                    v-for="item in feedback"
+                    :key="item.publicId"
+                    class="has-[:checked]:bg-gray-950 has-[:checked]:text-white dark:has-[:checked]:bg-white dark:has-[:checked]:text-gray-950 cursor-pointer rounded-full bg-gray-50 px-3 py-2 text-xs dark:bg-gray-900"
+                  >
+                    <Checkbox
+                      v-model="updateForm.feedbackIds"
+                      class="sr-only"
+                      :value="item.publicId"
+                    />
+                    {{ item.title }}
+                  </label>
+                </div>
+              </fieldset>
+              <div class="flex gap-2">
+                <button
+                  type="submit"
+                  :disabled="
+                    updateForm.processing ||
+                    !updateForm.title ||
+                    !updateForm.excerpt ||
+                    !updateForm.body
+                  "
+                  class="min-h-10 disabled:opacity-35 rounded-lg bg-gray-100 px-4 text-sm font-medium dark:bg-gray-800"
+                >
+                  {{ editingDraft ? 'Save changes' : 'Save draft' }}
+                </button>
+                <button
+                  type="button"
+                  :disabled="
+                    updateForm.processing ||
+                    !updateForm.title ||
+                    !updateForm.excerpt ||
+                    !updateForm.body
+                  "
+                  class="min-h-10 disabled:opacity-35 rounded-lg bg-gray-950 px-4 text-sm font-medium text-white dark:bg-white dark:text-gray-950"
+                  @click="saveUpdate(true)"
+                >
+                  Publish update
+                </button>
               </div>
             </fieldset>
-            <div class="flex gap-2">
-              <button
-                type="submit"
-                :disabled="
-                  updateForm.processing ||
-                  !updateForm.title ||
-                  !updateForm.excerpt ||
-                  !updateForm.body
-                "
-                class="min-h-10 disabled:opacity-35 rounded-lg bg-gray-100 px-4 text-sm font-medium dark:bg-gray-800"
-              >
-                {{ editingDraft ? 'Save changes' : 'Save draft' }}
-              </button>
-              <button
-                type="button"
-                :disabled="
-                  updateForm.processing ||
-                  !updateForm.title ||
-                  !updateForm.excerpt ||
-                  !updateForm.body
-                "
-                class="min-h-10 disabled:opacity-35 rounded-lg bg-gray-950 px-4 text-sm font-medium text-white dark:bg-white dark:text-gray-950"
-                @click="saveUpdate(true)"
-              >
-                Publish update
-              </button>
-            </div>
           </form>
           <div class="mt-12 space-y-10">
             <article v-for="item in updates" :key="item.publicId">
@@ -1310,6 +1502,17 @@ onUnmounted(() => {
       </Tabs>
     </main>
   </div>
+  <ConfirmModal
+    :show="Boolean(pendingUpdateAction)"
+    title="Unsaved changes"
+    message="You have unsaved update changes. Keep editing to save them, or discard them and continue."
+    confirm-label="Discard and continue"
+    cancel-label="Keep editing"
+    destructive
+    :loading="updateForm.processing"
+    @confirm="discardUpdateAndContinue"
+    @cancel="pendingUpdateAction = null"
+  />
   <ConfirmModal
     :show="Boolean(feedbackToDelete)"
     title="Delete feedback?"
