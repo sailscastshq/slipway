@@ -86,6 +86,17 @@ test(
     await page.resize(1440, 900)
     await page.inLightMode()
     const lookoutPath = `/projects/${project.slug}/environments/${environment.slug}/lookout`
+    await page.raw.addInitScript(() => {
+      const NativeEventSource = window.EventSource
+      window.lookoutStreams = []
+      window.EventSource = class extends NativeEventSource {
+        constructor(url, options) {
+          super(url, options)
+          if (String(url).includes('/lookout/stream'))
+            window.lookoutStreams.push(this)
+        }
+      }
+    })
     await page.goto(lookoutPath)
 
     await expect(page).toSee('Connected — waiting for traffic')
@@ -171,6 +182,69 @@ test(
       fullPage: true,
       animations: 'disabled'
     })
+
+    await page.raw.waitForFunction(() =>
+      window.lookoutStreams?.some(
+        (stream) => stream.readyState === EventSource.OPEN
+      )
+    )
+    const connectionCount = await page.raw.evaluate(
+      () => window.lookoutStreams.length
+    )
+    await page.raw.evaluate(() => {
+      Object.defineProperty(document, 'hidden', {
+        configurable: true,
+        value: true
+      })
+      document.dispatchEvent(new Event('visibilitychange'))
+      document.dispatchEvent(new Event('visibilitychange'))
+    })
+    expect(
+      await page.raw.evaluate(() =>
+        window.lookoutStreams.every(
+          (stream) => stream.readyState === EventSource.CLOSED
+        )
+      )
+    ).toBe(true)
+    await page.raw.evaluate(() => {
+      Object.defineProperty(document, 'hidden', {
+        configurable: true,
+        value: false
+      })
+      document.dispatchEvent(new Event('visibilitychange'))
+      document.dispatchEvent(new Event('visibilitychange'))
+    })
+    await page.raw.waitForFunction(
+      () => window.lookoutStreams.at(-1).readyState === EventSource.OPEN
+    )
+    expect(await page.raw.evaluate(() => window.lookoutStreams.length)).toBe(
+      connectionCount + 1
+    )
+    sails.sse.publish(`lookout:env:${environment.id}`, {
+      metrics: [
+        {
+          containerName,
+          cpuPercent: 55.5,
+          memoryUsage: 300 * 1024 * 1024,
+          memoryLimit: 1024 * 1024 * 1024,
+          memoryPercent: 29.3,
+          netIO: '1MB / 1MB',
+          blockIO: '0B / 0B',
+          pids: 12,
+          recordedAt: Date.now()
+        }
+      ]
+    })
+    await expect(page.raw.locator('body')).toContainText('55.5%')
+    await page.raw
+      .getByRole('link', { name: 'Projects', exact: true })
+      .first()
+      .click()
+    await page.raw.waitForFunction(() =>
+      window.lookoutStreams.every(
+        (stream) => stream.readyState === EventSource.CLOSED
+      )
+    )
   }
 )
 

@@ -11,6 +11,7 @@ import { ref, onScopeDispose, isRef, unref } from 'vue'
  * @param {boolean}  [options.immediate=true]       - Connect immediately on creation
  * @param {boolean}  [options.autoReconnect=true]    - Reconnect on error/close
  * @param {number}   [options.reconnectDelay=3000]   - Ms to wait before reconnecting
+ * @param {boolean}  [options.pauseWhenHidden=false] - Pause optional live views in hidden tabs
  * @param {Function} [options.onMessage]             - Called with parsed JSON data for each event
  *
  * @returns {{ data, connected, error, close, connect }}
@@ -20,6 +21,7 @@ export function useEventSource(url, options = {}) {
     immediate = true,
     autoReconnect = true,
     reconnectDelay = 3000,
+    pauseWhenHidden = false,
     onMessage
   } = options
 
@@ -33,6 +35,9 @@ export function useEventSource(url, options = {}) {
   let disposed = false
   let connectionSequence = 0
   let reconnectEnabled = false
+  let resumeWhenVisible = false
+  const visibilityDocument =
+    pauseWhenHidden && typeof document !== 'undefined' ? document : null
 
   function connect() {
     close()
@@ -43,6 +48,10 @@ export function useEventSource(url, options = {}) {
     if (!resolvedUrl) return
 
     reconnectEnabled = true
+    if (visibilityDocument?.hidden) {
+      resumeWhenVisible = true
+      return
+    }
     const sequence = ++connectionSequence
     es = new EventSource(resolvedUrl)
 
@@ -96,6 +105,7 @@ export function useEventSource(url, options = {}) {
   }
 
   function close() {
+    resumeWhenVisible = false
     reconnectEnabled = false
     connectionSequence += 1
     if (reconnectTimer) {
@@ -109,6 +119,21 @@ export function useEventSource(url, options = {}) {
     connected.value = false
   }
 
+  function handleVisibilityChange() {
+    if (visibilityDocument.hidden) {
+      const shouldResume = reconnectEnabled || resumeWhenVisible
+      close()
+      resumeWhenVisible = shouldResume
+    } else if (resumeWhenVisible) {
+      connect()
+    }
+  }
+
+  visibilityDocument?.addEventListener(
+    'visibilitychange',
+    handleVisibilityChange
+  )
+
   if (immediate) {
     connect()
   }
@@ -118,6 +143,10 @@ export function useEventSource(url, options = {}) {
     disposed = true
     unmounted = true
     close()
+    visibilityDocument?.removeEventListener(
+      'visibilitychange',
+      handleVisibilityChange
+    )
     if (typeof window !== 'undefined') {
       window.removeEventListener('pagehide', dispose)
       window.removeEventListener('beforeunload', dispose)

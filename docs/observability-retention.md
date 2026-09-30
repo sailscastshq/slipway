@@ -33,3 +33,23 @@ legacy rows, so an interrupted startup safely resumes the migration.
 Lookout shows the last successful collector and retention run, retained row
 count, and stale or failed state in the existing host-health card. The same
 health object is returned by `GET /api/v1/lookout/overview`.
+
+## Hidden Lookout tabs
+
+Lookout closes its optional live metric subscription while the browser tab is
+hidden and opens one subscription when it becomes visible again. Shared server
+metric collection continues. Existing chart history remains; missed samples
+remain a gap, and current metrics arrive with the next publication. Execution
+and log streams keep their existing continuity.
+
+Measure the subscription lifecycle without assuming CPU or RAM savings:
+
+```sh
+node scripts/measure-hidden-lookout.mjs 0b1c3a6
+node scripts/measure-hidden-lookout.mjs
+```
+
+The harness counts active connections and delivered callbacks over four simulated
+metric publication cycles. Baseline hidden work is one connection and four
+callbacks; visibility pausing reduces both to zero while preserving one
+connection on resume and zero after disposal.
