@@ -107,7 +107,27 @@ test(
     await imageDialog
       .getByPlaceholder('What does this image show?')
       .fill('Invoice pagination preview')
+    // Hold application frame callbacks so a user can move focus before the
+    // image command's deferred editor focus runs. No timing sleep is needed.
+    await page.raw.evaluate(() => {
+      window.bearingFrames = []
+      window.bearingRequestFrame = window.requestAnimationFrame
+      window.requestAnimationFrame = (callback) => {
+        window.bearingFrames.push(callback)
+        return window.bearingRequestFrame(() => {})
+      }
+    })
     await imageDialog.getByRole('button', { name: 'Update image' }).click()
+    const titleInput = page.raw.locator('#bearing-update-title')
+    await titleInput.click()
+    await page.raw.evaluate(() => {
+      window.requestAnimationFrame = window.bearingRequestFrame
+      const frames = window.bearingFrames
+      delete window.bearingFrames
+      delete window.bearingRequestFrame
+      for (const callback of frames) callback(performance.now())
+    })
+    await expect(titleInput).toBeFocused()
 
     await page.raw
       .locator('#bearing-update-title')
