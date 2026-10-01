@@ -135,7 +135,7 @@ function createScratchpad() {
           :disabled="disabled"
           :title="helmScratchpadTargetTitle(tab.target)"
           :class="[
-            'max-w-64 flex h-8 shrink-0 items-center gap-1.5 rounded-sm px-0.5 text-left text-xs outline-none transition-colors focus-visible:ring-2 focus-visible:ring-gray-300 disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transition-none dark:focus-visible:ring-gray-700',
+            'helm-scratchpad-tab max-w-64 flex h-8 shrink-0 items-center gap-1.5 rounded-sm px-0.5 text-left text-xs outline-none transition-colors disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transition-none',
             tab.id === activeId
               ? 'font-medium text-gray-900 dark:text-white'
               : 'text-gray-400 hover:text-gray-700 dark:text-gray-500 dark:hover:text-gray-300'
@@ -201,3 +201,14 @@ function createScratchpad() {
     </div>
   </div>
 </template>
+
+<style scoped>
+/* Keep keyboard focus inside the scrolling strip, without a second global outline. */
+.helm-scratchpad-tab:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 1px var(--color-gray-400);
+}
+:global(.dark) .helm-scratchpad-tab:focus-visible {
+  box-shadow: inset 0 0 0 1px var(--color-gray-600);
+}
+</style>

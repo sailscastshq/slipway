@@ -16,6 +16,7 @@ export function useHelmScratchpads(targetSource) {
   const activeByTarget = ref({})
   const runtime = ref({})
   const ready = ref(false)
+  let persistedState = null
   const currentTarget = computed(() =>
     snapshotHelmTarget(
       typeof targetSource === 'function' ? targetSource() : targetSource
@@ -63,17 +64,7 @@ export function useHelmScratchpads(targetSource) {
     [tabs, activeByTarget],
     () => {
       if (!ready.value || typeof window === 'undefined') return
-      try {
-        window.localStorage.setItem(
-          LOCAL_STORAGE_KEYS.helmScratchpads,
-          serializeHelmScratchpadState({
-            tabs: tabs.value,
-            activeByTarget: activeByTarget.value
-          })
-        )
-      } catch (error) {
-        console.warn('Could not save Helm scratchpads:', error)
-      }
+      persist(tabs.value)
     },
     { deep: true, immediate: true, flush: 'sync' }
   )
@@ -140,7 +131,35 @@ export function useHelmScratchpads(targetSource) {
   }
 
   function rename(id, name) {
-    update(id, { name, updatedAt: Date.now() })
+    const tab = tabs.value.find((item) => item.id === id)
+    if (!tab) return 'unchanged'
+    const renamed = normalizeUpdate(tab, { name, updatedAt: Date.now() })
+    if (renamed.name === tab.name) return 'unchanged'
+    const nextTabs = tabs.value.map((item) => (item.id === id ? renamed : item))
+    if (!persist(nextTabs)) return 'failed'
+    tabs.value = nextTabs
+    return 'saved'
+  }
+
+  function persist(nextTabs) {
+    if (typeof window === 'undefined') return false
+    try {
+      const serialized = serializeHelmScratchpadState({
+        tabs: nextTabs,
+        activeByTarget: activeByTarget.value
+      })
+      if (serialized !== persistedState) {
+        window.localStorage.setItem(
+          LOCAL_STORAGE_KEYS.helmScratchpads,
+          serialized
+        )
+        persistedState = serialized
+      }
+      return true
+    } catch (error) {
+      console.warn('Could not save Helm scratchpads:', error)
+      return false
+    }
   }
 
   function duplicate(id) {

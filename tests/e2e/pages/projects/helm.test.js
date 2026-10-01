@@ -265,10 +265,19 @@ test(
     await page.screenshot('.tmp/issue-590-helm-rename-light.png')
     await page.click('@helm-editor')
     await expect(rename).toHaveCount(0)
+    await expect(
+      page.raw.getByText('Scratchpad renamed', { exact: true })
+    ).toBeVisible()
+    await expect(
+      page.raw.getByText('Scratchpad renamed', { exact: true })
+    ).toHaveCount(0)
     await tabs.nth(1).click()
     await rename.fill('Discard this name')
     await rename.press('Escape')
     await expect(tabs.nth(1)).toBeFocused()
+    await expect(
+      page.raw.getByText('Scratchpad renamed', { exact: true })
+    ).toHaveCount(0)
     await tabs.nth(1).click()
     await rename.fill('Creator audit')
     await rename.press('Enter')
@@ -276,6 +285,66 @@ test(
     expect((await tabs.nth(1).textContent()).includes('Creator audit')).toBe(
       true
     )
+
+    // An unchanged name is quiet; keyboard focus has one inset neutral indicator.
+    await expect(
+      page.raw.getByText('Scratchpad renamed', { exact: true })
+    ).toHaveCount(0)
+    const focusStyle = await tabs.nth(1).evaluate((element) => {
+      const style = getComputedStyle(element)
+      return { outline: style.outlineStyle, shadow: style.boxShadow }
+    })
+    expect(focusStyle.outline).toBe('none')
+    expect(focusStyle.shadow).toContain('inset')
+    await page.screenshot('.tmp/issue-655-rename-light.png')
+    await page.inDarkMode()
+    await page.resize(600, 844)
+    await tabs.nth(1).click()
+    await rename.fill(
+      'Creator reconciliation audit with a long scratchpad title'
+    )
+    await rename.press('Enter')
+    await expect(tabs.nth(1)).toBeFocused()
+    await expect(
+      page.raw.getByText('Scratchpad renamed', { exact: true })
+    ).toBeVisible()
+    await page.screenshot('.tmp/issue-655-rename-dark-narrow.png')
+    await expect(
+      page.raw.getByText('Scratchpad renamed', { exact: true })
+    ).toHaveCount(0)
+
+    // A rejected write leaves the old persisted title intact and gives a useful error.
+    await page.raw.evaluate(() => {
+      window.originalStorageSetItem = Storage.prototype.setItem
+      Storage.prototype.setItem = function (key, value) {
+        if (key === 'slipway:helm-scratchpads')
+          throw new DOMException('Storage full', 'QuotaExceededError')
+        return window.originalStorageSetItem.call(this, key, value)
+      }
+    })
+    await tabs.nth(1).click()
+    await rename.fill('This name cannot be saved')
+    await rename.press('Enter')
+    await expect(
+      page.raw.getByText(
+        'Could not save the name. Check browser storage permissions and try again.'
+      )
+    ).toBeVisible()
+    await expect(tabs.nth(1)).toContainText('Creator reconciliation audit')
+    await expect(
+      page.raw.getByText('Scratchpad renamed', { exact: true })
+    ).toHaveCount(0)
+    await page.raw.evaluate(() => {
+      Storage.prototype.setItem = window.originalStorageSetItem
+    })
+    await page.resize(1440, 900)
+    await page.inLightMode()
+    await tabs.nth(1).click()
+    await rename.fill('Creator audit')
+    await rename.press('Enter')
+    await expect(
+      page.raw.getByText('Scratchpad renamed', { exact: true })
+    ).toBeVisible()
 
     await page.click('@helm-run')
     await page.wait('@helm-result-table')
@@ -1432,6 +1501,9 @@ test(
     await page.screenshot('.tmp/issue-273-helm-snippet-dialog-mobile-dark.png')
     await page.fill('@helm-snippet-name', 'Published course check')
     await page.click('@helm-snippet-save')
+    await expect(
+      page.raw.getByText('Snippet saved', { exact: true })
+    ).toBeVisible()
     await page.resize(1440, 900)
     await page.raw
       .locator('[data-test="helm-snippet-entry"]')
