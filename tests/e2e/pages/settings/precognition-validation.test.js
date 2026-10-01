@@ -70,7 +70,7 @@ test(
         response.request().method() === 'PATCH'
     )
     await page.raw.getByRole('button', { name: 'Save changes' }).click()
-    expect((await saved).status()).toBe(409)
+    expect((await saved).status()).toBe(303)
 
     expect(page).toHaveNoJavascriptErrors()
   }

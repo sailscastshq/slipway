@@ -35,6 +35,7 @@ import X from '@/components/ui/icons/X.vue'
 import Trash from '@/components/ui/icons/Trash.vue'
 import Copy from '@/components/ui/icons/Copy.vue'
 import ChevronRight from '@/components/ui/icons/ChevronRight.vue'
+import Button from '@/components/ui/button/Button.vue'
 import Input from '@/components/ui/input/Input.vue'
 import Checkbox from '@/components/ui/checkbox/Checkbox.vue'
 import { Link, Head, router, useForm } from '@inertiajs/vue3'
@@ -892,14 +893,37 @@ function cancelDeleteService() {
 // --- Backups ---
 const backingUpServiceId = ref(null)
 const backupStreamUrl = ref(null)
+const backupToastId = ref(null)
 
 const { close: closeBackupStream, connect: connectBackupStream } =
   useEventSource(backupStreamUrl, {
     immediate: false,
     autoReconnect: false,
+    onError() {
+      closeBackupStream()
+      toast.dismiss(`${backupToastId.value}-queued`)
+      backingUpServiceId.value = null
+      toast({
+        id: `${backupToastId.value}-result`,
+        message:
+          'Backup status connection interrupted. Refresh to check whether the backup completed before retrying.',
+        type: 'error'
+      })
+      router.reload({ only: ['environment'] })
+    },
     onMessage(msg) {
       if (msg.status === 'completed' || msg.status === 'failed') {
         closeBackupStream()
+        toast.dismiss(`${backupToastId.value}-queued`)
+        toast({
+          id: `${backupToastId.value}-result`,
+          message:
+            msg.status === 'completed'
+              ? 'Backup completed'
+              : 'Backup failed. Check the service backup logs before retrying.',
+          type: msg.status === 'completed' ? 'success' : 'error'
+        })
+        backingUpServiceId.value = null
         router.reload({ only: ['environment'] })
       }
     }
@@ -916,11 +940,17 @@ async function triggerBackup(service) {
     await assertMutationResponse(res)
     const data = await res.json()
     router.reload({ only: ['environment'] })
+    backupToastId.value = `manual-backup-${data.backup.id}`
+    toast({
+      id: `${backupToastId.value}-queued`,
+      duration: 0,
+      message: `Backup queued for ${service.name}`,
+      type: 'info'
+    })
     backupStreamUrl.value = `/api/v1/backups/${data.backup.id}/stream`
     connectBackupStream()
   } catch (error) {
     toast({ message: mutationFailureMessage(error), type: 'error' })
-  } finally {
     backingUpServiceId.value = null
   }
 }
@@ -1973,21 +2003,46 @@ onBeforeUnmount(() => {
                       </template>
                       <template v-else> No backups yet </template>
                     </div>
-                    <button
+                    <Button
                       v-if="
                         backupConfigured &&
                         ['running', 'reachable'].includes(service.status)
                       "
+                      type="button"
                       @click="triggerBackup(service)"
-                      :disabled="backingUpServiceId === service.id"
-                      class="rounded px-2 py-0.5 text-xs font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-700 disabled:opacity-50 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200"
+                      :disabled="
+                        !!backingUpServiceId ||
+                        ['pending', 'running'].includes(
+                          service.lastBackup?.status
+                        )
+                      "
+                      :aria-busy="
+                        backingUpServiceId === service.id ||
+                        ['pending', 'running'].includes(
+                          service.lastBackup?.status
+                        )
+                      "
+                      class="inline-flex items-center gap-2 rounded-md bg-gray-100 px-3 py-2 text-xs font-medium text-gray-900 hover:bg-gray-200 disabled:cursor-wait disabled:opacity-100 dark:bg-gray-800 dark:text-gray-100 dark:hover:bg-gray-700"
                     >
+                      <Spinner
+                        v-if="
+                          backingUpServiceId === service.id ||
+                          ['pending', 'running'].includes(
+                            service.lastBackup?.status
+                          )
+                        "
+                        class="h-3.5 w-3.5"
+                      />
+                      <Upload v-else class="h-3.5 w-3.5" />
                       {{
-                        backingUpServiceId === service.id
-                          ? 'Starting...'
+                        backingUpServiceId === service.id ||
+                        ['pending', 'running'].includes(
+                          service.lastBackup?.status
+                        )
+                          ? 'Backing up…'
                           : 'Backup now'
                       }}
-                    </button>
+                    </Button>
                     <Link
                       v-else-if="!backupConfigured"
                       href="/settings/uploads"

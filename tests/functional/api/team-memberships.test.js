@@ -21,7 +21,7 @@ test(
     })
     expect(
       await browser.request.post('/teams', { name: 'Second team' })
-    ).toHaveStatus(409)
+    ).toHaveStatus(303)
     const second = await sails.models.team.findOne({ name: 'Second team' })
     expect((await sails.models.user.findOne({ id })).team).toBe(originalTeam)
     expect(
@@ -40,7 +40,7 @@ test(
     expect(principal.team).toBe(originalTeam)
     expect(
       await browser.request.post('/switch-team', { teamId: originalTeam })
-    ).toHaveStatus(409)
+    ).toHaveStatus(303)
     expect(
       (await browser.request.get('/settings/team')).data.props.team.id
     ).toBe(originalTeam)
@@ -75,7 +75,7 @@ test(
     )
     expect(
       await browser.request.delete(`/settings/team/${member.id}`)
-    ).toHaveStatus(409)
+    ).toHaveStatus(303)
     expect(Boolean(await sails.models.user.findOne({ id: member.id }))).toBe(
       true
     )
@@ -99,7 +99,7 @@ test(
         email: member.email,
         role: 'admin'
       })
-    ).toHaveStatus(409)
+    ).toHaveStatus(303)
     expect(
       (
         await sails.models.teammembership.findOne({

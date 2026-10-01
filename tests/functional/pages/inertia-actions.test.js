@@ -21,8 +21,8 @@ test(
       teamId: destination.id
     })
 
-    expect(response).toHaveStatus(409)
-    expect(response).toHaveHeader('x-inertia-location', '/')
+    expect(response).toHaveStatus(303)
+    expect(response).toHaveHeader('location', '/')
 
     const user = await sails.models.user.findOne({
       id: current.users.genesisUser.id
@@ -58,11 +58,8 @@ test(
       {}
     )
 
-    expect(response).toHaveStatus(409)
-    expect(response).toHaveHeader(
-      'x-inertia-location',
-      '/settings/team-profile'
-    )
+    expect(response).toHaveStatus(303)
+    expect(response).toHaveHeader('location', '/settings/team-profile')
 
     const updatedTeam = await sails.models.team.findOne({ id: team.id })
     expect(updatedTeam.logoUrl).toBe('')
@@ -198,9 +195,9 @@ test(
         { writesPaused: true }
       )
 
-      expect(response).toHaveStatus(409)
+      expect(response).toHaveStatus(303)
       expect(response).toHaveHeader(
-        'x-inertia-location',
+        'location',
         `/projects/archive/environments/staging/services/${service.id}`
       )
       for (let i = 0; i < 100; i++) {
@@ -274,8 +271,8 @@ test(
         { purgeData: false }
       )
 
-      expect(webResponse).toHaveStatus(409)
-      expect(webResponse).toHaveHeader('x-inertia-location', '/')
+      expect(webResponse).toHaveStatus(303)
+      expect(webResponse).toHaveHeader('location', '/')
 
       const dashboard = await browser.request.get('/')
       const webCleanup = dashboard.data.props.flash.cleanup

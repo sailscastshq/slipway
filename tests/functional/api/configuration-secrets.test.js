@@ -276,8 +276,8 @@ test(
       }
     })
 
-    expect(response).toHaveStatus(409)
-    expect(response).toHaveHeader('x-inertia-location', '/settings/global-env')
+    expect(response).toHaveStatus(303)
+    expect(response).toHaveHeader('location', '/settings/global-env')
     const values = JSON.parse(
       await sails.helpers.setting.get('globalEnvVars', '{}')
     )

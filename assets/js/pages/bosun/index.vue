@@ -1,4 +1,8 @@
 <script setup>
+import {
+  assertMutationResponse,
+  mutationFailureMessage
+} from '@/lib/mutation-feedback'
 import AppNavbarVersion from '@/components/AppNavbarVersion.vue'
 import { apiErrorMessage } from '@/lib/api-error'
 import Alert from '@/components/ui/alert/Alert.vue'
@@ -612,32 +616,44 @@ function toggleReveal(key) {
 }
 
 async function saveEnvVars(vars) {
+  if (envSaving.value) return
   envSaving.value = true
   try {
-    await fetch('/api/v1/bosun/env', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ envVars: vars })
-    })
-    // localVars is already updated by the caller — no need for router.reload()
-    // which can trigger version-mismatch full page reloads in dev
+    await assertMutationResponse(
+      await fetch('/api/v1/bosun/env', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ envVars: vars })
+      })
+    )
+    localVars.value = vars
+    toast({ message: 'Environment variables saved', type: 'success' })
+    return true
+  } catch (error) {
+    toast({ message: mutationFailureMessage(error), type: 'error' })
+    return false
   } finally {
     envSaving.value = false
   }
 }
 
-function addEnvVar() {
-  if (!envNewKey.value.trim()) return
-  localVars.value[envNewKey.value.trim()] = envNewValue.value
-  saveEnvVars(localVars.value)
-  envNewKey.value = ''
-  envNewValue.value = ''
+async function addEnvVar() {
+  if (!envNewKey.value.trim() || envSaving.value) return
+  if (
+    await saveEnvVars({
+      ...localVars.value,
+      [envNewKey.value.trim()]: envNewValue.value
+    })
+  ) {
+    envNewKey.value = ''
+    envNewValue.value = ''
+  }
 }
 
 function removeEnvVar(key) {
-  delete localVars.value[key]
-  localVars.value = { ...localVars.value }
-  saveEnvVars(localVars.value)
+  const vars = { ...localVars.value }
+  delete vars[key]
+  saveEnvVars(vars)
 }
 
 // ─── Activity state ───

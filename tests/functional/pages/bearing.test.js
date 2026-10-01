@@ -72,8 +72,8 @@ test(
       showUnread: true
     })
 
-    expect(updated).toHaveStatus(409)
-    expect(updated).toHaveHeader('x-inertia-location', `${path}?view=settings`)
+    expect(updated).toHaveStatus(303)
+    expect(updated).toHaveHeader('location', `${path}?view=settings`)
 
     const space = await sails.models.bearingspace.findOne({ app: app.id })
     expect(
@@ -514,8 +514,8 @@ test(
         title: 'Let me choose a calmer notification sound',
         details: 'The current sound is easy to miss during focused work.'
       })
-    expect(created).toHaveStatus(409)
-    expect(created).toHaveHeader('x-inertia-location', '/bearing/feedback')
+    expect(created).toHaveStatus(303)
+    expect(created).toHaveHeader('location', '/bearing/feedback')
 
     const event = await liveFeedback
     expect(event.verb).toBe('created')
@@ -915,7 +915,7 @@ test(
     const denied = await memberClient.request.delete(
       `${path}/feedback/${feedback.publicId}`
     )
-    expect(denied).toHaveHeader('x-inertia-location', '/')
+    expect(denied).toHaveHeader('location', '/')
     expect(await sails.models.bearingfeedback.count({ id: feedback.id })).toBe(
       1
     )
@@ -940,7 +940,7 @@ test(
     const crossApp = await manager.request.delete(
       `${path}/feedback/${otherFeedback.publicId}`
     )
-    expect(crossApp).toHaveHeader('x-inertia-location', path)
+    expect(crossApp).toHaveHeader('location', path)
     expect(
       await sails.models.bearingfeedback.count({ id: otherFeedback.id })
     ).toBe(1)
@@ -953,7 +953,7 @@ test(
         feedback.publicId
       }`
     )
-    expect(wrongApp).toHaveHeader('x-inertia-location', '/')
+    expect(wrongApp).toHaveHeader('location', '/')
     expect(await sails.models.bearingfeedback.count({ id: feedback.id })).toBe(
       1
     )
@@ -982,7 +982,7 @@ test(
         `${path}/feedback/${feedback.publicId}`
       )
       expect(failed).toHaveHeader(
-        'x-inertia-location',
+        'location',
         `${path}?view=feedback&publicId=${feedback.publicId}`
       )
       expect(
@@ -999,10 +999,7 @@ test(
       const deleted = await manager.request.delete(
         `${path}/feedback/${feedback.publicId}`
       )
-      expect(deleted).toHaveHeader(
-        'x-inertia-location',
-        `${path}?view=feedback`
-      )
+      expect(deleted).toHaveHeader('location', `${path}?view=feedback`)
       expect(removedImages).toEqual(images)
     } finally {
       sails.helpers.uploads.getStorageConfig = originalStorage

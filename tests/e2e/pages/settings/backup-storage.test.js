@@ -2,7 +2,7 @@ const { test } = require('sounding')
 const fs = require('node:fs/promises')
 const path = require('node:path')
 test(
-  'private backup settings use dashed Klean fields and two actions on mobile and desktop',
+  'backup storage test and save use toasts with readable actions on mobile and desktop',
   { browser: true, world: { name: 'configured-slipway' } },
   async ({ world, login, page, expect }) => {
     await login.withPassword('genesisUser', page, {
@@ -21,29 +21,42 @@ test(
     await expect(section.getByRole('button')).toHaveCount(2)
     await section.locator('#backup-account').fill('slipwaybackups')
     await section.locator('#backup-bucket').fill('private-backups')
+    let responseStatus = 400
+    let responseBody = {
+      error:
+        'Object storage denied access. Grant private object read, write, and delete permissions.'
+    }
     await page.raw.route('**/settings/backup-storage', (route) =>
       route.fulfill({
-        status: 400,
+        status: responseStatus,
         contentType: 'application/json',
-        body: JSON.stringify({
-          error:
-            'Object storage denied access. Grant private object read, write, and delete permissions.'
-        })
+        body: JSON.stringify(responseBody)
       })
     )
     await section.getByRole('button', { name: 'Test connection' }).click()
-    await expect(section.getByRole('alert')).toContainText(
-      'Object storage denied access'
+    const toast = page.raw.locator(
+      '[data-slot="toast"]:not([data-state="closing"])'
     )
+    await expect(toast).toContainText('Object storage denied access')
     await expect(section.getByLabel('Endpoint URL (optional)')).toBeVisible()
-    const testButton = section.getByRole('button', { name: 'Test connection' })
+    const testButton = section.getByRole('button', {
+      name: 'Test connection'
+    })
     await testButton.hover()
     await expect(testButton).toHaveCSS('background-color', 'rgb(245, 245, 245)')
     await expect(testButton).toHaveCSS('color', 'rgb(10, 10, 10)')
     await expect(section.locator('#backup-account')).toHaveValue(
       'slipwaybackups'
     )
-    const output = path.resolve('.tmp/screenshots/648')
+    await expect(
+      section.getByText('Object storage denied access', { exact: false })
+    ).toHaveCount(0)
+    await toast.locator('button').click()
+    responseStatus = 200
+    responseBody = {
+      message: 'Private upload, download, and deletion verified.'
+    }
+    const output = path.resolve('.tmp/screenshots/650')
     await fs.mkdir(output, { recursive: true })
     for (const [width, colorScheme] of [
       [1280, 'light'],
@@ -67,9 +80,14 @@ test(
           () => document.documentElement.scrollWidth <= innerWidth
         )
       ).toBe(true)
+      await testButton.click()
+      await expect(toast).toContainText(
+        'Private upload, download, and deletion verified.'
+      )
       await page.screenshot(path.join(output, `backup-storage-${width}.png`), {
         animations: 'disabled'
       })
+      await toast.locator('button').click()
     }
     await page.raw.setViewportSize({ width: 1280, height: 1000 })
     await page.raw.emulateMedia({ colorScheme: 'light' })
@@ -85,10 +103,37 @@ test(
     await expect(
       section.getByText('Required for R2', { exact: false })
     ).toBeVisible()
-    await section.getByRole('button', { name: 'Test connection' }).hover()
+    await section.locator('#backup-key').fill('fixture-access')
+    await section.locator('#backup-secret').fill('fixture-secret')
+    responseBody = {
+      message: 'Private backup storage saved and verified.',
+      config: {
+        provider: 's3',
+        bucket: 'slipway-backups',
+        region: 'auto',
+        endpoint: 'https://account-id.r2.cloudflarestorage.com',
+        hasCredentials: true
+      }
+    }
+    await section.getByRole('button', { name: 'Save', exact: true }).click()
+    await expect(toast).toContainText(
+      'Private backup storage saved and verified.'
+    )
+    await expect(section.locator('#backup-key')).toHaveValue('')
+    await expect(section.locator('#backup-secret')).toHaveValue('')
+    await expect(
+      section.getByText('Private backup storage saved and verified.', {
+        exact: true
+      })
+    ).toHaveCount(0)
     await page.screenshot(path.join(output, 'r2-settings.png'), {
       animations: 'disabled'
     })
+    await toast.locator('button').click()
+    await page.raw
+      .getByRole('button', { name: 'Save schedule', exact: true })
+      .click()
+    await expect(toast).toContainText('Backup schedule updated')
     expect(page).toHaveNoJavascriptErrors()
   }
 )

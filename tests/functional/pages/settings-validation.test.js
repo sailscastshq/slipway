@@ -48,8 +48,8 @@ test(
       instanceName: 'Slipway Harbor'
     })
 
-    expect(saved).toHaveStatus(409)
-    expect(saved).toHaveHeader('x-inertia-location', '/settings/instance')
+    expect(saved).toHaveStatus(303)
+    expect(saved).toHaveHeader('location', '/settings/instance')
     expect(await sails.helpers.setting.get('instanceName')).toBe(
       'Slipway Harbor'
     )
