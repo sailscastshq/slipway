@@ -494,7 +494,19 @@ test(
       requestUrl.pathname = `${privateHostBasePath}${requestUrl.pathname.slice(
         '/bearing'.length
       )}`
-      await route.continue({ url: requestUrl.toString() })
+      // Mirror the hosted-path proxy for redirects as well as requests.
+      // A Playwright URL override only applies to the first redirected request.
+      const response = await route.fetch({
+        url: requestUrl.toString(),
+        maxRedirects: 0
+      })
+      const headers = response.headers()
+      if (headers.location?.startsWith('/bearing/')) {
+        headers.location = `${privateHostBasePath}${headers.location.slice(
+          '/bearing'.length
+        )}`
+      }
+      await route.fulfill({ response, headers })
     })
     await page.raw.route('**/_slipway/bearing/_assets/**', async (route) => {
       const assetUrl = new URL(route.request().url())
