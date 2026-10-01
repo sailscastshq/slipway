@@ -564,11 +564,9 @@ function applyImage() {
     return
   }
   restoreSelection()
-  editor.value
-    ?.chain()
-    .focus()
-    .setImage({ src, alt: imageAlt.value.trim() })
-    .run()
+  // closePopup restores focus synchronously. Tiptap's focus command queues
+  // a frame callback that could steal focus from the user's next field.
+  editor.value?.chain().setImage({ src, alt: imageAlt.value.trim() }).run()
   closePopup()
 }
 function abortUploads() {

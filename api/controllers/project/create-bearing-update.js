@@ -23,7 +23,7 @@ module.exports = {
   },
 
   exits: {
-    success: { responseType: 'inertiaRedirect' },
+    success: { responseType: 'bearingUpdateRedirect' },
     badRequest: { responseType: 'badRequest' },
     notFound: { responseType: 'inertiaRedirect' },
     forbidden: { responseType: 'inertiaRedirect' }
@@ -123,6 +123,7 @@ module.exports = {
       publish: inputs.publish
     })
 
+    sails.inertia.flash('bearingSavedUpdateId', update.publicId)
     sails.inertia.flash(
       'success',
       inputs.publish ? 'Update published.' : 'Update saved as a draft.'

@@ -109,6 +109,7 @@ const sseUrl = computed(
 )
 
 useEventSource(sseUrl, {
+  pauseWhenHidden: true,
   onMessage(msg) {
     if (msg.telemetryState) {
       liveTelemetryState.value = msg.telemetryState

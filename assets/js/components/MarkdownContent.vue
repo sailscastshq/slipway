@@ -149,10 +149,10 @@ const safeHtml = computed(() =>
 
 .bearing-markdown :deep(img) {
   margin: 2rem 0;
-  max-height: 40rem;
-  width: 100%;
+  display: block;
+  max-width: 100%;
+  height: auto;
   border-radius: 0.9rem;
-  object-fit: cover;
 }
 
 .bearing-markdown :deep(hr) {
