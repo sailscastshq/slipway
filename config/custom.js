@@ -75,6 +75,12 @@ module.exports.custom = {
   databaseOperations: {
     backupMaxBytes: 50 * 1024 * 1024 * 1024,
     restoreMaxBytes: 50 * 1024 * 1024 * 1024,
+    // Restore rehearsals use a single disposable, memory-backed PostgreSQL target.
+    restoreTestMaxBytes: 64 * 1024 * 1024,
+    restoreTestTimeoutMs: 10 * 60 * 1000,
+    restoreTestMemoryBytes: 512 * 1024 * 1024,
+    restoreTestDataBytes: 256 * 1024 * 1024,
+    restoreTestReserveMemoryBytes: 512 * 1024 * 1024,
     sqlImportMaxBytes: 500 * 1024 * 1024,
     minFreeDiskBytes: 512 * 1024 * 1024,
     backupTimeoutMs: 60 * 60 * 1000,

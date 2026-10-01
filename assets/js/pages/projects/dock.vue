@@ -1,4 +1,5 @@
 <script setup>
+import DockBackups from '@/components/DockBackups.vue'
 import AppNavbarVersion from '@/components/AppNavbarVersion.vue'
 import { apiErrorMessage } from '@/lib/api-error'
 import Alert from '@/components/ui/alert/Alert.vue'
@@ -93,7 +94,9 @@ function dockUrl(serviceId) {
     props.environment.slug !== 'production'
       ? `/environments/${props.environment.slug}`
       : ''
-  return `/projects/${props.project.slug}${envPath}/dock/${serviceId}`
+  return `/projects/${props.project.slug}${envPath}/dock/${serviceId}${
+    activeTab.value === 'backups' ? '?tab=backups' : ''
+  }`
 }
 
 // Navigate to a different service
@@ -106,9 +109,15 @@ function switchService(serviceId) {
 // MongoDB: shell, collections, migrate (for creating collections)
 // SQL: console, tables, schema, migrate
 const validTabs = computed(() => {
+  if (
+    props.databaseService &&
+    props.databaseService.status !== 'running' &&
+    !isRedis.value
+  )
+    return ['backups']
   if (isRedis.value) return ['console']
-  if (isMongoDB.value) return ['console', 'collections', 'migrate']
-  return ['console', 'tables', 'schema', 'migrate']
+  if (isMongoDB.value) return ['console', 'collections', 'migrate', 'backups']
+  return ['console', 'tables', 'schema', 'migrate', 'backups']
 })
 const initialTab = new URLSearchParams(window.location.search).get('tab')
 const activeTab = ref(
@@ -1056,7 +1065,7 @@ onMounted(() => {
   }
   if (props.databaseService && !isRedis.value) {
     // Fetch tables/collections for non-Redis services
-    fetchTables()
+    if (activeTab.value !== 'backups') fetchTables()
     // Fetch data for initial tab if needed (SQL databases only)
     if (activeTab.value === 'schema' && isSQL.value) {
       fetchSchema()
@@ -1313,6 +1322,18 @@ onUnmounted(() => {
         </button>
       </div>
 
+      <div
+        v-if="activeTab === 'backups'"
+        data-slot="tab-panel"
+        data-value="backups"
+        class="flex min-h-0 flex-1 flex-col"
+      >
+        <DockBackups
+          :key="databaseService.id"
+          :service="databaseService"
+          :can-manage="canManageDatabase"
+        />
+      </div>
       <!-- Redis Console Tab -->
       <div
         v-if="activeTab === 'console' && isRedis"

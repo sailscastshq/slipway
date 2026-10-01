@@ -16,6 +16,7 @@ module.exports.bootstrap = async function () {
   await sails.helpers.git.ensureWebhookSchema()
   await sails.helpers.source.ensureSchema()
   await sails.helpers.backup.ensureRestoreSchema()
+  await sails.helpers.backup.ensureTestSchema()
   // Production uses `migrate: safe`; create coordinator tables before any
   // deployment job queries run on an existing installation.
   await sails.helpers.cleanup.ensureSchema()
@@ -45,6 +46,7 @@ module.exports.bootstrap = async function () {
   ) {
     await require('../api/lib/source-operations').recover()
     await require('../api/lib/restore-operations').recover()
+    await sails.helpers.backup.manageRestoreTests.with({ action: 'recover' })
   }
 
   // Initialize CLI tokens map for Bearer token authentication

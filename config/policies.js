@@ -78,6 +78,11 @@ module.exports.policies = {
   // API v1 routes require authentication
   'api/v1/*': 'is-authenticated',
   'api/v1/bosun/*': ['is-authenticated', 'is-instance-admin'],
+  'api/v1/backup/test-restore': ['is-authenticated', 'is-team-administrator'],
+  'api/v1/backup/restore-test-action': [
+    'is-authenticated',
+    'is-team-administrator'
+  ],
   'api/v1/dock/apply-migration': ['is-authenticated', 'is-team-administrator'],
   'api/v1/dock/execute-sql': ['is-authenticated', 'is-team-administrator'],
   'api/v1/dock/import-sql': ['is-authenticated', 'is-team-administrator'],

@@ -49,11 +49,14 @@ module.exports = {
       throw { notFound: `/projects/${slug}` }
     }
 
-    // Get all database services (running)
+    // Backup history remains usable when the live database is stopped.
+    const backupView = this.req.query?.tab === 'backups'
+    // Other Dock tools still require a running database.
     const allDbServices = (environment.services || []).filter(
       (s) =>
         ['postgresql', 'mysql', 'mongodb', 'redis'].includes(s.type) &&
-        s.status === 'running'
+        (s.status === 'running' ||
+          (backupView && s.type !== 'redis' && s.managementMode !== 'external'))
     )
 
     // If no serviceId provided, show the service picker
@@ -122,7 +125,8 @@ module.exports = {
         availableServices: allDbServices.map((s) => ({
           id: s.id,
           name: s.name,
-          type: s.type
+          type: s.type,
+          status: s.status
         })),
         appRunning: app && app.status === 'running'
       }
