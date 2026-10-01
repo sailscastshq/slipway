@@ -3,7 +3,7 @@ import { createToast as createKleanToast } from '@/components/ui/toast/toast.js'
 
 const TOAST_KEY = Symbol('toast')
 const ORDINARY_TOAST_CLASS =
-  'flex items-start space-x-3 rounded-lg border border-gray-200 bg-white p-4 shadow-lg ring-0 dark:border-gray-700 dark:bg-gray-900'
+  'flex items-start space-x-3 rounded-lg border border-gray-200 bg-white p-4 shadow-sm ring-0 dark:border-gray-700 dark:bg-gray-900'
 
 export function createToast(options = {}) {
   const controller = createKleanToast({ duration: 4000, ...options })

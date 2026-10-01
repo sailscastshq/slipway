@@ -41,7 +41,7 @@ function activateAction(item, event, dismiss) {
     position="bottom-right"
     from="right"
     to="right"
-    class="max-h-[calc(100dvh-2rem)] w-80 max-w-[calc(100vw-2rem)] overflow-y-auto overscroll-contain"
+    class="w-80 max-w-[calc(100vw-2rem)]"
   >
     <template #default="{ item, dismiss }">
       <DeploymentToast
