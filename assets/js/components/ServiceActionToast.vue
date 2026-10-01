@@ -58,7 +58,7 @@ onUnmounted(() => {
 <template>
   <div
     aria-live="off"
-    class="flex w-full items-start space-x-3 rounded-lg border border-gray-200 bg-white p-4 shadow-lg dark:border-gray-700 dark:bg-gray-900"
+    class="flex w-full items-start space-x-3 rounded-lg border border-gray-200 bg-white p-4 shadow-none dark:border-gray-700 dark:bg-gray-900"
   >
     <p class="sr-only" role="status" aria-live="polite" aria-atomic="true">
       {{ actionLabel }} {{ action.serviceName }}
