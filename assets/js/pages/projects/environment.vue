@@ -2003,6 +2003,12 @@ onBeforeUnmount(() => {
                       </template>
                       <template v-else> No backups yet </template>
                     </div>
+                    <Link
+                      v-if="service.managementMode !== 'external'"
+                      :href="`/projects/${project.slug}/environments/${environment.slug}/dock/${service.id}?tab=backups`"
+                      class="mr-2 text-xs font-medium text-gray-500 hover:text-gray-900 dark:hover:text-white"
+                      >Backups</Link
+                    >
                     <Button
                       v-if="
                         backupConfigured &&

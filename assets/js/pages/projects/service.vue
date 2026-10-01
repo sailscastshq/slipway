@@ -472,7 +472,18 @@ onUnmounted(() => {
           class="mb-8 rounded-lg border border-gray-200 p-5 dark:border-gray-700"
           aria-label="Database restoration"
         >
-          <h2 class="font-medium">Database restoration</h2>
+          <div class="flex items-center justify-between gap-4">
+            <h2 class="font-medium">Database restoration</h2>
+            <Link
+              :href="`/projects/${project.slug}/environments/${
+                environment.slug
+              }/dock/${service.id}?tab=backups&backup=${
+                service.lastBackup?.id || ''
+              }`"
+              class="text-xs font-medium text-gray-500 hover:text-gray-900 dark:hover:text-white"
+              >View backups &amp; test restore</Link
+            >
+          </div>
           <div
             v-if="restoreOperation"
             class="mt-3 space-y-2 text-sm"

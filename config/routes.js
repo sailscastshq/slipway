@@ -240,6 +240,11 @@ module.exports.routes = {
   'GET /api/v1/services/:serviceId/backups': 'api/v1/backup/list-backups',
   'GET /api/v1/restore-operations/:operationId':
     'api/v1/backup/get-restore-operation',
+  'POST /api/v1/services/:serviceId/backups/test-restore':
+    'api/v1/backup/test-restore',
+  'POST /api/v1/backups/:backupId/test-restore': 'api/v1/backup/test-restore',
+  'POST /api/v1/restore-tests/:testId/action':
+    'api/v1/backup/restore-test-action',
   'POST /api/v1/backups/:backupId/restore': 'api/v1/backup/restore-backup',
   'GET /api/v1/backups/:backupId/stream': 'api/v1/backup/stream-status',
   'POST /backups/:backupId/restore': 'project/restore-backup',

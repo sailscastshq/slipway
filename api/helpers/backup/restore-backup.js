@@ -30,7 +30,12 @@ module.exports = {
       description:
         'Skip a second safety snapshot when restoring a verified upgrade backup into an empty candidate.'
     },
-    onProgress: { type: 'ref' }
+    onProgress: { type: 'ref' },
+    isolatedTarget: {
+      type: 'ref',
+      description:
+        'Server-owned rehearsal target with independent credentials and limits.'
+    }
   },
 
   exits: {
@@ -44,7 +49,8 @@ module.exports = {
     backupId,
     signal,
     targetContainerName,
-    skipSafetySnapshot
+    skipSafetySnapshot,
+    isolatedTarget
   }) {
     const backup = await Backup.findOne({ id: backupId })
     if (!backup || !backup.service) {
@@ -67,13 +73,25 @@ module.exports = {
     const storageConfig = await sails.helpers.backup.getStorageConfig(backupId)
     const limits = sails.config.custom.databaseOperations
     const restoreTarget = {
-      ...service,
-      containerName: targetContainerName || service.containerName
+      ...(isolatedTarget || service),
+      containerName:
+        isolatedTarget?.containerName ||
+        targetContainerName ||
+        service.containerName
     }
+    if (
+      isolatedTarget &&
+      (isolatedTarget.type !== service.type ||
+        isolatedTarget.containerName === service.containerName ||
+        !/^slipway-restore-test-[a-f0-9-]{36}$/.test(
+          isolatedTarget.containerName
+        ))
+    )
+      throw new Error('Invalid isolated restore target')
     const restoreArgs = getRestoreArgs(restoreTarget)
     const capacityInputs = {
       directory: os.tmpdir(),
-      maxBytes: limits.restoreMaxBytes,
+      maxBytes: isolatedTarget?.maxBytes || limits.restoreMaxBytes,
       reserveBytes: limits.minFreeDiskBytes
     }
     if (backup.sizeBytes) capacityInputs.expectedBytes = backup.sizeBytes
@@ -81,15 +99,16 @@ module.exports = {
     const capacity = await sails.helpers.streams.getDiskCapacity.with(
       capacityInputs
     )
-    if (!skipSafetySnapshot) {
+    if (!skipSafetySnapshot && !isolatedTarget) {
       const snapshot = await createVerifiedSafetySnapshot({ service, signal })
       await onProgress?.('download', { snapshotId: snapshot.id })
     }
 
     const extension = getExtension(service.type)
-    const tmpDirectory = await fsPromises.mkdtemp(
-      path.join(os.tmpdir(), 'slipway-restore-')
-    )
+    const tmpDirectory = isolatedTarget
+      ? path.join(os.tmpdir(), isolatedTarget.containerName)
+      : await fsPromises.mkdtemp(path.join(os.tmpdir(), 'slipway-restore-'))
+    if (isolatedTarget) await fsPromises.mkdir(tmpDirectory, { mode: 0o700 })
     const tmpFile = path.join(tmpDirectory, `database.${extension}`)
 
     try {
@@ -125,8 +144,8 @@ module.exports = {
         command: sails.config.docker?.binaryPath || 'docker',
         args: restoreArgs,
         input: fs.createReadStream(tmpFile),
-        timeoutMs: limits.restoreTimeoutMs,
-        maxInputBytes: limits.restoreMaxBytes,
+        timeoutMs: isolatedTarget?.timeoutMs || limits.restoreTimeoutMs,
+        maxInputBytes: isolatedTarget?.maxBytes || limits.restoreMaxBytes,
         maxOutputBytes: limits.maxProcessOutputBytes,
         maxStderrBytes: limits.maxProcessStderrBytes,
         signal,
@@ -137,7 +156,13 @@ module.exports = {
         `Backup ${backupId} restored successfully to ${restoreTarget.containerName}`
       )
 
-      return { success: true, backupId, serviceName: service.name }
+      return {
+        success: true,
+        backupId,
+        serviceName: service.name,
+        bytes: transfer.bytes,
+        checksumVerified: Boolean(backup.storage?.checksum)
+      }
     } finally {
       try {
         await fsPromises.rm(tmpDirectory, { recursive: true, force: true })
@@ -223,7 +248,9 @@ function getRestoreArgs(service) {
       service.database,
       '--no-owner',
       '--clean',
-      '--if-exists'
+      '--if-exists',
+      '--exit-on-error',
+      ...(service.isRehearsal ? ['--no-privileges'] : [])
     ]
   }
 

@@ -74,9 +74,26 @@ module.exports = {
         service.name
       }/${timestamp}-${randomUUID()}.${extension}`
 
+      let databaseImage
+      if (service.managementMode !== 'external' && service.imageReference) {
+        databaseImage =
+          await sails.helpers.docker.inspectRunningServiceImage.with({
+            type: service.type,
+            containerName: service.containerName
+          })
+      }
       storageMetadata = {
         provider: storageConfig.provider || 's3',
-        container: storageConfig.bucket
+        container: storageConfig.bucket,
+        ...(databaseImage
+          ? {
+              database: {
+                engine: service.type,
+                version: databaseImage.detectedVersion || service.version,
+                imageReference: databaseImage.imageId
+              }
+            }
+          : {})
       }
       await Backup.updateOne({ id: backupId }).set({
         storageCredentials: storageConfig,
