@@ -1,7 +1,7 @@
 const { test } = require('sounding')
 
 test(
-  'app actions expose one internal Bridge entry',
+  'app actions distinguish Bridge management from opening its workspace',
   {
     browser: true,
     world: {
@@ -44,9 +44,22 @@ test(
         exact: true
       })
       await bridgeLink.waitFor({ state: 'visible' })
-      expect(await bridgeLink.getAttribute('href')).toBe(`${appPath}/bridge`)
+      expect(await bridgeLink.count()).toBe(1)
+      expect(await bridgeLink.getAttribute('href')).toBe(
+        `${appPath}/bridge/access`
+      )
+      const workspaceLink = page.raw.getByRole('menuitem', {
+        name: 'Open Bridge',
+        exact: true
+      })
+      expect(await workspaceLink.getAttribute('href')).toBe(`${appPath}/bridge`)
       await expect(page).not.toSee('Bridge in Slipway')
       await expect(page).not.toSee('Public Bridge')
+      await bridgeLink.click()
+      await expect(
+        page.raw.getByRole('heading', { name: 'Bridge', exact: true })
+      ).toBeVisible()
+      expect(await page.raw.title()).toBe(`Bridge - ${app.name} | Slipway`)
       expect(page).toHaveNoJavascriptErrors()
     } finally {
       sails.helpers.docker.getContainerStatus = originalGetContainerStatus

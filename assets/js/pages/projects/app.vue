@@ -1070,7 +1070,7 @@ onBeforeUnmount(() => {
                       class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
                     >
                       <Cube class="h-4 w-4 text-gray-400" stroke-width="2" />
-                      Bridge
+                      Open Bridge
                     </Link>
                     <Link
                       v-if="hasDatabaseService"
@@ -1174,7 +1174,7 @@ onBeforeUnmount(() => {
                       class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
                     >
                       <Users class="h-4 w-4 text-gray-400" stroke-width="2" />
-                      Bridge access
+                      Bridge
                     </Link>
                     <Link
                       v-if="canManageBearing"
