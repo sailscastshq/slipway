@@ -167,7 +167,7 @@ function timeAgo(timestamp) {
 </script>
 
 <template>
-  <Head :title="`Bridge access - ${app.name} | Slipway`"></Head>
+  <Head :title="`Bridge - ${app.name} | Slipway`"></Head>
   <div class="flex h-full flex-col">
     <header
       class="flex items-center justify-between border-b border-gray-200 py-4 pl-4 pr-4 dark:border-gray-800 sm:pr-8"
@@ -217,7 +217,7 @@ function timeAgo(timestamp) {
         >
           <div>
             <h1 class="text-xl font-semibold text-gray-950 dark:text-white">
-              Bridge access
+              Bridge
             </h1>
             <p
               class="mt-1 max-w-xl text-sm leading-6 text-gray-500 dark:text-gray-400"
