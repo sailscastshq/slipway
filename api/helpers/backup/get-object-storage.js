@@ -1,19 +1,71 @@
 const { Transform, Writable, Readable } = require('node:stream')
 const { pipeline } = require('node:stream/promises')
 const { randomUUID, createHash } = require('node:crypto')
-const limitStream = require('../byte-limit-transform')
-const normalize = require('./errors')
-const verifyPrivateAccess = require('./private-access')
+const limitStream = require('../../lib/byte-limit-transform')
+const normalize = require('../../../adapters/storage-error')
+
 function failure(code) {
   const error = new Error(code)
   error.code = code
   return error
 }
-module.exports = function objectStorage(config) {
+module.exports = {
+  friendlyName: 'Get private backup storage',
+  sync: true,
+  inputs: { configuration: { type: 'ref', required: true } },
+  exits: { success: { outputType: 'ref' } },
+  fn: ({ configuration }) => objectStorage(configuration)
+}
+function objectStorage(config) {
   if (!config?.bucket || !config.provider)
     throw normalize(failure('STORAGE_CONFIGURATION'))
   function driver() {
-    return require(config.provider === 'azure' ? './azure' : './s3')(config)
+    const factory = require(config.provider === 'azure'
+      ? '../../../adapters/azure'
+      : '../../../adapters/s3')
+    function options(signal, extra = {}) {
+      return { ...config, adapter: factory, signal, ...extra }
+    }
+    return {
+      async put(objectKey, input, signal, created) {
+        let metadata
+        await sails.uploadOne(
+          input,
+          options(signal, {
+            saveAs: objectKey,
+            createOnly: true,
+            onCreated: created,
+            onStored: (value) => {
+              metadata = value
+            }
+          })
+        )
+        return metadata
+      },
+      async get(objectKey, signal) {
+        const stream = await sails.startDownload(objectKey, options(signal))
+        return { stream, ...stream.storageMetadata }
+      },
+      delete(objectKey, signal) {
+        return sails.rm(objectKey, options(signal))
+      },
+      anonymousUrl(objectKey) {
+        const endpoint =
+          config.endpoint ||
+          (config.provider === 'azure'
+            ? `https://${config.account}.blob.core.windows.net`
+            : `https://s3.${config.region || 'us-east-1'}.amazonaws.com`)
+        const url = new URL(endpoint)
+        url.pathname =
+          url.pathname.replace(/\/$/, '') +
+          '/' +
+          encodeURIComponent(config.bucket) +
+          '/' +
+          objectKey.split('/').map(encodeURIComponent).join('/')
+        url.search = ''
+        return url.toString()
+      }
+    }
   }
   function key(value) {
     if (
@@ -47,7 +99,6 @@ module.exports = function objectStorage(config) {
     } finally {
       clearTimeout(timeout)
       options.signal?.removeEventListener('abort', abort)
-      adapter?.close()
     }
   }
 
@@ -102,7 +153,12 @@ module.exports = function objectStorage(config) {
               results.find((result) => result.status === 'rejected').reason
             )
           metadata = results[1].value
-          await verifyPrivateAccess(config, adapter, objectKey, abortSignal)
+          await sails.helpers.backup.verifyPrivateAccess.with({
+            configuration: config,
+            adapter,
+            objectKey,
+            signal: abortSignal
+          })
           return {
             bytes: limiter.getBytes(),
             checksum: hash.digest('hex'),

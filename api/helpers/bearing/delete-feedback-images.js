@@ -1,4 +1,4 @@
-const createClient = require('../../lib/s3-client')
+const createClient = require('../../../adapters/s3-client')
 
 module.exports = {
   friendlyName: 'Delete Bearing images',

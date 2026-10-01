@@ -1,4 +1,3 @@
-const createStorage = require('../../lib/object-storage')
 module.exports = {
   friendlyName: 'Delete backup object',
   description:
@@ -14,7 +13,7 @@ module.exports = {
     const config =
       storageConfig ||
       (await sails.helpers.backup.getStorageConfig.with({ backupId }))
-    await createStorage(config).deleteObject({
+    await sails.helpers.backup.getObjectStorage(config).deleteObject({
       objectKey: objectKey || s3Key,
       timeoutMs: 30000,
       signal

@@ -1,5 +1,4 @@
 const settings = require('../../lib/backup-storage-config')
-const storage = require('../../lib/object-storage')
 module.exports = {
   friendlyName: 'Update private backup storage',
   inputs: {
@@ -18,7 +17,9 @@ module.exports = {
         configured.provider === 'shared'
           ? await sails.helpers.uploads.getStorageConfig()
           : configured
-      await storage(candidate).testConnection({ timeoutMs: 15000 })
+      await sails.helpers.backup
+        .getObjectStorage(candidate)
+        .testConnection({ timeoutMs: 15000 })
       if (!testOnly) {
         await sails.helpers.backup.bindLegacyStorage()
         await sails.getDatastore().transaction(async (connection) => {
@@ -77,7 +78,7 @@ module.exports = {
     } catch (error) {
       const failure = error.field
         ? error
-        : require('../../lib/object-storage/errors')(error)
+        : require('../../../adapters/storage-error')(error)
       if (!error.field) {
         sails.log.warn(
           `[backup-storage] Connection verification failed (${failure.code}): ${failure.message}`

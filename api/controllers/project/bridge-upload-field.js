@@ -126,7 +126,7 @@ module.exports = {
     const uploadedFiles = await new Promise((resolve, reject) => {
       this.req.file('file').upload(
         {
-          adapter: require('../../lib/s3-upload-adapter'),
+          adapter: require('../../../adapters/s3'),
           key: storage.key,
           secret: storage.secret,
           bucket: storage.bucket,

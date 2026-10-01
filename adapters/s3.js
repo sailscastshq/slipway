@@ -10,7 +10,12 @@ module.exports = function s3UploadAdapter(globalOptions = {}) {
       const client = createClient(globalOptions),
         controller = new AbortController(),
         output = new PassThrough()
+      const abort = () => output.destroy(globalOptions.signal.reason)
+      if (globalOptions.signal?.aborted) queueMicrotask(abort)
+      else
+        globalOptions.signal?.addEventListener('abort', abort, { once: true })
       output.once('close', () => {
+        globalOptions.signal?.removeEventListener('abort', abort)
         controller.abort()
         client.destroy()
       })
@@ -19,14 +24,23 @@ module.exports = function s3UploadAdapter(globalOptions = {}) {
           { Bucket: globalOptions.bucket, Key: key(fd) },
           { abortSignal: controller.signal }
         )
-        .then((result) => pipeline(result.Body, output))
+        .then((result) => {
+          output.storageMetadata = {
+            size: result.ContentLength,
+            etag: result.ETag
+          }
+          return pipeline(result.Body, output)
+        })
         .catch((error) => output.destroy(error))
       return output
     },
     rm(fd, done) {
       const client = createClient(globalOptions)
       client
-        .deleteObject({ Bucket: globalOptions.bucket, Key: key(fd) })
+        .deleteObject(
+          { Bucket: globalOptions.bucket, Key: key(fd) },
+          { abortSignal: globalOptions.signal }
+        )
         .then((result) => done(null, result), done)
         .finally(() => client.destroy())
     },
@@ -84,23 +98,51 @@ module.exports = function s3UploadAdapter(globalOptions = {}) {
               next(null, chunk)
             }
           })
-          const upload = new Upload({
-            client,
-            params: {
-              Bucket: options.bucket,
-              Key: key(fd),
-              Body: limiter,
-              ContentType:
-                file.headers?.['content-type'] ||
-                require('mime-types').lookup(fd) ||
-                'application/octet-stream'
-            },
-            queueSize: 2,
-            partSize: 5 * 1024 * 1024,
-            leavePartsOnError: false
-          })
-          active = { file, limiter, upload }
-          Promise.all([pipeline(file, limiter), upload.done()]).then(
+          active = { file, limiter }
+          ;(async () => {
+            let placeholder
+            if (options.createOnly) {
+              placeholder = await client.putObject(
+                {
+                  Bucket: options.bucket,
+                  Key: key(fd),
+                  Body: '',
+                  ContentLength: 0,
+                  IfNoneMatch: '*'
+                },
+                { abortSignal: options.signal }
+              )
+              options.onCreated?.()
+            }
+            options.signal?.throwIfAborted()
+            if (file.destroyed)
+              throw file.errored || new Error('Upload source closed')
+            const upload = new Upload({
+              client,
+              params: {
+                Bucket: options.bucket,
+                Key: key(fd),
+                Body: limiter,
+                ...(placeholder ? { IfMatch: placeholder.ETag } : {}),
+                ContentType:
+                  file.headers?.['content-type'] ||
+                  require('mime-types').lookup(fd) ||
+                  'application/octet-stream'
+              },
+              queueSize: 2,
+              partSize: 5 * 1024 * 1024,
+              leavePartsOnError: false
+            })
+            active.upload = upload
+            const results = await Promise.all([
+              pipeline(file, limiter),
+              upload.done()
+            ])
+            options.onStored?.({
+              etag: results[1].ETag,
+              versionId: results[1].VersionId
+            })
+          })().then(
             () => {
               active = null
               receiver.emit('writefile', file)
@@ -109,18 +151,18 @@ module.exports = function s3UploadAdapter(globalOptions = {}) {
             async (error) => {
               file.destroy()
               limiter.destroy()
-              await upload.abort().catch(() => {})
+              await active?.upload?.abort().catch(() => {})
               active = null
               done(error)
             }
           )
         },
         destroy(error, done) {
+          options.signal?.removeEventListener('abort', abort)
           if (active) {
             active.file.destroy()
             active.limiter.destroy()
-            active.upload
-              .abort()
+            Promise.resolve(active.upload?.abort())
               .catch(() => {})
               .finally(() => {
                 client.destroy()
@@ -132,6 +174,9 @@ module.exports = function s3UploadAdapter(globalOptions = {}) {
           }
         }
       })
+      const abort = () => receiver.destroy(options.signal.reason)
+      if (options.signal?.aborted) queueMicrotask(abort)
+      else options.signal?.addEventListener('abort', abort, { once: true })
       return receiver
     }
   }

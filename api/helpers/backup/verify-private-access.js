@@ -1,10 +1,16 @@
 // Never include endpoint URLs, response messages, or credentials in diagnostics.
-module.exports = async function verifyPrivateAccess(
-  config,
-  adapter,
-  key,
-  signal
-) {
+module.exports = {
+  friendlyName: 'Verify private backup access',
+  inputs: {
+    configuration: { type: 'ref', required: true },
+    adapter: { type: 'ref', required: true },
+    objectKey: { type: 'string', required: true },
+    signal: { type: 'ref' }
+  },
+  fn: ({ configuration, adapter, objectKey, signal }) =>
+    verifyPrivateAccess(configuration, adapter, objectKey, signal)
+}
+async function verifyPrivateAccess(config, adapter, key, signal) {
   const targets = []
   if (config.publicUrl) {
     const url = new URL(config.publicUrl)

@@ -13,9 +13,9 @@ const {
   generateBlobSASQueryParameters,
   ContainerSASPermissions
 } = require('@azure/storage-blob')
-const createStorage = require('../../api/lib/object-storage')
+const createStorage = (config) => sails.helpers.backup.getObjectStorage(config)
 const settings = require('../../api/lib/backup-storage-config')
-const createS3 = require('../../api/lib/s3-client')
+const createS3 = require('../../adapters/s3-client')
 const dependencyRoot = process.env.SLIPWAY_STORAGE_EMULATORS
 async function freePort() {
   const server = net.createServer()

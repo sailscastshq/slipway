@@ -1,5 +1,4 @@
 const fs = require('node:fs')
-const createStorage = require('../../lib/object-storage')
 module.exports = {
   friendlyName: 'Upload backup object',
   description:
@@ -34,7 +33,7 @@ module.exports = {
     }
     const input = fs.createReadStream(sourcePath)
     try {
-      const storage = createStorage(storageConfig)
+      const storage = sails.helpers.backup.getObjectStorage(storageConfig)
       const uploaded = await storage.putObject({
         objectKey: objectKey || s3Key,
         input,

@@ -1,5 +1,4 @@
 const fs = require('node:fs')
-const createStorage = require('../../lib/object-storage')
 module.exports = {
   friendlyName: 'Download backup object',
   description:
@@ -28,14 +27,16 @@ module.exports = {
     const handle = await fs.promises.open(destinationPath, 'wx', 0o600)
     const output = handle.createWriteStream()
     try {
-      return await createStorage(storageConfig).getObject({
-        objectKey: objectKey || s3Key,
-        output,
-        maxBytes,
-        timeoutMs,
-        signal,
-        checksum
-      })
+      return await sails.helpers.backup
+        .getObjectStorage(storageConfig)
+        .getObject({
+          objectKey: objectKey || s3Key,
+          output,
+          maxBytes,
+          timeoutMs,
+          signal,
+          checksum
+        })
     } catch (error) {
       output.destroy()
       await fs.promises.rm(destinationPath, { force: true })

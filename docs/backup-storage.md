@@ -11,6 +11,8 @@ A connection test uploads a small temporary object, downloads and verifies it, c
 
 S3 credentials need object read/write/delete permissions and permission to abort multipart uploads for failed-transfer cleanup. Use the provider’s equivalent least-privilege policy.
 
+Backup orchestration lives in `api/helpers/backup`. Transfers use `sails.uploadOne()`, `sails.startDownload()`, and `sails.rm()` from `sails-hook-uploads`, with the selected backup credentials passed explicitly. Provider adapters live in `adapters/`; S3/R2 backups share the S3 adapter used by team logos and Bearing images. Backup helpers retain byte limits, deadlines, checksums, collision protection, and failed-upload cleanup.
+
 ## R2 and AWS S3 setup
 
 For R2, create a dedicated bucket such as `slipway-backups`. Keep both its public development URL and custom domains disabled. A folder named `backups/` inside a public R2 bucket does not make those objects private. Create an **Object Read & Write** token scoped to the backup bucket, and use the generated **Access Key ID** and **Secret Access Key** (not the Cloudflare bearer API token).
@@ -22,6 +24,17 @@ For AWS S3, use a private bucket with Block Public Access enabled, its actual re
 The chosen backup storage covers managed/external database backups, scheduled backups, and Slipway's pre-update database snapshot. Verify a manual backup and download before relying on the next scheduled run. Existing backups retain their original storage credentials and location.
 
 If privacy verification fails, the error reports whether the unsigned **storage API** or **public delivery** check failed, its HTTP status, and a bounded provider XML error code where available. URLs, credentials, and provider message bodies are not included. Redirects, throttling, malformed requests, and outages are not evidence of private access. Check the API endpoint and the reported provider response before retrying.
+
+To inspect R2's unsigned response from the Slipway server without credentials, replace the account and bucket below and run:
+
+```bash
+curl --max-time 15 -i -H 'Range: bytes=0-0' \
+  'https://YOUR_ACCOUNT_ID.r2.cloudflarestorage.com/slipway-backups/slipway-response-check'
+```
+
+This nonexistent diagnostic key helps identify endpoint/authentication responses; it does not establish the privacy of an existing object. After deploying the updated diagnostics, run **Test connection** and inspect the page message or the `[backup-storage] Connection verification failed` server log for the actual uploaded test object's check. Do not share credentials or signed URLs.
+
+Cloudflare's bucket settings offer **Data Access Logs → Enabled**, followed by **View logs in Workers Observability**. New supported successful requests can show upload and deletion activity. These logs exclude HTTP responses of 400 or greater, so the client response and Slipway diagnostic are needed for the failed check. See [R2 Data Access Logs](https://developers.cloudflare.com/r2/buckets/data-access-logs/).
 
 ## Azure
 

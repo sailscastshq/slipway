@@ -1,4 +1,4 @@
-const createClient = require('../../lib/s3-client')
+const createClient = require('../../../adapters/s3-client')
 const { PutObjectCommand, UploadPartCommand } = require('@aws-sdk/client-s3')
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner')
 

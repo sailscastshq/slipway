@@ -1,7 +1,7 @@
 const { test } = require('sounding')
 const assert = require('node:assert/strict')
 const settings = require('../../../../api/lib/backup-storage-config')
-const normalize = require('../../../../api/lib/object-storage/errors')
+const normalize = require('../../../../adapters/storage-error')
 test('backup storage rejects unsafe configuration and never returns credentials in page props', async () => {
   for (const input of [
     null,
@@ -109,7 +109,9 @@ test(
 
 test('backup privacy checks distinguish public access from provider failures without leaking response data', async () => {
   const http = require('node:http')
-  const verify = require('../../../../api/lib/object-storage/private-access')
+  const definition = require('../../../../api/helpers/backup/verify-private-access')
+  const verify = (configuration, adapter, objectKey, signal) =>
+    definition.fn({ configuration, adapter, objectKey, signal })
   const responses = new Map()
   const server = http.createServer((req, res) => {
     const fixture = responses.get(req.url) || { status: 403, body: '' }
