@@ -1,8 +1,71 @@
+const { Writable, PassThrough } = require('node:stream')
+const { pipeline } = require('node:stream/promises')
+
+// Skipper adapter used by sails-hook-uploads for private Azure backup storage.
+module.exports = function azureAdapter(options) {
+  const storage = azure(options)
+  return {
+    receive(local = {}) {
+      const settings = { ...options, ...local }
+      const controller = new AbortController()
+      let active
+      const receiver = new Writable({
+        objectMode: true,
+        write(file, encoding, done) {
+          active = file
+          storage
+            .put(
+              file.skipperFd,
+              file,
+              controller.signal,
+              settings.onCreated || (() => {})
+            )
+            .then((metadata) => {
+              settings.onStored?.(metadata)
+              done()
+            }, done)
+        },
+        destroy(error, done) {
+          controller.abort()
+          active?.destroy(error)
+          settings.signal?.removeEventListener('abort', abort)
+          done(error)
+        }
+      })
+      const abort = () => receiver.destroy(settings.signal.reason)
+      if (settings.signal?.aborted) queueMicrotask(abort)
+      else settings.signal?.addEventListener('abort', abort, { once: true })
+      return receiver
+    },
+    read(fd) {
+      const output = new PassThrough()
+      const controller = new AbortController()
+      const abort = () => output.destroy(options.signal.reason)
+      output.once('close', () => {
+        controller.abort()
+        options.signal?.removeEventListener('abort', abort)
+      })
+      if (options.signal?.aborted) queueMicrotask(abort)
+      else options.signal?.addEventListener('abort', abort, { once: true })
+      storage
+        .get(fd, controller.signal)
+        .then((result) => {
+          output.storageMetadata = { size: result.size, etag: result.etag }
+          return pipeline(result.stream, output)
+        })
+        .catch((error) => output.destroy(error))
+      return output
+    },
+    rm(fd, done) {
+      storage.delete(fd, options.signal).then(() => done(), done)
+    }
+  }
+}
 const {
   BlobServiceClient,
   StorageSharedKeyCredential
 } = require('@azure/storage-blob')
-module.exports = function azure(config) {
+function azure(config) {
   const endpoint = (
     config.endpoint || `https://${config.account}.blob.core.windows.net`
   ).replace(/\/$/, '')

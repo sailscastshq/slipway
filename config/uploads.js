@@ -3,7 +3,8 @@
  * (sails.config.uploads)
  *
  * Used by sails-hook-uploads for S3-compatible storage.
- * Slipway uses this for database backups to S3/R2/Spaces.
+ * Public images use these defaults. Backup helpers pass their selected private
+ * storage configuration explicitly to sails-hook-uploads.
  *
  * Configure via environment variables on your Slipway instance:
  *
@@ -18,7 +19,7 @@
 
 module.exports.uploads = {
   provider: 'r2',
-  adapter: require('../api/lib/s3-upload-adapter'),
+  adapter: require('../adapters/s3'),
   key: process.env.R2_ACCESS_KEY,
   secret: process.env.R2_SECRET_KEY,
   bucket: process.env.R2_BUCKET,

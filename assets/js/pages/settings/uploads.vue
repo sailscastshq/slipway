@@ -1,8 +1,6 @@
 <script setup>
 import AppNavbarVersion from '@/components/AppNavbarVersion.vue'
 import BackupStorageSettings from '@/components/BackupStorageSettings.vue'
-import Alert from '@/components/ui/alert/Alert.vue'
-import WarningTriangle from '@/components/ui/icons/WarningTriangle.vue'
 import SidebarOpen from '@/components/ui/icons/SidebarOpen.vue'
 import SidebarClose from '@/components/ui/icons/SidebarClose.vue'
 import Image from '@/components/ui/icons/Image.vue'
@@ -10,7 +8,6 @@ import EyeOff from '@/components/ui/icons/EyeOff.vue'
 import Eye from '@/components/ui/icons/Eye.vue'
 import ExternalLink from '@/components/ui/icons/ExternalLink.vue'
 import Database from '@/components/ui/icons/Database.vue'
-import Check from '@/components/ui/icons/Check.vue'
 import Input from '@/components/ui/input/Input.vue'
 import Radio from '@/components/ui/radio/Radio.vue'
 import { Link, Head, useForm } from '@inertiajs/vue3'
@@ -215,58 +212,19 @@ const providers = [
           </p>
         </div>
 
-        <!-- Status indicator -->
-        <div class="mb-6">
-          <Alert
-            role="status"
-            :class="[
-              'flex items-center gap-2 rounded-lg border px-4 py-3',
-              publicUploadsConfigured
-                ? 'border-green-200 bg-green-50/50 dark:border-green-900/50 dark:bg-green-950/20'
-                : 'border-amber-200 bg-amber-50/50 dark:border-amber-900/50 dark:bg-amber-950/20'
-            ]"
-          >
-            <Check
-              v-if="publicUploadsConfigured"
-              class="h-4 w-4 text-green-500"
-              stroke-width="2"
-            />
-            <WarningTriangle
-              v-else
-              class="h-4 w-4 text-amber-500"
-              stroke-width="2"
-            />
-            <span
-              :class="[
-                'text-sm',
-                publicUploadsConfigured
-                  ? 'text-green-700 dark:text-green-400'
-                  : 'text-amber-700 dark:text-amber-400'
-              ]"
-            >
-              <template v-if="publicUploadsConfigured">
-                Public uploads and backups are configured via
-                {{
-                  provider === 'r2'
-                    ? 'Cloudflare R2'
-                    : provider === 's3'
-                    ? 'Amazon S3'
-                    : provider === 'spaces'
-                    ? 'DigitalOcean Spaces'
-                    : 'environment variables'
-                }}
-              </template>
-              <template v-else-if="isConfigured">
-                Backups are configured, but public uploads still need a public
-                URL. Add the bucket public URL or custom domain below.
-              </template>
-              <template v-else>
-                File storage not configured. Configure below to enable uploaded
-                content and database backups.
-              </template>
-            </span>
-          </Alert>
-        </div>
+        <p role="status" class="mb-6 text-sm text-gray-500 dark:text-gray-400">
+          <template v-if="publicUploadsConfigured">
+            Public upload settings are saved. Configure and test private backup
+            storage below.
+          </template>
+          <template v-else-if="isConfigured">
+            Upload credentials are saved. Add a public URL below to serve
+            images.
+          </template>
+          <template v-else>
+            Add storage credentials below to enable image uploads.
+          </template>
+        </p>
 
         <!-- Provider selection -->
         <div

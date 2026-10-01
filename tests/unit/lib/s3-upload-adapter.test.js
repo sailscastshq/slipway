@@ -2,7 +2,7 @@ const { test } = require('sounding')
 const http = require('node:http')
 const { Readable } = require('node:stream')
 const { once } = require('node:events')
-const createAdapter = require('../../../api/lib/s3-upload-adapter')
+const createAdapter = require('../../../adapters/s3')
 
 test('AWS v3 adapter streams single and multipart objects, reads and deletes, and enforces limits', async ({
   expect
