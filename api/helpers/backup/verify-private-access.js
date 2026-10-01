@@ -35,12 +35,21 @@ async function verifyPrivateAccess(config, adapter, key, signal) {
       if (response.ok)
         throw diagnostic('STORAGE_PUBLIC', target.role, response.status)
       if (![401, 403, 404].includes(response.status)) {
+        const provider = await readProviderError(response)
+        if (
+          sails.helpers.backup.isAnonymousReadDenied.with({
+            endpoint: target.url,
+            status: response.status,
+            ...provider
+          })
+        )
+          continue
         const error = diagnostic(
           'STORAGE_PRIVACY_UNVERIFIED',
           target.role,
           response.status
         )
-        error.providerCode = await readErrorCode(response)
+        error.providerCode = provider.providerCode
         inconclusive ||= error
       }
     } catch (error) {
@@ -63,8 +72,8 @@ function diagnostic(code, role, status) {
   return error
 }
 
-async function readErrorCode(response) {
-  if (!response.body) return undefined
+async function readProviderError(response) {
+  if (!response.body) return {}
   const reader = response.body.getReader()
   let size = 0
   const chunks = []
@@ -76,9 +85,11 @@ async function readErrorCode(response) {
       chunks.push(chunk)
       size += chunk.length
     }
-    return Buffer.concat(chunks)
-      .toString('utf8')
-      .match(/<Code>([A-Za-z][A-Za-z0-9]{0,63})<\/Code>/)?.[1]
+    const xml = Buffer.concat(chunks).toString('utf8')
+    return {
+      providerCode: xml.match(/<Code>([A-Za-z][A-Za-z0-9]{0,63})<\/Code>/)?.[1],
+      authorizationRequired: /<Message>\s*Authorization\s*<\/Message>/.test(xml)
+    }
   } finally {
     await reader.cancel().catch(() => {})
     reader.releaseLock()

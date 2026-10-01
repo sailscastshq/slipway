@@ -25,6 +25,8 @@ The chosen backup storage covers managed/external database backups, scheduled ba
 
 If privacy verification fails, the error reports whether the unsigned **storage API** or **public delivery** check failed, its HTTP status, and a bounded provider XML error code where available. URLs, credentials, and provider message bodies are not included. Redirects, throttling, malformed requests, and outages are not evidence of private access. Check the API endpoint and the reported provider response before retrying.
 
+R2's HTTPS S3 API can reject unsigned reads with HTTP 400 and the exact XML error `InvalidArgument` / `Authorization`. Slipway recognizes that provider-specific response as an anonymous authorization denial. Other HTTP 400 responses remain unverified. An API denial does not prove that separate public domains are disabled; keep the backup bucket's public development URL and custom domains disabled.
+
 To inspect R2's unsigned response from the Slipway server without credentials, replace the account and bucket below and run:
 
 ```bash
