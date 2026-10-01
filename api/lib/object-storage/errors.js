@@ -7,7 +7,7 @@ module.exports = function storageError(error) {
       'Object storage did not finish within the transfer deadline.',
     STREAM_ABORTED: 'The object storage operation was cancelled.',
     STORAGE_PUBLIC:
-      'This container or bucket allows anonymous reads. Use private storage for backups.',
+      'This bucket allows public reads. In Settings → File storage → Backup storage, choose a separate private bucket. For R2, disable both the public development URL and custom domains on the backup bucket.',
     STORAGE_PRIVACY_UNVERIFIED:
       'Private object access could not be verified. Check the endpoint and bucket access policy.',
     STORAGE_INTEGRITY: 'The stored object did not match the uploaded content.',
@@ -58,6 +58,27 @@ module.exports = function storageError(error) {
       }[normalized]
   )
   result.code = normalized
+  if (normalized === 'STORAGE_PRIVACY_UNVERIFIED') {
+    if (['storage API', 'public delivery'].includes(error?.probeRole)) {
+      result.probeRole = error.probeRole
+      result.message += ` The ${error.probeRole} check`
+      if (
+        Number.isInteger(error.probeStatus) &&
+        error.probeStatus >= 100 &&
+        error.probeStatus <= 599
+      ) {
+        result.probeStatus = error.probeStatus
+        result.message += ` returned HTTP ${error.probeStatus}`
+      } else result.message += ' could not reach the endpoint'
+      if (/^[A-Za-z][A-Za-z0-9]{0,63}$/.test(error.providerCode || '')) {
+        result.providerCode = error.providerCode
+        result.message += ` (${error.providerCode})`
+      }
+      result.message += '.'
+    }
+    result.message +=
+      ' Use the S3 API endpoint, not a public website URL. Retry the connection test; a redirect, rate limit, or provider error does not verify privacy.'
+  }
   if (error?.cleanupFailed) {
     result.cleanupFailed = true
     result.message +=

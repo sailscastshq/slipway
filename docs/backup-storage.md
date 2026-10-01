@@ -11,6 +11,18 @@ A connection test uploads a small temporary object, downloads and verifies it, c
 
 S3 credentials need object read/write/delete permissions and permission to abort multipart uploads for failed-transfer cleanup. Use the provider’s equivalent least-privilege policy.
 
+## R2 and AWS S3 setup
+
+For R2, create a dedicated bucket such as `slipway-backups`. Keep both its public development URL and custom domains disabled. A folder named `backups/` inside a public R2 bucket does not make those objects private. Create an **Object Read & Write** token scoped to the backup bucket, and use the generated **Access Key ID** and **Secret Access Key** (not the Cloudflare bearer API token).
+
+In Settings → File storage → Backup storage, choose **S3-compatible storage**. Enter the private bucket, credentials, region `auto`, and the account's **S3 API endpoint** from R2. The endpoint must not be the public bucket/custom-domain URL and must not include the bucket name. Test the connection and save. Existing public uploads keep their current settings. No Slipway redeploy is required for this configuration change.
+
+For AWS S3, use a private bucket with Block Public Access enabled, its actual region, and credentials scoped to its objects with `s3:GetObject`, `s3:PutObject`, `s3:DeleteObject`, and `s3:AbortMultipartUpload`. Leave the endpoint field blank for standard AWS S3. A customer-managed KMS key also requires the appropriate KMS permissions.
+
+The chosen backup storage covers managed/external database backups, scheduled backups, and Slipway's pre-update database snapshot. Verify a manual backup and download before relying on the next scheduled run. Existing backups retain their original storage credentials and location.
+
+If privacy verification fails, the error reports whether the unsigned **storage API** or **public delivery** check failed, its HTTP status, and a bounded provider XML error code where available. URLs, credentials, and provider message bodies are not included. Redirects, throttling, malformed requests, and outages are not evidence of private access. Check the API endpoint and the reported provider response before retrying.
+
 ## Azure
 
 Enter the account and existing private container. Prefer a container-scoped SAS token with **read, write, delete** permissions and a future expiry. Account keys are also supported. Both are encrypted at rest and omitted from browser props and logs. Blank credential fields retain the saved value. Custom endpoints are optional; HTTP requires an explicit trusted-private-network opt-in.

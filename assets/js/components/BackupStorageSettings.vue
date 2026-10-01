@@ -1,6 +1,5 @@
 <script setup>
 import { computed, reactive, ref } from 'vue'
-import Alert from '@/components/ui/alert/Alert.vue'
 import Button from '@/components/ui/button/Button.vue'
 import Checkbox from '@/components/ui/checkbox/Checkbox.vue'
 import Input from '@/components/ui/input/Input.vue'
@@ -116,7 +115,9 @@ async function submit(testOnly) {
           />
         </div>
         <p v-if="form.provider === 'shared'" class="text-sm text-gray-500">
-          Use the credentials above. Backup objects must deny anonymous access.
+          Use the credentials above only for a private bucket. If this bucket
+          serves team logos or Bearing images publicly, choose separate
+          S3-compatible storage for backups.
         </p>
         <template v-else>
           <div v-if="form.provider === 'azure'">
@@ -238,52 +239,57 @@ async function submit(testOnly) {
           <p id="backup-credentials-help" class="text-xs text-gray-500">
             {{ credentialsHint }}
           </p>
-          <details :open="Boolean(form.endpoint)">
-            <summary
-              class="cursor-pointer text-sm text-gray-600 dark:text-gray-400"
+          <div class="mt-3">
+            <label
+              for="backup-endpoint"
+              class="mb-1 block text-xs text-gray-500"
+              >Endpoint URL (optional)</label
             >
-              Custom endpoint
-            </summary>
-            <div class="mt-3">
-              <label
-                for="backup-endpoint"
-                class="mb-1 block text-xs text-gray-500"
-                >Endpoint URL</label
-              >
-              <Input
-                id="backup-endpoint"
-                v-model="form.endpoint"
-                type="url"
-                placeholder="https://storage.example.com"
-                :class="field"
-              />
-              <label
-                v-if="form.endpoint.startsWith('http:')"
-                class="mt-3 flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400"
-              >
-                <Checkbox v-model="form.allowInsecure" /> Allow HTTP on a
-                trusted private network
-              </label>
-            </div>
-          </details>
+            <Input
+              id="backup-endpoint"
+              v-model="form.endpoint"
+              type="url"
+              aria-describedby="backup-endpoint-help"
+              placeholder="https://storage.example.com"
+              :class="field"
+            />
+            <p
+              id="backup-endpoint-help"
+              class="mt-2 text-xs text-gray-500 dark:text-gray-400"
+            >
+              {{
+                form.provider === 's3'
+                  ? 'Required for R2 and other S3-compatible providers. Use the S3 API endpoint; AWS S3 can leave this blank.'
+                  : 'Leave blank to use the default Azure endpoint.'
+              }}
+            </p>
+            <label
+              v-if="form.endpoint.startsWith('http:')"
+              class="mt-3 flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400"
+            >
+              <Checkbox v-model="form.allowInsecure" /> Allow HTTP on a trusted
+              private network
+            </label>
+          </div>
         </template>
       </fieldset>
-      <Alert
+      <p
         v-if="message"
         :role="failed ? 'alert' : 'status'"
-        :class="[
-          'break-words rounded-lg border p-3 text-sm',
+        :class="
           failed
-            ? 'border-red-200 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300'
-            : 'border-gray-200 text-gray-700 dark:border-gray-800 dark:text-gray-300'
-        ]"
-        >{{ message }}</Alert
+            ? 'text-red-700 dark:text-red-300'
+            : 'text-gray-600 dark:text-gray-400'
+        "
+        class="break-words text-sm leading-6"
       >
+        {{ message }}
+      </p>
       <div class="flex justify-end gap-2">
         <Button
           type="button"
           :disabled="busy"
-          class="border border-gray-200 bg-transparent px-3 py-2 text-sm text-gray-700 dark:border-gray-700 dark:bg-transparent dark:text-gray-300"
+          class="border border-gray-200 bg-transparent px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 hover:text-gray-950 active:bg-gray-200 dark:border-gray-700 dark:bg-transparent dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-white dark:active:bg-gray-700"
           @click="submit(true)"
           >Test connection</Button
         >

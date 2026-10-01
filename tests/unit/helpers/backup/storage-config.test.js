@@ -106,3 +106,69 @@ test(
     )
   }
 )
+
+test('backup privacy checks distinguish public access from provider failures without leaking response data', async () => {
+  const http = require('node:http')
+  const verify = require('../../../../api/lib/object-storage/private-access')
+  const responses = new Map()
+  const server = http.createServer((req, res) => {
+    const fixture = responses.get(req.url) || { status: 403, body: '' }
+    res.writeHead(fixture.status, { 'Content-Type': 'application/xml' })
+    res.end(fixture.body)
+  })
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve))
+  const base = `http://127.0.0.1:${server.address().port}`
+  const adapter = { anonymousUrl: () => `${base}/api` }
+  try {
+    for (const status of [401, 403, 404]) {
+      responses.set('/api', { status, body: '' })
+      await verify({}, adapter, 'backup.db', AbortSignal.timeout(2000))
+    }
+    for (const status of [400, 301, 429, 503]) {
+      responses.set('/api', {
+        status,
+        body: '<Error><Code>InvalidArgument</Code><Message>secret-token</Message></Error>'
+      })
+      await assert.rejects(
+        verify({}, adapter, 'backup.db', AbortSignal.timeout(2000)),
+        (error) => {
+          const sanitized = normalize(error)
+          assert.equal(sanitized.code, 'STORAGE_PRIVACY_UNVERIFIED')
+          assert.equal(sanitized.probeStatus, status)
+          assert.equal(sanitized.probeRole, 'storage API')
+          assert.match(sanitized.message, new RegExp(`HTTP ${status}`))
+          assert.match(sanitized.message, /InvalidArgument/)
+          assert.equal(sanitized.message.includes('secret-token'), false)
+          assert.equal(sanitized.message.includes(base), false)
+          assert.equal(normalize(sanitized).message, sanitized.message)
+          return true
+        }
+      )
+    }
+    // A broken API probe must not hide a successful anonymous read through the CDN.
+    responses.set('/backup.db', { status: 206, body: 'x' })
+    await assert.rejects(
+      verify(
+        { publicUrl: base },
+        adapter,
+        'backup.db',
+        AbortSignal.timeout(2000)
+      ),
+      { code: 'STORAGE_PUBLIC' }
+    )
+    responses.set('/backup.db', { status: 503, body: '' })
+    responses.set('/api', { status: 200, body: 'x' })
+    await assert.rejects(
+      verify(
+        { publicUrl: base },
+        adapter,
+        'backup.db',
+        AbortSignal.timeout(2000)
+      ),
+      { code: 'STORAGE_PUBLIC' }
+    )
+  } finally {
+    server.closeAllConnections()
+    await new Promise((resolve) => server.close(resolve))
+  }
+})

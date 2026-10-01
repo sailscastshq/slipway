@@ -32,14 +32,18 @@ test(
       })
     )
     await section.getByRole('button', { name: 'Test connection' }).click()
-    await expect(section.getByRole('alert')).toHaveAttribute(
-      'data-slot',
-      'alert'
+    await expect(section.getByRole('alert')).toContainText(
+      'Object storage denied access'
     )
+    await expect(section.getByLabel('Endpoint URL (optional)')).toBeVisible()
+    const testButton = section.getByRole('button', { name: 'Test connection' })
+    await testButton.hover()
+    await expect(testButton).toHaveCSS('background-color', 'rgb(245, 245, 245)')
+    await expect(testButton).toHaveCSS('color', 'rgb(10, 10, 10)')
     await expect(section.locator('#backup-account')).toHaveValue(
       'slipwaybackups'
     )
-    const output = path.resolve('output/issue-379')
+    const output = path.resolve('.tmp/screenshots/648')
     await fs.mkdir(output, { recursive: true })
     for (const [width, colorScheme] of [
       [1280, 'light'],
@@ -67,6 +71,24 @@ test(
         animations: 'disabled'
       })
     }
+    await page.raw.setViewportSize({ width: 1280, height: 1000 })
+    await page.raw.emulateMedia({ colorScheme: 'light' })
+    await section.locator('#backup-provider').click()
+    await page.raw
+      .getByRole('option', { name: 'S3-compatible storage', exact: true })
+      .click()
+    await section.locator('#backup-bucket').fill('slipway-backups')
+    await section.locator('#backup-region').fill('auto')
+    await section
+      .locator('#backup-endpoint')
+      .fill('https://account-id.r2.cloudflarestorage.com')
+    await expect(
+      section.getByText('Required for R2', { exact: false })
+    ).toBeVisible()
+    await section.getByRole('button', { name: 'Test connection' }).hover()
+    await page.screenshot(path.join(output, 'r2-settings.png'), {
+      animations: 'disabled'
+    })
     expect(page).toHaveNoJavascriptErrors()
   }
 )

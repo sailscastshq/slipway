@@ -75,12 +75,18 @@ module.exports = {
         config: settings.publicConfig(configured)
       }
     } catch (error) {
+      const failure = error.field
+        ? error
+        : require('../../lib/object-storage/errors')(error)
+      if (!error.field) {
+        sails.log.warn(
+          `[backup-storage] Connection verification failed (${failure.code}): ${failure.message}`
+        )
+      }
       throw {
         badRequest: {
-          error: error.field
-            ? error.message
-            : require('../../lib/object-storage/errors')(error).message,
-          code: error.code || 'STORAGE_CONFIGURATION',
+          error: failure.message,
+          code: failure.code || 'STORAGE_CONFIGURATION',
           field: error.field || null
         }
       }

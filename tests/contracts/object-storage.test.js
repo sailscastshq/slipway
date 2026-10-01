@@ -152,6 +152,7 @@ test(
     const key = randomBytes(64).toString('base64')
     try {
       let publicReads = false
+      let anonymousStatus = 403
       s3 = new S3rver({
         address: '127.0.0.1',
         port: 0,
@@ -163,7 +164,7 @@ test(
       // AWS/R2 policy behavior still requires the documented real-provider smoke check.
       s3.middleware.unshift(async (ctx, next) => {
         if (!publicReads && !ctx.get('authorization')) {
-          ctx.status = 403
+          ctx.status = anonymousStatus
           return
         }
         // S3rver also omits conditional PUT support. Enforce the request's create-only condition.
@@ -192,6 +193,25 @@ test(
       }
       s3Client = createS3(s3Config)
       await contract(s3Config)
+      anonymousStatus = 429
+      await assert.rejects(
+        createStorage(s3Config).testConnection(),
+        (error) => {
+          assert.equal(error.code, 'STORAGE_PRIVACY_UNVERIFIED')
+          assert.match(error.message, /storage API check returned HTTP 429/)
+          return true
+        }
+      )
+      const probeObjects = await s3Client.listObjectsV2({
+        Bucket: s3Config.bucket,
+        Prefix: '.slipway-check/'
+      })
+      assert.equal(
+        probeObjects.Contents?.length || 0,
+        0,
+        'unverified uploads remove their owned temporary object'
+      )
+      anonymousStatus = 403
       publicReads = true
       await assert.rejects(createStorage(s3Config).testConnection(), {
         code: 'STORAGE_PUBLIC'

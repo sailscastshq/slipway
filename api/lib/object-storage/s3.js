@@ -5,7 +5,13 @@ module.exports = function s3(config) {
   return {
     async put(key, input, signal, created) {
       const placeholder = await client.putObject(
-        { Bucket: config.bucket, Key: key, Body: '', IfNoneMatch: '*' },
+        {
+          Bucket: config.bucket,
+          Key: key,
+          Body: '',
+          ContentLength: 0,
+          IfNoneMatch: '*'
+        },
         { abortSignal: signal }
       )
       created()

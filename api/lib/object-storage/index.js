@@ -3,6 +3,7 @@ const { pipeline } = require('node:stream/promises')
 const { randomUUID, createHash } = require('node:crypto')
 const limitStream = require('../byte-limit-transform')
 const normalize = require('./errors')
+const verifyPrivateAccess = require('./private-access')
 function failure(code) {
   const error = new Error(code)
   error.code = code
@@ -47,34 +48,6 @@ module.exports = function objectStorage(config) {
       clearTimeout(timeout)
       options.signal?.removeEventListener('abort', abort)
       adapter?.close()
-    }
-  }
-  async function privateAccess(adapter, objectKey, signal) {
-    const urls = [adapter.anonymousUrl(objectKey)]
-    if (config.publicUrl) {
-      const publicUrl = new URL(config.publicUrl)
-      publicUrl.pathname =
-        publicUrl.pathname.replace(/\/$/, '') +
-        '/' +
-        objectKey.split('/').map(encodeURIComponent).join('/')
-      publicUrl.search = ''
-      urls.push(publicUrl.toString())
-    }
-    for (const url of urls) {
-      let response
-      try {
-        response = await fetch(url, {
-          method: 'GET',
-          headers: { Range: 'bytes=0-0' },
-          redirect: 'error',
-          signal
-        })
-        if (response.ok) throw failure('STORAGE_PUBLIC')
-        if (![401, 403, 404].includes(response.status))
-          throw failure('STORAGE_PRIVACY_UNVERIFIED')
-      } finally {
-        await response?.body?.cancel().catch(() => {})
-      }
     }
   }
 
@@ -129,7 +102,7 @@ module.exports = function objectStorage(config) {
               results.find((result) => result.status === 'rejected').reason
             )
           metadata = results[1].value
-          await privateAccess(adapter, objectKey, abortSignal)
+          await verifyPrivateAccess(config, adapter, objectKey, abortSignal)
           return {
             bytes: limiter.getBytes(),
             checksum: hash.digest('hex'),
