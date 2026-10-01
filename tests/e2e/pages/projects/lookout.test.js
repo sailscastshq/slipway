@@ -249,7 +249,7 @@ test(
 )
 
 test(
-  'Lookout makes rejected telemetry visible',
+  'Lookout keeps historical rejection counts out of the main view',
   {
     browser: true,
     world: {
@@ -258,8 +258,38 @@ test(
     }
   },
   async ({ sails, world, login, page, expect }) => {
+    const environment = world.current.environments.production
+    const app = world.current.apps.web
+    const deployment = await sails.models.deployment
+      .create({
+        status: 'running',
+        triggerType: 'manual',
+        startedAt: Date.now() - 60_000,
+        environment: environment.id,
+        app: app.id
+      })
+      .fetch()
+    await sails.models.app.updateOne({ id: app.id }).set({
+      currentDeployment: deployment.id,
+      status: 'running',
+      containerName: 'lookout-ingestion-feedback-web'
+    })
+    await sails.models.environment.updateOne({ id: environment.id }).set({
+      features: { 'sails-hook-slipway': { version: '^0.0.11' } }
+    })
+    await sails.models.telemetryconnection.create({
+      app: String(app.id),
+      environment: String(environment.id),
+      deployment: String(deployment.id),
+      hookVersion: '0.0.11',
+      protocolVersion: 1,
+      capabilities: { requests: true, exceptions: true, queries: true },
+      enabled: true,
+      startedAt: Date.now() - 60_000,
+      lastSeenAt: Date.now()
+    })
     await sails.models.telemetryingestionbudget.create({
-      environment: String(world.current.environments.production.id),
+      environment: String(environment.id),
       rejectedEvents: 250,
       rejectedRequests: 2
     })
@@ -267,14 +297,11 @@ test(
       password: world.current.auth.genesisUserPassword
     })
     await page.goto('/projects/ingestion-feedback/lookout')
-    await expect(page).toSee(
-      'Ingestion protection rejected 250 events across 2 requests.'
+    await expect(page.raw.getByText('250 events rejected')).toHaveCount(0)
+    await expect(page.raw.getByText('Some telemetry was rejected')).toHaveCount(
+      0
     )
-    await expect(
-      page.raw
-        .getByRole('status')
-        .filter({ hasText: 'Some telemetry was rejected' })
-    ).toHaveAttribute('data-slot', 'alert')
+    await expect(page).toSee('Connected — waiting for traffic')
     fs.mkdirSync('.github/screenshots/audit-telemetry-limits', {
       recursive: true
     })
@@ -282,5 +309,10 @@ test(
       '.github/screenshots/audit-telemetry-limits/rejections.png',
       { fullPage: true, animations: 'disabled' }
     )
+    await page.inDarkMode()
+    await page.screenshot('.tmp/lookout-rejections-dark.png', {
+      fullPage: true,
+      animations: 'disabled'
+    })
   }
 )
