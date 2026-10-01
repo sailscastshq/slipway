@@ -80,6 +80,12 @@ test(
     await fs.mkdir(output, { recursive: true })
     await page.resize(1280, 1000)
     await button.scrollIntoViewIfNeeded()
+    await expect(button).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)')
+    expect((await button.boundingBox()).height <= 28).toBe(true)
+    await button.screenshot({
+      path: path.join(output, 'label-idle.png'),
+      animations: 'disabled'
+    })
     await page.screenshot(path.join(output, 'backup-now.png'), {
       animations: 'disabled'
     })
@@ -97,6 +103,10 @@ test(
       await expect(busy).toHaveAttribute('aria-busy', 'true')
       await expect(toast).toContainText('Backup queued for Customer database')
       await expect(toast).not.toContainText('Backup completed')
+      await busy.screenshot({
+        path: path.join(output, 'label-busy.png'),
+        animations: 'disabled'
+      })
       await page.screenshot(
         path.join(output, `backup-${terminal}-pending.png`),
         { animations: 'disabled' }
@@ -108,6 +118,10 @@ test(
         terminal === 'completed' ? 'Backup completed' : 'Backup failed.'
       )
       await expect(button).toBeEnabled()
+      await toast.screenshot({
+        path: path.join(output, `label-${terminal}.png`),
+        animations: 'disabled'
+      })
       await page.screenshot(path.join(output, `backup-${terminal}.png`), {
         animations: 'disabled'
       })
@@ -120,7 +134,14 @@ test(
     )
     await button.click()
     await expect(toast).toContainText('Backup status connection interrupted')
+    await toast.screenshot({
+      path: path.join(output, 'label-interrupted.png'),
+      animations: 'disabled'
+    })
     await expect(button).toBeEnabled()
+    await page.screenshot(path.join(output, 'backup-interrupted.png'), {
+      animations: 'disabled'
+    })
     await toast.locator('button').click()
     await page.raw.unroute(`**/api/v1/services/${service.id}/backups`)
     await page.raw.route(`**/api/v1/services/${service.id}/backups`, (route) =>
@@ -128,7 +149,14 @@ test(
     )
     await button.click()
     await expect(toast).toContainText('You no longer have permission')
+    await toast.screenshot({
+      path: path.join(output, 'label-denied.png'),
+      animations: 'disabled'
+    })
     await expect(button).toBeEnabled()
+    await page.screenshot(path.join(output, 'backup-denied.png'), {
+      animations: 'disabled'
+    })
     expect(page).toHaveNoJavascriptErrors()
   }
 )

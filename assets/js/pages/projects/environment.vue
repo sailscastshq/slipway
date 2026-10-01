@@ -2022,7 +2022,7 @@ onBeforeUnmount(() => {
                           service.lastBackup?.status
                         )
                       "
-                      class="inline-flex items-center gap-2 rounded-md bg-gray-100 px-3 py-2 text-xs font-medium text-gray-900 hover:bg-gray-200 disabled:cursor-wait disabled:opacity-100 dark:bg-gray-800 dark:text-gray-100 dark:hover:bg-gray-700"
+                      class="inline-flex min-h-0 min-w-0 items-center gap-1.5 rounded bg-transparent px-1.5 py-1 text-xs font-medium text-gray-500 hover:bg-transparent hover:text-gray-900 active:bg-transparent disabled:cursor-wait disabled:opacity-100 dark:bg-transparent dark:text-gray-400 dark:hover:bg-transparent dark:hover:text-gray-100 dark:active:bg-transparent"
                     >
                       <Spinner
                         v-if="
@@ -2033,7 +2033,6 @@ onBeforeUnmount(() => {
                         "
                         class="h-3.5 w-3.5"
                       />
-                      <Upload v-else class="h-3.5 w-3.5" />
                       {{
                         backingUpServiceId === service.id ||
                         ['pending', 'running'].includes(
