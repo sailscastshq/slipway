@@ -134,6 +134,7 @@ test(
     await expect(page.raw.getByRole('dialog')).toContainText(
       'Your running database stays unchanged'
     )
+    await page.raw.waitForTimeout(300)
     await page.screenshot(path.join(root, 'start-test-light.png'))
     await page.raw
       .getByRole('button', { name: 'Start test', exact: true })
@@ -168,6 +169,12 @@ test(
     await expect(
       page.raw.getByRole('heading', { name: 'Restore verified', exact: true })
     ).toBeVisible()
+    const completedNotifications = page.raw.locator(
+      '[data-slot="toast"]:not([data-state="closing"]) button'
+    )
+    while (await completedNotifications.count())
+      await completedNotifications.first().click()
+    await page.raw.waitForTimeout(300)
     mode = 'failed'
     await page.raw.getByRole('button', { name: 'Refresh backups' }).click()
     await expect(
