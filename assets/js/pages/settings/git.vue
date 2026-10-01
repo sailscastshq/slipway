@@ -1,4 +1,8 @@
 <script setup>
+import {
+  assertMutationResponse,
+  mutationFailureMessage
+} from '@/lib/mutation-feedback'
 import AppNavbarVersion from '@/components/AppNavbarVersion.vue'
 import SidebarOpen from '@/components/ui/icons/SidebarOpen.vue'
 import SidebarClose from '@/components/ui/icons/SidebarClose.vue'
@@ -121,21 +125,28 @@ function copyToken() {
 
 // Revoke token
 const revokingTokenId = ref(null)
+const revoking = ref(false)
 
 function confirmRevokeToken(token) {
   revokingTokenId.value = token.id
 }
 
 async function executeRevokeToken() {
+  if (revoking.value) return
+  revoking.value = true
   try {
-    await fetch(`/api/v1/deploy-tokens/${revokingTokenId.value}`, {
-      method: 'DELETE'
-    })
+    await assertMutationResponse(
+      await fetch(`/api/v1/deploy-tokens/${revokingTokenId.value}`, {
+        method: 'DELETE'
+      })
+    )
     revokingTokenId.value = null
     router.reload({ only: ['deployTokens'] })
     toast({ message: 'Deploy token revoked', type: 'success' })
-  } catch (err) {
-    toast({ message: 'Failed to revoke token', type: 'error' })
+  } catch (error) {
+    toast({ message: mutationFailureMessage(error), type: 'error' })
+  } finally {
+    revoking.value = false
   }
 }
 
@@ -666,7 +677,8 @@ jobs:
 
     <!-- Revoke Token Confirmation -->
     <ConfirmModal
-      v-if="revokingTokenId"
+      :show="!!revokingTokenId"
+      :loading="revoking"
       title="Revoke deploy token"
       message="This will permanently revoke this token. Any CI/CD pipelines using it will fail."
       confirm-label="Revoke token"

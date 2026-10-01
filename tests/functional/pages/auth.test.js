@@ -259,8 +259,8 @@ test(
       id: current.users.genesisUser.id
     })
 
-    expect(response).toHaveStatus(409)
-    expect(response).toHaveHeader('x-inertia-location', 'back')
+    expect(response).toHaveStatus(303)
+    expect(response).toHaveHeader('location', '/profile')
     expect(updated.fullName).toBe('Updated Slipway Owner')
   }
 )

@@ -1,4 +1,8 @@
 <script setup>
+import {
+  assertMutationResponse,
+  mutationFailureMessage
+} from '@/lib/mutation-feedback'
 import Command from '@/components/ui/command/Command.vue'
 import Bell from '@/components/ui/icons/Bell.vue'
 import BookOpen from '@/components/ui/icons/BookOpen.vue'
@@ -362,13 +366,18 @@ register({
       icon: 'refresh',
       action: async () => {
         try {
-          await fetch(
-            `/api/v1/projects/${app.projectSlug}/environments/${app.envSlug}/apps/${app.slug}/restart`,
-            { method: 'POST', headers: { 'Content-Type': 'application/json' } }
+          await assertMutationResponse(
+            await fetch(
+              `/api/v1/projects/${app.projectSlug}/environments/${app.envSlug}/apps/${app.slug}/restart`,
+              {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+              }
+            )
           )
           toast({ message: `${app.name} restarted`, type: 'success' })
-        } catch {
-          toast({ message: `Failed to restart ${app.name}`, type: 'error' })
+        } catch (error) {
+          toast({ message: mutationFailureMessage(error), type: 'error' })
         }
       }
     }))
@@ -392,13 +401,18 @@ register({
       destructive: true,
       action: async () => {
         try {
-          await fetch(
-            `/api/v1/projects/${app.projectSlug}/environments/${app.envSlug}/apps/${app.slug}/stop`,
-            { method: 'POST', headers: { 'Content-Type': 'application/json' } }
+          await assertMutationResponse(
+            await fetch(
+              `/api/v1/projects/${app.projectSlug}/environments/${app.envSlug}/apps/${app.slug}/stop`,
+              {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+              }
+            )
           )
           toast({ message: `${app.name} stopped`, type: 'success' })
-        } catch {
-          toast({ message: `Failed to stop ${app.name}`, type: 'error' })
+        } catch (error) {
+          toast({ message: mutationFailureMessage(error), type: 'error' })
         }
       }
     }))

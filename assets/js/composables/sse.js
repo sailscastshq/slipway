@@ -12,6 +12,7 @@ import { ref, onScopeDispose, isRef, unref } from 'vue'
  * @param {boolean}  [options.autoReconnect=true]    - Reconnect on error/close
  * @param {number}   [options.reconnectDelay=3000]   - Ms to wait before reconnecting
  * @param {boolean}  [options.pauseWhenHidden=false] - Pause optional live views in hidden tabs
+ * @param {Function} [options.onError]               - Called on connection failure
  * @param {Function} [options.onMessage]             - Called with parsed JSON data for each event
  *
  * @returns {{ data, connected, error, close, connect }}
@@ -22,7 +23,8 @@ export function useEventSource(url, options = {}) {
     autoReconnect = true,
     reconnectDelay = 3000,
     pauseWhenHidden = false,
-    onMessage
+    onMessage,
+    onError
   } = options
 
   const data = ref(null)
@@ -83,13 +85,15 @@ export function useEventSource(url, options = {}) {
       }
     }
 
-    es.onerror = () => {
+    es.onerror = (event) => {
       if (sequence !== connectionSequence) return
       connected.value = false
       if (es) {
         es.close()
         es = null
       }
+
+      onError?.(event)
 
       if (!unmounted && reconnectEnabled && autoReconnect) {
         if (!error.value) {

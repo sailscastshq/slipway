@@ -74,7 +74,7 @@ test(
     const response = await browser.request.patch('/settings/instance', {
       instanceName: 'Authorized instance'
     })
-    expect(response).toHaveStatus(409)
+    expect(response).toHaveStatus(303)
     expect(await sails.helpers.setting.get('instanceName')).toBe(
       'Authorized instance'
     )

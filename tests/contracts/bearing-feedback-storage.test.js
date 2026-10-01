@@ -106,7 +106,7 @@ test(
           cookie: page.headers.get('set-cookie').split(';')[0]
         })
         .post(url, form)
-      expect(response).toHaveStatus(409)
+      expect(response).toHaveStatus(303)
 
       const feedback = await sails.models.bearingfeedback.findOne({
         space: space.id,
@@ -234,7 +234,19 @@ test(
           requestUrl.pathname = `${privateHostBasePath}${requestUrl.pathname.slice(
             '/bearing'.length
           )}`
-          await route.continue({ url: requestUrl.toString() })
+          // Emulate the hosted-path proxy for redirects as well as requests.
+          // Playwright's URL override only applies to the first redirected request.
+          const response = await route.fetch({
+            url: requestUrl.toString(),
+            maxRedirects: 0
+          })
+          const headers = response.headers()
+          if (headers.location?.startsWith('/bearing/')) {
+            headers.location = `${privateHostBasePath}${headers.location.slice(
+              '/bearing'.length
+            )}`
+          }
+          await route.fulfill({ response, headers })
         } else await route.continue()
       })
       await browserPage.raw.route(
@@ -280,7 +292,7 @@ test(
           'x-csrf-token': authorPage.data.props._csrf
         })
         .post(imageUrl, additionalForm)
-      expect(added).toHaveStatus(409)
+      expect(added).toHaveStatus(303)
       const repaired = await sails.models.bearingfeedback.findOne({
         id: authoredFeedback.id
       })

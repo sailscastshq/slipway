@@ -94,7 +94,7 @@ test(
       password: 'Changed-password123!',
       confirmPassword: 'Changed-password123!'
     })
-    expect(result).toHaveStatus(409)
+    expect(result).toHaveStatus(303)
     const updated = await sails.models.user.findOne({ id: user.id })
     expect(updated.authVersion.length > 0).toBe(true)
     expect(

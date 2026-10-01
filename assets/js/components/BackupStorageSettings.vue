@@ -1,5 +1,6 @@
 <script setup>
 import { computed, reactive, ref } from 'vue'
+import { useToast } from '@/composables/toast'
 import Button from '@/components/ui/button/Button.vue'
 import Checkbox from '@/components/ui/checkbox/Checkbox.vue'
 import Input from '@/components/ui/input/Input.vue'
@@ -14,8 +15,7 @@ const form = reactive({
   accountKey: ''
 })
 const busy = ref(false)
-const message = ref('')
-const failed = ref(false)
+const toast = useToast()
 const field =
   'focus:border-brand w-full rounded-none border-0 border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 focus:outline-none dark:border-gray-700 dark:text-white'
 const credentialsHint = computed(() =>
@@ -35,12 +35,10 @@ function changeProvider() {
     hasCredentials: false,
     allowInsecure: false
   })
-  message.value = ''
 }
 async function submit(testOnly) {
   if (busy.value) return
   busy.value = true
-  message.value = ''
   try {
     const response = await fetch('/settings/backup-storage', {
       method: 'POST',
@@ -56,8 +54,7 @@ async function submit(testOnly) {
         result.error ||
           'Backup storage could not be verified. Your settings have not changed.'
       )
-    failed.value = false
-    message.value = result.message
+    toast({ message: result.message, type: 'success' })
     if (!testOnly) {
       Object.assign(form, result.config, {
         key: '',
@@ -68,11 +65,13 @@ async function submit(testOnly) {
       emit('saved', result.config)
     }
   } catch (error) {
-    failed.value = true
-    message.value =
-      error instanceof TypeError
-        ? 'Connection interrupted. Check the current settings before retrying.'
-        : error.message
+    toast({
+      message:
+        error instanceof TypeError
+          ? 'Connection interrupted. Check the current settings before retrying.'
+          : error.message,
+      type: 'error'
+    })
   } finally {
     busy.value = false
   }
@@ -273,18 +272,6 @@ async function submit(testOnly) {
           </div>
         </template>
       </fieldset>
-      <p
-        v-if="message"
-        :role="failed ? 'alert' : 'status'"
-        :class="
-          failed
-            ? 'text-red-700 dark:text-red-300'
-            : 'text-gray-600 dark:text-gray-400'
-        "
-        class="break-words text-sm leading-6"
-      >
-        {{ message }}
-      </p>
       <div class="flex justify-end gap-2">
         <Button
           type="button"

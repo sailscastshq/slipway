@@ -27,8 +27,8 @@ test(
 
     const enabled = await browser.request.patch(accessPath, { enabled: true })
 
-    expect(enabled).toHaveStatus(409)
-    expect(enabled).toHaveHeader('x-inertia-location', accessPath)
+    expect(enabled).toHaveStatus(303)
+    expect(enabled).toHaveHeader('location', accessPath)
     expect((await sails.models.app.findOne({ id: app.id })).bridgeEnabled).toBe(
       true
     )
@@ -37,8 +37,8 @@ test(
       role: 'editor'
     })
 
-    expect(updated).toHaveStatus(409)
-    expect(updated).toHaveHeader('x-inertia-location', accessPath)
+    expect(updated).toHaveStatus(303)
+    expect(updated).toHaveHeader('location', accessPath)
     expect(
       (await sails.models.bridgeaccess.findOne({ id: access.id })).role
     ).toBe('editor')
@@ -48,8 +48,8 @@ test(
       {}
     )
 
-    expect(revoked).toHaveStatus(409)
-    expect(revoked).toHaveHeader('x-inertia-location', accessPath)
+    expect(revoked).toHaveStatus(303)
+    expect(revoked).toHaveHeader('location', accessPath)
     expect(
       (await sails.models.bridgeaccess.findOne({ id: access.id })).status
     ).toBe('revoked')

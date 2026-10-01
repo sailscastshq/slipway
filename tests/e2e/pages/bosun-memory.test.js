@@ -85,3 +85,51 @@ test(
     }
   }
 )
+
+test(
+  'Bosun environment saves keep failed edits and confirm successful writes',
+  { browser: true, world: 'configured-slipway' },
+  async ({ page, login, world, expect }) => {
+    await login.withPassword('genesisUser', page, {
+      password: world.current.auth.genesisUserPassword
+    })
+    await page.goto('/bosun?tab=environment')
+    let fail = true
+    await page.raw.route('**/api/v1/bosun/env', (route) =>
+      route.fulfill({
+        status: fail ? 503 : 200,
+        json: fail
+          ? { message: 'Environment storage is unavailable. Retry later.' }
+          : { success: true }
+      })
+    )
+    await page.raw
+      .getByPlaceholder('KEY', { exact: true })
+      .fill('CUSTOMER_MODE')
+    await page.raw
+      .getByPlaceholder('value', { exact: false })
+      .fill('production')
+    const toast = page.raw.locator(
+      '[data-slot="toast"]:not([data-state="closing"])'
+    )
+    await page.raw.getByRole('button', { name: 'Add', exact: true }).click()
+    await expect(toast).toContainText('Environment storage is unavailable')
+    await expect(page.raw.getByPlaceholder('KEY', { exact: true })).toHaveValue(
+      'CUSTOMER_MODE'
+    )
+    await expect(
+      page.raw.getByText('CUSTOMER_MODE', { exact: true })
+    ).toHaveCount(0)
+    await toast.locator('button').click()
+    fail = false
+    await page.raw.getByRole('button', { name: 'Add', exact: true }).click()
+    await expect(toast).toContainText('Environment variables saved')
+    await expect(
+      page.raw.getByText('CUSTOMER_MODE', { exact: true })
+    ).toBeVisible()
+    await expect(page.raw.getByPlaceholder('KEY', { exact: true })).toHaveValue(
+      ''
+    )
+    expect(page).toHaveNoJavascriptErrors()
+  }
+)
