@@ -1,0 +1,80 @@
+name: Quest screenshot baseline
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - tests/e2e/pages/projects/quest.test.js
+      - .github/workflows/quest-comparison.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: quest-baseline-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  baseline:
+    name: Quest before screenshots
+    timeout-minutes: 10
+    runs-on: ubuntu-latest
+    env:
+      # Pre-667 UI. Never replace this with a moving branch or the PR merge ref.
+      QUEST_BASELINE_SHA: 6fe3b2177bc867475f1e3d499f6f4de53d2d1e03
+      SLIPWAY_QUEST_CAPTURE_PHASE: before
+      SLIPWAY_QUEST_CAPTURE_TRIAL_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - name: Read the comparison trial from the proposed change
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Extract only the self-contained synthetic capture trial
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs')
+          const path = require('node:path')
+          const source = fs.readFileSync('tests/e2e/pages/projects/quest.test.js', 'utf8')
+          const start = '// BEGIN QUEST COMPARISON CAPTURE'
+          const end = '// END QUEST COMPARISON CAPTURE'
+          if (source.split(start).length !== 2 || source.split(end).length !== 2) {
+            throw new Error('Expected exactly one bounded Quest capture trial')
+          }
+          const trial = source.slice(source.indexOf(start) + start.length, source.indexOf(end))
+          fs.writeFileSync(path.join(process.env.RUNNER_TEMP, 'quest-capture.test.js'), "const { test } = require('sounding')\n" + trial)
+          NODE
+      - name: Check out the actual pre-change Quest page
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ env.QUEST_BASELINE_SHA }}
+          persist-credentials: false
+      - name: Install only the capture trial into the baseline checkout
+        run: |
+          test "$(git rev-parse HEAD)" = "$QUEST_BASELINE_SHA"
+          cp "$RUNNER_TEMP/quest-capture.test.js" tests/e2e/pages/projects/quest.test.js
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit
+      - run: npx playwright install --with-deps chromium
+      - name: Capture baseline in four viewport and theme combinations
+        run: node_modules/.bin/sounding test --file tests/e2e/pages/projects/quest.test.js --test-concurrency=1 --test-timeout=600000
+      - name: Preserve real baseline screenshots and source fixture
+        uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: quest-before-6fe3b2177bc8
+          path: .tmp/screenshots/quest-comparison/before
+          if-no-files-found: error
+          retention-days: 90
+      - name: Preserve diagnostic artifacts on failure
+        uses: actions/upload-artifact@v6
+        if: failure()
+        with:
+          name: quest-before-capture-diagnostics
+          path: .tmp/sounding/artifacts
+          if-no-files-found: ignore
+          retention-days: 14

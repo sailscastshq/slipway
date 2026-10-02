@@ -1,4 +1,4 @@
-const { spawn } = require('child_process')
+const childProcess = require('node:child_process')
 
 // eslint-disable-next-line no-control-regex
 const ANSI_RE = /\x1b\[[0-9;]*[A-Za-z]|\[\d+(?:;\d+)*m/g
@@ -100,30 +100,33 @@ module.exports = {
     const duration = Date.now() - startedAt
 
     sails.log.info(
-      `[quest] Job "${name}" triggered in ${project.slug}/${environmentSlug}`
+      `[quest] Invocation response for "${name}" in ${project.slug}/${environmentSlug}`
     )
 
-    // Record telemetry so manual runs appear in job history
+    // Only a reported exit code is a terminal legacy process receipt. A lost
+    // Docker client/transport is not evidence that the in-container job ended.
     try {
-      await TelemetryMetric.create({
-        name: result.success ? 'quest.job.completed' : 'quest.job.failed',
-        value: duration,
-        unit: 'ms',
-        attributes: {
-          jobName: name,
-          trigger: 'manual',
-          triggeredBy: user.fullName,
-          stdout: result.output || '',
-          ...(result.success
-            ? {}
-            : {
-                error: result.error || 'Unknown error',
-                stderr: result.error || ''
-              })
-        },
-        recordedAt: Date.now(),
-        environment: environment.id
-      })
+      if (result.exitCode !== null) {
+        await TelemetryMetric.create({
+          name: result.success ? 'quest.job.completed' : 'quest.job.failed',
+          value: duration,
+          unit: 'ms',
+          attributes: {
+            jobName: name,
+            trigger: 'manual',
+            triggeredBy: user.fullName,
+            stdout: result.output || '',
+            stderr: result.stderr || '',
+            ...(result.success
+              ? {}
+              : {
+                  error: result.error || 'Unknown error'
+                })
+          },
+          recordedAt: Date.now(),
+          environment: environment.id
+        })
+      }
     } catch (err) {
       sails.log.warn(
         '[quest] Failed to record telemetry for manual run:',
@@ -136,9 +139,11 @@ module.exports = {
       job: name,
       output: result.output,
       error: result.error,
+      stderr: result.stderr,
+      signal: result.signal,
       exitCode: result.exitCode,
       triggeredBy: user.fullName,
-      triggeredAt: new Date().toISOString()
+      triggeredAt: new Date(startedAt).toISOString()
     }
   }
 }
@@ -146,7 +151,7 @@ module.exports = {
 function executeInContainer(args) {
   return new Promise((resolve) => {
     const dockerPath = sails.config.docker?.binaryPath || 'docker'
-    const proc = spawn(dockerPath, args, {
+    const proc = childProcess.spawn(dockerPath, args, {
       timeout: 300000 // 5 minute timeout for job execution
     })
 
@@ -161,21 +166,33 @@ function executeInContainer(args) {
       stderr += data.toString()
     })
 
-    proc.on('close', (exitCode) => {
+    proc.on('close', (code, signal) => {
+      const exitCode = Number.isInteger(code) && code >= 0 ? code : null
+      const diagnostic = stripAnsi(stderr.trim())
       resolve({
         success: exitCode === 0,
         output: stripAnsi(stdout.trim()),
-        error: stripAnsi(stderr.trim()) || null,
-        exitCode
+        stderr: diagnostic,
+        error:
+          exitCode === 0
+            ? null
+            : diagnostic ||
+              (exitCode === null
+                ? 'Execution outcome unconfirmed: the Docker client ended without an exit code. The job may still be running.'
+                : `Process exited with code ${exitCode}`),
+        exitCode,
+        signal: signal || null
       })
     })
 
     proc.on('error', (err) => {
       resolve({
         success: false,
-        output: '',
+        output: stripAnsi(stdout.trim()),
+        stderr: stripAnsi(stderr.trim()),
         error: err.message,
-        exitCode: 1
+        exitCode: null,
+        signal: null
       })
     })
   })
