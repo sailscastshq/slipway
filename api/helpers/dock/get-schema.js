@@ -439,45 +439,74 @@ function escapeSqliteIdentifier(value) {
   return String(value).replace(/'/g, "''")
 }
 
-async function inventoryNativeObjects(service, tables) {
-  async function rows(query) {
-    const result = await sails.helpers.dock.executeSql(service, query)
-    if (!result.success || !Array.isArray(result.rows))
-      throw new Error('Catalog unavailable')
-    return result.rows
-  }
-  if (service.type === 'postgresql') {
-    const constraints = await rows(
-      `SELECT t.relname as table_name, c.conname as name, c.contype as type, pg_get_constraintdef(c.oid, true) as sql FROM pg_constraint c JOIN pg_class t ON t.oid = c.conrelid JOIN pg_namespace n ON n.oid = t.relnamespace WHERE n.nspname = 'public' ORDER BY t.relname, c.conname`
+// Keep the complete native catalog, but amortize Docker/database-client startup
+// across bounded groups. Do not parallelize queries on a migration transaction's
+// single session, and never treat a partial batch as a verified schema.
+const catalogBatchSize = 20
+
+async function catalogRows(service, queries) {
+  const rows = []
+  for (let offset = 0; offset < queries.length; offset += catalogBatchSize) {
+    const batch = queries.slice(offset, offset + catalogBatchSize)
+    const result = await sails.helpers.dock.executeSql(
+      service,
+      batch.join(';\n')
     )
-    const triggers = await rows(
-      `SELECT t.relname as table_name, g.tgname as name, pg_get_triggerdef(g.oid, true) as sql FROM pg_trigger g JOIN pg_class t ON t.oid = g.tgrelid JOIN pg_namespace n ON n.oid = t.relnamespace WHERE n.nspname = 'public' AND NOT g.tgisinternal ORDER BY t.relname, g.tgname`
-    )
-    const views = await rows(
-      `SELECT c.relname as name, pg_get_viewdef(c.oid, true) as sql FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = 'public' AND c.relkind IN ('v', 'm') ORDER BY c.relname`
-    )
-    for (const table of Object.values(tables)) {
-      table.constraints = constraints.filter(
-        (row) => row.table_name === table.name
+    if (
+      !result.success ||
+      !Array.isArray(result.results) ||
+      result.results.length !== batch.length ||
+      result.results.some(
+        (item, index) =>
+          item.statementIndex !== index ||
+          item.status !== 'success' ||
+          !Array.isArray(item.rows)
       )
-      table.triggers = triggers.filter((row) => row.table_name === table.name)
+    )
+      throw new Error('Catalog unavailable')
+    rows.push(...result.results.map((item) => item.rows))
+  }
+  return rows
+}
+
+function groupByTable(rows) {
+  const grouped = new Map()
+  for (const row of rows) {
+    if (!grouped.has(row.table_name)) grouped.set(row.table_name, [])
+    grouped.get(row.table_name).push(row)
+  }
+  return grouped
+}
+
+async function inventoryNativeObjects(service, tables) {
+  if (service.type === 'postgresql') {
+    const [constraints, triggers, views] = await catalogRows(service, [
+      `SELECT t.relname as table_name, c.conname as name, c.contype as type, pg_get_constraintdef(c.oid, true) as sql FROM pg_constraint c JOIN pg_class t ON t.oid = c.conrelid JOIN pg_namespace n ON n.oid = t.relnamespace WHERE n.nspname = 'public' ORDER BY t.relname, c.conname`,
+      `SELECT t.relname as table_name, g.tgname as name, pg_get_triggerdef(g.oid, true) as sql FROM pg_trigger g JOIN pg_class t ON t.oid = g.tgrelid JOIN pg_namespace n ON n.oid = t.relnamespace WHERE n.nspname = 'public' AND NOT g.tgisinternal ORDER BY t.relname, g.tgname`,
+      `SELECT c.relname as name, pg_get_viewdef(c.oid, true) as sql FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = 'public' AND c.relkind IN ('v', 'm') ORDER BY c.relname`
+    ])
+    const constraintsByTable = groupByTable(constraints)
+    const triggersByTable = groupByTable(triggers)
+    for (const table of Object.values(tables)) {
+      table.constraints = constraintsByTable.get(table.name) || []
+      table.triggers = triggersByTable.get(table.name) || []
       table.views = views
     }
   } else {
-    const triggers = await rows(
-      'SELECT EVENT_OBJECT_TABLE as table_name, TRIGGER_NAME as name, ACTION_STATEMENT as `sql`, ACTION_TIMING as timing, EVENT_MANIPULATION as event FROM information_schema.TRIGGERS WHERE TRIGGER_SCHEMA = DATABASE() ORDER BY EVENT_OBJECT_TABLE, TRIGGER_NAME'
-    )
-    const views = await rows(
-      'SELECT TABLE_NAME as name, VIEW_DEFINITION as `sql`, CHECK_OPTION as check_option, SECURITY_TYPE as security_type FROM information_schema.VIEWS WHERE TABLE_SCHEMA = DATABASE() ORDER BY TABLE_NAME'
-    )
-    for (const table of Object.values(tables)) {
-      const definitions = await rows(
-        'SHOW CREATE TABLE `' + table.name.replace(/`/g, '``') + '`'
+    const tableList = Object.values(tables)
+    const [triggers, views, ...definitions] = await catalogRows(service, [
+      'SELECT EVENT_OBJECT_TABLE as table_name, TRIGGER_NAME as name, ACTION_STATEMENT as `sql`, ACTION_TIMING as timing, EVENT_MANIPULATION as event FROM information_schema.TRIGGERS WHERE TRIGGER_SCHEMA = DATABASE() ORDER BY EVENT_OBJECT_TABLE, TRIGGER_NAME',
+      'SELECT TABLE_NAME as name, VIEW_DEFINITION as `sql`, CHECK_OPTION as check_option, SECURITY_TYPE as security_type FROM information_schema.VIEWS WHERE TABLE_SCHEMA = DATABASE() ORDER BY TABLE_NAME',
+      ...tableList.map(
+        (table) => 'SHOW CREATE TABLE `' + table.name.replace(/`/g, '``') + '`'
       )
-      const definition = definitions[0]?.['Create Table']
+    ])
+    const triggersByTable = groupByTable(triggers)
+    for (const [index, table] of tableList.entries()) {
+      const definition = definitions[index][0]?.['Create Table']
       if (!definition) throw new Error('Table definition unavailable')
       table.sql = definition
-      table.triggers = triggers.filter((row) => row.table_name === table.name)
+      table.triggers = triggersByTable.get(table.name) || []
       table.views = views
     }
   }
