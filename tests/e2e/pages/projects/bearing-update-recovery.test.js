@@ -370,6 +370,12 @@ test(
     await login.withPassword('genesisUser', page, {
       password: current.auth.genesisUserPassword
     })
+    // The password helper returns after clicking; wait for its redirect before
+    // changing the asset version or beginning a competing document navigation.
+    await expect(page.raw).toHaveURL(/\/$/)
+    await expect(
+      page.raw.getByRole('link', { name: project.name, exact: true })
+    ).toBeVisible()
     await page.raw.route(imageUrl, (route) =>
       route.fulfill({
         contentType: 'image/svg+xml',
