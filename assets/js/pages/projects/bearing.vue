@@ -345,6 +345,32 @@ function saveUpdate(publish) {
     : `${bearingPath.value}/updates`
   updateForm[editingDraft.value ? 'patch' : 'post'](path, {
     preserveScroll: true,
+    onHttpException: (response) => {
+      // Inertia error pages otherwise navigate to the write-only URL and run
+      // onSuccess when they have no validation errors. Keep this composer alive.
+      const message =
+        response.data?.component === 'errors/status'
+          ? response.data.props?.message
+          : null
+      updateForm.setError(
+        'update',
+        `The save could not be confirmed (${response.status}). ${
+          typeof message === 'string'
+            ? message
+            : 'Your edits are still here. Try again.'
+        }`
+      )
+      persistUpdate()
+      return false
+    },
+    onNetworkError: () => {
+      updateForm.setError(
+        'update',
+        'The connection was interrupted before the save was confirmed. Your edits are still here. Try again.'
+      )
+      persistUpdate()
+      return false
+    },
     onSuccess: (page) => {
       if (snapshot() === submitted) {
         clearDraft()

@@ -186,3 +186,256 @@ test(
     expect(requests).toBe(4)
   }
 )
+
+// BEGIN QUEST COMPARISON CAPTURE
+// Self-contained: CI copies only this trial into the pinned pre-change checkout.
+// Keep fixture identity, relative timings, and viewport sizes for later captures.
+test(
+  'Quest comparison capture renders the real page with synthetic operational data',
+  {
+    browser: true,
+    world: {
+      name: 'configured-slipway',
+      context: {
+        deploymentTarget: {
+          slug: 'quest-showcase',
+          name: 'Northstar Commerce'
+        }
+      }
+    }
+  },
+  async ({ sails, world, login, page, expect }) => {
+    const fs = require('node:fs')
+    const path = require('node:path')
+    const { execFileSync } = require('node:child_process')
+    const phase = process.env.SLIPWAY_QUEST_CAPTURE_PHASE || 'current'
+    const sourceSha = execFileSync('git', ['rev-parse', 'HEAD'], {
+      encoding: 'utf8'
+    }).trim()
+    const root = path.resolve('.tmp/screenshots/quest-comparison', phase)
+    fs.mkdirSync(root, { recursive: true })
+    const current = world.current
+    const environment = current.environments.production.id
+    const now = Date.now()
+    const minute = 60000
+    const jobs = [
+      {
+        name: 'rebuild-search-index',
+        friendlyName: 'Rebuild search index',
+        description: 'Keep product and article search up to date.',
+        schedule: '15 minutes',
+        scheduleType: 'interval',
+        paused: false,
+        withoutOverlapping: true,
+        isRunning: false,
+        nextRunAt: now + 9 * minute
+      },
+      {
+        name: 'sync-product-catalog',
+        friendlyName: 'Sync product catalog',
+        description: 'Refresh inventory and product details from suppliers.',
+        schedule: '1 hour',
+        scheduleType: 'interval',
+        paused: false,
+        withoutOverlapping: true,
+        isRunning: true,
+        nextRunAt: now + 56 * minute
+      },
+      {
+        name: 'prune-temporary-uploads',
+        friendlyName: 'Prune temporary uploads',
+        description: 'Remove expired uploads after their retention window.',
+        schedule: '0 2 * * *',
+        scheduleType: 'cron',
+        paused: false,
+        withoutOverlapping: false,
+        isRunning: false,
+        nextRunAt: now + 480 * minute
+      },
+      {
+        name: 'send-weekly-digest',
+        friendlyName: 'Send weekly digest',
+        description: 'Prepare the weekly summary for opted-in customers.',
+        schedule: '0 9 * * 1',
+        scheduleType: 'cron',
+        paused: true,
+        withoutOverlapping: true,
+        isRunning: false,
+        nextRunAt: null
+      },
+      {
+        name: 'export-account-report',
+        friendlyName: 'Export account report',
+        description: 'Build an account activity report when requested.',
+        schedule: null,
+        scheduleType: 'manual',
+        paused: false,
+        withoutOverlapping: false,
+        isRunning: false,
+        nextRunAt: null
+      }
+    ]
+    const events = [
+      ['rebuild-search-index', 'completed', 6, 1480, 'manual'],
+      ['rebuild-search-index', 'complete', 21, 1520, 'scheduled'],
+      ['rebuild-search-index', 'complete', 36, 1410, 'scheduled'],
+      ['rebuild-search-index', 'complete', 51, 1610, 'scheduled'],
+      ['sync-product-catalog', 'complete', 4, 2840, 'scheduled'],
+      ['sync-product-catalog', 'failed', 64, 820, 'manual'],
+      ['sync-product-catalog', 'start', 1, 0, 'scheduled'],
+      ['prune-temporary-uploads', 'complete', 140, 240, 'scheduled'],
+      ['send-weekly-digest', 'complete', 1000, 5100, 'scheduled'],
+      ['export-account-report', 'completed', 18, 820, 'manual']
+    ]
+    await sails.models.environment.updateOne({ id: environment }).set({
+      features: {
+        'sails-quest': { scripts: jobs.map(({ name }) => ({ name })) }
+      }
+    })
+    await sails.models.app.updateOne({ id: current.apps.web.id }).set({
+      status: 'running',
+      containerName: 'synthetic-quest-showcase-never-executed'
+    })
+    await sails.models.team
+      .updateOne({ id: current.teams.genesisTeam.id })
+      .set({ name: 'Northstar' })
+    await sails.models.user
+      .updateOne({ id: current.users.genesisUser.id })
+      .set({ fullName: 'Alex Rivera' })
+    await sails.models.telemetrymetric.createEach(
+      events.map(([jobName, event, minutesAgo, duration, trigger]) => ({
+        environment,
+        name: `quest.job.${event}`,
+        value: duration,
+        unit: 'ms',
+        recordedAt: now - minutesAgo * minute,
+        attributes: {
+          jobName,
+          trigger,
+          ...(event === 'failed'
+            ? { error: 'Synthetic supplier connection timed out.' }
+            : {}),
+          ...(event === 'completed' && jobName === 'rebuild-search-index'
+            ? {
+                stdout: 'Indexed 240 synthetic products and 18 articles.',
+                stderr: 'Synthetic warning: 3 archived products were skipped.'
+              }
+            : {})
+        }
+      }))
+    )
+    const originalListJobs = sails.helpers.quest.listJobs
+    const originalExecute = sails.helpers.quest.executeInContainer
+    let discoveryCalls = 0
+    let mutationRequests = 0
+    sails.helpers.quest.listJobs = async () => {
+      discoveryCalls++
+      return { jobs, error: null }
+    }
+    sails.helpers.quest.executeInContainer = async () => {
+      throw new Error('Capture fixtures must never execute a container.')
+    }
+    await page.raw.route('**/quest/**', (route) => {
+      if (route.request().method() !== 'GET') {
+        mutationRequests++
+        return route.abort('blockedbyclient')
+      }
+      return route.continue()
+    })
+    try {
+      // Fixed Date, with real timers, keeps relative labels identical while
+      // leaving the actual app, SSE, navigation, and rendering paths intact.
+      await page.raw.clock.setFixedTime(now)
+      await login.withPassword('genesisUser', page, {
+        password: current.auth.genesisUserPassword
+      })
+      await page.goto('/projects/quest-showcase/quest')
+      await expect(
+        page.raw.getByRole('heading', {
+          name: 'Rebuild search index',
+          exact: true
+        })
+      ).toBeVisible()
+      await expect(
+        page.raw.getByRole('heading', {
+          name: 'Export account report',
+          exact: true
+        })
+      ).toBeVisible()
+      await expect(
+        page.raw.getByLabel('Live updates active', { exact: true })
+      ).toBeVisible()
+      const captures = [
+        { name: 'desktop-light', width: 1440, height: 1000, scheme: 'light' },
+        { name: 'desktop-dark', width: 1440, height: 1000, scheme: 'dark' },
+        { name: 'mobile-light', width: 390, height: 844, scheme: 'light' },
+        { name: 'mobile-dark', width: 390, height: 844, scheme: 'dark' }
+      ]
+      for (const capture of captures) {
+        await page.raw.setViewportSize({
+          width: capture.width,
+          height: capture.height
+        })
+        await page.raw.emulateMedia({ colorScheme: capture.scheme })
+        await page.raw
+          .getByRole('heading', { name: 'Quest', exact: true })
+          .scrollIntoViewIfNeeded()
+        await page.raw.mouse.move(0, 0)
+        await page.raw.evaluate(() => document.fonts.ready)
+        await page.screenshot(
+          path.join(root, `quest-${phase}-${capture.name}.png`),
+          {
+            animations: 'disabled',
+            fullPage: false
+          }
+        )
+      }
+      expect(discoveryCalls > 0).toBe(true)
+      expect(mutationRequests).toBe(0)
+      expect(page).toHaveNoJavascriptErrors()
+      fs.writeFileSync(
+        path.join(root, 'fixture.json'),
+        JSON.stringify(
+          {
+            fixtureVersion: 1,
+            description:
+              'Actual rendered Slipway Quest page with synthetic operational data; no Docker, customer, or production jobs executed. Screenshots are not mockups.',
+            phase,
+            sourceSha,
+            captureTrialSourceSha:
+              process.env.SLIPWAY_QUEST_CAPTURE_TRIAL_SHA || sourceSha,
+            frozenBrowserTime: new Date(now).toISOString(),
+            project: 'Northstar Commerce',
+            team: 'Northstar',
+            user: 'Alex Rivera (synthetic)',
+            environment: 'production (synthetic fixture)',
+            jobs: jobs.map(({ nextRunAt, ...job }) => ({
+              ...job,
+              nextRunInMinutes:
+                nextRunAt === null ? null : (nextRunAt - now) / minute
+            })),
+            events: events.map(
+              ([jobName, event, minutesAgo, durationMs, trigger]) => ({
+                jobName,
+                event,
+                minutesAgo,
+                durationMs,
+                trigger
+              })
+            ),
+            captures,
+            selectedJob: null,
+            selectedEvent: null
+          },
+          null,
+          2
+        ) + '\n'
+      )
+    } finally {
+      await page.raw.goto('about:blank')
+      sails.helpers.quest.listJobs = originalListJobs
+      sails.helpers.quest.executeInContainer = originalExecute
+    }
+  }
+)
+// END QUEST COMPARISON CAPTURE

@@ -1,9 +1,286 @@
 const crypto = require('node:crypto')
 const { test } = require('sounding')
+const { createSessionCookie } = require('sounding/lib/create-session-cookie')
 const {
   INERTIA_HEADERS,
   withCsrfFromPage
 } = require('../../support/csrf-request')
+
+test(
+  'Bearing draft saves survive stale Inertia versions without redirecting to mutation URLs',
+  {
+    transport: 'http',
+    world: {
+      name: 'configured-slipway',
+      context: {
+        deploymentTarget: {
+          slug: 'bearing-save-redirects',
+          name: 'Bearing Save Redirects'
+        }
+      }
+    }
+  },
+  async ({ sails, world, request, expect }) => {
+    const current = world.current
+    const app = current.apps.web
+    const path = bearingPath(
+      current.projects.deploymentTarget,
+      current.environments.production,
+      app
+    )
+    const composer = `${path}?view=updates`
+    const space = await sails.models.bearingspace
+      .create({
+        publicSlug: 'bearing-save-redirects',
+        app: app.id,
+        createdBy: current.users.genesisUser.id
+      })
+      .fetch()
+    const feedback = await sails.models.bearingfeedback
+      .create({
+        title: 'Keep invoice pagination in place',
+        app: app.id,
+        space: space.id
+      })
+      .fetch()
+    // Real HTTP needs a session cookie so the CSRF token and actor belong to
+    // the same browser session throughout the redirect chain.
+    const cookie = await createSessionCookie(sails, {
+      userId: current.users.genesisUser.id
+    })
+    const browser = await withCsrfFromPage(
+      request.using('http').withHeaders({ cookie }),
+      composer
+    )
+    const originalVersion = sails.config.inertia.version
+    const currentVersion = 'bearing-current-assets'
+    const stale = browser.request.withHeaders({
+      'x-inertia-version': 'bearing-previous-assets'
+    })
+    const fresh = browser.request.withHeaders({
+      'x-inertia-version': currentVersion
+    })
+
+    async function followSave(response) {
+      expect(response).toHaveStatus(303)
+      expect(response).toHaveHeader('location', composer)
+      expect(response.header('x-inertia-location')).toBe(null)
+
+      // Inertia performs version negotiation on the redirected GET, after
+      // the mutation has already persisted successfully.
+      const redirected = await stale.get(response.header('location'))
+      expect(redirected).toHaveStatus(409)
+      expect(redirected).toHaveHeader('x-inertia-location', composer)
+
+      const page = await fresh.get(redirected.header('x-inertia-location'))
+      expect(page).toHaveStatus(200)
+      expect(page).toBeInertiaPage('projects/bearing')
+      expect(page.data.url).toBe(composer)
+      return page
+    }
+
+    async function expectSaved(page, draft, values) {
+      const saved = await sails.models.bearingupdate.findOne({ id: draft.id })
+      expect(saved.title).toBe(values.title)
+      expect(saved.excerpt).toBe(values.excerpt)
+      expect(saved.body).toBe(values.body)
+      expect(saved.status).toBe(values.publish ? 'published' : 'draft')
+      expect(
+        await sails.models.bearingupdatelink.count({ update: draft.id })
+      ).toBe(1)
+      expect(
+        await sails.models.bearingupdatelink.count({
+          update: draft.id,
+          feedback: feedback.id
+        })
+      ).toBe(1)
+      const reloaded = page.data.props.updates.find(
+        (update) => update.publicId === draft.publicId
+      )
+      expect(reloaded.title).toBe(values.title)
+      expect(reloaded.excerpt).toBe(values.excerpt)
+      expect(reloaded.body).toBe(values.body)
+      expect(reloaded.status).toBe(saved.status)
+      expect(reloaded.linkedFeedback).toEqual([
+        { publicId: feedback.publicId, title: feedback.title }
+      ])
+    }
+
+    sails.config.inertia.version = currentVersion
+    try {
+      let values = {
+        title: 'Invoice pagination is improving',
+        excerpt: 'Invoice lists keep their place.',
+        body: 'The invoice list keeps its place.\n\n![Invoice list preview](https://assets.example.test/invoices.png "Pagination preview")',
+        feedbackIds: [feedback.publicId],
+        publish: false
+      }
+      const created = await stale.post(`${path}/updates`, values)
+      const draft = await sails.models.bearingupdate.findOne({
+        space: space.id
+      })
+      await expectSaved(await followSave(created), draft, values)
+      const mutationPath = `${path}/updates/${draft.publicId}`
+
+      for (let revision = 1; revision <= 2; revision++) {
+        values = {
+          ...values,
+          title: `Invoice pagination revision ${revision}`,
+          excerpt: `Saved summary revision ${revision}.`,
+          body: `Saved details revision ${revision}.\n\n![Invoice preview revision ${revision}](https://assets.example.test/invoices.png "Preview revision ${revision}")`
+        }
+        const saved = await stale.patch(mutationPath, values)
+        await expectSaved(await followSave(saved), draft, values)
+        expect(
+          await sails.models.bearingupdate.count({ space: space.id })
+        ).toBe(1)
+      }
+
+      values = { ...values, publish: true }
+      const published = await stale.patch(mutationPath, values)
+      await expectSaved(await followSave(published), draft, values)
+      expect(
+        (await sails.models.bearingupdate.findOne({ id: draft.id }))
+          .publishedAt > 0
+      ).toBe(true)
+      expect(
+        (await sails.models.bearingfeedback.findOne({ id: feedback.id })).status
+      ).toBe('shipped')
+
+      const disposable = {
+        ...values,
+        title: 'Discard this draft',
+        body: 'This temporary draft can be removed.',
+        publish: false
+      }
+      await followSave(await stale.post(`${path}/updates`, disposable))
+      const discarded = await sails.models.bearingupdate.findOne({
+        space: space.id,
+        status: 'draft'
+      })
+      const deleted = await stale.delete(
+        `${path}/updates/${discarded.publicId}`
+      )
+      const page = await followSave(deleted)
+      expect(await sails.models.bearingupdate.count({ id: discarded.id })).toBe(
+        0
+      )
+      expect(
+        await sails.models.bearingupdatelink.count({ update: discarded.id })
+      ).toBe(0)
+      expect(page.data.props.updates.length).toBe(1)
+      await expectSaved(page, draft, values)
+    } finally {
+      sails.config.inertia.version = originalVersion
+    }
+  }
+)
+
+test(
+  'Bearing draft persistence failures return an error without changing saved content or links',
+  {
+    transport: 'http',
+    world: {
+      name: 'configured-slipway',
+      context: {
+        deploymentTarget: {
+          slug: 'bearing-save-failure',
+          name: 'Bearing Save Failure'
+        }
+      }
+    }
+  },
+  async ({ sails, world, request, expect }) => {
+    const current = world.current
+    const app = current.apps.web
+    const path = bearingPath(
+      current.projects.deploymentTarget,
+      current.environments.production,
+      app
+    )
+    const space = await sails.models.bearingspace
+      .create({
+        publicSlug: 'bearing-save-failure',
+        app: app.id,
+        createdBy: current.users.genesisUser.id
+      })
+      .fetch()
+    const feedback = await sails.models.bearingfeedback
+      .create({
+        title: 'Keep the existing feedback link',
+        app: app.id,
+        space: space.id
+      })
+      .fetch()
+    const draft = await sails.models.bearingupdate
+      .create({
+        title: 'Previously saved title',
+        slug: 'previously-saved-title',
+        excerpt: 'Previously saved summary.',
+        body: 'Previously saved details.\n\n![Saved image](https://assets.example.test/saved.png "Saved preview")',
+        author: current.users.genesisUser.id,
+        app: app.id,
+        space: space.id
+      })
+      .fetch()
+    await sails.models.bearingupdatelink.create({
+      linkKey: 'bearing-save-failure-link',
+      update: draft.id,
+      feedback: feedback.id,
+      space: space.id
+    })
+    const cookie = await createSessionCookie(sails, {
+      userId: current.users.genesisUser.id
+    })
+    const browser = await withCsrfFromPage(
+      request.using('http').withHeaders({ cookie }),
+      `${path}?view=updates`
+    )
+    const originalUpdateOne = sails.models.bearingupdate.updateOne
+    try {
+      sails.models.bearingupdate.updateOne = () => {
+        throw new Error('Private database failure before draft persistence')
+      }
+      const failed = await browser.request.patch(
+        `${path}/updates/${draft.publicId}`,
+        {
+          title: 'Unsaved replacement title',
+          excerpt: 'Unsaved replacement summary.',
+          body: 'Unsaved replacement details.',
+          feedbackIds: [],
+          publish: true
+        }
+      )
+      expect(failed).toHaveStatus(500)
+      expect(failed).toBeInertiaPage('errors/status')
+      expect(failed).toHaveInertiaProps({ status: 500 })
+      expect(failed.data.props.message).toBeTruthy()
+      expect(failed.header('location')).toBe(null)
+      expect(failed.header('x-inertia-location')).toBe(null)
+      expect(
+        JSON.stringify(failed.data).includes('Private database failure')
+      ).toBe(false)
+    } finally {
+      sails.models.bearingupdate.updateOne = originalUpdateOne
+    }
+
+    const saved = await sails.models.bearingupdate.findOne({ id: draft.id })
+    expect(saved.title).toBe(draft.title)
+    expect(saved.excerpt).toBe(draft.excerpt)
+    expect(saved.body).toBe(draft.body)
+    expect(saved.status).toBe('draft')
+    expect(saved.publishedAt).toBe(null)
+    expect(
+      await sails.models.bearingupdatelink.count({
+        update: draft.id,
+        feedback: feedback.id
+      })
+    ).toBe(1)
+    expect(
+      (await sails.models.bearingfeedback.findOne({ id: feedback.id })).status
+    ).toBe(feedback.status)
+  }
+)
 
 test(
   'Bearing defaults to identified host-app participation and persists settings',
