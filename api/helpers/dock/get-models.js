@@ -142,7 +142,7 @@ function buildIntrospectionCode(environment = []) {
     });
 
     const models = {};
-    for (const [identity, model] of Object.entries(sails.models)) {
+    for (const [identity, model] of Object.entries(sailsApp.models)) {
       // Skip internal Waterline models
       if (identity.startsWith('_') || !model.attributes) continue;
 
@@ -183,7 +183,11 @@ function buildIntrospectionCode(environment = []) {
       }
     }
 
-    process.stdout.write(JSON.stringify(models));
+    // stdout is a pipe to the Docker client. Wait for the complete snapshot
+    // before lowering/exiting, otherwise larger schemas can be truncated.
+    await new Promise((resolve, reject) => {
+      process.stdout.write(JSON.stringify(models), (err) => err ? reject(err) : resolve());
+    });
   } catch (err) {
     process.stderr.write(err.stack || err.message);
     process.exitCode = 1;
@@ -205,6 +209,9 @@ function executeInContainer(args, code) {
       timeout: 25000 // Bound both the Docker client and its inspection child
     })
 
+    // Decode across chunk boundaries so multibyte identifiers/defaults survive.
+    proc.stdout.setEncoding('utf8')
+    proc.stderr.setEncoding('utf8')
     let stdout = ''
     let stderr = ''
 
@@ -242,4 +249,4 @@ function executeInContainer(args, code) {
   })
 }
 
-module.exports._private = { buildIntrospectionCode }
+module.exports._private = { buildIntrospectionCode, executeInContainer }
