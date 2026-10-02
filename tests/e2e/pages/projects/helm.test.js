@@ -2003,9 +2003,9 @@ test(
       await expect(input).toHaveValue(COMMAND_FIXTURE_SOURCE)
       await page.resize(390, 844)
       await assertCommandFitsViewport(page, expect)
-      await page.screenshot(`${COMMAND_SCREENSHOTS}/completed-mobile-dark.png`)
+      await page.screenshot(`${COMMAND_SCREENSHOTS}/failed-mobile-dark.png`)
       await page.inLightMode()
-      await page.screenshot(`${COMMAND_SCREENSHOTS}/completed-mobile-light.png`)
+      await page.screenshot(`${COMMAND_SCREENSHOTS}/failed-mobile-light.png`)
       await page.raw
         .getByRole('button', { name: 'Command history', exact: true })
         .click()
@@ -2058,6 +2058,9 @@ test(
       })
       await expect(dialog).toBeVisible()
       expect(runner.calls.length).toBe(0)
+      // Playwright visibility includes opacity-zero elements; wait for the
+      // actual enter transition so this artifact contains the warning.
+      await expect(dialog.locator('..')).toHaveCSS('opacity', '1')
       await page.screenshot(
         `${COMMAND_SCREENSHOTS}/production-command-warning.png`
       )
@@ -2091,6 +2094,9 @@ test(
       await expect(
         page.raw.locator('[data-test="helm-command-run"]')
       ).toHaveText('Run again')
+      await page.screenshot(
+        `${COMMAND_SCREENSHOTS}/completed-production-command.png`
+      )
       await page.click('@helm-command-run')
       await expect(dialog).toBeVisible()
       expect(runner.calls.length).toBe(1)
@@ -2212,7 +2218,11 @@ test(
       await expect(
         page.raw.getByRole('region', { name: 'Command output', exact: true })
       ).not.toContainText('fixture command still running')
-      await page.goto('/projects')
+      await page.raw
+        .getByRole('navigation', { name: 'Breadcrumb', exact: true })
+        .getByRole('link', { name: 'projects', exact: true })
+        .click()
+      await page.raw.waitForURL((url) => url.pathname === '/')
       await expect(
         page.raw.locator('[data-test="helm-command-console"]')
       ).toHaveCount(0)

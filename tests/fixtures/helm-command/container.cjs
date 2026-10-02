@@ -1,13 +1,19 @@
 // Disposable Docker contract app. This fixture has no database or business jobs.
 const fs = require('node:fs')
+const { createRequire } = require('node:module')
 const root = '/app'
+const dependencies = '/fixture/node_modules'
 // CI installs npm workspaces as relative symlinks. A relocated dependency mount
-// needs the matching /packages and /assets mounts before Sails scans it.
-for (const entry of fs.readdirSync('/deps')) {
+// needs matching sibling packages/assets mounts before Sails scans it. Keeping
+// the real dependency directory named node_modules also preserves hoisted
+// transitive resolution from /fixture/node_modules/sails/lib/app/index.js.
+for (const entry of fs.readdirSync(dependencies)) {
   if (entry.startsWith('.')) continue
   const paths = entry.startsWith('@')
-    ? fs.readdirSync(`/deps/${entry}`).map((name) => `/deps/${entry}/${name}`)
-    : [`/deps/${entry}`]
+    ? fs
+        .readdirSync(`${dependencies}/${entry}`)
+        .map((name) => `${dependencies}/${entry}/${name}`)
+    : [`${dependencies}/${entry}`]
   for (const dependency of paths) {
     if (!fs.lstatSync(dependency).isSymbolicLink()) continue
     try {
@@ -23,11 +29,26 @@ for (const entry of fs.readdirSync('/deps')) {
   }
 }
 fs.mkdirSync(`${root}/scripts`, { recursive: true })
-fs.symlinkSync('/deps', `${root}/node_modules`)
+fs.symlinkSync(dependencies, `${root}/node_modules`)
 fs.writeFileSync(
   `${root}/package.json`,
   JSON.stringify({ dependencies: { sails: '*', 'sails-hook-quest': '*' } })
 )
+// Fail with the actual missing dependency before opaque Sails startup errors.
+// Resolve from each installed package's real location, using normal Node rules.
+// This checks the mounted layout without NODE_PATH or executing any app jobs.
+const appRequire = createRequire(`${root}/package.json`)
+for (const name of ['sails', 'sails-hook-quest']) {
+  const packagePath = appRequire.resolve(`${name}/package.json`)
+  const packageRequire = createRequire(packagePath)
+  for (const dependency of Object.keys(
+    packageRequire('./package.json').dependencies || {}
+  )) {
+    packageRequire.resolve(dependency)
+  }
+}
+console.log('[Helm fixture] Installed dependency resolution verified')
+
 fs.writeFileSync(
   `${root}/.sailsrc`,
   JSON.stringify({
@@ -54,7 +75,7 @@ function runFixtureApp() {
   const sails = require('sails')
   const {
     registerHelmRuntime
-  } = require('/host/packages/hook/lib/helm-runtime-contract')
+  } = require('/fixture/packages/hook/lib/helm-runtime-contract')
   sails.load(sails.getRc(), (error) => {
     if (error) {
       console.error(

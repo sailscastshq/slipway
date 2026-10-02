@@ -39,14 +39,14 @@ test('disposable Docker command contract verifies app identity, Sails CLI, cance
       '-v',
       `${path.resolve('.')}:/host:ro`,
       '-v',
-      `${await fs.realpath('node_modules')}:/deps:ro`,
-      // npm ci installs workspace symlinks inside node_modules. Preserve their
-      // relative targets when mounting that directory at /deps: otherwise
-      // Sails' dependency scanner fails on /deps/sails-hook-slipway (ENOENT).
+      `${await fs.realpath('node_modules')}:/fixture/node_modules:ro`,
+      // Preserve both Node's hoisted sibling lookup (the directory must be
+      // named node_modules) and npm workspace links relative to that directory.
+      // /deps would resolve sails itself but lose @sailshq/lodash and peers.
       '-v',
-      `${path.resolve('packages')}:/packages:ro`,
+      `${path.resolve('packages')}:/fixture/packages:ro`,
       '-v',
-      `${path.resolve('assets')}:/assets:ro`,
+      `${path.resolve('assets')}:/fixture/assets:ro`,
       '-w',
       '/app',
       '-e',
