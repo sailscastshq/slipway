@@ -669,9 +669,10 @@ onBeforeUnmount(() => {
         v-if="lastSource"
         id="helm-command-provenance"
         data-test="helm-command-provenance"
+        :tabindex="draftChanged || (busy && !requestedAt) ? 0 : undefined"
         :class="
           draftChanged || (busy && !requestedAt)
-            ? 'mb-1 break-words text-xs leading-5 text-gray-600 dark:text-gray-400'
+            ? 'mb-1 max-h-20 overflow-auto whitespace-pre-wrap break-words text-xs leading-5 text-gray-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-500 dark:text-gray-400'
             : 'sr-only'
         "
       >

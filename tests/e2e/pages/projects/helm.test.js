@@ -2279,8 +2279,19 @@ test(
   },
   async (context) => {
     const { sails, page, expect } = context
+    const longValue = 'x'.repeat(16 * 1024)
+    const longExpression = `'${longValue}'.length`
+    const longSource = `node -p "${longExpression}"`
+    const longOutput = `${longValue.length}\n`
+    // Deterministic synthetic stdout matches every displayed Node expression.
+    const outputs = new Map([
+      ['1+1', '2\n'],
+      ['2+2', '4\n'],
+      [longExpression, longOutput]
+    ])
     const runner = commandFixtureRunner(sails, async ({ argv, onEvent }) => {
-      const output = argv[2] === '1+1' ? '2\n' : '4\n'
+      expect(outputs.has(argv[2])).toBe(true)
+      const output = outputs.get(argv[2])
       onEvent({ type: 'started' })
       onEvent({ type: 'stdout', text: output })
       return {
@@ -2358,6 +2369,47 @@ test(
       await expect(provenance).toContainText('node -p 2+2')
       await expect(output).toHaveText('4\n')
       expect(runner.calls.length).toBe(2)
+
+      await page.resize(390, 844)
+      await input.fill(longSource)
+      await input.press('Enter')
+      await expect(status).toHaveText('Completed')
+      await expect(output).toHaveText(longOutput)
+      expect(runner.calls.length).toBe(3)
+      await input.fill('node --version')
+      await expect(draft).toHaveText('Draft changed · not run')
+      await expect(provenance).toContainText(longSource)
+      await expect(provenance).toBeVisible()
+      const bounds = await provenance.evaluate((element) => {
+        const output = document.querySelector('[aria-label="Command output"]')
+        return {
+          provenanceHeight: element.getBoundingClientRect().height,
+          provenanceClientHeight: element.clientHeight,
+          provenanceScrollHeight: element.scrollHeight,
+          outputHeight: output.getBoundingClientRect().height,
+          documentWidth: document.documentElement.scrollWidth,
+          viewportWidth: innerWidth
+        }
+      })
+      expect(bounds.provenanceHeight > 0 && bounds.provenanceHeight <= 81).toBe(
+        true
+      )
+      expect(
+        bounds.provenanceScrollHeight > bounds.provenanceClientHeight
+      ).toBe(true)
+      expect(bounds.outputHeight >= 160).toBe(true)
+      expect(bounds.documentWidth <= bounds.viewportWidth).toBe(true)
+      await provenance.focus()
+      await expect(provenance).toBeFocused()
+      await provenance.press('End')
+      await page.raw.waitForFunction(
+        () =>
+          document.querySelector('[data-test="helm-command-provenance"]')
+            .scrollTop > 0
+      )
+      await expect(output).toHaveText(longOutput)
+      await assertCommandFitsViewport(page, expect)
+      expect(runner.calls.length).toBe(3)
       expect(page).toHaveNoSmoke()
     } finally {
       runner.restore()
