@@ -29,6 +29,7 @@ import Alert from '@/components/ui/alert/Alert.vue'
 import Breadcrumb from '@/components/ui/breadcrumb/Breadcrumb.vue'
 import Tooltip from '@/components/ui/tooltip/Tooltip.vue'
 import Tabs from '@/components/ui/tabs/Tabs.vue'
+import { useToast } from '@/composables/toast'
 import { useHelmScratchpads } from '@/composables/useHelmScratchpads'
 import { helmEditorDiagnostic } from '@/lib/helmResult'
 import { cancelHelmExecution, cancelledHelmResult } from '@/lib/helmExecution'
@@ -75,6 +76,7 @@ const breadcrumbs = computed(() => [
   { label: 'helm' }
 ])
 
+const toast = useToast()
 const scratchpads = useHelmScratchpads(() => props.target)
 const {
   tabs: scratchpadTabs,
@@ -506,6 +508,19 @@ function activateScratchpadById(id) {
   if (tab) activateScratchpad(tab)
 }
 
+function renameScratchpad(id, name) {
+  const outcome = scratchpads.rename(id, name)
+  if (outcome === 'saved') {
+    toast({ message: 'Scratchpad renamed', type: 'success' })
+  } else if (outcome === 'failed') {
+    toast({
+      message:
+        'Could not save the name. Check browser storage permissions and try again.',
+      type: 'error'
+    })
+  }
+}
+
 async function createScratchpad() {
   if (running.value || inspectingSource.value) return
   const tab = scratchpads.create()
@@ -762,7 +777,7 @@ watch(
         :disabled="running || inspectingSource"
         :can-create="canCreateScratchpad"
         @create="createScratchpad"
-        @rename="scratchpads.rename"
+        @rename="renameScratchpad"
         @duplicate="duplicateScratchpad"
         @move="(tab, offset) => scratchpads.move(tab.id, offset)"
         @save="saveScratchpadAsSnippet"
