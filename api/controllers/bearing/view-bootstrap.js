@@ -53,6 +53,8 @@ function bearingBootstrap() {
       let opener = null
       let openedFromInjectedTrigger = false
       let hostScrollState = null
+      let transitionId = 0
+      let closeTimer = null
       let fresh = Boolean(
         config.showUnread &&
           latestUpdateId &&
@@ -67,7 +69,13 @@ function bearingBootstrap() {
       const root = host.attachShadow({ mode: 'open' })
       root.innerHTML = `
         <style>
-          :host { all: initial; }
+          :host {
+            all: initial;
+            --bearing-safe-top: env(safe-area-inset-top, 0px);
+            --bearing-safe-right: env(safe-area-inset-right, 0px);
+            --bearing-safe-bottom: env(safe-area-inset-bottom, 0px);
+            --bearing-safe-left: env(safe-area-inset-left, 0px);
+          }
           *, *::before, *::after { box-sizing: border-box; }
 
           .bearing-trigger {
@@ -76,7 +84,7 @@ function bearingBootstrap() {
             background: rgb(255 255 255 / 92%);
             border: 1px solid rgb(17 17 17 / 12%);
             border-radius: 14px;
-            bottom: 20px;
+            bottom: calc(20px + var(--bearing-safe-bottom));
             box-shadow: 0 14px 38px -14px rgb(0 0 0 / 36%);
             color: #171717;
             cursor: pointer;
@@ -99,8 +107,19 @@ function bearingBootstrap() {
             outline-offset: 3px;
           }
           .bearing-trigger[hidden] { display: none; }
-          .bearing-trigger[data-side='right'] { right: 20px; }
-          .bearing-trigger[data-side='left'] { left: 20px; }
+          .bearing-trigger[data-side='right'] { right: calc(20px + var(--bearing-safe-right)); }
+          .bearing-trigger[data-side='left'] { left: calc(20px + var(--bearing-safe-left)); }
+          .bearing-trigger[aria-expanded='true'] {
+            padding: 0;
+            width: 48px;
+            justify-content: center;
+          }
+          .bearing-trigger[aria-expanded='true']:hover { transform: none; }
+          .bearing-trigger[aria-expanded='true'] .bearing-trigger-mark {
+            background: transparent;
+            color: inherit;
+            font-size: 26px;
+          }
           .bearing-trigger-mark {
             align-items: center;
             background: #171717;
@@ -114,31 +133,47 @@ function bearingBootstrap() {
           }
 
           .bearing-panel {
-            background: #fff;
-            border: 1px solid #dedede;
-            border-radius: 20px;
-            bottom: 76px;
-            box-shadow: 0 24px 70px rgb(0 0 0 / 22%);
+            background: transparent;
+            border: 0;
+            bottom: calc(76px + var(--bearing-safe-bottom));
             color: #111;
-            height: min(620px, calc(100dvh - 108px));
+            height: min(620px, calc(100dvh - 108px - var(--bearing-safe-bottom) - var(--bearing-safe-top)));
             inset-block-start: auto;
             margin: 0;
             max-height: none;
             max-width: none;
-            overflow: hidden;
+            overflow: visible;
             padding: 0;
             position: fixed;
-            width: min(420px, calc(100vw - 40px));
+            width: min(420px, calc(100vw - 40px - var(--bearing-safe-left) - var(--bearing-safe-right)));
             z-index: 2147483000;
           }
-          .bearing-panel[data-side='right'] { left: auto; right: 20px; }
-          .bearing-panel[data-side='left'] { left: 20px; right: auto; }
+          .bearing-panel[data-side='right'] { left: auto; right: calc(20px + var(--bearing-safe-right)); }
+          .bearing-panel[data-side='left'] { left: calc(20px + var(--bearing-safe-left)); right: auto; }
           .bearing-panel[data-opened-from='host'] { bottom: 20px; }
-          .bearing-panel[open] {
-            animation: bearing-panel-in 180ms cubic-bezier(.2, .8, .2, 1);
+          .bearing-panel[open] { display: block; }
+          .bearing-panel-surface {
+            background: #fff;
+            border: 1px solid #dedede;
+            border-radius: 20px;
+            box-shadow: 0 24px 70px rgb(0 0 0 / 22%);
             display: grid;
             grid-template-rows: 52px minmax(0, 1fr) auto 30px;
+            height: 100%;
+            overflow: hidden;
           }
+          .bearing-panel[open] .bearing-panel-surface {
+            animation: bearing-panel-in 180ms cubic-bezier(.2, .8, .2, 1);
+          }
+          .bearing-panel[data-closing] .bearing-panel-surface {
+            animation: bearing-panel-out 140ms ease-in both;
+          }
+          .bearing-panel[data-closing] .bearing-trigger {
+            opacity: 0;
+            transform: scale(.9);
+            transition: opacity 140ms ease-in, transform 140ms ease-in;
+          }
+          .bearing-panel-close[hidden] { display: none; }
           .bearing-panel::backdrop { background: transparent; }
 
           .bearing-panel-header {
@@ -231,6 +266,11 @@ function bearingBootstrap() {
             to { opacity: 1; transform: translateY(0) scale(1); }
           }
 
+          @keyframes bearing-panel-out {
+            from { opacity: 1; transform: translateY(0) scale(1); }
+            to { opacity: 0; transform: translateY(10px) scale(.985); }
+          }
+
           @media (prefers-color-scheme: dark) {
             .bearing-trigger {
               background: rgb(17 17 17 / 92%);
@@ -238,7 +278,7 @@ function bearingBootstrap() {
               color: #fff;
             }
             .bearing-trigger-mark { background: #fff; color: #171717; }
-            .bearing-panel { background: #030712; border-color: #30343b; }
+            .bearing-panel-surface { background: #030712; border-color: #30343b; }
             .bearing-panel-header {
               background: #030712;
               border-color: #20242b;
@@ -263,13 +303,10 @@ function bearingBootstrap() {
           }
 
           @media (max-width: 640px) {
-            .bearing-trigger { bottom: 12px; }
-            .bearing-trigger[aria-expanded='true'] { display: none; }
-            .bearing-trigger[data-side='right'] { right: 12px; }
-            .bearing-trigger[data-side='left'] { left: 12px; }
+            .bearing-trigger { bottom: calc(12px + var(--bearing-safe-bottom)); }
+            .bearing-trigger[data-side='right'] { right: calc(12px + var(--bearing-safe-right)); }
+            .bearing-trigger[data-side='left'] { left: calc(12px + var(--bearing-safe-left)); }
             .bearing-panel {
-              border-bottom: 0;
-              border-radius: 20px 20px 0 0;
               bottom: 0;
               height: min(760px, calc(100dvh - 16px));
               width: 100vw;
@@ -280,20 +317,33 @@ function bearingBootstrap() {
               right: 0;
             }
             .bearing-panel[data-opened-from='host'] { bottom: 0; }
-            .bearing-panel[open] {
+            .bearing-panel[data-opened-from='widget'] {
+              bottom: calc(72px + var(--bearing-safe-bottom));
+              height: min(760px, calc(100dvh - 88px - var(--bearing-safe-bottom) - var(--bearing-safe-top)));
+              width: calc(100vw - 24px - var(--bearing-safe-left) - var(--bearing-safe-right));
+            }
+            .bearing-panel[data-opened-from='widget'][data-side='right'] { left: auto; right: calc(12px + var(--bearing-safe-right)); }
+            .bearing-panel[data-opened-from='widget'][data-side='left'] { left: calc(12px + var(--bearing-safe-left)); right: auto; }
+            .bearing-panel[data-opened-from='host'] .bearing-panel-surface {
+              border-bottom: 0;
+              border-radius: 20px 20px 0 0;
+            }
+            .bearing-panel[open]:not([data-closing]) .bearing-panel-surface {
               animation-name: bearing-sheet-in;
+            }
+            .bearing-panel-surface {
               grid-template-rows:
                 52px minmax(0, 1fr) auto
-                calc(30px + env(safe-area-inset-bottom));
+                calc(30px + var(--bearing-safe-bottom));
             }
             .bearing-powered-by {
-              padding-bottom: env(safe-area-inset-bottom);
+              padding-bottom: var(--bearing-safe-bottom);
             }
           }
 
           @media (prefers-reduced-motion: reduce) {
-            .bearing-panel[open] { animation: none; }
-            .bearing-trigger { transition: none; }
+            .bearing-panel[open] .bearing-panel-surface { animation: none; }
+            .bearing-trigger { transition: none !important; }
           }
 
           @keyframes bearing-sheet-in {
@@ -319,6 +369,7 @@ function bearingBootstrap() {
           aria-labelledby="slipway-bearing-title"
           aria-modal="true"
         >
+          <div class="bearing-panel-surface">
           <header class="bearing-panel-header">
             <span id="slipway-bearing-title">${escapeHtml(
               config.appName
@@ -344,6 +395,7 @@ function bearingBootstrap() {
             target="_blank"
             rel="noreferrer"
           >Powered by Slipway</a>
+          </div>
         </dialog>
       `
 
@@ -355,8 +407,16 @@ function bearingBootstrap() {
 
       function paintTrigger() {
         trigger.setAttribute('aria-expanded', String(open))
-        trigger.hidden = open || !fresh
-        if (fresh) {
+        trigger.hidden = open ? !openedFromInjectedTrigger : !fresh
+        closeButton.hidden = open && openedFromInjectedTrigger
+        if (open && openedFromInjectedTrigger) {
+          trigger.innerHTML =
+            '<span class="bearing-trigger-mark" aria-hidden="true">×</span>'
+          trigger.setAttribute(
+            'aria-label',
+            `Close what’s new for ${config.appName}`
+          )
+        } else if (fresh) {
           trigger.innerHTML =
             '<span class="bearing-trigger-mark" aria-hidden="true">✦</span><span>What’s new</span>'
           trigger.setAttribute(
@@ -417,28 +477,51 @@ function bearingBootstrap() {
       }
 
       function openPanel(surface = openingView, nextOpener = null) {
-        if (!setSurface(surface)) return false
+        if (!surfaces[surface]) return false
+        const transition = ++transitionId
+        clearTimeout(closeTimer)
+        panel.removeAttribute('data-closing')
         opener = nextOpener || document.activeElement
         openedFromInjectedTrigger = opener === trigger
         panel.dataset.openedFrom = openedFromInjectedTrigger ? 'widget' : 'host'
-        if (!panel.open) panel.showModal()
+        // Moving the same button into the dialog keeps it in the native top
+        // layer, including when the browser makes the host document inert.
+        if (openedFromInjectedTrigger) panel.prepend(trigger)
+        else root.insertBefore(trigger, panel)
         open = true
+        setSurface(surface)
+        if (!panel.open) panel.showModal()
         lockHostScroll()
-        paintTrigger()
-        requestAnimationFrame(() => closeButton.focus())
+        requestAnimationFrame(() => {
+          if (transition !== transitionId || !open) return
+          ;(openedFromInjectedTrigger ? trigger : closeButton).focus()
+        })
         return true
       }
 
       function closePanel() {
+        if (!open || panel.hasAttribute('data-closing')) return
+        const transition = ++transitionId
         const previousOpener = opener
-        if (panel.open) panel.close()
-        open = false
-        opener = null
-        openedFromInjectedTrigger = false
-        unlockHostScroll()
-        paintTrigger()
-        if (previousOpener?.isConnected && previousOpener !== trigger) {
-          previousOpener.focus()
+        const finish = () => {
+          if (transition !== transitionId) return
+          if (panel.open) panel.close()
+          panel.removeAttribute('data-closing')
+          open = false
+          opener = null
+          openedFromInjectedTrigger = false
+          root.insertBefore(trigger, panel)
+          unlockHostScroll()
+          paintTrigger()
+          if (previousOpener?.isConnected && previousOpener !== trigger) {
+            previousOpener.focus()
+          }
+        }
+        panel.setAttribute('data-closing', '')
+        if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+          finish()
+        } else {
+          closeTimer = setTimeout(finish, 140)
         }
       }
 

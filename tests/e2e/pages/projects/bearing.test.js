@@ -1096,17 +1096,42 @@ test(
     await page.screenshot(path.join(screenshotRoot, 'widget-whats-new.png'), {
       fullPage: true
     })
+    const closedTriggerBounds = await widgetTrigger.boundingBox()
     await widgetTrigger.click()
     const widgetPanel = widget.locator('dialog')
     await expect(widgetPanel).toBeVisible()
-    await expect(widgetTrigger).toBeHidden()
+    await expect(widgetTrigger).toBeVisible()
+    await expect(widgetTrigger).toHaveAccessibleName(
+      'Close what’s new for Northstar'
+    )
+    await expect(widgetTrigger).toBeFocused()
+    await expect(widgetPanel.locator('[data-trigger]')).toBeVisible()
+    await expect(widget.locator('[data-close]')).toBeHidden()
+    expect(
+      await widgetPanel.evaluate((dialog) => dialog.matches(':modal'))
+    ).toBe(true)
+    const openTriggerBounds = await widgetTrigger.boundingBox()
+    expect(Math.round(openTriggerBounds.x + openTriggerBounds.width)).toBe(
+      Math.round(closedTriggerBounds.x + closedTriggerBounds.width)
+    )
+    expect(Math.round(openTriggerBounds.y + openTriggerBounds.height)).toBe(
+      Math.round(closedTriggerBounds.y + closedTriggerBounds.height)
+    )
+    await page.raw.keyboard.press('Shift+Tab')
+    await expect(widget.locator('.bearing-powered-by')).toBeFocused()
+    await page.raw.keyboard.press('Tab')
+    await expect(widgetTrigger).toBeFocused()
     await expect(widgetTrigger).toHaveAttribute('aria-expanded', 'true')
     const widgetBounds = await widgetPanel.boundingBox()
     expect(widgetBounds.x + widgetBounds.width > 1400).toBe(true)
     expect(widgetBounds.y + widgetBounds.height > 900).toBe(true)
-    await page.raw.waitForTimeout(220)
+    await expect(widget.locator('.bearing-panel-surface')).toHaveCSS(
+      'opacity',
+      '1'
+    )
     await page.screenshot(path.join(screenshotRoot, 'widget-open.png'), {
-      fullPage: true
+      fullPage: true,
+      animations: 'disabled'
     })
     await page.resize(390, 844)
     await page.raw.waitForTimeout(220)
@@ -1115,10 +1140,55 @@ test(
       left: Math.round(mobileWidgetBounds.x),
       right: Math.round(mobileWidgetBounds.x + mobileWidgetBounds.width),
       bottom: Math.round(mobileWidgetBounds.y + mobileWidgetBounds.height)
-    }).toEqual({ left: 0, right: 390, bottom: 844 })
+    }).toEqual({ left: 12, right: 378, bottom: 772 })
+    const mobileCloseBounds = await widgetTrigger.boundingBox()
+    expect(
+      mobileCloseBounds.y >= mobileWidgetBounds.y + mobileWidgetBounds.height
+    ).toBe(true)
+    expect(mobileCloseBounds.y + mobileCloseBounds.height <= 832).toBe(true)
+    await expect(widgetTrigger).toBeVisible()
     await page.screenshot(path.join(screenshotRoot, 'widget-open-mobile.png'))
+    await widget.evaluate((host) => {
+      for (const [side, value] of Object.entries({
+        top: 47,
+        right: 9,
+        bottom: 34,
+        left: 7
+      })) {
+        host.style.setProperty(`--bearing-safe-${side}`, `${value}px`)
+      }
+    })
+    const safePanelBounds = await widgetPanel.boundingBox()
+    const safeTriggerBounds = await widgetTrigger.boundingBox()
+    expect({
+      top: Math.round(safePanelBounds.y),
+      left: Math.round(safePanelBounds.x),
+      right: Math.round(safePanelBounds.x + safePanelBounds.width),
+      bottom: Math.round(safePanelBounds.y + safePanelBounds.height)
+    }).toEqual({ top: 63, left: 19, right: 369, bottom: 738 })
+    expect(Math.round(safeTriggerBounds.y + safeTriggerBounds.height)).toBe(798)
+    await page.screenshot(
+      path.join(screenshotRoot, 'widget-open-mobile-safe-insets.png')
+    )
+    await widget.evaluate((host) => {
+      for (const side of ['top', 'right', 'bottom', 'left'])
+        host.style.removeProperty(`--bearing-safe-${side}`)
+    })
     await page.resize(1440, 1000)
-    await widget.locator('[data-close]').click()
+    const exitStarted = await widgetTrigger.evaluate((button) => {
+      button.click()
+      const dialog = button.closest('dialog')
+      return {
+        open: dialog.open,
+        closing: dialog.hasAttribute('data-closing'),
+        buttonHidden: button.hidden
+      }
+    })
+    expect(exitStarted).toEqual({
+      open: true,
+      closing: true,
+      buttonHidden: false
+    })
     await expect(widgetPanel).not.toBeVisible()
     await expect(widgetTrigger).toBeHidden()
     await revealLatestUpdateTrigger(page, space.publicSlug)
@@ -1137,6 +1207,22 @@ test(
     await revealLatestUpdateTrigger(page, space.publicSlug)
     await widgetTrigger.click()
     await expect(widgetPanel).toBeVisible()
+    await widgetTrigger.evaluate((button) => {
+      button.click()
+      window.dispatchEvent(
+        new CustomEvent('slipway:bearing:open', {
+          detail: { surface: 'feedback' }
+        })
+      )
+    })
+    await expect(widgetPanel).toHaveAttribute('data-opened-from', 'host')
+    await expect(widgetTrigger).toBeHidden()
+    await expect(widget.locator('[data-close]')).toBeFocused()
+    await page.raw.evaluate(
+      () => new Promise((resolve) => setTimeout(resolve, 180))
+    )
+    await expect(widgetPanel).toBeVisible()
+    await expect(widget.locator('[data-close]')).toBeFocused()
     await widget.locator('[data-close]').click()
     await expect(widgetPanel).not.toBeVisible()
     await expect(widgetTrigger).toBeHidden()
@@ -1214,7 +1300,10 @@ test(
       colorScheme: 'dark',
       reducedMotion: 'reduce'
     })
-    await expect(widgetPanel).toHaveCSS('animation-name', 'none')
+    await expect(widget.locator('.bearing-panel-surface')).toHaveCSS(
+      'animation-name',
+      'none'
+    )
     await page.screenshot(
       path.join(screenshotRoot, 'widget-feedback-from-host-dark.png'),
       { fullPage: true, animations: 'disabled' }
@@ -1265,7 +1354,22 @@ test(
     await expect(widgetPanel).not.toBeVisible()
     await expect(hostFeedbackButton).toBeFocused()
 
-    await hostRoadmapButton.click()
+    await hostFeedbackButton.click()
+    await page.raw.evaluate(() => {
+      document
+        .querySelector('[data-slipway-bearing-widget]')
+        .shadowRoot.querySelector('[data-close]')
+        .click()
+      document.querySelector('#host-roadmap-button').click()
+    })
+    await expect(widgetPanel).not.toHaveAttribute('data-closing', '')
+    // Observe beyond the previous exit deadline; its callback must not close
+    // the newly opened surface or restore focus to the previous opener.
+    await page.raw.evaluate(
+      () => new Promise((resolve) => setTimeout(resolve, 180))
+    )
+    await expect(widgetPanel).toBeVisible()
+    await expect(widget.locator('[data-close]')).toBeFocused()
     await expect(widgetFrame).toHaveAttribute(
       'src',
       '/bearing/roadmap?embedded=1'
@@ -1299,6 +1403,34 @@ test(
       '/bearing/feedback?embedded=1'
     )
     await widget.locator('[data-close]').click()
+
+    await expect(widgetPanel).not.toBeVisible()
+    await sails.models.bearingspace
+      .updateOne({ id: space.id })
+      .set({ widgetSide: 'left' })
+    await page.reload()
+    await injectBearingWidget(page, bootstrapPath)
+    await revealLatestUpdateTrigger(page, space.publicSlug)
+    await page.raw.emulateMedia({ reducedMotion: 'reduce' })
+    await expect(widgetTrigger).toHaveAttribute('data-side', 'left')
+    const leftClosedBounds = await widgetTrigger.boundingBox()
+    await widgetTrigger.click()
+    await expect(widgetPanel.locator('[data-trigger]')).toBeFocused()
+    await expect(widget.locator('.bearing-panel-surface')).toHaveCSS(
+      'animation-name',
+      'none'
+    )
+    expect(Math.round((await widgetTrigger.boundingBox()).x)).toBe(
+      Math.round(leftClosedBounds.x)
+    )
+    expect(Math.round((await widgetPanel.boundingBox()).x)).toBe(20)
+    await page.screenshot(
+      path.join(screenshotRoot, 'widget-open-left-reduced-motion.png')
+    )
+    await widgetTrigger.click()
+    await expect(widgetPanel).not.toBeVisible()
+    await expect(widgetTrigger).toBeHidden()
+    await page.raw.emulateMedia({ reducedMotion: 'no-preference' })
 
     const infiniteFeedbackStartedAt = Date.now() - 100_000
     for (const infiniteFeedback of Array.from({ length: 25 }, (_, index) => ({
