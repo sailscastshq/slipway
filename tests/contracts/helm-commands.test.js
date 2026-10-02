@@ -40,6 +40,13 @@ test('disposable Docker command contract verifies app identity, Sails CLI, cance
       `${path.resolve('.')}:/host:ro`,
       '-v',
       `${await fs.realpath('node_modules')}:/deps:ro`,
+      // npm ci installs workspace symlinks inside node_modules. Preserve their
+      // relative targets when mounting that directory at /deps: otherwise
+      // Sails' dependency scanner fails on /deps/sails-hook-slipway (ENOENT).
+      '-v',
+      `${path.resolve('packages')}:/packages:ro`,
+      '-v',
+      `${path.resolve('assets')}:/assets:ro`,
       '-w',
       '/app',
       '-e',
@@ -54,6 +61,7 @@ test('disposable Docker command contract verifies app identity, Sails CLI, cance
     ])
     created = true
     let ready = false
+    let readinessError
     for (let attempt = 0; attempt < 100; attempt++) {
       try {
         await command([
@@ -65,11 +73,26 @@ test('disposable Docker command contract verifies app identity, Sails CLI, cance
         ])
         ready = true
         break
-      } catch {
+      } catch (error) {
+        readinessError = error
+        // An exited/OOM-killed fixture cannot become ready. Report its bounded
+        // diagnostics immediately rather than hiding the cause behind a retry.
+        const state = await command([
+          'inspect',
+          '--format',
+          '{{.State.Running}}',
+          name
+        ])
+        if (state.stdout.trim() !== 'true') break
         await new Promise((resolve) => setTimeout(resolve, 100))
       }
     }
-    assert.ok(ready, 'The disposable app publishes a runtime contract')
+    assert.ok(
+      ready,
+      `The disposable app publishes a runtime contract. Last readiness error: ${boundedDiagnostic(
+        readinessError?.stderr || readinessError?.message || 'none'
+      )}`
+    )
     const execute = (argv, options = {}) =>
       runtime.executeCommand({
         containerName: name,
@@ -187,7 +210,41 @@ test('disposable Docker command contract verifies app identity, Sails CLI, cance
       executionId
     )})`
     await command(['exec', name, 'node', '-e', ownershipCheck])
+  } catch (error) {
+    if (created) {
+      // Only this isolated test container is inspected. Bound both the Docker
+      // client capture and the printed tail, and gather evidence before rm -f.
+      for (const [label, args] of [
+        ['container state', ['inspect', '--format', '{{json .State}}', name]],
+        ['fixture logs', ['logs', '--tail', '80', name]]
+      ]) {
+        try {
+          const result = await run(docker, args, {
+            timeout: 5000,
+            maxBuffer: 128 * 1024
+          })
+          console.error(
+            `[Helm command contract ${label}]\n${boundedDiagnostic(
+              result.stdout + result.stderr
+            )}`
+          )
+        } catch (diagnosticError) {
+          console.error(
+            `[Helm command contract ${label}] ${boundedDiagnostic(
+              diagnosticError.stdout ||
+                diagnosticError.stderr ||
+                diagnosticError.message
+            )}`
+          )
+        }
+      }
+    }
+    throw error
   } finally {
     if (created) await command(['rm', '-f', name])
   }
 })
+
+function boundedDiagnostic(value) {
+  return String(value || '').slice(-16 * 1024)
+}
