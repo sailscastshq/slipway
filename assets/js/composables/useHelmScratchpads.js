@@ -1,5 +1,5 @@
-import { computed, ref, watch } from 'vue'
-import { LOCAL_STORAGE_KEYS } from '@/lib/localStorageKeys'
+import { computed, onScopeDispose, ref, watch } from 'vue'
+import { LOCAL_STORAGE_KEYS } from '../lib/localStorageKeys.js'
 import {
   HELM_SCRATCHPAD_DEFAULT_SOURCE,
   HELM_SCRATCHPAD_LIMIT,
@@ -9,14 +9,14 @@ import {
   parseHelmScratchpadState,
   serializeHelmScratchpadState,
   snapshotHelmTarget
-} from '@/lib/helmScratchpads.mjs'
+} from '../lib/helmScratchpads.mjs'
+import { createHelmScratchpadPersistence } from '../lib/helmScratchpadPersistence.mjs'
 
 export function useHelmScratchpads(targetSource) {
   const tabs = ref([])
   const activeByTarget = ref({})
   const runtime = ref({})
   const ready = ref(false)
-  let persistedState = null
   const currentTarget = computed(() =>
     snapshotHelmTarget(
       typeof targetSource === 'function' ? targetSource() : targetSource
@@ -47,6 +47,7 @@ export function useHelmScratchpads(targetSource) {
         view: selectedView,
         updatedAt: Date.now()
       })
+      persistence.flush()
     }
   })
   const result = computed({
@@ -58,16 +59,48 @@ export function useHelmScratchpads(targetSource) {
     set: (value) => setRuntime(activeId.value, { error: String(value || '') })
   })
 
+  const persistence = createHelmScratchpadPersistence({
+    readState: () => ({
+      tabs: tabs.value,
+      activeByTarget: activeByTarget.value
+    }),
+    serialize: serializeHelmScratchpadState,
+    writeState: (serialized) => {
+      window.localStorage.setItem(
+        LOCAL_STORAGE_KEYS.helmScratchpads,
+        serialized
+      )
+    },
+    onError: (error) => console.warn('Could not save Helm scratchpads:', error)
+  })
+
   initialize()
 
+  // All persisted updates replace these refs. Avoid walking every saved tab on
+  // each keystroke, and defer serialization until the autosave actually runs.
   watch(
     [tabs, activeByTarget],
     () => {
       if (!ready.value || typeof window === 'undefined') return
-      persist(tabs.value)
+      persistence.schedule()
     },
-    { deep: true, immediate: true, flush: 'sync' }
+    { flush: 'sync' }
   )
+
+  if (typeof window !== 'undefined') {
+    persistence.save()
+    const flush = () => persistence.flush()
+    const flushWhenHidden = () => {
+      if (document.visibilityState === 'hidden') flush()
+    }
+    window.addEventListener('pagehide', flush)
+    document.addEventListener('visibilitychange', flushWhenHidden)
+    onScopeDispose(() => {
+      flush()
+      window.removeEventListener('pagehide', flush)
+      document.removeEventListener('visibilitychange', flushWhenHidden)
+    })
+  }
 
   function initialize() {
     const state = readState()
@@ -127,6 +160,7 @@ export function useHelmScratchpads(targetSource) {
       ...activeByTarget.value,
       [tab.target.key]: tab.id
     }
+    persistence.flush()
     return tab
   }
 
@@ -136,30 +170,17 @@ export function useHelmScratchpads(targetSource) {
     const renamed = normalizeUpdate(tab, { name, updatedAt: Date.now() })
     if (renamed.name === tab.name) return 'unchanged'
     const nextTabs = tabs.value.map((item) => (item.id === id ? renamed : item))
-    if (!persist(nextTabs)) return 'failed'
-    tabs.value = nextTabs
-    return 'saved'
-  }
-
-  function persist(nextTabs) {
-    if (typeof window === 'undefined') return false
-    try {
-      const serialized = serializeHelmScratchpadState({
+    if (
+      typeof window === 'undefined' ||
+      !persistence.save({
         tabs: nextTabs,
         activeByTarget: activeByTarget.value
       })
-      if (serialized !== persistedState) {
-        window.localStorage.setItem(
-          LOCAL_STORAGE_KEYS.helmScratchpads,
-          serialized
-        )
-        persistedState = serialized
-      }
-      return true
-    } catch (error) {
-      console.warn('Could not save Helm scratchpads:', error)
-      return false
-    }
+    )
+      return 'failed'
+    tabs.value = nextTabs
+    persistence.flush()
+    return 'saved'
   }
 
   function duplicate(id) {
@@ -196,6 +217,7 @@ export function useHelmScratchpads(targetSource) {
     const [tab] = nextTabs.splice(index, 1)
     nextTabs.splice(nextIndex, 0, tab)
     tabs.value = nextTabs
+    persistence.flush()
   }
 
   function close(id) {
@@ -220,12 +242,14 @@ export function useHelmScratchpads(targetSource) {
             : nextForTarget[0]?.id || ''
       }
     }
+    persistence.flush()
   }
 
   function markCurrentSourceSaved(source = code.value) {
     const tab = activeTab.value
     if (!tab || tab.source !== source) return
     update(tab.id, { baselineSource: source, updatedAt: Date.now() })
+    persistence.flush()
   }
 
   function clearRuntime() {
