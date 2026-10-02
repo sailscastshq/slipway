@@ -52,7 +52,9 @@ jobs:
       - name: Verify focused command process and installed Sails CLI contracts
         run: node_modules/.bin/sounding test --file tests/unit/helpers/helm/command-runtime.test.js --file tests/unit/helpers/helm/command-sails.test.js --file tests/unit/helpers/helm/app-context.test.js --test-concurrency=1
       - run: docker pull node:22-bookworm-slim
+        if: success() || failure()
       - name: Verify disposable command runtime and process cleanup
+        if: success() || failure()
         run: node_modules/.bin/sounding test --file tests/contracts/helm-commands.test.js --test-concurrency=1
 
   custom-services-contract:

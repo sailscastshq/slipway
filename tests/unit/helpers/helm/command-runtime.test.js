@@ -322,61 +322,90 @@ test('command identity opt-in rejects broader exec groups and preserves legacy r
     )
   }))
 
-test('Docker contract ownership probes distinguish running children from terminated ones', async () =>
-  withFixture(async (fixture) => {
-    const probes = require('../../../support/helm-command-probes')
-    const { spawn, spawnSync } = require('node:child_process')
-    const executionId = randomUUID()
-    const { baseline } = runtime.createOwnershipTracker({ executionId })
-    const child = spawn(process.execPath, ['-e', 'setInterval(()=>{},1000)'], {
-      stdio: 'ignore',
-      env: { ...process.env, SLIPWAY_HELM_EXECUTION_ID: executionId }
-    })
-    await new Promise((resolve, reject) => {
-      child.once('spawn', resolve)
-      child.once('error', reject)
-    })
-    const check = () =>
-      spawnSync(process.execPath, [
-        '-e',
-        `(${probes.assertNoOwnedProcesses.toString()})(${JSON.stringify(
-          executionId
-        )}, ${JSON.stringify(baseline)})`
-      ])
-    try {
-      assert.equal(
-        check().status,
-        1,
-        'Live execution marker must fail the ownership assertion'
-      )
-      assert.equal(
-        spawnSync(process.execPath, [
-          '-e',
-          `(${probes.assertStopped.toString()})(${fixture.app.pid})`
-        ]).status,
-        1
-      )
-    } finally {
-      const closed = new Promise((resolve) => child.once('close', resolve))
-      child.kill('SIGKILL')
-      await closed
-    }
-    const after = check()
-    assert.equal(after.status, 0, String(after.stderr || '').slice(-4096))
-    assert.equal(
-      spawnSync(process.execPath, [
-        '-e',
-        `(${probes.assertStopped.toString()})(${child.pid})`
-      ]).status,
-      0
+test('serialized Docker ownership probes distinguish live/terminated fixtures and fail closed on unreadable new PIDs', () => {
+  const probes = require('../../../support/helm-command-probes')
+  const proc = syntheticProc()
+  const executionId = 'controlled-probe-fixture'
+  const { baseline } = runtime.createOwnershipTracker({
+    fs: proc.fs,
+    ownPid: 99,
+    executionId
+  })
+  const check = () =>
+    runControlledProbe(
+      probes.assertNoOwnedProcesses,
+      [executionId, baseline],
+      proc.fs
     )
-    assert.doesNotThrow(
-      () =>
-        new (require('node:vm').Script)(
-          `(${probes.spawnDescendant.toString()})()`
-        )
+  proc.processes.set('2', {
+    ticks: '202',
+    group: 2,
+    state: 'S',
+    env: `SLIPWAY_HELM_EXECUTION_ID=${executionId}\0`
+  })
+  assert.equal(
+    check(),
+    1,
+    'A live tagged fixture must fail the ownership assertion'
+  )
+  assert.equal(runControlledProbe(probes.assertStopped, [2], proc.fs), 1)
+  proc.processes.get('2').state = 'Z'
+  assert.equal(check(), 0, 'A zombie is already terminated')
+  assert.equal(runControlledProbe(probes.assertStopped, [2], proc.fs), 0)
+  proc.processes.delete('2')
+  assert.equal(
+    check(),
+    0,
+    'A removed fixture must pass the ownership assertion'
+  )
+  assert.equal(runControlledProbe(probes.assertStopped, [2], proc.fs), 0)
+  // Model the hosted-runner failure without relying on unrelated processes
+  // appearing (or not appearing) in the host's real /proc during this unit test.
+  proc.processes.set('3', { ticks: '203', group: 3, state: 'S', denied: true })
+  assert.throws(check, { code: 'EACCES' })
+  proc.processes.delete('3')
+  proc.processes.get('1').ticks = '204'
+  assert.throws(
+    check,
+    { code: 'EACCES' },
+    'PID reuse must invalidate the pre-existing process shortcut'
+  )
+  assert.doesNotThrow(
+    () =>
+      new (require('node:vm').Script)(
+        `(${probes.spawnDescendant.toString()})()`
+      )
+  )
+})
+
+// Exercise the exact serialized probe used by Docker while replacing only its
+// procfs inventory and process.exit. No production permission rule is changed.
+function runControlledProbe(probe, args, filesystem) {
+  const { Script } = require('node:vm')
+  const script = new Script(`(${probe.toString()})(...${JSON.stringify(args)})`)
+  try {
+    script.runInNewContext(
+      {
+        require(name) {
+          assert.equal(name, 'node:fs')
+          return filesystem
+        },
+        process: {
+          exit(status) {
+            const error = new Error('Controlled probe exit')
+            error.probeExitStatus = status
+            throw error
+          }
+        }
+      },
+      { timeout: 1000 }
     )
-  }))
+    return 0
+  } catch (error) {
+    if (Number.isInteger(error.probeExitStatus)) return error.probeExitStatus
+    throw error
+  }
+}
 
 test('command identity comparison preserves real/effective UID field positions', async () =>
   withFixture(async (fixture) => {
@@ -410,7 +439,6 @@ test('command supervisor cancels on control EOF and confirms cleanup independent
     const { StringDecoder } = require('node:string_decoder')
     const probes = require('../../../support/helm-command-probes')
     const executionId = randomUUID()
-    const { baseline } = runtime.createOwnershipTracker({ executionId })
     const source = runtime.buildRunnerSource({
       expectedRuntime: fixture.expectedRuntime,
       executionId,
@@ -424,6 +452,8 @@ test('command supervisor cancels on control EOF and confirms cleanup independent
     const decoder = new StringDecoder('utf8')
     let pending = ''
     let terminal
+    let ownedPid
+    let childOutput = ''
     let timer
     client.stdin.on('error', () => {})
     client.stderr.resume()
@@ -445,10 +475,21 @@ test('command supervisor cancels on control EOF and confirms cleanup independent
               client.stdin.write(
                 JSON.stringify({
                   type: 'start',
-                  argv: ['node', '-e', 'setInterval(()=>{},1000)']
+                  argv: [
+                    'node',
+                    '-e',
+                    'console.log(process.pid);setInterval(()=>{},1000)'
+                  ]
                 }) + '\n'
               )
-            if (packet.type === 'started') client.stdin.end()
+            if (packet.type === 'stdout' && !ownedPid) {
+              childOutput += packet.text
+              const newline = childOutput.indexOf('\n')
+              if (newline !== -1) {
+                ownedPid = Number(childOutput.slice(0, newline))
+                client.stdin.end()
+              }
+            }
             if (packet.type === 'result') terminal = packet.result
           }
         })
@@ -456,15 +497,12 @@ test('command supervisor cancels on control EOF and confirms cleanup independent
       assert.equal(terminal.status, 'cancelled', terminalDiagnostic(terminal))
       assert.equal(terminal.terminationConfirmed, true)
       assert.equal(terminal.terminationScope, 'foreground-process-group')
-      assert.equal(
-        spawnSync(process.execPath, [
-          '-e',
-          `(${probes.assertNoOwnedProcesses.toString()})(${JSON.stringify(
-            executionId
-          )}, ${JSON.stringify(baseline)})`
-        ]).status,
-        0
-      )
+      assert.ok(Number.isSafeInteger(ownedPid) && ownedPid > 1)
+      const stopped = spawnSync(process.execPath, [
+        '-e',
+        `(${probes.assertStopped.toString()})(${ownedPid})`
+      ])
+      assert.equal(stopped.status, 0, String(stopped.stderr || '').slice(-4096))
     } finally {
       clearTimeout(timer)
       if (client.exitCode === null && client.signalCode === null)
