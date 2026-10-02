@@ -47,6 +47,17 @@ tab leaves an empty workspace, including after reload, until you choose **New
 scratchpad**. Source and tab preferences are stored in this browser, not query
 results.
 
+Source edits autosave after 250 ms without typing, or after at most one second
+of continuous typing while the browser is running normally. Switching tabs,
+changing tab preferences, renaming, and deleting save immediately. Pending edits
+also flush when the page is hidden, navigated away from, or closed. A browser or
+OS crash can still lose edits in that short autosave window; lifecycle events
+cannot guarantee a final save after a crash. A rename is only confirmed after
+browser storage accepts it.
+
+See [the scratchpad performance benchmark](helm-scratchpad-performance.md) for
+a repeatable input-path comparison and its limits.
+
 ## Runtime configuration
 
 Helm starts an isolated Node process inside the selected running container. Before

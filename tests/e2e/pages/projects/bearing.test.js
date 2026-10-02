@@ -1125,9 +1125,13 @@ test(
     const widgetBounds = await widgetPanel.boundingBox()
     expect(widgetBounds.x + widgetBounds.width > 1400).toBe(true)
     expect(widgetBounds.y + widgetBounds.height > 900).toBe(true)
-    await page.raw.waitForTimeout(220)
+    await expect(widget.locator('.bearing-panel-surface')).toHaveCSS(
+      'opacity',
+      '1'
+    )
     await page.screenshot(path.join(screenshotRoot, 'widget-open.png'), {
-      fullPage: true
+      fullPage: true,
+      animations: 'disabled'
     })
     await page.resize(390, 844)
     await page.raw.waitForTimeout(220)
