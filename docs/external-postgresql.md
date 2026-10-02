@@ -41,3 +41,7 @@ Backups are PostgreSQL custom-format logical dumps of one database, not physical
 The Docker contract exercises real verification, a custom-format dump and restore into a disposable database with row-count checks; DNS, TCP, authentication, permissions and TLS failures; custom CA acceptance and untrusted CA rejection; cancellation, deadlines, size limits and temporary-client cleanup. It also runs genuine dumps through manual/scheduled backup and retention handling with a storage transport double. The separate private-storage contract exercises real SDKs against local provider emulators.
 
 CI uses PostgreSQL 17. The local Docker contract can use `SLIPWAY_EXTERNAL_PG_IMAGE=postgres:16-alpine` when that image is already available; this validates the workflow on PostgreSQL 16 but is not evidence for the production client version. No live provider or production database was used for these checks.
+
+For an existing Coolify installation, use the
+[three-app migration runbook](coolify-migration.md) to connect this contract to
+source/configuration inventory, disposable recovery checks, and cutover decisions.

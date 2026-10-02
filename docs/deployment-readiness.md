@@ -35,3 +35,7 @@ Managed database and Redis services are optional. A configured external URL is a
 The report records a keyed source fingerprint and configuration version. Refresh after source or settings change. The API accepts `previousVersion` and reports whether it is stale. Inspection is bounded and does not follow source symlinks; incomplete source inspection is explicitly unverified. Generated dependencies and caches are excluded.
 
 The health path uses the same normalization as App settings. Slipway sets PORT=1337; the app must listen on container port 1337. The deployment pipeline checks readiness before building and again against its resolved runtime configuration, then probes the candidate's configured HTTP path before switching traffic. A prior probe is marked stale when source or configuration changes. A failed historical probe is advisory so a transient failure can be retried; an actual failing candidate probe prevents cutover.
+
+For an existing Coolify installation, use the
+[three-app migration runbook](coolify-migration.md) to connect this contract to
+source/configuration inventory, disposable recovery checks, and cutover decisions.

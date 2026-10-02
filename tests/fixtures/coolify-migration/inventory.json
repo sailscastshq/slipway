@@ -1,0 +1,38 @@
+[
+  {
+    "project": "migration-atlas",
+    "app": "web",
+    "runtime": "node:22-alpine",
+    "startup": "node app.js",
+    "healthPath": "/health",
+    "source": "generated local source snapshot",
+    "domain": "atlas.example.test",
+    "requiredEnv": ["DATABASE_URL", "REDIS_URL", "SESSION_SECRET"],
+    "postgres": { "database": "atlas", "choice": "external-first" },
+    "redis": { "role": "sessions", "namespace": "atlas:sessions" }
+  },
+  {
+    "project": "migration-harbor",
+    "app": "web",
+    "runtime": "node:22-alpine",
+    "startup": "node app.js",
+    "healthPath": "/ready",
+    "source": "generated local source snapshot",
+    "domain": "harbor.example.test",
+    "requiredEnv": ["DATABASE_URL", "REDIS_URL", "SESSION_SECRET"],
+    "postgres": { "database": "harbor", "choice": "managed-import" },
+    "redis": { "role": "sessions", "namespace": "harbor:sessions" }
+  },
+  {
+    "project": "migration-beacon",
+    "app": "web",
+    "runtime": "node:24-alpine",
+    "startup": "node app.js",
+    "healthPath": "/statusz",
+    "source": "generated local source snapshot",
+    "domain": "beacon.example.test",
+    "requiredEnv": ["DATABASE_URL", "REDIS_URL", "QUEUE_NAMESPACE"],
+    "postgres": { "database": "beacon", "choice": "managed-import" },
+    "redis": { "role": "queue", "namespace": "beacon:jobs" }
+  }
+]
