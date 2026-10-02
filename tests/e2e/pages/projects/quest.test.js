@@ -91,6 +91,10 @@ test(
     await login.withPassword('genesisUser', page, {
       password: current.auth.genesisUserPassword
     })
+    await page.raw.waitForURL('**/')
+    await expect(
+      page.raw.getByRole('link', { name: 'quest-history-ui', exact: true })
+    ).toBeVisible()
     await page.goto('/projects/quest-history-ui/quest')
     const total = page.raw.locator('[data-test="quest-event-total"]')
     const output = page.raw.locator(
@@ -301,7 +305,11 @@ test(
       .set({ name: 'Northstar' })
     await sails.models.user
       .updateOne({ id: current.users.genesisUser.id })
-      .set({ fullName: 'Alex Rivera' })
+      .set({
+        fullName: 'Alex Rivera',
+        initials: 'AR',
+        email: 'alex@example.com'
+      })
     await sails.models.telemetrymetric.createEach(
       events.map(([jobName, event, minutesAgo, duration, trigger]) => ({
         environment,
@@ -349,6 +357,10 @@ test(
       await login.withPassword('genesisUser', page, {
         password: current.auth.genesisUserPassword
       })
+      await page.raw.waitForURL('**/')
+      await expect(
+        page.raw.getByRole('link', { name: 'Northstar Commerce', exact: true })
+      ).toBeVisible()
       await page.goto('/projects/quest-showcase/quest')
       await expect(
         page.raw.getByRole('heading', {
@@ -397,7 +409,7 @@ test(
         path.join(root, 'fixture.json'),
         JSON.stringify(
           {
-            fixtureVersion: 1,
+            fixtureVersion: 2,
             description:
               'Actual rendered Slipway Quest page with synthetic operational data; no Docker, customer, or production jobs executed. Screenshots are not mockups.',
             phase,
@@ -407,7 +419,7 @@ test(
             frozenBrowserTime: new Date(now).toISOString(),
             project: 'Northstar Commerce',
             team: 'Northstar',
-            user: 'Alex Rivera (synthetic)',
+            user: 'Alex Rivera / alex@example.com / AR (synthetic)',
             environment: 'production (synthetic fixture)',
             jobs: jobs.map(({ nextRunAt, ...job }) => ({
               ...job,
