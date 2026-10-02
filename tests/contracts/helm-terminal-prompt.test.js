@@ -6,6 +6,24 @@ const path = require('node:path')
 // and the refinement. Behavior regressions belong in the owning Helm page file.
 const SOURCE = 'node -p 1+1'
 const OUTPUT = '2\n'
+const SUMMARY_EXPRESSION =
+  "JSON.stringify({status:'ready',services:['web','worker'],queueDepth:0},null,2)"
+const SUMMARY_SOURCE = `node -p "${SUMMARY_EXPRESSION}"`
+const SUMMARY_OUTPUT =
+  JSON.stringify(
+    { status: 'ready', services: ['web', 'worker'], queueDepth: 0 },
+    null,
+    2
+  ) + '\n'
+const EDITED_SOURCE = 'node -p 2+2'
+const FIXTURES = [
+  { source: SOURCE, argv: ['node', '-p', '1+1'], stdout: OUTPUT },
+  {
+    source: SUMMARY_SOURCE,
+    argv: ['node', '-p', SUMMARY_EXPRESSION],
+    stdout: SUMMARY_OUTPUT
+  }
+]
 const VARIANT = process.env.HELM_PROMPT_VARIANT || 'current'
 const ROOT = path.resolve('.tmp/screenshots/helm-terminal-prompt', VARIANT)
 const SAMPLE_COUNT = 9
@@ -57,12 +75,22 @@ test(
     const app = current.apps.web
     const originalRunner = sails.helpers.helm.executeCommandInContainer
     let executions = 0
+    let historyEntries = []
     sails.helpers.helm.executeCommandInContainer = {
       async with(input) {
+        const fixture = FIXTURES.find(
+          (item) => JSON.stringify(item.argv) === JSON.stringify(input.argv)
+        )
+        expect(Boolean(fixture)).toBe(true)
         executions++
-        expect(input.argv).toEqual(['node', '-p', '1+1'])
         input.onEvent({ type: 'started' })
-        input.onEvent({ type: 'stdout', text: OUTPUT })
+        input.onEvent({ type: 'stdout', text: fixture.stdout })
+        historyEntries.unshift({
+          id: executions,
+          source: fixture.source,
+          status: 'success',
+          durationMs: 24
+        })
         return {
           success: true,
           status: 'success',
@@ -72,7 +100,7 @@ test(
           terminationConfirmed: true,
           terminationScope: 'foreground-process-group',
           durationMs: 24,
-          outputBytes: Buffer.byteLength(OUTPUT),
+          outputBytes: Buffer.byteLength(fixture.stdout),
           truncated: false
         }
       }
@@ -101,7 +129,7 @@ test(
         route.fulfill({
           status: 200,
           contentType: 'application/json',
-          body: JSON.stringify({ entries: [] })
+          body: JSON.stringify({ entries: historyEntries })
         })
       )
       await login.withPassword('genesisUser', page, {
@@ -114,6 +142,7 @@ test(
         ['mobile', 390, 844]
       ]) {
         for (const theme of ['light', 'dark']) {
+          historyEntries = []
           await page.resize(width, height)
           if (theme === 'light') await page.inLightMode()
           else await page.inDarkMode()
@@ -235,6 +264,65 @@ test(
               animations: 'disabled'
             }
           )
+
+          // A second, multi-line result makes the output hierarchy reviewable.
+          // This is a synthetic readiness summary produced by the exact Node
+          // expression shown in the prompt, never an observed service status.
+          await input.fill(SUMMARY_SOURCE)
+          await page.click('@helm-command-run')
+          await expect(dialog).toBeVisible()
+          expect(executions).toBe(before + 1)
+          await page.click('@helm-arm-writes')
+          await expect(dialog).toBeHidden()
+          expect(executions).toBe(before + 1)
+          await page.click('@helm-command-run')
+          await expect(
+            page.raw.locator('[data-test="helm-command-status"]')
+          ).toHaveText('Completed')
+          await expect(output).toHaveText(SUMMARY_OUTPUT)
+          await expect(input).toHaveValue(SUMMARY_SOURCE)
+          expect(executions).toBe(before + 2)
+          await page.raw.mouse.move(1, 1)
+          await page.screenshot(
+            path.join(ROOT, `${device}-${theme}-meaningful-output.png`),
+            { animations: 'disabled' }
+          )
+
+          // Both versions preserve the previous output while the draft changes;
+          // the current-only provenance behavior is asserted in helm.test.js.
+          await input.fill(EDITED_SOURCE)
+          await expect(output).toHaveText(SUMMARY_OUTPUT)
+          expect(executions).toBe(before + 2)
+          await page.raw.mouse.move(1, 1)
+          await page.screenshot(
+            path.join(ROOT, `${device}-${theme}-edited-draft.png`),
+            { animations: 'disabled' }
+          )
+          await page.raw
+            .getByRole('button', { name: 'Command history', exact: true })
+            .click()
+          const history = page.raw.locator(
+            '[aria-label="Command history entries"]'
+          )
+          const restore = history
+            .getByRole('button')
+            .filter({ hasText: SOURCE })
+          await expect(restore).toBeVisible()
+          await page.raw.mouse.move(1, 1)
+          await page.screenshot(
+            path.join(ROOT, `${device}-${theme}-history-open.png`),
+            { animations: 'disabled' }
+          )
+          await restore.click()
+          await expect(input).toHaveValue(SOURCE)
+          await expect(input).toBeFocused()
+          await expect(output).toHaveText(SUMMARY_OUTPUT)
+          expect(executions).toBe(before + 2)
+          await page.raw.mouse.move(1, 1)
+          await page.screenshot(
+            path.join(ROOT, `${device}-${theme}-history-restored.png`),
+            { animations: 'disabled' }
+          )
           cases.push({
             device,
             theme,
@@ -244,20 +332,22 @@ test(
           })
         }
       }
-      expect(executions).toBe(4)
+      expect(executions).toBe(8)
       expect(page).toHaveNoSmoke()
       const report = {
         variant: VARIANT,
         sourceRevision:
           process.env.HELM_PROMPT_SOURCE_REVISION || 'working-tree',
         fixture: {
-          source: SOURCE,
-          stdout: OUTPUT,
+          commands: FIXTURES,
+          editedDraft: EDITED_SOURCE,
           stderr: '',
           exitCode: 0,
           durationMs: 24,
           transport:
             'real browser fetch/NDJSON and server actions; container runner replaced with deterministic fixture',
+          meaning:
+            'Arithmetic and multi-line readiness summary are synthetic; no container execution or actual service health is observed. History is deterministic source/status metadata only.',
           productionTarget: true
         },
         methodology: {
