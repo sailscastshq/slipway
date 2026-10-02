@@ -19,7 +19,7 @@ function run(fixture, argv, options = {}) {
     argv,
     expectedRuntime: fixture.expectedRuntime,
     executionId: randomUUID(),
-    transport: { command: process.execPath },
+    transport: fixture.transport,
     timeoutMs: 5000,
     killGraceMs: 60,
     processGraceMs: 1000,
@@ -41,6 +41,46 @@ async function alive(pid) {
     throw error
   }
 }
+
+test('live command fixtures enumerate only registered processes while retaining real supervisor and child identities', async () =>
+  withFixture(async (fixture) => {
+    const result = await run(fixture, [
+      'node',
+      '-e',
+      `console.log(JSON.stringify({pid:process.pid,parent:process.ppid,pids:require('fs').readdirSync('/proc')}))`
+    ])
+    assert.equal(result.status, 'success', terminalDiagnostic(result))
+    const view = JSON.parse(result.stdout)
+    assert.ok(
+      view.pids.includes(String(view.pid)),
+      'The real command is registered before user code'
+    )
+    assert.ok(
+      view.pids.includes(String(view.parent)),
+      'The real guardian remains visible'
+    )
+    assert.ok(
+      view.pids.includes(String(fixture.app.pid)),
+      'The resident app remains visible'
+    )
+    assert.equal(
+      view.pids.includes(String(process.pid)),
+      false,
+      'Unrelated host processes are outside this controlled fixture inventory'
+    )
+    const registered = await fs.readdir(
+      path.join(fixture.root, 'process-inventory')
+    )
+    assert.ok(registered.includes(String(view.pid)))
+    assert.ok(registered.includes(String(view.parent)))
+    assert.ok(
+      registered.length >= 4,
+      'App, supervisor, guardian and command must all register'
+    )
+    // This check uses the parent test process's unmodified real procfs access.
+    assert.equal(await alive(view.pid), false)
+    assert.equal(await alive(fixture.app.pid), true)
+  }))
 
 test('command runtime streams literal argv, deployed environment and cwd without a shell', async () =>
   withFixture(async (fixture) => {
@@ -149,13 +189,24 @@ test('command cancellation kills only its owned foreground process group and des
   withFixture(async (fixture) => {
     const controller = new AbortController()
     let descendant
-    const code = `const c=require('child_process').spawn(process.execPath,['-e','process.on("SIGTERM",()=>{});setInterval(()=>{},1000)'],{stdio:'ignore'});process.on('SIGTERM',()=>{});console.log(c.pid);setInterval(()=>{},1000)`
+    let output = ''
+    // Do not race cancellation against the child's Node startup. Its ready
+    // message proves the real TERM handler (and inventory preload) is installed.
+    const childCode =
+      'process.on("SIGTERM",()=>{});console.log("ready");setInterval(()=>{},1000)'
+    const code = `const c=require('child_process').spawn(process.execPath,['-e',${JSON.stringify(
+      childCode
+    )}],{stdio:['ignore','pipe','ignore']});process.on('SIGTERM',()=>{});c.stdout.once('data',()=>console.log(c.pid));setInterval(()=>{},1000)`
     const result = await run(fixture, ['node', '-e', code], {
       signal: controller.signal,
       onEvent(event) {
-        if (event.type === 'stdout') {
-          descendant = Number(event.text.trim())
-          controller.abort()
+        if (event.type === 'stdout' && !descendant) {
+          output += event.text
+          const newline = output.indexOf('\n')
+          if (newline !== -1) {
+            descendant = Number(output.slice(0, newline))
+            controller.abort()
+          }
         }
       }
     })
@@ -163,6 +214,13 @@ test('command cancellation kills only its owned foreground process group and des
     assert.equal(result.terminationConfirmed, true)
     assert.equal(result.signal, 'SIGKILL')
     assert.ok(descendant)
+    assert.match(
+      await fs.readFile(
+        path.join(fixture.root, 'process-inventory', String(descendant)),
+        'utf8'
+      ),
+      /^\d+$/
+    )
     assert.equal(await alive(descendant), false)
     assert.equal(await alive(fixture.app.pid), true)
   }))
@@ -447,7 +505,8 @@ test('command supervisor cancels on control EOF and confirms cleanup independent
       maxOutputBytes: 8192
     })
     const client = spawn(process.execPath, ['-e', source], {
-      stdio: ['pipe', 'pipe', 'pipe']
+      stdio: ['pipe', 'pipe', 'pipe'],
+      env: fixture.transport.env
     })
     const decoder = new StringDecoder('utf8')
     let pending = ''
@@ -619,4 +678,117 @@ test('cleanup still detects tagged detached descendants despite unrelated protec
   assert.equal(tracker.hasSurvivors(500), true)
   proc.processes.delete('2')
   assert.equal(tracker.hasSurvivors(500), false)
+})
+
+test('fixture PID publication is atomic under concurrent preload registration and rejects corrupt identities', async () => {
+  const { runInNewContext } = require('node:vm')
+  const source = await fs.readFile(
+    require.resolve('../../../support/helm-command-process-inventory.cjs'),
+    'utf8'
+  )
+  const files = new Map([['/inventory/200', '2000']])
+  let observeWrites = false
+  let failWrite = false
+  let sequence = 0
+  const duringWrites = []
+  const missing = () =>
+    Object.assign(new Error('Missing fixture file'), { code: 'ENOENT' })
+  const fakeFs = {
+    readdirSync(directory) {
+      if (directory === '/proc') return ['100', '200']
+      if (directory === '/inventory')
+        return [...files.keys()].map((name) => path.basename(name))
+      throw missing()
+    },
+    readFileSync(filename) {
+      const processStat = filename.match(/^\/proc\/(100|200)\/stat$/)
+      if (processStat) {
+        const pid = processStat[1]
+        const fields = Array(20).fill('0')
+        fields[0] = 'S'
+        fields[2] = pid
+        fields[19] = `${pid}0`
+        return `${pid} (registered fixture) ${fields.join(' ')}`
+      }
+      if (!files.has(filename)) throw missing()
+      return files.get(filename)
+    },
+    writeFileSync(filename, value) {
+      // Model the intermediate truncate state that caused the original race.
+      files.set(filename, '')
+      if (observeWrites) {
+        duringWrites.push(fakeFs.readdirSync('/proc'))
+        for (const [name, contents] of files) {
+          if (/^\d+$/.test(path.basename(name))) assert.match(contents, /^\d+$/)
+        }
+      }
+      if (failWrite)
+        throw Object.assign(new Error('Fixture write failure'), { code: 'EIO' })
+      files.set(filename, value)
+    },
+    renameSync(from, to) {
+      if (!files.has(from)) throw missing()
+      files.set(to, files.get(from))
+      files.delete(from)
+    },
+    unlinkSync(filename) {
+      if (!files.delete(filename)) throw missing()
+    }
+  }
+  const childProcess = {
+    spawn() {
+      return { pid: 200 }
+    }
+  }
+  runInNewContext(source, {
+    require(name) {
+      if (name === 'node:fs') return fakeFs
+      if (name === 'node:path') return path
+      if (name === 'node:child_process') return childProcess
+      if (name === 'node:crypto')
+        return { randomUUID: () => `unique-${++sequence}` }
+      throw new Error(`Unexpected preload dependency: ${name}`)
+    },
+    process: {
+      pid: 100,
+      env: { SLIPWAY_HELM_TEST_PROCESS_INVENTORY: '/inventory' }
+    }
+  })
+  observeWrites = true
+  childProcess.spawn()
+  assert.deepEqual(
+    duringWrites,
+    [['100', '200']],
+    'A live PID remains visible during a concurrent registration write'
+  )
+  assert.equal(
+    [...files.keys()].some((name) => name.endsWith('.tmp')),
+    false
+  )
+
+  for (const corrupt of ['', 'not-a-start-tick', '2000\n']) {
+    files.set('/inventory/200', corrupt)
+    assert.throws(() => fakeFs.readdirSync('/proc'), {
+      code: 'HELM_FIXTURE_IDENTITY_INVALID'
+    })
+  }
+  files.set('/inventory/200', '999')
+  assert.deepEqual(
+    fakeFs.readdirSync('/proc'),
+    ['100'],
+    'A valid different start tick identifies a reused PID'
+  )
+  files.set('/inventory/200', '2000')
+  failWrite = true
+  assert.throws(() => childProcess.spawn(), { code: 'EIO' })
+  assert.equal(
+    files.get('/inventory/200'),
+    '2000',
+    'A failed publication preserves the last complete identity'
+  )
+  assert.equal(
+    [...files.keys()].some((name) => name.endsWith('.tmp')),
+    false,
+    'Failed publication removes its private temporary file'
+  )
 })

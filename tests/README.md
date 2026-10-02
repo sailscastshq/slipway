@@ -31,6 +31,27 @@ concurrency group. Test jobs print slow-trial profiles to guide future reduction
 Contract tests remain intact: recent timings show the serial browser suite was
 the critical path, not the small storage, schema, or asset checks.
 
+## Helm terminal prompt review evidence
+
+`bash scripts/compare-helm-terminal-prompt.sh` runs a version-neutral browser
+capture against baseline components from pinned commit
+`2c9be311e68e07b0c9906a089771089226bc5595` and then the current components. Run it
+only in a disposable checkout with that Git object and browser dependencies
+available; it temporarily swaps only `HelmCommandConsole.vue` and
+`HelmWriteGuardDialog.vue`, restoring the original bytes through an exit/signal
+trap before the current trial. The backend, dependencies, browser and capture
+fixture are identical. CI also verifies there is no component diff afterward.
+
+The `Helm terminal prompt paired evidence` job uploads idle, production-warning
+and completed screenshots for desktop/mobile light/dark, plus paired geometry
+and raw browser click/input-to-second-animation-frame samples. The deterministic
+container-runner fixture returns `2` plus a newline for `node -p 1+1` in both
+versions. These are real browser captures with synthetic command output, not a
+claim that a container command ran. Small frame-scheduled timing samples are
+reported without a speedup claim or threshold; real runtime proof remains in
+the separate command contracts. Generated artifacts live in
+`.tmp/screenshots/helm-terminal-prompt`.
+
 ## Coolify migration rehearsal
 
 Run `node scripts/rehearse-coolify-migration.js` from a clean checkout with its

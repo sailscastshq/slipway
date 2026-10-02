@@ -9,6 +9,24 @@ JavaScript mutation analysis cannot determine their effects. Command mode is ava
 
 The byte and time budgets bound execution output and duration, not hostile CPU or memory usage. Existing container resource limits still apply; command mode is not a resource-isolation sandbox.
 
+## Terminal prompt
+
+Type one command and press **Enter**. The small return-key control submits the
+same command for touch and keyboard users. In production, Enter first opens the
+arming confirmation. Arming restores focus to the prompt but does not execute:
+press Enter again for the single approved attempt. Repeating a completed command
+requires a fresh production arm.
+
+Held Enter, composition confirmation and modified Enter do not submit. Pasting
+or dropping multiple lines is rejected before the browser can silently join
+them. Edit or paste a single-line command to clear the error before submitting;
+the rejected transfer also clears any production arm. The prompt keeps native
+selection, cursor movement and editing. It does not provide shell expansion,
+interactive stdin, or a second terminal session.
+
+Stop and the observed command status remain separate from submission. A compact
+prompt does not change admission, cancellation, history or runtime authority.
+
 ## Runtime selection and supported Sails scripts
 
 Commands require a current, verified Helm runtime contract, published by
@@ -119,6 +137,14 @@ node_modules/.bin/sounding test \
   --file tests/unit/helpers/helm/app-context.test.js \
   --test-concurrency=1
 ```
+
+The host-Node process fixtures enumerate only their registered app, supervisor,
+guardian, command and descendant PIDs so unrelated CI-host process churn cannot
+change their expected outcome. PID/start identity reads, environment reads and
+signals remain real. Separate controlled ownership probes cover unreadable
+processes and PID reuse. This test-only inventory is never loaded by the
+production runtime or the Docker contract below, which inspects the actual
+container process namespace.
 
 The disposable Docker contract uses an isolated, network-disabled container,
 read-only dependencies/source, tmpfs app data and no customer or business jobs.

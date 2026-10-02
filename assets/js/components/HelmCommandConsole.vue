@@ -1,6 +1,5 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import Play from '@/components/ui/icons/Play.vue'
 import Stop from '@/components/ui/icons/Stop.vue'
 import History from '@/components/ui/icons/History.vue'
 import Spinner from '@/components/SlipwaySpinner.vue'
@@ -25,6 +24,7 @@ const commandInput = ref(null)
 const logs = ref([])
 const result = ref(null)
 const error = ref('')
+const inputError = ref('')
 const busy = ref(false)
 const stopping = ref(false)
 const started = ref(false)
@@ -45,6 +45,7 @@ let historySequence = 0
 let armSequence = 0
 let clock
 let logBytes = 0
+let composing = false
 
 const targetKey = computed(() =>
   JSON.stringify([
@@ -154,14 +155,54 @@ function resultError(value) {
 function stripAnsi(text) {
   return String(text).replace(/\x1b\[[0-9;]*[A-Za-z]/g, '')
 }
+function handleCommandKeydown(event) {
+  if (event.key !== 'Enter') return
+  // Let the input's native IME confirmation finish. Implicit form submission
+  // never executes; only a deliberate Enter or return-control activation does.
+  if (composing || event.isComposing || event.keyCode === 229) {
+    if (event.currentTarget?.tagName === 'BUTTON') event.preventDefault()
+    return
+  }
+  event.preventDefault()
+  if (
+    event.repeat ||
+    event.shiftKey ||
+    event.ctrlKey ||
+    event.altKey ||
+    event.metaKey
+  )
+    return
+  void execute()
+}
+function rejectMultilineTransfer(event) {
+  const text = (event.clipboardData || event.dataTransfer)?.getData(
+    'text/plain'
+  )
+  if (!text || !/[\r\n\u2028\u2029]/.test(text)) return
+  // A text input silently removes line breaks. Do not turn a pasted script
+  // into a different, executable single-line command.
+  event.preventDefault()
+  clearArm()
+  inputError.value = 'Paste one command on a single line.'
+}
 
 async function execute() {
-  if (busy.value || arming.value || !props.appRunning || !source.value.trim())
+  if (
+    busy.value ||
+    arming.value ||
+    composing ||
+    inputError.value ||
+    guard.value.show ||
+    !props.active ||
+    !props.appRunning ||
+    !source.value.trim()
+  )
     return
   const submitted = source.value
   const scope = targetKey.value
   const current = ++sequence
   error.value = ''
+  inputError.value = ''
   setBusy(true)
   started.value = false
   requestedAt.value = 0
@@ -274,14 +315,15 @@ async function arm() {
     }
     now.value = Date.now()
     guard.value.show = false
-    await nextTick()
-    commandInput.value?.focus()
   } catch (caught) {
     if (currentArm === armSequence) guard.value.error = caught.message
   } finally {
     if (currentArm === armSequence) {
       arming.value = false
       emit('busy', busy.value)
+      await nextTick()
+      if (currentArm === armSequence && props.active && !guard.value.show)
+        commandInput.value?.focus()
     }
   }
 }
@@ -353,12 +395,17 @@ function resetTarget() {
   result.value = null
   error.value = ''
   guard.value.show = false
+  inputError.value = ''
+  composing = false
   setBusy(false)
   stopping.value = false
   requestedAt.value = 0
   if (props.active) refreshHistory()
 }
-watch(source, clearArm)
+watch(source, () => {
+  clearArm()
+  inputError.value = ''
+})
 watch(targetKey, resetTarget)
 watch(
   () => props.active,
@@ -383,7 +430,10 @@ watch(
       }, 250)
   }
 )
-onMounted(refreshHistory)
+onMounted(() => {
+  refreshHistory()
+  if (props.active) commandInput.value?.focus()
+})
 onBeforeUnmount(() => {
   armSequence++
   sequence++
@@ -400,9 +450,7 @@ onBeforeUnmount(() => {
     aria-label="Helm command console"
     class="flex min-h-0 flex-1 flex-col overflow-hidden bg-white dark:bg-gray-950"
   >
-    <div
-      class="shrink-0 space-y-3 border-b border-gray-200 px-4 py-4 dark:border-gray-800 sm:px-8"
-    >
+    <div class="shrink-0 space-y-2 px-4 pb-3 pt-4 sm:px-8">
       <div
         class="flex flex-wrap items-center justify-between gap-2 text-xs text-gray-500 dark:text-gray-400"
       >
@@ -426,12 +474,15 @@ onBeforeUnmount(() => {
           <History class="h-4 w-4" /> History
         </button>
       </div>
-      <form class="flex items-center gap-2" @submit.prevent="execute">
+      <form
+        class="flex items-center gap-2 border-b border-dashed border-gray-200 focus-within:border-gray-500 dark:border-gray-800 dark:focus-within:border-gray-500"
+        @submit.prevent
+      >
         <label
           for="helm-command-input"
-          class="font-mono text-sm text-gray-400"
+          class="select-none font-mono text-sm text-gray-400"
           aria-hidden="true"
-          >&gt;_</label
+          >&gt;</label
         >
         <Input
           id="helm-command-input"
@@ -440,16 +491,31 @@ onBeforeUnmount(() => {
           aria-label="Helm command"
           placeholder="sails run your-script --input=value"
           autocomplete="off"
+          autocapitalize="off"
+          autocorrect="off"
+          enterkeyhint="send"
           spellcheck="false"
+          :aria-describedby="
+            inputError
+              ? 'helm-command-hint helm-command-input-error'
+              : 'helm-command-hint'
+          "
+          :aria-invalid="Boolean(inputError)"
           :disabled="busy || arming || !appRunning"
-          class="min-w-0 flex-1 rounded-md border border-gray-200 bg-gray-50 px-3 py-2 font-mono text-sm text-gray-900 focus:border-gray-400 focus:outline-none dark:border-gray-800 dark:bg-gray-900 dark:text-gray-100"
+          class="h-12 min-w-0 flex-1 rounded-none border-0 bg-transparent px-1 font-mono text-base text-gray-900 outline-none placeholder:text-gray-400 focus:ring-0 dark:text-gray-100 dark:placeholder:text-gray-600 sm:text-sm"
+          @keydown="handleCommandKeydown"
+          @input="inputError = ''"
+          @compositionstart="composing = true"
+          @compositionend="composing = false"
+          @paste="rejectMultilineTransfer"
+          @drop="rejectMultilineTransfer"
         />
         <button
           v-if="busy"
           type="button"
           :disabled="stopping || !admitted"
           aria-label="Stop command"
-          class="flex items-center gap-1.5 rounded-md bg-red-600 px-3 py-2 text-xs font-medium text-white disabled:opacity-50"
+          class="min-h-11 sm:min-h-9 flex items-center gap-1.5 rounded-md px-3 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-50 dark:text-red-400 dark:hover:bg-red-950/30"
           @click="stop"
         >
           <Spinner v-if="stopping" class="h-3.5 w-3.5" /><Stop
@@ -459,18 +525,53 @@ onBeforeUnmount(() => {
         </button>
         <button
           v-else
-          type="submit"
-          :disabled="arming || !appRunning || !source.trim()"
+          type="button"
+          :disabled="
+            arming || !appRunning || !source.trim() || Boolean(inputError)
+          "
           data-test="helm-command-run"
-          class="flex shrink-0 items-center gap-1.5 rounded-md bg-gray-900 px-3 py-2 text-xs font-medium text-white disabled:opacity-50 dark:bg-white dark:text-gray-900"
+          :aria-label="runLabel"
+          :title="runLabel"
+          @keydown="handleCommandKeydown"
+          @click="execute"
+          class="min-h-11 min-w-11 sm:min-h-9 flex shrink-0 items-center justify-center gap-2 rounded-md px-2 text-gray-500 hover:bg-gray-100 hover:text-gray-900 disabled:opacity-30 dark:text-gray-400 dark:hover:bg-gray-900 dark:hover:text-gray-100"
         >
-          <Play class="h-3.5 w-3.5" />{{ runLabel }}
+          <span aria-hidden="true" class="hidden text-xs sm:inline">Enter</span>
+          <svg
+            aria-hidden="true"
+            viewBox="0 0 20 20"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            class="h-4 w-4"
+          >
+            <path d="M16 4v6a2 2 0 0 1-2 2H4m4-4-4 4 4 4" />
+          </svg>
         </button>
       </form>
-      <p class="text-xs leading-5 text-gray-400 dark:text-gray-500">
-        One foreground command, without shell expansion or interactive prompts.
-        Commands are saved in your history; keep secrets in the app’s
-        environment. Output is not saved.
+      <div
+        class="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1"
+      >
+        <p
+          id="helm-command-hint"
+          class="text-xs leading-5 text-gray-500 dark:text-gray-400"
+        >
+          Commands are saved; output isn’t. Keep secrets in environment
+          variables.
+        </p>
+        <span v-if="armed" class="text-xs text-red-600 dark:text-red-400">
+          Armed · {{ armRemaining }}s
+        </span>
+      </div>
+      <p
+        v-if="inputError"
+        id="helm-command-input-error"
+        role="alert"
+        class="text-xs text-amber-700 dark:text-amber-400"
+      >
+        {{ inputError }}
       </p>
     </div>
     <div
