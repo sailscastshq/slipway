@@ -26,3 +26,7 @@ previous directories. Locks deliberately fail closed. Stop source writers,
 inspect `.source-previous-*` for a workspace interrupted during rename, restore
 it if necessary, then remove the stale lock and unused staging directories.
 Running containers are unaffected by source publication or its failure.
+
+For an existing Coolify installation, use the
+[three-app migration runbook](coolify-migration.md) to connect this contract to
+source/configuration inventory, disposable recovery checks, and cutover decisions.

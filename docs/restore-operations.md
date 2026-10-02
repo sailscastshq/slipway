@@ -25,3 +25,7 @@ On server restart, queued work resumes. A running restore becomes interrupted;
 it is never automatically replayed. Keep writes paused and inspect the database
 before recovery. Audit events are restore.started, restore.completed,
 restore.failed, or restore.interrupted; queuing is not reported as completion.
+
+For an existing Coolify installation, use the
+[three-app migration runbook](coolify-migration.md) to connect this contract to
+source/configuration inventory, disposable recovery checks, and cutover decisions.
