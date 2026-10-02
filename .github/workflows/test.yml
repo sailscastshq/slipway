@@ -193,6 +193,14 @@ jobs:
       # Sounding partitions files; each runner retains --test-concurrency=1.
       - name: Run browser tests
         run: npm run test:e2e -- --shard=${{ matrix.shard }}/3 --profile
+      - name: Upload Bearing save regression evidence
+        uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: bearing-save-review-${{ matrix.shard }}
+          path: .tmp/screenshots/issue-642-save-errors
+          if-no-files-found: ignore
+          retention-days: 7
       - name: Upload Sounding browser failure artifacts
         if: failure()
         uses: actions/upload-artifact@v6
