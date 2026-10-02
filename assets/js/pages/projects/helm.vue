@@ -1,6 +1,7 @@
 <script setup>
 import AppNavbarVersion from '@/components/AppNavbarVersion.vue'
 import Stop from '@/components/ui/icons/Stop.vue'
+import Terminal from '@/components/ui/icons/Terminal.vue'
 import SidebarOpen from '@/components/ui/icons/SidebarOpen.vue'
 import SidebarClose from '@/components/ui/icons/SidebarClose.vue'
 import Play from '@/components/ui/icons/Play.vue'
@@ -25,6 +26,7 @@ import HelmResultViewer from '@/components/HelmResultViewer.vue'
 import HelmScratchpadTabs from '@/components/HelmScratchpadTabs.vue'
 import HelmWorkspaceLibrary from '@/components/HelmWorkspaceLibrary.vue'
 import HelmWriteGuardDialog from '@/components/HelmWriteGuardDialog.vue'
+import HelmCommandConsole from '@/components/HelmCommandConsole.vue'
 import Alert from '@/components/ui/alert/Alert.vue'
 import Breadcrumb from '@/components/ui/breadcrumb/Breadcrumb.vue'
 import Tooltip from '@/components/ui/tooltip/Tooltip.vue'
@@ -37,6 +39,10 @@ import { cancelHelmExecution, cancelledHelmResult } from '@/lib/helmExecution'
 defineOptions({
   layout: AppLayout
 })
+
+const mode = ref('javascript')
+const commandMounted = ref(false)
+const commandBusy = ref(false)
 
 const props = defineProps({
   project: Object,
@@ -155,7 +161,12 @@ const closeScratchpadMessage = computed(() => {
 })
 
 async function execute(sourceOverride) {
-  if (!activeScratchpad.value) return
+  if (
+    mode.value !== 'javascript' ||
+    commandBusy.value ||
+    !activeScratchpad.value
+  )
+    return
   let execution
   if (typeof sourceOverride === 'string') {
     if (
@@ -457,6 +468,18 @@ async function stopExecution() {
   }
 }
 
+function selectMode(value) {
+  if (running.value || inspectingSource.value || commandBusy.value) return
+  mode.value = value
+  if (value === 'command') commandMounted.value = true
+  clearWriteArm()
+  writeGuard.value.show = false
+  if (value === 'javascript') {
+    loadCompletionMetadata()
+    nextTick(() => editor.value?.focus())
+  }
+}
+
 function runOrStop() {
   if (running.value) stopExecution()
   else execute()
@@ -567,6 +590,7 @@ async function saveScratchpadAsSnippet() {
 }
 
 async function loadCompletionMetadata() {
+  if (mode.value !== 'javascript') return
   if (Date.now() - lastCompletionLoadAt < 30_000) return
   lastCompletionLoadAt = Date.now()
   const sequence = ++completionRequestSequence
@@ -617,6 +641,7 @@ watch(code, () => {
 watch(
   () => props.target?.container,
   () => {
+    completionRequestSequence++
     completionMetadata.value = null
     lastCompletionLoadAt = 0
     loadCompletionMetadata()
@@ -677,7 +702,49 @@ watch(
           >
         </span>
 
-        <div class="flex items-center">
+        <div
+          role="group"
+          aria-label="Helm mode"
+          class="flex items-center rounded-md border border-gray-200 p-0.5 dark:border-gray-800"
+        >
+          <Tooltip text="JavaScript" placement="bottom">
+            <button
+              type="button"
+              aria-label="JavaScript mode"
+              :aria-pressed="mode === 'javascript'"
+              :disabled="running || inspectingSource || commandBusy"
+              :class="[
+                'rounded px-2 py-1.5 disabled:opacity-50',
+                mode === 'javascript'
+                  ? 'bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-white'
+                  : 'text-gray-400'
+              ]"
+              @click="selectMode('javascript')"
+            >
+              <span aria-hidden="true" class="font-mono text-sm leading-4"
+                >{}</span
+              >
+            </button>
+          </Tooltip>
+          <Tooltip text="Command" placement="bottom">
+            <button
+              type="button"
+              aria-label="Command mode"
+              :aria-pressed="mode === 'command'"
+              :disabled="running || inspectingSource || commandBusy"
+              :class="[
+                'rounded p-1.5 disabled:opacity-50',
+                mode === 'command'
+                  ? 'bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-white'
+                  : 'text-gray-400'
+              ]"
+              @click="selectMode('command')"
+            >
+              <Terminal class="h-4 w-4" />
+            </button>
+          </Tooltip>
+        </div>
+        <div v-if="mode === 'javascript'" class="flex items-center">
           <Tooltip text="History" placement="bottom">
             <button
               type="button"
@@ -716,6 +783,7 @@ watch(
 
         <!-- Run button -->
         <button
+          v-if="mode === 'javascript'"
           data-test="helm-run"
           @click="runOrStop"
           :disabled="running ? stopping : !canExecute"
@@ -764,117 +832,130 @@ watch(
       </div>
     </div>
 
-    <Tabs
-      :model-value="activeScratchpadId"
-      aria-label="Helm scratchpads"
-      class="contents"
-      @change="activateScratchpadById"
-    >
-      <HelmScratchpadTabs
-        :tabs="scratchpadTabs"
-        :active-id="activeScratchpadId"
-        :current-target-key="currentTargetKey"
-        :disabled="running || inspectingSource"
-        :can-create="canCreateScratchpad"
-        @create="createScratchpad"
-        @rename="renameScratchpad"
-        @duplicate="duplicateScratchpad"
-        @move="(tab, offset) => scratchpads.move(tab.id, offset)"
-        @save="saveScratchpadAsSnippet"
-        @close="requestCloseScratchpad"
-      />
-    </Tabs>
+    <HelmCommandConsole
+      v-if="commandMounted"
+      v-show="mode === 'command'"
+      :base-url="helmLibraryUrl"
+      :target="target"
+      :app-slug="app?.slug"
+      :app-running="isRunning"
+      :active="mode === 'command'"
+      :csrf="page.props._csrf || ''"
+      :ttl-seconds="writeArmTtlSeconds"
+      @busy="commandBusy = $event"
+    />
+    <div v-show="mode === 'javascript'" class="contents">
+      <Tabs
+        :model-value="activeScratchpadId"
+        aria-label="Helm scratchpads"
+        class="contents"
+        @change="activateScratchpadById"
+      >
+        <HelmScratchpadTabs
+          :tabs="scratchpadTabs"
+          :active-id="activeScratchpadId"
+          :current-target-key="currentTargetKey"
+          :disabled="running || inspectingSource"
+          :can-create="canCreateScratchpad"
+          @create="createScratchpad"
+          @rename="renameScratchpad"
+          @duplicate="duplicateScratchpad"
+          @move="(tab, offset) => scratchpads.move(tab.id, offset)"
+          @save="saveScratchpadAsSnippet"
+          @close="requestCloseScratchpad"
+        />
+      </Tabs>
 
-    <div
-      v-if="!activeScratchpad"
-      class="flex flex-1 flex-col items-center justify-center gap-3 text-sm text-gray-500"
-    >
-      <p>No scratchpads for this app.</p>
-      <button
-        type="button"
-        :disabled="!canCreateScratchpad"
-        class="rounded-md px-3 py-2 font-medium text-gray-900 hover:bg-gray-100 dark:text-white dark:hover:bg-gray-800"
-        @click="createScratchpad"
-      >
-        New scratchpad
-      </button>
-      <p v-if="!canCreateScratchpad">
-        Scratchpad limit reached. Delete an unused scratchpad in another app to
-        make room.
-      </p>
-    </div>
-    <!-- Main content - Tinkerwell style -->
-    <div
-      v-else
-      id="helm-scratchpad-panel"
-      role="tabpanel"
-      :aria-labelledby="
-        activeScratchpad
-          ? `helm-scratchpad-${activeScratchpad.id}-tab`
-          : undefined
-      "
-      data-test="helm-workspace"
-      class="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden lg:flex-row"
-    >
-      <!-- Editor panel -->
       <div
-        data-test="helm-editor-panel"
-        class="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden border-b border-gray-100 dark:border-gray-800 lg:border-b-0 lg:border-r"
+        v-if="!activeScratchpad"
+        class="flex flex-1 flex-col items-center justify-center gap-3 text-sm text-gray-500"
       >
-        <!-- Code editor with syntax highlighting -->
-        <div
-          class="relative min-h-0 min-w-0 flex-1 overflow-hidden bg-white dark:bg-gray-950"
+        <p>No scratchpads for this app.</p>
+        <button
+          type="button"
+          :disabled="!canCreateScratchpad"
+          class="rounded-md px-3 py-2 font-medium text-gray-900 hover:bg-gray-100 dark:text-white dark:hover:bg-gray-800"
+          @click="createScratchpad"
         >
-          <!-- Editor area -->
-          <CodeEditor
-            ref="editor"
-            v-model="code"
-            language="javascript"
-            aria-label="Helm JavaScript"
-            test-id="helm-editor"
-            height="fill"
-            :disabled="!isRunning"
-            :completion-metadata="completionMetadata"
-            submit-on-mod-enter
-            placeholder="// Enter JavaScript code..."
-            @selection-change="editorSelection = $event"
-            @submit="execute"
+          New scratchpad
+        </button>
+        <p v-if="!canCreateScratchpad">
+          Scratchpad limit reached. Delete an unused scratchpad in another app
+          to make room.
+        </p>
+      </div>
+      <!-- Main content - Tinkerwell style -->
+      <div
+        v-else
+        id="helm-scratchpad-panel"
+        role="tabpanel"
+        :aria-labelledby="
+          activeScratchpad
+            ? `helm-scratchpad-${activeScratchpad.id}-tab`
+            : undefined
+        "
+        data-test="helm-workspace"
+        class="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden lg:flex-row"
+      >
+        <!-- Editor panel -->
+        <div
+          data-test="helm-editor-panel"
+          class="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden border-b border-gray-100 dark:border-gray-800 lg:border-b-0 lg:border-r"
+        >
+          <!-- Code editor with syntax highlighting -->
+          <div
+            class="relative min-h-0 min-w-0 flex-1 overflow-hidden bg-white dark:bg-gray-950"
+          >
+            <!-- Editor area -->
+            <CodeEditor
+              ref="editor"
+              v-model="code"
+              language="javascript"
+              aria-label="Helm JavaScript"
+              test-id="helm-editor"
+              height="fill"
+              :disabled="!isRunning"
+              :completion-metadata="completionMetadata"
+              submit-on-mod-enter
+              placeholder="// Enter JavaScript code..."
+              @selection-change="editorSelection = $event"
+              @submit="execute"
+            />
+          </div>
+        </div>
+
+        <!-- Output panel -->
+        <div
+          data-test="helm-output-panel"
+          class="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-white dark:bg-gray-950"
+        >
+          <HelmResultViewer
+            v-model:view="resultView"
+            :result="executionResult"
+            :error="requestError"
+            :loading="running"
+            :target="target"
+            clearable
+            test-id="helm"
+            @clear="clearExecutionOutput"
+          />
+
+          <HelmWorkspaceLibrary
+            v-if="libraryOpen"
+            ref="library"
+            v-model:tab="libraryTab"
+            :base-url="helmLibraryUrl"
+            :csrf="page.props._csrf || ''"
+            :current-source="editorSelection.source || code"
+            @close="libraryOpen = false"
+            @load="loadSource"
+            @insert="loadSource"
+            @rerun="execute"
+            @snippet-saved="scratchpads.markCurrentSourceSaved"
           />
         </div>
       </div>
-
-      <!-- Output panel -->
-      <div
-        data-test="helm-output-panel"
-        class="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-white dark:bg-gray-950"
-      >
-        <HelmResultViewer
-          v-model:view="resultView"
-          :result="executionResult"
-          :error="requestError"
-          :loading="running"
-          :target="target"
-          clearable
-          test-id="helm"
-          @clear="clearExecutionOutput"
-        />
-
-        <HelmWorkspaceLibrary
-          v-if="libraryOpen"
-          ref="library"
-          v-model:tab="libraryTab"
-          :base-url="helmLibraryUrl"
-          :csrf="page.props._csrf || ''"
-          :current-source="editorSelection.source || code"
-          @close="libraryOpen = false"
-          @load="loadSource"
-          @insert="loadSource"
-          @rerun="execute"
-          @snippet-saved="scratchpads.markCurrentSourceSaved"
-        />
-      </div>
     </div>
-
     <HelmWriteGuardDialog
       :show="writeGuard.show"
       :findings="writeGuard.findings"

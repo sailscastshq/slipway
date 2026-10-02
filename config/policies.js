@@ -83,6 +83,7 @@ module.exports.policies = {
     'is-authenticated',
     'is-team-administrator'
   ],
+  'api/v1/helm/execute-command': ['is-authenticated', 'is-team-administrator'],
   'api/v1/dock/apply-migration': ['is-authenticated', 'is-team-administrator'],
   'api/v1/dock/execute-sql': ['is-authenticated', 'is-team-administrator'],
   'api/v1/dock/import-sql': ['is-authenticated', 'is-team-administrator'],

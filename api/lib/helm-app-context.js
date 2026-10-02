@@ -7,6 +7,7 @@ module.exports = function resolveHelmAppContext({
   procRoot = '/proc',
   ownPid = process.pid,
   expectedRuntime,
+  includeProcessIdentity = false,
   contractDir = '/tmp/slipway-helm-runtimes'
 } = {}) {
   const path = require('node:path')
@@ -26,6 +27,40 @@ module.exports = function resolveHelmAppContext({
           return [entry.slice(0, index), entry.slice(index + 1)]
         })
     )
+
+  // Command mode opts into an OS-identity check. Never inherit a broader
+  // Docker-exec identity (including supplementary groups/capabilities) than the
+  // resident app. Legacy JavaScript callers keep their existing return shape.
+  const readProcessIdentity = (pid) => {
+    const status = fs.readFileSync(`${procRoot}/${pid}/status`, 'utf8')
+    const identity = {}
+    for (const field of [
+      'Uid',
+      'Gid',
+      'Groups',
+      'CapInh',
+      'CapPrm',
+      'CapEff',
+      'CapBnd',
+      'CapAmb',
+      'NoNewPrivs'
+    ]) {
+      const line = status
+        .split('\n')
+        .find((line) => line.startsWith(`${field}:`))
+      if (!line)
+        throw unavailable('Helm could not verify the app process identity.')
+      const values = line
+        .slice(field.length + 1)
+        .trim()
+        .split(/\s+/)
+        .filter(Boolean)
+      // Uid/Gid positions are real/effective/saved/filesystem identities;
+      // permuting them changes authority. Only Groups is an unordered set.
+      identity[field] = (field === 'Groups' ? values.sort() : values).join(' ')
+    }
+    return identity
+  }
 
   if (expectedRuntime) {
     const appId = String(expectedRuntime.appId || '')
@@ -108,7 +143,13 @@ module.exports = function resolveHelmAppContext({
             argv,
             environmentFingerprint: contract.environmentFingerprint,
             datastoreFingerprint: contract.datastoreFingerprint,
-            completionMetadata: contract.completionMetadata || null
+            completionMetadata: contract.completionMetadata || null,
+            ...(includeProcessIdentity
+              ? {
+                  processIdentity: readProcessIdentity(pid),
+                  startTicks: contract.startTicks
+                }
+              : {})
           })
         } catch (error) {
           if (
@@ -130,7 +171,30 @@ module.exports = function resolveHelmAppContext({
             ? 'Helm found multiple verified runtimes for this app. Run one app process per container.'
             : 'The app runtime contract no longer matches the selected process. Restart or redeploy the app, then try again.'
         )
-      const { pid, ...context } = contexts[0]
+      const { pid, startTicks, ...context } = contexts[0]
+      if (includeProcessIdentity) {
+        if (
+          JSON.stringify(context.processIdentity) !==
+          JSON.stringify(readProcessIdentity(ownPid))
+        ) {
+          const error = unavailable(
+            'Helm commands require the same user, groups and security identity as the running app. Configure the container to launch its app directly as its image user, then redeploy.'
+          )
+          error.code = 'HELM_PROCESS_IDENTITY_MISMATCH'
+          throw error
+        }
+        const currentStat = fs.readFileSync(`${procRoot}/${pid}/stat`, 'utf8')
+        if (
+          currentStat
+            .slice(currentStat.lastIndexOf(')') + 1)
+            .trim()
+            .split(/\s+/)[19] !== startTicks
+        ) {
+          throw unavailable(
+            'The app process changed while Helm verified its identity. Try again after the app settles.'
+          )
+        }
+      }
       return context
     }
     // Older deployed hooks have no contract yet. Preserve the existing

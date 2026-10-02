@@ -16,6 +16,19 @@ module.exports = function badRequest(optionalData) {
     }
   }
 
+  // inertia-sails 1.5.0 falls through for a serializable Error on a JSON
+  // request. Machine input validation uses that shape; always terminate it
+  // without exposing a raw stack or arbitrary error.toJSON() payload.
+  if (
+    optionalData instanceof Error &&
+    typeof optionalData.toJSON === 'function' &&
+    !this.req.header?.('Precognition')
+  ) {
+    return this.res.status(400).json({
+      message: 'Invalid request parameters.'
+    })
+  }
+
   return this.req._sails.inertia.handleBadRequest(
     this.req,
     this.res,

@@ -38,6 +38,25 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+  helm-command-contract:
+    name: Helm command runtime contract
+    timeout-minutes: 10
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: 'npm'
+      - run: npm ci --no-audit
+      - name: Verify focused command process and installed Sails CLI contracts
+        run: node_modules/.bin/sounding test --file tests/unit/helpers/helm/command-runtime.test.js --file tests/unit/helpers/helm/command-sails.test.js --file tests/unit/helpers/helm/app-context.test.js --test-concurrency=1
+      - run: docker pull node:22-bookworm-slim
+        if: success() || failure()
+      - name: Verify disposable command runtime and process cleanup
+        if: success() || failure()
+        run: node_modules/.bin/sounding test --file tests/contracts/helm-commands.test.js --test-concurrency=1
+
   custom-services-contract:
     name: Custom services contract
     timeout-minutes: 10
@@ -191,8 +210,19 @@ jobs:
       - run: npm ci --no-audit
       - run: npx playwright install --with-deps chromium
       # Sounding partitions files; each runner retains --test-concurrency=1.
+      - name: Verify command-mode journeys before the owning full shard
+        if: matrix.shard == 1
+        run: node_modules/.bin/sounding test --file tests/e2e/pages/projects/helm.test.js --test-name-pattern='^project Helm (command|Stop|preparing)' --test-concurrency=1 --test-timeout=600000
       - name: Run browser tests
         run: npm run test:e2e -- --shard=${{ matrix.shard }}/3 --profile
+      - name: Upload Helm command review screenshots
+        uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: helm-command-review-${{ matrix.shard }}
+          path: .tmp/screenshots/issue-592-commands
+          if-no-files-found: ignore
+          retention-days: 7
       - name: Upload Bearing widget review screenshots
         uses: actions/upload-artifact@v6
         if: always()

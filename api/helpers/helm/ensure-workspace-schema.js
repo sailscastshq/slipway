@@ -13,6 +13,7 @@ module.exports = {
       CREATE TABLE IF NOT EXISTS helm_history_entries (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         source TEXT NOT NULL,
+        mode TEXT NOT NULL DEFAULT 'javascript',
         status TEXT NOT NULL DEFAULT 'error',
         duration_ms INTEGER NOT NULL DEFAULT 0,
         executed_at INTEGER NOT NULL,
@@ -37,6 +38,11 @@ module.exports = {
         (column) => column.name
       )
     )
+    if (!historyColumns.has('mode')) {
+      await datastore.sendNativeQuery(
+        "ALTER TABLE helm_history_entries ADD COLUMN mode TEXT NOT NULL DEFAULT 'javascript'"
+      )
+    }
     if (!historyColumns.has('target_context')) {
       await datastore.sendNativeQuery(
         'ALTER TABLE helm_history_entries ADD COLUMN target_context TEXT'

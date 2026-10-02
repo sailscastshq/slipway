@@ -300,6 +300,8 @@ module.exports.routes = {
     'api/v1/app/stop-app',
   'POST /api/v1/projects/:projectSlug/environments/:environmentSlug/execute':
     'api/v1/app/execute-code',
+  'POST /api/v1/projects/:projectSlug/environments/:environmentSlug/helm/commands':
+    'api/v1/helm/execute-command',
   'POST /api/v1/projects/:projectSlug/environments/:environmentSlug/helm/arm-writes':
     'api/v1/helm/arm-writes',
   'POST /api/v1/projects/:projectSlug/environments/:environmentSlug/helm/inspect-source':
