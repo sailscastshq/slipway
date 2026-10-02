@@ -4,8 +4,8 @@ const path = require('node:path')
 
 // This capture intentionally uses only selectors present in the pinned baseline
 // and the refinement. Behavior regressions belong in the owning Helm page file.
-const SOURCE = 'node -e "process.stdout.write(\'fixture\')"'
-const OUTPUT = 'fixture'
+const SOURCE = 'node -p 1+1'
+const OUTPUT = '2\n'
 const VARIANT = process.env.HELM_PROMPT_VARIANT || 'current'
 const ROOT = path.resolve('.tmp/screenshots/helm-terminal-prompt', VARIANT)
 const SAMPLE_COUNT = 9
@@ -60,11 +60,7 @@ test(
     sails.helpers.helm.executeCommandInContainer = {
       async with(input) {
         executions++
-        expect(input.argv).toEqual([
-          'node',
-          '-e',
-          "process.stdout.write('fixture')"
-        ])
+        expect(input.argv).toEqual(['node', '-p', '1+1'])
         input.onEvent({ type: 'started' })
         input.onEvent({ type: 'stdout', text: OUTPUT })
         return {
@@ -161,6 +157,8 @@ test(
               exact: true
             })
           ).toHaveText('Command output will appear here.')
+          // Capture the resting state on both revisions without changing focus.
+          await page.raw.mouse.move(1, 1)
           await page.screenshot(
             path.join(ROOT, `${device}-${theme}-idle.png`),
             {
@@ -176,6 +174,7 @@ test(
           })
           await expect(dialog).toBeVisible()
           await expect(dialog.locator('..')).toHaveCSS('opacity', '1')
+          await page.raw.mouse.move(1, 1)
           await page.screenshot(
             path.join(ROOT, `${device}-${theme}-warning.png`),
             {
@@ -229,6 +228,7 @@ test(
           })
           expect(layout.documentWidth <= width).toBe(true)
           expect(layout.consoleBottom <= height + 1).toBe(true)
+          await page.raw.mouse.move(1, 1)
           await page.screenshot(
             path.join(ROOT, `${device}-${theme}-completed.png`),
             {

@@ -52,7 +52,7 @@ const lines = [
   '',
   comparison.scope,
   '',
-  'The screenshots are real browser captures. The command result is synthetic: the container runner returns exactly `fixture` for the displayed `node -e "process.stdout.write(\'fixture\')"`. No actual container command or production workload is executed by this trial. Both versions show the same Production target, command, stdout, exit 0, and synthetic duration.',
+  'The screenshots are real browser captures. The command result is synthetic: the container runner returns exactly `2` followed by a newline for the displayed `node -p 1+1`. No actual container command or production workload is executed by this trial. Both versions show the same Production target, command, stdout, exit 0, and synthetic duration.',
   '',
   'Each version contains idle, warning, and completed screenshots at 1440×900 and 390×844 in light and dark mode. Production arming is separately asserted to perform zero executions; only the subsequent explicit submit completes the fixture.',
   '',

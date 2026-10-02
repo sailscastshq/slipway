@@ -138,6 +138,14 @@ node_modules/.bin/sounding test \
   --test-concurrency=1
 ```
 
+The host-Node process fixtures enumerate only their registered app, supervisor,
+guardian, command and descendant PIDs so unrelated CI-host process churn cannot
+change their expected outcome. PID/start identity reads, environment reads and
+signals remain real. Separate controlled ownership probes cover unreadable
+processes and PID reuse. This test-only inventory is never loaded by the
+production runtime or the Docker contract below, which inspects the actual
+container process namespace.
+
 The disposable Docker contract uses an isolated, network-disabled container,
 read-only dependencies/source, tmpfs app data and no customer or business jobs.
 It verifies selected environment/cwd, native Sails arguments/validation,

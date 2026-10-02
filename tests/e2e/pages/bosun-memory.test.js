@@ -93,6 +93,7 @@ test(
     await login.withPassword('genesisUser', page, {
       password: world.current.auth.genesisUserPassword
     })
+    await page.raw.waitForURL((url) => url.pathname === '/')
     await page.goto('/bosun?tab=environment')
     let fail = true
     await page.raw.route('**/api/v1/bosun/env', (route) =>

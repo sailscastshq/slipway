@@ -45,7 +45,7 @@ fixture are identical. CI also verifies there is no component diff afterward.
 The `Helm terminal prompt paired evidence` job uploads idle, production-warning
 and completed screenshots for desktop/mobile light/dark, plus paired geometry
 and raw browser click/input-to-second-animation-frame samples. The deterministic
-container-runner fixture returns exactly `fixture` for the command shown in both
+container-runner fixture returns `2` plus a newline for `node -p 1+1` in both
 versions. These are real browser captures with synthetic command output, not a
 claim that a container command ran. Small frame-scheduled timing samples are
 reported without a speedup claim or threshold; real runtime proof remains in
