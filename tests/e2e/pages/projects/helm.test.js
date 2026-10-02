@@ -2036,8 +2036,15 @@ test(
   async (context) => {
     const { sails, page, expect } = context
     let finish
+    const commandOutput = 'fixture'
+    const commandResult = {
+      ...COMMAND_FIXTURE_RESULT,
+      outputBytes: Buffer.byteLength(commandOutput)
+    }
     const runner = commandFixtureRunner(sails, async ({ onEvent }) => {
       onEvent({ type: 'started' })
+      // Keep this synthetic stream consistent with the displayed command.
+      onEvent({ type: 'stdout', text: commandOutput })
       return new Promise((resolve) => {
         finish = resolve
       })
@@ -2087,10 +2094,19 @@ test(
         page.raw.locator('[data-test="helm-command-status"]')
       ).toHaveText('Running')
       expect(runner.calls.length).toBe(1)
-      finish(COMMAND_FIXTURE_RESULT)
+      const output = page.raw.getByRole('region', {
+        name: 'Command output',
+        exact: true
+      })
+      await expect(output).toHaveText(commandOutput)
+      finish(commandResult)
       await expect(
         page.raw.locator('[data-test="helm-command-status"]')
       ).toHaveText('Completed')
+      await expect(output).toHaveText(commandOutput)
+      await expect(
+        page.raw.locator('[data-test="helm-command-console"]')
+      ).toContainText('exit 0')
       await expect(
         page.raw.locator('[data-test="helm-command-run"]')
       ).toHaveText('Run again')
@@ -2109,7 +2125,7 @@ test(
       await page.key('Escape')
       expect(page).toHaveNoSmoke()
     } finally {
-      finish?.(COMMAND_FIXTURE_RESULT)
+      finish?.(commandResult)
       runner.restore()
     }
   }
