@@ -2059,10 +2059,29 @@ test(
         exact: true
       })
       await input.fill(COMMAND_FIXTURE_SOURCE)
-      await input.press('Enter')
+      await page.raw.keyboard.down('Enter')
       const dialog = page.raw.getByRole('alertdialog', {
         name: 'Arm production command?'
       })
+      await expect(dialog).toBeVisible()
+      expect(runner.calls.length).toBe(0)
+      await page.raw.keyboard.down('Enter')
+      await expect(dialog).toBeVisible()
+      await page.raw.keyboard.up('Enter')
+      // Repeated Enter must not activate the warning's focused control.
+      const repeatedWarningKey = await dialog.evaluate((element) => {
+        const event = new KeyboardEvent('keydown', {
+          key: 'Enter',
+          repeat: true,
+          bubbles: true,
+          cancelable: true
+        })
+        element
+          .querySelector('[data-test="helm-arm-writes"]')
+          .dispatchEvent(event)
+        return event.defaultPrevented
+      })
+      expect(repeatedWarningKey).toBe(true)
       await expect(dialog).toBeVisible()
       expect(runner.calls.length).toBe(0)
       // Playwright visibility includes opacity-zero elements; wait for the
@@ -2076,19 +2095,47 @@ test(
       await expect(input).toBeFocused()
       await input.press('Enter')
       await expect(dialog).toBeVisible()
-      await page.click('@helm-arm-writes')
+      await page.raw.locator('[data-test="helm-arm-writes"]').focus()
+      await page.raw.keyboard.down('Enter')
       await expect(dialog).toBeHidden()
+      await expect(input).toBeFocused()
+      expect(runner.calls.length).toBe(0)
+      await page.raw.keyboard.down('Enter')
       await expect(
         page.raw.locator('[data-test="helm-command-run"]')
-      ).toContainText('Run command')
-      // Multiple submit events in one turn prove the in-flight guard, without waiting
-      // for a now-hidden Run button or depending on a disabled element's click.
+      ).toHaveAccessibleName(/^Run command · \d+s$/)
+      const repeatedArmedKey = await input.evaluate((element) => {
+        const event = new KeyboardEvent('keydown', {
+          key: 'Enter',
+          repeat: true,
+          bubbles: true,
+          cancelable: true
+        })
+        element.dispatchEvent(event)
+        return event.defaultPrevented
+      })
+      expect(repeatedArmedKey).toBe(true)
+      expect(runner.calls.length).toBe(0)
+      await page.raw.keyboard.up('Enter')
+      // Arming only grants a short-lived token. A second deliberate key press
+      // is still required, and holding that key cannot spend the token twice.
+      await input.press('Enter')
+      // Repeated key events while busy do not admit another command. Implicit
+      // form submission is intentionally inert, including after IME commits.
       await input.evaluate((element) => {
         const form = element.closest('form')
-        for (let n = 0; n < 4; n++)
+        for (let n = 0; n < 4; n++) {
+          element.dispatchEvent(
+            new KeyboardEvent('keydown', {
+              key: 'Enter',
+              bubbles: true,
+              cancelable: true
+            })
+          )
           form.dispatchEvent(
             new Event('submit', { bubbles: true, cancelable: true })
           )
+        }
       })
       await expect(
         page.raw.locator('[data-test="helm-command-status"]')
@@ -2109,7 +2156,7 @@ test(
       ).toContainText('exit 0')
       await expect(
         page.raw.locator('[data-test="helm-command-run"]')
-      ).toHaveText('Run again')
+      ).toHaveAccessibleName('Run again')
       await page.screenshot(
         `${COMMAND_SCREENSHOTS}/completed-production-command.png`
       )
@@ -2125,7 +2172,237 @@ test(
       await page.key('Escape')
       expect(page).toHaveNoSmoke()
     } finally {
+      await page.raw.keyboard.up('Enter')
       finish?.(commandResult)
+      runner.restore()
+    }
+  }
+)
+
+test(
+  'project Helm command prompt accepts deliberate single-line input and keeps a mobile submit affordance',
+  {
+    browser: true,
+    world: helmWorld('helm-command-browser-prompt')
+  },
+  async (context) => {
+    const { sails, page, expect } = context
+    const runner = commandFixtureRunner(sails, async ({ onEvent }) => {
+      onEvent({ type: 'started' })
+      onEvent({ type: 'stdout', text: 'fixture' })
+      return { ...COMMAND_FIXTURE_RESULT, outputBytes: 7 }
+    })
+    let inspectionRequests = 0
+    page.raw.on('request', (request) => {
+      if (new URL(request.url()).pathname.endsWith('/helm/inspect-source'))
+        inspectionRequests++
+    })
+    try {
+      await openCommandFixture(context)
+      await page.raw
+        .getByRole('button', { name: 'Command mode', exact: true })
+        .click()
+      const input = page.raw.getByRole('textbox', {
+        name: 'Helm command',
+        exact: true
+      })
+      const submit = page.raw.locator('[data-test="helm-command-run"]')
+      await expect(input).toBeFocused()
+      await expect(submit).toHaveAccessibleName('Run')
+      await expect(submit).toBeDisabled()
+      await input.press('Enter')
+      await input.fill('   ')
+      await input.press('Enter')
+      await expect(submit).toBeDisabled()
+      expect(inspectionRequests).toBe(0)
+
+      await input.fill(COMMAND_FIXTURE_SOURCE)
+      for (const key of ['Shift+Enter', 'Alt+Enter', 'ControlOrMeta+Enter'])
+        await input.press(key)
+      // Exercise both modern IME events and the keyCode 229 fallback. Synthetic
+      // composition does not claim to reproduce an operating-system IME.
+      const guardedKeys = await input.evaluate((element) => {
+        element.dispatchEvent(new CompositionEvent('compositionstart'))
+        const composing = new KeyboardEvent('keydown', {
+          key: 'Enter',
+          code: 'Enter',
+          bubbles: true,
+          cancelable: true,
+          isComposing: true
+        })
+        element.dispatchEvent(composing)
+        element.dispatchEvent(new CompositionEvent('compositionend'))
+        const legacy = new KeyboardEvent('keydown', {
+          key: 'Enter',
+          code: 'Enter',
+          keyCode: 229,
+          bubbles: true,
+          cancelable: true
+        })
+        element.dispatchEvent(legacy)
+        element.dispatchEvent(
+          new KeyboardEvent('keyup', { key: 'Enter', bubbles: true })
+        )
+        const implicitSubmit = new Event('submit', {
+          bubbles: true,
+          cancelable: true
+        })
+        element.closest('form').dispatchEvent(implicitSubmit)
+        return [
+          composing.defaultPrevented,
+          legacy.defaultPrevented,
+          implicitSubmit.defaultPrevented
+        ]
+      })
+      // Preserve the browser's candidate commit while making its implicit
+      // submission inert; the user still needs a fresh deliberate action.
+      expect(guardedKeys).toEqual([false, false, true])
+      await expect(input).toHaveValue(COMMAND_FIXTURE_SOURCE)
+      expect(inspectionRequests).toBe(0)
+      expect(runner.calls.length).toBe(0)
+
+      // Use the real clipboard/default paste path: single-line inputs otherwise
+      // silently strip newlines and concatenate distinct commands.
+      await page.raw
+        .context()
+        .grantPermissions(['clipboard-read', 'clipboard-write'])
+      for (const separator of ['\n', '\r\n', '\r', '\u2028', '\u2029']) {
+        await page.raw.evaluate(
+          (text) => navigator.clipboard.writeText(text),
+          `node --version${separator}node --help`
+        )
+        await input.focus()
+        await input.press('ControlOrMeta+A')
+        await input.press('ControlOrMeta+V')
+        await expect(input).toHaveValue(COMMAND_FIXTURE_SOURCE)
+        await expect(
+          page.raw.getByText('Paste one command on a single line.', {
+            exact: true
+          })
+        ).toBeVisible()
+        await expect(submit).toBeDisabled()
+        await input.press('Enter')
+        expect(inspectionRequests).toBe(0)
+        expect(runner.calls.length).toBe(0)
+      }
+      expect(inspectionRequests).toBe(0)
+      expect(runner.calls.length).toBe(0)
+      await page.raw.evaluate(
+        (text) => navigator.clipboard.writeText(text),
+        'node --version'
+      )
+      await input.press('ControlOrMeta+A')
+      await input.press('ControlOrMeta+V')
+      await expect(input).toHaveValue('node --version')
+      expect(inspectionRequests).toBe(0)
+      expect(runner.calls.length).toBe(0)
+
+      await page.resize(390, 844)
+      await assertCommandFitsViewport(page, expect)
+      await expect(submit).toBeVisible()
+      const affordance = await submit.boundingBox()
+      expect(affordance.width >= 44 && affordance.height >= 44).toBe(true)
+      const inputBorders = await input.evaluate((element) => {
+        const style = getComputedStyle(element)
+        return {
+          bottom: style.borderBottomWidth,
+          top: style.borderTopWidth,
+          left: style.borderLeftWidth,
+          right: style.borderRightWidth,
+          prompt: getComputedStyle(element.closest('form')).borderBottomStyle
+        }
+      })
+      expect(inputBorders).toEqual({
+        bottom: '0px',
+        top: '0px',
+        left: '0px',
+        right: '0px',
+        prompt: 'dashed'
+      })
+      // A touch-friendly fallback remains usable without a physical Enter key.
+      await input.fill(COMMAND_FIXTURE_SOURCE)
+      await submit.click()
+      await expect(
+        page.raw.locator('[data-test="helm-command-status"]')
+      ).toHaveText('Completed')
+      expect(inspectionRequests).toBe(1)
+      expect(runner.calls.length).toBe(1)
+      expect(runner.calls[0].argv).toEqual([
+        'node',
+        '-e',
+        "process.stdout.write('fixture')"
+      ])
+      await expect(submit).toHaveAccessibleName('Run again')
+      // Capture the same live control once, then queue clicks in a single turn
+      // before Vue removes it. Only one attempt may pass the busy guard.
+      await submit.evaluate((element) => {
+        for (let n = 0; n < 4; n++) element.click()
+      })
+      await expect(
+        page.raw.locator('[data-test="helm-command-status"]')
+      ).toHaveText('Completed')
+      expect(inspectionRequests).toBe(2)
+      expect(runner.calls.length).toBe(2)
+      expect(page).toHaveNoSmoke()
+    } finally {
+      runner.restore()
+    }
+  }
+)
+
+test(
+  'project Helm command prompt ignores held Enter after completion until a fresh press',
+  {
+    browser: true,
+    world: helmWorld('helm-command-browser-held-enter')
+  },
+  async (context) => {
+    const { sails, page, expect } = context
+    const runner = commandFixtureRunner(sails, async ({ onEvent }) => {
+      onEvent({ type: 'started' })
+      onEvent({ type: 'stdout', text: 'fixture' })
+      return { ...COMMAND_FIXTURE_RESULT, outputBytes: 7 }
+    })
+    try {
+      await openCommandFixture(context)
+      await page.raw
+        .getByRole('button', { name: 'Command mode', exact: true })
+        .click()
+      const input = page.raw.getByRole('textbox', {
+        name: 'Helm command',
+        exact: true
+      })
+      await input.fill(COMMAND_FIXTURE_SOURCE)
+      await page.raw.keyboard.down('Enter')
+      await expect(
+        page.raw.locator('[data-test="helm-command-status"]')
+      ).toHaveText('Completed')
+      await expect(input).toBeFocused()
+      expect(runner.calls.length).toBe(1)
+      // A second down without up is an actual browser repeat event, including
+      // its native implicit-submit behavior, after the input becomes enabled.
+      for (let n = 0; n < 3; n++) await page.raw.keyboard.down('Enter')
+      const prevented = await input.evaluate((element) => {
+        const repeat = new KeyboardEvent('keydown', {
+          key: 'Enter',
+          repeat: true,
+          bubbles: true,
+          cancelable: true
+        })
+        element.dispatchEvent(repeat)
+        return repeat.defaultPrevented
+      })
+      expect(prevented).toBe(true)
+      expect(runner.calls.length).toBe(1)
+      await page.raw.keyboard.up('Enter')
+      await input.press('Enter')
+      await expect(
+        page.raw.locator('[data-test="helm-command-status"]')
+      ).toHaveText('Completed')
+      expect(runner.calls.length).toBe(2)
+      expect(page).toHaveNoSmoke()
+    } finally {
+      await page.raw.keyboard.up('Enter')
       runner.restore()
     }
   }

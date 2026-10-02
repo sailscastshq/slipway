@@ -1,0 +1,85 @@
+const assert = require('node:assert/strict')
+const fs = require('node:fs')
+const path = require('node:path')
+
+const root = process.argv[2] || '.tmp/screenshots/helm-terminal-prompt'
+const read = (variant) =>
+  JSON.parse(fs.readFileSync(path.join(root, variant, 'metrics.json'), 'utf8'))
+const baseline = read('baseline')
+const current = read('current')
+assert.deepEqual(current.fixture, baseline.fixture)
+assert.deepEqual(current.methodology, baseline.methodology)
+assert.deepEqual(current.browser, baseline.browser)
+assert.equal(current.cases.length, 4)
+assert.equal(baseline.cases.length, 4)
+const comparison = {
+  baselineComponentRevision: baseline.sourceRevision,
+  currentComponentRevision: current.sourceRevision,
+  scope:
+    'Only HelmCommandConsole.vue and HelmWriteGuardDialog.vue are swapped. Both trials use the current backend, dependencies, browser, and deterministic synthetic container-runner fixture.',
+  limits: current.methodology.limits,
+  fixture: current.fixture,
+  cases: current.cases.map((after, index) => {
+    const before = baseline.cases[index]
+    assert.equal(after.device, before.device)
+    assert.equal(after.theme, before.theme)
+    assert.equal(after.layout.viewportWidth, before.layout.viewportWidth)
+    assert.equal(after.layout.viewportHeight, before.layout.viewportHeight)
+    return {
+      device: after.device,
+      theme: after.theme,
+      modeClickToSecondAnimationFrameMedianMs: {
+        baseline: before.modeClickToSecondAnimationFrame.medianMs,
+        current: after.modeClickToSecondAnimationFrame.medianMs
+      },
+      inputEventToSecondAnimationFrameMedianMs: {
+        baseline: before.inputEventToSecondAnimationFrame.medianMs,
+        current: after.inputEventToSecondAnimationFrame.medianMs
+      },
+      layout: { baseline: before.layout, current: after.layout }
+    }
+  })
+}
+fs.writeFileSync(
+  path.join(root, 'comparison.json'),
+  JSON.stringify(comparison, null, 2) + '\n'
+)
+const lines = [
+  '# Helm terminal prompt paired evidence',
+  '',
+  `Baseline components: ${comparison.baselineComponentRevision}`,
+  `Current components: ${comparison.currentComponentRevision}`,
+  '',
+  comparison.scope,
+  '',
+  'The screenshots are real browser captures. The command result is synthetic: the container runner returns exactly `fixture` for the displayed `node -e "process.stdout.write(\'fixture\')"`. No actual container command or production workload is executed by this trial. Both versions show the same Production target, command, stdout, exit 0, and synthetic duration.',
+  '',
+  'Each version contains idle, warning, and completed screenshots at 1440×900 and 390×844 in light and dark mode. Production arming is separately asserted to perform zero executions; only the subsequent explicit submit completes the fixture.',
+  '',
+  '## Browser timing samples',
+  '',
+  'Nine samples per viewport/theme follow one untimed warmup. A real browser click or input event starts performance.now(); the second requestAnimationFrame ends the sample. These values include frame scheduling and are expected to be noisy. Raw samples are in each metrics.json.',
+  '',
+  comparison.limits,
+  '',
+  '| Viewport / theme | Mode reveal median, baseline / current (ms) | Input median, baseline / current (ms) |',
+  '| --- | ---: | ---: |'
+]
+for (const item of comparison.cases) {
+  const reveal = item.modeClickToSecondAnimationFrameMedianMs
+  const input = item.inputEventToSecondAnimationFrameMedianMs
+  lines.push(
+    `| ${item.device} / ${item.theme} | ${reveal.baseline.toFixed(
+      2
+    )} / ${reveal.current.toFixed(2)} | ${input.baseline.toFixed(
+      2
+    )} / ${input.current.toFixed(2)} |`
+  )
+}
+lines.push(
+  '',
+  'No performance improvement is inferred from these small synthetic samples. This is paired presentation and basic responsiveness evidence; runtime correctness remains covered by separate command contracts.',
+  ''
+)
+fs.writeFileSync(path.join(root, 'README.md'), lines.join('\n'))
+console.log(lines.join('\n'))

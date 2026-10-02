@@ -57,6 +57,42 @@ jobs:
         if: success() || failure()
         run: node_modules/.bin/sounding test --file tests/contracts/helm-commands.test.js --test-concurrency=1
 
+  helm-terminal-prompt-review:
+    name: Helm terminal prompt paired evidence
+    timeout-minutes: 15
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: 'npm'
+      - run: npm ci --no-audit
+      - run: npx playwright install --with-deps chromium
+      - name: Capture matching baseline and current terminal fixtures
+        run: bash scripts/compare-helm-terminal-prompt.sh
+      - name: Verify current component files were restored
+        if: always()
+        run: git diff --exit-code -- assets/js/components/HelmCommandConsole.vue assets/js/components/HelmWriteGuardDialog.vue
+      - name: Upload paired screenshots and raw timing samples
+        uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: helm-terminal-prompt-paired-evidence
+          path: .tmp/screenshots/helm-terminal-prompt
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: Upload capture failure evidence
+        uses: actions/upload-artifact@v6
+        if: failure()
+        with:
+          name: helm-terminal-prompt-capture-failures
+          path: .tmp/sounding/artifacts
+          if-no-files-found: ignore
+          retention-days: 7
+
   custom-services-contract:
     name: Custom services contract
     timeout-minutes: 10

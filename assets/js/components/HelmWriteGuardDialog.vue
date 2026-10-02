@@ -58,6 +58,14 @@ watch(
 onBeforeUnmount(() => document.removeEventListener('keydown', handleKeydown))
 
 function handleKeydown(event) {
+  if (
+    props.mode === 'command' &&
+    event.key === 'Enter' &&
+    (event.repeat || event.isComposing || event.keyCode === 229)
+  ) {
+    event.preventDefault()
+    return
+  }
   if (event.key === 'Escape') {
     event.preventDefault()
     if (!props.loading) emit('cancel')
@@ -163,7 +171,7 @@ function handleKeydown(event) {
           </div>
 
           <ul
-            v-if="findings.length"
+            v-if="mode !== 'command' && findings.length"
             class="mt-4 space-y-1.5 rounded-lg bg-gray-50 px-3 py-2.5 dark:bg-gray-950/70"
           >
             <li
@@ -182,13 +190,15 @@ function handleKeydown(event) {
           </ul>
 
           <p class="mt-3 text-xs leading-5 text-gray-500 dark:text-gray-400">
-            Arming lasts {{ ttlSeconds }} seconds, applies only to this exact
-            source and deployment, and is consumed after one attempt.
-            {{
-              mode === 'command'
-                ? 'Every command requires approval. Foreground commands only; this is not a security sandbox.'
-                : 'Detection is a safety heuristic—not a security sandbox.'
-            }}
+            <template v-if="mode === 'command'">
+              Applies to this exact command and deployment. Expires in
+              {{ ttlSeconds }}s; used by one attempt.
+            </template>
+            <template v-else>
+              Arming lasts {{ ttlSeconds }} seconds, applies only to this exact
+              source and deployment, and is consumed after one attempt.
+              Detection is a safety heuristic—not a security sandbox.
+            </template>
           </p>
 
           <Alert
