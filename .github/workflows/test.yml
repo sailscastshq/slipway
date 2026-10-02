@@ -210,15 +210,56 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+  bearing_saves:
+    name: Bearing save regression repeats
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: 'npm'
+      - run: npm ci --no-audit
+      - run: npx playwright install --with-deps chromium
+      - name: Repeat the owning draft and failure-recovery trials
+        run: |
+          for attempt in 1 2 3; do
+            echo "Bearing isolated verification $attempt/3"
+            node_modules/.bin/sounding test \
+              --file tests/e2e/pages/projects/bearing-drafts.test.js \
+              --file tests/e2e/pages/projects/bearing-update-recovery.test.js \
+              --test-name-pattern='Bearing drafts reopen|Bearing failed saves' \
+              --test-concurrency=1 --test-timeout=600000
+            cp -R .tmp/screenshots/issue-642-save-errors ".tmp/screenshots/issue-642-repeat-$attempt"
+          done
+      - name: Upload repeated Bearing save evidence
+        uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: bearing-save-repeated-review
+          path: .tmp/screenshots/issue-642-*
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: Upload isolated trial failure artifacts
+        uses: actions/upload-artifact@v6
+        if: failure()
+        with:
+          name: bearing-save-isolated-failures
+          path: .tmp/sounding/artifacts
+          if-no-files-found: ignore
+          retention-days: 7
+
   e2e:
     # Preserve the existing required check name and fail if any shard fails,
     # is cancelled, or is skipped. A green shard alone is not a passing suite.
     name: Test (e2e)
-    needs: browser
+    needs: [browser, bearing_saves]
     if: always()
     runs-on: ubuntu-latest
     steps:
-      - name: Require every browser shard to pass
+      - name: Require browser shards and Bearing repetitions to pass
         env:
           BROWSER_RESULT: ${{ needs.browser.result }}
-        run: test "$BROWSER_RESULT" = success
+          BEARING_SAVE_RESULT: ${{ needs.bearing_saves.result }}
+        run: test "$BROWSER_RESULT" = success && test "$BEARING_SAVE_RESULT" = success

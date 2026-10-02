@@ -1,6 +1,7 @@
 const fs = require('node:fs')
 const path = require('node:path')
 const { test } = require('sounding')
+const { Resvg } = require('@resvg/resvg-js')
 
 test(
   'Bearing recovers unsaved updates and preserves edits made during repeated saves',
@@ -348,7 +349,7 @@ test(
         space: space.id
       })
       .fetch()
-    const imageUrl = 'https://assets.example.test/bearing/save-probe.svg'
+    const imageUrl = 'https://assets.example.test/bearing/save-probe.png'
     const draft = await sails.models.bearingupdate
       .create({
         title: 'Original invoice update',
@@ -378,8 +379,12 @@ test(
     ).toBeVisible()
     await page.raw.route(imageUrl, (route) =>
       route.fulfill({
-        contentType: 'image/svg+xml',
-        body: '<svg xmlns="http://www.w3.org/2000/svg" width="320" height="200"><rect width="320" height="200" fill="blue"/></svg>'
+        contentType: 'image/png',
+        body: new Resvg(
+          '<svg xmlns="http://www.w3.org/2000/svg" width="320" height="200"><rect width="320" height="200" fill="blue"/></svg>'
+        )
+          .render()
+          .asPng()
       })
     )
     const bearingPath = `/projects/${project.slug}/environments/${environment.slug}/apps/${app.slug}/bearing`
@@ -444,6 +449,12 @@ test(
       })
       await title.fill('Submitted invoice update')
       await summary.fill('Submitted invoice summary')
+      await expect(body).toContainText('Useful invoice details.')
+      await expect(body.locator('img')).toHaveAttribute('src', imageUrl)
+      await expect(body.locator('img')).toHaveAttribute(
+        'title',
+        'Invoice caption'
+      )
 
       sails.models.bearingupdate.updateOne = () => {
         throw new Error('Private simulated save failure')
