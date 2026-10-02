@@ -9,6 +9,12 @@ module.exports = {
       type: 'string',
       required: true
     },
+    mode: {
+      type: 'string',
+      isIn: ['javascript', 'command'],
+      defaultsTo: 'javascript'
+    },
+    appSlug: { type: 'string' },
     environmentSlug: {
       type: 'string',
       required: true
@@ -25,23 +31,25 @@ module.exports = {
     forbidden: { statusCode: 403 }
   },
 
-  fn: async function ({ projectSlug, environmentSlug, q }) {
+  fn: async function ({ projectSlug, environmentSlug, q, mode, appSlug }) {
     const scope = await sails.helpers.helm
       .resolveProjectScope(
         this.req.auth?.userId || this.req.session.userId,
         projectSlug,
         environmentSlug,
-        undefined,
+        appSlug,
         this.req
       )
       .intercept('notFound', 'notFound')
       .intercept('forbidden', 'forbidden')
     const search = (q || '').trim()
     const criteria = {
+      mode,
       user: scope.user.id,
       project: scope.project.id,
       environment: scope.environment.id
     }
+    if (mode === 'command') criteria.app = scope.app.id
     if (search) criteria.source = { contains: search }
 
     const entries = await HelmHistoryEntry.find(criteria)
@@ -61,6 +69,7 @@ module.exports = {
 function serializeEntry(entry) {
   return {
     id: entry.id,
+    mode: entry.mode || 'javascript',
     source: entry.source,
     status: entry.status,
     durationMs: entry.durationMs,

@@ -9,6 +9,12 @@ module.exports = {
   tableName: 'helm_history_entries',
 
   attributes: {
+    mode: {
+      type: 'string',
+      isIn: ['javascript', 'command'],
+      defaultsTo: 'javascript'
+    },
+
     source: {
       type: 'string',
       required: true,
@@ -17,7 +23,7 @@ module.exports = {
 
     status: {
       type: 'string',
-      isIn: ['success', 'error', 'timeout', 'cancelled'],
+      isIn: ['success', 'error', 'timeout', 'cancelled', 'unconfirmed'],
       defaultsTo: 'error'
     },
 

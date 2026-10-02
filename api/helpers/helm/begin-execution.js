@@ -20,7 +20,8 @@ module.exports = {
     res: {
       type: 'ref',
       required: true
-    }
+    },
+    requiresConfirmedCancellation: { type: 'boolean', defaultsTo: false }
   },
 
   exits: {
@@ -29,9 +30,10 @@ module.exports = {
     }
   },
 
-  fn: function ({ executionId, req, res }) {
+  fn: function ({ executionId, req, res, requiresConfirmedCancellation }) {
     const execution = helmExecutions.register({
       executionId,
+      requiresConfirmedCancellation,
       userId: req.auth?.userId || req.session.userId
     })
     const onResponseClose = () => {
@@ -42,12 +44,19 @@ module.exports = {
       }
     }
     res.once('close', onResponseClose)
+    // Authorization and runtime lookup can finish after the client has left.
+    // Registering a future listener must not miss that earlier disconnect.
+    if (req.aborted || res.destroyed || res.closed) {
+      execution.abort(
+        'Helm execution was cancelled before admission completed.'
+      )
+    }
 
     return {
       signal: execution.signal,
-      release() {
+      release(result) {
         res.off('close', onResponseClose)
-        execution.release()
+        execution.release(result)
       }
     }
   }

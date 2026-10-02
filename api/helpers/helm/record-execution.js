@@ -9,6 +9,11 @@ module.exports = {
       type: 'ref',
       required: true
     },
+    mode: {
+      type: 'string',
+      isIn: ['javascript', 'command'],
+      defaultsTo: 'javascript'
+    },
     source: {
       type: 'string',
       required: true
@@ -44,6 +49,7 @@ module.exports = {
 
   fn: async function ({
     scope,
+    mode,
     source,
     result,
     startedAt,
@@ -67,6 +73,7 @@ module.exports = {
 
     try {
       historyEntry = await HelmHistoryEntry.create({
+        mode,
         source,
         status,
         durationMs,
@@ -92,6 +99,7 @@ module.exports = {
       resourceType: 'app',
       resourceId: String(scope.app.id),
       details: {
+        mode,
         projectId: scope.project.id,
         environmentId: scope.environment.id,
         ...publicTarget(target),
@@ -132,7 +140,11 @@ function publicTarget(target) {
 }
 
 function normalizeStatus(result) {
-  if (['success', 'error', 'timeout', 'cancelled'].includes(result?.status)) {
+  if (
+    ['success', 'error', 'timeout', 'cancelled', 'unconfirmed'].includes(
+      result?.status
+    )
+  ) {
     return result.status
   }
   return result?.success ? 'success' : 'error'

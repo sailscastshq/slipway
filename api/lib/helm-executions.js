@@ -1,6 +1,10 @@
 const activeExecutions = new Map()
 
-function register({ executionId, userId }) {
+function register({
+  executionId,
+  userId,
+  requiresConfirmedCancellation = false
+}) {
   const key = String(executionId)
   if (activeExecutions.has(key)) {
     const error = new Error('A Helm execution with this ID is already active.')
@@ -16,6 +20,9 @@ function register({ executionId, userId }) {
   const execution = {
     completed,
     controller,
+    requiresConfirmedCancellation,
+    cancellationConfirmed: false,
+    released: false,
     userId: String(userId)
   }
   activeExecutions.set(key, execution)
@@ -25,7 +32,11 @@ function register({ executionId, userId }) {
     abort(message) {
       abortExecution(controller, message)
     },
-    release() {
+    release(result) {
+      if (execution.released) return
+      execution.released = true
+      execution.cancellationConfirmed =
+        result?.status === 'cancelled' && result?.terminationConfirmed === true
       if (activeExecutions.get(key) === execution) {
         activeExecutions.delete(key)
       }
@@ -40,7 +51,9 @@ async function cancel({ executionId, userId, message }) {
 
   abortExecution(execution.controller, message)
   await execution.completed
-  return true
+  return execution.requiresConfirmedCancellation
+    ? execution.cancellationConfirmed
+    : true
 }
 
 function abortExecution(controller, message) {

@@ -1788,3 +1788,652 @@ test(
     }
   }
 )
+
+const COMMAND_SCREENSHOTS = '.tmp/screenshots/issue-592-commands'
+const COMMAND_FIXTURE_SOURCE = 'node -e "process.stdout.write(\'fixture\')"'
+const COMMAND_FIXTURE_RESULT = {
+  success: true,
+  status: 'success',
+  exitCode: 0,
+  signal: null,
+  exitStatusObserved: true,
+  terminationConfirmed: true,
+  terminationScope: 'foreground-process-group',
+  durationMs: 24,
+  outputBytes: 30,
+  truncated: false
+}
+
+async function openCommandFixture(
+  context,
+  { production = false, worker = false } = {}
+) {
+  const { sails, world, login, page } = context
+  const current = world.current
+  const environment = current.environments.production
+  await sails.models.environment
+    .updateOne({ id: environment.id })
+    .set({ isProduction: production })
+  const app = worker
+    ? await world.create('app').with({
+        environment: environment.id,
+        name: 'Fixture worker',
+        slug: 'fixture-worker',
+        isDefault: false,
+        status: 'running',
+        containerName: 'sounding-command-browser-worker'
+      })
+    : current.apps.web
+  await sails.models.app.updateOne({ id: app.id }).set({
+    status: 'running',
+    containerName: 'sounding-command-browser-fixture'
+  })
+  // Completion metadata is unrelated to command execution and must never exec Docker.
+  await page.raw.route('**/helm/completions*', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(HELM_COMPLETION_METADATA)
+    })
+  )
+  await login.withPassword('genesisUser', page, {
+    password: current.auth.genesisUserPassword
+  })
+  const path = `/projects/${current.projects.deploymentTarget.slug}/environments/${environment.slug}/helm?appSlug=${app.slug}`
+  await page.goto(path)
+  return { current, app, environment, path }
+}
+
+function commandFixtureRunner(sails, run) {
+  const original = sails.helpers.helm.executeCommandInContainer
+  const calls = []
+  sails.helpers.helm.executeCommandInContainer = {
+    async with(input) {
+      calls.push(input)
+      return run(input)
+    }
+  }
+  return {
+    calls,
+    restore() {
+      sails.helpers.helm.executeCommandInContainer = original
+    }
+  }
+}
+
+async function assertCommandFitsViewport(page, expect) {
+  const layout = await page.script(() => {
+    const console = document
+      .querySelector('[data-test="helm-command-console"]')
+      .getBoundingClientRect()
+    const source = document
+      .querySelector('#helm-command-input')
+      .getBoundingClientRect()
+    const output = document
+      .querySelector('[aria-label="Command output"]')
+      .getBoundingClientRect()
+    return {
+      console: {
+        width: console.width,
+        left: console.left,
+        right: console.right,
+        bottom: console.bottom
+      },
+      source: { width: source.width, top: source.top, bottom: source.bottom },
+      output: { width: output.width, top: output.top, left: output.left },
+      viewport: window.innerWidth,
+      overflow: document.documentElement.scrollWidth > window.innerWidth,
+      height: window.innerHeight
+    }
+  })
+  expect(Math.abs(layout.console.width - layout.output.width) < 2).toBe(true)
+  expect(Math.abs(layout.console.left - layout.output.left) < 2).toBe(true)
+  expect(layout.source.width > layout.console.width * 0.5).toBe(true)
+  expect(layout.output.top >= layout.source.bottom).toBe(true)
+  expect(layout.console.right <= layout.viewport + 1).toBe(true)
+  expect(layout.console.bottom <= layout.height + 1).toBe(true)
+  expect(layout.overflow).toBe(false)
+}
+
+test(
+  'project Helm command mode preserves JavaScript scratchpads and streams stdout and stderr before native completion',
+  {
+    browser: true,
+    world: helmWorld('helm-command-browser-stream')
+  },
+  async (context) => {
+    const { sails, page, expect } = context
+    let finish
+    let releaseHistory
+    const runner = commandFixtureRunner(sails, async ({ onEvent }) => {
+      onEvent({ type: 'started' })
+      onEvent({ type: 'stdout', text: 'fixture stdout before completion\n' })
+      onEvent({ type: 'stderr', text: 'fixture stderr before completion\n' })
+      return new Promise((resolve) => {
+        finish = resolve
+      })
+    })
+    try {
+      const { app } = await openCommandFixture(context, { worker: true })
+      await page.resize(1440, 900)
+      await page.inLightMode()
+      const scratchpad = 'return { fixtureScratchpad: true }'
+      await page.fill('@helm-editor', scratchpad)
+      const javascriptMode = page.raw.getByRole('button', {
+        name: 'JavaScript mode',
+        exact: true
+      })
+      const commandMode = page.raw.getByRole('button', {
+        name: 'Command mode',
+        exact: true
+      })
+      await expect(javascriptMode).toHaveAttribute('aria-pressed', 'true')
+      await commandMode.focus()
+      await page.key('Enter')
+      await expect(commandMode).toHaveAttribute('aria-pressed', 'true')
+      await expect(
+        page.raw.locator('[data-test="helm-scratchpads"]')
+      ).toBeHidden()
+      const input = page.raw.getByRole('textbox', {
+        name: 'Helm command',
+        exact: true
+      })
+      await input.fill(COMMAND_FIXTURE_SOURCE)
+      await input.press('Enter')
+      await expect(
+        page.raw.getByRole('region', { name: 'Command output', exact: true })
+      ).toContainText('fixture stdout before completion')
+      await expect(
+        page.raw.getByRole('region', { name: 'Command output', exact: true })
+      ).toContainText('fixture stderr before completion')
+      await expect(
+        page.raw.locator('[data-test="helm-command-status"]')
+      ).toHaveText('Running')
+      await expect(javascriptMode).toBeDisabled()
+      await expect(commandMode).toBeDisabled()
+      await expect(input).toBeDisabled()
+      expect(runner.calls.length).toBe(1)
+      expect(runner.calls[0].expectedRuntime.appId).toBe(String(app.id))
+      await expect(
+        page.raw.locator('[data-test="helm-command-target"]')
+      ).toContainText('Fixture worker')
+      await expect(
+        page.raw.locator('[data-test="helm-command-target"]')
+      ).toContainText('Production')
+      await assertCommandFitsViewport(page, expect)
+      await page.screenshot(
+        `${COMMAND_SCREENSHOTS}/streaming-desktop-light.png`
+      )
+      await page.inDarkMode()
+      await page.screenshot(`${COMMAND_SCREENSHOTS}/streaming-desktop-dark.png`)
+      const historyGate = new Promise((resolve) => {
+        releaseHistory = resolve
+      })
+      await page.raw.route('**/helm/history?**', async (route) => {
+        if (
+          new URL(route.request().url()).searchParams.get('mode') === 'command'
+        )
+          await historyGate
+        await route.continue()
+      })
+      finish({
+        ...COMMAND_FIXTURE_RESULT,
+        success: false,
+        status: 'error',
+        exitCode: 7
+      })
+      await expect(
+        page.raw.locator('[data-test="helm-command-status"]')
+      ).toHaveText('Failed')
+      await expect(
+        page.raw.locator('[data-test="helm-command-console"]')
+      ).toContainText('exit 7')
+      await expect(input).toBeFocused()
+      await expect(javascriptMode).toBeEnabled()
+      // Terminal controls unlock even when refreshing optional history is slow.
+      releaseHistory()
+      await javascriptMode.click()
+      await expect(page.raw.locator('[data-test="helm-editor"]')).toHaveText(
+        scratchpad
+      )
+      await commandMode.click()
+      await expect(input).toHaveValue(COMMAND_FIXTURE_SOURCE)
+      await page.resize(390, 844)
+      await assertCommandFitsViewport(page, expect)
+      await page.screenshot(`${COMMAND_SCREENSHOTS}/completed-mobile-dark.png`)
+      await page.inLightMode()
+      await page.screenshot(`${COMMAND_SCREENSHOTS}/completed-mobile-light.png`)
+      await page.raw
+        .getByRole('button', { name: 'Command history', exact: true })
+        .click()
+      await input.fill('node --version')
+      const history = page.raw.locator('[aria-label="Command history entries"]')
+      await history
+        .getByRole('button')
+        .filter({ hasText: COMMAND_FIXTURE_SOURCE })
+        .click()
+      await expect(input).toHaveValue(COMMAND_FIXTURE_SOURCE)
+      await expect(input).toBeFocused()
+      expect(runner.calls.length).toBe(1)
+      expect(page).toHaveNoSmoke()
+    } finally {
+      releaseHistory?.()
+      finish?.(COMMAND_FIXTURE_RESULT)
+      runner.restore()
+    }
+  }
+)
+
+test(
+  'project Helm commands require a fresh production arm for Run again and ignore rapid repeated submissions',
+  {
+    browser: true,
+    world: helmWorld('helm-command-browser-arming')
+  },
+  async (context) => {
+    const { sails, page, expect } = context
+    let finish
+    const runner = commandFixtureRunner(sails, async ({ onEvent }) => {
+      onEvent({ type: 'started' })
+      return new Promise((resolve) => {
+        finish = resolve
+      })
+    })
+    try {
+      await openCommandFixture(context, { production: true })
+      await page.raw
+        .getByRole('button', { name: 'Command mode', exact: true })
+        .click()
+      const input = page.raw.getByRole('textbox', {
+        name: 'Helm command',
+        exact: true
+      })
+      await input.fill(COMMAND_FIXTURE_SOURCE)
+      await input.press('Enter')
+      const dialog = page.raw.getByRole('alertdialog', {
+        name: 'Arm production command?'
+      })
+      await expect(dialog).toBeVisible()
+      expect(runner.calls.length).toBe(0)
+      await page.screenshot(
+        `${COMMAND_SCREENSHOTS}/production-command-warning.png`
+      )
+      await page.key('Escape')
+      await expect(dialog).toBeHidden()
+      await expect(input).toBeFocused()
+      await input.press('Enter')
+      await expect(dialog).toBeVisible()
+      await page.click('@helm-arm-writes')
+      await expect(dialog).toBeHidden()
+      await expect(
+        page.raw.locator('[data-test="helm-command-run"]')
+      ).toContainText('Run command')
+      // Multiple submit events in one turn prove the in-flight guard, without waiting
+      // for a now-hidden Run button or depending on a disabled element's click.
+      await input.evaluate((element) => {
+        const form = element.closest('form')
+        for (let n = 0; n < 4; n++)
+          form.dispatchEvent(
+            new Event('submit', { bubbles: true, cancelable: true })
+          )
+      })
+      await expect(
+        page.raw.locator('[data-test="helm-command-status"]')
+      ).toHaveText('Running')
+      expect(runner.calls.length).toBe(1)
+      finish(COMMAND_FIXTURE_RESULT)
+      await expect(
+        page.raw.locator('[data-test="helm-command-status"]')
+      ).toHaveText('Completed')
+      await expect(
+        page.raw.locator('[data-test="helm-command-run"]')
+      ).toHaveText('Run again')
+      await page.click('@helm-command-run')
+      await expect(dialog).toBeVisible()
+      expect(runner.calls.length).toBe(1)
+      await page.click('@helm-arm-writes')
+      await expect(dialog).toBeHidden()
+      await input.fill('node --version')
+      await input.press('Enter')
+      await expect(dialog).toBeVisible()
+      expect(runner.calls.length).toBe(1)
+      await page.key('Escape')
+      expect(page).toHaveNoSmoke()
+    } finally {
+      finish?.(COMMAND_FIXTURE_RESULT)
+      runner.restore()
+    }
+  }
+)
+
+test(
+  'project Helm Stop waits for command terminal evidence and navigation aborts the old selected target',
+  {
+    browser: true,
+    world: helmWorld('helm-command-browser-stop')
+  },
+  async (context) => {
+    const { sails, page, expect } = context
+    let finish
+    let signal
+    let waitForAbort
+    const runner = commandFixtureRunner(sails, async (input) => {
+      signal = input.signal
+      waitForAbort = new Promise((resolve) =>
+        signal.addEventListener('abort', resolve, { once: true })
+      )
+      input.onEvent({ type: 'started' })
+      input.onEvent({ type: 'stdout', text: 'fixture command still running\n' })
+      return new Promise((resolve) => {
+        finish = resolve
+      })
+    })
+    try {
+      const { current, path } = await openCommandFixture(context)
+      await page.raw
+        .getByRole('button', { name: 'Command mode', exact: true })
+        .click()
+      const input = page.raw.getByRole('textbox', {
+        name: 'Helm command',
+        exact: true
+      })
+      await input.fill(COMMAND_FIXTURE_SOURCE)
+      await input.press('Enter')
+      await expect(
+        page.raw.locator('[data-test="helm-command-status"]')
+      ).toHaveText('Running')
+      await page.raw
+        .getByRole('button', { name: 'Stop command', exact: true })
+        .click()
+      await expect(
+        page.raw.locator('[data-test="helm-command-status"]')
+      ).toHaveText('Stopping')
+      await expect(
+        page.raw.getByRole('button', { name: 'Stop command', exact: true })
+      ).toBeDisabled()
+      await waitForAbort
+      expect(signal.aborted).toBe(true)
+      await expect(input).toBeDisabled()
+      await page.screenshot(`${COMMAND_SCREENSHOTS}/awaiting-stop-evidence.png`)
+      finish({
+        ...COMMAND_FIXTURE_RESULT,
+        success: false,
+        status: 'cancelled',
+        exitCode: null,
+        signal: 'SIGTERM'
+      })
+      await expect(
+        page.raw.locator('[data-test="helm-command-status"]')
+      ).toHaveText('Cancelled')
+      await expect(
+        page.raw.locator('[data-test="helm-command-console"]')
+      ).toContainText('SIGTERM')
+      await expect(
+        page.raw.locator('[data-test="helm-command-console"]')
+      ).not.toContainText('exit 0')
+      await input.press('Enter')
+      await expect(
+        page.raw.locator('[data-test="helm-command-status"]')
+      ).toHaveText('Running')
+      const abandoned = signal
+      const secondApp = await context.world.create('app').with({
+        environment: current.environments.production.id,
+        slug: 'second-command-fixture',
+        isDefault: false,
+        name: 'Second command fixture',
+        status: 'running',
+        containerName: 'sounding-second-command-fixture'
+      })
+      await page.goto(
+        path.replace(/appSlug=[^&]+/, `appSlug=${secondApp.slug}`)
+      )
+      await page.raw
+        .getByRole('button', { name: 'Command mode', exact: true })
+        .click()
+      await expect(input).toHaveValue('')
+      await expect(
+        page.raw.locator('[data-test="helm-command-target"]')
+      ).toContainText('Second command fixture')
+      await waitForAbort
+      expect(abandoned.aborted).toBe(true)
+      finish({
+        ...COMMAND_FIXTURE_RESULT,
+        success: false,
+        status: 'cancelled',
+        exitCode: null,
+        signal: 'SIGTERM'
+      })
+      await expect(
+        page.raw.locator('[data-test="helm-command-status"]')
+      ).toHaveText('Ready')
+      await expect(
+        page.raw.getByRole('region', { name: 'Command output', exact: true })
+      ).not.toContainText('fixture command still running')
+      await page.goto('/projects')
+      await expect(
+        page.raw.locator('[data-test="helm-command-console"]')
+      ).toHaveCount(0)
+      expect(runner.calls.length).toBe(2)
+      expect(page).toHaveNoSmoke()
+    } finally {
+      finish?.({
+        ...COMMAND_FIXTURE_RESULT,
+        success: false,
+        status: 'unconfirmed',
+        terminationConfirmed: false,
+        exitCode: null
+      })
+      runner.restore()
+    }
+  }
+)
+
+test(
+  'project Helm command transport loss remains unconfirmed and does not invent a successful Stop',
+  {
+    browser: true,
+    world: helmWorld('helm-command-browser-unconfirmed')
+  },
+  async (context) => {
+    const { page, expect } = context
+    await openCommandFixture(context)
+    // An incomplete accepted stream exercises the browser's real fetch/NDJSON path.
+    await page.raw.route('**/helm/commands', async (route) => {
+      const { executionId } = route.request().postDataJSON()
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/x-ndjson',
+        body:
+          [
+            { type: 'accepted', executionId },
+            { type: 'started' },
+            { type: 'stdout', text: 'last observed fixture output\n' }
+          ]
+            .map(JSON.stringify)
+            .join('\n') + '\n'
+      })
+    })
+    await page.raw
+      .getByRole('button', { name: 'Command mode', exact: true })
+      .click()
+    const input = page.raw.getByRole('textbox', {
+      name: 'Helm command',
+      exact: true
+    })
+    await input.fill(COMMAND_FIXTURE_SOURCE)
+    await input.press('Enter')
+    await expect(
+      page.raw.locator('[data-test="helm-command-status"]')
+    ).toHaveText('Unconfirmed')
+    await expect(
+      page.raw.locator('[data-test="helm-command-error"]')
+    ).toContainText('Check the selected app')
+    await expect(
+      page.raw.getByRole('region', { name: 'Command output', exact: true })
+    ).toContainText('last observed fixture output')
+    await expect(
+      page.raw.locator('[data-test="helm-command-console"]')
+    ).not.toContainText('exit 0')
+    await expect(
+      page.raw.locator('[data-test="helm-command-status"]')
+    ).not.toHaveText('Cancelled')
+    await page.screenshot(`${COMMAND_SCREENSHOTS}/transport-unconfirmed.png`)
+    expect(page).toHaveNoSmoke()
+  }
+)
+
+test(
+  'project Helm preparing commands cannot claim Stop before admission and ignores inspection after navigation',
+  {
+    browser: true,
+    world: helmWorld('helm-command-browser-admission')
+  },
+  async (context) => {
+    const { page, expect } = context
+    await openCommandFixture(context)
+    let releaseInspection
+    const inspectionGate = new Promise((resolve) => {
+      releaseInspection = resolve
+    })
+    let sawInspection
+    const inspectionEntered = new Promise((resolve) => {
+      sawInspection = resolve
+    })
+    let commandRequests = 0
+    await page.raw.route('**/helm/inspect-source', async (route) => {
+      sawInspection()
+      await inspectionGate
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          mode: 'command',
+          requiresWriteArm: false,
+          classification: { findings: [] }
+        })
+      })
+    })
+    await page.raw.route('**/helm/commands', async (route) => {
+      commandRequests++
+      await route.fulfill({
+        status: 500,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          message: 'A stale inspection must never dispatch a command'
+        })
+      })
+    })
+    try {
+      await page.raw
+        .getByRole('button', { name: 'Command mode', exact: true })
+        .click()
+      const input = page.raw.getByRole('textbox', {
+        name: 'Helm command',
+        exact: true
+      })
+      await input.fill(COMMAND_FIXTURE_SOURCE)
+      await input.press('Enter')
+      await inspectionEntered
+      await expect(
+        page.raw.locator('[data-test="helm-command-status"]')
+      ).toHaveText('Preparing')
+      await expect(
+        page.raw.getByRole('button', { name: 'Stop command', exact: true })
+      ).toBeDisabled()
+      await expect(
+        page.raw.getByRole('button', { name: 'JavaScript mode', exact: true })
+      ).toBeDisabled()
+      await expect(input).toBeDisabled()
+      await page.screenshot(
+        `${COMMAND_SCREENSHOTS}/pre-admission-preparing.png`
+      )
+      // Follow a real Inertia link so Vue unmount cleanup, rather than a full
+      // browser reload, must make the late inspection harmless.
+      await page.raw
+        .getByRole('navigation', { name: 'Breadcrumb', exact: true })
+        .getByRole('link', { name: 'projects', exact: true })
+        .click()
+      await expect(
+        page.raw.locator('[data-test="helm-command-console"]')
+      ).toHaveCount(0)
+      const inspectionFinished = page.raw.waitForResponse(
+        '**/helm/inspect-source'
+      )
+      releaseInspection()
+      await inspectionFinished
+      expect(commandRequests).toBe(0)
+      expect(page).toHaveNoSmoke()
+    } finally {
+      releaseInspection()
+    }
+  }
+)
+
+test(
+  'project Helm command output keeps markup inert and visibly bounds hostile tiny channel chunks',
+  {
+    browser: true,
+    world: helmWorld('helm-command-browser-output-bounds')
+  },
+  async (context) => {
+    const { page, expect } = context
+    await openCommandFixture(context)
+    await page.raw.route('**/helm/commands', async (route) => {
+      const { executionId } = route.request().postDataJSON()
+      const events = [
+        { type: 'accepted', executionId },
+        { type: 'started' },
+        {
+          type: 'stdout',
+          text: '\u001b[31m<img src=x onerror="window.helmFixtureExecuted=true">\u001b[0m\n'
+        }
+      ]
+      for (let n = 0; n < 1100; n++)
+        events.push({
+          type: n % 2 ? 'stdout' : 'stderr',
+          text: `fragment-${n}\n`
+        })
+      events.push({
+        type: 'result',
+        executionId,
+        result: COMMAND_FIXTURE_RESULT
+      })
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/x-ndjson',
+        body: events.map(JSON.stringify).join('\n') + '\n'
+      })
+    })
+    await page.raw
+      .getByRole('button', { name: 'Command mode', exact: true })
+      .click()
+    const input = page.raw.getByRole('textbox', {
+      name: 'Helm command',
+      exact: true
+    })
+    await input.fill(COMMAND_FIXTURE_SOURCE)
+    await input.press('Enter')
+    await expect(
+      page.raw.locator('[data-test="helm-command-status"]')
+    ).toHaveText('Completed')
+    const output = page.raw.getByRole('region', {
+      name: 'Command output',
+      exact: true
+    })
+    await expect(output).toContainText(
+      '<img src=x onerror="window.helmFixtureExecuted=true">'
+    )
+    await expect(output.locator('img')).toHaveCount(0)
+    expect(await page.script(() => Boolean(window.helmFixtureExecuted))).toBe(
+      false
+    )
+    expect((await output.textContent()).includes('\u001b')).toBe(false)
+    expect(await output.locator('pre > span').count()).toBe(1024)
+    await expect(
+      page.raw.locator('[data-test="helm-command-console"]')
+    ).toContainText('Output truncated')
+    await expect(output).not.toContainText('fragment-1099')
+    await page.screenshot(`${COMMAND_SCREENSHOTS}/bounded-inert-output.png`)
+    expect(page).toHaveNoSmoke()
+  }
+)

@@ -1,0 +1,553 @@
+<script setup>
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import Play from '@/components/ui/icons/Play.vue'
+import Stop from '@/components/ui/icons/Stop.vue'
+import History from '@/components/ui/icons/History.vue'
+import Spinner from '@/components/SlipwaySpinner.vue'
+import Input from '@/components/ui/input/Input.vue'
+import HelmWriteGuardDialog from '@/components/HelmWriteGuardDialog.vue'
+import { cancelHelmExecution } from '@/lib/helmExecution'
+import { readHelmCommandStream } from '@/lib/helmCommandStream.mjs'
+
+const props = defineProps({
+  baseUrl: { type: String, required: true },
+  target: { type: Object, required: true },
+  appSlug: String,
+  appRunning: Boolean,
+  active: Boolean,
+  csrf: { type: String, default: '' },
+  ttlSeconds: { type: Number, default: 60 }
+})
+const emit = defineEmits(['busy'])
+const source = ref('')
+const displayTarget = ref(props.target)
+const commandInput = ref(null)
+const logs = ref([])
+const result = ref(null)
+const error = ref('')
+const busy = ref(false)
+const stopping = ref(false)
+const started = ref(false)
+const admitted = ref(false)
+const displayTruncated = ref(false)
+const requestedAt = ref(0)
+const now = ref(Date.now())
+const history = ref([])
+const historyOpen = ref(false)
+const historyError = ref('')
+const guard = ref({ show: false, findings: [], target: null, error: '' })
+const arming = ref(false)
+const writeArm = ref(null)
+const lastSource = ref('')
+let activeExecution = null
+let sequence = 0
+let historySequence = 0
+let armSequence = 0
+let clock
+let logBytes = 0
+
+const targetKey = computed(() =>
+  JSON.stringify([
+    props.target?.app?.id,
+    props.target?.environment?.id,
+    props.target?.deployment?.id,
+    props.target?.container,
+    props.target?.version
+  ])
+)
+const armRemaining = computed(() =>
+  Math.max(0, Math.ceil(((writeArm.value?.expiresAt || 0) - now.value) / 1000))
+)
+const armed = computed(
+  () => writeArm.value?.source === source.value && armRemaining.value > 0
+)
+const elapsed = computed(() =>
+  (
+    (result.value?.durationMs ??
+      (requestedAt.value ? now.value - requestedAt.value : 0)) / 1000
+  ).toFixed(1)
+)
+const statusLabel = computed(() =>
+  busy.value
+    ? stopping.value
+      ? 'Stopping'
+      : started.value
+      ? 'Running'
+      : 'Preparing'
+    : {
+        success: 'Completed',
+        error: 'Failed',
+        timeout: 'Timed out',
+        cancelled: 'Cancelled',
+        unconfirmed: 'Unconfirmed'
+      }[result.value?.status] || 'Ready'
+)
+const runLabel = computed(() =>
+  armed.value
+    ? `Run command · ${armRemaining.value}s`
+    : result.value && source.value === lastSource.value
+    ? 'Run again'
+    : 'Run'
+)
+
+function headers() {
+  return {
+    Accept: 'application/json',
+    'Content-Type': 'application/json',
+    'x-csrf-token': props.csrf
+  }
+}
+async function api(suffix, body) {
+  const response = await fetch(`${props.baseUrl}${suffix}`, {
+    method: 'POST',
+    headers: headers(),
+    cache: 'no-store',
+    body: JSON.stringify(body)
+  })
+  let data
+  try {
+    data = await response.json()
+  } catch {
+    throw new Error('The server did not return a valid response.')
+  }
+  if (!response.ok)
+    throw new Error(data.message || data.error || 'The command request failed.')
+  return data
+}
+function clearArm() {
+  armSequence++
+  writeArm.value = null
+  if (arming.value) {
+    arming.value = false
+    emit('busy', busy.value)
+  }
+}
+function setBusy(value) {
+  busy.value = value
+  emit('busy', value)
+}
+function appendLog(event) {
+  if (displayTruncated.value) return
+  const previous = logs.value.at(-1)
+  if (logs.value.length >= 1024 && previous?.type !== event.type) {
+    displayTruncated.value = true
+    return
+  }
+  const remaining = 64 * 1024 - logBytes
+  if (remaining <= 0) {
+    displayTruncated.value = true
+    return
+  }
+  const bytes = new TextEncoder().encode(event.text)
+  const text = new TextDecoder().decode(bytes.subarray(0, remaining), {
+    stream: true
+  })
+  logBytes += new TextEncoder().encode(text).byteLength
+  if (!text) return
+  if (previous?.type === event.type) previous.text += text
+  else logs.value.push({ type: event.type, text })
+  if (bytes.byteLength > remaining) displayTruncated.value = true
+}
+function resultError(value) {
+  return typeof value === 'string' ? value : value?.message || ''
+}
+function stripAnsi(text) {
+  return String(text).replace(/\x1b\[[0-9;]*[A-Za-z]/g, '')
+}
+
+async function execute() {
+  if (busy.value || arming.value || !props.appRunning || !source.value.trim())
+    return
+  const submitted = source.value
+  const scope = targetKey.value
+  const current = ++sequence
+  error.value = ''
+  setBusy(true)
+  started.value = false
+  requestedAt.value = 0
+  try {
+    const inspection = await api('/inspect-source', {
+      code: submitted,
+      mode: 'command',
+      appSlug: props.appSlug
+    })
+    if (current !== sequence || scope !== targetKey.value) return
+    if (inspection.requiresWriteArm && !armed.value) {
+      guard.value = {
+        show: true,
+        findings: inspection.classification.findings,
+        target: inspection.target,
+        error: ''
+      }
+      return
+    }
+    const token = armed.value ? writeArm.value.token : undefined
+    clearArm()
+    const id = crypto.randomUUID()
+    const controller = new AbortController()
+    activeExecution = { id, controller, sequence: current }
+    lastSource.value = submitted
+    logs.value = []
+    displayTruncated.value = false
+    admitted.value = false
+    logBytes = 0
+    result.value = null
+    requestedAt.value = Date.now()
+    now.value = requestedAt.value
+    const response = await fetch(`${props.baseUrl}/commands`, {
+      method: 'POST',
+      headers: { ...headers(), Accept: 'application/x-ndjson' },
+      cache: 'no-store',
+      body: JSON.stringify({
+        code: submitted,
+        appSlug: props.appSlug,
+        executionId: id,
+        writeArmToken: token
+      }),
+      signal: controller.signal
+    })
+    const terminal = await readHelmCommandStream(response, {
+      executionId: id,
+      onEvent(event) {
+        if (current !== sequence) return
+        if (event.type === 'accepted') {
+          admitted.value = true
+          displayTarget.value = event.target || props.target
+        } else if (event.type === 'started') started.value = true
+        else if (['stdout', 'stderr'].includes(event.type)) appendLog(event)
+      }
+    })
+    if (current !== sequence) return
+    result.value = terminal
+    error.value = resultError(terminal.error)
+    void refreshHistory()
+  } catch (caught) {
+    if (current !== sequence) return
+    if (activeExecution && !caught.requestFailed) {
+      result.value = {
+        status: 'unconfirmed',
+        success: false,
+        exitCode: null,
+        durationMs: Date.now() - requestedAt.value
+      }
+      error.value =
+        'The command outcome is unconfirmed. Check the selected app before running it again.'
+    } else {
+      error.value = caught.message || 'The command request failed.'
+    }
+  } finally {
+    if (current === sequence) {
+      activeExecution = null
+      admitted.value = false
+      stopping.value = false
+      setBusy(false)
+      await nextTick()
+      if (props.active && !guard.value.show) commandInput.value?.focus()
+    }
+  }
+}
+async function arm() {
+  if (arming.value || !guard.value.show) return
+  const currentArm = ++armSequence
+  arming.value = true
+  emit('busy', true)
+  guard.value.error = ''
+  const submitted = source.value
+  const scope = targetKey.value
+  try {
+    const data = await api('/arm-writes', {
+      code: submitted,
+      mode: 'command',
+      appSlug: props.appSlug
+    })
+    if (
+      currentArm !== armSequence ||
+      source.value !== submitted ||
+      targetKey.value !== scope ||
+      !props.active
+    )
+      return
+    writeArm.value = {
+      token: data.token,
+      expiresAt: data.expiresAt,
+      source: submitted
+    }
+    now.value = Date.now()
+    guard.value.show = false
+    await nextTick()
+    commandInput.value?.focus()
+  } catch (caught) {
+    if (currentArm === armSequence) guard.value.error = caught.message
+  } finally {
+    if (currentArm === armSequence) {
+      arming.value = false
+      emit('busy', busy.value)
+    }
+  }
+}
+function cancelGuard() {
+  if (!arming.value) {
+    guard.value.show = false
+    nextTick(() => commandInput.value?.focus())
+  }
+}
+async function stop() {
+  const execution = activeExecution
+  if (!execution || !admitted.value || stopping.value) return
+  stopping.value = true
+  error.value = ''
+  try {
+    const confirmed = await cancelHelmExecution(execution.id, props.csrf)
+    if (activeExecution?.sequence !== execution.sequence) return
+    if (!confirmed)
+      error.value =
+        'Stop could not be confirmed. Check the command result and selected app.'
+    // Only the streamed terminal envelope can change the execution result.
+  } catch (caught) {
+    if (activeExecution?.sequence === execution.sequence)
+      error.value = caught.message || 'Could not request Stop.'
+  } finally {
+    if (activeExecution?.sequence === execution.sequence) stopping.value = false
+  }
+}
+async function refreshHistory() {
+  const current = ++historySequence
+  const scope = targetKey.value
+  try {
+    const query = new URLSearchParams({
+      mode: 'command',
+      appSlug: props.appSlug || ''
+    })
+    const response = await fetch(`${props.baseUrl}/history?${query}`, {
+      headers: { Accept: 'application/json' },
+      cache: 'no-store'
+    })
+    if (!response.ok) throw new Error('Command history is unavailable.')
+    const data = await response.json()
+    if (current === historySequence && scope === targetKey.value) {
+      history.value = data.entries || []
+      historyError.value = ''
+    }
+  } catch (caught) {
+    if (current === historySequence) historyError.value = caught.message
+  }
+}
+function loadHistory(entry) {
+  if (!busy.value) {
+    source.value = entry.source
+    nextTick(() => commandInput.value?.focus())
+  }
+}
+function resetTarget() {
+  sequence++
+  historySequence++
+  activeExecution?.controller.abort()
+  activeExecution = null
+  admitted.value = false
+  displayTruncated.value = false
+  clearArm()
+  source.value = ''
+  displayTarget.value = props.target
+  logs.value = []
+  history.value = []
+  result.value = null
+  error.value = ''
+  guard.value.show = false
+  setBusy(false)
+  stopping.value = false
+  requestedAt.value = 0
+  if (props.active) refreshHistory()
+}
+watch(source, clearArm)
+watch(targetKey, resetTarget)
+watch(
+  () => props.active,
+  (active) => {
+    if (!active) {
+      clearArm()
+      guard.value.show = false
+    } else {
+      refreshHistory()
+      nextTick(() => commandInput.value?.focus())
+    }
+  }
+)
+watch(
+  () => busy.value || Boolean(writeArm.value),
+  (ticking) => {
+    clearInterval(clock)
+    if (ticking)
+      clock = setInterval(() => {
+        now.value = Date.now()
+        if (!busy.value && writeArm.value?.expiresAt <= now.value) clearArm()
+      }, 250)
+  }
+)
+onMounted(refreshHistory)
+onBeforeUnmount(() => {
+  armSequence++
+  sequence++
+  historySequence++
+  activeExecution?.controller.abort()
+  clearInterval(clock)
+  emit('busy', false)
+})
+</script>
+
+<template>
+  <section
+    data-test="helm-command-console"
+    aria-label="Helm command console"
+    class="flex min-h-0 flex-1 flex-col overflow-hidden bg-white dark:bg-gray-950"
+  >
+    <div
+      class="shrink-0 space-y-3 border-b border-gray-200 px-4 py-4 dark:border-gray-800 sm:px-8"
+    >
+      <div
+        class="flex flex-wrap items-center justify-between gap-2 text-xs text-gray-500 dark:text-gray-400"
+      >
+        <p data-test="helm-command-target">
+          <span class="font-medium text-gray-800 dark:text-gray-200">{{
+            displayTarget.app?.name || appSlug
+          }}</span>
+          ·
+          {{ displayTarget.environment?.name || displayTarget.environment?.slug
+          }}<span v-if="displayTarget.displayVersion">
+            @ {{ displayTarget.displayVersion }}</span
+          >
+        </p>
+        <button
+          type="button"
+          aria-label="Command history"
+          :aria-expanded="historyOpen"
+          class="flex items-center gap-1.5 rounded-md p-1.5 hover:bg-gray-100 dark:hover:bg-gray-800"
+          @click="historyOpen = !historyOpen"
+        >
+          <History class="h-4 w-4" /> History
+        </button>
+      </div>
+      <form class="flex items-center gap-2" @submit.prevent="execute">
+        <label
+          for="helm-command-input"
+          class="font-mono text-sm text-gray-400"
+          aria-hidden="true"
+          >&gt;_</label
+        >
+        <Input
+          id="helm-command-input"
+          ref="commandInput"
+          v-model="source"
+          aria-label="Helm command"
+          placeholder="sails run your-script --input=value"
+          autocomplete="off"
+          spellcheck="false"
+          :disabled="busy || arming || !appRunning"
+          class="min-w-0 flex-1 rounded-md border border-gray-200 bg-gray-50 px-3 py-2 font-mono text-sm text-gray-900 focus:border-gray-400 focus:outline-none dark:border-gray-800 dark:bg-gray-900 dark:text-gray-100"
+        />
+        <button
+          v-if="busy"
+          type="button"
+          :disabled="stopping || !admitted"
+          aria-label="Stop command"
+          class="flex items-center gap-1.5 rounded-md bg-red-600 px-3 py-2 text-xs font-medium text-white disabled:opacity-50"
+          @click="stop"
+        >
+          <Spinner v-if="stopping" class="h-3.5 w-3.5" /><Stop
+            v-else
+            class="h-3.5 w-3.5"
+          />{{ stopping ? 'Stopping' : 'Stop' }}
+        </button>
+        <button
+          v-else
+          type="submit"
+          :disabled="arming || !appRunning || !source.trim()"
+          data-test="helm-command-run"
+          class="flex shrink-0 items-center gap-1.5 rounded-md bg-gray-900 px-3 py-2 text-xs font-medium text-white disabled:opacity-50 dark:bg-white dark:text-gray-900"
+        >
+          <Play class="h-3.5 w-3.5" />{{ runLabel }}
+        </button>
+      </form>
+      <p class="text-xs leading-5 text-gray-400 dark:text-gray-500">
+        One foreground command, without shell expansion or interactive prompts.
+        Commands are saved in your history; keep secrets in the app’s
+        environment. Output is not saved.
+      </p>
+    </div>
+    <div
+      v-if="historyOpen"
+      class="max-h-48 shrink-0 overflow-auto border-b border-gray-200 px-4 py-3 dark:border-gray-800 sm:px-8"
+      aria-label="Command history entries"
+    >
+      <p v-if="historyError" role="alert" class="text-xs text-amber-600">
+        {{ historyError }}
+      </p>
+      <p v-else-if="!history.length" class="text-xs text-gray-400">
+        No command history for this app.
+      </p>
+      <button
+        v-for="entry in history"
+        :key="entry.id"
+        type="button"
+        :disabled="busy"
+        class="flex w-full items-center justify-between gap-3 rounded-md px-2 py-2 text-left text-xs hover:bg-gray-100 disabled:opacity-50 dark:hover:bg-gray-900"
+        @click="loadHistory(entry)"
+      >
+        <code class="min-w-0 flex-1 truncate">{{ entry.source }}</code
+        ><span class="shrink-0 text-gray-400"
+          >{{ entry.status }} ·
+          {{ (entry.durationMs / 1000).toFixed(1) }}s</span
+        ><span class="sr-only">Load command</span>
+      </button>
+    </div>
+    <div
+      class="flex shrink-0 items-center gap-3 border-b border-gray-100 px-4 py-2 text-xs text-gray-500 dark:border-gray-900 sm:px-8"
+    >
+      <span
+        role="status"
+        data-test="helm-command-status"
+        :class="
+          result?.status === 'unconfirmed'
+            ? 'text-amber-600 dark:text-amber-400'
+            : ''
+        "
+        >{{ statusLabel }}</span
+      >
+      <span v-if="requestedAt">{{ elapsed }}s</span
+      ><span v-if="Number.isInteger(result?.exitCode)"
+        >exit {{ result.exitCode }}</span
+      ><span v-if="result?.signal">{{ result.signal }}</span
+      ><span v-if="result?.truncated || displayTruncated" class="text-amber-600"
+        >Output truncated</span
+      >
+    </div>
+    <p
+      v-if="error"
+      role="alert"
+      data-test="helm-command-error"
+      class="shrink-0 border-b border-amber-100 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900/30 dark:bg-amber-950/20 dark:text-amber-200 sm:px-8"
+    >
+      {{ error }}
+    </p>
+    <div
+      tabindex="0"
+      role="region"
+      aria-label="Command output"
+      class="min-h-0 flex-1 overflow-auto px-4 py-4 font-mono text-xs leading-6 sm:px-8"
+    >
+      <pre
+        class="whitespace-pre-wrap break-words"
+      ><span v-for="(log, index) in logs" :key="index" :class="log.type === 'stderr' ? 'text-amber-700 dark:text-amber-400' : 'text-gray-800 dark:text-gray-200'">{{ stripAnsi(log.text) }}</span><span v-if="!logs.length" class="text-gray-400">{{ busy ? 'Waiting for command output…' : result ? 'No command output.' : 'Command output will appear here.' }}</span></pre>
+    </div>
+    <HelmWriteGuardDialog
+      mode="command"
+      :show="guard.show"
+      :findings="guard.findings"
+      :target="guard.target"
+      :ttl-seconds="ttlSeconds"
+      :loading="arming"
+      :error="guard.error"
+      @arm="arm"
+      @cancel="cancelGuard"
+    />
+  </section>
+</template>

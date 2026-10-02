@@ -38,6 +38,21 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+  helm-command-contract:
+    name: Helm command runtime contract
+    timeout-minutes: 10
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: 'npm'
+      - run: npm ci --no-audit
+      - run: docker pull node:22-bookworm-slim
+      - name: Verify disposable command runtime and process cleanup
+        run: node_modules/.bin/sounding test --file tests/contracts/helm-commands.test.js --test-concurrency=1
+
   custom-services-contract:
     name: Custom services contract
     timeout-minutes: 10
@@ -193,6 +208,14 @@ jobs:
       # Sounding partitions files; each runner retains --test-concurrency=1.
       - name: Run browser tests
         run: npm run test:e2e -- --shard=${{ matrix.shard }}/3 --profile
+      - name: Upload Helm command review screenshots
+        uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: helm-command-review-${{ matrix.shard }}
+          path: .tmp/screenshots/issue-592-commands
+          if-no-files-found: ignore
+          retention-days: 7
       - name: Upload Bearing widget review screenshots
         uses: actions/upload-artifact@v6
         if: always()

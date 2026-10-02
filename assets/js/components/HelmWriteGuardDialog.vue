@@ -6,6 +6,7 @@ import Spinner from '@/components/SlipwaySpinner.vue'
 
 const props = defineProps({
   show: Boolean,
+  mode: { type: String, default: 'javascript' },
   findings: {
     type: Array,
     default: () => []
@@ -43,11 +44,23 @@ watch(
   { immediate: true }
 )
 
+watch(
+  () => props.loading,
+  async (loading) => {
+    if (!props.show) return
+    await nextTick()
+    if (!props.show) return
+    if (loading) dialog.value?.focus()
+    else cancelButton.value?.focus()
+  }
+)
+
 onBeforeUnmount(() => document.removeEventListener('keydown', handleKeydown))
 
 function handleKeydown(event) {
-  if (event.key === 'Escape' && !props.loading) {
-    emit('cancel')
+  if (event.key === 'Escape') {
+    event.preventDefault()
+    if (!props.loading) emit('cancel')
     return
   }
   if (event.key !== 'Tab' || !dialog.value) return
@@ -57,9 +70,21 @@ function handleKeydown(event) {
       'button:not([disabled]), [href], input:not([disabled])'
     )
   ]
-  if (focusable.length === 0) return
+  if (focusable.length === 0) {
+    event.preventDefault()
+    dialog.value.focus()
+    return
+  }
   const first = focusable[0]
   const last = focusable.at(-1)
+  if (
+    !dialog.value.contains(document.activeElement) ||
+    document.activeElement === dialog.value
+  ) {
+    event.preventDefault()
+    ;(event.shiftKey ? last : first).focus()
+    return
+  }
   if (event.shiftKey && document.activeElement === first) {
     event.preventDefault()
     last.focus()
@@ -94,6 +119,7 @@ function handleKeydown(event) {
 
         <section
           ref="dialog"
+          tabindex="-1"
           data-test="helm-write-guard"
           role="alertdialog"
           aria-modal="true"
@@ -113,13 +139,21 @@ function handleKeydown(event) {
                 id="helm-write-guard-title"
                 class="text-base font-semibold text-gray-950 dark:text-white"
               >
-                Arm production writes?
+                {{
+                  mode === 'command'
+                    ? 'Arm production command?'
+                    : 'Arm production writes?'
+                }}
               </h2>
               <p
                 id="helm-write-guard-description"
                 class="mt-1 text-sm leading-5 text-gray-500 dark:text-gray-400"
               >
-                Helm found an obvious side effect in code targeting
+                {{
+                  mode === 'command'
+                    ? 'Commands can change data or trigger other side effects in'
+                    : 'Helm found an obvious side effect in code targeting'
+                }}
                 <span class="font-medium text-gray-700 dark:text-gray-200">{{
                   target?.app?.name || 'this app'
                 }}</span
@@ -149,8 +183,12 @@ function handleKeydown(event) {
 
           <p class="mt-3 text-xs leading-5 text-gray-500 dark:text-gray-400">
             Arming lasts {{ ttlSeconds }} seconds, applies only to this exact
-            source and deployment, and is consumed after one attempt. Detection
-            is a safety heuristic—not a security sandbox.
+            source and deployment, and is consumed after one attempt.
+            {{
+              mode === 'command'
+                ? 'Every command requires approval. Foreground commands only; this is not a security sandbox.'
+                : 'Detection is a safety heuristic—not a security sandbox.'
+            }}
           </p>
 
           <Alert
@@ -183,7 +221,10 @@ function handleKeydown(event) {
                 <Spinner class="h-3.5 w-3.5" />
                 Arming
               </span>
-              <span v-else>Arm writes for {{ ttlSeconds }}s</span>
+              <span v-else
+                >Arm {{ mode === 'command' ? 'command' : 'writes' }} for
+                {{ ttlSeconds }}s</span
+              >
             </button>
           </div>
         </section>

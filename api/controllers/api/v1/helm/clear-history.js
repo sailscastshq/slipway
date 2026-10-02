@@ -9,6 +9,12 @@ module.exports = {
       type: 'string',
       required: true
     },
+    mode: {
+      type: 'string',
+      isIn: ['javascript', 'command'],
+      defaultsTo: 'javascript'
+    },
+    appSlug: { type: 'string' },
     environmentSlug: {
       type: 'string',
       required: true
@@ -25,22 +31,30 @@ module.exports = {
     forbidden: { statusCode: 403 }
   },
 
-  fn: async function ({ projectSlug, environmentSlug, includePinned }) {
+  fn: async function ({
+    projectSlug,
+    environmentSlug,
+    includePinned,
+    mode,
+    appSlug
+  }) {
     const scope = await sails.helpers.helm
       .resolveProjectScope(
         this.req.auth?.userId || this.req.session.userId,
         projectSlug,
         environmentSlug,
-        undefined,
+        appSlug,
         this.req
       )
       .intercept('notFound', 'notFound')
       .intercept('forbidden', 'forbidden')
     const criteria = {
+      mode,
       user: scope.user.id,
       project: scope.project.id,
       environment: scope.environment.id
     }
+    if (mode === 'command') criteria.app = scope.app.id
     if (!includePinned) criteria.pinned = false
 
     const deleted = await HelmHistoryEntry.destroy(criteria).fetch()
@@ -50,6 +64,8 @@ module.exports = {
       resourceId: String(scope.environment.id),
       details: {
         projectId: scope.project.id,
+        mode,
+        appId: mode === 'command' ? scope.app.id : null,
         includePinned,
         deletedCount: deleted.length
       },
