@@ -32,7 +32,10 @@ fs.mkdirSync(`${root}/scripts`, { recursive: true })
 fs.symlinkSync(dependencies, `${root}/node_modules`)
 fs.writeFileSync(
   `${root}/package.json`,
-  JSON.stringify({ dependencies: { sails: '*', 'sails-hook-quest': '*' } })
+  JSON.stringify({
+    scripts: {},
+    dependencies: { sails: '*', 'sails-hook-quest': '*' }
+  })
 )
 // Fail with the actual missing dependency before opaque Sails startup errors.
 // Resolve from each installed package's real location, using normal Node rules.
