@@ -28,8 +28,17 @@ module.exports = {
       .sort('recordedAt DESC')
       .limit(500)
 
+    // These are uncorrelated legacy events, not a reconstructed run ledger.
+    const terminalAliases = new Map([
+      ['complete', 'completed'],
+      ['error', 'failed']
+    ])
     return recentMetrics.map((m) => ({
-      event: m.name.replace('quest.job.', ''),
+      event:
+        terminalAliases.get(m.name.slice('quest.job.'.length)) ||
+        m.name.slice('quest.job.'.length),
+      legacy: true,
+      eventId: m.id,
       jobName: m.attributes.jobName,
       duration: m.value,
       error: m.attributes.error || null,

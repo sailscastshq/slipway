@@ -11,13 +11,18 @@ import ExternalLink from '@/components/ui/icons/ExternalLink.vue'
 import Clock from '@/components/ui/icons/Clock.vue'
 import X from '@/components/ui/icons/X.vue'
 import { Head, router, useForm } from '@inertiajs/vue3'
-import { inject, ref, computed, nextTick, watch, onMounted } from 'vue'
+import { inject, ref, computed, nextTick, watch } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
 import Breadcrumb from '@/components/ui/breadcrumb/Breadcrumb.vue'
 import Tooltip from '@/components/ui/tooltip/Tooltip.vue'
 import Spinner from '@/components/SlipwaySpinner.vue'
 import { useQueryState } from '@/components/ui/durable-ui/useQueryState'
 import { useEventSource } from '@/composables/sse'
+import { requestQuestRun } from '@/lib/questRun.mjs'
+import {
+  legacyJobEvents,
+  retainLegacyEventSelection
+} from '@/lib/questHistory.mjs'
 
 defineOptions({
   layout: AppLayout
@@ -52,16 +57,9 @@ const jobOutputs = ref({})
 const pauseForm = useForm({})
 const resumeForm = useForm({})
 const logContainers = ref({})
-const expandedRun = useQueryState('run', '')
+// Existing telemetry event IDs retain local expansion, not stable run links.
+const expandedRun = ref('')
 
-onMounted(async () => {
-  if (expandedRun.value) {
-    await nextTick()
-    await nextTick()
-    const el = runLogContainers.value[Number(expandedRun.value)]
-    if (el) el.scrollTop = el.scrollHeight
-  }
-})
 const runLogContainers = ref({})
 
 // Auto-scroll log output to bottom when content changes
@@ -84,12 +82,12 @@ function toggleExpand(jobName) {
   expandedRun.value = ''
 }
 
-async function toggleRun(idx) {
-  const run = String(idx)
+async function toggleRun(eventId) {
+  const run = String(eventId)
   expandedRun.value = expandedRun.value === run ? '' : run
   await nextTick()
   await nextTick()
-  const el = runLogContainers.value[Number(idx)]
+  const el = runLogContainers.value[run]
   if (el) el.scrollTop = el.scrollHeight
 }
 
@@ -102,12 +100,35 @@ const sseUrl = computed(() => {
 const { connected } = useEventSource(sseUrl, {
   onMessage(msg) {
     if (msg.jobs) liveJobs.value = msg.jobs
-    if (msg.jobHistory) liveHistory.value = msg.jobHistory
+    if (msg.jobHistory) replaceHistory(msg.jobHistory)
     if (msg.jobsError !== undefined) liveError.value = msg.jobsError
   }
 })
 
-// Aggregate stats computed from history
+function replaceHistory(history) {
+  liveHistory.value = history
+  expandedRun.value = retainLegacyEventSelection(
+    history,
+    expandedJob.value,
+    expandedRun.value
+  )
+}
+
+watch(() => props.jobHistory, replaceHistory)
+watch(
+  () => props.jobs,
+  (jobs) => {
+    liveJobs.value = jobs || []
+  }
+)
+watch(
+  () => props.jobsError,
+  (error) => {
+    liveError.value = error
+  }
+)
+
+// Aggregate stats computed from retained terminal events, not a complete ledger
 const stats = computed(() => {
   const history = liveHistory.value
   const now = Date.now()
@@ -122,7 +143,7 @@ const stats = computed(() => {
   const succeeded = runs24h.filter((h) => h.event === 'completed').length
   const failed = runs24h.filter((h) => h.event === 'failed').length
   const total = succeeded + failed
-  const successRate = total > 0 ? Math.round((succeeded / total) * 100) : 100
+  const successRate = total > 0 ? Math.round((succeeded / total) * 100) : null
 
   return { total, succeeded, failed, successRate }
 })
@@ -155,13 +176,7 @@ const jobStatsMap = computed(() => {
 // Run history for the currently expanded job (computed, cached)
 const expandedJobHistory = computed(() => {
   if (!expandedJob.value) return []
-  return liveHistory.value
-    .filter(
-      (h) =>
-        h.jobName === expandedJob.value &&
-        (h.event === 'completed' || h.event === 'failed')
-    )
-    .slice(0, 20)
+  return legacyJobEvents(liveHistory.value, expandedJob.value)
 })
 
 // Helpers
@@ -228,6 +243,7 @@ function stripAnsi(text) {
 }
 
 function successRateColor(rate) {
+  if (rate === null) return 'text-gray-500 dark:text-gray-400'
   if (rate >= 95) return 'text-emerald-600 dark:text-emerald-400'
   if (rate >= 80) return 'text-yellow-600 dark:text-yellow-400'
   return 'text-red-600 dark:text-red-400'
@@ -243,53 +259,18 @@ function envPath() {
 async function runJob(jobName) {
   runningJob.value = jobName
   jobOutputs.value[jobName] = { running: true, output: null }
-  const startedAt = Date.now()
-
   try {
-    const res = await fetch(
+    const output = await requestQuestRun(
       `/api/v1/projects/${
         props.project.slug
-      }${envPath()}/quest/jobs/${jobName}/run`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
-      }
+      }${envPath()}/quest/jobs/${jobName}/run`
     )
-    const data = await res.json()
+    jobOutputs.value[jobName] = { running: false, output }
 
-    jobOutputs.value[jobName] = {
-      running: false,
-      output: {
-        success: data.success,
-        stdout: data.output || '',
-        stderr: data.error || '',
-        exitCode: data.exitCode
-      }
-    }
-
-    // Inject into live history so stats + recent runs update immediately
-    liveHistory.value = [
-      {
-        event: data.success ? 'completed' : 'failed',
-        jobName,
-        duration: Date.now() - startedAt,
-        error: data.success ? null : data.error || 'Unknown error',
-        stdout: data.output || null,
-        stderr: data.success ? null : data.error || null,
-        trigger: 'manual',
-        recordedAt: Date.now()
-      },
-      ...liveHistory.value
-    ]
-  } catch (e) {
-    jobOutputs.value[jobName] = {
-      running: false,
-      output: {
-        success: false,
-        stdout: '',
-        stderr: e.message,
-        exitCode: 1
-      }
+    // History only comes from persisted telemetry. An optimistic row would
+    // duplicate a concurrent SSE event, and claim persistence when it failed.
+    if (output.state === 'completed' || output.state === 'failed') {
+      router.reload({ only: ['jobHistory'], preserveScroll: true })
     }
   } finally {
     runningJob.value = null
@@ -491,12 +472,12 @@ function refresh() {
               <div
                 class="text-[10px] font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400"
               >
-                Total runs (24h)
+                Terminal events (24h)
               </div>
               <div
                 class="mt-1 text-2xl font-semibold text-gray-900 dark:text-white"
               >
-                {{ stats.total }}
+                <span data-test="quest-event-total">{{ stats.total }}</span>
               </div>
             </div>
             <div
@@ -505,7 +486,7 @@ function refresh() {
               <div
                 class="text-[10px] font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400"
               >
-                Succeeded
+                Completed
               </div>
               <div
                 class="mt-1 text-2xl font-semibold text-emerald-600 dark:text-emerald-400"
@@ -538,16 +519,26 @@ function refresh() {
               <div
                 class="text-[10px] font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400"
               >
-                Success rate
+                Completion rate
               </div>
               <div
                 class="mt-1 text-2xl font-semibold"
                 :class="successRateColor(stats.successRate)"
               >
-                {{ stats.successRate }}%
+                {{ stats.successRate === null ? '—' : `${stats.successRate}%` }}
               </div>
             </div>
           </div>
+
+          <p
+            class="text-xs text-gray-500 dark:text-gray-400"
+            data-test="quest-history-scope"
+          >
+            Legacy history: up to 500 telemetry events from the last 7 days,
+            across this environment. Retention or delivery gaps may shorten this
+            window. Counts describe recorded terminal events, not a complete run
+            ledger or business outcomes.
+          </p>
 
           <!-- Job list header -->
           <div class="flex items-center justify-between">
@@ -722,7 +713,11 @@ function refresh() {
                 </div>
 
                 <!-- Inline output (from manual run) -->
-                <div v-if="jobOutputs[job.name]" class="mt-4">
+                <div
+                  v-if="jobOutputs[job.name]"
+                  :data-test="`quest-output-${job.name}`"
+                  class="mt-4"
+                >
                   <div
                     class="overflow-hidden rounded-lg border border-gray-200 dark:border-gray-800"
                   >
@@ -735,22 +730,38 @@ function refresh() {
                           class="flex items-center space-x-1 text-xs font-medium text-gray-500 dark:text-gray-400"
                         >
                           <Spinner class="h-3 w-3" />
-                          <span>Running...</span>
+                          <span>Awaiting result...</span>
                         </span>
                         <span
-                          v-else-if="jobOutputs[job.name].output?.success"
+                          v-else-if="
+                            jobOutputs[job.name].output?.state === 'completed'
+                          "
                           class="text-xs font-medium text-emerald-600 dark:text-emerald-400"
                           >Completed</span
                         >
                         <span
-                          v-else
+                          v-else-if="
+                            jobOutputs[job.name].output?.state === 'failed'
+                          "
                           class="text-xs font-medium text-red-600 dark:text-red-400"
                           >Failed (exit
                           {{ jobOutputs[job.name].output?.exitCode }})</span
                         >
+                        <span
+                          v-else
+                          class="text-xs font-medium text-amber-600 dark:text-amber-400"
+                        >
+                          {{
+                            jobOutputs[job.name].output?.state ===
+                            'request_failed'
+                              ? 'Request failed'
+                              : 'Execution outcome unconfirmed'
+                          }}
+                        </span>
                       </div>
                       <button
                         @click="dismissOutput(job.name)"
+                        :aria-label="`Dismiss output for ${job.name}`"
                         class="rounded p-1 text-gray-400 hover:bg-gray-200 hover:text-gray-600 dark:hover:bg-gray-800 dark:hover:text-gray-300"
                       >
                         <X class="h-4 w-4" stroke-width="2" />
@@ -769,7 +780,7 @@ function refresh() {
                           class="flex items-center space-x-2 text-gray-500 dark:text-gray-400"
                         >
                           <Spinner class="h-4 w-4" />
-                          <span>Executing script...</span>
+                          <span>Waiting for the execution response...</span>
                         </div>
                       </template>
                       <template v-else-if="jobOutputs[job.name].output">
@@ -781,20 +792,31 @@ function refresh() {
                           }}</pre
                         >
                         <pre
-                          v-if="
-                            !jobOutputs[job.name].output.success &&
-                            jobOutputs[job.name].output.stderr
-                          "
-                          class="whitespace-pre-wrap break-all text-red-600 dark:text-red-400"
-                          :class="{
-                            'mt-2': jobOutputs[job.name].output.stdout
-                          }"
+                          v-if="jobOutputs[job.name].output.stderr"
+                          class="whitespace-pre-wrap break-all"
+                          :class="[
+                            jobOutputs[job.name].output.success
+                              ? 'text-amber-600 dark:text-amber-400'
+                              : 'text-red-600 dark:text-red-400',
+                            { 'mt-2': jobOutputs[job.name].output.stdout }
+                          ]"
                           >{{
                             stripAnsi(jobOutputs[job.name].output.stderr)
                           }}</pre
                         >
+                        <p
+                          v-if="
+                            jobOutputs[job.name].output.error &&
+                            jobOutputs[job.name].output.error !==
+                              jobOutputs[job.name].output.stderr
+                          "
+                          class="mt-2 text-amber-600 dark:text-amber-400"
+                        >
+                          {{ jobOutputs[job.name].output.error }}
+                        </p>
                         <div
                           v-if="
+                            !jobOutputs[job.name].output.error &&
                             !jobOutputs[job.name].output.stdout &&
                             !jobOutputs[job.name].output.stderr
                           "
@@ -825,22 +847,22 @@ function refresh() {
                     <h4
                       class="mb-3 text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400"
                     >
-                      Recent runs
+                      Recent legacy events (up to 20)
                     </h4>
 
                     <div
                       v-if="expandedJobHistory.length === 0"
                       class="py-4 text-center text-sm text-gray-400 dark:text-gray-500"
                     >
-                      No run history yet
+                      No terminal events recorded in this window
                     </div>
 
                     <div v-else>
-                      <div v-for="(run, idx) in expandedJobHistory" :key="idx">
+                      <div v-for="run in expandedJobHistory" :key="run.eventId">
                         <Tooltip
                           :text="
                             run.event === 'completed'
-                              ? 'Completed successfully'
+                              ? 'Process completed'
                               : run.error || 'Failed'
                           "
                         >
@@ -848,11 +870,11 @@ function refresh() {
                             type="button"
                             :aria-label="
                               run.event === 'completed'
-                                ? 'Completed successfully'
+                                ? 'Process completed'
                                 : run.error || 'Failed'
                             "
                             class="group flex w-full items-center justify-between px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-900/50"
-                            @click="toggleRun(String(idx))"
+                            @click="toggleRun(run.eventId)"
                           >
                             <div class="flex items-center space-x-4">
                               <span
@@ -888,14 +910,15 @@ function refresh() {
                         </Tooltip>
                         <div
                           v-if="
-                            expandedRun === String(idx) &&
-                            (run.stdout || run.stderr)
+                            expandedRun === String(run.eventId) &&
+                            (run.stdout || run.stderr || run.error)
                           "
                         >
                           <div
                             :ref="
                               (el) => {
-                                if (el) runLogContainers[idx] = el
+                                if (el) runLogContainers[run.eventId] = el
+                                else delete runLogContainers[run.eventId]
                               }
                             "
                             class="max-h-60 overflow-y-auto bg-gray-100 p-4 font-mono text-xs leading-5 dark:bg-gray-950"
@@ -907,17 +930,28 @@ function refresh() {
                             >
                             <pre
                               v-if="run.stderr"
-                              class="whitespace-pre-wrap break-all text-red-600 dark:text-red-400"
-                              :class="{ 'mt-2': run.stdout }"
+                              class="whitespace-pre-wrap break-all"
+                              :class="[
+                                run.event === 'completed'
+                                  ? 'text-amber-600 dark:text-amber-400'
+                                  : 'text-red-600 dark:text-red-400',
+                                { 'mt-2': run.stdout }
+                              ]"
                               >{{ stripAnsi(run.stderr) }}</pre
+                            >
+                            <pre
+                              v-if="run.error && run.error !== run.stderr"
+                              class="mt-2 whitespace-pre-wrap break-all text-red-600 dark:text-red-400"
+                              >{{ stripAnsi(run.error) }}</pre
                             >
                           </div>
                         </div>
                         <div
                           v-else-if="
-                            expandedRun === String(idx) &&
+                            expandedRun === String(run.eventId) &&
                             !run.stdout &&
-                            !run.stderr
+                            !run.stderr &&
+                            !run.error
                           "
                           class="px-4 py-3 text-xs text-gray-400 dark:text-gray-500"
                         >
