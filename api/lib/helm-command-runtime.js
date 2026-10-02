@@ -248,11 +248,17 @@ function buildRunnerSource(options) {
   const launchSails = require('./helm-command-sails')
   return `(${supervisorMain.toString()})(${JSON.stringify(
     options
-  )}, (${resolveAppContext.toString()}), (${guardianMain.toString()}), (${launchSails.toString()}))`
+  )}, (${resolveAppContext.toString()}), (${guardianMain.toString()}), (${launchSails.toString()}), (${createOwnershipTracker.toString()}))`
 }
 
 /** Embedded into the selected container; no Slipway install is required there. */
-function supervisorMain(options, resolveContext, guardianMain, launchSails) {
+function supervisorMain(
+  options,
+  resolveContext,
+  guardianMain,
+  launchSails,
+  createOwnershipTracker
+) {
   const fs = require('node:fs')
   const { spawn } = require('node:child_process')
   const { StringDecoder } = require('node:string_decoder')
@@ -264,6 +270,7 @@ function supervisorMain(options, resolveContext, guardianMain, launchSails) {
   let buffer = ''
   let watchdog
   let hardDeadline
+  let ownership
   const emit = (packet) => {
     if (!process.stdout.destroyed)
       process.stdout.write(JSON.stringify({ version: 1, ...packet }) + '\n')
@@ -362,6 +369,10 @@ function supervisorMain(options, resolveContext, guardianMain, launchSails) {
         expectedRuntime: { ...options.expectedRuntime, required: true },
         includeProcessIdentity: true
       })
+      // Capture identities BEFORE any execution-owned process can exist. An
+      // unchanged pre-existing PID/start-tick pair cannot be our descendant.
+      // In particular its protected environment is irrelevant to cleanup.
+      ownership = createOwnershipTracker({ executionId: options.executionId })
       const { env, ...commandContext } = context
       const source = `(${guardianMain.toString()})(${JSON.stringify({
         ...options,
@@ -411,25 +422,33 @@ function supervisorMain(options, resolveContext, guardianMain, launchSails) {
         // The guardian self-signals its own group. Never signal a numeric PID
         // received from a file, nor assume that a closed Docker client killed it.
         let survivors
+        let verificationError
         try {
-          survivors = ownedSurvivors()
+          survivors = ownership.hasSurvivors(guardian.pid)
           const verifyUntil = Date.now() + 250
           while (survivors && Date.now() < verifyUntil) {
             await new Promise((resolve) => setTimeout(resolve, 10))
-            survivors = ownedSurvivors()
+            survivors = ownership.hasSurvivors(guardian.pid)
           }
-        } catch {
+        } catch (error) {
+          verificationError = error.ownershipDiagnostic || {
+            stage: 'verification',
+            code: error.code || 'UNKNOWN'
+          }
           survivors = true
         }
         if (survivors || !result) {
-          finish(
-            fail(
+          finish({
+            ...fail(
               'unconfirmed',
               'HELM_COMMAND_UNCONFIRMED',
               'Command termination could not be confirmed. A detached child may still be running; check the selected app before running it again.',
               false
-            )
-          )
+            ),
+            terminationDiagnostic: verificationError || {
+              stage: result ? 'surviving-process' : 'missing-result'
+            }
+          })
         } else
           finish({
             ...result,
@@ -446,38 +465,6 @@ function supervisorMain(options, resolveContext, guardianMain, launchSails) {
         )
       )
     }
-  }
-
-  function ownedSurvivors() {
-    for (const pid of fs
-      .readdirSync('/proc')
-      .filter((name) => /^\d+$/.test(name))) {
-      if (Number(pid) === process.pid) continue
-      try {
-        const stat = fs.readFileSync(`/proc/${pid}/stat`, 'utf8')
-        const fields = stat
-          .slice(stat.lastIndexOf(')') + 1)
-          .trim()
-          .split(/\s+/)
-        if (fields[0] === 'Z' || fields[0] === 'X') continue
-        if (Number(fields[2]) === guardian.pid) return true
-        if (
-          process.getuid() !== 0 &&
-          fs.statSync(`/proc/${pid}`).uid !== process.getuid()
-        )
-          continue
-        const env = fs.readFileSync(`/proc/${pid}/environ`, 'utf8')
-        if (
-          env
-            .split('\0')
-            .includes(`SLIPWAY_HELM_EXECUTION_ID=${options.executionId}`)
-        )
-          return true
-      } catch (error) {
-        if (!['ENOENT', 'ESRCH'].includes(error.code)) throw error
-      }
-    }
-    return false
   }
 }
 
@@ -681,4 +668,103 @@ function guardianMain(options, launchSails) {
   }
 }
 
-module.exports = { buildRunnerSource, executeCommand, validateOptions }
+/**
+ * Prove cleanup using process identities, not permission-error suppression.
+ * This is serialized into the container and deliberately reads no environment
+ * from an unchanged process that demonstrably predates command launch.
+ */
+function createOwnershipTracker({
+  executionId,
+  fs = require('node:fs'),
+  procRoot = '/proc',
+  ownPid = process.pid
+}) {
+  const baseline = Object.create(null)
+  const vanished = (error) => ['ENOENT', 'ESRCH'].includes(error.code)
+  const fail = (error, stage, pid) => {
+    error.ownershipDiagnostic = {
+      stage,
+      code: error.code || 'UNKNOWN',
+      pid: Number(pid)
+    }
+    throw error
+  }
+  const pids = () =>
+    fs.readdirSync(procRoot).filter((name) => /^\d+$/.test(name))
+  const identity = (pid) => {
+    const stat = fs.readFileSync(`${procRoot}/${pid}/stat`, 'utf8')
+    const fields = stat
+      .slice(stat.lastIndexOf(')') + 1)
+      .trim()
+      .split(/\s+/)
+    if (!/^\d+$/.test(fields[19] || '') || !/^\d+$/.test(fields[2] || '')) {
+      const error = new Error('Malformed process ownership metadata.')
+      error.code = 'HELM_PROCESS_IDENTITY_INVALID'
+      throw error
+    }
+    return {
+      state: fields[0],
+      groupId: Number(fields[2]),
+      startTicks: fields[19]
+    }
+  }
+  for (const pid of pids()) {
+    try {
+      baseline[pid] = identity(pid).startTicks
+    } catch (error) {
+      if (!vanished(error)) fail(error, 'capture-identity', pid)
+    }
+  }
+  return {
+    baseline,
+    hasSurvivors(groupId) {
+      for (const pid of pids()) {
+        if (Number(pid) === ownPid) continue
+        let current
+        try {
+          current = identity(pid)
+        } catch (error) {
+          if (vanished(error)) continue
+          fail(error, 'read-identity', pid)
+        }
+        if (['Z', 'X'].includes(current.state)) continue
+        // Group evidence always wins, even if a caller supplied stale baseline
+        // information. Never hide a known group member behind another filter.
+        if (current.groupId === groupId) return true
+        if (baseline[pid] === current.startTicks) continue
+        let env
+        try {
+          env = fs.readFileSync(`${procRoot}/${pid}/environ`, 'utf8')
+        } catch (error) {
+          if (vanished(error)) continue
+          fail(error, 'read-environment', pid)
+        }
+        if (
+          env.split('\0').includes(`SLIPWAY_HELM_EXECUTION_ID=${executionId}`)
+        )
+          return true
+        // An unrelated PID reused while read must not clear a possibly-owned
+        // process. Fail closed rather than accepting a mixed-identity sample.
+        try {
+          if (identity(pid).startTicks !== current.startTicks) {
+            const error = new Error(
+              'Process identity changed during cleanup verification.'
+            )
+            error.code = 'HELM_PROCESS_IDENTITY_CHANGED'
+            fail(error, 'recheck-identity', pid)
+          }
+        } catch (error) {
+          if (!vanished(error)) fail(error, 'recheck-identity', pid)
+        }
+      }
+      return false
+    }
+  }
+}
+
+module.exports = {
+  buildRunnerSource,
+  executeCommand,
+  validateOptions,
+  createOwnershipTracker
+}

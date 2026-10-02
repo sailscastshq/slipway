@@ -136,3 +136,7 @@ and [ingress configuration reference](https://developers.cloudflare.com/tunnel/a
 Tradeoffs: Tunnel mode depends on Cloudflare for public availability and DNS,
 and every custom hostname must be routed through that tunnel. The default public
 mode has fewer moving parts and remains the recommended starting point.
+
+For an existing Coolify installation, use the
+[three-app migration runbook](coolify-migration.md) to connect this contract to
+source/configuration inventory, disposable recovery checks, and cutover decisions.

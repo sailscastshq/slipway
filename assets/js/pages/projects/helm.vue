@@ -11,7 +11,6 @@ import Bookmark from '@/components/ui/icons/Bookmark.vue'
 import { Head, usePage } from '@inertiajs/vue3'
 import {
   inject,
-  defineAsyncComponent,
   ref,
   computed,
   watch,
@@ -27,6 +26,7 @@ import HelmResultViewer from '@/components/HelmResultViewer.vue'
 import HelmScratchpadTabs from '@/components/HelmScratchpadTabs.vue'
 import HelmWorkspaceLibrary from '@/components/HelmWorkspaceLibrary.vue'
 import HelmWriteGuardDialog from '@/components/HelmWriteGuardDialog.vue'
+import HelmCommandConsole from '@/components/HelmCommandConsole.vue'
 import Alert from '@/components/ui/alert/Alert.vue'
 import Breadcrumb from '@/components/ui/breadcrumb/Breadcrumb.vue'
 import Tooltip from '@/components/ui/tooltip/Tooltip.vue'
@@ -40,9 +40,6 @@ defineOptions({
   layout: AppLayout
 })
 
-const HelmCommandConsole = defineAsyncComponent(() =>
-  import('@/components/HelmCommandConsole.vue')
-)
 const mode = ref('javascript')
 const commandMounted = ref(false)
 const commandBusy = ref(false)

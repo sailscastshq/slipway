@@ -24,18 +24,21 @@ function assertStopped(pid) {
   }
 }
 
-function assertNoOwnedProcesses(executionId) {
+function assertNoOwnedProcesses(executionId, baseline = {}) {
   const fs = require('node:fs')
   for (const pid of fs
     .readdirSync('/proc')
     .filter((pid) => /^\d+$/.test(pid))) {
     try {
       const stat = fs.readFileSync(`/proc/${pid}/stat`, 'utf8')
-      const state = stat
+      const fields = stat
         .slice(stat.lastIndexOf(')') + 1)
         .trim()
-        .split(/\s+/)[0]
-      if (['Z', 'X'].includes(state)) continue
+        .split(/\s+/)
+      if (['Z', 'X'].includes(fields[0])) continue
+      // Only identities captured before the execution are irrelevant. A new
+      // or reused PID must still have readable ownership evidence.
+      if (baseline[pid] === fields[19]) continue
       const environment = fs.readFileSync(`/proc/${pid}/environ`, 'utf8')
       if (
         environment

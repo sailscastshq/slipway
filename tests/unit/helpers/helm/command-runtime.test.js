@@ -56,7 +56,7 @@ test('command runtime streams literal argv, deployed environment and cwd without
       ],
       { onEvent: (event) => events.push(event) }
     )
-    assert.equal(result.status, 'success')
+    assert.equal(result.status, 'success', terminalDiagnostic(result))
     assert.equal(result.exitCode, 0)
     assert.equal(result.signal, null)
     assert.equal(result.terminationConfirmed, true)
@@ -80,7 +80,7 @@ test('command runtime streams literal argv, deployed environment and cwd without
 test('command runtime returns native nonzero exit and signal, and handles spawn failure', async () =>
   withFixture(async (fixture) => {
     const failed = await run(fixture, ['node', '-e', 'process.exit(23)'])
-    assert.equal(failed.status, 'error')
+    assert.equal(failed.status, 'error', terminalDiagnostic(failed))
     assert.equal(failed.exitCode, 23)
     const signalled = await run(fixture, [
       'node',
@@ -92,7 +92,7 @@ test('command runtime returns native nonzero exit and signal, and handles spawn 
     const missing = await run(fixture, [
       '/definitely-not-installed-slipway-command'
     ])
-    assert.equal(missing.status, 'error')
+    assert.equal(missing.status, 'error', terminalDiagnostic(missing))
     assert.equal(missing.error.code, 'HELM_COMMAND_SPAWN')
     assert.equal(missing.terminationConfirmed, true)
   }))
@@ -108,7 +108,7 @@ test('command runtime bounds noisy output and preserves split multibyte characte
       ],
       { maxOutputBytes: 101 }
     )
-    assert.equal(result.status, 'success')
+    assert.equal(result.status, 'success', terminalDiagnostic(result))
     assert.equal(result.truncated, true)
     assert.ok(result.stdout.startsWith('🐚é'))
     assert.ok(!result.stdout.includes('�'))
@@ -122,7 +122,7 @@ test('command runtime bounds noisy output and preserves split multibyte characte
       '-e',
       'process.stdout.write("\\0".repeat(20000))'
     ])
-    assert.equal(escaped.status, 'success')
+    assert.equal(escaped.status, 'success', terminalDiagnostic(escaped))
     assert.equal(escaped.outputBytes, 8192)
   }))
 
@@ -140,7 +140,7 @@ test('command abort before start cannot spawn the command', async () =>
       ],
       { signal: controller.signal }
     )
-    assert.equal(result.status, 'cancelled')
+    assert.equal(result.status, 'cancelled', terminalDiagnostic(result))
     assert.equal(result.terminationConfirmed, true)
     await assert.rejects(fs.stat(marker), { code: 'ENOENT' })
   }))
@@ -159,7 +159,7 @@ test('command cancellation kills only its owned foreground process group and des
         }
       }
     })
-    assert.equal(result.status, 'cancelled')
+    assert.equal(result.status, 'cancelled', terminalDiagnostic(result))
     assert.equal(result.terminationConfirmed, true)
     assert.equal(result.signal, 'SIGKILL')
     assert.ok(descendant)
@@ -174,14 +174,14 @@ test('command timeout reaps foreground orphans even after the immediate command 
       ['node', '-e', 'process.on("SIGTERM",()=>{});setInterval(()=>{},1000)'],
       { timeoutMs: 150 }
     )
-    assert.equal(timed.status, 'timeout')
+    assert.equal(timed.status, 'timeout', terminalDiagnostic(timed))
     assert.equal(timed.terminationConfirmed, true)
     const orphan = await run(fixture, [
       'node',
       '-e',
       'const c=require("child_process").spawn(process.execPath,["-e","setInterval(()=>{},1000)"],{stdio:"ignore"});console.log(c.pid);c.unref();process.exit(0)'
     ])
-    assert.equal(orphan.status, 'success')
+    assert.equal(orphan.status, 'success', terminalDiagnostic(orphan))
     assert.equal(await alive(Number(orphan.stdout.trim())), false)
   }))
 
@@ -196,14 +196,14 @@ test('command runtime refuses stale PID identity and mismatched deployment befor
     const wrong = await run(fixture, argv, {
       expectedRuntime: { ...fixture.expectedRuntime, deploymentId: '2' }
     })
-    assert.equal(wrong.status, 'error')
+    assert.equal(wrong.status, 'error', terminalDiagnostic(wrong))
     assert.equal(wrong.error.code, 'HELM_APP_CONTEXT_UNAVAILABLE')
     await fs.writeFile(
       fixture.contractPath,
       JSON.stringify({ ...fixture.contract, startTicks: '0' })
     )
     const stale = await run(fixture, argv)
-    assert.equal(stale.status, 'error')
+    assert.equal(stale.status, 'error', terminalDiagnostic(stale))
     await assert.rejects(fs.stat(marker), { code: 'ENOENT' })
   }))
 
@@ -217,7 +217,7 @@ test('command detached descendants and missing terminal transport evidence stay 
         'const c=require("child_process").spawn(process.execPath,["-e","setInterval(()=>{},1000)"],{detached:true,stdio:"ignore"});console.log(c.pid);c.unref();process.exit(0)'
       ])
       escapedPid = Number(escaped.stdout.trim())
-      assert.equal(escaped.status, 'unconfirmed')
+      assert.equal(escaped.status, 'unconfirmed', terminalDiagnostic(escaped))
       assert.equal(escaped.terminationConfirmed, false)
       assert.equal(await alive(escapedPid), true)
     } finally {
@@ -236,7 +236,11 @@ test('command detached descendants and missing terminal transport evidence stay 
         ]
       }
     })
-    assert.equal(disconnected.status, 'unconfirmed')
+    assert.equal(
+      disconnected.status,
+      'unconfirmed',
+      terminalDiagnostic(disconnected)
+    )
     assert.equal(disconnected.terminationConfirmed, false)
   }))
 
@@ -255,7 +259,7 @@ test('command abort while transport prepares does not race a late command spawn'
     )
     controller.abort()
     const result = await pending
-    assert.equal(result.status, 'cancelled')
+    assert.equal(result.status, 'cancelled', terminalDiagnostic(result))
     assert.equal(result.terminationConfirmed, true)
     await assert.rejects(fs.stat(marker), { code: 'ENOENT' })
   }))
@@ -277,7 +281,7 @@ test('command exit wins a later cancel during process-group cleanup', async () =
           }
         }
       )
-      assert.equal(result.status, 'success')
+      assert.equal(result.status, 'success', terminalDiagnostic(result))
       assert.equal(result.exitCode, 0)
       assert.equal(result.terminationConfirmed, true)
     } finally {
@@ -323,6 +327,7 @@ test('Docker contract ownership probes distinguish running children from termina
     const probes = require('../../../support/helm-command-probes')
     const { spawn, spawnSync } = require('node:child_process')
     const executionId = randomUUID()
+    const { baseline } = runtime.createOwnershipTracker({ executionId })
     const child = spawn(process.execPath, ['-e', 'setInterval(()=>{},1000)'], {
       stdio: 'ignore',
       env: { ...process.env, SLIPWAY_HELM_EXECUTION_ID: executionId }
@@ -336,7 +341,7 @@ test('Docker contract ownership probes distinguish running children from termina
         '-e',
         `(${probes.assertNoOwnedProcesses.toString()})(${JSON.stringify(
           executionId
-        )})`
+        )}, ${JSON.stringify(baseline)})`
       ])
     try {
       assert.equal(
@@ -356,7 +361,8 @@ test('Docker contract ownership probes distinguish running children from termina
       child.kill('SIGKILL')
       await closed
     }
-    assert.equal(check().status, 0)
+    const after = check()
+    assert.equal(after.status, 0, String(after.stderr || '').slice(-4096))
     assert.equal(
       spawnSync(process.execPath, [
         '-e',
@@ -404,6 +410,7 @@ test('command supervisor cancels on control EOF and confirms cleanup independent
     const { StringDecoder } = require('node:string_decoder')
     const probes = require('../../../support/helm-command-probes')
     const executionId = randomUUID()
+    const { baseline } = runtime.createOwnershipTracker({ executionId })
     const source = runtime.buildRunnerSource({
       expectedRuntime: fixture.expectedRuntime,
       executionId,
@@ -446,7 +453,7 @@ test('command supervisor cancels on control EOF and confirms cleanup independent
           }
         })
       })
-      assert.equal(terminal.status, 'cancelled')
+      assert.equal(terminal.status, 'cancelled', terminalDiagnostic(terminal))
       assert.equal(terminal.terminationConfirmed, true)
       assert.equal(terminal.terminationScope, 'foreground-process-group')
       assert.equal(
@@ -454,7 +461,7 @@ test('command supervisor cancels on control EOF and confirms cleanup independent
           '-e',
           `(${probes.assertNoOwnedProcesses.toString()})(${JSON.stringify(
             executionId
-          )})`
+          )}, ${JSON.stringify(baseline)})`
         ]).status,
         0
       )
@@ -464,3 +471,114 @@ test('command supervisor cancels on control EOF and confirms cleanup independent
         client.kill('SIGKILL')
     }
   }))
+
+function terminalDiagnostic(result) {
+  return JSON.stringify({
+    status: result?.status,
+    error: result?.error,
+    exitCode: result?.exitCode,
+    signal: result?.signal,
+    terminationDiagnostic: result?.terminationDiagnostic
+  }).slice(0, 4096)
+}
+
+// /proc exposes identity to ordinary users while protecting other processes'
+// environ. Model that permission split without changing users or OS settings.
+function syntheticProc() {
+  const processes = new Map([
+    ['1', { ticks: '100', group: 1, state: 'S', denied: true }],
+    ['99', { ticks: '200', group: 99, state: 'S', env: '' }]
+  ])
+  const reads = []
+  const filesystem = {
+    readdirSync() {
+      return [...processes.keys()]
+    },
+    readFileSync(filename) {
+      reads.push(filename)
+      const [, pid, kind] =
+        filename.match(/^\/proc\/(\d+)\/(stat|environ)$/) || []
+      const value = processes.get(pid)
+      if (!value) throw Object.assign(new Error('gone'), { code: 'ENOENT' })
+      if (kind === 'stat') {
+        const fields = Array(20).fill('0')
+        fields[0] = value.state
+        fields[1] = '1'
+        fields[2] = String(value.group)
+        fields[19] = value.ticks
+        return `${pid} (synthetic process) ${fields.join(' ')}`
+      }
+      if (value.denied)
+        throw Object.assign(new Error('protected environment'), {
+          code: 'EACCES'
+        })
+      return value.env || ''
+    }
+  }
+  return { processes, reads, fs: filesystem }
+}
+
+test('cleanup excludes unreadable environments only for unchanged pre-execution process identities', () => {
+  const proc = syntheticProc()
+  const tracker = runtime.createOwnershipTracker({
+    fs: proc.fs,
+    ownPid: 99,
+    executionId: 'fixture'
+  })
+  assert.equal(tracker.hasSurvivors(500), false)
+  assert.equal(
+    proc.reads.some((name) => name.endsWith('/environ')),
+    false
+  )
+  // Known group membership always wins over the prior-process shortcut.
+  proc.processes.get('1').group = 500
+  assert.equal(tracker.hasSurvivors(500), true)
+})
+
+test('cleanup fails closed for unreadable new/reused PID ownership, with bounded diagnostic context', () => {
+  const proc = syntheticProc()
+  const tracker = runtime.createOwnershipTracker({
+    fs: proc.fs,
+    ownPid: 99,
+    executionId: 'fixture'
+  })
+  const expectUnreadable = (pid) =>
+    assert.throws(
+      () => tracker.hasSurvivors(500),
+      (error) => {
+        assert.equal(error.code, 'EACCES')
+        assert.deepEqual(error.ownershipDiagnostic, {
+          stage: 'read-environment',
+          code: 'EACCES',
+          pid
+        })
+        return true
+      }
+    )
+  proc.processes.set('2', { ticks: '202', group: 2, state: 'S', denied: true })
+  expectUnreadable(2)
+  proc.processes.delete('2')
+  // The same PID with a new start tick is NOT the original pre-existing process.
+  proc.processes.get('1').ticks = '203'
+  expectUnreadable(1)
+  proc.processes.get('1').state = 'Z'
+  assert.equal(tracker.hasSurvivors(500), false)
+})
+
+test('cleanup still detects tagged detached descendants despite unrelated protected processes', () => {
+  const proc = syntheticProc()
+  const tracker = runtime.createOwnershipTracker({
+    fs: proc.fs,
+    ownPid: 99,
+    executionId: 'fixture'
+  })
+  proc.processes.set('2', {
+    ticks: '202',
+    group: 2,
+    state: 'S',
+    env: 'SLIPWAY_HELM_EXECUTION_ID=fixture\0'
+  })
+  assert.equal(tracker.hasSurvivors(500), true)
+  proc.processes.delete('2')
+  assert.equal(tracker.hasSurvivors(500), false)
+})

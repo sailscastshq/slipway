@@ -49,6 +49,8 @@ jobs:
           node-version: '22'
           cache: 'npm'
       - run: npm ci --no-audit
+      - name: Verify focused command process and installed Sails CLI contracts
+        run: node_modules/.bin/sounding test --file tests/unit/helpers/helm/command-runtime.test.js --file tests/unit/helpers/helm/command-sails.test.js --file tests/unit/helpers/helm/app-context.test.js --test-concurrency=1
       - run: docker pull node:22-bookworm-slim
       - name: Verify disposable command runtime and process cleanup
         run: node_modules/.bin/sounding test --file tests/contracts/helm-commands.test.js --test-concurrency=1
@@ -206,6 +208,9 @@ jobs:
       - run: npm ci --no-audit
       - run: npx playwright install --with-deps chromium
       # Sounding partitions files; each runner retains --test-concurrency=1.
+      - name: Verify command-mode journeys before the owning full shard
+        if: matrix.shard == 1
+        run: node_modules/.bin/sounding test --file tests/e2e/pages/projects/helm.test.js --test-name-pattern='^project Helm (command|Stop|preparing)' --test-concurrency=1 --test-timeout=600000
       - name: Run browser tests
         run: npm run test:e2e -- --shard=${{ matrix.shard }}/3 --profile
       - name: Upload Helm command review screenshots

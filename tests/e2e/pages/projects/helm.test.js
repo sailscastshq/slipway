@@ -1839,6 +1839,9 @@ async function openCommandFixture(
   await login.withPassword('genesisUser', page, {
     password: current.auth.genesisUserPassword
   })
+  // Password login resolves after clicking Submit, before its Inertia redirect.
+  // Starting a second navigation earlier can abort session establishment.
+  await page.raw.waitForURL((url) => url.pathname === '/')
   const path = `/projects/${current.projects.deploymentTarget.slug}/environments/${environment.slug}/helm?appSlug=${app.slug}`
   await page.goto(path)
   return { current, app, environment, path }

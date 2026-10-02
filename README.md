@@ -118,6 +118,11 @@ slipway init
 slipway slide
 ```
 
+Moving existing apps from Coolify? Start with the
+[three-app migration runbook and disposable rehearsal](docs/coolify-migration.md).
+It separates app health cutover from database write pauses, Redis ownership, and
+DNS/TLS changes, and makes unverified recovery gates explicit.
+
 ## Architecture
 
 ```
