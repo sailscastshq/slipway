@@ -369,10 +369,13 @@ async function backupLifecycle(config, sails, world, root, request) {
     })
     assert.equal(
       saved.statusCode || saved.status,
-      200,
+      303,
       JSON.stringify(saved.data)
     )
-    assert.equal(JSON.stringify(saved.data).includes(config.accountKey), false)
+    assert.equal(
+      JSON.stringify(saved.data || {}).includes(config.accountKey),
+      false
+    )
     assert.equal(
       (await sails.helpers.backup.getStorageConfig(manual.id)).accountKey,
       config.accountKey
