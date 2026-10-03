@@ -21,6 +21,7 @@ function fixture(overrides = {}) {
   const source = {
     name: 'reports/daily',
     script: 'scripts/reports/daily.js',
+    inputMetadataAvailable: true,
     inputs: {
       enabled: { type: 'boolean', defaultsTo: true },
       count: { type: 'number', min: 0, max: 10 },
@@ -40,6 +41,7 @@ function fixture(overrides = {}) {
     runtimeId: 'runtime-fixture',
     capabilities: {
       residentState: true,
+      childSchedulerSuppression: true,
       runIdentity: true,
       inputMetadata: true,
       businessResults: true
@@ -62,7 +64,8 @@ function fixture(overrides = {}) {
   for (const [event, state] of [
     ['start', 'running'],
     ['complete', 'completed'],
-    ['error', 'failed']
+    ['error', 'failed'],
+    ['skip', 'skipped']
   ])
     sails.on(`quest:job:${event}`, (data) => bridge.record(state, data))
   let complete
@@ -141,6 +144,182 @@ test('Quest metadata preserves typed falsy defaults and excludes secret defaults
   assert.deepEqual(validateInputs(job, values), values)
 })
 
+test('Quest scheduled metadata preserves effective values and provenance without exposing secrets or claiming validation', () => {
+  const source = {
+    name: 'source-report',
+    inputs: {
+      count: { type: 'number', defaultsTo: 7 },
+      enabled: { type: 'boolean' },
+      payload: { type: 'json' },
+      requiredValue: { type: 'string', required: true },
+      opaque: { type: 'string', required: true, sensitive: true }
+    },
+    schedule: { interval: 1000 },
+    scheduled: false,
+    scheduledInputs: {
+      validation: 'not_checked',
+      limitBytes: 65536,
+      values: {
+        count: 0,
+        enabled: false,
+        payload: null,
+        opaque: 'never-export'
+      },
+      fields: {
+        count: {
+          source: 'script_input',
+          sensitive: false,
+          available: true,
+          missingRequired: false
+        },
+        enabled: {
+          source: 'job_input',
+          sensitive: false,
+          available: true,
+          missingRequired: false
+        },
+        payload: {
+          source: 'schema_default',
+          sensitive: false,
+          available: true,
+          missingRequired: false
+        },
+        requiredValue: {
+          source: 'omitted',
+          sensitive: false,
+          available: false,
+          missingRequired: true
+        },
+        opaque: {
+          source: 'job_input',
+          sensitive: false,
+          available: true,
+          missingRequired: false
+        }
+      }
+    }
+  }
+  const described = describeJob(source)
+  assert.deepEqual(described.scheduledInputs.values, {
+    count: 0,
+    enabled: false,
+    payload: null
+  })
+  assert.equal(described.inputs[0].defaultsTo, 7)
+  assert.equal(described.scheduled, false)
+  assert.equal(described.scheduledInputs.validation, 'not_checked')
+  assert.equal(described.scheduledInputs.fields.count.source, 'script_input')
+  assert.equal(
+    described.scheduledInputs.fields.requiredValue.missingRequired,
+    true
+  )
+  assert.deepEqual(described.scheduledInputs.fields.opaque, {
+    source: 'job_input',
+    sensitive: true,
+    available: false,
+    missingRequired: false,
+    reason: 'sensitive'
+  })
+  assert.equal(JSON.stringify(described).includes('never-export'), false)
+  source.scheduledInputs.values.count = 1
+  assert.notEqual(
+    describeJob(source).metadataVersion,
+    described.metadataVersion
+  )
+  assert.equal(
+    describeJob({ ...source, scheduledInputs: undefined }).scheduledInputs,
+    null
+  )
+  assert.equal(
+    describeJob({ ...source, scheduledInputs: { values: {}, fields: {} } })
+      .scheduledInputs,
+    null
+  )
+})
+
+test('Quest does not hide required undefined source values or reject an explicitly nullable enum', () => {
+  for (const source of ['job_input', 'script_input']) {
+    const job = describeJob({
+      name: 'required-source',
+      inputs: { value: { type: 'string', required: true } },
+      scheduledInputs: {
+        validation: 'not_checked',
+        values: {},
+        fields: {
+          value: {
+            source,
+            available: false,
+            missingRequired: true,
+            reason: 'serialization_error'
+          }
+        }
+      }
+    })
+    assert.equal(job.scheduledInputs.fields.value.missingRequired, true)
+  }
+  const nullable = describeJob({
+    name: 'nullable',
+    inputs: { value: { type: 'string', allowNull: true, isIn: ['a', 'b'] } }
+  })
+  assert.deepEqual(validateInputs(nullable, { value: null }), { value: null })
+  const integer = describeJob({
+    name: 'integer',
+    inputs: { value: { type: 'number', isInteger: true } }
+  })
+  assert.throws(() => validateInputs(integer, { value: 1.5 }), {
+    code: 'QUEST_INPUT_INVALID'
+  })
+})
+
+test('Quest cannot invoke registered jobs without a loaded input schema', async () => {
+  for (const inputMetadataAvailable of [false, undefined]) {
+    const f = fixture({ inputMetadataAvailable })
+    await rejectsCode(f.bridge.dispatch(f.message()), 'QUEST_UNAVAILABLE')
+    assert.equal(f.calls.length, 0)
+    const snapshot = await f.bridge.dispatch(f.message({ command: 'snapshot' }))
+    assert.equal(snapshot.jobs[0].inputMetadataAvailable, false)
+  }
+  const f = fixture({ inputs: {} })
+  assert.equal((await f.bridge.dispatch(f.message())).run.state, 'running')
+})
+
+test('Quest bounds and sanitizes scheduled metadata without turning unavailable values into defaults', () => {
+  const job = describeJob({
+    name: 'bounded',
+    inputs: {
+      large: { type: 'string' },
+      first: { type: 'string' },
+      second: { type: 'string' },
+      nested: { type: 'json' }
+    },
+    scheduledInputs: {
+      validation: 'not_checked',
+      values: {
+        large: 'x'.repeat(17 * 1024),
+        first: 'a'.repeat(10000),
+        second: 'b'.repeat(10000),
+        nested: { apiToken: 'private' }
+      },
+      fields: Object.fromEntries(
+        ['large', 'first', 'second', 'nested'].map((name) => [
+          name,
+          { source: 'job_input', available: true }
+        ])
+      )
+    }
+  })
+  assert.equal(job.scheduledInputs.limitBytes, 16 * 1024)
+  assert.equal(job.scheduledInputs.fields.large.reason, 'too_large')
+  assert.equal(job.scheduledInputs.fields.second.reason, 'metadata_limit')
+  assert.equal(job.scheduledInputs.fields.first.available, true)
+  assert.deepEqual(job.scheduledInputs.values.nested, {
+    apiToken: '<redacted>'
+  })
+  assert.ok(
+    Buffer.byteLength(JSON.stringify(job.scheduledInputs.values)) <= 16 * 1024
+  )
+})
+
 test('Quest validates types, numeric/string bounds, field names, and bounded plain JSON before admission', async () => {
   const f = fixture()
   let nested = 1
@@ -217,6 +396,11 @@ test('Quest stale identities, metadata, unsafe paths, and unknown jobs cannot st
     )
   }
   f.info.contractVersion = 1
+  for (const suppressed of [false, undefined]) {
+    f.info.capabilities.childSchedulerSuppression = suppressed
+    await rejectsCode(f.bridge.dispatch(f.message()), 'QUEST_UNAVAILABLE')
+  }
+  f.info.capabilities.childSchedulerSuppression = true
   f.info.capabilities.runIdentity = false
   await rejectsCode(f.bridge.dispatch(f.message()), 'QUEST_UNAVAILABLE')
   assert.equal(f.calls.length, 0)
@@ -277,6 +461,134 @@ test('Quest uncertain admission and synchronous exceptions retain invocation key
   }
 })
 
+test('Quest recognizes explicit asynchronous pre-spawn rejection without inventing an execution', async () => {
+  const f = fixture()
+  f.sails.quest.run = () => {
+    f.calls.push(['run'])
+    const error = Object.assign(new Error('Sensitive validation details'), {
+      code: 'E_QUEST_ADMISSION_REJECTED',
+      admission: 'rejected_before_start',
+      phase: 'validation',
+      validationCode: 'E_INVALID_ARGINS'
+    })
+    f.sails.emit('quest:job:error', {
+      name: f.source.name,
+      runtimeId: f.info.runtimeId,
+      runId: 'not-an-execution',
+      sequence: 1,
+      admission: error.admission,
+      phase: error.phase,
+      error
+    })
+    return Promise.reject(error)
+  }
+  for (let attempt = 0; attempt < 2; attempt++)
+    await rejectsCode(f.bridge.dispatch(f.message()), 'QUEST_INPUT_INVALID')
+  assert.equal(f.calls.length, 1)
+  assert.equal(f.bridge.runs.size, 0)
+  const unmarked = fixture()
+  unmarked.sails.quest.run = () =>
+    Promise.reject(new Error('Lost spawn acknowledgement'))
+  await rejectsCode(
+    unmarked.bridge.dispatch(unmarked.message()),
+    'QUEST_UNCONFIRMED'
+  )
+  const pending = fixture()
+  pending.sails.quest.run = () => new Promise(() => {})
+  await rejectsCode(
+    pending.bridge.dispatch(pending.message()),
+    'QUEST_UNCONFIRMED'
+  )
+})
+
+test('Quest preserves observed canonical admission if the call throws after start', async () => {
+  const f = fixture()
+  const invoke = f.sails.quest.run
+  f.sails.quest.run = (name, inputs) => {
+    invoke(name, inputs)
+    throw new Error('Response failed after the start event')
+  }
+  const accepted = await f.bridge.dispatch(f.message())
+  assert.equal(accepted.run.runId, 'canonical-1')
+  assert.equal(accepted.run.state, 'running')
+  assert.deepEqual(await f.bridge.dispatch(f.message()), accepted)
+  assert.equal(f.calls.length, 1)
+})
+
+test('Quest records an identified skip as a no-child outcome and preserves a known origin', async () => {
+  const f = fixture()
+  f.sails.quest.run = (name) => {
+    f.calls.push(['run'])
+    f.sails.emit('quest:job:skip', {
+      name,
+      runId: 'skipped-1',
+      runtimeId: f.info.runtimeId,
+      sequence: 1,
+      startedAt: 1000,
+      timestamp: 1000,
+      reason: 'already_running'
+    })
+    return Promise.resolve([
+      { skipped: true, reason: 'already_running', runId: 'skipped-1' }
+    ])
+  }
+  const response = await f.bridge.dispatch(f.message())
+  assert.equal(response.run.state, 'skipped')
+  assert.equal(response.run.startedAt, null)
+  assert.equal(response.run.exitCode, null)
+  assert.equal(response.run.trigger, 'manual')
+  assert.equal(
+    f.bridge.runs.get('skipped-1').error,
+    'An execution was already running; no script started.'
+  )
+  f.sails.emit('quest:job:skip', {
+    name: f.source.name,
+    runId: 'scheduled-skip',
+    runtimeId: f.info.runtimeId,
+    sequence: 2,
+    timestamp: 1001,
+    reason: 'paused',
+    trigger: 'scheduled'
+  })
+  assert.equal(f.bridge.runs.get('scheduled-skip').trigger, 'scheduled')
+  f.sails.emit('quest:job:skip', {
+    name: f.source.name,
+    runId: 'unknown-skip',
+    runtimeId: f.info.runtimeId,
+    sequence: 3,
+    timestamp: 1002,
+    reason: 'paused'
+  })
+  assert.equal(f.bridge.runs.get('unknown-skip').trigger, 'unknown')
+})
+
+test('Quest preserves numeric process failure and named exit despite bounded result loss', () => {
+  const f = fixture()
+  f.sails.emit('quest:job:error', {
+    name: f.source.name,
+    runId: 'failed-process',
+    runtimeId: f.info.runtimeId,
+    sequence: 1,
+    error: { message: 'Synthetic failure', code: 1 }
+  })
+  assert.equal(f.bridge.runs.get('failed-process').exitCode, 1)
+  f.sails.emit('quest:job:complete', {
+    name: f.source.name,
+    runId: 'large-exit',
+    runtimeId: f.info.runtimeId,
+    sequence: 2,
+    result: {
+      status: 'available',
+      exit: 'noRecords',
+      value: 'x'.repeat(129 * 1024)
+    }
+  })
+  assert.deepEqual(f.bridge.runs.get('large-exit').result, {
+    status: 'too_large',
+    exit: 'noRecords'
+  })
+})
+
 test('Quest pause and overlap checks fail closed and invoke only the named resident scheduler methods', async () => {
   const f = fixture()
   await f.bridge.dispatch(f.message({ command: 'pause' }))
@@ -312,7 +624,9 @@ test('Quest pause and overlap checks fail closed and invoke only the named resid
 
 test('Quest named business exits remain separate from process completion, and terminal evidence is monotonic', async () => {
   const f = fixture()
-  await f.bridge.dispatch(f.message())
+  await f.bridge.dispatch(
+    f.message({ jobInputs: { count: 0, enabled: false } })
+  )
   const event = {
     name: f.source.name,
     runId: 'canonical-1',
@@ -328,6 +642,7 @@ test('Quest named business exits remain separate from process completion, and te
   assert.equal(run.exitCode, 0)
   assert.deepEqual(run.result, event.result)
   assert.equal(run.stderr, 'useful warning')
+  assert.deepEqual(run.inputs, { count: 0, enabled: false })
   f.sails.emit('quest:job:error', { ...event, sequence: 3, exitCode: 9 })
   f.sails.emit('quest:job:start', { ...event, sequence: 1 })
   f.sails.emit('quest:job:complete', {

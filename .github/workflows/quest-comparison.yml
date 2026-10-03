@@ -19,6 +19,9 @@ on:
       - docs/quest-history-budget.md
       - packages/hook/lib/quest*
       - config/routes.js
+      - config/shipwright.js
+      - scripts/quest-preload-manifest.js
+      - views/app.ejs
       - config/policies.js
       - tests/e2e/pages/projects/quest.test.js
       - tests/support/quest*
@@ -442,106 +445,72 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
-  pre-split-control:
-    name: Compare pre-split and current Quest costs
+  preload-control:
+    name: Compare same-head Quest preload costs
     timeout-minutes: 25
     runs-on: ubuntu-latest
     env:
       SLIPWAY_QUEST_PRODUCTION_BENCHMARK: '1'
-      QUEST_BASELINE_SHA: 888c55becf293d03281c5b33a3dac09c8c0834b6
+      QUEST_BASELINE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
       SLIPWAY_QUEST_CAPTURE_TRIAL_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
     steps:
-      - name: Check out exact proposed source
+      - name: Check out one exact source for both preload modes
         uses: actions/checkout@v6
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
-          path: proposed-source
           persist-credentials: false
-      - name: Check out exact pre-split source
-        uses: actions/checkout@v6
-        with:
-          ref: ${{ env.QUEST_BASELINE_SHA }}
-          path: baseline-source
-          persist-credentials: false
-      - name: Install identical bounded trial in both source checkouts
+      - name: Keep only the bounded production capture trials
         run: |
           node <<'NODE'
           const fs = require('node:fs')
-          const source = fs.readFileSync('proposed-source/tests/e2e/pages/projects/quest.test.js', 'utf8')
+          const file = 'tests/e2e/pages/projects/quest.test.js'
+          const source = fs.readFileSync(file, 'utf8')
           const start = '// BEGIN QUEST COMPARISON CAPTURE'
           const end = '// END QUEST COMPARISON CAPTURE'
           if (source.split(start).length !== 2 || source.split(end).length !== 2) throw new Error('Expected one bounded capture trial')
-          const trial = "const { test } = require('sounding')\n" + source.slice(source.indexOf(start) + start.length, source.indexOf(end))
-          for (const directory of ['baseline-source', 'proposed-source']) {
-            fs.writeFileSync(`${directory}/tests/e2e/pages/projects/quest.test.js`, trial)
-          }
+          fs.writeFileSync(file, "const { test } = require('sounding')\n" + source.slice(source.indexOf(start) + start.length, source.indexOf(end)))
           NODE
       - uses: actions/setup-node@v6
         with:
           node-version: '22'
           cache: npm
-          cache-dependency-path: |
-            baseline-source/package-lock.json
-            proposed-source/package-lock.json
       - run: npm ci --no-audit
-        working-directory: baseline-source
-      - run: npm ci --no-audit
-        working-directory: proposed-source
       - run: npx playwright install --with-deps chromium
-        working-directory: baseline-source
-      - run: npx playwright install --with-deps chromium
-        working-directory: proposed-source
-      - name: Copy the production benchmark companion to baseline
-        run: cp proposed-source/tests/support/quest-production-benchmark.cjs baseline-source/tests/support/quest-production-benchmark.cjs
-      - name: Build each exact source without lifting an application
-        run: |
-          (cd baseline-source && NODE_ENV=production node tests/support/quest-production-benchmark.cjs build)
-          (cd proposed-source && NODE_ENV=production node tests/support/quest-production-benchmark.cjs build)
-      - name: Serve built manifests through normal disposable test applications
-        run: |
-          (cd baseline-source && node tests/support/quest-production-benchmark.cjs configure)
-          (cd proposed-source && node tests/support/quest-production-benchmark.cjs configure)
-      - name: Measure sequential before-after-after-before rounds
+      - name: Build this source once without lifting an application
+        run: NODE_ENV=production node tests/support/quest-production-benchmark.cjs build
+      - name: Serve the same built assets in the normal disposable test app
+        run: node tests/support/quest-production-benchmark.cjs configure
+      - name: Measure preload off-on-on-off with identical assets and fixture
         run: |
           set -euo pipefail
-          mkdir -p pre-split-control
+          mkdir -p preload-control
           for round in before-1 after-1 after-2 before-2; do
-            phase="${round%-*}"
-            source=proposed-source
-            expected="$SLIPWAY_QUEST_CAPTURE_TRIAL_SHA"
-            if [ "$phase" = before ]; then
-              source=baseline-source
-              expected="$QUEST_BASELINE_SHA"
-            fi
-            test "$(git -C "$source" rev-parse HEAD)" = "$expected"
-            mkdir -p "pre-split-control/$round"
-            date -u +%FT%TZ > "pre-split-control/$round/started-at.txt"
-            (
-              cd "$source"
-              SLIPWAY_QUEST_CAPTURE_PHASE=after node_modules/.bin/sounding test --file tests/e2e/pages/projects/quest.test.js --test-concurrency=1 --test-timeout=600000
-            )
-            cp "$source/.tmp/screenshots/quest-comparison/after/fixture.json" "pre-split-control/$round/fixture.json"
-            cp "$source/.tmp/screenshots/quest-comparison/after/performance.json" "pre-split-control/$round/performance.json"
-            cp "$source/.tmp/screenshots/quest-comparison/after/interaction-performance.json" "pre-split-control/$round/interaction-performance.json"
+            mode=on
+            if [[ "$round" == before-* ]]; then mode=off; fi
+            test "$(git rev-parse HEAD)" = "$SLIPWAY_QUEST_CAPTURE_TRIAL_SHA"
+            mkdir -p "preload-control/$round"
+            date -u +%FT%TZ > "preload-control/$round/started-at.txt"
+            SLIPWAY_QUEST_PRELOAD_MODE="$mode" SLIPWAY_QUEST_CAPTURE_PHASE=after node_modules/.bin/sounding test --file tests/e2e/pages/projects/quest.test.js --test-concurrency=1 --test-timeout=600000
+            cp .tmp/screenshots/quest-comparison/after/fixture.json "preload-control/$round/fixture.json"
+            cp .tmp/screenshots/quest-comparison/after/performance.json "preload-control/$round/performance.json"
+            cp .tmp/screenshots/quest-comparison/after/interaction-performance.json "preload-control/$round/interaction-performance.json"
           done
-      - name: Validate and decompose production-asset observations
-        run: node proposed-source/tests/support/quest-production-benchmark.cjs summarize-control pre-split-control
-      - name: Preserve production-asset navigation reports
+      - name: Validate isolated preload observations and unchanged asset requests
+        run: node tests/support/quest-production-benchmark.cjs summarize-preload preload-control
+      - name: Preserve same-head preload observations
         uses: actions/upload-artifact@v6
         if: always()
         with:
-          name: quest-pre-split-control-${{ github.event.pull_request.head.sha || github.sha }}
-          path: pre-split-control
+          name: quest-preload-control-${{ github.event.pull_request.head.sha || github.sha }}
+          path: preload-control
           if-no-files-found: error
           retention-days: 90
       - name: Preserve diagnostic artifacts on failure
         uses: actions/upload-artifact@v6
         if: failure()
         with:
-          name: quest-pre-split-control-diagnostics-${{ github.event.pull_request.head.sha || github.sha }}
-          path: |
-            baseline-source/.tmp/sounding/artifacts
-            proposed-source/.tmp/sounding/artifacts
+          name: quest-preload-control-diagnostics-${{ github.event.pull_request.head.sha || github.sha }}
+          path: .tmp/sounding/artifacts
           if-no-files-found: ignore
           retention-days: 14
 

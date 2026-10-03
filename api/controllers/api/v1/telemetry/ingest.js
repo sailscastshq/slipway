@@ -245,12 +245,7 @@ module.exports = {
           continue
         const scope = { environmentId, appId: app.id }
         try {
-          await questLedger.admit({
-            ...run,
-            ...scope,
-            state: 'requested',
-            sequence: 0
-          })
+          await questLedger.admitReceipt(run, scope)
           await questLedger.ingest(run, scope)
         } catch (error) {
           sails.log.warn(

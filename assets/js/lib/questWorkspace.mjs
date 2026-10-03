@@ -41,6 +41,8 @@ export function questJobState(job, workspace, fresh = true) {
   if (job.isRunning === true) return 'running'
   if (job.paused === true) return 'paused'
   if (job.paused !== false || job.isRunning !== false) return 'unavailable'
+  if (job.schedule && job.schedule !== 'manual' && job.scheduled === false)
+    return 'inactive'
   return job.schedule && job.schedule !== 'manual' ? 'scheduled' : 'manual'
 }
 
@@ -81,10 +83,27 @@ export function mergeQuestRuns(current, incoming) {
   return [...map.values()].sort((a, b) => questRunTime(b) - questRunTime(a))
 }
 
+// Live snapshots replace their moving page. Keep older rows only when the
+// operator explicitly paginated to them or is currently inspecting one.
+export function retainQuestWindow(
+  current,
+  incoming,
+  retained = [],
+  selected = '',
+  key = 'runId'
+) {
+  const keep = new Set(
+    [...incoming.map((item) => String(item[key])), ...retained].map(String)
+  )
+  if (selected) keep.add(String(selected))
+  return current.filter((item) => keep.has(String(item[key])))
+}
+
 export function questInputMetadataAvailable(job, workspace) {
   return (
     workspace?.mode === 'resident' &&
     workspace.capabilities?.typedInputs === true &&
+    job?.inputMetadataAvailable === true &&
     typeof job?.metadataVersion === 'string' &&
     job.metadataVersion.length > 0 &&
     Array.isArray(job.inputs)

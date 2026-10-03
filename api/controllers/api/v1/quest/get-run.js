@@ -8,12 +8,15 @@ module.exports = {
     projectSlug: { type: 'string', required: true },
     environmentSlug: { type: 'string', defaultsTo: 'production' },
     appId: { type: 'number' },
+    summaryOnly: { type: 'boolean', defaultsTo: false },
     runId: { type: 'string', required: true }
   },
   exits: { notFound: { statusCode: 404 } },
   fn: async function (inputs) {
     const scope = await ledger.resolveScope(this.req, inputs)
-    const run = await ledger.getRun(scope, inputs.runId)
+    const run = await (inputs.summaryOnly
+      ? ledger.getRunSummary
+      : ledger.getRun)(scope, inputs.runId)
     if (!run) throw 'notFound'
     return { run }
   }

@@ -1,4 +1,5 @@
 const assert = require('node:assert/strict')
+const crypto = require('node:crypto')
 const { test } = require('sounding')
 const ledger = require('../../../api/lib/quest-run-ledger')
 
@@ -190,4 +191,216 @@ test('Quest receipt reconciliation reads only revision and runtime metadata', as
   assert.equal(criteria.app, '2')
   assert.equal(criteria.runId, 'run-a')
   assert.equal(criteria.requestedAt['>='], 1000000000 - ledger.RETENTION_MS)
+})
+
+test('Quest resident enrichment never downgrades a concurrently enriched terminal receipt', async () => {
+  const scope = { environmentId: '1', appId: '2' }
+  const now = Date.now()
+  let current = {
+    environment: '1',
+    app: '2',
+    runId: 'receipt',
+    runtimeId: 'resident-a',
+    deploymentId: 'deployment-a',
+    jobName: 'report',
+    requestedAt: now,
+    startedAt: now,
+    finishedAt: now + 1,
+    state: 'completed',
+    sequence: 2,
+    inputs: { count: 0 },
+    inputHash: 'unchanged-admission-hash',
+    resultStatus: 'too_large',
+    result: { status: 'too_large' },
+    stdout: 'tail',
+    stderr: '',
+    logsAvailable: true,
+    logsTruncated: true
+  }
+  let updates = 0
+  const model = {
+    async findOne() {
+      return { ...current }
+    },
+    updateOne(criteria) {
+      assert.equal(criteria.state, 'completed')
+      assert.equal(criteria.sequence, 2)
+      assert.equal(criteria.stdout, 'tail')
+      return {
+        async set(values) {
+          assert.deepEqual(Object.keys(values).sort(), [
+            'logsAvailable',
+            'logsTruncated',
+            'result',
+            'resultStatus',
+            'stderr',
+            'stdout',
+            'updatedAt'
+          ])
+          updates++
+          current = {
+            ...current,
+            resultStatus: 'available',
+            result: { status: 'available', value: { count: 0 } },
+            stdout: 'complete output with tail',
+            logsTruncated: false
+          }
+          return null // Another resident reconciliation won the compare-and-set.
+        }
+      }
+    }
+  }
+  const returned = await ledger.enrichResidentReceipt(
+    {
+      ...current,
+      result: { status: 'available', value: 'less useful' },
+      stdout: 'output with tail',
+      logsTruncated: true
+    },
+    scope,
+    { model, now }
+  )
+  assert.equal(updates, 1)
+  assert.equal(returned.stdout, 'complete output with tail')
+  assert.deepEqual(returned.result.value, { count: 0 })
+  assert.equal(returned.sequence, 2)
+  assert.equal(returned.inputHash, 'unchanged-admission-hash')
+  assert.equal(returned.finishedAt, now + 1)
+})
+
+test('Quest receipt admission tolerates a same-run delivery race without weakening request-key admission', async () => {
+  const scope = { environmentId: '1', appId: '2' }
+  const event = {
+    runId: 'racing-receipt',
+    runtimeId: 'resident-a',
+    deploymentId: 'deployment-a',
+    jobName: 'report',
+    inputs: { payload: 'resident value omitted by telemetry' }
+  }
+  const winner = {
+    ...event,
+    app: '2',
+    environment: '1',
+    inputHash: 'telemetry-evidence-hash',
+    inputs: {}
+  }
+  let reads = 0
+  const model = {
+    async findOne() {
+      return ++reads > 2 ? winner : null
+    },
+    create() {
+      return {
+        async fetch() {
+          throw Object.assign(new Error('Concurrent delivery'), {
+            code: 'E_UNIQUE'
+          })
+        }
+      }
+    }
+  }
+  assert.equal(await ledger.admitReceipt(event, scope, { model }), winner)
+  assert.equal(winner.inputHash, 'telemetry-evidence-hash')
+  await assert.rejects(ledger.admit({ ...event, ...scope }, { model }), {
+    code: 'QUEST_RUN_CONFLICT'
+  })
+})
+
+test('Quest receipt admission rechecks exact run and runtime identity after inner lookup or unique races', async () => {
+  const scope = { environmentId: '1', appId: '2' }
+  const event = {
+    runId: 'expected-receipt',
+    runtimeId: 'expected-runtime',
+    deploymentId: 'deployment-a',
+    jobName: 'report',
+    requestId: 'same-request-key',
+    inputs: {}
+  }
+  for (const collision of [
+    { runtimeId: 'foreign-runtime' },
+    { runId: 'different-receipt' }
+  ])
+    for (const arrival of ['inner-lookup', 'unique-race']) {
+      const winner = {
+        ...event,
+        ...collision,
+        app: '2',
+        environment: '1',
+        inputHash: crypto.createHash('sha256').update('{}').digest('hex')
+      }
+      let reads = 0
+      const model = {
+        async findOne() {
+          return ++reads > (arrival === 'inner-lookup' ? 1 : 2) ? winner : null
+        },
+        create() {
+          assert.equal(arrival, 'unique-race')
+          return {
+            async fetch() {
+              throw Object.assign(new Error('Concurrent receipt'), {
+                code: 'E_UNIQUE'
+              })
+            }
+          }
+        }
+      }
+      await assert.rejects(ledger.admitReceipt(event, scope, { model }), {
+        code: 'QUEST_RUN_CONFLICT'
+      })
+    }
+})
+
+test('Quest runtime-loss reconciliation selects only bounded identifiers and preserves execution evidence', async () => {
+  const observed = {}
+  const model = {
+    find(where) {
+      observed.where = where
+      return {
+        select(fields) {
+          observed.fields = fields
+          return this
+        },
+        sort(order) {
+          observed.order = order
+          return this
+        },
+        async limit(limit) {
+          observed.limit = limit
+          return [{ id: 3 }, { id: 4 }]
+        }
+      }
+    },
+    update(where) {
+      observed.updateWhere = where
+      return {
+        async set(values) {
+          observed.values = values
+        }
+      }
+    }
+  }
+  assert.deepEqual(
+    await ledger.reconcileRuntimeLoss(
+      { environmentId: 1, appId: 2 },
+      'current-runtime',
+      { model, now: 1000000000 }
+    ),
+    { checked: 2, hasMore: false }
+  )
+  assert.deepEqual(observed.fields, ['id'])
+  assert.equal(observed.limit, 100)
+  assert.equal(observed.order, 'id ASC')
+  assert.deepEqual(observed.updateWhere, {
+    ...observed.where,
+    id: { in: [3, 4] }
+  })
+  assert.equal(observed.where.environment, '1')
+  assert.equal(observed.where.app, '2')
+  assert.deepEqual(observed.where.runtimeId, { nin: ['current-runtime', ''] })
+  assert.equal(
+    observed.where.requestedAt['>='],
+    1000000000 - ledger.RETENTION_MS
+  )
+  assert.deepEqual(Object.keys(observed.values).sort(), ['error', 'state'])
+  assert.equal(observed.values.state, 'unconfirmed')
 })

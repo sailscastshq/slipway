@@ -4,6 +4,7 @@ const net = require('node:net')
 const crypto = require('node:crypto')
 const { startTicks } = require('./helm-runtime-contract')
 const { sanitizeQuestDiagnostic } = require('./quest-diagnostics')
+const { questRedactor, forgetQuestRedactor } = require('./quest-redaction')
 
 const DIRECTORY = '/tmp/slipway-quest-runtimes'
 const MAX_REQUEST_BYTES = 32 * 1024
@@ -23,7 +24,7 @@ const fail = (message, code = 'QUEST_UNAVAILABLE') =>
 const digest = (value) =>
   crypto.createHash('sha256').update(JSON.stringify(value)).digest('hex')
 
-function safeValue(value, depth = 0, seen = new Set()) {
+function safeValue(value, depth = 0, seen = new Set(), redactor) {
   if (depth > 8)
     throw fail('Value exceeds the nesting limit.', 'QUEST_INPUT_INVALID')
   if (
@@ -31,22 +32,28 @@ function safeValue(value, depth = 0, seen = new Set()) {
     typeof value === 'boolean' ||
     (typeof value === 'number' && Number.isFinite(value))
   )
-    return value
+    return redactor ? redactor.value(value) : value
+  if (typeof value === 'string' && redactor && redactor.value(value) !== value)
+    return '<redacted>'
   if (typeof value === 'string')
-    return sanitizeQuestDiagnostic(value, { preserveWhitespace: true })
+    return redactor
+      ? redactor.text(value, { preserveWhitespace: true })
+      : sanitizeQuestDiagnostic(value, { preserveWhitespace: true })
   if (!value || typeof value !== 'object' || seen.has(value))
     throw fail('Value is not JSON-compatible.', 'QUEST_INPUT_INVALID')
   seen.add(value)
   let result
   if (Array.isArray(value))
-    result = value.map((item) => safeValue(item, depth + 1, seen))
+    result = value.map((item) => safeValue(item, depth + 1, seen, redactor))
   else {
     if (![Object.prototype, null].includes(Object.getPrototypeOf(value)))
       throw fail('Value must be a plain object.', 'QUEST_INPUT_INVALID')
     result = Object.fromEntries(
       Object.entries(value).map(([key, item]) => [
-        key,
-        sensitive.test(key) ? '<redacted>' : safeValue(item, depth + 1, seen)
+        redactor ? redactor.text(key, { preserveWhitespace: true }) : key,
+        sensitive.test(key)
+          ? '<redacted>'
+          : safeValue(item, depth + 1, seen, redactor)
       ])
     )
   }
@@ -54,12 +61,122 @@ function safeValue(value, depth = 0, seen = new Set()) {
   return result
 }
 
-function logTail(value, limit = 32768) {
+// Redact business data without renaming the result transport's fixed keys or
+// treating its status/validated named exit as an echoed input value.
+function safeResult(result, redactor, limitBytes) {
+  let output
+  try {
+    if (!redactor.available)
+      output = { status: 'unavailable', reason: 'redaction_unavailable' }
+    else if (
+      result &&
+      [
+        'available',
+        'undefined',
+        'too_large',
+        'serialization_error',
+        'unavailable',
+        'unsupported'
+      ].includes(result.status)
+    ) {
+      output = { status: result.status }
+      if (Object.hasOwn(result, 'value'))
+        output.value = safeValue(result.value, 0, new Set(), redactor)
+      if (typeof result.reason === 'string')
+        output.reason = redactor.text(result.reason, {
+          preserveWhitespace: true
+        })
+      if (result.truncated === true) output.truncated = true
+      if (Buffer.byteLength(JSON.stringify(output)) > limitBytes)
+        output = { status: 'too_large', truncated: true }
+    } else output = { status: 'unavailable' }
+  } catch {
+    output = { status: 'serialization_error' }
+  }
+  if (
+    typeof result?.exit === 'string' &&
+    /^[a-zA-Z0-9_.:-]{1,128}$/.test(result.exit)
+  )
+    output.exit = result.exit
+  return output
+}
+
+function logTail(value, limit = 32768, redactor, truncated = false) {
   if (typeof value !== 'string') return null
-  const bytes = Buffer.from(sanitizeQuestDiagnostic(value))
+  const bytes = Buffer.from(
+    redactor
+      ? redactor.text(value, { truncated })
+      : sanitizeQuestDiagnostic(value)
+  )
   let offset = Math.max(0, bytes.length - limit)
   while (offset < bytes.length && (bytes[offset] & 0xc0) === 0x80) offset++
   return bytes.subarray(offset).toString('utf8')
+}
+
+function describeScheduledInputs(metadata, inputs) {
+  if (
+    !metadata ||
+    metadata.validation !== 'not_checked' ||
+    !metadata.fields ||
+    typeof metadata.fields !== 'object' ||
+    Array.isArray(metadata.fields) ||
+    !metadata.values ||
+    typeof metadata.values !== 'object' ||
+    Array.isArray(metadata.values)
+  )
+    return null
+  const sources = new Set([
+    'job_input',
+    'script_input',
+    'schema_default',
+    'omitted'
+  ])
+  const values = {},
+    fields = {}
+  const limitBytes = 16 * 1024
+  let usedBytes = 2
+  for (const input of inputs) {
+    const field = metadata.fields[input.name]
+    if (!field || !sources.has(field.source)) continue
+    const secret = input.sensitive || field.sensitive === true
+    const output = {
+      source: field.source,
+      sensitive: secret,
+      available: false,
+      missingRequired: input.required && field.missingRequired === true
+    }
+    if (secret) output.reason = 'sensitive'
+    else if (
+      field.available === true &&
+      field.source !== 'omitted' &&
+      Object.hasOwn(metadata.values, input.name)
+    ) {
+      try {
+        const value = safeValue(metadata.values[input.name])
+        const bytes = Buffer.byteLength(JSON.stringify({ [input.name]: value }))
+        if (bytes > limitBytes) output.reason = 'too_large'
+        else if (usedBytes + bytes > limitBytes)
+          output.reason = 'metadata_limit'
+        else {
+          Object.defineProperty(values, input.name, { value, enumerable: true })
+          output.available = true
+          usedBytes += bytes
+        }
+      } catch {
+        output.reason = 'serialization_error'
+      }
+    } else if (
+      ['too_large', 'serialization_error', 'metadata_limit'].includes(
+        field.reason
+      )
+    )
+      output.reason = field.reason
+    Object.defineProperty(fields, input.name, {
+      value: output,
+      enumerable: true
+    })
+  }
+  return { values, fields, validation: 'not_checked', limitBytes }
 }
 
 function describeJob(job) {
@@ -78,6 +195,8 @@ function describeJob(job) {
     for (const key of [
       'friendlyName',
       'description',
+      'allowNull',
+      'isInteger',
       'isIn',
       'min',
       'max',
@@ -101,6 +220,9 @@ function describeJob(job) {
       field.custom ||
         field.customValidation ||
         field.serverValidated ||
+        field.isEmail ||
+        field.isURL ||
+        field.regex ||
         !['string', 'number', 'boolean', 'json', 'ref'].includes(output.type)
     )
     return output
@@ -115,6 +237,7 @@ function describeJob(job) {
     script: job.script,
     friendlyName: job.friendlyName || job.name,
     description: job.description || '',
+    inputMetadataAvailable: job.inputMetadataAvailable === true,
     inputs,
     schedule: type === 'manual' ? null : schedule[type],
     scheduleType: type,
@@ -129,14 +252,17 @@ function describeJob(job) {
       typeof job.withoutOverlapping === 'boolean'
         ? job.withoutOverlapping
         : null,
-    scheduledInputs: null,
+    scheduled: typeof job.scheduled === 'boolean' ? job.scheduled : null,
+    scheduledInputs: describeScheduledInputs(job.scheduledInputs, inputs),
     validationErrors: []
   }
   safe.metadataVersion = digest({
     name: safe.name,
     script: safe.script,
     inputs,
-    schedule
+    schedule,
+    inputMetadataAvailable: safe.inputMetadataAvailable,
+    scheduledInputs: safe.scheduledInputs
   })
   return safe
 }
@@ -165,6 +291,7 @@ function validateInputs(job, values) {
       if (
         typeof value === 'number' &&
         (!Number.isFinite(value) ||
+          (field.isInteger === true && !Number.isInteger(value)) ||
           (field.min !== undefined && value < field.min) ||
           (field.max !== undefined && value > field.max))
       )
@@ -179,7 +306,7 @@ function validateInputs(job, values) {
       )
         throw fail(`${name} has an invalid length.`, 'QUEST_INPUT_INVALID')
     }
-    if (field.isIn && !field.isIn.includes(value))
+    if (value !== null && field.isIn && !field.isIn.includes(value))
       throw fail(`${name} is not an allowed value.`, 'QUEST_INPUT_INVALID')
   }
   // Quest's normal machine invocation remains the final validator, including
@@ -271,7 +398,9 @@ function createQuestRuntime({
       const completed = [...runs].find(([, item]) => terminal.has(item.state))
       // Retention is bounded even if many scheduled jobs overlap. Eviction is
       // loss of inspection evidence, never cancellation or a terminal result.
-      runs.delete(completed?.[0] || runs.keys().next().value)
+      const evicted = completed?.[0] || runs.keys().next().value
+      forgetQuestRedactor(sails, runs.get(evicted).runtimeId, evicted)
+      runs.delete(evicted)
     }
   }
   const summary = (run) => {
@@ -290,7 +419,8 @@ function createQuestRuntime({
       info?.contractVersion !== 1 ||
       !info.runtimeId ||
       info.capabilities?.residentState !== true ||
-      info.capabilities?.runIdentity !== true
+      info.capabilities?.runIdentity !== true ||
+      info.capabilities?.childSchedulerSuppression !== true
     )
       throw fail('Upgrade the app’s Quest hook to use the resident runtime.')
     return info
@@ -298,27 +428,28 @@ function createQuestRuntime({
   function record(kind, data) {
     const info = getRuntime()
     if (
+      data.admission === 'rejected_before_start' &&
+      data.phase === 'validation'
+    )
+      return
+    if (
       !data.runId ||
       data.runtimeId !== info.runtimeId ||
       !Number.isSafeInteger(data.sequence)
     )
       return
     const old = runs.get(data.runId)
+    if (kind === 'skipped' && old) return
     if (old && (data.sequence <= old.sequence || terminal.has(old.state)))
       return
     const admission =
-      kind === 'running' && activeAdmission?.name === data.name
+      ['running', 'skipped'].includes(kind) &&
+      activeAdmission?.name === data.name
         ? activeAdmission
         : null
-    const result = data.result || { status: 'unavailable' }
-    let boundedResult
-    try {
-      boundedResult = safeValue(result)
-      if (Buffer.byteLength(JSON.stringify(boundedResult)) > MAX_RESULT_BYTES)
-        boundedResult = { status: 'too_large' }
-    } catch {
-      boundedResult = { status: 'serialization_error' }
-    }
+    const redactor = questRedactor(sails, data, kind)
+    const boundedResult = safeResult(data.result, redactor, MAX_RESULT_BYTES)
+    if (boundedResult.status === 'too_large') delete boundedResult.truncated
     const run = {
       ...old,
       runId: data.runId,
@@ -327,7 +458,13 @@ function createQuestRuntime({
       deploymentId: String(deploymentId),
       sequence: data.sequence,
       state: kind,
-      trigger: old?.trigger || (admission ? 'manual' : 'scheduled'),
+      trigger:
+        old?.trigger ||
+        (admission
+          ? 'manual'
+          : ['manual', 'scheduled', 'cli'].includes(data.trigger)
+          ? data.trigger
+          : 'unknown'),
       actor: old?.actor || admission?.actor || null,
       requestId: old?.requestId || admission?.requestId || null,
       requestedAt:
@@ -337,32 +474,55 @@ function createQuestRuntime({
         milliseconds(data.timestamp) ||
         now(),
       startedAt:
-        milliseconds(data.startedAt) ||
-        old?.startedAt ||
-        milliseconds(data.timestamp) ||
-        now(),
+        kind === 'skipped'
+          ? null
+          : milliseconds(data.startedAt) ||
+            old?.startedAt ||
+            milliseconds(data.timestamp) ||
+            now(),
       finishedAt:
         kind === 'running'
           ? null
           : milliseconds(data.finishedAt) ||
             milliseconds(data.timestamp) ||
             now(),
-      duration: Number.isFinite(data.duration) ? data.duration : null,
+      duration:
+        kind === 'skipped'
+          ? null
+          : Number.isFinite(data.duration)
+          ? data.duration
+          : null,
       exitCode:
         kind === 'completed'
           ? 0
           : Number.isInteger(data.exitCode)
           ? data.exitCode
+          : Number.isInteger(data.error?.code)
+          ? data.error.code
           : null,
-      result: kind === 'running' ? { status: 'unavailable' } : boundedResult,
-      inputs: safeValue(data.inputs || {}),
+      result: ['running', 'skipped'].includes(kind)
+        ? { status: 'unavailable' }
+        : boundedResult,
+      inputs: redactor.inputs(data.inputs, (value) =>
+        safeValue(value, 0, new Set(), redactor)
+      ),
       stdout:
         typeof data.logs?.stdout === 'string'
-          ? logTail(data.logs.stdout)
+          ? logTail(
+              data.logs.stdout,
+              32768,
+              redactor,
+              data.logs.stdoutTruncated
+            )
           : null,
       stderr:
         typeof data.logs?.stderr === 'string'
-          ? logTail(data.logs.stderr)
+          ? logTail(
+              data.logs.stderr,
+              32768,
+              redactor,
+              data.logs.stderrTruncated
+            )
           : null,
       logsTruncated: Boolean(
         data.logs?.stdoutTruncated ||
@@ -370,15 +530,17 @@ function createQuestRuntime({
           Buffer.byteLength(data.logs?.stdout || '') > 32768 ||
           Buffer.byteLength(data.logs?.stderr || '') > 32768
       ),
-      error: data.error
-        ? sanitizeQuestDiagnostic(data.error.message || String(data.error))
-        : null
+      error:
+        kind === 'skipped'
+          ? data.reason === 'paused'
+            ? 'The job was paused; no script started.'
+            : data.reason === 'already_running'
+            ? 'An execution was already running; no script started.'
+            : 'The runtime skipped this job; no script started.'
+          : data.error
+          ? redactor.text(data.error.message || String(data.error))
+          : null
     }
-    // Explicit schema annotations also redact non-secret-looking input names.
-    const job = metadata().find((item) => item.name === data.name)
-    for (const field of job?.inputs || [])
-      if (field.sensitive && field.name in run.inputs)
-        run.inputs[field.name] = '<redacted>'
     remember(run)
     if (admission) admission.run = run
   }
@@ -445,6 +607,13 @@ function createQuestRuntime({
     }
     if (message.command !== 'invoke')
       throw fail('Unsupported Quest command.', 'QUEST_INPUT_INVALID')
+    if (
+      info.capabilities.inputMetadata !== true ||
+      job.inputMetadataAvailable !== true
+    )
+      throw fail(
+        'This job has no loaded input schema. Deploy its source definition before running it.'
+      )
     if (message.metadataVersion !== job.metadataVersion)
       throw fail(
         'Job inputs changed. Review the current fields.',
@@ -504,19 +673,36 @@ function createQuestRuntime({
     try {
       execution = sails.quest.run(message.name, values)
     } catch (error) {
-      activeAdmission = null
-      rejectAdmission(error)
-      return promise
+      execution = Promise.reject(error)
     }
     activeAdmission = null
     if (admission.run) resolveAdmission({ run: summary(admission.run) })
     else {
-      rejectAdmission(
-        fail(
-          'The runtime did not confirm run admission. Do not repeat the job until its state is checked.',
-          'QUEST_UNCONFIRMED'
+      const unconfirmed = () =>
+        rejectAdmission(
+          fail(
+            'The runtime did not confirm run admission. Do not repeat the job until its state is checked.',
+            'QUEST_UNCONFIRMED'
+          )
         )
-      )
+      // Registered-job validation is synchronous, but public Quest.run returns
+      // a rejected Promise. Preserve only the explicit pre-spawn marker; an
+      // unmarked error or missing start remains an unknown execution outcome.
+      Promise.resolve(execution).then(unconfirmed, (error) => {
+        if (
+          error?.code === 'E_QUEST_ADMISSION_REJECTED' &&
+          error.admission === 'rejected_before_start' &&
+          error.phase === 'validation'
+        ) {
+          rejectAdmission(
+            fail(
+              'The job was rejected before execution. Check the job definition and input values.',
+              'QUEST_INPUT_INVALID'
+            )
+          )
+        } else unconfirmed()
+      })
+      setImmediate(unconfirmed)
     }
     Promise.resolve(execution).catch(() => {
       /* upstream error events own terminal evidence */
@@ -565,7 +751,8 @@ function createQuestRuntime({
     for (const [event, state] of [
       ['start', 'running'],
       ['complete', 'completed'],
-      ['error', 'failed']
+      ['error', 'failed'],
+      ['skip', 'skipped']
     ]) {
       const listener = (data) => {
         try {
@@ -645,6 +832,8 @@ function createQuestRuntime({
       }
     }
     ownedFiles.clear()
+    for (const run of runs.values())
+      forgetQuestRedactor(sails, run.runtimeId, run.runId)
   }
   return {
     start,
@@ -662,5 +851,6 @@ module.exports = {
   describeJob,
   validateInputs,
   safeValue,
+  safeResult,
   DIRECTORY
 }

@@ -23,6 +23,7 @@ const label = computed(
       skipped: 'Skipped',
       paused: 'Paused',
       scheduled: 'Scheduled',
+      inactive: 'Inactive',
       manual: 'Manual',
       unavailable: 'Unavailable'
     }[props.state] ||

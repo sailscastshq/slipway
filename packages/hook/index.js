@@ -851,11 +851,17 @@ module.exports = function defineSlipwayHook(sails) {
 
   function instrumentQuest() {
     const questEvent = require('./lib/quest-event')
-    const runAttributes = (data, state) => {
+    const { questRedactor } = require('./lib/quest-redaction')
+    const runAttributes = (
+      data,
+      state,
+      redactor = questRedactor(sails, data, state)
+    ) => {
       const run = questEvent(data, state, {
         sails,
         appId: config.appId,
-        deploymentId: config.deploymentId
+        deploymentId: config.deploymentId,
+        redactor
       })
       if (run) {
         const retained = questRuntime?.runs.get(data.runId)
@@ -870,11 +876,24 @@ module.exports = function defineSlipwayHook(sails) {
       }
       let inputs = {}
       try {
-        inputs = require('./lib/quest-runtime').safeValue(data.inputs || {})
+        inputs = redactor.inputs(data.inputs, (value) =>
+          require('./lib/quest-runtime').safeValue(
+            value,
+            0,
+            new Set(),
+            redactor
+          )
+        )
       } catch {
         /* unsafe inputs are not telemetry */
       }
-      return { jobName: data.name, inputs }
+      return {
+        jobName: data.name,
+        inputs,
+        trigger: ['manual', 'scheduled', 'cli'].includes(data.trigger)
+          ? data.trigger
+          : 'unknown'
+      }
     }
 
     sails.on('quest:job:start', function (data) {
@@ -897,16 +916,48 @@ module.exports = function defineSlipwayHook(sails) {
       })
     })
 
+    sails.on('quest:job:skip', function (data) {
+      const redactor = questRedactor(sails, data, 'skipped')
+      metricBuffer.push({
+        name: 'quest.job.skipped',
+        value: 0,
+        unit: 'ms',
+        attributes: {
+          ...runAttributes(data, 'skipped', redactor),
+          error: redactor
+            .text(
+              typeof data.reason === 'string'
+                ? data.reason
+                : 'The job did not start.'
+            )
+            .slice(0, 2048)
+        },
+        recordedAt: data.timestamp || Date.now()
+      })
+      // Skips use the existing bounded batch/periodic delivery discipline, not
+      // failure notifications or one request for every paused timer tick.
+      if (metricBuffer.length >= config.batchSize) flush()
+    })
+
     sails.on('quest:job:error', function (data) {
+      // Upstream rejected validation before child admission. This is request
+      // evidence, never an execution, legacy failure, exception, or alert.
+      if (data.admission === 'rejected_before_start') return
+      const redactor = questRedactor(sails, data, 'failed')
+      const errorMessage = redactor
+        .text(
+          data.error
+            ? data.error.message || String(data.error)
+            : 'Unknown error'
+        )
+        .slice(0, 2048)
       metricBuffer.push({
         name: 'quest.job.error',
         value: typeof data.duration === 'number' ? data.duration : 0,
         unit: 'ms',
         attributes: {
-          ...runAttributes(data, 'failed'),
-          error: data.error
-            ? data.error.message || String(data.error)
-            : 'Unknown error'
+          ...runAttributes(data, 'failed', redactor),
+          error: errorMessage
         },
         recordedAt: data.timestamp || Date.now()
       })
@@ -914,12 +965,11 @@ module.exports = function defineSlipwayHook(sails) {
       // Also capture as an exception for the exceptions tab
       exceptionBuffer.push({
         exceptionType: 'QuestJobError',
-        message: `Job "${data.name}" failed: ${
-          data.error
-            ? data.error.message || String(data.error)
-            : 'Unknown error'
-        }`,
-        stackTrace: normalizeQuestDiagnostic(data.error),
+        message: `Job "${data.name}" failed: ${errorMessage}`,
+        stackTrace: normalizeQuestDiagnostic({
+          diagnostic: redactor.text(data.error?.diagnostic, { tail: true }),
+          stack: redactor.text(data.error?.stack)
+        }),
         handled: true,
         method: null,
         url: null,
@@ -932,9 +982,7 @@ module.exports = function defineSlipwayHook(sails) {
         sails.helpers.notification.sendJobFailureNotification
           .with({
             jobName: data.name,
-            errorMessage: data.error
-              ? data.error.message || String(data.error)
-              : 'Unknown error',
+            errorMessage,
             duration:
               typeof data.duration === 'number' ? data.duration : undefined
           })

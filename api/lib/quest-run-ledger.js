@@ -48,7 +48,8 @@ const SUMMARY_FIELDS = [
   'finishedAt',
   'duration',
   'exitCode',
-  'resultStatus'
+  'resultStatus',
+  'updatedAt'
 ]
 const SENSITIVE_KEY =
   /password|passwd|secret|token|api[_-]?key|private[_-]?key|credential|authorization/i
@@ -291,7 +292,7 @@ async function admit(input, options = {}) {
         : boundedText(String(input.runtimeId), 256, options).value,
     jobName: boundedText(input.jobName, 256, options).value,
     actor: input.actor == null ? null : sanitizeValue(input.actor, options),
-    trigger: ['manual', 'scheduled', 'cli'].includes(input.trigger)
+    trigger: ['manual', 'scheduled', 'cli', 'unknown'].includes(input.trigger)
       ? input.trigger
       : 'manual',
     state: input.state === 'running' ? 'running' : 'requested',
@@ -341,6 +342,11 @@ async function ingest(event, scope, options = {}) {
     const run = await model.findOne(where)
     if (!run) return null // Only admission creates a run; uncorrelated events stay uncorrelated.
     if (event.sequence <= run.sequence || TERMINAL.has(run.state)) return run
+    if (
+      event.state === 'skipped' &&
+      (run.startedAt != null || run.state === 'running')
+    )
+      return run // A no-child skip can never rewrite an observed execution.
     const state =
       event.state === 'requested' && run.state !== 'requested'
         ? run.state
@@ -370,7 +376,27 @@ async function ingest(event, scope, options = {}) {
     if (event.error !== undefined)
       values.error =
         boundedText(event.error, MAX_LOG_BYTES, options).value || null
-    if (event.stdout !== undefined || event.stderr !== undefined) {
+    if (state === 'skipped') {
+      // A skipped admission did not own a child, even if an upstream emitter
+      // included an attempted-start timestamp or an incidental process field.
+      Object.assign(values, {
+        startedAt: null,
+        duration: null,
+        exitCode: null,
+        signal: null,
+        result: { status: 'unavailable' },
+        resultStatus: 'unavailable',
+        error: boundedText(
+          event.error || event.reason || 'The job did not start.',
+          2048,
+          options
+        ).value,
+        stdout: '',
+        stderr: '',
+        logsAvailable: false,
+        logsTruncated: false
+      })
+    } else if (event.stdout !== undefined || event.stderr !== undefined) {
       const stdout = boundedText(
         event.stdout ?? run.stdout,
         MAX_LOG_BYTES,
@@ -404,6 +430,160 @@ async function ingest(event, scope, options = {}) {
   )
 }
 
+// A delivered receipt is evidence about an existing execution, not a fresh user
+// request. Its redacted or omitted inputs must not be re-hashed as an admission.
+// Keep admit() strict for actual request-key reuse.
+async function admitReceipt(event, scope, options = {}) {
+  const model = modelFor(options)
+  let run = await model.findOne({ runId: event.runId })
+  if (!run) {
+    try {
+      run = await admit(
+        {
+          ...event,
+          ...scope,
+          trigger: ['manual', 'scheduled', 'cli'].includes(event.trigger)
+            ? event.trigger
+            : 'unknown',
+          startedAt: event.state === 'skipped' ? null : event.startedAt,
+          state: 'requested',
+          sequence: 0
+        },
+        options
+      )
+    } catch (error) {
+      // Telemetry and the resident read may race to record the same run using
+      // differently bounded inputs. Re-read the winner's exact identity only;
+      // an unrelated run/request-key collision still fails closed.
+      if (!['QUEST_RUN_CONFLICT', 'E_UNIQUE'].includes(error.code)) throw error
+      run = await model.findOne({ runId: event.runId })
+      if (!run) throw error
+    }
+  }
+  if (!sameReceiptIdentity(run, event, scope))
+    throw failure(
+      'QUEST_RUN_CONFLICT',
+      'Quest receipt does not match the retained execution identity.'
+    )
+  return run
+}
+
+function sameReceiptIdentity(run, event, scope) {
+  const owned = normalizedScope(scope)
+  return (
+    run.environment === owned.environment &&
+    run.app === owned.app &&
+    run.runId === event.runId &&
+    run.jobName === event.jobName &&
+    typeof event.runtimeId === 'string' &&
+    !!event.runtimeId &&
+    run.runtimeId === event.runtimeId &&
+    event.deploymentId != null &&
+    run.deploymentId === String(event.deploymentId)
+  )
+}
+
+// Only the verified resident read path calls this. A same-sequence receipt can
+// contain more evidence than the smaller telemetry envelope, without changing
+// the execution's outcome, execution timestamps, sequence, actor, or admission
+// hash. updatedAt is a bounded evidence revision for already-open inspectors.
+async function enrichResidentReceipt(event, scope, options = {}) {
+  const model = modelFor(options)
+  const where = { ...scopeWhere(scope, options), runId: event.runId }
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const run = await model.findOne(where)
+    if (!run) return null
+    if (!sameReceiptIdentity(run, event, scope))
+      throw failure(
+        'QUEST_RUN_CONFLICT',
+        'Quest resident receipt identity changed.'
+      )
+    if (run.sequence !== event.sequence || run.state !== event.state) return run
+    const values = {}
+    if (event.inputs && !Object.keys(run.inputs || {}).length) {
+      const inputs = sanitizeValue(event.inputs, options)
+      if (
+        !Array.isArray(inputs) &&
+        typeof inputs === 'object' &&
+        Object.keys(inputs).length &&
+        Buffer.byteLength(JSON.stringify(inputs)) <= MAX_INPUT_BYTES
+      )
+        values.inputs = inputs
+    }
+    if (TERMINAL.has(run.state) && run.state !== 'skipped') {
+      const result = resultEnvelope(event.result, options)
+      if (
+        !['available', 'undefined'].includes(run.resultStatus) &&
+        ['available', 'undefined'].includes(result.status)
+      ) {
+        values.result = result
+        values.resultStatus = result.status
+      }
+      const rawStdout = event.stdout ?? event.logs?.stdout
+      const rawStderr = event.stderr ?? event.logs?.stderr
+      if (
+        (!run.logsAvailable || run.logsTruncated) &&
+        typeof rawStdout === 'string' &&
+        typeof rawStderr === 'string'
+      ) {
+        const stdout = boundedText(rawStdout, MAX_LOG_BYTES, options)
+        const stderr = boundedText(rawStderr, MAX_LOG_BYTES, options)
+        // A larger retained tail must contain the older tail. Never replace
+        // more complete or contradictory evidence with a smaller response.
+        if (
+          stdout.value.endsWith(run.stdout || '') &&
+          stderr.value.endsWith(run.stderr || '')
+        ) {
+          const logsTruncated = !!(
+            event.logsTruncated ||
+            event.logs?.stdoutTruncated ||
+            event.logs?.stderrTruncated ||
+            stdout.truncated ||
+            stderr.truncated
+          )
+          if (
+            stdout.value !== run.stdout ||
+            stderr.value !== run.stderr ||
+            !run.logsAvailable ||
+            logsTruncated !== run.logsTruncated
+          )
+            Object.assign(values, {
+              stdout: stdout.value,
+              stderr: stderr.value,
+              logsAvailable: true,
+              logsTruncated
+            })
+        }
+      }
+    }
+    if (!Object.keys(values).length) return run
+    // Two richer receipts may arrive within the same millisecond, or after a
+    // clock adjustment. Never reuse the inspector's prior evidence revision.
+    values.updatedAt = Math.max(nowFor(options), (run.updatedAt || 0) + 1)
+    const updated = await model
+      .updateOne({
+        ...where,
+        runtimeId: run.runtimeId,
+        deploymentId: run.deploymentId,
+        jobName: run.jobName,
+        state: run.state,
+        sequence: run.sequence,
+        updatedAt: run.updatedAt,
+        resultStatus: run.resultStatus,
+        stdout: run.stdout,
+        stderr: run.stderr,
+        logsAvailable: run.logsAvailable,
+        logsTruncated: run.logsTruncated
+      })
+      .set(values)
+    if (updated) return updated
+  }
+  throw failure(
+    'QUEST_INGEST_CONFLICT',
+    'Quest resident evidence changed; retry the read.'
+  )
+}
+
 async function markUnconfirmed(scope, runId, reason, options = {}) {
   const model = modelFor(options)
   const where = { ...scopeWhere(scope, options), runId }
@@ -423,6 +603,35 @@ async function markUnconfirmed(scope, runId, reason, options = {}) {
   return updated || (await model.findOne(where))
 }
 
+async function reconcileRuntimeLoss(scope, runtimeId, options = {}) {
+  if (typeof runtimeId !== 'string' || !runtimeId)
+    throw failure(
+      'QUEST_SCOPE_REQUIRED',
+      'A current resident runtime is required.'
+    )
+  const model = modelFor(options)
+  const where = {
+    ...scopeWhere(scope, options),
+    state: { in: ['requested', 'running'] },
+    // SQL NOT IN also excludes NULL (unknown identities). Do not use `!= null`:
+    // the supported SQLite adapter binds that as `!= ?`, which matches nothing.
+    runtimeId: { nin: [runtimeId, ''] }
+  }
+  // Inspect only identifiers, independent of the visible history page. Each
+  // successful batch removes its candidates from this query, so later shared
+  // refreshes make bounded progress even with a large retained active backlog.
+  const batch = await model.find(where).select(['id']).sort('id ASC').limit(100)
+  if (batch.length)
+    await model
+      .update({ ...where, id: { in: batch.map((run) => run.id) } })
+      .set({
+        state: 'unconfirmed',
+        error:
+          'The app runtime changed before this execution could be reconciled. Check external effects before running again.'
+      })
+  return { checked: batch.length, hasMore: batch.length === 100 }
+}
+
 function summary(run) {
   return Object.fromEntries(
     SUMMARY_FIELDS.filter((key) => key !== 'id').map((key) => [
@@ -438,6 +647,12 @@ async function getReceiptMeta(scope, runId, options = {}) {
   return run
     ? { sequence: run.sequence, runtimeId: run.runtimeId, state: run.state }
     : null
+}
+async function getRunSummary(scope, runId, options = {}) {
+  const run = await modelFor(options)
+    .findOne({ ...scopeWhere(scope, options), runId })
+    .select(SUMMARY_FIELDS)
+  return run ? summary(run) : null
 }
 async function getRun(scope, runId, options = {}) {
   const run = await modelFor(options)
@@ -496,7 +711,7 @@ function legacySummary(event, options = {}) {
     error: boundedText(attributes.error, 4096, options).value || null,
     trigger: ['manual', 'scheduled', 'cli'].includes(attributes.trigger)
       ? attributes.trigger
-      : 'scheduled',
+      : 'unknown',
     recordedAt: event.recordedAt,
     legacy: true
   }
@@ -784,10 +999,14 @@ async function resolveScope(
 
 module.exports = {
   admit,
+  admitReceipt,
+  enrichResidentReceipt,
   create: admit,
   ingest,
   markUnconfirmed,
+  reconcileRuntimeLoss,
   getRun,
+  getRunSummary,
   getReceiptMeta,
   getLogs,
   getEvent,

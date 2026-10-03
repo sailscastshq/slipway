@@ -32,6 +32,14 @@ const entries = computed(() =>
 const name = (entry) =>
   props.jobs.find((job) => job.name === entry.jobName)?.friendlyName ||
   entry.jobName
+const triggerLabel = (trigger) =>
+  trigger === 'scheduled'
+    ? 'Scheduled'
+    : trigger === 'manual'
+    ? 'Manual'
+    : trigger === 'cli'
+    ? 'CLI'
+    : 'Unknown origin'
 </script>
 <template>
   <div
@@ -74,14 +82,7 @@ const name = (entry) =>
       <span
         v-else
         class="min-w-0 flex-1 truncate text-xs text-gray-500 dark:text-gray-400"
-        >{{
-          entry.legacy
-            ? 'Legacy event'
-            : entry.trigger === 'scheduled' || entry.trigger === 'schedule'
-            ? 'Scheduled'
-            : entry.trigger === 'manual'
-            ? 'Manual'
-            : entry.trigger || 'Run'
+        >{{ entry.legacy ? 'Legacy event' : triggerLabel(entry.trigger)
         }}<span
           v-if="!entry.legacy"
           class="ml-2 font-mono text-[10px] text-gray-400"

@@ -34,6 +34,12 @@ test('Quest workspace capabilities fail closed for missing, legacy and unavailab
   expect(workspace.capabilities.pause).toBe(true)
   expect(workspace.capabilities.cancel).toBe(false)
   expect(questJobState(job, workspace)).toBe('scheduled')
+  expect(questJobState({ ...job, scheduled: false }, workspace)).toBe(
+    'inactive'
+  )
+  expect(
+    questJobState({ ...job, scheduled: false, isRunning: true }, workspace)
+  ).toBe('running')
   expect(questJobState(job, workspace, false)).toBe('unavailable')
   expect(questJobState({ ...job, isRunning: null }, workspace)).toBe(
     'unavailable'
@@ -55,6 +61,40 @@ test('Quest fallback history retains telemetry identities without synthesizing s
   expect(workspace.legacyEvents).toEqual(history)
   expect(workspace.reason).toBe('Unavailable')
   expect(workspace.capabilities.invoke).toBe(false)
+})
+
+test('Quest live pages stay bounded while explicit history and the inspected receipt remain addressable', async ({
+  expect
+}) => {
+  const { retainQuestWindow, mergeQuestRuns } = await workspaceModule()
+  let rows = []
+  for (let snapshot = 0; snapshot < 1000; snapshot++) {
+    const incoming = Array.from({ length: 25 }, (_, index) => ({
+      runId: `run-${snapshot}-${index}`,
+      state: 'completed',
+      requestedAt: snapshot * 25 + index
+    }))
+    rows = mergeQuestRuns(retainQuestWindow(rows, incoming), incoming)
+    expect(rows.length).toBe(25)
+  }
+  const retained = new Set(rows.slice(0, 3).map((run) => run.runId))
+  const selected = rows[5].runId
+  const incoming = [{ runId: 'latest', state: 'running', requestedAt: 99999 }]
+  rows = mergeQuestRuns(
+    retainQuestWindow(rows, incoming, retained, selected),
+    incoming
+  )
+  expect(rows.length).toBe(5)
+  expect(rows.some((run) => run.runId === selected)).toBe(true)
+  expect(
+    retainQuestWindow(
+      [{ eventId: 1 }, { eventId: 2 }],
+      [{ eventId: 3 }],
+      new Set(['1']),
+      '2',
+      'eventId'
+    )
+  ).toEqual([{ eventId: 1 }, { eventId: 2 }])
 })
 
 test('Quest drafts preserve false, zero, empty strings and JSON null, with explicit omission', async ({
@@ -80,6 +120,126 @@ test('Quest drafts preserve false, zero, empty strings and JSON null, with expli
   })
   draft.count.included = false
   expect('count' in validateQuestInputs(schema, draft).values).toBe(false)
+})
+
+test('Quest manual review uses safe effective source values and can retain hidden source inputs without overriding them', async ({
+  expect
+}) => {
+  const { createQuestInputDraft, validateQuestInputs } = await workspaceModule()
+  const inputs = [
+    { name: 'count', type: 'number', required: true, defaultsTo: 7 },
+    { name: 'enabled', type: 'boolean', required: true },
+    { name: 'payload', type: 'json' },
+    { name: 'secret', type: 'string', required: true, sensitive: true },
+    { name: 'missing', type: 'string', required: true }
+  ]
+  const source = {
+    validation: 'not_checked',
+    values: {
+      count: 0,
+      enabled: false,
+      payload: null,
+      secret: 'never-prefill'
+    },
+    fields: {
+      count: {
+        source: 'script_input',
+        available: true,
+        missingRequired: false
+      },
+      enabled: { source: 'job_input', available: true, missingRequired: false },
+      payload: {
+        source: 'schema_default',
+        available: true,
+        missingRequired: false
+      },
+      secret: {
+        source: 'job_input',
+        sensitive: true,
+        available: false,
+        missingRequired: false
+      },
+      missing: { source: 'omitted', available: false, missingRequired: true }
+    }
+  }
+  const draft = createQuestInputDraft(inputs, {}, source)
+  expect(draft.count.raw).toBe(0)
+  expect(draft.enabled.raw).toBe(false)
+  expect(draft.payload.raw).toBe('null')
+  expect(draft.secret).toEqual({ included: false, raw: '' })
+  expect(validateQuestInputs(inputs, draft, source).errors).toEqual({
+    missing: 'This input is required.'
+  })
+  draft.missing.raw = 'reviewed'
+  draft.count.included = false
+  expect(validateQuestInputs(inputs, draft, source)).toEqual({
+    valid: true,
+    errors: {},
+    values: { enabled: false, payload: null, missing: 'reviewed' }
+  })
+  expect(source.values.count).toBe(0)
+  expect(createQuestInputDraft(inputs, { count: 3 }, source).count.raw).toBe(3)
+  const unknown = createQuestInputDraft(
+    inputs,
+    {},
+    { fields: source.fields, values: source.values }
+  )
+  expect(unknown.secret.included).toBe(true)
+  expect(unknown.count.raw).toBe(7)
+})
+
+test('Quest nullable primitives and JSON shapes preserve explicit null while integer and redaction rules stay intact', async ({
+  expect
+}) => {
+  const { createQuestInputDraft, validateQuestInputs } = await workspaceModule()
+  for (const type of ['string', 'number', 'boolean']) {
+    const schema = [
+      {
+        name: 'value',
+        type,
+        allowNull: true,
+        defaultsTo: null,
+        isIn:
+          type === 'number'
+            ? [1, 2]
+            : type === 'boolean'
+            ? [true, false]
+            : ['a', 'b']
+      }
+    ]
+    const draft = createQuestInputDraft(schema)
+    expect(draft.value.useNull).toBe(true)
+    expect(validateQuestInputs(schema, draft).values).toEqual({ value: null })
+    expect(validateQuestInputs([{ name: 'value', type }], draft).valid).toBe(
+      false
+    )
+  }
+  for (const type of ['array', 'object'])
+    expect(
+      validateQuestInputs([{ name: 'value', type, allowNull: true }], {
+        value: { included: true, raw: 'null' }
+      }).values
+    ).toEqual({ value: null })
+  expect(
+    validateQuestInputs([{ name: 'count', type: 'number', isInteger: true }], {
+      count: { included: true, raw: '1.5' }
+    }).errors
+  ).toEqual({ count: 'Enter a whole number.' })
+  const schema = [{ name: 'payload', type: 'json' }]
+  const source = {
+    validation: 'not_checked',
+    values: { payload: { apiToken: '<redacted>', count: 1 } },
+    fields: {
+      payload: { source: 'job_input', available: true, missingRequired: false }
+    }
+  }
+  expect(
+    createQuestInputDraft(
+      schema,
+      { payload: { apiToken: '<redacted>', count: 2 } },
+      source
+    ).payload
+  ).toEqual({ included: false, raw: '' })
 })
 
 test('Quest does not preload sensitive defaults or replay them from run inputs', async ({
@@ -356,9 +516,18 @@ test('Quest empty inputs are only definitive with explicit typed resident metada
   expect
 }) => {
   const { questInputMetadataAvailable } = await workspaceModule()
-  const job = { name: 'no-inputs', metadataVersion: 'v1', inputs: [] }
+  const job = {
+    name: 'no-inputs',
+    metadataVersion: 'v1',
+    inputMetadataAvailable: true,
+    inputs: []
+  }
   const workspace = { mode: 'resident', capabilities: { typedInputs: true } }
   expect(questInputMetadataAvailable(job, workspace)).toBe(true)
+  for (const inputMetadataAvailable of [false, undefined])
+    expect(
+      questInputMetadataAvailable({ ...job, inputMetadataAvailable }, workspace)
+    ).toBe(false)
   expect(
     questInputMetadataAvailable(job, { ...workspace, mode: 'legacy' })
   ).toBe(false)

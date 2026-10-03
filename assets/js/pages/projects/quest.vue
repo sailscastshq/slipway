@@ -32,6 +32,7 @@ import {
   normalizeQuestWorkspace,
   questJobState,
   mergeQuestRuns,
+  retainQuestWindow,
   questRunTime,
   questRelativeTime,
   questAbsoluteTime,
@@ -75,6 +76,8 @@ const toggleMobileMenu = inject('toggleMobileMenu')
 const toggleSidebar = inject('toggleSidebar')
 const sidebarCollapsed = inject('sidebarCollapsed')
 const live = ref(normalizeQuestWorkspace(props.workspace, props))
+// Keep the actual shared page separate from history merged into live.runs.
+const observedRunIds = ref(new Set(live.value.runs.map((run) => run.runId)))
 const streamStale = ref(false)
 const streamError = ref('')
 const now = ref(Date.now())
@@ -107,6 +110,8 @@ const refreshing = ref(false)
 const moreLoading = ref(false)
 const moreError = ref('')
 const historyExpanded = ref(false)
+let expandedRunIds = new Set()
+let expandedEventIds = new Set()
 const jobHistoryReader = createQuestHistoryLoader()
 const scopedJobHistory = ref({
   key: '',
@@ -166,13 +171,34 @@ function applyWorkspace(workspace, fallback = props) {
   // timestamp to receipt time, never to the prior tick's cached clock.
   now.value = Date.now()
   const next = normalizeQuestWorkspace(workspace, fallback)
+  observedRunIds.value = new Set(next.runs.map((run) => run.runId))
   if (next.target.runtimeId === live.value.target.runtimeId) {
-    next.runs = mergeQuestRuns(live.value.runs, next.runs)
+    next.runs = mergeQuestRuns(
+      retainQuestWindow(
+        live.value.runs,
+        next.runs,
+        expandedRunIds,
+        selectedRunId.value
+      ),
+      next.runs
+    )
     if (historyExpanded.value) next.nextCursor = live.value.nextCursor
-    next.legacyEvents = mergeEvents(live.value.legacyEvents, next.legacyEvents)
+    next.legacyEvents = mergeEvents(
+      retainQuestWindow(
+        live.value.legacyEvents,
+        next.legacyEvents,
+        expandedEventIds,
+        selectedEventId.value,
+        'eventId'
+      ),
+      next.legacyEvents
+    )
   }
-  if (next.target.runtimeId !== live.value.target.runtimeId)
+  if (next.target.runtimeId !== live.value.target.runtimeId) {
     historyExpanded.value = false
+    expandedRunIds = new Set()
+    expandedEventIds = new Set()
+  }
   snapshotAuthority.observe(next)
   live.value = next
 }
@@ -237,7 +263,7 @@ const runDisabledReason = (job) =>
     : job?.paused === null || job?.isRunning == null
     ? 'Live job state unavailable'
     : job?.paused
-    ? 'Resume this schedule before running'
+    ? 'Resume this job before running'
     : job?.validationErrors?.length
     ? 'Fix the job definition before running'
     : job?.withoutOverlapping && job?.isRunning
@@ -253,8 +279,7 @@ const canPause = (job) =>
   fresh.value &&
   questSnapshotIsFresh(live.value) &&
   !!live.value.target.runtimeId &&
-  !!job?.schedule &&
-  job.schedule !== 'manual' &&
+  typeof job?.paused === 'boolean' &&
   (job.paused === true
     ? live.value.capabilities.resume
     : job.paused === false && live.value.capabilities.pause)
@@ -396,14 +421,89 @@ async function loadJobHistory(more = false) {
   state.nextCursor = result.data.nextCursor || null
   state.loaded = true
 }
-const selectedSummary = computed(() =>
-  live.value.runs.find((run) => run.runId === selectedRunId.value)
+// A selected historical receipt may be older than the shared 25-row page.
+// Recheck only its bounded ledger summary on fresh shared observations; full
+// inputs/results/logs reload only when that summary's evidence revision changes.
+const selectedReceiptSummary = ref(null)
+let selectedSummaryController = null
+let selectedSummarySequence = 0
+let selectedSummaryKey = ''
+let selectedSummaryObservation = null
+watch(
+  () => [
+    apiUrl.value,
+    selectedRunId.value,
+    live.value.target.appId,
+    live.value.target.runtimeId,
+    live.value.observedAt,
+    fresh.value,
+    observedRunIds.value
+  ],
+  async ([url, runId, appId, runtimeId, observedAt, isFresh, observed]) => {
+    const key = JSON.stringify([url, appId, runtimeId, runId])
+    if (key !== selectedSummaryKey) {
+      selectedSummaryController?.abort()
+      selectedSummaryController = null
+      selectedSummarySequence++
+      selectedSummaryKey = key
+      selectedSummaryObservation = null
+      selectedReceiptSummary.value = null
+    }
+    if (!runId || !isFresh || observed.has(runId)) return
+    if (selectedSummaryController || observedAt === selectedSummaryObservation)
+      return
+    selectedSummaryObservation = observedAt
+    const controller = new AbortController()
+    selectedSummaryController = controller
+    const sequence = ++selectedSummarySequence
+    try {
+      const response = await fetch(
+        `${url}/runs/${encodeURIComponent(runId)}?summaryOnly=true`,
+        { signal: controller.signal }
+      )
+      if (!response.ok) return
+      const data = await response.json()
+      if (
+        sequence === selectedSummarySequence &&
+        key === selectedSummaryKey &&
+        data.run?.runId === runId
+      )
+        selectedReceiptSummary.value = data.run
+    } catch {
+      // Keep the inspected evidence during a transient read failure. The next
+      // fresh shared observation may retry; a failed read is never a new run.
+    } finally {
+      if (sequence === selectedSummarySequence) selectedSummaryController = null
+    }
+  },
+  { immediate: true }
 )
+onBeforeUnmount(() => {
+  selectedSummarySequence++
+  selectedSummaryController?.abort()
+})
+const selectedSummary = computed(() => {
+  const current = live.value.runs.find(
+    (run) => run.runId === selectedRunId.value
+  )
+  if (observedRunIds.value.has(selectedRunId.value)) return current
+  return (
+    selectedReceiptSummary.value ||
+    current ||
+    (scopedJobHistory.value.key === selectedHistoryKey.value
+      ? scopedJobHistory.value.runs.find(
+          (run) => run.runId === selectedRunId.value
+        )
+      : null)
+  )
+})
 const detailRevision = computed(() =>
   selectedSummary.value
     ? `${selectedSummary.value.state}:${
         selectedSummary.value.finishedAt || ''
-      }:${selectedSummary.value.resultStatus || ''}`
+      }:${selectedSummary.value.resultStatus || ''}:${
+        selectedSummary.value.updatedAt ?? ''
+      }`
     : ''
 )
 const selectedRunJob = computed(
@@ -574,6 +674,10 @@ async function loadMore() {
     )
     live.value.nextCursor = data.nextCursor || null
     historyExpanded.value = true
+    expandedRunIds = new Set(live.value.runs.map((run) => String(run.runId)))
+    expandedEventIds = new Set(
+      live.value.legacyEvents.map((event) => String(event.eventId))
+    )
   } catch (failure) {
     moreError.value = failure.message
   } finally {
@@ -779,6 +883,7 @@ async function loadMore() {
                     { label: 'Running', value: 'running' },
                     { label: 'Paused', value: 'paused' },
                     { label: 'Scheduled', value: 'scheduled' },
+                    { label: 'Inactive', value: 'inactive' },
                     { label: 'Manual', value: 'manual' },
                     { label: 'Last activity failed', value: 'failed' },
                     { label: 'Unavailable', value: 'unavailable' }

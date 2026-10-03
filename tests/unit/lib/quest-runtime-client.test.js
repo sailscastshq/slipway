@@ -385,3 +385,29 @@ test('Quest stream viewer closure only clears polling and never invokes run canc
     runtime.request = original.request
   }
 })
+
+test('Quest transport rejects oversized and non-finite input before starting a Docker client', async () => {
+  for (const jobInputs of [
+    { value: Infinity },
+    { value: -Infinity },
+    { value: NaN },
+    { value: 'x'.repeat(33 * 1024) }
+  ]) {
+    let spawned = false
+    await assert.rejects(
+      request(
+        { id: 12, currentDeployment: 34, containerName: 'never-started' },
+        'invoke',
+        { jobInputs },
+        {
+          spawn() {
+            spawned = true
+            throw new Error('Must not spawn')
+          }
+        }
+      ),
+      { code: 'QUEST_INPUT_INVALID' }
+    )
+    assert.equal(spawned, false)
+  }
+})

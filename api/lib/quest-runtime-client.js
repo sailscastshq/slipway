@@ -125,11 +125,21 @@ function request(app, command, values = {}, options = {}) {
     appId: String(app.id),
     deploymentId: String(app.currentDeployment)
   }
-  if (Buffer.byteLength(JSON.stringify(message)) > 32 * 1024)
-    return Promise.reject(new Error('Quest request exceeds 32 KiB.'))
-  const code = `Promise.resolve().then(()=>(${residentRequest.toString()})(${JSON.stringify(
-    message
-  )})).then(value=>process.stdout.write(JSON.stringify(value))).catch(()=>{process.stderr.write("Resident Quest runtime unavailable. The execution outcome is unconfirmed.");process.exitCode=1})`
+  let serialized
+  try {
+    serialized = JSON.stringify(message, (_key, value) => {
+      if (typeof value === 'number' && !Number.isFinite(value))
+        throw new Error('Quest inputs require finite JSON numbers.')
+      return value
+    })
+    if (Buffer.byteLength(serialized) > 32 * 1024)
+      throw new Error('Quest request exceeds 32 KiB.')
+  } catch (error) {
+    return Promise.reject(
+      Object.assign(new Error(error.message), { code: 'QUEST_INPUT_INVALID' })
+    )
+  }
+  const code = `Promise.resolve().then(()=>(${residentRequest.toString()})(${serialized})).then(value=>process.stdout.write(JSON.stringify(value))).catch(()=>{process.stderr.write("Resident Quest runtime unavailable. The execution outcome is unconfirmed.");process.exitCode=1})`
 
   return new Promise((resolve, reject) => {
     const proc = (options.spawn || spawn)(

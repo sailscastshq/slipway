@@ -45,6 +45,22 @@ const recordedInputs = computed(() =>
   }))
 )
 const active = computed(() => !legacy.value && isActiveQuestRun(run.value))
+const skipped = computed(() => !legacy.value && run.value?.state === 'skipped')
+const triggerLabel = (trigger) =>
+  trigger === 'scheduled'
+    ? 'Scheduled'
+    : trigger === 'manual'
+    ? 'Manual'
+    : trigger === 'cli'
+    ? 'CLI'
+    : 'Unknown origin'
+const skipReason = computed(() =>
+  run.value?.error === 'paused'
+    ? 'The job is paused.'
+    : run.value?.error === 'already_running'
+    ? 'Another execution is already running.'
+    : questErrorText(run.value?.error)
+)
 const tabClass = (value) => [
   'border-b-2 pb-2.5 text-sm font-medium',
   tab.value === value
@@ -87,6 +103,14 @@ async function load(reset = false) {
       (legacy.value && String(detail.eventId) !== props.eventId)
     )
       throw new Error('The returned details do not match this selection.')
+    if (
+      !legacy.value &&
+      run.value?.runId === detail.runId &&
+      run.value.updatedAt !== detail.updatedAt
+    ) {
+      logs.value = null
+      logsError.value = ''
+    }
     run.value = detail
     emit('loaded', detail)
     if (legacy.value)
@@ -109,6 +133,10 @@ async function load(reset = false) {
 
 async function loadLogs() {
   if (legacy.value || !props.runId || logsLoading.value) return
+  if (skipped.value) {
+    logs.value = { available: false }
+    return
+  }
   const current = sequence
   const id = props.runId
   logsLoading.value = true
@@ -215,13 +243,7 @@ onBeforeUnmount(() => {
       >
         <QuestStatus :state="legacy ? run.event : run.state" />
         <span>{{
-          legacy
-            ? 'Telemetry event'
-            : run.trigger === 'schedule' || run.trigger === 'scheduled'
-            ? 'Scheduled'
-            : run.trigger === 'manual'
-            ? 'Manual'
-            : run.trigger || 'Run'
+          legacy ? 'Telemetry event' : triggerLabel(run.trigger)
         }}</span>
         <span
           :title="
@@ -243,9 +265,14 @@ onBeforeUnmount(() => {
       <div
         v-if="run.error"
         role="status"
-        class="mx-4 mb-4 rounded-md bg-red-50 p-3 text-sm text-red-700 dark:bg-red-950/20 dark:text-red-400"
+        :class="[
+          'mx-4 mb-4 rounded-md p-3 text-sm',
+          skipped
+            ? 'bg-amber-50 text-amber-800 dark:bg-amber-950/30 dark:text-amber-300'
+            : 'bg-red-50 text-red-700 dark:bg-red-950/20 dark:text-red-400'
+        ]"
       >
-        {{ questErrorText(run.error) }}
+        {{ skipped ? skipReason : questErrorText(run.error) }}
       </div>
       <p
         v-if="active && !canCancel"
@@ -262,7 +289,15 @@ onBeforeUnmount(() => {
           ><button data-value="logs" :class="tabClass('logs')">Logs</button>
         </div>
         <div data-slot="tab-panel" data-value="result">
+          <p
+            v-if="skipped"
+            data-test="quest-run-result"
+            class="px-4 py-8 text-sm text-gray-500 dark:text-gray-400"
+          >
+            This job did not start, so there is no business result.
+          </p>
           <QuestResult
+            v-else
             :result="run.result"
             :pending="active"
             :legacy="legacy"
@@ -315,7 +350,9 @@ onBeforeUnmount(() => {
           </template>
           <p v-else class="p-4 text-sm text-gray-500 dark:text-gray-400">
             {{
-              logs?.available === false
+              skipped
+                ? 'This job did not start; no process logs were produced.'
+                : logs?.available === false
                 ? 'Logs are no longer available.'
                 : active
                 ? 'No logs captured yet.'

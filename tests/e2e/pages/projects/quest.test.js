@@ -230,6 +230,7 @@ function questComparisonData(current, phase) {
       ...job,
       script: job.name,
       metadataVersion: 'synthetic-metadata-v1',
+      inputMetadataAvailable: true,
       timezone: 'UTC',
       inputs: [],
       scheduledInputs: {},
@@ -256,9 +257,27 @@ async function installQuestFixture(
 ) {
   const current = world.current
   const fixture = questComparisonData(current, phase)
+  const preloadMode = process.env.SLIPWAY_QUEST_PRELOAD_MODE || 'on'
+  const fs = require('node:fs')
+  const preloadPath = '.tmp/public/quest-preload-manifest.json'
+  const preloadManifest =
+    clockMode.startsWith('native-performance') && fs.existsSync(preloadPath)
+      ? JSON.parse(fs.readFileSync(preloadPath, 'utf8'))
+      : null
+  if (!['off', 'on'].includes(preloadMode))
+    throw new Error('Invalid Quest preload comparison mode')
+  if (
+    process.env.SLIPWAY_QUEST_PRELOAD_MODE &&
+    !preloadManifest?.assets?.length
+  )
+    throw new Error(
+      'Preload control requires the actual current production route manifest'
+    )
   const state = {
     ...fixture,
     clockMode,
+    preloadMode,
+    preloadAssets: preloadManifest?.assets || [],
     initialJsonBytes: 0,
     questJsonBytes: 0,
     documentBytes: 0,
@@ -354,12 +373,22 @@ async function installQuestFixture(
       const json = JSON.stringify(payload)
       state.initialJsonBytes = Buffer.byteLength(json)
       state.questJsonBytes = Buffer.byteLength(JSON.stringify(synthetic))
-      const body = isJson
+      let body = isJson
         ? json
         : source.replace(
             match[0],
             `${match[1]}${json.replace(/</g, '\\u003c')}${match[3]}`
           )
+      if (!isJson && clockMode.startsWith('native-performance')) {
+        const tags =
+          body.match(/<link\b[^>]*\bdata-quest-preload="1"[^>]*>/g) || []
+        if (tags.length !== state.preloadAssets.length)
+          throw new Error(
+            'Rendered Quest preload hints must match the compiled route manifest'
+          )
+        if (preloadMode === 'off')
+          body = body.replace(/<link\b[^>]*\bdata-quest-preload="1"[^>]*>/g, '')
+      }
       state.documentBytes = Buffer.byteLength(body)
       if (clockMode.startsWith('native-performance')) {
         state.bootstrapMeasurements.push({
@@ -404,8 +433,29 @@ async function installQuestFixture(
         const [_, runId, suffix] = path.split('/')
         if (suffix === 'logs' && state.logs[runId])
           return route.fulfill({ json: state.logs[runId] })
-        if (!suffix && state.details[runId])
-          return route.fulfill({ json: { run: state.details[runId] } })
+        if (!suffix && state.details[runId]) {
+          const detail = state.details[runId]
+          const run =
+            url.searchParams.get('summaryOnly') === 'true'
+              ? Object.fromEntries(
+                  [
+                    'runId',
+                    'jobName',
+                    'state',
+                    'trigger',
+                    'actor',
+                    'requestedAt',
+                    'startedAt',
+                    'finishedAt',
+                    'duration',
+                    'exitCode',
+                    'resultStatus',
+                    'updatedAt'
+                  ].map((key) => [key, detail[key] ?? null])
+                )
+              : detail
+          return route.fulfill({ json: { run } })
+        }
       }
       if (path.startsWith('events/')) {
         const event = state.rawEvents.find(
@@ -816,7 +866,10 @@ test(
                 ...document.querySelectorAll(
                   'script[src],link[rel="stylesheet"][href]'
                 )
-              ].map((el) => new URL(el.src || el.href).pathname)
+              ].map((el) => new URL(el.src || el.href).pathname),
+              preloadUrls: [
+                ...document.querySelectorAll('link[data-quest-preload="1"]')
+              ].map((el) => new URL(el.href).pathname)
             }))
             expect(native.navigation.responseEnd > 0).toBe(true)
             expect(native.readyMs >= native.navigation.responseEnd).toBe(true)
@@ -825,6 +878,15 @@ test(
             )
             for (const url of native.assetUrls)
               expect(assetUrls.has(url)).toBe(true)
+            expect([...native.preloadUrls].sort()).toEqual(
+              state.preloadMode === 'off' ? [] : [...state.preloadAssets].sort()
+            )
+            const staticResources = native.resources.filter((entry) =>
+              /\.(?:js|css)$/.test(entry.name)
+            )
+            expect(
+              new Set(staticResources.map((entry) => entry.name)).size
+            ).toBe(staticResources.length)
             expect(
               native.resources.some((entry) =>
                 /rsbuild|lazy-compilation|webpack/i.test(entry.name)
@@ -900,6 +962,7 @@ test(
             ...(productionBenchmark
               ? {
                   productionBenchmark: true,
+                  preloadMode: state.preloadMode,
                   productionBuild,
                   clockMode: 'Date-only fixture; native Performance and timers',
                   additionalReadiness:
@@ -1139,6 +1202,12 @@ if (
               })
               const geometry = await questBrowserMeasurements(page)
               expect(native.elapsedMs <= 15000).toBe(true)
+              if (kind === 'job-click')
+                expect(
+                  native.resources.filter((entry) =>
+                    /\.(?:js|css)$/.test(entry.name)
+                  ).length
+                ).toBe(0)
               expect(geometry.horizontalOverflowPx <= 1).toBe(true)
               expect(geometry.workspaceHorizontalOverflowPx <= 1).toBe(true)
               observations.push({
@@ -1164,6 +1233,7 @@ if (
                   encoding: 'utf8'
                 })
                 .trim(),
+              preloadMode: state.preloadMode,
               method:
                 'After-only production assets, three samples per viewport/path each round; native advancing Date-only clock; real click or full direct navigation, DOM-ready sampled at animation frames',
               fixture:
@@ -1880,6 +1950,299 @@ test(
 )
 
 test(
+  'Quest distinguishes effective scheduled inputs from one-run overrides and inactive timers',
+  {
+    browser: true,
+    world: {
+      name: 'configured-slipway',
+      context: {
+        deploymentTarget: {
+          slug: 'quest-scheduled-inputs',
+          name: 'Northstar Commerce'
+        }
+      }
+    }
+  },
+  async (context) => {
+    const { page, login, world, expect } = context
+    const state = await installQuestFixture(context, 'after', (state) => {
+      configureTypedQuestJob(state)
+      const job = state.workspace.jobs.find(
+        (job) => job.name === 'export-account-report'
+      )
+      job.schedule = '1 hour'
+      job.scheduleType = 'interval'
+      job.scheduled = true
+      job.nextRunAt = state.now + 3600000
+      job.inputs.push({
+        name: 'apiToken',
+        friendlyName: 'API token',
+        type: 'string',
+        required: true,
+        sensitive: true
+      })
+      job.scheduledInputs = {
+        validation: 'not_checked',
+        limitBytes: 16384,
+        values: { limit: 25, dryRun: false, format: 'full', filters: null },
+        fields: {
+          account: {
+            source: 'omitted',
+            sensitive: false,
+            available: false,
+            missingRequired: true
+          },
+          limit: {
+            source: 'job_input',
+            sensitive: false,
+            available: true,
+            missingRequired: false
+          },
+          dryRun: {
+            source: 'script_input',
+            sensitive: false,
+            available: true,
+            missingRequired: false
+          },
+          format: {
+            source: 'script_input',
+            sensitive: false,
+            available: true,
+            missingRequired: false
+          },
+          filters: {
+            source: 'schema_default',
+            sensitive: false,
+            available: true,
+            missingRequired: false
+          },
+          note: {
+            source: 'omitted',
+            sensitive: false,
+            available: false,
+            missingRequired: false
+          },
+          apiToken: {
+            source: 'job_input',
+            sensitive: true,
+            available: false,
+            missingRequired: false,
+            reason: 'sensitive'
+          }
+        }
+      }
+    })
+    try {
+      await login.withPassword('genesisUser', page, {
+        password: world.current.auth.genesisUserPassword
+      })
+      await page.raw.waitForURL('**/')
+      await page.goto(`${state.projectPath}?job=export-account-report`)
+      const detail = page.raw.locator('[data-test="quest-job-detail"]')
+      await detail.getByRole('tab', { name: 'Schedule', exact: true }).click()
+      await expect(detail).toContainText(
+        'Missing required scheduled inputs: account'
+      )
+      await expect(detail).toContainText(
+        'Sails validates these values when the job runs'
+      )
+      await expect(detail).toContainText('Job input')
+      await expect(detail).toContainText('Script input')
+      await expect(detail).toContainText('Schema default')
+      await expect(detail).toContainText('false')
+      await expect(detail).toContainText('null')
+      await expect(detail).toContainText('••••••')
+      await captureQuestWorkspaceState(page, expect, 'scheduled-inputs', detail)
+      const opener = detail.locator('[data-test="quest-open-run"]')
+      await expect(opener).toBeEnabled()
+      await opener.click()
+      const form = page.raw.locator('[data-test="quest-run-form"]')
+      await expect(page.raw.locator('#quest-input-1')).toHaveValue('25')
+      await expect(page.raw.locator('#quest-input-2')).toContainText('False')
+      await expect(page.raw.locator('#quest-input-3')).toContainText('full')
+      await expect(page.raw.locator('#quest-input-4')).toHaveValue('null')
+      await expect(page.raw.locator('#quest-input-6')).toHaveCount(0)
+      await expect(form).toContainText('Uses the app’s source value.')
+      const tokenOverride = form
+        .locator('label[for="quest-input-6"]')
+        .locator('..')
+        .getByRole('checkbox', { name: 'Override', exact: true })
+      await tokenOverride.check()
+      await expect(page.raw.locator('#quest-input-6')).toHaveAttribute(
+        'type',
+        'password'
+      )
+      await expect(page.raw.locator('#quest-input-6')).toHaveValue('')
+      await tokenOverride.uncheck()
+      await page.raw.locator('#quest-input-1').fill('26')
+      await form.getByRole('button', { name: 'Cancel', exact: true }).click()
+      await expect(form).not.toBeVisible()
+      expect(
+        state.workspace.jobs.find((job) => job.name === 'export-account-report')
+          .scheduledInputs.values.limit
+      ).toBe(25)
+      expect(state.mutationRequests.length).toBe(0)
+      const job = state.workspace.jobs.find(
+        (job) => job.name === 'export-account-report'
+      )
+      job.scheduled = false
+      job.nextRunAt = null
+      await emitQuestWorkspace(page, state)
+      await expect(detail).toContainText('Inactive')
+      await expect(detail).toContainText('No timer registered')
+      await captureQuestWorkspaceState(
+        page,
+        expect,
+        'inactive-schedule',
+        detail
+      )
+      expect(state.mutationRequests.length).toBe(0)
+      expect(state.unexpectedRequests).toEqual([])
+      expect(page).toHaveNoJavascriptErrors()
+    } catch (error) {
+      await captureQuestBrowserFailure(page, state, 'scheduled-inputs')
+      throw error
+    } finally {
+      await page.raw.goto('about:blank')
+      state.restore()
+    }
+  }
+)
+
+test(
+  'Quest refreshes richer evidence for a selected run outside the current history page without replay',
+  {
+    browser: true,
+    world: {
+      name: 'configured-slipway',
+      context: {
+        deploymentTarget: {
+          slug: 'quest-enriched-receipt',
+          name: 'Northstar Commerce'
+        }
+      }
+    }
+  },
+  async (context) => {
+    const { page, login, world, expect } = context
+    const runId = 'synthetic-older-terminal'
+    const state = await installQuestFixture(context, 'after', (state) => {
+      configureTypedQuestJob(state)
+      state.workspace.runs = Array.from({ length: 25 }, (_, index) =>
+        syntheticQuestRun(state, `synthetic-newer-${index}`, {
+          requestedAt: state.now - index,
+          updatedAt: state.now
+        })
+      )
+      state.details[runId] = {
+        ...syntheticQuestRun(state, runId, {
+          requestedAt: state.now - 100000,
+          startedAt: state.now - 99900,
+          finishedAt: state.now - 99000,
+          updatedAt: state.now - 50
+        }),
+        inputs: {},
+        result: { status: 'available', value: { processed: 1 } },
+        deploymentId: 'synthetic-deployment',
+        runtimeId: 'synthetic-runtime-v1'
+      }
+      state.logs[runId] = {
+        stdout: 'short tail',
+        stderr: '',
+        truncated: true,
+        available: true
+      }
+    })
+    let detailReads = 0
+    state.api = async (_route, path, request) => {
+      if (
+        path === `runs/${runId}` &&
+        request.method() === 'GET' &&
+        new URL(request.url()).searchParams.get('summaryOnly') !== 'true'
+      )
+        detailReads++
+      return false
+    }
+    try {
+      await login.withPassword('genesisUser', page, {
+        password: world.current.auth.genesisUserPassword
+      })
+      await page.raw.waitForURL('**/')
+      await page.goto(
+        `${state.projectPath}?job=export-account-report&run=${runId}`
+      )
+      const detail = page.raw.locator('[data-test="quest-run-detail"]')
+      await expect(detail).toContainText('Completed')
+      await detail.getByRole('tab', { name: 'Logs', exact: true }).click()
+      await expect(detail).toContainText('short tail')
+      const beforeEnrichment = detailReads
+      state.details[runId].inputs = {
+        account: 'recovered-account',
+        limit: 25,
+        dryRun: false,
+        format: 'full',
+        filters: { region: 'eu' }
+      }
+      state.details[runId].updatedAt++
+      state.logs[runId] = {
+        stdout: 'expanded retained content; short tail',
+        stderr: 'retained warning',
+        truncated: false,
+        available: true
+      }
+      await emitQuestWorkspace(page, state)
+      await expect(detail).toContainText('recovered-account')
+      await expect(detail).toContainText(
+        'expanded retained content; short tail'
+      )
+      await expect(detail).toContainText('retained warning')
+      expect(detailReads > beforeEnrichment).toBe(true)
+      await detail.getByRole('tab', { name: 'Result', exact: true }).click()
+      state.details[runId].inputs.note = 'second receipt revision'
+      state.details[runId].updatedAt++
+      state.logs[runId].stdout =
+        'refreshed hidden log cache; expanded retained content; short tail'
+      await emitQuestWorkspace(page, state)
+      await expect(detail).toContainText('second receipt revision')
+      await detail.getByRole('tab', { name: 'Logs', exact: true }).click()
+      await expect(detail).toContainText('refreshed hidden log cache')
+      const enrichedReads = detailReads
+      const summaryResponse = page.raw.waitForResponse((response) =>
+        response.url().includes(`/runs/${runId}?summaryOnly=true`)
+      )
+      await emitQuestWorkspace(page, state)
+      await summaryResponse
+      await page.raw.evaluate(
+        () =>
+          new Promise((resolve) =>
+            requestAnimationFrame(() => requestAnimationFrame(resolve))
+          )
+      )
+      expect(detailReads).toBe(enrichedReads)
+      await captureQuestWorkspaceState(page, expect, 'enriched-logs', detail)
+      await detail
+        .getByRole('button', { name: 'Run again', exact: true })
+        .click()
+      const form = page.raw.locator('[data-test="quest-run-form"]')
+      await expect(page.raw.locator('#quest-input-0')).toHaveValue(
+        'recovered-account'
+      )
+      await expect(page.raw.locator('#quest-input-1')).toHaveValue('25')
+      await form.getByRole('button', { name: 'Cancel', exact: true }).click()
+      expect(state.mutationRequests.length).toBe(0)
+      expect(state.unexpectedRequests).toEqual([])
+      expect(page).toHaveNoJavascriptErrors()
+    } catch (error) {
+      await captureQuestBrowserFailure(page, state, 'enriched-receipt')
+      throw error
+    } finally {
+      await page.raw.goto('about:blank')
+      state.restore()
+    }
+  }
+)
+
+test(
   'Quest request rejection and uncertain acceptance never invent failed or completed runs',
   {
     browser: true,
@@ -1945,6 +2308,14 @@ test(
             ? 'Request rejected (HTTP 403)'
             : 'No acceptance was received'
         )
+        if (failure === 'http') {
+          const rejectedKey = state.mutationRequests.at(-1).body.requestId
+          await confirm.click()
+          await expect(confirm).toBeEnabled()
+          expect(
+            state.mutationRequests.at(-1).body.requestId !== rejectedKey
+          ).toBe(true)
+        }
         if (failure !== 'http') {
           await expect(confirm).toBeDisabled()
           await expect(error).toContainText(
@@ -1967,7 +2338,7 @@ test(
         await expect(form).not.toBeVisible()
         await expect(opener).toBeFocused()
       }
-      expect(state.mutationRequests.length).toBe(4)
+      expect(state.mutationRequests.length).toBe(5)
       await page.raw.reload()
       await expect(
         page.raw.locator('[data-test="quest-workspace"]')
@@ -1975,7 +2346,7 @@ test(
       await expect(page.raw.locator('[data-test="quest-run-row"]')).toHaveCount(
         0
       )
-      expect(state.mutationRequests.length).toBe(4)
+      expect(state.mutationRequests.length).toBe(5)
       expect(state.unexpectedRequests).toEqual([])
       expect(page).toHaveNoJavascriptErrors()
     } catch (error) {

@@ -11,6 +11,7 @@ import X from '@/components/ui/icons/X.vue'
 import Play from '@/components/ui/icons/Play.vue'
 import {
   createQuestInputDraft,
+  questInputHasSourceValue,
   validateQuestInputs,
   requestQuestInvocation
 } from './questInvocation.mjs'
@@ -34,8 +35,14 @@ const productionConfirmed = ref(false)
 const expired = ref(false)
 const inputs = computed(() => props.review?.job?.inputs || [])
 const validation = computed(() =>
-  validateQuestInputs(inputs.value, draft.value)
+  validateQuestInputs(
+    inputs.value,
+    draft.value,
+    props.review?.job?.scheduledInputs
+  )
 )
+const usesSourceValue = (input) =>
+  questInputHasSourceValue(input, props.review?.job?.scheduledInputs)
 const fieldClass =
   'focus:border-brand min-h-10 w-full rounded-none border-0 border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none disabled:opacity-50 dark:border-gray-700 dark:text-white dark:placeholder-gray-500'
 
@@ -46,7 +53,11 @@ watch(
       draft.value = {}
       return
     }
-    draft.value = createQuestInputDraft(inputs.value, props.review?.inputs)
+    draft.value = createQuestInputDraft(
+      inputs.value,
+      props.review?.inputs,
+      props.review?.job?.scheduledInputs
+    )
     attempted.value = false
     productionConfirmed.value = false
     expired.value = false
@@ -102,6 +113,10 @@ async function submit() {
     props.csrf
   )
   submitting.value = false
+  // A confirmed rejection may be corrected and deliberately submitted again.
+  // Keep the original key for uncertain outcomes; those must be reconciled.
+  if (response.value.state === 'request_failed')
+    requestId.value = crypto.randomUUID()
   if (response.value.state === 'accepted') {
     emit('accepted', response.value.run)
     emit('update:open', false)
@@ -181,20 +196,34 @@ async function submit() {
               <span v-if="input.required" class="text-red-500">*</span></label
             >
             <label
-              v-if="!input.required"
+              v-if="!input.required || usesSourceValue(input)"
               class="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400"
               ><Checkbox
                 v-model="draft[input.name].included"
                 class="accent-brand text-brand focus:ring-brand h-4 w-4 rounded border-gray-300 dark:border-gray-600 dark:bg-gray-900"
                 :disabled="submitting"
               />
-              Include</label
+              {{ usesSourceValue(input) ? 'Override' : 'Include' }}</label
             >
             <span v-else class="text-xs text-gray-400">{{
               questInputType(input)
             }}</span>
           </div>
           <template v-if="draft[input.name]?.included">
+            <label
+              v-if="
+                input.allowNull === true &&
+                ['string', 'number', 'boolean'].includes(questInputType(input))
+              "
+              class="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400"
+            >
+              <Checkbox
+                v-model="draft[input.name].useNull"
+                :disabled="submitting"
+                class="accent-brand text-brand focus:ring-brand h-4 w-4 rounded border-gray-300 dark:border-gray-600 dark:bg-gray-900"
+              />
+              Use null
+            </label>
             <Select
               v-if="
                 !input.sensitive &&
@@ -205,7 +234,7 @@ async function submit() {
               :options="choices(input)"
               placeholder="Choose a value"
               :class="fieldClass"
-              :disabled="submitting"
+              :disabled="submitting || draft[input.name].useNull"
               :aria-invalid="attempted && !!validation.errors[input.name]"
               :aria-describedby="`quest-input-help-${index}`"
             />
@@ -221,7 +250,7 @@ async function submit() {
               :class="[fieldClass, 'font-mono text-xs']"
               rows="4"
               spellcheck="false"
-              :disabled="submitting"
+              :disabled="submitting || draft[input.name].useNull"
               :aria-invalid="attempted && !!validation.errors[input.name]"
               :aria-describedby="`quest-input-help-${index}`"
             />
@@ -237,14 +266,26 @@ async function submit() {
                   : 'text'
               "
               :class="fieldClass"
-              :disabled="submitting"
+              :disabled="submitting || draft[input.name].useNull"
               :autocomplete="input.sensitive ? 'new-password' : 'off'"
-              :step="questInputType(input) === 'number' ? 'any' : undefined"
+              :step="
+                questInputType(input) === 'number'
+                  ? input.isInteger
+                    ? '1'
+                    : 'any'
+                  : undefined
+              "
               :aria-invalid="attempted && !!validation.errors[input.name]"
               :aria-describedby="`quest-input-help-${index}`"
             />
           </template>
           <div :id="`quest-input-help-${index}`" class="space-y-1 text-xs">
+            <p
+              v-if="usesSourceValue(input) && !draft[input.name]?.included"
+              class="text-gray-500 dark:text-gray-400"
+            >
+              Uses the app’s source value.
+            </p>
             <p
               v-if="attempted && validation.errors[input.name]"
               class="text-red-600 dark:text-red-400"
@@ -257,7 +298,10 @@ async function submit() {
             >
               {{ input.description }}
             </p>
-            <p v-if="input.sensitive" class="text-gray-500 dark:text-gray-400">
+            <p
+              v-if="input.sensitive && draft[input.name]?.included"
+              class="text-gray-500 dark:text-gray-400"
+            >
               Sensitive input. Enter it again for each run.
             </p>
             <p

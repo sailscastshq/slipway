@@ -53,6 +53,19 @@ async function build() {
         )
       return { url, bytes: content.length }
     })
+  const preloadPath = '.tmp/public/quest-preload-manifest.json'
+  const preloads = fs.existsSync(preloadPath)
+    ? JSON.parse(fs.readFileSync(preloadPath, 'utf8'))
+    : null
+  if (preloads) {
+    assert.equal(preloads.version, 1)
+    assert.equal(preloads.mode, 'production')
+    assert.equal(preloads.page, 'projects/quest')
+    assert.ok(Array.isArray(preloads.assets) && preloads.assets.length <= 32)
+    assert.equal(new Set(preloads.assets).size, preloads.assets.length)
+    for (const url of preloads.assets)
+      assert.ok(assets.some((asset) => asset.url === url))
+  }
   fs.writeFileSync(
     '.tmp/quest-production-build.json',
     JSON.stringify(
@@ -63,7 +76,8 @@ async function build() {
         buildMode: 'production',
         applicationLifted: false,
         manifest,
-        assets
+        assets,
+        preloads
       },
       null,
       2
@@ -90,7 +104,8 @@ function configure() {
   )
 }
 
-function summarize(root, { control = false } = {}) {
+function summarize(root, { control = false, preload = false } = {}) {
+  control ||= preload
   const read = (file) =>
     JSON.parse(fs.readFileSync(path.join(root, file), 'utf8'))
   const names = ['before-1', 'after-1', 'after-2', 'before-2']
@@ -100,14 +115,38 @@ function summarize(root, { control = false } = {}) {
     performance: read(`${name}/performance.json`)
   }))
   const ref = rounds[0]
+  const expectedSource = (name) =>
+    preload || !name.startsWith('before')
+      ? process.env.SLIPWAY_QUEST_CAPTURE_TRIAL_SHA
+      : process.env.QUEST_BASELINE_SHA
+  const preloadMode = (name) => (name.startsWith('before') ? 'off' : 'on')
+  const staticAssets = (sample) =>
+    sample.native.resources.filter((resource) =>
+      /\.(js|css)$/.test(resource.name)
+    )
+  const assetIdentity = (assets, pathKey, bytesKey) =>
+    assets
+      .map((asset) => [asset[pathKey], asset[bytesKey]])
+      .sort((a, b) => a[0].localeCompare(b[0]))
+  const checkStaticAssets = (sample, expected) => {
+    const resources = staticAssets(sample)
+    assert.equal(
+      new Set(resources.map((asset) => asset.name)).size,
+      resources.length,
+      'Preloading must not duplicate static requests'
+    )
+    assert.deepEqual(
+      assetIdentity(resources, 'name', 'encodedBodySize'),
+      expected,
+      'Preload on/off must request identical static paths and encoded bytes'
+    )
+  }
   const median = (values) => {
     const s = [...values].sort((a, b) => a - b)
     return (s[(s.length - 1) >> 1] + s[s.length >> 1]) / 2
   }
   for (const round of rounds) {
-    const expected = round.name.startsWith('before')
-      ? process.env.QUEST_BASELINE_SHA
-      : process.env.SLIPWAY_QUEST_CAPTURE_TRIAL_SHA
+    const expected = expectedSource(round.name)
     assert.equal(round.fixture.sourceSha, expected)
     if (control) assert.equal(round.fixture.phase, 'after')
     assert.equal(round.performance.sourceSha, expected)
@@ -117,6 +156,23 @@ function summarize(root, { control = false } = {}) {
     )
     assert.equal(round.performance.productionBenchmark, true)
     assert.equal(round.performance.measurementVersion, 2)
+    if (preload) {
+      assert.equal(round.performance.preloadMode, preloadMode(round.name))
+      const build = round.performance.productionBuild
+      const referenceBuild = ref.performance.productionBuild
+      assert.equal(build.sourceSha, expected)
+      assert.equal(build.buildMode, 'production')
+      assert.equal(build.preloads?.version, 1)
+      assert.equal(build.preloads?.page, 'projects/quest')
+      assert.equal(build.preloads?.mode, 'production')
+      assert.ok(build.preloads.assets.length > 0)
+      assert.deepEqual(build.preloads, referenceBuild.preloads)
+      assert.deepEqual(build.manifest.entries, referenceBuild.manifest.entries)
+      assert.deepEqual(
+        assetIdentity(build.assets, 'url', 'bytes'),
+        assetIdentity(referenceBuild.assets, 'url', 'bytes')
+      )
+    }
     assert.equal(
       round.performance.driverReadiness,
       ref.performance.driverReadiness
@@ -161,6 +217,19 @@ function summarize(root, { control = false } = {}) {
           )
         )
         assert.equal(sample.bootstrap.length, 1)
+        if (preload) {
+          const referenceRow = ref.performance.measurements.find(
+            (reference) => reference.capture === row.capture
+          )
+          checkStaticAssets(
+            sample,
+            assetIdentity(
+              staticAssets(referenceRow.productionSamples[0]),
+              'name',
+              'encodedBodySize'
+            )
+          )
+        }
       }
     }
   }
@@ -173,6 +242,21 @@ function summarize(root, { control = false } = {}) {
     responseEndToReadyMs: (sample) =>
       sample.native.readyMs - sample.native.navigation.responseEnd,
     responseEndMs: (sample) => sample.native.navigation.responseEnd,
+    firstRouteAssetStartAfterResponseMs: (sample) =>
+      Math.min(
+        ...staticAssets(sample)
+          .filter((asset) => asset.name.includes('/async/'))
+          .map((asset) => asset.startTime)
+      ) - sample.native.navigation.responseEnd,
+    lastStaticAssetEndAfterResponseMs: (sample) =>
+      Math.max(...staticAssets(sample).map((asset) => asset.responseEnd)) -
+      sample.native.navigation.responseEnd,
+    maxRouteAssetQueueMs: (sample) =>
+      Math.max(
+        ...staticAssets(sample)
+          .filter((asset) => asset.name.includes('/async/'))
+          .map((asset) => asset.requestStart - asset.startTime)
+      ),
     controllerFetchMs: (sample) => sample.bootstrap[0].fetchMs,
     bootstrapRewriteMs: (sample) => sample.bootstrap[0].rewriteMs,
     rawCdpScriptDurationMs: (sample) => sample.cdpAfter.ScriptDuration * 1000,
@@ -211,6 +295,12 @@ function summarize(root, { control = false } = {}) {
       result[phase].wallMedianMs = median(
         rows.flatMap((row) => row.navigationToReadySamplesMs)
       )
+      for (const name of [
+        'initialJsonBytes',
+        'questJsonBytes',
+        'documentBytes'
+      ])
+        result[phase][name] = median(rows.map((row) => row[name]))
       for (const [name, value] of Object.entries(metrics))
         result[phase][name] = median(
           rows.flatMap((row) => row.productionSamples).map(value)
@@ -223,10 +313,9 @@ function summarize(root, { control = false } = {}) {
     .map((name) => ({ name, ...read(`${name}/interaction-performance.json`) }))
   const actionObservations = []
   for (const round of actionRounds) {
-    const expected = round.name.startsWith('before')
-      ? process.env.QUEST_BASELINE_SHA
-      : process.env.SLIPWAY_QUEST_CAPTURE_TRIAL_SHA
+    const expected = expectedSource(round.name)
     assert.equal(round.sourceSha, expected)
+    if (preload) assert.equal(round.preloadMode, preloadMode(round.name))
     assert.equal(round.observations.length, 36)
     for (const row of round.observations) {
       assert.ok(
@@ -234,6 +323,21 @@ function summarize(root, { control = false } = {}) {
       )
       assert.ok(row.geometry.horizontalOverflowPx <= 1)
       assert.ok(row.geometry.workspaceHorizontalOverflowPx <= 1)
+      if (preload) {
+        const reference = actionRounds[0].observations.find(
+          (entry) => entry.capture === row.capture && entry.kind === row.kind
+        )
+        checkStaticAssets(
+          row,
+          assetIdentity(staticAssets(reference), 'name', 'encodedBodySize')
+        )
+        if (row.kind === 'job-click')
+          assert.equal(
+            staticAssets(row).length,
+            0,
+            'First inspector click must remain eager in both modes'
+          )
+      }
     }
   }
   for (const phase of control ? ['before', 'after'] : ['after']) {
@@ -247,13 +351,15 @@ function summarize(root, { control = false } = {}) {
             )
           )
         assert.equal(rows.length, 6)
-        const staticAssets = (row) =>
-          row.native.resources.filter((resource) =>
-            /\.(js|css)$/.test(resource.name)
-          )
         actionObservations.push({
           ...(control
-            ? { phase: phase === 'before' ? 'pre-split' : 'current' }
+            ? {
+                phase: preload
+                  ? `preload-${phase === 'before' ? 'off' : 'on'}`
+                  : phase === 'before'
+                  ? 'pre-split'
+                  : 'current'
+              }
             : {}),
           capture,
           kind,
@@ -288,13 +394,29 @@ function summarize(root, { control = false } = {}) {
   const report = {
     method:
       'Production-built assets; normal disposable Sounding test environment; ABBA same-runner, ten samples per phase/viewport; Date-only shim, native Performance and timers',
-    comparison: control
+    comparison: preload
+      ? 'same-source preload off versus on'
+      : control
       ? 'pre-split versus current'
       : 'old page versus current',
-    beforeSourceSha: process.env.QUEST_BASELINE_SHA,
+    beforeSourceSha: preload
+      ? process.env.SLIPWAY_QUEST_CAPTURE_TRIAL_SHA
+      : process.env.QUEST_BASELINE_SHA,
     afterSourceSha: process.env.SLIPWAY_QUEST_CAPTURE_TRIAL_SHA,
     observations,
     rounds,
+    ...(preload
+      ? {
+          preloadControl: {
+            beforeMode: 'off',
+            afterMode: 'on',
+            order: ['off', 'on', 'on', 'off'],
+            adapter:
+              'Disabled rounds strip only link[data-quest-preload="1"] from controlled initial HTML; source, JS/CSS assets, fixture and readiness remain identical',
+            manifest: ref.performance.productionBuild.preloads
+          }
+        }
+      : {}),
     ...(control
       ? { actionObservations, actionRounds }
       : {
@@ -305,11 +427,18 @@ function summarize(root, { control = false } = {}) {
       'Route interception disables browser HTTP cache; both phases use identical uncached synthetic initial navigations',
       'Real stopped-app controller/database work remains inside route.fetch and full timing; no runtime invocation is measured',
       'CDP metrics are raw per-snapshot values, not differences across navigation; no parser-only cost is claimed',
-      'One executor, two rounds per phase; no production traffic or universal no-regression claim'
+      'One executor, two rounds per phase; no production traffic or universal no-regression claim',
+      ...(preload
+        ? [
+            'Same-source on/off isolates generated preload hints only; it does not remove the byte increase or establish non-regression against the original Quest page'
+          ]
+        : [])
     ]
   }
   const lines = [
-    control
+    preload
+      ? '## Quest same-source preload control: off versus on'
+      : control
       ? '## Quest pre-split control: initial and action costs'
       : '## Quest production-asset navigation observations',
     '',
@@ -317,6 +446,11 @@ function summarize(root, { control = false } = {}) {
     '',
     `Before: ${report.beforeSourceSha}`,
     `After: ${report.afterSourceSha}`,
+    ...(preload
+      ? [
+          'Before = preload off; after = preload on. Identical source and production JS/CSS paths/bytes; only named generated HTML hints are removed in disabled rounds.'
+        ]
+      : []),
     '',
     '| Viewport | Metric (median) | Before | After |',
     '| --- | --- | ---: | ---: |',
@@ -329,11 +463,15 @@ function summarize(root, { control = false } = {}) {
       )
     ),
     '',
-    control
+    preload
+      ? '### Same-source preload off/on action costs'
+      : control
       ? '### Same-runner pre-split and current action costs'
       : '### After-only inspector and direct-navigation costs',
     '',
-    control
+    preload
+      ? 'Balanced off → on → on → off with the same current page and fixture. First inspector clicks remain eager with zero new static requests. Direct links retain identical requested static paths/bytes. The pinned original-page comparison remains separate.'
+      : control
       ? 'Exact pre-split and current source, same updated fixture/instrumentation, balanced pre-split → current → current → pre-split. Genuine first inspector clicks and full direct links; six samples per phase/path/view. The original old-screen comparison remains separate.'
       : 'No old-page action equivalent or pre-split control is implied. First inspector open uses a genuine click; direct links use full navigation. Six samples per path/view across two rounds; raw values and requests are in JSON.',
     '',
@@ -368,9 +506,11 @@ function summarize(root, { control = false } = {}) {
   else if (mode === 'summarize') summarize(process.argv[3])
   else if (mode === 'summarize-control')
     summarize(process.argv[3], { control: true })
+  else if (mode === 'summarize-preload')
+    summarize(process.argv[3], { preload: true })
   else
     throw new Error(
-      'Expected build, configure, summarize, or summarize-control'
+      'Expected build, configure, summarize, summarize-control, or summarize-preload'
     )
 })().catch((error) => {
   console.error(error)

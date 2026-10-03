@@ -37,6 +37,7 @@ async function residentFixture({ sails, world }, slug) {
   const job = {
     name: 'synthetic-report',
     script: 'scripts/synthetic-report.js',
+    inputMetadataAvailable: true,
     inputs: {
       enabled: { type: 'boolean' },
       count: { type: 'number', min: 0, max: 10 },
@@ -53,6 +54,7 @@ async function residentFixture({ sails, world }, slug) {
     runtimeId: 'synthetic-runtime',
     capabilities: {
       residentState: true,
+      childSchedulerSuppression: true,
       runIdentity: true,
       inputMetadata: true,
       businessResults: true

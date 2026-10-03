@@ -50,6 +50,32 @@ CI runners, with native browser timing and real built assets; they do not measur
 production traffic or an actual resident invocation. The actual upstream/runtime
 integration gate remains independent of these passing UI trials.
 
+## Focused preload control
+
+The next bounded experiment targets measured late discovery of route assets,
+without changing shared controls or deferring the job inspector. A production
+compiler plugin emits only Quest's actual eager route dependency URLs; the server
+adds allowlisted preload hints only to its initial HTML. Missing or malformed
+metadata produces no hints. The plugin itself adds no client modules.
+
+The `preload-control` job uses one exact proposed source and one production build
+for off → on → on → off rounds. Its test transport removes only links marked
+`data-quest-preload="1"` for the off rounds, preserving all other rendered HTML,
+fixture data and assets. Reports record that intervention explicitly. Assertions
+require matching source/build/requested asset identities, no duplicate static
+fetches, and no new static request on the first inspector click. This separates
+the preload mechanism from concurrent input and runtime correctness changes.
+The original-page comparison remains separate. No improvement or non-regression
+is established until actual browser artifacts are reviewed; additional feature
+bytes and hint HTML remain part of the reported cost.
+
+The real-resident integration fixture is separate from these synthetic browser
+measurements. It requires an explicitly pinned compatible upstream Quest source,
+uses no customer jobs or network effects, and must prove child scheduler
+suppression before execution. It remains unverified until its real Linux Docker
+and browser run succeeds; the installed released 0.0.5 is not a substitute for
+the unreleased contract.
+
 ## Reproducible comparison
 
 The workflow uses two checkouts:

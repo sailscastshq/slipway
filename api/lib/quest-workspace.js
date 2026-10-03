@@ -1,6 +1,11 @@
 const runtime = require('./quest-runtime-client')
 const ledger = require('./quest-run-ledger')
 const snapshots = new Map()
+// Up to 32 resident receipts per each of 128 cached targets. This is only a
+// bounded read optimization: restart/eviction safely repeats evidence reads,
+// never job execution, and failed reads are not remembered.
+const residentReceipts = new Map()
+const MAX_RECONCILED_RECEIPTS = 4096
 const CACHE_MS = 5000
 const noCapabilities = Object.freeze({
   invoke: false,
@@ -48,16 +53,32 @@ async function synchronizeRun(context, run) {
     appId: String(context.app.id),
     environmentId: String(context.environment.id)
   }
-  await ledger.admit({
-    ...run,
-    ...scope,
-    state: run.state === 'running' ? 'running' : 'requested',
-    sequence: 0,
-    jobName: run.jobName,
-    deploymentId: String(context.app.currentDeployment),
-    inputs: run.inputs || {}
-  })
-  return ledger.ingest(run, scope)
+  if (String(run.deploymentId) !== String(context.app.currentDeployment))
+    throw Object.assign(new Error('Quest resident deployment changed.'), {
+      code: 'QUEST_RUN_CONFLICT'
+    })
+  await ledger.admitReceipt(run, scope)
+  await ledger.ingest(run, scope)
+  const retained = await ledger.enrichResidentReceipt(run, scope)
+  if (retained) {
+    const key = receiptKey(context, run)
+    residentReceipts.delete(key)
+    residentReceipts.set(key, true)
+    if (residentReceipts.size > MAX_RECONCILED_RECEIPTS)
+      residentReceipts.delete(residentReceipts.keys().next().value)
+  }
+  return retained
+}
+
+function receiptKey(context, run) {
+  return JSON.stringify([
+    String(context.app.id),
+    String(context.environment.id),
+    String(context.app.currentDeployment),
+    run.runtimeId,
+    run.runId,
+    run.sequence
+  ])
 }
 
 async function snapshot(context, { fresh = false } = {}) {
@@ -153,20 +174,10 @@ async function buildSnapshot(context, inspect = true) {
       cancel: false
     }
     base.reason = null
-    for (const summary of base.runs.filter((run) =>
-      ['requested', 'running'].includes(run.state)
-    )) {
-      const retained = await ledger.getReceiptMeta(
-        { appId: app.id, environmentId: environment.id },
-        summary.runId
-      )
-      if (retained?.runtimeId && retained.runtimeId !== live.runtimeId)
-        await ledger.markUnconfirmed(
-          { appId: app.id, environmentId: environment.id },
-          summary.runId,
-          'The app runtime changed before this execution could be reconciled. Check external effects before running again.'
-        )
-    }
+    base.runtimeReconciliation = await ledger.reconcileRuntimeLoss(
+      { appId: app.id, environmentId: environment.id },
+      live.runtimeId
+    )
     // One shared bounded reconciliation for all viewers. Only fetch payloads
     // whose sequence advanced; summaries never include log/result bodies.
     const pending = []
@@ -177,7 +188,11 @@ async function buildSnapshot(context, inspect = true) {
           summary.runId
         )
         .catch(() => null)
-      if (retained?.sequence >= summary.sequence) continue
+      if (
+        retained?.sequence > summary.sequence ||
+        residentReceipts.has(receiptKey(context, summary))
+      )
+        continue
       pending.push(summary)
       if (pending.length === 4) break
     }

@@ -59,6 +59,27 @@ const inputMetadataAvailable = computed(() =>
 const selectedScheduleTimes = computed(() =>
   questDueTimes(props.selectedJob?.nextRunAt, props.selectedJob?.timezone)
 )
+const scheduledInputRows = computed(() =>
+  Object.entries(props.selectedJob?.scheduledInputs?.fields || {}).map(
+    ([name, field]) => ({
+      name,
+      ...field,
+      value: props.selectedJob.scheduledInputs.values?.[name],
+      sourceLabel:
+        {
+          job_input: 'Job input',
+          script_input: 'Script input',
+          schema_default: 'Schema default',
+          omitted: 'Omitted'
+        }[field.source] || 'Unavailable'
+    })
+  )
+)
+const missingScheduledInputs = computed(() =>
+  scheduledInputRows.value
+    .filter((field) => field.missingRequired)
+    .map((field) => field.name)
+)
 const tabClass = (current, value) => [
   'border-b-2 py-3 text-sm font-medium',
   current === value
@@ -338,6 +359,8 @@ const displayValue = (value) =>
                   ? 'Unavailable'
                   : selectedJob.paused
                   ? 'Paused'
+                  : selectedJob.scheduled === false
+                  ? 'No timer registered'
                   : selectedScheduleTimes.runtime ||
                     selectedScheduleTimes.viewer ||
                     'Not reported'
@@ -349,6 +372,7 @@ const displayValue = (value) =>
                 selectedScheduleTimes.runtimeZone &&
                 selectedScheduleTimes.viewer &&
                 fresh &&
+                selectedJob.scheduled !== false &&
                 !selectedJob.paused
               "
             >
@@ -359,40 +383,76 @@ const displayValue = (value) =>
             <dd>
               {{ questOverlapLabel(selectedJob) }}
             </dd>
+            <template
+              v-if="
+                selectedJob.schedule &&
+                typeof selectedJob.scheduled === 'boolean'
+              "
+            >
+              <dt class="text-gray-400">Timer</dt>
+              <dd>
+                {{
+                  !fresh
+                    ? 'Unavailable'
+                    : selectedJob.scheduled
+                    ? 'Registered'
+                    : 'Not registered'
+                }}
+              </dd>
+            </template>
           </dl>
           <p
-            v-if="selectedJob.schedule && selectedJob.scheduledInputs == null"
+            v-if="selectedJob.schedule && !selectedJob.scheduledInputs?.fields"
             class="mt-4 text-xs text-gray-500 dark:text-gray-400"
           >
             Scheduled inputs: unavailable from this runtime.
           </p>
           <div
-            v-if="
-              selectedJob.scheduledInputs &&
-              Object.keys(selectedJob.scheduledInputs).length
-            "
+            v-if="selectedJob.schedule && scheduledInputRows.length"
             class="mt-4"
           >
             <h3 class="text-xs text-gray-400">Scheduled inputs</h3>
+            <p
+              v-if="missingScheduledInputs.length"
+              role="alert"
+              data-test="quest-schedule-input-warning"
+              class="mt-2 text-xs text-amber-700 dark:text-amber-400"
+            >
+              Missing required scheduled inputs:
+              {{ missingScheduledInputs.join(', ') }}. Update the app source
+              before this schedule runs.
+            </p>
             <dl class="mt-2 space-y-1">
               <div
-                v-for="(value, name) in selectedJob.scheduledInputs"
-                :key="name"
-                class="flex gap-2 text-xs"
+                v-for="field in scheduledInputRows"
+                :key="field.name"
+                class="grid grid-cols-[minmax(0,1fr)_minmax(0,2fr)] gap-2 text-xs"
               >
-                <dt class="font-mono text-gray-500">
-                  {{ name }}
+                <dt class="break-all font-mono text-gray-500">
+                  {{ field.name }}
                 </dt>
-                <dd class="min-w-0 break-all font-mono">
-                  {{
-                    selectedJob.inputs?.find((input) => input.name === name)
-                      ?.sensitive
+                <dd class="min-w-0 break-all">
+                  <span class="font-mono">{{
+                    field.sensitive
                       ? '••••••'
-                      : displayValue(value)
-                  }}
+                      : field.available
+                      ? displayValue(field.value)
+                      : field.missingRequired
+                      ? 'Missing'
+                      : field.source === 'omitted'
+                      ? 'Omitted'
+                      : 'Unavailable'
+                  }}</span>
+                  <span class="ml-2 text-gray-400">{{
+                    field.sourceLabel
+                  }}</span>
                 </dd>
               </div>
             </dl>
+            <p class="mt-2 text-[11px] text-gray-400">
+              Sails validates these values when the job runs. Manual overrides
+              apply to one run.
+            </p>
           </div>
           <div
             class="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-gray-100 pt-3 dark:border-gray-800"
@@ -401,8 +461,13 @@ const displayValue = (value) =>
               Schedule defined in app source.
             </p>
             <Button
-              v-if="selectedJob.schedule && selectedJob.schedule !== 'manual'"
+              v-if="typeof selectedJob.paused === 'boolean'"
               :disabled="!canPause || !!changingSchedule"
+              :title="
+                selectedJob.paused
+                  ? 'Resume new runs in this app process.'
+                  : 'Pause new runs in this app process. Active executions continue; pause resets on restart.'
+              "
               class="min-h-8 border border-gray-200 bg-transparent px-2.5 py-1 text-xs text-gray-700 hover:bg-gray-100 dark:border-gray-700 dark:bg-transparent dark:text-gray-300 dark:hover:bg-gray-800"
               @click="emit('toggle-pause')"
               ><Spinner
@@ -411,9 +476,7 @@ const displayValue = (value) =>
               /><Play v-else-if="selectedJob.paused" class="h-3 w-3" /><Pause
                 v-else
                 class="h-3 w-3"
-              />{{
-                selectedJob.paused ? 'Resume schedule' : 'Pause schedule'
-              }}</Button
+              />{{ selectedJob.paused ? 'Resume job' : 'Pause job' }}</Button
             >
           </div>
         </div>
