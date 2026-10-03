@@ -2687,7 +2687,7 @@ test(
         expect(nativeCaret.tag).toBe('INPUT')
         expect(nativeCaret.type).toBe('text')
         expect(nativeCaret.color).toBe(nativeCaret.textColor)
-        expect(nativeCaret.color).not.toBe('rgba(0, 0, 0, 0)')
+        expect(nativeCaret.color === 'rgba(0, 0, 0, 0)').toBe(false)
         const focusedColor = await marker.evaluate(
           (element) => getComputedStyle(element).color
         )

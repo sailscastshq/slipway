@@ -202,7 +202,7 @@ test(
             }
           })
           expect(caret.color).toBe(caret.textColor)
-          expect(caret.color).not.toBe('rgba(0, 0, 0, 0)')
+          expect(caret.color === 'rgba(0, 0, 0, 0)').toBe(false)
           expect(caret.selectionStart).toBe(SOURCE.length)
           expect(caret.selectionEnd).toBe(SOURCE.length)
           await page.raw.mouse.move(1, 1)
