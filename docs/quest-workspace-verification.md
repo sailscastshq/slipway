@@ -18,6 +18,38 @@ artifacts. Local Chromium is installed, but the current cloud executor's browser
 launch was previously blocked; this work does not retry that launch or alter
 security settings. Browser execution is delegated to the CI runner.
 
+## Measured decision and remaining gate
+
+The bounded performance investigation used these exact sources and retained raw
+observations:
+
+- Pre-split `888c55becf293d03281c5b33a3dac09c8c0834b6`:
+  [production-asset report, run 37099340264](https://github.com/sailscastshq/slipway/actions/runs/37099340264/artifacts/11264584901)
+- Inspector/global-Runs extraction `8bd4994adb6f39abb57320d593a65c0b7b7681c0`:
+  [initial and after-only action observations, run 37100011016](https://github.com/sailscastshq/slipway/actions/runs/37100011016/artifacts/11265519098)
+- Control instrumentation head `345db484e88f7fe582a4a0665892e4ef1b4889a2`:
+  [same-runner pre-split/current ABBA control, run 37100529461](https://github.com/sailscastshq/slipway/actions/runs/37100529461/artifacts/11265539912)
+  and [separate original-page production comparison](https://github.com/sailscastshq/slipway/actions/runs/37100529461/artifacts/11265694490)
+
+The control saved 17,072 initial JavaScript bytes with the inspector deferred,
+but native initial-ready medians changed by only +2.05, −1.65, −1.65, and −2.60 ms
+across desktop light/dark and mobile light/dark. First inspector clicks instead
+rose from 12.65–12.80 ms to 30.80–31.05 ms; direct-job navigation rose by
+9.75–25.30 ms. Direct-run changes were mixed. The decision is to restore eager
+job-inspector loading while retaining component extraction and invocation-helper
+separation. The subsequent implementation must pass the existing final-head
+browser, interaction, and performance checks; these prior measurements do not
+establish its results in advance.
+
+The original-page non-regression gate remains unresolved. At `345db48`, the
+separate original-page comparison measured native-ready increases of
+2.95–11.70 ms and 32,355 additional initial JS/CSS bytes. Passing the existing
+absolute ceilings does not turn those increases into a no-regression result.
+All timings are cache-disabled, synthetic, stopped-app observations on disposable
+CI runners, with native browser timing and real built assets; they do not measure
+production traffic or an actual resident invocation. The actual upstream/runtime
+integration gate remains independent of these passing UI trials.
+
 ## Reproducible comparison
 
 The workflow uses two checkouts:

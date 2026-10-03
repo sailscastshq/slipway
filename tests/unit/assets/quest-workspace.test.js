@@ -494,7 +494,7 @@ test('Quest selected-job history cancellation prevents old errors or rows from r
   }
 })
 
-test('Quest defers inactive run history and run-only components on the initial Jobs view', async ({
+test('Quest keeps job selection eager while deferring inactive run history and run-only components', async ({
   expect
 }) => {
   const fs = require('node:fs')
@@ -508,7 +508,9 @@ test('Quest defers inactive run history and run-only components on the initial J
   const script = compileScript(descriptor, { id: 'quest-lazy-workspace' })
   expect(script.imports.QuestRunDetail).toBe(undefined)
   expect(script.imports.QuestRunDialog).toBe(undefined)
-  expect(script.imports.QuestJobDetail).toBe(undefined)
+  expect(script.imports.QuestJobDetail.source).toBe(
+    '@/components/quest/QuestJobDetail.vue'
+  )
   expect(script.imports.QuestGlobalRuns).toBe(undefined)
   expect(script.imports.QuestRuns).toBe(undefined)
   expect(descriptor.scriptSetup.content).toContain(

@@ -24,6 +24,7 @@ import Play from '@/components/ui/icons/Play.vue'
 import Clock from '@/components/ui/icons/Clock.vue'
 import Spinner from '@/components/SlipwaySpinner.vue'
 import QuestStatus from '@/components/quest/QuestStatus.vue'
+import QuestJobDetail from '@/components/quest/QuestJobDetail.vue'
 import QuestPanelFallback from '@/components/quest/QuestPanelFallback.vue'
 import { useQueryState } from '@/components/ui/durable-ui/useQueryState'
 import { useEventSource } from '@/composables/sse'
@@ -46,10 +47,6 @@ const deferredPanel = {
   delay: 150,
   timeout: 15000
 }
-const QuestJobDetail = defineAsyncComponent({
-  ...deferredPanel,
-  loader: () => import('@/components/quest/QuestJobDetail.vue')
-})
 const QuestGlobalRuns = defineAsyncComponent({
   ...deferredPanel,
   loader: () => import('@/components/quest/QuestGlobalRuns.vue')
