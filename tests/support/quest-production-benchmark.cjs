@@ -90,7 +90,7 @@ function configure() {
   )
 }
 
-function summarize(root) {
+function summarize(root, { control = false } = {}) {
   const read = (file) =>
     JSON.parse(fs.readFileSync(path.join(root, file), 'utf8'))
   const names = ['before-1', 'after-1', 'after-2', 'before-2']
@@ -109,6 +109,7 @@ function summarize(root) {
       ? process.env.QUEST_BASELINE_SHA
       : process.env.SLIPWAY_QUEST_CAPTURE_TRIAL_SHA
     assert.equal(round.fixture.sourceSha, expected)
+    if (control) assert.equal(round.fixture.phase, 'after')
     assert.equal(round.performance.sourceSha, expected)
     assert.equal(
       round.fixture.captureTrialSourceSha,
@@ -217,12 +218,15 @@ function summarize(root) {
     }
     return result
   })
-  const afterOnlyRounds = names
-    .filter((name) => name.startsWith('after'))
+  const actionRounds = names
+    .filter((name) => control || name.startsWith('after'))
     .map((name) => ({ name, ...read(`${name}/interaction-performance.json`) }))
-  const afterOnlyObservations = []
-  for (const round of afterOnlyRounds) {
-    assert.equal(round.sourceSha, process.env.SLIPWAY_QUEST_CAPTURE_TRIAL_SHA)
+  const actionObservations = []
+  for (const round of actionRounds) {
+    const expected = round.name.startsWith('before')
+      ? process.env.QUEST_BASELINE_SHA
+      : process.env.SLIPWAY_QUEST_CAPTURE_TRIAL_SHA
+    assert.equal(round.sourceSha, expected)
     assert.equal(round.observations.length, 36)
     for (const row of round.observations) {
       assert.ok(
@@ -232,57 +236,71 @@ function summarize(root) {
       assert.ok(row.geometry.workspaceHorizontalOverflowPx <= 1)
     }
   }
-  for (const capture of observations.map((row) => row.capture)) {
-    for (const kind of ['job-click', 'direct-job', 'direct-run']) {
-      const rows = afterOnlyRounds.flatMap((round) =>
-        round.observations.filter(
-          (row) => row.capture === capture && row.kind === kind
-        )
-      )
-      assert.equal(rows.length, 6)
-      const staticAssets = (row) =>
-        row.native.resources.filter((resource) =>
-          /\.(js|css)$/.test(resource.name)
-        )
-      afterOnlyObservations.push({
-        capture,
-        kind,
-        readyMedianMs: median(rows.map((row) => row.native.elapsedMs)),
-        rawReadyMs: rows.map((row) => row.native.elapsedMs),
-        resourceCountMedian: median(
-          rows.map((row) => row.native.resources.length)
-        ),
-        resourceEncodedBytesMedian: median(
-          rows.map((row) =>
-            row.native.resources.reduce(
-              (sum, resource) => sum + resource.encodedBodySize,
-              0
+  for (const phase of control ? ['before', 'after'] : ['after']) {
+    for (const capture of observations.map((row) => row.capture)) {
+      for (const kind of ['job-click', 'direct-job', 'direct-run']) {
+        const rows = actionRounds
+          .filter((round) => round.name.startsWith(phase))
+          .flatMap((round) =>
+            round.observations.filter(
+              (row) => row.capture === capture && row.kind === kind
             )
           )
-        ),
-        staticAssetCountMedian: median(
-          rows.map((row) => staticAssets(row).length)
-        ),
-        staticAssetEncodedBytesMedian: median(
-          rows.map((row) =>
-            staticAssets(row).reduce(
-              (sum, resource) => sum + resource.encodedBodySize,
-              0
+        assert.equal(rows.length, 6)
+        const staticAssets = (row) =>
+          row.native.resources.filter((resource) =>
+            /\.(js|css)$/.test(resource.name)
+          )
+        actionObservations.push({
+          ...(control
+            ? { phase: phase === 'before' ? 'pre-split' : 'current' }
+            : {}),
+          capture,
+          kind,
+          readyMedianMs: median(rows.map((row) => row.native.elapsedMs)),
+          rawReadyMs: rows.map((row) => row.native.elapsedMs),
+          resourceCountMedian: median(
+            rows.map((row) => row.native.resources.length)
+          ),
+          resourceEncodedBytesMedian: median(
+            rows.map((row) =>
+              row.native.resources.reduce(
+                (sum, resource) => sum + resource.encodedBodySize,
+                0
+              )
+            )
+          ),
+          staticAssetCountMedian: median(
+            rows.map((row) => staticAssets(row).length)
+          ),
+          staticAssetEncodedBytesMedian: median(
+            rows.map((row) =>
+              staticAssets(row).reduce(
+                (sum, resource) => sum + resource.encodedBodySize,
+                0
+              )
             )
           )
-        )
-      })
+        })
+      }
     }
   }
   const report = {
     method:
       'Production-built assets; normal disposable Sounding test environment; ABBA same-runner, ten samples per phase/viewport; Date-only shim, native Performance and timers',
+    comparison: control
+      ? 'pre-split versus current'
+      : 'old page versus current',
     beforeSourceSha: process.env.QUEST_BASELINE_SHA,
     afterSourceSha: process.env.SLIPWAY_QUEST_CAPTURE_TRIAL_SHA,
     observations,
     rounds,
-    afterOnlyObservations,
-    afterOnlyRounds,
+    ...(control
+      ? { actionObservations, actionRounds }
+      : {
+          afterOnlyObservations: actionObservations,
+          afterOnlyRounds: actionRounds
+        }),
     limitations: [
       'Route interception disables browser HTTP cache; both phases use identical uncached synthetic initial navigations',
       'Real stopped-app controller/database work remains inside route.fetch and full timing; no runtime invocation is measured',
@@ -291,7 +309,9 @@ function summarize(root) {
     ]
   }
   const lines = [
-    '## Quest production-asset navigation observations',
+    control
+      ? '## Quest pre-split control: initial and action costs'
+      : '## Quest production-asset navigation observations',
     '',
     report.method,
     '',
@@ -309,19 +329,25 @@ function summarize(root) {
       )
     ),
     '',
-    '### After-only inspector and direct-navigation costs',
+    control
+      ? '### Same-runner pre-split and current action costs'
+      : '### After-only inspector and direct-navigation costs',
     '',
-    'No old-page action equivalent or pre-split control is implied. First inspector open uses a genuine click; direct links use full navigation. Six samples per path/view across two rounds; raw values and requests are in JSON.',
+    control
+      ? 'Exact pre-split and current source, same updated fixture/instrumentation, balanced pre-split → current → current → pre-split. Genuine first inspector clicks and full direct links; six samples per phase/path/view. The original old-screen comparison remains separate.'
+      : 'No old-page action equivalent or pre-split control is implied. First inspector open uses a genuine click; direct links use full navigation. Six samples per path/view across two rounds; raw values and requests are in JSON.',
     '',
     '| Viewport | Path | Ready median (ms) | Resource count | Resource bytes | JS/CSS count | JS/CSS bytes |',
     '| --- | --- | ---: | ---: | ---: | ---: | ---: |',
-    ...afterOnlyObservations.map(
+    ...actionObservations.map(
       (row) =>
-        `| ${row.capture} | ${row.kind} | ${row.readyMedianMs.toFixed(3)} | ${
-          row.resourceCountMedian
-        } | ${row.resourceEncodedBytesMedian} | ${
-          row.staticAssetCountMedian
-        } | ${row.staticAssetEncodedBytesMedian} |`
+        `| ${row.capture} | ${row.phase ? row.phase + ': ' : ''}${
+          row.kind
+        } | ${row.readyMedianMs.toFixed(3)} | ${row.resourceCountMedian} | ${
+          row.resourceEncodedBytesMedian
+        } | ${row.staticAssetCountMedian} | ${
+          row.staticAssetEncodedBytesMedian
+        } |`
     ),
     '',
     ...report.limitations.map((line) => '- ' + line)
@@ -340,7 +366,12 @@ function summarize(root) {
   if (mode === 'build') await build()
   else if (mode === 'configure') configure()
   else if (mode === 'summarize') summarize(process.argv[3])
-  else throw new Error('Expected build, configure, or summarize')
+  else if (mode === 'summarize-control')
+    summarize(process.argv[3], { control: true })
+  else
+    throw new Error(
+      'Expected build, configure, summarize, or summarize-control'
+    )
 })().catch((error) => {
   console.error(error)
   process.exitCode = 1

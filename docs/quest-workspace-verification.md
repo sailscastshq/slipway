@@ -206,6 +206,23 @@ is submitted. These paths have no old-page inspector equivalent, and no action
 regression or improvement is inferred without a separately measured pre-split
 control. This prevents newly deferred initial code from disappearing from review.
 
+### Bounded pre-split action control
+
+The separate `pre-split-control` job compares exact pre-split source
+`888c55becf293d03281c5b33a3dac09c8c0834b6` against the current head on one runner in
+pre-split → current → current → pre-split order. It builds each source's own
+production assets and copies only the same updated test/instrumentation companion
+into both checkouts. Both use the workspace fixture (`after` transport adapter),
+including the same after-only interaction fixture and native clocks. No UI,
+backend implementation, styles, or dependency files are transplanted.
+
+The report validates exact source/trial identities and unchanged fixture/budgets,
+then retains initial navigation and first-click/direct-job/direct-run samples for
+both implementations. The old-screen before/after comparison remains a separate
+job with its original pinned source. This control can expose a tradeoff between
+initial work and deferred pane loading; it does not erase a measured regression
+against the original page or establish production traffic performance.
+
 ## Running and reviewing
 
 On an authorized disposable browser-capable runner with dependencies installed:
@@ -226,6 +243,7 @@ and isolates before from after. Download these artifacts from the same run:
 4. `quest-comparison-report-<exact-head-sha>`
 5. `quest-same-runner-navigation-<exact-head-sha>` (supplemental timing)
 6. `quest-production-navigation-<exact-head-sha>` (production-asset decomposition)
+7. `quest-pre-split-control-<exact-head-sha>` (bounded optimization tradeoff)
 
 Inspect all four PNG pairs at their actual dimensions. Check typed form, result,
 failed, running, reconnecting, disconnected, and keyboard state captures. Confirm
