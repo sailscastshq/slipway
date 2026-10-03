@@ -11,10 +11,9 @@ import Play from '@/components/ui/icons/Play.vue'
 import {
   createQuestInputDraft,
   validateQuestInputs,
-  questInputType,
-  requestQuestInvocation,
-  questSnapshotIsFresh
-} from '@/lib/questWorkspace.mjs'
+  requestQuestInvocation
+} from './questInvocation.mjs'
+import { questInputType, questSnapshotIsFresh } from '@/lib/questWorkspace.mjs'
 
 const props = defineProps({
   open: Boolean,

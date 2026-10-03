@@ -417,6 +417,9 @@ jobs:
             )
             cp "$source/.tmp/screenshots/quest-comparison/$phase/fixture.json" "production-navigation/$round/fixture.json"
             cp "$source/.tmp/screenshots/quest-comparison/$phase/performance.json" "production-navigation/$round/performance.json"
+            if [ "$phase" = after ]; then
+              cp "$source/.tmp/screenshots/quest-comparison/after/interaction-performance.json" "production-navigation/$round/interaction-performance.json"
+            fi
           done
       - name: Validate and decompose production-asset observations
         run: node proposed-source/tests/support/quest-production-benchmark.cjs summarize production-navigation

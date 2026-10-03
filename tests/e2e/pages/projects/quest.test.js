@@ -313,11 +313,13 @@ async function installQuestFixture(
   await page.raw.route(
     (url) => url.pathname === projectPath,
     async (route) => {
-      const fetchStart =
-        clockMode === 'native-performance' ? performance.now() : null
+      const fetchStart = clockMode.startsWith('native-performance')
+        ? performance.now()
+        : null
       const response = await route.fetch()
-      const fetchEnd =
-        clockMode === 'native-performance' ? performance.now() : null
+      const fetchEnd = clockMode.startsWith('native-performance')
+        ? performance.now()
+        : null
       const source = await response.text()
       const isJson = response
         .headers()
@@ -359,7 +361,7 @@ async function installQuestFixture(
             `${match[1]}${json.replace(/</g, '\\u003c')}${match[3]}`
           )
       state.documentBytes = Buffer.byteLength(body)
-      if (clockMode === 'native-performance') {
+      if (clockMode.startsWith('native-performance')) {
         state.bootstrapMeasurements.push({
           fetchMs: fetchEnd - fetchStart,
           rewriteMs: performance.now() - fetchEnd
@@ -464,24 +466,28 @@ async function installQuestFixture(
     page.raw.off('response', recordInfrastructureResponse)
     restore()
   }
-  if (clockMode === 'native-performance') {
+  if (clockMode.startsWith('native-performance')) {
     // Production profiling only: keep the exact visual Date fixture without
     // Playwright's full clock shim, which removes native Performance entries.
     // No timer, performance method, application state, or event is replaced.
     await page.raw.addInitScript(
-      ({ now, phase, projectPath }) => {
+      ({ now, phase, projectPath, clockMode }) => {
         const NativeDate = Date
+        const wallOrigin = NativeDate.now()
+        const clockNow = () =>
+          now +
+          (clockMode.endsWith('-advancing') ? NativeDate.now() - wallOrigin : 0)
         function FixtureDate(...args) {
-          if (!new.target) return new NativeDate(now).toString()
+          if (!new.target) return new NativeDate(clockNow()).toString()
           return Reflect.construct(
             NativeDate,
-            args.length ? args : [now],
+            args.length ? args : [clockNow()],
             new.target
           )
         }
         Object.setPrototypeOf(FixtureDate, NativeDate)
         FixtureDate.prototype = NativeDate.prototype
-        FixtureDate.now = () => now
+        FixtureDate.now = clockNow
         window.Date = FixtureDate
         const profile = (window.__questNativeProfile = {
           readyMs: null,
@@ -533,7 +539,7 @@ async function installQuestFixture(
         }
         requestAnimationFrame(observeReady)
       },
-      { now: fixture.now, phase, projectPath }
+      { now: fixture.now, phase, projectPath, clockMode }
     )
   } else if (clockMode === 'fixed')
     await page.raw.clock.setFixedTime(fixture.now)
@@ -600,7 +606,8 @@ async function installQuestFixture(
                 window.__questStreamBootstrapped = true
               }
               if (
-                clockMode === 'advancing' &&
+                (clockMode === 'advancing' ||
+                  clockMode === 'native-performance-advancing') &&
                 !window.__questObservationPaused &&
                 window.__questStreamPayload.workspace?.mode === 'resident'
               ) {
@@ -609,7 +616,10 @@ async function installQuestFixture(
               this.onmessage?.({
                 data: JSON.stringify(window.__questStreamPayload)
               })
-              if (clockMode === 'advancing') {
+              if (
+                clockMode === 'advancing' ||
+                clockMode === 'native-performance-advancing'
+              ) {
                 this.heartbeat = setInterval(() => {
                   if (
                     this.closed ||
@@ -939,6 +949,246 @@ test(
     }
   }
 )
+
+// New inspector/result affordances have no equivalent in the old page. Keep
+// their measured first-open cost visible, separately from the paired baseline.
+if (
+  process.env.SLIPWAY_QUEST_PRODUCTION_BENCHMARK === '1' &&
+  process.env.SLIPWAY_QUEST_CAPTURE_PHASE !== 'before'
+) {
+  test(
+    'Quest production assets expose first inspector and direct job run readiness',
+    {
+      browser: true,
+      world: {
+        name: 'configured-slipway',
+        context: {
+          deploymentTarget: {
+            slug: 'quest-production-interactions',
+            name: 'Northstar Commerce'
+          }
+        }
+      }
+    },
+    async (context) => {
+      const { page, login, world, expect, sails } = context
+      const assert = require('node:assert/strict')
+      const fs = require('node:fs')
+      const path = require('node:path')
+      assert.equal(sails.config.environment, 'test')
+      assert.notEqual(process.env.NODE_ENV, 'production')
+      assert.equal(sails.config.hooks.shipwright, false)
+      assert.equal(sails.config.hooks.quest, false)
+      assert.equal(sails.config.hooks.lookout, false)
+      assert.equal(sails.config.datastores.observability.url, ':memory:')
+      const runId = 'synthetic-production-profile-run'
+      const jobName = 'export-account-report'
+      const state = await installQuestFixture(
+        context,
+        'after',
+        (state) => {
+          const run = {
+            runId,
+            jobName,
+            state: 'completed',
+            trigger: 'manual',
+            actor: 'Synthetic benchmark',
+            requestedAt: state.now - 1000,
+            startedAt: state.now - 900,
+            finishedAt: state.now,
+            duration: 900,
+            exitCode: 0,
+            resultStatus: 'available'
+          }
+          state.workspace.runs = [run]
+          state.details[runId] = {
+            ...run,
+            inputs: {},
+            result: { status: 'available', value: [{ processed: 25 }] },
+            error: null
+          }
+        },
+        { clockMode: 'native-performance-advancing' }
+      )
+      await page.raw.addInitScript(
+        ({ projectPath }) => {
+          window.__questDeferredReady = null
+          window.__questObserveDeferred = (kind, startMs) => {
+            window.__questDeferredReady = null
+            const observe = () => {
+              const detail = document.querySelector(
+                '[data-test="quest-job-detail"]'
+              )
+              const button = detail?.querySelector(
+                '[data-test="quest-open-run"]'
+              )
+              const result = document.querySelector(
+                '[data-test="quest-run-result"]'
+              )
+              const ready =
+                kind === 'direct-run'
+                  ? result?.getClientRects().length &&
+                    result.textContent.includes('processed')
+                  : detail?.getClientRects().length &&
+                    detail.textContent.includes('Export account report') &&
+                    button?.getClientRects().length &&
+                    !button.disabled
+              if (ready) {
+                const readyMs = performance.now()
+                performance.mark('quest-deferred-ready')
+                window.__questDeferredReady = {
+                  kind,
+                  startMs,
+                  readyMs,
+                  elapsedMs: readyMs - startMs
+                }
+              } else requestAnimationFrame(observe)
+            }
+            requestAnimationFrame(observe)
+          }
+          if (location.pathname === projectPath) {
+            const query = new URLSearchParams(location.search)
+            if (query.has('run')) window.__questObserveDeferred('direct-run', 0)
+            else if (query.has('job'))
+              window.__questObserveDeferred('direct-job', 0)
+          }
+        },
+        { projectPath: state.projectPath }
+      )
+      const observations = []
+      try {
+        await login.withPassword('genesisUser', page, {
+          password: world.current.auth.genesisUserPassword
+        })
+        await page.raw.waitForURL('**/')
+        for (const capture of questComparisonFixture.captures) {
+          await page.raw.setViewportSize({
+            width: capture.width,
+            height: capture.height
+          })
+          await page.raw.emulateMedia({ colorScheme: capture.scheme })
+          for (let sample = 0; sample < 3; sample++) {
+            for (const kind of ['job-click', 'direct-job', 'direct-run']) {
+              if (kind === 'job-click') {
+                await page.goto(state.projectPath)
+                await expect(
+                  page.raw.locator('[data-test="quest-workspace"]')
+                ).toBeVisible()
+                const trigger = page.raw.getByRole('button', {
+                  name: 'View Export account report',
+                  exact: true
+                })
+                await expect(trigger).toBeVisible()
+                await page.raw.evaluate(() => document.fonts.ready)
+                state.bootstrapMeasurements = []
+                await trigger.evaluate((element) =>
+                  element.addEventListener(
+                    'click',
+                    () =>
+                      window.__questObserveDeferred(
+                        'job-click',
+                        performance.now()
+                      ),
+                    { capture: true, once: true }
+                  )
+                )
+                await trigger.click()
+              } else {
+                state.bootstrapMeasurements = []
+                await page.goto(
+                  `${state.projectPath}?job=${jobName}${
+                    kind === 'direct-run' ? `&run=${runId}` : ''
+                  }`
+                )
+              }
+              await page.raw.waitForFunction(() =>
+                Number.isFinite(window.__questDeferredReady?.readyMs)
+              )
+              const detail = page.raw.locator('[data-test="quest-job-detail"]')
+              await expect(detail).toBeVisible()
+              if (kind === 'direct-run') {
+                await expect(
+                  page.raw.locator('[data-test="quest-run-result"]')
+                ).toContainText('processed')
+                await expect(
+                  page.raw.locator('[data-test="quest-run-detail"]')
+                ).toContainText('Completed')
+              } else
+                await expect(
+                  detail.locator('[data-test="quest-open-run"]')
+                ).toBeEnabled()
+              const native = await page.raw.evaluate(() => {
+                const ready = window.__questDeferredReady
+                return {
+                  ...ready,
+                  navigation: performance
+                    .getEntriesByType('navigation')[0]
+                    .toJSON(),
+                  resources: performance
+                    .getEntriesByType('resource')
+                    .filter(
+                      (entry) =>
+                        entry.startTime >= ready.startMs &&
+                        entry.startTime <= ready.readyMs
+                    )
+                    .map((entry) => ({
+                      ...entry.toJSON(),
+                      name: new URL(entry.name).pathname
+                    }))
+                }
+              })
+              const geometry = await questBrowserMeasurements(page)
+              expect(native.elapsedMs <= 15000).toBe(true)
+              expect(geometry.horizontalOverflowPx <= 1).toBe(true)
+              expect(geometry.workspaceHorizontalOverflowPx <= 1).toBe(true)
+              observations.push({
+                capture: capture.name,
+                sample,
+                kind,
+                native,
+                bootstrap: state.bootstrapMeasurements,
+                geometry
+              })
+              expect(state.mutationRequests).toEqual([])
+            }
+          }
+        }
+        const root = path.resolve('.tmp/screenshots/quest-comparison/after')
+        fs.mkdirSync(root, { recursive: true })
+        fs.writeFileSync(
+          path.join(root, 'interaction-performance.json'),
+          JSON.stringify(
+            {
+              sourceSha: require('node:child_process')
+                .execFileSync('git', ['rev-parse', 'HEAD'], {
+                  encoding: 'utf8'
+                })
+                .trim(),
+              method:
+                'After-only production assets, three samples per viewport/path each round; native advancing Date-only clock; real click or full direct navigation, DOM-ready sampled at animation frames',
+              fixture:
+                'Separate synthetic five-job/ten-legacy-event fixture plus one completed correlated result; zero job invocation',
+              limitations: [
+                'No equivalent old-page inspector; these are costs, not a before/after action regression claim',
+                'Full reload per sample; route interception disables HTTP cache',
+                'Resource list includes completed requests started between action/navigation and ready; raw initiator and size fields retained'
+              ],
+              observations
+            },
+            null,
+            2
+          ) + '\n'
+        )
+        expect(state.unexpectedRequests).toEqual([])
+        expect(page).toHaveNoJavascriptErrors()
+      } finally {
+        await page.raw.goto('about:blank')
+        state.restore()
+      }
+    }
+  )
+}
+
 // END QUEST COMPARISON CAPTURE
 
 async function captureQuestBrowserFailure(page, state, name) {

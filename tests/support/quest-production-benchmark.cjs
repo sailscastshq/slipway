@@ -178,9 +178,21 @@ function summarize(root) {
     rawCdpLayoutDurationMs: (sample) => sample.cdpAfter.LayoutDuration * 1000,
     rawCdpStyleDurationMs: (sample) =>
       sample.cdpAfter.RecalcStyleDuration * 1000,
-    resourceCount: (sample) => sample.native.resources.length,
-    assetEncodedBytes: (sample) =>
+    allResourceCount: (sample) => sample.native.resources.length,
+    allResourceEncodedBytes: (sample) =>
       sample.native.resources.reduce(
+        (sum, resource) => sum + resource.encodedBodySize,
+        0
+      )
+  }
+  for (const extension of ['js', 'css']) {
+    const resources = (sample) =>
+      sample.native.resources.filter((resource) =>
+        resource.name.endsWith('.' + extension)
+      )
+    metrics[`${extension}AssetCount`] = (sample) => resources(sample).length
+    metrics[`${extension}AssetEncodedBytes`] = (sample) =>
+      resources(sample).reduce(
         (sum, resource) => sum + resource.encodedBodySize,
         0
       )
@@ -205,6 +217,63 @@ function summarize(root) {
     }
     return result
   })
+  const afterOnlyRounds = names
+    .filter((name) => name.startsWith('after'))
+    .map((name) => ({ name, ...read(`${name}/interaction-performance.json`) }))
+  const afterOnlyObservations = []
+  for (const round of afterOnlyRounds) {
+    assert.equal(round.sourceSha, process.env.SLIPWAY_QUEST_CAPTURE_TRIAL_SHA)
+    assert.equal(round.observations.length, 36)
+    for (const row of round.observations) {
+      assert.ok(
+        Number.isFinite(row.native.elapsedMs) && row.native.elapsedMs <= 15000
+      )
+      assert.ok(row.geometry.horizontalOverflowPx <= 1)
+      assert.ok(row.geometry.workspaceHorizontalOverflowPx <= 1)
+    }
+  }
+  for (const capture of observations.map((row) => row.capture)) {
+    for (const kind of ['job-click', 'direct-job', 'direct-run']) {
+      const rows = afterOnlyRounds.flatMap((round) =>
+        round.observations.filter(
+          (row) => row.capture === capture && row.kind === kind
+        )
+      )
+      assert.equal(rows.length, 6)
+      const staticAssets = (row) =>
+        row.native.resources.filter((resource) =>
+          /\.(js|css)$/.test(resource.name)
+        )
+      afterOnlyObservations.push({
+        capture,
+        kind,
+        readyMedianMs: median(rows.map((row) => row.native.elapsedMs)),
+        rawReadyMs: rows.map((row) => row.native.elapsedMs),
+        resourceCountMedian: median(
+          rows.map((row) => row.native.resources.length)
+        ),
+        resourceEncodedBytesMedian: median(
+          rows.map((row) =>
+            row.native.resources.reduce(
+              (sum, resource) => sum + resource.encodedBodySize,
+              0
+            )
+          )
+        ),
+        staticAssetCountMedian: median(
+          rows.map((row) => staticAssets(row).length)
+        ),
+        staticAssetEncodedBytesMedian: median(
+          rows.map((row) =>
+            staticAssets(row).reduce(
+              (sum, resource) => sum + resource.encodedBodySize,
+              0
+            )
+          )
+        )
+      })
+    }
+  }
   const report = {
     method:
       'Production-built assets; normal disposable Sounding test environment; ABBA same-runner, ten samples per phase/viewport; Date-only shim, native Performance and timers',
@@ -212,6 +281,8 @@ function summarize(root) {
     afterSourceSha: process.env.SLIPWAY_QUEST_CAPTURE_TRIAL_SHA,
     observations,
     rounds,
+    afterOnlyObservations,
+    afterOnlyRounds,
     limitations: [
       'Route interception disables browser HTTP cache; both phases use identical uncached synthetic initial navigations',
       'Real stopped-app controller/database work remains inside route.fetch and full timing; no runtime invocation is measured',
@@ -236,6 +307,21 @@ function summarize(root) {
             3
           )} | ${row.after[metric].toFixed(3)} |`
       )
+    ),
+    '',
+    '### After-only inspector and direct-navigation costs',
+    '',
+    'No old-page action equivalent or pre-split control is implied. First inspector open uses a genuine click; direct links use full navigation. Six samples per path/view across two rounds; raw values and requests are in JSON.',
+    '',
+    '| Viewport | Path | Ready median (ms) | Resource count | Resource bytes | JS/CSS count | JS/CSS bytes |',
+    '| --- | --- | ---: | ---: | ---: | ---: | ---: |',
+    ...afterOnlyObservations.map(
+      (row) =>
+        `| ${row.capture} | ${row.kind} | ${row.readyMedianMs.toFixed(3)} | ${
+          row.resourceCountMedian
+        } | ${row.resourceEncodedBytesMedian} | ${
+          row.staticAssetCountMedian
+        } | ${row.staticAssetEncodedBytesMedian} |`
     ),
     '',
     ...report.limitations.map((line) => '- ' + line)

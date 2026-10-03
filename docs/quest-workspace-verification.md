@@ -195,6 +195,17 @@ not a warm-cache SPA or live production benchmark. All original byte, DOM,
 readiness, and overflow ceilings remain in force; raw observations and any
 increase must be reported rather than explained away by those ceilings.
 
+The production job also records an explicitly after-only path trial. Each fresh
+page measures the first genuine inspector click, a direct job link, and a direct
+job/run link, three times per viewport in each after round. It uses an advancing
+Date-only clock and a separate synthetic fixture with one completed correlated
+run. Readiness is recorded in the browser when the visible inspector's Run control
+is usable or the direct run's structured result is present. Native timing, real
+bootstrap fetches, and requested resource paths/bytes are retained; no invocation
+is submitted. These paths have no old-page inspector equivalent, and no action
+regression or improvement is inferred without a separately measured pre-split
+control. This prevents newly deferred initial code from disappearing from review.
+
 ## Running and reviewing
 
 On an authorized disposable browser-capable runner with dependencies installed:

@@ -1,6 +1,8 @@
 const { test } = require('sounding')
-const workspaceModule = () =>
-  import('../../../assets/js/lib/questWorkspace.mjs')
+const workspaceModule = async () => ({
+  ...(await import('../../../assets/js/lib/questWorkspace.mjs')),
+  ...(await import('../../../assets/js/components/quest/questInvocation.mjs'))
+})
 
 test('Quest workspace capabilities fail closed for missing, legacy and unavailable runtimes', async ({
   expect
@@ -506,6 +508,9 @@ test('Quest defers inactive run history and run-only components on the initial J
   const script = compileScript(descriptor, { id: 'quest-lazy-workspace' })
   expect(script.imports.QuestRunDetail).toBe(undefined)
   expect(script.imports.QuestRunDialog).toBe(undefined)
+  expect(script.imports.QuestJobDetail).toBe(undefined)
+  expect(script.imports.QuestGlobalRuns).toBe(undefined)
+  expect(script.imports.QuestRuns).toBe(undefined)
   expect(descriptor.scriptSetup.content).toContain(
     'const QuestRunDetail = defineAsyncComponent('
   )
@@ -541,11 +546,46 @@ test('Quest defers inactive run history and run-only components on the initial J
   expect(
     condition(elements.find((element) => element.tag === 'QuestRunDialog'))
   ).toBe('review')
+  expect(
+    condition(elements.find((element) => element.tag === 'QuestJobDetail'))
+  ).toBe("selectedJob && activeTab === 'jobs'")
+  expect(
+    globalRuns.children.some((child) =>
+      child.children?.some((element) => element.tag === 'QuestGlobalRuns')
+    )
+  ).toBe(true)
   const dialog = fs.readFileSync(
     require.resolve('../../../assets/js/components/quest/QuestRunDialog.vue'),
     'utf8'
   )
   expect(dialog).toContain('{ immediate: true }')
+})
+
+test('Quest deferred panels expose a bounded loading error and keep invocation helpers outside the initial module', async ({
+  expect
+}) => {
+  const fs = require('node:fs')
+  const eager = await import('../../../assets/js/lib/questWorkspace.mjs')
+  expect(eager.createQuestInputDraft).toBe(undefined)
+  expect(eager.validateQuestInputs).toBe(undefined)
+  expect(eager.requestQuestInvocation).toBe(undefined)
+  const page = fs.readFileSync(
+    require.resolve('../../../assets/js/pages/projects/quest.vue'),
+    'utf8'
+  )
+  expect(page).toContain('loadingComponent: QuestPanelFallback')
+  expect(page).toContain('errorComponent: QuestPanelFallback')
+  expect(page).toContain('timeout: 15000')
+  const fallback = fs.readFileSync(
+    require.resolve(
+      '../../../assets/js/components/quest/QuestPanelFallback.vue'
+    ),
+    'utf8'
+  )
+  expect(fallback).toContain('window.location.reload()')
+  expect(fallback).toContain('@click="reload"')
+  expect(fallback).toContain('Could not load this view.')
+  expect(fallback.includes('fetch(')).toBe(false)
 })
 
 test('Quest due time displays the supplied timestamp in explicitly separated runtime and viewer zones', async ({
@@ -737,7 +777,11 @@ test('Quest closing a typed review clears its form without dereferencing the cle
       return Vue.h('section', null, this.$slots.default?.())
     }
   }
-  const dependencies = { vue: Vue, '@/lib/questWorkspace.mjs': helpers }
+  const dependencies = {
+    vue: Vue,
+    '@/lib/questWorkspace.mjs': helpers,
+    './questInvocation.mjs': helpers
+  }
   const compiled = script.content
     .replace(
       /import\s+(\{[\s\S]*?\}|\w+)\s+from\s+['"]([^'"]+)['"]/g,
