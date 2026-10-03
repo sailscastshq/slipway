@@ -2666,15 +2666,26 @@ test(
         right: '0px',
         prompt: '0px'
       })
-      // Focus is visible on the prompt itself without reintroducing an input
-      // box or horizontal separator. Check both themes and an actual blur.
-      const marker = page.raw.locator('label[for="helm-command-input"]')
+      // Keep the field clean: its accessible name and native caret supply
+      // discovery/focus without a decorative prefix, placeholder or input box.
+      expect(await input.getAttribute('placeholder')).toBe(null)
+      await expect(input).toHaveAccessibleName('Helm command')
+      await expect(
+        page.raw.locator('label[for="helm-command-input"]')
+      ).toHaveCount(0)
       for (const dark of [false, true]) {
         if (dark) await page.inDarkMode()
         else await page.inLightMode()
-        await input.focus()
+        const help = page.raw.getByRole('button', {
+          name: 'Command help',
+          exact: true
+        })
+        await help.focus()
+        await expect(help).toBeFocused()
+        // Tab reaches the actual input and retains the existing draft.
+        await help.press('Tab')
         await expect(input).toBeFocused()
-        await expect(marker).toHaveCSS('text-decoration-line', 'underline')
+        await expect(input).toHaveValue('node --version')
         const nativeCaret = await input.evaluate((element) => {
           const style = getComputedStyle(element)
           return {
@@ -2688,17 +2699,6 @@ test(
         expect(nativeCaret.type).toBe('text')
         expect(nativeCaret.color).toBe(nativeCaret.textColor)
         expect(nativeCaret.color === 'rgba(0, 0, 0, 0)').toBe(false)
-        const focusedColor = await marker.evaluate(
-          (element) => getComputedStyle(element).color
-        )
-        await page.raw
-          .getByRole('button', { name: 'Command help', exact: true })
-          .focus()
-        await expect(marker).toHaveCSS('text-decoration-line', 'none')
-        const unfocusedColor = await marker.evaluate(
-          (element) => getComputedStyle(element).color
-        )
-        expect(focusedColor === unfocusedColor).toBe(false)
       }
       // A touch-friendly fallback remains usable without a physical Enter key.
       await input.fill(COMMAND_FIXTURE_SOURCE)

@@ -537,19 +537,12 @@ onBeforeUnmount(() => {
           fresh, single-use confirmation.
         </p>
       </Popover>
-      <form class="group flex items-center gap-2 pb-px" @submit.prevent>
-        <label
-          for="helm-command-input"
-          class="select-none font-mono text-sm text-gray-400 group-focus-within:text-gray-700 group-focus-within:underline group-focus-within:underline-offset-4 dark:group-focus-within:text-gray-300"
-          aria-hidden="true"
-          >&gt;</label
-        >
+      <form class="flex items-center gap-2 pb-px" @submit.prevent>
         <Input
           id="helm-command-input"
           ref="commandInput"
           v-model="source"
           aria-label="Helm command"
-          placeholder="sails run your-script --input=value"
           autocomplete="off"
           autocapitalize="off"
           autocorrect="off"
@@ -562,7 +555,7 @@ onBeforeUnmount(() => {
           "
           :aria-invalid="Boolean(inputError)"
           :disabled="busy || arming || !appRunning"
-          class="h-12 min-w-0 flex-1 rounded-none border-0 bg-transparent px-1 font-mono text-base text-gray-900 outline-none placeholder:text-gray-400 focus:ring-0 dark:text-gray-100 dark:placeholder:text-gray-600 sm:text-sm"
+          class="h-12 min-w-0 flex-1 rounded-none border-0 bg-transparent px-0 font-mono text-base text-gray-900 outline-none focus:ring-0 dark:text-gray-100 sm:text-sm"
           @keydown="handleCommandKeydown"
           @input="inputError = ''"
           @compositionstart="composing = true"

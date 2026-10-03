@@ -176,7 +176,7 @@ test(
             )
             await expect(input).toHaveValue('x')
           }
-          await input.fill(SOURCE)
+          await input.fill('')
           await expect(
             page.raw.locator('[data-test="helm-command-status"]')
           ).toHaveText('Ready')
@@ -186,7 +186,7 @@ test(
               exact: true
             })
           ).toHaveText('Command output will appear here.')
-          // Keep the real native text caret for this focused capture; the
+          // Keep the empty field and real native caret for this focused capture; the
           // ordinary screenshots below use Playwright's stable hidden caret.
           // No cursor overlay, animation, or timer is introduced by the UI.
           await input.focus()
@@ -203,14 +203,15 @@ test(
           })
           expect(caret.color).toBe(caret.textColor)
           expect(caret.color === 'rgba(0, 0, 0, 0)').toBe(false)
-          expect(caret.selectionStart).toBe(SOURCE.length)
-          expect(caret.selectionEnd).toBe(SOURCE.length)
+          expect(caret.selectionStart).toBe(0)
+          expect(caret.selectionEnd).toBe(0)
           await page.raw.mouse.move(1, 1)
           await page.screenshot(
             path.join(ROOT, `${device}-${theme}-focused-native-caret.png`),
             { animations: 'disabled', caret: 'initial' }
           )
-          // Capture the resting state on both revisions without changing focus.
+          // Capture typed and completed states separately from the empty field.
+          await input.fill(SOURCE)
           await page.raw.mouse.move(1, 1)
           await page.screenshot(
             path.join(ROOT, `${device}-${theme}-idle.png`),
@@ -365,6 +366,7 @@ test(
         fixture: {
           commands: FIXTURES,
           editedDraft: EDITED_SOURCE,
+          focusedDraft: '',
           stderr: '',
           exitCode: 0,
           durationMs: 24,

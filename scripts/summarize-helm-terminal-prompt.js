@@ -56,7 +56,7 @@ const lines = [
   '',
   'Each version contains focused-native-caret, idle, warning, completed arithmetic, meaningful-output, edited-draft, history-open, and history-restored screenshots at 1440×900 and 390×844 in light and dark mode. Production arming is separately asserted to perform zero executions; only the subsequent explicit submit completes each fixture. Editing the draft and restoring history preserve the prior output and do not execute. The same history-restoration action intentionally leaves the baseline panel open and closes the current panel.',
   '',
-  'The focused-native-caret captures preserve the browser’s native caret; the remaining captures hide it for stable comparison. Focus, visible caret color, and native selection are asserted in each viewport and theme. A still image does not measure the browser’s blink cadence.',
+  'The focused-native-caret captures show an empty field with the browser’s native caret; typed command/output states are captured separately, and the remaining captures hide it for stable comparison. Focus, visible caret color, and native selection are asserted in each viewport and theme. A still image does not measure the browser’s blink cadence.',
   '',
   '## Browser timing samples',
   '',
