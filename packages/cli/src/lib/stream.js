@@ -40,7 +40,7 @@ export async function streamRequest(
   let buffer = ''
   let data = []
   let event = 'message'
-  const line = (value) => {
+  const line = async (value) => {
     value = value.replace(/\r$/, '')
     if (format !== 'sse') {
       if (value.trim()) {
@@ -50,7 +50,7 @@ export async function streamRequest(
         } catch {
           throw new Error('Slipway sent an invalid stream event.')
         }
-        onEvent(event)
+        await onEvent(event)
       }
       return
     }
@@ -62,7 +62,7 @@ export async function streamRequest(
         } catch {
           throw new Error('Slipway sent an invalid stream event.')
         }
-        onEvent({ event, data: parsed })
+        await onEvent({ event, data: parsed })
       }
       data = []
       event = 'message'
@@ -76,12 +76,12 @@ export async function streamRequest(
       throw new Error('Stream event exceeds the CLI response limit.')
     let index
     while ((index = buffer.indexOf('\n')) >= 0) {
-      line(buffer.slice(0, index))
+      await line(buffer.slice(0, index))
       buffer = buffer.slice(index + 1)
     }
   }
   buffer += decoder.decode()
-  if (format !== 'sse' && buffer.trim()) line(buffer)
+  if (format !== 'sse' && buffer.trim()) await line(buffer)
   else if (buffer || data.length)
     throw new Error('Slipway stream ended with an incomplete event.')
 }
