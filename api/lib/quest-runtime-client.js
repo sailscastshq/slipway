@@ -119,6 +119,17 @@ function request(app, command, values = {}, options = {}) {
     return Promise.reject(
       new Error('The selected app has no verified deployment runtime.')
     )
+  // Read-only evidence can outlive app availability. Controls require current
+  // positive app authority, even if a caller has a cached resident snapshot.
+  if (!['snapshot', 'run'].includes(command) && app.status !== 'running')
+    return Promise.reject(
+      Object.assign(
+        new Error(
+          'The selected app is not confirmed running. Refresh before using Quest controls.'
+        ),
+        { code: 'QUEST_TARGET_CHANGED' }
+      )
+    )
   const message = {
     ...values,
     command,

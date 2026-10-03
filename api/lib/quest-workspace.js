@@ -89,12 +89,22 @@ function receiptKey(context, run) {
 
 async function snapshot(context, { fresh = false } = {}) {
   const { app, environment } = context
-  const key = `${app?.id}:${app?.currentDeployment}:${app?.containerName}`
+  const key = `${app?.id}:${environment.id}`
+  // Keep one entry per scoped app. Returning to running must not revive a
+  // prior running snapshot after a stopped/unavailable observation.
+  const authority = JSON.stringify([
+    String(app?.currentDeployment || ''),
+    app?.containerName || null,
+    app?.status || null
+  ])
   const old = snapshots.get(key)
-  if (old && (old.pending || (!fresh && Date.now() - old.at < CACHE_MS)))
+  if (
+    old?.authority === authority &&
+    (old.pending || (!fresh && Date.now() - old.at < CACHE_MS))
+  )
     return forViewer(await old.promise, context.user)
   const promise = buildSnapshot(context)
-  const entry = { at: Date.now(), pending: true, promise }
+  const entry = { authority, at: Date.now(), pending: true, promise }
   snapshots.set(key, entry)
   try {
     return forViewer(await promise, context.user)

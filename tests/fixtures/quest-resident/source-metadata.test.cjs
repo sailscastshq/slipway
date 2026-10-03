@@ -12,12 +12,13 @@ const {
   verifyDependencies
 } = require('./dependencies.cjs')
 
-test('actual fixture dependencies resolve without a root workspace link', async () => {
+test('actual dependencies resolve and Sails discovers source-owned hooks without initialization', async () => {
   const { root } = await upstreamSource()
   const appRoot = fs.mkdtempSync(
     path.join(os.tmpdir(), 'quest-fixture-resolution-')
   )
   try {
+    fs.cpSync(path.join(__dirname, 'app'), appRoot, { recursive: true })
     const layout = {
       appRoot,
       dependencies: fs.realpathSync('node_modules'),
@@ -44,6 +45,41 @@ test('actual fixture dependencies resolve without a root workspace link', async 
       fs.readlinkSync(path.join(appRoot, 'node_modules/sails-hook-slipway')),
       layout.slipwayRoot
     )
+    const app = new (appRequire('sails').Sails)()
+    app.hooks = {}
+    app.config = {
+      ...JSON.parse(fs.readFileSync(path.join(appRoot, '.sailsrc'), 'utf8')),
+      appPath: appRoot,
+      paths: { hooks: path.join(appRoot, 'api/hooks') },
+      hooks: {}
+    }
+    app.log = appRequire('captains-log')({ level: 'silent' })
+    const moduleloader = appRequire('sails/lib/hooks/moduleloader')(app)
+    const discovered = await new Promise((resolve, reject) =>
+      moduleloader.loadUserHooks((error, hooks) =>
+        error ? reject(error) : resolve(hooks)
+      )
+    )
+    assert.deepEqual(Object.keys(discovered).sort(), [
+      'fixture-probe',
+      'orm',
+      'quest',
+      'slipway'
+    ])
+    for (const name of Object.keys(discovered))
+      assert.ok(
+        app.config.loadHooks.includes(name),
+        `${name} is enabled in the shared .sailsrc`
+      )
+    assert.equal(discovered.quest, appRequire('sails-hook-quest'))
+    assert.equal(discovered.slipway, appRequire('sails-hook-slipway'))
+    assert.equal(discovered.orm, appRequire('sails-hook-orm'))
+    assert.equal(typeof discovered['fixture-probe'].index, 'function')
+    // This probe only loads definitions. No initialize/configure/lift, timers,
+    // events, sockets or business functions are invoked to make discovery pass.
+    assert.equal(app.quest, undefined)
+    assert.deepEqual(app.hooks, {})
+    assert.equal(fs.existsSync(path.join(appRoot, '.tmp')), false)
   } finally {
     fs.rmSync(appRoot, { recursive: true, force: true })
   }

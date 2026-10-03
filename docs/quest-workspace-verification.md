@@ -93,6 +93,50 @@ suppression before execution. It remains unverified until its real Linux Docker
 and browser run succeeds; the installed released 0.0.5 is not a substitute for
 the unreleased contract.
 
+## Resumed integration checkpoint
+
+The measured source `15840330757c530174de6ba6f0574732ae43392d` includes
+main `376f5fd707e0ecabc39bda1513ff7dc75ade6f44`. Its seven synthetic verification
+jobs passed. The [76 state captures](https://github.com/sailscastshq/slipway/actions/runs/37152063749/artifacts/11283759740)
+were source/hash verified and visually reviewed in desktop/mobile light/dark.
+They include invalid schedules distinct from inactive timers and sanitized result
+actions using the existing menu. Actual clipboard readback and downloaded JSON
+assertions passed, with no additional execution or log request. All captures have
+zero horizontal overflow; schedule values retain at least 15.13:1 light / 15.72:1
+dark measured contrast. There are no separate open-menu or zero-delay screenshots.
+
+The [production comparison](https://github.com/sailscastshq/slipway/actions/runs/37152063749/artifacts/11284855160)
+uses 80 initial observations and 72 action observations. Original → current
+native-ready medians, desktop light/dark then mobile light/dark, are
+135.50 → 148.70, 134.85 → 142.30, 134.60 → 137.10 and 135.05 → 138.05 ms.
+Initial JS/CSS is 615,716 → 670,157 bytes (+54,441), with 11 → 13 requests.
+This does not meet the original-page non-regression requirement.
+
+The separate [same-source preload control](https://github.com/sailscastshq/slipway/actions/runs/37152063749/artifacts/11284551392)
+uses 80 initial and 144 action observations. Off → on native-ready medians are
+123.70 → 116.55, 121.50 → 115.20, 112.35 → 107.15 and 118.15 → 112.45 ms.
+Static URLs/bytes are identical, there are no duplicate requests, and no static
+assets load on the first job click. Both reports' medians were independently
+recomputed from their raw samples.
+
+In the original-page comparison, static requests finish 1.85–7.25 ms earlier,
+while response-end-to-content-ready remains slower in three of four views.
+Controller fetch differences range from -0.20 to +3.33 ms. Extra asset-discovery
+delay alone therefore does not explain the remaining increase. Raw CDP counters
+are not isolated per-navigation CPU measurements, and differences between medians
+must not be added into a causal budget. No speedup is inferred from a passing
+absolute threshold or from the separate history-payload savings.
+
+Real resident integration is a separate job. Its first attempts exposed missing
+optional fixture Docker configuration and the dashboard's intentional disabled
+workspace-link installation. Those fixture assumptions were corrected with
+offline regressions. The next attempt resolved all packages and discovered the
+actual hooks, then failed because Quest's asynchronous ORM initialization had not
+published its API by the Sails lift callback. This is a genuine readiness gate;
+no fixture sleep or fabricated API substitutes for the upstream lifecycle fix.
+A complete proof artifact is emitted only after all real execution, recovery and
+browser assertions pass. These failed attempts are not runtime success evidence.
+
 ## Reproducible comparison
 
 The workflow uses two checkouts:

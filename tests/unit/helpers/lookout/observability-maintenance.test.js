@@ -301,3 +301,51 @@ function metric({ environmentId, recordedAt }) {
     environment: String(environmentId)
   }
 }
+
+test(
+  'persisting Lookout samples preserves camel-case return and live stream fields',
+  {
+    world: {
+      name: 'configured-slipway',
+      context: { deploymentTarget: { slug: 'collector-live-shape' } }
+    }
+  },
+  async ({ sails, world, expect }) => {
+    const app = world.current.apps.web
+    const containerName = 'slipway-collector-live-shape'
+    await sails.models.app
+      .updateOne({ id: app.id })
+      .set({ status: 'running', containerName })
+    const originalStats = sails.helpers.docker.getContainerStats
+    const originalSse = sails.sse
+    const events = []
+    replace(sails.helpers.docker, 'getContainerStats', async () => [
+      {
+        name: containerName,
+        cpuPercent: 2,
+        memPercent: 10,
+        memUsage: 1048576,
+        memLimit: 10485760,
+        pids: 2
+      }
+    ])
+    sails.sse = {
+      ...originalSse,
+      publish: (channel, payload) => events.push({ channel, payload })
+    }
+    try {
+      const result = await sails.helpers.lookout.collectContainerMetrics()
+      expect(result.records[0].containerName).toBe(containerName)
+      expect(result.records[0].memoryUsage).toBe(1048576)
+      expect(events[0].channel).toBe(`lookout:env:${app.environment}`)
+      expect(events[0].payload.metrics[0].containerName).toBe(containerName)
+      expect(events[0].payload.metrics[0].cpuPercent).toBe(2)
+      expect(events[0].payload.metrics[0].memoryUsage).toBe(1048576)
+      const persisted = await sails.models.containermetric.find({ app: app.id })
+      expect(persisted[0].memoryUsage).toBe(1048576)
+    } finally {
+      sails.helpers.docker.getContainerStats = originalStats
+      sails.sse = originalSse
+    }
+  }
+)

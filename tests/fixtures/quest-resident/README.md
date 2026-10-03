@@ -29,6 +29,9 @@ installed dependencies and explicitly links the pinned Quest source and local
 `packages/hook`; it does not depend on npm installing workspace links. Both
 container startup and offline checks resolve all declared fixture dependencies
 and peers from their actual package locations, including the normal Sails CLI.
+The offline probe also calls the installed Sails moduleloader on that layout
+and checks the shared source-owned `.sailsrc` enables all four discovered hooks.
+It loads hook definitions only; it does not initialize any hook or lift Sails.
 
 The worker uses real `sails.lift()` with helpers/ORM and no HTTP hook. The full
 Slipway hook auto-registers on `ready`; Quest owns every validation, child and

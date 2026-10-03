@@ -1,0 +1,14 @@
+{
+  "loadHooks": [
+    "moduleloader",
+    "userconfig",
+    "userhooks",
+    "helpers",
+    "orm",
+    "quest",
+    "slipway",
+    "fixture-probe"
+  ],
+  "models": { "migrate": "safe" },
+  "log": { "level": "error", "noShip": true }
+}

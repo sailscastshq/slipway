@@ -2,10 +2,20 @@ const assert = require('node:assert/strict')
 const fs = require('node:fs')
 const sails = require('sails')
 const probe = require('./lib/probe')
+const loadedHooks = {}
+for (const name of ['orm', 'quest', 'slipway'])
+  sails.once(`hook:${name}:loaded`, () => {
+    loadedHooks[name] = true
+  })
 
 sails.lift(sails.getRc(), async (error) => {
   try {
     if (error) throw error
+    console.log('[Quest fixture] Lift readiness', {
+      discoveredHooks: Object.keys(sails.hooks),
+      loadedHooks,
+      questApiAvailable: typeof sails.quest?.getRuntime === 'function'
+    })
     assert.equal(
       typeof sails.quest?.getRuntime,
       'function',

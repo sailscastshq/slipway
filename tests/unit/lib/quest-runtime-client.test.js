@@ -158,7 +158,8 @@ function childFixture(reply = { ok: true, data: { accepted: true } }) {
 const APP = {
   id: 12,
   currentDeployment: 34,
-  containerName: 'synthetic-never-real'
+  containerName: 'synthetic-never-real',
+  status: 'running'
 }
 
 test('Quest transport only executes node in the selected container and never starts Sails, shell, or npx', async () => {
@@ -396,7 +397,12 @@ test('Quest transport rejects oversized and non-finite input before starting a D
     let spawned = false
     await assert.rejects(
       request(
-        { id: 12, currentDeployment: 34, containerName: 'never-started' },
+        {
+          id: 12,
+          currentDeployment: 34,
+          containerName: 'never-started',
+          status: 'running'
+        },
         'invoke',
         { jobInputs },
         {

@@ -28,23 +28,6 @@ fs.writeFileSync(
     dependencies: fixtureDependencies
   })
 )
-fs.writeFileSync(
-  '/app/.sailsrc',
-  JSON.stringify({
-    loadHooks: [
-      'moduleloader',
-      'userconfig',
-      'userhooks',
-      'helpers',
-      'orm',
-      'quest',
-      'slipway',
-      'fixture-probe'
-    ],
-    models: { migrate: 'safe' },
-    log: { level: 'error', noShip: true }
-  })
-)
 console.log(
   '[Quest fixture] Actual dependency resolution',
   verifyDependencies(layout)
