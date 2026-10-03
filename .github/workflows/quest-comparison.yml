@@ -16,6 +16,8 @@ on:
       - api/lib/contracts/quest-diagnostics.js
       - packages/hook/lib/quest*
       - tests/contracts/quest-history-budget.test.js
+      - tests/contracts/quest-resident-integration.test.js
+      - tests/fixtures/quest-resident/**
       - docs/quest-history-budget.md
       - packages/hook/lib/quest*
       - config/routes.js
@@ -37,6 +39,58 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  resident-integration:
+    name: Quest real resident integration
+    timeout-minutes: 15
+    runs-on: ubuntu-latest
+    env:
+      # Corrected child scheduler suppression contract. Never use 788d767.
+      SLIPWAY_QUEST_UPSTREAM_SHA: b48735483ec014cbf236bd6ab6f9a495a4ccc32b
+      SLIPWAY_QUEST_UPSTREAM_ROOT: ${{ github.workspace }}/.tmp/quest-upstream
+    steps:
+      - name: Check out the exact proposed Slipway source
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Check out the pinned corrected Quest runtime
+        uses: actions/checkout@v6
+        with:
+          repository: sailscastshq/sails-hook-quest
+          ref: ${{ env.SLIPWAY_QUEST_UPSTREAM_SHA }}
+          path: .tmp/quest-upstream
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit
+      - name: Install pinned upstream runtime dependencies without changing app dependencies
+        run: npm ci --prefix .tmp/quest-upstream --omit=dev --ignore-scripts --no-audit
+      - run: npx playwright install --with-deps chromium
+      - run: docker pull node:22-bookworm-slim
+      - name: Prove actual resident execution, ownership, persistence and recovery
+        run: |
+          test "$(git -C .tmp/quest-upstream rev-parse HEAD)" = "$SLIPWAY_QUEST_UPSTREAM_SHA"
+          test -z "$(git -C .tmp/quest-upstream status --porcelain --untracked-files=no)"
+          node_modules/.bin/sounding test --file tests/contracts/quest-resident-integration.test.js --test-concurrency=1 --test-timeout=600000
+      - name: Preserve real execution and browser evidence
+        uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: quest-real-resident-${{ github.event.pull_request.head.sha || github.sha }}
+          path: .tmp/screenshots/quest-real-resident
+          if-no-files-found: error
+          retention-days: 90
+      - name: Preserve integration failure diagnostics
+        uses: actions/upload-artifact@v6
+        if: failure()
+        with:
+          name: quest-real-resident-diagnostics-${{ github.event.pull_request.head.sha || github.sha }}
+          path: .tmp/sounding/artifacts
+          if-no-files-found: ignore
+          retention-days: 14
+
   history-budget:
     name: Quest history payload budget
     timeout-minutes: 10

@@ -1,6 +1,6 @@
 # Quest workspace contract (draft)
 
-This work is the Slipway side of [#653](https://github.com/sailscastshq/slipway/issues/653). It depends on the upstream [resident Quest contract](https://github.com/sailscastshq/sails-hook-quest/issues/13). That upstream change is not released or verified end to end here. Keep this change in draft until the real combined Sails fixture, deployment/restart, delivery-loss and process-ownership trials pass. Screenshots exercise real Slipway UI with explicitly synthetic responses; they do not prove upstream execution.
+This work is the Slipway side of [#653](https://github.com/sailscastshq/slipway/issues/653). It depends on the upstream [resident Quest contract](https://github.com/sailscastshq/sails-hook-quest/issues/13). The combined fixture pins upstream source `b48735483ec014cbf236bd6ab6f9a495a4ccc32b` from [Quest PR #14](https://github.com/sailscastshq/sails-hook-quest/pull/14). That upstream change is not released or verified end to end here. Keep this change in draft until the real combined Sails fixture, deployment/restart, delivery-loss and process-ownership trials pass. Screenshots exercise real Slipway UI with explicitly synthetic responses; they do not prove upstream execution.
 
 ## Compatibility and activation
 
@@ -22,7 +22,47 @@ Scripts and `config/quest.js` remain authoritative. Slipway does not author sche
 
 An invocation has a request key scoped to the resident runtime and exact job/schema/inputs. Identical repeats return the original admission (including an unconfirmed rejection); reusing a key for different inputs fails. The bridge retains at most 1,000 keys per process and then refuses new admission until restart. This is a bounded process-local guarantee, not a distributed lock or exactly-once external side effect.
 
-Input fields come from an allowlisted machine schema. Strings, numbers, booleans, enums and JSON-compatible objects are supported; explicitly nullable primitive inputs have a separate null choice. Only source-loaded input schemas, including a real empty schema, enable invocation; dynamic or unavailable schemas stay gated. Custom validators remain server-side. Unknown fields, unsafe shapes, more than eight nested levels, values over 16 KiB and changed schema/runtime are rejected. `false`, `0`, `null` and empty strings are not treated as omitted. Source-owned defaults and scheduled input precedence remain Quest's responsibility; no new precedence is imposed by Slipway. Effective scheduled values are separate metadata with per-field source (job input, script input, schema default or omitted), availability and sensitivity. The bridge caps value previews at 16 KiB per job. Omitted required values produce a schedule warning, not a claim that all other machine validation passed. Manual review uses safe effective source values, can deliberately retain a hidden source value, and never writes overrides back to the schedule. Unsupported hooks keep these previews unavailable. Sensitive defaults are omitted and sensitive values never become rerun defaults.
+Input fields come from an allowlisted machine schema. Strings, numbers, booleans, enums and JSON-compatible objects are supported; explicitly nullable primitive inputs have a separate null choice. Only source-loaded input schemas, including a real empty schema, enable invocation; dynamic or unavailable schemas stay gated. Custom validators remain server-side. Unknown fields, unsafe shapes, more than eight nested levels, values over 16 KiB and changed schema/runtime are rejected. `false`, `0`, `null` and empty strings are not treated as omitted. Effective input precedence is `job.inputs`, then `scriptInputs` (normally extracted from the script input schema’s `defaultsTo` values), then manual overrides; Sails applies remaining schema defaults to omitted values during validation. Script schema defaults can therefore override same-named configured job inputs, as in the existing hook. For example, a configured batch size of 50 and a script default of 100 schedule with 100; a manual override of 200 affects only that invocation. No new precedence is imposed by Slipway, and a manual override never mutates the scheduled values. Effective scheduled values are separate metadata with per-field source (job input, script input, schema default or omitted), availability and sensitivity. The bridge caps value previews at 16 KiB per job. Omitted required values produce a schedule warning, not a claim that all other machine validation passed. Manual review uses safe effective source values, can deliberately retain a hidden source value, and never writes overrides back to the schedule. Unsupported hooks keep these previews unavailable. Sensitive defaults are omitted and sensitive values never become rerun defaults.
+
+## Source schedule assessment
+
+Schedule state distinguishes an unattempted, registered, stopped, consumed, failed,
+or valid-but-unregistered timer. A missing timer is not by itself an invalid
+schedule. Bounded upstream validation errors are shown separately from manual
+input validation: a valid named script can still be invoked manually when its
+source timer is invalid. A consumed one-shot and an expired valid date retain
+that distinction. Numeric `timeout: 0` is an immediate one-shot, not a Manual
+placeholder and not an execution deadline.
+
+The hook supplies the actual effective cron timezone, including `cronOptions.tz`
+precedence; an explicit null remains unavailable/parser-local rather than an
+invented UTC zone. The UI preserves raw source expressions and interprets only
+simple display patterns. It never calculates a timer target, validates cron, or
+predicts DST itself. Actual due-at values come from the registered resident timer.
+
+Restart descriptions come from explicit hook metadata. Relative schedules start
+again at registration; wall-clock schedules are re-evaluated. One-shot behavior,
+memory-only pause, and no missed-run replay are visible limits. No source schedule
+or date is rewritten from the dashboard.
+
+## Owner upgrade sequence and release gate
+
+1. Keep incompatible apps on the read-only legacy path; do not infer support from
+   a package version alone. The unreleased source still identifies as Quest 0.0.5.
+2. After compatible releases exist, upgrade both `sails-hook-quest` and
+   `sails-hook-slipway` in the application, review its source jobs/inputs, and deploy
+   the normal app image. Slipway does not alter customer dependency manifests.
+3. Explicitly enable the app-owned Quest bridge setting shown above. Verify the
+   actual resident app/deployment, contract capabilities, source schema and schedule
+   assessment before enabling operational use. Do not configure new credentials or
+   public listeners for this channel.
+4. Verify legacy history remains clearly labeled and a synthetic non-production
+   job can round-trip typed input, result and logs. Review pause/restart, data-loss
+   and rerun limitations before using jobs with external side effects.
+
+The release checklist must record exact published minimum Quest and Slipway-hook
+versions and replace this pending-release instruction before stable shipment.
+Pinned source in a disposable integration test is not a published upgrade path.
 
 ## Runs, results and logs
 
@@ -30,7 +70,7 @@ The upstream synchronous `quest:job:start` event supplies the canonical run ID b
 
 `QuestRun` is an operational ledger, not a queue. Events use run ID and monotonic upstream sequence; duplicates and delayed starts cannot overwrite a terminal result. Reads are scoped to app and environment. Stable links use `?job=…&run=…`; old uncorrelated telemetry stays a separate legacy event and is never reconstructed into a run.
 
-Completed means process exit 0. The result envelope independently distinguishes available JSON, undefined, unsupported, too large, serialization error and unavailable. A named Sails exit may still be process exit 0: display `result.exit` separately and never infer business success from the receipt, result presence or log wording. The result renderer preserves null, false, zero, empty strings and arrays. JSON-looking stdout is only a log.
+Completed means process exit 0. The result envelope independently distinguishes available JSON, undefined, unsupported, too large, serialization error and unavailable. A named Sails exit may still be process exit 0: display `result.exit` separately and never infer business success from the receipt, result presence or log wording. The result renderer preserves null, false, zero, empty strings and arrays. JSON-looking stdout is only a log. The result action menu copies or downloads only the retained sanitized JSON value, excluding process receipt and logs. Unsupported/undefined/unavailable values are not exported as fabricated JSON; retained truncation is explicit. An observed process signal is retained separately from its nullable numeric exit code; `SIGTERM` evidence does not imply a supported cancellation command.
 
 Identified upstream skips are separate no-child outcomes: no start time, process exit or business result is invented. Origin is preserved when explicitly reported by Quest; otherwise it is Unknown, and a public/programmatic manual trigger does not establish a dashboard actor.
 
@@ -49,7 +89,7 @@ Terminal upstream logs are retained separately, including stderr warnings on exi
 - Run/event pages default to 25 rows, max 50, stable time/ID cursor. SQL summary projection excludes payload bodies, including legacy JSON attributes
 - Seven-day retention applies immediately to reads and bounded background deletion, with indexes for scope/time and expiry
 
-Do not log arbitrary private customer data: heuristic and declared-field redaction cannot guarantee it is safe. Existing telemetry delivery is best effort; a durable spool/acknowledgement protocol is not implemented. A resident restart can lose unshipped run data and the result stays unavailable/unconfirmed rather than being rerun. Reconciliation scans ID-only batches of 100 retained active receipts independently of the visible history page; repeated refreshes advance remaining batches without changing execution timestamps or sequences. Delivery-loss, restart reconciliation and real owned-process cancellation remain release blockers for the corresponding #653 guarantees.
+Do not log arbitrary private customer data: heuristic and declared-field redaction cannot guarantee it is safe. Existing telemetry delivery is best effort; a durable spool/acknowledgement protocol is not implemented. A resident restart can lose unshipped run data and the result stays unavailable/unconfirmed rather than being rerun. A stopped app, unreadable resident transport, or an active receipt missing from a complete bounded resident snapshot each produces an explicit provisional Unconfirmed reason. None proves process termination. Exact verified resident evidence can restore Running at the same sequence; telemetry cannot perform that same-sequence restoration. New terminal evidence still reconciles normally. Reconciliation scans ID-only batches of 100 retained active receipts independently of the visible history page; repeated refreshes advance remaining batches without changing execution timestamps or sequences. Delivery-loss, restart reconciliation and real owned-process cancellation remain release blockers for the corresponding #653 guarantees.
 
 ## Verification boundary
 

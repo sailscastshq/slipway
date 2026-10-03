@@ -10,8 +10,10 @@ import Pause from '@/components/ui/icons/Pause.vue'
 import Spinner from '@/components/SlipwaySpinner.vue'
 import QuestStatus from './QuestStatus.vue'
 import QuestRuns from './QuestRuns.vue'
+import { questScheduleDetails } from '@/lib/questSchedule.mjs'
 import {
   questInputMetadataAvailable,
+  hasQuestSchedule,
   questInputType,
   questOverlapLabel,
   questDueTimes
@@ -59,6 +61,8 @@ const inputMetadataAvailable = computed(() =>
 const selectedScheduleTimes = computed(() =>
   questDueTimes(props.selectedJob?.nextRunAt, props.selectedJob?.timezone)
 )
+const hasSchedule = computed(() => hasQuestSchedule(props.selectedJob))
+const scheduleDetails = computed(() => questScheduleDetails(props.selectedJob))
 const scheduledInputRows = computed(() =>
   Object.entries(props.selectedJob?.scheduledInputs?.fields || {}).map(
     ([name, field]) => ({
@@ -155,6 +159,20 @@ const displayValue = (value) =>
             ></Tooltip
           >
         </div>
+        <p
+          v-if="selectedJob.scheduleState?.validation === 'invalid'"
+          role="alert"
+          data-test="quest-invalid-schedule"
+          class="mt-3 text-xs text-red-600 dark:text-red-400"
+        >
+          Schedule unavailable:
+          {{
+            selectedJob.scheduleState.validationErrors
+              .map((error) => error.message)
+              .join(' · ') || 'The source schedule is invalid.'
+          }}
+          Manual runs still use the job’s input validation.
+        </p>
         <p
           v-if="selectedJob.validationErrors?.length"
           role="alert"
@@ -334,15 +352,15 @@ const displayValue = (value) =>
               {{
                 selectedJob.scheduleType === 'unavailable'
                   ? 'Unavailable'
-                  : selectedJob.schedule || 'Manual only'
+                  : hasSchedule
+                  ? selectedJob.schedule ?? 'Unavailable'
+                  : 'Manual only'
               }}
             </dd>
-            <dt v-if="selectedJob.scheduleType" class="text-gray-400">Type</dt>
-            <dd v-if="selectedJob.scheduleType" class="capitalize">
-              {{ selectedJob.scheduleType }}
-            </dd>
-            <dt v-if="selectedJob.schedule" class="text-gray-400">Timezone</dt>
-            <dd v-if="selectedJob.schedule">
+            <dt class="text-gray-400">Timing</dt>
+            <dd>{{ scheduleDetails.summary }}</dd>
+            <dt v-if="hasSchedule" class="text-gray-400">Timezone</dt>
+            <dd v-if="hasSchedule">
               {{
                 selectedScheduleTimes.runtimeZone ||
                 (selectedScheduleTimes.timezoneStatus === 'invalid'
@@ -350,14 +368,14 @@ const displayValue = (value) =>
                   : 'Not reported by runtime')
               }}
             </dd>
-            <dt v-if="selectedJob.schedule" class="text-gray-400">
+            <dt v-if="hasSchedule" class="text-gray-400">
               {{
                 selectedScheduleTimes.runtimeZone
                   ? 'Next run (runtime)'
                   : 'Next run (viewer)'
               }}
             </dt>
-            <dd v-if="selectedJob.schedule">
+            <dd v-if="hasSchedule">
               {{
                 !fresh
                   ? 'Unavailable'
@@ -372,7 +390,7 @@ const displayValue = (value) =>
             </dd>
             <template
               v-if="
-                selectedJob.schedule &&
+                hasSchedule &&
                 selectedScheduleTimes.runtimeZone &&
                 selectedScheduleTimes.viewer &&
                 fresh &&
@@ -388,10 +406,7 @@ const displayValue = (value) =>
               {{ questOverlapLabel(selectedJob) }}
             </dd>
             <template
-              v-if="
-                selectedJob.schedule &&
-                typeof selectedJob.scheduled === 'boolean'
-              "
+              v-if="hasSchedule && typeof selectedJob.scheduled === 'boolean'"
             >
               <dt class="text-gray-400">Timer</dt>
               <dd>
@@ -406,15 +421,18 @@ const displayValue = (value) =>
             </template>
           </dl>
           <p
-            v-if="selectedJob.schedule && !selectedJob.scheduledInputs?.fields"
+            v-if="scheduleDetails.note"
+            class="mt-3 text-[11px] leading-5 text-gray-500 dark:text-gray-400"
+          >
+            {{ scheduleDetails.note }}
+          </p>
+          <p
+            v-if="hasSchedule && !selectedJob.scheduledInputs?.fields"
             class="mt-4 text-xs text-gray-500 dark:text-gray-400"
           >
             Scheduled inputs: unavailable from this runtime.
           </p>
-          <div
-            v-if="selectedJob.schedule && scheduledInputRows.length"
-            class="mt-4"
-          >
+          <div v-if="hasSchedule && scheduledInputRows.length" class="mt-4">
             <h3 class="text-xs text-gray-400">Scheduled inputs</h3>
             <p
               v-if="missingScheduledInputs.length"

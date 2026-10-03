@@ -36,14 +36,23 @@ export function normalizeQuestWorkspace(workspace, fallback = {}) {
   }
 }
 
+export function hasQuestSchedule(job) {
+  return job?.scheduleType
+    ? ['cron', 'interval', 'timeout', 'date'].includes(job.scheduleType)
+    : job?.schedule !== null &&
+        job?.schedule !== undefined &&
+        job.schedule !== false &&
+        job.schedule !== '' &&
+        job.schedule !== 'manual'
+}
+
 export function questJobState(job, workspace, fresh = true) {
   if (!fresh || workspace.mode !== 'resident') return 'unavailable'
   if (job.isRunning === true) return 'running'
   if (job.paused === true) return 'paused'
   if (job.paused !== false || job.isRunning !== false) return 'unavailable'
-  if (job.schedule && job.schedule !== 'manual' && job.scheduled === false)
-    return 'inactive'
-  return job.schedule && job.schedule !== 'manual' ? 'scheduled' : 'manual'
+  if (hasQuestSchedule(job) && job.scheduled === false) return 'inactive'
+  return hasQuestSchedule(job) ? 'scheduled' : 'manual'
 }
 
 export function isActiveQuestRun(run) {
@@ -55,12 +64,45 @@ export function questRunTime(run) {
 }
 
 export function mergeQuestRuns(current, incoming) {
+  const terminal = new Set([
+    'completed',
+    'failed',
+    'skipped',
+    'cancelled',
+    'timed_out',
+    'interrupted'
+  ])
   const map = new Map(
     current.filter((run) => run.runId).map((run) => [run.runId, run])
   )
   for (const run of incoming) {
     if (!run.runId) continue
     const previous = map.get(run.runId)
+    const newerSequence =
+      Number.isSafeInteger(run.sequence) &&
+      Number.isSafeInteger(previous?.sequence) &&
+      run.sequence > previous.sequence
+    const newerRevision =
+      Number.isFinite(run.updatedAt) &&
+      Number.isFinite(previous?.updatedAt) &&
+      run.updatedAt > previous.updatedAt
+    const recoversUnconfirmed =
+      previous?.state === 'unconfirmed' &&
+      run.state === 'running' &&
+      (newerRevision || newerSequence)
+    if (
+      previous &&
+      ((terminal.has(previous.state) &&
+        run.state &&
+        run.state !== previous.state) ||
+        (Number.isFinite(previous.updatedAt) &&
+          Number.isFinite(run.updatedAt) &&
+          (run.updatedAt < previous.updatedAt ||
+            (run.updatedAt === previous.updatedAt &&
+              run.state !== previous.state)) &&
+          !newerSequence))
+    )
+      continue
     const rank = {
       requested: 0,
       accepted: 0,
@@ -72,7 +114,9 @@ export function mergeQuestRuns(current, incoming) {
       previous &&
       previous.state &&
       run.state &&
-      ((!isActiveQuestRun(previous) && isActiveQuestRun(run)) ||
+      ((!isActiveQuestRun(previous) &&
+        isActiveQuestRun(run) &&
+        !recoversUnconfirmed) ||
         (isActiveQuestRun(previous) &&
           isActiveQuestRun(run) &&
           rank[previous.state] > rank[run.state]))

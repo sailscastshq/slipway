@@ -1005,3 +1005,166 @@ test('Quest first restart replaces only a verified stale socket left by a killed
     fs.rmSync(directory, { recursive: true, force: true })
   }
 })
+
+test('Quest schedule metadata preserves explicit registration validation and restart scope', () => {
+  const source = {
+    name: 'reports',
+    inputs: {},
+    schedule: { date: '2020-01-01T00:00:00.000Z', timezone: null },
+    scheduled: false,
+    scheduleState: {
+      registration: 'not_registered',
+      validation: 'valid',
+      validationErrors: [],
+      reason: 'no_future_run',
+      lastAttemptAt: '2026-10-03T20:00:00.000Z',
+      restart: {
+        persistence: 'memory_only',
+        timing: 'wall_clock',
+        oneShot: true,
+        missedRuns: 'not_replayed'
+      }
+    }
+  }
+  const job = describeJob(source)
+  assert.deepEqual(job.scheduleState, source.scheduleState)
+  assert.equal(job.scheduled, false)
+  assert.equal(job.validationErrors, undefined)
+  assert.equal(
+    describeJob({ ...source, scheduleState: undefined }).scheduleState,
+    null
+  )
+  assert.equal(
+    describeJob({
+      ...source,
+      scheduleState: { ...source.scheduleState, validation: 'assumed' }
+    }).scheduleState,
+    null
+  )
+  const bounded = describeJob({
+    ...source,
+    scheduleState: {
+      ...source.scheduleState,
+      registration: 'failed',
+      validation: 'invalid',
+      lastAttemptAt: 'invalid',
+      validationErrors: Array.from({ length: 20 }, () => ({
+        code: 'unsafe code',
+        message: 'x'.repeat(1000)
+      }))
+    }
+  }).scheduleState
+  assert.equal(bounded.validationErrors.length, 8)
+  assert.equal(bounded.validationErrors[0].message.length, 512)
+  assert.equal(bounded.validationErrors[0].code, 'QUEST_SCHEDULE_INVALID')
+  assert.equal(bounded.lastAttemptAt, null)
+})
+
+test('Quest invalid source schedule remains separate from valid manual admission', async () => {
+  const f = fixture({
+    scheduleState: {
+      registration: 'failed',
+      validation: 'invalid',
+      validationErrors: [
+        { code: 'E_INVALID_CRON', message: 'The cron expression is invalid.' }
+      ],
+      reason: null,
+      lastAttemptAt: null,
+      restart: {
+        persistence: 'memory_only',
+        timing: 'wall_clock',
+        oneShot: false,
+        missedRuns: 'not_replayed'
+      }
+    }
+  })
+  const described = describeJob(f.source)
+  assert.equal(described.scheduleState.validation, 'invalid')
+  assert.equal(described.validationErrors, undefined)
+  const accepted = await f.bridge.dispatch(f.message())
+  assert.equal(accepted.run.runId, 'canonical-1')
+  assert.equal(f.calls.filter(([command]) => command === 'run').length, 1)
+})
+
+test('Quest observed termination signals remain separate from exit status and skipped admission', async () => {
+  for (const [signal, expected] of [
+    ['SIGTERM', 'SIGTERM'],
+    ['SIGKILL', 'SIGKILL'],
+    ['invalid text', null],
+    [null, null]
+  ]) {
+    const f = fixture()
+    const accepted = await f.bridge.dispatch(f.message())
+    const data = {
+      name: f.source.name,
+      runId: accepted.run.runId,
+      runtimeId: f.info.runtimeId,
+      sequence: 2,
+      startedAt: 1000,
+      finishedAt: 2000,
+      exitCode: null,
+      signal,
+      error: { message: 'The process did not exit normally.' }
+    }
+    f.sails.emit('quest:job:error', data)
+    const { run } = await f.bridge.dispatch({
+      command: 'run',
+      appId: '12',
+      deploymentId: '34',
+      runId: accepted.run.runId
+    })
+    assert.equal(run.state, 'failed')
+    assert.equal(run.exitCode, null)
+    assert.equal(run.signal, expected)
+    const event = questEvent(data, 'failed', {
+      sails: f.sails,
+      appId: '12',
+      deploymentId: '34'
+    })
+    assert.equal(event.signal, expected)
+    assert.equal(event.exitCode, null)
+    assert.equal(
+      questEvent({ ...data, reason: 'paused' }, 'skipped', { sails: f.sails })
+        .signal,
+      null
+    )
+  }
+})
+
+test('Quest source schedule preserves zero delay and the authoritative nullable runtime timezone', () => {
+  assert.equal(
+    describeJob({ name: 'immediate', inputs: {}, schedule: { timeout: 0 } })
+      .scheduleType,
+    'timeout'
+  )
+  assert.equal(
+    describeJob({
+      name: 'manual',
+      inputs: {},
+      schedule: { interval: false, timeout: false, date: false }
+    }).scheduleType,
+    'manual'
+  )
+  const job = describeJob({
+    name: 'cron',
+    inputs: {},
+    schedule: {
+      cron: '0 9 * * *',
+      timezone: null,
+      cronOptions: { timezone: 'Europe/London', tz: null }
+    }
+  })
+  assert.equal(job.timezone, null)
+  assert.equal(
+    describeJob({
+      name: 'cron',
+      inputs: {},
+      schedule: {
+        cron: '0 9 * * *',
+        timezone: 'America/New_York',
+        cronOptions: { tz: 'America/New_York' }
+      }
+    }).timezone,
+    'America/New_York'
+  )
+})

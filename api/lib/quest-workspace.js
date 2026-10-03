@@ -48,7 +48,11 @@ async function resolveContext(
   return { user, project, environment, app }
 }
 
-async function synchronizeRun(context, run) {
+async function synchronizeRun(
+  context,
+  run,
+  { observedBefore = Date.now() } = {}
+) {
   const scope = {
     appId: String(context.app.id),
     environmentId: String(context.environment.id)
@@ -58,6 +62,8 @@ async function synchronizeRun(context, run) {
       code: 'QUEST_RUN_CONFLICT'
     })
   await ledger.admitReceipt(run, scope)
+  if (run.state === 'running')
+    await ledger.restoreResidentRunning(run, scope, { observedBefore })
   await ledger.ingest(run, scope)
   const retained = await ledger.enrichResidentReceipt(run, scope)
   if (retained) {
@@ -113,7 +119,11 @@ function forViewer(workspace, user) {
 }
 
 async function buildSnapshot(context, inspect = true) {
+  const inspectionStartedAt = Date.now()
   const { app, environment } = context
+  const scope = app
+    ? { appId: String(app.id), environmentId: String(environment.id) }
+    : null
   const feature = environment.features?.['sails-quest']
   const target = {
     appId: app?.id || null,
@@ -149,21 +159,58 @@ async function buildSnapshot(context, inspect = true) {
       'Upgrade and enable the resident Quest runtime to inspect schedules and run jobs.'
   }
   if (app) {
-    const history = await ledger.listRuns(
-      { appId: String(app.id), environmentId: String(environment.id) },
-      {}
-    )
+    const history = await ledger.listRuns(scope, {})
     Object.assign(base, history)
   }
   if (!inspect) return base
-  if (!feature || !app || app.status !== 'running' || !app.containerName) {
-    base.reason = 'The app is not running.'
+  const unavailable = async (reason) => {
+    if (scope) {
+      base.runtimeReconciliation = await ledger.reconcileUnavailableRuns(
+        scope,
+        {
+          reason,
+          before: inspectionStartedAt
+        }
+      )
+      Object.assign(base, await ledger.listRuns(scope, {}))
+    }
     return base
   }
+  if (!feature || !app || app.status !== 'running' || !app.containerName) {
+    base.reason =
+      app?.status === 'stopped'
+        ? 'The app is stopped.'
+        : 'The resident Quest runtime is unavailable.'
+    return unavailable(
+      app?.status === 'stopped' ? 'app_stopped' : 'resident_unavailable'
+    )
+  }
+  let live
   try {
-    const live = await runtime.request(app, 'snapshot')
-    if (live.version !== 1 || !live.runtimeId || !Array.isArray(live.jobs))
+    live = await runtime.request(app, 'snapshot')
+    if (
+      live.version !== 1 ||
+      typeof live.runtimeId !== 'string' ||
+      !live.runtimeId ||
+      !Array.isArray(live.jobs) ||
+      !Array.isArray(live.runs) ||
+      live.runs.length > 32 ||
+      live.runs.some(
+        (run) =>
+          typeof run.runId !== 'string' ||
+          !run.runId ||
+          run.runtimeId !== live.runtimeId ||
+          String(run.deploymentId) !== String(app.currentDeployment)
+      )
+    )
       throw new Error('Unsupported Quest runtime contract.')
+  } catch {
+    // Transport or contract failure proves only that current evidence could
+    // not be read. It never proves child exit, cancellation, or app shutdown.
+    base.reason = 'The resident Quest runtime could not be read.'
+    return unavailable('resident_unavailable')
+  }
+  try {
     base.mode = 'resident'
     base.observedAt = live.observedAt
     base.target.runtimeId = live.runtimeId
@@ -175,9 +222,17 @@ async function buildSnapshot(context, inspect = true) {
     }
     base.reason = null
     base.runtimeReconciliation = await ledger.reconcileRuntimeLoss(
-      { appId: app.id, environmentId: environment.id },
-      live.runtimeId
+      scope,
+      live.runtimeId,
+      { observedBefore: inspectionStartedAt }
     )
+    base.evidenceReconciliation = await ledger.reconcileUnavailableRuns(scope, {
+      reason: 'receipt_not_retained',
+      runtimeId: live.runtimeId,
+      deploymentId: String(app.currentDeployment),
+      retainedRunIds: live.runs.map((run) => run.runId),
+      before: inspectionStartedAt
+    })
     // One shared bounded reconciliation for all viewers. Only fetch payloads
     // whose sequence advanced; summaries never include log/result bodies.
     const pending = []
@@ -190,7 +245,8 @@ async function buildSnapshot(context, inspect = true) {
         .catch(() => null)
       if (
         retained?.sequence > summary.sequence ||
-        residentReceipts.has(receiptKey(context, summary))
+        (residentReceipts.has(receiptKey(context, summary)) &&
+          retained?.state !== 'unconfirmed')
       )
         continue
       pending.push(summary)
@@ -202,18 +258,15 @@ async function buildSnapshot(context, inspect = true) {
           runtimeId: live.runtimeId,
           runId: summary.runId
         })
-        await synchronizeRun(context, detail.run)
+        await synchronizeRun(context, detail.run, {
+          observedBefore: inspectionStartedAt
+        })
       })
     )
-    Object.assign(
-      base,
-      await ledger.listRuns(
-        { appId: String(app.id), environmentId: String(environment.id) },
-        {}
-      )
-    )
+    Object.assign(base, await ledger.listRuns(scope, {}))
   } catch {
-    // Legacy/source detection is not resident state. No temporary Sails lift.
+    // A failed payload/ledger reconciliation does not invalidate a successfully
+    // observed runtime snapshot or fabricate a new process outcome.
   }
   return base
 }

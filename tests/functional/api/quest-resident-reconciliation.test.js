@@ -261,6 +261,16 @@ test(
         admit({ appId: 'different-app' }),
         admit({ environmentId: 'different-environment' })
       ])
+      // Current-runtime identity alone is not current execution evidence: this
+      // retained start is present in the actual synthetic resident snapshot.
+      f.bridge.record('running', {
+        name: f.job.name,
+        runId: untouched[0].runId,
+        runtimeId: f.info.runtimeId,
+        sequence: 1,
+        startedAt: untouched[0].startedAt,
+        inputs: {}
+      })
       for (let i = 0; i < 30; i++) {
         const run = await admit({ requestedAt: now - 1000 })
         await ledger.ingest(

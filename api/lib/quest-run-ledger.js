@@ -137,14 +137,18 @@ function serializeResultEnvelope(result, options = {}) {
   if (result.status !== 'available')
     return {
       status: result.status,
-      ...(result.truncated ? { truncated: true } : {})
+      ...(result.truncated === true ? { truncated: true } : {})
     }
   if (result.value === undefined) return { status: 'undefined' }
   try {
     const value = sanitizeValue(result.value, options)
     if (Buffer.byteLength(JSON.stringify(value)) > MAX_RESULT_BYTES)
       return { status: 'too_large', truncated: true }
-    return { status: 'available', value }
+    return {
+      status: 'available',
+      value,
+      ...(result.truncated === true ? { truncated: true } : {})
+    }
   } catch (error) {
     return {
       status:
@@ -351,7 +355,11 @@ async function ingest(event, scope, options = {}) {
       event.state === 'requested' && run.state !== 'requested'
         ? run.state
         : event.state
-    const values = { state, sequence: event.sequence }
+    const values = {
+      state,
+      sequence: event.sequence,
+      updatedAt: Math.max(nowFor(options), (run.updatedAt || 0) + 1)
+    }
     if (event.signal !== undefined)
       values.signal = boundedText(event.signal, 128, options).value || null
     if (event.startedAt != null && run.startedAt == null)
@@ -420,7 +428,12 @@ async function ingest(event, scope, options = {}) {
     }
     // Compare-and-set also protects parallel ingestion in another server process.
     const updated = await model
-      .updateOne({ ...where, sequence: run.sequence })
+      .updateOne({
+        ...where,
+        state: run.state,
+        sequence: run.sequence,
+        updatedAt: run.updatedAt
+      })
       .set(values)
     if (updated) return updated
   }
@@ -609,13 +622,71 @@ async function reconcileRuntimeLoss(scope, runtimeId, options = {}) {
       'QUEST_SCOPE_REQUIRED',
       'A current resident runtime is required.'
     )
+  return reconcileUnavailableRuns(
+    scope,
+    {
+      reason: 'runtime_changed',
+      runtimeId,
+      before: options.observedBefore ?? nowFor(options)
+    },
+    options
+  )
+}
+
+const UNCONFIRMED_REASONS = {
+  app_stopped:
+    'The app is stopped and this execution has no confirmed terminal receipt. Check external effects before running again.',
+  resident_unavailable:
+    'The resident runtime could not be read. This does not establish whether the execution is still running or has finished. Check external effects before running again.',
+  receipt_not_retained:
+    'The resident runtime no longer retains evidence for this execution. The missing receipt does not establish whether its process is still running or has finished. Check external effects before running again.',
+  runtime_changed:
+    'The app runtime changed before this execution could be reconciled. Check external effects before running again.'
+}
+
+async function reconcileUnavailableRuns(scope, observation, options = {}) {
+  const {
+    reason,
+    runtimeId,
+    deploymentId,
+    before,
+    retainedRunIds = []
+  } = observation
+  if (
+    !Object.hasOwn(UNCONFIRMED_REASONS, reason) ||
+    !Number.isSafeInteger(before) ||
+    before < 0 ||
+    (['runtime_changed', 'receipt_not_retained'].includes(reason) &&
+      (typeof runtimeId !== 'string' || !runtimeId)) ||
+    (reason === 'receipt_not_retained' &&
+      (deploymentId == null ||
+        !Array.isArray(retainedRunIds) ||
+        retainedRunIds.length > 32 ||
+        retainedRunIds.some((id) => typeof id !== 'string' || !id)))
+  )
+    throw failure(
+      'QUEST_INVALID_OBSERVATION',
+      'Quest reconciliation needs a bounded runtime observation.'
+    )
   const model = modelFor(options)
   const where = {
     ...scopeWhere(scope, options),
     state: { in: ['requested', 'running'] },
+    // Rows written since inspection began may describe a newer admission or
+    // receipt. Never replace that evidence using an older runtime observation.
+    updatedAt: { '<': before },
     // SQL NOT IN also excludes NULL (unknown identities). Do not use `!= null`:
     // the supported SQLite adapter binds that as `!= ?`, which matches nothing.
-    runtimeId: { nin: [runtimeId, ''] }
+    runtimeId:
+      reason === 'receipt_not_retained'
+        ? runtimeId
+        : { nin: reason === 'runtime_changed' ? [runtimeId, ''] : [''] },
+    ...(reason === 'receipt_not_retained'
+      ? {
+          deploymentId: String(deploymentId),
+          ...(retainedRunIds.length ? { runId: { nin: retainedRunIds } } : {})
+        }
+      : {})
   }
   // Inspect only identifiers, independent of the visible history page. Each
   // successful batch removes its candidates from this query, so later shared
@@ -626,10 +697,67 @@ async function reconcileRuntimeLoss(scope, runtimeId, options = {}) {
       .update({ ...where, id: { in: batch.map((run) => run.id) } })
       .set({
         state: 'unconfirmed',
-        error:
-          'The app runtime changed before this execution could be reconciled. Check external effects before running again.'
+        error: UNCONFIRMED_REASONS[reason],
+        updatedAt: Math.max(nowFor(options), before)
       })
   return { checked: batch.length, hasMore: batch.length === 100 }
+}
+
+// A transport observation changes no engine sequence. Only the verified
+// resident path may confirm an already-recorded start again at that sequence;
+// telemetry repeats cannot silently restore authority after evidence was lost.
+async function restoreResidentRunning(event, scope, options = {}) {
+  const model = modelFor(options)
+  const where = { ...scopeWhere(scope, options), runId: event.runId }
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const run = await model
+      .findOne(where)
+      .select([
+        'environment',
+        'app',
+        'runId',
+        'runtimeId',
+        'deploymentId',
+        'jobName',
+        'state',
+        'sequence',
+        'updatedAt'
+      ])
+    if (!run) return null
+    if (!sameReceiptIdentity(run, event, scope))
+      throw failure(
+        'QUEST_RUN_CONFLICT',
+        'Quest resident receipt identity changed.'
+      )
+    if (
+      event.state !== 'running' ||
+      run.state !== 'unconfirmed' ||
+      run.sequence !== event.sequence ||
+      (options.observedBefore != null &&
+        run.updatedAt >= options.observedBefore)
+    )
+      return run
+    const updated = await model
+      .updateOne({
+        ...where,
+        runtimeId: run.runtimeId,
+        deploymentId: run.deploymentId,
+        jobName: run.jobName,
+        state: 'unconfirmed',
+        sequence: run.sequence,
+        updatedAt: run.updatedAt
+      })
+      .set({
+        state: 'running',
+        error: null,
+        updatedAt: Math.max(nowFor(options), (run.updatedAt || 0) + 1)
+      })
+    if (updated) return updated
+  }
+  throw failure(
+    'QUEST_INGEST_CONFLICT',
+    'Quest execution changed while checking resident evidence.'
+  )
 }
 
 function summary(run) {
@@ -1005,6 +1133,8 @@ module.exports = {
   ingest,
   markUnconfirmed,
   reconcileRuntimeLoss,
+  reconcileUnavailableRuns,
+  restoreResidentRunning,
   getRun,
   getRunSummary,
   getReceiptMeta,

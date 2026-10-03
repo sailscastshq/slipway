@@ -31,6 +31,7 @@ import { useEventSource } from '@/composables/sse'
 import {
   normalizeQuestWorkspace,
   questJobState,
+  hasQuestSchedule,
   mergeQuestRuns,
   retainQuestWindow,
   questRunTime,
@@ -245,7 +246,13 @@ const selectedJob = computed(() =>
 )
 const state = (job) => questJobState(job, live.value, fresh.value)
 const scheduleLabel = (job) =>
-  job.scheduleType === 'unavailable' ? 'Unavailable' : job.schedule || 'Manual'
+  job.scheduleType === 'unavailable'
+    ? 'Unavailable'
+    : hasQuestSchedule(job)
+    ? job.scheduleType === 'timeout' && job.schedule === 0
+      ? 'Once, immediately'
+      : job.schedule ?? 'Unavailable'
+    : 'Manual'
 const canInvoke = (job) =>
   fresh.value &&
   questSnapshotIsFresh(live.value) &&

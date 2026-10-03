@@ -70,6 +70,12 @@ module.exports = function questEvent(
       : Number.isInteger(data.exitCode)
       ? data.exitCode
       : null,
+    signal:
+      state === 'failed' &&
+      typeof data.signal === 'string' &&
+      /^SIG[A-Z0-9]{1,16}$/.test(data.signal)
+        ? data.signal
+        : null,
     inputs,
     result: skipped ? { status: 'unavailable' } : result,
     stdout: !skipped && data.logs ? stdout.value : null,

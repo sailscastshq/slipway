@@ -179,6 +179,63 @@ function describeScheduledInputs(metadata, inputs) {
   return { values, fields, validation: 'not_checked', limitBytes }
 }
 
+function describeScheduleState(state) {
+  if (
+    !state ||
+    ![
+      'not_attempted',
+      'registered',
+      'not_registered',
+      'stopped',
+      'consumed',
+      'failed'
+    ].includes(state.registration) ||
+    !['not_checked', 'valid', 'invalid'].includes(state.validation)
+  )
+    return null
+  const validationErrors = (
+    Array.isArray(state.validationErrors) ? state.validationErrors : []
+  )
+    .slice(0, 8)
+    .filter((error) => error && typeof error.message === 'string')
+    .map((error) => ({
+      code:
+        typeof error.code === 'string' && /^[A-Z0-9_]{1,64}$/i.test(error.code)
+          ? error.code
+          : 'QUEST_SCHEDULE_INVALID',
+      message: sanitizeQuestDiagnostic(error.message.slice(0, 512))
+    }))
+  const restart = state.restart
+  return {
+    registration: state.registration,
+    validation: state.validation,
+    validationErrors,
+    reason: ['no_schedule', 'no_future_run'].includes(state.reason)
+      ? state.reason
+      : null,
+    lastAttemptAt:
+      typeof state.lastAttemptAt === 'string' &&
+      Number.isFinite(Date.parse(state.lastAttemptAt))
+        ? new Date(state.lastAttemptAt).toISOString()
+        : null,
+    restart:
+      restart &&
+      restart.persistence === 'memory_only' &&
+      ['relative_to_registration', 'wall_clock', 'none'].includes(
+        restart.timing
+      ) &&
+      typeof restart.oneShot === 'boolean' &&
+      restart.missedRuns === 'not_replayed'
+        ? {
+            persistence: restart.persistence,
+            timing: restart.timing,
+            oneShot: restart.oneShot,
+            missedRuns: restart.missedRuns
+          }
+        : null
+  }
+}
+
 function describeJob(job) {
   const inputs = Object.entries(job.inputs || {}).map(([name, field]) => {
     const secret =
@@ -228,10 +285,12 @@ function describeJob(job) {
     return output
   })
   const schedule = job.schedule || {}
-  const type =
-    ['cron', 'interval', 'timeout', 'date'].find(
-      (key) => schedule[key] !== undefined
-    ) || 'manual'
+  const type = schedule.cron
+    ? 'cron'
+    : ['interval', 'timeout', 'date'].find(
+        (key) => schedule[key] !== undefined && schedule[key] !== false
+      ) || 'manual'
+  const scheduleState = describeScheduleState(job.scheduleState)
   const safe = {
     name: job.name,
     script: job.script,
@@ -241,7 +300,7 @@ function describeJob(job) {
     inputs,
     schedule: type === 'manual' ? null : schedule[type],
     scheduleType: type,
-    timezone: schedule.timezone || schedule.cronOptions?.timezone || null,
+    timezone: typeof schedule.timezone === 'string' ? schedule.timezone : null,
     nextRunAt: job.nextRunAt ? new Date(job.nextRunAt).getTime() : null,
     paused: typeof job.paused === 'boolean' ? job.paused : null,
     isRunning:
@@ -254,7 +313,7 @@ function describeJob(job) {
         : null,
     scheduled: typeof job.scheduled === 'boolean' ? job.scheduled : null,
     scheduledInputs: describeScheduledInputs(job.scheduledInputs, inputs),
-    validationErrors: []
+    scheduleState
   }
   safe.metadataVersion = digest({
     name: safe.name,
@@ -492,13 +551,20 @@ function createQuestRuntime({
           : Number.isFinite(data.duration)
           ? data.duration
           : null,
-      exitCode:
-        kind === 'completed'
-          ? 0
-          : Number.isInteger(data.exitCode)
-          ? data.exitCode
-          : Number.isInteger(data.error?.code)
-          ? data.error.code
+      exitCode: ['running', 'skipped'].includes(kind)
+        ? null
+        : kind === 'completed'
+        ? 0
+        : Number.isInteger(data.exitCode)
+        ? data.exitCode
+        : Number.isInteger(data.error?.code)
+        ? data.error.code
+        : null,
+      signal:
+        kind === 'failed' &&
+        typeof data.signal === 'string' &&
+        /^SIG[A-Z0-9]{1,16}$/.test(data.signal)
+          ? data.signal
           : null,
       result: ['running', 'skipped'].includes(kind)
         ? { status: 'unavailable' }

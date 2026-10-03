@@ -401,6 +401,12 @@ test('Quest runtime-loss reconciliation selects only bounded identifiers and pre
     observed.where.requestedAt['>='],
     1000000000 - ledger.RETENTION_MS
   )
-  assert.deepEqual(Object.keys(observed.values).sort(), ['error', 'state'])
+  assert.deepEqual(Object.keys(observed.values).sort(), [
+    'error',
+    'state',
+    'updatedAt'
+  ])
   assert.equal(observed.values.state, 'unconfirmed')
+  assert.equal(observed.where.updatedAt['<'], 1000000000)
+  assert.equal(observed.values.updatedAt, 1000000000)
 })

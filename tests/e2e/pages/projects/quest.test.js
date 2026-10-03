@@ -1571,7 +1571,11 @@ async function captureQuestWorkspaceState(page, expect, name, anchor) {
       await expect(form.locator('[data-slot="checkbox"]')).toHaveCount(2)
     }
     let scheduleContrast
-    if (['scheduled-inputs', 'inactive-schedule'].includes(name)) {
+    if (
+      ['scheduled-inputs', 'inactive-schedule', 'invalid-schedule'].includes(
+        name
+      )
+    ) {
       scheduleContrast = await page.raw
         .locator('[data-test="quest-job-detail"] [data-value="schedule"] dd')
         .evaluateAll((elements) => {
@@ -1916,6 +1920,45 @@ test(
         'structured-result',
         detail
       )
+      // Exercise the real browser clipboard and a real downloaded JSON file;
+      // these actions must not fetch logs, raw output, or repeat the job.
+      await page.raw
+        .context()
+        .grantPermissions(['clipboard-read', 'clipboard-write'])
+      const actions = page.raw.locator(
+        '[data-test="quest-result-actions-trigger"]'
+      )
+      await actions.click()
+      await page.raw
+        .locator('[data-test="quest-result-actions-copy-json"]')
+        .click()
+      await expect(
+        page.raw.locator('[data-test="quest-result-action-feedback"]')
+      ).toContainText('Copied result JSON')
+      const copied = await page.raw.evaluate(() =>
+        navigator.clipboard.readText()
+      )
+      expect(JSON.parse(copied)).toEqual(
+        state.details[accepted.runId].result.value
+      )
+      await actions.click()
+      const downloadPromise = page.raw.waitForEvent('download')
+      await page.raw
+        .locator('[data-test="quest-result-actions-export-json"]')
+        .click()
+      const download = await downloadPromise
+      expect(download.suggestedFilename()).toBe('quest-result.json')
+      const exported = require('node:fs').readFileSync(
+        await download.path(),
+        'utf8'
+      )
+      expect(JSON.parse(exported)).toEqual(
+        state.details[accepted.runId].result.value
+      )
+      expect(exported.includes('Synthetic log text')).toBe(false)
+      expect(state.mutationRequests.length).toBe(1)
+      expect(logsRequests).toBe(0)
+      await page.raw.context().clearPermissions()
       await page.raw.getByRole('tab', { name: 'Logs', exact: true }).click()
       await expect(detail).toContainText('Synthetic diagnostic warning')
       await expect(detail).toContainText('Completed')
@@ -2039,6 +2082,19 @@ test(
       job.scheduleType = 'interval'
       job.scheduled = true
       job.nextRunAt = state.now + 3600000
+      job.scheduleState = {
+        registration: 'registered',
+        validation: 'valid',
+        validationErrors: [],
+        reason: null,
+        lastAttemptAt: new Date(state.now).toISOString(),
+        restart: {
+          persistence: 'memory_only',
+          timing: 'relative_to_registration',
+          oneShot: false,
+          missedRuns: 'not_replayed'
+        }
+      }
       job.inputs.push({
         name: 'apiToken',
         friendlyName: 'API token',
@@ -2152,6 +2208,7 @@ test(
       )
       job.scheduled = false
       job.nextRunAt = null
+      job.scheduleState.registration = 'stopped'
       await emitQuestWorkspace(page, state)
       await expect(detail).toContainText('Inactive')
       await expect(detail).toContainText('No timer registered')
@@ -2161,6 +2218,26 @@ test(
         'inactive-schedule',
         detail
       )
+      job.scheduleState = {
+        ...job.scheduleState,
+        registration: 'failed',
+        validation: 'invalid',
+        validationErrors: [
+          {
+            code: 'E_SCHEDULE_INTERVAL',
+            message: 'The source interval is invalid.'
+          }
+        ]
+      }
+      await emitQuestWorkspace(page, state)
+      await expect(
+        detail.locator('[data-test="quest-invalid-schedule"]')
+      ).toContainText('The source interval is invalid.')
+      await expect(opener).toBeEnabled()
+      await expect(detail).toContainText(
+        'Manual runs still use the job’s input validation.'
+      )
+      await captureQuestWorkspaceState(page, expect, 'invalid-schedule', detail)
       expect(state.mutationRequests.length).toBe(0)
       expect(state.unexpectedRequests).toEqual([])
       expect(page).toHaveNoJavascriptErrors()
