@@ -83,6 +83,9 @@ module.exports.policies = {
     'is-authenticated',
     'is-team-administrator'
   ],
+  'api/v1/quest/run-job': ['is-authenticated', 'is-team-administrator'],
+  'project/quest-pause-job': ['is-authenticated', 'is-team-administrator'],
+  'project/quest-resume-job': ['is-authenticated', 'is-team-administrator'],
   'api/v1/helm/execute-command': ['is-authenticated', 'is-team-administrator'],
   'api/v1/dock/apply-migration': ['is-authenticated', 'is-team-administrator'],
   'api/v1/dock/execute-sql': ['is-authenticated', 'is-team-administrator'],

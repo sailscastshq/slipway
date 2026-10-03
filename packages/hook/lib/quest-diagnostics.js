@@ -22,7 +22,7 @@ function normalizeQuestDiagnostic(error, options = {}) {
 }
 
 function sanitizeQuestDiagnostic(value, options = {}) {
-  if (typeof value !== 'string' || value.trim() === '') {
+  if (typeof value !== 'string') {
     return ''
   }
 
@@ -46,7 +46,7 @@ function sanitizeQuestDiagnostic(value, options = {}) {
     sanitized = sanitized.split(secret).join('<redacted>')
   }
 
-  return sanitized.trim()
+  return options.preserveWhitespace ? sanitized : sanitized.trim()
 }
 
 function boundTail(value, maxBytes) {

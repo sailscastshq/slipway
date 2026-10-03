@@ -1,10 +1,23 @@
-name: Quest screenshot baseline
+name: Quest workspace browser verification
 
 on:
   pull_request:
     branches: [main]
     paths:
+      - assets/js/pages/projects/quest.vue
+      - assets/js/components/quest/**
+      - assets/js/lib/quest*
+      - assets/js/composables/sse.js
+      - api/controllers/project/*quest*
+      - api/controllers/api/v1/quest/**
+      - api/helpers/quest/**
+      - api/lib/quest*
+      - packages/hook/lib/quest*
+      - config/routes.js
+      - config/policies.js
       - tests/e2e/pages/projects/quest.test.js
+      - tests/support/quest*
+      - docs/quest-workspace-verification.md
       - .github/workflows/quest-comparison.yml
   workflow_dispatch:
 
@@ -12,13 +25,13 @@ permissions:
   contents: read
 
 concurrency:
-  group: quest-baseline-${{ github.event.pull_request.number || github.ref }}
+  group: quest-comparison-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
   baseline:
     name: Quest before screenshots
-    timeout-minutes: 10
+    timeout-minutes: 15
     runs-on: ubuntu-latest
     env:
       # Pre-667 UI. Never replace this with a moving branch or the PR merge ref.
@@ -54,6 +67,7 @@ jobs:
         run: |
           test "$(git rev-parse HEAD)" = "$QUEST_BASELINE_SHA"
           cp "$RUNNER_TEMP/quest-capture.test.js" tests/e2e/pages/projects/quest.test.js
+          node --check tests/e2e/pages/projects/quest.test.js
       - uses: actions/setup-node@v6
         with:
           node-version: '22'
@@ -62,7 +76,7 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - name: Capture baseline in four viewport and theme combinations
         run: node_modules/.bin/sounding test --file tests/e2e/pages/projects/quest.test.js --test-concurrency=1 --test-timeout=600000
-      - name: Preserve real baseline screenshots and source fixture
+      - name: Preserve actual baseline pixels, fixture, and measurements
         uses: actions/upload-artifact@v6
         if: always()
         with:
@@ -78,3 +92,121 @@ jobs:
           path: .tmp/sounding/artifacts
           if-no-files-found: ignore
           retention-days: 14
+
+  proposed:
+    name: Quest after screenshots and browser states
+    timeout-minutes: 15
+    runs-on: ubuntu-latest
+    env:
+      SLIPWAY_QUEST_CAPTURE_PHASE: after
+      SLIPWAY_QUEST_CAPTURE_TRIAL_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - name: Check out the proposed source, including its actual UI
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit
+      - run: npx playwright install --with-deps chromium
+      - name: Verify exact source, browser states, geometry, and render budgets
+        run: |
+          test "$(git rev-parse HEAD)" = "$SLIPWAY_QUEST_CAPTURE_TRIAL_SHA"
+          node_modules/.bin/sounding test --file tests/e2e/pages/projects/quest.test.js --test-concurrency=1 --test-timeout=600000
+      - name: Preserve actual proposed pixels and measurements
+        uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: quest-after-${{ github.event.pull_request.head.sha || github.sha }}
+          path: .tmp/screenshots/quest-comparison/after
+          if-no-files-found: error
+          retention-days: 90
+      - name: Preserve browser-state review evidence
+        uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: quest-workspace-states-${{ github.event.pull_request.head.sha || github.sha }}
+          path: .tmp/screenshots/quest-workspace-states
+          if-no-files-found: error
+          retention-days: 90
+      - name: Preserve diagnostic artifacts on failure
+        uses: actions/upload-artifact@v6
+        if: failure()
+        with:
+          name: quest-after-capture-diagnostics
+          path: .tmp/sounding/artifacts
+          if-no-files-found: ignore
+          retention-days: 14
+
+  comparison:
+    name: Compare matched synthetic measurements
+    needs: [baseline, proposed]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v6
+        with:
+          name: quest-before-6fe3b2177bc8
+          path: before
+      - uses: actions/download-artifact@v6
+        with:
+          name: quest-after-${{ github.event.pull_request.head.sha || github.sha }}
+          path: after
+      - name: Verify matched context and summarize measured budgets
+        env:
+          EXPECTED_AFTER_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs')
+          const assert = require('node:assert/strict')
+          const read = path => JSON.parse(fs.readFileSync(path, 'utf8'))
+          const beforeFixture = read('before/fixture.json')
+          const afterFixture = read('after/fixture.json')
+          assert.equal(beforeFixture.sourceSha, '6fe3b2177bc867475f1e3d499f6f4de53d2d1e03')
+          assert.equal(afterFixture.sourceSha, process.env.EXPECTED_AFTER_SHA)
+          assert.equal(beforeFixture.captureTrialSourceSha, afterFixture.captureTrialSourceSha)
+          for (const key of ['jobs', 'events', 'captures', 'frozenBrowserTime', 'project', 'team', 'user', 'environment']) {
+            assert.deepEqual(beforeFixture[key], afterFixture[key], `Fixture mismatch: ${key}`)
+          }
+          const before = read('before/performance.json')
+          const after = read('after/performance.json')
+          const metrics = ['questJsonBytes', 'initialJsonBytes', 'documentElementCount', 'navigationToReadyMs']
+          const rows = []
+          for (const sample of after.measurements) {
+            const previous = before.measurements.find(row => row.capture === sample.capture)
+            assert.ok(previous, `Missing baseline for ${sample.capture}`)
+            for (const metric of metrics) {
+              assert.ok(sample[metric] <= after.budgets[metric], `${sample.capture} exceeds ${metric} budget`)
+              rows.push(`| ${sample.capture} | ${metric} | ${previous[metric]} | ${sample[metric]} | ${after.budgets[metric]} |`)
+            }
+          }
+          assert.equal(after.measurements.length, 4)
+          const summary = [
+            '## Quest matched browser comparison',
+            '',
+            `Actual before source: ${before.sourceSha}`,
+            `Actual proposed source: ${after.sourceSha}`,
+            '',
+            'Identical five jobs, ten legacy events, frozen clock, viewport sizes, and themes. No legacy event is fabricated into a correlated run.',
+            '',
+            '| Viewport/theme | Measurement | Before | After | After budget |',
+            '| --- | --- | ---: | ---: | ---: |',
+            ...rows,
+            '',
+            'Values are real browser observations with synthetic Inertia data and a controlled SSE transport. Independent CI runners, shared application chrome, and first-render noise make timing descriptive, not a production speedup claim. The former 500-event history bound and 30-second polling are source context only; this fixture does not exercise either workload or a runtime.',
+            '',
+            'Review the four actual before/after PNGs and the separate typed-input, result, failed, reconnecting, running, disconnected, and keyboard-state artifacts.'
+          ].join('\n')
+          fs.writeFileSync('comparison.md', summary + '\n')
+          fs.writeFileSync('comparison.json', JSON.stringify({ before, after }, null, 2) + '\n')
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, summary + '\n')
+          NODE
+      - uses: actions/upload-artifact@v6
+        with:
+          name: quest-comparison-report-${{ github.event.pull_request.head.sha || github.sha }}
+          path: |
+            comparison.md
+            comparison.json
+          retention-days: 90

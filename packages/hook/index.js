@@ -62,6 +62,7 @@ module.exports = function defineSlipwayHook(sails) {
   let wakeRuntime = null
   let supportRuntime = null
   let unregisterHelmRuntime = null
+  let questRuntime = null
 
   return {
     supportView: {
@@ -79,6 +80,7 @@ module.exports = function defineSlipwayHook(sails) {
     defaults: {
       slipway: {
         identity: {},
+        quest: { enabled: false },
         wake: { enabled: false, identity: {} },
         bridge: {
           impersonation: { enabled: false },
@@ -223,6 +225,22 @@ module.exports = function defineSlipwayHook(sails) {
       sails.after('hook:helpers:loaded', publishHelmRuntime)
       sails.after('hook:orm:loaded', publishHelmRuntime)
       sails.after('ready', publishHelmRuntime)
+      sails.after('ready', () => {
+        if (isTransientRuntime || sails.config.slipway.quest?.enabled !== true)
+          return
+        questRuntime = require('./lib/quest-runtime').createQuestRuntime({
+          sails,
+          appId: sails.config.slipway.lookout.appId,
+          deploymentId: sails.config.slipway.lookout.deploymentId
+        })
+        questRuntime.start().catch(() => {
+          sails.log.warn(
+            'sails-hook-slipway: resident Quest controls are unavailable.'
+          )
+          questRuntime.stop().catch(() => {})
+        })
+      })
+      sails.once('lower', () => questRuntime?.stop().catch(() => {}))
       wakeRuntime = require('./lib/wake-runtime')(
         sails,
         sails.config.slipway.wake || {},
@@ -832,15 +850,39 @@ module.exports = function defineSlipwayHook(sails) {
   // ─── Quest Job Lifecycle Instrumentation ─────────────────────
 
   function instrumentQuest() {
+    const questEvent = require('./lib/quest-event')
+    const runAttributes = (data, state) => {
+      const run = questEvent(data, state, {
+        sails,
+        appId: config.appId,
+        deploymentId: config.deploymentId
+      })
+      if (run) {
+        const retained = questRuntime?.runs.get(data.runId)
+        if (retained)
+          Object.assign(run, {
+            trigger: retained.trigger,
+            actor: retained.actor,
+            requestId: retained.requestId,
+            requestedAt: retained.requestedAt
+          })
+        return { jobName: data.name, runId: run.runId, questRun: run }
+      }
+      let inputs = {}
+      try {
+        inputs = require('./lib/quest-runtime').safeValue(data.inputs || {})
+      } catch {
+        /* unsafe inputs are not telemetry */
+      }
+      return { jobName: data.name, inputs }
+    }
+
     sails.on('quest:job:start', function (data) {
       metricBuffer.push({
         name: 'quest.job.start',
         value: 0,
         unit: 'ms',
-        attributes: {
-          jobName: data.name,
-          inputs: data.inputs || {}
-        },
+        attributes: runAttributes(data, 'running'),
         recordedAt: data.timestamp || Date.now()
       })
     })
@@ -850,10 +892,7 @@ module.exports = function defineSlipwayHook(sails) {
         name: 'quest.job.complete',
         value: typeof data.duration === 'number' ? data.duration : 0,
         unit: 'ms',
-        attributes: {
-          jobName: data.name,
-          inputs: data.inputs || {}
-        },
+        attributes: runAttributes(data, 'completed'),
         recordedAt: data.timestamp || Date.now()
       })
     })
@@ -864,8 +903,7 @@ module.exports = function defineSlipwayHook(sails) {
         value: typeof data.duration === 'number' ? data.duration : 0,
         unit: 'ms',
         attributes: {
-          jobName: data.name,
-          inputs: data.inputs || {},
+          ...runAttributes(data, 'failed'),
           error: data.error
             ? data.error.message || String(data.error)
             : 'Unknown error'

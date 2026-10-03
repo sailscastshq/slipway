@@ -1,333 +1,485 @@
 <script setup>
+import { Head, router, usePage } from '@inertiajs/vue3'
+import { computed, inject, onBeforeUnmount, ref, watch } from 'vue'
+import AppLayout from '@/layouts/AppLayout.vue'
 import AppNavbarVersion from '@/components/AppNavbarVersion.vue'
-import Alert from '@/components/ui/alert/Alert.vue'
-import StatusOnline from '@/components/ui/icons/StatusOnline.vue'
+import Breadcrumb from '@/components/ui/breadcrumb/Breadcrumb.vue'
+import Tabs from '@/components/ui/tabs/Tabs.vue'
+import Button from '@/components/ui/button/Button.vue'
+import Input from '@/components/ui/input/Input.vue'
+import Select from '@/components/ui/select/Select.vue'
+import Tooltip from '@/components/ui/tooltip/Tooltip.vue'
 import SidebarOpen from '@/components/ui/icons/SidebarOpen.vue'
 import SidebarClose from '@/components/ui/icons/SidebarClose.vue'
+import ExternalLink from '@/components/ui/icons/ExternalLink.vue'
 import Refresh from '@/components/ui/icons/Refresh.vue'
 import Play from '@/components/ui/icons/Play.vue'
 import Pause from '@/components/ui/icons/Pause.vue'
-import ExternalLink from '@/components/ui/icons/ExternalLink.vue'
 import Clock from '@/components/ui/icons/Clock.vue'
 import X from '@/components/ui/icons/X.vue'
-import { Head, router, useForm } from '@inertiajs/vue3'
-import { inject, ref, computed, nextTick, watch } from 'vue'
-import AppLayout from '@/layouts/AppLayout.vue'
-import Breadcrumb from '@/components/ui/breadcrumb/Breadcrumb.vue'
-import Tooltip from '@/components/ui/tooltip/Tooltip.vue'
+import ChevronLeft from '@/components/ui/icons/ChevronLeft.vue'
 import Spinner from '@/components/SlipwaySpinner.vue'
+import QuestStatus from '@/components/quest/QuestStatus.vue'
+import QuestRuns from '@/components/quest/QuestRuns.vue'
+import QuestRunDetail from '@/components/quest/QuestRunDetail.vue'
+import QuestRunDialog from '@/components/quest/QuestRunDialog.vue'
 import { useQueryState } from '@/components/ui/durable-ui/useQueryState'
 import { useEventSource } from '@/composables/sse'
-import { requestQuestRun } from '@/lib/questRun.mjs'
 import {
-  legacyJobEvents,
-  retainLegacyEventSelection
-} from '@/lib/questHistory.mjs'
+  normalizeQuestWorkspace,
+  questJobState,
+  mergeQuestRuns,
+  questRunTime,
+  questRelativeTime,
+  questAbsoluteTime,
+  questInputType
+} from '@/lib/questWorkspace.mjs'
 
-defineOptions({
-  layout: AppLayout
-})
-
+defineOptions({ layout: AppLayout })
 const props = defineProps({
   project: Object,
   environment: Object,
   hasQuestFeature: Boolean,
   questFeature: Object,
   appRunning: Boolean,
+  workspace: Object,
   jobs: Array,
   jobsError: String,
-  jobHistory: {
-    type: Array,
-    default: () => []
-  }
+  jobHistory: { type: Array, default: () => [] }
 })
-
+const page = usePage()
 const toggleMobileMenu = inject('toggleMobileMenu')
 const toggleSidebar = inject('toggleSidebar')
 const sidebarCollapsed = inject('sidebarCollapsed')
-
-// Live-updating state: initialized from Inertia props, updated via SSE
-const liveJobs = ref(props.jobs || [])
-const liveHistory = ref(props.jobHistory || [])
-const liveError = ref(props.jobsError)
-
-// Local state for actions
-const runningJob = ref(null)
-const jobOutputs = ref({})
-const pauseForm = useForm({})
-const resumeForm = useForm({})
-const logContainers = ref({})
-// Existing telemetry event IDs retain local expansion, not stable run links.
-const expandedRun = ref('')
-
-const runLogContainers = ref({})
-
-// Auto-scroll log output to bottom when content changes
-watch(
-  jobOutputs,
-  async () => {
-    await nextTick()
-    for (const el of Object.values(logContainers.value)) {
-      if (el) el.scrollTop = el.scrollHeight
+const live = ref(normalizeQuestWorkspace(props.workspace, props))
+const streamStale = ref(false)
+const streamError = ref('')
+const now = ref(Date.now())
+const timer = setInterval(() => {
+  now.value = Date.now()
+}, 15000)
+onBeforeUnmount(() => clearInterval(timer))
+const activeTab = useQueryState('view', 'jobs', {
+  validate: (value) => ['jobs', 'runs'].includes(value)
+})
+const selectedJobName = useQueryState('job', '')
+const selectedRunId = useQueryState('run', '')
+// Telemetry identity is local-only; it must never masquerade as a run URL.
+const selectedEventId = ref('')
+const jobTab = ref('runs')
+const search = ref('')
+const stateFilter = ref('all')
+const runStateFilter = ref('all')
+const runJobFilter = ref('all')
+const refreshing = ref(false)
+const moreLoading = ref(false)
+const moreError = ref('')
+const historyExpanded = ref(false)
+const actionError = ref('')
+const changingSchedule = ref('')
+const review = ref(null)
+const reviewOpen = ref(false)
+const runDetail = ref(null)
+const envPath = computed(() =>
+  props.environment.slug === 'production'
+    ? ''
+    : `/environments/${encodeURIComponent(props.environment.slug)}`
+)
+const apiUrl = computed(
+  () =>
+    `/api/v1/projects/${encodeURIComponent(props.project.slug)}${
+      envPath.value
+    }/quest`
+)
+const actionUrl = computed(
+  () =>
+    `/projects/${encodeURIComponent(props.project.slug)}${envPath.value}/quest`
+)
+const sseUrl = computed(() =>
+  props.hasQuestFeature && props.appRunning ? `${apiUrl.value}/stream` : null
+)
+const { connected, connect, close } = useEventSource(sseUrl, {
+  onMessage(message) {
+    if (message.error) {
+      streamStale.value = true
+      streamError.value = message.error
+      return
+    }
+    streamError.value = ''
+    if (message.workspace) {
+      applyWorkspace(message.workspace)
+      streamStale.value = false
+    } else if (message.jobs || message.jobHistory || message.jobsError) {
+      applyWorkspace(null, message)
+      streamStale.value = false
     }
   },
-  { deep: true }
-)
-
-// Expanded job (persisted via URL query param)
-const expandedJob = useQueryState('job', '')
-
-function toggleExpand(jobName) {
-  expandedJob.value = expandedJob.value === jobName ? '' : jobName
-  expandedRun.value = ''
-}
-
-async function toggleRun(eventId) {
-  const run = String(eventId)
-  expandedRun.value = expandedRun.value === run ? '' : run
-  await nextTick()
-  await nextTick()
-  const el = runLogContainers.value[run]
-  if (el) el.scrollTop = el.scrollHeight
-}
-
-// SSE: stream live job state + history
-const sseUrl = computed(() => {
-  if (!props.hasQuestFeature || !props.appRunning) return null
-  return `/api/v1/projects/${props.project.slug}${envPath()}/quest/stream`
-})
-
-const { connected } = useEventSource(sseUrl, {
-  onMessage(msg) {
-    if (msg.jobs) liveJobs.value = msg.jobs
-    if (msg.jobHistory) replaceHistory(msg.jobHistory)
-    if (msg.jobsError !== undefined) liveError.value = msg.jobsError
+  onError() {
+    streamStale.value = true
   }
 })
-
-function replaceHistory(history) {
-  liveHistory.value = history
-  expandedRun.value = retainLegacyEventSelection(
-    history,
-    expandedJob.value,
-    expandedRun.value
-  )
+function applyWorkspace(workspace, fallback = props) {
+  const next = normalizeQuestWorkspace(workspace, fallback)
+  if (next.target.runtimeId === live.value.target.runtimeId) {
+    next.runs = mergeQuestRuns(live.value.runs, next.runs)
+    if (historyExpanded.value) next.nextCursor = live.value.nextCursor
+    next.legacyEvents = mergeEvents(live.value.legacyEvents, next.legacyEvents)
+  }
+  if (next.target.runtimeId !== live.value.target.runtimeId)
+    historyExpanded.value = false
+  live.value = next
 }
-
-watch(() => props.jobHistory, replaceHistory)
+function mergeEvents(current, incoming) {
+  const map = new Map(current.map((event) => [String(event.eventId), event]))
+  for (const event of incoming) map.set(String(event.eventId), event)
+  return [...map.values()]
+}
 watch(
-  () => props.jobs,
-  (jobs) => {
-    liveJobs.value = jobs || []
+  () => props.workspace,
+  (workspace) => {
+    applyWorkspace(workspace)
+    streamStale.value = false
   }
 )
 watch(
-  () => props.jobsError,
-  (error) => {
-    liveError.value = error
+  () => [props.jobs, props.jobHistory, props.jobsError],
+  () => {
+    if (!props.workspace) applyWorkspace(null)
   }
 )
-
-// Aggregate stats computed from retained terminal events, not a complete ledger
-const stats = computed(() => {
-  const history = liveHistory.value
-  const now = Date.now()
-  const oneDayAgo = now - 24 * 60 * 60 * 1000
-
-  // Filter to completed/failed events only
-  const runs = history.filter(
-    (h) => h.event === 'completed' || h.event === 'failed'
-  )
-  const runs24h = runs.filter((h) => h.recordedAt >= oneDayAgo)
-
-  const succeeded = runs24h.filter((h) => h.event === 'completed').length
-  const failed = runs24h.filter((h) => h.event === 'failed').length
-  const total = succeeded + failed
-  const successRate = total > 0 ? Math.round((succeeded / total) * 100) : null
-
-  return { total, succeeded, failed, successRate }
+watch(sseUrl, (url) => {
+  streamStale.value = true
+  url ? connect() : close()
 })
-
-// Per-job stats computed from history (single pass, cached by Vue)
-const jobStatsMap = computed(() => {
-  const map = {}
-  for (const h of liveHistory.value) {
-    if (h.event !== 'completed' && h.event !== 'failed') continue
-    if (!map[h.jobName]) {
-      map[h.jobName] = { lastRun: h, errors: 0, totalRuns: 0 }
-    }
-    map[h.jobName].totalRuns++
-    if (h.event === 'failed') map[h.jobName].errors++
-  }
+watch(selectedJobName, () => {
+  selectedEventId.value = ''
+  runDetail.value = null
+})
+watch(selectedRunId, (id) => {
+  if (id) selectedEventId.value = ''
+  runDetail.value = null
+})
+const fresh = computed(
+  () => props.appRunning && !streamStale.value && live.value.mode === 'resident'
+)
+const jobs = computed(() => live.value.jobs)
+const selectedJob = computed(() =>
+  jobs.value.find((job) => job.name === selectedJobName.value)
+)
+const state = (job) => questJobState(job, live.value, fresh.value)
+const scheduleLabel = (job) =>
+  job.scheduleType === 'unavailable' ? 'Unavailable' : job.schedule || 'Manual'
+const canInvoke = (job) =>
+  fresh.value &&
+  live.value.capabilities.invoke &&
+  !!live.value.target.runtimeId &&
+  !!job?.metadataVersion &&
+  job.paused === false &&
+  typeof job.isRunning === 'boolean' &&
+  !job.validationErrors?.length &&
+  !(job.withoutOverlapping && job.isRunning) &&
+  (!job.inputs?.length || live.value.capabilities.typedInputs)
+const runDisabledReason = (job) =>
+  !fresh.value
+    ? 'Live runtime unavailable'
+    : job?.paused === null || job?.isRunning == null
+    ? 'Live job state unavailable'
+    : job?.paused
+    ? 'Resume this schedule before running'
+    : job?.validationErrors?.length
+    ? 'Fix the job definition before running'
+    : job?.withoutOverlapping && job?.isRunning
+    ? 'An execution is already running'
+    : !live.value.capabilities.invoke
+    ? 'This runtime does not support manual runs'
+    : job?.inputs?.length && !live.value.capabilities.typedInputs
+    ? 'This runtime does not support typed inputs'
+    : !job?.metadataVersion
+    ? 'Job metadata unavailable'
+    : ''
+const canPause = (job) =>
+  fresh.value &&
+  !!live.value.target.runtimeId &&
+  !!job?.schedule &&
+  job.schedule !== 'manual' &&
+  (job.paused === true
+    ? live.value.capabilities.resume
+    : job.paused === false && live.value.capabilities.pause)
+const counts = computed(() => ({
+  running: jobs.value.filter((job) => state(job) === 'running').length,
+  paused: jobs.value.filter((job) => state(job) === 'paused').length
+}))
+const lastActivity = computed(() => {
   const result = {}
-  for (const [name, s] of Object.entries(map)) {
-    result[name] = {
-      lastRunAt: s.lastRun.recordedAt,
-      lastDuration: s.lastRun.duration,
-      lastStatus: s.lastRun.event,
-      lastError: s.lastRun.error,
-      errorCount: s.errors,
-      totalRuns: s.totalRuns
-    }
-  }
+  for (const entry of [
+    ...live.value.runs,
+    ...live.value.legacyEvents.map((event) => ({
+      ...event,
+      state: event.event,
+      legacy: true
+    }))
+  ].sort((a, b) => questRunTime(b) - questRunTime(a)))
+    if (!result[entry.jobName]) result[entry.jobName] = entry
   return result
 })
-
-// Run history for the currently expanded job (computed, cached)
-const expandedJobHistory = computed(() => {
-  if (!expandedJob.value) return []
-  return legacyJobEvents(liveHistory.value, expandedJob.value)
-})
-
-// Helpers
-function timeAgo(timestamp) {
-  if (!timestamp) return ''
-  const seconds = Math.floor((Date.now() - timestamp) / 1000)
-  if (seconds < 60) return 'just now'
-  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`
-  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`
-  return `${Math.floor(seconds / 86400)}d ago`
-}
-
-function timeUntil(timestamp) {
-  if (!timestamp) return ''
-  const seconds = Math.floor((timestamp - Date.now()) / 1000)
-  if (seconds < 0) return 'overdue'
-  if (seconds < 60) return 'in <1m'
-  if (seconds < 3600) return `in ${Math.floor(seconds / 60)}m`
-  if (seconds < 86400) return `in ${Math.floor(seconds / 3600)}h`
-  return `in ${Math.floor(seconds / 86400)}d`
-}
-
-function formatDuration(ms) {
-  if (!ms && ms !== 0) return ''
-  if (ms < 1) return '<1ms'
-  if (ms < 1000) return `${Math.round(ms)}ms`
-  return `${(ms / 1000).toFixed(1)}s`
-}
-
-function formatTime(timestamp) {
-  return new Date(timestamp).toLocaleTimeString([], {
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit'
+const filteredJobs = computed(() =>
+  jobs.value.filter((job) => {
+    const matchesSearch = `${job.name} ${job.friendlyName || ''} ${
+      job.description || ''
+    }`
+      .toLowerCase()
+      .includes(search.value.toLowerCase())
+    const matchesState =
+      stateFilter.value === 'all' ||
+      (stateFilter.value === 'failed'
+        ? lastActivity.value[job.name]?.state === 'failed'
+        : state(job) === stateFilter.value)
+    return matchesSearch && matchesState
   })
-}
-
-function formatDate(timestamp) {
-  return new Date(timestamp).toLocaleDateString([], {
-    month: 'short',
-    day: 'numeric'
-  })
-}
-
-function formatSchedule(job) {
-  return job.schedule || 'manual'
-}
-
-function toggleJobPause(job) {
-  if (pauseForm.processing || resumeForm.processing) return
-
-  if (job.paused) {
-    resumeJob(job.name)
-    return
-  }
-
-  pauseJob(job.name)
-}
-
-// eslint-disable-next-line no-control-regex
-const ANSI_RE = /\x1b\[[0-9;]*[A-Za-z]|\[\d+(?:;\d+)*m/g
-function stripAnsi(text) {
-  return text.replace(ANSI_RE, '')
-}
-
-function successRateColor(rate) {
-  if (rate === null) return 'text-gray-500 dark:text-gray-400'
-  if (rate >= 95) return 'text-emerald-600 dark:text-emerald-400'
-  if (rate >= 80) return 'text-yellow-600 dark:text-yellow-400'
-  return 'text-red-600 dark:text-red-400'
-}
-
-// Job actions
-function envPath() {
-  return props.environment.slug !== 'production'
-    ? `/environments/${props.environment.slug}`
+)
+const filteredRuns = computed(() =>
+  live.value.runs.filter(
+    (run) =>
+      (runJobFilter.value === 'all' || run.jobName === runJobFilter.value) &&
+      (runStateFilter.value === 'all' || run.state === runStateFilter.value)
+  )
+)
+const filteredEvents = computed(() =>
+  live.value.legacyEvents.filter(
+    (event) =>
+      (runJobFilter.value === 'all' || event.jobName === runJobFilter.value) &&
+      (runStateFilter.value === 'all' || event.event === runStateFilter.value)
+  )
+)
+const jobRuns = computed(() =>
+  live.value.runs.filter((run) => run.jobName === selectedJobName.value)
+)
+const jobEvents = computed(() =>
+  live.value.legacyEvents.filter(
+    (event) => event.jobName === selectedJobName.value
+  )
+)
+const selectedSummary = computed(() =>
+  live.value.runs.find((run) => run.runId === selectedRunId.value)
+)
+const detailRevision = computed(() =>
+  selectedSummary.value
+    ? `${selectedSummary.value.state}:${
+        selectedSummary.value.finishedAt || ''
+      }:${selectedSummary.value.resultStatus || ''}`
     : ''
+)
+const selectedRunJob = computed(
+  () =>
+    jobs.value.find(
+      (job) =>
+        job.name ===
+        (selectedSummary.value?.jobName || runDetail.value?.jobName)
+    ) || selectedJob.value
+)
+const reviewStale = computed(
+  () =>
+    !!review.value &&
+    (!canInvoke(jobs.value.find((job) => job.name === review.value.job.name)) ||
+      live.value.target.runtimeId !== review.value.target.runtimeId ||
+      jobs.value.find((job) => job.name === review.value.job.name)
+        ?.metadataVersion !== review.value.job.metadataVersion)
+)
+const tabClass = (current, value) => [
+  'border-b-2 py-3 text-sm font-medium',
+  current === value
+    ? 'border-gray-900 text-gray-900 dark:border-white dark:text-white'
+    : 'border-transparent text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white'
+]
+const filterClass =
+  'min-h-9 rounded-md border border-gray-200 bg-white px-3 py-1.5 text-xs text-gray-600 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-300'
+const jobFilterOptions = computed(() => [
+  { label: 'All jobs', value: 'all' },
+  ...jobs.value.map((job) => ({
+    label: job.friendlyName || job.name,
+    value: job.name
+  }))
+])
+const displayValue = (value) =>
+  value === undefined
+    ? '—'
+    : typeof value === 'string'
+    ? JSON.stringify(value)
+    : JSON.stringify(value)
+function clearFilters() {
+  search.value = ''
+  stateFilter.value = 'all'
 }
-
-async function runJob(jobName) {
-  runningJob.value = jobName
-  jobOutputs.value[jobName] = { running: true, output: null }
-  try {
-    const output = await requestQuestRun(
-      `/api/v1/projects/${
-        props.project.slug
-      }${envPath()}/quest/jobs/${jobName}/run`
-    )
-    jobOutputs.value[jobName] = { running: false, output }
-
-    // History only comes from persisted telemetry. An optimistic row would
-    // duplicate a concurrent SSE event, and claim persistence when it failed.
-    if (output.state === 'completed' || output.state === 'failed') {
-      router.reload({ only: ['jobHistory'], preserveScroll: true })
-    }
-  } finally {
-    runningJob.value = null
+function chooseJob(job) {
+  selectedRunId.value = ''
+  selectedEventId.value = ''
+  selectedJobName.value = job.name
+  jobTab.value = 'runs'
+}
+function closeJob() {
+  selectedRunId.value = ''
+  selectedEventId.value = ''
+  selectedJobName.value = ''
+}
+function chooseRun(run) {
+  if (run.legacy) {
+    selectedRunId.value = ''
+    selectedEventId.value = String(run.eventId)
+  } else {
+    selectedEventId.value = ''
+    selectedJobName.value = run.jobName
+    selectedRunId.value = run.runId
   }
 }
-
-function dismissOutput(jobName) {
-  delete jobOutputs.value[jobName]
-}
-
-function pauseJob(jobName) {
-  pauseForm.post(
-    `/projects/${props.project.slug}${envPath()}/quest/${jobName}/pause`,
-    {
-      preserveScroll: true
-    }
+function onRunLoaded(run) {
+  runDetail.value = run
+  if (
+    run.runId &&
+    activeTab.value === 'jobs' &&
+    jobs.value.some((job) => job.name === run.jobName) &&
+    selectedJobName.value !== run.jobName
   )
+    selectedJobName.value = run.jobName
 }
-
-function resumeJob(jobName) {
-  resumeForm.post(
-    `/projects/${props.project.slug}${envPath()}/quest/${jobName}/resume`,
-    {
-      preserveScroll: true
-    }
-  )
+function closeRun() {
+  selectedRunId.value = ''
+  selectedEventId.value = ''
+  runDetail.value = null
 }
-
+function openRun(job, previous) {
+  if (!canInvoke(job)) return
+  review.value = {
+    job: JSON.parse(JSON.stringify(job)),
+    target: {
+      ...live.value.target,
+      appName: live.value.target.appName || props.project.name,
+      environmentName:
+        live.value.target.environmentName || props.environment.name,
+      isProduction:
+        props.environment.isProduction === true ||
+        props.environment.slug === 'production'
+    },
+    inputs: Object.fromEntries(
+      Object.entries(previous?.inputs || {}).filter(
+        ([name]) => !job.inputs?.find((input) => input.name === name)?.sensitive
+      )
+    ),
+    priorRunId: previous?.runId
+  }
+  reviewOpen.value = true
+}
+function accepted(run) {
+  live.value.runs = mergeQuestRuns(live.value.runs, [run])
+  selectedJobName.value = run.jobName
+  selectedRunId.value = run.runId
+  selectedEventId.value = ''
+  jobTab.value = 'runs'
+}
+async function togglePause(job) {
+  if (!canPause(job) || changingSchedule.value) return
+  changingSchedule.value = job.name
+  actionError.value = ''
+  const operation = job.paused ? 'resume' : 'pause'
+  try {
+    const response = await fetch(
+      `${actionUrl.value}/${encodeURIComponent(job.name)}/${operation}`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-csrf-token': page.props._csrf || '',
+          Accept: 'application/json'
+        },
+        body: JSON.stringify({ runtimeId: live.value.target.runtimeId })
+      }
+    )
+    if (!response.ok)
+      throw new Error(
+        `Could not ${operation} this job (HTTP ${response.status}). Refresh to check its current state.`
+      )
+    const data = await response.json()
+    if (!(data.workspace || data)?.version)
+      throw new Error(
+        'No updated schedule state was received. Refresh to check before trying again.'
+      )
+    applyWorkspace(data.workspace || data)
+  } catch (failure) {
+    actionError.value =
+      failure.message ||
+      'The schedule change is unconfirmed. Refresh to check before trying again.'
+  } finally {
+    changingSchedule.value = ''
+  }
+}
 function refresh() {
-  router.reload({ only: ['jobs', 'jobsError', 'jobHistory'] })
+  if (refreshing.value) return
+  refreshing.value = true
+  router.reload({
+    only: [
+      'workspace',
+      'jobs',
+      'jobsError',
+      'jobHistory',
+      'appRunning',
+      'hasQuestFeature'
+    ],
+    preserveScroll: true,
+    onFinish: () => {
+      refreshing.value = false
+      if (sseUrl.value && !connected.value) connect()
+    }
+  })
+}
+async function loadMore() {
+  if (!live.value.nextCursor || moreLoading.value) return
+  moreLoading.value = true
+  moreError.value = ''
+  try {
+    const response = await fetch(
+      `${apiUrl.value}/runs?cursor=${encodeURIComponent(live.value.nextCursor)}`
+    )
+    if (!response.ok)
+      throw new Error(`Could not load more history (HTTP ${response.status}).`)
+    const data = await response.json()
+    live.value.runs = mergeQuestRuns(live.value.runs, data.runs || [])
+    live.value.legacyEvents = mergeEvents(
+      live.value.legacyEvents,
+      data.legacyEvents || []
+    )
+    live.value.nextCursor = data.nextCursor || null
+    historyExpanded.value = true
+  } catch (failure) {
+    moreError.value = failure.message
+  } finally {
+    moreLoading.value = false
+  }
 }
 </script>
+
 <template>
-  <Head :title="`Quest - ${project.name} | Slipway`"></Head>
+  <Head :title="`Quest - ${project.name} | Slipway`" />
   <div class="flex h-full flex-col">
-    <!-- Header -->
     <div
-      class="flex items-center justify-between gap-3 border-b border-gray-200 py-4 pl-4 pr-4 dark:border-gray-800 sm:pl-4 sm:pr-8"
+      class="flex items-center justify-between gap-3 border-b border-gray-200 py-4 pl-4 pr-4 dark:border-gray-800 sm:pr-8"
     >
       <div class="flex min-w-0 items-center space-x-3">
         <button
+          aria-label="Open navigation"
+          class="rounded-md p-1 text-gray-500 dark:text-gray-400 md:hidden"
           @click="toggleMobileMenu"
-          class="rounded-md p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white md:hidden"
         >
           <SidebarOpen class="h-5 w-5" stroke-width="1" />
         </button>
-        <!-- Desktop sidebar toggle -->
         <button
-          @click="toggleSidebar"
+          aria-label="Toggle sidebar"
           class="hidden text-gray-400 dark:text-gray-500 md:block"
+          @click="toggleSidebar"
         >
           <SidebarOpen
             v-if="sidebarCollapsed"
             class="h-5 w-5"
             stroke-width="1"
-          />
-          <SidebarClose v-else class="h-5 w-5" stroke-width="1" />
+          /><SidebarClose v-else class="h-5 w-5" stroke-width="1" />
         </button>
         <Breadcrumb
           :items="[
@@ -344,647 +496,796 @@ function refresh() {
           ]"
         />
       </div>
-      <div class="flex items-center space-x-4">
-        <!-- SSE connection indicator -->
+      <div class="flex items-center gap-4">
         <Tooltip
           :text="
-            connected ? 'Live updates active' : 'Live updates disconnected'
+            fresh && connected
+              ? 'Live runtime updates active'
+              : 'Live runtime state unavailable'
           "
+          ><span
+            data-test="quest-stream-status"
+            role="status"
+            class="flex items-center gap-1.5 text-xs"
+            :class="fresh && connected ? 'text-emerald-500' : 'text-gray-400'"
+            ><span
+              class="h-1.5 w-1.5 rounded-full"
+              :class="fresh && connected ? 'bg-emerald-500' : 'bg-gray-400'"
+            /><span class="hidden sm:inline">{{
+              fresh && connected
+                ? 'Live'
+                : streamError
+                ? 'Unavailable'
+                : streamStale
+                ? 'Reconnecting'
+                : 'Unavailable'
+            }}</span></span
+          ></Tooltip
         >
-          <span
-            :aria-label="
-              connected ? 'Live updates active' : 'Live updates disconnected'
-            "
-            tabindex="0"
-            class="flex items-center space-x-1.5 text-xs"
-            :class="
-              connected
-                ? 'text-emerald-500'
-                : 'text-gray-400 dark:text-gray-500'
-            "
-          >
-            <span class="relative flex h-2 w-2">
-              <span
-                v-if="connected"
-                class="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"
-              ></span>
-              <span
-                class="relative inline-flex h-2 w-2 rounded-full"
-                :class="
-                  connected ? 'bg-emerald-500' : 'bg-gray-300 dark:bg-gray-600'
-                "
-              ></span>
-            </span>
-            <span class="hidden sm:inline">{{
-              connected ? 'Live' : 'Offline'
-            }}</span>
-          </span>
-        </Tooltip>
         <a
           href="https://docs.sailscasts.com/slipway/quest"
           target="_blank"
-          class="flex items-center space-x-1 text-sm text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
-        >
-          <span>Docs</span>
-          <ExternalLink class="h-3.5 w-3.5" stroke-width="2" />
-        </a>
-
+          rel="noopener noreferrer"
+          class="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
+          >Docs<ExternalLink class="h-3.5 w-3.5" stroke-width="2"
+        /></a>
         <AppNavbarVersion />
       </div>
     </div>
-
-    <!-- Content -->
-    <div class="flex-1 overflow-y-auto px-4 py-6 sm:px-8 sm:py-8">
-      <div class="mx-auto max-w-4xl">
-        <!-- Header -->
-        <div class="mb-8">
-          <h1 class="text-xl font-semibold text-gray-900 dark:text-white">
-            Quest
-          </h1>
-          <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            Manage scheduled jobs running in your application.
-          </p>
+    <main class="flex-1 overflow-y-auto px-4 py-6 sm:px-8 sm:py-8">
+      <div data-test="quest-workspace" class="mx-auto max-w-5xl">
+        <div class="mb-6 flex items-start justify-between gap-4">
+          <div>
+            <h1 class="text-xl font-semibold text-gray-900 dark:text-white">
+              Quest
+            </h1>
+            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+              Jobs and their runs in {{ environment.name.toLowerCase() }}.
+            </p>
+          </div>
+          <Tooltip text="Refresh workspace"
+            ><Button
+              aria-label="Refresh workspace"
+              :disabled="refreshing"
+              class="min-h-8 min-w-8 bg-transparent p-1.5 text-gray-400 hover:bg-gray-100 dark:bg-transparent dark:text-gray-500 dark:hover:bg-gray-800"
+              @click="refresh"
+              ><Refresh
+                :class="['h-4 w-4', refreshing && 'animate-spin']"
+                stroke-width="1.5" /></Button
+          ></Tooltip>
         </div>
-
-        <!-- Feature not available -->
         <div
           v-if="!hasQuestFeature"
           class="rounded-lg border border-dashed border-gray-300 px-6 py-12 text-center dark:border-gray-700"
         >
-          <Clock class="mx-auto h-10 w-10 text-gray-400" />
-          <h3 class="mt-4 text-sm font-medium text-gray-900 dark:text-white">
+          <Clock class="mx-auto h-8 w-8 text-gray-400" />
+          <h2 class="mt-3 text-sm font-medium">
             sails-hook-quest not detected
-          </h3>
+          </h2>
           <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">
-            Deploy your app with
-            <code
-              class="rounded bg-gray-100 px-1.5 py-0.5 text-xs dark:bg-gray-800"
-              >sails-hook-quest</code
-            >
-            installed to enable job scheduling.
+            Deploy your app with sails-hook-quest installed to enable jobs.
           </p>
           <a
             href="https://docs.sailscasts.com/sails-quest"
             target="_blank"
-            class="mt-4 inline-flex items-center space-x-1 text-sm text-amber-600 hover:text-amber-500 dark:text-amber-400"
+            rel="noopener noreferrer"
+            class="text-brand-600 dark:text-brand-400 mt-3 inline-block text-sm"
+            >Learn more</a
           >
-            <span>Learn more</span>
-            <ExternalLink class="h-3.5 w-3.5" stroke-width="2" />
-          </a>
         </div>
-
-        <!-- App not running -->
-        <div
-          v-else-if="!appRunning"
-          class="rounded-lg border border-dashed border-gray-300 px-6 py-12 text-center dark:border-gray-700"
-        >
-          <StatusOnline class="mx-auto h-10 w-10 text-gray-400" />
-          <h3 class="mt-4 text-sm font-medium text-gray-900 dark:text-white">
-            App not running
-          </h3>
-          <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">
-            Deploy your app to see and manage scheduled jobs.
-          </p>
-        </div>
-
-        <!-- Error -->
-        <Alert
-          role="alert"
-          v-else-if="liveError"
-          class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 dark:border-red-900/50 dark:bg-red-950/20"
-        >
-          <p class="text-sm text-red-700 dark:text-red-400">{{ liveError }}</p>
-          <button
-            @click="refresh"
-            class="mt-2 text-sm text-red-600 underline hover:text-red-500 dark:text-red-400"
-          >
-            Try again
-          </button>
-        </Alert>
-
-        <!-- Jobs list -->
-        <div v-else-if="liveJobs.length > 0" class="space-y-6">
-          <!-- Aggregate stats bar -->
-          <div class="grid grid-cols-2 gap-4 sm:grid-cols-4">
-            <div
-              class="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-950"
-            >
-              <div
-                class="text-[10px] font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400"
-              >
-                Terminal events (24h)
-              </div>
-              <div
-                class="mt-1 text-2xl font-semibold text-gray-900 dark:text-white"
-              >
-                <span data-test="quest-event-total">{{ stats.total }}</span>
-              </div>
-            </div>
-            <div
-              class="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-950"
-            >
-              <div
-                class="text-[10px] font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400"
-              >
-                Completed
-              </div>
-              <div
-                class="mt-1 text-2xl font-semibold text-emerald-600 dark:text-emerald-400"
-              >
-                {{ stats.succeeded }}
-              </div>
-            </div>
-            <div
-              class="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-950"
-            >
-              <div
-                class="text-[10px] font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400"
-              >
-                Failed
-              </div>
-              <div
-                class="mt-1 text-2xl font-semibold"
-                :class="
-                  stats.failed > 0
-                    ? 'text-red-600 dark:text-red-400'
-                    : 'text-gray-900 dark:text-white'
-                "
-              >
-                {{ stats.failed }}
-              </div>
-            </div>
-            <div
-              class="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-950"
-            >
-              <div
-                class="text-[10px] font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400"
-              >
-                Completion rate
-              </div>
-              <div
-                class="mt-1 text-2xl font-semibold"
-                :class="successRateColor(stats.successRate)"
-              >
-                {{ stats.successRate === null ? '—' : `${stats.successRate}%` }}
-              </div>
-            </div>
-          </div>
-
-          <p
-            class="text-xs text-gray-500 dark:text-gray-400"
-            data-test="quest-history-scope"
-          >
-            Legacy history: up to 500 telemetry events from the last 7 days,
-            across this environment. Retention or delivery gaps may shorten this
-            window. Counts describe recorded terminal events, not a complete run
-            ledger or business outcomes.
-          </p>
-
-          <!-- Job list header -->
-          <div class="flex items-center justify-between">
-            <h2 class="text-sm font-medium text-gray-900 dark:text-white">
-              Scripts
-            </h2>
-            <Tooltip text="Refresh">
-              <button
-                type="button"
-                aria-label="Refresh scripts"
-                @click="refresh"
-                class="rounded-md p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-800 dark:hover:text-gray-200"
-              >
-                <Refresh class="h-4 w-4" stroke-width="2" />
-              </button>
-            </Tooltip>
-          </div>
-
+        <template v-else>
           <div
-            class="divide-y divide-gray-200 rounded-lg border border-gray-200 bg-white dark:divide-gray-800 dark:border-gray-800 dark:bg-gray-950"
+            v-if="!appRunning || !fresh || live.reason"
+            role="status"
+            data-test="quest-runtime-unavailable"
+            class="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-md bg-gray-50 px-3 py-2.5 text-xs text-gray-600 dark:bg-gray-900 dark:text-gray-400"
           >
-            <div v-for="job in liveJobs" :key="job.name">
-              <!-- Job row -->
-              <div class="px-4 py-4">
-                <div class="flex items-start justify-between">
-                  <button
-                    @click="toggleExpand(job.name)"
-                    class="flex-1 text-left"
-                  >
-                    <div class="flex items-center space-x-3">
-                      <h3
-                        class="text-sm font-medium text-gray-900 dark:text-white"
-                      >
-                        {{ job.friendlyName }}
-                      </h3>
-                      <span
-                        v-if="job.isRunning"
-                        class="inline-flex rounded-md bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
-                      >
-                        Running
-                      </span>
-                      <span
-                        v-else-if="job.paused"
-                        class="inline-flex rounded-md bg-yellow-100 px-2 py-0.5 text-xs font-medium text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400"
-                      >
-                        Paused
-                      </span>
-                      <span
-                        v-if="job.withoutOverlapping"
-                        class="inline-flex rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-500 dark:bg-gray-800 dark:text-gray-400"
-                      >
-                        no overlap
-                      </span>
-                    </div>
-                    <p
-                      v-if="job.description"
-                      class="mt-1 text-sm text-gray-500 dark:text-gray-400"
-                    >
-                      {{ job.description }}
-                    </p>
-                    <div
-                      class="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1"
-                    >
-                      <!-- Schedule -->
-                      <div
-                        class="flex items-center space-x-1 text-xs text-gray-400 dark:text-gray-500"
-                      >
-                        <Clock class="h-3.5 w-3.5" stroke-width="2" />
-                        <span>{{ formatSchedule(job) }}</span>
-                      </div>
-                      <!-- Last run info -->
-                      <template v-if="jobStatsMap[job.name]">
-                        <span
-                          class="text-xs"
-                          :class="
-                            jobStatsMap[job.name].lastStatus === 'completed'
-                              ? 'text-gray-500 dark:text-gray-400'
-                              : 'text-red-600 dark:text-red-400'
-                          "
-                        >
-                          {{ timeAgo(jobStatsMap[job.name].lastRunAt) }}
-                          <span class="text-gray-300 dark:text-gray-600"
-                            >&middot;</span
-                          >
-                          {{
-                            formatDuration(jobStatsMap[job.name].lastDuration)
-                          }}
-                          <span class="text-gray-300 dark:text-gray-600"
-                            >&middot;</span
-                          >
-                          <template
-                            v-if="
-                              jobStatsMap[job.name].lastStatus === 'completed'
-                            "
-                            >&#10003;</template
-                          >
-                          <template v-else>&#10007; failed</template>
-                        </span>
-                      </template>
-                      <!-- Next run -->
-                      <span
-                        v-if="job.nextRunAt"
-                        class="text-xs text-gray-400 dark:text-gray-500"
-                      >
-                        Next: {{ timeUntil(job.nextRunAt) }}
-                      </span>
-                    </div>
-                  </button>
-
-                  <div class="ml-4 flex items-center space-x-1">
-                    <!-- Run button -->
-                    <Tooltip text="Run now">
-                      <button
-                        type="button"
-                        @click="
-                          !runningJob && !job.isRunning && runJob(job.name)
-                        "
-                        :aria-label="
-                          runningJob === job.name
-                            ? `Running ${job.name}`
-                            : `Run ${job.name} now`
-                        "
-                        :aria-disabled="
-                          Boolean(runningJob) || Boolean(job.isRunning)
-                        "
-                        :class="[
-                          'rounded-md p-1.5 text-gray-500 dark:text-gray-400',
-                          runningJob || job.isRunning
-                            ? 'cursor-not-allowed opacity-50'
-                            : 'hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-800 dark:hover:text-gray-200'
-                        ]"
-                      >
-                        <Spinner
-                          v-if="runningJob === job.name"
-                          class="h-4 w-4"
-                        />
-                        <Play v-else class="h-4 w-4" stroke-width="2" />
-                      </button>
-                    </Tooltip>
-
-                    <!-- Pause/Resume button -->
-                    <template v-if="job.scheduleType !== 'manual'">
-                      <Tooltip :text="job.paused ? 'Resume' : 'Pause'">
-                        <button
-                          type="button"
-                          :aria-label="
-                            job.paused
-                              ? `Resume ${job.name}`
-                              : `Pause ${job.name}`
-                          "
-                          @click="toggleJobPause(job)"
-                          :aria-disabled="
-                            pauseForm.processing || resumeForm.processing
-                          "
-                          :class="[
-                            'rounded-md p-1.5 text-gray-500 dark:text-gray-400',
-                            pauseForm.processing || resumeForm.processing
-                              ? 'cursor-not-allowed opacity-50'
-                              : 'hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-800 dark:hover:text-gray-200'
-                          ]"
-                        >
-                          <Play
-                            v-if="job.paused"
-                            class="h-4 w-4"
-                            stroke-width="2"
-                          />
-                          <Pause v-else class="h-4 w-4" stroke-width="2" />
-                        </button>
-                      </Tooltip>
-                    </template>
-                  </div>
-                </div>
-
-                <!-- Inline output (from manual run) -->
+            <span>{{
+              !appRunning
+                ? 'App not running. Retained history is still available.'
+                : streamError
+                ? streamError
+                : streamStale
+                ? 'Reconnecting to the runtime. Controls are unavailable until live state returns.'
+                : live.reason ||
+                  (live.mode === 'legacy'
+                    ? 'Live controls require a resident Quest runtime. Legacy history is still available.'
+                    : 'Live runtime state is unavailable. Retained history is still available.')
+            }}</span
+            ><span
+              v-if="live.observedAt"
+              :title="questAbsoluteTime(live.observedAt)"
+              >Observed {{ questRelativeTime(live.observedAt, now) }}</span
+            >
+          </div>
+          <div
+            v-if="actionError"
+            role="alert"
+            class="mb-4 rounded-md bg-amber-50 px-3 py-2.5 text-sm text-amber-800 dark:bg-amber-950/30 dark:text-amber-300"
+          >
+            {{ actionError }}
+          </div>
+          <Tabs v-model="activeTab" aria-label="Quest workspace">
+            <div
+              class="flex items-center justify-between gap-3 border-b border-gray-200 dark:border-gray-800"
+            >
+              <div data-slot="tabs-list" class="-mb-px flex gap-6">
+                <button data-value="jobs" :class="tabClass(activeTab, 'jobs')">
+                  Jobs
+                  <span class="ml-1 text-xs font-normal text-gray-400">{{
+                    jobs.length
+                  }}</span></button
+                ><button data-value="runs" :class="tabClass(activeTab, 'runs')">
+                  Runs
+                </button>
+              </div>
+              <div
+                v-if="fresh"
+                class="hidden gap-3 text-xs text-gray-500 dark:text-gray-400 sm:flex"
+              >
+                <span v-if="counts.running">{{ counts.running }} running</span
+                ><span v-if="counts.paused">{{ counts.paused }} paused</span>
+              </div>
+            </div>
+            <div data-slot="tab-panel" data-value="jobs" class="pt-4">
+              <div
+                :class="[
+                  'mb-4 flex flex-wrap gap-2',
+                  selectedJob && 'hidden lg:flex'
+                ]"
+              >
+                <Input
+                  v-model="search"
+                  type="search"
+                  aria-label="Search jobs"
+                  placeholder="Search jobs…"
+                  :class="[filterClass, 'sm:max-w-64 min-w-0 flex-1']"
+                /><Select
+                  v-model="stateFilter"
+                  aria-label="Filter jobs by state"
+                  :class="filterClass"
+                  :options="[
+                    { label: 'All states', value: 'all' },
+                    { label: 'Running', value: 'running' },
+                    { label: 'Paused', value: 'paused' },
+                    { label: 'Scheduled', value: 'scheduled' },
+                    { label: 'Manual', value: 'manual' },
+                    { label: 'Last activity failed', value: 'failed' },
+                    { label: 'Unavailable', value: 'unavailable' }
+                  ]"
+                />
+              </div>
+              <div
+                :class="[
+                  'grid items-start gap-5',
+                  selectedJob &&
+                    'lg:grid-cols-[minmax(230px,0.8fr)_minmax(0,1.4fr)]'
+                ]"
+              >
                 <div
-                  v-if="jobOutputs[job.name]"
-                  :data-test="`quest-output-${job.name}`"
-                  class="mt-4"
+                  data-test="quest-jobs-list"
+                  :class="[
+                    'min-w-0 overflow-hidden rounded-lg border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-950',
+                    selectedJob && 'hidden lg:block'
+                  ]"
                 >
                   <div
-                    class="overflow-hidden rounded-lg border border-gray-200 dark:border-gray-800"
+                    v-if="!selectedJob && jobs.length"
+                    class="hidden grid-cols-[minmax(0,1fr)_130px_150px_44px] gap-4 border-b border-gray-200 bg-gray-50/60 px-4 py-2 text-xs text-gray-500 dark:border-gray-800 dark:bg-gray-900/30 dark:text-gray-400 sm:grid"
+                  >
+                    <span>Job</span><span>Schedule</span
+                    ><span>Latest activity</span><span />
+                  </div>
+                  <div
+                    v-for="job in filteredJobs"
+                    :key="job.name"
+                    data-test="quest-job-row"
+                    :class="[
+                      'group border-b border-gray-100 last:border-b-0 dark:border-gray-800',
+                      selectedJobName === job.name &&
+                        'bg-gray-50 dark:bg-gray-900/50'
+                    ]"
                   >
                     <div
-                      class="flex items-center justify-between border-b border-gray-200 bg-gray-50 px-4 py-2 dark:border-gray-800 dark:bg-gray-900"
+                      :class="[
+                        'flex items-start gap-3 px-4 py-3.5',
+                        !selectedJob &&
+                          'sm:grid sm:grid-cols-[minmax(0,1fr)_130px_150px_44px] sm:items-center sm:gap-4'
+                      ]"
                     >
-                      <div class="flex items-center space-x-2">
-                        <span
-                          v-if="jobOutputs[job.name].running"
-                          class="flex items-center space-x-1 text-xs font-medium text-gray-500 dark:text-gray-400"
-                        >
-                          <Spinner class="h-3 w-3" />
-                          <span>Awaiting result...</span>
-                        </span>
-                        <span
-                          v-else-if="
-                            jobOutputs[job.name].output?.state === 'completed'
-                          "
-                          class="text-xs font-medium text-emerald-600 dark:text-emerald-400"
-                          >Completed</span
-                        >
-                        <span
-                          v-else-if="
-                            jobOutputs[job.name].output?.state === 'failed'
-                          "
-                          class="text-xs font-medium text-red-600 dark:text-red-400"
-                          >Failed (exit
-                          {{ jobOutputs[job.name].output?.exitCode }})</span
-                        >
-                        <span
-                          v-else
-                          class="text-xs font-medium text-amber-600 dark:text-amber-400"
-                        >
-                          {{
-                            jobOutputs[job.name].output?.state ===
-                            'request_failed'
-                              ? 'Request failed'
-                              : 'Execution outcome unconfirmed'
-                          }}
-                        </span>
-                      </div>
                       <button
-                        @click="dismissOutput(job.name)"
-                        :aria-label="`Dismiss output for ${job.name}`"
-                        class="rounded p-1 text-gray-400 hover:bg-gray-200 hover:text-gray-600 dark:hover:bg-gray-800 dark:hover:text-gray-300"
+                        type="button"
+                        :aria-label="`View ${job.friendlyName || job.name}`"
+                        :aria-pressed="selectedJobName === job.name"
+                        class="min-w-0 flex-1 text-left"
+                        @click="chooseJob(job)"
                       >
-                        <X class="h-4 w-4" stroke-width="2" />
-                      </button>
-                    </div>
-                    <div
-                      :ref="
-                        (el) => {
-                          if (el) logContainers[job.name] = el
-                        }
-                      "
-                      class="h-80 overflow-y-auto bg-gray-100 p-4 font-mono text-xs leading-5 text-gray-700 dark:bg-gray-950 dark:text-gray-300"
-                    >
-                      <template v-if="jobOutputs[job.name].running">
-                        <div
-                          class="flex items-center space-x-2 text-gray-500 dark:text-gray-400"
-                        >
-                          <Spinner class="h-4 w-4" />
-                          <span>Waiting for the execution response...</span>
-                        </div>
-                      </template>
-                      <template v-else-if="jobOutputs[job.name].output">
-                        <pre
-                          v-if="jobOutputs[job.name].output.stdout"
-                          class="whitespace-pre-wrap break-all text-gray-700 dark:text-gray-300"
-                          >{{
-                            stripAnsi(jobOutputs[job.name].output.stdout)
-                          }}</pre
-                        >
-                        <pre
-                          v-if="jobOutputs[job.name].output.stderr"
-                          class="whitespace-pre-wrap break-all"
+                        <span
+                          class="flex flex-wrap items-center gap-x-2 gap-y-1"
+                          ><span
+                            class="text-sm font-medium text-gray-900 dark:text-white"
+                            >{{ job.friendlyName || job.name }}</span
+                          ><QuestStatus
+                            v-if="
+                              ['running', 'paused', 'unavailable'].includes(
+                                state(job)
+                              )
+                            "
+                            :state="state(job)" /></span
+                        ><span
+                          v-if="job.description && !selectedJob"
+                          class="mt-1 block truncate text-xs text-gray-500 dark:text-gray-400"
+                          >{{ job.description }}</span
+                        ><span
                           :class="[
-                            jobOutputs[job.name].output.success
-                              ? 'text-amber-600 dark:text-amber-400'
-                              : 'text-red-600 dark:text-red-400',
-                            { 'mt-2': jobOutputs[job.name].output.stdout }
+                            'mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-xs text-gray-500 dark:text-gray-400',
+                            !selectedJob && 'sm:hidden'
                           ]"
-                          >{{
-                            stripAnsi(jobOutputs[job.name].output.stderr)
-                          }}</pre
+                          ><span>{{ scheduleLabel(job) }}</span
+                          ><span v-if="fresh && job.nextRunAt && !job.paused"
+                            >Next
+                            {{ questRelativeTime(job.nextRunAt, now) }}</span
+                          ></span
                         >
+                      </button>
+                      <div
+                        v-if="!selectedJob"
+                        class="hidden text-xs text-gray-600 dark:text-gray-400 sm:block"
+                      >
+                        <span>{{ scheduleLabel(job) }}</span
+                        ><span
+                          v-if="fresh && job.nextRunAt && !job.paused"
+                          :title="questAbsoluteTime(job.nextRunAt)"
+                          class="mt-1 block text-[11px] text-gray-400"
+                          >Next
+                          {{ questRelativeTime(job.nextRunAt, now) }}</span
+                        >
+                      </div>
+                      <div v-if="!selectedJob" class="hidden text-xs sm:block">
+                        <template v-if="lastActivity[job.name]"
+                          ><QuestStatus
+                            :state="lastActivity[job.name].state"
+                          /><span class="mt-1 block text-[11px] text-gray-400"
+                            >{{
+                              questRelativeTime(
+                                questRunTime(lastActivity[job.name]),
+                                now
+                              )
+                            }}{{
+                              lastActivity[job.name].legacy ? ' · Legacy' : ''
+                            }}</span
+                          ></template
+                        ><span v-else class="text-gray-400">{{
+                          live.nextCursor ? 'No activity loaded' : 'No runs yet'
+                        }}</span>
+                      </div>
+                      <Tooltip :text="runDisabledReason(job) || 'Run job'"
+                        ><Button
+                          :aria-label="`Run ${job.friendlyName || job.name}`"
+                          data-test="quest-open-run"
+                          :disabled="!canInvoke(job)"
+                          class="min-h-8 min-w-8 bg-transparent p-1.5 text-gray-500 hover:bg-gray-100 dark:bg-transparent dark:text-gray-400 dark:hover:bg-gray-800"
+                          @click="openRun(job)"
+                          ><Play
+                            class="h-3.5 w-3.5"
+                            stroke-width="1.5" /></Button
+                      ></Tooltip>
+                    </div>
+                  </div>
+                  <div
+                    v-if="!filteredJobs.length"
+                    class="px-5 py-12 text-center"
+                  >
+                    <p class="text-sm text-gray-500 dark:text-gray-400">
+                      {{
+                        jobs.length
+                          ? 'No jobs match these filters.'
+                          : 'No jobs found in this deployment.'
+                      }}
+                    </p>
+                    <button
+                      v-if="jobs.length"
+                      type="button"
+                      class="mt-2 text-xs underline"
+                      @click="clearFilters"
+                    >
+                      Clear filters
+                    </button>
+                    <p v-else class="mt-2 text-xs text-gray-400">
+                      Define jobs in your app’s source and deploy them here.
+                    </p>
+                  </div>
+                </div>
+                <section
+                  v-if="selectedJob"
+                  data-test="quest-job-detail"
+                  class="min-w-0"
+                  aria-labelledby="quest-job-title"
+                >
+                  <button
+                    type="button"
+                    class="mb-3 flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400 lg:hidden"
+                    @click="closeJob"
+                  >
+                    <ChevronLeft class="h-3.5 w-3.5" />All jobs
+                  </button>
+                  <div
+                    class="overflow-hidden rounded-lg border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-950"
+                  >
+                    <div class="px-4 pt-4">
+                      <div class="flex items-start justify-between gap-3">
+                        <div class="min-w-0">
+                          <h2
+                            id="quest-job-title"
+                            class="text-sm font-semibold text-gray-900 dark:text-white"
+                          >
+                            {{ selectedJob.friendlyName || selectedJob.name }}
+                          </h2>
+                          <p
+                            class="mt-1 break-all font-mono text-[10px] text-gray-400"
+                          >
+                            {{ selectedJob.script || selectedJob.name }}
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          aria-label="Close job details"
+                          class="rounded p-1 text-gray-400 hover:text-gray-900 dark:hover:text-white"
+                          @click="closeJob"
+                        >
+                          <X class="h-4 w-4" />
+                        </button>
+                      </div>
+                      <p
+                        v-if="selectedJob.description"
+                        class="mt-3 text-xs leading-5 text-gray-500 dark:text-gray-400"
+                      >
+                        {{ selectedJob.description }}
+                      </p>
+                      <div
+                        class="mt-4 flex flex-wrap items-center justify-between gap-3"
+                      >
+                        <div class="flex items-center gap-2">
+                          <QuestStatus :state="state(selectedJob)" /><span
+                            v-if="selectedJob.withoutOverlapping"
+                            class="text-[10px] text-gray-400"
+                            >No overlap</span
+                          >
+                        </div>
+                        <Tooltip
+                          :text="runDisabledReason(selectedJob) || 'Run job'"
+                          ><Button
+                            data-test="quest-open-run"
+                            :aria-label="`Run ${
+                              selectedJob.friendlyName || selectedJob.name
+                            }`"
+                            :disabled="!canInvoke(selectedJob)"
+                            class="min-h-8 px-2.5 py-1 text-xs"
+                            @click="openRun(selectedJob)"
+                            ><Play class="h-3 w-3" />Run job</Button
+                          ></Tooltip
+                        >
+                      </div>
+                      <p
+                        v-if="selectedJob.validationErrors?.length"
+                        role="alert"
+                        class="mt-3 text-xs text-red-600 dark:text-red-400"
+                      >
+                        This job definition is invalid:
+                        {{
+                          selectedJob.validationErrors
+                            .map((error) =>
+                              typeof error === 'string' ? error : error.message
+                            )
+                            .join(' · ')
+                        }}
+                      </p>
+                    </div>
+                    <Tabs v-model="jobTab" aria-label="Job details">
+                      <div
+                        data-slot="tabs-list"
+                        class="mt-2 flex gap-5 border-b border-gray-200 px-4 dark:border-gray-800"
+                      >
+                        <button
+                          data-value="runs"
+                          :class="tabClass(jobTab, 'runs')"
+                        >
+                          Runs</button
+                        ><button
+                          data-value="inputs"
+                          :class="tabClass(jobTab, 'inputs')"
+                        >
+                          Inputs
+                          <span
+                            v-if="selectedJob.inputs?.length"
+                            class="ml-1 text-[10px] text-gray-400"
+                            >{{ selectedJob.inputs.length }}</span
+                          ></button
+                        ><button
+                          data-value="schedule"
+                          :class="tabClass(jobTab, 'schedule')"
+                        >
+                          Schedule
+                        </button>
+                      </div>
+                      <div data-slot="tab-panel" data-value="runs">
+                        <QuestRuns
+                          :runs="jobRuns"
+                          :legacy-events="jobEvents"
+                          :jobs="jobs"
+                          :selected-run="selectedRunId"
+                          :selected-event="selectedEventId"
+                          :now="now"
+                          :empty-text="
+                            live.nextCursor
+                              ? 'No runs for this job in loaded history.'
+                              : 'No runs recorded yet.'
+                          "
+                          @select="chooseRun"
+                        />
+                        <p
+                          class="border-t border-gray-100 px-4 py-2 text-[10px] text-gray-400 dark:border-gray-800"
+                        >
+                          {{ live.historyScope
+                          }}{{
+                            jobEvents.length
+                              ? ' · Legacy telemetry may be incomplete'
+                              : ''
+                          }}{{
+                            live.nextCursor ? ' · Showing loaded history' : ''
+                          }}
+                        </p>
+                        <div
+                          v-if="live.nextCursor || moreError"
+                          class="border-t border-gray-100 px-4 py-3 dark:border-gray-800"
+                        >
+                          <Button
+                            v-if="live.nextCursor"
+                            :disabled="moreLoading"
+                            class="min-h-8 border border-gray-200 bg-transparent px-3 py-1 text-xs text-gray-600 hover:bg-gray-100 dark:border-gray-800 dark:bg-transparent dark:text-gray-400 dark:hover:bg-gray-900"
+                            @click="loadMore"
+                            >{{
+                              moreLoading ? 'Loading…' : 'Load more history'
+                            }}</Button
+                          >
+                          <p
+                            v-if="moreError"
+                            role="alert"
+                            class="mt-2 text-xs text-red-600 dark:text-red-400"
+                          >
+                            {{ moreError }}
+                          </p>
+                        </div>
+                      </div>
+                      <div
+                        data-slot="tab-panel"
+                        data-value="inputs"
+                        class="divide-y divide-gray-100 dark:divide-gray-800"
+                      >
+                        <p
+                          v-if="!selectedJob.inputs?.length"
+                          class="px-4 py-8 text-sm text-gray-500 dark:text-gray-400"
+                        >
+                          This job takes no inputs.
+                        </p>
+                        <div
+                          v-for="input in selectedJob.inputs"
+                          :key="input.name"
+                          class="px-4 py-3"
+                        >
+                          <div class="flex flex-wrap items-center gap-2">
+                            <span
+                              class="font-mono text-xs text-gray-800 dark:text-gray-200"
+                              >{{ input.name }}</span
+                            ><span class="text-[10px] text-gray-400"
+                              >{{ questInputType(input)
+                              }}{{
+                                input.required ? ' · required' : ' · optional'
+                              }}{{
+                                input.sensitive ? ' · sensitive' : ''
+                              }}</span
+                            >
+                          </div>
+                          <p
+                            v-if="input.description"
+                            class="mt-1 text-xs leading-5 text-gray-500 dark:text-gray-400"
+                          >
+                            {{ input.description }}
+                          </p>
+                          <p
+                            v-if="
+                              !input.sensitive &&
+                              Object.prototype.hasOwnProperty.call(
+                                input,
+                                'defaultsTo'
+                              )
+                            "
+                            class="mt-2 break-all font-mono text-[11px] text-gray-500 dark:text-gray-400"
+                          >
+                            Default: {{ displayValue(input.defaultsTo) }}
+                          </p>
+                          <p
+                            v-if="!input.sensitive && input.isIn?.length"
+                            class="mt-1 break-all text-[11px] text-gray-400"
+                          >
+                            Allowed:
+                            {{ input.isIn.map(displayValue).join(', ') }}
+                          </p>
+                        </div>
+                      </div>
+                      <div
+                        data-slot="tab-panel"
+                        data-value="schedule"
+                        class="p-4"
+                      >
+                        <dl
+                          class="grid grid-cols-[auto_minmax(0,1fr)] gap-x-5 gap-y-3 text-xs"
+                        >
+                          <dt class="text-gray-400">Schedule</dt>
+                          <dd class="text-gray-800 dark:text-gray-200">
+                            {{
+                              selectedJob.scheduleType === 'unavailable'
+                                ? 'Unavailable'
+                                : selectedJob.schedule || 'Manual only'
+                            }}
+                          </dd>
+                          <dt
+                            v-if="selectedJob.scheduleType"
+                            class="text-gray-400"
+                          >
+                            Type
+                          </dt>
+                          <dd
+                            v-if="selectedJob.scheduleType"
+                            class="capitalize"
+                          >
+                            {{ selectedJob.scheduleType }}
+                          </dd>
+                          <dt v-if="selectedJob.schedule" class="text-gray-400">
+                            Timezone
+                          </dt>
+                          <dd v-if="selectedJob.schedule">
+                            {{ selectedJob.timezone || 'Runtime default' }}
+                          </dd>
+                          <dt v-if="selectedJob.schedule" class="text-gray-400">
+                            Next run
+                          </dt>
+                          <dd v-if="selectedJob.schedule">
+                            {{
+                              !fresh
+                                ? 'Unavailable'
+                                : selectedJob.paused
+                                ? 'Paused'
+                                : questAbsoluteTime(selectedJob.nextRunAt)
+                            }}
+                          </dd>
+                          <dt class="text-gray-400">Overlap</dt>
+                          <dd>
+                            {{
+                              selectedJob.withoutOverlapping
+                                ? 'Prevent concurrent executions'
+                                : 'Concurrent executions allowed'
+                            }}
+                          </dd>
+                        </dl>
                         <p
                           v-if="
-                            jobOutputs[job.name].output.error &&
-                            jobOutputs[job.name].output.error !==
-                              jobOutputs[job.name].output.stderr
+                            selectedJob.schedule &&
+                            selectedJob.scheduledInputs == null
                           "
-                          class="mt-2 text-amber-600 dark:text-amber-400"
+                          class="mt-4 text-xs text-gray-500 dark:text-gray-400"
                         >
-                          {{ jobOutputs[job.name].output.error }}
+                          Scheduled inputs: unavailable from this runtime.
                         </p>
                         <div
                           v-if="
-                            !jobOutputs[job.name].output.error &&
-                            !jobOutputs[job.name].output.stdout &&
-                            !jobOutputs[job.name].output.stderr
+                            selectedJob.scheduledInputs &&
+                            Object.keys(selectedJob.scheduledInputs).length
                           "
-                          class="text-gray-500 dark:text-gray-400"
+                          class="mt-4"
                         >
-                          No output
-                        </div>
-                      </template>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Expanded run history -->
-              <Transition
-                enter-active-class="transition-all duration-200 ease-out"
-                enter-from-class="max-h-0 opacity-0"
-                enter-to-class="max-h-[600px] opacity-100"
-                leave-active-class="transition-all duration-150 ease-in"
-                leave-from-class="max-h-[600px] opacity-100"
-                leave-to-class="max-h-0 opacity-0"
-              >
-                <div
-                  v-if="expandedJob === job.name"
-                  class="overflow-hidden border-t border-gray-100 dark:border-gray-800"
-                >
-                  <div class="px-4 py-4">
-                    <h4
-                      class="mb-3 text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400"
-                    >
-                      Recent legacy events (up to 20)
-                    </h4>
-
-                    <div
-                      v-if="expandedJobHistory.length === 0"
-                      class="py-4 text-center text-sm text-gray-400 dark:text-gray-500"
-                    >
-                      No terminal events recorded in this window
-                    </div>
-
-                    <div v-else>
-                      <div v-for="run in expandedJobHistory" :key="run.eventId">
-                        <Tooltip
-                          :text="
-                            run.event === 'completed'
-                              ? 'Process completed'
-                              : run.error || 'Failed'
-                          "
-                        >
-                          <button
-                            type="button"
-                            :aria-label="
-                              run.event === 'completed'
-                                ? 'Process completed'
-                                : run.error || 'Failed'
-                            "
-                            class="group flex w-full items-center justify-between px-3 py-2 text-sm hover:bg-gray-50 dark:hover:bg-gray-900/50"
-                            @click="toggleRun(run.eventId)"
-                          >
-                            <div class="flex items-center space-x-4">
-                              <span
-                                class="whitespace-nowrap text-xs text-gray-400 dark:text-gray-500"
-                                >{{ formatDate(run.recordedAt) }}
-                                {{ formatTime(run.recordedAt) }}</span
-                              >
-                              <span
-                                class="whitespace-nowrap font-mono text-xs text-gray-600 dark:text-gray-300"
-                                >{{ formatDuration(run.duration) }}</span
-                              >
-                              <span
-                                v-if="run.trigger === 'manual'"
-                                class="text-[10px] text-gray-400 dark:text-gray-500"
-                                >manual</span
-                              >
+                          <h3 class="text-xs text-gray-400">
+                            Scheduled inputs
+                          </h3>
+                          <dl class="mt-2 space-y-1">
+                            <div
+                              v-for="(
+                                value, name
+                              ) in selectedJob.scheduledInputs"
+                              :key="name"
+                              class="flex gap-2 text-xs"
+                            >
+                              <dt class="font-mono text-gray-500">
+                                {{ name }}
+                              </dt>
+                              <dd class="min-w-0 break-all font-mono">
+                                {{
+                                  selectedJob.inputs?.find(
+                                    (input) => input.name === name
+                                  )?.sensitive
+                                    ? '••••••'
+                                    : displayValue(value)
+                                }}
+                              </dd>
                             </div>
-                            <span
-                              aria-hidden="true"
-                              class="opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"
-                              :class="
-                                run.event === 'completed'
-                                  ? 'text-gray-500 dark:text-gray-400'
-                                  : 'text-red-600 dark:text-red-400'
-                              "
-                            >
-                              <template v-if="run.event === 'completed'"
-                                >&#10003;</template
-                              >
-                              <template v-else>&#10007;</template>
-                            </span>
-                          </button>
-                        </Tooltip>
-                        <div
-                          v-if="
-                            expandedRun === String(run.eventId) &&
-                            (run.stdout || run.stderr || run.error)
-                          "
-                        >
-                          <div
-                            :ref="
-                              (el) => {
-                                if (el) runLogContainers[run.eventId] = el
-                                else delete runLogContainers[run.eventId]
-                              }
-                            "
-                            class="max-h-60 overflow-y-auto bg-gray-100 p-4 font-mono text-xs leading-5 dark:bg-gray-950"
-                          >
-                            <pre
-                              v-if="run.stdout"
-                              class="whitespace-pre-wrap break-all text-gray-700 dark:text-gray-300"
-                              >{{ stripAnsi(run.stdout) }}</pre
-                            >
-                            <pre
-                              v-if="run.stderr"
-                              class="whitespace-pre-wrap break-all"
-                              :class="[
-                                run.event === 'completed'
-                                  ? 'text-amber-600 dark:text-amber-400'
-                                  : 'text-red-600 dark:text-red-400',
-                                { 'mt-2': run.stdout }
-                              ]"
-                              >{{ stripAnsi(run.stderr) }}</pre
-                            >
-                            <pre
-                              v-if="run.error && run.error !== run.stderr"
-                              class="mt-2 whitespace-pre-wrap break-all text-red-600 dark:text-red-400"
-                              >{{ stripAnsi(run.error) }}</pre
-                            >
-                          </div>
+                          </dl>
                         </div>
                         <div
-                          v-else-if="
-                            expandedRun === String(run.eventId) &&
-                            !run.stdout &&
-                            !run.stderr &&
-                            !run.error
-                          "
-                          class="px-4 py-3 text-xs text-gray-400 dark:text-gray-500"
+                          class="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-gray-100 pt-3 dark:border-gray-800"
                         >
-                          No output recorded
+                          <p class="text-[11px] text-gray-400">
+                            Schedule defined in app source.
+                          </p>
+                          <Button
+                            v-if="
+                              selectedJob.schedule &&
+                              selectedJob.schedule !== 'manual'
+                            "
+                            :disabled="
+                              !canPause(selectedJob) || !!changingSchedule
+                            "
+                            class="min-h-8 border border-gray-200 bg-transparent px-2.5 py-1 text-xs text-gray-700 hover:bg-gray-100 dark:border-gray-700 dark:bg-transparent dark:text-gray-300 dark:hover:bg-gray-800"
+                            @click="togglePause(selectedJob)"
+                            ><Spinner
+                              v-if="changingSchedule === selectedJob.name"
+                              class="h-3 w-3"
+                            /><Play
+                              v-else-if="selectedJob.paused"
+                              class="h-3 w-3"
+                            /><Pause v-else class="h-3 w-3" />{{
+                              selectedJob.paused
+                                ? 'Resume schedule'
+                                : 'Pause schedule'
+                            }}</Button
+                          >
                         </div>
                       </div>
-                    </div>
+                    </Tabs>
                   </div>
+                  <QuestRunDetail
+                    v-if="
+                      activeTab === 'jobs' && (selectedRunId || selectedEventId)
+                    "
+                    class="mt-4"
+                    :api-url="apiUrl"
+                    :run-id="selectedRunId"
+                    :event-id="selectedEventId"
+                    :revision="detailRevision"
+                    :job="selectedRunJob"
+                    :can-run="canInvoke(selectedRunJob)"
+                    :can-cancel="live.capabilities.cancel"
+                    @loaded="onRunLoaded"
+                    @close="closeRun"
+                    @run-again="openRun(selectedRunJob, $event)"
+                  />
+                </section>
+                <div
+                  v-else-if="selectedJobName"
+                  role="status"
+                  class="rounded-md border border-gray-200 p-4 text-sm text-gray-500 dark:border-gray-800 dark:text-gray-400"
+                >
+                  This job is not present in the current deployment.
+                  <button class="underline" type="button" @click="closeJob">
+                    Clear selection
+                  </button>
                 </div>
-              </Transition>
+              </div>
             </div>
-          </div>
-        </div>
-
-        <!-- Empty state -->
-        <div
-          v-else
-          class="rounded-lg border border-dashed border-gray-300 px-6 py-12 text-center dark:border-gray-700"
-        >
-          <Clock class="mx-auto h-10 w-10 text-gray-400" />
-          <h3 class="mt-4 text-sm font-medium text-gray-900 dark:text-white">
-            No scripts found
-          </h3>
-          <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">
-            Create scripts in your
-            <code
-              class="rounded bg-gray-100 px-1.5 py-0.5 text-xs dark:bg-gray-800"
-              >scripts/</code
-            >
-            directory.
-          </p>
-        </div>
+            <div data-slot="tab-panel" data-value="runs" class="pt-4">
+              <div class="mb-4 flex flex-wrap items-center gap-2">
+                <Select
+                  v-model="runJobFilter"
+                  aria-label="Filter runs by job"
+                  :class="[filterClass, 'max-w-64']"
+                  :options="jobFilterOptions"
+                /><Select
+                  v-model="runStateFilter"
+                  aria-label="Filter runs by state"
+                  :class="filterClass"
+                  :options="[
+                    { label: 'All states', value: 'all' },
+                    { label: 'Running', value: 'running' },
+                    { label: 'Accepted', value: 'accepted' },
+                    { label: 'Requested', value: 'requested' },
+                    { label: 'Unconfirmed', value: 'unconfirmed' },
+                    { label: 'Completed', value: 'completed' },
+                    { label: 'Failed', value: 'failed' },
+                    { label: 'Interrupted', value: 'interrupted' }
+                  ]"
+                /><span
+                  data-test="quest-history-scope"
+                  class="ml-auto text-xs text-gray-400"
+                  >{{ live.historyScope
+                  }}{{ live.nextCursor ? ' · Loaded history' : '' }}</span
+                >
+              </div>
+              <div
+                class="overflow-hidden rounded-lg border border-gray-200 dark:border-gray-800"
+              >
+                <QuestRuns
+                  :runs="filteredRuns"
+                  :legacy-events="filteredEvents"
+                  :jobs="jobs"
+                  show-job
+                  :now="now"
+                  :selected-run="selectedRunId"
+                  :selected-event="selectedEventId"
+                  :empty-text="
+                    runJobFilter !== 'all' || runStateFilter !== 'all'
+                      ? live.nextCursor
+                        ? 'No runs match these filters in loaded history.'
+                        : 'No runs match these filters.'
+                      : 'No runs recorded yet.'
+                  "
+                  @select="chooseRun"
+                />
+              </div>
+              <div
+                class="mt-3 flex flex-wrap items-center justify-between gap-3"
+              >
+                <p
+                  v-if="live.legacyEvents.length"
+                  class="text-[11px] text-gray-400"
+                >
+                  Legacy rows are telemetry events; correlated run details may
+                  be unavailable.
+                </p>
+                <Button
+                  v-if="live.nextCursor"
+                  :disabled="moreLoading"
+                  class="min-h-8 border border-gray-200 bg-transparent px-3 py-1 text-xs text-gray-600 hover:bg-gray-100 dark:border-gray-800 dark:bg-transparent dark:text-gray-400 dark:hover:bg-gray-900"
+                  @click="loadMore"
+                  >{{ moreLoading ? 'Loading…' : 'Load more' }}</Button
+                >
+              </div>
+              <p
+                v-if="moreError"
+                role="alert"
+                class="mt-2 text-xs text-red-600 dark:text-red-400"
+              >
+                {{ moreError }}
+              </p>
+              <QuestRunDetail
+                v-if="
+                  activeTab === 'runs' && (selectedRunId || selectedEventId)
+                "
+                class="mt-4"
+                :api-url="apiUrl"
+                :run-id="selectedRunId"
+                :event-id="selectedEventId"
+                :revision="detailRevision"
+                :job="selectedRunJob"
+                :can-run="canInvoke(selectedRunJob)"
+                :can-cancel="live.capabilities.cancel"
+                @loaded="onRunLoaded"
+                @close="closeRun"
+                @run-again="openRun(selectedRunJob, $event)"
+              />
+            </div>
+          </Tabs>
+          <QuestRunDetail
+            v-if="activeTab === 'jobs' && !selectedJob && selectedRunId"
+            class="mt-4"
+            :api-url="apiUrl"
+            :run-id="selectedRunId"
+            :revision="detailRevision"
+            :job="selectedRunJob"
+            :can-run="canInvoke(selectedRunJob)"
+            :can-cancel="live.capabilities.cancel"
+            @loaded="onRunLoaded"
+            @close="closeRun"
+            @run-again="openRun(selectedRunJob, $event)"
+          />
+        </template>
       </div>
-    </div>
+    </main>
+    <QuestRunDialog
+      v-model:open="reviewOpen"
+      :review="review"
+      :stale="reviewStale"
+      :api-url="apiUrl"
+      :csrf="page.props._csrf || ''"
+      @accepted="accepted"
+    />
   </div>
 </template>

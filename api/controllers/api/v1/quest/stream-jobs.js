@@ -1,127 +1,43 @@
-/**
- * stream-jobs.js
- *
- * SSE endpoint that streams live Quest job state and recent run history.
- * Polls the container for job state and queries telemetry every 30s.
- */
-
+const workspace = require('../../../../lib/quest-workspace')
 module.exports = {
   friendlyName: 'Stream Quest jobs',
-
   description:
-    'Server-Sent Events stream of live Quest job state and run history.',
-
+    'Share bounded resident snapshots without lifting another Sails app.',
   inputs: {
-    projectSlug: {
-      type: 'string',
-      required: true
-    },
-    environmentSlug: {
-      type: 'string',
-      defaultsTo: 'production'
-    }
+    projectSlug: { type: 'string', required: true },
+    environmentSlug: { type: 'string', defaultsTo: 'production' }
   },
-
-  exits: {
-    success: {
-      description: 'SSE stream started.'
-    },
-    notFound: {
-      statusCode: 404,
-      description: 'Project or environment not found.'
-    }
-  },
-
+  exits: { success: {}, notFound: { statusCode: 404 } },
   fn: async function ({ projectSlug, environmentSlug }) {
-    const req = this.req
-    const res = this.res
-
-    const user = await User.forRequest(req, { populateTeam: true })
-    if (!user) throw 'notFound'
-
-    const project = await Project.findOne({
-      slug: projectSlug,
-      team: user.team.id
-    })
-    if (!project) throw 'notFound'
-
-    const environment = await Environment.findOne({
-      slug: environmentSlug,
-      project: project.id
-    })
-    if (!environment) throw 'notFound'
-
-    const stream = res.sse()
-    let lastPayloadHash = ''
-
-    // Send initial data immediately, then poll every 30s
-    await sendSnapshot()
-
-    const interval = setInterval(() => {
-      sendSnapshot().catch(() => {})
-    }, 30000)
-
-    stream.onClose(() => {
-      clearInterval(interval)
-    })
-
-    async function sendSnapshot() {
-      if (stream.closed) return
-
+    await workspace.resolveContext(this.req, projectSlug, environmentSlug)
+    const stream = this.res.sse()
+    let busy = false,
+      last = ''
+    const send = async () => {
+      if (stream.closed || busy) return
+      busy = true
       try {
-        // Get app + quest feature
-        const app =
-          (await App.findOne({
-            environment: environment.id,
-            isDefault: true
-          })) || (await App.findOne({ environment: environment.id }))
-        const hasQuestFeature = !!(
-          environment.features && environment.features['sails-quest']
+        const context = await workspace.resolveContext(
+          this.req,
+          projectSlug,
+          environmentSlug
         )
-        const questFeature = hasQuestFeature
-          ? environment.features['sails-quest']
-          : null
-
-        let jobs = []
-        let jobsError = null
-
-        if (
-          hasQuestFeature &&
-          app &&
-          app.status === 'running' &&
-          app.containerName
-        ) {
-          try {
-            const result = await sails.helpers.quest.listJobs(
-              app.containerName,
-              questFeature
-            )
-            jobs = result.jobs || []
-            jobsError = result.error
-          } catch (err) {
-            jobsError = err.message
-          }
+        const current = await workspace.snapshot(context)
+        const payload = { workspace: current }
+        const fingerprint = JSON.stringify(payload)
+        if (!stream.closed && fingerprint !== last) {
+          last = fingerprint
+          stream.send(payload)
         }
-
-        let jobHistory = []
-        try {
-          jobHistory = await sails.helpers.quest.getJobHistory(environment.id)
-        } catch {
-          // Telemetry may not exist yet
-        }
-
-        // Skip sending if nothing changed
-        const payload = { jobs, jobsError, jobHistory }
-        const hash = JSON.stringify(payload)
-        if (hash === lastPayloadHash) return
-        lastPayloadHash = hash
-
-        stream.send(payload)
-      } catch (err) {
-        stream.send({ error: err.message })
+      } catch {
+        if (!stream.closed) stream.send({ error: 'Quest refresh unavailable.' })
+      } finally {
+        busy = false
       }
     }
-
+    await send()
+    const timer = setInterval(send, 5000)
+    stream.onClose(() => clearInterval(timer))
     return stream.wait()
   }
 }
