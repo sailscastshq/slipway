@@ -50,6 +50,9 @@ the same deterministic container-runner fixtures: `2` plus a newline for
 `node -p 1+1`, then a multi-line readiness summary matching the displayed Node
 JSON expression. The history fixture contains source/status metadata only.
 Arming, editing the draft, and restoring history do not execute a command.
+The prompt stays at the top. The current empty and typed-but-not-run captures
+assert no idle Ready status or output placeholder; the pinned baseline retains
+both. Running and terminal status coverage remains in the Helm page tests.
 These are real browser captures with synthetic command output, not a claim
 that a container command ran or that service health was observed. Small
 frame-scheduled timing samples are reported without a speedup claim or

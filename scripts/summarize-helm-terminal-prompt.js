@@ -58,6 +58,8 @@ const lines = [
   '',
   'The focused-native-caret captures show an empty field with the browser’s native caret; typed command/output states are captured separately, and the remaining captures hide it for stable comparison. Focus, visible caret color, and native selection are asserted in each viewport and theme. A still image does not measure the browser’s blink cadence.',
   '',
+  'The prompt remains at the top in both versions. The current idle view omits the Ready status and empty-output placeholder, whether the draft is empty or typed but not run. Running, completed, and attention states still retain their status and output context.',
+  '',
   '## Browser timing samples',
   '',
   'Nine samples per viewport/theme follow one untimed warmup. A real browser click or input event starts performance.now(); the second requestAnimationFrame ends the sample. These values include frame scheduling and are expected to be noisy. Raw samples are in each metrics.json.',

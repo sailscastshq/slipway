@@ -177,15 +177,23 @@ test(
             await expect(input).toHaveValue('x')
           }
           await input.fill('')
-          await expect(
-            page.raw.locator('[data-test="helm-command-status"]')
-          ).toHaveText('Ready')
-          await expect(
-            page.raw.getByRole('region', {
-              name: 'Command output',
-              exact: true
-            })
-          ).toHaveText('Command output will appear here.')
+          const status = page.raw.locator('[data-test="helm-command-status"]')
+          const output = page.raw.getByRole('region', {
+            name: 'Command output',
+            exact: true
+          })
+          const assertIdlePresentation = async () => {
+            if (VARIANT === 'baseline') {
+              await expect(status).toHaveText('Ready')
+              await expect(output).toHaveText(
+                'Command output will appear here.'
+              )
+            } else {
+              await expect(status).toBeHidden()
+              await expect(output).toHaveText('')
+            }
+          }
+          await assertIdlePresentation()
           // Keep the empty field and real native caret for this focused capture; the
           // ordinary screenshots below use Playwright's stable hidden caret.
           // No cursor overlay, animation, or timer is introduced by the UI.
@@ -212,6 +220,7 @@ test(
           )
           // Capture typed and completed states separately from the empty field.
           await input.fill(SOURCE)
+          await assertIdlePresentation()
           await page.raw.mouse.move(1, 1)
           await page.screenshot(
             path.join(ROOT, `${device}-${theme}-idle.png`),
@@ -243,10 +252,6 @@ test(
           await expect(
             page.raw.locator('[data-test="helm-command-status"]')
           ).toHaveText('Completed')
-          const output = page.raw.getByRole('region', {
-            name: 'Command output',
-            exact: true
-          })
           await expect(output).toHaveText(OUTPUT)
           await expect(input).toHaveValue(SOURCE)
           expect(executions).toBe(before + 1)

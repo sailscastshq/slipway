@@ -2554,7 +2554,15 @@ test(
         exact: true
       })
       const submit = page.raw.locator('[data-test="helm-command-run"]')
+      const status = page.raw.locator('[data-test="helm-command-status"]')
+      const output = page.raw.getByRole('region', {
+        name: 'Command output',
+        exact: true
+      })
       await expect(input).toBeFocused()
+      await expect(input).toHaveValue('')
+      await expect(status).toBeHidden()
+      await expect(output).toHaveText('')
       await expect(submit).toHaveAccessibleName('Run')
       await expect(submit).toBeDisabled()
       await input.press('Enter')
@@ -2564,6 +2572,8 @@ test(
       expect(inspectionRequests).toBe(0)
 
       await input.fill(COMMAND_FIXTURE_SOURCE)
+      await expect(status).toBeHidden()
+      await expect(output).toHaveText('')
       for (const key of ['Shift+Enter', 'Alt+Enter', 'ControlOrMeta+Enter'])
         await input.press(key)
       // Exercise both modern IME events and the keyCode 229 fallback. Synthetic
@@ -2888,10 +2898,10 @@ test(
       })
       await expect(
         page.raw.locator('[data-test="helm-command-status"]')
-      ).toHaveText('Ready')
+      ).toBeHidden()
       await expect(
         page.raw.getByRole('region', { name: 'Command output', exact: true })
-      ).not.toContainText('fixture command still running')
+      ).toHaveText('')
       await page.raw
         .getByRole('navigation', { name: 'Breadcrumb', exact: true })
         .getByRole('link', { name: 'projects', exact: true })

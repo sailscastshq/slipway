@@ -84,7 +84,7 @@ const statusLabel = computed(() =>
         timeout: 'Timed out',
         cancelled: 'Cancelled',
         unconfirmed: 'Unconfirmed'
-      }[result.value?.status] || 'Ready'
+      }[result.value?.status] || (error.value ? 'Failed' : 'Ready')
 )
 const runLabel = computed(() =>
   armed.value
@@ -654,7 +654,7 @@ onBeforeUnmount(() => {
         ><span class="sr-only">Load command</span>
       </button>
     </div>
-    <div class="shrink-0 px-4 pb-1 pt-2 sm:px-8">
+    <div v-if="busy || result || error" class="shrink-0 px-4 pb-1 pt-2 sm:px-8">
       <p
         v-if="lastSource"
         id="helm-command-provenance"
@@ -735,7 +735,7 @@ onBeforeUnmount(() => {
     >
       <pre
         class="whitespace-pre-wrap break-words"
-      ><span v-for="(log, index) in logs" :key="index" :class="log.type === 'stderr' ? 'text-amber-700 dark:text-amber-400' : 'text-gray-800 dark:text-gray-200'">{{ stripAnsi(log.text) }}</span><span v-if="!logs.length" class="text-gray-400">{{ busy ? 'Waiting for command output…' : result ? 'No command output.' : 'Command output will appear here.' }}</span></pre>
+      ><span v-for="(log, index) in logs" :key="index" :class="log.type === 'stderr' ? 'text-amber-700 dark:text-amber-400' : 'text-gray-800 dark:text-gray-200'">{{ stripAnsi(log.text) }}</span><span v-if="!logs.length && (busy || result)" class="text-gray-400">{{ busy ? 'Waiting for command output…' : 'No command output.' }}</span></pre>
     </div>
     <HelmWriteGuardDialog
       mode="command"
