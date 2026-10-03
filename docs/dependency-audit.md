@@ -32,8 +32,9 @@ advisories, zero moderate/low/critical entries:
   upstream publishes a compatible patch. Do not accept untrusted glob patterns
   in build configuration.
 
-These are bounded accepted development/build entries for this patch, not a
-claim of a clean audit or a sandbox. Recheck registry metadata before release;
+These are unresolved development/build entries for this patch. Risk acceptance
+has not been authorized. Keep #647 open pending a compatible remediation or an
+explicit maintainer decision; this is not a clean audit or a sandbox. Recheck registry metadata before release;
 new advisories or upstream fixes change this assessment.
 
 ## Verification and release gate
