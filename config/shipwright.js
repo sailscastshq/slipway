@@ -5,6 +5,10 @@ try {
 
   module.exports.shipwright = {
     build: {
+      // Sails parses the text/plain activation POST before Shipwright's dev
+      // middleware. Compile async chunks up front in dev; production still
+      // downloads these chunks only when their UI is opened.
+      dev: { lazyCompilation: false },
       plugins: [pluginVue(), pluginTailwindcss(), pluginInertia()]
     }
   }

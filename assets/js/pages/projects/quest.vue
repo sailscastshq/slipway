@@ -40,7 +40,9 @@ import {
   questInputType,
   questInputMetadataAvailable,
   questOverlapLabel,
-  createQuestHistoryLoader
+  createQuestHistoryLoader,
+  questDueTimes,
+  questSnapshotIsFresh
 } from '@/lib/questWorkspace.mjs'
 
 const QuestRunDetail = defineAsyncComponent(() =>
@@ -185,8 +187,11 @@ watch(selectedRunId, (id) => {
   if (id) selectedEventId.value = ''
   runDetail.value = null
 })
+const snapshotFresh = computed(() =>
+  questSnapshotIsFresh(live.value, now.value)
+)
 const fresh = computed(
-  () => props.appRunning && !streamStale.value && live.value.mode === 'resident'
+  () => props.appRunning && !streamStale.value && snapshotFresh.value
 )
 const jobs = computed(() => live.value.jobs)
 const selectedJob = computed(() =>
@@ -196,10 +201,14 @@ const state = (job) => questJobState(job, live.value, fresh.value)
 const inputMetadataAvailable = computed(() =>
   questInputMetadataAvailable(selectedJob.value, live.value)
 )
+const selectedScheduleTimes = computed(() =>
+  questDueTimes(selectedJob.value?.nextRunAt, selectedJob.value?.timezone)
+)
 const scheduleLabel = (job) =>
   job.scheduleType === 'unavailable' ? 'Unavailable' : job.schedule || 'Manual'
 const canInvoke = (job) =>
   fresh.value &&
+  questSnapshotIsFresh(live.value) &&
   live.value.capabilities.invoke &&
   !!live.value.target.runtimeId &&
   !!job?.metadataVersion &&
@@ -228,6 +237,7 @@ const runDisabledReason = (job) =>
     : ''
 const canPause = (job) =>
   fresh.value &&
+  questSnapshotIsFresh(live.value) &&
   !!live.value.target.runtimeId &&
   !!job?.schedule &&
   job.schedule !== 'manual' &&
@@ -631,6 +641,8 @@ async function loadMore() {
                 ? 'Unavailable'
                 : streamStale
                 ? 'Reconnecting'
+                : live.mode === 'resident' && !snapshotFresh
+                ? 'Stale'
                 : 'Unavailable'
             }}</span></span
           ></Tooltip
@@ -700,6 +712,8 @@ async function loadMore() {
                 ? streamError
                 : streamStale
                 ? 'Reconnecting to the runtime. Controls are unavailable until live state returns.'
+                : live.mode === 'resident' && !snapshotFresh
+                ? 'Runtime state is stale or unavailable. Refresh to restore current controls.'
                 : live.reason ||
                   (live.mode === 'legacy'
                     ? 'Live controls require a resident Quest runtime. Legacy history is still available.'
@@ -1189,10 +1203,20 @@ async function loadMore() {
                             Timezone
                           </dt>
                           <dd v-if="selectedJob.schedule">
-                            {{ selectedJob.timezone || 'Runtime default' }}
+                            {{
+                              selectedScheduleTimes.runtimeZone ||
+                              (selectedScheduleTimes.timezoneStatus ===
+                              'invalid'
+                                ? 'Invalid runtime timezone'
+                                : 'Not reported by runtime')
+                            }}
                           </dd>
                           <dt v-if="selectedJob.schedule" class="text-gray-400">
-                            Next run
+                            {{
+                              selectedScheduleTimes.runtimeZone
+                                ? 'Next run (runtime)'
+                                : 'Next run (viewer)'
+                            }}
                           </dt>
                           <dd v-if="selectedJob.schedule">
                             {{
@@ -1200,9 +1224,23 @@ async function loadMore() {
                                 ? 'Unavailable'
                                 : selectedJob.paused
                                 ? 'Paused'
-                                : questAbsoluteTime(selectedJob.nextRunAt)
+                                : selectedScheduleTimes.runtime ||
+                                  selectedScheduleTimes.viewer ||
+                                  'Not reported'
                             }}
                           </dd>
+                          <template
+                            v-if="
+                              selectedJob.schedule &&
+                              selectedScheduleTimes.runtimeZone &&
+                              selectedScheduleTimes.viewer &&
+                              fresh &&
+                              !selectedJob.paused
+                            "
+                          >
+                            <dt class="text-gray-400">Viewer time</dt>
+                            <dd>{{ selectedScheduleTimes.viewer }}</dd>
+                          </template>
                           <dt class="text-gray-400">Overlap</dt>
                           <dd>
                             {{ questOverlapLabel(selectedJob) }}

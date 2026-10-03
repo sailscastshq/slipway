@@ -365,3 +365,68 @@ export function createQuestHistoryLoader(fetchRequest = fetch) {
   }
   return { load, cancel }
 }
+
+// Format the runtime's supplied timestamp in two named zones. This is display
+// only: cron/interval schedules are never interpreted or recomputed here.
+export function questDueTimes(timestamp, timezone, options = {}) {
+  const formatOptions = {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    second: '2-digit',
+    timeZoneName: 'short'
+  }
+  const locale = options.locale
+  let viewerFormatter
+  try {
+    viewerFormatter = new Intl.DateTimeFormat(locale, {
+      ...formatOptions,
+      ...(options.viewerTimeZone ? { timeZone: options.viewerTimeZone } : {})
+    })
+  } catch {
+    viewerFormatter = new Intl.DateTimeFormat(undefined, formatOptions)
+  }
+  let runtimeFormatter
+  let timezoneStatus = 'unreported'
+  if (typeof timezone === 'string' && timezone.trim()) {
+    try {
+      runtimeFormatter = new Intl.DateTimeFormat(locale, {
+        ...formatOptions,
+        timeZone: timezone
+      })
+      timezoneStatus = 'available'
+    } catch {
+      timezoneStatus = 'invalid'
+    }
+  }
+  const date =
+    (typeof timestamp === 'number' || typeof timestamp === 'string') &&
+    timestamp !== ''
+      ? new Date(timestamp)
+      : null
+  const validDate = date && Number.isFinite(date.getTime())
+  return {
+    runtime:
+      validDate && runtimeFormatter ? runtimeFormatter.format(date) : null,
+    runtimeZone: runtimeFormatter?.resolvedOptions().timeZone || null,
+    viewer: validDate ? viewerFormatter.format(date) : null,
+    viewerZone: viewerFormatter.resolvedOptions().timeZone,
+    timezoneStatus
+  }
+}
+
+export const QUEST_SNAPSHOT_MAX_AGE_MS = 30000
+export const QUEST_SNAPSHOT_MAX_SKEW_MS = 5000
+
+export function questSnapshotIsFresh(workspace, now = Date.now()) {
+  if (
+    workspace?.mode !== 'resident' ||
+    !Number.isFinite(workspace.observedAt) ||
+    !Number.isFinite(now)
+  )
+    return false
+  const age = now - workspace.observedAt
+  return age >= -QUEST_SNAPSHOT_MAX_SKEW_MS && age <= QUEST_SNAPSHOT_MAX_AGE_MS
+}

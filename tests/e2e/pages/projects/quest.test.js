@@ -262,6 +262,8 @@ async function installQuestFixture(
     documentBytes: 0,
     mutationRequests: [],
     unexpectedRequests: [],
+    infrastructureRequests: [],
+    infrastructureFailures: [],
     details: {},
     logs: {},
     api: null
@@ -350,111 +352,161 @@ async function installQuestFixture(
       await route.fulfill({ response, body })
     }
   )
-  await page.raw.route('**/quest/**', async (route) => {
-    const request = route.request()
-    const url = new URL(request.url())
-    const path = url.pathname.slice(url.pathname.indexOf('/quest/') + 7)
-    if (request.method() !== 'GET')
-      state.mutationRequests.push({
-        path,
-        method: request.method(),
-        body: request.postDataJSON()
-      })
-    if (state.api && (await state.api(route, path, request))) return
-    if (path === 'runs') {
-      const job = url.searchParams.get('job')
+  const apiPath = `/api/v1/projects/${current.projects.deploymentTarget.slug}/quest/`
+  await page.raw.route(
+    (url) =>
+      url.pathname.startsWith(apiPath) ||
+      url.pathname.startsWith(projectPath + '/'),
+    async (route) => {
+      const request = route.request()
+      const url = new URL(request.url())
+      const path = url.pathname.slice(url.pathname.indexOf('/quest/') + 7)
+      if (request.method() !== 'GET')
+        state.mutationRequests.push({
+          path,
+          method: request.method(),
+          body: request.postDataJSON()
+        })
+      if (state.api && (await state.api(route, path, request))) return
+      if (path === 'runs') {
+        const job = url.searchParams.get('job')
+        return route.fulfill({
+          json: {
+            runs: state.workspace.runs.filter(
+              (run) => !job || run.jobName === job
+            ),
+            legacyEvents: state.workspace.legacyEvents.filter(
+              (event) => !job || event.jobName === job
+            ),
+            nextCursor: null
+          }
+        })
+      }
+      if (path.startsWith('runs/')) {
+        const [_, runId, suffix] = path.split('/')
+        if (suffix === 'logs' && state.logs[runId])
+          return route.fulfill({ json: state.logs[runId] })
+        if (!suffix && state.details[runId])
+          return route.fulfill({ json: { run: state.details[runId] } })
+      }
+      if (path.startsWith('events/')) {
+        const event = state.rawEvents.find(
+          (event) => String(event.eventId) === path.slice(7)
+        )
+        if (event)
+          return route.fulfill({ json: { event: { ...event, legacy: true } } })
+      }
+      state.unexpectedRequests.push({ path, method: request.method() })
       return route.fulfill({
-        json: {
-          runs: state.workspace.runs.filter(
-            (run) => !job || run.jobName === job
-          ),
-          legacyEvents: state.workspace.legacyEvents.filter(
-            (event) => !job || event.jobName === job
-          ),
-          nextCursor: null
-        }
+        status: 503,
+        json: { error: 'No synthetic response configured.' }
       })
     }
-    if (path.startsWith('runs/')) {
-      const [_, runId, suffix] = path.split('/')
-      if (suffix === 'logs' && state.logs[runId])
-        return route.fulfill({ json: state.logs[runId] })
-      if (!suffix && state.details[runId])
-        return route.fulfill({ json: { run: state.details[runId] } })
-    }
-    if (path.startsWith('events/')) {
-      const event = state.rawEvents.find(
-        (event) => String(event.eventId) === path.slice(7)
-      )
-      if (event)
-        return route.fulfill({ json: { event: { ...event, legacy: true } } })
-    }
-    state.unexpectedRequests.push({ path, method: request.method() })
-    return route.fulfill({
-      status: 503,
-      json: { error: 'No synthetic response configured.' }
+  )
+  const isLazyCompilation = (url) => /lazy[_-]compilation/i.test(url)
+  const recordInfrastructureRequest = (request) => {
+    if (!isLazyCompilation(request.url())) return
+    state.infrastructureRequests.push({
+      url: request.url(),
+      method: request.method(),
+      contentType: request.headers()['content-type'],
+      body: request.postData()?.slice(0, 2000) || null
     })
-  })
+  }
+  const recordInfrastructureResponse = async (response) => {
+    if (!isLazyCompilation(response.url()) || response.status() < 400) return
+    let body = ''
+    try {
+      body = (await response.text()).slice(0, 2000)
+    } catch {}
+    state.infrastructureFailures.push({
+      url: response.url(),
+      status: response.status(),
+      body
+    })
+  }
+  page.raw.on('request', recordInfrastructureRequest)
+  page.raw.on('response', recordInfrastructureResponse)
+  const restore = state.restore
+  state.restore = () => {
+    page.raw.off('request', recordInfrastructureRequest)
+    page.raw.off('response', recordInfrastructureResponse)
+    restore()
+  }
   await page.raw.clock.setFixedTime(fixture.now)
   // Transport-only EventSource double. This permits deterministic disconnects
   // while exercising the real composable's reconnect timer and cleanup logic.
-  await page.raw.addInitScript(({ jobs, rawEvents, workspace, phase }) => {
-    window.__questStreams = []
-    window.__questStreamOnline = true
-    window.__questStreamPayload =
-      phase === 'before'
-        ? { jobs, jobHistory: rawEvents, jobsError: null }
-        : { workspace }
-    window.__questEmitWorkspace = (workspace) => {
-      window.__questStreamPayload = { workspace }
-      for (const stream of window.__questStreams) {
-        if (!stream.closed && stream.url.includes('/quest/stream'))
-          stream.onmessage?.({ data: JSON.stringify({ workspace }) })
+  await page.raw.addInitScript(
+    ({ jobs, rawEvents, workspace, phase, questStreamPath }) => {
+      window.__questStreams = []
+      window.__questStreamOnline = true
+      window.__questStreamPayload =
+        phase === 'before'
+          ? { jobs, jobHistory: rawEvents, jobsError: null }
+          : { workspace }
+      window.__questEmitWorkspace = (workspace) => {
+        window.__questStreamPayload = { workspace }
+        for (const stream of window.__questStreams) {
+          if (!stream.closed && stream.url.includes('/quest/stream'))
+            stream.onmessage?.({ data: JSON.stringify({ workspace }) })
+        }
       }
-    }
-    window.EventSource = class SyntheticQuestEventSource {
-      constructor(url) {
-        this.url = String(url)
-        this.readyState = 0
-        this.closed = false
-        window.__questStreams.push(this)
-        this.timer = setTimeout(() => {
-          if (this.closed) return
-          if (!window.__questStreamOnline)
-            return this.onerror?.({ type: 'error' })
-          this.readyState = 1
-          this.onopen?.({ type: 'open' })
-          if (this.url.includes('/quest/stream')) {
-            if (!window.__questStreamBootstrapped) {
-              const bootstrap = document.querySelector(
-                'script[data-page="app"]'
-              )
-              const props = bootstrap
-                ? JSON.parse(bootstrap.textContent).props
-                : {}
-              window.__questStreamPayload =
-                phase === 'before'
-                  ? {
-                      jobs: props.jobs || jobs,
-                      jobHistory: props.jobHistory || rawEvents,
-                      jobsError: null
-                    }
-                  : { workspace: props.workspace || workspace }
-              window.__questStreamBootstrapped = true
-            }
-            this.onmessage?.({
-              data: JSON.stringify(window.__questStreamPayload)
-            })
+      const NativeEventSource = window.EventSource
+      window.EventSource = class SyntheticQuestEventSource {
+        static CONNECTING = NativeEventSource.CONNECTING
+        static OPEN = NativeEventSource.OPEN
+        static CLOSED = NativeEventSource.CLOSED
+        constructor(url, options) {
+          // Keep bundler/HMR and other application transports real. Only this
+          // project's exact Quest stream contract is doubled.
+          if (
+            new URL(String(url), location.href).pathname !== questStreamPath
+          ) {
+            return new NativeEventSource(url, options)
           }
-        }, 10)
+          this.url = String(url)
+          this.readyState = 0
+          this.closed = false
+          window.__questStreams.push(this)
+          this.timer = setTimeout(() => {
+            if (this.closed) return
+            if (!window.__questStreamOnline)
+              return this.onerror?.({ type: 'error' })
+            this.readyState = 1
+            this.onopen?.({ type: 'open' })
+            if (this.url.includes('/quest/stream')) {
+              if (!window.__questStreamBootstrapped) {
+                const bootstrap = document.querySelector(
+                  'script[data-page="app"]'
+                )
+                const props = bootstrap
+                  ? JSON.parse(bootstrap.textContent).props
+                  : {}
+                window.__questStreamPayload =
+                  phase === 'before'
+                    ? {
+                        jobs: props.jobs || jobs,
+                        jobHistory: props.jobHistory || rawEvents,
+                        jobsError: null
+                      }
+                    : { workspace: props.workspace || workspace }
+                window.__questStreamBootstrapped = true
+              }
+              this.onmessage?.({
+                data: JSON.stringify(window.__questStreamPayload)
+              })
+            }
+          }, 10)
+        }
+        close() {
+          clearTimeout(this.timer)
+          this.closed = true
+          this.readyState = 2
+        }
       }
-      close() {
-        clearTimeout(this.timer)
-        this.closed = true
-        this.readyState = 2
-      }
-    }
-  }, fixture)
+    },
+    { ...fixture, questStreamPath: apiPath + 'stream' }
+  )
   return state
 }
 
@@ -689,7 +741,12 @@ async function captureQuestBrowserFailure(page, state, name) {
     const report = {
       ...browser,
       javascriptErrors: page.javascriptErrors.map(String),
-      unexpectedRequests: state.unexpectedRequests
+      consoleErrors: page.consoleErrors.map(
+        (entry) => entry.text || String(entry)
+      ),
+      unexpectedRequests: state.unexpectedRequests,
+      infrastructureRequests: state.infrastructureRequests,
+      infrastructureFailures: state.infrastructureFailures
     }
     console.log(
       'QUEST_BROWSER_FAILURE_SNAPSHOT ' + JSON.stringify({ name, ...report })

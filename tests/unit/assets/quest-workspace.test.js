@@ -547,3 +547,108 @@ test('Quest defers inactive run history and run-only components on the initial J
   )
   expect(dialog).toContain('{ immediate: true }')
 })
+
+test('Quest due time displays the supplied timestamp in explicitly separated runtime and viewer zones', async ({
+  expect
+}) => {
+  const { questDueTimes } = await workspaceModule()
+  const dueAt = Date.parse('2026-06-01T12:00:00.000Z')
+  const times = questDueTimes(dueAt, 'America/New_York', {
+    locale: 'en-US',
+    viewerTimeZone: 'America/Los_Angeles'
+  })
+  expect(times.runtimeZone).toBe('America/New_York')
+  expect(times.viewerZone).toBe('America/Los_Angeles')
+  expect(times.runtime).toContain('8:00:00 AM EDT')
+  expect(times.viewer).toContain('5:00:00 AM PDT')
+  expect(times.timezoneStatus).toBe('available')
+  const winter = questDueTimes(
+    Date.parse('2026-01-01T12:00:00.000Z'),
+    'America/New_York',
+    { locale: 'en-US', viewerTimeZone: 'UTC' }
+  )
+  expect(winter.runtime).toContain('7:00:00 AM EST')
+  expect(winter.viewer).toContain('12:00:00 PM UTC')
+})
+
+test('Quest missing or invalid runtime zones never masquerade as viewer timezone', async ({
+  expect
+}) => {
+  const { questDueTimes } = await workspaceModule()
+  for (const timezone of [undefined, null, '']) {
+    const times = questDueTimes(1000, timezone, {
+      locale: 'en-US',
+      viewerTimeZone: 'UTC'
+    })
+    expect(times.runtime).toBe(null)
+    expect(times.runtimeZone).toBe(null)
+    expect(times.timezoneStatus).toBe('unreported')
+    expect(times.viewer).toContain('UTC')
+  }
+  const invalid = questDueTimes(1000, 'Synthetic/Not-A-Timezone', {
+    locale: 'en-US',
+    viewerTimeZone: 'UTC'
+  })
+  expect(invalid.runtime).toBe(null)
+  expect(invalid.runtimeZone).toBe(null)
+  expect(invalid.timezoneStatus).toBe('invalid')
+  expect(invalid.viewer).toContain('UTC')
+})
+
+test('Quest due time never invents a timestamp when next-run data is missing or invalid', async ({
+  expect
+}) => {
+  const { questDueTimes } = await workspaceModule()
+  for (const timestamp of [
+    undefined,
+    null,
+    '',
+    NaN,
+    Infinity,
+    'invalid timestamp',
+    false
+  ]) {
+    const times = questDueTimes(timestamp, 'UTC', {
+      locale: 'en-US',
+      viewerTimeZone: 'UTC'
+    })
+    expect(times.runtime).toBe(null)
+    expect(times.viewer).toBe(null)
+  }
+})
+
+test('Quest snapshot authority expires at a bounded age and permits only small clock skew', async ({
+  expect
+}) => {
+  const { questSnapshotIsFresh } = await workspaceModule()
+  const snapshot = { mode: 'resident', observedAt: 100000 }
+  expect(questSnapshotIsFresh(snapshot, 100000)).toBe(true)
+  expect(questSnapshotIsFresh(snapshot, 130000)).toBe(true)
+  expect(questSnapshotIsFresh(snapshot, 130001)).toBe(false)
+  expect(questSnapshotIsFresh(snapshot, 95000)).toBe(true)
+  expect(questSnapshotIsFresh(snapshot, 94999)).toBe(false)
+  expect(questSnapshotIsFresh({ ...snapshot, mode: 'legacy' }, 100000)).toBe(
+    false
+  )
+  expect(
+    questSnapshotIsFresh({ ...snapshot, mode: 'unavailable' }, 100000)
+  ).toBe(false)
+})
+
+test('Quest invalid snapshot times fail closed without mutating historical run state', async ({
+  expect
+}) => {
+  const { questSnapshotIsFresh } = await workspaceModule()
+  for (const observedAt of [undefined, null, NaN, Infinity, '100000']) {
+    const snapshot = {
+      mode: 'resident',
+      observedAt,
+      runs: [{ runId: 'kept', state: 'running' }]
+    }
+    expect(questSnapshotIsFresh(snapshot, 100000)).toBe(false)
+    expect(snapshot.runs[0].state).toBe('running')
+  }
+  expect(
+    questSnapshotIsFresh({ mode: 'resident', observedAt: 100000 }, NaN)
+  ).toBe(false)
+})
