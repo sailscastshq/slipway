@@ -2,6 +2,8 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import Stop from '@/components/ui/icons/Stop.vue'
 import History from '@/components/ui/icons/History.vue'
+import InfoCircle from '@/components/ui/icons/InfoCircle.vue'
+import Popover from '@/components/ui/popover/Popover.vue'
 import Spinner from '@/components/SlipwaySpinner.vue'
 import Input from '@/components/ui/input/Input.vue'
 import HelmWriteGuardDialog from '@/components/HelmWriteGuardDialog.vue'
@@ -34,6 +36,7 @@ const requestedAt = ref(0)
 const now = ref(Date.now())
 const history = ref([])
 const historyOpen = ref(false)
+const helpOpen = ref(false)
 const historyError = ref('')
 const guard = ref({ show: false, findings: [], target: null, error: '' })
 const arming = ref(false)
@@ -81,7 +84,7 @@ const statusLabel = computed(() =>
         timeout: 'Timed out',
         cancelled: 'Cancelled',
         unconfirmed: 'Unconfirmed'
-      }[result.value?.status] || 'Ready'
+      }[result.value?.status] || (error.value ? 'Failed' : 'Ready')
 )
 const runLabel = computed(() =>
   armed.value
@@ -89,6 +92,13 @@ const runLabel = computed(() =>
     : result.value && source.value === lastSource.value
     ? 'Run again'
     : 'Run'
+)
+
+const draftChanged = computed(
+  () => Boolean(lastSource.value) && source.value !== lastSource.value
+)
+const failed = computed(() =>
+  ['error', 'timeout'].includes(result.value?.status)
 )
 
 function headers() {
@@ -375,10 +385,14 @@ async function refreshHistory() {
   }
 }
 function loadHistory(entry) {
-  if (!busy.value) {
-    source.value = entry.source
-    nextTick(() => commandInput.value?.focus())
-  }
+  if (busy.value || arming.value) return
+  // Restoring a draft is always a new editing decision, even if its text matches
+  // an armed command. It must never reuse that command's production permission.
+  clearArm()
+  inputError.value = ''
+  source.value = entry.source
+  historyOpen.value = false
+  nextTick(() => commandInput.value?.focus())
 }
 function resetTarget() {
   sequence++
@@ -389,6 +403,9 @@ function resetTarget() {
   displayTruncated.value = false
   clearArm()
   source.value = ''
+  lastSource.value = ''
+  historyOpen.value = false
+  helpOpen.value = false
   displayTarget.value = props.target
   logs.value = []
   history.value = []
@@ -411,6 +428,7 @@ watch(
   () => props.active,
   (active) => {
     if (!active) {
+      helpOpen.value = false
       clearArm()
       guard.value.show = false
     } else {
@@ -450,46 +468,81 @@ onBeforeUnmount(() => {
     aria-label="Helm command console"
     class="flex min-h-0 flex-1 flex-col overflow-hidden bg-white dark:bg-gray-950"
   >
-    <div class="shrink-0 space-y-2 px-4 pb-3 pt-4 sm:px-8">
-      <div
-        class="flex flex-wrap items-center justify-between gap-2 text-xs text-gray-500 dark:text-gray-400"
-      >
-        <p data-test="helm-command-target">
-          <span class="font-medium text-gray-800 dark:text-gray-200">{{
+    <div class="shrink-0 space-y-1 px-4 pt-3 sm:px-8">
+      <div class="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+        <p
+          data-test="helm-command-target"
+          class="min-w-0 break-words text-sm text-gray-700 dark:text-gray-300"
+        >
+          <span class="font-semibold text-gray-900 dark:text-gray-100">{{
             displayTarget.app?.name || appSlug
           }}</span>
-          ·
-          {{ displayTarget.environment?.name || displayTarget.environment?.slug
-          }}<span v-if="displayTarget.displayVersion">
+          <span aria-hidden="true" class="mx-1 text-gray-400">/</span>
+          <span
+            :class="
+              displayTarget.environment?.isProduction
+                ? 'font-medium text-amber-700 dark:text-amber-400'
+                : ''
+            "
+            >{{
+              displayTarget.environment?.name || displayTarget.environment?.slug
+            }}</span
+          ><span v-if="displayTarget.displayVersion" class="text-xs">
             @ {{ displayTarget.displayVersion }}</span
           >
         </p>
-        <button
-          type="button"
-          aria-label="Command history"
-          :aria-expanded="historyOpen"
-          class="flex items-center gap-1.5 rounded-md p-1.5 hover:bg-gray-100 dark:hover:bg-gray-800"
-          @click="historyOpen = !historyOpen"
+        <div
+          class="flex shrink-0 items-center gap-1 text-xs text-gray-600 dark:text-gray-400"
         >
-          <History class="h-4 w-4" /> History
-        </button>
+          <button
+            type="button"
+            aria-label="Command history"
+            :aria-expanded="historyOpen"
+            aria-controls="helm-command-history"
+            class="min-h-11 sm:min-h-8 flex items-center gap-1.5 rounded-md px-2 hover:bg-gray-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-500 dark:hover:bg-gray-800"
+            @click="historyOpen = !historyOpen"
+          >
+            <History class="h-4 w-4" /> History
+          </button>
+          <button
+            type="button"
+            aria-label="Command help"
+            popovertarget="helm-command-help"
+            class="min-h-11 min-w-11 sm:min-h-8 sm:min-w-8 flex items-center justify-center rounded-md hover:bg-gray-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-500 dark:hover:bg-gray-800"
+          >
+            <InfoCircle class="h-4 w-4" />
+          </button>
+        </div>
       </div>
-      <form
-        class="flex items-center gap-2 border-b border-dashed border-gray-200 focus-within:border-gray-500 dark:border-gray-800 dark:focus-within:border-gray-500"
-        @submit.prevent
+      <Popover
+        id="helm-command-help"
+        v-model:open="helpOpen"
+        aria-label="Command help"
+        placement="bottom-end"
+        class="w-72 space-y-2 text-xs leading-5 text-gray-700 dark:text-gray-300"
       >
-        <label
-          for="helm-command-input"
-          class="select-none font-mono text-sm text-gray-400"
-          aria-hidden="true"
-          >&gt;</label
-        >
+        <p class="font-medium text-gray-900 dark:text-gray-100">
+          Running commands
+        </p>
+        <p>
+          Press Enter to run one executable with arguments. Shell operators and
+          interactive input aren’t supported.
+        </p>
+        <p id="helm-command-hint">
+          Commands are saved; output isn’t. Keep secrets in environment
+          variables.
+        </p>
+        <p>
+          History restores a command for editing. Production commands require a
+          fresh, single-use confirmation.
+        </p>
+      </Popover>
+      <form class="flex items-center gap-2 pb-px" @submit.prevent>
         <Input
           id="helm-command-input"
           ref="commandInput"
           v-model="source"
           aria-label="Helm command"
-          placeholder="sails run your-script --input=value"
           autocomplete="off"
           autocapitalize="off"
           autocorrect="off"
@@ -502,7 +555,7 @@ onBeforeUnmount(() => {
           "
           :aria-invalid="Boolean(inputError)"
           :disabled="busy || arming || !appRunning"
-          class="h-12 min-w-0 flex-1 rounded-none border-0 bg-transparent px-1 font-mono text-base text-gray-900 outline-none placeholder:text-gray-400 focus:ring-0 dark:text-gray-100 dark:placeholder:text-gray-600 sm:text-sm"
+          class="h-12 min-w-0 flex-1 rounded-none border-0 bg-transparent px-0 font-mono text-base text-gray-900 outline-none focus:ring-0 dark:text-gray-100 sm:text-sm"
           @keydown="handleCommandKeydown"
           @input="inputError = ''"
           @compositionstart="composing = true"
@@ -552,16 +605,16 @@ onBeforeUnmount(() => {
         </button>
       </form>
       <div
-        class="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1"
+        v-if="draftChanged || armed"
+        class="flex flex-wrap items-center justify-between gap-2 pt-1 text-xs"
       >
-        <p
-          id="helm-command-hint"
-          class="text-xs leading-5 text-gray-500 dark:text-gray-400"
+        <span
+          v-if="draftChanged"
+          data-test="helm-command-draft"
+          class="text-gray-600 dark:text-gray-400"
+          >Draft changed · not run</span
         >
-          Commands are saved; output isn’t. Keep secrets in environment
-          variables.
-        </p>
-        <span v-if="armed" class="text-xs text-red-600 dark:text-red-400">
+        <span v-if="armed" role="status" class="text-red-600 dark:text-red-400">
           Armed · {{ armRemaining }}s
         </span>
       </div>
@@ -576,6 +629,7 @@ onBeforeUnmount(() => {
     </div>
     <div
       v-if="historyOpen"
+      id="helm-command-history"
       class="max-h-48 shrink-0 overflow-auto border-b border-gray-200 px-4 py-3 dark:border-gray-800 sm:px-8"
       aria-label="Command history entries"
     >
@@ -589,7 +643,7 @@ onBeforeUnmount(() => {
         v-for="entry in history"
         :key="entry.id"
         type="button"
-        :disabled="busy"
+        :disabled="busy || arming"
         class="flex w-full items-center justify-between gap-3 rounded-md px-2 py-2 text-left text-xs hover:bg-gray-100 disabled:opacity-50 dark:hover:bg-gray-900"
         @click="loadHistory(entry)"
       >
@@ -600,26 +654,69 @@ onBeforeUnmount(() => {
         ><span class="sr-only">Load command</span>
       </button>
     </div>
-    <div
-      class="flex shrink-0 items-center gap-3 border-b border-gray-100 px-4 py-2 text-xs text-gray-500 dark:border-gray-900 sm:px-8"
-    >
-      <span
-        role="status"
-        data-test="helm-command-status"
+    <div v-if="busy || result || error" class="shrink-0 px-4 pb-1 pt-2 sm:px-8">
+      <p
+        v-if="lastSource"
+        id="helm-command-provenance"
+        data-test="helm-command-provenance"
+        :tabindex="draftChanged || (busy && !requestedAt) ? 0 : undefined"
         :class="
-          result?.status === 'unconfirmed'
-            ? 'text-amber-600 dark:text-amber-400'
-            : ''
+          draftChanged || (busy && !requestedAt)
+            ? 'mb-1 max-h-20 overflow-auto whitespace-pre-wrap break-words text-xs leading-5 text-gray-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-500 dark:text-gray-400'
+            : 'sr-only'
         "
-        >{{ statusLabel }}</span
       >
-      <span v-if="requestedAt">{{ elapsed }}s</span
-      ><span v-if="Number.isInteger(result?.exitCode)"
-        >exit {{ result.exitCode }}</span
-      ><span v-if="result?.signal">{{ result.signal }}</span
-      ><span v-if="result?.truncated || displayTruncated" class="text-amber-600"
-        >Output truncated</span
-      >
+        Output from
+        <code class="text-gray-800 dark:text-gray-200">{{ lastSource }}</code>
+      </p>
+      <div class="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-xs">
+        <span
+          role="status"
+          data-test="helm-command-status"
+          class="font-medium"
+          :class="
+            result?.status === 'unconfirmed'
+              ? 'text-amber-700 dark:text-amber-400'
+              : failed
+              ? 'text-red-700 dark:text-red-400'
+              : 'text-gray-700 dark:text-gray-300'
+          "
+          >{{ statusLabel }}</span
+        >
+        <span v-if="requestedAt" class="text-gray-500 dark:text-gray-400"
+          >{{ elapsed }}s</span
+        >
+        <span
+          v-if="
+            Number.isInteger(result?.exitCode) && result?.status !== 'success'
+          "
+          class="font-medium text-red-700 dark:text-red-400"
+          >exit {{ result.exitCode }}</span
+        >
+        <span v-if="result?.signal" class="text-gray-600 dark:text-gray-400">{{
+          result.signal
+        }}</span>
+        <span
+          v-if="result?.truncated || displayTruncated"
+          class="text-amber-700 dark:text-amber-400"
+          >Output truncated</span
+        >
+        <details
+          v-if="
+            result?.status === 'success' && Number.isInteger(result?.exitCode)
+          "
+          :key="requestedAt"
+          class="ml-auto text-gray-500 dark:text-gray-400"
+        >
+          <summary
+            aria-label="Execution details"
+            class="cursor-pointer rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-500"
+          >
+            Details
+          </summary>
+          <p class="pt-1">exit {{ result.exitCode }}</p>
+        </details>
+      </div>
     </div>
     <p
       v-if="error"
@@ -633,11 +730,12 @@ onBeforeUnmount(() => {
       tabindex="0"
       role="region"
       aria-label="Command output"
-      class="min-h-0 flex-1 overflow-auto px-4 py-4 font-mono text-xs leading-6 sm:px-8"
+      :aria-describedby="lastSource ? 'helm-command-provenance' : undefined"
+      class="min-h-0 flex-1 overflow-auto px-4 py-2 font-mono text-sm leading-6 sm:px-8"
     >
       <pre
         class="whitespace-pre-wrap break-words"
-      ><span v-for="(log, index) in logs" :key="index" :class="log.type === 'stderr' ? 'text-amber-700 dark:text-amber-400' : 'text-gray-800 dark:text-gray-200'">{{ stripAnsi(log.text) }}</span><span v-if="!logs.length" class="text-gray-400">{{ busy ? 'Waiting for command output…' : result ? 'No command output.' : 'Command output will appear here.' }}</span></pre>
+      ><span v-for="(log, index) in logs" :key="index" :class="log.type === 'stderr' ? 'text-amber-700 dark:text-amber-400' : 'text-gray-800 dark:text-gray-200'">{{ stripAnsi(log.text) }}</span><span v-if="!logs.length && (busy || result)" class="text-gray-400">{{ busy ? 'Waiting for command output…' : 'No command output.' }}</span></pre>
     </div>
     <HelmWriteGuardDialog
       mode="command"

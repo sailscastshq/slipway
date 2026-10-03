@@ -35,21 +35,29 @@ the critical path, not the small storage, schema, or asset checks.
 
 `bash scripts/compare-helm-terminal-prompt.sh` runs a version-neutral browser
 capture against baseline components from pinned commit
-`2c9be311e68e07b0c9906a089771089226bc5595` and then the current components. Run it
+`4c79b78f30ce8ed434f60cefb9e7957521e5cb6c` and then the current components. Run it
 only in a disposable checkout with that Git object and browser dependencies
 available; it temporarily swaps only `HelmCommandConsole.vue` and
 `HelmWriteGuardDialog.vue`, restoring the original bytes through an exit/signal
 trap before the current trial. The backend, dependencies, browser and capture
 fixture are identical. CI also verifies there is no component diff afterward.
 
-The `Helm terminal prompt paired evidence` job uploads idle, production-warning
-and completed screenshots for desktop/mobile light/dark, plus paired geometry
-and raw browser click/input-to-second-animation-frame samples. The deterministic
-container-runner fixture returns `2` plus a newline for `node -p 1+1` in both
-versions. These are real browser captures with synthetic command output, not a
-claim that a container command ran. Small frame-scheduled timing samples are
-reported without a speedup claim or threshold; real runtime proof remains in
-the separate command contracts. Generated artifacts live in
+The `Helm terminal prompt paired evidence` job uploads focused native-caret, idle, production-warning,
+completed arithmetic, meaningful-output, edited-draft, history-open, and
+history-restored screenshots for desktop/mobile light/dark, plus paired geometry
+and raw browser click/input-to-second-animation-frame samples. Both versions use
+the same deterministic container-runner fixtures: `2` plus a newline for
+`node -p 1+1`, then a multi-line readiness summary matching the displayed Node
+JSON expression. The history fixture contains source/status metadata only.
+Arming, editing the draft, and restoring history do not execute a command.
+The prompt stays at the top. The current empty and typed-but-not-run captures
+assert no idle Ready status or output placeholder; the pinned baseline retains
+both. Running and terminal status coverage remains in the Helm page tests.
+These are real browser captures with synthetic command output, not a claim
+that a container command ran or that service health was observed. Small
+frame-scheduled timing samples are reported without a speedup claim or
+threshold; real runtime proof remains in the separate command contracts.
+Generated artifacts live in
 `.tmp/screenshots/helm-terminal-prompt`.
 
 ## Coolify migration rehearsal

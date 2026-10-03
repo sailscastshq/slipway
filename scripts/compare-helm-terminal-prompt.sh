@@ -2,7 +2,7 @@
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
-baseline=2c9be311e68e07b0c9906a089771089226bc5595
+baseline=4c79b78f30ce8ed434f60cefb9e7957521e5cb6c
 current=$(git rev-parse HEAD)
 artifact=.tmp/screenshots/helm-terminal-prompt
 backup=$(mktemp -d)

@@ -1991,6 +1991,7 @@ test(
       await expect(
         page.raw.locator('[data-test="helm-command-console"]')
       ).toContainText('exit 7')
+      await expect(page.raw.getByText('exit 7', { exact: true })).toBeVisible()
       await expect(input).toBeFocused()
       await expect(javascriptMode).toBeEnabled()
       // Terminal controls unlock even when refreshing optional history is slow.
@@ -2017,6 +2018,7 @@ test(
         .click()
       await expect(input).toHaveValue(COMMAND_FIXTURE_SOURCE)
       await expect(input).toBeFocused()
+      await expect(history).toBeHidden()
       expect(runner.calls.length).toBe(1)
       expect(page).toHaveNoSmoke()
     } finally {
@@ -2180,6 +2182,351 @@ test(
 )
 
 test(
+  'project Helm command help is keyboard accessible and dismisses without running the draft',
+  {
+    browser: true,
+    world: helmWorld('helm-command-browser-help')
+  },
+  async (context) => {
+    const { sails, page, expect } = context
+    const runner = commandFixtureRunner(
+      sails,
+      async () => COMMAND_FIXTURE_RESULT
+    )
+    let inspectionRequests = 0
+    page.raw.on('request', (request) => {
+      if (new URL(request.url()).pathname.endsWith('/helm/inspect-source'))
+        inspectionRequests++
+    })
+    try {
+      await openCommandFixture(context)
+      await page.raw
+        .getByRole('button', { name: 'Command mode', exact: true })
+        .click()
+      const input = page.raw.getByRole('textbox', {
+        name: 'Helm command',
+        exact: true
+      })
+      const trigger = page.raw.getByRole('button', {
+        name: 'Command help',
+        exact: true
+      })
+      const help = page.raw.locator('#helm-command-help')
+      await input.fill(COMMAND_FIXTURE_SOURCE)
+      await expect(
+        page.raw.locator('[data-test="helm-command-target"]')
+      ).toHaveCSS('font-size', '14px')
+      for (const [width, height, key] of [
+        [1440, 900, 'Enter'],
+        [390, 844, 'Space']
+      ]) {
+        await page.resize(width, height)
+        await expect(help).toBeHidden()
+        await trigger.focus()
+        await trigger.press(key)
+        await expect(help).toBeVisible()
+        await expect(trigger).toHaveAttribute('aria-expanded', 'true')
+        await expect(trigger).toHaveAttribute(
+          'aria-controls',
+          'helm-command-help'
+        )
+        await expect(help).toContainText('Commands are saved')
+        await expect(help).toContainText('output isn’t')
+        await expect(help).toContainText('environment variables')
+        const bounds = await help.boundingBox()
+        expect(bounds.x >= 0 && bounds.x + bounds.width <= width + 1).toBe(true)
+        await page.key('Escape')
+        await expect(help).toBeHidden()
+        await expect(trigger).toHaveAttribute('aria-expanded', 'false')
+        await expect(trigger).toBeFocused()
+        await trigger.press(key)
+        await expect(help).toBeVisible()
+        // On mobile the help can overlap the prompt; dismiss via the target
+        // above it before returning to the editor.
+        await page.raw.locator('[data-test="helm-command-target"]').click()
+        await expect(help).toBeHidden()
+        await input.click()
+        await expect(input).toBeFocused()
+        await expect(input).toHaveValue(COMMAND_FIXTURE_SOURCE)
+        await assertCommandFitsViewport(page, expect)
+      }
+      await trigger.click()
+      await expect(help).toBeVisible()
+      await page.raw
+        .getByRole('button', { name: 'JavaScript mode', exact: true })
+        .click()
+      await expect(help).toBeHidden()
+      await page.raw
+        .getByRole('button', { name: 'Command mode', exact: true })
+        .click()
+      await expect(help).toBeHidden()
+      await expect(input).toBeFocused()
+      await expect(input).toHaveValue(COMMAND_FIXTURE_SOURCE)
+      expect(inspectionRequests).toBe(0)
+      expect(runner.calls.length).toBe(0)
+      expect(page).toHaveNoSmoke()
+    } finally {
+      runner.restore()
+    }
+  }
+)
+
+test(
+  'project Helm command output retains source attribution after edits and history restoration',
+  {
+    browser: true,
+    world: helmWorld('helm-command-browser-provenance')
+  },
+  async (context) => {
+    const { sails, page, expect } = context
+    const longValue = 'x'.repeat(16 * 1024)
+    const longExpression = `'${longValue}'.length`
+    const longSource = `node -p "${longExpression}"`
+    const longOutput = `${longValue.length}\n`
+    // Deterministic synthetic stdout matches every displayed Node expression.
+    const outputs = new Map([
+      ['1+1', '2\n'],
+      ['2+2', '4\n'],
+      [longExpression, longOutput]
+    ])
+    const runner = commandFixtureRunner(sails, async ({ argv, onEvent }) => {
+      expect(outputs.has(argv[2])).toBe(true)
+      const output = outputs.get(argv[2])
+      onEvent({ type: 'started' })
+      onEvent({ type: 'stdout', text: output })
+      return {
+        ...COMMAND_FIXTURE_RESULT,
+        outputBytes: Buffer.byteLength(output)
+      }
+    })
+    try {
+      await openCommandFixture(context)
+      await page.raw
+        .getByRole('button', { name: 'Command mode', exact: true })
+        .click()
+      const input = page.raw.getByRole('textbox', {
+        name: 'Helm command',
+        exact: true
+      })
+      const output = page.raw.getByRole('region', {
+        name: 'Command output',
+        exact: true
+      })
+      const draft = page.raw.locator('[data-test="helm-command-draft"]')
+      const provenance = page.raw.locator(
+        '[data-test="helm-command-provenance"]'
+      )
+      const status = page.raw.locator('[data-test="helm-command-status"]')
+      await input.fill('node -p 1+1')
+      await input.press('Enter')
+      await expect(status).toHaveText('Completed')
+      await expect(output).toHaveText('2\n')
+      await expect(draft).toBeHidden()
+      const successfulExit = page.raw.getByText('exit 0', { exact: true })
+      const details = page.raw.locator(
+        'summary[aria-label="Execution details"]'
+      )
+      await expect(successfulExit).toBeHidden()
+      await expect(details).toHaveAccessibleName('Execution details')
+      await details.focus()
+      await details.press('Enter')
+      await expect(successfulExit).toBeVisible()
+      await details.press('Enter')
+      await expect(successfulExit).toBeHidden()
+
+      await input.fill('node -p 2+2')
+      await expect(draft).toHaveText('Draft changed · not run')
+      await expect(draft).toBeVisible()
+      await expect(provenance).toContainText('Output from')
+      await expect(provenance).toContainText('node -p 1+1')
+      await expect(provenance).toBeVisible()
+      await expect(output).toHaveText('2\n')
+      await expect(
+        page.raw.locator('[data-test="helm-command-run"]')
+      ).toHaveAccessibleName('Run')
+      expect(runner.calls.length).toBe(1)
+      await input.press('Enter')
+      await expect(status).toHaveText('Completed')
+      await expect(output).toHaveText('4\n')
+      await expect(draft).toBeHidden()
+      expect(runner.calls.length).toBe(2)
+      await input.fill('node --version')
+      await expect(provenance).toContainText('node -p 2+2')
+      await expect(output).toHaveText('4\n')
+      expect(runner.calls.length).toBe(2)
+      await page.raw
+        .getByRole('button', { name: 'Command history', exact: true })
+        .click()
+      const history = page.raw.locator('[aria-label="Command history entries"]')
+      await history
+        .getByRole('button')
+        .filter({ hasText: 'node -p 1+1' })
+        .click()
+      await expect(history).toBeHidden()
+      await expect(input).toHaveValue('node -p 1+1')
+      await expect(input).toBeFocused()
+      await expect(draft).toHaveText('Draft changed · not run')
+      await expect(provenance).toContainText('node -p 2+2')
+      await expect(output).toHaveText('4\n')
+      expect(runner.calls.length).toBe(2)
+
+      await page.resize(390, 844)
+      await input.fill(longSource)
+      await input.press('Enter')
+      await expect(status).toHaveText('Completed')
+      await expect(output).toHaveText(longOutput)
+      expect(runner.calls.length).toBe(3)
+      await input.fill('node --version')
+      await expect(draft).toHaveText('Draft changed · not run')
+      await expect(provenance).toContainText(longSource)
+      await expect(provenance).toBeVisible()
+      const bounds = await provenance.evaluate((element) => {
+        const output = document.querySelector('[aria-label="Command output"]')
+        return {
+          provenanceHeight: element.getBoundingClientRect().height,
+          provenanceClientHeight: element.clientHeight,
+          provenanceScrollHeight: element.scrollHeight,
+          outputHeight: output.getBoundingClientRect().height,
+          documentWidth: document.documentElement.scrollWidth,
+          viewportWidth: innerWidth
+        }
+      })
+      expect(bounds.provenanceHeight > 0 && bounds.provenanceHeight <= 81).toBe(
+        true
+      )
+      expect(
+        bounds.provenanceScrollHeight > bounds.provenanceClientHeight
+      ).toBe(true)
+      expect(bounds.outputHeight >= 160).toBe(true)
+      expect(bounds.documentWidth <= bounds.viewportWidth).toBe(true)
+      await provenance.focus()
+      await expect(provenance).toBeFocused()
+      await provenance.press('End')
+      await page.raw.waitForFunction(
+        () =>
+          document.querySelector('[data-test="helm-command-provenance"]')
+            .scrollTop > 0
+      )
+      await expect(output).toHaveText(longOutput)
+      await assertCommandFitsViewport(page, expect)
+      expect(runner.calls.length).toBe(3)
+      expect(page).toHaveNoSmoke()
+    } finally {
+      runner.restore()
+    }
+  }
+)
+
+test(
+  'project Helm command history restore closes and focuses the draft without executing or keeping a production arm',
+  {
+    browser: true,
+    world: helmWorld('helm-command-browser-history-restore')
+  },
+  async (context) => {
+    const { sails, page, expect } = context
+    const source = 'node -p 1+1'
+    const runner = commandFixtureRunner(sails, async ({ onEvent }) => {
+      onEvent({ type: 'started' })
+      onEvent({ type: 'stdout', text: '2\n' })
+      return { ...COMMAND_FIXTURE_RESULT, outputBytes: 2 }
+    })
+    let inspectionRequests = 0
+    page.raw.on('request', (request) => {
+      if (new URL(request.url()).pathname.endsWith('/helm/inspect-source'))
+        inspectionRequests++
+    })
+    try {
+      await openCommandFixture(context, { production: true })
+      await page.raw
+        .getByRole('button', { name: 'Command mode', exact: true })
+        .click()
+      const input = page.raw.getByRole('textbox', {
+        name: 'Helm command',
+        exact: true
+      })
+      const submit = page.raw.locator('[data-test="helm-command-run"]')
+      const dialog = page.raw.getByRole('alertdialog', {
+        name: 'Arm production command?'
+      })
+      const history = page.raw.locator('[aria-label="Command history entries"]')
+      await input.fill(source)
+      await input.press('Enter')
+      await expect(dialog).toBeVisible()
+      await page.click('@helm-arm-writes')
+      await expect(dialog).toBeHidden()
+      expect(runner.calls.length).toBe(0)
+      await input.press('Enter')
+      await expect(
+        page.raw.locator('[data-test="helm-command-status"]')
+      ).toHaveText('Completed')
+      expect(runner.calls.length).toBe(1)
+
+      await input.fill('node -p 2+2')
+      await input.press('Enter')
+      await expect(dialog).toBeVisible()
+      await page.key('Escape')
+      await expect(dialog).toBeHidden()
+      await expect(
+        page.raw.locator('[data-test="helm-command-draft"]')
+      ).toHaveText('Draft changed · not run')
+      await expect(
+        page.raw.locator('[data-test="helm-command-provenance"]')
+      ).toContainText(source)
+      await expect(
+        page.raw.getByRole('region', { name: 'Command output', exact: true })
+      ).toHaveText('2\n')
+      expect(runner.calls.length).toBe(1)
+
+      // A changed source and then the exact same source both invalidate an arm
+      // when explicitly loaded from history. Assigning equal text must not rely
+      // on the source watcher firing.
+      for (const draft of ['node -p 2+2', source]) {
+        await input.fill(draft)
+        await input.press('Enter')
+        await expect(dialog).toBeVisible()
+        await page.click('@helm-arm-writes')
+        await expect(dialog).toBeHidden()
+        await expect(submit).toHaveAccessibleName(/^Run command · \d+s$/)
+        if (draft !== source) {
+          // Inspection and arming did not run this edited draft. The previous
+          // output must retain its source attribution throughout that flow.
+          await expect(
+            page.raw.locator('[data-test="helm-command-draft"]')
+          ).toHaveText('Draft changed · not run')
+          await expect(
+            page.raw.locator('[data-test="helm-command-provenance"]')
+          ).toContainText(source)
+        }
+        const beforeRestore = inspectionRequests
+        await page.raw
+          .getByRole('button', { name: 'Command history', exact: true })
+          .click()
+        await history.getByRole('button').filter({ hasText: source }).click()
+        await expect(history).toBeHidden()
+        await expect(input).toHaveValue(source)
+        await expect(input).toBeFocused()
+        await expect(submit).toHaveAccessibleName('Run again')
+        await expect(dialog).toBeHidden()
+        expect(inspectionRequests).toBe(beforeRestore)
+        expect(runner.calls.length).toBe(1)
+        await input.press('Enter')
+        await expect(dialog).toBeVisible()
+        expect(runner.calls.length).toBe(1)
+        await page.key('Escape')
+        await expect(dialog).toBeHidden()
+      }
+      await expect(
+        page.raw.getByRole('region', { name: 'Command output', exact: true })
+      ).toHaveText('2\n')
+      expect(page).toHaveNoSmoke()
+    } finally {
+      runner.restore()
+    }
+  }
+)
+
+test(
   'project Helm command prompt accepts deliberate single-line input and keeps a mobile submit affordance',
   {
     browser: true,
@@ -2207,7 +2554,15 @@ test(
         exact: true
       })
       const submit = page.raw.locator('[data-test="helm-command-run"]')
+      const status = page.raw.locator('[data-test="helm-command-status"]')
+      const output = page.raw.getByRole('region', {
+        name: 'Command output',
+        exact: true
+      })
       await expect(input).toBeFocused()
+      await expect(input).toHaveValue('')
+      await expect(status).toBeHidden()
+      await expect(output).toHaveText('')
       await expect(submit).toHaveAccessibleName('Run')
       await expect(submit).toBeDisabled()
       await input.press('Enter')
@@ -2217,6 +2572,8 @@ test(
       expect(inspectionRequests).toBe(0)
 
       await input.fill(COMMAND_FIXTURE_SOURCE)
+      await expect(status).toBeHidden()
+      await expect(output).toHaveText('')
       for (const key of ['Shift+Enter', 'Alt+Enter', 'ControlOrMeta+Enter'])
         await input.press(key)
       // Exercise both modern IME events and the keyCode 229 fallback. Synthetic
@@ -2309,7 +2666,7 @@ test(
           top: style.borderTopWidth,
           left: style.borderLeftWidth,
           right: style.borderRightWidth,
-          prompt: getComputedStyle(element.closest('form')).borderBottomStyle
+          prompt: getComputedStyle(element.closest('form')).borderBottomWidth
         }
       })
       expect(inputBorders).toEqual({
@@ -2317,8 +2674,42 @@ test(
         top: '0px',
         left: '0px',
         right: '0px',
-        prompt: 'dashed'
+        prompt: '0px'
       })
+      // Keep the field clean: its accessible name and native caret supply
+      // discovery/focus without a decorative prefix, placeholder or input box.
+      expect(await input.getAttribute('placeholder')).toBe(null)
+      await expect(input).toHaveAccessibleName('Helm command')
+      await expect(
+        page.raw.locator('label[for="helm-command-input"]')
+      ).toHaveCount(0)
+      for (const dark of [false, true]) {
+        if (dark) await page.inDarkMode()
+        else await page.inLightMode()
+        const help = page.raw.getByRole('button', {
+          name: 'Command help',
+          exact: true
+        })
+        await help.focus()
+        await expect(help).toBeFocused()
+        // Tab reaches the actual input and retains the existing draft.
+        await help.press('Tab')
+        await expect(input).toBeFocused()
+        await expect(input).toHaveValue('node --version')
+        const nativeCaret = await input.evaluate((element) => {
+          const style = getComputedStyle(element)
+          return {
+            color: style.caretColor,
+            textColor: style.color,
+            type: element.type,
+            tag: element.tagName
+          }
+        })
+        expect(nativeCaret.tag).toBe('INPUT')
+        expect(nativeCaret.type).toBe('text')
+        expect(nativeCaret.color).toBe(nativeCaret.textColor)
+        expect(nativeCaret.color === 'rgba(0, 0, 0, 0)').toBe(false)
+      }
       // A touch-friendly fallback remains usable without a physical Enter key.
       await input.fill(COMMAND_FIXTURE_SOURCE)
       await submit.click()
@@ -2507,10 +2898,10 @@ test(
       })
       await expect(
         page.raw.locator('[data-test="helm-command-status"]')
-      ).toHaveText('Ready')
+      ).toBeHidden()
       await expect(
         page.raw.getByRole('region', { name: 'Command output', exact: true })
-      ).not.toContainText('fixture command still running')
+      ).toHaveText('')
       await page.raw
         .getByRole('navigation', { name: 'Breadcrumb', exact: true })
         .getByRole('link', { name: 'projects', exact: true })
