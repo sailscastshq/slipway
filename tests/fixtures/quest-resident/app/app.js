@@ -50,6 +50,22 @@ sails.lift(sails.getRc(), async (error) => {
     sails.quest.pause('timezone-cron')
     sails.quest.pause('timezone-default')
     sails.quest.stop('stopped-schedule')
+    // Direct reference through the actual resident Sails helper. This does not
+    // invoke Quest, create a run, load another app or execute business scripts.
+    const referenceInputs = {
+      collection: 'articles',
+      batchSize: 200,
+      dryRun: true
+    }
+    const helperReference = await sails.helpers.buildIndexReport.with(
+      referenceInputs
+    )
+    probe('helper:reference', {
+      runtimeId: info.runtimeId,
+      helper: 'buildIndexReport',
+      inputs: referenceInputs,
+      result: helperReference
+    })
     let consumed = false
     process.on('SIGURG', () => {
       assert.equal(consumed, false, 'One finite one-shot registration only')

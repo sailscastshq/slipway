@@ -19,6 +19,6 @@ module.exports = {
     })
     console.log('{"indexed":999999,"thisIsOnlyALog":true}')
     console.error('fixture-warning: three synthetic records were skipped')
-    return { indexed: 240, skipped: 3, dryRun: inputs.dryRun }
+    return this.sails.helpers.buildIndexReport.with(inputs)
   }
 }

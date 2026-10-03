@@ -153,6 +153,14 @@ test(
       )
 
       const initial = await snapshot()
+      const helperReferences = (await evidence()).filter(
+        (event) => event.kind === 'helper:reference'
+      )
+      assert.equal(helperReferences.length, 1)
+      const helperReference = helperReferences[0]
+      assert.equal(helperReference.pid, fixture.ready.pid)
+      assert.equal(helperReference.runtimeId, initial.runtimeId)
+      assert.equal(helperReference.helper, 'buildIndexReport')
       assert.equal(initial.capabilities.invoke, true)
       assert.equal(initial.capabilities.results, true)
       assert.equal(initial.capabilities.cancel, false)
@@ -338,6 +346,12 @@ test(
         skipped: 3,
         dryRun: true
       })
+      assert.deepEqual(helperReference.inputs, inputs)
+      assert.deepEqual(
+        completed.result.value,
+        helperReference.result,
+        'The separate Quest child receipt equals the direct resident Sails helper result'
+      )
       assert.match(completed.stderr, /fixture-warning/)
       assert.match(completed.stdout, /999999/)
       const events = await evidence(),
@@ -767,6 +781,13 @@ test(
         workerOnly: true,
         runtimeIds: [initial.runtimeId, restarted.runtimeId],
         manualRunId: runId,
+        directHelperParity: {
+          helper: helperReference.helper,
+          residentPid: helperReference.pid,
+          inputs: helperReference.inputs,
+          result: helperReference.result,
+          questRunId: runId
+        },
         browserRunId,
         scheduledRunId: scheduled.runId,
         signalRunId: signaled.run.runId,

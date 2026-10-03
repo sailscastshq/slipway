@@ -50,6 +50,9 @@ typed/falsy/nullable inputs and independent business results, Sails validation,
 named exits, throwing scripts, stderr on exit 0, request-key dedupe, scheduled and
 manual overlap/pause, process/socket ownership, real authentication and privacy,
 browser review/result/log/stable-link reopening and disconnect without replay.
+The index script calls a source-owned pure Sails helper over synthetic records.
+The resident calls that same helper directly at startup, and its observed result
+is compared with the separate Quest child receipt without creating another job.
 A synthetic job signals only its own PID to prove observed SIGTERM propagation
 with no invented numeric exit code; it does not exercise a cancellation API.
 Malformed cron, a valid expired date, a stopped interval and a bounded consumed

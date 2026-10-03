@@ -1,6 +1,6 @@
 # Quest workspace contract (draft)
 
-This work is the Slipway side of [#653](https://github.com/sailscastshq/slipway/issues/653). It depends on the upstream [resident Quest contract](https://github.com/sailscastshq/sails-hook-quest/issues/13). The combined fixture pins upstream source `7b713fcec6eb93b8af48611f342aaa7075c91f44` from [Quest PR #14](https://github.com/sailscastshq/sails-hook-quest/pull/14). That upstream change is not released or verified end to end here. Keep this change in draft until the real combined Sails fixture, deployment/restart, delivery-loss and process-ownership trials pass. Screenshots exercise real Slipway UI with explicitly synthetic responses; they do not prove upstream execution.
+This work is the Slipway side of [#653](https://github.com/sailscastshq/slipway/issues/653). It depends on the upstream [resident Quest contract](https://github.com/sailscastshq/sails-hook-quest/issues/13). The combined fixture pins upstream source `7411223d586d1b86365296b0a696fda5477f2109` from [Quest PR #14](https://github.com/sailscastshq/sails-hook-quest/pull/14). That upstream change is not released or verified end to end here. Keep this change in draft until the real combined Sails fixture, deployment/restart, delivery-loss and process-ownership trials pass. Screenshots exercise real Slipway UI with explicitly synthetic responses; they do not prove upstream execution.
 
 ## Compatibility and activation
 

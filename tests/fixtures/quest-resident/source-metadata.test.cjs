@@ -12,6 +12,16 @@ const {
   verifyDependencies
 } = require('./dependencies.cjs')
 
+test('pure source helper counts synthetic records through the real machine runner', () => {
+  const helper = machine.build(require('./app/api/helpers/build-index-report'))
+  for (const batchSize of [1, 100, 200, 1000])
+    for (const dryRun of [true, false])
+      assert.deepEqual(
+        helper({ collection: 'articles', batchSize, dryRun }).execSync(),
+        { indexed: 240, skipped: 3, dryRun }
+      )
+})
+
 test('actual dependencies resolve and Sails discovers source-owned hooks without initialization', async () => {
   const { root } = await upstreamSource()
   const appRoot = fs.mkdtempSync(

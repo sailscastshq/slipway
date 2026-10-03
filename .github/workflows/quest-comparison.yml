@@ -45,7 +45,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       # Corrected child scheduler suppression contract. Never use 788d767.
-      SLIPWAY_QUEST_UPSTREAM_SHA: 7b713fcec6eb93b8af48611f342aaa7075c91f44
+      SLIPWAY_QUEST_UPSTREAM_SHA: 7411223d586d1b86365296b0a696fda5477f2109
       SLIPWAY_QUEST_UPSTREAM_ROOT: ${{ github.workspace }}/.tmp/quest-upstream
     steps:
       - name: Check out the exact proposed Slipway source
