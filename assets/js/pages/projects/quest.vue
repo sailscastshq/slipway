@@ -992,6 +992,7 @@ async function loadMore() {
                         <div class="flex items-center gap-2">
                           <QuestStatus :state="state(selectedJob)" /><span
                             v-if="selectedJob.withoutOverlapping"
+                            title="Prevents concurrent executions in this app process only."
                             class="text-[10px] text-gray-400"
                             >No overlap</span
                           >

@@ -971,6 +971,41 @@ async function captureQuestWorkspaceState(page, expect, name, anchor) {
     })
     await page.raw.emulateMedia({ colorScheme: capture.scheme })
     if (anchor) await anchor.scrollIntoViewIfNeeded()
+    const form = page.raw.locator('[data-test="quest-run-form"]')
+    if (capture.width === 390 && (await form.isVisible())) {
+      await expect(form.getByRole('heading', { name: /^Run / })).toBeInViewport(
+        { ratio: 1 }
+      )
+      await expect(
+        form.getByText('Web / Production', { exact: true })
+      ).toBeInViewport({ ratio: 1 })
+      await expect(
+        page.raw.locator('[data-test="quest-confirm-run"]')
+      ).toBeInViewport({ ratio: 1 })
+      await expect(
+        form.getByRole('button', { name: /^(Cancel|Close and check Runs)$/ })
+      ).toBeInViewport({ ratio: 1 })
+      const fields = page.raw.locator('[data-test="quest-run-fields"]')
+      const scrolling = await fields.evaluate((element) => {
+        const original = element.scrollTop
+        element.scrollTop = element.scrollHeight
+        const bottom = element.scrollTop
+        element.scrollTop = 0
+        const top = element.scrollTop
+        element.scrollTop = original
+        return {
+          clientHeight: element.clientHeight,
+          scrollHeight: element.scrollHeight,
+          overflowY: getComputedStyle(element).overflowY,
+          range: bottom - top
+        }
+      })
+      expect(scrolling.clientHeight > 0).toBe(true)
+      if (scrolling.scrollHeight > scrolling.clientHeight + 1) {
+        expect(['auto', 'scroll'].includes(scrolling.overflowY)).toBe(true)
+        expect(scrolling.range > 0).toBe(true)
+      }
+    }
     await page.raw.evaluate(() => document.fonts.ready)
     await page.raw.mouse.move(0, 0)
     const geometry = await questBrowserMeasurements(page)
@@ -1360,11 +1395,11 @@ test(
       ['null', { status: 'available', value: null }, 'null'],
       ['false', { status: 'available', value: false }, 'false'],
       ['zero', { status: 'available', value: 0 }, '0'],
-      ['undefined', { status: 'undefined' }, 'This job returned undefined.'],
+      ['undefined', { status: 'undefined' }, 'Return value: undefined.'],
       [
         'unsupported',
         { status: 'unsupported' },
-        'This runtime does not capture return values.'
+        'This return value is not supported.'
       ],
       [
         'too-large',
@@ -1376,11 +1411,7 @@ test(
         { status: 'serialization_error' },
         'The return value could not be serialized.'
       ],
-      [
-        'unavailable',
-        { status: 'unavailable' },
-        'The return value is no longer available.'
-      ]
+      ['unavailable', { status: 'unavailable' }, 'Return value unavailable.']
     ]
     const state = await installQuestFixture(context, 'after', (state) => {
       for (const [name, result] of resultCases) {

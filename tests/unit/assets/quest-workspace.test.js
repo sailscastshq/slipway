@@ -391,7 +391,7 @@ test('Quest unknown overlap metadata never implies concurrent execution is allow
     'Concurrent executions allowed'
   )
   expect(questOverlapLabel({ withoutOverlapping: true })).toBe(
-    'Prevent concurrent executions'
+    'Prevent overlap in this app process'
   )
 })
 
@@ -714,4 +714,136 @@ test('Quest an invalid future observation stays unavailable until a valid new sn
   authority.dispose()
   expect(authority.isFresh()).toBe(false)
   expect(timers.size).toBe(0)
+})
+
+test('Quest closing a typed review clears its form without dereferencing the cleared draft', async ({
+  expect
+}) => {
+  const fs = require('node:fs')
+  const Vue = require('vue')
+  const { parse, compileScript } = require('@vue/compiler-sfc')
+  const helpers = await workspaceModule()
+  const source = fs.readFileSync(
+    require.resolve('../../../assets/js/components/quest/QuestRunDialog.vue'),
+    'utf8'
+  )
+  const { descriptor } = parse(source)
+  const script = compileScript(descriptor, {
+    id: 'quest-dialog-close',
+    inlineTemplate: true
+  })
+  const Slot = {
+    render() {
+      return Vue.h('section', null, this.$slots.default?.())
+    }
+  }
+  const dependencies = { vue: Vue, '@/lib/questWorkspace.mjs': helpers }
+  const compiled = script.content
+    .replace(
+      /import\s+(\{[\s\S]*?\}|\w+)\s+from\s+['"]([^'"]+)['"]/g,
+      (_, binding, name) =>
+        binding.startsWith('{')
+          ? `const ${binding.replace(
+              / as /g,
+              ': '
+            )} = dependencies[${JSON.stringify(name)}]`
+          : `const ${binding} = Slot`
+    )
+    .replace('export default', 'return')
+  const Dialog = new Function('dependencies', 'Slot', compiled)(
+    dependencies,
+    Slot
+  )
+  const root = { children: [] }
+  const remove = (node) => {
+    const siblings = node.parent?.children
+    if (siblings) {
+      const index = siblings.indexOf(node)
+      if (index >= 0) siblings.splice(index, 1)
+    }
+  }
+  const renderer = Vue.createRenderer({
+    patchProp(node, key, previous, next) {
+      node.props[key] = next
+      if (key === 'type') node.type = next
+    },
+    createElement(tag) {
+      return {
+        tag,
+        tagName: tag.toUpperCase(),
+        props: {},
+        children: [],
+        addEventListener() {},
+        removeEventListener() {}
+      }
+    },
+    insert(node, parent, anchor) {
+      remove(node)
+      const index = anchor ? parent.children.indexOf(anchor) : -1
+      if (index >= 0) parent.children.splice(index, 0, node)
+      else parent.children.push(node)
+      node.parent = parent
+    },
+    createText(text) {
+      return { text }
+    },
+    createComment(text) {
+      return { comment: text }
+    },
+    setText(node, text) {
+      node.text = text
+    },
+    setElementText(node, text) {
+      node.text = text
+      node.children = []
+    },
+    parentNode(node) {
+      return node.parent
+    },
+    nextSibling(node) {
+      const siblings = node.parent?.children || []
+      return siblings[siblings.indexOf(node) + 1] || null
+    },
+    remove
+  })
+  const open = Vue.ref(true)
+  const errors = []
+  const review = {
+    job: {
+      name: 'synthetic',
+      inputs: [{ name: 'optionalNote', type: 'string' }]
+    },
+    target: {
+      appName: 'Synthetic',
+      environmentName: 'Test',
+      isProduction: false
+    }
+  }
+  const app = renderer.createApp({
+    render() {
+      return Vue.h(Dialog, { open: open.value, review })
+    }
+  })
+  app.config.errorHandler = (error) => errors.push(error.message)
+  function forms(node) {
+    return (
+      (node.tag === 'form' ? 1 : 0) +
+      (node.children || []).reduce((total, child) => total + forms(child), 0)
+    )
+  }
+  try {
+    app.mount(root)
+    await Vue.nextTick()
+    expect(forms(root)).toBe(1)
+    open.value = false
+    await Vue.nextTick()
+    expect(errors).toEqual([])
+    expect(forms(root)).toBe(0)
+    open.value = true
+    await Vue.nextTick()
+    expect(errors).toEqual([])
+    expect(forms(root)).toBe(1)
+  } finally {
+    app.unmount()
+  }
 })

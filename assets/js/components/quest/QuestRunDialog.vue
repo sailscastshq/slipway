@@ -114,17 +114,18 @@ async function submit() {
     :open="open"
     :dismissible="!submitting"
     aria-labelledby="quest-run-title"
-    class="max-h-[90dvh] overflow-y-auto p-0"
+    class="max-h-[90dvh] overflow-hidden p-0"
     @update:open="emit('update:open', $event)"
   >
     <form
-      v-if="review"
+      v-if="open && review"
       data-test="quest-run-form"
+      class="flex max-h-[calc(90dvh-2px)] min-h-0 flex-col"
       novalidate
       @submit.prevent="submit"
     >
       <div
-        class="flex items-start justify-between gap-4 border-b border-gray-200 px-5 py-4 dark:border-gray-800"
+        class="flex shrink-0 items-start justify-between gap-4 border-b border-gray-200 px-5 py-4 dark:border-gray-800"
       >
         <div class="min-w-0">
           <h2 id="quest-run-title" class="font-semibold">
@@ -145,7 +146,10 @@ async function submit() {
           <X class="h-4 w-4" />
         </button>
       </div>
-      <div class="space-y-5 px-5 py-5">
+      <div
+        data-test="quest-run-fields"
+        class="min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-contain px-5 py-5"
+      >
         <p
           v-if="review.job.description"
           class="text-sm text-gray-500 dark:text-gray-400"
@@ -288,7 +292,7 @@ async function submit() {
         </div>
       </div>
       <div
-        class="flex items-center justify-end gap-2 border-t border-gray-200 px-5 py-4 dark:border-gray-800"
+        class="flex shrink-0 items-center justify-end gap-2 border-t border-gray-200 px-5 py-4 dark:border-gray-800"
       >
         <Button
           :disabled="submitting"

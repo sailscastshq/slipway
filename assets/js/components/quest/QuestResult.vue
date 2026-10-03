@@ -29,11 +29,11 @@ const unavailableText = computed(() => {
     return 'The return value will appear when this run finishes.'
   return (
     {
-      undefined: 'This job returned undefined.',
-      unsupported: 'This runtime does not capture return values.',
+      undefined: 'Return value: undefined.',
+      unsupported: 'This return value is not supported.',
       too_large: 'The return value exceeded the capture limit.',
       serialization_error: 'The return value could not be serialized.',
-      unavailable: 'The return value is no longer available.'
+      unavailable: 'Return value unavailable.'
     }[props.result?.status] || 'No return value was recorded.'
   )
 })
