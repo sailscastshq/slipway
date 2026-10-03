@@ -48,7 +48,7 @@ test(
       proxy = `${prefix}-proxy`
     const created = []
     const evidence = {
-      head: process.env.GITHUB_SHA || null,
+      head: (await run('git', ['rev-parse', 'HEAD'])).stdout.trim(),
       scope:
         'synthetic Linux Sails apps; local HTTP only; no DNS/TLS or production data',
       apps: [],
@@ -261,7 +261,7 @@ test(
             `SLIPWAY_APP_ID=${app.id}`,
             '-e',
             `SLIPWAY_DEPLOYMENT_ID=${deployment.id}`,
-            'node:22-bookworm',
+            i === 2 ? 'node:24-bookworm' : 'node:22-bookworm',
             'node',
             '/host/tests/fixtures/coolify-migration/running.cjs'
           ])

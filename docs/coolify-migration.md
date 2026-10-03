@@ -349,6 +349,7 @@ and images explicitly before running the test:
 npm ci --no-audit
 npm install --prefix /tmp/slipway-migration-deps --ignore-scripts --no-audit --no-fund sails-postgresql@5.0.1
 docker pull node:22-bookworm
+docker pull node:24-bookworm
 docker pull postgres:17-alpine
 docker pull redis:7-alpine
 docker pull alpine
