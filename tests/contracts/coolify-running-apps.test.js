@@ -188,35 +188,29 @@ test(
           queue,
           'disposable-marker'
         ])
-        const project = await world
-          .create('project')
-          .with({
-            slug: `${prefix}-${i}`,
-            team: world.current.teams.genesisTeam.id,
-            createdBy: world.current.users.genesisUser.id
-          })
+        const project = await world.create('project').with({
+          slug: `${prefix}-${i}`,
+          team: world.current.teams.genesisTeam.id,
+          createdBy: world.current.users.genesisUser.id
+        })
         const environment = await world
           .create('environment')
           .trait('production')
           .with({ project: project.id, domain: item.domain })
-        const app = await world
-          .create('app')
-          .with({
-            environment: environment.id,
-            status: 'running',
-            slug: 'web',
-            name: item.project,
-            port: 1337,
-            hostPort: 1337,
-            healthPath: item.healthPath
-          })
-        const deployment = await world
-          .create('deployment')
-          .with({
-            environment: environment.id,
-            triggeredBy: world.current.users.genesisUser.id,
-            status: 'deploying'
-          })
+        const app = await world.create('app').with({
+          environment: environment.id,
+          status: 'running',
+          slug: 'web',
+          name: item.project,
+          port: 1337,
+          hostPort: 1337,
+          healthPath: item.healthPath
+        })
+        const deployment = await world.create('deployment').with({
+          environment: environment.id,
+          triggeredBy: world.current.users.genesisUser.id,
+          status: 'deploying'
+        })
         const names = {
           old: `${prefix}-${i}-old`,
           candidate: `${prefix}-${i}-candidate`
@@ -517,6 +511,21 @@ test(
       evidence.passed = true
     } finally {
       sails.helpers.caddy.finishRouteUpdate = original.finish
+      await fs.mkdir('.tmp/migration-proof', { recursive: true })
+      if (!evidence.passed) {
+        for (const name of created) {
+          const logs = await command(['logs', '--tail', '80', name]).catch(
+            () => ({ stdout: '', stderr: '' })
+          )
+          await fs.writeFile(
+            `.tmp/migration-proof/${name}.log`,
+            (logs.stdout + logs.stderr).replaceAll(
+              'fixture-only',
+              '[fixture credential]'
+            )
+          )
+        }
+      }
       // Exact fixture network owns all route-label and app containers.
       if (madeNetwork) {
         const ids = (
