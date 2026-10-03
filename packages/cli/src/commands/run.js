@@ -1,44 +1,43 @@
 import { randomUUID } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
+import { commandInput } from '../lib/command-input.js'
+import { privateFile } from '../lib/private-file.js'
 import { APIError } from '../lib/api.js'
 import { streamRequest } from '../lib/stream.js'
 import {
   environmentPath,
   validateOutput,
-  reportCommandError
+  reportCommandError,
+  publicExecutionTarget
 } from '../lib/command-output.js'
 
 export default async function run(options, positionals) {
+  let receipt
+  let receiptState
   try {
     validateOutput(options)
-    if (options.stdin && (positionals.length || options.file))
-      throw new Error('--stdin cannot be combined with a command or --file.')
-    if (options.file && positionals.length)
-      throw new Error('--file cannot be combined with a command.')
-    let code
-    if (options.stdin) {
-      const chunks = []
-      let bytes = 0
-      for await (const chunk of process.stdin) {
-        bytes += chunk.length
-        if (bytes > 128 * 1024)
-          throw new Error('Command input exceeds 128 KiB.')
-        chunks.push(chunk)
-      }
-      code = Buffer.concat(chunks).toString('utf8')
-    } else if (options.file) code = await readFile(options.file, 'utf8')
-    else code = positionals.join(' ')
-    if (!code?.trim())
-      throw new Error('Provide a command, --file <path>, or --stdin.')
-    if (Buffer.byteLength(code) > 128 * 1024)
-      throw new Error('Command input exceeds 128 KiB.')
+    const code = await commandInput(options, positionals)
+    const commandPath = `${environmentPath(options)}/helm/commands`
+    const writeArmToken = options['write-arm-file']
+      ? (await readFile(options['write-arm-file'], 'utf8')).trim()
+      : undefined
     const executionId = randomUUID()
+    if (options['receipt-file']) {
+      receipt = await privateFile(options['receipt-file'])
+      receiptState = {
+        version: 1,
+        executionId,
+        status: 'prepared',
+        createdAt: new Date().toISOString()
+      }
+      await receipt.write(receiptState)
+    }
     let result
     const controller = new AbortController()
     const interrupt = () => controller.abort()
     process.once('SIGINT', interrupt)
     try {
-      await streamRequest(`${environmentPath(options)}/helm/commands`, {
+      await streamRequest(commandPath, {
         method: 'POST',
         format: 'ndjson',
         signal: AbortSignal.any([
@@ -49,16 +48,36 @@ export default async function run(options, positionals) {
           code,
           executionId,
           ...(options.app ? { appSlug: options.app } : {}),
-          ...(options['write-arm-file']
-            ? {
-                writeArmToken: (
-                  await readFile(options['write-arm-file'], 'utf8')
-                ).trim()
-              }
-            : {})
+          ...(writeArmToken ? { writeArmToken } : {})
         },
-        onEvent(event) {
-          if (event.type === 'result') result = event.result
+        async onEvent(event) {
+          if (event.type === 'accepted' && receipt) {
+            receiptState.status = 'accepted'
+            receiptState.target = publicExecutionTarget(event.target)
+            await receipt.write(receiptState)
+          }
+          if (event.type === 'result') {
+            result = event.result
+            if (receipt) {
+              receiptState.status = 'finished'
+              receiptState.result = Object.fromEntries(
+                [
+                  'success',
+                  'status',
+                  'exitCode',
+                  'signal',
+                  'durationMs',
+                  'terminationConfirmed',
+                  'terminationScope',
+                  'exitStatusObserved',
+                  'truncated'
+                ]
+                  .filter((key) => result[key] !== undefined)
+                  .map((key) => [key, result[key]])
+              )
+              await receipt.write(receiptState)
+            }
+          }
           if (options.ndjson) console.log(JSON.stringify(event))
           else if (!options.json && ['stdout', 'stderr'].includes(event.type))
             process[event.type].write(event.text)
@@ -98,6 +117,16 @@ export default async function run(options, positionals) {
         )
     }
   } catch (error) {
+    if (receipt) {
+      receiptState.status = error.statusCode ? 'rejected' : 'unconfirmed'
+      receiptState.errorCode =
+        error.body?.code || error.code || 'COMMAND_UNCONFIRMED'
+      try {
+        await receipt.write(receiptState)
+      } catch {}
+    }
     reportCommandError(error, options)
+  } finally {
+    if (receipt) await receipt.close()
   }
 }

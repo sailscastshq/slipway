@@ -32,3 +32,53 @@ export function reportCommandError(error, options) {
   else console.error(`Error: ${error.message}`)
   process.exitCode = 1
 }
+
+export function commandOutput(options, result, lines = []) {
+  if (options.json || options.ndjson) console.log(JSON.stringify(result))
+  else for (const line of lines) console.log(line)
+}
+
+export function selectedTarget(options, { requireApp = false } = {}) {
+  if (requireApp && !options.app)
+    throw new Error('Specify --app <slug> for this operation.')
+  return {
+    project: decodeURIComponent(targetProject(options)),
+    environment: options.env || 'production',
+    ...(options.app ? { app: options.app } : {})
+  }
+}
+
+export function approveTarget(options) {
+  const target = selectedTarget(options, { requireApp: true })
+  const confirmation = `${target.project}/${target.environment}/${target.app}`
+  if (options['approve-target'] !== confirmation) {
+    const error = new Error(
+      `Review the exact target, then pass --approve-target ${confirmation}.`
+    )
+    error.code = 'TARGET_APPROVAL_REQUIRED'
+    throw error
+  }
+  return target
+}
+
+export function publicExecutionTarget(target = {}) {
+  const fields = {
+    project: ['id', 'name', 'slug'],
+    environment: ['id', 'name', 'slug', 'isProduction'],
+    app: ['id', 'name', 'slug'],
+    deployment: ['id', 'gitCommit', 'gitBranch', 'imageId', 'imageName']
+  }
+  const safe = Object.fromEntries(
+    ['container', 'version', 'displayVersion']
+      .filter((key) => target[key] !== undefined)
+      .map((key) => [key, target[key]])
+  )
+  for (const [section, keys] of Object.entries(fields))
+    if (target[section])
+      safe[section] = Object.fromEntries(
+        keys
+          .filter((key) => target[section][key] !== undefined)
+          .map((key) => [key, target[section][key]])
+      )
+  return safe
+}
