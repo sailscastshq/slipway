@@ -147,6 +147,24 @@ claimed. The old source's 500-event history bound and 30-second polling are
 architecture context only: the ten-event transport fixture does not benchmark
 that workload, production traffic, discovery latency, or a real runtime.
 
+### Supplemental same-runner timing
+
+The separate `paired-navigation` job keeps baseline and exact proposed source in
+sibling checkouts, installs each lockfile, and copies only the same bounded capture
+trial into each. It runs before → after → after → before sequentially on one
+runner, with a fresh normal Sounding/application/browser lifecycle for each
+round. This reduces host-to-host differences and balances order; it does not reuse
+an application process, substitute the proposed UI into baseline, or change any
+fixture, readiness assertion, timing boundary, or budget.
+
+Each round retains all five navigation samples per viewport. The supplemental
+report shows all four rounds and the median of ten observations per phase, along
+with exact source and trial SHAs, initial payloads, DOM counts, and original
+ceilings. Screenshot review continues to use the existing before/after artifacts.
+Two rounds per phase on one executor remain descriptive: dependency differences,
+development-server behavior, and host noise are included. This is neither a
+production benchmark nor a general no-regression guarantee.
+
 ## Running and reviewing
 
 On an authorized disposable browser-capable runner with dependencies installed:
@@ -165,6 +183,7 @@ and isolates before from after. Download these artifacts from the same run:
 2. `quest-after-<exact-head-sha>`
 3. `quest-workspace-states-<exact-head-sha>`
 4. `quest-comparison-report-<exact-head-sha>`
+5. `quest-same-runner-navigation-<exact-head-sha>` (supplemental timing)
 
 Inspect all four PNG pairs at their actual dimensions. Check typed form, result,
 failed, running, reconnecting, disconnected, and keyboard state captures. Confirm

@@ -1364,7 +1364,7 @@ test(
       expect(rerunRequest.productionConfirmed).toBe(true)
       expect(typeof rerunRequest.requestId).toBe('string')
       expect(rerunRequest.requestId.length > 10).toBe(true)
-      expect(rerunRequest.requestId).not.toBe(request.requestId)
+      expect(rerunRequest.requestId !== request.requestId).toBe(true)
       expect(new URL(page.raw.url()).searchParams.get('run')).toBe(rerun.runId)
       // The prior result remains addressable and refresh never replays a POST.
       await page.goto(

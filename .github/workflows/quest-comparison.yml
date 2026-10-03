@@ -172,6 +172,171 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
+  paired-navigation:
+    name: Observe same-runner Quest navigation
+    timeout-minutes: 25
+    runs-on: ubuntu-latest
+    env:
+      QUEST_BASELINE_SHA: 6fe3b2177bc867475f1e3d499f6f4de53d2d1e03
+      SLIPWAY_QUEST_CAPTURE_TRIAL_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - name: Check out exact proposed source
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          path: proposed-source
+          persist-credentials: false
+      - name: Check out pinned baseline source
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ env.QUEST_BASELINE_SHA }}
+          path: baseline-source
+          persist-credentials: false
+      - name: Install identical bounded trial in both source checkouts
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs')
+          const source = fs.readFileSync('proposed-source/tests/e2e/pages/projects/quest.test.js', 'utf8')
+          const start = '// BEGIN QUEST COMPARISON CAPTURE'
+          const end = '// END QUEST COMPARISON CAPTURE'
+          if (source.split(start).length !== 2 || source.split(end).length !== 2) throw new Error('Expected one bounded capture trial')
+          const trial = "const { test } = require('sounding')\n" + source.slice(source.indexOf(start) + start.length, source.indexOf(end))
+          for (const directory of ['baseline-source', 'proposed-source']) {
+            fs.writeFileSync(`${directory}/tests/e2e/pages/projects/quest.test.js`, trial)
+          }
+          NODE
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: |
+            baseline-source/package-lock.json
+            proposed-source/package-lock.json
+      - run: npm ci --no-audit
+        working-directory: baseline-source
+      - run: npm ci --no-audit
+        working-directory: proposed-source
+      - run: npx playwright install --with-deps chromium
+        working-directory: baseline-source
+      - run: npx playwright install --with-deps chromium
+        working-directory: proposed-source
+      - name: Measure sequential before-after-after-before rounds
+        run: |
+          set -euo pipefail
+          mkdir -p paired-navigation
+          for round in before-1 after-1 after-2 before-2; do
+            phase="${round%-*}"
+            source=proposed-source
+            expected="$SLIPWAY_QUEST_CAPTURE_TRIAL_SHA"
+            if [ "$phase" = before ]; then
+              source=baseline-source
+              expected="$QUEST_BASELINE_SHA"
+            fi
+            test "$(git -C "$source" rev-parse HEAD)" = "$expected"
+            mkdir -p "paired-navigation/$round"
+            date -u +%FT%TZ > "paired-navigation/$round/started-at.txt"
+            (
+              cd "$source"
+              SLIPWAY_QUEST_CAPTURE_PHASE="$phase" node_modules/.bin/sounding test --file tests/e2e/pages/projects/quest.test.js --test-concurrency=1 --test-timeout=600000
+            )
+            cp "$source/.tmp/screenshots/quest-comparison/$phase/fixture.json" "paired-navigation/$round/fixture.json"
+            cp "$source/.tmp/screenshots/quest-comparison/$phase/performance.json" "paired-navigation/$round/performance.json"
+          done
+      - name: Validate paired context and retain all raw observations
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs')
+          const assert = require('node:assert/strict')
+          const read = path => JSON.parse(fs.readFileSync(path, 'utf8'))
+          const order = ['before-1', 'after-1', 'after-2', 'before-2']
+          const rounds = order.map(name => ({
+            name,
+            startedAt: fs.readFileSync(`paired-navigation/${name}/started-at.txt`, 'utf8').trim(),
+            fixture: read(`paired-navigation/${name}/fixture.json`),
+            performance: read(`paired-navigation/${name}/performance.json`)
+          }))
+          const reference = rounds[0]
+          const fixtureKeys = ['jobs', 'events', 'captures', 'frozenBrowserTime', 'project', 'team', 'user', 'environment']
+          for (const round of rounds) {
+            const phase = round.name.split('-')[0]
+            const expected = phase === 'before' ? process.env.QUEST_BASELINE_SHA : process.env.SLIPWAY_QUEST_CAPTURE_TRIAL_SHA
+            assert.equal(round.fixture.sourceSha, expected)
+            assert.equal(round.performance.sourceSha, expected)
+            assert.equal(round.fixture.captureTrialSourceSha, process.env.SLIPWAY_QUEST_CAPTURE_TRIAL_SHA)
+            assert.equal(round.performance.measurementVersion, 2)
+            assert.equal(round.performance.driverReadiness, reference.performance.driverReadiness)
+            assert.equal(round.performance.navigationSamplesPerCapture, 5)
+            assert.deepEqual(round.performance.budgets, reference.performance.budgets)
+            for (const key of fixtureKeys) assert.deepEqual(round.fixture[key], reference.fixture[key], `${round.name}: ${key}`)
+            assert.equal(round.performance.measurements.length, 4)
+            for (const sample of round.performance.measurements) {
+              assert.equal(sample.navigationToReadySamplesMs.length, 5)
+              for (const metric of ['questJsonBytes', 'initialJsonBytes', 'documentElementCount', 'navigationToReadyMs']) {
+                assert.ok(Number.isFinite(sample[metric]) && sample[metric] <= round.performance.budgets[metric], `${round.name}: ${sample.capture}: ${metric}`)
+              }
+              for (const elapsed of sample.navigationToReadySamplesMs) assert.ok(Number.isFinite(elapsed) && elapsed <= round.performance.budgets.navigationToReadyMs)
+              for (const metric of ['horizontalOverflowPx', 'workspaceHorizontalOverflowPx']) assert.ok(sample[metric] <= 1)
+            }
+          }
+          const median = values => {
+            const sorted = [...values].sort((a, b) => a - b)
+            return (sorted[(sorted.length - 1) >> 1] + sorted[sorted.length >> 1]) / 2
+          }
+          const observations = reference.performance.measurements.map(sample => {
+            const byRound = rounds.map(round => ({
+              round: round.name,
+              valuesMs: round.performance.measurements.find(row => row.capture === sample.capture).navigationToReadySamplesMs
+            }))
+            const before = byRound.filter(row => row.round.startsWith('before')).flatMap(row => row.valuesMs)
+            const after = byRound.filter(row => row.round.startsWith('after')).flatMap(row => row.valuesMs)
+            return { capture: sample.capture, beforeMedianMs: median(before), afterMedianMs: median(after), byRound }
+          })
+          const report = {
+            method: 'Same runner; sequential before-after-after-before; independent normal application/browser lifecycle per round; five warmed navigations per viewport each round',
+            beforeSourceSha: process.env.QUEST_BASELINE_SHA,
+            afterSourceSha: process.env.SLIPWAY_QUEST_CAPTURE_TRIAL_SHA,
+            fixtureAndBudgetsUnchanged: true,
+            limitations: [
+              'Synthetic five-job, ten-event transport fixture; fixed browser clock',
+              'One executor and two rounds per phase; host noise and software stack differences remain',
+              'Descriptive timing, not a production speedup or general no-regression proof',
+              'Authoritative review PNGs remain in the independent before/after capture artifacts'
+            ],
+            observations,
+            rounds
+          }
+          const summary = [
+            '## Quest same-runner navigation observations', '', report.method, '',
+            `Before: ${report.beforeSourceSha}`, `After: ${report.afterSourceSha}`, '',
+            '| Viewport/theme | Before median, 10 samples (ms) | After median, 10 samples (ms) |',
+            '| --- | ---: | ---: |',
+            ...observations.map(row => `| ${row.capture} | ${row.beforeMedianMs} | ${row.afterMedianMs} |`), '',
+            ...observations.flatMap(row => row.byRound.map(round => `- ${row.capture}, ${round.round}: [${round.valuesMs.join(', ')}] ms`)), '',
+            ...report.limitations.map(line => `- ${line}`)
+          ].join('\n')
+          fs.writeFileSync('paired-navigation/report.json', JSON.stringify(report, null, 2) + '\n')
+          fs.writeFileSync('paired-navigation/report.md', summary + '\n')
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, summary + '\n')
+          NODE
+      - name: Preserve paired navigation reports
+        uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: quest-same-runner-navigation-${{ github.event.pull_request.head.sha || github.sha }}
+          path: paired-navigation
+          if-no-files-found: error
+          retention-days: 90
+      - name: Preserve diagnostic artifacts on failure
+        uses: actions/upload-artifact@v6
+        if: failure()
+        with:
+          name: quest-same-runner-diagnostics-${{ github.event.pull_request.head.sha || github.sha }}
+          path: |
+            baseline-source/.tmp/sounding/artifacts
+            proposed-source/.tmp/sounding/artifacts
+          if-no-files-found: ignore
+          retention-days: 14
+
   comparison:
     name: Compare matched synthetic measurements
     needs: [baseline, proposed]
