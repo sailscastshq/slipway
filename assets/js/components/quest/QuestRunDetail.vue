@@ -3,7 +3,7 @@ import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import Tabs from '@/components/ui/tabs/Tabs.vue'
 import Button from '@/components/ui/button/Button.vue'
 import Spinner from '@/components/SlipwaySpinner.vue'
-import X from '@/components/ui/icons/X.vue'
+import ChevronLeft from '@/components/ui/icons/ChevronLeft.vue'
 import Play from '@/components/ui/icons/Play.vue'
 import Refresh from '@/components/ui/icons/Refresh.vue'
 import QuestStatus from './QuestStatus.vue'
@@ -22,7 +22,8 @@ const props = defineProps({
   revision: String,
   job: Object,
   canRun: Boolean,
-  canCancel: Boolean
+  canCancel: Boolean,
+  embedded: Boolean
 })
 const emit = defineEmits(['close', 'run-again', 'loaded'])
 const run = ref(null)
@@ -152,7 +153,10 @@ onBeforeUnmount(() => {
 <template>
   <section
     data-test="quest-run-detail"
-    class="min-w-0 overflow-hidden rounded-lg border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-950"
+    :class="[
+      'min-w-0 overflow-hidden bg-white dark:bg-gray-950',
+      !embedded && 'rounded-lg border border-gray-200 dark:border-gray-800'
+    ]"
     aria-labelledby="quest-run-detail-title"
   >
     <div class="flex items-start justify-between gap-3 px-4 py-4">
@@ -162,9 +166,11 @@ onBeforeUnmount(() => {
           class="text-sm font-medium text-gray-900 dark:text-white"
         >
           {{ legacy ? 'Legacy event' : 'Run details'
-          }}<span v-if="job" class="ml-2 text-gray-500 dark:text-gray-400">{{
-            job.friendlyName || job.name
-          }}</span>
+          }}<span
+            v-if="job && !embedded"
+            class="ml-2 text-gray-500 dark:text-gray-400"
+            >{{ job.friendlyName || job.name }}</span
+          >
         </h3>
         <p class="mt-1 break-all font-mono text-[10px] text-gray-400">
           {{ eventId || runId }}
@@ -179,11 +185,11 @@ onBeforeUnmount(() => {
         >
         <button
           type="button"
-          class="rounded p-1 text-gray-400 hover:text-gray-900 dark:hover:text-white"
+          class="flex items-center gap-1 rounded p-1 text-xs text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
           aria-label="Close run details"
           @click="emit('close')"
         >
-          <X class="h-4 w-4" />
+          <ChevronLeft class="h-3.5 w-3.5" />All runs
         </button>
       </div>
     </div>

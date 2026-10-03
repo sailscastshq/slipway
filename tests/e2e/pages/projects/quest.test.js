@@ -251,12 +251,14 @@ function questComparisonData(current, phase) {
 async function installQuestFixture(
   { sails, world, page },
   phase = 'after',
-  configure = () => {}
+  configure = () => {},
+  { clockMode = 'advancing' } = {}
 ) {
   const current = world.current
   const fixture = questComparisonData(current, phase)
   const state = {
     ...fixture,
+    clockMode,
     initialJsonBytes: 0,
     questJsonBytes: 0,
     documentBytes: 0,
@@ -451,18 +453,22 @@ async function installQuestFixture(
     page.raw.off('response', recordInfrastructureResponse)
     restore()
   }
-  await page.raw.clock.setFixedTime(fixture.now)
+  if (clockMode === 'fixed') await page.raw.clock.setFixedTime(fixture.now)
+  else await page.raw.clock.setSystemTime(fixture.now)
   // Transport-only EventSource double. This permits deterministic disconnects
   // while exercising the real composable's reconnect timer and cleanup logic.
   await page.raw.addInitScript(
-    ({ jobs, rawEvents, workspace, phase, questStreamPath }) => {
+    ({ jobs, rawEvents, workspace, phase, questStreamPath, clockMode }) => {
       window.__questStreams = []
       window.__questStreamOnline = true
+      window.__questObservationPaused = false
       window.__questStreamPayload =
         phase === 'before'
           ? { jobs, jobHistory: rawEvents, jobsError: null }
           : { workspace }
-      window.__questEmitWorkspace = (workspace) => {
+      window.__questEmitWorkspace = (workspace, allowHeartbeat = true) => {
+        window.__questObservationPaused =
+          !allowHeartbeat || workspace.mode !== 'resident'
         window.__questStreamPayload = { workspace }
         for (const stream of window.__questStreams) {
           if (!stream.closed && stream.url.includes('/quest/stream'))
@@ -510,20 +516,44 @@ async function installQuestFixture(
                     : { workspace: props.workspace || workspace }
                 window.__questStreamBootstrapped = true
               }
+              if (
+                clockMode === 'advancing' &&
+                !window.__questObservationPaused &&
+                window.__questStreamPayload.workspace?.mode === 'resident'
+              ) {
+                window.__questStreamPayload.workspace.observedAt = Date.now()
+              }
               this.onmessage?.({
                 data: JSON.stringify(window.__questStreamPayload)
               })
+              if (clockMode === 'advancing') {
+                this.heartbeat = setInterval(() => {
+                  if (
+                    this.closed ||
+                    !window.__questStreamOnline ||
+                    window.__questObservationPaused
+                  )
+                    return
+                  const current = window.__questStreamPayload.workspace
+                  if (current?.mode !== 'resident') return
+                  current.observedAt = Date.now()
+                  this.onmessage?.({
+                    data: JSON.stringify({ workspace: current })
+                  })
+                }, 5000)
+              }
             }
           }, 10)
         }
         close() {
           clearTimeout(this.timer)
+          clearInterval(this.heartbeat)
           this.closed = true
           this.readyState = 2
         }
       }
     },
-    { ...fixture, questStreamPath: apiPath + 'stream' }
+    { ...fixture, questStreamPath: apiPath + 'stream', clockMode }
   )
   return state
 }
@@ -540,6 +570,7 @@ async function questBrowserMeasurements(page) {
     let documentNodeCount = 0
     while (walker.nextNode()) documentNodeCount++
     return {
+      browserClockTime: new Date().toISOString(),
       readyAfterNavigationMs: navigation
         ? Math.round(performance.now() - navigation.startTime)
         : null,
@@ -589,7 +620,9 @@ test(
     }).trim()
     const root = path.resolve('.tmp/screenshots/quest-comparison', phase)
     fs.mkdirSync(root, { recursive: true })
-    const state = await installQuestFixture(context, phase)
+    const state = await installQuestFixture(context, phase, () => {}, {
+      clockMode: 'fixed'
+    })
     const measurements = []
     try {
       await login.withPassword('genesisUser', page, {
@@ -912,10 +945,17 @@ function syntheticQuestRun(state, runId, overrides = {}) {
   }
 }
 
-async function emitQuestWorkspace(page, state) {
+async function emitQuestWorkspace(
+  page,
+  state,
+  { refreshObservation = state.workspace.mode === 'resident' } = {}
+) {
+  if (state.clockMode === 'advancing' && refreshObservation)
+    state.workspace.observedAt = await page.raw.evaluate(() => Date.now())
   await page.raw.evaluate(
-    (workspace) => window.__questEmitWorkspace(workspace),
-    state.workspace
+    ({ workspace, refreshObservation }) =>
+      window.__questEmitWorkspace(workspace, refreshObservation),
+    { workspace: state.workspace, refreshObservation }
   )
 }
 
@@ -948,7 +988,9 @@ async function captureQuestWorkspaceState(page, expect, name, anchor) {
           sourceSha: require('node:child_process')
             .execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' })
             .trim(),
-          frozenBrowserTime: questComparisonFixture.frozenBrowserTime,
+          clockOrigin: questComparisonFixture.frozenBrowserTime,
+          clockMode:
+            'advancing wall clock; same fixed origin as the base comparison',
           transport:
             'Synthetic JSON and EventSource; actual application rendering',
           captures: []
@@ -1555,6 +1597,7 @@ test(
 
       // A server-reported SSE failure is also stale, even if the transport stays open.
       await page.raw.evaluate(() => {
+        window.__questObservationPaused = true
         for (const stream of window.__questStreams) {
           if (!stream.closed && stream.url.includes('/quest/stream')) {
             stream.onmessage?.({

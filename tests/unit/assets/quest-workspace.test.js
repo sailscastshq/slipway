@@ -623,7 +623,8 @@ test('Quest snapshot authority expires at a bounded age and permits only small c
   const { questSnapshotIsFresh } = await workspaceModule()
   const snapshot = { mode: 'resident', observedAt: 100000 }
   expect(questSnapshotIsFresh(snapshot, 100000)).toBe(true)
-  expect(questSnapshotIsFresh(snapshot, 130000)).toBe(true)
+  expect(questSnapshotIsFresh(snapshot, 129999)).toBe(true)
+  expect(questSnapshotIsFresh(snapshot, 130000)).toBe(false)
   expect(questSnapshotIsFresh(snapshot, 130001)).toBe(false)
   expect(questSnapshotIsFresh(snapshot, 95000)).toBe(true)
   expect(questSnapshotIsFresh(snapshot, 94999)).toBe(false)
@@ -651,4 +652,66 @@ test('Quest invalid snapshot times fail closed without mutating historical run s
   expect(
     questSnapshotIsFresh({ mode: 'resident', observedAt: 100000 }, NaN)
   ).toBe(false)
+})
+
+test('Quest snapshot receipt refreshes authority between display ticks and expires at exactly thirty seconds', async ({
+  expect
+}) => {
+  const { createQuestSnapshotAuthority } = await workspaceModule()
+  let time = 100000
+  let nextTimer = 0
+  const timers = new Map()
+  const changes = []
+  const authority = createQuestSnapshotAuthority({
+    now: () => time,
+    setTimer: (callback, delay) => {
+      const id = ++nextTimer
+      timers.set(id, { callback, at: time + delay })
+      return id
+    },
+    clearTimer: (id) => timers.delete(id),
+    onChange: (fresh) => changes.push(fresh)
+  })
+  authority.observe({ mode: 'resident', observedAt: time })
+  const oldCallback = timers.get(1).callback
+  time += 10000 // A fresh SSE observation arrives before a 15s display tick.
+  authority.observe({ mode: 'resident', observedAt: time })
+  expect(authority.isFresh()).toBe(true)
+  expect(timers.size).toBe(1)
+  expect(timers.get(2).at).toBe(140000)
+  oldCallback() // A cancelled prior-generation expiry cannot revoke new state.
+  expect(authority.isFresh()).toBe(true)
+  time = 139999
+  expect(authority.isFresh()).toBe(true)
+  time = 140000
+  timers.get(2).callback()
+  expect(authority.isFresh()).toBe(false)
+  expect(changes).toEqual([true, false])
+  authority.dispose()
+})
+
+test('Quest an invalid future observation stays unavailable until a valid new snapshot arrives', async ({
+  expect
+}) => {
+  const { createQuestSnapshotAuthority } = await workspaceModule()
+  let time = 100000
+  const timers = new Map()
+  const authority = createQuestSnapshotAuthority({
+    now: () => time,
+    setTimer: (callback, delay) => {
+      timers.set(1, { callback, delay })
+      return 1
+    },
+    clearTimer: (id) => timers.delete(id)
+  })
+  const future = { mode: 'resident', observedAt: 110000 }
+  expect(authority.observe(future)).toBe(false)
+  expect(timers.size).toBe(0)
+  time = 110000
+  expect(authority.isFresh()).toBe(false)
+  expect(authority.observe({ ...future })).toBe(true)
+  expect(authority.isFresh()).toBe(true)
+  authority.dispose()
+  expect(authority.isFresh()).toBe(false)
+  expect(timers.size).toBe(0)
 })

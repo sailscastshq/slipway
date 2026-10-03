@@ -428,5 +428,47 @@ export function questSnapshotIsFresh(workspace, now = Date.now()) {
   )
     return false
   const age = now - workspace.observedAt
-  return age >= -QUEST_SNAPSHOT_MAX_SKEW_MS && age <= QUEST_SNAPSHOT_MAX_AGE_MS
+  return age >= -QUEST_SNAPSHOT_MAX_SKEW_MS && age < QUEST_SNAPSHOT_MAX_AGE_MS
+}
+
+// Authority is established only by a valid newly received snapshot. Invalid
+// future timestamps cannot become trusted merely because local time catches up.
+export function createQuestSnapshotAuthority(options = {}) {
+  const currentTime = options.now || Date.now
+  const schedule = options.setTimer || setTimeout
+  const unschedule = options.clearTimer || clearTimeout
+  let timer
+  let generation = 0
+  let fresh = false
+  function publish(value) {
+    if (fresh === value) return
+    fresh = value
+    options.onChange?.(value)
+  }
+  function clear() {
+    generation++
+    if (timer !== undefined) unschedule(timer)
+    timer = undefined
+  }
+  function observe(workspace) {
+    clear()
+    const receivedAt = currentTime()
+    const valid = questSnapshotIsFresh(workspace, receivedAt)
+    publish(valid)
+    if (!valid) return false
+    const observedGeneration = generation
+    const remaining =
+      workspace.observedAt + QUEST_SNAPSHOT_MAX_AGE_MS - receivedAt
+    timer = schedule(() => {
+      if (observedGeneration !== generation) return
+      timer = undefined
+      publish(false)
+    }, remaining)
+    return true
+  }
+  function dispose() {
+    clear()
+    publish(false)
+  }
+  return { observe, dispose, isFresh: () => fresh }
 }

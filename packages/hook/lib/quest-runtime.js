@@ -187,6 +187,67 @@ function validateInputs(job, values) {
   return values
 }
 
+function reconcileStaleRegistration(identity, uid) {
+  const filename = identity.socket.replace(/\.sock$/, '.json')
+  const statIfPresent = (filename) => {
+    try {
+      return fs.lstatSync(filename)
+    } catch (error) {
+      if (error.code === 'ENOENT') return null
+      throw error
+    }
+  }
+  const registration = statIfPresent(filename)
+  const socket = statIfPresent(identity.socket)
+  if (!registration && !socket) return
+  const reject = () => {
+    throw fail(
+      'An existing Quest runtime registration cannot be safely replaced.'
+    )
+  }
+  if (
+    !registration?.isFile() ||
+    registration.uid !== uid ||
+    registration.mode & 0o077 ||
+    registration.size > 4096 ||
+    !socket?.isSocket() ||
+    socket.uid !== uid ||
+    socket.mode & 0o077
+  )
+    reject()
+  let previous
+  try {
+    previous = JSON.parse(fs.readFileSync(filename, 'utf8'))
+  } catch {
+    reject()
+  }
+  if (
+    previous?.version !== 1 ||
+    previous.appId !== identity.appId ||
+    previous.deploymentId !== identity.deploymentId ||
+    previous.pid !== identity.pid ||
+    previous.socket !== identity.socket ||
+    typeof previous.runtimeId !== 'string' ||
+    !previous.runtimeId ||
+    typeof previous.startTicks !== 'string' ||
+    !/^\d+$/.test(previous.startTicks) ||
+    previous.startTicks === identity.startTicks
+  )
+    reject()
+  // A reused PID is authority only for this exact, private pair. Recheck inode
+  // identity before unlinking; unrelated, replaced or live files stay intact.
+  for (const [file, before] of [
+    [filename, registration],
+    [identity.socket, socket]
+  ]) {
+    const current = statIfPresent(file)
+    if (!current || current.dev !== before.dev || current.ino !== before.ino)
+      reject()
+  }
+  fs.unlinkSync(identity.socket)
+  fs.unlinkSync(filename)
+}
+
 function createQuestRuntime({
   sails,
   appId,
@@ -196,7 +257,8 @@ function createQuestRuntime({
 }) {
   const runs = new Map(),
     requests = new Map(),
-    listeners = []
+    listeners = [],
+    ownedFiles = new Map()
   let activeAdmission = null,
     server,
     filename,
@@ -499,6 +561,7 @@ function createQuestRuntime({
       startTicks: ticks,
       socket: socketPath
     }
+    reconcileStaleRegistration(identity, runtime.getuid())
     for (const [event, state] of [
       ['start', 'running'],
       ['complete', 'completed'],
@@ -559,24 +622,29 @@ function createQuestRuntime({
       server.once('error', reject)
       server.listen(socketPath, resolve)
     })
+    ownedFiles.set(socketPath, fs.lstatSync(socketPath))
     fs.chmodSync(socketPath, 0o600)
     fs.writeFileSync(filename, JSON.stringify(identity), {
       mode: 0o600,
       flag: 'wx'
     })
+    ownedFiles.set(filename, fs.lstatSync(filename))
     return true
   }
   async function stop() {
     for (const [event, listener] of listeners)
       sails.removeListener(event, listener)
     if (server) await new Promise((resolve) => server.close(resolve))
-    for (const file of [filename, socketPath])
-      if (file)
-        try {
+    for (const [file, owned] of ownedFiles) {
+      try {
+        const current = fs.lstatSync(file)
+        if (current.dev === owned.dev && current.ino === owned.ino)
           fs.unlinkSync(file)
-        } catch (error) {
-          if (error.code !== 'ENOENT') throw error
-        }
+      } catch (error) {
+        if (error.code !== 'ENOENT') throw error
+      }
+    }
+    ownedFiles.clear()
   }
   return {
     start,

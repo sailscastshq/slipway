@@ -83,6 +83,17 @@ Quest browser test file. The intended evidence covers:
   and no replay from refresh or browser history
 - Four viewport/theme captures and horizontal-overflow assertions
 
+The matched before/after trial keeps the original frozen clock. Interaction
+trials instead use an advancing clock anchored at that same synthetic epoch,
+with fresh observations every five seconds only while the synthetic resident
+stream is online. Disconnect/error/explicit stale injections stop those updates;
+explicit reconnection restarts them. Intentional stale observations can be sent
+without refreshing their timestamp. This matters for
+Vue's event safety guard: freezing `Date.now()` makes a Button's capture handler
+and bubble handler share the attachment timestamp, suppressing the bubble click.
+No UI method is invoked directly to get around that behavior. Interaction
+manifests record the clock mode and each screenshot's actual browser time.
+
 The screenshots are review evidence, not perceptual image-diff assertions. A human
 must inspect actual after pixels before approving the visual change.
 

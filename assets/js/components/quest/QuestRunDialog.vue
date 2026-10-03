@@ -12,12 +12,14 @@ import {
   createQuestInputDraft,
   validateQuestInputs,
   questInputType,
-  requestQuestInvocation
+  requestQuestInvocation,
+  questSnapshotIsFresh
 } from '@/lib/questWorkspace.mjs'
 
 const props = defineProps({
   open: Boolean,
   review: Object,
+  workspace: Object,
   stale: Boolean,
   apiUrl: String,
   csrf: String
@@ -29,6 +31,7 @@ const submitting = ref(false)
 const response = ref(null)
 const requestId = ref('')
 const productionConfirmed = ref(false)
+const expired = ref(false)
 const inputs = computed(() => props.review?.job?.inputs || [])
 const validation = computed(() =>
   validateQuestInputs(inputs.value, draft.value)
@@ -46,6 +49,7 @@ watch(
     draft.value = createQuestInputDraft(inputs.value, props.review?.inputs)
     attempted.value = false
     productionConfirmed.value = false
+    expired.value = false
     response.value = null
     requestId.value = crypto.randomUUID()
   },
@@ -67,11 +71,16 @@ function choices(input) {
 }
 
 async function submit() {
+  if (!questSnapshotIsFresh(props.workspace)) {
+    expired.value = true
+    return
+  }
   attempted.value = true
   if (
     !validation.value.valid ||
     submitting.value ||
     props.stale ||
+    expired.value ||
     response.value?.state === 'unconfirmed' ||
     (props.review?.target.isProduction && !productionConfirmed.value)
   )
@@ -144,7 +153,7 @@ async function submit() {
           {{ review.job.description }}
         </p>
         <div
-          v-if="stale"
+          v-if="stale || expired"
           role="alert"
           class="rounded-md bg-amber-50 p-3 text-sm text-amber-800 dark:bg-amber-950/30 dark:text-amber-300"
         >
@@ -296,6 +305,7 @@ async function submit() {
           :disabled="
             submitting ||
             stale ||
+            expired ||
             response?.state === 'unconfirmed' ||
             (review.target.isProduction && !productionConfirmed)
           "

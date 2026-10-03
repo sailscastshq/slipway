@@ -467,3 +467,226 @@ test('Quest private socket registration is owner-only and viewer disconnect neve
     fs.rmSync(directory, { recursive: true, force: true })
   }
 })
+
+function privateRuntime(sails, directory, pid = process.pid) {
+  return createQuestRuntime({
+    sails,
+    appId: '12',
+    deploymentId: '34',
+    directory,
+    runtime: {
+      platform: 'linux',
+      pid,
+      getuid: () => process.getuid(),
+      env: { SLIPWAY_APP_ID: '12', SLIPWAY_DEPLOYMENT_ID: '34' }
+    }
+  })
+}
+
+test('Quest restart reconciliation leaves current, malformed, unrelated, symlink and non-private registrations untouched', async () => {
+  const {
+    startTicks
+  } = require('../../../packages/hook/lib/helm-runtime-contract')
+  const ticks = startTicks(fs.readFileSync('/proc/self/stat', 'utf8'))
+  for (const scenario of [
+    'current',
+    'malformed',
+    'other-app',
+    'other-deployment',
+    'other-pid',
+    'other-socket',
+    'missing-ticks',
+    'other-owner',
+    'socket-owner',
+    'registration-mode',
+    'socket-mode',
+    'registration-symlink',
+    'socket-symlink',
+    'socket-file',
+    'orphan-socket',
+    'orphan-registration'
+  ]) {
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'quest-safety-'))
+    const stem = path.join(directory, `12-34-${process.pid}`)
+    const socketPath = `${stem}.sock`
+    const filename = `${stem}.json`
+    const identity = {
+      version: 1,
+      appId: '12',
+      deploymentId: '34',
+      runtimeId: 'previous',
+      pid: process.pid,
+      startTicks: ticks === '1' ? '2' : '1',
+      socket: socketPath
+    }
+    if (scenario === 'current') identity.startTicks = ticks
+    if (scenario === 'other-app') identity.appId = '99'
+    if (scenario === 'other-deployment') identity.deploymentId = '99'
+    if (scenario === 'other-pid') identity.pid++
+    if (scenario === 'other-socket')
+      identity.socket = `${directory}/unrelated.sock`
+    if (scenario === 'missing-ticks') delete identity.startTicks
+    const content =
+      scenario === 'malformed' ? '{invalid' : JSON.stringify(identity)
+    fs.writeFileSync(filename, content, { mode: 0o600 })
+    fs.writeFileSync(socketPath, 'socket stand-in', { mode: 0o600 })
+    const unrelated = path.join(directory, 'unrelated')
+    fs.writeFileSync(unrelated, 'untouched', { mode: 0o600 })
+    if (scenario === 'registration-mode') fs.chmodSync(filename, 0o644)
+    if (scenario === 'socket-mode') fs.chmodSync(socketPath, 0o666)
+    if (scenario === 'registration-symlink') {
+      fs.unlinkSync(filename)
+      fs.symlinkSync(unrelated, filename)
+    }
+    if (scenario === 'socket-symlink') {
+      fs.unlinkSync(socketPath)
+      fs.symlinkSync(unrelated, socketPath)
+    }
+    if (scenario === 'orphan-socket') fs.unlinkSync(filename)
+    if (scenario === 'orphan-registration') fs.unlinkSync(socketPath)
+    const originalStat = fs.lstatSync
+    const originalServer = net.createServer
+    let serverCreations = 0
+    // A local socket is not available in every unit-test sandbox. Only socket
+    // type and ownership are doubled here; actual stale sockets are below.
+    fs.lstatSync = function (file, ...args) {
+      const stat = originalStat.call(fs, file, ...args)
+      const adjusted = Object.create(stat)
+      if (
+        file === socketPath &&
+        !stat.isSymbolicLink() &&
+        scenario !== 'socket-file'
+      )
+        adjusted.isSocket = () => true
+      if (
+        (scenario === 'other-owner' && file === filename) ||
+        (scenario === 'socket-owner' && file === socketPath)
+      )
+        adjusted.uid = process.getuid() + 1
+      return adjusted
+    }
+    net.createServer = () => {
+      serverCreations++
+      throw new Error('Unsafe reconciliation must fail before listening')
+    }
+    const bridge = privateRuntime(fixture().sails, directory)
+    try {
+      await assert.rejects(
+        bridge.start(),
+        { code: 'QUEST_UNAVAILABLE' },
+        scenario
+      )
+      await bridge.stop()
+      assert.equal(serverCreations, 0, scenario)
+      assert.equal(fs.readFileSync(unrelated, 'utf8'), 'untouched', scenario)
+      if (scenario !== 'orphan-socket') {
+        assert.ok(originalStat(filename), scenario)
+        assert.equal(
+          fs.readFileSync(filename, 'utf8'),
+          scenario === 'registration-symlink' ? 'untouched' : content,
+          scenario
+        )
+      }
+      if (scenario !== 'orphan-registration')
+        assert.ok(originalStat(socketPath), scenario)
+    } finally {
+      fs.lstatSync = originalStat
+      net.createServer = originalServer
+      await bridge.stop()
+      fs.rmSync(directory, { recursive: true, force: true })
+    }
+  }
+})
+
+test('Quest first restart replaces only a verified stale socket left by a killed disposable process', async () => {
+  const { spawn } = require('node:child_process')
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'quest-restart-'))
+  const source = `
+    const fs = require('node:fs')
+    const net = require('node:net')
+    const directory = process.argv[1]
+    const socket = directory + '/12-34-' + process.pid + '.sock'
+    const stat = fs.readFileSync('/proc/self/stat', 'utf8')
+    const ticks = stat.slice(stat.lastIndexOf(')') + 1).trim().split(/\\s+/)[19]
+    const server = net.createServer()
+    server.once('error', error => { process.send({ error: error.code }); process.exitCode = 1 })
+    server.listen(socket, () => {
+      fs.chmodSync(socket, 0o600)
+      fs.writeFileSync(socket.replace(/\\.sock$/, '.json'), JSON.stringify({
+        version: 1, appId: '12', deploymentId: '34', runtimeId: 'dead-runtime',
+        pid: process.pid, startTicks: ticks, socket
+      }), { mode: 0o600 })
+      process.send({ pid: process.pid, socket, ticks })
+    })
+  `
+  const child = spawn(process.execPath, ['-e', source, directory], {
+    stdio: ['ignore', 'ignore', 'ignore', 'ipc']
+  })
+  const exited = new Promise((resolve) => child.once('exit', resolve))
+  let bridge, duplicate
+  try {
+    const old = await new Promise((resolve, reject) => {
+      child.once('error', reject)
+      child.once('message', (message) => {
+        if (message.error)
+          reject(
+            Object.assign(
+              new Error(`Disposable Unix socket: ${message.error}`),
+              { code: message.error }
+            )
+          )
+        else resolve(message)
+      })
+      child.once('exit', (code) =>
+        reject(new Error(`Disposable socket process exited ${code}`))
+      )
+    })
+    child.kill('SIGKILL')
+    await exited
+    assert.equal(fs.lstatSync(old.socket).isSocket(), true)
+    const filename = old.socket.replace(/\.sock$/, '.json')
+    const unrelated = path.join(directory, 'unrelated.sock')
+    fs.writeFileSync(unrelated, 'untouched', { mode: 0o600 })
+    // Inject the old PID to model kernel PID reuse, while retaining this new
+    // process's actual /proc/self start ticks. The stale socket is real.
+    bridge = privateRuntime(fixture().sails, directory, old.pid)
+    assert.equal(await bridge.start(), true)
+    const current = JSON.parse(fs.readFileSync(filename, 'utf8'))
+    assert.notEqual(current.startTicks, old.ticks)
+    assert.equal(current.runtimeId, 'runtime-fixture')
+    assert.equal(fs.lstatSync(old.socket).isSocket(), true)
+    assert.equal(fs.lstatSync(old.socket).mode & 0o077, 0)
+    assert.equal(fs.lstatSync(filename).mode & 0o077, 0)
+    assert.equal(fs.readFileSync(unrelated, 'utf8'), 'untouched')
+    duplicate = privateRuntime(fixture().sails, directory, old.pid)
+    await assert.rejects(duplicate.start(), { code: 'QUEST_UNAVAILABLE' })
+    await duplicate.stop()
+    assert.deepEqual(JSON.parse(fs.readFileSync(filename, 'utf8')), current)
+    assert.equal(fs.lstatSync(old.socket).isSocket(), true)
+    const response = await new Promise((resolve, reject) => {
+      const socket = net.createConnection(old.socket)
+      socket.once('error', reject)
+      socket.once('connect', () =>
+        socket.write(
+          JSON.stringify({
+            command: 'snapshot',
+            appId: '12',
+            deploymentId: '34'
+          }) + '\n'
+        )
+      )
+      socket.once('data', (data) => {
+        socket.destroy()
+        resolve(JSON.parse(data.toString()))
+      })
+    })
+    assert.equal(response.ok, true)
+  } finally {
+    if (child.exitCode === null && child.signalCode === null)
+      child.kill('SIGKILL')
+    await exited
+    await duplicate?.stop()
+    await bridge?.stop()
+    fs.rmSync(directory, { recursive: true, force: true })
+  }
+})

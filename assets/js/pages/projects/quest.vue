@@ -42,7 +42,8 @@ import {
   questOverlapLabel,
   createQuestHistoryLoader,
   questDueTimes,
-  questSnapshotIsFresh
+  questSnapshotIsFresh,
+  createQuestSnapshotAuthority
 } from '@/lib/questWorkspace.mjs'
 
 const QuestRunDetail = defineAsyncComponent(() =>
@@ -72,6 +73,15 @@ const live = ref(normalizeQuestWorkspace(props.workspace, props))
 const streamStale = ref(false)
 const streamError = ref('')
 const now = ref(Date.now())
+const snapshotAuthorityFresh = ref(false)
+const snapshotAuthority = createQuestSnapshotAuthority({
+  onChange(value) {
+    snapshotAuthorityFresh.value = value
+    now.value = Date.now()
+  }
+})
+snapshotAuthority.observe(live.value)
+onBeforeUnmount(() => snapshotAuthority.dispose())
 const timer = setInterval(() => {
   now.value = Date.now()
 }, 15000)
@@ -147,6 +157,9 @@ const { connected, connect, close } = useEventSource(sseUrl, {
   }
 })
 function applyWorkspace(workspace, fallback = props) {
+  // An SSE observation may arrive between display-clock ticks. Compare its
+  // timestamp to receipt time, never to the prior tick's cached clock.
+  now.value = Date.now()
   const next = normalizeQuestWorkspace(workspace, fallback)
   if (next.target.runtimeId === live.value.target.runtimeId) {
     next.runs = mergeQuestRuns(live.value.runs, next.runs)
@@ -155,6 +168,7 @@ function applyWorkspace(workspace, fallback = props) {
   }
   if (next.target.runtimeId !== live.value.target.runtimeId)
     historyExpanded.value = false
+  snapshotAuthority.observe(next)
   live.value = next
 }
 function mergeEvents(current, incoming) {
@@ -187,8 +201,9 @@ watch(selectedRunId, (id) => {
   if (id) selectedEventId.value = ''
   runDetail.value = null
 })
-const snapshotFresh = computed(() =>
-  questSnapshotIsFresh(live.value, now.value)
+const snapshotFresh = computed(
+  () =>
+    snapshotAuthorityFresh.value && questSnapshotIsFresh(live.value, now.value)
 )
 const fresh = computed(
   () => props.appRunning && !streamStale.value && snapshotFresh.value
@@ -470,6 +485,7 @@ function closeRun() {
   runDetail.value = null
 }
 function openRun(job, previous) {
+  now.value = Date.now()
   if (!canInvoke(job)) return
   review.value = {
     job: JSON.parse(JSON.stringify(job)),
@@ -499,6 +515,7 @@ function accepted(run) {
   jobTab.value = 'runs'
 }
 async function togglePause(job) {
+  now.value = Date.now()
   if (!canPause(job) || changingSchedule.value) return
   changingSchedule.value = job.name
   actionError.value = ''
@@ -1039,72 +1056,92 @@ async function loadMore() {
                         </button>
                       </div>
                       <div data-slot="tab-panel" data-value="runs">
-                        <QuestRuns
-                          :runs="jobRuns"
-                          :legacy-events="jobEvents"
-                          :jobs="jobs"
-                          :selected-run="selectedRunId"
-                          :selected-event="selectedEventId"
-                          :now="now"
-                          :empty-text="
-                            scopedJobHistory.loading
-                              ? 'Loading history…'
-                              : scopedJobHistory.error
-                              ? 'History unavailable.'
-                              : scopedJobHistory.nextCursor
-                              ? 'No runs for this job in loaded history.'
-                              : 'No runs recorded yet.'
-                          "
-                          @select="chooseRun"
-                        />
-                        <p
-                          class="border-t border-gray-100 px-4 py-2 text-[10px] text-gray-400 dark:border-gray-800"
+                        <template
+                          v-if="activeTab === 'jobs' && jobTab === 'runs'"
                         >
-                          {{ live.historyScope
-                          }}{{
-                            jobEvents.length
-                              ? ' · Legacy telemetry may be incomplete'
-                              : ''
-                          }}{{
-                            scopedJobHistory.nextCursor
-                              ? ' · Showing loaded history'
-                              : ''
-                          }}
-                        </p>
-                        <div
-                          v-if="
-                            scopedJobHistory.nextCursor ||
-                            scopedJobHistory.error
-                          "
-                          class="border-t border-gray-100 px-4 py-3 dark:border-gray-800"
-                        >
-                          <Button
-                            v-if="scopedJobHistory.nextCursor"
-                            :disabled="scopedJobHistory.loading"
-                            class="min-h-8 border border-gray-200 bg-transparent px-3 py-1 text-xs text-gray-600 hover:bg-gray-100 dark:border-gray-800 dark:bg-transparent dark:text-gray-400 dark:hover:bg-gray-900"
-                            @click="loadJobHistory(true)"
-                            >{{
-                              scopedJobHistory.loading
-                                ? 'Loading…'
-                                : 'Load more history'
-                            }}</Button
-                          >
-                          <p
-                            v-if="scopedJobHistory.error"
-                            role="alert"
-                            class="mt-2 text-xs text-red-600 dark:text-red-400"
-                          >
-                            {{ scopedJobHistory.error }}
-                            <button
-                              type="button"
-                              class="ml-1 underline"
-                              :disabled="scopedJobHistory.loading"
-                              @click="loadJobHistory()"
+                          <QuestRunDetail
+                            v-if="selectedRunId || selectedEventId"
+                            embedded
+                            :api-url="apiUrl"
+                            :run-id="selectedRunId"
+                            :event-id="selectedEventId"
+                            :revision="detailRevision"
+                            :job="selectedRunJob"
+                            :can-run="canInvoke(selectedRunJob)"
+                            :can-cancel="live.capabilities.cancel"
+                            @loaded="onRunLoaded"
+                            @close="closeRun"
+                            @run-again="openRun(selectedRunJob, $event)"
+                          />
+                          <template v-else>
+                            <QuestRuns
+                              :runs="jobRuns"
+                              :legacy-events="jobEvents"
+                              :jobs="jobs"
+                              :selected-run="selectedRunId"
+                              :selected-event="selectedEventId"
+                              :now="now"
+                              :empty-text="
+                                scopedJobHistory.loading
+                                  ? 'Loading history…'
+                                  : scopedJobHistory.error
+                                  ? 'History unavailable.'
+                                  : scopedJobHistory.nextCursor
+                                  ? 'No runs for this job in loaded history.'
+                                  : 'No runs recorded yet.'
+                              "
+                              @select="chooseRun"
+                            />
+                            <p
+                              class="border-t border-gray-100 px-4 py-2 text-[10px] text-gray-400 dark:border-gray-800"
                             >
-                              Try again
-                            </button>
-                          </p>
-                        </div>
+                              {{ live.historyScope
+                              }}{{
+                                jobEvents.length
+                                  ? ' · Legacy telemetry may be incomplete'
+                                  : ''
+                              }}{{
+                                scopedJobHistory.nextCursor
+                                  ? ' · Showing loaded history'
+                                  : ''
+                              }}
+                            </p>
+                            <div
+                              v-if="
+                                scopedJobHistory.nextCursor ||
+                                scopedJobHistory.error
+                              "
+                              class="border-t border-gray-100 px-4 py-3 dark:border-gray-800"
+                            >
+                              <Button
+                                v-if="scopedJobHistory.nextCursor"
+                                :disabled="scopedJobHistory.loading"
+                                class="min-h-8 border border-gray-200 bg-transparent px-3 py-1 text-xs text-gray-600 hover:bg-gray-100 dark:border-gray-800 dark:bg-transparent dark:text-gray-400 dark:hover:bg-gray-900"
+                                @click="loadJobHistory(true)"
+                                >{{
+                                  scopedJobHistory.loading
+                                    ? 'Loading…'
+                                    : 'Load more history'
+                                }}</Button
+                              >
+                              <p
+                                v-if="scopedJobHistory.error"
+                                role="alert"
+                                class="mt-2 text-xs text-red-600 dark:text-red-400"
+                              >
+                                {{ scopedJobHistory.error }}
+                                <button
+                                  type="button"
+                                  class="ml-1 underline"
+                                  :disabled="scopedJobHistory.loading"
+                                  @click="loadJobHistory()"
+                                >
+                                  Try again
+                                </button>
+                              </p>
+                            </div>
+                          </template>
+                        </template>
                       </div>
                       <div
                         data-slot="tab-panel"
@@ -1320,22 +1357,6 @@ async function loadMore() {
                       </div>
                     </Tabs>
                   </div>
-                  <QuestRunDetail
-                    v-if="
-                      activeTab === 'jobs' && (selectedRunId || selectedEventId)
-                    "
-                    class="mt-4"
-                    :api-url="apiUrl"
-                    :run-id="selectedRunId"
-                    :event-id="selectedEventId"
-                    :revision="detailRevision"
-                    :job="selectedRunJob"
-                    :can-run="canInvoke(selectedRunJob)"
-                    :can-cancel="live.capabilities.cancel"
-                    @loaded="onRunLoaded"
-                    @close="closeRun"
-                    @run-again="openRun(selectedRunJob, $event)"
-                  />
                 </section>
                 <div
                   v-else-if="selectedJobName"
@@ -1351,84 +1372,8 @@ async function loadMore() {
             </div>
             <div data-slot="tab-panel" data-value="runs" class="pt-4">
               <template v-if="activeTab === 'runs'">
-                <div class="mb-4 flex flex-wrap items-center gap-2">
-                  <Select
-                    v-model="runJobFilter"
-                    aria-label="Filter runs by job"
-                    :class="[filterClass, 'max-w-64']"
-                    :options="jobFilterOptions"
-                  /><Select
-                    v-model="runStateFilter"
-                    aria-label="Filter runs by state"
-                    :class="filterClass"
-                    :options="[
-                      { label: 'All states', value: 'all' },
-                      { label: 'Running', value: 'running' },
-                      { label: 'Accepted', value: 'accepted' },
-                      { label: 'Requested', value: 'requested' },
-                      { label: 'Unconfirmed', value: 'unconfirmed' },
-                      { label: 'Completed', value: 'completed' },
-                      { label: 'Failed', value: 'failed' },
-                      { label: 'Interrupted', value: 'interrupted' }
-                    ]"
-                  /><span
-                    data-test="quest-history-scope"
-                    class="ml-auto text-xs text-gray-400"
-                    >{{ live.historyScope
-                    }}{{ live.nextCursor ? ' · Loaded history' : '' }}</span
-                  >
-                </div>
-                <div
-                  class="overflow-hidden rounded-lg border border-gray-200 dark:border-gray-800"
-                >
-                  <QuestRuns
-                    :runs="filteredRuns"
-                    :legacy-events="filteredEvents"
-                    :jobs="jobs"
-                    show-job
-                    :now="now"
-                    :selected-run="selectedRunId"
-                    :selected-event="selectedEventId"
-                    :empty-text="
-                      runJobFilter !== 'all' || runStateFilter !== 'all'
-                        ? live.nextCursor
-                          ? 'No runs match these filters in loaded history.'
-                          : 'No runs match these filters.'
-                        : 'No runs recorded yet.'
-                    "
-                    @select="chooseRun"
-                  />
-                </div>
-                <div
-                  class="mt-3 flex flex-wrap items-center justify-between gap-3"
-                >
-                  <p
-                    v-if="live.legacyEvents.length"
-                    class="text-[11px] text-gray-400"
-                  >
-                    Legacy rows are telemetry events; correlated run details may
-                    be unavailable.
-                  </p>
-                  <Button
-                    v-if="live.nextCursor"
-                    :disabled="moreLoading"
-                    class="min-h-8 border border-gray-200 bg-transparent px-3 py-1 text-xs text-gray-600 hover:bg-gray-100 dark:border-gray-800 dark:bg-transparent dark:text-gray-400 dark:hover:bg-gray-900"
-                    @click="loadMore"
-                    >{{ moreLoading ? 'Loading…' : 'Load more' }}</Button
-                  >
-                </div>
-                <p
-                  v-if="moreError"
-                  role="alert"
-                  class="mt-2 text-xs text-red-600 dark:text-red-400"
-                >
-                  {{ moreError }}
-                </p>
                 <QuestRunDetail
-                  v-if="
-                    activeTab === 'runs' && (selectedRunId || selectedEventId)
-                  "
-                  class="mt-4"
+                  v-if="selectedRunId || selectedEventId"
                   :api-url="apiUrl"
                   :run-id="selectedRunId"
                   :event-id="selectedEventId"
@@ -1440,6 +1385,81 @@ async function loadMore() {
                   @close="closeRun"
                   @run-again="openRun(selectedRunJob, $event)"
                 />
+                <template v-else>
+                  <div class="mb-4 flex flex-wrap items-center gap-2">
+                    <Select
+                      v-model="runJobFilter"
+                      aria-label="Filter runs by job"
+                      :class="[filterClass, 'max-w-64']"
+                      :options="jobFilterOptions"
+                    /><Select
+                      v-model="runStateFilter"
+                      aria-label="Filter runs by state"
+                      :class="filterClass"
+                      :options="[
+                        { label: 'All states', value: 'all' },
+                        { label: 'Running', value: 'running' },
+                        { label: 'Accepted', value: 'accepted' },
+                        { label: 'Requested', value: 'requested' },
+                        { label: 'Unconfirmed', value: 'unconfirmed' },
+                        { label: 'Completed', value: 'completed' },
+                        { label: 'Failed', value: 'failed' },
+                        { label: 'Interrupted', value: 'interrupted' }
+                      ]"
+                    /><span
+                      data-test="quest-history-scope"
+                      class="ml-auto text-xs text-gray-400"
+                      >{{ live.historyScope
+                      }}{{ live.nextCursor ? ' · Loaded history' : '' }}</span
+                    >
+                  </div>
+                  <div
+                    class="overflow-hidden rounded-lg border border-gray-200 dark:border-gray-800"
+                  >
+                    <QuestRuns
+                      :runs="filteredRuns"
+                      :legacy-events="filteredEvents"
+                      :jobs="jobs"
+                      show-job
+                      :now="now"
+                      :selected-run="selectedRunId"
+                      :selected-event="selectedEventId"
+                      :empty-text="
+                        runJobFilter !== 'all' || runStateFilter !== 'all'
+                          ? live.nextCursor
+                            ? 'No runs match these filters in loaded history.'
+                            : 'No runs match these filters.'
+                          : 'No runs recorded yet.'
+                      "
+                      @select="chooseRun"
+                    />
+                  </div>
+                  <div
+                    class="mt-3 flex flex-wrap items-center justify-between gap-3"
+                  >
+                    <p
+                      v-if="live.legacyEvents.length"
+                      class="text-[11px] text-gray-400"
+                    >
+                      Legacy rows are telemetry events; correlated run details
+                      may be unavailable.
+                    </p>
+                    <Button
+                      v-if="live.nextCursor"
+                      :disabled="moreLoading"
+                      class="min-h-8 border border-gray-200 bg-transparent px-3 py-1 text-xs text-gray-600 hover:bg-gray-100 dark:border-gray-800 dark:bg-transparent dark:text-gray-400 dark:hover:bg-gray-900"
+                      @click="loadMore"
+                      >{{ moreLoading ? 'Loading…' : 'Load more' }}</Button
+                    >
+                  </div>
+                  <p
+                    v-if="moreError"
+                    role="alert"
+                    class="mt-2 text-xs text-red-600 dark:text-red-400"
+                  >
+                    {{ moreError }}
+                  </p>
+                </template>
               </template>
             </div>
           </Tabs>
@@ -1463,6 +1483,7 @@ async function loadMore() {
       v-if="review"
       v-model:open="reviewOpen"
       :review="review"
+      :workspace="live"
       :stale="reviewStale"
       :api-url="apiUrl"
       :csrf="page.props._csrf || ''"
