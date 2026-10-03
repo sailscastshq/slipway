@@ -321,3 +321,43 @@ Leave unrun gates explicitly **not run**, failures **failed**, and mocks/doubles
 explicitly labeled. Save reports without secret values, raw environment output,
 customer data or connection URLs. Evidence from a different commit is historical,
 not verification of the current changes.
+
+## Integrated disposable Linux rehearsal
+
+The `Three running Sails apps migration proof` CI job owns the integrated
+fixture in `tests/contracts/coolify-running-apps.test.js`. It starts three
+synthetic Sails apps with both source and candidate instances, PostgreSQL,
+Redis and a private Caddy proxy on a uniquely named local Docker network.
+One app keeps an external-first PostgreSQL connection; two import reviewed
+custom-format dumps into separate disposable databases. No restore writes to
+an external database. The pinned PostgreSQL adapter is test-only and is not
+added to Slipway's production dependencies.
+
+The job exercises real Waterline data, Redis session/queue continuity, health
+probes, Bridge workers, exact-runtime Helm evaluation, Lookout Docker metrics,
+Caddy route cutover, pre-divergence rollback and interruption recovery. It
+rejects a failed target health probe while old traffic works and a failed
+import while source records remain intact. It then writes a disposable marker
+to a target after cutover to prove why database rollback needs reconciliation.
+No customer code, real jobs, public DNS, TLS issuance or production migration
+runs. Public DNS/TLS and operational write-pause gates remain operator checks.
+
+For a fresh Linux checkout with local Docker running, prepare the dependencies
+and images explicitly before running the test:
+
+```sh
+npm ci --no-audit
+npm install --prefix /tmp/slipway-migration-deps --ignore-scripts --no-audit --no-fund sails-postgresql@5.0.1
+docker pull node:22-bookworm
+docker pull postgres:17-alpine
+docker pull redis:7-alpine
+docker pull alpine
+docker pull lucaslorentz/caddy-docker-proxy@sha256:f3ebe7e762bccf17ce38b88420f80ce63f69dc548eea0cd6e5f29db2ae2ea062
+SLIPWAY_MIGRATION_DEPS=/tmp/slipway-migration-deps/node_modules node_modules/.bin/sounding test --file tests/contracts/coolify-running-apps.test.js --test-concurrency=1 --test-timeout=600000
+```
+
+The artifact `three-running-app-migration-proof` records the exact checked-out
+head, fixture scope, per-app checks and completion status. A test definition or
+partial artifact is not passing proof: require the job and all owning contracts
+to pass on the PR head. The earlier offline/admission rehearsal remains useful
+but does not independently establish that three apps ran.

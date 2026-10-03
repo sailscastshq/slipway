@@ -31,6 +31,43 @@ jobs:
         if: always()
         run: npm run local:destroy
 
+  coolify-running-apps:
+    name: Three running Sails apps migration proof
+    timeout-minutes: 15
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit
+      - name: Prepare pinned test-only PostgreSQL adapter
+        run: npm install --prefix "$RUNNER_TEMP/migration-deps" --ignore-scripts --no-audit --no-fund sails-postgresql@5.0.1
+      - name: Prepare disposable Linux fixture images
+        run: |
+          docker pull node:22-bookworm
+          docker pull postgres:17-alpine
+          docker pull redis:7-alpine
+          docker pull alpine
+          docker pull lucaslorentz/caddy-docker-proxy@sha256:f3ebe7e762bccf17ce38b88420f80ce63f69dc548eea0cd6e5f29db2ae2ea062
+      - name: Rehearse real app and state migration
+        run: node_modules/.bin/sounding test --file tests/contracts/coolify-running-apps.test.js --test-concurrency=1 --test-timeout=600000
+        env:
+          SLIPWAY_MIGRATION_DEPS: ${{ runner.temp }}/migration-deps/node_modules
+      - name: Preserve scope, exact head and per-app evidence
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: three-running-app-migration-proof
+          path: |
+            .tmp/migration-proof
+            .tmp/sounding/artifacts
+          if-no-files-found: error
+          retention-days: 90
+
   shipwright-assets:
     name: Shipwright assets
     timeout-minutes: 10
