@@ -14,6 +14,23 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  dependency-upgrade:
+    name: Dependency local boot and previous release upgrade
+    if: github.event_name != 'workflow_call'
+    timeout-minutes: 20
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Build and boot the disposable local installation
+        run: npm run local
+      - name: Verify the previous public release database upgrade
+        run: npm run local:upgrade-check -- 0.0.86
+      - name: Remove only the disposable local installation
+        if: always()
+        run: npm run local:destroy
+
   shipwright-assets:
     name: Shipwright assets
     timeout-minutes: 10
