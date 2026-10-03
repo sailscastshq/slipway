@@ -264,6 +264,9 @@ async function installQuestFixture(
     unexpectedRequests: [],
     infrastructureRequests: [],
     infrastructureFailures: [],
+    scriptRequests: [],
+    scriptResponses: [],
+    scriptFailures: [],
     details: {},
     logs: {},
     api: null
@@ -405,6 +408,8 @@ async function installQuestFixture(
   )
   const isLazyCompilation = (url) => /lazy[_-]compilation/i.test(url)
   const recordInfrastructureRequest = (request) => {
+    if (request.resourceType() === 'script')
+      state.scriptRequests.push(new URL(request.url()).pathname)
     if (!isLazyCompilation(request.url())) return
     state.infrastructureRequests.push({
       url: request.url(),
@@ -414,6 +419,19 @@ async function installQuestFixture(
     })
   }
   const recordInfrastructureResponse = async (response) => {
+    if (response.request().resourceType() === 'script')
+      state.scriptResponses.push({
+        path: new URL(response.url()).pathname,
+        status: response.status()
+      })
+    if (
+      response.request().resourceType() === 'script' &&
+      response.status() >= 400
+    )
+      state.scriptFailures.push({
+        path: new URL(response.url()).pathname,
+        status: response.status()
+      })
     if (!isLazyCompilation(response.url()) || response.status() < 400) return
     let body = ''
     try {
@@ -722,7 +740,62 @@ async function captureQuestBrowserFailure(page, state, name) {
     const browser = await page.raw.evaluate(() => {
       const bootstrap = document.querySelector('script[data-page="app"]')
       const payload = bootstrap ? JSON.parse(bootstrap.textContent) : null
+      let instance = document.querySelector(
+        '[data-test="quest-workspace"]'
+      )?.__vueParentComponent
+      while (instance && !('reviewOpen' in (instance.setupState || {})))
+        instance = instance.parent
+      const setup = instance?.setupState || {}
+      const unwrap = (value) =>
+        value && typeof value === 'object' && '__v_isRef' in value
+          ? value.value
+          : value
+      const job = unwrap(setup.selectedJob)
+      const workspace = unwrap(setup.live)
+      const review = unwrap(setup.review)
+      const asyncChildren = []
+      const pending = instance?.subTree ? [instance.subTree] : []
+      const seen = new Set()
+      while (pending.length && seen.size < 2000) {
+        const node = pending.pop()
+        if (!node || typeof node !== 'object' || seen.has(node)) continue
+        seen.add(node)
+        const type = node.type
+        const name = type?.__name || type?.name || ''
+        if (/QuestRunDialog|AsyncComponentWrapper|^Dialog$/i.test(name)) {
+          asyncChildren.push({
+            name,
+            async: !!type?.__asyncLoader,
+            resolvedName:
+              type?.__asyncResolved?.__name ||
+              type?.__asyncResolved?.name ||
+              null,
+            mounted: !!node.component?.isMounted,
+            open: typeof node.props?.open === 'boolean' ? node.props.open : null
+          })
+        }
+        if (node.component?.subTree) pending.push(node.component.subTree)
+        if (Array.isArray(node.children)) pending.push(...node.children)
+        if (node.suspense?.activeBranch)
+          pending.push(node.suspense.activeBranch)
+      }
+      const componentState = {
+        found: !!instance,
+        asyncChildren,
+        name: instance?.type?.__name || instance?.type?.name,
+        hasReview: !!review,
+        reviewOpen: unwrap(setup.reviewOpen),
+        selectedJob: job?.name,
+        fresh: unwrap(setup.fresh),
+        canInvoke:
+          typeof setup.canInvoke === 'function' ? setup.canInvoke(job) : null,
+        observedAt: workspace?.observedAt,
+        browserNow: Date.now(),
+        randomUUIDAvailable: typeof crypto.randomUUID === 'function',
+        secureContext: window.isSecureContext
+      }
       return {
+        componentState,
         url: location.href,
         bootstrapUrl: payload?.url,
         component: payload?.component,
@@ -746,7 +819,13 @@ async function captureQuestBrowserFailure(page, state, name) {
       ),
       unexpectedRequests: state.unexpectedRequests,
       infrastructureRequests: state.infrastructureRequests,
-      infrastructureFailures: state.infrastructureFailures
+      infrastructureFailures: state.infrastructureFailures,
+      scriptRequests: state.scriptRequests,
+      scriptResponses: state.scriptResponses,
+      scriptFailures: state.scriptFailures,
+      consoleWarnings: (page.consoleMessages || [])
+        .filter((entry) => ['warning', 'warn'].includes(entry.type))
+        .map((entry) => entry.text || String(entry))
     }
     console.log(
       'QUEST_BROWSER_FAILURE_SNAPSHOT ' + JSON.stringify({ name, ...report })
