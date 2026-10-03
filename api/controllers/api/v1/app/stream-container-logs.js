@@ -28,6 +28,7 @@ module.exports = {
       defaultsTo: 200,
       description: 'Number of historical lines to send first'
     },
+    follow: { type: 'boolean', defaultsTo: true },
     appSlug: {
       type: 'string',
       description: 'Target app slug (defaults to default app)'
@@ -38,13 +39,14 @@ module.exports = {
     success: {
       description: 'SSE stream started.'
     },
+    badRequest: { responseType: 'badRequest' },
     notFound: {
       statusCode: 404,
       description: 'App or container not found.'
     }
   },
 
-  fn: async function ({ projectSlug, environmentSlug, tail, appSlug }) {
+  fn: async function ({ projectSlug, environmentSlug, tail, appSlug, follow }) {
     const req = this.req
     const res = this.res
 
@@ -61,9 +63,12 @@ module.exports = {
     })
     if (!environment) throw 'notFound'
 
-    const app =
-      (await App.findOne({ environment: environment.id, isDefault: true })) ||
-      (await App.findOne({ environment: environment.id }))
+    if (!Number.isInteger(tail) || tail < 0 || tail > 10000)
+      throw { badRequest: 'Tail must be an integer between 0 and 10000.' }
+    const app = appSlug
+      ? await App.findOne({ environment: environment.id, slug: appSlug })
+      : (await App.findOne({ environment: environment.id, isDefault: true })) ||
+        (await App.findOne({ environment: environment.id }))
     if (!app || !app.containerName) throw 'notFound'
 
     const stream = res.sse()
@@ -75,7 +80,7 @@ module.exports = {
     const dockerPath = sails.config.docker?.binaryPath || 'docker'
     const args = [
       'logs',
-      '--follow',
+      ...(follow ? ['--follow'] : []),
       '--tail',
       String(tail),
       '--timestamps',
@@ -106,7 +111,7 @@ module.exports = {
       sails.log.error(
         `[stream-container-logs] Docker spawn error: ${err.message}`
       )
-      stream.send({ error: err.message })
+      stream.send({ error: 'Container logs are unavailable.' })
       stream.close()
     })
 
@@ -116,6 +121,10 @@ module.exports = {
       sails.log.debug(
         `[stream-container-logs] Docker process closed with code: ${code}, signal: ${signal}`
       )
+      if (code !== 0)
+        stream.send({
+          error: 'Container logs failed. Check the container status.'
+        })
       stream.send({ closed: true })
       stream.close()
     })

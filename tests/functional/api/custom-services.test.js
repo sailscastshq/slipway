@@ -84,7 +84,7 @@ test(
         await browser.request.patch(`/api/v1/services/${service.id}`, {
           resourceLimits: { cpus: '1', memory: '512m' }
         })
-      ).toHaveStatus(400)
+      ).toHaveStatus(303)
       expect(
         await browser.request.post(url, {
           definition: { ...definition, privileged: true }

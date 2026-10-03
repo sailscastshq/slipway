@@ -1,106 +1,89 @@
-import { c } from '../lib/colors.js'
 import { api } from '../lib/api.js'
-import { isLoggedIn } from '../lib/config.js'
-import { error, requireProject, createSpinner } from '../lib/utils.js'
+import { streamRequest } from '../lib/stream.js'
+import {
+  environmentPath,
+  validateOutput,
+  reportCommandError
+} from '../lib/command-output.js'
 
 export default async function logs(options) {
-  if (!isLoggedIn()) {
-    error('Not logged in. Run `slipway login` first.')
-  }
-
-  // If deployment ID is provided, show deployment logs
-  if (options.deployment) {
-    return showDeploymentLogs(options.deployment)
-  }
-
-  const project = requireProject()
-  const environment = options.env || 'production'
-
-  console.log()
-  console.log(`  ${c.bold(c.highlight('Application Logs'))}`)
-  console.log(`  ${c.dim(`${project.project} / ${environment}`)}`)
-  console.log()
-
   try {
-    // Get environment to find container name
-    const { environment: env } = await api.environments.get(
-      project.project,
-      environment
-    )
-
-    const apps = env.app || []
-    if (apps.length === 0) {
-      error('No app deployed in this environment. Run `slipway slide` first.')
-    }
-
-    const app = options.app
-      ? apps.find((a) => a.slug === options.app)
-      : apps.find((a) => a.isDefault) || apps[0]
-
-    if (!app) {
-      error(
-        `App "${options.app}" not found. Available: ${apps
-          .map((a) => a.slug)
-          .join(', ')}`
+    validateOutput(options)
+    if (options.json && options.follow)
+      throw new Error(
+        'Use --ndjson for live --follow logs; --json is a bounded snapshot.'
       )
+    if (options.deployment) {
+      if (options.follow)
+        throw new Error('--follow is available for application logs only.')
+      const result = await api.deployments.logs(
+        encodeURIComponent(options.deployment),
+        'all'
+      )
+      if (options.json) console.log(JSON.stringify(result))
+      else if (options.ndjson)
+        console.log(JSON.stringify({ type: 'deployment-logs', ...result }))
+      else
+        process.stdout.write(
+          `${[result.buildLogs, result.deployLogs]
+            .filter(Boolean)
+            .join('\n')}\n`
+        )
+      return
     }
-    if (app.status !== 'running') {
-      error(`App is not running (status: ${app.status})`)
-    }
-
-    // For now, show instructions to view logs directly
-    // In a full implementation, we'd stream logs via WebSocket or polling
-    console.log(`  ${c.dim('Container:')} ${app.containerName}`)
-    console.log()
-    console.log(`  ${c.dim('To view logs, run:')}`)
-    console.log(
-      `    docker logs ${options.follow ? '-f ' : ''}--tail ${options.tail} ${
-        app.containerName
-      }`
+    const tail = Number(options.tail)
+    if (
+      !/^\d+$/.test(String(options.tail)) ||
+      !Number.isSafeInteger(tail) ||
+      tail > 10000
     )
-    console.log()
-
-    // TODO: Implement log streaming via API
-  } catch (err) {
-    error(err.message)
-  }
-}
-
-async function showDeploymentLogs(deploymentId) {
-  console.log()
-  console.log(`  ${c.bold(c.highlight('Deployment Logs'))}`)
-  console.log()
-
-  const spin = createSpinner('Fetching logs...').start()
-
-  try {
-    const result = await api.deployments.logs(deploymentId, 'all')
-
-    spin.stop()
-
-    console.log(`  ${c.dim('Deployment:')} ${deploymentId}`)
-    console.log(`  ${c.dim('Status:')} ${result.status}`)
-    console.log()
-
-    if (result.buildLogs) {
-      console.log(`  ${c.bold(c.highlight('Build Logs:'))}`)
-      console.log(`  ${c.dim('─'.repeat(50))}`)
-      console.log(result.buildLogs)
+      throw new Error('--tail must be an integer between 0 and 10000.')
+    const path = `${environmentPath(options)}${
+      options.app ? `/apps/${encodeURIComponent(options.app)}` : ''
+    }/logs/stream?tail=${tail}&follow=${Boolean(options.follow)}`
+    const lines = []
+    let outputBytes = 0
+    let closed = false
+    const controller = new AbortController()
+    const interrupt = () => controller.abort()
+    process.once('SIGINT', interrupt)
+    try {
+      await streamRequest(path, {
+        format: 'sse',
+        signal: options.follow
+          ? controller.signal
+          : AbortSignal.any([controller.signal, AbortSignal.timeout(30000)]),
+        onEvent({ data }) {
+          if (data.error) throw new Error(data.error)
+          if (data.closed) closed = true
+          if (options.ndjson) console.log(JSON.stringify(data))
+          else if (data.log !== undefined) {
+            if (options.json) {
+              outputBytes += Buffer.byteLength(data.log)
+              if (outputBytes > 16 * 1024 * 1024)
+                throw new Error(
+                  'JSON log snapshot exceeds 16 MiB. Use --ndjson or a smaller --tail.'
+                )
+              lines.push(data.log)
+            } else console.log(data.log)
+          }
+        }
+      })
+    } catch (error) {
+      if (controller.signal.aborted) {
+        process.exitCode = 130
+        return
+      }
+      throw error
+    } finally {
+      process.removeListener('SIGINT', interrupt)
     }
-
-    if (result.deployLogs) {
-      console.log(`  ${c.bold(c.highlight('Deploy Logs:'))}`)
-      console.log(`  ${c.dim('─'.repeat(50))}`)
-      console.log(result.deployLogs)
-    }
-
-    if (!result.buildLogs && !result.deployLogs) {
-      console.log(`  ${c.dim('No logs available yet.')}`)
-    }
-
-    console.log()
-  } catch (err) {
-    spin.fail('Failed to fetch logs')
-    error(err.message)
+    if (!closed)
+      throw new Error(
+        'Log stream ended unexpectedly. Reconnect to check current logs.'
+      )
+    if (options.json) console.log(JSON.stringify({ logs: lines }))
+  } catch (error) {
+    reportCommandError(error, options)
   }
 }

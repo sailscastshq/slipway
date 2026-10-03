@@ -1,4 +1,5 @@
 <script setup>
+import { submitInertiaForm } from '@/lib/inertia-mutation'
 import AppNavbarVersion from '@/components/AppNavbarVersion.vue'
 import { useGithubRepositories } from '@/composables/useGithubRepositories'
 import RepositoryLoadStatus from '@/components/RepositoryLoadStatus.vue'
@@ -66,7 +67,7 @@ const form = useForm({
 })
   .withPrecognition('patch', settingsUrl)
   .setValidationTimeout(350)
-const { applyResponseProblems, revalidateWhenInvalid, validateOnBlur } =
+const { revalidateWhenInvalid, validateOnBlur } =
   usePrecognitionValidation(form)
 const routePathChoice = computed({
   get: () => form.routePath ?? 'none',
@@ -103,31 +104,10 @@ async function saveSettings({ restart = false } = {}) {
   } else {
     saving.value = true
   }
+  let saved = false
   try {
-    const res = await fetch(settingsUrl, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-csrf-token': page.props._csrf || ''
-      },
-      body: JSON.stringify({
-        name: form.name,
-        dockerfilePath: form.dockerfilePath,
-        healthPath: form.healthPath,
-        routePath: form.routePath,
-        resourceLimits: form.resourceLimits
-      })
-    })
-
-    if (!res.ok) {
-      const data = await res.json().catch(() => null)
-      applyResponseProblems(data?.problems)
-      toast({
-        message: data?.message || 'Failed to save app settings',
-        type: 'error'
-      })
-      return
-    }
+    await submitInertiaForm(form, 'patch', settingsUrl)
+    saved = true
 
     if (restart) {
       await assertMutationResponse(
@@ -146,9 +126,15 @@ async function saveSettings({ restart = false } = {}) {
     } else {
       toast({ message: 'App settings saved', type: 'success' })
     }
-    router.reload()
   } catch (error) {
-    toast({ message: mutationFailureMessage(error), type: 'error' })
+    toast({
+      message: saved
+        ? `Settings saved, but restart could not be confirmed. ${mutationFailureMessage(
+            error
+          )}`
+        : mutationFailureMessage(error),
+      type: 'error'
+    })
   } finally {
     saving.value = false
     savingAndRestarting.value = false

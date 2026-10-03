@@ -38,8 +38,8 @@ test(
       }
     )
 
-    expect(response).toHaveStatus(200)
-    expect(JSON.stringify(response.data).includes(secret)).toBe(false)
+    expect(response).toHaveStatus(303)
+    expect(JSON.stringify(response.data || {}).includes(secret)).toBe(false)
     const persisted = await sails.models.app.findOne({ id: app.id }).decrypt()
     expect(persisted.secureEnvVars.APP_SECRET).toBe(secret)
     expect(persisted.envVars).toEqual({})
@@ -180,7 +180,7 @@ test(
       envVarMetadata: normalizedPageMetadata
     })
 
-    expect(response).toHaveStatus(200)
+    expect(response).toHaveStatus(303)
     let persisted = await sails.models.environment
       .findOne({ id: environment.id })
       .decrypt()
@@ -202,7 +202,7 @@ test(
     const unrelatedUpdate = await dashboard.request.patch(path, {
       name: 'Production launch'
     })
-    expect(unrelatedUpdate).toHaveStatus(200)
+    expect(unrelatedUpdate).toHaveStatus(303)
     persisted = await sails.models.environment
       .findOne({ id: environment.id })
       .decrypt()

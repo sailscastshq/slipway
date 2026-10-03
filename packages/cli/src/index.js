@@ -113,7 +113,17 @@ async function main() {
       }
     })
   } catch (err) {
-    console.error(`${c.error('Error:')} ${err.message}`)
+    if (
+      ['logs', 'run'].includes(command) &&
+      (commandArgs.includes('--json') || commandArgs.includes('--ndjson'))
+    )
+      console.error(
+        JSON.stringify({
+          type: 'error',
+          error: { code: err.code || 'CLI_USAGE', message: err.message }
+        })
+      )
+    else console.error(`${c.error('Error:')} ${err.message}`)
     process.exit(1)
   }
 

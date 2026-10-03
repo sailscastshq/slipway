@@ -1,4 +1,5 @@
 <script setup>
+import { inertiaMutation } from '@/lib/inertia-mutation'
 import AppNavbarVersion from '@/components/AppNavbarVersion.vue'
 import DeploymentReadiness from '@/components/DeploymentReadiness.vue'
 import Dialog from '@/components/ui/dialog/Dialog.vue'
@@ -548,23 +549,18 @@ function generateSecret() {
 }
 
 async function saveEnvVars(vars = localVars, metadata = localMetadata) {
+  if (savingVars.value) return false
   savingVars.value = true
   try {
-    const response = await fetch(
+    await inertiaMutation(
+      'patch',
       `/api/v1/projects/${props.project.slug}/environments/${props.environment.slug}/apps/${props.app.slug}`,
       {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          envVars: { ...vars },
-          envVarMetadata: { ...metadata }
-        })
-      }
+        envVars: { ...vars },
+        envVarMetadata: { ...metadata }
+      },
+      { only: ['appEnvVars', 'appEnvVarMetadata'] }
     )
-    if (!response.ok) {
-      throw new Error('Environment variables could not be saved.')
-    }
-    router.reload({ only: ['appEnvVars', 'appEnvVarMetadata'] })
     return true
   } catch (error) {
     toast({ message: error.message, type: 'error' })

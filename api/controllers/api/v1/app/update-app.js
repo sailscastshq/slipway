@@ -46,10 +46,10 @@ module.exports = {
   },
 
   exits: {
-    success: { statusCode: 200 },
+    success: { responseType: 'mutationSuccess' },
     notFound: { statusCode: 404 },
     forbidden: { statusCode: 403 },
-    badRequest: { responseType: 'badRequest' },
+    badRequest: { responseType: 'mutationBadRequest' },
     precognitionSuccess: { responseType: 'precognitionSuccess' }
   },
 

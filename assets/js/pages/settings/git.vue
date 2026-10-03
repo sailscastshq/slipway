@@ -1,8 +1,6 @@
 <script setup>
-import {
-  assertMutationResponse,
-  mutationFailureMessage
-} from '@/lib/mutation-feedback'
+import { inertiaMutation } from '@/lib/inertia-mutation'
+import { mutationFailureMessage } from '@/lib/mutation-feedback'
 import AppNavbarVersion from '@/components/AppNavbarVersion.vue'
 import SidebarOpen from '@/components/ui/icons/SidebarOpen.vue'
 import SidebarClose from '@/components/ui/icons/SidebarClose.vue'
@@ -135,13 +133,13 @@ async function executeRevokeToken() {
   if (revoking.value) return
   revoking.value = true
   try {
-    await assertMutationResponse(
-      await fetch(`/api/v1/deploy-tokens/${revokingTokenId.value}`, {
-        method: 'DELETE'
-      })
+    await inertiaMutation(
+      'delete',
+      `/api/v1/deploy-tokens/${revokingTokenId.value}`,
+      {},
+      { only: ['deployTokens'] }
     )
     revokingTokenId.value = null
-    router.reload({ only: ['deployTokens'] })
     toast({ message: 'Deploy token revoked', type: 'success' })
   } catch (error) {
     toast({ message: mutationFailureMessage(error), type: 'error' })
