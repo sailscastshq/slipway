@@ -64,7 +64,7 @@ test(
       run('docker', args, { timeout: 60000, maxBuffer: 1024 * 1024 })
     const start = async (name, args) => {
       created.push(name)
-      await command(['run', '-d', '--name', name, ...args])
+      await command(['run', '-d', '--pull=never', '--name', name, ...args])
     }
     const sql = (database, statement) =>
       command([
@@ -84,6 +84,7 @@ test(
     try {
       for (const image of [
         'node:22-bookworm',
+        'node:24-bookworm',
         'postgres:17-alpine',
         'redis:7-alpine',
         'alpine',
@@ -408,6 +409,7 @@ test(
         })
         evidence.apps.push({
           name: item.project,
+          runtime: i === 2 ? 'node:24-bookworm' : 'node:22-bookworm',
           databaseChoice: item.postgres.choice,
           health: item.healthPath,
           sourceRows: 2,

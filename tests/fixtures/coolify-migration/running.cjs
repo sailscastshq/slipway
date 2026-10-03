@@ -31,7 +31,7 @@ fs.writeFileSync(
   `${root}/config/env/production.js`,
   `module.exports = {
   port: 1337, host: '0.0.0.0',
-  globals: {sails:true,models:true},
+  globals: {sails:true,models:true,_:false,async:false},
   hooks: {orm:require('sails-hook-orm'),grunt:false,shipwright:false,dev:false,sockets:false,pubsub:false,quest:false},
   security: {csrf:false},
   models: {migrate:'safe',attributes:{createdAt:false,updatedAt:false}},
