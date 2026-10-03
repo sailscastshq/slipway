@@ -527,6 +527,19 @@ process.exit(result.status ?? 1);
           'Lookout stores real Docker metrics for each current app'
         )
         assert.ok(metric.memoryUsage > 0)
+        const persisted = await sails.models.containermetric
+          .find({ app: app.id, containerName: currentApp.containerName })
+          .sort('recordedAt DESC')
+          .limit(1)
+        assert.equal(persisted.length, 1)
+        assert.ok(persisted[0].memoryUsage > 0)
+        evidence.lookout ||= []
+        evidence.lookout.push({
+          app: currentApp.name,
+          container: currentApp.containerName,
+          cpuPercent: persisted[0].cpuPercent,
+          memoryUsage: persisted[0].memoryUsage
+        })
         const inspect = JSON.parse(
           (await command(['inspect', names.candidate])).stdout
         )[0]
