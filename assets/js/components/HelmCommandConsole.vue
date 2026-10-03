@@ -537,13 +537,10 @@ onBeforeUnmount(() => {
           fresh, single-use confirmation.
         </p>
       </Popover>
-      <form
-        class="flex items-center gap-2 border-b border-dashed border-gray-200 focus-within:border-gray-500 dark:border-gray-800 dark:focus-within:border-gray-500"
-        @submit.prevent
-      >
+      <form class="group flex items-center gap-2 pb-px" @submit.prevent>
         <label
           for="helm-command-input"
-          class="select-none font-mono text-sm text-gray-400"
+          class="select-none font-mono text-sm text-gray-400 group-focus-within:text-gray-700 group-focus-within:underline group-focus-within:underline-offset-4 dark:group-focus-within:text-gray-300"
           aria-hidden="true"
           >&gt;</label
         >

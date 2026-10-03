@@ -2656,7 +2656,7 @@ test(
           top: style.borderTopWidth,
           left: style.borderLeftWidth,
           right: style.borderRightWidth,
-          prompt: getComputedStyle(element.closest('form')).borderBottomStyle
+          prompt: getComputedStyle(element.closest('form')).borderBottomWidth
         }
       })
       expect(inputBorders).toEqual({
@@ -2664,8 +2664,28 @@ test(
         top: '0px',
         left: '0px',
         right: '0px',
-        prompt: 'dashed'
+        prompt: '0px'
       })
+      // Focus is visible on the prompt itself without reintroducing an input
+      // box or horizontal separator. Check both themes and an actual blur.
+      const marker = page.raw.locator('label[for="helm-command-input"]')
+      for (const dark of [false, true]) {
+        if (dark) await page.inDarkMode()
+        else await page.inLightMode()
+        await input.focus()
+        await expect(marker).toHaveCSS('text-decoration-line', 'underline')
+        const focusedColor = await marker.evaluate(
+          (element) => getComputedStyle(element).color
+        )
+        await page.raw
+          .getByRole('button', { name: 'Command help', exact: true })
+          .focus()
+        await expect(marker).toHaveCSS('text-decoration-line', 'none')
+        const unfocusedColor = await marker.evaluate(
+          (element) => getComputedStyle(element).color
+        )
+        expect(focusedColor === unfocusedColor).toBe(false)
+      }
       // A touch-friendly fallback remains usable without a physical Enter key.
       await input.fill(COMMAND_FIXTURE_SOURCE)
       await submit.click()
