@@ -286,6 +286,7 @@ async function installQuestFixture(
     unexpectedRequests: [],
     infrastructureRequests: [],
     infrastructureFailures: [],
+    fixtureErrors: [],
     scriptRequests: [],
     scriptResponses: [],
     scriptFailures: [],
@@ -332,71 +333,85 @@ async function installQuestFixture(
   await page.raw.route(
     (url) => url.pathname === projectPath,
     async (route) => {
-      const fetchStart = clockMode.startsWith('native-performance')
-        ? performance.now()
-        : null
-      const response = await route.fetch()
-      const fetchEnd = clockMode.startsWith('native-performance')
-        ? performance.now()
-        : null
-      const source = await response.text()
-      const isJson = response
-        .headers()
-        ['content-type']?.includes('application/json')
-      const match = isJson
-        ? null
-        : source.match(
-            /(<script[^>]*type="application\/json"[^>]*data-page="app"[^>]*>)([\s\S]*?)(<\/script>)/
-          )
-      if (!isJson && !match)
-        throw new Error(
-          'Expected the actual Inertia bootstrap, not replacement HTML.'
-        )
-      const payload = JSON.parse(isJson ? source : match[2])
-      const synthetic =
-        phase === 'before'
-          ? {
-              jobs: state.jobs,
-              jobHistory: state.rawEvents.map(({ eventId, ...event }) => event),
-              jobsError: null
-            }
-          : {
-              workspace: state.workspace,
-              jobs: undefined,
-              jobHistory: undefined,
-              jobsError: undefined
-            }
-      Object.assign(payload.props, synthetic, {
-        appRunning: true,
-        hasQuestFeature: true
-      })
-      const json = JSON.stringify(payload)
-      state.initialJsonBytes = Buffer.byteLength(json)
-      state.questJsonBytes = Buffer.byteLength(JSON.stringify(synthetic))
-      let body = isJson
-        ? json
-        : source.replace(
-            match[0],
-            `${match[1]}${json.replace(/</g, '\\u003c')}${match[3]}`
-          )
-      if (!isJson && clockMode.startsWith('native-performance')) {
-        const tags =
-          body.match(/<link\b[^>]*\bdata-quest-preload="1"[^>]*>/g) || []
-        if (tags.length !== state.preloadAssets.length)
+      try {
+        const fetchStart = clockMode.startsWith('native-performance')
+          ? performance.now()
+          : null
+        const response = await route.fetch()
+        const fetchEnd = clockMode.startsWith('native-performance')
+          ? performance.now()
+          : null
+        const source = await response.text()
+        const isJson = response
+          .headers()
+          ['content-type']?.includes('application/json')
+        const match = isJson
+          ? null
+          : source.match(
+              /(<script[^>]*type="application\/json"[^>]*data-page="app"[^>]*>)([\s\S]*?)(<\/script>)/
+            )
+        if (!isJson && !match)
           throw new Error(
-            'Rendered Quest preload hints must match the compiled route manifest'
+            'Expected the actual Inertia bootstrap, not replacement HTML.'
           )
-        if (preloadMode === 'off')
-          body = body.replace(/<link\b[^>]*\bdata-quest-preload="1"[^>]*>/g, '')
-      }
-      state.documentBytes = Buffer.byteLength(body)
-      if (clockMode.startsWith('native-performance')) {
-        state.bootstrapMeasurements.push({
-          fetchMs: fetchEnd - fetchStart,
-          rewriteMs: performance.now() - fetchEnd
+        const payload = JSON.parse(isJson ? source : match[2])
+        const synthetic =
+          phase === 'before'
+            ? {
+                jobs: state.jobs,
+                jobHistory: state.rawEvents.map(
+                  ({ eventId, ...event }) => event
+                ),
+                jobsError: null
+              }
+            : {
+                workspace: state.workspace,
+                jobs: undefined,
+                jobHistory: undefined,
+                jobsError: undefined
+              }
+        Object.assign(payload.props, synthetic, {
+          appRunning: true,
+          hasQuestFeature: true
         })
+        const json = JSON.stringify(payload)
+        state.initialJsonBytes = Buffer.byteLength(json)
+        state.questJsonBytes = Buffer.byteLength(JSON.stringify(synthetic))
+        let body = isJson
+          ? json
+          : source.replace(
+              match[0],
+              `${match[1]}${json.replace(/</g, '\\u003c')}${match[3]}`
+            )
+        if (!isJson && clockMode.startsWith('native-performance')) {
+          const tags =
+            body.match(/<link\b[^>]*\bdata-quest-preload="1"[^>]*>/g) || []
+          if (tags.length !== state.preloadAssets.length)
+            throw new Error(
+              `Rendered Quest preload hints must match the compiled route manifest: expected ${state.preloadAssets.length}, rendered ${tags.length}`
+            )
+          if (preloadMode === 'off')
+            body = body.replace(
+              /<link\b[^>]*\bdata-quest-preload="1"[^>]*>/g,
+              ''
+            )
+        }
+        state.documentBytes = Buffer.byteLength(body)
+        if (clockMode.startsWith('native-performance')) {
+          state.bootstrapMeasurements.push({
+            fetchMs: fetchEnd - fetchStart,
+            rewriteMs: performance.now() - fetchEnd
+          })
+        }
+        await route.fulfill({ response, body })
+      } catch (error) {
+        const message = error?.stack || String(error)
+        state.fixtureErrors.push(message)
+        console.error('QUEST_FIXTURE_ROUTE_ERROR ' + message)
+        // Settle the intercepted request so an actionable fixture error does
+        // not disappear behind a 30-second navigation timeout.
+        await route.abort('failed')
       }
-      await route.fulfill({ response, body })
     }
   )
   const apiPath = `/api/v1/projects/${current.projects.deploymentTarget.slug}/quest/`
@@ -1352,6 +1367,7 @@ async function captureQuestBrowserFailure(page, state, name) {
       unexpectedRequests: state.unexpectedRequests,
       infrastructureRequests: state.infrastructureRequests,
       infrastructureFailures: state.infrastructureFailures,
+      fixtureErrors: state.fixtureErrors,
       scriptRequests: state.scriptRequests,
       scriptResponses: state.scriptResponses,
       scriptFailures: state.scriptFailures,
@@ -1472,7 +1488,9 @@ async function captureQuestWorkspaceState(page, expect, name, anchor) {
     if (anchor) await anchor.scrollIntoViewIfNeeded()
     // Clear restored action focus naturally for presentation shots only.
     // Keyboard-state captures retain the real focus indicator and tooltip.
-    const detailHeading = page.raw.locator('#quest-run-detail-title')
+    const detailHeading = page.raw
+      .locator('#quest-run-detail-title:visible, #quest-job-title:visible')
+      .first()
     const form = page.raw.locator('[data-test="quest-run-form"]')
     if (
       !name.startsWith('keyboard-') &&
@@ -1552,6 +1570,52 @@ async function captureQuestWorkspaceState(page, expect, name, anchor) {
       }
       await expect(form.locator('[data-slot="checkbox"]')).toHaveCount(2)
     }
+    let scheduleContrast
+    if (['scheduled-inputs', 'inactive-schedule'].includes(name)) {
+      scheduleContrast = await page.raw
+        .locator('[data-test="quest-job-detail"] [data-value="schedule"] dd')
+        .evaluateAll((elements) => {
+          const canvas = document.createElement('canvas')
+          canvas.width = canvas.height = 1
+          const context = canvas.getContext('2d', { willReadFrequently: true })
+          const luminance = ([r, g, b]) =>
+            [r, g, b]
+              .map((value) => {
+                value /= 255
+                return value <= 0.04045
+                  ? value / 12.92
+                  : ((value + 0.055) / 1.055) ** 2.4
+              })
+              .reduce(
+                (sum, value, i) => sum + value * [0.2126, 0.7152, 0.0722][i],
+                0
+              )
+          return elements.map((element) => {
+            const ancestors = []
+            for (let node = element; node; node = node.parentElement)
+              ancestors.unshift(node)
+            context.fillStyle = '#fff'
+            context.fillRect(0, 0, 1, 1)
+            for (const node of ancestors) {
+              context.fillStyle = getComputedStyle(node).backgroundColor
+              context.fillRect(0, 0, 1, 1)
+            }
+            const background = luminance(context.getImageData(0, 0, 1, 1).data)
+            context.fillStyle = getComputedStyle(element).color
+            context.fillRect(0, 0, 1, 1)
+            const foreground = luminance(context.getImageData(0, 0, 1, 1).data)
+            return {
+              text: element.textContent.trim(),
+              ratio:
+                (Math.max(background, foreground) + 0.05) /
+                (Math.min(background, foreground) + 0.05)
+            }
+          })
+        })
+      expect(scheduleContrast.length > 5).toBe(true)
+      for (const value of scheduleContrast)
+        expect(value.ratio >= 4.5).toBe(true)
+    }
     const geometry = await questBrowserMeasurements(page)
     expect(geometry.horizontalOverflowPx <= 1).toBe(true)
     expect(geometry.workspaceHorizontalOverflowPx <= 1).toBe(true)
@@ -1579,7 +1643,8 @@ async function captureQuestWorkspaceState(page, expect, name, anchor) {
       viewport: capture,
       filename: `quest-${name}-${capture.name}.png`,
       geometry,
-      ...(fieldStyles ? { fieldStyles } : {})
+      ...(fieldStyles ? { fieldStyles } : {}),
+      ...(scheduleContrast ? { scheduleContrast } : {})
     })
     if (
       capture.width === 390 &&

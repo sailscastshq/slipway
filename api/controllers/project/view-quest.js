@@ -69,17 +69,17 @@ module.exports = {
         app
       })
 
+    const locals = {}
     if (!this.req.headers?.['x-inertia'])
-      this.res.locals.questAssetPreloads =
-        require('../../lib/quest-asset-preloads')({
-          appPath: sails.config.appPath,
-          development:
-            sails.config.environment !== 'production' &&
-            !!sails.hooks.shipwright
-        })
+      locals.questAssetPreloads = require('../../lib/quest-asset-preloads')({
+        appPath: sails.config.appPath,
+        development:
+          sails.config.environment !== 'production' && !!sails.hooks.shipwright
+      })
 
     return {
       page: 'projects/quest',
+      locals,
       props: {
         project: {
           id: project.id,

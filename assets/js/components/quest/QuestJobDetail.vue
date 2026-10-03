@@ -321,7 +321,11 @@ const displayValue = (value) =>
             </p>
           </div>
         </div>
-        <div data-slot="tab-panel" data-value="schedule" class="p-4">
+        <div
+          data-slot="tab-panel"
+          data-value="schedule"
+          class="p-4 text-gray-800 dark:text-gray-200"
+        >
           <dl
             class="grid grid-cols-[auto_minmax(0,1fr)] gap-x-5 gap-y-3 text-xs"
           >

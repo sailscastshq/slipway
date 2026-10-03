@@ -69,6 +69,23 @@ The original-page comparison remains separate. No improvement or non-regression
 is established until actual browser artifacts are reviewed; additional feature
 bytes and hint HTML remain part of the reported cost.
 
+The first control attempt at `d3982fbd7ca1387f700a8adebd57a643de88c2c0`
+([run 37115164834](https://github.com/sailscastshq/slipway/actions/runs/37115164834))
+produced no current-head timing evidence: both production jobs stopped at a
+navigation timeout. Direct reproduction through the installed Inertia renderer
+and actual EJS template showed that its nested `locals` shadowed hints assigned
+only to `res.locals`; the manifest had nine assets but the rendered page had no
+hint links. The correction passes request-local hints through Inertia's returned
+`data.locals`, with an actual-renderer regression. Intercepted fixture errors now
+abort and report the exact failure rather than leave navigation pending. This
+failed attempt is retained as failure evidence, not a performance sample.
+
+The same head's seven browser trials passed, but pixel review found Schedule
+values inheriting black text on dark panels. The scoped correction uses existing
+light/dark text tokens. Scheduled and inactive Schedule captures now assert at
+least 4.5:1 rendered value contrast in both themes and viewports; geometry-only
+checks were insufficient. These assertions still require a new exact-head run.
+
 The real-resident integration fixture is separate from these synthetic browser
 measurements. It requires an explicitly pinned compatible upstream Quest source,
 uses no customer jobs or network effects, and must prove child scheduler

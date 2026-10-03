@@ -4,6 +4,7 @@ const path = require('node:path')
 const vm = require('node:vm')
 const { test } = require('sounding')
 const ejs = require('ejs')
+const renderInertia = require('inertia-sails/lib/render')
 const {
   QuestPreloadManifestPlugin,
   questPreloadAssets
@@ -254,7 +255,7 @@ test('Quest production template preloads only Quest and preserves safe host asse
   )
 })
 
-test('Quest controller supplies hints only to document responses and detects a live development pipeline', async () => {
+test('Quest controller hints survive actual Inertia rendering and nested EJS locals without entering JSON responses', async () => {
   const source = fs.readFileSync(
     path.resolve(__dirname, '../../../api/controllers/project/view-quest.js'),
     'utf8'
@@ -284,12 +285,25 @@ test('Quest controller supplies hints only to document responses and detects a l
     const calls = []
     const workspace = { jobs: [], legacyEvents: [] }
     const hints = [{ href: js, as: 'script' }]
+    const sails = {
+      config: {
+        appPath: '/app',
+        environment: scenario.environment,
+        inertia: { rootView: 'app', ssr: false }
+      },
+      hooks: { shipwright: scenario.hook },
+      inertia: {
+        getLocals: () => ({ title: 'Quest fixture' }),
+        getShared: () => ({}),
+        shouldClearHistory: () => false,
+        shouldEncryptHistory: () => false,
+        consumePreserveFragment: () => false,
+        consumeFlash: () => ({})
+      }
+    }
     vm.runInNewContext(source, {
       module,
-      sails: {
-        config: { appPath: '/app', environment: scenario.environment },
-        hooks: { shipwright: scenario.hook }
-      },
+      sails,
       User: { forRequest: async () => ({ team: { id: 1 } }) },
       Project: { findOne: async () => ({ id: 2, slug: 'demo' }) },
       Environment: { findOne: async () => ({ id: 3, slug: 'production' }) },
@@ -300,24 +314,67 @@ test('Quest controller supplies hints only to document responses and detects a l
         if (name === '../../lib/quest-asset-preloads')
           return (options) => {
             calls.push(options)
-            return hints
+            return options.development ? [] : hints
           }
         throw new Error(name)
       }
     })
-    const res = { locals: {} }
-    const result = await module.exports.fn.call(
-      {
-        req: { headers: scenario.inertia ? { 'x-inertia': 'true' } : {} },
-        res
+    const req = {
+      _sails: sails,
+      headers: scenario.inertia ? { 'x-inertia': 'true' } : {},
+      method: 'GET',
+      url: '/projects/demo/quest',
+      get(name) {
+        return this.headers[name.toLowerCase()]
+      }
+    }
+    const res = {
+      locals: {},
+      set() {
+        return this
       },
+      json(page) {
+        return page
+      },
+      view(name, data) {
+        assert.equal(name, 'app')
+        const template = fs.readFileSync(
+          path.resolve(__dirname, '../../../views/app.ejs'),
+          'utf8'
+        )
+        return ejs.render(template, {
+          ...this.locals,
+          ...data,
+          shipwright: { styles: () => '', scripts: () => '' }
+        })
+      }
+    }
+    const result = await module.exports.fn.call(
+      { req, res },
       { slug: 'demo', envSlug: 'production' }
     )
     assert.equal(result.props.workspace, workspace)
     assert.equal(calls.length, scenario.inertia ? 0 : 1)
     if (!scenario.inertia) {
       assert.equal(calls[0].development, scenario.development)
-      assert.equal(res.locals.questAssetPreloads, hints)
-    } else assert.equal(res.locals.questAssetPreloads, undefined)
+      if (!scenario.development)
+        assert.equal(result.locals.questAssetPreloads, hints)
+    } else assert.equal(result.locals.questAssetPreloads, undefined)
+    assert.equal(res.locals.questAssetPreloads, undefined)
+
+    // The installed Inertia renderer creates data.locals independently from
+    // res.locals. Exercise that integration instead of hand-assembling EJS
+    // data, which can hide a misplaced controller local.
+    const rendered = await renderInertia(req, res, result)
+    if (scenario.inertia) {
+      assert.equal(rendered.component, 'projects/quest')
+      assert.equal(rendered.props.questAssetPreloads, undefined)
+      assert.equal(rendered.locals, undefined)
+    } else {
+      const tags = rendered.match(/data-quest-preload="1"/g) || []
+      assert.equal(tags.length, scenario.development ? 0 : hints.length)
+      if (!scenario.development)
+        assert.match(rendered, new RegExp(`href="${js}"`))
+    }
   }
 })
