@@ -59,7 +59,11 @@ module.exports = {
       }
 
       if (records.length > 0) {
-        await ContainerMetric.createEach(records)
+        // Waterline serializes createEach input in place using physical column
+        // names. Preserve the camel-case samples used by the return/SSE contract.
+        await ContainerMetric.createEach(
+          records.map((record) => ({ ...record }))
+        )
         publishMetrics(records)
       }
 
