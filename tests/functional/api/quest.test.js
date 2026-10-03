@@ -1,147 +1,138 @@
-const fs = require('node:fs')
-const os = require('node:os')
-const path = require('node:path')
-const childProcess = require('node:child_process')
-const { EventEmitter } = require('node:events')
-const { PassThrough } = require('node:stream')
+const assert = require('node:assert/strict')
 const { test } = require('sounding')
 const { withCsrfFromPage } = require('../../support/csrf-request')
+const workspace = require('../../../api/lib/quest-workspace')
+const {
+  worldFor,
+  residentFixture
+} = require('../../support/quest-resident-fixture')
 
 test(
-  'Quest persists real legacy receipts and successful stderr, but not unconfirmed process outcomes',
-  {
-    world: {
-      name: 'configured-slipway',
-      context: { deploymentTarget: { slug: 'quest-legacy-receipts' } }
-    }
-  },
-  async ({ sails, world, request, visit, expect }) => {
-    const current = world.current
-    const environment = current.environments.production
-    await sails.models.environment.updateOne({ id: environment.id }).set({
-      features: { 'sails-quest': { scripts: [{ name: 'synthetic-index' }] } }
-    })
-    await sails.models.app.updateOne({ id: current.apps.web.id }).set({
-      status: 'running',
-      containerName: 'synthetic-container-never-executed'
-    })
-    // A disposable shell fixture ignores every argument. No Docker or Sails job
-    // is invoked; only stdout/stderr and the local client's exit are simulated.
-    const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'quest-receipt-'))
-    const binaryPath = path.join(directory, 'synthetic-client')
-    const originalDocker = sails.config.docker
-    sails.config.docker = { ...originalDocker, binaryPath }
-    const writeClient = (body) =>
-      fs.writeFileSync(binaryPath, `#!/bin/sh\n${body}\n`, { mode: 0o755 })
-    const pagePath = '/projects/quest-legacy-receipts/quest'
-    const url =
-      '/api/v1/projects/quest-legacy-receipts/quest/jobs/synthetic-index/run'
-
+  'Quest legacy, stopped, stale and unsupported resident targets fail closed without admitting work',
+  { world: worldFor('quest-resident-gates') },
+  async (context) => {
+    const f = await residentFixture(context, 'quest-resident-gates')
+    const { sails, request, world, visit } = context
     try {
-      const browser = await withCsrfFromPage(request, pagePath, 'genesisUser')
-      writeClient(
-        "printf '\\033[32msynthetic output\\033[0m\\n'\nprintf 'synthetic warning\\n' >&2\nexit 0"
-      )
-      const success = await browser.request.post(url, {})
-      expect(success).toHaveStatus(200)
-      expect(success).toHaveJsonPath('success', true)
-      expect(success).toHaveJsonPath('exitCode', 0)
-      expect(success).toHaveJsonPath('output', 'synthetic output')
-      expect(success).toHaveJsonPath('stderr', 'synthetic warning')
-      expect(success).toHaveJsonPath('error', null)
-      let history = await sails.helpers.quest.getJobHistory(environment.id)
-      expect(history.length).toBe(1)
-      expect(history[0].event).toBe('completed')
-      expect(history[0].stderr).toBe('synthetic warning')
-      expect(history[0].error).toBe(null)
-
-      writeClient("printf 'synthetic failure\\n' >&2\nexit 7")
-      const failure = await browser.request.post(url, {})
-      expect(failure).toHaveJsonPath('success', false)
-      expect(failure).toHaveJsonPath('exitCode', 7)
-      history = await sails.helpers.quest.getJobHistory(environment.id)
-      expect(history.length).toBe(2)
-      expect(history[0].event).toBe('failed')
-      expect(history[0].error).toBe('synthetic failure')
-
-      writeClient("printf 'partial output\\n'\nkill -TERM $$")
-      const interrupted = await browser.request.post(url, {})
-      expect(interrupted).toHaveStatus(200)
-      expect(interrupted).toHaveJsonPath('exitCode', null)
-      expect(interrupted).toHaveJsonPath('signal', 'SIGTERM')
-      expect(interrupted).toHaveJsonPath('output', 'partial output')
-      expect(
-        (await sails.helpers.quest.getJobHistory(environment.id)).length
-      ).toBe(2)
-
-      // Node's built-in spawn timeout retains a five-minute timer for ENOENT.
-      // Emit that failure synthetically rather than holding up the test process.
-      const originalSpawn = childProcess.spawn
-      try {
-        childProcess.spawn = () => {
-          const client = new EventEmitter()
-          client.stdout = new PassThrough()
-          client.stderr = new PassThrough()
-          setImmediate(() => {
-            client.emit('error', new Error('Synthetic client unavailable'))
-            client.emit('close', -2, null)
-          })
-          return client
-        }
-        const spawnError = await browser.request.post(url, {})
-        expect(spawnError).toHaveStatus(200)
-        expect(spawnError).toHaveJsonPath('exitCode', null)
-        expect(
-          (await sails.helpers.quest.getJobHistory(environment.id)).length
-        ).toBe(2)
-      } finally {
-        childProcess.spawn = originalSpawn
+      const browser = await withCsrfFromPage(request, f.page, 'genesisUser')
+      // Initial page/history is deliberately lazy; opening Quest runs nothing.
+      assert.equal(f.calls.length, 0)
+      assert.equal(f.starts.length, 0)
+      const url = `${f.base}/jobs/synthetic-report/run`
+      for (const productionConfirmed of [undefined, false]) {
+        const before = f.calls.length
+        assert.equal(
+          (await browser.request.post(url, f.body({ productionConfirmed })))
+            .status,
+          400
+        )
+        assert.equal(f.calls.length, before)
       }
-
-      // A request rejected before execution also leaves the ledger untouched.
-      await sails.models.app
-        .updateOne({ id: current.apps.web.id })
-        .set({ status: 'stopped' })
-      const rejected = await browser.request.post(url, {})
-      expect(rejected).toHaveStatus(400)
-      expect(
-        (await sails.helpers.quest.getJobHistory(environment.id)).length
-      ).toBe(2)
-
-      await sails.models.telemetrymetric.createEach([
-        {
-          name: 'quest.job.complete',
-          value: 12,
-          unit: 'ms',
-          environment: environment.id,
-          recordedAt: Date.now() + 1,
-          attributes: { jobName: 'synthetic-index' }
-        },
-        {
-          name: 'quest.job.error',
-          value: 13,
-          unit: 'ms',
-          environment: environment.id,
-          recordedAt: Date.now() + 2,
-          attributes: {
-            jobName: 'synthetic-index',
-            error: 'scheduled diagnostic'
-          }
-        }
+      for (const extra of [
+        { runtimeId: 'stale-runtime' },
+        { metadataVersion: 'stale-inputs' }
       ])
-      const page = await visit.as('genesisUser')(pagePath)
-      expect(page).toHaveStatus(200)
-      expect(page).toHaveInertiaProp('jobHistory.0.event', 'failed')
-      expect(page).toHaveInertiaProp(
-        'jobHistory.0.error',
-        'scheduled diagnostic'
+        assert.equal(
+          (await browser.request.post(url, f.body(extra))).status,
+          409
+        )
+      assert.equal(f.starts.length, 0)
+      await sails.models.app
+        .updateOne({ id: f.app.id })
+        .set({ status: 'stopped' })
+      workspace.invalidate(f.app)
+      const beforeStopped = f.calls.length
+      assert.equal((await browser.request.post(url, f.body())).status, 409)
+      assert.equal(f.calls.length, beforeStopped)
+      await sails.models.app
+        .updateOne({ id: f.app.id })
+        .set({ status: 'running' })
+      f.setContract(0)
+      assert.equal((await browser.request.post(url, f.body())).status, 409)
+      assert.equal(
+        f.calls.filter(({ command }) => command === 'invoke').length,
+        0
       )
-      expect(page).toHaveInertiaProp('jobHistory.1.event', 'completed')
-      expect(page).toHaveInertiaProp('jobHistory.1.legacy', true)
-      expect(page).toHaveInertiaProp('jobHistory.3.stderr', 'synthetic warning')
+      assert.equal(f.starts.length, 0)
+      assert.equal(await sails.models.questrun.count(), 0)
+      const page = await visit.as('genesisUser')(f.page)
+      context.expect(page).toHaveInertiaProp('workspace.mode', 'legacy')
+      context
+        .expect(page)
+        .toHaveInertiaProp('workspace.capabilities.invoke', false)
+      assert.equal(
+        world.current.environments.production.id,
+        f.calls[0].target.environment
+      )
     } finally {
-      sails.config.docker = originalDocker
-      fs.rmSync(directory, { recursive: true, force: true })
+      f.restore()
+    }
+  }
+)
+
+test(
+  'Quest session writes require CSRF and current active-team owner/admin authority before reaching the resident transport',
+  { world: worldFor('quest-resident-permissions') },
+  async (context) => {
+    const f = await residentFixture(context, 'quest-resident-permissions')
+    const { sails, world, request } = context
+    const user = world.current.users.genesisUser
+    const team = world.current.teams.genesisTeam
+    try {
+      const browser = await withCsrfFromPage(request, f.page, 'genesisUser')
+      const url = `${f.base}/jobs/synthetic-report/run`
+      assert.equal(
+        (await request.as('genesisUser').post(url, f.body())).status,
+        403
+      )
+      assert.equal(f.calls.length, 0)
+      const owner = await world
+        .create('user')
+        .with({ fullName: 'Current owner' })
+      await sails.models.team
+        .updateOne({ id: team.id })
+        .set({ owner: owner.id })
+      await sails.models.teammembership
+        .update({ user: user.id, team: team.id })
+        .set({ role: 'member' })
+      for (const [target, body] of [
+        [url, f.body({ teamRole: 'owner' })],
+        [`${f.page}/synthetic-report/pause`, { runtimeId: f.info.runtimeId }],
+        [`${f.page}/synthetic-report/resume`, { runtimeId: f.info.runtimeId }]
+      ])
+        assert.equal((await browser.request.post(target, body)).status, 403)
+      assert.equal(f.calls.length, 0)
+      for (const role of ['owner', 'admin']) {
+        await sails.models.teammembership
+          .update({ user: user.id, team: team.id })
+          .set({ role })
+        assert.equal((await browser.request.post(url, f.body())).status, 202)
+      }
+      assert.equal(f.starts.length, 2)
+      const foreignTeam = await world
+        .create('team')
+        .with({ name: 'Other active team', owner: user.id })
+      await world.create('project').with({
+        name: 'Other project',
+        slug: 'quest-other-team',
+        team: foreignTeam.id,
+        createdBy: user.id
+      })
+      const before = f.calls.length
+      const foreign = await browser.request.post(
+        '/api/v1/projects/quest-other-team/quest/jobs/synthetic-report/run',
+        f.body()
+      )
+      assert.ok([403, 404].includes(foreign.status))
+      assert.equal(f.calls.length, before)
+      await sails.models.teammembership
+        .update({ user: user.id, team: team.id })
+        .set({ status: 'invited' })
+      const inactive = await browser.request.post(url, f.body())
+      assert.ok([403, 404].includes(inactive.status))
+      assert.equal(f.calls.length, before)
+    } finally {
+      f.restore()
     }
   }
 )

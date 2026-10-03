@@ -61,33 +61,25 @@ module.exports = {
       (await App.findOne({ environment: environment.id }))
     const appRunning = app && app.status === 'running'
 
-    // Use scripts from feature detection as initial data (fast).
-    // The SSE stream will replace this with full job state from the container.
-    let jobs = []
-    if (hasQuestFeature && questFeature) {
-      const scripts = questFeature.scripts || []
-      jobs = scripts.map((s) => ({
-        name: s.name,
-        friendlyName: s.name,
-        description: '',
-        schedule: null,
-        scheduleType: 'manual',
-        paused: false,
-        withoutOverlapping: false,
-        isRunning: false
-      }))
-    }
+    const workspace =
+      await require('../../lib/quest-workspace').initialSnapshot({
+        user,
+        project,
+        environment,
+        app
+      })
 
-    // Load recent job run history from telemetry (last 7 days)
-    let jobHistory = []
-    try {
-      jobHistory = await sails.helpers.quest.getJobHistory(environment.id)
-    } catch {
-      // Telemetry data may not exist yet
-    }
+    const locals = {}
+    if (!this.req.headers?.['x-inertia'])
+      locals.questAssetPreloads = require('../../lib/quest-asset-preloads')({
+        appPath: sails.config.appPath,
+        development:
+          sails.config.environment !== 'production' && !!sails.hooks.shipwright
+      })
 
     return {
       page: 'projects/quest',
+      locals,
       props: {
         project: {
           id: project.id,
@@ -98,13 +90,15 @@ module.exports = {
           id: environment.id,
           name: environment.name,
           slug: environment.slug,
-          features: environment.features
+          features: environment.features,
+          isProduction: environment.isProduction
         },
         hasQuestFeature,
         questFeature,
         appRunning,
-        jobs,
-        jobHistory
+        workspace,
+        jobs: workspace.jobs,
+        jobHistory: workspace.legacyEvents
       }
     }
   }
