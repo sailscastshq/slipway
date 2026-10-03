@@ -165,6 +165,36 @@ Two rounds per phase on one executor remain descriptive: dependency differences,
 development-server behavior, and host noise are included. This is neither a
 production benchmark nor a general no-regression guarantee.
 
+### Production-built asset decomposition
+
+`production-navigation` adds an isolated ABBA diagnostic without changing the
+original screenshot or interaction jobs. A separate process calls the installed
+Shipwright hook with `NODE_ENV=production` to build each exact checkout's real
+assets. No application is lifted in that process. The following Sounding process
+uses its normal explicit **test** environment, disposable datastores, disabled
+Quest/Lookout hooks, stopped fixture app, and runtime-execution trap. Only the
+benchmark checkout's Sounding lift config disables development asset middleware
+and uses Shipwright's actual manifest tag generators. ORM safety guards remain
+unchanged. Running the application itself with production `NODE_ENV` is forbidden
+here: it conflicts with the disposable test datastore's migration policy.
+
+The benchmark alone replaces Date with a fixed-origin Date-only shim. Timers,
+`performance`, Navigation/Resource/Paint Timing, and CDP stay native. A page-side
+ready mark waits for the actual Quest heading, first job, phase-specific visible
+root, synthetic stream, fonts, and two animation frames. The existing driver
+assertions still run. Reports retain full wall times, native response-end and
+ready marks, resource paths/counts/bytes, paints/long tasks, and raw CDP snapshots.
+`route.fetch()` and subsequent bootstrap rewrite are measured separately; the
+real stopped-app controller and database work remain inside end-to-end timing.
+Raw CDP counters may reset across navigation, so no cross-navigation deltas are
+calculated and no parser-only cost is claimed.
+
+Playwright route interception disables HTTP cache for both phases. These are
+identical uncached synthetic initial navigations with production-built assets,
+not a warm-cache SPA or live production benchmark. All original byte, DOM,
+readiness, and overflow ceilings remain in force; raw observations and any
+increase must be reported rather than explained away by those ceilings.
+
 ## Running and reviewing
 
 On an authorized disposable browser-capable runner with dependencies installed:
@@ -184,6 +214,7 @@ and isolates before from after. Download these artifacts from the same run:
 3. `quest-workspace-states-<exact-head-sha>`
 4. `quest-comparison-report-<exact-head-sha>`
 5. `quest-same-runner-navigation-<exact-head-sha>` (supplemental timing)
+6. `quest-production-navigation-<exact-head-sha>` (production-asset decomposition)
 
 Inspect all four PNG pairs at their actual dimensions. Check typed form, result,
 failed, running, reconnecting, disconnected, and keyboard state captures. Confirm

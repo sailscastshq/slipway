@@ -262,6 +262,7 @@ async function installQuestFixture(
     initialJsonBytes: 0,
     questJsonBytes: 0,
     documentBytes: 0,
+    bootstrapMeasurements: [],
     mutationRequests: [],
     unexpectedRequests: [],
     infrastructureRequests: [],
@@ -312,7 +313,11 @@ async function installQuestFixture(
   await page.raw.route(
     (url) => url.pathname === projectPath,
     async (route) => {
+      const fetchStart =
+        clockMode === 'native-performance' ? performance.now() : null
       const response = await route.fetch()
+      const fetchEnd =
+        clockMode === 'native-performance' ? performance.now() : null
       const source = await response.text()
       const isJson = response
         .headers()
@@ -354,6 +359,12 @@ async function installQuestFixture(
             `${match[1]}${json.replace(/</g, '\\u003c')}${match[3]}`
           )
       state.documentBytes = Buffer.byteLength(body)
+      if (clockMode === 'native-performance') {
+        state.bootstrapMeasurements.push({
+          fetchMs: fetchEnd - fetchStart,
+          rewriteMs: performance.now() - fetchEnd
+        })
+      }
       await route.fulfill({ response, body })
     }
   )
@@ -453,7 +464,79 @@ async function installQuestFixture(
     page.raw.off('response', recordInfrastructureResponse)
     restore()
   }
-  if (clockMode === 'fixed') await page.raw.clock.setFixedTime(fixture.now)
+  if (clockMode === 'native-performance') {
+    // Production profiling only: keep the exact visual Date fixture without
+    // Playwright's full clock shim, which removes native Performance entries.
+    // No timer, performance method, application state, or event is replaced.
+    await page.raw.addInitScript(
+      ({ now, phase, projectPath }) => {
+        const NativeDate = Date
+        function FixtureDate(...args) {
+          if (!new.target) return new NativeDate(now).toString()
+          return Reflect.construct(
+            NativeDate,
+            args.length ? args : [now],
+            new.target
+          )
+        }
+        Object.setPrototypeOf(FixtureDate, NativeDate)
+        FixtureDate.prototype = NativeDate.prototype
+        FixtureDate.now = () => now
+        window.Date = FixtureDate
+        const profile = (window.__questNativeProfile = {
+          readyMs: null,
+          contentReadyMs: null,
+          paints: [],
+          longTasks: []
+        })
+        for (const [type, key] of [
+          ['paint', 'paints'],
+          ['longtask', 'longTasks']
+        ]) {
+          if (PerformanceObserver.supportedEntryTypes.includes(type)) {
+            new PerformanceObserver((list) =>
+              profile[key].push(
+                ...list.getEntries().map((entry) => entry.toJSON())
+              )
+            ).observe({ type, buffered: true })
+          }
+        }
+        if (location.pathname !== projectPath) return
+        const observeReady = () => {
+          const phaseElement = document.querySelector(
+            phase === 'before'
+              ? '[aria-label="Live updates active"]'
+              : '[data-test="quest-workspace"]'
+          )
+          const streamReady = window.__questStreams?.some(
+            (stream) => !stream.closed && stream.readyState === 1
+          )
+          const heading = [...document.querySelectorAll('h1,h2,h3')].some(
+            (el) => el.textContent.trim() === 'Quest'
+          )
+          if (
+            phaseElement?.getClientRects().length &&
+            streamReady &&
+            heading &&
+            document.body?.textContent.includes('Rebuild search index') &&
+            document.fonts.status === 'loaded'
+          ) {
+            profile.contentReadyMs = performance.now()
+            performance.mark('quest-native-content-ready')
+            requestAnimationFrame(() =>
+              requestAnimationFrame(() => {
+                performance.mark('quest-native-ready')
+                profile.readyMs = performance.now()
+              })
+            )
+          } else requestAnimationFrame(observeReady)
+        }
+        requestAnimationFrame(observeReady)
+      },
+      { now: fixture.now, phase, projectPath }
+    )
+  } else if (clockMode === 'fixed')
+    await page.raw.clock.setFixedTime(fixture.now)
   else await page.raw.clock.setSystemTime(fixture.now)
   // Transport-only EventSource double. This permits deterministic disconnects
   // while exercising the real composable's reconnect timer and cleanup logic.
@@ -620,8 +703,34 @@ test(
     }).trim()
     const root = path.resolve('.tmp/screenshots/quest-comparison', phase)
     fs.mkdirSync(root, { recursive: true })
+    const productionBenchmark =
+      process.env.SLIPWAY_QUEST_PRODUCTION_BENCHMARK === '1'
+    let cdp
+    let productionBuild
+    if (productionBenchmark) {
+      const assert = require('node:assert/strict')
+      // These are test-app assertions, not a production application lift.
+      assert.notEqual(process.env.NODE_ENV, 'production')
+      assert.equal(context.sails.config.environment, 'test')
+      assert.equal(context.sails.config.hooks.quest, false)
+      assert.equal(context.sails.config.hooks.lookout, false)
+      assert.equal(context.sails.config.hooks.shipwright, false)
+      assert.equal(
+        context.sails.config.datastores.observability.url,
+        ':memory:'
+      )
+      assert.equal(context.sails.config.session.url, ':memory:')
+      productionBuild = JSON.parse(
+        fs.readFileSync('.tmp/quest-production-build.json', 'utf8')
+      )
+      assert.equal(productionBuild.sourceSha, sourceSha)
+      assert.equal(productionBuild.buildMode, 'production')
+      assert.equal(productionBuild.applicationLifted, false)
+      cdp = await page.raw.context().newCDPSession(page.raw)
+      await cdp.send('Performance.enable')
+    }
     const state = await installQuestFixture(context, phase, () => {}, {
-      clockMode: 'fixed'
+      clockMode: productionBenchmark ? 'native-performance' : 'fixed'
     })
     const measurements = []
     try {
@@ -636,8 +745,17 @@ test(
         })
         await page.raw.emulateMedia({ colorScheme: capture.scheme })
         const timingSamples = []
+        const productionSamples = []
         let geometry
         for (let sample = 0; sample < 5; sample++) {
+          state.bootstrapMeasurements = []
+          const cdpBefore = cdp
+            ? Object.fromEntries(
+                (await cdp.send('Performance.getMetrics')).metrics.map(
+                  ({ name, value }) => [name, value]
+                )
+              )
+            : null
           const start = performance.now()
           await page.goto(state.projectPath)
           await expect(
@@ -664,7 +782,56 @@ test(
             )
           )
           await page.raw.evaluate(() => document.fonts.ready)
+          if (productionBenchmark)
+            await page.raw.waitForFunction(() =>
+              Number.isFinite(window.__questNativeProfile?.readyMs)
+            )
           timingSamples.push(Math.round(performance.now() - start))
+          if (productionBenchmark) {
+            const native = await page.raw.evaluate(() => ({
+              ...window.__questNativeProfile,
+              navigation: performance
+                .getEntriesByType('navigation')[0]
+                ?.toJSON(),
+              readyMarks: performance
+                .getEntriesByName('quest-native-ready')
+                .map((entry) => entry.toJSON()),
+              resources: performance
+                .getEntriesByType('resource')
+                .map((entry) => ({
+                  ...entry.toJSON(),
+                  name: new URL(entry.name).pathname
+                })),
+              assetUrls: [
+                ...document.querySelectorAll(
+                  'script[src],link[rel="stylesheet"][href]'
+                )
+              ].map((el) => new URL(el.src || el.href).pathname)
+            }))
+            expect(native.navigation.responseEnd > 0).toBe(true)
+            expect(native.readyMs >= native.navigation.responseEnd).toBe(true)
+            const assetUrls = new Set(
+              productionBuild.assets.map((asset) => asset.url)
+            )
+            for (const url of native.assetUrls)
+              expect(assetUrls.has(url)).toBe(true)
+            expect(
+              native.resources.some((entry) =>
+                /rsbuild|lazy-compilation|webpack/i.test(entry.name)
+              )
+            ).toBe(false)
+            const cdpAfter = Object.fromEntries(
+              (await cdp.send('Performance.getMetrics')).metrics.map(
+                ({ name, value }) => [name, value]
+              )
+            )
+            productionSamples.push({
+              native,
+              cdpBefore,
+              cdpAfter,
+              bootstrap: state.bootstrapMeasurements
+            })
+          }
           geometry = await questBrowserMeasurements(page)
         }
         const sortedTimings = [...timingSamples].sort((a, b) => a - b)
@@ -677,6 +844,7 @@ test(
           navigationToReadySamplesMs: timingSamples,
           navigationToReadyMinMs: sortedTimings[0],
           navigationToReadyMaxMs: sortedTimings[4],
+          ...(productionBenchmark ? { productionSamples } : {}),
           ...geometry
         }
         measurements.push(measurement)
@@ -719,8 +887,18 @@ test(
             sampleJobs: 5,
             sampleEvents: 10,
             measurementVersion: 2,
-            driverReadiness:
-              'Both phases: page navigation, Quest heading, first job label, one phase-specific visibility assertion, identical synthetic-stream-ready wait, and fonts.ready. Timing starts immediately before navigation and ends after fonts.ready.',
+            ...(productionBenchmark
+              ? {
+                  productionBenchmark: true,
+                  productionBuild,
+                  clockMode: 'Date-only fixture; native Performance and timers',
+                  additionalReadiness:
+                    'Native page-side UI/stream/fonts readiness plus two animation frames; no cross-navigation CDP differences are calculated'
+                }
+              : {}),
+            driverReadiness: productionBenchmark
+              ? 'Both phases: the original visibility/stream/fonts assertions, then wait for the native page-side two-frame ready mark. Wall timing starts immediately before navigation and ends after this wait.'
+              : 'Both phases: page navigation, Quest heading, first job label, one phase-specific visibility assertion, identical synthetic-stream-ready wait, and fonts.ready. Timing starts immediately before navigation and ends after fonts.ready.',
             navigationSamplesPerCapture: 5,
             navigationStatistic:
               'Median of five sequential same-fixture navigations; raw samples retained. Assets were already visited during login, so this is not a cold-start benchmark.',
@@ -757,6 +935,7 @@ test(
     } finally {
       await page.raw.goto('about:blank')
       state.restore()
+      if (cdp) await cdp.detach()
     }
   }
 )
