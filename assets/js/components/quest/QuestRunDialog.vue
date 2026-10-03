@@ -48,7 +48,8 @@ watch(
     productionConfirmed.value = false
     response.value = null
     requestId.value = crypto.randomUUID()
-  }
+  },
+  { immediate: true }
 )
 
 function choices(input) {

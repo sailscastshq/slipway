@@ -491,3 +491,59 @@ test('Quest selected-job history cancellation prevents old errors or rows from r
     expect(typeof result.error).toBe('string')
   }
 })
+
+test('Quest defers inactive run history and run-only components on the initial Jobs view', async ({
+  expect
+}) => {
+  const fs = require('node:fs')
+  const { parse, compileScript } = require('@vue/compiler-sfc')
+  const pageSource = fs.readFileSync(
+    require.resolve('../../../assets/js/pages/projects/quest.vue'),
+    'utf8'
+  )
+  const { descriptor, errors } = parse(pageSource)
+  expect(errors).toEqual([])
+  const script = compileScript(descriptor, { id: 'quest-lazy-workspace' })
+  expect(script.imports.QuestRunDetail).toBe(undefined)
+  expect(script.imports.QuestRunDialog).toBe(undefined)
+  expect(descriptor.scriptSetup.content).toContain(
+    'const QuestRunDetail = defineAsyncComponent('
+  )
+  expect(descriptor.scriptSetup.content).toContain(
+    'const QuestRunDialog = defineAsyncComponent('
+  )
+  const { baseParse } = require('@vue/compiler-dom')
+  const tree = baseParse(descriptor.template.content)
+  const elements = []
+  function visit(node) {
+    if (node.type === 1) elements.push(node)
+    for (const child of node.children || []) visit(child)
+  }
+  visit(tree)
+  const attribute = (element, name) =>
+    element.props.find((prop) => prop.type === 6 && prop.name === name)?.value
+      ?.content
+  const condition = (element) =>
+    element.props.find((prop) => prop.type === 7 && prop.name === 'if')?.exp
+      ?.content
+  const globalRuns = elements.find(
+    (element) =>
+      attribute(element, 'data-value') === 'runs' &&
+      attribute(element, 'class') === 'pt-4'
+  )
+  expect(Boolean(globalRuns)).toBe(true)
+  expect(
+    globalRuns.children.some(
+      (child) =>
+        child.tag === 'template' && condition(child) === "activeTab === 'runs'"
+    )
+  ).toBe(true)
+  expect(
+    condition(elements.find((element) => element.tag === 'QuestRunDialog'))
+  ).toBe('review')
+  const dialog = fs.readFileSync(
+    require.resolve('../../../assets/js/components/quest/QuestRunDialog.vue'),
+    'utf8'
+  )
+  expect(dialog).toContain('{ immediate: true }')
+})

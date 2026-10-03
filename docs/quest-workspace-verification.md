@@ -120,6 +120,12 @@ The after test enforces deliberately bounded regression ceilings:
 | Navigation to ready           |     15,000 ms |
 | Horizontal overflow           |          1 px |
 
+Measurement version 2 uses identical synthetic-stream readiness waits and the
+same number of browser-driver reads in both phases, with identical timing
+boundaries. Earlier reports at `4abe30e` and `17cc4c7` included an extra wait in
+after; their small timing deltas are not evidence of a UI-only regression. The
+screenshots, JSON sizes, and DOM counts from those reports remain valid.
+
 These are budgets, not measured results. The comparison job verifies fixture
 identity and emits both observed values for each viewport. Independent CI runners
 and first-render noise make the timing descriptive. No speedup percentage is

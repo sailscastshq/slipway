@@ -551,15 +551,15 @@ test(
             await expect(
               page.raw.locator('[data-test="quest-workspace"]')
             ).toBeVisible()
-            await page.raw.waitForFunction(() =>
-              window.__questStreams.some(
-                (stream) =>
-                  stream.url.includes('/quest/stream') &&
-                  !stream.closed &&
-                  stream.readyState === 1
-              )
-            )
           }
+          await page.raw.waitForFunction(() =>
+            window.__questStreams.some(
+              (stream) =>
+                stream.url.includes('/quest/stream') &&
+                !stream.closed &&
+                stream.readyState === 1
+            )
+          )
           await page.raw.evaluate(() => document.fonts.ready)
           timingSamples.push(Math.round(performance.now() - start))
           geometry = await questBrowserMeasurements(page)
@@ -615,6 +615,9 @@ test(
             frozenBrowserTime: questComparisonFixture.frozenBrowserTime,
             sampleJobs: 5,
             sampleEvents: 10,
+            measurementVersion: 2,
+            driverReadiness:
+              'Both phases: page navigation, Quest heading, first job label, one phase-specific visibility assertion, identical synthetic-stream-ready wait, and fonts.ready. Timing starts immediately before navigation and ends after fonts.ready.',
             navigationSamplesPerCapture: 5,
             navigationStatistic:
               'Median of five sequential same-fixture navigations; raw samples retained. Assets were already visited during login, so this is not a cold-start benchmark.',
@@ -655,6 +658,54 @@ test(
   }
 )
 // END QUEST COMPARISON CAPTURE
+
+async function captureQuestBrowserFailure(page, state, name) {
+  const fs = require('node:fs')
+  const path = require('node:path')
+  const root = path.resolve(
+    '.tmp/screenshots/quest-workspace-states/diagnostics'
+  )
+  fs.mkdirSync(root, { recursive: true })
+  try {
+    const browser = await page.raw.evaluate(() => {
+      const bootstrap = document.querySelector('script[data-page="app"]')
+      const payload = bootstrap ? JSON.parse(bootstrap.textContent) : null
+      return {
+        url: location.href,
+        bootstrapUrl: payload?.url,
+        component: payload?.component,
+        headings: [...document.querySelectorAll('h1,h2')].map((node) =>
+          node.textContent.trim()
+        ),
+        selectedJobs: [
+          ...document.querySelectorAll(
+            '[data-test="quest-job-row"] [aria-pressed="true"]'
+          )
+        ].map((node) => node.getAttribute('aria-label')),
+        dialogs: document.querySelectorAll('dialog[open]').length,
+        text: document.body.innerText.slice(0, 8000)
+      }
+    })
+    const report = {
+      ...browser,
+      javascriptErrors: page.javascriptErrors.map(String),
+      unexpectedRequests: state.unexpectedRequests
+    }
+    console.log(
+      'QUEST_BROWSER_FAILURE_SNAPSHOT ' + JSON.stringify({ name, ...report })
+    )
+    fs.writeFileSync(
+      path.join(root, `${name}.json`),
+      JSON.stringify(report, null, 2) + '\n'
+    )
+    await page.screenshot(path.join(root, `${name}.png`), {
+      animations: 'disabled',
+      fullPage: false
+    })
+  } catch (error) {
+    console.log('QUEST_BROWSER_FAILURE_CAPTURE_ERROR ' + String(error))
+  }
+}
 
 function configureTypedQuestJob(state) {
   const job = state.workspace.jobs.find(
@@ -849,12 +900,14 @@ test(
       await login.withPassword('genesisUser', page, {
         password: world.current.auth.genesisUserPassword
       })
+      await page.raw.waitForURL('**/')
       await page.goto(`${state.projectPath}?job=export-account-report`)
       const opener = page.raw.locator(
         '[data-test="quest-job-detail"] [data-test="quest-open-run"]'
       )
       await expect(opener).toBeEnabled()
       await opener.focus()
+      await expect(opener).toBeFocused()
       await page.raw.keyboard.press('Enter')
       const form = page.raw.locator('[data-test="quest-run-form"]')
       const confirm = page.raw.locator('[data-test="quest-confirm-run"]')
@@ -980,6 +1033,9 @@ test(
       expect(state.mutationRequests.length).toBe(1)
       expect(state.unexpectedRequests).toEqual([])
       expect(page).toHaveNoJavascriptErrors()
+    } catch (error) {
+      await captureQuestBrowserFailure(page, state, 'typed-inputs')
+      throw error
     } finally {
       releaseAcceptance()
       await page.raw.goto('about:blank')
@@ -1030,6 +1086,7 @@ test(
       await login.withPassword('genesisUser', page, {
         password: world.current.auth.genesisUserPassword
       })
+      await page.raw.waitForURL('**/')
       await page.goto(`${state.projectPath}?job=rebuild-search-index`)
       const opener = page.raw.locator(
         '[data-test="quest-job-detail"] [data-test="quest-open-run"]'
@@ -1086,6 +1143,9 @@ test(
       expect(state.mutationRequests.length).toBe(4)
       expect(state.unexpectedRequests).toEqual([])
       expect(page).toHaveNoJavascriptErrors()
+    } catch (error) {
+      await captureQuestBrowserFailure(page, state, 'request-failure')
+      throw error
     } finally {
       await page.raw.goto('about:blank')
       state.restore()
@@ -1172,6 +1232,7 @@ test(
       await login.withPassword('genesisUser', page, {
         password: world.current.auth.genesisUserPassword
       })
+      await page.raw.waitForURL('**/')
       for (const [name, , text] of resultCases) {
         await page.goto(
           `${state.projectPath}?job=export-account-report&run=synthetic-result-${name}`
@@ -1239,6 +1300,9 @@ test(
       expect(state.mutationRequests).toEqual([])
       expect(state.unexpectedRequests).toEqual([])
       expect(page).toHaveNoJavascriptErrors()
+    } catch (error) {
+      await captureQuestBrowserFailure(page, state, 'result-detail')
+      throw error
     } finally {
       await page.raw.goto('about:blank')
       state.restore()
@@ -1271,6 +1335,7 @@ test(
       await login.withPassword('genesisUser', page, {
         password: world.current.auth.genesisUserPassword
       })
+      await page.raw.waitForURL('**/')
       await page.goto(state.projectPath)
       await page.raw.getByLabel('Search jobs', { exact: true }).fill('catalog')
       await expect(page.raw.locator('[data-test="quest-job-row"]')).toHaveCount(
@@ -1308,6 +1373,7 @@ test(
       const confirm = page.raw.locator('[data-test="quest-confirm-run"]')
       await expect(opener).toBeEnabled()
       await opener.focus()
+      await expect(opener).toBeFocused()
       await page.raw.keyboard.press('Enter')
       await expect(form).toBeVisible()
       await page.raw
@@ -1429,6 +1495,9 @@ test(
       expect(state.mutationRequests).toEqual([])
       expect(state.unexpectedRequests).toEqual([])
       expect(page).toHaveNoJavascriptErrors()
+    } catch (error) {
+      await captureQuestBrowserFailure(page, state, 'reconnect')
+      throw error
     } finally {
       await page.raw.goto('about:blank')
       state.restore()

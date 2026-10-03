@@ -121,6 +121,14 @@ test('Quest metadata preserves typed falsy defaults and excludes secret defaults
     job.inputs.slice(0, 4).map((field) => field.defaultsTo),
     [false, 0, '', { empty: [], flag: false }]
   )
+  const declared = describeJob({
+    name: 'declared',
+    inputs: {
+      opaque: { type: 'string', secret: true, defaultsTo: 'do-not-copy' }
+    }
+  })
+  assert.equal(declared.inputs[0].sensitive, true)
+  assert.equal(Object.hasOwn(declared.inputs[0], 'defaultsTo'), false)
   assert.equal(job.inputs[4].sensitive, true)
   assert.equal(Object.hasOwn(job.inputs[4], 'defaultsTo'), false)
   assert.equal(job.timezone, 'UTC')

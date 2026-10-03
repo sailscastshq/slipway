@@ -38,6 +38,8 @@ jobs:
     name: Quest history payload budget
     timeout-minutes: 10
     runs-on: ubuntu-latest
+    env:
+      SLIPWAY_QUEST_HISTORY_REPORT: .tmp/quest-history-budget.json
     steps:
       - uses: actions/checkout@v6
         with:
@@ -201,6 +203,9 @@ jobs:
           }
           const before = read('before/performance.json')
           const after = read('after/performance.json')
+          assert.equal(before.measurementVersion, 2)
+          assert.equal(after.measurementVersion, 2)
+          assert.equal(before.driverReadiness, after.driverReadiness)
           const metrics = ['questJsonBytes', 'initialJsonBytes', 'documentElementCount', 'navigationToReadyMs']
           const rows = []
           const rawTimings = []

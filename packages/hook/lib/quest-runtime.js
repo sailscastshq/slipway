@@ -65,7 +65,10 @@ function logTail(value, limit = 32768) {
 function describeJob(job) {
   const inputs = Object.entries(job.inputs || {}).map(([name, field]) => {
     const secret =
-      field.sensitive === true || field.protect === true || sensitive.test(name)
+      field.sensitive === true ||
+      field.protect === true ||
+      field.secret === true ||
+      sensitive.test(name)
     const output = {
       name,
       type: field.type || 'ref',

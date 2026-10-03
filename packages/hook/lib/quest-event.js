@@ -29,7 +29,8 @@ module.exports = function questEvent(
     inputs = safeValue(data.inputs || {})
     const metadata = sails.quest?.metadata?.(data.name)
     for (const [name, field] of Object.entries(metadata?.inputs || {}))
-      if (field.sensitive || field.protect) inputs[name] = '<redacted>'
+      if (field.sensitive || field.protect || field.secret)
+        inputs[name] = '<redacted>'
     result = safeValue(data.result || result)
     if (Buffer.byteLength(JSON.stringify(result)) > 16 * 1024)
       result = { status: 'too_large', truncated: true }

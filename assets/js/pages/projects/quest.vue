@@ -1,6 +1,13 @@
 <script setup>
 import { Head, router, usePage } from '@inertiajs/vue3'
-import { computed, inject, onBeforeUnmount, ref, watch } from 'vue'
+import {
+  computed,
+  defineAsyncComponent,
+  inject,
+  onBeforeUnmount,
+  ref,
+  watch
+} from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
 import AppNavbarVersion from '@/components/AppNavbarVersion.vue'
 import Breadcrumb from '@/components/ui/breadcrumb/Breadcrumb.vue'
@@ -21,8 +28,6 @@ import ChevronLeft from '@/components/ui/icons/ChevronLeft.vue'
 import Spinner from '@/components/SlipwaySpinner.vue'
 import QuestStatus from '@/components/quest/QuestStatus.vue'
 import QuestRuns from '@/components/quest/QuestRuns.vue'
-import QuestRunDetail from '@/components/quest/QuestRunDetail.vue'
-import QuestRunDialog from '@/components/quest/QuestRunDialog.vue'
 import { useQueryState } from '@/components/ui/durable-ui/useQueryState'
 import { useEventSource } from '@/composables/sse'
 import {
@@ -37,6 +42,13 @@ import {
   questOverlapLabel,
   createQuestHistoryLoader
 } from '@/lib/questWorkspace.mjs'
+
+const QuestRunDetail = defineAsyncComponent(() =>
+  import('@/components/quest/QuestRunDetail.vue')
+)
+const QuestRunDialog = defineAsyncComponent(() =>
+  import('@/components/quest/QuestRunDialog.vue')
+)
 
 defineOptions({ layout: AppLayout })
 const props = defineProps({
@@ -1300,95 +1312,97 @@ async function loadMore() {
               </div>
             </div>
             <div data-slot="tab-panel" data-value="runs" class="pt-4">
-              <div class="mb-4 flex flex-wrap items-center gap-2">
-                <Select
-                  v-model="runJobFilter"
-                  aria-label="Filter runs by job"
-                  :class="[filterClass, 'max-w-64']"
-                  :options="jobFilterOptions"
-                /><Select
-                  v-model="runStateFilter"
-                  aria-label="Filter runs by state"
-                  :class="filterClass"
-                  :options="[
-                    { label: 'All states', value: 'all' },
-                    { label: 'Running', value: 'running' },
-                    { label: 'Accepted', value: 'accepted' },
-                    { label: 'Requested', value: 'requested' },
-                    { label: 'Unconfirmed', value: 'unconfirmed' },
-                    { label: 'Completed', value: 'completed' },
-                    { label: 'Failed', value: 'failed' },
-                    { label: 'Interrupted', value: 'interrupted' }
-                  ]"
-                /><span
-                  data-test="quest-history-scope"
-                  class="ml-auto text-xs text-gray-400"
-                  >{{ live.historyScope
-                  }}{{ live.nextCursor ? ' · Loaded history' : '' }}</span
+              <template v-if="activeTab === 'runs'">
+                <div class="mb-4 flex flex-wrap items-center gap-2">
+                  <Select
+                    v-model="runJobFilter"
+                    aria-label="Filter runs by job"
+                    :class="[filterClass, 'max-w-64']"
+                    :options="jobFilterOptions"
+                  /><Select
+                    v-model="runStateFilter"
+                    aria-label="Filter runs by state"
+                    :class="filterClass"
+                    :options="[
+                      { label: 'All states', value: 'all' },
+                      { label: 'Running', value: 'running' },
+                      { label: 'Accepted', value: 'accepted' },
+                      { label: 'Requested', value: 'requested' },
+                      { label: 'Unconfirmed', value: 'unconfirmed' },
+                      { label: 'Completed', value: 'completed' },
+                      { label: 'Failed', value: 'failed' },
+                      { label: 'Interrupted', value: 'interrupted' }
+                    ]"
+                  /><span
+                    data-test="quest-history-scope"
+                    class="ml-auto text-xs text-gray-400"
+                    >{{ live.historyScope
+                    }}{{ live.nextCursor ? ' · Loaded history' : '' }}</span
+                  >
+                </div>
+                <div
+                  class="overflow-hidden rounded-lg border border-gray-200 dark:border-gray-800"
                 >
-              </div>
-              <div
-                class="overflow-hidden rounded-lg border border-gray-200 dark:border-gray-800"
-              >
-                <QuestRuns
-                  :runs="filteredRuns"
-                  :legacy-events="filteredEvents"
-                  :jobs="jobs"
-                  show-job
-                  :now="now"
-                  :selected-run="selectedRunId"
-                  :selected-event="selectedEventId"
-                  :empty-text="
-                    runJobFilter !== 'all' || runStateFilter !== 'all'
-                      ? live.nextCursor
-                        ? 'No runs match these filters in loaded history.'
-                        : 'No runs match these filters.'
-                      : 'No runs recorded yet.'
-                  "
-                  @select="chooseRun"
-                />
-              </div>
-              <div
-                class="mt-3 flex flex-wrap items-center justify-between gap-3"
-              >
+                  <QuestRuns
+                    :runs="filteredRuns"
+                    :legacy-events="filteredEvents"
+                    :jobs="jobs"
+                    show-job
+                    :now="now"
+                    :selected-run="selectedRunId"
+                    :selected-event="selectedEventId"
+                    :empty-text="
+                      runJobFilter !== 'all' || runStateFilter !== 'all'
+                        ? live.nextCursor
+                          ? 'No runs match these filters in loaded history.'
+                          : 'No runs match these filters.'
+                        : 'No runs recorded yet.'
+                    "
+                    @select="chooseRun"
+                  />
+                </div>
+                <div
+                  class="mt-3 flex flex-wrap items-center justify-between gap-3"
+                >
+                  <p
+                    v-if="live.legacyEvents.length"
+                    class="text-[11px] text-gray-400"
+                  >
+                    Legacy rows are telemetry events; correlated run details may
+                    be unavailable.
+                  </p>
+                  <Button
+                    v-if="live.nextCursor"
+                    :disabled="moreLoading"
+                    class="min-h-8 border border-gray-200 bg-transparent px-3 py-1 text-xs text-gray-600 hover:bg-gray-100 dark:border-gray-800 dark:bg-transparent dark:text-gray-400 dark:hover:bg-gray-900"
+                    @click="loadMore"
+                    >{{ moreLoading ? 'Loading…' : 'Load more' }}</Button
+                  >
+                </div>
                 <p
-                  v-if="live.legacyEvents.length"
-                  class="text-[11px] text-gray-400"
+                  v-if="moreError"
+                  role="alert"
+                  class="mt-2 text-xs text-red-600 dark:text-red-400"
                 >
-                  Legacy rows are telemetry events; correlated run details may
-                  be unavailable.
+                  {{ moreError }}
                 </p>
-                <Button
-                  v-if="live.nextCursor"
-                  :disabled="moreLoading"
-                  class="min-h-8 border border-gray-200 bg-transparent px-3 py-1 text-xs text-gray-600 hover:bg-gray-100 dark:border-gray-800 dark:bg-transparent dark:text-gray-400 dark:hover:bg-gray-900"
-                  @click="loadMore"
-                  >{{ moreLoading ? 'Loading…' : 'Load more' }}</Button
-                >
-              </div>
-              <p
-                v-if="moreError"
-                role="alert"
-                class="mt-2 text-xs text-red-600 dark:text-red-400"
-              >
-                {{ moreError }}
-              </p>
-              <QuestRunDetail
-                v-if="
-                  activeTab === 'runs' && (selectedRunId || selectedEventId)
-                "
-                class="mt-4"
-                :api-url="apiUrl"
-                :run-id="selectedRunId"
-                :event-id="selectedEventId"
-                :revision="detailRevision"
-                :job="selectedRunJob"
-                :can-run="canInvoke(selectedRunJob)"
-                :can-cancel="live.capabilities.cancel"
-                @loaded="onRunLoaded"
-                @close="closeRun"
-                @run-again="openRun(selectedRunJob, $event)"
-              />
+                <QuestRunDetail
+                  v-if="
+                    activeTab === 'runs' && (selectedRunId || selectedEventId)
+                  "
+                  class="mt-4"
+                  :api-url="apiUrl"
+                  :run-id="selectedRunId"
+                  :event-id="selectedEventId"
+                  :revision="detailRevision"
+                  :job="selectedRunJob"
+                  :can-run="canInvoke(selectedRunJob)"
+                  :can-cancel="live.capabilities.cancel"
+                  @loaded="onRunLoaded"
+                  @close="closeRun"
+                  @run-again="openRun(selectedRunJob, $event)"
+                />
+              </template>
             </div>
           </Tabs>
           <QuestRunDetail
@@ -1408,6 +1422,7 @@ async function loadMore() {
       </div>
     </main>
     <QuestRunDialog
+      v-if="review"
       v-model:open="reviewOpen"
       :review="review"
       :stale="reviewStale"
