@@ -24,9 +24,9 @@ module.exports = {
       .filter(Boolean)
 
     if (sails.config.custom.slipwayIngress === 'cloudflare-tunnel') {
-      return normalizedDomains.map((domain) => `http://${domain}`).join(',')
+      return normalizedDomains.map((domain) => `http://${domain}`).join(', ')
     }
 
-    return normalizedDomains.join(',')
+    return normalizedDomains.join(', ')
   }
 }
