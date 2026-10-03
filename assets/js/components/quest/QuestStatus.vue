@@ -10,6 +10,8 @@ const label = computed(
       unconfirmed: 'Unconfirmed',
       queued: 'Queued',
       running: 'Running',
+      started: 'Started',
+      start: 'Started',
       completed: 'Completed',
       succeeded: 'Completed',
       failed: 'Failed',

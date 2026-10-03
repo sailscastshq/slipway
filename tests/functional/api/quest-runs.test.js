@@ -127,6 +127,15 @@ test(
     )
     const detail = await ledger.getRun(scope, run.runId)
     assert.equal(detail.state, 'completed')
+    assert.deepEqual(await ledger.getReceiptMeta(scope, run.runId), {
+      sequence: 4,
+      runtimeId: 'runtime-a',
+      state: 'completed'
+    })
+    assert.equal(
+      await ledger.getReceiptMeta({ ...scope, appId: 999 }, run.runId),
+      null
+    )
     assert.equal(detail.result.value.total, 0)
     assert.equal(detail.result.exit, 'invalid')
     assert.equal(detail.exitCode, 0)
@@ -442,8 +451,253 @@ test(
       .updateOne({ runId: run.runId })
       .set({ requestedAt: Date.now() - ledger.RETENTION_MS - 1 })
     assert.equal(await ledger.getRun(scope, run.runId), null)
+    assert.equal(await ledger.getReceiptMeta(scope, run.runId), null)
     assert.equal(await ledger.getLogs(scope, run.runId), null)
     assert.equal((await ledger.listRuns(scope)).runs.length, 0)
     assert.equal((await ledger.prune()).deleted, 1)
+  }
+)
+
+test(
+  'Quest selected-job history filters both datasets before stable pagination and binds cursor scope',
+  {
+    world: {
+      ...worldConfig,
+      context: { deploymentTarget: { slug: 'quest-job-filter' } }
+    }
+  },
+  async ({ world, sails, request, expect }) => {
+    const scope = scopeFor(world)
+    const job = 'ops/rebuild-search'
+    const at = Date.now() - 1000
+    const selectedIds = []
+    for (let i = 0; i < 7; i++)
+      selectedIds.push(
+        (
+          await ledger.admit(
+            admission(scope, { jobName: job, requestedAt: at })
+          )
+        ).runId
+      )
+    for (let i = 0; i < 30; i++)
+      await ledger.admit(
+        admission(scope, { jobName: 'busy-other-job', requestedAt: at + 500 })
+      )
+    const legacy = await sails.models.telemetrymetric
+      .createEach(
+        Array.from({ length: 3 }, (_, index) => ({
+          environment: String(scope.environmentId),
+          name: index ? 'quest.job.complete' : 'quest.job.error',
+          value: index,
+          recordedAt: at,
+          attributes: {
+            jobName: job,
+            stdout: 'lazy only',
+            payload: { doNotLoad: true }
+          }
+        }))
+      )
+      .fetch()
+    await sails.models.telemetrymetric.createEach([
+      {
+        environment: String(scope.environmentId),
+        name: 'quest.job.complete',
+        value: 0,
+        recordedAt: at,
+        attributes: { jobName: job, appId: 999 }
+      },
+      {
+        environment: '999999',
+        name: 'quest.job.complete',
+        value: 0,
+        recordedAt: at,
+        attributes: { jobName: job }
+      },
+      {
+        environment: String(scope.environmentId),
+        name: 'quest.job.complete',
+        value: 0,
+        recordedAt: at,
+        attributes: { jobName: 'different-job' }
+      }
+    ])
+    const browser = request.as('genesisUser')
+    const base = '/api/v1/projects/quest-job-filter/quest/runs'
+    const unfiltered = await ledger.listRuns(scope)
+    assert.equal(
+      unfiltered.runs.some((run) => run.jobName === job),
+      false
+    )
+    const firstResponse = await browser.get(
+      `${base}?job=${encodeURIComponent(job)}&limit=4`
+    )
+    expect(firstResponse).toHaveStatus(200)
+    const first = firstResponse.data
+    assert.equal(first.runs.length, 4)
+    assert.ok(first.nextCursor)
+    // A selected job's new/backdated receipts cannot enter an existing page snapshot.
+    await ledger.admit(admission(scope, { jobName: job, requestedAt: at }))
+    await sails.models.telemetrymetric.create({
+      environment: String(scope.environmentId),
+      name: 'quest.job.complete',
+      value: 0,
+      recordedAt: at,
+      attributes: { jobName: job }
+    })
+    let page = first
+    const runs = [],
+      events = []
+    for (let count = 0; count < 5; count++) {
+      runs.push(...page.runs)
+      events.push(...page.legacyEvents)
+      assert.ok(
+        [...page.runs, ...page.legacyEvents].every(
+          (row) =>
+            row.jobName === job &&
+            !Object.hasOwn(row, 'inputs') &&
+            !Object.hasOwn(row, 'result') &&
+            !Object.hasOwn(row, 'stdout')
+        )
+      )
+      if (!page.nextCursor) break
+      const response = await browser.get(
+        `${base}?job=${encodeURIComponent(job)}&limit=4&cursor=${
+          page.nextCursor
+        }`
+      )
+      expect(response).toHaveStatus(200)
+      page = response.data
+    }
+    assert.equal(page.nextCursor, null)
+    assert.deepEqual(
+      new Set(runs.map((run) => run.runId)),
+      new Set(selectedIds)
+    )
+    assert.deepEqual(
+      new Set(events.map((event) => event.eventId)),
+      new Set(legacy.map((event) => event.id))
+    )
+    for (const wrongJob of [undefined, 'busy-other-job', '0']) {
+      const suffix =
+        wrongJob === undefined ? '' : `&job=${encodeURIComponent(wrongJob)}`
+      expect(
+        await browser.get(`${base}?cursor=${first.nextCursor}${suffix}`)
+      ).toHaveStatus(400)
+    }
+    expect(
+      await browser.get(
+        `${base}?job=${encodeURIComponent(job)}&cursor=${unfiltered.nextCursor}`
+      )
+    ).toHaveStatus(400)
+    await assert.rejects(
+      ledger.listRuns(
+        { ...scope, appId: 999 },
+        { job, cursor: first.nextCursor }
+      ),
+      { code: 'QUEST_INVALID_CURSOR' }
+    )
+    await assert.rejects(
+      ledger.listRuns(
+        { ...scope, environmentId: 999 },
+        { job, cursor: first.nextCursor }
+      ),
+      { code: 'QUEST_INVALID_CURSOR' }
+    )
+    assert.equal(
+      (
+        await ledger.listRuns(
+          { ...scope, appId: 999, includeLegacy: false },
+          { job }
+        )
+      ).runs.length,
+      0
+    )
+    assert.equal(
+      (await ledger.listRuns(scope, { job: "x' OR 1=1 --" })).legacyEvents
+        .length,
+      0
+    )
+  }
+)
+
+test(
+  'Quest history job filters preserve falsy-looking and path names and enforce byte bounds',
+  {
+    world: {
+      ...worldConfig,
+      context: { deploymentTarget: { slug: 'quest-job-filter-names' } }
+    }
+  },
+  async ({ world, sails, request, expect }) => {
+    const scope = scopeFor(world)
+    const names = [
+      '0',
+      'false',
+      'null',
+      'ops/daily-report',
+      '../literal-history-name',
+      '💛'.repeat(64)
+    ]
+    const base = '/api/v1/projects/quest-job-filter-names/quest/runs'
+    const browser = request.as('genesisUser')
+    for (const job of names) {
+      await ledger.admit(admission(scope, { jobName: job }))
+      await sails.models.telemetrymetric.create({
+        environment: String(scope.environmentId),
+        name: 'quest.job.complete',
+        value: 0,
+        recordedAt: Date.now(),
+        attributes: { jobName: job }
+      })
+    }
+    // Legacy non-string names must not be coerced into a selected string name.
+    await sails.models.telemetrymetric.createEach(
+      [0, false, null].map((jobName) => ({
+        environment: String(scope.environmentId),
+        name: 'quest.job.complete',
+        value: 0,
+        recordedAt: Date.now(),
+        attributes: { jobName }
+      }))
+    )
+    for (const job of names) {
+      const response = await browser.get(
+        `${base}?job=${encodeURIComponent(job)}`
+      )
+      expect(response).toHaveStatus(200)
+      assert.equal(response.data.runs.length, 1)
+      assert.equal(response.data.legacyEvents.length, 1)
+      assert.equal(response.data.runs[0].jobName, job)
+      assert.equal(response.data.legacyEvents[0].jobName, job)
+    }
+    for (const job of [
+      'a'.repeat(257),
+      '💛'.repeat(65),
+      'ops/\0hidden',
+      'ops/\nhidden',
+      'ops/\u007fhidden'
+    ])
+      expect(
+        await browser.get(`${base}?job=${encodeURIComponent(job)}`)
+      ).toHaveStatus(400)
+    for (const job of [false, 0, [], {}])
+      await assert.rejects(ledger.listRuns(scope, { job }), {
+        code: 'QUEST_INVALID_JOB_FILTER'
+      })
+    for (const job of [undefined, null, ''])
+      assert.equal(
+        (await ledger.listRuns(scope, { job })).runs.length,
+        names.length
+      )
+    const unfiltered = await ledger.listRuns(scope, { limit: 1 })
+    const oldCursor = JSON.parse(
+      Buffer.from(unfiltered.nextCursor, 'base64url').toString()
+    )
+    delete oldCursor.job
+    assert.ok(
+      await ledger.listRuns(scope, {
+        cursor: Buffer.from(JSON.stringify(oldCursor)).toString('base64url')
+      })
+    )
   }
 )

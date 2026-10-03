@@ -1,7 +1,5 @@
 const crypto = require('node:crypto')
-const {
-  sanitizeQuestDiagnostic
-} = require('../../packages/hook/lib/quest-diagnostics')
+const { sanitizeQuestDiagnostic } = require('./contracts/quest-diagnostics')
 
 const RETENTION_MS = 7 * 24 * 60 * 60 * 1000
 const MAX_RESULT_BYTES = 128 * 1024
@@ -433,6 +431,14 @@ function summary(run) {
     ])
   )
 }
+async function getReceiptMeta(scope, runId, options = {}) {
+  const run = await modelFor(options)
+    .findOne({ ...scopeWhere(scope, options), runId })
+    .select(['sequence', 'runtimeId', 'state'])
+  return run
+    ? { sequence: run.sequence, runtimeId: run.runtimeId, state: run.state }
+    : null
+}
 async function getRun(scope, runId, options = {}) {
   const run = await modelFor(options)
     .findOne({ ...scopeWhere(scope, options), runId })
@@ -524,7 +530,20 @@ async function getEvent(scope, eventId, options = {}) {
     stderr: boundedText(event.attributes?.stderr, MAX_LOG_BYTES, options).value
   }
 }
-function decodeCursor(cursor, scope) {
+function normalizeJobFilter(job) {
+  if (job == null || job === '') return null
+  if (
+    typeof job !== 'string' ||
+    Buffer.byteLength(job) > 256 ||
+    /[\u0000-\u001f\u007f]/.test(job)
+  )
+    throw failure(
+      'QUEST_INVALID_JOB_FILTER',
+      'Quest history job must be a string of at most 256 UTF-8 bytes without control characters.'
+    )
+  return job
+}
+function decodeCursor(cursor, scope, job) {
   if (!cursor) return null
   try {
     if (
@@ -538,13 +557,14 @@ function decodeCursor(cursor, scope) {
       parsed.v !== 1 ||
       parsed.environment !== String(scope.environmentId) ||
       parsed.app !== String(scope.appId) ||
+      (parsed.job ?? null) !== job ||
       !['run', 'event'].includes(parsed.kind) ||
       !['at', 'id', 'asOf', 'maxRunId', 'maxEventId'].every(
         (key) => Number.isSafeInteger(parsed[key]) && parsed[key] >= 0
       )
     )
       throw new Error()
-    return parsed
+    return { ...parsed, job }
   } catch {
     throw failure('QUEST_INVALID_CURSOR', 'Invalid Quest history cursor.')
   }
@@ -582,6 +602,12 @@ async function listLegacySummaries(metrics, scope, position, limit, options) {
     position.maxEventId,
     String(scope.appId)
   ]
+  if (position.job !== null) {
+    clauses.push(
+      `json_type(${attributes}, '$.jobName') = 'text' AND json_extract(${attributes}, '$.jobName') = ?`
+    )
+    values.push(position.job)
+  }
   if (position.at != null) {
     if (position.kind === 'event') {
       clauses.push('(recorded_at < ? OR (recorded_at = ? AND id < ?))')
@@ -610,8 +636,12 @@ async function listLegacySummaries(metrics, scope, position, limit, options) {
     attributes: { jobName: row.jobName, error: row.error, trigger: row.trigger }
   }))
 }
-async function listRuns(scope, { cursor, limit = 25 } = {}, options = {}) {
-  const where = scopeWhere(scope, options)
+async function listRuns(scope, { job, cursor, limit = 25 } = {}, options = {}) {
+  job = normalizeJobFilter(job)
+  const where = {
+    ...scopeWhere(scope, options),
+    ...(job !== null ? { jobName: job } : {})
+  }
   if (!Number.isInteger(limit) || limit < 1)
     throw failure(
       'QUEST_INVALID_LIMIT',
@@ -625,7 +655,7 @@ async function listRuns(scope, { cursor, limit = 25 } = {}, options = {}) {
     name: { in: LEGACY_NAMES },
     recordedAt: { '>=': nowFor(options) - RETENTION_MS }
   }
-  let position = decodeCursor(cursor, scope)
+  let position = decodeCursor(cursor, scope, job)
   if (!position) {
     const [runs, events] = await Promise.all([
       model.find(where).select(['id']).sort('id DESC').limit(1),
@@ -634,6 +664,7 @@ async function listRuns(scope, { cursor, limit = 25 } = {}, options = {}) {
     position = {
       v: 1,
       ...normalizedScope(scope),
+      job,
       asOf: nowFor(options),
       maxRunId: runs[0]?.id || 0,
       maxEventId: events[0]?.id || 0
@@ -757,6 +788,7 @@ module.exports = {
   ingest,
   markUnconfirmed,
   getRun,
+  getReceiptMeta,
   getLogs,
   getEvent,
   listRuns,

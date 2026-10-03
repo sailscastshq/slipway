@@ -12,6 +12,11 @@ on:
       - api/controllers/api/v1/quest/**
       - api/helpers/quest/**
       - api/lib/quest*
+      - api/models/QuestRun.js
+      - api/lib/contracts/quest-diagnostics.js
+      - packages/hook/lib/quest*
+      - tests/contracts/quest-history-budget.test.js
+      - docs/quest-history-budget.md
       - packages/hook/lib/quest*
       - config/routes.js
       - config/policies.js
@@ -29,6 +34,30 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  history-budget:
+    name: Quest history payload budget
+    timeout-minutes: 10
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit
+      - name: Verify actual SQLite bounded summaries and lazy detail
+        run: node_modules/.bin/sounding test --file tests/contracts/quest-history-budget.test.js --test-concurrency=1
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: quest-history-budget-${{ github.event.pull_request.head.sha || github.sha }}
+          path: .tmp/quest-history-budget.json
+          if-no-files-found: error
+          retention-days: 90
+
   baseline:
     name: Quest before screenshots
     timeout-minutes: 15
@@ -174,9 +203,16 @@ jobs:
           const after = read('after/performance.json')
           const metrics = ['questJsonBytes', 'initialJsonBytes', 'documentElementCount', 'navigationToReadyMs']
           const rows = []
+          const rawTimings = []
+          assert.equal(before.navigationSamplesPerCapture, 5)
+          assert.equal(after.navigationSamplesPerCapture, 5)
           for (const sample of after.measurements) {
             const previous = before.measurements.find(row => row.capture === sample.capture)
             assert.ok(previous, `Missing baseline for ${sample.capture}`)
+            assert.equal(previous.navigationToReadySamplesMs.length, 5)
+            assert.equal(sample.navigationToReadySamplesMs.length, 5)
+            for (const elapsed of sample.navigationToReadySamplesMs) assert.ok(elapsed <= after.budgets.navigationToReadyMs)
+            rawTimings.push(`- ${sample.capture}: before [${previous.navigationToReadySamplesMs.join(', ')}] ms; after [${sample.navigationToReadySamplesMs.join(', ')}] ms`)
             for (const metric of metrics) {
               assert.ok(sample[metric] <= after.budgets[metric], `${sample.capture} exceeds ${metric} budget`)
               rows.push(`| ${sample.capture} | ${metric} | ${previous[metric]} | ${sample[metric]} | ${after.budgets[metric]} |`)
@@ -194,6 +230,9 @@ jobs:
             '| Viewport/theme | Measurement | Before | After | After budget |',
             '| --- | --- | ---: | ---: | ---: |',
             ...rows,
+            '',
+            'Navigation-to-ready is the median of five sequential navigations per viewport; every individual sample must also meet the existing budget. Raw samples:',
+            ...rawTimings,
             '',
             'Values are real browser observations with synthetic Inertia data and a controlled SSE transport. Independent CI runners, shared application chrome, and first-render noise make timing descriptive, not a production speedup claim. The former 500-event history bound and 30-second polling are source context only; this fixture does not exercise either workload or a runtime.',
             '',

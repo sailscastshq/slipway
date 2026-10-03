@@ -289,7 +289,7 @@ test('Quest invocation rejections cannot create runs even when the body claims s
   expect
 }) => {
   const { requestQuestInvocation } = await workspaceModule()
-  for (const status of [400, 401, 403, 404, 409, 419, 500, 502]) {
+  for (const status of [400, 401, 403, 404, 409, 419]) {
     let calls = 0
     const result = await requestQuestInvocation(
       '/synthetic',
@@ -347,5 +347,147 @@ test('Quest invocation disconnects and invalid successful responses remain uncon
     expect(result.state).toBe('unconfirmed')
     expect(result.error).toContain('Check Runs')
     expect('run' in result).toBe(false)
+  }
+})
+
+test('Quest empty inputs are only definitive with explicit typed resident metadata', async ({
+  expect
+}) => {
+  const { questInputMetadataAvailable } = await workspaceModule()
+  const job = { name: 'no-inputs', metadataVersion: 'v1', inputs: [] }
+  const workspace = { mode: 'resident', capabilities: { typedInputs: true } }
+  expect(questInputMetadataAvailable(job, workspace)).toBe(true)
+  expect(
+    questInputMetadataAvailable(job, { ...workspace, mode: 'legacy' })
+  ).toBe(false)
+  expect(
+    questInputMetadataAvailable(job, { ...workspace, mode: 'unavailable' })
+  ).toBe(false)
+  expect(
+    questInputMetadataAvailable(job, {
+      ...workspace,
+      capabilities: { typedInputs: false }
+    })
+  ).toBe(false)
+  expect(
+    questInputMetadataAvailable(job, { ...workspace, capabilities: {} })
+  ).toBe(false)
+  expect(
+    questInputMetadataAvailable({ name: 'source-only', inputs: [] }, workspace)
+  ).toBe(false)
+  expect(
+    questInputMetadataAvailable({ ...job, inputs: undefined }, workspace)
+  ).toBe(false)
+})
+
+test('Quest unknown overlap metadata never implies concurrent execution is allowed', async ({
+  expect
+}) => {
+  const { questOverlapLabel } = await workspaceModule()
+  expect(questOverlapLabel({})).toBe('Unavailable')
+  expect(questOverlapLabel({ withoutOverlapping: null })).toBe('Unavailable')
+  expect(questOverlapLabel({ withoutOverlapping: 'false' })).toBe('Unavailable')
+  expect(questOverlapLabel({ withoutOverlapping: false })).toBe(
+    'Concurrent executions allowed'
+  )
+  expect(questOverlapLabel({ withoutOverlapping: true })).toBe(
+    'Prevent concurrent executions'
+  )
+})
+
+test('Quest server failures and explicit uncertain admission never enable a blind retry', async ({
+  expect
+}) => {
+  const { requestQuestInvocation } = await workspaceModule()
+  for (const [status, code] of [
+    [500],
+    [502],
+    [504],
+    [400, 'QUEST_UNCONFIRMED'],
+    [409, 'QUEST_UNCONFIRMED']
+  ]) {
+    let calls = 0
+    const result = await requestQuestInvocation(
+      '/synthetic',
+      { requestId: 'same-reviewed-attempt' },
+      '',
+      async (url, options) => {
+        calls++
+        expect(JSON.parse(options.body).requestId).toBe('same-reviewed-attempt')
+        return {
+          ok: false,
+          status,
+          json: async () => ({
+            code,
+            message: 'Acceptance response lost.',
+            run: { runId: 'not-authoritative', state: 'completed' }
+          })
+        }
+      }
+    )
+    expect(calls).toBe(1)
+    expect(result.state).toBe('unconfirmed')
+    expect(result.error).toContain('Check Runs')
+    expect('run' in result).toBe(false)
+  }
+})
+
+test('Quest selected-job history reads exact scoped URLs and rejects late prior-selection responses', async ({
+  expect
+}) => {
+  const { createQuestHistoryLoader } = await workspaceModule()
+  const pending = []
+  const loader = createQuestHistoryLoader(
+    (url, options) =>
+      new Promise((resolve) =>
+        pending.push({ url, signal: options.signal, resolve })
+      )
+  )
+  const first = loader.load('/quest/runs?job=first&cursor=first-page')
+  const second = loader.load('/quest/runs?job=second')
+  expect(pending[0].signal.aborted).toBe(true)
+  expect(pending[0].url).toBe('/quest/runs?job=first&cursor=first-page')
+  expect(pending[1].url).toBe('/quest/runs?job=second')
+  const secondPage = {
+    runs: [{ runId: 'second-run', jobName: 'second', state: 'completed' }],
+    legacyEvents: [],
+    nextCursor: 'second-page'
+  }
+  pending[1].resolve({ ok: true, json: async () => secondPage })
+  expect(await second).toEqual({ data: secondPage, error: null })
+  pending[0].resolve({
+    ok: true,
+    json: async () => ({
+      runs: [{ runId: 'first-run', jobName: 'first' }],
+      legacyEvents: [],
+      nextCursor: null
+    })
+  })
+  expect(await first).toEqual({ stale: true })
+})
+
+test('Quest selected-job history cancellation prevents old errors or rows from reaching dismissed views', async ({
+  expect
+}) => {
+  const { createQuestHistoryLoader } = await workspaceModule()
+  let rejectRequest
+  const loader = createQuestHistoryLoader(
+    () =>
+      new Promise((resolve, reject) => {
+        rejectRequest = reject
+      })
+  )
+  const pending = loader.load('/quest/runs?job=first')
+  loader.cancel()
+  rejectRequest(new Error('Connection interrupted'))
+  expect(await pending).toEqual({ stale: true })
+  for (const response of [
+    { ok: false, status: 403 },
+    { ok: true, json: async () => ({ runs: [] }) }
+  ]) {
+    const reader = createQuestHistoryLoader(async () => response)
+    const result = await reader.load('/quest/runs?job=first')
+    expect(result.data).toBe(null)
+    expect(typeof result.error).toBe('string')
   }
 })

@@ -32,7 +32,10 @@ import {
   questRunTime,
   questRelativeTime,
   questAbsoluteTime,
-  questInputType
+  questInputType,
+  questInputMetadataAvailable,
+  questOverlapLabel,
+  createQuestHistoryLoader
 } from '@/lib/questWorkspace.mjs'
 
 defineOptions({ layout: AppLayout })
@@ -75,6 +78,17 @@ const refreshing = ref(false)
 const moreLoading = ref(false)
 const moreError = ref('')
 const historyExpanded = ref(false)
+const jobHistoryReader = createQuestHistoryLoader()
+const scopedJobHistory = ref({
+  key: '',
+  runs: [],
+  legacyEvents: [],
+  nextCursor: null,
+  loaded: false,
+  loading: false,
+  error: ''
+})
+onBeforeUnmount(() => jobHistoryReader.cancel())
 const actionError = ref('')
 const changingSchedule = ref('')
 const review = ref(null)
@@ -167,6 +181,9 @@ const selectedJob = computed(() =>
   jobs.value.find((job) => job.name === selectedJobName.value)
 )
 const state = (job) => questJobState(job, live.value, fresh.value)
+const inputMetadataAvailable = computed(() =>
+  questInputMetadataAvailable(selectedJob.value, live.value)
+)
 const scheduleLabel = (job) =>
   job.scheduleType === 'unavailable' ? 'Unavailable' : job.schedule || 'Manual'
 const canInvoke = (job) =>
@@ -178,7 +195,7 @@ const canInvoke = (job) =>
   typeof job.isRunning === 'boolean' &&
   !job.validationErrors?.length &&
   !(job.withoutOverlapping && job.isRunning) &&
-  (!job.inputs?.length || live.value.capabilities.typedInputs)
+  questInputMetadataAvailable(job, live.value)
 const runDisabledReason = (job) =>
   !fresh.value
     ? 'Live runtime unavailable'
@@ -192,8 +209,8 @@ const runDisabledReason = (job) =>
     ? 'An execution is already running'
     : !live.value.capabilities.invoke
     ? 'This runtime does not support manual runs'
-    : job?.inputs?.length && !live.value.capabilities.typedInputs
-    ? 'This runtime does not support typed inputs'
+    : !questInputMetadataAvailable(job, live.value)
+    ? 'Input metadata unavailable'
     : !job?.metadataVersion
     ? 'Job metadata unavailable'
     : ''
@@ -251,14 +268,98 @@ const filteredEvents = computed(() =>
       (runStateFilter.value === 'all' || event.event === runStateFilter.value)
   )
 )
-const jobRuns = computed(() =>
-  live.value.runs.filter((run) => run.jobName === selectedJobName.value)
+const selectedHistoryKey = computed(
+  () =>
+    `${apiUrl.value}:${live.value.target.appId || ''}:${selectedJobName.value}`
 )
-const jobEvents = computed(() =>
-  live.value.legacyEvents.filter(
-    (event) => event.jobName === selectedJobName.value
+const jobRuns = computed(() =>
+  mergeQuestRuns(
+    scopedJobHistory.value.key === selectedHistoryKey.value
+      ? scopedJobHistory.value.runs
+      : [],
+    live.value.runs.filter((run) => run.jobName === selectedJobName.value)
   )
 )
+const jobEvents = computed(() =>
+  mergeEvents(
+    scopedJobHistory.value.key === selectedHistoryKey.value
+      ? scopedJobHistory.value.legacyEvents
+      : [],
+    live.value.legacyEvents.filter(
+      (event) => event.jobName === selectedJobName.value
+    )
+  )
+)
+watch(
+  () => [
+    selectedHistoryKey.value,
+    activeTab.value,
+    jobTab.value,
+    selectedJob.value?.name
+  ],
+  () => {
+    if (scopedJobHistory.value.key !== selectedHistoryKey.value) {
+      jobHistoryReader.cancel()
+      scopedJobHistory.value = {
+        key: selectedHistoryKey.value,
+        runs: [],
+        legacyEvents: [],
+        nextCursor: null,
+        loaded: false,
+        loading: false,
+        error: ''
+      }
+    }
+    if (
+      activeTab.value !== 'jobs' ||
+      jobTab.value !== 'runs' ||
+      !selectedJob.value
+    ) {
+      jobHistoryReader.cancel()
+      scopedJobHistory.value.loading = false
+      return
+    }
+    if (!scopedJobHistory.value.loaded && !scopedJobHistory.value.loading)
+      loadJobHistory()
+  },
+  { immediate: true }
+)
+async function loadJobHistory(more = false) {
+  if (
+    !selectedJob.value ||
+    scopedJobHistory.value.loading ||
+    (more && !scopedJobHistory.value.nextCursor)
+  )
+    return
+  const state = scopedJobHistory.value
+  const jobName = selectedJobName.value
+  state.loading = true
+  state.error = ''
+  const params = new URLSearchParams({ job: jobName })
+  if (more) params.set('cursor', state.nextCursor)
+  const result = await jobHistoryReader.load(`${apiUrl.value}/runs?${params}`)
+  if (
+    result.stale ||
+    state !== scopedJobHistory.value ||
+    state.key !== selectedHistoryKey.value
+  )
+    return
+  state.loading = false
+  if (result.error) {
+    state.error = result.error
+    return
+  }
+  state.runs = mergeQuestRuns(
+    more ? state.runs : [],
+    result.data.runs.filter((run) => run.jobName === jobName)
+  )
+  state.legacyEvents = mergeEvents(
+    more ? state.legacyEvents : [],
+    result.data.legacyEvents.filter((event) => event.jobName === jobName)
+  )
+  state.nextCursor = result.data.nextCursor || null
+  state.loaded = true
+}
 const selectedSummary = computed(() =>
   live.value.runs.find((run) => run.runId === selectedRunId.value)
 )
@@ -897,7 +998,10 @@ async function loadMore() {
                         >
                           Inputs
                           <span
-                            v-if="selectedJob.inputs?.length"
+                            v-if="
+                              inputMetadataAvailable &&
+                              selectedJob.inputs?.length
+                            "
                             class="ml-1 text-[10px] text-gray-400"
                             >{{ selectedJob.inputs.length }}</span
                           ></button
@@ -917,7 +1021,11 @@ async function loadMore() {
                           :selected-event="selectedEventId"
                           :now="now"
                           :empty-text="
-                            live.nextCursor
+                            scopedJobHistory.loading
+                              ? 'Loading history…'
+                              : scopedJobHistory.error
+                              ? 'History unavailable.'
+                              : scopedJobHistory.nextCursor
                               ? 'No runs for this job in loaded history.'
                               : 'No runs recorded yet.'
                           "
@@ -932,28 +1040,43 @@ async function loadMore() {
                               ? ' · Legacy telemetry may be incomplete'
                               : ''
                           }}{{
-                            live.nextCursor ? ' · Showing loaded history' : ''
+                            scopedJobHistory.nextCursor
+                              ? ' · Showing loaded history'
+                              : ''
                           }}
                         </p>
                         <div
-                          v-if="live.nextCursor || moreError"
+                          v-if="
+                            scopedJobHistory.nextCursor ||
+                            scopedJobHistory.error
+                          "
                           class="border-t border-gray-100 px-4 py-3 dark:border-gray-800"
                         >
                           <Button
-                            v-if="live.nextCursor"
-                            :disabled="moreLoading"
+                            v-if="scopedJobHistory.nextCursor"
+                            :disabled="scopedJobHistory.loading"
                             class="min-h-8 border border-gray-200 bg-transparent px-3 py-1 text-xs text-gray-600 hover:bg-gray-100 dark:border-gray-800 dark:bg-transparent dark:text-gray-400 dark:hover:bg-gray-900"
-                            @click="loadMore"
+                            @click="loadJobHistory(true)"
                             >{{
-                              moreLoading ? 'Loading…' : 'Load more history'
+                              scopedJobHistory.loading
+                                ? 'Loading…'
+                                : 'Load more history'
                             }}</Button
                           >
                           <p
-                            v-if="moreError"
+                            v-if="scopedJobHistory.error"
                             role="alert"
                             class="mt-2 text-xs text-red-600 dark:text-red-400"
                           >
-                            {{ moreError }}
+                            {{ scopedJobHistory.error }}
+                            <button
+                              type="button"
+                              class="ml-1 underline"
+                              :disabled="scopedJobHistory.loading"
+                              @click="loadJobHistory()"
+                            >
+                              Try again
+                            </button>
                           </p>
                         </div>
                       </div>
@@ -963,13 +1086,22 @@ async function loadMore() {
                         class="divide-y divide-gray-100 dark:divide-gray-800"
                       >
                         <p
-                          v-if="!selectedJob.inputs?.length"
+                          v-if="
+                            !inputMetadataAvailable ||
+                            !selectedJob.inputs?.length
+                          "
                           class="px-4 py-8 text-sm text-gray-500 dark:text-gray-400"
                         >
-                          This job takes no inputs.
+                          {{
+                            inputMetadataAvailable
+                              ? 'This job takes no inputs.'
+                              : 'Input metadata unavailable.'
+                          }}
                         </p>
                         <div
-                          v-for="input in selectedJob.inputs"
+                          v-for="input in inputMetadataAvailable
+                            ? selectedJob.inputs
+                            : []"
                           :key="input.name"
                           class="px-4 py-3"
                         >
@@ -1061,11 +1193,7 @@ async function loadMore() {
                           </dd>
                           <dt class="text-gray-400">Overlap</dt>
                           <dd>
-                            {{
-                              selectedJob.withoutOverlapping
-                                ? 'Prevent concurrent executions'
-                                : 'Concurrent executions allowed'
-                            }}
+                            {{ questOverlapLabel(selectedJob) }}
                           </dd>
                         </dl>
                         <p

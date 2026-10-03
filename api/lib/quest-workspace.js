@@ -156,7 +156,7 @@ async function buildSnapshot(context, inspect = true) {
     for (const summary of base.runs.filter((run) =>
       ['requested', 'running'].includes(run.state)
     )) {
-      const retained = await ledger.getRun(
+      const retained = await ledger.getReceiptMeta(
         { appId: app.id, environmentId: environment.id },
         summary.runId
       )
@@ -172,7 +172,7 @@ async function buildSnapshot(context, inspect = true) {
     const pending = []
     for (const summary of (live.runs || []).slice(-32).reverse()) {
       const retained = await ledger
-        .getRun(
+        .getReceiptMeta(
           { appId: String(app.id), environmentId: String(environment.id) },
           summary.runId
         )

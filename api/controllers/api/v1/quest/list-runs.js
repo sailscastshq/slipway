@@ -8,6 +8,10 @@ module.exports = {
     projectSlug: { type: 'string', required: true },
     environmentSlug: { type: 'string', defaultsTo: 'production' },
     appId: { type: 'number' },
+    job: {
+      type: 'string',
+      description: 'Optional exact job name; nested job paths are supported.'
+    },
     cursor: { type: 'string' },
     limit: { type: 'number', defaultsTo: 25 }
   },
@@ -20,7 +24,13 @@ module.exports = {
     try {
       return await ledger.listRuns(scope, inputs)
     } catch (error) {
-      if (['QUEST_INVALID_CURSOR', 'QUEST_INVALID_LIMIT'].includes(error.code))
+      if (
+        [
+          'QUEST_INVALID_CURSOR',
+          'QUEST_INVALID_LIMIT',
+          'QUEST_INVALID_JOB_FILTER'
+        ].includes(error.code)
+      )
         throw { badRequest: error.message }
       throw error
     }

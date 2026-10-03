@@ -117,9 +117,15 @@ function describeJob(job) {
     scheduleType: type,
     timezone: schedule.timezone || schedule.cronOptions?.timezone || null,
     nextRunAt: job.nextRunAt ? new Date(job.nextRunAt).getTime() : null,
-    paused: Boolean(job.paused),
-    isRunning: job.runningCount > 0,
-    withoutOverlapping: Boolean(job.withoutOverlapping),
+    paused: typeof job.paused === 'boolean' ? job.paused : null,
+    isRunning:
+      Number.isSafeInteger(job.runningCount) && job.runningCount >= 0
+        ? job.runningCount > 0
+        : null,
+    withoutOverlapping:
+      typeof job.withoutOverlapping === 'boolean'
+        ? job.withoutOverlapping
+        : null,
     scheduledInputs: null,
     validationErrors: []
   }
@@ -329,7 +335,7 @@ function createQuestRuntime({
         runtimeId: info.runtimeId,
         observedAt: now(),
         capabilities: {
-          invoke: true,
+          invoke: info.capabilities.inputMetadata === true,
           typedInputs: info.capabilities.inputMetadata === true,
           results: info.capabilities.businessResults === true,
           pause: typeof sails.quest.pause === 'function',
@@ -399,6 +405,12 @@ function createQuestRuntime({
         )
       return existing.promise
     }
+    if (
+      job.paused === null ||
+      job.isRunning === null ||
+      job.withoutOverlapping === null
+    )
+      throw fail('The job’s resident scheduler state is unavailable.')
     if (job.paused) throw fail('This job is paused.', 'QUEST_PAUSED')
     if (job.withoutOverlapping && job.isRunning)
       throw fail('This job is already running.', 'QUEST_ALREADY_RUNNING')

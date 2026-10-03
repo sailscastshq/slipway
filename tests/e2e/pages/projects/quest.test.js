@@ -286,7 +286,12 @@ async function installQuestFixture(
   await sails.models.user.updateOne({ id: current.users.genesisUser.id }).set({
     fullName: 'Alex Rivera',
     initials: 'AR',
-    email: 'alex@example.com'
+    // Scenarios share a datastore. Preserve the exact comparison identity,
+    // while keeping interaction users unique within that same test process.
+    email:
+      current.projects.deploymentTarget.slug === 'quest-showcase'
+        ? 'alex@example.com'
+        : `alex+${current.projects.deploymentTarget.slug}@example.com`
   })
   const originalExecute = sails.helpers.quest.executeInContainer
   sails.helpers.quest.executeInContainer = async () => {
@@ -465,9 +470,15 @@ async function questBrowserMeasurements(page) {
     let documentNodeCount = 0
     while (walker.nextNode()) documentNodeCount++
     return {
-      readyAfterNavigationMs: Math.round(performance.now()),
-      domContentLoadedMs: Math.round(navigation?.domContentLoadedEventEnd || 0),
-      loadEventMs: Math.round(navigation?.loadEventEnd || 0),
+      readyAfterNavigationMs: navigation
+        ? Math.round(performance.now() - navigation.startTime)
+        : null,
+      domContentLoadedMs: navigation?.domContentLoadedEventEnd
+        ? Math.round(navigation.domContentLoadedEventEnd)
+        : null,
+      loadEventMs: navigation?.loadEventEnd
+        ? Math.round(navigation.loadEventEnd)
+        : null,
       documentElementCount: document.querySelectorAll('*').length,
       documentNodeCount,
       workspaceHorizontalOverflowPx: Math.max(
@@ -521,39 +532,49 @@ test(
           height: capture.height
         })
         await page.raw.emulateMedia({ colorScheme: capture.scheme })
-        const start = performance.now()
-        await page.goto(state.projectPath)
-        await expect(
-          page.raw.getByRole('heading', { name: 'Quest', exact: true })
-        ).toBeVisible()
-        await expect(
-          page.raw.getByText('Rebuild search index', { exact: true }).first()
-        ).toBeVisible()
-        if (phase === 'before') {
+        const timingSamples = []
+        let geometry
+        for (let sample = 0; sample < 5; sample++) {
+          const start = performance.now()
+          await page.goto(state.projectPath)
           await expect(
-            page.raw.getByLabel('Live updates active', { exact: true })
+            page.raw.getByRole('heading', { name: 'Quest', exact: true })
           ).toBeVisible()
-        } else {
           await expect(
-            page.raw.locator('[data-test="quest-workspace"]')
+            page.raw.getByText('Rebuild search index', { exact: true }).first()
           ).toBeVisible()
-          await page.raw.waitForFunction(() =>
-            window.__questStreams.some(
-              (stream) =>
-                stream.url.includes('/quest/stream') &&
-                !stream.closed &&
-                stream.readyState === 1
+          if (phase === 'before') {
+            await expect(
+              page.raw.getByLabel('Live updates active', { exact: true })
+            ).toBeVisible()
+          } else {
+            await expect(
+              page.raw.locator('[data-test="quest-workspace"]')
+            ).toBeVisible()
+            await page.raw.waitForFunction(() =>
+              window.__questStreams.some(
+                (stream) =>
+                  stream.url.includes('/quest/stream') &&
+                  !stream.closed &&
+                  stream.readyState === 1
+              )
             )
-          )
+          }
+          await page.raw.evaluate(() => document.fonts.ready)
+          timingSamples.push(Math.round(performance.now() - start))
+          geometry = await questBrowserMeasurements(page)
         }
-        await page.raw.evaluate(() => document.fonts.ready)
+        const sortedTimings = [...timingSamples].sort((a, b) => a - b)
         const measurement = {
           capture: capture.name,
           initialJsonBytes: state.initialJsonBytes,
           questJsonBytes: state.questJsonBytes,
           documentBytes: state.documentBytes,
-          navigationToReadyMs: Math.round(performance.now() - start),
-          ...(await questBrowserMeasurements(page))
+          navigationToReadyMs: sortedTimings[2],
+          navigationToReadySamplesMs: timingSamples,
+          navigationToReadyMinMs: sortedTimings[0],
+          navigationToReadyMaxMs: sortedTimings[4],
+          ...geometry
         }
         measurements.push(measurement)
         await page.raw
@@ -594,6 +615,9 @@ test(
             frozenBrowserTime: questComparisonFixture.frozenBrowserTime,
             sampleJobs: 5,
             sampleEvents: 10,
+            navigationSamplesPerCapture: 5,
+            navigationStatistic:
+              'Median of five sequential same-fixture navigations; raw samples retained. Assets were already visited during login, so this is not a cold-start benchmark.',
             measurements,
             budgets: {
               questJsonBytes: 65536,
@@ -617,6 +641,9 @@ test(
           expect(measurement.initialJsonBytes <= 262144).toBe(true)
           expect(measurement.documentElementCount <= 4000).toBe(true)
           expect(measurement.navigationToReadyMs <= 15000).toBe(true)
+          for (const elapsed of measurement.navigationToReadySamplesMs) {
+            expect(elapsed <= 15000).toBe(true)
+          }
           expect(measurement.horizontalOverflowPx <= 1).toBe(true)
           expect(measurement.workspaceHorizontalOverflowPx <= 1).toBe(true)
         }

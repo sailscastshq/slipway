@@ -83,6 +83,24 @@ export function mergeQuestRuns(current, incoming) {
   return [...map.values()].sort((a, b) => questRunTime(b) - questRunTime(a))
 }
 
+export function questInputMetadataAvailable(job, workspace) {
+  return (
+    workspace?.mode === 'resident' &&
+    workspace.capabilities?.typedInputs === true &&
+    typeof job?.metadataVersion === 'string' &&
+    job.metadataVersion.length > 0 &&
+    Array.isArray(job.inputs)
+  )
+}
+
+export function questOverlapLabel(job) {
+  return job?.withoutOverlapping === true
+    ? 'Prevent concurrent executions'
+    : job?.withoutOverlapping === false
+    ? 'Concurrent executions allowed'
+    : 'Unavailable'
+}
+
 export function questInputType(input) {
   const type = input.type
   if (Array.isArray(type)) return 'array'
@@ -247,6 +265,16 @@ export async function requestQuestInvocation(
     } catch {
       /* A non-JSON rejection is still request evidence only. */
     }
+    if (detail?.code === 'QUEST_UNCONFIRMED' || response.status >= 500) {
+      return {
+        ...unconfirmed,
+        error: `${
+          typeof detail?.message === 'string'
+            ? detail.message
+            : `Request failed (HTTP ${response.status}).`
+        } ${unconfirmed.error}`
+      }
+    }
     return {
       state: 'request_failed',
       error:
@@ -305,4 +333,35 @@ export function questErrorText(error) {
     [error.name, error.message].filter(Boolean).join(': ') ||
     'Execution failed.'
   )
+}
+
+// A selected-job history request owns only one read generation. A slow response
+// from a previous job or environment can never replace the current selection.
+export function createQuestHistoryLoader(fetchRequest = fetch) {
+  let generation = 0
+  let controller
+  function cancel() {
+    generation++
+    controller?.abort()
+    controller = null
+  }
+  async function load(url) {
+    cancel()
+    const current = generation
+    controller = new AbortController()
+    try {
+      const response = await fetchRequest(url, { signal: controller.signal })
+      if (!response.ok)
+        throw new Error(`Could not load history (HTTP ${response.status}).`)
+      const data = await response.json()
+      if (!Array.isArray(data?.runs) || !Array.isArray(data?.legacyEvents))
+        throw new Error('No valid history was received.')
+      if (current !== generation) return { stale: true }
+      return { data, error: null }
+    } catch (error) {
+      if (current !== generation) return { stale: true }
+      return { data: null, error: error.message || 'Could not load history.' }
+    }
+  }
+  return { load, cancel }
 }

@@ -93,12 +93,17 @@ Every comparison viewport records measured values in `performance.json`:
 - Serialized complete Inertia initial JSON bytes
 - Serialized Quest-specific initial JSON bytes
 - Document response bytes
-- Wall-clock navigation-to-visible-workspace-and-fonts time
-- Browser navigation timing (DOMContentLoaded and load events)
+- Wall-clock navigation-to-visible-workspace-and-fonts time: five sequential
+  samples per viewport, with raw values, median, minimum, and maximum retained
+- Browser navigation timing when exposed (DOMContentLoaded and load events);
+  unavailable entries under the clock adapter are recorded as null
 - Document and workspace element counts, plus all document nodes
 - Document, workspace, and open-dialog horizontal overflow
 
-The same page visit is used for its screenshot and measurements. Initial payload
+The fifth measured visit is used for each screenshot. The timing headline is
+the median of all five visits; every individual sample must also meet the same
+existing timing ceiling. This is a warmed navigation workload, since login has
+already visited the app shell, rather than a cold-start benchmark. Initial payload
 bytes are counted from the exact synthetic JSON delivered to Chromium, not from
 a hand-estimated feature description. Byte measurements include the data
 contract, but exclude HTTP compression and transferred JavaScript/CSS assets.

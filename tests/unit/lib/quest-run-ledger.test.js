@@ -98,3 +98,96 @@ test('Quest log bounds count UTF-8 bytes without broken codepoints', () => {
     assert.equal(bounded.value.includes('\ufffd'), false)
   }
 })
+
+test('Quest job-filtered summary reads project fields without loading result or log bodies', async () => {
+  const queries = [],
+    selects = [],
+    native = []
+  const model = {
+    find(where) {
+      queries.push(where)
+      return {
+        select(fields) {
+          selects.push(fields)
+          return this
+        },
+        sort() {
+          return this
+        },
+        limit() {
+          return Promise.resolve([])
+        }
+      }
+    }
+  }
+  const metrics = {
+    ...model,
+    getDatastore() {
+      return {
+        async sendNativeQuery(sql, values) {
+          native.push({ sql, values })
+          return { rows: [] }
+        }
+      }
+    }
+  }
+  const job = "ops/report's-history"
+  await ledger.listRuns(
+    { environmentId: 1, appId: 2 },
+    { job },
+    { model, metrics, now: 1000000000 }
+  )
+  assert.equal(queries.filter((where) => where.jobName === job).length, 2)
+  assert.ok(
+    selects.every(
+      (fields) =>
+        !fields.some((field) =>
+          ['inputs', 'result', 'stdout', 'stderr', 'attributes'].includes(field)
+        )
+    )
+  )
+  assert.equal(native.length, 1)
+  assert.ok(
+    native[0].sql.includes(
+      "json_extract(CASE WHEN json_valid(attributes) THEN attributes ELSE '{}' END, '$.jobName') = ?"
+    )
+  )
+  assert.equal(native[0].sql.includes(job), false)
+  assert.ok(native[0].values.includes(job))
+  assert.equal(/stdout|stderr|\$\.payload/.test(native[0].sql), false)
+})
+
+test('Quest receipt reconciliation reads only revision and runtime metadata', async () => {
+  let criteria, selected
+  const model = {
+    findOne(where) {
+      criteria = where
+      return {
+        async select(fields) {
+          selected = fields
+          return {
+            id: 9,
+            sequence: 3,
+            runtimeId: 'runtime-a',
+            state: 'running'
+          }
+        }
+      }
+    }
+  }
+  const result = await ledger.getReceiptMeta(
+    { environmentId: 1, appId: 2 },
+    'run-a',
+    { model, now: 1000000000 }
+  )
+  assert.deepEqual(selected, ['sequence', 'runtimeId', 'state'])
+  assert.deepEqual(result, {
+    sequence: 3,
+    runtimeId: 'runtime-a',
+    state: 'running'
+  })
+  assert.equal(criteria.environment, '1')
+  assert.equal(criteria.app, '2')
+  assert.equal(criteria.runId, 'run-a')
+  assert.equal(criteria.requestedAt['>='], 1000000000 - ledger.RETENTION_MS)
+})
