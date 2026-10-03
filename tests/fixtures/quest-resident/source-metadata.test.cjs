@@ -116,6 +116,23 @@ test('real upstream loader preserves aliases, effective defaults and Sails schem
   })
   const alias = jobs.get('index-from-config'),
     source = metadata.scheduledInputs(alias)
+  const oneShot = jobs.get('consumed-once')
+  assert.equal(oneShot.script, 'result-value')
+  assert.equal(oneShot.timeout, 200)
+  assert.equal(oneShot.inputSchema.value.type, 'json')
+  const oneShotInputs = metadata.scheduledInputs(oneShot).values
+  assert.deepEqual({ ...oneShotInputs }, { value: 'one-shot' })
+  const { buildCommandArgs } = require(path.join(root, 'lib/core/executor'))
+  const args = buildCommandArgs(
+    oneShot.script,
+    oneShotInputs,
+    oneShot.inputSchema
+  )
+  assert.deepEqual(args, ['run', 'result-value', '--value="one-shot"'])
+  assert.equal(
+    require('rttc').parseHuman(args[2].slice('--value='.length), 'json'),
+    'one-shot'
+  )
   assert.equal(alias.script, 'rebuild-search-index')
   assert.equal(alias.interval, 600000)
   assert.deepEqual(

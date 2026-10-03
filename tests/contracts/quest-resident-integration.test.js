@@ -266,6 +266,14 @@ test(
           .scheduleState.validation,
         'invalid'
       )
+      const pendingOneShot = initial.jobs.find(
+        (job) => job.name === 'consumed-once'
+      )
+      assert.equal(pendingOneShot.inputMetadataAvailable, true)
+      assert.equal(pendingOneShot.scheduleState.registration, 'stopped')
+      assert.equal(pendingOneShot.scheduled, false)
+      assert.equal(pendingOneShot.nextRunAt, null)
+      assert.equal(startsFor(await evidence(), 'consumed-once').length, 0)
       await fixture.inspect('consume')
       const consumedLive = await fixture.waitFor(
         snapshot,
@@ -277,6 +285,8 @@ test(
       const consumedJob = consumedLive.jobs.find(
         (job) => job.name === 'consumed-once'
       )
+      assert.equal(consumedLive.jobs.length, initial.jobs.length)
+      assert.equal(consumedJob.inputMetadataAvailable, true)
       assert.equal(consumedJob.scheduleState.validation, 'valid')
       assert.equal(consumedJob.scheduleState.restart.oneShot, true)
       assert.equal(consumedJob.scheduleState.restart.missedRuns, 'not_replayed')
@@ -291,6 +301,7 @@ test(
         (await waitForRun(consumedRun.runId)).result.value,
         'one-shot'
       )
+      assert.equal(startsFor(await evidence(), 'consumed-once').length, 1)
 
       const inputs = { collection: 'articles', batchSize: 200, dryRun: true }
       for (const jobInputs of [

@@ -31,6 +31,12 @@ module.exports.quest = {
     },
     { name: 'stopped-schedule', script: 'result-value', interval: 600000 },
     {
+      name: 'consumed-once',
+      script: 'result-value',
+      timeout: 200,
+      inputs: { value: 'one-shot' }
+    },
+    {
       name: 'timezone-cron',
       script: 'result-value',
       cron: '0 0 1 1 *',

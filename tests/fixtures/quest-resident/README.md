@@ -59,6 +59,9 @@ Malformed cron, a valid expired date, a stopped interval and a bounded consumed
 one-shot remain distinct. Yearly paused cron definitions verify `cronOptions.tz`
 precedence and an explicit local-default timezone without waiting for their dates.
 An invalid schedule does not prevent an independently validated manual run.
+The one-shot is source-loaded with its script's actual schema, stopped at the
+synchronous Quest hook-ready boundary, then explicitly started through the
+public API by one owned fixture signal. It is never dynamically redefined.
 
 Recovery trials intentionally mark only the disposable dashboard App stopped or
 temporarily point it at a uniquely nonexistent container while a real child

@@ -4,6 +4,12 @@ const probe = require('../../../lib/probe')
 
 module.exports = (sails) => ({
   initialize(done) {
+    // The static one-shot must retain its real source-loaded input schema.
+    // Stop its initial auto-start timer at the synchronous hook-ready boundary,
+    // before timer callbacks can run. The owned fixture signal starts it later.
+    sails.after('hook:quest:loaded', () => {
+      sails.quest.stop('consumed-once')
+    })
     const isScript =
       /^sails(?:\.js)?$/.test(path.basename(process.argv[1] || '')) &&
       process.argv[2] === 'run'

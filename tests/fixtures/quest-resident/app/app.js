@@ -67,15 +67,10 @@ sails.lift(sails.getRc(), async (error) => {
       result: helperReference
     })
     let consumed = false
-    process.on('SIGURG', () => {
-      assert.equal(consumed, false, 'One finite one-shot registration only')
+    process.on('SIGURG', async () => {
+      assert.equal(consumed, false, 'One finite one-shot start only')
       consumed = true
-      sails.quest.add({
-        name: 'consumed-once',
-        script: 'result-value',
-        timeout: 200,
-        inputs: { value: 'one-shot' }
-      })
+      await sails.quest.start('consumed-once')
     })
     let pressured = false
     process.on('SIGWINCH', () => {
