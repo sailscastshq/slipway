@@ -19,6 +19,10 @@ test(
       '/projects/routing-failures',
       'genesisUser'
     )
+    browser.request = browser.request.withHeaders({
+      'x-inertia': '',
+      accept: 'application/json'
+    })
     const originalUpdate = sails.helpers.caddy.updateRoute
     const originalFinish = sails.helpers.caddy.finishRouteUpdate
     let phase = 'stage-fails'

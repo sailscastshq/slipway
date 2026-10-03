@@ -1,4 +1,5 @@
 <script setup>
+import { submitInertiaForm } from '@/lib/inertia-mutation'
 import AppNavbarVersion from '@/components/AppNavbarVersion.vue'
 import Alert from '@/components/ui/alert/Alert.vue'
 import {
@@ -40,7 +41,7 @@ const form = useForm({
 })
   .withPrecognition('patch', settingsUrl)
   .setValidationTimeout(350)
-const { applyResponseProblems, revalidateWhenInvalid, validateOnBlur } =
+const { revalidateWhenInvalid, validateOnBlur } =
   usePrecognitionValidation(form)
 const saving = ref(false)
 const saveError = ref('')
@@ -60,26 +61,8 @@ async function save() {
   saveError.value = ''
 
   try {
-    const res = await fetch(settingsUrl, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        name: form.name,
-        isProduction: form.isProduction
-      })
-    })
-
-    if (res.ok) {
-      toast({ message: 'Environment updated', type: 'success' })
-      router.reload()
-    } else {
-      const err = await res.json().catch(() => null)
-      applyResponseProblems(err?.problems)
-      toast({
-        message: err?.message || 'Failed to update environment',
-        type: 'error'
-      })
-    }
+    await submitInertiaForm(form, 'patch', settingsUrl)
+    toast({ message: 'Environment updated', type: 'success' })
   } catch (error) {
     saveError.value = mutationFailureMessage(error)
   } finally {

@@ -37,7 +37,7 @@ module.exports = {
     const token = await CliToken.findOne({ id, user: user.id })
 
     if (!token) {
-      throw { notFound: '/settings/api-keys' }
+      throw { notFound: '/settings/cli-tokens' }
     }
 
     const problems = sails.helpers.setting.validate(
@@ -55,6 +55,6 @@ module.exports = {
     await CliToken.updateOne(id).set({ name: name.trim() })
 
     sails.inertia.flash('success', 'Token renamed.')
-    return '/settings/api-keys'
+    return '/settings/cli-tokens'
   }
 }

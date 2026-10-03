@@ -26,13 +26,13 @@ module.exports = {
     const token = await CliToken.findOne({ id, user: user.id })
 
     if (!token) {
-      throw { notFound: '/settings/api-keys' }
+      throw { notFound: '/settings/cli-tokens' }
     }
 
     await CliToken.destroyOne(id)
     sails.sse?.revoke?.({ tokenId: id })
 
     sails.inertia.flash('success', 'CLI token revoked.')
-    return '/settings/api-keys'
+    return '/settings/cli-tokens'
   }
 }

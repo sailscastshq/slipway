@@ -118,6 +118,9 @@ export const commands = {
   logs: {
     description: 'View application logs',
     options: {
+      project: { type: 'string', short: 'p' },
+      json: { type: 'boolean' },
+      ndjson: { type: 'boolean' },
       env: { type: 'string', short: 'e', default: 'production' },
       app: { type: 'string', short: 'a' },
       follow: { type: 'boolean', short: 'f' },
@@ -209,9 +212,15 @@ export const commands = {
     }
   },
   run: {
-    description: 'Run a command in the container',
+    description: 'Run a bounded command through guarded Helm',
     args: '<command...>',
     options: {
+      project: { type: 'string', short: 'p' },
+      json: { type: 'boolean' },
+      ndjson: { type: 'boolean' },
+      stdin: { type: 'boolean' },
+      file: { type: 'string' },
+      'write-arm-file': { type: 'string' },
       env: { type: 'string', short: 'e', default: 'production' },
       app: { type: 'string', short: 'a' }
     }

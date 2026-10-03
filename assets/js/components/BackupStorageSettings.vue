@@ -1,4 +1,5 @@
 <script setup>
+import { inertiaMutation } from '@/lib/inertia-mutation'
 import { computed, reactive, ref } from 'vue'
 import { useToast } from '@/composables/toast'
 import Button from '@/components/ui/button/Button.vue'
@@ -40,6 +41,26 @@ async function submit(testOnly) {
   if (busy.value) return
   busy.value = true
   try {
+    if (!testOnly) {
+      const page = await inertiaMutation(
+        'post',
+        '/settings/backup-storage',
+        { configuration: { ...form }, testOnly: false },
+        { only: ['backupStorage'] }
+      )
+      Object.assign(form, page.props.backupStorage, {
+        key: '',
+        secret: '',
+        sasToken: '',
+        accountKey: ''
+      })
+      emit('saved', page.props.backupStorage)
+      toast({
+        message: 'Private backup storage saved and verified.',
+        type: 'success'
+      })
+      return
+    }
     const response = await fetch('/settings/backup-storage', {
       method: 'POST',
       headers: {
@@ -55,15 +76,6 @@ async function submit(testOnly) {
           'Backup storage could not be verified. Your settings have not changed.'
       )
     toast({ message: result.message, type: 'success' })
-    if (!testOnly) {
-      Object.assign(form, result.config, {
-        key: '',
-        secret: '',
-        sasToken: '',
-        accountKey: ''
-      })
-      emit('saved', result.config)
-    }
   } catch (error) {
     toast({
       message:

@@ -15,7 +15,7 @@ module.exports = {
 
   exits: {
     success: {
-      statusCode: 200
+      responseType: 'mutationSuccess'
     },
     notFound: {
       statusCode: 404

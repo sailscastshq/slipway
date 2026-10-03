@@ -37,15 +37,17 @@ test(
       expect(target).toHaveStatus(200)
       expect(target.data.props.backupConfigured).toBe(true)
     }
-    const invalid = await owner.request.post('/settings/backup-storage', {
-      configuration: {
-        provider: 'azure',
-        bucket: 'private-backups',
-        account: 'bad',
-        sasToken: 'invalid'
-      },
-      testOnly: true
-    })
+    const invalid = await owner.request
+      .withHeaders({ 'x-inertia': '', accept: 'application/json' })
+      .post('/settings/backup-storage', {
+        configuration: {
+          provider: 'azure',
+          bucket: 'private-backups',
+          account: 'bad',
+          sasToken: 'invalid'
+        },
+        testOnly: true
+      })
     expect(invalid).toHaveStatus(400)
     const before = await sails.helpers.backup.getStorageConfig()
     expect(before.accountKey).toBe('never-return-this-key')
