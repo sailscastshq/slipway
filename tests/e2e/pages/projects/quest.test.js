@@ -971,7 +971,17 @@ async function captureQuestWorkspaceState(page, expect, name, anchor) {
     })
     await page.raw.emulateMedia({ colorScheme: capture.scheme })
     if (anchor) await anchor.scrollIntoViewIfNeeded()
+    // Clear restored action focus naturally for presentation shots only.
+    // Keyboard-state captures retain the real focus indicator and tooltip.
+    const detailHeading = page.raw.locator('#quest-run-detail-title')
     const form = page.raw.locator('[data-test="quest-run-form"]')
+    if (
+      !name.startsWith('keyboard-') &&
+      !(await form.isVisible()) &&
+      (await detailHeading.isVisible())
+    ) {
+      await detailHeading.click()
+    }
     if (capture.width === 390 && (await form.isVisible())) {
       await expect(form.getByRole('heading', { name: /^Run / })).toBeInViewport(
         { ratio: 1 }
@@ -1036,6 +1046,44 @@ async function captureQuestWorkspaceState(page, expect, name, anchor) {
       filename: `quest-${name}-${capture.name}.png`,
       geometry
     })
+    if (
+      capture.width === 390 &&
+      ['typed-inputs', 'run-again-review'].includes(name)
+    ) {
+      // Show the actual acknowledgement below the fold without changing CSS,
+      // draft values, focus, or application state to manufacture a screenshot.
+      await page.raw.locator('[data-test="quest-run-fields"]').hover()
+      await page.raw.mouse.wheel(0, 2000)
+      await expect(
+        page.raw.locator('[data-test="quest-production-confirm"]')
+      ).toBeInViewport({ ratio: 1 })
+      await expect(form.getByRole('heading', { name: /^Run / })).toBeInViewport(
+        { ratio: 1 }
+      )
+      await expect(
+        page.raw.locator('[data-test="quest-confirm-run"]')
+      ).toBeInViewport({ ratio: 1 })
+      await expect(
+        form.getByRole('button', { name: 'Cancel', exact: true })
+      ).toBeInViewport({ ratio: 1 })
+      await page.raw.mouse.move(0, 0)
+      const bottomFilename = `quest-${name}-review-bottom-${capture.name}.png`
+      await page.screenshot(path.join(root, bottomFilename), {
+        animations: 'disabled',
+        fullPage: false
+      })
+      manifest.captures.push({
+        name: `${name}-review-bottom`,
+        viewport: capture,
+        filename: bottomFilename,
+        geometry: await questBrowserMeasurements(page)
+      })
+      await page.raw.locator('[data-test="quest-run-fields"]').hover()
+      await page.raw.mouse.wheel(0, -2000)
+      await expect(page.raw.locator('#quest-input-0')).toBeInViewport({
+        ratio: 1
+      })
+    }
     fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + '\n')
   }
   await page.raw.setViewportSize({ width: 1440, height: 1000 })
@@ -1094,16 +1142,29 @@ test(
       deploymentId: 'synthetic-deployment',
       runtimeId: 'synthetic-runtime-v1'
     }
+    const rerun = {
+      ...accepted,
+      runId: 'synthetic-reviewed-rerun'
+    }
+    state.details[rerun.runId] = {
+      ...state.details[accepted.runId],
+      ...rerun
+    }
     let logsRequests = 0
     state.api = async (route, path, request) => {
       if (
         path === 'jobs/export-account-report/run' &&
         request.method() === 'POST'
       ) {
-        observeInvocation()
-        await acceptance
-        state.workspace.runs = [accepted]
-        await route.fulfill({ status: 202, json: { run: accepted } })
+        if (state.mutationRequests.length === 1) {
+          observeInvocation()
+          await acceptance
+          state.workspace.runs = [accepted]
+          await route.fulfill({ status: 202, json: { run: accepted } })
+        } else {
+          state.workspace.runs = [rerun, ...state.workspace.runs]
+          await route.fulfill({ status: 202, json: { run: rerun } })
+        }
         return true
       }
       if (path === `runs/${accepted.runId}/logs`) logsRequests++
@@ -1235,15 +1296,87 @@ test(
       await expect(detail).toContainText('Synthetic diagnostic warning')
       await expect(detail).toContainText('Completed')
       expect(logsRequests).toBe(1)
-      await page.raw
-        .getByRole('button', { name: 'Result', exact: true })
-        .click()
+      await page.raw.getByRole('tab', { name: 'Result', exact: true }).click()
       await expect(
         page.raw.locator('[data-test="quest-run-result"]')
       ).not.toContainText('Synthetic log text')
       await page.raw.reload()
       await expect(detail).toContainText('Completed')
       expect(state.mutationRequests.length).toBe(1)
+
+      // Run again only opens review. Cancelling preserves the completed run.
+      const runAgain = detail.getByRole('button', {
+        name: 'Run again',
+        exact: true
+      })
+      await runAgain.click()
+      await expect(form).toBeVisible()
+      await expect(
+        form.getByRole('heading', {
+          name: 'Run Export account report',
+          exact: true
+        })
+      ).toBeVisible()
+      await expect(
+        form.getByText('Web / Production', { exact: true })
+      ).toBeVisible()
+      await expect(page.raw.locator('#quest-input-0')).toHaveValue(
+        submittedInputs.account
+      )
+      await expect(page.raw.locator('#quest-input-1')).toHaveValue('25')
+      await expect(page.raw.locator('#quest-input-2')).toContainText('False')
+      await expect(page.raw.locator('#quest-input-3')).toContainText('full')
+      await expect(page.raw.locator('#quest-input-4')).toHaveValue(
+        JSON.stringify(submittedInputs.filters, null, 2)
+      )
+      await expect(page.raw.locator('#quest-input-5')).not.toBeVisible()
+      await expect(
+        page.raw.locator('[data-test="quest-production-confirm"]')
+      ).not.toBeChecked()
+      await expect(confirm).toBeDisabled()
+      expect(state.mutationRequests.length).toBe(1)
+      await form.getByRole('button', { name: 'Cancel', exact: true }).click()
+      await expect(form).not.toBeVisible()
+      await expect(detail).toContainText('Completed')
+      expect(new URL(page.raw.url()).searchParams.get('run')).toBe(
+        accepted.runId
+      )
+      expect(state.mutationRequests.length).toBe(1)
+
+      await runAgain.click()
+      await expect(form).toBeVisible()
+      await expect(page.raw.locator('#quest-input-0')).toHaveValue(
+        submittedInputs.account
+      )
+      await expect(confirm).toBeDisabled()
+      await captureQuestWorkspaceState(page, expect, 'run-again-review', form)
+      expect(state.mutationRequests.length).toBe(1)
+      await page.raw.locator('[data-test="quest-production-confirm"]').check()
+      await confirm.click()
+      await expect(form).not.toBeVisible()
+      await expect(detail).toContainText('Accepted')
+      expect(state.mutationRequests.length).toBe(2)
+      const rerunRequest = state.mutationRequests[1].body
+      expect(rerunRequest.jobInputs).toEqual(submittedInputs)
+      expect(rerunRequest.priorRunId).toBe(accepted.runId)
+      expect(rerunRequest.runtimeId).toBe('synthetic-runtime-v1')
+      expect(rerunRequest.metadataVersion).toBe('synthetic-metadata-v1')
+      expect(rerunRequest.productionConfirmed).toBe(true)
+      expect(typeof rerunRequest.requestId).toBe('string')
+      expect(rerunRequest.requestId.length > 10).toBe(true)
+      expect(rerunRequest.requestId).not.toBe(request.requestId)
+      expect(new URL(page.raw.url()).searchParams.get('run')).toBe(rerun.runId)
+      // The prior result remains addressable and refresh never replays a POST.
+      await page.goto(
+        `${state.projectPath}?job=export-account-report&run=${accepted.runId}`
+      )
+      await expect(detail).toContainText('Completed')
+      await expect(
+        page.raw.locator('[data-test="quest-run-result"]')
+      ).toContainText('processed')
+      await page.raw.reload()
+      await expect(detail).toContainText('Completed')
+      expect(state.mutationRequests.length).toBe(2)
       expect(state.unexpectedRequests).toEqual([])
       expect(page).toHaveNoJavascriptErrors()
     } catch (error) {

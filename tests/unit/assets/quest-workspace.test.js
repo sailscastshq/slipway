@@ -847,3 +847,14 @@ test('Quest closing a typed review clears its form without dereferencing the cle
     app.unmount()
   }
 })
+
+test('Quest result counts use singular labels only for exactly one row or item', async ({
+  expect
+}) => {
+  const { questResultCountLabel } = await workspaceModule()
+  expect(questResultCountLabel(0, 'row')).toBe('0 rows')
+  expect(questResultCountLabel(1, 'row')).toBe('1 row')
+  expect(questResultCountLabel(2, 'row')).toBe('2 rows')
+  expect(questResultCountLabel(1, 'item')).toBe('1 item')
+  expect(questResultCountLabel(2, 'item')).toBe('2 items')
+})

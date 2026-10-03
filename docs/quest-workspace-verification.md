@@ -77,6 +77,9 @@ Quest browser test file. The intended evidence covers:
   unavailable/unsupported results
 - Lazy run detail and log requests; stderr remains diagnostic and cannot determine
   the run's outcome
+- Run again prefills prior inputs for review, requires a new production acknowledgement,
+  and sends a fresh request ID with prior-run linkage only after confirmation;
+  opening/cancelling review does not invoke or replace the completed result
 - Stable job/run links, refresh/history navigation, and legacy event separation
 - Running/overlap-disabled actions, reconnecting and unavailable runtime states
 - Draft retention through an unchanged snapshot, no duplicate request on reconnect,

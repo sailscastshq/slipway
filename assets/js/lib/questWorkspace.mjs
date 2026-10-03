@@ -472,3 +472,7 @@ export function createQuestSnapshotAuthority(options = {}) {
   }
   return { observe, dispose, isFresh: () => fresh }
 }
+
+export function questResultCountLabel(count, singular) {
+  return `${count} ${singular}${count === 1 ? '' : 's'}`
+}

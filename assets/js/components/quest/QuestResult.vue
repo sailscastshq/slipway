@@ -2,6 +2,7 @@
 import { computed, ref, watch } from 'vue'
 import HelmResultTreeNode from '@/components/HelmResultTreeNode.vue'
 import Table from '@/components/ui/table/Table.vue'
+import { questResultCountLabel } from '@/lib/questWorkspace.mjs'
 import {
   isHelmTableValue,
   isHelmBranch,
@@ -66,9 +67,9 @@ watch(
       >
         <span class="text-xs text-gray-500 dark:text-gray-400">{{
           table
-            ? `${value.length} rows`
+            ? questResultCountLabel(value.length, 'row')
             : Array.isArray(value)
-            ? `${value.length} items`
+            ? questResultCountLabel(value.length, 'item')
             : value === null
             ? 'null'
             : typeof value
