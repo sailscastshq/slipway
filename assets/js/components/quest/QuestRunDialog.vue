@@ -5,6 +5,7 @@ import Button from '@/components/ui/button/Button.vue'
 import Input from '@/components/ui/input/Input.vue'
 import Textarea from '@/components/ui/textarea/Textarea.vue'
 import Select from '@/components/ui/select/Select.vue'
+import Checkbox from '@/components/ui/checkbox/Checkbox.vue'
 import Spinner from '@/components/SlipwaySpinner.vue'
 import X from '@/components/ui/icons/X.vue'
 import Play from '@/components/ui/icons/Play.vue'
@@ -36,7 +37,7 @@ const validation = computed(() =>
   validateQuestInputs(inputs.value, draft.value)
 )
 const fieldClass =
-  'min-h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-gray-500 focus:outline-none focus:ring-1 focus:ring-gray-500 disabled:opacity-50 dark:border-gray-700 dark:bg-gray-950 dark:text-white'
+  'focus:border-brand min-h-10 w-full rounded-none border-0 border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none disabled:opacity-50 dark:border-gray-700 dark:text-white dark:placeholder-gray-500'
 
 watch(
   () => props.open,
@@ -182,10 +183,9 @@ async function submit() {
             <label
               v-if="!input.required"
               class="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400"
-              ><input
+              ><Checkbox
                 v-model="draft[input.name].included"
-                type="checkbox"
-                class="accent-gray-900 dark:accent-white"
+                class="accent-brand text-brand focus:ring-brand h-4 w-4 rounded border-gray-300 dark:border-gray-600 dark:bg-gray-900"
                 :disabled="submitting"
               />
               Include</label
@@ -272,11 +272,10 @@ async function submit() {
           v-if="review.target.isProduction"
           class="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-300"
         >
-          <input
+          <Checkbox
             v-model="productionConfirmed"
             data-test="quest-production-confirm"
-            type="checkbox"
-            class="mt-1 accent-amber-700"
+            class="accent-brand text-brand focus:ring-brand mt-0.5 h-4 w-4 rounded border-gray-300 dark:border-gray-600 dark:bg-gray-900"
             :disabled="submitting"
           />
           <span>I understand this runs against production</span>

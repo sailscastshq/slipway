@@ -1447,6 +1447,41 @@ async function captureQuestWorkspaceState(page, expect, name, anchor) {
     }
     await page.raw.evaluate(() => document.fonts.ready)
     await page.raw.mouse.move(0, 0)
+    let fieldStyles
+    if (name === 'typed-inputs') {
+      // Klean supplies behavior; Quest must use Slipway's existing form tokens.
+      // Assert actual rendered styles in both themes, not only class strings.
+      fieldStyles = await form
+        .locator(
+          '[data-slot="input"], [data-slot="textarea"], [data-slot="select-trigger"]'
+        )
+        .evaluateAll((elements) =>
+          elements.map((element) => {
+            const style = getComputedStyle(element)
+            return {
+              slot: element.dataset.slot,
+              backgroundColor: style.backgroundColor,
+              borderTopWidth: style.borderTopWidth,
+              borderRightWidth: style.borderRightWidth,
+              borderBottomWidth: style.borderBottomWidth,
+              borderLeftWidth: style.borderLeftWidth,
+              borderBottomStyle: style.borderBottomStyle,
+              borderRadius: style.borderRadius
+            }
+          })
+        )
+      expect(fieldStyles.length).toBe(5)
+      for (const style of fieldStyles) {
+        expect(style.backgroundColor).toBe('rgba(0, 0, 0, 0)')
+        expect(style.borderTopWidth).toBe('0px')
+        expect(style.borderRightWidth).toBe('0px')
+        expect(style.borderLeftWidth).toBe('0px')
+        expect(style.borderBottomWidth).toBe('1px')
+        expect(style.borderBottomStyle).toBe('dashed')
+        expect(style.borderRadius).toBe('0px')
+      }
+      await expect(form.locator('[data-slot="checkbox"]')).toHaveCount(2)
+    }
     const geometry = await questBrowserMeasurements(page)
     expect(geometry.horizontalOverflowPx <= 1).toBe(true)
     expect(geometry.workspaceHorizontalOverflowPx <= 1).toBe(true)
@@ -1473,7 +1508,8 @@ async function captureQuestWorkspaceState(page, expect, name, anchor) {
       name,
       viewport: capture,
       filename: `quest-${name}-${capture.name}.png`,
-      geometry
+      geometry,
+      ...(fieldStyles ? { fieldStyles } : {})
     })
     if (
       capture.width === 390 &&
@@ -1617,6 +1653,27 @@ test(
       await expect(form).toBeVisible()
       await expect(confirm).toBeDisabled()
       expect(state.mutationRequests).toEqual([])
+      const account = page.raw.locator('#quest-input-0')
+      await form.getByRole('button', { name: 'Close run dialog' }).focus()
+      const unfocusedBorder = await account.evaluate(
+        (element) => getComputedStyle(element).borderBottomColor
+      )
+      await account.focus()
+      await expect(account).toBeFocused()
+      expect(
+        await account.evaluate(
+          (element) => getComputedStyle(element).borderBottomColor
+        )
+      ).not.toBe(unfocusedBorder)
+      // The shared checkbox must retain optional-field inclusion and omission.
+      const includeNote = form.getByRole('checkbox', {
+        name: 'Include',
+        exact: true
+      })
+      await includeNote.check()
+      await page.raw.locator('#quest-input-5').fill('synthetic-omitted-note')
+      await includeNote.uncheck()
+      await expect(page.raw.locator('#quest-input-5')).toHaveCount(0)
       await page.raw.locator('[data-test="quest-production-confirm"]').check()
       await confirm.click()
       await expect(form).toContainText('This input is required.')
@@ -1643,6 +1700,10 @@ test(
       await confirm.focus()
       await page.raw.keyboard.press('Enter')
       await expect(confirm).toBeDisabled()
+      await expect(includeNote).toBeDisabled()
+      await expect(
+        page.raw.locator('[data-test="quest-production-confirm"]')
+      ).toBeDisabled()
       await page.raw.keyboard.press('Enter')
       await invocationObserved
       expect(state.mutationRequests.length).toBe(1)
