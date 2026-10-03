@@ -1660,11 +1660,10 @@ test(
       )
       await account.focus()
       await expect(account).toBeFocused()
-      expect(
-        await account.evaluate(
-          (element) => getComputedStyle(element).borderBottomColor
-        )
-      ).not.toBe(unfocusedBorder)
+      const focusedBorder = await account.evaluate(
+        (element) => getComputedStyle(element).borderBottomColor
+      )
+      expect(focusedBorder !== unfocusedBorder).toBe(true)
       // The shared checkbox must retain optional-field inclusion and omission.
       const includeNote = form.getByRole('checkbox', {
         name: 'Include',
