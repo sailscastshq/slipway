@@ -31,7 +31,8 @@ fs.writeFileSync(
   `${root}/config/env/production.js`,
   `module.exports = {
   port: 1337, host: '0.0.0.0',
-  hooks: {grunt:false,shipwright:false,dev:false,sockets:false,pubsub:false,quest:false},
+  globals: {sails:true,models:true},
+  hooks: {orm:require('sails-hook-orm'),grunt:false,shipwright:false,dev:false,sockets:false,pubsub:false,quest:false},
   security: {csrf:false},
   models: {migrate:'safe',attributes:{createdAt:false,updatedAt:false}},
   datastores: {default:{adapter:'sails-postgresql',url:process.env.DATABASE_URL}},
@@ -62,6 +63,7 @@ fs.writeFileSync(
 const sails=require('sails');
 sails.lift(sails.getRc(),error=>{
   if(error){console.error(error.stack||error);process.exit(1)}
+  if(!sails.models.sample) throw new Error('Disposable Waterline model was not loaded');
   const {registerHelmRuntime}=require('/fixture/packages/hook/lib/helm-runtime-contract');
   registerHelmRuntime({appId:process.env.SLIPWAY_APP_ID,deploymentId:process.env.SLIPWAY_DEPLOYMENT_ID,sailsApp:sails});
 });
