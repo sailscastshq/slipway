@@ -42,7 +42,7 @@ available; it temporarily swaps only `HelmCommandConsole.vue` and
 trap before the current trial. The backend, dependencies, browser and capture
 fixture are identical. CI also verifies there is no component diff afterward.
 
-The `Helm terminal prompt paired evidence` job uploads idle, production-warning,
+The `Helm terminal prompt paired evidence` job uploads focused native-caret, idle, production-warning,
 completed arithmetic, meaningful-output, edited-draft, history-open, and
 history-restored screenshots for desktop/mobile light/dark, plus paired geometry
 and raw browser click/input-to-second-animation-frame samples. Both versions use

@@ -2673,7 +2673,21 @@ test(
         if (dark) await page.inDarkMode()
         else await page.inLightMode()
         await input.focus()
+        await expect(input).toBeFocused()
         await expect(marker).toHaveCSS('text-decoration-line', 'underline')
+        const nativeCaret = await input.evaluate((element) => {
+          const style = getComputedStyle(element)
+          return {
+            color: style.caretColor,
+            textColor: style.color,
+            type: element.type,
+            tag: element.tagName
+          }
+        })
+        expect(nativeCaret.tag).toBe('INPUT')
+        expect(nativeCaret.type).toBe('text')
+        expect(nativeCaret.color).toBe(nativeCaret.textColor)
+        expect(nativeCaret.color).not.toBe('rgba(0, 0, 0, 0)')
         const focusedColor = await marker.evaluate(
           (element) => getComputedStyle(element).color
         )
