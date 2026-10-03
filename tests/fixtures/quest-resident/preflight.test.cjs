@@ -2,6 +2,28 @@ const assert = require('node:assert/strict')
 const path = require('node:path')
 const { test } = require('node:test')
 const { createFixture, upstreamSource } = require('./docker.cjs')
+const { useDockerBinary } = require('./dashboard.cjs')
+
+test('dashboard Docker setup accepts an absent optional config and restores absence', () => {
+  const config = {}
+  const restore = useDockerBinary(config, '/fixture/docker')
+  assert.equal(config.docker.binaryPath, '/fixture/docker')
+  restore()
+  assert.equal(Object.hasOwn(config, 'docker'), false)
+})
+
+test('dashboard Docker setup preserves existing options and restores the exact original config', () => {
+  const docker = { binaryPath: '/original/docker', retainedOption: true }
+  const config = { docker }
+  const restore = useDockerBinary(config, '/fixture/docker')
+  assert.deepEqual(config.docker, {
+    binaryPath: '/fixture/docker',
+    retainedOption: true
+  })
+  assert.equal(docker.binaryPath, '/original/docker')
+  restore()
+  assert.equal(config.docker, docker)
+})
 
 test('missing upstream source fails before any Docker activity', async () => {
   await assert.rejects(

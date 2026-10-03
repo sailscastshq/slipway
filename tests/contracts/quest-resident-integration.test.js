@@ -13,6 +13,7 @@ const {
 } = require('../fixtures/quest-resident/docker.cjs')
 const { realBrowserFlow } = require('../fixtures/quest-resident/browser.cjs')
 const { recoveryTrials } = require('../fixtures/quest-resident/recovery.cjs')
+const { useDockerBinary } = require('../fixtures/quest-resident/dashboard.cjs')
 
 const slug = 'quest-real-resident'
 const terminal = (run) => ['completed', 'failed', 'skipped'].includes(run.state)
@@ -38,11 +39,11 @@ test(
     let app = await sails.models.app
       .updateOne({ id: current.apps.web.id })
       .set({ status: 'running', currentDeployment: deployment.id })
-    const previousDockerBinary = sails.config.docker.binaryPath
+    let restoreDockerBinary
     let fixture
     try {
       fixture = await createFixture(app)
-      sails.config.docker.binaryPath = fixture.docker
+      restoreDockerBinary = useDockerBinary(sails.config, fixture.docker)
       app = await sails.models.app
         .updateOne({ id: app.id })
         .set({ containerName: fixture.name })
@@ -797,7 +798,7 @@ test(
       throw error
     } finally {
       await context.page?.raw.goto('about:blank').catch(() => {})
-      sails.config.docker.binaryPath = previousDockerBinary
+      restoreDockerBinary?.()
       workspace.invalidate(app)
       await fixture?.close()
     }
