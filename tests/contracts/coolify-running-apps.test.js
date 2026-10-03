@@ -4,6 +4,7 @@ const { execFile } = require('node:child_process')
 const { promisify } = require('node:util')
 const fs = require('node:fs/promises')
 const path = require('node:path')
+const os = require('node:os')
 const { randomUUID } = require('node:crypto')
 const run = promisify(execFile)
 const inventory = require('../fixtures/coolify-migration/inventory.json')
@@ -58,7 +59,8 @@ test(
       network: sails.config.custom.slipwayNetwork,
       proxy: sails.config.custom.slipwayProxyContainer,
       ingress: sails.config.custom.slipwayIngress,
-      finish: sails.helpers.caddy.finishRouteUpdate
+      finish: sails.helpers.caddy.finishRouteUpdate,
+      docker: sails.config.docker
     }
     const command = (args) =>
       run('docker', args, { timeout: 60000, maxBuffer: 1024 * 1024 })
@@ -80,8 +82,30 @@ test(
         '-Atc',
         statement
       ])
+    const transportRoot = await fs.mkdtemp(
+      path.join(os.tmpdir(), 'migration-docker-')
+    )
+    const labelPrefix = `migration${prefix.slice(-8)}`
     let madeNetwork = false
     try {
+      const wrapper = path.join(transportRoot, 'docker')
+      await fs.writeFile(
+        wrapper,
+        `#!/usr/bin/env node
+const {spawnSync}=require('node:child_process');
+const input=process.argv.slice(2);
+const args=input.map((value,index)=>input[index-1]==='--label' && (value.startsWith('caddy=') || value.startsWith('caddy.')) ? ${JSON.stringify(
+          labelPrefix
+        )} + value.slice(5) : value);
+const result=spawnSync('docker',args,{stdio:'inherit'});
+if(result.error){console.error(result.error.message);process.exit(1)}
+process.exit(result.status ?? 1);
+`,
+        { mode: 0o700 }
+      )
+      // The private proxy sees only labels created by this fixture. The real
+      // helpers otherwise use the normal Docker transport and runtime contracts.
+      sails.config.docker = { ...original.docker, binaryPath: wrapper }
       for (const image of [
         'node:22-bookworm',
         'node:24-bookworm',
@@ -139,6 +163,8 @@ test(
         '/var/run/docker.sock:/var/run/docker.sock:ro',
         '-e',
         `CADDY_INGRESS_NETWORKS=${network}`,
+        '-e',
+        `CADDY_DOCKER_LABEL_PREFIX=${labelPrefix}`,
         proxyImage
       ])
       const apps = []
@@ -490,9 +516,10 @@ test(
       )
       const metrics = await sails.helpers.lookout.collectContainerMetrics()
       for (const { app, names } of apps) {
+        const currentApp = await sails.models.app.findOne({ id: app.id })
         const metric = metrics.records.find(
           (row) =>
-            row.containerName === names.old &&
+            row.containerName === currentApp.containerName &&
             String(row.app) === String(app.id)
         )
         assert.ok(
@@ -542,6 +569,8 @@ test(
       sails.config.custom.slipwayNetwork = original.network
       sails.config.custom.slipwayProxyContainer = original.proxy
       sails.config.custom.slipwayIngress = original.ingress
+      sails.config.docker = original.docker
+      await fs.rm(transportRoot, { recursive: true, force: true })
       await fs.mkdir('.tmp/migration-proof', { recursive: true })
       await fs.writeFile(
         '.tmp/migration-proof/evidence.json',
