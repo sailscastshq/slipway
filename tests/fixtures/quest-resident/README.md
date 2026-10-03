@@ -24,6 +24,12 @@ skip or a fallback to released 0.0.5. The known unsafe `788d767` implementation 
 blocked; readiness also demands explicit scheduler-suppression, trigger and
 terminal-exit-code/terminal-signal/schedule-diagnostics capabilities and source-loaded job metadata.
 
+The writable app tmpfs owns its `node_modules` link directory. It links the
+installed dependencies and explicitly links the pinned Quest source and local
+`packages/hook`; it does not depend on npm installing workspace links. Both
+container startup and offline checks resolve all declared fixture dependencies
+and peers from their actual package locations, including the normal Sails CLI.
+
 The worker uses real `sails.lift()` with helpers/ORM and no HTTP hook. The full
 Slipway hook auto-registers on `ready`; Quest owns every validation, child and
 timer. The source enables resident auto-start. A passive observer verifies that

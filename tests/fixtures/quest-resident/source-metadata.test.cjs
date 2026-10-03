@@ -3,7 +3,51 @@ const path = require('node:path')
 const fs = require('node:fs')
 const { test } = require('node:test')
 const machine = require('machine')
+const os = require('node:os')
+const { createRequire } = require('node:module')
 const { upstreamSource } = require('./docker.cjs')
+const {
+  fixtureDependencies,
+  prepareDependencies,
+  verifyDependencies
+} = require('./dependencies.cjs')
+
+test('actual fixture dependencies resolve without a root workspace link', async () => {
+  const { root } = await upstreamSource()
+  const appRoot = fs.mkdtempSync(
+    path.join(os.tmpdir(), 'quest-fixture-resolution-')
+  )
+  try {
+    const layout = {
+      appRoot,
+      dependencies: fs.realpathSync('node_modules'),
+      questRoot: root,
+      slipwayRoot: fs.realpathSync('packages/hook')
+    }
+    fs.writeFileSync(
+      path.join(appRoot, 'package.json'),
+      JSON.stringify({ private: true, dependencies: fixtureDependencies })
+    )
+    prepareDependencies(layout)
+    const resolved = verifyDependencies(layout)
+    assert.deepEqual(Object.keys(resolved), Object.keys(fixtureDependencies))
+    assert.equal(
+      fs.lstatSync(path.join(appRoot, 'node_modules')).isDirectory(),
+      true
+    )
+    const appRequire = createRequire(path.join(appRoot, 'package.json'))
+    assert.equal(typeof appRequire('sails-hook-slipway'), 'function')
+    assert.equal(typeof appRequire('sails-hook-quest'), 'function')
+    assert.equal(typeof appRequire('sails').lift, 'function')
+    assert.equal(typeof appRequire('sails-hook-orm'), 'function')
+    assert.equal(
+      fs.readlinkSync(path.join(appRoot, 'node_modules/sails-hook-slipway')),
+      layout.slipwayRoot
+    )
+  } finally {
+    fs.rmSync(appRoot, { recursive: true, force: true })
+  }
+})
 
 // Real source/schema checks only: no app load, socket, scheduler or job child.
 test('real upstream loader preserves aliases, effective defaults and Sails schemas', async () => {

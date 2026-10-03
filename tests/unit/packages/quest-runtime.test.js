@@ -1168,3 +1168,29 @@ test('Quest source schedule preserves zero delay and the authoritative nullable 
     'America/New_York'
   )
 })
+
+test('Quest admits registered dotted and underscore identities but rejects traversal and unknown jobs', async () => {
+  for (const name of ['report.v2', '_maintenance', 'reports/daily']) {
+    const f = fixture({ name })
+    const accepted = await f.bridge.dispatch(f.message())
+    assert.equal(accepted.run.jobName, name)
+    assert.equal(f.calls.length, 1)
+  }
+  for (const name of [
+    '../report',
+    'reports/../report',
+    'report;echo',
+    'x'.repeat(129)
+  ]) {
+    const f = fixture({ name })
+    await assert.rejects(f.bridge.dispatch(f.message()), {
+      code: 'QUEST_INPUT_INVALID'
+    })
+    assert.equal(f.calls.length, 0)
+  }
+  const f = fixture()
+  await assert.rejects(f.bridge.dispatch(f.message({ name: 'unregistered' })), {
+    code: 'QUEST_INPUT_INVALID'
+  })
+  assert.equal(f.calls.length, 0)
+})

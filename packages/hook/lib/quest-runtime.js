@@ -655,7 +655,8 @@ function createQuestRuntime({
     const job = metadata().find((item) => item.name === message.name)
     if (
       !job ||
-      !/^[a-zA-Z0-9][a-zA-Z0-9_/-]*$/.test(message.name) ||
+      message.name.length > 128 ||
+      !/^[a-zA-Z0-9_][a-zA-Z0-9_./-]*$/.test(message.name) ||
       message.name.includes('..')
     )
       throw fail('Unknown Quest job.', 'QUEST_INPUT_INVALID')

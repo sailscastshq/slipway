@@ -2,25 +2,30 @@
 // source, tmpfs app state, no network, no install/download and no customer jobs.
 const assert = require('node:assert/strict')
 const fs = require('node:fs')
-const { createRequire } = require('node:module')
 const { spawn } = require('node:child_process')
+const {
+  fixtureDependencies,
+  prepareDependencies,
+  verifyDependencies
+} = require('./dependencies.cjs')
 assert.equal(process.env.SLIPWAY_QUEST_FIXTURE, '1')
 assert.equal(process.env.NODE_ENV, 'staging')
 fs.cpSync('/host/tests/fixtures/quest-resident/app', '/app', {
   recursive: true
 })
-fs.symlinkSync('/fixture/node_modules', '/app/node_modules')
+const layout = {
+  appRoot: '/app',
+  dependencies: '/fixture/node_modules',
+  questRoot: '/fixture/node_modules/sails-hook-quest',
+  slipwayRoot: '/fixture/packages/hook'
+}
+prepareDependencies(layout)
 fs.writeFileSync(
   '/app/package.json',
   JSON.stringify({
     private: true,
     scripts: {},
-    dependencies: {
-      sails: '*',
-      'sails-hook-orm': '*',
-      'sails-hook-quest': '*',
-      'sails-hook-slipway': '*'
-    }
+    dependencies: fixtureDependencies
   })
 )
 fs.writeFileSync(
@@ -40,25 +45,9 @@ fs.writeFileSync(
     log: { level: 'error', noShip: true }
   })
 )
-const appRequire = createRequire('/app/package.json')
-for (const name of [
-  'sails',
-  'sails-hook-orm',
-  'sails-hook-quest',
-  'sails-hook-slipway'
-]) {
-  const packageRequire = createRequire(
-    appRequire.resolve(`${name}/package.json`)
-  )
-  for (const dependency of Object.keys(
-    packageRequire('./package.json').dependencies || {}
-  ))
-    packageRequire.resolve(dependency)
-}
-assert.equal(
-  fs.realpathSync(appRequire.resolve('sails-hook-quest/package.json')),
-  '/fixture/node_modules/sails-hook-quest/package.json',
-  'Explicit upstream mount must own the Quest package'
+console.log(
+  '[Quest fixture] Actual dependency resolution',
+  verifyDependencies(layout)
 )
 const {
   startTicks
