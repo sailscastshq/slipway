@@ -223,6 +223,37 @@ module.exports = {
         createdAt: now,
         environment: environmentId
       }))
+      // Correlated Quest events are an app-scoped ledger, not legacy metrics.
+      // Verify the app/deployment inside this token's environment before writes.
+      const questLedger = require('../../../../lib/quest-run-ledger')
+      for (const metric of metricRecords) {
+        const run = metric.attributes?.questRun
+        if (!run || !metric.name.startsWith('quest.job.')) continue
+        const app = await App.findOne({
+          id: run.appId,
+          environment: environmentId
+        })
+        if (
+          !app ||
+          !run.deploymentId ||
+          !(await Deployment.findOne({
+            id: run.deploymentId,
+            environment: environmentId,
+            app: app.id
+          }))
+        )
+          continue
+        const scope = { environmentId, appId: app.id }
+        try {
+          await questLedger.admitReceipt(run, scope)
+          await questLedger.ingest(run, scope)
+        } catch (error) {
+          sails.log.warn(
+            '[quest] Rejected invalid run telemetry:',
+            error.code || error.name
+          )
+        }
+      }
       await TelemetryMetric.createEach(metricRecords)
       ingested.metrics = metricRecords.length
     }

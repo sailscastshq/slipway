@@ -63,6 +63,11 @@ test(
     await login.withPassword('genesisUser', page, {
       password: current.auth.genesisUserPassword
     })
+    // Finish the login redirect before starting another document navigation.
+    await expect(page.raw).toHaveURL(/\/$/)
+    await expect(
+      page.raw.getByRole('link', { name: project.name, exact: true })
+    ).toBeVisible()
     await page.raw.route(previewImageUrl, (route) =>
       route.fulfill({
         status: 200,

@@ -1,72 +1,52 @@
+const workspace = require('../../lib/quest-workspace')
+const runtime = require('../../lib/quest-runtime-client')
 module.exports = {
   friendlyName: 'Quest pause job',
-
-  description: 'Pause a scheduled Quest job.',
-
   inputs: {
-    slug: {
-      type: 'string',
-      required: true
-    },
-    envSlug: {
-      type: 'string',
-      defaultsTo: 'production'
-    },
-    jobName: {
-      type: 'string',
-      required: true
-    }
+    slug: { type: 'string', required: true },
+    envSlug: { type: 'string', defaultsTo: 'production' },
+    jobName: { type: 'string', required: true },
+    runtimeId: { type: 'string', required: true }
   },
-
   exits: {
-    success: {
-      responseType: 'redirect'
-    },
-    notFound: {
-      responseType: 'redirect'
-    },
-    badRequest: {
-      responseType: 'badRequest'
-    }
+    success: { statusCode: 200 },
+    notFound: { statusCode: 404 },
+    forbidden: { statusCode: 403 },
+    conflict: { statusCode: 409 }
   },
-
-  fn: async function ({ slug, envSlug, jobName }) {
-    const user = await User.forRequest(this.req, { populateTeam: true })
-    if (!user) {
-      throw { notFound: '/login' }
-    }
-
-    const project = await Project.findOne({ slug, team: user.team.id })
-    if (!project) {
-      throw { notFound: '/' }
-    }
-
-    const environment = await Environment.findOne({
-      project: project.id,
-      slug: envSlug
-    })
-    if (!environment) {
-      throw { notFound: `/projects/${slug}` }
-    }
-
-    if (!environment.features || !environment.features['sails-quest']) {
+  fn: async function ({ slug, envSlug, jobName, runtimeId }) {
+    const context = await workspace.resolveContext(
+      this.req,
+      slug,
+      envSlug,
+      true
+    )
+    const current = await workspace.snapshot(context)
+    if (!current.capabilities.pause || current.target.runtimeId !== runtimeId)
       throw {
-        badRequest: { error: 'sails-hook-quest not detected in this app.' }
+        conflict: {
+          message: 'Resident Quest control is unavailable. Refresh this page.'
+        }
       }
+    try {
+      await runtime.request(context.app, 'pause', { name: jobName, runtimeId })
+    } catch (error) {
+      throw { conflict: { message: error.message } }
     }
-
-    const app =
-      (await App.findOne({ environment: environment.id, isDefault: true })) ||
-      (await App.findOne({ environment: environment.id }))
-    if (!app || app.status !== 'running' || !app.containerName) {
-      throw { badRequest: { error: 'App is not running.' } }
-    }
-
-    await sails.helpers.quest.pauseJob(app.containerName, jobName)
-    sails.log.info(`[quest] Job "${jobName}" paused in ${slug}/${envSlug}`)
-
-    // Redirect back to quest page
-    const envPath = envSlug !== 'production' ? `/environments/${envSlug}` : ''
-    return `/projects/${slug}${envPath}/quest`
+    await sails.helpers.audit.log.with({
+      action: 'quest.job.pause',
+      resourceType: 'app',
+      resourceId: String(context.app.id),
+      userId: String(context.user.id),
+      teamId: String(context.user.team),
+      ipAddress: this.req.ip,
+      details: {
+        jobName,
+        runtimeId,
+        deploymentId: String(context.app.currentDeployment)
+      }
+    })
+    workspace.invalidate(context.app)
+    return { workspace: await workspace.snapshot(context, { fresh: true }) }
   }
 }

@@ -377,6 +377,21 @@ module.exports.routes = {
     'api/v1/quest/stream-jobs',
 
   // Quest UI
+  'GET /api/v1/projects/:projectSlug/quest/runs': 'api/v1/quest/list-runs',
+  'GET /api/v1/projects/:projectSlug/environments/:environmentSlug/quest/runs':
+    'api/v1/quest/list-runs',
+  'GET /api/v1/projects/:projectSlug/quest/runs/:runId': 'api/v1/quest/get-run',
+  'GET /api/v1/projects/:projectSlug/environments/:environmentSlug/quest/runs/:runId':
+    'api/v1/quest/get-run',
+  'GET /api/v1/projects/:projectSlug/quest/runs/:runId/logs':
+    'api/v1/quest/get-run-logs',
+  'GET /api/v1/projects/:projectSlug/environments/:environmentSlug/quest/runs/:runId/logs':
+    'api/v1/quest/get-run-logs',
+  'GET /api/v1/projects/:projectSlug/quest/events/:eventId':
+    'api/v1/quest/get-event',
+  'GET /api/v1/projects/:projectSlug/environments/:environmentSlug/quest/events/:eventId':
+    'api/v1/quest/get-event',
+
   'GET /projects/:slug/quest': 'project/view-quest',
   'GET /projects/:slug/environments/:envSlug/quest': 'project/view-quest',
 

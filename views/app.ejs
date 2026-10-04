@@ -62,6 +62,11 @@
       data-deployment-state="idle"
     />
     <%- prefixHostAssets(shipwright.styles()) %>
+    <% if (page?.component === 'projects/quest' && (!hostAssetBasePath || /^\/(?!\/)[\w/-]+$/.test(hostAssetBasePath))) { %>
+      <% for (const asset of locals.questAssetPreloads || []) { %>
+        <link data-quest-preload="1" rel="preload" as="<%= asset.as %>" href="<%= hostAssetBasePath + asset.href %>" />
+      <% } %>
+    <% } %>
   </head>
   <body>
     <div id="app"></div>

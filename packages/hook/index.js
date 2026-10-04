@@ -34,6 +34,10 @@ const buildFlagsEnabledHelper = require('./lib/helpers/flags/enabled')
 const hookVersion = require('./package.json').version
 const { registerHelmRuntime } = require('./lib/helm-runtime-contract')
 const {
+  questTimestamp,
+  telemetryPayloads
+} = require('./lib/telemetry-payloads')
+const {
   ACCESS_DENIED_MESSAGE,
   renderBridgeAccessDenied
 } = require('./lib/render-bridge-access-denied')
@@ -62,6 +66,7 @@ module.exports = function defineSlipwayHook(sails) {
   let wakeRuntime = null
   let supportRuntime = null
   let unregisterHelmRuntime = null
+  let questRuntime = null
 
   return {
     supportView: {
@@ -79,6 +84,7 @@ module.exports = function defineSlipwayHook(sails) {
     defaults: {
       slipway: {
         identity: {},
+        quest: { enabled: false },
         wake: { enabled: false, identity: {} },
         bridge: {
           impersonation: { enabled: false },
@@ -223,6 +229,22 @@ module.exports = function defineSlipwayHook(sails) {
       sails.after('hook:helpers:loaded', publishHelmRuntime)
       sails.after('hook:orm:loaded', publishHelmRuntime)
       sails.after('ready', publishHelmRuntime)
+      sails.after('ready', () => {
+        if (isTransientRuntime || sails.config.slipway.quest?.enabled !== true)
+          return
+        questRuntime = require('./lib/quest-runtime').createQuestRuntime({
+          sails,
+          appId: sails.config.slipway.lookout.appId,
+          deploymentId: sails.config.slipway.lookout.deploymentId
+        })
+        questRuntime.start().catch(() => {
+          sails.log.warn(
+            'sails-hook-slipway: resident Quest controls are unavailable.'
+          )
+          questRuntime.stop().catch(() => {})
+        })
+      })
+      sails.once('lower', () => questRuntime?.stop().catch(() => {}))
       wakeRuntime = require('./lib/wake-runtime')(
         sails,
         sails.config.slipway.wake || {},
@@ -832,61 +854,137 @@ module.exports = function defineSlipwayHook(sails) {
   // ─── Quest Job Lifecycle Instrumentation ─────────────────────
 
   function instrumentQuest() {
+    const questEvent = require('./lib/quest-event')
+    const { questRedactor } = require('./lib/quest-redaction')
+    const queueMetric = (metric) => {
+      metricBuffer.push(metric)
+      const batchSize = Number.isFinite(config.batchSize)
+        ? Math.max(1, Math.min(1000, Math.floor(config.batchSize)))
+        : 50
+      if (metricBuffer.length >= batchSize) flush()
+    }
+    const runAttributes = (
+      data,
+      state,
+      redactor = questRedactor(sails, data, state)
+    ) => {
+      const run = questEvent(data, state, {
+        sails,
+        appId: config.appId,
+        deploymentId: config.deploymentId,
+        redactor
+      })
+      if (run) {
+        const retained = questRuntime?.runs.get(data.runId)
+        if (retained)
+          Object.assign(run, {
+            trigger: retained.trigger,
+            actor: retained.actor,
+            requestId: retained.requestId,
+            requestedAt: retained.requestedAt
+          })
+        return { jobName: data.name, runId: run.runId, questRun: run }
+      }
+      let inputs = {}
+      try {
+        inputs = redactor.inputs(data.inputs, (value) =>
+          require('./lib/quest-runtime').safeValue(
+            value,
+            0,
+            new Set(),
+            redactor
+          )
+        )
+      } catch {
+        /* unsafe inputs are not telemetry */
+      }
+      return {
+        jobName: data.name,
+        inputs,
+        trigger: ['manual', 'scheduled', 'cli'].includes(data.trigger)
+          ? data.trigger
+          : 'unknown'
+      }
+    }
+
     sails.on('quest:job:start', function (data) {
-      metricBuffer.push({
+      queueMetric({
         name: 'quest.job.start',
         value: 0,
         unit: 'ms',
-        attributes: {
-          jobName: data.name,
-          inputs: data.inputs || {}
-        },
-        recordedAt: data.timestamp || Date.now()
+        attributes: runAttributes(data, 'running'),
+        recordedAt: questTimestamp(data.timestamp)
       })
     })
 
     sails.on('quest:job:complete', function (data) {
-      metricBuffer.push({
+      queueMetric({
         name: 'quest.job.complete',
-        value: typeof data.duration === 'number' ? data.duration : 0,
+        value: Number.isFinite(data.duration) ? data.duration : 0,
         unit: 'ms',
-        attributes: {
-          jobName: data.name,
-          inputs: data.inputs || {}
-        },
-        recordedAt: data.timestamp || Date.now()
+        attributes: runAttributes(data, 'completed'),
+        recordedAt: questTimestamp(data.timestamp)
       })
     })
 
-    sails.on('quest:job:error', function (data) {
-      metricBuffer.push({
-        name: 'quest.job.error',
-        value: typeof data.duration === 'number' ? data.duration : 0,
+    sails.on('quest:job:skip', function (data) {
+      const redactor = questRedactor(sails, data, 'skipped')
+      queueMetric({
+        name: 'quest.job.skipped',
+        value: 0,
         unit: 'ms',
         attributes: {
-          jobName: data.name,
-          inputs: data.inputs || {},
-          error: data.error
+          ...runAttributes(data, 'skipped', redactor),
+          error: redactor
+            .text(
+              typeof data.reason === 'string'
+                ? data.reason
+                : 'The job did not start.'
+            )
+            .slice(0, 2048)
+        },
+        recordedAt: questTimestamp(data.timestamp)
+      })
+      // Skips use the existing bounded batch/periodic delivery discipline, not
+      // failure notifications or one request for every paused timer tick.
+    })
+
+    sails.on('quest:job:error', function (data) {
+      // Upstream rejected validation before child admission. This is request
+      // evidence, never an execution, legacy failure, exception, or alert.
+      if (data.admission === 'rejected_before_start') return
+      const redactor = questRedactor(sails, data, 'failed')
+      const errorMessage = redactor
+        .text(
+          data.error
             ? data.error.message || String(data.error)
             : 'Unknown error'
+        )
+        .slice(0, 2048)
+      metricBuffer.push({
+        name: 'quest.job.error',
+        value: Number.isFinite(data.duration) ? data.duration : 0,
+        unit: 'ms',
+        attributes: {
+          ...runAttributes(data, 'failed', redactor),
+          error: errorMessage
         },
-        recordedAt: data.timestamp || Date.now()
+        recordedAt: questTimestamp(data.timestamp)
       })
 
       // Also capture as an exception for the exceptions tab
       exceptionBuffer.push({
         exceptionType: 'QuestJobError',
-        message: `Job "${data.name}" failed: ${
-          data.error
-            ? data.error.message || String(data.error)
-            : 'Unknown error'
-        }`,
-        stackTrace: normalizeQuestDiagnostic(data.error),
+        message: `Job "${data.name}" failed: ${errorMessage}`,
+        stackTrace: normalizeQuestDiagnostic({
+          diagnostic: redactor.text(data.error?.diagnostic, { tail: true }),
+          stack: redactor.text(data.error?.stack)
+        }),
         handled: true,
         method: null,
         url: null,
         traceId: null,
-        occurredAt: data.timestamp || Date.now()
+        occurredAt: questTimestamp(data.timestamp)
       })
 
       // Send job failure notification
@@ -894,11 +992,8 @@ module.exports = function defineSlipwayHook(sails) {
         sails.helpers.notification.sendJobFailureNotification
           .with({
             jobName: data.name,
-            errorMessage: data.error
-              ? data.error.message || String(data.error)
-              : 'Unknown error',
-            duration:
-              typeof data.duration === 'number' ? data.duration : undefined
+            errorMessage,
+            duration: Number.isFinite(data.duration) ? data.duration : undefined
           })
           .tolerate('error')
       }
@@ -996,13 +1091,19 @@ module.exports = function defineSlipwayHook(sails) {
       return
     }
 
-    const payload = JSON.stringify({
-      spans,
-      exceptions,
-      metrics,
-      ...(registration ? { registration } : {})
-    })
+    let dropped = 0
+    for (const payload of telemetryPayloads(
+      { spans, exceptions, metrics, registration },
+      () => dropped++
+    ))
+      sendTelemetry(payload)
+    if (dropped)
+      sails.log.verbose(
+        `sails-hook-slipway: Dropped ${dropped} oversized or unserializable telemetry item(s).`
+      )
+  }
 
+  function sendTelemetry(payload) {
     try {
       const url = new URL(config.telemetryUrl)
       const transport = url.protocol === 'https:' ? https : http

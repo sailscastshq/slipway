@@ -1,3 +1,4 @@
+const assert = require('node:assert/strict')
 const path = require('node:path')
 const { test } = require('sounding')
 
@@ -56,6 +57,13 @@ test(
     await login.withPassword('genesisUser', page, {
       password: current.auth.genesisUserPassword
     })
+    await page.raw.waitForURL('**/')
+    await expect(
+      page.raw.getByRole('link', {
+        name: current.projects.deploymentTarget.name,
+        exact: true
+      })
+    ).toBeVisible()
     await page.resize(1440, 900)
     await page.inLightMode()
     await page.goto(
@@ -64,6 +72,7 @@ test(
 
     const selector = page.raw.locator('[data-test="dock-database-selector"]')
     const trigger = selector.locator('[data-slot="select-trigger"]')
+    const popup = selector.locator('[data-slot="select-content"]')
     await selector.waitFor()
     await selector.screenshot({
       path: path.resolve('.tmp/issue-509-select-after.png')
@@ -95,8 +104,101 @@ test(
 
     await trigger.press('Space')
     expect(await trigger.getAttribute('aria-expanded')).toBe('true')
+    await expectSelectPlacement(page, popup, expect, 'bottom')
     await trigger.press('Escape')
     expect(await trigger.getAttribute('aria-expanded')).toBe('false')
+    await expect(trigger).toBeFocused()
+
+    await page.raw.evaluate(() => {
+      const trigger = document.querySelector(
+        '[data-test="dock-database-selector"] [data-slot="select-trigger"]'
+      )
+      trigger.style.width = '25vw'
+      trigger.blur()
+      trigger.focus()
+    })
+    await page.resize(1280, 900)
+    await expect(trigger).toBeFocused()
+
+    // Opening after a closed resize must use the new width. While open, both
+    // trigger resizing and viewport repositioning must continue to work.
+    await trigger.click()
+    await expectSelectPlacement(page, popup, expect, 'bottom')
+    await page.resize(1024, 900)
+    await expectSelectPlacement(page, popup, expect, 'bottom')
+    await trigger.press('Escape')
+    await expect(trigger).toBeFocused()
+
+    await selector.evaluate((element) => {
+      Object.assign(element.style, {
+        position: 'fixed',
+        right: '8px',
+        bottom: '8px'
+      })
+    })
+    await trigger.press('ArrowUp')
+    await expect(trigger).toHaveAttribute('aria-expanded', 'true')
+    await expectSelectPlacement(page, popup, expect, 'top-start')
+    const lastOption = await trigger.getAttribute('aria-activedescendant')
+    expect(lastOption).toBeTruthy()
+    await trigger.press('ArrowDown')
+    assert.notEqual(
+      await trigger.getAttribute('aria-activedescendant'),
+      lastOption
+    )
+    await trigger.press('Escape')
+    await expect(trigger).toBeFocused()
+    await trigger.press('Enter')
+    await expectSelectPlacement(page, popup, expect, 'top-start')
+    await trigger.press('Tab')
+    await expect(trigger).toHaveAttribute('aria-expanded', 'false')
+    await expect(trigger).not.toBeFocused()
     expect(page).toHaveNoSmoke()
   }
 )
+
+async function expectSelectPlacement(page, popup, expect, placement) {
+  await popup.waitFor({ state: 'visible' })
+  const id = await popup.getAttribute('id')
+  await page.raw.waitForFunction(
+    ({ id, placement }) => {
+      const content = document.getElementById(id)
+      const trigger = document.querySelector(`[popovertarget="${id}"]`)
+      const anchor = trigger.getBoundingClientRect()
+      const surface = content.getBoundingClientRect()
+      const resolved = content.dataset.placement
+      // The real header can require horizontal collision handling. Match the
+      // reported alignment and Popover's 8px viewport shift padding.
+      const alignedX = resolved.endsWith('-end')
+        ? anchor.right - surface.width
+        : anchor.left
+      const expectedX = Math.min(
+        Math.max(8, alignedX),
+        window.innerWidth - surface.width - 8
+      )
+      const expectedY = placement.startsWith('top')
+        ? anchor.top - 4 - surface.height
+        : anchor.bottom + 4
+      return (
+        (placement.includes('-')
+          ? resolved === placement
+          : resolved.split('-')[0] === placement) &&
+        Math.abs(parseFloat(content.style.minWidth) - anchor.width) < 1 &&
+        surface.width >= anchor.width - 1 &&
+        Math.abs(surface.left - expectedX) < 2 &&
+        Math.abs(surface.top - expectedY) < 2
+      )
+    },
+    { id, placement }
+  )
+  const insideViewport = await popup.evaluate((element) => {
+    const box = element.getBoundingClientRect()
+    return (
+      box.left >= 0 &&
+      box.right <= window.innerWidth &&
+      box.top >= 0 &&
+      box.bottom <= window.innerHeight
+    )
+  })
+  expect(insideViewport).toBe(true)
+}
