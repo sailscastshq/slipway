@@ -52,3 +52,34 @@ test('email notifications fan out through configured mail', async ({
     global.sails = originalSails
   }
 })
+
+test('notification emails deduplicate recipients and continue after a recipient fails', async () => {
+  const assert = require('node:assert/strict')
+  const original = global.sails
+  const sent = []
+  global.sails = {
+    log: { warn() {} },
+    helpers: {
+      setting: {
+        get: async () => 'one@example.com, ONE@example.com, two@example.com'
+      },
+      mail: {
+        sendConfigured: {
+          with: async ({ to }) => {
+            sent.push(to)
+            if (to === 'one@example.com') throw new Error('fixture failure')
+          }
+        }
+      }
+    }
+  }
+  try {
+    await assert.rejects(
+      helper.fn({ template: 'fixture', subject: 'fixture', templateData: {} }),
+      (error) => error === 'error'
+    )
+    assert.deepEqual(sent, ['one@example.com', 'two@example.com'])
+  } finally {
+    global.sails = original
+  }
+})

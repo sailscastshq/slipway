@@ -20,12 +20,11 @@ module.exports = {
     const dockerPath = sails.config.docker?.binaryPath || 'docker'
 
     try {
-      const { stdout } = await execFileAsync(dockerPath, [
-        'stats',
-        '--no-stream',
-        '--format',
-        '{{json .}}'
-      ])
+      const { stdout } = await execFileAsync(
+        dockerPath,
+        ['stats', '--no-stream', '--format', '{{json .}}'],
+        { timeout: 10000, killSignal: 'SIGKILL', maxBuffer: 1024 * 1024 }
+      )
 
       if (!stdout.trim()) {
         return []
@@ -37,18 +36,36 @@ module.exports = {
       for (const line of lines) {
         try {
           const raw = JSON.parse(line)
+          const cpuPercent = parsePercent(raw.CPUPerc)
+          const memPercent = parsePercent(raw.MemPerc)
+          const memUsage = parseBytes(raw.MemUsage?.split('/')[0]?.trim())
+          const memLimit = parseBytes(raw.MemUsage?.split('/')[1]?.trim())
+          if (
+            ![cpuPercent, memPercent, memUsage, memLimit].every(
+              Number.isFinite
+            ) ||
+            memLimit <= 0 ||
+            memPercent > 100
+          ) {
+            sails.log.verbose(
+              'Lookout: Skipping invalid Docker resource sample'
+            )
+            continue
+          }
           results.push({
             name: raw.Name,
-            cpuPercent: parsePercent(raw.CPUPerc),
-            memUsage: parseBytes(raw.MemUsage?.split('/')[0]?.trim()),
-            memLimit: parseBytes(raw.MemUsage?.split('/')[1]?.trim()),
-            memPercent: parsePercent(raw.MemPerc),
+            cpuPercent,
+            memUsage,
+            memLimit,
+            memPercent,
             netIO: raw.NetIO || null,
             blockIO: raw.BlockIO || null,
             pids: parseInt(raw.PIDs, 10) || null
           })
         } catch (parseErr) {
-          sails.log.verbose('Lookout: Failed to parse docker stats line:', line)
+          sails.log.verbose(
+            'Lookout: Skipping malformed Docker resource sample'
+          )
         }
       }
 
@@ -71,18 +88,19 @@ module.exports = {
  * Parse a percentage string like "2.45%" into a number (2.45)
  */
 function parsePercent(str) {
-  if (!str) return 0
-  return parseFloat(str.replace('%', '')) || 0
+  if (typeof str !== 'string' || !/^\d+(?:\.\d+)?%$/.test(str.trim()))
+    return NaN
+  return Number(str.trim().slice(0, -1))
 }
 
 /**
  * Parse a human-readable byte string like "150.3MiB" into bytes.
  */
 function parseBytes(str) {
-  if (!str) return 0
+  if (!str) return NaN
   str = str.trim()
-  const match = str.match(/^([\d.]+)\s*([a-zA-Z]+)$/)
-  if (!match) return 0
+  const match = str.match(/^(\d+(?:\.\d+)?)\s*([a-zA-Z]+)$/)
+  if (!match) return NaN
 
   const value = parseFloat(match[1])
   const unit = match[2].toLowerCase()
@@ -99,5 +117,5 @@ function parseBytes(str) {
     tb: 1024 * 1024 * 1024 * 1024
   }
 
-  return Math.round(value * (multipliers[unit] || 1))
+  return multipliers[unit] ? Math.round(value * multipliers[unit]) : NaN
 }

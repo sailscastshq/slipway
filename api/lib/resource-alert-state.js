@@ -4,6 +4,20 @@ const REQUIRED_SAMPLES = 3
 const MAX_SAMPLE_GAP_MS = 2 * 60 * 1000
 
 function advanceResourceAlertState(previous, stat, now) {
+  // Invalid samples never act as zero or count toward recovery.
+  if (
+    ![stat.cpuPercent, stat.memPercent].every(Number.isFinite) ||
+    stat.cpuPercent < 0 ||
+    stat.memPercent < 0 ||
+    stat.memPercent > 100
+  ) {
+    return {
+      state: previous || null,
+      cpuHigh: false,
+      memHigh: false,
+      skipped: true
+    }
+  }
   const state = {
     cpuActive: previous?.cpuActive || false,
     memoryActive: previous?.memoryActive || false,

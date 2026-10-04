@@ -27,6 +27,7 @@ module.exports = {
     try {
       const response = await fetch(webhookUrl, {
         method: 'POST',
+        signal: AbortSignal.timeout(10000),
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text: message })
       })

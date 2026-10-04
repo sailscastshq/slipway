@@ -39,6 +39,13 @@ module.exports = {
     const safeMaxBatches = Math.max(1, Math.floor(maxBatches))
     const tables = [
       {
+        key: 'resourceAlertDeliveries',
+        table: 'resource_alert_deliveries',
+        timestamp: 'observed_at',
+        cutoff: now - telemetryRetentionMs,
+        terminalOnly: true
+      },
+      {
         key: 'containerMetrics',
         table: 'container_metrics',
         timestamp: 'recorded_at',
@@ -79,6 +86,17 @@ module.exports = {
     }
 
     for (const spec of tables) {
+      // Keep the latest receipt for an active incident. Otherwise retention
+      // could make a long-running incident look like an unnotified legacy row.
+      const deliveryFilter = spec.terminalOnly
+        ? `AND status <> 'pending'
+        AND NOT EXISTS (SELECT 1 FROM resource_alert_states s
+          WHERE s.container_name=resource_alert_deliveries.container_name
+          AND ((resource='cpu' AND CAST(s.cpu_active AS INTEGER)=1) OR (resource='memory' AND CAST(s.memory_active AS INTEGER)=1))
+          AND resource_alert_deliveries.id=(SELECT d.id FROM resource_alert_deliveries d
+            WHERE d.container_name=resource_alert_deliveries.container_name AND d.resource=resource_alert_deliveries.resource
+            ORDER BY d.observed_at DESC, d.id DESC LIMIT 1))`
+        : ''
       let deletedRows = 0
       let batches = 0
 
@@ -86,7 +104,7 @@ module.exports = {
         const expiredResult = await datastore.sendNativeQuery(
           `SELECT id
           FROM ${spec.table}
-          WHERE ${spec.timestamp} < ?
+          WHERE ${spec.timestamp} < ? ${deliveryFilter}
           ORDER BY ${spec.timestamp} ASC, id ASC
           LIMIT ?`,
           [spec.cutoff, safeBatchSize]
@@ -113,7 +131,7 @@ module.exports = {
         datastore.sendNativeQuery(
           `SELECT COUNT(*) AS total, MIN(${spec.timestamp}) AS oldest
           FROM ${spec.table}
-          WHERE ${spec.timestamp} < ?`,
+          WHERE ${spec.timestamp} < ? ${deliveryFilter}`,
           [spec.cutoff]
         )
       ])

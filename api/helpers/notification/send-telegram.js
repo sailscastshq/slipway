@@ -42,6 +42,7 @@ module.exports = {
         `https://api.telegram.org/bot${botToken}/sendMessage`,
         {
           method: 'POST',
+          signal: AbortSignal.timeout(10000),
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
         }

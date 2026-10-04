@@ -36,26 +36,33 @@ module.exports = {
       throw 'error'
     }
 
-    const emails = notificationEmails
-      .split(',')
-      .map((e) => e.trim())
-      .filter(Boolean)
+    const emails = [
+      ...new Set(
+        notificationEmails
+          .split(',')
+          .map((e) => e.trim())
+          .filter(Boolean)
+          .map((email) => email.toLowerCase())
+      )
+    ]
     if (emails.length === 0) {
       throw 'error'
     }
 
-    try {
-      for (const to of emails) {
+    let failures = 0
+    for (const to of emails) {
+      try {
         await sails.helpers.mail.sendConfigured.with({
           to,
           subject,
           template,
           templateData
         })
+      } catch {
+        failures++
+        sails.log.warn('Email notification recipient delivery failed')
       }
-    } catch (err) {
-      sails.log.warn('Email notification failed:', err.message || err)
-      throw 'error'
     }
+    if (failures) throw 'error'
   }
 }
