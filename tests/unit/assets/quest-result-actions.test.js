@@ -320,7 +320,7 @@ test('Quest result UI copies and exports every valid falsy value without receipt
         result: { status: 'available', value, exit: 'invalid', exitCode: 0 }
       })
       try {
-        assert.match(content(view.root), /Exit: invalid/)
+        assert.match(content(view.root), /Named exit: invalid/)
         assert.match(content(view.root), /retained, sanitized return value/)
         assert.equal(action(view.root, 'copy-json').props.type, 'button')
         assert.equal(feedback(view.root).props['aria-live'], 'polite')
@@ -390,7 +390,7 @@ test('Quest truncated named-exit results retain their warning through repeated c
     result: { status: 'available', value, exit: 'partial', truncated: true }
   })
   try {
-    assert.match(content(view.root), /Exit: partial/)
+    assert.match(content(view.root), /Named exit: partial/)
     assert.match(content(view.root), /Copy retained JSON/)
     assert.match(content(view.root), /Export retained JSON/)
     assert.match(content(view.root), /Return value truncated/)
