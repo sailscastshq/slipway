@@ -4,6 +4,125 @@ const assert = require('node:assert/strict')
 const fs = require('node:fs')
 const path = require('node:path')
 const { execFileSync } = require('node:child_process')
+const { createHash } = require('node:crypto')
+
+const selectPath = 'assets/js/components/ui/select/Select.vue'
+
+function selectProvenance(beforeRoot, afterRoot, outputRoot) {
+  const git = (cwd, ...args) =>
+    execFileSync('git', args, { cwd, encoding: 'utf8' }).trim()
+  const hash = (file) =>
+    createHash('sha256').update(fs.readFileSync(file)).digest('hex')
+  const source = (cwd, expectedSha) => {
+    assert.equal(git(cwd, 'rev-parse', 'HEAD'), expectedSha)
+    assert.equal(git(cwd, 'status', '--porcelain', '--untracked-files=no'), '')
+    return Object.fromEntries(
+      git(cwd, 'ls-tree', '-r', '--full-tree', 'HEAD')
+        .split('\n')
+        .map((line) => {
+          const [identity, filename] = line.split('\t')
+          return [filename, identity]
+        })
+    )
+  }
+  const beforeSourceSha = process.env.QUEST_BASELINE_SHA
+  const afterSourceSha = process.env.SLIPWAY_QUEST_CAPTURE_TRIAL_SHA
+  assert.notEqual(beforeSourceSha, afterSourceSha)
+  assert.notEqual(process.env.SLIPWAY_QUEST_ATTRIBUTION_TRACE, '1')
+  const before = source(beforeRoot, beforeSourceSha)
+  const after = source(afterRoot, afterSourceSha)
+  const changedFiles = [
+    ...new Set([...Object.keys(before), ...Object.keys(after)])
+  ]
+    .sort()
+    .filter((file) => before[file] !== after[file])
+    .map((file) => ({
+      file,
+      before: before[file] || null,
+      after: after[file] || null
+    }))
+  const productionChanges = changedFiles
+    .filter(
+      ({ file }) =>
+        !file.startsWith('docs/') &&
+        !file.startsWith('tests/') &&
+        file !== '.github/workflows/quest-comparison.yml' &&
+        file !== 'packages/hook/README.md'
+    )
+    .map(({ file }) => file)
+  assert.deepEqual(
+    productionChanges,
+    [selectPath],
+    'Select control requires Select.vue to be the only production source change'
+  )
+  const dependencies = (root) => ({
+    packageLockSha256: hash(path.join(root, 'package-lock.json')),
+    installedLockSha256: hash(
+      path.join(root, 'node_modules/.package-lock.json')
+    ),
+    versions: Object.fromEntries(
+      [
+        'playwright-core',
+        '@playwright/test',
+        'sounding',
+        'sails-hook-shipwright',
+        'vue',
+        '@floating-ui/dom'
+      ].map((name) => [
+        name,
+        JSON.parse(
+          fs.readFileSync(
+            path.join(root, 'node_modules', name, 'package.json'),
+            'utf8'
+          )
+        ).version
+      ])
+    ),
+    browsers: JSON.parse(
+      fs.readFileSync(
+        path.join(root, 'node_modules/playwright-core/browsers.json'),
+        'utf8'
+      )
+    ).browsers
+  })
+  const beforeDependencies = dependencies(beforeRoot)
+  const afterDependencies = dependencies(afterRoot)
+  assert.deepEqual(
+    afterDependencies,
+    beforeDependencies,
+    'Both real source builds must use identical installed dependencies and browser revisions'
+  )
+  fs.mkdirSync(outputRoot, { recursive: true })
+  for (const [phase, root] of [
+    ['before', beforeRoot],
+    ['after', afterRoot]
+  ])
+    fs.copyFileSync(
+      path.join(root, selectPath),
+      path.join(outputRoot, `Select.${phase}.vue`)
+    )
+  const report = {
+    beforeSourceSha,
+    afterSourceSha,
+    productionChanges,
+    changedFiles,
+    selectSourceSha256: {
+      before: hash(path.join(beforeRoot, selectPath)),
+      after: hash(path.join(afterRoot, selectPath))
+    },
+    dependencies: beforeDependencies,
+    node: process.version,
+    platform: process.platform,
+    architecture: process.arch,
+    runner: { image: process.env.ImageOS, version: process.env.ImageVersion },
+    instrumentation:
+      'No attribution trace or browser probe; unchanged native production measurement trial'
+  }
+  fs.writeFileSync(
+    path.join(outputRoot, 'provenance.json'),
+    JSON.stringify(report, null, 2) + '\n'
+  )
+}
 
 async function build() {
   assert.equal(process.env.NODE_ENV, 'production')
@@ -104,8 +223,11 @@ function configure() {
   )
 }
 
-function summarize(root, { control = false, preload = false } = {}) {
-  control ||= preload
+function summarize(
+  root,
+  { control = false, preload = false, select = false } = {}
+) {
+  control ||= preload || select
   const read = (file) =>
     JSON.parse(fs.readFileSync(path.join(root, file), 'utf8'))
   const names = ['before-1', 'after-1', 'after-2', 'before-2']
@@ -115,6 +237,19 @@ function summarize(root, { control = false, preload = false } = {}) {
     performance: read(`${name}/performance.json`)
   }))
   const ref = rounds[0]
+  const provenance = select ? read('provenance.json') : null
+  if (select) {
+    assert.equal(provenance.beforeSourceSha, process.env.QUEST_BASELINE_SHA)
+    assert.equal(
+      provenance.afterSourceSha,
+      process.env.SLIPWAY_QUEST_CAPTURE_TRIAL_SHA
+    )
+    assert.deepEqual(provenance.productionChanges, [selectPath])
+    assert.notEqual(
+      provenance.selectSourceSha256.before,
+      provenance.selectSourceSha256.after
+    )
+  }
   const expectedSource = (name) =>
     preload || !name.startsWith('before')
       ? process.env.SLIPWAY_QUEST_CAPTURE_TRIAL_SHA
@@ -156,6 +291,29 @@ function summarize(root, { control = false, preload = false } = {}) {
     )
     assert.equal(round.performance.productionBenchmark, true)
     assert.equal(round.performance.measurementVersion, 2)
+    if (select) {
+      assert.equal(round.performance.phase, 'after')
+      assert.equal(round.performance.preloadMode, 'on')
+      assert.equal(
+        round.performance.clockMode,
+        'Date-only fixture; native Performance and timers'
+      )
+      assert.equal(
+        round.performance.additionalReadiness,
+        ref.performance.additionalReadiness
+      )
+      assert.equal(round.performance.productionBuild.sourceSha, expected)
+      assert.equal(round.performance.productionBuild.buildMode, 'production')
+      assert.equal(round.performance.productionBuild.applicationLifted, false)
+      assert.ok(round.performance.productionBuild.preloads?.assets.length > 0)
+      const sameSource = rounds.find(
+        (entry) => entry.fixture.sourceSha === expected
+      )
+      assert.deepEqual(
+        round.performance.productionBuild,
+        sameSource.performance.productionBuild
+      )
+    }
     if (preload) {
       assert.equal(round.performance.preloadMode, preloadMode(round.name))
       const build = round.performance.productionBuild
@@ -191,6 +349,21 @@ function summarize(root, { control = false, preload = false } = {}) {
       assert.deepEqual(round.fixture[key], ref.fixture[key])
     assert.equal(round.performance.measurements.length, 4)
     for (const row of round.performance.measurements) {
+      if (select) {
+        const referenceRow = ref.performance.measurements.find(
+          (entry) => entry.capture === row.capture
+        )
+        for (const key of [
+          'initialJsonBytes',
+          'questJsonBytes',
+          'documentElementCount'
+        ])
+          assert.equal(
+            row[key],
+            referenceRow[key],
+            `${round.name}: ${row.capture}: unchanged ${key}`
+          )
+      }
       assert.equal(row.productionSamples.length, 5)
       assert.equal(row.navigationToReadySamplesMs.length, 5)
       for (const metric of [
@@ -316,6 +489,11 @@ function summarize(root, { control = false, preload = false } = {}) {
     const expected = expectedSource(round.name)
     assert.equal(round.sourceSha, expected)
     if (preload) assert.equal(round.preloadMode, preloadMode(round.name))
+    if (select) {
+      assert.equal(round.preloadMode, 'on')
+      assert.equal(round.method, actionRounds[0].method)
+      assert.equal(round.fixture, actionRounds[0].fixture)
+    }
     assert.equal(round.observations.length, 36)
     for (const row of round.observations) {
       assert.ok(
@@ -323,6 +501,12 @@ function summarize(root, { control = false, preload = false } = {}) {
       )
       assert.ok(row.geometry.horizontalOverflowPx <= 1)
       assert.ok(row.geometry.workspaceHorizontalOverflowPx <= 1)
+      if (select && row.kind === 'job-click')
+        assert.equal(
+          staticAssets(row).length,
+          0,
+          'Select optimization must preserve the eager inspector'
+        )
       if (preload) {
         const reference = actionRounds[0].observations.find(
           (entry) => entry.capture === row.capture && entry.kind === row.kind
@@ -356,6 +540,8 @@ function summarize(root, { control = false, preload = false } = {}) {
             ? {
                 phase: preload
                   ? `preload-${phase === 'before' ? 'off' : 'on'}`
+                  : select
+                  ? `select-${phase === 'before' ? 'unguarded' : 'guarded'}`
                   : phase === 'before'
                   ? 'pre-split'
                   : 'current'
@@ -396,6 +582,8 @@ function summarize(root, { control = false, preload = false } = {}) {
       'Production-built assets; normal disposable Sounding test environment; ABBA same-runner, ten samples per phase/viewport; Date-only shim, native Performance and timers',
     comparison: preload
       ? 'same-source preload off versus on'
+      : select
+      ? 'current Quest UI: closed-Select measurement unguarded versus guarded'
       : control
       ? 'pre-split versus current'
       : 'old page versus current',
@@ -405,6 +593,18 @@ function summarize(root, { control = false, preload = false } = {}) {
     afterSourceSha: process.env.SLIPWAY_QUEST_CAPTURE_TRIAL_SHA,
     observations,
     rounds,
+    ...(select
+      ? {
+          selectControl: {
+            beforeMode: 'unguarded',
+            afterMode: 'guarded',
+            order: ['unguarded', 'guarded', 'guarded', 'unguarded'],
+            preloadMode: 'on',
+            fixturePhase: 'after',
+            provenance
+          }
+        }
+      : {}),
     ...(preload
       ? {
           preloadControl: {
@@ -432,12 +632,19 @@ function summarize(root, { control = false, preload = false } = {}) {
         ? [
             'Same-source on/off isolates generated preload hints only; it does not remove the byte increase or establish non-regression against the original Quest page'
           ]
+        : []),
+      ...(select
+        ? [
+            'Two real current-UI source builds isolate the Select.vue guard; normal hashed asset differences remain visible in raw requests. The separate original-page comparison is still required.'
+          ]
         : [])
     ]
   }
   const lines = [
     preload
       ? '## Quest same-source preload control: off versus on'
+      : select
+      ? '## Quest closed-Select control: initial and action costs'
       : control
       ? '## Quest pre-split control: initial and action costs'
       : '## Quest production-asset navigation observations',
@@ -465,12 +672,16 @@ function summarize(root, { control = false, preload = false } = {}) {
     '',
     preload
       ? '### Same-source preload off/on action costs'
+      : select
+      ? '### Same-runner unguarded and guarded Select action costs'
       : control
       ? '### Same-runner pre-split and current action costs'
       : '### After-only inspector and direct-navigation costs',
     '',
     preload
       ? 'Balanced off → on → on → off with the same current page and fixture. First inspector clicks remain eager with zero new static requests. Direct links retain identical requested static paths/bytes. The pinned original-page comparison remains separate.'
+      : select
+      ? 'Pinned pre-guard and exact proposed sources, both actual current Quest UI and after fixture; preload on throughout. Balanced unguarded → guarded → guarded → unguarded. Only Select.vue differs in production source; identical dependency versions, native readiness and Date-only clock. Six eager-inspector/direct-link samples per phase/path/view; raw values and requests remain in JSON.'
       : control
       ? 'Exact pre-split and current source, same updated fixture/instrumentation, balanced pre-split → current → current → pre-split. Genuine first inspector clicks and full direct links; six samples per phase/path/view. The original old-screen comparison remains separate.'
       : 'No old-page action equivalent or pre-split control is implied. First inspector open uses a genuine click; direct links use full navigation. Six samples per path/view across two rounds; raw values and requests are in JSON.',
@@ -508,9 +719,13 @@ function summarize(root, { control = false, preload = false } = {}) {
     summarize(process.argv[3], { control: true })
   else if (mode === 'summarize-preload')
     summarize(process.argv[3], { preload: true })
+  else if (mode === 'summarize-select')
+    summarize(process.argv[3], { select: true })
+  else if (mode === 'select-provenance')
+    selectProvenance(process.argv[3], process.argv[4], process.argv[5])
   else
     throw new Error(
-      'Expected build, configure, summarize, summarize-control, or summarize-preload'
+      'Expected build, configure, summarize, summarize-control, summarize-preload, summarize-select, or select-provenance'
     )
 })().catch((error) => {
   console.error(error)

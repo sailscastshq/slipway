@@ -385,9 +385,14 @@ function analyzeValidTrace(trace, sample) {
         Number.isFinite(browserMark.startTime),
         `Missing browser marker timestamp: ${event.name}`
       )
-      assert.equal(
-        event.args?.data?.startTime,
-        browserMark.startTime,
+      // Chrome trace JSON serializes this auxiliary millisecond value with
+      // 16 significant digits (observed CI: 125.2000000000116 versus the
+      // browser snapshot's 125.20000000001164). Accept that exact decimal
+      // serialization only; raw Chrome ts drives every ordering/nesting test.
+      const traceStartTime = event.args?.data?.startTime
+      assert.ok(
+        traceStartTime === browserMark.startTime ||
+          traceStartTime === Number(browserMark.startTime.toPrecision(16)),
         `Marker timestamp correspondence mismatch: ${event.name}`
       )
     }

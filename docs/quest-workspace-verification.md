@@ -267,6 +267,43 @@ have zero horizontal overflow; inspected desktop and mobile pixels preserve the
 existing field styling. No new product rendering change is made in the harness
 correction.
 
+### Verified native restart and trace checkpoint
+
+At `58b5a9c2b1477ca9429bc260ccf0fae29ad61896`, the [real resident job](https://github.com/sailscastshq/slipway/actions/runs/37228676913/job/111513547142)
+passes both the Docker/browser proof (92.28 seconds) and the native web/telemetry
+restart proof (20.38 seconds). The [downloaded artifact](https://github.com/sailscastshq/slipway/actions/runs/37228676913/artifacts/11313525238)
+matches SHA-256 `c4608b6af08d98d83efd09db89217aa977c7632bfe72de77c1db63e507679db8`.
+The native proof records two dashboard processes sharing the same disposable
+SQLite files. Dashboard A is killed with SIGKILL; the web app and runtime survive.
+Dashboard B preserves the old receipt and logs exactly, reports a missed receipt
+as 404, then recovers it through verified private UDS with zero additional job
+starts. All 36 near-16-KiB business results survive two packets. Total accepted
+traffic is four requests, 80 events and 716,245 bytes, with zero rejected requests
+or events. The proof reaches 41 starts, 42 loads, at most four concurrent
+children, and verified cleanup of all three processes, their owned registrations
+and the private database/context directory. This is actual process-restart and
+explicit recovery evidence, not durable upstream replay or distributed exactly
+once execution.
+
+The separate [attribution artifact](https://github.com/sailscastshq/slipway/actions/runs/37228676913/artifacts/11313187163)
+contains all 20 complete Chrome traces with `dataLossOccurred=false`. Its CI
+summary failed because Chrome serializes mirrored User Timing decimal values
+to 16 significant digits. The parser correction accepts only exact equality or
+that exact serialization; it leaves raw Chrome timestamps, navigation/frame/thread
+identity and loss checks unchanged. Replaying the same immutable traces validates
+all 20, and 104 pure parser/wrapper tests pass, including the observed rounding
+pair and rejection of incorrect timestamps.
+
+All ten current-page traces place both style and layout inside the first closed
+filter Select's `getBoundingClientRect` call. The read spans a diagnostic median
+12.028 ms (11.138–16.170 ms), with style median 10.8485 ms and layout median
+1.138 ms. All ten show later style work before first paint outside readiness;
+only one shows later layout there. All ten original-page traces correctly have
+no filter Select read. Readiness-induced work is tracked separately. These
+instrumented spans establish the mechanism, not a speedup: avoiding the read may
+move necessary work. A bounded production comparison must evaluate any proposed
+closed-state measurement change while shared-control behavior remains covered.
+
 ## Reproducible comparison
 
 The workflow uses two checkouts:

@@ -476,6 +476,27 @@ test('parser joins Chrome navigation IDs to navigationStart.frame without requir
   assert.equal(result.fcp.tracePresentationUs, NAVIGATION_US + 2500)
 })
 
+test('parser accepts the observed Chrome decimal serialization without changing exact trace timestamps', () => {
+  const fixture = chromeFixture()
+  const name = `${PREFIX}select:1:begin`
+  const event = findEvent(fixture, name)
+  const browserMark = fixture.sample.native.attribution.marks.find(
+    (mark) => mark.name === name
+  )
+  browserMark.startTime = 125.20000000001164
+  event.args.data.startTime = 125.2000000000116
+  const timestampUs = event.ts
+  const result = analyze(fixture)
+  assert.equal(result.status, 'supported')
+  assert.equal(result.firstSelect.beginUs, timestampUs)
+  assert.equal(event.ts, timestampUs)
+  for (const wrong of [125.200000000012, 125.2, 125.3, undefined]) {
+    event.args.data.startTime = wrong
+    assert.equal(analyze(fixture).status, 'invalid')
+    assert.match(analyze(fixture).reason, /timestamp correspondence mismatch/)
+  }
+})
+
 test('parser supports RecalculateStyles as same-kind synchronous style work', () => {
   const fixture = chromeFixture()
   for (const event of fixture.trace.traceEvents)
