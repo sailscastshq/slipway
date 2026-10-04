@@ -1714,6 +1714,42 @@ async function captureQuestWorkspaceState(page, expect, name, anchor) {
       }
       await expect(form.locator('[data-slot="checkbox"]')).toHaveCount(2)
     }
+    let runHeaderGeometry
+    const runDetail = page.raw.locator('[data-test="quest-run-detail"]')
+    if (
+      capture.width === 390 &&
+      !(await form.isVisible()) &&
+      (await runDetail.isVisible())
+    ) {
+      runHeaderGeometry = await runDetail.evaluate((element) => {
+        const title = element.querySelector('#quest-run-detail-title')
+        const id = title.nextElementSibling.getBoundingClientRect()
+        const header = title.parentElement.parentElement.getBoundingClientRect()
+        const back = element.querySelector('[aria-label="Close run details"]')
+        const actions = back.parentElement.getBoundingClientRect()
+        const label = [...back.childNodes].find(
+          (node) => node.nodeType === Node.TEXT_NODE && node.textContent.trim()
+        )
+        const range = document.createRange()
+        range.selectNodeContents(label)
+        return {
+          idWidth: id.width,
+          headerWidth: header.width,
+          idBottom: id.bottom,
+          actionsTop: actions.top,
+          backLabelLines: [...range.getClientRects()].filter(
+            (rect) => rect.width > 0
+          ).length
+        }
+      })
+      expect(runHeaderGeometry.backLabelLines).toBe(1)
+      expect(runHeaderGeometry.actionsTop >= runHeaderGeometry.idBottom).toBe(
+        true
+      )
+      expect(
+        runHeaderGeometry.idWidth >= runHeaderGeometry.headerWidth - 33
+      ).toBe(true)
+    }
     let scheduleContrast
     if (
       ['scheduled-inputs', 'inactive-schedule', 'invalid-schedule'].includes(
@@ -1792,6 +1828,7 @@ async function captureQuestWorkspaceState(page, expect, name, anchor) {
       filename: `quest-${name}-${capture.name}.png`,
       geometry,
       ...(fieldStyles ? { fieldStyles } : {}),
+      ...(runHeaderGeometry ? { runHeaderGeometry } : {}),
       ...(scheduleContrast ? { scheduleContrast } : {})
     })
     if (
@@ -2734,7 +2771,8 @@ test(
         if (name === 'named-exit') {
           const detail = page.raw.locator('[data-test="quest-run-detail"]')
           await expect(detail).toContainText('Completed')
-          await expect(detail).toContainText('Exit: invalid')
+          await expect(detail).toContainText('Process exit 0')
+          await expect(detail).toContainText('Named exit: invalid')
           await captureQuestWorkspaceState(page, expect, 'named-exit', detail)
         }
       }

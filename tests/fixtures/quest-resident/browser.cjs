@@ -68,7 +68,7 @@ async function realBrowserFlow(
   await expect(form).not.toBeVisible()
   const detail = page.raw.locator('[data-test="quest-run-detail"]')
   await expect(detail).toContainText('Completed', { timeout: 25000 })
-  await expect(detail).toContainText('Exit 0')
+  await expect(detail).toContainText('Process exit 0')
   await expect(
     page.raw.locator('[data-test="quest-run-result"]')
   ).toContainText('240')

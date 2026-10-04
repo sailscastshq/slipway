@@ -2,24 +2,26 @@
 
 ## Evidence status
 
-The latest executed source checkpoint is
-`229ffd36c8ce80d095e51e2515c2f6742ac8628c`. Its renewed browser captures and
-production comparisons pass; the shared Select experiment has been reverted
-and its complete browser journey passes. Its packed-consumer preparation failed
-before runtime because npm 10.9.9 invoked upstream's `prepare=husky` despite
-`--ignore-scripts`. This source selects isolated npm 11.9.0, whose pacote honors
-that suppression; fresh packed-runtime CI is required. The last complete actual
-runtime proofs remain those at `c1aa27677367b28c63585324736029c70a4cfb6c`, using
-source-linked hook packages.
+The latest fully executed source checkpoint is
+`e9ef653a998c12db9cb37bd8ace650f890a514a4`: all eight Quest jobs pass, including
+actual npm-packed Docker/browser and native telemetry/restart proofs. General
+CI passes 17 of 18 jobs: 673 unit tests, 190 functional tests, every browser shard
+and the other integration checks. The unchanged database-free Helm fixture is
+the one red job, reproducing the explicitly deferred Quest 0.0.6 ORM-disabled
+initialization limitation in [Quest #16](https://github.com/sailscastshq/sails-hook-quest/issues/16).
+It is not counted as passing full CI.
 
-The original-page latency gate remains unmet. The published Quest 0.0.6 upgrade
-also exposed an ORM-disabled readiness regression in the unchanged Helm fixture:
-Quest waits for an ORM event that cannot occur. This known limitation is accepted for the current ORM-enabled scope; no upstream
-patch or fixture change is included. Compatible Slipway-hook publication and
-packed/published consumer proof remain release gates. The failing Helm check is
-retained and must be explicitly accounted for at merge, never reported green. Earlier sections retain historical results and then-pending work;
-they do not supersede this checkpoint or imply current support in the unreleased
-Slipway hook.
+A final pixel review covered all 76 state captures, four overview captures and
+four real-runtime captures. This source makes only two resulting UI corrections:
+stack the run ID and action row on mobile so “All runs” does not wrap, and label
+process exit codes separately from named result exits. No status semantics,
+components or data flow change. Renewed exact-head browser/runtime checks and
+screenshots are required for these corrections.
+
+The original-page latency gate remains unmet. Compatible Slipway-hook publication,
+a registry-installed package-pair smoke and performance acceptance remain release
+gates. Earlier sections retain historical results and then-pending work; they do
+not supersede this checkpoint or imply current support in the unreleased hook.
 
 The original four before PNGs were captured from the actual Quest page at
 `6fe3b2177bc867475f1e3d499f6f4de53d2d1e03`. Their materialized pixels were reviewed
@@ -37,7 +39,81 @@ artifacts. Local Chromium is installed, but the current cloud executor's browser
 launch was previously blocked; this work does not retry that launch or alter
 security settings. Browser execution is delegated to the CI runner.
 
-## Minimal candidate and packaging checkpoint
+## Verified packed consumer and final visual review
+
+At `e9ef653a`, [all eight Quest jobs passed](https://github.com/sailscastshq/slipway/actions/runs/37239512061).
+The [actual packed-runtime artifact](https://github.com/sailscastshq/slipway/actions/runs/37239512061/artifacts/11316494927)
+was downloaded and independently checked. Its ZIP SHA256 is
+`f2077a06a4c0d6502baab5f2e28d7bb91926b7141a6eb893439ff77892c5ce7f`.
+The Quest tarball SHA256 is
+`99c6bc3a97662760fdf62552c1fe8821ed6be12955af1329a540f591e0f2fa88`;
+the Slipway hook tarball SHA256 is
+`185cc450c03a796d5d1b3ef971e12b70b1e0e8eba63f4db837ead3c15f27ebb7`.
+Every archived file matches its exact source checkout. Consumer/root lock hashes,
+installed file-tree hashes and both runtime proofs' provenance references match.
+The actual tool is npm 11.9.0 with pacote 21.1.0; fixture Sails 1.5.18,
+machine 15.2.3 and whelk 6.0.2 remain unchanged. Physically copied hook packages
+occupy 6,496,256 bytes after file-block rounding, below the existing 12 MiB copy
+budget and unchanged 16 MiB app tmpfs.
+
+The Docker/browser proof passed in 95.03 seconds with 26 starts and 28 Sails loads.
+The separate native proof passed in 23.956 seconds with 41 starts, 42 loads and
+at most four children. All 36 near-16-KiB results survived in two packets. Across
+the complete run, four HTTP requests carried 80 events and 716,285 bytes with
+zero rejections. The first 276-byte registration fell in the previous minute;
+the current-minute database budget therefore records three requests/716,009 bytes,
+not the global total. The same resident survives actual dashboard SIGKILL/restart;
+old receipts/logs remain unchanged, and a missing 404 receipt is explicitly
+recovered with zero new starts. All three owned processes, registry entries and
+the private runtime directory are cleaned up.
+
+The pinned Quest source still identifies as 0.0.5, but all 11 runtime `lib` files
+were independently compared with the installed published 0.0.6 package and match
+byte-for-byte. This exact-source packed proof is separate from the final
+registry-installed Quest/Slipway-hook pair smoke. The deferred no-ORM
+configuration is not covered by this ORM-enabled proof.
+
+[General CI](https://github.com/sailscastshq/slipway/actions/runs/37239512161)
+ran the PR merge ref `659f76a1d91d014ff2b6c3a277b09f2a8e994096`, combining the
+exact head with main `1692b916f89e75cbe9914a77a49fa4daf88ffe0c`. The 673 units,
+190 functional tests, browser shards 51/30/37 and 11 additional focused Helm
+journeys pass. Only the already documented ORM-disabled Helm runtime check is
+red. It remains unchanged and visible.
+
+The [final 76-state artifact](https://github.com/sailscastshq/slipway/actions/runs/37239512061/artifacts/11316389996)
+and [four overview captures](https://github.com/sailscastshq/slipway/actions/runs/37239512061/artifacts/11316464758)
+were downloaded, hash-verified and reviewed across desktop/mobile light/dark.
+All 76 states report zero horizontal overflow. There is no decorative eyebrow;
+input styling, keyboard focus and mobile form scrolling/footer remain clear.
+Two small finish issues motivate the current correction: the mobile run header
+crowds the ID and wraps “All runs”, and “Exit 0” beside “Exit: invalid” needs
+explicit process/named-exit labels. Production, missing-input and uncertain-run
+messages remain because they explain consequential state. The real result and
+logs were also inspected separately: the returned result is indexed 240,
+skipped 3 and dryRun true, while stdout's intentionally misleading 999999 value
+and a stderr warning stay in Logs. No business success is inferred from exit 0.
+
+The exact-head [production report](https://github.com/sailscastshq/slipway/actions/runs/37239512061/artifacts/11317170729)
+and [preload control](https://github.com/sailscastshq/slipway/actions/runs/37239512061/artifacts/11317430338)
+retain all 160 initial and 216 action observations. Independently recomputed
+original → current native-ready medians (desktop light/dark, mobile light/dark)
+are 121.20 → 127.15, 121.95 → 129.10, 117.85 → 121.95 and 117.45 → 130.75 ms:
++5.95, +7.15, +4.10 and +13.30 ms. Initial JS/CSS is +54,768 bytes, with 12 → 14
+all-resource requests (11 → 13 JS/CSS) and 4,283 → 5,650 initial JSON bytes.
+Complete production/preload manifests and every requested static asset match
+`229ffd36` exactly, so cross-run timing differences are not UI improvements.
+Both runs show a remaining latency increase.
+
+Same-head preload off → on ready medians are 160.35 → 171.05, 171.65 → 164.00,
+165.90 → 157.55 and 176.15 → 157.70 ms. Inspector medians stay near 11–12 ms
+with one 504-byte request and no static fetch. Direct-job medians are
+144.50 → 135.30, 138.20 → 134.60, 127.35 → 114.30 and 127.65 → 122.35 ms;
+direct-run medians are 197.60 → 181.00, 183.20 → 175.25, 180.45 → 173.85 and
+190.60 → 174.70 ms. Desktop-light initial readiness worsens in both final runs;
+the earlier run also has slower direct-run observations in three views. All
+rounds are retained and no general speedup or causal attribution is claimed.
+
+## Historical minimal candidate and packaging checkpoint
 
 The [229ffd36 Quest run](https://github.com/sailscastshq/slipway/actions/runs/37238558433)
 passed seven browser/history/measurement jobs. The resident job failed during

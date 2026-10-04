@@ -187,7 +187,9 @@ onBeforeUnmount(() => {
     ]"
     aria-labelledby="quest-run-detail-title"
   >
-    <div class="flex items-start justify-between gap-3 px-4 py-4">
+    <div
+      class="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-start sm:justify-between"
+    >
       <div class="min-w-0">
         <h3
           id="quest-run-detail-title"
@@ -204,7 +206,7 @@ onBeforeUnmount(() => {
           {{ eventId || runId }}
         </p>
       </div>
-      <div class="flex items-center gap-2">
+      <div class="flex shrink-0 items-center gap-2">
         <Button
           v-if="canRun && !legacy && run && !active"
           class="min-h-8 min-w-0 border border-gray-200 bg-transparent px-2.5 py-1 text-xs text-gray-700 hover:bg-gray-100 dark:border-gray-700 dark:bg-transparent dark:text-gray-300 dark:hover:bg-gray-800"
@@ -213,7 +215,7 @@ onBeforeUnmount(() => {
         >
         <button
           type="button"
-          class="flex items-center gap-1 rounded p-1 text-xs text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
+          class="flex items-center gap-1 whitespace-nowrap rounded p-1 text-xs text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
           aria-label="Close run details"
           @click="emit('close')"
         >
@@ -259,7 +261,7 @@ onBeforeUnmount(() => {
         >
         <span>{{ formatQuestDuration(run.duration) }}</span>
         <span v-if="run.exitCode !== null && run.exitCode !== undefined"
-          >Exit {{ run.exitCode }}</span
+          >Process exit {{ run.exitCode }}</span
         >
       </div>
       <div
