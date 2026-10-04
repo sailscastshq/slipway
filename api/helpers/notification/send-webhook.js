@@ -38,6 +38,7 @@ module.exports = {
 
       const response = await fetch(url, {
         method: 'POST',
+        signal: AbortSignal.timeout(10000),
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       })

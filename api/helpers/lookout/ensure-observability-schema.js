@@ -46,6 +46,19 @@ module.exports = {
       )
     `)
 
+    await datastore.sendNativeQuery(`CREATE TABLE IF NOT EXISTS resource_alert_deliveries (
+      id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, created_at INTEGER, updated_at INTEGER,
+      incident_key TEXT NOT NULL UNIQUE, container_name TEXT NOT NULL, resource TEXT NOT NULL,
+      observed_at INTEGER NOT NULL, payload TEXT NOT NULL, receipts TEXT NOT NULL DEFAULT '{}',
+      status TEXT NOT NULL DEFAULT 'pending', attempts INTEGER NOT NULL DEFAULT 0,
+      next_attempt_at INTEGER NOT NULL DEFAULT 0, lease_until INTEGER NOT NULL DEFAULT 0,
+      lease_owner TEXT NOT NULL DEFAULT '', last_outcome TEXT NOT NULL DEFAULT 'queued'
+    )`)
+    await datastore.sendNativeQuery(`CREATE INDEX IF NOT EXISTS resource_alert_deliveries_due
+      ON resource_alert_deliveries (status, next_attempt_at, lease_until)`)
+    await datastore.sendNativeQuery(`CREATE INDEX IF NOT EXISTS resource_alert_deliveries_container_resource
+      ON resource_alert_deliveries (container_name, resource, observed_at)`)
+
     await datastore.sendNativeQuery(`
       CREATE TABLE IF NOT EXISTS telemetry_spans (
         id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,

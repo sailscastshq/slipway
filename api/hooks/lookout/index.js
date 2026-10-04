@@ -17,6 +17,8 @@ module.exports = function defineLookoutHook(sails) {
   let pollInterval = null
   let logInterval = null
   let cycleRunning = false
+  let deliveryInterval = null
+  let deliveryRunning = false
 
   // Track alert cooldowns: containerName → last alert timestamp
   const alertCooldowns = new Map()
@@ -41,6 +43,8 @@ module.exports = function defineLookoutHook(sails) {
         // Main 30-second interval: lifecycle reconciliation + metrics.
         pollInterval = setInterval(runLookoutCycle, 30000)
         runLookoutCycle()
+        deliveryInterval = setInterval(deliverResourceAlerts, 30000)
+        deliverResourceAlerts()
 
         // Separate 5-minute interval for log collection
         logInterval = setInterval(collectLogs, 5 * 60 * 1000)
@@ -50,7 +54,22 @@ module.exports = function defineLookoutHook(sails) {
     teardown: function (done) {
       if (pollInterval) clearInterval(pollInterval)
       if (logInterval) clearInterval(logInterval)
+      if (deliveryInterval) clearInterval(deliveryInterval)
       done()
+    }
+  }
+
+  async function deliverResourceAlerts() {
+    if (deliveryRunning) return
+    deliveryRunning = true
+    try {
+      await sails.helpers.lookout.deliverResourceAlerts()
+    } catch {
+      sails.log.warn(
+        'Lookout: Resource delivery queue unavailable; retry on next cycle'
+      )
+    } finally {
+      deliveryRunning = false
     }
   }
 
@@ -114,7 +133,7 @@ module.exports = function defineLookoutHook(sails) {
     try {
       const result = await sails.helpers.lookout.collectContainerMetrics()
       for (const sample of result.alertSamples) {
-        await checkResourceAlert(sample, Date.now())
+        await checkResourceAlert(sample, sample.recordedAt)
       }
     } catch (err) {
       sails.log.warn('Lookout: Error collecting metrics:', err.message)
@@ -170,50 +189,74 @@ module.exports = function defineLookoutHook(sails) {
     now
   ) {
     const previous = await ResourceAlertState.findOne({ containerName })
-    const { state, cpuHigh, memHigh } = advanceResourceAlertState(
+    const { state, cpuHigh, memHigh, skipped } = advanceResourceAlertState(
       previous,
       stat,
       now
     )
-    if (previous) {
-      await ResourceAlertState.updateOne({ id: previous.id }).set(state)
-    } else {
-      await ResourceAlertState.create({ containerName, ...state })
+    if (skipped) return
+    const queue = { cpu: cpuHigh, memory: memHigh }
+    // An upgraded installation may already have an active incident from the
+    // old sender. Seed it only from a fresh high sample, never from old metrics.
+    for (const resource of ['cpu', 'memory']) {
+      if (
+        previous?.[`${resource}Active`] &&
+        (resource === 'cpu' ? stat.cpuPercent : stat.memPercent) > 90
+      ) {
+        const deliveries = await ResourceAlertDelivery.find({
+          containerName,
+          resource
+        }).limit(1)
+        if (!deliveries.length) queue[resource] = true
+      }
     }
-
-    if (!cpuHigh && !memHigh) return
 
     let lookoutUrl
-    try {
-      const environment = await Environment.findOne({
-        id: environmentId
-      }).populate('project')
-      if (environment?.project?.slug) {
-        const baseUrl = sails.config.custom.baseUrl?.replace(/\/$/, '')
-        if (baseUrl) {
-          lookoutUrl = `${baseUrl}/projects/${environment.project.slug}/environments/${environment.slug}/lookout`
+    let targetLabel = containerName
+    if (queue.cpu || queue.memory)
+      try {
+        const environment = await Environment.findOne({
+          id: environmentId
+        }).populate('project')
+        if (environment?.project?.slug) {
+          targetLabel = `${environment.project.slug}/${environment.slug}`
+          const baseUrl = sails.config.custom.baseUrl?.replace(/\/$/, '')
+          if (baseUrl) {
+            lookoutUrl = `${baseUrl}/projects/${
+              environment.project.slug
+            }/environments/${
+              environment.slug
+            }/lookout?container=${encodeURIComponent(containerName)}`
+          }
         }
+      } catch (error) {
+        sails.log.verbose(
+          'Lookout: Could not resolve alert link:',
+          error.message
+        )
       }
-    } catch (error) {
-      sails.log.verbose('Lookout: Could not resolve alert link:', error.message)
-    }
 
-    try {
-      await sails.helpers.notification.sendResourceAlert.with({
-        containerName,
-        cpuPercent: stat.cpuPercent,
-        memoryPercent: stat.memPercent,
-        memoryUsage: stat.memUsage,
-        memoryLimit: stat.memLimit,
-        lookoutUrl,
-        cpuHigh,
-        memHigh
+    // Enqueue first, with a key stable across a crash before the state update.
+    for (const resource of ['cpu', 'memory']) {
+      if (!queue[resource]) continue
+      await sails.helpers.lookout.queueResourceAlert.with({
+        previousSampleAt: previous?.lastSampleAt || now,
+        payload: {
+          containerName,
+          cpuPercent: stat.cpuPercent,
+          memoryPercent: stat.memPercent,
+          memoryUsage: stat.memUsage,
+          memoryLimit: stat.memLimit,
+          lookoutUrl,
+          cpuHigh: resource === 'cpu',
+          memHigh: resource === 'memory',
+          observedAt: now,
+          targetLabel
+        }
       })
-    } catch (alertErr) {
-      sails.log.verbose(
-        'Lookout: Failed to send resource alert:',
-        alertErr.message
-      )
     }
+    if (previous)
+      await ResourceAlertState.updateOne({ id: previous.id }).set(state)
+    else await ResourceAlertState.create({ containerName, ...state })
   }
 }
