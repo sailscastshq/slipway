@@ -371,6 +371,10 @@ with live state and resident controls marked unavailable. The
 tracks the published pair and verification; a version string alone never enables
 unsupported controls.
 
+Quest 0.0.6 currently needs the Sails ORM hook enabled. Database-free apps that
+exclude ORM can fail to finish startup; this is tracked in
+[Quest issue #16](https://github.com/sailscastshq/sails-hook-quest/issues/16).
+
 After upgrading the two hooks and reviewing the application's registered jobs,
 explicitly enable the integration and deploy through the normal app workflow:
 

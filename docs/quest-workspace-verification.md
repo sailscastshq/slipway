@@ -3,15 +3,23 @@
 ## Evidence status
 
 The latest executed source checkpoint is
-`c1aa27677367b28c63585324736029c70a4cfb6c`: all nine Quest verification jobs pass,
-including both real runtime proofs and the isolated Select comparison. Its
-general browser shard has one test-matcher error, described below. This source
-reverts the unhelpful Select experiment, corrects that matcher, and clarifies
-numeric schedule labels; final-head CI and renewed review images are pending.
-The original-page performance acceptance and packed/published package-consumer
-checks remain release gates. Earlier sections retain their historical results
-and then-pending work; they do not supersede this checkpoint or imply current
-support in the unreleased Slipway hook.
+`229ffd36c8ce80d095e51e2515c2f6742ac8628c`. Its renewed browser captures and
+production comparisons pass; the shared Select experiment has been reverted
+and its complete browser journey passes. Its packed-consumer preparation failed
+before runtime because npm 10.9.9 invoked upstream's `prepare=husky` despite
+`--ignore-scripts`. This source selects isolated npm 11.9.0, whose pacote honors
+that suppression; fresh packed-runtime CI is required. The last complete actual
+runtime proofs remain those at `c1aa27677367b28c63585324736029c70a4cfb6c`, using
+source-linked hook packages.
+
+The original-page latency gate remains unmet. The published Quest 0.0.6 upgrade
+also exposed an ORM-disabled readiness regression in the unchanged Helm fixture:
+Quest waits for an ORM event that cannot occur. This known limitation is accepted for the current ORM-enabled scope; no upstream
+patch or fixture change is included. Compatible Slipway-hook publication and
+packed/published consumer proof remain release gates. The failing Helm check is
+retained and must be explicitly accounted for at merge, never reported green. Earlier sections retain historical results and then-pending work;
+they do not supersede this checkpoint or imply current support in the unreleased
+Slipway hook.
 
 The original four before PNGs were captured from the actual Quest page at
 `6fe3b2177bc867475f1e3d499f6f4de53d2d1e03`. Their materialized pixels were reviewed
@@ -28,6 +36,68 @@ pass, or performance improvement before downloading and reviewing that run's
 artifacts. Local Chromium is installed, but the current cloud executor's browser
 launch was previously blocked; this work does not retry that launch or alter
 security settings. Browser execution is delegated to the CI runner.
+
+## Minimal candidate and packaging checkpoint
+
+The [229ffd36 Quest run](https://github.com/sailscastshq/slipway/actions/runs/37238558433)
+passed seven browser/history/measurement jobs. The resident job failed during
+package preparation, before any app, browser or runtime assertion. npm 10.9.9's
+bundled pacote runs directory `prepare` without checking `ignoreScripts`;
+upstream's exact `husky` command was absent because development dependencies were
+intentionally omitted. The correction uses a separately installed, exact npm
+11.9.0 CLI for pack/install and records its version, CLI hash, pacote version and
+prepare implementation hash. It leaves root dependency installation, package
+source bytes and the 12/16 MiB fixture bounds unchanged.
+
+The [general run](https://github.com/sailscastshq/slipway/actions/runs/37238558425)
+passed the owning Select browser shard: all 30 tests, including the previously
+unreached keyboard/focus and positioning assertions. The old scalar
+`expect(...).not.toBe(...)` matcher was unsupported by Sounding; native
+`assert.notEqual` now checks the same condition. The shared Select component is
+restored to its pre-experiment implementation. Full general CI was still running
+when this checkpoint was written; its separate Helm runtime job had already
+failed on the valid database-free configuration described below.
+
+The root dependency now installs published Quest 0.0.6. Its initializer
+unconditionally waits for `hook:orm:loaded`, while the unchanged Helm Docker
+fixture explicitly loads Quest without ORM. Dependency resolution succeeds but
+Sails cannot finish loading. [The observed Helm failure](https://github.com/sailscastshq/slipway/actions/runs/37238558425/job/111542460757)
+is retained as a compatibility regression; adding ORM or extending the readiness
+timeout would hide the missing-event dependency. This is a known limitation of Quest 0.0.6 and is accepted for the current
+ORM-enabled release scope. It is recorded in [Quest issue #16](https://github.com/sailscastshq/sails-hook-quest/issues/16); no upstream patch,
+replacement package, added ORM fixture dependency or relaxed assertion is
+included. This specific check remains red and does not count as a passing
+full-CI result.
+
+The downloaded [before/after captures](https://github.com/sailscastshq/slipway/actions/runs/37238558433/artifacts/11316084367)
+and [76 state captures](https://github.com/sailscastshq/slipway/actions/runs/37238558433/artifacts/11316079400)
+were ZIP-hash verified. Before/after jobs, events, frozen clock and viewports match
+exactly. Desktop/mobile light/dark overview pixels and typed-input, scheduled,
+inactive and invalid schedule states were reviewed. All 76 state captures report
+zero horizontal overflow; the existing dashed input style is preserved. These
+are actual rendered pages with synthetic data, independent of runtime proof.
+
+The [ordinary production comparison](https://github.com/sailscastshq/slipway/actions/runs/37238558433/artifacts/11316573014)
+uses the reverted-Select source. Independently recomputed original → current
+native-ready medians for desktop light/dark then mobile light/dark are
+137.80 → 144.70, 140.70 → 145.70, 134.80 → 135.85 and 134.20 → 141.70 ms:
+increases of 6.90, 5.00, 1.05 and 7.50 ms. Initial JS/CSS is 615,716 → 670,484
+bytes (+54,768), all resource requests 12 → 14 (JS/CSS 11 → 13) and initial
+JSON 4,283 → 5,650 bytes.
+This does not satisfy the original-page non-regression requirement.
+
+The separate [same-source preload control](https://github.com/sailscastshq/slipway/actions/runs/37238558433/artifacts/11316258917)
+remains mixed. Off → on initial-ready medians are 115.40 → 124.40,
+123.65 → 117.05, 126.90 → 108.70 and 124.75 → 109.00 ms. Direct-job medians are
+85.50 → 82.30, 79.50 → 75.90, 75.60 → 73.20 and 78.05 → 87.25 ms; direct-run
+medians are 114.10 → 121.45, 116.60 → 122.95, 107.50 → 130.85 and
+121.50 → 110.75 ms. First clicks stay near 13–14 ms with one 504-byte JSON
+request and no static requests. Off/on static paths, bytes and request counts
+match; hints add 838 HTML bytes. Round variation is retained: mobile-light
+direct-run ABBA medians were 120.3, 102.7, 155.3 and 100.4 ms. These separate
+runner observations establish no universal speedup. Both reports retain all
+160 initial and 216 action samples; no additional optimization variant is
+proposed from this noise.
 
 ## Historical inspector experiment and remaining gate
 

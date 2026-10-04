@@ -14,6 +14,8 @@ export SLIPWAY_QUEST_UPSTREAM_ROOT="$PWD/.tmp/quest-upstream"
 export SLIPWAY_QUEST_UPSTREAM_SHA=7411223d586d1b86365296b0a696fda5477f2109
 export SLIPWAY_QUEST_CONSUMER_HEAD="$(git rev-parse HEAD)"
 export SLIPWAY_QUEST_PACKED_ROOT="$PWD/.tmp/quest-packed-consumer"
+export SLIPWAY_QUEST_NPM_CLI="$PWD/.tmp/quest-pack-tool/node_modules/npm/bin/npm-cli.js"
+npm install --prefix .tmp/quest-pack-tool --workspaces=false --ignore-scripts --no-audit --no-fund --package-lock=false --no-save npm@11.9.0
 CI=true node tests/fixtures/quest-resident/packed.cjs
 node_modules/.bin/sounding test \
   --file tests/contracts/quest-resident-integration.test.js \
@@ -52,6 +54,14 @@ owned temporary CLI bootstraps disable it at ORM readiness. It never rewrites
 the setting to make an unsafe hook pass.
 
 The npm pack/install commands use `--ignore-scripts --omit=dev` where applicable.
+They explicitly use isolated npm 11.9.0, whose bundled pacote honors
+`ignoreScripts` before `prepare`. The npm 10.9.9 bundled with the observed Node
+22 runner omits that guard and ran `prepare=husky` despite `--ignore-scripts`,
+failing when upstream dev dependencies were omitted. The ordinary app's npm
+install is unchanged. Tool version, CLI hash, pacote version and its prepare
+implementation hash are recorded alongside the packed-byte provenance. See the
+official [npm 10.9.9 implementation](https://github.com/npm/cli/blob/v10.9.9/node_modules/pacote/lib/dir.js)
+and [npm 11.9.0 implementation](https://github.com/npm/cli/blob/v11.9.0/node_modules/pacote/lib/dir.js).
 Preparation explicitly rejects required build, prepack, postpack and install
 steps. The sole permitted prepare script is upstream's exact `husky` command;
 that verified omission is recorded. The gate retains the existing 16 MiB app

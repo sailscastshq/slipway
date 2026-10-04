@@ -54,6 +54,7 @@ jobs:
       SLIPWAY_QUEST_UPSTREAM_ROOT: ${{ github.workspace }}/.tmp/quest-upstream
       SLIPWAY_QUEST_PACKED_ROOT: ${{ github.workspace }}/.tmp/quest-packed-consumer
       SLIPWAY_QUEST_CONSUMER_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+      SLIPWAY_QUEST_NPM_CLI: ${{ github.workspace }}/.tmp/quest-pack-tool/node_modules/npm/bin/npm-cli.js
     steps:
       - name: Check out the exact proposed Slipway source
         uses: actions/checkout@v6
@@ -74,6 +75,8 @@ jobs:
       - run: npm ci --no-audit
       - name: Install pinned upstream runtime dependencies without changing app dependencies
         run: npm ci --prefix .tmp/quest-upstream --omit=dev --ignore-scripts --no-audit
+      - name: Install isolated npm with verified prepare suppression
+        run: npm install --prefix .tmp/quest-pack-tool --workspaces=false --ignore-scripts --no-audit --no-fund --package-lock=false --no-save npm@11.9.0
       - name: Pack exact hook sources and install a verified consumer
         run: node tests/fixtures/quest-resident/packed.cjs
       - run: npx playwright install --with-deps chromium

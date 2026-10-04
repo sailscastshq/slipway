@@ -10,6 +10,38 @@ const hash = (value) => crypto.createHash('sha256').update(value).digest('hex')
 const json = (filename) => JSON.parse(fs.readFileSync(filename, 'utf8'))
 const comparePath = (left, right) => (left < right ? -1 : left > right ? 1 : 0)
 const repository = path.resolve(__dirname, '../../..')
+const PACK_NPM_VERSION = '11.9.0'
+
+function npmTool(env = process.env) {
+  const requested = env.SLIPWAY_QUEST_NPM_CLI
+  assert.ok(
+    requested && path.isAbsolute(requested),
+    'An explicit isolated npm CLI is required for packed lifecycle control'
+  )
+  assert.equal(path.basename(requested), 'npm-cli.js')
+  const cli = fs.realpathSync(requested)
+  const root = path.dirname(path.dirname(cli))
+  const manifest = json(path.join(root, 'package.json'))
+  assert.equal(manifest.name, 'npm')
+  assert.equal(
+    manifest.version,
+    PACK_NPM_VERSION,
+    'Use the pinned npm whose pacote honors ignoreScripts for prepare'
+  )
+  const pacote = path.join(root, 'node_modules/pacote')
+  return {
+    cli,
+    provenance: {
+      version: manifest.version,
+      cliPath: cli,
+      cliSha256: hash(fs.readFileSync(cli)),
+      pacoteVersion: json(path.join(pacote, 'package.json')).version,
+      prepareImplementationSha256: hash(
+        fs.readFileSync(path.join(pacote, 'lib/dir.js'))
+      )
+    }
+  }
+}
 
 function lifecyclePolicy(manifest) {
   const scripts = manifest.scripts || {}
@@ -172,6 +204,8 @@ function loadPacked(root, expected = {}) {
   const provenance = json(path.join(root, 'provenance.json'))
   assert.equal(provenance.version, 1)
   assert.equal(provenance.mode, 'npm-packed-consumer')
+  assert.equal(provenance.npm, PACK_NPM_VERSION)
+  assert.equal(provenance.npmTool.version, PACK_NPM_VERSION)
   assert.equal(
     hash(fs.readFileSync(path.join(repository, 'package-lock.json'))),
     provenance.fixtureLockSha256
@@ -237,6 +271,7 @@ function proofFor(packed) {
     fixtureLockSha256: provenance.fixtureLockSha256,
     lockedFixtureDependencies: provenance.lockedFixtureDependencies,
     sourcePreflight: provenance.sourcePreflight,
+    npmTool: provenance.npmTool,
     packages: Object.fromEntries(
       names.map((name) => {
         const record = provenance.packages[name]
@@ -282,6 +317,9 @@ async function packedSource(env, source) {
 
 async function preparePacked(env = process.env) {
   assert.equal(env.CI, 'true', 'Package consumer preparation is CI-only')
+  const tool = npmTool(env)
+  const npm = (args, options) =>
+    execute(process.execPath, [tool.cli, ...args], options)
   const { upstreamSource } = require('./docker.cjs')
   const source = await upstreamSource(env)
   const slipwaySha = await git(['rev-parse', 'HEAD'])
@@ -320,8 +358,7 @@ async function preparePacked(env = process.env) {
     assert.equal(fs.existsSync(path.join(directory, 'binding.gyp')), false)
     const packed = JSON.parse(
       (
-        await execute(
-          'npm',
+        await npm(
           [
             'pack',
             '--ignore-scripts',
@@ -359,8 +396,7 @@ async function preparePacked(env = process.env) {
     path.join(root, 'consumer/package.json'),
     JSON.stringify({ private: true, scripts: {} })
   )
-  await execute(
-    'npm',
+  await npm(
     [
       'install',
       '--prefix',
@@ -410,7 +446,8 @@ async function preparePacked(env = process.env) {
     mode: 'npm-packed-consumer',
     slipwaySha,
     questSha: source.sha,
-    npm: (await execute('npm', ['--version'])).stdout.trim(),
+    npm: tool.provenance.version,
+    npmTool: tool.provenance,
     dependencyScope:
       'Exact hook tarballs with npm-installed nested production dependencies; existing lockfile Sails/machine/whelk links unchanged',
     sourcePreflight: { mode: 'source-only', runtimeEvidence: false },
@@ -463,6 +500,8 @@ async function preparePacked(env = process.env) {
 }
 
 module.exports = {
+  PACK_NPM_VERSION,
+  npmTool,
   lifecyclePolicy,
   fileTree,
   archiveFiles,

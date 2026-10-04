@@ -5,6 +5,8 @@ const path = require('node:path')
 const { test } = require('node:test')
 const { pipeline } = require('node:stream/promises')
 const {
+  PACK_NPM_VERSION,
+  npmTool,
   lifecyclePolicy,
   fileTree,
   archiveFiles,
@@ -13,6 +15,45 @@ const {
   loadPacked
 } = require('./packed.cjs')
 const { prepareDependencies } = require('./dependencies.cjs')
+
+test('packing requires the isolated exact npm version with supported prepare suppression', () => {
+  assert.throws(() => npmTool({}), /explicit isolated npm CLI/)
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'quest-pack-tool-pure-'))
+  try {
+    fs.mkdirSync(path.join(root, 'bin'))
+    fs.mkdirSync(path.join(root, 'node_modules/pacote/lib'), {
+      recursive: true
+    })
+    const cli = path.join(root, 'bin/npm-cli.js')
+    fs.writeFileSync(cli, '// synthetic CLI bytes; never executed\n')
+    fs.writeFileSync(
+      path.join(root, 'package.json'),
+      JSON.stringify({ name: 'npm', version: '10.9.9' })
+    )
+    assert.throws(() => npmTool({ SLIPWAY_QUEST_NPM_CLI: cli }), /pinned npm/)
+    fs.writeFileSync(
+      path.join(root, 'package.json'),
+      JSON.stringify({ name: 'npm', version: PACK_NPM_VERSION })
+    )
+    fs.writeFileSync(
+      path.join(root, 'node_modules/pacote/package.json'),
+      JSON.stringify({ name: 'pacote', version: '21.1.0' })
+    )
+    fs.writeFileSync(
+      path.join(root, 'node_modules/pacote/lib/dir.js'),
+      '// synthetic implementation bytes; never executed\n'
+    )
+    const tool = npmTool({ SLIPWAY_QUEST_NPM_CLI: cli })
+    assert.equal(tool.cli, cli)
+    assert.equal(tool.provenance.cliPath, cli)
+    assert.equal(tool.provenance.version, '11.9.0')
+    assert.equal(tool.provenance.pacoteVersion, '21.1.0')
+    assert.match(tool.provenance.cliSha256, /^[a-f0-9]{64}$/)
+    assert.match(tool.provenance.prepareImplementationSha256, /^[a-f0-9]{64}$/)
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true })
+  }
+})
 
 test('script suppression allows only the verified husky prepare and no build/pack/install steps', () => {
   assert.deepEqual(
