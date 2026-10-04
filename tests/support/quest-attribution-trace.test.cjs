@@ -1403,22 +1403,50 @@ test('CDP rejects a completion without a full stream handle', async (t) => {
   )
 })
 
-function extractComparisonTrial(environment) {
-  const file = path.join(__dirname, '../e2e/pages/projects/quest.test.js')
-  const source = fs.readFileSync(file, 'utf8')
+function comparisonTrialSource(source) {
   const begin = '// BEGIN QUEST COMPARISON CAPTURE'
   const end = '// END QUEST COMPARISON CAPTURE'
-  assert.equal(source.split(begin).length, 2, 'One bounded capture start')
-  assert.equal(source.split(end).length, 2, 'One bounded capture end')
-  const bounded = source.slice(
-    source.indexOf(begin),
-    source.indexOf(end) + end.length
+  const prelude = "const { test } = require('sounding')\n"
+  if (source.includes(begin) || source.includes(end)) {
+    assert.equal(source.split(begin).length, 2, 'One bounded capture start')
+    assert.equal(source.split(end).length, 2, 'One bounded capture end')
+    assert.ok(
+      source.indexOf(begin) < source.indexOf(end),
+      'Capture boundaries are ordered'
+    )
+    // Match the workflow transformation exactly, including removed sentinels.
+    return (
+      prelude +
+      source.slice(source.indexOf(begin) + begin.length, source.indexOf(end))
+    )
+  }
+  // CI rewrites this file to the extracted trial before invoking these tests.
+  // Keep executing every registration/readiness/transport assertion on it.
+  assert.ok(
+    source.startsWith(prelude),
+    'Extracted capture has the Sounding prelude'
   )
+  assert.ok(
+    source.includes('function installQuestFixture('),
+    'Extracted capture has its fixture'
+  )
+  assert.ok(
+    !source.includes('async function captureQuestBrowserFailure('),
+    'Extracted capture excludes the non-comparison tests'
+  )
+  return source
+}
+
+function extractComparisonTrial(environment, source) {
+  source ??= fs.readFileSync(
+    path.join(__dirname, '../e2e/pages/projects/quest.test.js'),
+    'utf8'
+  )
+  const trial = comparisonTrialSource(source)
   const registrations = []
-  const script = new vm.Script(
-    `const { test } = require('sounding')\n${bounded}\n;({ installQuestFixture })`,
-    { filename: 'extracted-quest-comparison-trial.cjs' }
-  )
+  const script = new vm.Script(`${trial}\n;({ installQuestFixture })`, {
+    filename: 'extracted-quest-comparison-trial.cjs'
+  })
   const exported = script.runInNewContext({
     process: { env: { ...environment } },
     require(name) {
@@ -1432,6 +1460,44 @@ function extractComparisonTrial(environment) {
   })
   return { ...exported, registrations }
 }
+
+test('comparison extraction accepts both bounded source and the exact sentinel-free CI trial', () => {
+  const source = fs.readFileSync(
+    path.join(__dirname, '../e2e/pages/projects/quest.test.js'),
+    'utf8'
+  )
+  const trial = comparisonTrialSource(source)
+  const prelude = "const { test } = require('sounding')\n"
+  const body = trial.slice(prelude.length)
+  const bounded = `${prelude}// BEGIN QUEST COMPARISON CAPTURE${body}// END QUEST COMPARISON CAPTURE`
+  assert.equal(comparisonTrialSource(bounded), trial)
+  assert.equal(comparisonTrialSource(trial), trial)
+  const environment = {
+    SLIPWAY_QUEST_PRODUCTION_BENCHMARK: '1',
+    SLIPWAY_QUEST_ATTRIBUTION_TRACE: '1'
+  }
+  assert.deepEqual(
+    extractComparisonTrial(environment, bounded).registrations.map(
+      ([name]) => name
+    ),
+    extractComparisonTrial(environment, trial).registrations.map(
+      ([name]) => name
+    )
+  )
+})
+
+test('comparison extraction still rejects malformed boundaries and non-trial input', () => {
+  for (const source of [
+    '// BEGIN QUEST COMPARISON CAPTURE',
+    '// END QUEST COMPARISON CAPTURE',
+    '// END QUEST COMPARISON CAPTURE\n// BEGIN QUEST COMPARISON CAPTURE',
+    '// BEGIN QUEST COMPARISON CAPTURE\n// BEGIN QUEST COMPARISON CAPTURE\n// END QUEST COMPARISON CAPTURE',
+    '',
+    "const { test } = require('sounding')\n",
+    "const { test } = require('sounding')\nfunction installQuestFixture() {}\nasync function captureQuestBrowserFailure() {}"
+  ])
+    assert.throws(() => comparisonTrialSource(source))
+})
 
 for (const [name, environment, expectedCount] of [
   [

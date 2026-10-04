@@ -236,6 +236,37 @@ readiness semantics or the ordinary production/preload reports. Instrumented
 timings are diagnostic evidence only; the original-page performance gate stays
 open until the actual reports and mechanism are assessed.
 
+### First reconstructed-candidate CI observations
+
+Published head `2a2968d9c5edc41484a1be176d0fe0e4c9982f30` has the same tree as
+the locally checked candidate. Its [Quest run](https://github.com/sailscastshq/slipway/actions/runs/37227822768)
+passes the existing real Docker/browser proof in 95.33 seconds and all 16
+source/preflight checks. The [real evidence artifact](https://github.com/sailscastshq/slipway/actions/runs/37227822768/artifacts/11312906479)
+records 26 starts, 28 Sails loads and two runtime identities. The new native
+restart step fails before its first business invocation because the generated
+fixture package lacks the `scripts` dictionary indexed by the installed Sails
+CLI. Adding the empty dictionary preserves source-script lookup. No native
+restart proof exists for this head.
+
+The diagnostic trace job stops before capture because its pure test extractor
+expects sentinels that the workflow has already removed. Its artifact contains
+invalid summaries only. The test extractor now accepts both the full bounded
+source and the exact extracted trial; both forms retain all instrumentation
+assertions. These fixture corrections need fresh runtime CI.
+
+The independently recomputed [ordinary production report](https://github.com/sailscastshq/slipway/actions/runs/37227822768/artifacts/11312931326)
+retains ten raw observations per phase/viewport. Native-ready medians, original
+to current, are 144.05 to 154.85 ms (desktop light), 142.85 to 146.55 ms (desktop
+dark), 134.15 to 141.80 ms (mobile light), and 140.45 to 143.60 ms (mobile dark).
+Initial JS/CSS remains 615,716 to 670,157 bytes and 11 to 13 requests. The separate
+[same-source preload report](https://github.com/sailscastshq/slipway/actions/runs/37227822768/artifacts/11312476716)
+records off-to-on medians of 149.25 to 148.95, 152.55 to 149.10, 146.05 to 140.10,
+and 144.15 to 138.00 ms in the same viewport order. Those controls do not erase
+the original-page regression. All [76 state captures](https://github.com/sailscastshq/slipway/actions/runs/37227822768/artifacts/11312911338)
+have zero horizontal overflow; inspected desktop and mobile pixels preserve the
+existing field styling. No new product rendering change is made in the harness
+correction.
+
 ## Reproducible comparison
 
 The workflow uses two checkouts:

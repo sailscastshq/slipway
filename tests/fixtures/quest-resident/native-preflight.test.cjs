@@ -195,6 +195,13 @@ test('normal Sails module discovery finds complete native web hooks without init
     assert.equal(rc.hooks.http, undefined)
     assert.equal(rc.hooks.sockets, false)
     const appRequire = createRequire(path.join(appRoot, 'package.json'))
+    const manifest = appRequire('./package.json')
+    assert.deepEqual(
+      manifest.scripts,
+      {},
+      'The installed Sails CLI requires a scripts dictionary before source-script discovery'
+    )
+    assert.equal(manifest.scripts['rebuild-search-index'], undefined)
     const app = new (appRequire('sails').Sails)()
     app.hooks = {}
     app.config = {

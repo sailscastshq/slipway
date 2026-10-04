@@ -51,7 +51,13 @@ function prepareWeb({ appRoot, repo, source }) {
   }
   fs.writeFileSync(
     path.join(appRoot, 'package.json'),
-    JSON.stringify({ private: true, dependencies: fixtureDependencies })
+    // The installed Sails CLI indexes packageJson.scripts before resolving a
+    // source script. Keep the dictionary present without shadowing any job.
+    JSON.stringify({
+      private: true,
+      scripts: {},
+      dependencies: fixtureDependencies
+    })
   )
   const layout = {
     appRoot,
