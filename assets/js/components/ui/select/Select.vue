@@ -402,13 +402,11 @@ onMounted(() => {
   form?.addEventListener('reset', handleFormReset)
 
   if (typeof ResizeObserver !== 'undefined' && trigger.value) {
-    resizeObserver = new ResizeObserver(() => {
-      if (isOpen.value) syncTriggerWidth()
-    })
+    resizeObserver = new ResizeObserver(syncTriggerWidth)
     resizeObserver.observe(trigger.value)
   }
 
-  if (isOpen.value) syncTriggerWidth()
+  syncTriggerWidth()
 })
 
 onBeforeUnmount(() => {

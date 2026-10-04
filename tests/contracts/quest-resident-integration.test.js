@@ -789,6 +789,7 @@ test(
       }
       const proof = {
         upstream: fixture.source,
+        packedConsumer: fixture.packedProof,
         workerOnly: true,
         runtimeIds: [initial.runtimeId, restarted.runtimeId],
         manualRunId: runId,

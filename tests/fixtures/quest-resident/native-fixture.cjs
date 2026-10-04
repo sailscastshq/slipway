@@ -37,7 +37,7 @@ async function waitFor(read, accept, label, timeout = 20000) {
   )
 }
 
-function prepareWeb({ appRoot, repo, source }) {
+function prepareWeb({ appRoot, repo, source, packed }) {
   fs.cpSync(path.join(__dirname, 'native-web'), appRoot, { recursive: true })
   for (const relative of [
     'api/helpers/build-index-report.js',
@@ -62,8 +62,11 @@ function prepareWeb({ appRoot, repo, source }) {
   const layout = {
     appRoot,
     dependencies: fs.realpathSync(path.join(repo, 'node_modules')),
-    questRoot: source.root,
-    slipwayRoot: fs.realpathSync(path.join(repo, 'packages/hook'))
+    questRoot: packed ? packed.questRoot : source.root,
+    slipwayRoot: packed
+      ? packed.slipwayRoot
+      : fs.realpathSync(path.join(repo, 'packages/hook')),
+    packed
   }
   prepareDependencies(layout)
   verifyDependencies(layout)
@@ -83,6 +86,8 @@ async function createNativeFixture(options = {}) {
   const { upstreamSource } = require('./docker.cjs')
   const source = await upstreamSource(options.env || process.env)
   assert.equal(source.sha, PIN)
+  const { packedSource, proofFor } = require('./packed.cjs')
+  const packed = await packedSource(options.env || process.env, source)
   const repo = path.resolve(__dirname, '../../..')
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'quest-native-restart-'))
   fs.chmodSync(root, 0o700)
@@ -331,6 +336,7 @@ async function createNativeFixture(options = {}) {
 
   const fixture = {
     source,
+    packedProof: proofFor(packed),
     root,
     appRoot,
     handles,
@@ -468,7 +474,7 @@ async function createNativeFixture(options = {}) {
     }
   }
   try {
-    prepareWeb({ appRoot, repo, source })
+    prepareWeb({ appRoot, repo, source, packed })
     monitor = setInterval(() => {
       try {
         const events = evidence()

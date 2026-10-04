@@ -22,7 +22,7 @@ test('pure source helper counts synthetic records through the real machine runne
       )
 })
 
-test('actual dependencies resolve and Sails discovers source-owned hooks without initialization', async () => {
+test('source-only dependencies resolve and Sails discovers checkout hooks without initialization', async () => {
   const { root } = await upstreamSource()
   const appRoot = fs.mkdtempSync(
     path.join(os.tmpdir(), 'quest-fixture-resolution-')
@@ -96,7 +96,7 @@ test('actual dependencies resolve and Sails discovers source-owned hooks without
 })
 
 // Real source/schema checks only: no app load, socket, scheduler or job child.
-test('real upstream loader preserves aliases, effective defaults and Sails schemas', async () => {
+test('source-only upstream loader preserves aliases, effective defaults and Sails schemas', async () => {
   const { root } = await upstreamSource()
   const loader = require(path.join(root, 'lib/core/loader'))
   const metadata = require(path.join(root, 'lib/core/runtime'))

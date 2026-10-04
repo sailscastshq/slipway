@@ -52,6 +52,8 @@ jobs:
       # Corrected child scheduler suppression contract. Never use 788d767.
       SLIPWAY_QUEST_UPSTREAM_SHA: 7411223d586d1b86365296b0a696fda5477f2109
       SLIPWAY_QUEST_UPSTREAM_ROOT: ${{ github.workspace }}/.tmp/quest-upstream
+      SLIPWAY_QUEST_PACKED_ROOT: ${{ github.workspace }}/.tmp/quest-packed-consumer
+      SLIPWAY_QUEST_CONSUMER_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
     steps:
       - name: Check out the exact proposed Slipway source
         uses: actions/checkout@v6
@@ -72,6 +74,8 @@ jobs:
       - run: npm ci --no-audit
       - name: Install pinned upstream runtime dependencies without changing app dependencies
         run: npm ci --prefix .tmp/quest-upstream --omit=dev --ignore-scripts --no-audit
+      - name: Pack exact hook sources and install a verified consumer
+        run: node tests/fixtures/quest-resident/packed.cjs
       - run: npx playwright install --with-deps chromium
       - run: docker pull node:22-bookworm-slim
       - name: Prove actual resident execution, ownership, persistence and recovery
@@ -79,8 +83,8 @@ jobs:
           test "$(git -C .tmp/quest-upstream rev-parse HEAD)" = "$SLIPWAY_QUEST_UPSTREAM_SHA"
           test -z "$(git -C .tmp/quest-upstream status --porcelain --untracked-files=no)"
           node_modules/.bin/sounding test --file tests/contracts/quest-resident-integration.test.js --test-concurrency=1 --test-timeout=600000
-      - name: Verify source metadata, fixture boundaries, and pure trace parser
-        run: node --test tests/fixtures/quest-resident/preflight.test.cjs tests/fixtures/quest-resident/source-metadata.test.cjs tests/fixtures/quest-resident/native-preflight.test.cjs tests/support/quest-attribution-trace.test.cjs
+      - name: Verify source-only metadata, offline package boundaries, and pure trace parser
+        run: node --test tests/fixtures/quest-resident/preflight.test.cjs tests/fixtures/quest-resident/source-metadata.test.cjs tests/fixtures/quest-resident/native-preflight.test.cjs tests/fixtures/quest-resident/packed.test.cjs tests/support/quest-attribution-trace.test.cjs
       - name: Prove actual telemetry delivery and disk-backed dashboard restart
         env:
           SLIPWAY_QUEST_RESTART_CI: '1'
@@ -504,118 +508,6 @@ jobs:
         if: failure()
         with:
           name: quest-production-navigation-diagnostics-${{ github.event.pull_request.head.sha || github.sha }}
-          path: |
-            baseline-source/.tmp/sounding/artifacts
-            proposed-source/.tmp/sounding/artifacts
-          if-no-files-found: ignore
-          retention-days: 14
-
-  # Temporary causal control: remove after the single reviewed Select experiment.
-  # Both source checkouts use the actual current Quest UI and the after fixture.
-  select-control:
-    if: github.event_name == 'pull_request'
-    name: Compare closed-Select measurement costs
-    timeout-minutes: 25
-    runs-on: ubuntu-latest
-    env:
-      SLIPWAY_QUEST_PRODUCTION_BENCHMARK: '1'
-      SLIPWAY_QUEST_PRELOAD_MODE: 'on'
-      SLIPWAY_QUEST_CAPTURE_PHASE: after
-      QUEST_BASELINE_SHA: 58b5a9c2b1477ca9429bc260ccf0fae29ad61896
-      SLIPWAY_QUEST_CAPTURE_TRIAL_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
-    steps:
-      - name: Check out exact proposed source
-        uses: actions/checkout@v6
-        with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
-          path: proposed-source
-          persist-credentials: false
-      - name: Check out pinned current UI before the Select guard
-        uses: actions/checkout@v6
-        with:
-          ref: ${{ env.QUEST_BASELINE_SHA }}
-          path: baseline-source
-          persist-credentials: false
-      - uses: actions/setup-node@v6
-        with:
-          node-version: '22'
-          cache: npm
-          cache-dependency-path: |
-            baseline-source/package-lock.json
-            proposed-source/package-lock.json
-      - run: npm ci --no-audit
-        working-directory: baseline-source
-      - run: npm ci --no-audit
-        working-directory: proposed-source
-      - run: npx playwright install --with-deps chromium
-        working-directory: proposed-source
-      - name: Require only the Select production change and identical dependencies
-        run: node proposed-source/tests/support/quest-production-benchmark.cjs select-provenance baseline-source proposed-source select-control
-      - name: Install identical existing native-timing trials into both checkouts
-        run: |
-          node <<'NODE'
-          const fs = require('node:fs')
-          const { createHash } = require('node:crypto')
-          const source = fs.readFileSync('proposed-source/tests/e2e/pages/projects/quest.test.js', 'utf8')
-          const start = '// BEGIN QUEST COMPARISON CAPTURE'
-          const end = '// END QUEST COMPARISON CAPTURE'
-          if (source.split(start).length !== 2 || source.split(end).length !== 2) throw new Error('Expected one bounded capture trial')
-          const trial = "const { test } = require('sounding')\n" + source.slice(source.indexOf(start) + start.length, source.indexOf(end))
-          for (const directory of ['baseline-source', 'proposed-source']) {
-            fs.writeFileSync(`${directory}/tests/e2e/pages/projects/quest.test.js`, trial)
-          }
-          const provenanceFile = 'select-control/provenance.json'
-          const provenance = JSON.parse(fs.readFileSync(provenanceFile, 'utf8'))
-          provenance.captureTrialSha256 = createHash('sha256').update(trial).digest('hex')
-          provenance.benchmarkSha256 = createHash('sha256').update(fs.readFileSync('proposed-source/tests/support/quest-production-benchmark.cjs')).digest('hex')
-          fs.writeFileSync(provenanceFile, JSON.stringify(provenance, null, 2) + '\n')
-          NODE
-          cp proposed-source/tests/support/quest-production-benchmark.cjs baseline-source/tests/support/quest-production-benchmark.cjs
-      - name: Build both real sources without lifting an application
-        run: |
-          (cd baseline-source && NODE_ENV=production node tests/support/quest-production-benchmark.cjs build)
-          (cd proposed-source && NODE_ENV=production node tests/support/quest-production-benchmark.cjs build)
-      - name: Serve built manifests through normal disposable test applications
-        run: |
-          (cd baseline-source && node tests/support/quest-production-benchmark.cjs configure)
-          (cd proposed-source && node tests/support/quest-production-benchmark.cjs configure)
-      - name: Measure unguarded-guarded-guarded-unguarded with preload on
-        run: |
-          set -euo pipefail
-          test "${SLIPWAY_QUEST_ATTRIBUTION_TRACE:-0}" != 1
-          for round in before-1 after-1 after-2 before-2; do
-            source=proposed-source
-            expected="$SLIPWAY_QUEST_CAPTURE_TRIAL_SHA"
-            if [[ "$round" == before-* ]]; then
-              source=baseline-source
-              expected="$QUEST_BASELINE_SHA"
-            fi
-            test "$(git -C "$source" rev-parse HEAD)" = "$expected"
-            mkdir -p "select-control/$round"
-            date -u +%FT%TZ > "select-control/$round/started-at.txt"
-            (
-              cd "$source"
-              node_modules/.bin/sounding test --file tests/e2e/pages/projects/quest.test.js --test-concurrency=1 --test-timeout=600000
-            )
-            cp "$source/.tmp/screenshots/quest-comparison/after/fixture.json" "select-control/$round/fixture.json"
-            cp "$source/.tmp/screenshots/quest-comparison/after/performance.json" "select-control/$round/performance.json"
-            cp "$source/.tmp/screenshots/quest-comparison/after/interaction-performance.json" "select-control/$round/interaction-performance.json"
-          done
-      - name: Validate matched current UI and report initial plus eager action costs
-        run: node proposed-source/tests/support/quest-production-benchmark.cjs summarize-select select-control
-      - name: Preserve Select source provenance and every raw sample and request
-        uses: actions/upload-artifact@v6
-        if: always()
-        with:
-          name: quest-select-control-${{ github.event.pull_request.head.sha || github.sha }}
-          path: select-control
-          if-no-files-found: error
-          retention-days: 90
-      - name: Preserve diagnostic artifacts on failure
-        uses: actions/upload-artifact@v6
-        if: failure()
-        with:
-          name: quest-select-control-diagnostics-${{ github.event.pull_request.head.sha || github.sha }}
           path: |
             baseline-source/.tmp/sounding/artifacts
             proposed-source/.tmp/sounding/artifacts

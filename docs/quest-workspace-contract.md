@@ -1,12 +1,12 @@
 # Quest workspace contract (draft)
 
-This work is the Slipway side of [#653](https://github.com/sailscastshq/slipway/issues/653). It depends on the upstream [resident Quest contract](https://github.com/sailscastshq/sails-hook-quest/issues/13). The combined fixture pins upstream source `7411223d586d1b86365296b0a696fda5477f2109` from [Quest PR #14](https://github.com/sailscastshq/sails-hook-quest/pull/14). That upstream change is not released. The [real combined fixture at Slipway `58b5a9c2`](https://github.com/sailscastshq/slipway/actions/runs/37228676913/artifacts/11313525238) passes normal Sails execution, process ownership, HTTP/browser invocation, source schedules and resident restart/recovery. A separate real web-app proof passes actual HTTP telemetry, disk-backed dashboard restart, preserved receipts/logs and explicit missing-receipt recovery without starting work again. Best-effort delivery still has no durable replay guarantee. Matched before/after UI comparisons remain separately labeled synthetic transport. Keep this change in draft while the remaining performance, final-head and published-version gates are open.
+This work is the Slipway side of [#653](https://github.com/sailscastshq/slipway/issues/653). It depends on the upstream [resident Quest contract](https://github.com/sailscastshq/sails-hook-quest/issues/13). The combined fixture pins upstream source `7411223d586d1b86365296b0a696fda5477f2109` from [Quest PR #14](https://github.com/sailscastshq/sails-hook-quest/pull/14). Verification of the published package pair remains a release gate. The [real combined fixture at Slipway `58b5a9c2`](https://github.com/sailscastshq/slipway/actions/runs/37228676913/artifacts/11313525238) passes normal Sails execution, process ownership, HTTP/browser invocation, source schedules and resident restart/recovery. A separate real web-app proof passes actual HTTP telemetry, disk-backed dashboard restart, preserved receipts/logs and explicit missing-receipt recovery without starting work again. Best-effort delivery still has no durable replay guarantee. Matched before/after UI comparisons remain separately labeled synthetic transport. Keep this change in draft while the remaining performance, final-head and published-version gates are open.
 
 ## Compatibility and activation
 
-Released `sails-hook-quest` 0.0.5 has no compatible resident metadata/result interface. Existing apps keep bounded legacy history and lazy diagnostics, with live state **Unavailable**. Their Run, Pause and Resume controls are unavailable: a temporary Sails console does not own the resident scheduler.
+The resident contract is published in [`sails-hook-quest` 0.0.6](https://github.com/sailscastshq/sails-hook-quest/releases/tag/v0.0.6). Quest 0.0.5 has no compatible resident metadata/result interface. The compatible Slipway hook release is still pending; existing apps keep bounded legacy history and lazy diagnostics, with live state **Unavailable**. Their Run, Pause and Resume controls are unavailable: a temporary Sails console does not own the resident scheduler.
 
-New controls require both the proposed Quest v1 interface and this Slipway hook source, a verified Slipway app/deployment identity, one resident process per container, and explicit app-owned configuration:
+New controls require both the Quest v1 interface and this Slipway hook source, a verified Slipway app/deployment identity, one resident process per container, and explicit app-owned configuration:
 
 ```js
 module.exports.slipway = { quest: { enabled: true } }
@@ -48,7 +48,7 @@ or date is rewritten from the dashboard.
 ## Owner upgrade sequence and release gate
 
 1. Keep incompatible apps on the read-only legacy path; do not infer support from
-   a package version alone. The unreleased source still identifies as Quest 0.0.5.
+   a package version alone. The pinned CI source identifies as Quest 0.0.5.
 2. After compatible releases exist, upgrade both `sails-hook-quest` and
    `sails-hook-slipway` in the application, review its source jobs/inputs, and deploy
    the normal app image. Slipway does not alter customer dependency manifests.
@@ -64,9 +64,11 @@ The release checklist must record exact published minimum Quest and Slipway-hook
 versions and replace this pending-release instruction before stable shipment.
 Pinned source in a disposable integration test is not a published upgrade path.
 
-The proposed first compatible versions are Quest **0.0.6** and Slipway hook
-**0.0.12**. These are release candidates, not published requirements: registry
-metadata still reports 0.0.5 and 0.0.11 on 2026-10-04. Quest must include the
+The published Quest minimum is **0.0.6**, verified through a fresh registry
+installation and actual Sails capability checks. Its release tag points to
+`93c0da8fa53a1154b455ab073a85e59e1447e761`. The proposed first compatible Slipway
+hook remains **0.0.12**, pending publication and the registry-installed pair
+checks. Earlier releases 0.0.5 and 0.0.11 lack the resident contract. Quest must include the
 tested `7411223d586d1b86365296b0a696fda5477f2109` contract, and the Slipway hook
 must include the final verified #673 runtime and telemetry fixes. After the
 coordinated releases, verify the registry tarballs and capabilities, replace the

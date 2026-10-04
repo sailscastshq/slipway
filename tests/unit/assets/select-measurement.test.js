@@ -4,11 +4,10 @@ const Vue = require('vue')
 const { parse, compileScript } = require('@vue/compiler-sfc')
 const { test } = require('node:test')
 
-// Mount the real Select lifecycle with a geometry-counting renderer. Native
+// Mount the real Select lifecycle with a fixed-geometry renderer. Native
 // popover placement and focus are covered by the select-styling browser test.
 function mountSelect(initialProps = {}, { observeResize = true } = {}) {
   const previousObserver = global.ResizeObserver
-  const measurements = []
   const observers = []
   let width = 160
   const ResizeObserverStub = observeResize
@@ -74,7 +73,6 @@ function mountSelect(initialProps = {}, { observeResize = true } = {}) {
         props: {},
         children: [],
         getBoundingClientRect() {
-          measurements.push(width)
           return { width }
         }
       }
@@ -127,7 +125,6 @@ function mountSelect(initialProps = {}, { observeResize = true } = {}) {
       : node.children?.map((child) => find(child, slot)).find(Boolean)
   return {
     props,
-    measurements,
     observers,
     open: () => select.value.open(),
     close: () => select.value.close(),
@@ -135,6 +132,8 @@ function mountSelect(initialProps = {}, { observeResize = true } = {}) {
       width = nextWidth
       observers.forEach((observer) => observer.callback())
     },
+    isOpen: () =>
+      find(root, 'select-trigger').props['aria-expanded'] === 'true',
     popupWidth: () => find(root, 'select-content').props.style?.minWidth,
     stop() {
       try {
@@ -151,13 +150,12 @@ const flush = async () => {
   await Vue.nextTick()
 }
 
-test('Select defers closed mount and resize reads, then refreshes width on open and reopen', async () => {
+test('Select refreshes popup width on opening, open resize and reopening', async () => {
   const view = mountSelect()
   try {
     await flush()
-    assert.deepEqual(view.measurements, [])
+    assert.equal(view.isOpen(), false)
     view.resize(240)
-    assert.deepEqual(view.measurements, [])
     view.open()
     await flush()
     assert.equal(view.popupWidth(), '240px')
@@ -166,10 +164,9 @@ test('Select defers closed mount and resize reads, then refreshes width on open 
     assert.equal(view.popupWidth(), '320px')
     view.close()
     await flush()
-    const previousReads = view.measurements.length
+    assert.equal(view.isOpen(), false)
     view.resize(400)
     await flush()
-    assert.equal(view.measurements.length, previousReads)
     view.open()
     await flush()
     assert.equal(view.popupWidth(), '400px')
@@ -184,8 +181,8 @@ test('Select measures initially open controlled and default-open popups', async 
     const view = mountSelect(props)
     try {
       await flush()
+      assert.equal(view.isOpen(), true)
       assert.equal(view.popupWidth(), '160px')
-      assert.ok(view.measurements.length > 0)
       view.resize(280)
       await flush()
       assert.equal(view.popupWidth(), '280px')
@@ -202,16 +199,15 @@ test('Select respects controlled closed state and sizes parent-driven opens with
   )
   try {
     await flush()
-    assert.deepEqual(view.measurements, [])
+    assert.equal(view.isOpen(), false)
     view.resize(260)
     view.props.open = true
     await flush()
     assert.equal(view.popupWidth(), '260px')
     view.props.open = false
     await flush()
-    const previousReads = view.measurements.length
+    assert.equal(view.isOpen(), false)
     view.resize(380)
-    assert.equal(view.measurements.length, previousReads)
     view.props.open = true
     await flush()
     assert.equal(view.popupWidth(), '380px')

@@ -10,6 +10,13 @@ async function realBrowserFlow(
 ) {
   const root = path.resolve('.tmp/screenshots/quest-real-resident')
   await fs.mkdir(root, { recursive: true })
+  const captureInspection = async (filename) => {
+    // Move focus and the pointer off action controls before the review image.
+    // This dismisses their real transient tooltips without modifying the UI.
+    await page.raw.getByRole('heading', { name: 'Quest', exact: true }).click()
+    await expect(page.raw.getByRole('tooltip')).toHaveCount(0)
+    await page.screenshot(path.join(root, filename), { fullPage: true })
+  }
   const logReads = []
   const observeRequest = (request) => {
     if (
@@ -30,6 +37,9 @@ async function realBrowserFlow(
     '[data-test="quest-job-detail"] [data-test="quest-open-run"]'
   )
   await expect(opener).toBeEnabled({ timeout: 25000 })
+  await expect(
+    page.raw.getByRole('button', { name: 'View slow-overlap', exact: true })
+  ).toContainText('Every 2 seconds')
   await opener.click()
   const form = page.raw.locator('[data-test="quest-run-form"]')
   await expect(form).toBeVisible()
@@ -69,17 +79,13 @@ async function realBrowserFlow(
     0,
     'Logs stay lazy until the operator opens them'
   )
-  await page.screenshot(path.join(root, 'structured-result.png'), {
-    fullPage: true
-  })
+  await captureInspection('structured-result.png')
   await detail.getByRole('tab', { name: 'Logs', exact: true }).click()
   await expect(page.raw.locator('[data-test="quest-run-logs"]')).toContainText(
     'fixture-warning',
     { timeout: 10000 }
   )
-  await page.screenshot(path.join(root, 'stderr-warning.png'), {
-    fullPage: true
-  })
+  await captureInspection('stderr-warning.png')
   await page.raw.goto('about:blank')
   await page.goto(stableUrl)
   await expect(
@@ -89,7 +95,7 @@ async function realBrowserFlow(
     page.raw.locator('[data-test="quest-run-result"]')
   ).toContainText('240')
   assert.equal(new URL(page.raw.url()).searchParams.get('run'), run.runId)
-  await page.screenshot(path.join(root, 'reopened-run.png'), { fullPage: true })
+  await captureInspection('reopened-run.png')
   expect(page).toHaveNoJavascriptErrors()
   await fs.writeFile(
     path.join(root, 'browser-proof.json'),

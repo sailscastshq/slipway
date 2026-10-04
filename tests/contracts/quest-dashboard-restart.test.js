@@ -342,6 +342,7 @@ test(
       assert.equal(budget.receipts, 40)
       proof = {
         upstream: { sha: fixture.source.sha, version: fixture.source.version },
+        packedConsumer: fixture.packedProof,
         proof:
           'CI-native real dashboard process restart + real web app + real HTTP telemetry; direct private-UDS recovery sub-proof',
         dashboardGenerations: [

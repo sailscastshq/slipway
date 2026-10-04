@@ -13,6 +13,60 @@ const restart = (timing, oneShot = false) => ({
   }
 })
 
+test('Quest job row labels add duration units without interpreting legacy source text', async () => {
+  const { questScheduleLabel: label } = await load()
+  for (const [scheduleType, schedule, expected] of [
+    ['interval', 2000, 'Every 2 seconds'],
+    ['interval', 60000, 'Every 1 minute'],
+    ['interval', 7200000, 'Every 2 hours'],
+    ['interval', 86400000, 'Every 1 day'],
+    ['interval', 1500, 'Every 1500 milliseconds'],
+    ['timeout', 500, 'Once after 500 milliseconds'],
+    ['timeout', 1000, 'Once after 1 second'],
+    ['timeout', 0, 'Once, immediately'],
+    ['interval', 'every 2 hours', 'every 2 hours'],
+    ['interval', '2000', '2000'],
+    ['cron', '0 9 * * 1-5', '0 9 * * 1-5'],
+    ['timeout', 'at 10:00 am', 'at 10:00 am'],
+    ['date', '2026-10-04T12:00:00Z', '2026-10-04T12:00:00Z'],
+    [undefined, 'every 5 minutes', 'every 5 minutes'],
+    [undefined, null, 'Manual'],
+    ['manual', null, 'Manual'],
+    ['unavailable', 2000, 'Unavailable'],
+    ['interval', null, 'Unavailable'],
+    ['timeout', undefined, 'Unavailable']
+  ]) {
+    assert.equal(label({ scheduleType, schedule }), expected)
+  }
+})
+
+test('Quest job row labels preserve invalid and unavailable schedule evidence', async () => {
+  const { questScheduleLabel: label } = await load()
+  for (const scheduleType of ['interval', 'timeout']) {
+    for (const schedule of [-1, NaN, Infinity]) {
+      assert.equal(label({ scheduleType, schedule }), 'Unavailable')
+    }
+    for (const schedule of [0, 2000, 'every 2 seconds']) {
+      assert.equal(
+        label({
+          scheduleType,
+          schedule,
+          scheduleState: { validation: 'invalid' }
+        }),
+        'Invalid source schedule'
+      )
+    }
+  }
+  assert.equal(
+    label({
+      scheduleType: 'interval',
+      schedule: 2000,
+      scheduleState: { registration: 'stopped', validation: 'valid' }
+    }),
+    'Every 2 seconds'
+  )
+})
+
 test('Quest schedule descriptions interpret common source expressions without calculating a due time', async () => {
   const { questScheduleDetails: describe } = await load()
   for (const [source, summary] of [

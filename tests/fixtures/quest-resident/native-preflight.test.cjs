@@ -164,7 +164,7 @@ test('native destinations reject non-loopback HTTP and carry finite execution bo
   })
 })
 
-test('normal Sails module discovery finds complete native web hooks without initializing anything', async () => {
+test('source-only Sails discovery finds complete native web hooks without initializing anything', async () => {
   const questRoot = process.env.SLIPWAY_QUEST_UPSTREAM_ROOT
   assert.ok(
     questRoot,

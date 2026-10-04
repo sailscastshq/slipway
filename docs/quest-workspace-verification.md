@@ -2,6 +2,17 @@
 
 ## Evidence status
 
+The latest executed source checkpoint is
+`c1aa27677367b28c63585324736029c70a4cfb6c`: all nine Quest verification jobs pass,
+including both real runtime proofs and the isolated Select comparison. Its
+general browser shard has one test-matcher error, described below. This source
+reverts the unhelpful Select experiment, corrects that matcher, and clarifies
+numeric schedule labels; final-head CI and renewed review images are pending.
+The original-page performance acceptance and packed/published package-consumer
+checks remain release gates. Earlier sections retain their historical results
+and then-pending work; they do not supersede this checkpoint or imply current
+support in the unreleased Slipway hook.
+
 The original four before PNGs were captured from the actual Quest page at
 `6fe3b2177bc867475f1e3d499f6f4de53d2d1e03`. Their materialized pixels were reviewed
 at desktop light/dark and mobile light/dark before writing this trial. The frozen
@@ -18,7 +29,7 @@ artifacts. Local Chromium is installed, but the current cloud executor's browser
 launch was previously blocked; this work does not retry that launch or alter
 security settings. Browser execution is delegated to the CI runner.
 
-## Measured decision and remaining gate
+## Historical inspector experiment and remaining gate
 
 The bounded performance investigation used these exact sources and retained raw
 observations:
@@ -50,7 +61,7 @@ CI runners, with native browser timing and real built assets; they do not measur
 production traffic or an actual resident invocation. The actual upstream/runtime
 integration gate remains independent of these passing UI trials.
 
-## Focused preload control
+## Historical focused preload control
 
 The next bounded experiment targets measured late discovery of route assets,
 without changing shared controls or deferring the job inspector. A production
@@ -303,6 +314,88 @@ no filter Select read. Readiness-induced work is tracked separately. These
 instrumented spans establish the mechanism, not a speedup: avoiding the read may
 move necessary work. A bounded production comparison must evaluate any proposed
 closed-state measurement change while shared-control behavior remains covered.
+
+### Closed-Select experiment: measured and reverted
+
+Candidate `c1aa27677367b28c63585324736029c70a4cfb6c` guarded only the shared
+Select's closed mount/resize width reads. Its [isolated production control](https://github.com/sailscastshq/slipway/actions/runs/37234609390/artifacts/11314927798)
+passes source and installed-dependency identity checks and retains all 80 initial
+and 144 action samples. Both phases render the current Quest page with the same
+fixture, native timers, preload mode and readiness checks. Only `Select.vue`
+differs in production code, adding 26 bytes to the requested assets.
+
+Independently recomputed initial-ready medians, unguarded to guarded, are
+138.75 to 139.35 ms (desktop light), 138.10 to 137.85 ms (desktop dark),
+132.85 to 134.10 ms (mobile light), and 136.20 to 136.40 ms (mobile dark).
+First inspector clicks remain about 13 ms, with one 504-byte JSON request and
+zero new static requests. Direct-link results are mixed: desktop-dark direct-run
+medians rise from 159.25 to 169.65 ms, with both guarded rounds slower; mobile-dark
+falls from 173.25 to 157.85 ms, largely because its first unguarded round was slow.
+The retained 627.3 ms guarded desktop-dark outlier begins its detail request at
+605 ms despite static assets ending by 142.8 ms. Its cause is unestablished.
+
+The experiment demonstrates no initial-ready benefit. The two shared guards are
+therefore reverted, and the temporary comparison job is removed. Relevant
+opening, resize/reopen, keyboard/focus, positioning and lifecycle coverage stays.
+The candidate's owning browser shard stopped on an unsupported Sounding scalar
+matcher after reaching the closed-read, style, opening, resize and top-edge
+placement assertions; that harness error is corrected without changing their
+meaning. It was not evidence of a product geometry failure. Remaining assertions
+and the final source still require fresh CI.
+
+The separate [original-page production report](https://github.com/sailscastshq/slipway/actions/runs/37234609390/artifacts/11314589107)
+remains slower at 145.20 to 157.95, 150.00 to 153.00, 140.75 to 147.15, and
+142.85 to 150.80 ms in the same viewport order, with initial JS/CSS
+615,716 to 670,183 bytes. These numbers include the experimental guard and are
+retained as that candidate's evidence, not substituted for a final measurement.
+The no-regression gate remains open for an explicit acceptance decision or
+supported further direction. Neither the trace spans nor the separate history
+payload savings erase this measured navigation tradeoff.
+
+The [same candidate's real runtime artifact](https://github.com/sailscastshq/slipway/actions/runs/37234609390/artifacts/11315545247)
+also passes both actual Docker/browser and native web/dashboard-restart proofs.
+Its ZIP matches SHA-256 `6538265099b41e8f1bf38e4b80a5bbfe0c3ac9802e3e46509418ae230755db21`.
+The native proof retains the same 41 starts/42 loads, all 36 results, zero starts
+on explicit recovery and complete cleanup; four accepted requests contain
+80 events and 716,267 bytes with no rejected requests or events.
+
+### Packed-consumer release gate
+
+The preceding runtime checkpoints consumed source hook directories. The next
+fixture prepares actual npm packs of both exact checked sources, installs those
+tarballs into a disposable consumer with nested production dependencies, and
+physically copies the installed hook packages into both real applications.
+Runtime setup requires provenance matching the asserted Quest and Slipway commits;
+it rejects package source links and verifies tarball, package-file and installed
+dependency-tree hashes. The existing locked Sails/machine/whelk dependencies remain
+separate and unchanged. Source-only module/schema checks are explicitly labeled
+and do not substitute for execution against the packages.
+
+Package preparation records the exact versions, dependency identities and
+consumer lockfile. It allows script suppression only because these packages have
+no build/pack/install steps and the sole prepare hook is upstream's verified
+`husky` command. Installed copies must fit a measured 12 MiB file-block budget
+within the unchanged 16 MiB worker app tmpfs. Both complete runtime proofs must
+then pass with these installed bytes, and their artifacts retain the two tarballs
+and full provenance. Four pure packaging checks pass; no packed runtime pass is
+claimed before that CI evidence exists. Package versions remain unchanged in this
+source, and a smoke test of the subsequently published registry pair is still
+required before the server release.
+
+Quest **0.0.6** has since been published and independently verified through a
+fresh registry install and real Sails capability checks. Its [release tag](https://github.com/sailscastshq/sails-hook-quest/releases/tag/v0.0.6)
+targets `93c0da8fa53a1154b455ab073a85e59e1447e761`; its runtime is unchanged from
+the pinned `7411223` contract. The produced-pack fixture deliberately retains
+that exact source pin and its pre-version-bump metadata. Slipway hook **0.0.12**
+is still proposed, and the final registry-installed pair remains a separate gate.
+
+Slipway's own application dependency now requires `sails-hook-quest ^0.0.6` and
+locks the published 0.0.6 tarball and integrity. A local install changed only that
+package, the lock consistency dry-run passed, and the 138 focused pure checks
+still pass. The final general CI therefore exercises the dashboard against the
+published Quest package, while the independent packed-app fixture retains its
+explicit source pin. Unrelated platform metadata and dependency entries are
+unchanged.
 
 ## Reproducible comparison
 

@@ -1,3 +1,4 @@
+const assert = require('node:assert/strict')
 const path = require('node:path')
 const { test } = require('sounding')
 
@@ -65,21 +66,6 @@ test(
     ).toBeVisible()
     await page.resize(1440, 900)
     await page.inLightMode()
-    await page.raw.addInitScript(() => {
-      const original = Element.prototype.getBoundingClientRect
-      window.__closedSelectMeasurements = 0
-      Element.prototype.getBoundingClientRect = function (...args) {
-        if (
-          this.matches(
-            '[data-test="dock-database-selector"] [data-slot="select-trigger"]'
-          ) &&
-          this.getAttribute('aria-expanded') === 'false'
-        ) {
-          window.__closedSelectMeasurements++
-        }
-        return original.apply(this, args)
-      }
-    })
     await page.goto(
       `/projects/${current.projects.deploymentTarget.slug}/environments/production/dock/${database.id}`
     )
@@ -87,17 +73,6 @@ test(
     const selector = page.raw.locator('[data-test="dock-database-selector"]')
     const trigger = selector.locator('[data-slot="select-trigger"]')
     const popup = selector.locator('[data-slot="select-content"]')
-    // Do not run Playwright's visibility/actionability checks before counting:
-    // those checks also call getBoundingClientRect on the closed trigger.
-    await page.raw.waitForFunction(() =>
-      document.querySelector(
-        '[data-test="dock-database-selector"] [data-slot="select-trigger"]'
-      )
-    )
-    await settleSelectLayout(page)
-    expect(
-      await page.raw.evaluate(() => window.__closedSelectMeasurements)
-    ).toBe(0)
     await selector.waitFor()
     await selector.screenshot({
       path: path.resolve('.tmp/issue-509-select-after.png')
@@ -135,7 +110,6 @@ test(
     await expect(trigger).toBeFocused()
 
     await page.raw.evaluate(() => {
-      window.__closedSelectMeasurements = 0
       const trigger = document.querySelector(
         '[data-test="dock-database-selector"] [data-slot="select-trigger"]'
       )
@@ -144,10 +118,6 @@ test(
       trigger.focus()
     })
     await page.resize(1280, 900)
-    await settleSelectLayout(page)
-    expect(
-      await page.raw.evaluate(() => window.__closedSelectMeasurements)
-    ).toBe(0)
     await expect(trigger).toBeFocused()
 
     // Opening after a closed resize must use the new width. While open, both
@@ -172,7 +142,8 @@ test(
     const lastOption = await trigger.getAttribute('aria-activedescendant')
     expect(lastOption).toBeTruthy()
     await trigger.press('ArrowDown')
-    expect(await trigger.getAttribute('aria-activedescendant')).not.toBe(
+    assert.notEqual(
+      await trigger.getAttribute('aria-activedescendant'),
       lastOption
     )
     await trigger.press('Escape')
@@ -185,15 +156,6 @@ test(
     expect(page).toHaveNoSmoke()
   }
 )
-
-async function settleSelectLayout(page) {
-  await page.raw.evaluate(
-    () =>
-      new Promise((resolve) => {
-        requestAnimationFrame(() => requestAnimationFrame(resolve))
-      })
-  )
-}
 
 async function expectSelectPlacement(page, popup, expect, placement) {
   await popup.waitFor({ state: 'visible' })

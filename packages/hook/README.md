@@ -362,12 +362,14 @@ inspect source jobs, review typed inputs, run a registered job, and pause or
 resume its scheduler. Results and logs are shown separately. Scripts and
 `config/quest.js` remain the source of truth for inputs and schedules.
 
-This requires compatible releases of both `sails-hook-quest` and
-`sails-hook-slipway`. Published Quest 0.0.5 and Slipway hook 0.0.11 do not include
-this contract. Older hooks retain bounded history in the dashboard, with live
-state and resident controls marked unavailable. The final minimum versions will
-be recorded in the [Quest upgrade guide](../../docs/quest-workspace-contract.md#owner-upgrade-sequence-and-release-gate)
-before release; a version string alone never enables unsupported controls.
+This requires `sails-hook-quest` **0.0.6 or newer** and a compatible
+`sails-hook-slipway` release. The planned first compatible Slipway hook is
+**0.0.12**, which is not yet published. Quest 0.0.5 and Slipway hook 0.0.11 do not
+include this contract. Older hooks retain bounded history in the dashboard,
+with live state and resident controls marked unavailable. The
+[Quest upgrade guide](../../docs/quest-workspace-contract.md#owner-upgrade-sequence-and-release-gate)
+tracks the published pair and verification; a version string alone never enables
+unsupported controls.
 
 After upgrading the two hooks and reviewing the application's registered jobs,
 explicitly enable the integration and deploy through the normal app workflow:

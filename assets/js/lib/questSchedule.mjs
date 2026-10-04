@@ -1,3 +1,5 @@
+import { hasQuestSchedule } from './questWorkspace.mjs'
+
 const dayNames = [
   'Sunday',
   'Monday',
@@ -22,6 +24,26 @@ function duration(value) {
     }
   }
   return `${value} milliseconds`
+}
+
+export function questScheduleLabel(job) {
+  if (job?.scheduleType === 'unavailable') return 'Unavailable'
+  if (!hasQuestSchedule(job)) return 'Manual'
+  if (job?.scheduleState?.validation === 'invalid')
+    return 'Invalid source schedule'
+  if (
+    typeof job.schedule === 'number' &&
+    ['interval', 'timeout'].includes(job.scheduleType)
+  ) {
+    const label = duration(job.schedule)
+    if (!label) return 'Unavailable'
+    return job.scheduleType === 'interval'
+      ? `Every ${label}`
+      : job.schedule === 0
+      ? 'Once, immediately'
+      : `Once after ${label}`
+  }
+  return job.schedule ?? 'Unavailable'
 }
 
 // Presentation only. The resident hook validates and schedules the expression;

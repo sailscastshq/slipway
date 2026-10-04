@@ -59,6 +59,8 @@ async function upstreamSource(env = process.env) {
 async function createFixture(app, options = {}) {
   // This gate precedes all Docker activity, never silently skipping integration.
   const source = await upstreamSource(options.env || process.env)
+  const { packedSource, proofFor } = require('./packed.cjs')
+  const packed = await packedSource(options.env || process.env, source)
   const docker = process.env.SLIPWAY_DOCKER_BINARY || 'docker'
   const image =
     process.env.SLIPWAY_QUEST_RESIDENT_IMAGE || 'node:22-bookworm-slim'
@@ -81,6 +83,7 @@ async function createFixture(app, options = {}) {
   const fixture = {
     name,
     source,
+    packedProof: proofFor(packed),
     docker,
     command,
     inspect,
@@ -165,13 +168,17 @@ async function createFixture(app, options = {}) {
       '-v',
       `${path.resolve('assets')}:/fixture/assets:ro`,
       '-v',
-      `${source.root}:/fixture/node_modules/sails-hook-quest:ro`,
+      `${packed.root}:/fixture/packed:ro`,
       '-w',
       '/app',
       '-e',
       'NODE_ENV=staging',
       '-e',
       'SLIPWAY_QUEST_FIXTURE=1',
+      '-e',
+      `SLIPWAY_QUEST_UPSTREAM_SHA=${source.sha}`,
+      '-e',
+      `SLIPWAY_QUEST_CONSUMER_HEAD=${packed.provenance.slipwaySha}`,
       '-e',
       `SLIPWAY_APP_ID=${app.id}`,
       '-e',

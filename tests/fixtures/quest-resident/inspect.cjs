@@ -2,7 +2,7 @@ const fs = require('node:fs')
 const assert = require('node:assert/strict')
 const {
   startTicks
-} = require('/fixture/packages/hook/lib/helm-runtime-contract')
+} = require('/app/node_modules/sails-hook-slipway/lib/helm-runtime-contract')
 const json = (file) => JSON.parse(fs.readFileSync(file, 'utf8'))
 const mode = process.argv[2]
 let result

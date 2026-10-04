@@ -10,14 +10,19 @@ const {
 } = require('./dependencies.cjs')
 assert.equal(process.env.SLIPWAY_QUEST_FIXTURE, '1')
 assert.equal(process.env.NODE_ENV, 'staging')
+const packed = require('./packed.cjs').loadPacked('/fixture/packed', {
+  questSha: process.env.SLIPWAY_QUEST_UPSTREAM_SHA,
+  slipwaySha: process.env.SLIPWAY_QUEST_CONSUMER_HEAD
+})
 fs.cpSync('/host/tests/fixtures/quest-resident/app', '/app', {
   recursive: true
 })
 const layout = {
   appRoot: '/app',
   dependencies: '/fixture/node_modules',
-  questRoot: '/fixture/node_modules/sails-hook-quest',
-  slipwayRoot: '/fixture/packages/hook'
+  questRoot: packed.questRoot,
+  slipwayRoot: packed.slipwayRoot,
+  packed
 }
 prepareDependencies(layout)
 fs.writeFileSync(
@@ -34,7 +39,7 @@ console.log(
 )
 const {
   startTicks
-} = require('/fixture/packages/hook/lib/helm-runtime-contract')
+} = require('/app/node_modules/sails-hook-slipway/lib/helm-runtime-contract')
 fs.writeFileSync(
   '/tmp/quest-fixture-supervisor.json',
   JSON.stringify({
