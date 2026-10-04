@@ -481,14 +481,20 @@ test(
     expect(search.header('cache-control')).toMatch('private')
     expect(search.header('cache-control')).toMatch('no-store')
 
-    const unpin = await browser.request.patch(`${apiPath}/${pinned.id}`, {
-      pinned: false
-    })
+    const unpin = await browser.request
+      .withHeaders({ 'X-Inertia': '' })
+      .patch(`${apiPath}/${pinned.id}`, {
+        pinned: false
+      })
     expect(unpin).toHaveStatus(200)
     expect(unpin).toHaveJsonPath('entry.pinned', false)
-    await browser.request.patch(`${apiPath}/${pinned.id}`, { pinned: true })
+    await browser.request
+      .withHeaders({ 'X-Inertia': '' })
+      .patch(`${apiPath}/${pinned.id}`, { pinned: true })
 
-    const cleared = await browser.request.delete(apiPath, {})
+    const cleared = await browser.request
+      .withHeaders({ 'X-Inertia': '' })
+      .delete(apiPath, {})
     expect(cleared).toHaveStatus(200)
     expect(cleared).toHaveJsonPath('deletedCount', 1)
     expect(
@@ -541,16 +547,20 @@ test(
       helmPath,
       'genesisUser'
     )
-    const personal = await ownerBrowser.request.post(apiPath, {
-      name: 'My creators',
-      source: 'await Creator.find().limit(10)',
-      scope: 'personal'
-    })
-    const shared = await ownerBrowser.request.post(apiPath, {
-      name: 'Active creators',
-      source: 'await Creator.find({ isActive: true })',
-      scope: 'project'
-    })
+    const personal = await ownerBrowser.request
+      .withHeaders({ 'X-Inertia': '' })
+      .post(apiPath, {
+        name: 'My creators',
+        source: 'await Creator.find().limit(10)',
+        scope: 'personal'
+      })
+    const shared = await ownerBrowser.request
+      .withHeaders({ 'X-Inertia': '' })
+      .post(apiPath, {
+        name: 'Active creators',
+        source: 'await Creator.find({ isActive: true })',
+        scope: 'project'
+      })
 
     expect(personal).toHaveStatus(201)
     expect(personal).toHaveJsonPath('snippet.scope', 'personal')
@@ -576,17 +586,17 @@ test(
     )
     expect(forbidden).toHaveStatus(403)
 
-    const updated = await ownerBrowser.request.patch(
-      `${apiPath}/${shared.data.snippet.id}`,
-      { name: 'Current creators' }
-    )
+    const updated = await ownerBrowser.request
+      .withHeaders({ 'X-Inertia': '' })
+      .patch(`${apiPath}/${shared.data.snippet.id}`, {
+        name: 'Current creators'
+      })
     expect(updated).toHaveStatus(200)
     expect(updated).toHaveJsonPath('snippet.name', 'Current creators')
 
-    const removed = await ownerBrowser.request.delete(
-      `${apiPath}/${personal.data.snippet.id}`,
-      {}
-    )
+    const removed = await ownerBrowser.request
+      .withHeaders({ 'X-Inertia': '' })
+      .delete(`${apiPath}/${personal.data.snippet.id}`, {})
     expect(removed).toHaveStatus(200)
     expect(removed).toHaveJsonPath('deleted', true)
 

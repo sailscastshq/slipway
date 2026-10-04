@@ -1,4 +1,5 @@
 <script setup>
+import { inertiaMutation } from '@/lib/inertia-mutation'
 import ChevronRight from '@/components/ui/icons/ChevronRight.vue'
 import X from '@/components/ui/icons/X.vue'
 import Search from '@/components/ui/icons/Search.vue'
@@ -410,7 +411,7 @@ async function toggleVote(item) {
     window.location.assign(props.app.identityPath)
     return
   }
-  if (votingFeedback.value.has(item.publicId)) return
+  if (votingFeedback.value.size) return
 
   const wasVoted = item.viewerHasVoted === true
   votingFeedback.value = new Set([...votingFeedback.value, item.publicId])
@@ -420,31 +421,25 @@ async function toggleVote(item) {
   })
 
   try {
-    const response = await fetch(
-      `${props.app.feedbackPath}/${encodeURIComponent(item.publicId)}/vote`,
-      {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers: { Accept: 'application/json' }
-      }
+    const page = await inertiaMutation(
+      'post',
+      `${props.app.feedbackPath}/${encodeURIComponent(item.publicId)}/vote`
     )
-    if (response.status === 403) {
-      window.location.assign(props.app.identityPath)
-      return
-    }
-    if (!response.ok) throw new Error('Vote failed')
-    const result = await response.json()
+    const result = page.props.flash?.vote
+    if (result?.publicId !== item.publicId)
+      throw new Error('Vote could not be confirmed')
     replaceFeedback(item.publicId, {
       viewerHasVoted: result.voted === true,
       voteCount: result.voteCount
     })
     liveAnnouncement.value = result.voted ? 'Vote added.' : 'Vote removed.'
-  } catch {
+  } catch (error) {
     replaceFeedback(item.publicId, {
       viewerHasVoted: wasVoted,
       voteCount: item.voteCount
     })
     liveAnnouncement.value = 'Your vote could not be saved. Try again.'
+    if (error.status === 403) window.location.assign(props.app.identityPath)
   } finally {
     const next = new Set(votingFeedback.value)
     next.delete(item.publicId)

@@ -735,34 +735,36 @@ async function createService() {
   })
 
   try {
-    const res = await fetch(
-      `/api/v1/projects/${props.project.slug}/environments/${
-        props.environment.slug
-      }/services${
-        newServiceType.value === 'external-postgresql' ? '/external' : ''
-      }`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: serviceName,
-          type: serviceType,
-          version: newServiceVersion.value,
-          ...(newServiceType.value === 'external-postgresql'
-            ? { configuration: externalConfiguration.value }
-            : {})
-        })
+    if (serviceType === 'external-postgresql') {
+      await inertiaMutation(
+        'post',
+        `/api/v1/projects/${props.project.slug}/environments/${props.environment.slug}/services/external`,
+        { name: serviceName, configuration: externalConfiguration.value }
+      )
+      completeAction(actionId, true)
+    } else {
+      const res = await fetch(
+        `/api/v1/projects/${props.project.slug}/environments/${props.environment.slug}/services`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: serviceName,
+            type: serviceType,
+            version: newServiceVersion.value
+          })
+        }
+      )
+      if (!res.ok) {
+        const data = await res.json()
+        const message =
+          data.problems?.[0]?.version ||
+          data.message ||
+          'Could not create the service.'
+        throw new Error(message)
       }
-    )
-    if (!res.ok) {
-      const data = await res.json()
-      const message =
-        data.problems?.[0]?.version ||
-        data.message ||
-        'Could not create the service.'
-      throw new Error(message)
+      completeAction(actionId, true)
     }
-    completeAction(actionId, res.ok)
     externalConfiguration.value = {
       dsn: '',
       sslMode: 'verify-full',
@@ -773,9 +775,10 @@ async function createService() {
     newServiceVersion.value = selectedServicePolicy.value?.defaultVersion || ''
     customServiceVersion.value = false
     addServiceOpen.value = false
-    router.reload({
-      only: ['environment', 'envVars', 'envVarMetadata', 'readiness']
-    })
+    if (serviceType !== 'external-postgresql')
+      router.reload({
+        only: ['environment', 'envVars', 'envVarMetadata', 'readiness']
+      })
   } catch (err) {
     completeAction(actionId, false)
     toast({

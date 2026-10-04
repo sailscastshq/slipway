@@ -8,9 +8,10 @@ module.exports = {
     settings: { type: 'ref', required: true }
   },
   exits: {
+    success: { responseType: 'mutationSuccess' },
     forbidden: { statusCode: 403 },
     unavailable: { statusCode: 503 },
-    badRequest: { statusCode: 400 }
+    badRequest: { responseType: 'mutationBadRequest' }
   },
   fn: async function ({ slug, envSlug, appSlug, enabled, settings }) {
     if (

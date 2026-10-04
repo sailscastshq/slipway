@@ -172,10 +172,9 @@ test(
         }
       })
       expect(
-        await browser.request.patch(
-          `/api/v1/services/${service.id}/custom-links`,
-          { appIds: [] }
-        )
+        await browser.request
+          .withHeaders({ 'X-Inertia': '' })
+          .patch(`/api/v1/services/${service.id}/custom-links`, { appIds: [] })
       ).toHaveStatus(200)
       const unlinked = await sails.models.app.findOne({ id: app.id }).decrypt()
       assert.equal(unlinked.secureEnvVars.OTHER, 'kept')
@@ -207,10 +206,9 @@ test(
         .set({ role: 'member' })
       expect(await browser.request.post(url, { definition })).toHaveStatus(403)
       expect(
-        await browser.request.patch(
-          `/api/v1/services/${service.id}/custom-links`,
-          { appIds: [] }
-        )
+        await browser.request
+          .withHeaders({ 'X-Inertia': '' })
+          .patch(`/api/v1/services/${service.id}/custom-links`, { appIds: [] })
       ).toHaveStatus(403)
     } finally {
       custom.inspectImage = originalInspect

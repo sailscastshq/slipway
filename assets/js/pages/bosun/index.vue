@@ -1,4 +1,5 @@
 <script setup>
+import { inertiaMutation } from '@/lib/inertia-mutation'
 import {
   assertMutationResponse,
   mutationFailureMessage
@@ -619,13 +620,7 @@ async function saveEnvVars(vars) {
   if (envSaving.value) return
   envSaving.value = true
   try {
-    await assertMutationResponse(
-      await fetch('/api/v1/bosun/env', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ envVars: vars })
-      })
-    )
+    await inertiaMutation('patch', '/api/v1/bosun/env', { envVars: vars })
     localVars.value = vars
     toast({ message: 'Environment variables saved', type: 'success' })
     return true

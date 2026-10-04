@@ -1,4 +1,5 @@
 <script setup>
+import { inertiaMutation } from '@/lib/inertia-mutation'
 import { ref } from 'vue'
 import { router } from '@inertiajs/vue3'
 import ExternalPostgresFields from '@/components/ExternalPostgresFields.vue'
@@ -16,25 +17,25 @@ const form = ref({
 function cancelEditing() {
   editing.value = false
   form.value.dsn = ''
+  form.value.caCertificate = ''
 }
 async function save() {
+  if (busy.value) return
   busy.value = true
   try {
-    const response = await fetch(
+    await inertiaMutation(
+      'patch',
       `/api/v1/services/${props.service.id}/external`,
-      {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ configuration: form.value })
-      }
+      { configuration: form.value }
     )
-    const body = await response.json()
-    if (!response.ok)
-      throw new Error(body.message || 'The connection could not be saved.')
-    result.value = { status: 'unverified', message: body.message }
+    result.value = {
+      status: 'unverified',
+      message:
+        'Connection saved. Verify access and redeploy apps to use the new settings.'
+    }
     form.value.dsn = ''
+    form.value.caCertificate = ''
     editing.value = false
-    router.reload({ only: ['service'], preserveScroll: true })
   } catch (error) {
     result.value = { status: 'unreachable', message: error.message }
   } finally {
@@ -43,6 +44,7 @@ async function save() {
 }
 const result = ref(props.service.externalVerification || {})
 async function verify() {
+  if (busy.value) return
   busy.value = true
   try {
     const response = await fetch(

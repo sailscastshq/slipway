@@ -80,3 +80,32 @@ test('opt-in mutation validation handles field and plain-message errors without 
     ['json', { message: 'Invalid configuration.' }]
   ])
 })
+
+test('creation adapter preserves 201 REST receipts and redirects page success', () => {
+  const created = require('../../../api/responses/mutationCreated')
+  const data = { service: { id: 'fixture', status: 'unverified' } }
+  const rest = context(false)
+  created.call(rest, data)
+  assert.deepEqual(rest.events, [
+    ['status', 201],
+    ['json', data]
+  ])
+  const page = context(true, '/projects/harbor')
+  created.call(page, data)
+  assert.equal(page.events[0][1], 303)
+  assert.equal(
+    page.events.some(([method]) => method === 'json'),
+    false
+  )
+})
+test('visitor deletion redirects to the surviving Wake journeys page', () => {
+  const response = require('../../../api/responses/wakeVisitorDeleted')
+  const page = context(true, '/dead-visitor')
+  page.req.params = { slug: 'harbor', envSlug: 'production', appSlug: 'web' }
+  response.call(page, { deleted: true })
+  assert.deepEqual(page.events[1], [
+    'set',
+    'Location',
+    '/projects/harbor/environments/production/apps/web/wake?tab=journeys'
+  ])
+})

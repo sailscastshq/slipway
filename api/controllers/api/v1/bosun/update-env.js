@@ -18,7 +18,7 @@ module.exports = {
 
   exits: {
     success: {
-      responseType: ''
+      responseType: 'mutationSuccess'
     }
   },
 

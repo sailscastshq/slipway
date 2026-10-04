@@ -1,4 +1,5 @@
 <script setup>
+import { inertiaMutation } from '@/lib/inertia-mutation'
 import Alert from '@/components/ui/alert/Alert.vue'
 import X from '@/components/ui/icons/X.vue'
 import Trash from '@/components/ui/icons/Trash.vue'
@@ -161,6 +162,13 @@ async function api(path, options = {}) {
   return data
 }
 
+const mutationBusy = ref(false)
+async function mutate(path, method, data = {}) {
+  await inertiaMutation(method, path, data, {
+    headers: { 'x-csrf-token': props.csrf }
+  })
+}
+
 async function refreshHistory() {
   historyLoading.value = true
   requestError.value = ''
@@ -242,12 +250,11 @@ function handleSnippetAction(snippet, action) {
 }
 
 async function setPinned(entry, pinned) {
+  if (mutationBusy.value) return
+  mutationBusy.value = true
   requestError.value = ''
   try {
-    await api(`${props.baseUrl}/history/${entry.id}`, {
-      method: 'PATCH',
-      body: JSON.stringify({ pinned })
-    })
+    await mutate(`${props.baseUrl}/history/${entry.id}`, 'patch', { pinned })
     entry.pinned = pinned
     history.value = [...history.value].sort(
       (left, right) =>
@@ -256,16 +263,22 @@ async function setPinned(entry, pinned) {
     )
   } catch (error) {
     requestError.value = error.message
+  } finally {
+    mutationBusy.value = false
   }
 }
 
 async function deleteHistoryEntry(entry) {
+  if (mutationBusy.value) return
+  mutationBusy.value = true
   requestError.value = ''
   try {
-    await api(`${props.baseUrl}/history/${entry.id}`, { method: 'DELETE' })
+    await mutate(`${props.baseUrl}/history/${entry.id}`, 'delete')
     history.value = history.value.filter((item) => item.id !== entry.id)
   } catch (error) {
     requestError.value = error.message
+  } finally {
+    mutationBusy.value = false
   }
 }
 
@@ -279,18 +292,18 @@ function openSnippetDialog(source = props.currentSource) {
 }
 
 async function saveSnippet(values) {
+  if (mutationBusy.value) return
+  mutationBusy.value = true
   snippetSaving.value = true
   requestError.value = ''
   const existing = snippetDialog.value.snippet
   try {
-    await api(
+    await mutate(
       existing?.id
         ? `${props.baseUrl}/snippets/${existing.id}`
         : `${props.baseUrl}/snippets`,
-      {
-        method: existing?.id ? 'PATCH' : 'POST',
-        body: JSON.stringify(values)
-      }
+      existing?.id ? 'patch' : 'post',
+      values
     )
     snippetDialog.value = { show: false, snippet: null }
     await refreshSnippets()
@@ -299,25 +312,28 @@ async function saveSnippet(values) {
   } catch (error) {
     requestError.value = error.message
   } finally {
+    mutationBusy.value = false
     snippetSaving.value = false
   }
 }
 
 async function confirmDestructiveAction() {
+  if (mutationBusy.value) return
+  mutationBusy.value = true
   confirmLoading.value = true
   requestError.value = ''
   try {
     if (confirm.value.type === 'clear-history') {
-      await api(`${props.baseUrl}/history`, {
-        method: 'DELETE',
-        body: JSON.stringify({ includePinned: false })
+      await mutate(`${props.baseUrl}/history`, 'delete', {
+        includePinned: false
       })
       await refreshHistory()
       notify('Recent history cleared')
     } else {
-      await api(`${props.baseUrl}/snippets/${confirm.value.item.id}`, {
-        method: 'DELETE'
-      })
+      await mutate(
+        `${props.baseUrl}/snippets/${confirm.value.item.id}`,
+        'delete'
+      )
       snippets.value = snippets.value.filter(
         (snippet) => snippet.id !== confirm.value.item.id
       )
@@ -327,6 +343,7 @@ async function confirmDestructiveAction() {
   } catch (error) {
     requestError.value = error.message
   } finally {
+    mutationBusy.value = false
     confirmLoading.value = false
   }
 }

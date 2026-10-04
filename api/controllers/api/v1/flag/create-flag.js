@@ -15,9 +15,9 @@ module.exports = {
   },
 
   exits: {
-    success: { statusCode: 201 },
+    success: { responseType: 'mutationCreated' },
     notFound: { statusCode: 404 },
-    badRequest: { responseType: 'badRequest' }
+    badRequest: { responseType: 'mutationBadRequest' }
   },
 
   fn: async function (inputs) {

@@ -30,8 +30,8 @@ module.exports = {
   },
 
   exits: {
-    success: { statusCode: 200 },
-    badRequest: { responseType: 'badRequest' },
+    success: { responseType: 'mutationSuccess' },
+    badRequest: { responseType: 'mutationBadRequest' },
     notFound: { statusCode: 404 },
     forbidden: { statusCode: 403 }
   },

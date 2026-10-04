@@ -1,4 +1,5 @@
 <script setup>
+import { inertiaMutation } from '@/lib/inertia-mutation'
 import AppNavbarVersion from '@/components/AppNavbarVersion.vue'
 import DateInput from '@/components/DateInput.vue'
 import { computed, inject, ref, watch } from 'vue'
@@ -123,36 +124,30 @@ const metrics = computed(() =>
     : []
 )
 async function save() {
+  if (busy.value) return
   busy.value = true
   error.value = ''
   notice.value = ''
   try {
-    const response = await fetch(base + '/wake/settings', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        enabled: enabled.value,
-        settings: {
-          mode: mode.value,
-          requireConsent: consent.value,
-          respectPrivacySignals: privacy.value,
-          allowedOrigins: origins.value
-            .split('\n')
-            .map((v) => v.trim())
-            .filter(Boolean),
-          excludedPaths: exclusions.value
-            .split('\n')
-            .map((v) => v.trim())
-            .filter(Boolean)
-        }
-      })
+    await inertiaMutation('post', base + '/wake/settings', {
+      enabled: enabled.value,
+      settings: {
+        mode: mode.value,
+        requireConsent: consent.value,
+        respectPrivacySignals: privacy.value,
+        allowedOrigins: origins.value
+          .split('\n')
+          .map((v) => v.trim())
+          .filter(Boolean),
+        excludedPaths: exclusions.value
+          .split('\n')
+          .map((v) => v.trim())
+          .filter(Boolean)
+      }
     })
-    if (!response.ok)
-      throw Error('Settings could not be saved. Your edits are still here.')
     notice.value = enabled.value
       ? 'Saved. Redeploy this app to activate the new settings.'
       : 'Saved. New collection is disabled; retained history remains.'
-    router.reload({ only: ['state', 'app'] })
   } catch (e) {
     error.value = e.message
   } finally {
@@ -160,19 +155,15 @@ async function save() {
   }
 }
 async function removeVisitor() {
+  if (busy.value) return
   busy.value = true
   error.value = ''
   try {
-    const response = await fetch(
-      base + '/wake/visitors/' + encodeURIComponent(props.visitor),
-      { method: 'DELETE' }
+    await inertiaMutation(
+      'delete',
+      base + '/wake/visitors/' + encodeURIComponent(props.visitor)
     )
-    if (!response.ok)
-      throw Error(
-        'Visitor history could not be deleted. Retry after checking storage.'
-      )
     confirmDelete.value = false
-    router.get(base + '/wake', query('journeys'))
   } catch (e) {
     error.value = e.message
   } finally {
