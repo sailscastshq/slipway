@@ -10,7 +10,7 @@ This CLI has **no npm dependencies**. It uses only Node.js 22+ built-ins:
 - `node:readline` → interactive prompts
 - `node:fs` → config storage in `~/.slipway/`
 - Native `fetch` → HTTP requests
-- Native `WebSocket` → log streaming, Helm REPL
+- Native `fetch` streaming → application logs (SSE) and guarded Helm commands (NDJSON)
 
 The CLI starts without installing third-party runtime dependencies.
 
@@ -42,9 +42,15 @@ slipway env:set KEY=value --env production
 slipway env --env production
 
 # Operations
-slipway terminal --env production
-slipway logs --env production --follow
+slipway logs --project my-project --env production --follow --ndjson
+slipway run --project my-project --env staging --file command.txt --json
+slipway doctor --project my-project --env staging --app web --json
+slipway app:inspect --project my-project --env staging --app web --json
+slipway run:history --project my-project --env staging --app web --json
 ```
+
+See [stream and mutation contracts](../../docs/inertia-cli-contracts.md) for targeting, machine output, input files/stdin, production write guards, and exit statuses.
+See [CLI reliability contracts](../../docs/cli-reliability.md) for cancellation, private receipts, guarded arming, app restart, authentication checks, and command-specific help.
 
 ## Custom domains
 

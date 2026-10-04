@@ -4,7 +4,7 @@ const path = require('node:path')
 test(
   'backup storage test and save use toasts with readable actions on mobile and desktop',
   { browser: true, world: { name: 'configured-slipway' } },
-  async ({ world, login, page, expect }) => {
+  async ({ sails, world, login, page, expect }) => {
     await login.withPassword('genesisUser', page, {
       password: world.current.auth.genesisUserPassword
     })
@@ -105,20 +105,16 @@ test(
     ).toBeVisible()
     await section.locator('#backup-key').fill('fixture-access')
     await section.locator('#backup-secret').fill('fixture-secret')
-    responseBody = {
-      message: 'Private backup storage saved and verified.',
-      config: {
-        provider: 's3',
-        bucket: 'slipway-backups',
-        region: 'auto',
-        endpoint: 'https://account-id.r2.cloudflarestorage.com',
-        hasCredentials: true
-      }
-    }
+    await page.raw.unroute('**/settings/backup-storage')
+    const originalStorage = sails.helpers.backup.getObjectStorage
+    sails.helpers.backup.getObjectStorage = () => ({
+      testConnection: async () => {}
+    })
     await section.getByRole('button', { name: 'Save', exact: true }).click()
     await expect(toast).toContainText(
       'Private backup storage saved and verified.'
     )
+    sails.helpers.backup.getObjectStorage = originalStorage
     await expect(section.locator('#backup-key')).toHaveValue('')
     await expect(section.locator('#backup-secret')).toHaveValue('')
     await expect(

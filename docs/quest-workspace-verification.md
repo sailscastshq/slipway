@@ -137,6 +137,105 @@ no fixture sleep or fabricated API substitutes for the upstream lifecycle fix.
 A complete proof artifact is emitted only after all real execution, recovery and
 browser assertions pass. These failed attempts are not runtime success evidence.
 
+## Verified real resident flow and latest UI observations
+
+Slipway `e0d349ee0733154a64e4d9fe198585a7a7e57954`, pinned to upstream Quest
+`7411223d586d1b86365296b0a696fda5477f2109`, passes all eight jobs in
+[run 37157744985](https://github.com/sailscastshq/slipway/actions/runs/37157744985).
+The 99.50-second real resident trial writes its final proof only after every
+execution, HTTP, browser, ownership and recovery assertion completes.
+
+The [real execution artifact](https://github.com/sailscastshq/slipway/actions/runs/37157744985/artifacts/11286144604)
+was downloaded, hash-verified and its four desktop-light images inspected.
+Its ZIP SHA-256 is
+`e4b26a4244104ef20c9600b7dee426cebea8efb07988e09aed587bd8d1fec656`.
+It proves direct resident Sails-helper parity with the separately executed Quest
+child, typed/falsy/null/string values, named exits, thrown failure and SIGTERM,
+source defaults and aliases, actual one-shot consumption, timer/manual overlap
+and pause, request deduplication, scoped permissions and declared-input redaction.
+The browser completes input review, actual HTTP admission, result-first display,
+lazy stdout/stderr logs and stable-link reopen. Active HTTP SSE reader detachment,
+reconnection and same-key retry do not replay work. Real resident reads recover
+an active run after an unavailable target; bounded receipt eviction and a real
+resident restart remain explicitly unconfirmed when evidence is lost.
+
+The worker has no external network or HTTP listener and uses synthetic business
+data. Telemetry is disabled. The proof does not restart the Slipway dashboard,
+demonstrate durable telemetry/log replay, simulate a browser network outage, or
+establish cancellation, distributed overlap or exactly-once external effects.
+Those distinctions remain part of the acceptance review.
+
+The preceding exact UI source `e0b2e98dd0bf5abee109f85adad0b2963104e216` has
+[76 reviewed captures](https://github.com/sailscastshq/slipway/actions/runs/37157108515/artifacts/11285983698),
+all with zero horizontal overflow. Four base and 66 state PNGs are pixel-identical
+to the previous `1584033` set; inspected changed mobile form pixels remain clean.
+All seven browser trials pass, and minimum measured schedule contrast remains
+15.13:1 light and 15.72:1 dark. The later one-shot fixture change does not modify
+frontend source.
+
+The [latest production comparison](https://github.com/sailscastshq/slipway/actions/runs/37157108515/artifacts/11286018765)
+was independently recomputed from its raw observations. Original → current
+native-ready medians, desktop light/dark then mobile light/dark, are
+138.00 → 152.35, 140.90 → 150.10, 138.10 → 143.35 and 141.85 → 143.60 ms.
+Initial assets remain 615,716 → 670,157 bytes (+54,441), with 11 → 13 requests.
+The original-page non-regression gate is still not met.
+
+The [separate same-source preload control](https://github.com/sailscastshq/slipway/actions/runs/37157108515/artifacts/11285433556)
+records off → on native-ready medians of 129.35 → 121.35, 131.00 → 128.35,
+129.05 → 121.60 and 125.50 → 125.60 ms. Mobile-dark readiness is effectively flat;
+desktop-light direct-run navigation is 3 ms slower in this run. Other direct
+preload paths improve. Asset identities remain unchanged, with no duplicate or
+first-click static requests. These are bounded synthetic observations, not a
+universal preload speedup or a production no-regression guarantee.
+
+## Additional delivery boundary checks
+
+A subsequent acceptance audit found that upstream Date timestamps were being
+serialized as ISO strings in telemetry wrapper fields whose ingestion contract
+requires finite numbers. It also identified result bursts exceeding the total
+batch budget, and escaped log strings exceeding individual wire budgets.
+The correction normalizes only Quest timestamps/durations and partitions detached
+telemetry buffers by serialized bytes and kind counts. It preserves ordinary
+valid events exactly, with explicit bounded degradation for correlated Quest
+logs/results when needed. It adds no retries or durable delivery queue.
+
+Six pure tests drive the actual hook event handlers, JSON serialization and the
+real ingest action's validation, with mocked HTTP/authentication/storage. They
+cover Date/ISO/numeric timestamps, 50 near-16-KiB results without loss, count caps,
+worst-case escaped diagnostics, named-exit preservation and overlapping failed
+requests without replay. They are not real network or dashboard-restart proof;
+that separate lifecycle fixture remains required.
+
+## Reconstructed final acceptance candidate
+
+The pending unpublished test helpers were lost when the disposable workspace was
+reset. Five previously prepared source/document/workflow files were recovered
+from Git tree `7b43a964c3ca7b98f7e5526e7dba686ca9721219` and verified against
+their exact blob hashes. The missing telemetry tests, attribution harness and
+native restart fixture were reconstructed and reviewed anew; this candidate is
+not a byte-identical retry of the lost payload and inherits no runtime pass.
+
+It incorporates main `1692b916f89e75cbe9914a77a49fa4daf88ffe0c`, preserving both
+Quest's bounded retention and main's active/pending alert-delivery retention.
+A real in-memory SQLite regression verifies the combined cleanup. A newly
+reproduced Date-conversion defect is also corrected: resident and telemetry
+lifecycle timestamps retain their milliseconds instead of passing Date objects
+through their precision-losing string representation.
+
+The new CI-only native fixture uses one real loopback web app and two genuine
+Slipway dashboard processes over the same disposable disk databases. It tests
+actual hook HTTP delivery, refused delivery during dashboard downtime,
+persisted receipt/log reads before reconciliation, explicit verified resident
+recovery without replay, and a bounded 36-job result burst. The previously passed
+network-isolated Docker/worker/browser fixture remains separate. Both must pass
+on the final candidate before those new lifecycle claims are accepted.
+
+A temporary diagnostic job separately captures one desktop-light original/head
+ABBA trace experiment. It does not change product assets, Select behavior,
+readiness semantics or the ordinary production/preload reports. Instrumented
+timings are diagnostic evidence only; the original-page performance gate stays
+open until the actual reports and mechanism are assessed.
+
 ## Reproducible comparison
 
 The workflow uses two checkouts:

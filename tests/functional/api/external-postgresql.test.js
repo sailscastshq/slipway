@@ -65,7 +65,7 @@ test(
         }
       }
     )
-    expect(updatedEnvironment).toHaveStatus(200)
+    expect(updatedEnvironment).toHaveStatus(303)
     const preserved = await sails.models.environment
       .findOne({ id: environment.id })
       .decrypt()

@@ -52,6 +52,7 @@ module.exports = {
           })
           alertSamples.push({
             stat,
+            recordedAt: attemptedAt,
             containerName: owner.containerName,
             environmentId: owner.environment.id
           })

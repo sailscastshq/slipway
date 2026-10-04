@@ -24,7 +24,7 @@ function showHelp() {
 
   // Group commands
   const groups = {
-    Authentication: ['login', 'logout', 'whoami'],
+    Authentication: ['login', 'logout', 'whoami', 'doctor'],
     Project: ['projects', 'project:update', 'init', 'link'],
     Environments: ['environments', 'environment:create', 'environment:update'],
     Deployment: ['push', 'slide', 'readiness', 'deployments', 'logs'],
@@ -32,7 +32,16 @@ function showHelp() {
     Services: ['services', 'service:review', 'service:create'],
     Backups: ['backup:create', 'backup:list', 'backup:restore'],
     'Env Variables': ['env', 'env:set', 'env:unset'],
-    Container: ['terminal', 'run'],
+    Container: [
+      'apps',
+      'app:inspect',
+      'app:restart',
+      'terminal',
+      'run',
+      'run:arm',
+      'run:cancel',
+      'run:history'
+    ],
     Admin: ['audit-log']
   }
 
@@ -60,28 +69,27 @@ function showVersion() {
   console.log(`slipway v${pkg.version}`)
 }
 
+function usageError(message, code = 'CLI_USAGE') {
+  if (
+    process.argv.slice(2).some((arg) => /^--(?:json|ndjson)(?:=|$)/.test(arg))
+  )
+    console.error(JSON.stringify({ type: 'error', error: { code, message } }))
+  else console.error(`${c.error('Error:')} ${message}`)
+}
+
 async function main() {
   assertSupportedNodeVersion()
 
-  // Parse global options first
-  const { values: globalValues, positionals } = parseArgs({
-    allowPositionals: true,
-    strict: false,
-    options: {
-      help: { type: 'boolean', short: 'h' },
-      version: { type: 'boolean', short: 'v' }
-    }
-  })
-
-  if (globalValues.version) {
+  const argv = process.argv.slice(2)
+  if (['--version', '-v'].includes(argv[0])) {
     showVersion()
     return
   }
-
-  if (globalValues.help || positionals.length === 0) {
+  if (!argv.length || ['--help', '-h'].includes(argv[0])) {
     showHelp()
     return
   }
+  const positionals = [argv[0]]
 
   // Resolve aliases
   let command = positionals[0]
@@ -92,15 +100,12 @@ async function main() {
   const commandDef = commands[command]
 
   if (!commandDef) {
-    console.error(`${c.error('Error:')} Unknown command: ${positionals[0]}`)
-    console.error(
-      `Run ${c.highlight('slipway --help')} for available commands.`
-    )
+    usageError(`Unknown command: ${positionals[0]}`, 'CLI_UNKNOWN_COMMAND')
     process.exit(1)
   }
 
   // Parse command-specific options
-  const commandArgs = process.argv.slice(3) // Skip node, script, command
+  const commandArgs = argv.slice(1) // Skip node, script, command
   let parsed
 
   try {
@@ -113,7 +118,7 @@ async function main() {
       }
     })
   } catch (err) {
-    console.error(`${c.error('Error:')} ${err.message}`)
+    usageError(err.message, err.code || 'CLI_USAGE')
     process.exit(1)
   }
 
@@ -134,7 +139,11 @@ async function main() {
       for (const [name, opt] of Object.entries(commandDef.options)) {
         const short = opt.short ? `-${opt.short}, ` : '    '
         const def = opt.default ? ` (default: ${opt.default})` : ''
-        console.log(`    ${short}--${name}${def}`)
+        console.log(
+          `    ${short}--${name}${
+            opt.type === 'string' ? ' <value>' : ''
+          }${def}`
+        )
       }
       console.log()
     }
@@ -167,6 +176,6 @@ async function main() {
 }
 
 main().catch((err) => {
-  console.error(`${c.error('Error:')} ${err.message}`)
+  usageError(err.message, err.code || 'CLI_ERROR')
   process.exit(1)
 })

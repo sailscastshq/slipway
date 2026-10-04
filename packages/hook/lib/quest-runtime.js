@@ -11,12 +11,14 @@ const MAX_REQUEST_BYTES = 32 * 1024
 const MAX_RESULT_BYTES = 128 * 1024
 const MAX_RUNS = 32
 const terminal = new Set(['completed', 'failed', 'skipped'])
-const milliseconds = (value) =>
-  Number.isFinite(value)
+const milliseconds = (value) => {
+  const parsed = Number.isFinite(value)
     ? value
-    : Number.isFinite(Date.parse(value))
-    ? Date.parse(value)
-    : null
+    : value instanceof Date
+    ? value.getTime()
+    : Date.parse(value)
+  return Number.isFinite(parsed) ? parsed : null
+}
 const sensitive =
   /password|passwd|secret|token|api.?key|credential|private.?key/i
 const fail = (message, code = 'QUEST_UNAVAILABLE') =>

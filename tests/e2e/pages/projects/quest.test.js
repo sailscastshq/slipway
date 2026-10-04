@@ -257,6 +257,18 @@ async function installQuestFixture(
 ) {
   const current = world.current
   const fixture = questComparisonData(current, phase)
+  const attributionTrace = process.env.SLIPWAY_QUEST_ATTRIBUTION_TRACE === '1'
+  if (attributionTrace) {
+    if (process.env.SLIPWAY_QUEST_PRODUCTION_BENCHMARK !== '1')
+      throw new Error('Quest attribution requires actual production assets')
+    await page.raw.addInitScript(
+      require('../../../support/quest-attribution-trace.cjs')
+        .installBrowserProbe,
+      {
+        projectPath: `/projects/${current.projects.deploymentTarget.slug}/quest`
+      }
+    )
+  }
   const preloadMode = process.env.SLIPWAY_QUEST_PRELOAD_MODE || 'on'
   const fs = require('node:fs')
   const preloadPath = '.tmp/public/quest-preload-manifest.json'
@@ -536,7 +548,7 @@ async function installQuestFixture(
     // Playwright's full clock shim, which removes native Performance entries.
     // No timer, performance method, application state, or event is replaced.
     await page.raw.addInitScript(
-      ({ now, phase, projectPath, clockMode }) => {
+      ({ now, phase, projectPath, clockMode, attributionTrace }) => {
         const NativeDate = Date
         const wallOrigin = NativeDate.now()
         const clockNow = () =>
@@ -585,8 +597,12 @@ async function installQuestFixture(
           const heading = [...document.querySelectorAll('h1,h2,h3')].some(
             (el) => el.textContent.trim() === 'Quest'
           )
+          // Bracket the one existing readiness read; do not add a layout read.
+          const phaseRects = attributionTrace
+            ? window.__questAttributionProbe.readinessRects(phaseElement)
+            : phaseElement?.getClientRects()
           if (
-            phaseElement?.getClientRects().length &&
+            phaseRects?.length &&
             streamReady &&
             heading &&
             document.body?.textContent.includes('Rebuild search index') &&
@@ -598,13 +614,16 @@ async function installQuestFixture(
               requestAnimationFrame(() => {
                 performance.mark('quest-native-ready')
                 profile.readyMs = performance.now()
+                // Freeze the marker inventory at the existing ready boundary;
+                // late ResizeObserver callbacks cannot race the CDP drain.
+                if (attributionTrace) window.__questAttributionProbe.finish()
               })
             )
           } else requestAnimationFrame(observeReady)
         }
         requestAnimationFrame(observeReady)
       },
-      { now: fixture.now, phase, projectPath, clockMode }
+      { now: fixture.now, phase, projectPath, clockMode, attributionTrace }
     )
   } else if (clockMode === 'fixed')
     await page.raw.clock.setFixedTime(fixture.now)
@@ -612,7 +631,15 @@ async function installQuestFixture(
   // Transport-only EventSource double. This permits deterministic disconnects
   // while exercising the real composable's reconnect timer and cleanup logic.
   await page.raw.addInitScript(
-    ({ jobs, rawEvents, workspace, phase, questStreamPath, clockMode }) => {
+    ({
+      jobs,
+      rawEvents,
+      workspace,
+      phase,
+      questStreamPath,
+      clockMode,
+      attributionTrace
+    }) => {
       window.__questStreams = []
       window.__questStreamOnline = true
       window.__questObservationPaused = false
@@ -646,62 +673,81 @@ async function installQuestFixture(
           this.readyState = 0
           this.closed = false
           window.__questStreams.push(this)
+          const probe = attributionTrace ? window.__questAttributionProbe : null
+          const streamId = probe?.next('sse')
+          probe?.mark('sse-register', streamId, 'begin')
           this.timer = setTimeout(() => {
-            if (this.closed) return
-            if (!window.__questStreamOnline)
-              return this.onerror?.({ type: 'error' })
-            this.readyState = 1
-            this.onopen?.({ type: 'open' })
-            if (this.url.includes('/quest/stream')) {
-              if (!window.__questStreamBootstrapped) {
-                const bootstrap = document.querySelector(
-                  'script[data-page="app"]'
-                )
-                const props = bootstrap
-                  ? JSON.parse(bootstrap.textContent).props
-                  : {}
-                window.__questStreamPayload =
-                  phase === 'before'
-                    ? {
-                        jobs: props.jobs || jobs,
-                        jobHistory: props.jobHistory || rawEvents,
-                        jobsError: null
-                      }
-                    : { workspace: props.workspace || workspace }
-                window.__questStreamBootstrapped = true
+            probe?.mark('sse-callback', streamId, 'begin')
+            try {
+              if (this.closed) return
+              if (!window.__questStreamOnline)
+                return this.onerror?.({ type: 'error' })
+              this.readyState = 1
+              probe?.mark('sse-open', streamId, 'begin')
+              try {
+                this.onopen?.({ type: 'open' })
+              } finally {
+                probe?.mark('sse-open', streamId, 'end')
               }
-              if (
-                (clockMode === 'advancing' ||
-                  clockMode === 'native-performance-advancing') &&
-                !window.__questObservationPaused &&
-                window.__questStreamPayload.workspace?.mode === 'resident'
-              ) {
-                window.__questStreamPayload.workspace.observedAt = Date.now()
-              }
-              this.onmessage?.({
-                data: JSON.stringify(window.__questStreamPayload)
-              })
-              if (
-                clockMode === 'advancing' ||
-                clockMode === 'native-performance-advancing'
-              ) {
-                this.heartbeat = setInterval(() => {
-                  if (
-                    this.closed ||
-                    !window.__questStreamOnline ||
-                    window.__questObservationPaused
+              if (this.url.includes('/quest/stream')) {
+                if (!window.__questStreamBootstrapped) {
+                  const bootstrap = document.querySelector(
+                    'script[data-page="app"]'
                   )
-                    return
-                  const current = window.__questStreamPayload.workspace
-                  if (current?.mode !== 'resident') return
-                  current.observedAt = Date.now()
+                  const props = bootstrap
+                    ? JSON.parse(bootstrap.textContent).props
+                    : {}
+                  window.__questStreamPayload =
+                    phase === 'before'
+                      ? {
+                          jobs: props.jobs || jobs,
+                          jobHistory: props.jobHistory || rawEvents,
+                          jobsError: null
+                        }
+                      : { workspace: props.workspace || workspace }
+                  window.__questStreamBootstrapped = true
+                }
+                if (
+                  (clockMode === 'advancing' ||
+                    clockMode === 'native-performance-advancing') &&
+                  !window.__questObservationPaused &&
+                  window.__questStreamPayload.workspace?.mode === 'resident'
+                ) {
+                  window.__questStreamPayload.workspace.observedAt = Date.now()
+                }
+                probe?.mark('sse-message', streamId, 'begin')
+                try {
                   this.onmessage?.({
-                    data: JSON.stringify({ workspace: current })
+                    data: JSON.stringify(window.__questStreamPayload)
                   })
-                }, 5000)
+                } finally {
+                  probe?.mark('sse-message', streamId, 'end')
+                }
+                if (
+                  clockMode === 'advancing' ||
+                  clockMode === 'native-performance-advancing'
+                ) {
+                  this.heartbeat = setInterval(() => {
+                    if (
+                      this.closed ||
+                      !window.__questStreamOnline ||
+                      window.__questObservationPaused
+                    )
+                      return
+                    const current = window.__questStreamPayload.workspace
+                    if (current?.mode !== 'resident') return
+                    current.observedAt = Date.now()
+                    this.onmessage?.({
+                      data: JSON.stringify({ workspace: current })
+                    })
+                  }, 5000)
+                }
               }
+            } finally {
+              probe?.mark('sse-callback', streamId, 'end')
             }
           }, 10)
+          probe?.mark('sse-register', streamId, 'end')
         }
         close() {
           clearTimeout(this.timer)
@@ -711,7 +757,12 @@ async function installQuestFixture(
         }
       }
     },
-    { ...fixture, questStreamPath: apiPath + 'stream', clockMode }
+    {
+      ...fixture,
+      questStreamPath: apiPath + 'stream',
+      clockMode,
+      attributionTrace
+    }
   )
   return state
 }
@@ -776,7 +827,16 @@ test(
     const sourceSha = execFileSync('git', ['rev-parse', 'HEAD'], {
       encoding: 'utf8'
     }).trim()
-    const root = path.resolve('.tmp/screenshots/quest-comparison', phase)
+    const attributionTrace = process.env.SLIPWAY_QUEST_ATTRIBUTION_TRACE === '1'
+    const attribution = attributionTrace
+      ? require('../../../support/quest-attribution-trace.cjs')
+      : null
+    const root = path.resolve(
+      attributionTrace
+        ? '.tmp/screenshots/quest-attribution'
+        : '.tmp/screenshots/quest-comparison',
+      phase
+    )
     fs.mkdirSync(root, { recursive: true })
     const productionBenchmark =
       process.env.SLIPWAY_QUEST_PRODUCTION_BENCHMARK === '1'
@@ -808,12 +868,19 @@ test(
       clockMode: productionBenchmark ? 'native-performance' : 'fixed'
     })
     const measurements = []
+    const attributionSamples = []
+    let activeTrace
     try {
       await login.withPassword('genesisUser', page, {
         password: world.current.auth.genesisUserPassword
       })
       await page.raw.waitForURL('**/')
-      for (const capture of questComparisonFixture.captures) {
+      const captures = attributionTrace
+        ? questComparisonFixture.captures.filter(
+            (capture) => capture.name === 'desktop-light'
+          )
+        : questComparisonFixture.captures
+      for (const capture of captures) {
         await page.raw.setViewportSize({
           width: capture.width,
           height: capture.height
@@ -831,6 +898,8 @@ test(
                 )
               )
             : null
+          if (attributionTrace)
+            activeTrace = await attribution.startTrace(cdp, root, sample)
           const start = performance.now()
           await page.goto(state.projectPath)
           await expect(
@@ -863,29 +932,73 @@ test(
             )
           timingSamples.push(Math.round(performance.now() - start))
           if (productionBenchmark) {
-            const native = await page.raw.evaluate(() => ({
-              ...window.__questNativeProfile,
-              navigation: performance
-                .getEntriesByType('navigation')[0]
-                ?.toJSON(),
-              readyMarks: performance
-                .getEntriesByName('quest-native-ready')
-                .map((entry) => entry.toJSON()),
-              resources: performance
-                .getEntriesByType('resource')
-                .map((entry) => ({
-                  ...entry.toJSON(),
-                  name: new URL(entry.name).pathname
-                })),
-              assetUrls: [
-                ...document.querySelectorAll(
-                  'script[src],link[rel="stylesheet"][href]'
-                )
-              ].map((el) => new URL(el.src || el.href).pathname),
-              preloadUrls: [
-                ...document.querySelectorAll('link[data-quest-preload="1"]')
-              ].map((el) => new URL(el.href).pathname)
-            }))
+            const native = await page.raw.evaluate(
+              ({ attributionTrace }) => ({
+                ...window.__questNativeProfile,
+                ...(attributionTrace
+                  ? {
+                      attribution: window.__questAttributionProbe.state,
+                      filterPresent: !!document.querySelector(
+                        '[data-slot="select-trigger"][aria-label="Filter jobs by state"]'
+                      ),
+                      paints: performance
+                        .getEntriesByType('paint')
+                        .map((entry) => ({
+                          ...entry.toJSON(),
+                          paintTime: entry.paintTime ?? null,
+                          presentationTime: entry.presentationTime ?? null
+                        }))
+                    }
+                  : {}),
+                navigation: performance
+                  .getEntriesByType('navigation')[0]
+                  ?.toJSON(),
+                readyMarks: performance
+                  .getEntriesByName('quest-native-ready')
+                  .map((entry) => entry.toJSON()),
+                resources: performance
+                  .getEntriesByType('resource')
+                  .map((entry) => ({
+                    ...entry.toJSON(),
+                    name: new URL(entry.name).pathname
+                  })),
+                assetUrls: [
+                  ...document.querySelectorAll(
+                    'script[src],link[rel="stylesheet"][href]'
+                  )
+                ].map((el) => new URL(el.src || el.href).pathname),
+                preloadUrls: [
+                  ...document.querySelectorAll('link[data-quest-preload="1"]')
+                ].map((el) => new URL(el.href).pathname)
+              }),
+              { attributionTrace }
+            )
+            if (attributionTrace) {
+              const trace = await activeTrace.stop()
+              activeTrace = null
+              const { frameTree } = await cdp.send('Page.getFrameTree')
+              const observation = {
+                sample,
+                capture: capture.name,
+                phase,
+                sourceSha,
+                frameId: frameTree.frame.id,
+                trace,
+                native,
+                bootstrap: state.bootstrapMeasurements
+              }
+              observation.analysis = attribution.analyzeTrace(
+                JSON.parse(
+                  fs.readFileSync(path.join(root, trace.traceFile), 'utf8')
+                ),
+                observation
+              )
+              attributionSamples.push(observation)
+              fs.writeFileSync(
+                path.join(root, `sample-${sample}.json`),
+                JSON.stringify(observation, null, 2) + '\n'
+              )
+            }
             expect(native.navigation.responseEnd > 0).toBe(true)
             expect(native.readyMs >= native.navigation.responseEnd).toBe(true)
             const assetUrls = new Set(
@@ -957,49 +1070,72 @@ test(
               'Actual checked-out Vue page and CSS; synthetic Inertia JSON and EventSource transport. No runtime commands executed.',
             legacyEventsAreRuns: false,
             selectedJob: null,
-            sourceFixtureSha: questComparisonFixture.captureTrialSourceSha
+            sourceFixtureSha: questComparisonFixture.captureTrialSourceSha,
+            ...(attributionTrace
+              ? {
+                  reconstructed: true,
+                  captures: [questComparisonFixture.captures[0]]
+                }
+              : {})
           },
           null,
           2
         ) + '\n'
       )
       fs.writeFileSync(
-        path.join(root, 'performance.json'),
+        path.join(
+          root,
+          attributionTrace ? 'attribution.json' : 'performance.json'
+        ),
         JSON.stringify(
-          {
-            phase,
-            sourceSha,
-            fixtureVersion: questComparisonFixture.fixtureVersion,
-            frozenBrowserTime: questComparisonFixture.frozenBrowserTime,
-            sampleJobs: 5,
-            sampleEvents: 10,
-            measurementVersion: 2,
-            ...(productionBenchmark
-              ? {
-                  productionBenchmark: true,
-                  preloadMode: state.preloadMode,
-                  productionBuild,
-                  clockMode: 'Date-only fixture; native Performance and timers',
-                  additionalReadiness:
-                    'Native page-side UI/stream/fonts readiness plus two animation frames; no cross-navigation CDP differences are calculated'
-                }
-              : {}),
-            driverReadiness: productionBenchmark
-              ? 'Both phases: the original visibility/stream/fonts assertions, then wait for the native page-side two-frame ready mark. Wall timing starts immediately before navigation and ends after this wait.'
-              : 'Both phases: page navigation, Quest heading, first job label, one phase-specific visibility assertion, identical synthetic-stream-ready wait, and fonts.ready. Timing starts immediately before navigation and ends after fonts.ready.',
-            navigationSamplesPerCapture: 5,
-            navigationStatistic:
-              'Median of five sequential same-fixture navigations; raw samples retained. Assets were already visited during login, so this is not a cold-start benchmark.',
-            measurements,
-            budgets: {
-              questJsonBytes: 65536,
-              initialJsonBytes: 262144,
-              documentElementCount: 4000,
-              navigationToReadyMs: 15000
-            },
-            scope:
-              'Synthetic browser rendering sample, not production runtime performance. The old 500-event bound and 30-second polling are not exercised. Transport doubles do not measure runtime discovery, polling, networking, or job execution.'
-          },
+          attributionTrace
+            ? {
+                reconstructed: true,
+                phase,
+                sourceSha,
+                productionBenchmark,
+                productionBuild,
+                captureTrialSourceSha:
+                  process.env.SLIPWAY_QUEST_CAPTURE_TRIAL_SHA || sourceSha,
+                samples: attributionSamples,
+                scope:
+                  'Instrumented mechanism diagnostic only; separate from uninstrumented production/preload reports. Reconstructed unpublished harness, not recovered historical measurements.'
+              }
+            : {
+                phase,
+                sourceSha,
+                fixtureVersion: questComparisonFixture.fixtureVersion,
+                frozenBrowserTime: questComparisonFixture.frozenBrowserTime,
+                sampleJobs: 5,
+                sampleEvents: 10,
+                measurementVersion: 2,
+                ...(productionBenchmark
+                  ? {
+                      productionBenchmark: true,
+                      preloadMode: state.preloadMode,
+                      productionBuild,
+                      clockMode:
+                        'Date-only fixture; native Performance and timers',
+                      additionalReadiness:
+                        'Native page-side UI/stream/fonts readiness plus two animation frames; no cross-navigation CDP differences are calculated'
+                    }
+                  : {}),
+                driverReadiness: productionBenchmark
+                  ? 'Both phases: the original visibility/stream/fonts assertions, then wait for the native page-side two-frame ready mark. Wall timing starts immediately before navigation and ends after this wait.'
+                  : 'Both phases: page navigation, Quest heading, first job label, one phase-specific visibility assertion, identical synthetic-stream-ready wait, and fonts.ready. Timing starts immediately before navigation and ends after fonts.ready.',
+                navigationSamplesPerCapture: 5,
+                navigationStatistic:
+                  'Median of five sequential same-fixture navigations; raw samples retained. Assets were already visited during login, so this is not a cold-start benchmark.',
+                measurements,
+                budgets: {
+                  questJsonBytes: 65536,
+                  initialJsonBytes: 262144,
+                  documentElementCount: 4000,
+                  navigationToReadyMs: 15000
+                },
+                scope:
+                  'Synthetic browser rendering sample, not production runtime performance. The old 500-event bound and 30-second polling are not exercised. Transport doubles do not measure runtime discovery, polling, networking, or job execution.'
+              },
           null,
           2
         ) + '\n'
@@ -1012,18 +1148,25 @@ test(
           expect(measurement.questJsonBytes <= 65536).toBe(true)
           expect(measurement.initialJsonBytes <= 262144).toBe(true)
           expect(measurement.documentElementCount <= 4000).toBe(true)
-          expect(measurement.navigationToReadyMs <= 15000).toBe(true)
-          for (const elapsed of measurement.navigationToReadySamplesMs) {
-            expect(elapsed <= 15000).toBe(true)
+          // Tracing overhead is diagnostic, not a production timing budget.
+          if (!attributionTrace) {
+            expect(measurement.navigationToReadyMs <= 15000).toBe(true)
+            for (const elapsed of measurement.navigationToReadySamplesMs) {
+              expect(elapsed <= 15000).toBe(true)
+            }
           }
           expect(measurement.horizontalOverflowPx <= 1).toBe(true)
           expect(measurement.workspaceHorizontalOverflowPx <= 1).toBe(true)
         }
       }
     } finally {
-      await page.raw.goto('about:blank')
-      state.restore()
-      if (cdp) await cdp.detach()
+      try {
+        if (activeTrace) await activeTrace.stop()
+      } finally {
+        await page.raw.goto('about:blank')
+        state.restore()
+        if (cdp) await cdp.detach()
+      }
     }
   }
 )
@@ -1032,6 +1175,7 @@ test(
 // their measured first-open cost visible, separately from the paired baseline.
 if (
   process.env.SLIPWAY_QUEST_PRODUCTION_BENCHMARK === '1' &&
+  process.env.SLIPWAY_QUEST_ATTRIBUTION_TRACE !== '1' &&
   process.env.SLIPWAY_QUEST_CAPTURE_PHASE !== 'before'
 ) {
   test(

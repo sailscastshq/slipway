@@ -1,10 +1,64 @@
 // Command aliases (alias → primary command)
 export const aliases = {
   deploy: 'slide',
-  launch: 'slide'
+  launch: 'slide',
+  exec: 'run'
+}
+
+const outputOptions = { json: { type: 'boolean' }, ndjson: { type: 'boolean' } }
+const targetOptions = {
+  project: { type: 'string', short: 'p' },
+  env: { type: 'string', short: 'e', default: 'production' },
+  app: { type: 'string', short: 'a' }
 }
 
 export const commands = {
+  doctor: {
+    description:
+      'Check server health, saved CLI authentication, and optional target readiness',
+    options: { ...targetOptions, ...outputOptions }
+  },
+  apps: {
+    description:
+      'List apps without printing environment variables or credentials',
+    options: { ...targetOptions, ...outputOptions }
+  },
+  'app:inspect': {
+    description: 'Inspect one explicit app target',
+    options: { ...targetOptions, ...outputOptions }
+  },
+  'app:restart': {
+    description: 'Restart one reviewed target through the existing server API',
+    options: {
+      ...targetOptions,
+      ...outputOptions,
+      'approve-target': { type: 'string' }
+    }
+  },
+  'run:cancel': {
+    description:
+      'Request cancellation of an owned active execution; report confirmation truthfully',
+    args: '<execution-id>',
+    options: { ...outputOptions }
+  },
+  'run:history': {
+    description:
+      'List retained command metadata, without source, output, or UUID lookup',
+    options: { ...targetOptions, ...outputOptions }
+  },
+  'run:arm': {
+    description:
+      'Arm an approved exact production command using a private single-use token file',
+    args: '[command]',
+    options: {
+      ...targetOptions,
+      ...outputOptions,
+      'approve-target': { type: 'string' },
+      output: { type: 'string' },
+      stdin: { type: 'boolean' },
+      file: { type: 'string' }
+    }
+  },
   'service:review': {
     description: 'Review a private custom image before creation',
     args: '<image>',
@@ -118,6 +172,9 @@ export const commands = {
   logs: {
     description: 'View application logs',
     options: {
+      project: { type: 'string', short: 'p' },
+      json: { type: 'boolean' },
+      ndjson: { type: 'boolean' },
       env: { type: 'string', short: 'e', default: 'production' },
       app: { type: 'string', short: 'a' },
       follow: { type: 'boolean', short: 'f' },
@@ -202,16 +259,25 @@ export const commands = {
 
   // Container access
   terminal: {
-    description: 'Open a terminal session in the running container',
+    description:
+      'Show direct Docker shell instructions; no interactive CLI terminal transport',
     options: {
       env: { type: 'string', short: 'e', default: 'production' },
       app: { type: 'string', short: 'a' }
     }
   },
   run: {
-    description: 'Run a command in the container',
+    description: 'Run a bounded command through guarded Helm',
+    aliases: ['exec'],
     args: '<command...>',
     options: {
+      project: { type: 'string', short: 'p' },
+      json: { type: 'boolean' },
+      ndjson: { type: 'boolean' },
+      stdin: { type: 'boolean' },
+      file: { type: 'string' },
+      'write-arm-file': { type: 'string' },
+      'receipt-file': { type: 'string' },
       env: { type: 'string', short: 'e', default: 'production' },
       app: { type: 'string', short: 'a' }
     }

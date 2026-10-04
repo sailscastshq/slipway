@@ -17,6 +17,10 @@ on:
       - packages/hook/lib/quest*
       - tests/contracts/quest-history-budget.test.js
       - tests/contracts/quest-resident-integration.test.js
+      - tests/contracts/quest-dashboard-restart.test.js
+      - packages/hook/index.js
+      - packages/hook/lib/telemetry-payloads.js
+      - tests/unit/packages/hook-quest-telemetry.test.js
       - tests/fixtures/quest-resident/**
       - docs/quest-history-budget.md
       - packages/hook/lib/quest*
@@ -74,6 +78,12 @@ jobs:
           test "$(git -C .tmp/quest-upstream rev-parse HEAD)" = "$SLIPWAY_QUEST_UPSTREAM_SHA"
           test -z "$(git -C .tmp/quest-upstream status --porcelain --untracked-files=no)"
           node_modules/.bin/sounding test --file tests/contracts/quest-resident-integration.test.js --test-concurrency=1 --test-timeout=600000
+      - name: Verify source metadata and isolated restart fixture boundaries
+        run: node --test tests/fixtures/quest-resident/preflight.test.cjs tests/fixtures/quest-resident/source-metadata.test.cjs tests/fixtures/quest-resident/native-preflight.test.cjs
+      - name: Prove actual telemetry delivery and disk-backed dashboard restart
+        env:
+          SLIPWAY_QUEST_RESTART_CI: '1'
+        run: node --test --test-concurrency=1 tests/contracts/quest-dashboard-restart.test.js
       - name: Preserve real execution and browser evidence
         uses: actions/upload-artifact@v6
         if: always()
@@ -493,6 +503,120 @@ jobs:
         if: failure()
         with:
           name: quest-production-navigation-diagnostics-${{ github.event.pull_request.head.sha || github.sha }}
+          path: |
+            baseline-source/.tmp/sounding/artifacts
+            proposed-source/.tmp/sounding/artifacts
+          if-no-files-found: ignore
+          retention-days: 14
+
+  # Temporary opt-in diagnostic: remove after the single publishing-push run.
+  # This branch-only workflow cannot rely on workflow_dispatch activation on main.
+  attribution-trace:
+    if: github.event_name == 'pull_request'
+    name: Attribute Quest mount and readiness rendering
+    timeout-minutes: 25
+    runs-on: ubuntu-latest
+    env:
+      SLIPWAY_QUEST_PRODUCTION_BENCHMARK: '1'
+      SLIPWAY_QUEST_ATTRIBUTION_TRACE: '1'
+      QUEST_BASELINE_SHA: 6fe3b2177bc867475f1e3d499f6f4de53d2d1e03
+      SLIPWAY_QUEST_CAPTURE_TRIAL_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - name: Check out exact proposed source
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          path: proposed-source
+          persist-credentials: false
+      - name: Check out pinned baseline source
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ env.QUEST_BASELINE_SHA }}
+          path: baseline-source
+          persist-credentials: false
+      - name: Install identical bounded trial in both source checkouts
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs')
+          const source = fs.readFileSync('proposed-source/tests/e2e/pages/projects/quest.test.js', 'utf8')
+          const start = '// BEGIN QUEST COMPARISON CAPTURE'
+          const end = '// END QUEST COMPARISON CAPTURE'
+          if (source.split(start).length !== 2 || source.split(end).length !== 2) throw new Error('Expected one bounded capture trial')
+          const trial = "const { test } = require('sounding')\n" + source.slice(source.indexOf(start) + start.length, source.indexOf(end))
+          for (const directory of ['baseline-source', 'proposed-source']) {
+            fs.writeFileSync(`${directory}/tests/e2e/pages/projects/quest.test.js`, trial)
+          }
+          NODE
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: |
+            baseline-source/package-lock.json
+            proposed-source/package-lock.json
+      - run: npm ci --no-audit
+        working-directory: baseline-source
+      - run: npm ci --no-audit
+        working-directory: proposed-source
+      - run: npx playwright install --with-deps chromium
+        working-directory: baseline-source
+      - run: npx playwright install --with-deps chromium
+        working-directory: proposed-source
+      - name: Copy only diagnostic support into the baseline trial
+        run: |
+          cp proposed-source/tests/support/quest-production-benchmark.cjs baseline-source/tests/support/quest-production-benchmark.cjs
+          cp proposed-source/tests/support/quest-attribution-trace.cjs baseline-source/tests/support/quest-attribution-trace.cjs
+      - name: Verify trace parser and transparent wrapper without a browser
+        run: node --test tests/support/quest-attribution-trace.test.cjs
+        working-directory: proposed-source
+      - name: Build each exact source without lifting an application
+        run: |
+          (cd baseline-source && NODE_ENV=production node tests/support/quest-production-benchmark.cjs build)
+          (cd proposed-source && NODE_ENV=production node tests/support/quest-production-benchmark.cjs build)
+      - name: Serve built manifests through normal disposable test applications
+        run: |
+          (cd baseline-source && node tests/support/quest-production-benchmark.cjs configure)
+          (cd proposed-source && node tests/support/quest-production-benchmark.cjs configure)
+      - name: Trace desktop-light only in original-head-head-original rounds
+        run: |
+          set -euo pipefail
+          mkdir -p quest-attribution
+          for round in before-1 after-1 after-2 before-2; do
+            phase="${round%-*}"
+            source=proposed-source
+            expected="$SLIPWAY_QUEST_CAPTURE_TRIAL_SHA"
+            if [ "$phase" = before ]; then
+              source=baseline-source
+              expected="$QUEST_BASELINE_SHA"
+            fi
+            test "$(git -C "$source" rev-parse HEAD)" = "$expected"
+            mkdir -p "quest-attribution/$round"
+            date -u +%FT%TZ > "quest-attribution/$round/started-at.txt"
+            (
+              cd "$source"
+              SLIPWAY_QUEST_CAPTURE_PHASE="$phase" node_modules/.bin/sounding test --file tests/e2e/pages/projects/quest.test.js --test-concurrency=1 --test-timeout=600000
+            )
+            cp -a "$source/.tmp/screenshots/quest-attribution/$phase/." "quest-attribution/$round/"
+          done
+      - name: Decide whether the trace supports or rejects the specific mechanism
+        if: always()
+        run: node proposed-source/tests/support/quest-attribution-trace.cjs quest-attribution
+      - name: Preserve complete traces and attribution separately
+        uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: quest-attribution-${{ github.event.pull_request.head.sha || github.sha }}
+          path: |
+            quest-attribution
+            baseline-source/.tmp/screenshots/quest-attribution
+            proposed-source/.tmp/screenshots/quest-attribution
+          if-no-files-found: error
+          retention-days: 30
+      - name: Preserve diagnostic artifacts on failure
+        uses: actions/upload-artifact@v6
+        if: failure()
+        with:
+          name: quest-attribution-diagnostics-${{ github.event.pull_request.head.sha || github.sha }}
           path: |
             baseline-source/.tmp/sounding/artifacts
             proposed-source/.tmp/sounding/artifacts

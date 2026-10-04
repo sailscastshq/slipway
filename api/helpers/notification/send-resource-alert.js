@@ -1,236 +1,198 @@
+const {
+  deliveryKey,
+  resourceAlertMessage
+} = require('../../lib/resource-alert-message')
+
 module.exports = {
   friendlyName: 'Send resource alert',
-
   description:
-    'Send a notification when a container exceeds CPU or memory thresholds.',
-
+    'Deliver pending resource warnings and acknowledge each successful destination separately.',
   inputs: {
-    containerName: {
-      type: 'string',
-      required: true
-    },
-    cpuPercent: {
-      type: 'number',
-      required: true
-    },
-    memoryPercent: {
-      type: 'number',
-      required: true
-    },
-    memoryUsage: {
-      type: 'number'
-    },
-    memoryLimit: {
-      type: 'number'
-    },
-    lookoutUrl: {
-      type: 'string'
-    },
-    cpuHigh: {
-      type: 'boolean',
-      required: true
-    },
-    memHigh: {
-      type: 'boolean',
-      required: true
-    }
+    containerName: { type: 'string', required: true },
+    cpuPercent: { type: 'number', required: true },
+    memoryPercent: { type: 'number', required: true },
+    memoryUsage: { type: 'number', required: true },
+    memoryLimit: { type: 'number', required: true },
+    cpuHigh: { type: 'boolean', required: true },
+    memHigh: { type: 'boolean', required: true },
+    observedAt: { type: 'number', required: true },
+    targetLabel: { type: 'string' },
+    lookoutUrl: { type: 'string' },
+    incidentKey: { type: 'string', required: true },
+    receipts: { type: 'ref', defaultsTo: {} },
+    deliveryAttempt: { type: 'number', defaultsTo: 0 },
+    onDelivered: { type: 'ref', required: true }
   },
-
-  fn: async function ({
-    containerName,
-    cpuPercent,
-    memoryPercent,
-    memoryUsage,
-    memoryLimit,
-    lookoutUrl,
-    cpuHigh,
-    memHigh
-  }) {
-    // Check if resource alerts are enabled
-    const notifyOnHighResourceUsage = await sails.helpers.setting.get(
-      'notifyOnHighResourceUsage',
-      'true'
-    )
-    if (notifyOnHighResourceUsage !== 'true') {
-      return
-    }
-
-    const instanceName = await sails.helpers.setting.get(
-      'instanceName',
-      'Slipway'
-    )
-
-    const issues = []
-    if (cpuHigh) issues.push(`CPU at ${cpuPercent.toFixed(1)}%`)
-    if (memHigh) issues.push(`Memory at ${memoryPercent.toFixed(1)}%`)
-    const issueText = issues.join(', ')
-    const memoryDetail =
-      Number.isFinite(memoryUsage) &&
-      Number.isFinite(memoryLimit) &&
-      memoryLimit > 0
-        ? `${formatBytes(memoryUsage)} of ${formatBytes(memoryLimit)}`
-        : null
-
-    // Send Telegram notification (HTML format)
-    const telegramEnabled = await sails.helpers.setting.get(
-      'telegramEnabled',
-      'false'
-    )
-    if (telegramEnabled === 'true') {
-      let message = `\u26A0\uFE0F <b>Things are heating up</b>\n\n`
-      message += `<b>Container:</b> ${escapeHtml(containerName)}\n`
-      if (cpuHigh) {
-        message += `<b>CPU:</b> ${cpuPercent.toFixed(1)}%\n`
-      }
-      if (memHigh) {
-        message += `<b>Memory:</b> ${memoryPercent.toFixed(1)}%${
-          memoryDetail ? ` (${memoryDetail})` : ''
-        }\n`
-      }
-      message += `\nThis is a sustained resource incident. Another alert will be sent only after recovery and a new high period.\n`
-      if (lookoutUrl) message += `\nLookout: ${escapeHtml(lookoutUrl)}\n`
-      message += `\n<b>\u2014 Slippy \uD83D\uDC19, from ${escapeHtml(
-        instanceName
-      )}</b>`
-
-      await sails.helpers.notification.sendTelegram
-        .with({ message })
-        .tolerate('error')
-    }
-
-    // Send Slack notification
-    const slackEnabled = await sails.helpers.setting.get(
-      'slackEnabled',
-      'false'
-    )
-    if (slackEnabled === 'true') {
-      let message = `\u26A0\uFE0F *Things are heating up*\n\n`
-      message += `*Container:* ${containerName}\n`
-      message += `*Issue:* ${issueText}\n`
-      if (memHigh && memoryDetail) message += `*Memory:* ${memoryDetail}\n`
-      message += `This is a sustained resource incident. Another alert will be sent only after recovery and a new high period.\n`
-      if (lookoutUrl) message += `Lookout: ${lookoutUrl}\n`
-      message += `\n*\u2014 Slippy \uD83D\uDC19, from ${instanceName}*`
-
-      await sails.helpers.notification.sendSlack
-        .with({ message })
-        .tolerate('error')
-    }
-
-    // Send Discord notification
-    const discordEnabled = await sails.helpers.setting.get(
-      'discordEnabled',
-      'false'
-    )
-    if (discordEnabled === 'true') {
-      const discordWebhookUrl = await sails.helpers.setting.get(
-        'discordWebhookUrl',
-        ''
+  fn: async function (inputs) {
+    const get = (key, fallback = '') => sails.helpers.setting.get(key, fallback)
+    if ((await get('notifyOnHighResourceUsage', 'true')) !== 'true')
+      return { outcome: 'disabled', attempted: 0 }
+    const message = resourceAlertMessage({
+      ...inputs,
+      instanceName: await get('instanceName', 'Slipway')
+    })
+    const targets = []
+    let waitingForChannel = false
+    const smtpEnabled = (await get('smtpEnabled', 'false')) === 'true'
+    const emails = [
+      ...new Set(
+        (await get('notificationEmails'))
+          .split(',')
+          .map((x) => x.trim().toLowerCase())
+          .filter(Boolean)
       )
-      if (discordWebhookUrl) {
-        const fields = [
-          { name: 'Container', value: containerName, inline: true }
-        ]
-        if (cpuHigh) {
-          fields.push({
-            name: 'CPU',
-            value: `${cpuPercent.toFixed(1)}%`,
-            inline: true
-          })
-        }
-        if (memHigh) {
-          fields.push({
-            name: 'Memory',
-            value: `${memoryPercent.toFixed(1)}%${
-              memoryDetail ? ` (${memoryDetail})` : ''
-            }`,
-            inline: true
-          })
-        }
-        if (lookoutUrl) fields.push({ name: 'Lookout', value: lookoutUrl })
-
-        await fetch(discordWebhookUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            embeds: [
-              {
-                title: '\u26A0\uFE0F Things are heating up',
-                description:
-                  'Sustained resource pressure. Another alert follows only after recovery and a new high period.',
-                color: 0xf59e0b,
-                fields,
-                footer: {
-                  text: `\u2014 Slippy \uD83D\uDC19, from ${instanceName}`
-                },
-                timestamp: new Date().toISOString()
+    ]
+    if (!smtpEnabled && emails.length) waitingForChannel = true
+    if (smtpEnabled) {
+      if (!emails.length) waitingForChannel = true
+      for (const to of emails)
+        targets.push({
+          key: deliveryKey('email', to),
+          send: () =>
+            sails.helpers.mail.sendConfigured.with({
+              to,
+              subject: message.subject,
+              template: 'resource-alert',
+              templateData: message,
+              waitForAcknowledgement: true,
+              headers: {
+                'Message-ID':
+                  '<' + deliveryKey(inputs.incidentKey, to) + '@slipway.local>'
               }
-            ]
-          })
-        }).catch((err) =>
-          sails.log.warn('Discord resource alert failed:', err.message)
+            })
+        })
+    }
+    for (const channel of ['telegram', 'slack', 'discord', 'webhook']) {
+      const enabled = (await get(channel + 'Enabled', 'false')) === 'true'
+      const destination =
+        channel === 'telegram'
+          ? (await get('telegramBotToken')) +
+            ':' +
+            (await get('telegramChatId')) +
+            ':' +
+            (await get('telegramThreadId'))
+          : await get(
+              channel === 'webhook' ? 'webhookUrl' : channel + 'WebhookUrl'
+            )
+      const configured = !(
+        !destination ||
+        (channel === 'telegram' &&
+          (!(await get('telegramBotToken')) || !(await get('telegramChatId'))))
+      )
+      if (!enabled) {
+        if (configured) waitingForChannel = true
+        continue
+      }
+      if (!configured) {
+        waitingForChannel = true
+        continue
+      }
+      targets.push({
+        key: deliveryKey(channel, destination),
+        send: async () => {
+          if (channel === 'discord') {
+            const response = await fetch(destination, {
+              method: 'POST',
+              signal: AbortSignal.timeout(10000),
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                embeds: [
+                  {
+                    title: message.title,
+                    description: message.summary,
+                    color: 0xf59e0b,
+                    fields: inputs.lookoutUrl
+                      ? [{ name: 'Lookout', value: inputs.lookoutUrl }]
+                      : []
+                  }
+                ]
+              })
+            })
+            if (!response.ok) throw new Error('DELIVERY_FAILED')
+          } else if (channel === 'webhook')
+            await sails.helpers.notification.sendWebhook.with({
+              event: 'resource.high_usage',
+              data: {
+                containerName: inputs.containerName,
+                cpuPercent: inputs.cpuPercent,
+                memoryPercent: inputs.memoryPercent,
+                memoryUsage: inputs.memoryUsage,
+                memoryLimit: inputs.memoryLimit,
+                cpuHigh: inputs.cpuHigh,
+                memHigh: inputs.memHigh,
+                observedAt: inputs.observedAt,
+                lookoutUrl: inputs.lookoutUrl
+              }
+            })
+          else if (channel === 'slack')
+            await sails.helpers.notification.sendSlack.with({
+              message: message.summary + '\n' + (inputs.lookoutUrl || '')
+            })
+          else
+            await sails.helpers.notification.sendTelegram.with({
+              message: escapeHtml(
+                message.summary + '\n' + (inputs.lookoutUrl || '')
+              )
+            })
+        }
+      })
+    }
+    if (!targets.length) return { outcome: 'unconfigured', attempted: 0 }
+    const pending = targets.filter((target) => !inputs.receipts[target.key])
+    let attempted = 0
+    let failures = 0
+    // Rotate the bounded batch so repeated failures cannot starve later recipients.
+    const start = pending.length
+      ? (inputs.deliveryAttempt * 3) % pending.length
+      : 0
+    const batch = [...pending.slice(start), ...pending.slice(0, start)].slice(
+      0,
+      3
+    )
+    for (const target of batch) {
+      attempted++
+      let timer
+      try {
+        // Persist acknowledgements before the next recipient. Late SMTP
+        // acknowledgement remains valid while the queue lease is held.
+        const sending = Promise.resolve()
+          .then(target.send)
+          .then(() => inputs.onDelivered(target.key))
+        const deadline = new Promise((_, reject) => {
+          timer = setTimeout(
+            () =>
+              reject(
+                Object.assign(new Error('DELIVERY_UNCONFIRMED'), {
+                  code: 'DELIVERY_UNCONFIRMED'
+                })
+              ),
+            60000
+          )
+        })
+        await Promise.race([sending, deadline])
+      } catch (error) {
+        if (error.code === 'DELIVERY_UNCONFIRMED')
+          return { outcome: 'unconfirmed', attempted }
+        failures++
+        sails.log.warn(
+          'Lookout: Resource alert destination failed; retry scheduled'
         )
+      } finally {
+        clearTimeout(timer)
       }
     }
-
-    // Send email notification
-    const smtpEnabled = await sails.helpers.setting.get('smtpEnabled', 'false')
-    if (smtpEnabled === 'true') {
-      await sails.helpers.notification.sendEmail
-        .with({
-          template: 'resource-alert',
-          subject: `\u26A0\uFE0F Things are heating up \u2014 ${containerName}`,
-          templateData: {
-            containerName,
-            cpuPercent,
-            memoryPercent,
-            memoryDetail,
-            lookoutUrl,
-            cpuHigh,
-            memHigh,
-            instanceName
-          }
-        })
-        .tolerate('error')
-    }
-
-    // Send webhook notification
-    const webhookEnabled = await sails.helpers.setting.get(
-      'webhookEnabled',
-      'false'
-    )
-    if (webhookEnabled === 'true') {
-      await sails.helpers.notification.sendWebhook
-        .with({
-          event: 'resource.high_usage',
-          data: {
-            containerName,
-            cpuPercent,
-            memoryPercent,
-            memoryUsage,
-            memoryLimit,
-            lookoutUrl,
-            cpuHigh,
-            memHigh,
-            instanceName
-          }
-        })
-        .tolerate('error')
+    return {
+      outcome: failures
+        ? 'failed'
+        : pending.length > 3
+        ? 'remaining'
+        : waitingForChannel
+        ? 'disabled-or-unconfigured-channel'
+        : 'sent',
+      attempted
     }
   }
 }
-
 function escapeHtml(text) {
-  if (!text) return ''
-  return String(text)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-}
-
-function formatBytes(bytes) {
-  if (bytes >= 1024 * 1024 * 1024) {
-    return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GiB`
-  }
-  return `${(bytes / (1024 * 1024)).toFixed(0)} MiB`
+  return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 }

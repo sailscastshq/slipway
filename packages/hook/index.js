@@ -34,6 +34,10 @@ const buildFlagsEnabledHelper = require('./lib/helpers/flags/enabled')
 const hookVersion = require('./package.json').version
 const { registerHelmRuntime } = require('./lib/helm-runtime-contract')
 const {
+  questTimestamp,
+  telemetryPayloads
+} = require('./lib/telemetry-payloads')
+const {
   ACCESS_DENIED_MESSAGE,
   renderBridgeAccessDenied
 } = require('./lib/render-bridge-access-denied')
@@ -852,6 +856,13 @@ module.exports = function defineSlipwayHook(sails) {
   function instrumentQuest() {
     const questEvent = require('./lib/quest-event')
     const { questRedactor } = require('./lib/quest-redaction')
+    const queueMetric = (metric) => {
+      metricBuffer.push(metric)
+      const batchSize = Number.isFinite(config.batchSize)
+        ? Math.max(1, Math.min(1000, Math.floor(config.batchSize)))
+        : 50
+      if (metricBuffer.length >= batchSize) flush()
+    }
     const runAttributes = (
       data,
       state,
@@ -897,28 +908,28 @@ module.exports = function defineSlipwayHook(sails) {
     }
 
     sails.on('quest:job:start', function (data) {
-      metricBuffer.push({
+      queueMetric({
         name: 'quest.job.start',
         value: 0,
         unit: 'ms',
         attributes: runAttributes(data, 'running'),
-        recordedAt: data.timestamp || Date.now()
+        recordedAt: questTimestamp(data.timestamp)
       })
     })
 
     sails.on('quest:job:complete', function (data) {
-      metricBuffer.push({
+      queueMetric({
         name: 'quest.job.complete',
-        value: typeof data.duration === 'number' ? data.duration : 0,
+        value: Number.isFinite(data.duration) ? data.duration : 0,
         unit: 'ms',
         attributes: runAttributes(data, 'completed'),
-        recordedAt: data.timestamp || Date.now()
+        recordedAt: questTimestamp(data.timestamp)
       })
     })
 
     sails.on('quest:job:skip', function (data) {
       const redactor = questRedactor(sails, data, 'skipped')
-      metricBuffer.push({
+      queueMetric({
         name: 'quest.job.skipped',
         value: 0,
         unit: 'ms',
@@ -932,11 +943,10 @@ module.exports = function defineSlipwayHook(sails) {
             )
             .slice(0, 2048)
         },
-        recordedAt: data.timestamp || Date.now()
+        recordedAt: questTimestamp(data.timestamp)
       })
       // Skips use the existing bounded batch/periodic delivery discipline, not
       // failure notifications or one request for every paused timer tick.
-      if (metricBuffer.length >= config.batchSize) flush()
     })
 
     sails.on('quest:job:error', function (data) {
@@ -953,13 +963,13 @@ module.exports = function defineSlipwayHook(sails) {
         .slice(0, 2048)
       metricBuffer.push({
         name: 'quest.job.error',
-        value: typeof data.duration === 'number' ? data.duration : 0,
+        value: Number.isFinite(data.duration) ? data.duration : 0,
         unit: 'ms',
         attributes: {
           ...runAttributes(data, 'failed', redactor),
           error: errorMessage
         },
-        recordedAt: data.timestamp || Date.now()
+        recordedAt: questTimestamp(data.timestamp)
       })
 
       // Also capture as an exception for the exceptions tab
@@ -974,7 +984,7 @@ module.exports = function defineSlipwayHook(sails) {
         method: null,
         url: null,
         traceId: null,
-        occurredAt: data.timestamp || Date.now()
+        occurredAt: questTimestamp(data.timestamp)
       })
 
       // Send job failure notification
@@ -983,8 +993,7 @@ module.exports = function defineSlipwayHook(sails) {
           .with({
             jobName: data.name,
             errorMessage,
-            duration:
-              typeof data.duration === 'number' ? data.duration : undefined
+            duration: Number.isFinite(data.duration) ? data.duration : undefined
           })
           .tolerate('error')
       }
@@ -1082,13 +1091,19 @@ module.exports = function defineSlipwayHook(sails) {
       return
     }
 
-    const payload = JSON.stringify({
-      spans,
-      exceptions,
-      metrics,
-      ...(registration ? { registration } : {})
-    })
+    let dropped = 0
+    for (const payload of telemetryPayloads(
+      { spans, exceptions, metrics, registration },
+      () => dropped++
+    ))
+      sendTelemetry(payload)
+    if (dropped)
+      sails.log.verbose(
+        `sails-hook-slipway: Dropped ${dropped} oversized or unserializable telemetry item(s).`
+      )
+  }
 
+  function sendTelemetry(payload) {
     try {
       const url = new URL(config.telemetryUrl)
       const transport = url.protocol === 'https:' ? https : http

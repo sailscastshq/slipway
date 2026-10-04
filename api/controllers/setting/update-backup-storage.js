@@ -6,8 +6,8 @@ module.exports = {
     testOnly: { type: 'boolean', defaultsTo: false }
   },
   exits: {
-    success: { statusCode: 200 },
-    badRequest: { responseType: 'badRequest' }
+    success: { responseType: 'mutationSuccess' },
+    badRequest: { responseType: 'mutationBadRequest' }
   },
   fn: async function ({ configuration, testOnly }) {
     const user = await User.forRequest(this.req)

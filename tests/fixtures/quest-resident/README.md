@@ -91,3 +91,69 @@ SLIPWAY_QUEST_UPSTREAM_SHA=<verified-full-upstream-sha> \
 node --test tests/fixtures/quest-resident/preflight.test.cjs \
   tests/fixtures/quest-resident/source-metadata.test.cjs
 ```
+
+## Separate CI-native dashboard restart and telemetry proof
+
+`quest-dashboard-restart.test.js` is an independent, reconstructed fixture. It
+does not change the worker/Docker/browser proof above. Reconstruction and pure
+source checks are not runtime evidence; only a successful authorized CI run of
+the command below establishes this additional proof.
+
+```sh
+CI=true SLIPWAY_QUEST_RESTART_CI=1 \
+SLIPWAY_QUEST_UPSTREAM_ROOT="$PWD/.tmp/quest-upstream" \
+SLIPWAY_QUEST_UPSTREAM_SHA=7411223d586d1b86365296b0a696fda5477f2109 \
+node --test --test-concurrency=1 tests/contracts/quest-dashboard-restart.test.js
+```
+
+Run this command only on the authorized disposable Linux CI runner. Missing
+either explicit CI gate fails before any fixture setup, app, socket or child.
+The standalone Node test owns two real dashboard Sails process generations and
+one independently lifted resident web app. It uses the installed dependencies,
+exact upstream Quest source, normal Sails built-in discovery, and a real
+loopback-only HTTP health route. Quest's source configuration has autoStart
+false; all work uses source-registered scripts and the actual Quest CLI.
+
+Dashboard A migrates four unique on-disk SQLite stores with `drop`; after its
+owned SIGKILL and confirmed exit, B lifts on the same port and files with `safe`.
+Both use Sounding's singular `datastore.mode: inherit`, checked against the
+actual lifted paths. Sounding factories seed only disposable user/project/app
+targets after lift. Authenticated Sounding HTTP requests read the real repo
+controllers. No QuestRun row is seeded.
+
+The resident's complete Slipway hook sends real HTTP telemetry to the disposable
+dashboard token. Passive Node diagnostics observe delivery, errors, payloads and
+responses without replacing transports. An index result and logs survive A's
+death byte-for-byte. A typed job finishes while A is dead and its actual error
+sentinel flush gets ECONNREFUSED. B first confirms the old receipt and logs are
+unchanged and the missing run returns 404, then explicitly recovers that run via
+the exported residentRequest ownership checks and workspace.synchronizeRun.
+This is a direct private-UDS recovery sub-proof; the fixture above separately
+proves the complete Docker route. The same app PID/runtime survives, and
+reconciliation starts no job.
+
+Thirty-six aliases return distinct labels and 16,000-byte result strings, with
+at most four CLI children active. A real throwing sentinel flushes the buffer
+using batchSize 1000 and 600000 ms flush/heartbeat intervals. Assertions require
+all values, one start and completion per alias, HTTP 200 for every received
+packet, numeric wrapper timestamps, 32 KiB/event, 512 KiB/post and 500/200/1000
+per-kind limits. Total accepted traffic stays below 2 MiB, 3000 events and 120
+requests, also checking persisted per-environment minute budgets.
+
+The expected counts are 41 starts and 42 Sails loads. Hard bounds are 64 starts,
+70 loads, 180 seconds per owned process, and 2 MiB each for captured output,
+IPC and evidence. Child environments are allowlisted; runner credentials,
+NODE_OPTIONS and inherited external destinations are omitted. Disposable tokens
+are passed through a private 0600 context file, never proof/log artifacts. Cleanup
+signals only owned process groups, confirms their exit, removes only exact
+owned registry inodes, and deletes the unique SQLite/WAL/context directory.
+`native-restart-proof.json` is written only after assertions and cleanup succeed.
+
+Pure preflight and real source-loader checks do not lift Sails, open sockets,
+run scripts, or launch children:
+
+```sh
+SLIPWAY_QUEST_UPSTREAM_ROOT="$PWD/.tmp/quest-upstream" \
+SLIPWAY_QUEST_UPSTREAM_SHA=7411223d586d1b86365296b0a696fda5477f2109 \
+node --test tests/fixtures/quest-resident/native-preflight.test.cjs
+```

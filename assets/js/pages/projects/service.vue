@@ -1,4 +1,5 @@
 <script setup>
+import { inertiaMutation } from '@/lib/inertia-mutation'
 import AppNavbarVersion from '@/components/AppNavbarVersion.vue'
 import CustomServiceUpdate from '@/components/CustomServiceUpdate.vue'
 import CustomServiceRoute from '@/components/CustomServiceRoute.vue'
@@ -365,25 +366,15 @@ async function saveName() {
 
   savingName.value = true
   try {
-    const response = await fetch(`/api/v1/services/${props.service.id}`, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-csrf-token': page.props._csrf || ''
-      },
-      body: JSON.stringify({ name: newName })
+    await inertiaMutation('patch', `/api/v1/services/${props.service.id}`, {
+      name: newName
     })
-
-    if (response.ok) {
-      serviceName.value = newName
-      editingName.value = false
-      toast({ message: 'Service renamed', type: 'success' })
-    } else {
-      toast({ message: 'Failed to rename service', type: 'error' })
-    }
+    serviceName.value = newName
+    editingName.value = false
+    toast({ message: 'Service renamed', type: 'success' })
   } catch (err) {
     console.error('Failed to rename service:', err)
-    toast({ message: 'Failed to rename service', type: 'error' })
+    toast({ message: err.message || 'Failed to rename service', type: 'error' })
   } finally {
     savingName.value = false
   }
@@ -575,6 +566,11 @@ onUnmounted(() => {
                 <h1
                   v-else
                   @click.stop="startEditingName"
+                  role="button"
+                  tabindex="0"
+                  aria-label="Rename service"
+                  @keydown.enter.prevent="startEditingName"
+                  @keydown.space.prevent="startEditingName"
                   class="cursor-pointer break-all text-xl font-semibold text-gray-900 underline decoration-gray-300 decoration-dashed underline-offset-4 hover:decoration-gray-400 dark:text-white dark:decoration-gray-600 dark:hover:decoration-gray-500"
                   title="Click to rename"
                 >

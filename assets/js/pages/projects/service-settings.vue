@@ -1,4 +1,5 @@
 <script setup>
+import { submitInertiaForm } from '@/lib/inertia-mutation'
 import {
   assertMutationResponse,
   mutationFailureMessage
@@ -60,7 +61,7 @@ const form = useForm({
 })
   .withPrecognition('patch', settingsUrl)
   .setValidationTimeout(350)
-const { applyResponseProblems, revalidateWhenInvalid, validateOnBlur } =
+const { revalidateWhenInvalid, validateOnBlur } =
   usePrecognitionValidation(form)
 const saving = ref(false)
 const savingAndRestarting = ref(false)
@@ -120,47 +121,36 @@ async function saveSettings({ restart = false } = {}) {
     saving.value = true
   }
 
+  let saved = false
   try {
-    const res = await fetch(settingsUrl, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-csrf-token': page.props._csrf || ''
-      },
-      body: JSON.stringify({
-        resourceLimits: form.resourceLimits
-      })
-    })
-
-    if (res.ok) {
-      if (restart) {
-        await assertMutationResponse(
-          await fetch(`/api/v1/services/${props.service.id}/restart`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'x-csrf-token': page.props._csrf || ''
-            }
-          })
-        )
-        toast({
-          message: 'Settings saved and service restarted',
-          type: 'success'
+    await submitInertiaForm(form, 'patch', settingsUrl)
+    saved = true
+    if (restart) {
+      await assertMutationResponse(
+        await fetch(`/api/v1/services/${props.service.id}/restart`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-csrf-token': page.props._csrf || ''
+          }
         })
-      } else {
-        toast({ message: 'Settings saved', type: 'success' })
-      }
-      router.reload()
-    } else {
-      const data = await res.json()
-      applyResponseProblems(data.problems)
+      )
       toast({
-        message: data.message || 'Failed to save settings',
-        type: 'error'
+        message: 'Settings saved and service restarted',
+        type: 'success'
       })
+    } else {
+      toast({ message: 'Settings saved', type: 'success' })
     }
   } catch (error) {
-    toast({ message: mutationFailureMessage(error), type: 'error' })
+    toast({
+      message: saved
+        ? `Settings saved, but restart could not be confirmed. ${mutationFailureMessage(
+            error
+          )}`
+        : mutationFailureMessage(error),
+      type: 'error'
+    })
   } finally {
     saving.value = false
     savingAndRestarting.value = false

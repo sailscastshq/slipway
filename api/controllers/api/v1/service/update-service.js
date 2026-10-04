@@ -25,13 +25,13 @@ module.exports = {
 
   exits: {
     success: {
-      statusCode: 200
+      responseType: 'mutationSuccess'
     },
     notFound: {
       statusCode: 404
     },
     badRequest: {
-      responseType: 'badRequest'
+      responseType: 'mutationBadRequest'
     },
     precognitionSuccess: {
       responseType: 'precognitionSuccess'

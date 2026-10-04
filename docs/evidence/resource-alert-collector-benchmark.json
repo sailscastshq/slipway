@@ -1,0 +1,45 @@
+{
+  "methodology": "7 paired in-memory runs; each 100 collector cycles with 50 healthy containers. Model operations mocked equally; excludes Docker, mail and production latency.",
+  "beforeMedianMs": 4.814499999999995,
+  "afterMedianMs": 5.353875000000002,
+  "beforeOperations": {
+    "reads": 5000,
+    "writes": 5000,
+    "outboxReads": 0,
+    "outboxWrites": 0,
+    "idleQueries": 0
+  },
+  "afterOperations": {
+    "reads": 5000,
+    "writes": 5000,
+    "outboxReads": 0,
+    "outboxWrites": 0,
+    "idleQueries": 0
+  },
+  "activeIncidents": {
+    "before": {
+      "durationMs": 7.1013340000000085,
+      "operations": {
+        "reads": 5000,
+        "writes": 5000,
+        "outboxReads": 0,
+        "outboxWrites": 0,
+        "idleQueries": 0
+      }
+    },
+    "after": {
+      "durationMs": 8.211540999999997,
+      "operations": {
+        "reads": 5000,
+        "writes": 5000,
+        "outboxReads": 5000,
+        "outboxWrites": 0,
+        "idleQueries": 0
+      }
+    }
+  },
+  "idleOutboxQuery": {
+    "methodology": "10000 indexed queries on empty local SQLite; one query each 30-second delivery tick",
+    "meanMicroseconds": 0.3330583000000004
+  }
+}

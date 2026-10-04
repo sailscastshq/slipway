@@ -27,11 +27,6 @@ test(
     await page.goto(
       `/projects/service-feedback/environments/production/services/${service.id}/settings`
     )
-    await page.raw.route(`**/api/v1/services/${service.id}`, (route) =>
-      route.request().headers().precognition
-        ? route.continue()
-        : route.fulfill({ status: 200, json: { success: true } })
-    )
     await page.raw.route(`**/api/v1/services/${service.id}/restart`, (route) =>
       route.fulfill({
         status: 503,

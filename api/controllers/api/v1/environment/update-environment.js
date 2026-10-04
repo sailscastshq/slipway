@@ -46,7 +46,7 @@ module.exports = {
   exits: {
     routeFailed: { statusCode: 503 },
     success: {
-      statusCode: 200
+      responseType: 'mutationSuccess'
     },
     notFound: {
       statusCode: 404
@@ -55,7 +55,7 @@ module.exports = {
       statusCode: 403
     },
     badRequest: {
-      responseType: 'badRequest'
+      responseType: 'mutationBadRequest'
     },
     precognitionSuccess: {
       responseType: 'precognitionSuccess'

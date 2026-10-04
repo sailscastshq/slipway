@@ -1,11 +1,13 @@
 const { safeValue, safeResult } = require('./quest-runtime')
 const { questRedactor } = require('./quest-redaction')
-const ms = (value) =>
-  Number.isFinite(value)
+const ms = (value) => {
+  const parsed = Number.isFinite(value)
     ? value
-    : Number.isFinite(Date.parse(value))
-    ? Date.parse(value)
-    : null
+    : value instanceof Date
+    ? value.getTime()
+    : Date.parse(value)
+  return Number.isFinite(parsed) ? parsed : null
+}
 function text(value, limit, redactor, truncated = false) {
   const clean = redactor.text(value || '', { truncated })
   const bytes = Buffer.from(clean)
