@@ -4,7 +4,9 @@
 set -euo pipefail
 version="${1:?Pass 0.0.86 or 0.0.87}"
 output="${2:?Pass an output filename}"
+seed_version="${3:-$version}"
 case "$version" in 0.0.86|0.0.87) ;; *) exit 2 ;; esac
+case "$seed_version" in 0.0.86|0.0.87) ;; *) exit 2 ;; esac
 root="$(git rev-parse --show-toplevel)"
 suffix="${GITHUB_RUN_ID:-local}-$$"
 container="slipway-baseline-${suffix}"
@@ -18,11 +20,16 @@ trap cleanup EXIT
 image="ghcr.io/sailscastshq/slipway:${version}"
 docker pull "$image" >/dev/null
 identity="$(docker image inspect --format '{{index .RepoDigests 0}}' "$image")"
+seed_image="ghcr.io/sailscastshq/slipway:${seed_version}"
+docker pull "$seed_image" >/dev/null
+seed_identity="$(docker image inspect --format '{{index .RepoDigests 0}}' "$seed_image")"
 docker volume create "$volume" >/dev/null
 docker volume create "$apps" >/dev/null
 # Synthetic fixture settings are not real account credentials. The legacy
 # installer seeds new databases through development ORM setup before safe boot.
 for mode in development production; do
+  run_image="$identity"
+  if [ "$mode" = development ]; then run_image="$seed_identity"; fi
   docker run -d --name "$container" \
     -v /var/run/docker.sock:/var/run/docker.sock \
     -v "$volume:/app/db" -v "$apps:/var/slipway/apps" \
@@ -30,7 +37,7 @@ for mode in development production; do
     -e "SLIPWAY_URL=http://${container}:1337" \
     -e SESSION_SECRET=disposable-baseline-fixture-only \
     -e DATA_ENCRYPTION_KEY=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA= \
-    "$identity" node app.js >/dev/null
+    "$run_image" node app.js >/dev/null
   ready=false
   for attempt in $(seq 1 90); do
     if docker exec "$container" curl -fsS http://localhost:1337/health >/dev/null 2>&1; then

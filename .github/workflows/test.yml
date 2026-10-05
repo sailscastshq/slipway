@@ -306,6 +306,22 @@ jobs:
           path: baseline.json
           if-no-files-found: error
 
+  upgrade-legacy-adoption-baseline:
+    name: Native legacy 86 to 87 adoption baseline
+    timeout-minutes: 15
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Capture the actual legacy production schema handoff
+        run: bash tests/prelift/capture-release-baseline.sh 0.0.87 baseline.json 0.0.86
+      - uses: actions/upload-artifact@v4
+        with:
+          name: upgrade-baseline-legacy-86-to-87
+          path: baseline.json
+          if-no-files-found: error
+
   migration-prelift:
     name: Migration engine before ORM lift
     timeout-minutes: 5
