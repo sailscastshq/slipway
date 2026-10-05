@@ -354,6 +354,15 @@ jobs:
           path: .tmp/sounding/artifacts
           if-no-files-found: ignore
           retention-days: 7
+      - name: Upload Quest design review
+        # Keep passing design evidence separate from failure diagnostics.
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: quest-design-review-${{ matrix.shard }}
+          path: .tmp/sounding/artifacts/quest-design-review
+          if-no-files-found: ignore
+          retention-days: 7
 
   bearing_saves:
     name: Bearing save regression repeats

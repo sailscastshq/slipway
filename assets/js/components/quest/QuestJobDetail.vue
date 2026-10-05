@@ -96,7 +96,7 @@ const displayValue = (value) =>
 <template>
   <section
     data-test="quest-job-detail"
-    class="min-w-0"
+    class="min-w-0 lg:border-l lg:border-gray-200 lg:pl-6 dark:lg:border-gray-800"
     aria-labelledby="quest-job-title"
   >
     <button
@@ -106,19 +106,17 @@ const displayValue = (value) =>
     >
       <ChevronLeft class="h-3.5 w-3.5" />All jobs
     </button>
-    <div
-      class="overflow-hidden rounded-lg border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-950"
-    >
-      <div class="px-4 pt-4">
+    <div class="min-w-0">
+      <div class="pt-2">
         <div class="flex items-start justify-between gap-3">
           <div class="min-w-0">
             <h2
               id="quest-job-title"
-              class="text-sm font-semibold text-gray-900 dark:text-white"
+              class="text-lg font-semibold leading-6 text-gray-900 dark:text-white"
             >
               {{ selectedJob.friendlyName || selectedJob.name }}
             </h2>
-            <p class="mt-1 break-all font-mono text-[10px] text-gray-400">
+            <p class="mt-1.5 break-all font-mono text-xs text-gray-400">
               {{ selectedJob.script || selectedJob.name }}
             </p>
           </div>
@@ -140,7 +138,7 @@ const displayValue = (value) =>
         <div class="mt-4 flex flex-wrap items-center justify-between gap-3">
           <div class="flex items-center gap-2">
             <QuestStatus :state="jobState" /><span
-              v-if="selectedJob.withoutOverlapping"
+              v-if="selectedJob.withoutOverlapping && jobTab !== 'schedule'"
               title="Prevents concurrent executions in this app process only."
               class="text-[10px] text-gray-400"
               >No overlap</span
@@ -191,7 +189,7 @@ const displayValue = (value) =>
       <Tabs v-model="jobTab" aria-label="Job details">
         <div
           data-slot="tabs-list"
-          class="mt-2 flex gap-5 border-b border-gray-200 px-4 dark:border-gray-800"
+          class="mt-4 flex gap-5 border-b border-gray-200 dark:border-gray-800"
         >
           <button data-value="runs" :class="tabClass(jobTab, 'runs')">
             Runs</button
@@ -342,7 +340,7 @@ const displayValue = (value) =>
         <div
           data-slot="tab-panel"
           data-value="schedule"
-          class="p-4 text-gray-800 dark:text-gray-200"
+          class="py-5 text-gray-800 dark:text-gray-200"
         >
           <dl
             class="grid grid-cols-[auto_minmax(0,1fr)] gap-x-5 gap-y-3 text-xs"

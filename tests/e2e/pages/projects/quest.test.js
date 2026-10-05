@@ -1,5 +1,137 @@
 const { test } = require('sounding')
 
+test(
+  'Quest running disclosure preserves truthful activity and a quiet responsive workspace',
+  {
+    browser: true,
+    world: {
+      name: 'configured-slipway',
+      context: {
+        deploymentTarget: {
+          slug: 'quest-design-review',
+          name: 'Northstar Commerce'
+        }
+      }
+    }
+  },
+  async (context) => {
+    const { page, login, expect } = context
+    const state = await installQuestFixture(context)
+    const fs = require('node:fs')
+    const path = require('node:path')
+    const phase = process.env.SLIPWAY_QUEST_DESIGN_CAPTURE_PHASE || 'after'
+    const root = path.resolve('.tmp/sounding/artifacts/quest-design-review')
+    fs.mkdirSync(root, { recursive: true })
+    try {
+      await login.withPassword('genesisUser', page, {
+        password: context.world.current.auth.genesisUserPassword
+      })
+      await page.raw.waitForURL('**/')
+      await page.goto(state.projectPath)
+      await expect(
+        page.raw.getByRole('heading', { name: 'Quest', exact: true })
+      ).toBeVisible()
+      const strip = page.raw.locator('[data-test="quest-running-jobs"]')
+      if (phase !== 'before') {
+        const disclosure = strip.getByRole('button', {
+          name: '1 job running',
+          exact: true
+        })
+        await expect(disclosure).toHaveAttribute('aria-expanded', 'false')
+        await disclosure.focus()
+        await page.raw.keyboard.press('Enter')
+        await expect(disclosure).toHaveAttribute('aria-expanded', 'true')
+        await expect(
+          strip.getByRole('button', { name: /Sync product catalog/ })
+        ).toBeVisible()
+        await emitQuestWorkspace(page, state)
+        await expect(disclosure).toHaveAttribute('aria-expanded', 'true')
+        await strip
+          .getByRole('button', { name: /Sync product catalog/ })
+          .click()
+        await expect(page.raw.locator('#quest-job-title')).toHaveText(
+          'Sync product catalog'
+        )
+        expect(new URL(page.raw.url()).searchParams.get('job')).toBe(
+          'sync-product-catalog'
+        )
+        await page.raw
+          .getByRole('button', { name: 'Close job details', exact: true })
+          .click()
+        await disclosure.focus()
+        await page.raw.keyboard.press('Space')
+        await expect(disclosure).toHaveAttribute('aria-expanded', 'false')
+      }
+      await page.raw
+        .getByRole('button', {
+          name: 'View Export account report',
+          exact: true
+        })
+        .click()
+      await page.raw.getByRole('tab', { name: 'Schedule', exact: true }).click()
+      if (phase !== 'before')
+        await strip
+          .getByRole('button', { name: '1 job running', exact: true })
+          .click()
+      for (const capture of questComparisonFixture.captures) {
+        await page.raw.setViewportSize({
+          width: capture.width,
+          height: capture.height
+        })
+        await page.raw.emulateMedia({ colorScheme: capture.scheme })
+        await page.raw.evaluate(() => document.fonts.ready)
+        const geometry = await questBrowserMeasurements(page)
+        expect(geometry.horizontalOverflowPx <= 1).toBe(true)
+        expect(geometry.workspaceHorizontalOverflowPx <= 1).toBe(true)
+        await page.screenshot(path.join(root, `${phase}-${capture.name}.png`), {
+          animations: 'disabled',
+          fullPage: false
+        })
+      }
+      if (phase === 'before') return
+      // A disconnect preserves the last observation without calling it current.
+      await page.raw.evaluate(() => {
+        for (const stream of window.__questStreams || [])
+          if (!stream.closed && stream.url.includes('/quest/stream'))
+            stream.onerror?.(new Event('error'))
+      })
+      await expect(strip).toContainText('Running activity unknown')
+      await expect(strip).toContainText('Last observed running')
+      await expect(strip).not.toContainText('completed')
+      await expect(strip.getByRole('button', { name: /Cancel/ })).toHaveCount(0)
+      await page.screenshot(path.join(root, 'after-mobile-disconnected.png'), {
+        animations: 'disabled',
+        fullPage: false
+      })
+      // A new runtime's explicit idle snapshot replaces old activity. It does
+      // not infer a completed outcome for jobs from the previous runtime.
+      state.workspace.target.runtimeId = 'synthetic-runtime-v2'
+      for (const job of state.workspace.jobs) job.isRunning = false
+      await emitQuestWorkspace(page, state)
+      await expect(strip).toContainText('No jobs running')
+      await expect(strip.getByRole('button')).toHaveCount(0)
+      await expect(page.raw.locator('#quest-running-jobs-list')).toBeHidden()
+      await expect(strip).not.toContainText('completed')
+      state.workspace.jobs[0].isRunning = null
+      await emitQuestWorkspace(page, state)
+      await expect(strip).toContainText('Running activity incomplete')
+      await expect(strip.getByRole('button')).toHaveAttribute(
+        'aria-expanded',
+        'true'
+      )
+      await expect(
+        strip.getByText('Some jobs have not reported their running state.')
+      ).toBeVisible()
+      expect(state.mutationRequests).toEqual([])
+      expect(state.unexpectedRequests).toEqual([])
+      expect(page).toHaveNoJavascriptErrors()
+    } finally {
+      await page.raw.goto('about:blank')
+      state.restore()
+    }
+  }
+)
+
 // BEGIN QUEST COMPARISON CAPTURE
 // CI extracts this entire bounded section into the pinned before checkout.
 // Only synthetic JSON and transport are doubled: the page, layout, CSS, and

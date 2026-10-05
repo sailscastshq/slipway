@@ -112,6 +112,13 @@ button:disabled,
   outline-offset: 2px;
 }
 
+/* Retain a keyboard entry point without framing the entire Quest workspace
+   in the bright control-focus color. Child controls keep their own outline. */
+.quest-workspace-tabs [role='tabpanel']:focus-visible {
+  outline: 1px solid var(--color-gray-400);
+  outline-offset: -1px;
+}
+
 /* Bearing's title and details are one editorial surface, not boxed fields. */
 .bearing-feedback-composer-field,
 .bearing-feedback-composer-field:focus,

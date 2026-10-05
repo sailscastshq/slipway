@@ -25,6 +25,7 @@ import Clock from '@/components/ui/icons/Clock.vue'
 import Spinner from '@/components/SlipwaySpinner.vue'
 import QuestStatus from '@/components/quest/QuestStatus.vue'
 import QuestJobDetail from '@/components/quest/QuestJobDetail.vue'
+import QuestRunningJobs from '@/components/quest/QuestRunningJobs.vue'
 import QuestPanelFallback from '@/components/quest/QuestPanelFallback.vue'
 import { useQueryState } from '@/components/ui/durable-ui/useQueryState'
 import { useEventSource } from '@/composables/sse'
@@ -293,7 +294,6 @@ const canPause = (job) =>
     ? live.value.capabilities.resume
     : job.paused === false && live.value.capabilities.pause)
 const counts = computed(() => ({
-  running: jobs.value.filter((job) => state(job) === 'running').length,
   paused: jobs.value.filter((job) => state(job) === 'paused').length
 }))
 const lastActivity = computed(() => {
@@ -548,6 +548,10 @@ function chooseJob(job) {
   selectedEventId.value = ''
   selectedJobName.value = job.name
   jobTab.value = 'runs'
+}
+function inspectRunningJob(job) {
+  activeTab.value = 'jobs'
+  chooseJob(job)
 }
 function closeJob() {
   selectedRunId.value = ''
@@ -857,7 +861,19 @@ async function loadMore() {
           >
             {{ actionError }}
           </div>
-          <Tabs v-model="activeTab" aria-label="Quest workspace">
+          <QuestRunningJobs
+            :jobs="jobs"
+            :fresh="fresh"
+            :context-key="`${project.slug}:${environment.slug}:${
+              live.target.appId || ''
+            }`"
+            @select-job="inspectRunningJob"
+          />
+          <Tabs
+            v-model="activeTab"
+            aria-label="Quest workspace"
+            class="quest-workspace-tabs"
+          >
             <div
               class="flex items-center justify-between gap-3 border-b border-gray-200 dark:border-gray-800"
             >
@@ -875,8 +891,7 @@ async function loadMore() {
                 v-if="fresh"
                 class="hidden gap-3 text-xs text-gray-500 dark:text-gray-400 sm:flex"
               >
-                <span v-if="counts.running">{{ counts.running }} running</span
-                ><span v-if="counts.paused">{{ counts.paused }} paused</span>
+                <span v-if="counts.paused">{{ counts.paused }} paused</span>
               </div>
             </div>
             <div data-slot="tab-panel" data-value="jobs" class="pt-4">
@@ -910,21 +925,18 @@ async function loadMore() {
               </div>
               <div
                 :class="[
-                  'grid items-start gap-5',
+                  'grid items-start gap-6',
                   selectedJob &&
-                    'lg:grid-cols-[minmax(230px,0.8fr)_minmax(0,1.4fr)]'
+                    'lg:grid-cols-[minmax(220px,0.7fr)_minmax(0,1.5fr)]'
                 ]"
               >
                 <div
                   data-test="quest-jobs-list"
-                  :class="[
-                    'min-w-0 overflow-hidden rounded-lg border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-950',
-                    selectedJob && 'hidden lg:block'
-                  ]"
+                  :class="['min-w-0', selectedJob && 'hidden lg:block']"
                 >
                   <div
                     v-if="!selectedJob && jobs.length"
-                    class="hidden grid-cols-[minmax(0,1fr)_130px_150px_44px] gap-4 border-b border-gray-200 bg-gray-50/60 px-4 py-2 text-xs text-gray-500 dark:border-gray-800 dark:bg-gray-900/30 dark:text-gray-400 sm:grid"
+                    class="hidden grid-cols-[minmax(0,1fr)_130px_150px_44px] gap-4 border-b border-gray-200 px-2 py-2 text-xs text-gray-500 dark:border-gray-800 dark:text-gray-400 sm:grid"
                   >
                     <span>Job</span><span>Schedule</span
                     ><span>Latest activity</span><span />
@@ -941,7 +953,7 @@ async function loadMore() {
                   >
                     <div
                       :class="[
-                        'flex items-start gap-3 px-4 py-3.5',
+                        'flex items-start gap-3 px-2 py-4',
                         !selectedJob &&
                           'sm:grid sm:grid-cols-[minmax(0,1fr)_130px_150px_44px] sm:items-center sm:gap-4'
                       ]"
