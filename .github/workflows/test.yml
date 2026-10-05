@@ -307,7 +307,7 @@ jobs:
           node-version: '22'
           cache: npm
       - run: npm ci --no-audit
-      - run: node --test tests/prelift/migration-executor.test.cjs tests/prelift/sqlite-schema.test.cjs tests/prelift/upgrade-ledger.test.cjs
+      - run: node --test tests/prelift/migration-executor.test.cjs tests/prelift/sqlite-schema.test.cjs tests/prelift/upgrade-ledger.test.cjs tests/prelift/upgrade-backups.test.cjs
 
   test:
     name: Test (${{ matrix.lane }})
