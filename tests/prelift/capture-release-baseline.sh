@@ -45,11 +45,17 @@ for mode in development production; do
   fi
   docker stop --time 30 "$container" >/dev/null
   docker rm "$container" >/dev/null
- done
+done
 # Require the current reader through NODE_PATH, but run against the old native
-# SQLite dependency and its read-only mounted volume. No Sails lift occurs here.
+# SQLite dependency and its read-only mounted volume. SQLite may need transient
+# WAL shared-memory files even for read-only connections, so inspect a private
+# copy containing all sidecars. The original volume stays read-only throughout.
+# No Sails lift occurs here.
 docker run --rm --network none \
   -v "$volume:/fixture-db:ro" -v "$root:/capture:ro" \
   -e NODE_PATH=/app/node_modules \
-  "$identity" node /capture/tests/prelift/capture-release-baseline.cjs \
-  /fixture-db "$version" "$identity" > "$output"
+  "$identity" sh -c '
+    mkdir /tmp/baseline-copy
+    cp -a /fixture-db/. /tmp/baseline-copy/
+    exec node /capture/tests/prelift/capture-release-baseline.cjs /tmp/baseline-copy "$1" "$2"
+  ' sh "$version" "$identity" > "$output"
