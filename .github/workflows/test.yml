@@ -288,6 +288,18 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - name: Capture stopped published-release physical schemas
         run: bash tests/prelift/capture-release-baseline.sh '${{ matrix.version }}' baseline.json
+      - name: Verify published image and physical baseline remain immutable
+        run: |
+          node <<'NODE'
+          const assert = require('node:assert/strict')
+          const actual = require('./baseline.json')
+          const expected = require('./tests/fixtures/upgrades/${{ matrix.version }}.json')
+          assert.equal(actual.image, expected.image)
+          for (const [datastore, database] of Object.entries(expected.databases)) {
+            assert.equal(actual.databases[datastore].present, database.present)
+            assert.equal(actual.databases[datastore].schemaHash, database.schemaHash)
+          }
+          NODE
       - uses: actions/upload-artifact@v4
         with:
           name: upgrade-baseline-${{ matrix.version }}
