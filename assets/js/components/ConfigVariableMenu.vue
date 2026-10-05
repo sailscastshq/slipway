@@ -2,6 +2,8 @@
 import EllipsisHorizontal from '@/components/ui/icons/EllipsisHorizontal.vue'
 import Input from '@/components/ui/input/Input.vue'
 import Select from '@/components/ui/select/Select.vue'
+import Popover from '@/components/ui/popover/Popover.vue'
+import { nextTick, ref, useId } from 'vue'
 
 const props = defineProps({
   variableKey: { type: String, required: true },
@@ -9,6 +11,20 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['update', 'remove'])
+const popover = ref()
+const menuId = `config-variable-${useId().replace(/[^a-zA-Z0-9_-]/g, '')}`
+async function focusEditor(open) {
+  if (!open) return
+  await nextTick()
+  const content = popover.value?.content
+  const element = content?.value || content
+  const first = element?.querySelector('button, input')
+  ;(first || element)?.focus({ preventScroll: true })
+}
+function remove() {
+  popover.value?.close({ restoreFocus: true })
+  emit('remove')
+}
 
 function update(field, value) {
   emit('update', {
@@ -24,25 +40,30 @@ function previewPolicyDescription(policy) {
     randomize: 'A fresh value is generated for each preview environment.'
   }[policy]
 }
-
-function toggleDetails(event) {
-  const details = event.currentTarget.closest('details')
-  details.open = !details.open
-}
 </script>
 
 <template>
-  <details :data-test="`config-menu-${variableKey}`" class="relative">
-    <summary
+  <div :data-test="`config-menu-${variableKey}`">
+    <button
+      type="button"
+      :popovertarget="menuId"
+      aria-haspopup="dialog"
       :aria-label="`Configure ${variableKey}`"
-      @keydown.enter.prevent="toggleDetails"
-      class="flex cursor-pointer list-none rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 dark:hover:bg-gray-800 dark:hover:text-gray-200 dark:focus-visible:ring-gray-700 [&::-webkit-details-marker]:hidden"
+      class="min-h-11 min-w-11 flex cursor-pointer items-center justify-center rounded text-gray-400 hover:bg-gray-100 hover:text-gray-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 dark:hover:bg-gray-800 dark:hover:text-gray-200 dark:focus-visible:ring-gray-700"
     >
       <EllipsisHorizontal class="h-4 w-4" />
-    </summary>
+    </button>
 
-    <div
-      class="absolute right-0 z-30 mt-1 w-64 space-y-4 rounded-lg bg-white p-4 shadow-lg ring-1 ring-black/5 dark:bg-gray-900 dark:ring-white/10"
+    <Popover
+      ref="popover"
+      :id="menuId"
+      role="dialog"
+      tabindex="-1"
+      :aria-label="`Configure ${variableKey}`"
+      placement="bottom-end"
+      :offset="4"
+      class="w-72 space-y-4 p-4"
+      @update:open="focusEditor"
     >
       <p
         v-if="metadata.managed"
@@ -75,7 +96,7 @@ function toggleDetails(event) {
               { value: 'plain', label: 'Plain config' }
             ]"
             @change="update('kind', $event)"
-            class="mt-1 block w-full rounded-md border-0 bg-gray-50 px-2 py-1.5 text-sm text-gray-900 ring-1 ring-inset ring-gray-200 focus:ring-gray-400 dark:bg-gray-950 dark:text-white dark:ring-gray-800 dark:focus:ring-gray-600"
+            class="focus-visible:outline-brand mt-2 w-full rounded-md border-0 bg-gray-50 px-3 py-2.5 text-sm text-gray-900 dark:bg-gray-900 dark:text-white"
           />
         </label>
 
@@ -91,7 +112,7 @@ function toggleDetails(event) {
               { value: 'randomize', label: 'Generate a new value' }
             ]"
             @change="update('previewPolicy', $event)"
-            class="mt-1 block w-full rounded-md border-0 bg-gray-50 px-2 py-1.5 text-sm text-gray-900 ring-1 ring-inset ring-gray-200 focus:ring-gray-400 dark:bg-gray-950 dark:text-white dark:ring-gray-800 dark:focus:ring-gray-600"
+            class="focus-visible:outline-brand mt-2 w-full rounded-md border-0 bg-gray-50 px-3 py-2.5 text-sm text-gray-900 dark:bg-gray-900 dark:text-white"
           />
           <span
             data-test="config-preview-policy-description"
@@ -110,20 +131,19 @@ function toggleDetails(event) {
             :value="metadata.description || ''"
             @blur="update('description', $event.target.value)"
             maxlength="160"
-            class="mt-1 block w-full rounded-md border-0 bg-gray-50 px-2 py-1.5 text-sm text-gray-900 ring-1 ring-inset ring-gray-200 placeholder:text-gray-400 focus:ring-gray-400 dark:bg-gray-950 dark:text-white dark:ring-gray-800 dark:focus:ring-gray-600"
+            class="focus-visible:outline-brand mt-2 block w-full rounded-md border-0 bg-gray-50 px-3 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 focus-visible:outline focus-visible:outline-2 dark:bg-gray-900 dark:text-white"
             placeholder="What uses this value?"
           />
         </label>
 
         <button
           type="button"
-          @pointerdown.prevent
-          @click="emit('remove')"
-          class="text-sm text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
+          @click="remove"
+          class="min-h-11 text-sm text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
         >
           Remove variable
         </button>
       </template>
-    </div>
-  </details>
+    </Popover>
+  </div>
 </template>

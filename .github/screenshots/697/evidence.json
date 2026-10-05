@@ -1,0 +1,39 @@
+{
+  "issue": 697,
+  "base": "ed1f6eaca5737e91cc9e69fa7a100985d4939033",
+  "scope": "Actual local application and Klean controls; synthetic variables and in-memory PATCH/Precognition transport; 1440/390px light/dark. No stored settings changed.",
+  "screenshots": [
+    {
+      "path": ".github/screenshots/697/before-390-dark.png",
+      "sha256": "ec130d95565f78bb28ac10d72e57112745c996a810572e7f5c2c18a2db741e6e"
+    },
+    {
+      "path": ".github/screenshots/697/before-390-light.png",
+      "sha256": "e517538a609c6b532d7086f2e1216ebe5fb3da917b6ff2ebea0e3a223db8de7b"
+    },
+    {
+      "path": ".github/screenshots/697/before-1440-light.png",
+      "sha256": "826de590f36c49d9088d71fb1d4589e0bcfc613cc93bdecd0ead54158d4b9c8c"
+    },
+    {
+      "path": ".github/screenshots/697/before-1440-dark.png",
+      "sha256": "ab3a9c772c7558e44f1882d715bffdf9fb44dbdc7a2760334fde3a942556096d"
+    },
+    {
+      "path": ".github/screenshots/697/after-390-dark.png",
+      "sha256": "c44206580a0686a5e17558880e78455f25583bf5cef4b72563f029df7092b5fa"
+    },
+    {
+      "path": ".github/screenshots/697/after-390-light.png",
+      "sha256": "7cabbf717eb0dcdf1d43b4aaf5bb782254da8a1bb37459b691de17d7cc8125cb"
+    },
+    {
+      "path": ".github/screenshots/697/after-1440-light.png",
+      "sha256": "6e9701384f3ab38301dd513939155aa2f628419652bab6062b83c8e802e42aa4"
+    },
+    {
+      "path": ".github/screenshots/697/after-1440-dark.png",
+      "sha256": "8a0e7dd9d65ce26080499cfa81c35d7d78f758eac8fe6ba73fc1541de54fb084"
+    }
+  ]
+}
