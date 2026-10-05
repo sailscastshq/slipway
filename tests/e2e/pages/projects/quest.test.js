@@ -3323,6 +3323,12 @@ test(
             await page.raw.emulateMedia({ colorScheme: scheme })
             await account.focus()
             await expect(account).toBeFocused()
+            for (const id of ['#quest-input-2', '#quest-input-3']) {
+              await expect(page.raw.locator(id)).toHaveCSS(
+                'color',
+                scheme === 'dark' ? 'rgb(255, 255, 255)' : 'rgb(23, 23, 23)'
+              )
+            }
             const style = await account.evaluate((element) => {
               const css = getComputedStyle(element)
               return {
