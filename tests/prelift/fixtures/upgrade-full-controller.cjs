@@ -46,10 +46,11 @@ async function main() {
     result = { success: true, ...result }
   } catch (error) {
     const probes = {}
+    const saved = error.filename ? host.read(error.filename) : null
     for (const [name, filename] of [
       ['hostNamespace', '/slipway-host/proc/1/ns/pid'],
       ['nativeNamespace', '/proc/self/ns/pid'],
-      ['hostData', '/slipway-host' + input.reviewed?.sourceDirectory]
+      ['hostData', '/slipway-host' + saved?.reviewed.sourceDirectory]
     ]) {
       try {
         fs.statSync(filename)
@@ -60,7 +61,39 @@ async function main() {
           : 'unconfirmed'
       }
     }
-    const saved = error.filename ? host.read(error.filename) : null
+    if (saved && !saved.stage) {
+      const observer = require('/app/api/lib/upgrade-writer-observer')
+      const self = await docker('GET', `/containers/${input.controller}/json`)
+      try {
+        await observer.observeWriters({
+          databases: host.services(
+            saved.reviewed.sourceDirectory,
+            saved.reviewed.instanceId
+          ),
+          controller: observer.processIdentity(process.pid),
+          controllerContainer: self.Id,
+          hostPidNamespace: fs.readlinkSync('/proc/self/ns/pid'),
+          hostFileSystem: '/slipway-host'
+        })
+        probes.observer = 'readable'
+      } catch (nativeError) {
+        probes.observer = [
+          'EACCES',
+          'EPERM',
+          'ENOENT',
+          'ENOTDIR',
+          'upgradeFenceUnproved'
+        ].includes(nativeError.code)
+          ? nativeError.code
+          : nativeError.name === 'TypeError'
+          ? 'TypeError'
+          : 'unconfirmed'
+        if (
+          require('/app/api/lib/upgrade-fence-reasons').has(nativeError.reason)
+        )
+          probes.observerReason = nativeError.reason
+      }
+    }
     result = {
       success: false,
       code: error.code,

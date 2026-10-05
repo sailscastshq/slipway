@@ -69,12 +69,10 @@ async function observeWriters({
   )
     fail()
   if (hostFileSystem) {
-    if (
-      !path.isAbsolute(hostFileSystem) ||
-      fs.readlinkSync(path.join(hostFileSystem, 'proc/1/ns/pid')) !==
-        hostPidNamespace
-    )
-      fail()
+    // The driver verifies native Docker PidMode=host and the exact read-only
+    // '/' bind. Match the proc mount by device/inode; dereferencing namespace
+    // handles through a secondary bind is denied by default AppArmor profiles.
+    if (!path.isAbsolute(hostFileSystem)) fail()
     const view = fs.statSync(path.join(hostFileSystem, 'proc/1'), {
       bigint: true
     })
