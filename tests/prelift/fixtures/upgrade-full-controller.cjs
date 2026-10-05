@@ -50,6 +50,8 @@ async function main() {
     for (const [name, filename] of [
       ['hostNamespace', '/slipway-host/proc/1/ns/pid'],
       ['nativeNamespace', '/proc/self/ns/pid'],
+      ['nativeInitNamespace', '/proc/1/ns/pid'],
+      ['nativeInitMaps', '/proc/1/maps'],
       ['hostData', '/slipway-host' + saved?.reviewed.sourceDirectory]
     ]) {
       try {

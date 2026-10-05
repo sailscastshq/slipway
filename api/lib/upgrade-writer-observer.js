@@ -69,15 +69,11 @@ async function observeWriters({
   )
     fail()
   if (hostFileSystem) {
-    // The driver verifies native Docker PidMode=host and the exact read-only
-    // '/' bind. Match the proc mount by device/inode; dereferencing namespace
-    // handles through a secondary bind is denied by default AppArmor profiles.
+    // The driver verifies native Docker PidMode=host, native controller PID,
+    // and the exact read-only '/' bind. Distinct procfs mounts have distinct
+    // device identities even in that same PID namespace. Bind file identities
+    // below using the actual protected datastores instead.
     if (!path.isAbsolute(hostFileSystem)) fail()
-    const view = fs.statSync(path.join(hostFileSystem, 'proc/1'), {
-      bigint: true
-    })
-    const native = fs.statSync('/proc/1', { bigint: true })
-    if (view.dev !== native.dev || view.ino !== native.ino) fail()
   }
   if (!Array.isArray(databases) || !databases.length) fail()
   if (!Number.isSafeInteger(timeoutMs) || timeoutMs <= 0) fail()
@@ -100,15 +96,30 @@ async function observeWriters({
   }
   const targets = databases.map((database) => {
     const filename = fs.realpathSync(database.path)
+    const hostFilename = hostFileSystem
+      ? fs.realpathSync(path.join(hostFileSystem, filename))
+      : filename
+    if (hostFileSystem) {
+      for (const suffix of ['', '-wal', '-shm']) {
+        if (
+          fs.existsSync(filename + suffix) !==
+          fs.existsSync(hostFilename + suffix)
+        )
+          fail('storageTopology')
+        if (!fs.existsSync(filename + suffix)) continue
+        const native = fs.statSync(filename + suffix, { bigint: true })
+        const view = fs.statSync(hostFilename + suffix, { bigint: true })
+        if (native.dev !== view.dev || native.ino !== view.ino)
+          fail('storageTopology')
+      }
+    }
     const files = [filename, filename + '-wal', filename + '-shm']
       .filter((item) => fs.existsSync(item))
       .map((item) => fs.statSync(item, { bigint: true }))
     return {
       databaseKey: database.databaseKey,
       filename,
-      hostFilename: hostFileSystem
-        ? fs.realpathSync(path.join(hostFileSystem, filename))
-        : filename,
+      hostFilename,
       files
     }
   })

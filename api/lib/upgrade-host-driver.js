@@ -120,6 +120,7 @@ module.exports = function createHostDriver({
           !/^[a-f0-9]{64}$/.test(self.Id || '') ||
           self.State.Pid !== controller.pid ||
           !self.State.Running ||
+          self.HostConfig.PidMode !== 'host' ||
           self.HostConfig.RestartPolicy.Name !== 'no'
         )
           fail()
@@ -127,6 +128,7 @@ module.exports = function createHostDriver({
           hostFileSystem &&
           !self.Mounts.some(
             (mount) =>
+              mount.Type === 'bind' &&
               mount.Source === '/' &&
               mount.Destination === hostFileSystem &&
               mount.RW === false
