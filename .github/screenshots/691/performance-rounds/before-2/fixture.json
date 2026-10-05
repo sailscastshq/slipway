@@ -1,0 +1,172 @@
+{
+  "fixtureVersion": 2,
+  "description": "Actual rendered Slipway Quest page with synthetic operational data; no Docker, customer, or production jobs executed. Screenshots are not mockups.",
+  "phase": "after",
+  "sourceSha": "ed1f6eaca5737e91cc9e69fa7a100985d4939033",
+  "captureTrialSourceSha": "ed1f6eaca5737e91cc9e69fa7a100985d4939033",
+  "frozenBrowserTime": "2026-10-02T19:46:07.005Z",
+  "project": "Northstar Commerce",
+  "team": "Northstar",
+  "user": "Alex Rivera / alex@example.com / AR (synthetic)",
+  "environment": "production (synthetic fixture)",
+  "jobs": [
+    {
+      "name": "rebuild-search-index",
+      "friendlyName": "Rebuild search index",
+      "description": "Keep product and article search up to date.",
+      "schedule": "15 minutes",
+      "scheduleType": "interval",
+      "paused": false,
+      "withoutOverlapping": true,
+      "isRunning": false,
+      "nextRunInMinutes": 9
+    },
+    {
+      "name": "sync-product-catalog",
+      "friendlyName": "Sync product catalog",
+      "description": "Refresh inventory and product details from suppliers.",
+      "schedule": "1 hour",
+      "scheduleType": "interval",
+      "paused": false,
+      "withoutOverlapping": true,
+      "isRunning": true,
+      "nextRunInMinutes": 56
+    },
+    {
+      "name": "prune-temporary-uploads",
+      "friendlyName": "Prune temporary uploads",
+      "description": "Remove expired uploads after their retention window.",
+      "schedule": "0 2 * * *",
+      "scheduleType": "cron",
+      "paused": false,
+      "withoutOverlapping": false,
+      "isRunning": false,
+      "nextRunInMinutes": 480
+    },
+    {
+      "name": "send-weekly-digest",
+      "friendlyName": "Send weekly digest",
+      "description": "Prepare the weekly summary for opted-in customers.",
+      "schedule": "0 9 * * 1",
+      "scheduleType": "cron",
+      "paused": true,
+      "withoutOverlapping": true,
+      "isRunning": false,
+      "nextRunInMinutes": null
+    },
+    {
+      "name": "export-account-report",
+      "friendlyName": "Export account report",
+      "description": "Build an account activity report when requested.",
+      "schedule": null,
+      "scheduleType": "manual",
+      "paused": false,
+      "withoutOverlapping": false,
+      "isRunning": false,
+      "nextRunInMinutes": null
+    }
+  ],
+  "events": [
+    {
+      "jobName": "rebuild-search-index",
+      "event": "completed",
+      "minutesAgo": 6,
+      "durationMs": 1480,
+      "trigger": "manual"
+    },
+    {
+      "jobName": "rebuild-search-index",
+      "event": "complete",
+      "minutesAgo": 21,
+      "durationMs": 1520,
+      "trigger": "scheduled"
+    },
+    {
+      "jobName": "rebuild-search-index",
+      "event": "complete",
+      "minutesAgo": 36,
+      "durationMs": 1410,
+      "trigger": "scheduled"
+    },
+    {
+      "jobName": "rebuild-search-index",
+      "event": "complete",
+      "minutesAgo": 51,
+      "durationMs": 1610,
+      "trigger": "scheduled"
+    },
+    {
+      "jobName": "sync-product-catalog",
+      "event": "complete",
+      "minutesAgo": 4,
+      "durationMs": 2840,
+      "trigger": "scheduled"
+    },
+    {
+      "jobName": "sync-product-catalog",
+      "event": "failed",
+      "minutesAgo": 64,
+      "durationMs": 820,
+      "trigger": "manual"
+    },
+    {
+      "jobName": "sync-product-catalog",
+      "event": "start",
+      "minutesAgo": 1,
+      "durationMs": 0,
+      "trigger": "scheduled"
+    },
+    {
+      "jobName": "prune-temporary-uploads",
+      "event": "complete",
+      "minutesAgo": 140,
+      "durationMs": 240,
+      "trigger": "scheduled"
+    },
+    {
+      "jobName": "send-weekly-digest",
+      "event": "complete",
+      "minutesAgo": 1000,
+      "durationMs": 5100,
+      "trigger": "scheduled"
+    },
+    {
+      "jobName": "export-account-report",
+      "event": "completed",
+      "minutesAgo": 18,
+      "durationMs": 820,
+      "trigger": "manual"
+    }
+  ],
+  "captures": [
+    {
+      "name": "desktop-light",
+      "width": 1440,
+      "height": 1000,
+      "scheme": "light"
+    },
+    {
+      "name": "desktop-dark",
+      "width": 1440,
+      "height": 1000,
+      "scheme": "dark"
+    },
+    {
+      "name": "mobile-light",
+      "width": 390,
+      "height": 844,
+      "scheme": "light"
+    },
+    {
+      "name": "mobile-dark",
+      "width": 390,
+      "height": 844,
+      "scheme": "dark"
+    }
+  ],
+  "selectedJob": null,
+  "selectedEvent": null,
+  "rendering": "Actual checked-out Vue page and CSS; synthetic Inertia JSON and EventSource transport. No runtime commands executed.",
+  "legacyEventsAreRuns": false,
+  "sourceFixtureSha": "d63784057779f4364b8c8c0a3b73eeaecbe721f9"
+}

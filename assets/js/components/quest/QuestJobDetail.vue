@@ -96,7 +96,7 @@ const displayValue = (value) =>
 <template>
   <section
     data-test="quest-job-detail"
-    class="min-w-0"
+    class="min-w-0 lg:pl-6"
     aria-labelledby="quest-job-title"
   >
     <button
@@ -106,19 +106,17 @@ const displayValue = (value) =>
     >
       <ChevronLeft class="h-3.5 w-3.5" />All jobs
     </button>
-    <div
-      class="overflow-hidden rounded-lg border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-950"
-    >
-      <div class="px-4 pt-4">
+    <div class="min-w-0">
+      <div class="pt-2">
         <div class="flex items-start justify-between gap-3">
           <div class="min-w-0">
             <h2
               id="quest-job-title"
-              class="text-sm font-semibold text-gray-900 dark:text-white"
+              class="text-lg font-semibold leading-6 text-gray-900 dark:text-white"
             >
               {{ selectedJob.friendlyName || selectedJob.name }}
             </h2>
-            <p class="mt-1 break-all font-mono text-[10px] text-gray-400">
+            <p class="mt-1.5 break-all font-mono text-xs text-gray-400">
               {{ selectedJob.script || selectedJob.name }}
             </p>
           </div>
@@ -140,7 +138,7 @@ const displayValue = (value) =>
         <div class="mt-4 flex flex-wrap items-center justify-between gap-3">
           <div class="flex items-center gap-2">
             <QuestStatus :state="jobState" /><span
-              v-if="selectedJob.withoutOverlapping"
+              v-if="selectedJob.withoutOverlapping && jobTab !== 'schedule'"
               title="Prevents concurrent executions in this app process only."
               class="text-[10px] text-gray-400"
               >No overlap</span
@@ -189,10 +187,7 @@ const displayValue = (value) =>
         </p>
       </div>
       <Tabs v-model="jobTab" aria-label="Job details">
-        <div
-          data-slot="tabs-list"
-          class="mt-2 flex gap-5 border-b border-gray-200 px-4 dark:border-gray-800"
-        >
+        <div data-slot="tabs-list" class="mt-4 flex gap-5">
           <button data-value="runs" :class="tabClass(jobTab, 'runs')">
             Runs</button
           ><button data-value="inputs" :class="tabClass(jobTab, 'inputs')">
@@ -241,9 +236,7 @@ const displayValue = (value) =>
                 "
                 @select="emit('select-run', $event)"
               />
-              <p
-                class="border-t border-gray-100 px-4 py-2 text-[10px] text-gray-400 dark:border-gray-800"
-              >
+              <p class="px-4 py-2 text-[10px] text-gray-400">
                 {{ live.historyScope
                 }}{{
                   jobEvents.length
@@ -255,7 +248,7 @@ const displayValue = (value) =>
               </p>
               <div
                 v-if="scopedJobHistory.nextCursor || scopedJobHistory.error"
-                class="border-t border-gray-100 px-4 py-3 dark:border-gray-800"
+                class="px-4 py-3"
               >
                 <Button
                   v-if="scopedJobHistory.nextCursor"
@@ -285,11 +278,7 @@ const displayValue = (value) =>
             </template>
           </template>
         </div>
-        <div
-          data-slot="tab-panel"
-          data-value="inputs"
-          class="divide-y divide-gray-100 dark:divide-gray-800"
-        >
+        <div data-slot="tab-panel" data-value="inputs" class="space-y-1">
           <p
             v-if="!inputMetadataAvailable || !selectedJob.inputs?.length"
             class="px-4 py-8 text-sm text-gray-500 dark:text-gray-400"
@@ -342,7 +331,7 @@ const displayValue = (value) =>
         <div
           data-slot="tab-panel"
           data-value="schedule"
-          class="p-4 text-gray-800 dark:text-gray-200"
+          class="py-5 text-gray-800 dark:text-gray-200"
         >
           <dl
             class="grid grid-cols-[auto_minmax(0,1fr)] gap-x-5 gap-y-3 text-xs"
@@ -477,7 +466,7 @@ const displayValue = (value) =>
             </p>
           </div>
           <div
-            class="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-gray-100 pt-3 dark:border-gray-800"
+            class="mt-5 flex flex-wrap items-center justify-between gap-3 pt-3"
           >
             <p class="text-[11px] text-gray-400">
               Schedule defined in app source.
@@ -490,7 +479,7 @@ const displayValue = (value) =>
                   ? 'Resume new runs in this app process.'
                   : 'Pause new runs in this app process. Active executions continue; pause resets on restart.'
               "
-              class="min-h-8 border border-gray-200 bg-transparent px-2.5 py-1 text-xs text-gray-700 hover:bg-gray-100 dark:border-gray-700 dark:bg-transparent dark:text-gray-300 dark:hover:bg-gray-800"
+              class="min-h-8 bg-gray-50 px-2.5 py-1 text-xs text-gray-700 hover:bg-gray-100 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
               @click="emit('toggle-pause')"
               ><Spinner
                 v-if="changingSchedule === selectedJob.name"

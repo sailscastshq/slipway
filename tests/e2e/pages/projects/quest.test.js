@@ -1,5 +1,137 @@
 const { test } = require('sounding')
 
+test(
+  'Quest running disclosure preserves truthful activity and a quiet responsive workspace',
+  {
+    browser: true,
+    world: {
+      name: 'configured-slipway',
+      context: {
+        deploymentTarget: {
+          slug: 'quest-design-review',
+          name: 'Northstar Commerce'
+        }
+      }
+    }
+  },
+  async (context) => {
+    const { page, login, expect } = context
+    const state = await installQuestFixture(context)
+    const fs = require('node:fs')
+    const path = require('node:path')
+    const phase = process.env.SLIPWAY_QUEST_DESIGN_CAPTURE_PHASE || 'after'
+    const root = path.resolve('.tmp/sounding/artifacts/quest-design-review')
+    fs.mkdirSync(root, { recursive: true })
+    try {
+      await login.withPassword('genesisUser', page, {
+        password: context.world.current.auth.genesisUserPassword
+      })
+      await page.raw.waitForURL('**/')
+      await page.goto(state.projectPath)
+      await expect(
+        page.raw.getByRole('heading', { name: 'Quest', exact: true })
+      ).toBeVisible()
+      const strip = page.raw.locator('[data-test="quest-running-jobs"]')
+      if (phase !== 'before') {
+        const disclosure = strip.getByRole('button', {
+          name: '1 job running',
+          exact: true
+        })
+        await expect(disclosure).toHaveAttribute('aria-expanded', 'false')
+        await disclosure.focus()
+        await page.raw.keyboard.press('Enter')
+        await expect(disclosure).toHaveAttribute('aria-expanded', 'true')
+        await expect(
+          strip.getByRole('button', { name: /Sync product catalog/ })
+        ).toBeVisible()
+        await emitQuestWorkspace(page, state)
+        await expect(disclosure).toHaveAttribute('aria-expanded', 'true')
+        await strip
+          .getByRole('button', { name: /Sync product catalog/ })
+          .click()
+        await expect(page.raw.locator('#quest-job-title')).toHaveText(
+          'Sync product catalog'
+        )
+        expect(new URL(page.raw.url()).searchParams.get('job')).toBe(
+          'sync-product-catalog'
+        )
+        await page.raw
+          .getByRole('button', { name: 'Close job details', exact: true })
+          .click()
+        await disclosure.focus()
+        await page.raw.keyboard.press('Space')
+        await expect(disclosure).toHaveAttribute('aria-expanded', 'false')
+      }
+      await page.raw
+        .getByRole('button', {
+          name: 'View Export account report',
+          exact: true
+        })
+        .click()
+      await page.raw.getByRole('tab', { name: 'Schedule', exact: true }).click()
+      if (phase !== 'before')
+        await strip
+          .getByRole('button', { name: '1 job running', exact: true })
+          .click()
+      for (const capture of questComparisonFixture.captures) {
+        await page.raw.setViewportSize({
+          width: capture.width,
+          height: capture.height
+        })
+        await page.raw.emulateMedia({ colorScheme: capture.scheme })
+        await page.raw.evaluate(() => document.fonts.ready)
+        const geometry = await questBrowserMeasurements(page)
+        expect(geometry.horizontalOverflowPx <= 1).toBe(true)
+        expect(geometry.workspaceHorizontalOverflowPx <= 1).toBe(true)
+        await page.screenshot(path.join(root, `${phase}-${capture.name}.png`), {
+          animations: 'disabled',
+          fullPage: false
+        })
+      }
+      if (phase === 'before') return
+      // A disconnect preserves the last observation without calling it current.
+      await page.raw.evaluate(() => {
+        for (const stream of window.__questStreams || [])
+          if (!stream.closed && stream.url.includes('/quest/stream'))
+            stream.onerror?.(new Event('error'))
+      })
+      await expect(strip).toContainText('Running activity unknown')
+      await expect(strip).toContainText('Last observed running')
+      await expect(strip).not.toContainText('completed')
+      await expect(strip.getByRole('button', { name: /Cancel/ })).toHaveCount(0)
+      await page.screenshot(path.join(root, 'after-mobile-disconnected.png'), {
+        animations: 'disabled',
+        fullPage: false
+      })
+      // A new runtime's explicit idle snapshot replaces old activity. It does
+      // not infer a completed outcome for jobs from the previous runtime.
+      state.workspace.target.runtimeId = 'synthetic-runtime-v2'
+      for (const job of state.workspace.jobs) job.isRunning = false
+      await emitQuestWorkspace(page, state)
+      await expect(strip).toContainText('No jobs running')
+      await expect(strip.getByRole('button')).toHaveCount(0)
+      await expect(page.raw.locator('#quest-running-jobs-list')).toBeHidden()
+      await expect(strip).not.toContainText('completed')
+      state.workspace.jobs[0].isRunning = null
+      await emitQuestWorkspace(page, state)
+      await expect(strip).toContainText('Running activity incomplete')
+      await expect(strip.getByRole('button')).toHaveAttribute(
+        'aria-expanded',
+        'true'
+      )
+      await expect(
+        strip.getByText('Some jobs have not reported their running state.')
+      ).toBeVisible()
+      expect(state.mutationRequests).toEqual([])
+      expect(state.unexpectedRequests).toEqual([])
+      expect(page).toHaveNoJavascriptErrors()
+    } finally {
+      await page.raw.goto('about:blank')
+      state.restore()
+    }
+  }
+)
+
 // BEGIN QUEST COMPARISON CAPTURE
 // CI extracts this entire bounded section into the pinned before checkout.
 // Only synthetic JSON and transport are doubled: the page, layout, CSS, and
@@ -3048,7 +3180,11 @@ test(
   },
   async (context) => {
     const { page, login, world, expect } = context
-    const state = await installQuestFixture(context)
+    const state = await installQuestFixture(
+      context,
+      'after',
+      configureTypedQuestJob
+    )
     try {
       await login.withPassword('genesisUser', page, {
         password: world.current.auth.genesisUserPassword
@@ -3116,6 +3252,102 @@ test(
       )
       await expect(filter).toContainText('Paused')
       await expect(filter).toBeFocused()
+      if (phase === 'after') {
+        await page.raw.getByRole('tab', { name: 'Runs', exact: true }).click()
+        const runJob = page.raw.getByRole('combobox', {
+          name: 'Filter runs by job',
+          exact: true
+        })
+        const runState = page.raw.getByRole('combobox', {
+          name: 'Filter runs by state',
+          exact: true
+        })
+        for (const width of [1440, 390]) {
+          await page.resize(width, 900)
+          for (const scheme of ['light', 'dark']) {
+            await page.raw.emulateMedia({ colorScheme: scheme })
+            for (const field of [runJob, runState]) {
+              await field.focus()
+              await expect(field).toBeFocused()
+              // Select uses the app's 150ms color transition. Assert its
+              // settled focus color before inspecting the full geometry.
+              await expect(field).toHaveCSS(
+                'border-bottom-color',
+                'rgb(2, 132, 199)'
+              )
+              const style = await field.evaluate((element) => {
+                const css = getComputedStyle(element)
+                return {
+                  top: css.borderTopWidth,
+                  left: css.borderLeftWidth,
+                  right: css.borderRightWidth,
+                  bottom: css.borderBottomWidth,
+                  style: css.borderBottomStyle,
+                  color: css.borderBottomColor,
+                  radius: css.borderRadius,
+                  outline: css.outlineStyle
+                }
+              })
+              expect(style).toEqual({
+                top: '0px',
+                left: '0px',
+                right: '0px',
+                bottom: '1px',
+                style: 'dashed',
+                color: 'rgb(2, 132, 199)',
+                radius: '0px',
+                outline: 'none'
+              })
+            }
+            await page.screenshot(
+              `.tmp/sounding/artifacts/quest-design-review/after-runs-${width}-${scheme}.png`
+            )
+          }
+        }
+        await runJob.press('Enter')
+        await expect(page.raw.getByRole('listbox')).toBeVisible()
+        await runJob.press('e')
+        await runJob.press('Enter')
+        await expect(runJob).toContainText('Export account report')
+        await expect(runJob).toBeFocused()
+        await page.goto(`${state.projectPath}?job=export-account-report`)
+        await page.raw
+          .locator(
+            '[data-test="quest-job-detail"] [data-test="quest-open-run"]'
+          )
+          .click()
+        const account = page.raw.locator('#quest-input-0')
+        for (const width of [1440, 390]) {
+          await page.resize(width, 900)
+          for (const scheme of ['light', 'dark']) {
+            await page.raw.emulateMedia({ colorScheme: scheme })
+            await account.focus()
+            await expect(account).toBeFocused()
+            for (const id of ['#quest-input-2', '#quest-input-3']) {
+              await expect(page.raw.locator(id)).toHaveCSS(
+                'color',
+                scheme === 'dark' ? 'rgb(255, 255, 255)' : 'rgb(23, 23, 23)'
+              )
+            }
+            const style = await account.evaluate((element) => {
+              const css = getComputedStyle(element)
+              return {
+                style: css.borderBottomStyle,
+                color: css.borderBottomColor,
+                outline: css.outlineStyle
+              }
+            })
+            expect(style).toEqual({
+              style: 'dashed',
+              color: 'rgb(2, 132, 199)',
+              outline: 'none'
+            })
+            await page.screenshot(
+              `.tmp/sounding/artifacts/quest-design-review/after-inputs-${width}-${scheme}.png`
+            )
+          }
+        }
+      }
       // This synthetic fixture intentionally blocks development HMR sockets.
       expect(page).toHaveNoJavascriptErrors()
       expect(state.unexpectedRequests).toEqual([])
