@@ -501,11 +501,12 @@ watch(() => page.url, closeMobileMenu)
             popovertarget="mobile-user-menu"
             class="flex w-full items-center space-x-3 rounded-md px-3 py-2.5 text-sm text-gray-600 transition-colors hover:bg-gray-200/50 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800/50 dark:hover:text-gray-200"
           >
-            <span
-              class="bg-brand flex h-8 w-8 items-center justify-center rounded-full text-xs font-medium text-white"
+            <Avatar
+              :src="loggedInUser.photoUrl || ''"
+              :alt="`${loggedInUser.fullName} profile photo`"
+              class="bg-brand h-8 w-8 rounded-full text-xs font-medium text-white"
+              >{{ loggedInUser.initials }}</Avatar
             >
-              {{ loggedInUser.initials }}
-            </span>
             <span class="flex-1 truncate text-left">{{
               loggedInUser.email
             }}</span>
@@ -791,11 +792,12 @@ watch(() => page.url, closeMobileMenu)
           popovertarget="desktop-user-menu"
           class="flex w-full items-center space-x-3 rounded-md px-2 py-2 text-sm text-gray-500 transition-colors hover:bg-gray-200/50 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800/50 dark:hover:text-gray-200"
         >
-          <span
-            class="bg-brand flex h-7 w-7 items-center justify-center rounded-full text-xs font-medium text-white"
+          <Avatar
+            :src="loggedInUser.photoUrl || ''"
+            :alt="`${loggedInUser.fullName} profile photo`"
+            class="bg-brand h-7 w-7 rounded-full text-xs font-medium text-white"
+            >{{ loggedInUser.initials }}</Avatar
           >
-            {{ loggedInUser.initials }}
-          </span>
           <span class="flex-1 truncate text-left">{{
             loggedInUser.email
           }}</span>

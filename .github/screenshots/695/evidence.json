@@ -1,0 +1,39 @@
+{
+  "issue": 695,
+  "base": "Profile styling #694",
+  "scope": "Actual local multipart form and normalized synthetic image; in-memory S3 transport; 1440/390px light/dark. Existing team requirement retained.",
+  "screenshots": [
+    {
+      "path": ".github/screenshots/695/before-390-dark.png",
+      "sha256": "80e1db86dda491ea03e12599b01db02d88639f8a077eecdc6398431cbaaced82"
+    },
+    {
+      "path": ".github/screenshots/695/before-390-light.png",
+      "sha256": "cf0de58526d62090400ce451b2fe92bbe7ebe996d507db16fe1f746327795416"
+    },
+    {
+      "path": ".github/screenshots/695/before-1440-light.png",
+      "sha256": "f23f802cb323e7969b3aa7ddde08a6ac45c4788c5bb16f79be7eeb5e29c18ad1"
+    },
+    {
+      "path": ".github/screenshots/695/before-1440-dark.png",
+      "sha256": "b0e74230774ff268ba5eaac12f9a68b22b0ede8253b06cf6ffa3a4eb8bfc7968"
+    },
+    {
+      "path": ".github/screenshots/695/after-390-dark.png",
+      "sha256": "8e6fbabdb2640e973db71c9dd1cd663039c702dbd12bbd117f0b9714b9f46c66"
+    },
+    {
+      "path": ".github/screenshots/695/after-390-light.png",
+      "sha256": "dd469f990516e2d2b514b38964e4bbd839782e3c1b7e3e18fc889d8ddaebad97"
+    },
+    {
+      "path": ".github/screenshots/695/after-1440-light.png",
+      "sha256": "1825ed204001030b060ed38152c317e5898e62686b123845e67e7300d0e4ba7f"
+    },
+    {
+      "path": ".github/screenshots/695/after-1440-dark.png",
+      "sha256": "e481dca97ab051d1d3e7b82a23011dde1c7c4995d627fff3919c1f3c69c9c9e7"
+    }
+  ]
+}

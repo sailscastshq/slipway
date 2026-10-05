@@ -66,6 +66,7 @@ module.exports.routes = {
 
   'GET /profile': 'user/view-profile',
   'PATCH /profile': 'user/update-profile',
+  'POST /profile/photo': 'user/upload-profile-photo',
   'DELETE /profile': 'user/delete-profile',
 
   'DELETE /logout': 'user/logout',

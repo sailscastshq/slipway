@@ -10,6 +10,14 @@ module.exports = {
   },
 
   fn: async function () {
-    return { page: 'dashboard/profile' }
+    let uploadsConfigured = true
+    try {
+      await sails.helpers.uploads.getStorageConfig.with({
+        requirePublicUrl: true
+      })
+    } catch {
+      uploadsConfigured = false
+    }
+    return { page: 'dashboard/profile', props: { uploadsConfigured } }
   }
 }
