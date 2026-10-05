@@ -64,6 +64,7 @@ controller="slipway-upgrade-controller-$(cat /proc/sys/kernel/random/uuid)"
 # Existing session and encryption secrets remain in Docker's structured config.
 export SLIPWAY_HOST_OPERATION="$operation" SLIPWAY_HOST_IMAGE="$image" SLIPWAY_HOST_INSTANCE="$instance" SLIPWAY_HOST_APPROVAL="$approval" SLIPWAY_HOST_CONTAINER="$container" SLIPWAY_HOST_CHECKPOINT="$checkpoint" SLIPWAY_HOST_DIRECTORY="$directory" SLIPWAY_HOST_CONTROLLER="$controller"
 python3 - <<'PY' | docker run --rm -i --name "$controller" --restart=no --pid=host --cap-add=SYS_PTRACE --entrypoint=node --network=none \
+  --mount "type=bind,src=/,dst=/slipway-host,readonly,bind-propagation=rslave" \
   --mount "type=bind,src=/var/run/docker.sock,dst=/var/run/docker.sock" \
   --mount "type=bind,src=$source_dir,dst=$source_dir$source_readonly" \
   --mount "type=bind,src=$directory,dst=$directory" \

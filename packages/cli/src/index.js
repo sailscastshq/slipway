@@ -42,7 +42,13 @@ function showHelp() {
       'run:cancel',
       'run:history'
     ],
-    Admin: ['audit-log']
+    Admin: [
+      'audit-log',
+      'upgrade:plan',
+      'upgrade:apply',
+      'upgrade:status',
+      'upgrade:resume'
+    ]
   }
 
   for (const [groupName, cmds] of Object.entries(groups)) {

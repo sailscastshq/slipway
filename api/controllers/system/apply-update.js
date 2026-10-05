@@ -19,6 +19,10 @@ module.exports = {
   },
 
   fn: async function () {
+    if (sails.upgradeAdmission)
+      return require('../../lib/system-upgrade-action').failure(this.res, {
+        code: 'upgradeHostApproval'
+      })
     // Prevent concurrent updates
     const progress = await sails.cache.get('slipway_update_progress')
     if (progress && !['idle', 'failed'].includes(progress.phase)) {
@@ -38,6 +42,16 @@ module.exports = {
         }
       }
     }
+
+    if (
+      require('semver').gte(
+        updateInfo.latestVersion.replace(/^v/, ''),
+        '0.0.88'
+      )
+    )
+      return require('../../lib/system-upgrade-action').failure(this.res, {
+        code: 'upgradeHostRequired'
+      })
 
     // Kick off the update pipeline asynchronously
     process.nextTick(async () => {

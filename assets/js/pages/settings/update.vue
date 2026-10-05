@@ -11,7 +11,7 @@ import ChevronDown from '@/components/ui/icons/ChevronDown.vue'
 import Check from '@/components/ui/icons/Check.vue'
 import BookOpen from '@/components/ui/icons/BookOpen.vue'
 import ArrowRight from '@/components/ui/icons/ArrowRight.vue'
-import { Head, Link } from '@inertiajs/vue3'
+import { Head, Link, useForm } from '@inertiajs/vue3'
 import { inject, ref, watch, onUnmounted } from 'vue'
 import { useEventSource } from '@/composables/sse'
 import AppLayout from '@/layouts/AppLayout.vue'
@@ -22,6 +22,8 @@ defineOptions({
 })
 
 const props = defineProps({
+  coordinated: { type: Boolean, default: false },
+  upgrade: { type: Object, default: null },
   updateInfo: {
     type: Object,
     required: true
@@ -32,7 +34,12 @@ const toggleMobileMenu = inject('toggleMobileMenu')
 const toggleSidebar = inject('toggleSidebar')
 const sidebarCollapsed = inject('sidebarCollapsed')
 const checking = ref(false)
+const pageAbort = new AbortController()
+onUnmounted(() => pageAbort.abort())
 const updating = ref(false)
+const reviewedPlan = ref(null)
+const upgradeReceipt = ref(props.upgrade)
+const upgradeForm = useForm({ instanceId: '', approval: '' })
 const updateError = ref(null)
 const updatePhase = ref('')
 const updateDetail = ref('')
@@ -101,6 +108,60 @@ async function checkAgain() {
 }
 
 async function applyUpdate() {
+  if (props.coordinated) {
+    updateError.value = null
+    if (!reviewedPlan.value) {
+      checking.value = true
+      try {
+        const response = await fetch('/api/v1/system/upgrade/plan')
+        const plan = await response.json()
+        if (!response.ok)
+          throw new Error(
+            plan.message || 'Upgrade plan could not be confirmed.'
+          )
+        reviewedPlan.value = plan
+      } catch (error) {
+        updateError.value = error.message
+      } finally {
+        checking.value = false
+      }
+      return
+    }
+    const plan = reviewedPlan.value
+    upgradeForm.instanceId = plan.instanceId
+    upgradeForm.approval = plan.reviewHash
+    updating.value = true
+    updatePhase.value = 'starting'
+    upgradeForm.post('/settings/update', {
+      preserveState: true,
+      onSuccess(page) {
+        upgradeReceipt.value = page.props.upgrade
+        updatePhase.value = 'waiting'
+        waitForHealthy(plan.identity.manifest.version, 600, {
+          id: upgradeReceipt.value?.id,
+          image: plan.identity.manifest.image,
+          manifestHash: plan.identity.hash
+        })
+          .then(() => {
+            updatePhase.value = 'success'
+            window.location.reload()
+          })
+          .catch((error) => {
+            updateError.value = error.message
+            updating.value = false
+            updatePhase.value = ''
+          })
+      },
+      onError(errors) {
+        updateError.value =
+          errors.approval ||
+          'Upgrade was not confirmed. Inspect the saved checkpoint before retrying.'
+        updating.value = false
+        updatePhase.value = ''
+      }
+    })
+    return
+  }
   updating.value = true
   updateError.value = null
   updatePhase.value = 'starting'
@@ -128,12 +189,16 @@ async function applyUpdate() {
   }
 }
 
-async function waitForHealthy(expectedVersion, maxAttempts = 30) {
+async function waitForHealthy(expectedVersion, maxAttempts = 30, expected) {
   for (let i = 0; i < maxAttempts; i++) {
+    if (pageAbort.signal.aborted) return
     await new Promise((resolve) => setTimeout(resolve, 2000))
+    if (pageAbort.signal.aborted) return
     let res
     try {
-      res = await fetch('/health')
+      res = await fetch('/health', {
+        signal: AbortSignal.any([pageAbort.signal, AbortSignal.timeout(5000)])
+      })
     } catch {
       // Still down — keep polling.
       continue
@@ -142,6 +207,30 @@ async function waitForHealthy(expectedVersion, maxAttempts = 30) {
     if (!res.ok) continue
 
     const health = await res.json().catch(() => ({}))
+    if (expected) {
+      if (
+        health.upgrade?.verified !== true ||
+        health.upgrade.image !== expected.image ||
+        health.upgrade.manifestHash !== expected.manifestHash ||
+        !expected.id
+      )
+        continue
+      const response = await fetch(`/api/v1/system/upgrade/${expected.id}`, {
+        signal: AbortSignal.any([pageAbort.signal, AbortSignal.timeout(5000)])
+      }).catch(() => null)
+      if (!response?.ok) continue
+      const status = await response.json()
+      if (status.recoveryRequired)
+        throw new Error(
+          'Upgrade requires the saved recovery checkpoint. Resume it before retrying.'
+        )
+      if (
+        status.phase !== 'ready' ||
+        !status.migration?.reconciled ||
+        status.migration.pending.length
+      )
+        continue
+    }
     if (!expectedVersion || health.version === expectedVersion) return
 
     if (health.version) {
@@ -463,16 +552,51 @@ function formatDate(dateString) {
 
             <!-- Ready State -->
             <div v-else class="flex items-center justify-between gap-4">
+              <div
+                v-if="coordinated && reviewedPlan && !updating"
+                role="status"
+                class="mb-4 text-sm text-gray-600 dark:text-gray-400"
+              >
+                <p>
+                  Reviewed upgrade: {{ reviewedPlan.sourceVersion }} →
+                  {{ reviewedPlan.identity.manifest.version }}
+                </p>
+                <p>
+                  The four datastores will be backed up and verified. Original
+                  storage is retained.
+                </p>
+              </div>
+              <div
+                v-if="upgradeReceipt?.recoveryRequired"
+                role="alert"
+                class="mb-4 text-sm text-gray-600 dark:text-gray-400"
+              >
+                Recovery checkpoint retained:
+                <code>{{ upgradeReceipt.filename }}</code
+                >. Resume this checkpoint before starting another upgrade.
+              </div>
+
               <p class="text-sm text-gray-600 dark:text-gray-400">
                 The dashboard will briefly go offline while the container
                 restarts, then reload automatically.
               </p>
               <button
                 @click="applyUpdate"
+                :disabled="
+                  checking ||
+                  upgradeForm.processing ||
+                  upgradeReceipt?.recoveryRequired
+                "
                 class="inline-flex shrink-0 items-center space-x-2 rounded-md bg-gray-900 px-5 py-2.5 text-sm font-medium text-white hover:bg-gray-800 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
               >
                 <Download class="h-4 w-4" stroke-width="2" />
-                <span>Update Now</span>
+                <span>{{
+                  coordinated
+                    ? reviewedPlan
+                      ? 'Apply reviewed upgrade'
+                      : 'Review upgrade'
+                    : 'Update Now'
+                }}</span>
               </button>
             </div>
           </div>

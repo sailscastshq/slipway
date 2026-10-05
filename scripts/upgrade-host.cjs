@@ -160,7 +160,7 @@ async function main() {
       Cmd: [
         'node',
         '-e',
-        'console.log(JSON.stringify({version:require("./package.json").version}))'
+        'console.log(JSON.stringify({version:require("/app/package.json").version}))'
       ]
     })
     const source = await docker('POST', `/exec/${command.Id}/start`, {
@@ -274,6 +274,7 @@ async function main() {
   const driver = driverFactory({
     docker,
     controllerContainer: input.controllerContainer,
+    hostFileSystem: '/slipway-host',
     directory: input.directory,
     current,
     imageConfig: image.Config,

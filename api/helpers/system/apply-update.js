@@ -56,6 +56,18 @@ module.exports = {
         throw 'noUpdate'
       }
 
+      if (
+        sails.upgradeAdmission ||
+        require('semver').gte(
+          updateInfo.latestVersion.replace(/^v/, ''),
+          '0.0.88'
+        )
+      )
+        throw Object.assign(
+          new Error('Use the reviewed host upgrade controller.'),
+          { code: 'upgradeHostRequired' }
+        )
+
       const pullTarget = await sails.helpers.system.getUpdateImageRef.with({
         updateInfo,
         imageRepository

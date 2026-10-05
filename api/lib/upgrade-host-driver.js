@@ -17,6 +17,7 @@ function fail(code = 'upgradeFenceLost') {
 module.exports = function createHostDriver({
   docker,
   controllerContainer,
+  hostFileSystem,
   directory,
   current,
   imageConfig,
@@ -35,6 +36,7 @@ module.exports = function createHostDriver({
   let token
   let deadline
   let owned
+  let controllerId
   const remaining = () => {
     const value = deadline - Date.now()
     if (value <= 0) fail('upgradeHostTimeout')
@@ -115,11 +117,23 @@ module.exports = function createHostDriver({
       if (controllerContainer) {
         const self = await inspect(controllerContainer)
         if (
+          !/^[a-f0-9]{64}$/.test(self.Id || '') ||
           self.State.Pid !== controller.pid ||
           !self.State.Running ||
           self.HostConfig.RestartPolicy.Name !== 'no'
         )
           fail()
+        if (
+          hostFileSystem &&
+          !self.Mounts.some(
+            (mount) =>
+              mount.Source === '/' &&
+              mount.Destination === hostFileSystem &&
+              mount.RW === false
+          )
+        )
+          fail()
+        controllerId = self.Id
       }
       lock = path.join(
         root,
@@ -226,8 +240,9 @@ module.exports = function createHostDriver({
           worker: worker?.workerPid
             ? processIdentity(worker.workerPid)
             : undefined,
-          controllerContainer,
-          hostPidNamespace: namespace
+          controllerContainer: controllerId,
+          hostPidNamespace: namespace,
+          hostFileSystem
         },
         timeoutMs: remaining()
       })

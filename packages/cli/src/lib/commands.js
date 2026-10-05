@@ -13,6 +13,39 @@ const targetOptions = {
 }
 
 export const commands = {
+  'upgrade:plan': {
+    description:
+      'Review the advertised pinned instance upgrade without stopping writers',
+    options: { ...outputOptions }
+  },
+  'upgrade:apply': {
+    description:
+      'Accept an exact reviewed instance upgrade; preserve its durable recovery receipt',
+    options: {
+      ...outputOptions,
+      instance: { type: 'string' },
+      'approve-plan': { type: 'string' },
+      wait: { type: 'boolean' },
+      timeout: { type: 'string', default: '900' }
+    }
+  },
+  'upgrade:status': {
+    description: 'Inspect the native upgrade checkpoint',
+    args: '[upgrade-id]',
+    options: { ...outputOptions }
+  },
+  'upgrade:resume': {
+    description:
+      'Resume the exact owned checkpoint without restoring older storage',
+    args: '<upgrade-id>',
+    options: {
+      ...outputOptions,
+      instance: { type: 'string' },
+      'approve-plan': { type: 'string' },
+      wait: { type: 'boolean' },
+      timeout: { type: 'string', default: '900' }
+    }
+  },
   doctor: {
     description:
       'Check server health, saved CLI authentication, and optional target readiness',

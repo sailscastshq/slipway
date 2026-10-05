@@ -374,7 +374,7 @@ jobs:
           node-version: '22'
           cache: npm
       - run: npm ci --no-audit
-      - run: node --test tests/prelift/migration-executor.test.cjs tests/prelift/sqlite-schema.test.cjs tests/prelift/upgrade-ledger.test.cjs tests/prelift/upgrade-backups.test.cjs tests/prelift/upgrade-preflight.test.cjs tests/prelift/release-baselines.test.cjs tests/prelift/upgrade-coordinator.test.cjs tests/prelift/upgrade-entry-guard.test.cjs tests/prelift/upgrade-registry.test.cjs tests/prelift/schema-retirement.test.cjs tests/prelift/upgrade-process.test.cjs tests/prelift/upgrade-storage-stage.test.cjs tests/prelift/upgrade-host-controller.test.cjs tests/prelift/upgrade-handoff.test.cjs tests/prelift/upgrade-launch-config.test.cjs tests/prelift/upgrade-startup.test.cjs tests/prelift/upgrade-docker-api.test.cjs tests/prelift/upgrade-writer-snapshot.test.cjs tests/prelift/upgrade-fresh-storage.test.cjs tests/prelift/upgrade-lineage.test.cjs
+      - run: node --test tests/prelift/migration-executor.test.cjs tests/prelift/sqlite-schema.test.cjs tests/prelift/upgrade-ledger.test.cjs tests/prelift/upgrade-backups.test.cjs tests/prelift/upgrade-preflight.test.cjs tests/prelift/release-baselines.test.cjs tests/prelift/upgrade-coordinator.test.cjs tests/prelift/upgrade-entry-guard.test.cjs tests/prelift/upgrade-registry.test.cjs tests/prelift/schema-retirement.test.cjs tests/prelift/upgrade-process.test.cjs tests/prelift/upgrade-storage-stage.test.cjs tests/prelift/upgrade-host-controller.test.cjs tests/prelift/upgrade-handoff.test.cjs tests/prelift/upgrade-launch-config.test.cjs tests/prelift/upgrade-startup.test.cjs tests/prelift/upgrade-docker-api.test.cjs tests/prelift/upgrade-writer-snapshot.test.cjs tests/prelift/upgrade-fresh-storage.test.cjs tests/prelift/upgrade-lineage.test.cjs tests/prelift/upgrade-broker.test.cjs tests/prelift/upgrade-cli.test.cjs tests/prelift/upgrade-response.test.cjs
 
   upgrade-writer-fence:
     name: Native Linux upgrade writer observation
@@ -394,6 +394,22 @@ jobs:
         run: sudo env PATH="$PATH" SLIPWAY_WRITER_FIXTURE=1 node --test tests/prelift/upgrade-writers-linux.test.cjs
       - name: Verify real Docker host handoff and failed-health recovery
         run: sudo env PATH="$PATH" SLIPWAY_HOST_FIXTURE=1 node --test tests/prelift/upgrade-host-linux.test.cjs
+
+  upgrade-full-image:
+    name: Coordinated image startup and recovery
+    timeout-minutes: 30
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit
+      - name: Verify real image, founder session, encryption and recovery
+        run: bash tests/prelift/prepare-full-image.sh
 
   test:
     name: Test (${{ matrix.lane }})

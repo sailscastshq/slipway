@@ -57,6 +57,7 @@ async function observeWriters({
   worker,
   controllerContainer,
   storageDirectories = [],
+  hostFileSystem,
   timeoutMs = 10000
 }) {
   if (process.platform !== 'linux' || process.getuid() !== 0) fail()
@@ -67,6 +68,19 @@ async function observeWriters({
     fs.readlinkSync('/proc/self/ns/pid') !== hostPidNamespace
   )
     fail()
+  if (hostFileSystem) {
+    if (
+      !path.isAbsolute(hostFileSystem) ||
+      fs.readlinkSync(path.join(hostFileSystem, 'proc/1/ns/pid')) !==
+        hostPidNamespace
+    )
+      fail()
+    const view = fs.statSync(path.join(hostFileSystem, 'proc/1'), {
+      bigint: true
+    })
+    const native = fs.statSync('/proc/1', { bigint: true })
+    if (view.dev !== native.dev || view.ino !== native.ino) fail()
+  }
   if (!Array.isArray(databases) || !databases.length) fail()
   if (!Number.isSafeInteger(timeoutMs) || timeoutMs <= 0) fail()
   const deadline = Date.now() + timeoutMs
@@ -91,7 +105,14 @@ async function observeWriters({
     const files = [filename, filename + '-wal', filename + '-shm']
       .filter((item) => fs.existsSync(item))
       .map((item) => fs.statSync(item, { bigint: true }))
-    return { databaseKey: database.databaseKey, filename, files }
+    return {
+      databaseKey: database.databaseKey,
+      filename,
+      hostFilename: hostFileSystem
+        ? fs.realpathSync(path.join(hostFileSystem, filename))
+        : filename,
+      files
+    }
   })
   if (
     new Set(targets.map((item) => item.databaseKey)).size !== targets.length ||
@@ -170,12 +191,16 @@ async function observeWriters({
       if (mount.RW === false) return false
       let source
       try {
-        source = fs.realpathSync(mount.Source)
+        source = fs.realpathSync(
+          hostFileSystem
+            ? path.join(hostFileSystem, mount.Source)
+            : mount.Source
+        )
       } catch {
         // An unobservable mount cannot be classified safely.
         fail()
       }
-      return targets.some((target) => overlap(target.filename, source))
+      return targets.some((target) => overlap(target.hostFilename, source))
     })
     if (relevant) {
       if (

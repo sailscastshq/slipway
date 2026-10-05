@@ -157,7 +157,9 @@ function prepare({
     id: state.id,
     instanceId: reviewed.instanceId,
     reviewHash: reviewed.reviewHash,
-    phase: state.phase
+    phase: state.phase,
+    manifestHash: reviewed.identity.hash,
+    targetVersion: reviewed.identity.manifest.version
   }
 }
 async function apply(options) {

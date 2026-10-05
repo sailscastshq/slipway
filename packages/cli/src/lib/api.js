@@ -140,7 +140,7 @@ async function apiUpload(path, fieldName, buffer, filename) {
 
 // Convenience methods
 export const api = {
-  get: (path) => apiRequest('GET', path),
+  get: (path, options = {}) => apiRequest('GET', path, options),
   post: (path, body, options = {}) =>
     apiRequest('POST', path, { ...options, body }),
   patch: (path, body) => apiRequest('PATCH', path, { body }),

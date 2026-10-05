@@ -3,7 +3,7 @@ module.exports = {
 
   description: 'Display the update status and instructions page.',
 
-  inputs: {},
+  inputs: { upgradeId: { type: 'string' } },
 
   exits: {
     success: {
@@ -11,13 +11,34 @@ module.exports = {
     }
   },
 
-  fn: async function () {
+  fn: async function ({ upgradeId } = {}) {
     const updateInfo = await sails.helpers.system.checkForUpdates()
 
+    let upgrade = null
+    if (upgradeId) {
+      try {
+        upgrade = (
+          await require('../../lib/system-upgrade-action').broker(this.req)
+        ).status(upgradeId)
+      } catch {
+        upgrade = { id: upgradeId, recoveryRequired: true }
+      }
+    }
+    if (!upgradeId && sails.upgradeAdmission) {
+      try {
+        upgrade = (
+          await require('../../lib/system-upgrade-action').broker(this.req)
+        ).latest()
+      } catch {
+        upgrade = { recoveryRequired: true }
+      }
+    }
     return {
       page: 'settings/update',
       props: {
-        updateInfo
+        updateInfo,
+        coordinated: Boolean(sails.upgradeAdmission),
+        upgrade
       }
     }
   }

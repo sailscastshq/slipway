@@ -24,7 +24,25 @@ const protectedRoutes = [
   ['patch', '/settings/git', {}],
   ['post', '/api/v1/system/apply-update', {}],
   ['get', '/api/v1/system/stream-update'],
-  ['get', '/api/v1/system/check-update']
+  ['get', '/api/v1/system/check-update'],
+  ['get', '/api/v1/system/upgrade'],
+  ['get', '/api/v1/system/upgrade/plan'],
+  [
+    'post',
+    '/api/v1/system/upgrade/apply',
+    { instanceId: 'fixture', approval: 'a'.repeat(64) }
+  ],
+  ['get', '/api/v1/system/upgrade/11111111-1111-1111-1111-111111111111'],
+  [
+    'post',
+    '/api/v1/system/upgrade/11111111-1111-1111-1111-111111111111/resume',
+    { instanceId: 'fixture', approval: 'a'.repeat(64) }
+  ],
+  [
+    'post',
+    '/settings/update',
+    { instanceId: 'fixture', approval: 'a'.repeat(64) }
+  ]
 ]
 
 test(
