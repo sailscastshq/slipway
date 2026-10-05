@@ -204,10 +204,18 @@ test(
       const db = new Database(path.join(original, 'app.db'), { readonly: true })
       const founder = db
         .prepare(
-          'SELECT id,auth_version,team FROM users WHERE is_genesis_user=1'
+          "SELECT id,auth_version,team,is_genesis_user FROM users WHERE email='fixture@example.invalid'"
         )
         .get()
       db.close()
+      assert.ok(
+        founder,
+        'The real seeded founder must persist across the source restart'
+      )
+      assert.ok(
+        [1, '1', 'true', '1.0'].includes(founder.is_genesis_user),
+        'The real founder must retain native founder authority'
+      )
       const sid = 'synthetic-browser-session'
       const sessions = new Database(path.join(original, 'session.db'))
       sessions
@@ -270,7 +278,7 @@ test(
           original
         })
       const failed = await controller({ reviewed, failHealth: true })
-      assert.equal(failed.code, 'upgradeHostHealth')
+      assert.equal(failed.code, 'upgradeHostHealth', JSON.stringify(failed))
       const held = host.read(failed.filename)
       candidate = held.target.id
       assert.equal((await info(sourceId)).State.Running, false)

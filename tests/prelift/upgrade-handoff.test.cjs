@@ -75,3 +75,17 @@ test('password rotation, founder removal and revoked founder authority invalidat
       code: 'upgradeHandoffRejected'
     })
   }))
+
+test('native founder authority handles SQLite text booleans and rejects false or unknown text', () =>
+  fixture(({ db, options, grant }) => {
+    for (const value of ['1', '1.0', 'true']) {
+      db.prepare('UPDATE users SET is_genesis_user=? WHERE id=1').run(value)
+      assert.equal(handoff.verify({ ...options, grant }).actorUserId, 1)
+    }
+    for (const value of ['0', '0.0', 'false', 'unknown', '', 2, null]) {
+      db.prepare('UPDATE users SET is_genesis_user=? WHERE id=1').run(value)
+      assert.throws(() => handoff.verify({ ...options, grant }), {
+        code: 'upgradeHandoffRejected'
+      })
+    }
+  }))

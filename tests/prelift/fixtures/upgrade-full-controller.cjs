@@ -45,7 +45,31 @@ async function main() {
         })
     result = { success: true, ...result }
   } catch (error) {
-    result = { success: false, code: error.code, filename: error.filename }
+    const probes = {}
+    for (const [name, filename] of [
+      ['hostNamespace', '/slipway-host/proc/1/ns/pid'],
+      ['nativeNamespace', '/proc/self/ns/pid'],
+      ['hostData', '/slipway-host' + input.reviewed?.sourceDirectory]
+    ]) {
+      try {
+        fs.statSync(filename)
+        probes[name] = 'readable'
+      } catch (nativeError) {
+        probes[name] = ['EACCES', 'EPERM', 'ENOENT'].includes(nativeError.code)
+          ? nativeError.code
+          : 'unconfirmed'
+      }
+    }
+    const saved = error.filename ? host.read(error.filename) : null
+    result = {
+      success: false,
+      code: error.code,
+      filename: error.filename,
+      probes,
+      storageStaged: Boolean(saved?.stage),
+      backupsVerified: Boolean(saved?.backupSet),
+      receiptsPrepared: Boolean(saved?.handle)
+    }
   }
   fs.writeFileSync(input.output, JSON.stringify(result), {
     mode: 0o600,

@@ -90,7 +90,7 @@ function verify({
       .get(claims.actorUserId)
     if (
       !actor ||
-      !actor.is_genesis_user ||
+      ![1, '1', '1.0', 'true'].includes(actor.is_genesis_user) ||
       actor.auth_version !== claims.authVersion
     )
       fail()
