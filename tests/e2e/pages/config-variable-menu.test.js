@@ -110,6 +110,43 @@ test(
         if (phase !== 'before') {
           const kind = surface.getByRole('combobox', { name: 'Value type' })
           await expect(kind).toBeFocused()
+          if (phase !== 'baseline-fields') {
+            for (const control of [
+              kind,
+              surface.getByRole('combobox', { name: 'Preview environments' }),
+              surface.getByRole('textbox', { name: /Description/ })
+            ]) {
+              const borders = await control.evaluate((element) => {
+                const style = getComputedStyle(element)
+                return {
+                  bottom: style.borderBottomStyle,
+                  width: style.borderBottomWidth,
+                  top: style.borderTopWidth,
+                  left: style.borderLeftWidth,
+                  right: style.borderRightWidth,
+                  background: style.backgroundColor,
+                  radius: style.borderTopLeftRadius
+                }
+              })
+              expect(borders).toEqual({
+                bottom: 'dashed',
+                width: '1px',
+                top: '0px',
+                left: '0px',
+                right: '0px',
+                background: 'rgba(0, 0, 0, 0)',
+                radius: '0px'
+              })
+              await control.focus()
+              expect(
+                await control.evaluate(
+                  (element) => getComputedStyle(element).borderBottomStyle
+                )
+              ).toBe('dashed')
+            }
+            await kind.focus()
+          }
+
           await page.raw.keyboard.press('Space')
           await expect(
             page.raw.getByRole('option', { name: 'Plain config', exact: true })
@@ -155,9 +192,16 @@ test(
           await page.raw.keyboard.press('Space')
           await expect(surface).toBeVisible()
           await expect(description).toHaveValue('Local review description')
-          const geometry = await surface.boundingBox()
-          expect(geometry.x >= 0 && geometry.x + geometry.width <= width).toBe(
-            true
+          await page.raw.waitForFunction(
+            ({ label, width }) => {
+              const element = [
+                ...document.querySelectorAll('[role="dialog"]')
+              ].find((item) => item.getAttribute('aria-label') === label)
+              if (!element) return false
+              const geometry = element.getBoundingClientRect()
+              return geometry.x >= 0 && geometry.right <= width
+            },
+            { label: 'Configure REVIEW_TOKEN', width }
           )
         }
         await page.screenshot(path.join(root, `${width}-${scheme}.png`), {
