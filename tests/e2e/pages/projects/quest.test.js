@@ -3031,3 +3031,101 @@ test(
     }
   }
 )
+
+test(
+  'Quest filters use established Slipway fields with visible focus and keyboard filtering',
+  {
+    browser: true,
+    world: {
+      name: 'configured-slipway',
+      context: {
+        deploymentTarget: {
+          slug: 'quest-filter-fields',
+          name: 'Northstar Commerce'
+        }
+      }
+    }
+  },
+  async (context) => {
+    const { page, login, world, expect } = context
+    const state = await installQuestFixture(context)
+    try {
+      await login.withPassword('genesisUser', page, {
+        password: world.current.auth.genesisUserPassword
+      })
+      await page.raw.waitForURL('**/')
+      await page.goto(state.projectPath)
+      const search = page.raw.getByRole('searchbox', {
+        name: 'Search jobs',
+        exact: true
+      })
+      const filter = page.raw.getByRole('combobox', {
+        name: 'Filter jobs by state',
+        exact: true
+      })
+      const phase = process.env.SLIPWAY_QUEST_FILTER_CAPTURE_PHASE || 'after'
+      for (const width of [1440, 390]) {
+        await page.resize(width, 900)
+        for (const scheme of ['light', 'dark']) {
+          if (scheme === 'dark') await page.inDarkMode()
+          else await page.inLightMode()
+          await search.focus()
+          await expect(search).toBeFocused()
+          const style = await search.evaluate((element) => {
+            const style = getComputedStyle(element)
+            return {
+              top: style.borderTopWidth,
+              left: style.borderLeftWidth,
+              right: style.borderRightWidth,
+              bottom: style.borderBottomWidth,
+              bottomStyle: style.borderBottomStyle,
+              borderColor: style.borderBottomColor,
+              outlineStyle: style.outlineStyle,
+              radius: style.borderRadius
+            }
+          })
+          if (phase === 'after') {
+            expect(style.top).toBe('0px')
+            expect(style.left).toBe('0px')
+            expect(style.right).toBe('0px')
+            expect(style.bottom).toBe('1px')
+            expect(style.bottomStyle).toBe('dashed')
+            expect(style.borderColor).toBe('rgb(2, 132, 199)')
+            expect(style.outlineStyle).toBe('none')
+            expect(style.radius).toBe('0px')
+          }
+          await page.screenshot(
+            `.tmp/sounding/artifacts/quest-filter-review/${phase}-${width}-${scheme}.png`
+          )
+          const box = await search.boundingBox()
+          expect(box.width > 100 && box.x + box.width <= width).toBe(true)
+          await search.fill('catalog')
+          await expect(
+            page.raw.locator('[data-test="quest-job-row"]')
+          ).toHaveCount(1)
+          await search.fill('')
+        }
+      }
+      await filter.focus()
+      await filter.press('Enter')
+      await expect(page.raw.getByRole('listbox')).toBeVisible()
+      await filter.press('p')
+      await filter.press('Enter')
+      await expect(page.raw.locator('[data-test="quest-job-row"]')).toHaveCount(
+        1
+      )
+      await expect(filter).toContainText('Paused')
+      await expect(filter).toBeFocused()
+      // This synthetic fixture intentionally blocks development HMR sockets.
+      expect(page).toHaveNoJavascriptErrors()
+      expect(state.unexpectedRequests).toEqual([])
+      expect(
+        page.consoleErrors.filter(
+          (entry) => !/rsbuild|WebSocket connection/.test(entry.text)
+        )
+      ).toEqual([])
+    } finally {
+      state.restore()
+    }
+  }
+)
