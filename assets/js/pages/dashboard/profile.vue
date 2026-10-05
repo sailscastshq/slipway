@@ -4,8 +4,10 @@ import SidebarOpen from '@/components/ui/icons/SidebarOpen.vue'
 import SidebarClose from '@/components/ui/icons/SidebarClose.vue'
 import ExternalLink from '@/components/ui/icons/ExternalLink.vue'
 import Input from '@/components/ui/input/Input.vue'
+import Avatar from '@/components/ui/avatar/Avatar.vue'
+import FileUpload from '@/components/ui/file-upload/FileUpload.vue'
 import { Link, Head, usePage, useForm, router } from '@inertiajs/vue3'
-import { inject, ref } from 'vue'
+import { computed, inject, ref } from 'vue'
 import AppLayout from '@/layouts/AppLayout.vue'
 import ConfirmModal from '@/components/ConfirmModal.vue'
 import { useToast } from '@/composables/toast'
@@ -20,11 +22,41 @@ const toggleSidebar = inject('toggleSidebar')
 const sidebarCollapsed = inject('sidebarCollapsed')
 
 const toast = useToast()
-const loggedInUser = usePage().props.loggedInUser
+const props = defineProps({ uploadsConfigured: Boolean })
+const page = usePage()
+const loggedInUser = computed(() => page.props.loggedInUser)
+const photoForm = useForm({ photo: null })
+function validatePhoto(file) {
+  if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type))
+    return 'Choose a PNG, JPEG or WebP photo.'
+  if (file.size > 5 * 1024 * 1024) return 'Photo must be smaller than 5 MB.'
+}
+function rejectPhoto(rejection) {
+  photoForm.setError(
+    'photo',
+    rejection.reason === 'accept'
+      ? 'Choose a PNG, JPEG or WebP photo.'
+      : rejection.message || 'The photo was rejected.'
+  )
+}
+function uploadPhoto() {
+  if (!photoForm.photo) return
+  photoForm.post('/profile/photo', {
+    forceFormData: true,
+    preserveScroll: true,
+    onSuccess: () => {
+      photoForm.reset()
+      toast({ message: 'Profile photo updated', type: 'success' })
+    },
+    onError: () => {
+      photoForm.photo = null
+    }
+  })
+}
 
 const form = useForm({
-  email: loggedInUser.email,
-  fullName: loggedInUser.fullName,
+  email: loggedInUser.value.email,
+  fullName: loggedInUser.value.fullName,
   currentPassword: '',
   password: '',
   confirmPassword: ''
@@ -127,6 +159,66 @@ function logout() {
     <!-- Content -->
     <div class="flex-1 overflow-y-auto px-4 py-6 sm:px-8 sm:py-8">
       <div class="mx-auto max-w-2xl space-y-10">
+        <section aria-labelledby="profile-photo-heading">
+          <h2
+            id="profile-photo-heading"
+            class="text-sm font-medium text-gray-900 dark:text-white"
+          >
+            Profile photo
+          </h2>
+          <FileUpload
+            v-model="photoForm.photo"
+            accept="image/png,image/jpeg,image/webp"
+            :disabled="photoForm.processing || !props.uploadsConfigured"
+            :validate="validatePhoto"
+            @change="uploadPhoto"
+            @reject="rejectPhoto"
+            v-slot="upload"
+          >
+            <div class="mt-4 flex items-center gap-4">
+              <Avatar
+                data-test="profile-photo-avatar"
+                :src="loggedInUser.photoUrl || ''"
+                :alt="`${loggedInUser.fullName} profile photo`"
+                class="bg-brand h-16 w-16 rounded-full text-lg font-medium text-white"
+                >{{ loggedInUser.initials }}</Avatar
+              >
+              <div>
+                <button
+                  type="button"
+                  :disabled="photoForm.processing || !props.uploadsConfigured"
+                  @click="upload.choose"
+                  class="min-h-11 focus-visible:outline-brand rounded-md bg-gray-100 px-3 py-2 text-sm text-gray-900 focus-visible:outline focus-visible:outline-2 disabled:opacity-50 dark:bg-gray-800 dark:text-white"
+                >
+                  {{
+                    photoForm.processing
+                      ? 'Uploading…'
+                      : loggedInUser.photoUrl
+                      ? 'Change photo'
+                      : 'Upload photo'
+                  }}
+                </button>
+                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  PNG, JPEG or WebP. Up to 5 MB.
+                </p>
+                <p
+                  v-if="!props.uploadsConfigured"
+                  class="mt-1 text-xs text-gray-500 dark:text-gray-400"
+                >
+                  Photo uploads need configured file storage.
+                </p>
+              </div>
+            </div>
+          </FileUpload>
+          <p
+            v-if="photoForm.errors.photo"
+            role="alert"
+            class="mt-2 text-sm text-red-600 dark:text-red-400"
+          >
+            {{ photoForm.errors.photo }}
+          </p>
+        </section>
+
         <!-- Profile Info -->
         <form @submit.prevent="updateProfile" class="space-y-2">
           <div class="py-2">

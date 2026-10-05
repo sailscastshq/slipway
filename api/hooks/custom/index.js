@@ -92,7 +92,10 @@ module.exports = function defineCustomHook(sails) {
                       membershipStatus: item.status
                     }))
 
-                  return { ...user, ownedTeams }
+                  const photo = await require('../../lib/profile-photo').get(
+                    user.id
+                  )
+                  return { ...user, ownedTeams, photoUrl: photo?.url || '' }
                 }, null)
               )
 
