@@ -110,6 +110,7 @@ test(
             console.log(
               JSON.stringify({
                 fixtureFenceFailure: error.code || 'unknown',
+                reason: error.reason,
                 datastores: input.targets.map((item) => item.datastore),
                 hasWorker: Boolean(input.worker?.workerPid)
               })

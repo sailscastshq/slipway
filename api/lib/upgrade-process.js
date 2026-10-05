@@ -3,12 +3,17 @@ const fs = require('node:fs')
 const { fork } = require('node:child_process')
 
 const codes = require('./upgrade-error-codes')
+const fenceReasons = require('./upgrade-fence-reasons')
 const limit = 1024 * 1024
-function failure(code) {
+function failure(code, reason) {
   return Object.assign(
     new Error('Upgrade worker requires recovery inspection.'),
     {
-      code
+      code,
+      reason:
+        code === 'upgradeFenceUnproved' && fenceReasons.has(reason)
+          ? reason
+          : undefined
     }
   )
 }
@@ -54,10 +59,10 @@ function createSupervisor(worker) {
       let responded = false
       let stopping = false
       const requests = new Set()
-      const stop = (code) => {
+      const stop = (code, reason) => {
         if (stopping) return
         stopping = true
-        error ||= failure(code)
+        error ||= failure(code, reason)
         try {
           if (process.platform === 'win32') child.kill('SIGKILL')
           else process.kill(-child.pid, 'SIGKILL')
@@ -83,7 +88,7 @@ function createSupervisor(worker) {
             codes.has(message.code) &&
             !responded
           ) {
-            error = failure(message.code)
+            error = failure(message.code, message.reason)
             return
           }
           if (message?.type === 'result' && !responded) {
@@ -113,7 +118,8 @@ function createSupervisor(worker) {
           stop(
             codes.has(callbackError?.code)
               ? callbackError.code
-              : 'upgradeWorkerCallback'
+              : 'upgradeWorkerCallback',
+            callbackError?.reason
           )
         }
       })

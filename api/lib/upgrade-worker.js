@@ -1,6 +1,7 @@
 // No Sails lift, environment configuration, ORM or application jobs here.
 const registry = require('./upgrade-registry')
 const codes = require('./upgrade-error-codes')
+const fenceReasons = require('./upgrade-fence-reasons')
 const coordinator = require('./upgrade-coordinator')
 const preflight = require('./upgrade-preflight')
 const backups = require('./upgrade-backups')
@@ -73,6 +74,10 @@ process.on('message', async (message) => {
     // Exception text may contain SQL, paths or application data. The caller
     // inspects the durable ledger/journal instead of receiving raw messages.
     const code = codes.has(error.code) ? error.code : 'upgradeWorkerFailed'
-    process.send({ type: 'failure', code }, () => process.exit(1))
+    const reason =
+      code === 'upgradeFenceUnproved' && fenceReasons.has(error.reason)
+        ? error.reason
+        : undefined
+    process.send({ type: 'failure', code, reason }, () => process.exit(1))
   }
 })

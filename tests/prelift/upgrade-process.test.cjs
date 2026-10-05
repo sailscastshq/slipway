@@ -172,16 +172,25 @@ test('callback failures expose only approved machine codes and reap the worker',
   )
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'upgrade-callback-'))
   try {
-    for (const [thrown, expected] of [
+    for (const [thrown, expected, expectedReason] of [
       [
         Object.assign(new Error('fixture-secret'), {
-          code: 'upgradeFenceUnproved'
+          code: 'upgradeFenceUnproved',
+          reason: 'openHandle'
         }),
-        'upgradeFenceUnproved'
+        'upgradeFenceUnproved',
+        'openHandle'
       ],
       [
         Object.assign(new Error('fixture-secret'), { code: 'fixture-secret' }),
         'upgradeWorkerCallback'
+      ],
+      [
+        Object.assign(new Error('fixture-secret'), {
+          code: 'upgradeFenceUnproved',
+          reason: 'fixture-secret'
+        }),
+        'upgradeFenceUnproved'
       ],
       [null, 'upgradeWorkerCallback']
     ]) {
@@ -196,7 +205,10 @@ test('callback failures expose only approved machine codes and reap the worker',
           }
         }),
         (error) =>
-          error.code === expected && !error.message.includes('fixture-secret')
+          error.code === expected &&
+          error.reason === expectedReason &&
+          !JSON.stringify(error).includes('fixture-secret') &&
+          !error.message.includes('fixture-secret')
       )
       assert.throws(() => process.kill(Number(fs.readFileSync(started)), 0), {
         code: 'ESRCH'

@@ -3,11 +3,12 @@ const path = require('node:path')
 const { execFile } = require('node:child_process')
 const { promisify } = require('node:util')
 const execute = promisify(execFile)
-function fail() {
+function fail(reason) {
   throw Object.assign(
     new Error('All database writers could not be observed.'),
     {
-      code: 'upgradeFenceUnproved'
+      code: 'upgradeFenceUnproved',
+      reason
     }
   )
 }
@@ -64,12 +65,15 @@ async function observeWriters({
     return value
   }
   // A PID alone is insufficient: require boot and native start identity.
-  if (!sameProcess(controller, processIdentity(controller?.pid))) fail()
+  if (!sameProcess(controller, processIdentity(controller?.pid)))
+    fail('controllerIdentity')
   if (worker) {
-    if (!sameProcess(worker, processIdentity(worker.pid))) fail()
+    if (!sameProcess(worker, processIdentity(worker.pid)))
+      fail('workerIdentity')
     const stat = fs.readFileSync(`/proc/${worker.pid}/stat`, 'utf8')
     const parent = Number(stat.slice(stat.lastIndexOf(')') + 2).split(' ')[1])
-    if (parent !== controller.pid || worker.boot !== controller.boot) fail()
+    if (parent !== controller.pid || worker.boot !== controller.boot)
+      fail('workerParent')
   }
   const targets = databases.map((database) => {
     const filename = fs.realpathSync(database.path)
@@ -90,12 +94,12 @@ async function observeWriters({
       remaining()
       const filename = path.join(directory, name)
       const stat = fs.lstatSync(filename, { bigint: true })
-      if (stat.isSymbolicLink()) fail()
+      if (stat.isSymbolicLink()) fail('storageTopology')
       if (stat.isDirectory()) inventoryStorage(filename)
       else if (stat.isFile()) {
         if (extraFiles.length >= 100000) fail()
         extraFiles.push(stat)
-      } else fail()
+      } else fail('storageTopology')
     }
   }
   if (!Array.isArray(storageDirectories) || storageDirectories.length > 8)
@@ -148,7 +152,7 @@ async function observeWriters({
         state.restarting ||
         state.restart !== 'no'
       )
-        fail()
+        fail('activeContainer')
       continue
     }
     const relevant = state.mounts.some((mount) => {
@@ -169,7 +173,7 @@ async function observeWriters({
         state.restarting ||
         state.restart !== 'no'
       )
-        fail()
+        fail('activeContainer')
       containers.push(state.id)
     }
   }
@@ -185,7 +189,7 @@ async function observeWriters({
         remaining()
         try {
           if (matches(fs.statSync(`/proc/${pid}/fd/${fd}`, { bigint: true })))
-            fail()
+            fail('openHandle')
         } catch (error) {
           if (error.code !== 'ENOENT') throw error
         }
@@ -208,11 +212,16 @@ async function observeWriters({
             )
           })
         )
-          fail()
+          fail('memoryMapping')
       }
-      if (!sameProcess(before, processIdentity(pid))) fail()
+      if (!sameProcess(before, processIdentity(pid))) fail('processChanged')
     } catch (error) {
-      if (error.code !== 'ENOENT' && error.code !== 'ESRCH') fail()
+      if (error.code !== 'ENOENT' && error.code !== 'ESRCH')
+        fail(
+          error.code === 'upgradeFenceUnproved'
+            ? error.reason
+            : 'procUnobservable'
+        )
     }
   }
   // Recheck the full inventory: a new container during observation blocks.
@@ -220,7 +229,8 @@ async function observeWriters({
     .trim()
     .split(/\s+/)
     .filter(Boolean)
-  if (JSON.stringify(ids.sort()) !== JSON.stringify(finalIds.sort())) fail()
+  if (JSON.stringify(ids.sort()) !== JSON.stringify(finalIds.sort()))
+    fail('inventoryChanged')
   for (const state of inventory) {
     const current = JSON.parse(
       await docker(
@@ -230,7 +240,8 @@ async function observeWriters({
         state.id
       )
     )
-    if (JSON.stringify(current) !== JSON.stringify(state)) fail()
+    if (JSON.stringify(current) !== JSON.stringify(state))
+      fail('inventoryChanged')
   }
   return {
     writersStopped: true,
