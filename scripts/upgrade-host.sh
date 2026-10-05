@@ -28,7 +28,7 @@ if [ "$(id -u)" != 0 ] || [ "$(uname -s)" != Linux ] || [[ ! "$image" =~ ^ghcr\.
   printf '%s\n' '{"success":false,"code":"upgradeHostEnvironment"}' >&2
   exit 2
 fi
-if [ "$operation" != plan ] && { [ -z "$instance" ] || [ -z "$approval" ]; }; then
+if { [ "$operation" = apply ] || [ "$operation" = resume ]; } && { [ -z "$instance" ] || [ -z "$approval" ]; }; then
   printf '%s\n' '{"success":false,"code":"upgradeHostApproval"}' >&2
   exit 2
 fi

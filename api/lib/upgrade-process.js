@@ -109,8 +109,12 @@ function createSupervisor(worker) {
               return stop('upgradeWorkerOutput')
             child.send({ type: 'reply', id: message.id, value: value ?? null })
           }
-        } catch {
-          stop('upgradeWorkerCallback')
+        } catch (callbackError) {
+          stop(
+            codes.has(callbackError?.code)
+              ? callbackError.code
+              : 'upgradeWorkerCallback'
+          )
         }
       })
       const finish = () => {

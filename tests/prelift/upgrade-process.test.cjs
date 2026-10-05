@@ -166,6 +166,47 @@ test('output bounds and hung fence callbacks terminate and reap the owned worker
     fs.rmSync(directory, { recursive: true, force: true })
   }
 })
+test('callback failures expose only approved machine codes and reap the worker', async () => {
+  const supervise = createSupervisor(
+    path.join(__dirname, 'fixtures/worker-protocol.cjs')
+  )
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'upgrade-callback-'))
+  try {
+    for (const [thrown, expected] of [
+      [
+        Object.assign(new Error('fixture-secret'), {
+          code: 'upgradeFenceUnproved'
+        }),
+        'upgradeFenceUnproved'
+      ],
+      [
+        Object.assign(new Error('fixture-secret'), { code: 'fixture-secret' }),
+        'upgradeWorkerCallback'
+      ],
+      [null, 'upgradeWorkerCallback']
+    ]) {
+      const started = path.join(directory, expected + Math.random())
+      await assert.rejects(
+        supervise({
+          operation: 'fixture',
+          input: { mode: 'callback', started },
+          timeoutMs: 2000,
+          verifyFence: () => {
+            throw thrown
+          }
+        }),
+        (error) =>
+          error.code === expected && !error.message.includes('fixture-secret')
+      )
+      assert.throws(() => process.kill(Number(fs.readFileSync(started)), 0), {
+        code: 'ESRCH'
+      })
+    }
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true })
+  }
+})
+
 test(
   'Linux guardian stops native work after its controlling process is killed',
   { skip: process.platform !== 'linux', timeout: 10000 },

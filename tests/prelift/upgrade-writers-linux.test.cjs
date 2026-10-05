@@ -66,7 +66,7 @@ test(
         { stdio: 'ignore' }
       )
       await ready(marker)
-      await assert.rejects(observe(), { code: 'upgradeWorkerFailed' })
+      await assert.rejects(observe(), { code: 'upgradeFenceUnproved' })
       const exited = once(writer, 'exit')
       writer.kill('SIGKILL')
       await exited
@@ -84,7 +84,7 @@ test(
         { stdio: 'ignore' }
       )
       await ready(marker)
-      await assert.rejects(observe(), { code: 'upgradeWorkerFailed' })
+      await assert.rejects(observe(), { code: 'upgradeFenceUnproved' })
       const replaced = once(writer, 'exit')
       writer.kill('SIGKILL')
       await replaced
@@ -101,7 +101,7 @@ test(
           { stdio: 'ignore' }
         )
         await ready(marker)
-        await assert.rejects(observe(), { code: 'upgradeWorkerFailed' })
+        await assert.rejects(observe(), { code: 'upgradeFenceUnproved' })
         const released = once(writer, 'exit')
         writer.kill('SIGKILL')
         await released
@@ -119,13 +119,13 @@ test(
         'const fs=require("fs");const fd=fs.openSync("/fixture/app.db","r+");setInterval(()=>fs.fsyncSync(fd),100)'
       )
       containers.push(id)
-      await assert.rejects(observe(), { code: 'upgradeWorkerFailed' })
+      await assert.rejects(observe(), { code: 'upgradeFenceUnproved' })
       docker('pause', id)
-      await assert.rejects(observe(), { code: 'upgradeWorkerFailed' })
+      await assert.rejects(observe(), { code: 'upgradeFenceUnproved' })
       docker('unpause', id)
       docker('stop', '-t', '1', id)
       // Stopping alone does not disable daemon restart after a host reboot.
-      await assert.rejects(observe(), { code: 'upgradeWorkerFailed' })
+      await assert.rejects(observe(), { code: 'upgradeFenceUnproved' })
       docker('update', '--restart=no', id)
       const stopped = await observe()
       assert.deepEqual(stopped.stoppedContainers, [id])
@@ -141,7 +141,7 @@ test(
         'setInterval(()=>{},100)'
       )
       containers.push(replacement)
-      await assert.rejects(observe(), { code: 'upgradeWorkerFailed' })
+      await assert.rejects(observe(), { code: 'upgradeFenceUnproved' })
       docker('stop', '-t', '1', replacement)
       assert.equal((await observe()).writersStopped, true)
       await assert.rejects(
@@ -153,7 +153,7 @@ test(
           },
           timeoutMs: 20000
         }),
-        { code: 'upgradeWorkerFailed' }
+        { code: 'upgradeFenceUnproved' }
       )
       await assert.rejects(
         runBounded({
@@ -161,7 +161,7 @@ test(
           input: { ...input, hostPidNamespace: 'wrong-namespace' },
           timeoutMs: 20000
         }),
-        { code: 'upgradeWorkerFailed' }
+        { code: 'upgradeFenceUnproved' }
       )
       // Exercise real observations before backup and each live COMMIT. The
       // fixture alone supplies exclusive launch ownership; this is not a

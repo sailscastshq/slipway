@@ -100,6 +100,23 @@ test(
             Cmd: ['node', 'tests/prelift/fixtures/upgrade-ready-server.cjs']
           }
         })
+        const verifyFence = driver.verifyFence
+        driver.verifyFence = async (input) => {
+          try {
+            return await verifyFence(input)
+          } catch (error) {
+            // Fixture diagnostics are machine codes/phase only, never Docker
+            // configuration, exception messages, SQL or copied file contents.
+            console.log(
+              JSON.stringify({
+                fixtureFenceFailure: error.code || 'unknown',
+                datastores: input.targets.map((item) => item.datastore),
+                hasWorker: Boolean(input.worker?.workerPid)
+              })
+            )
+            throw error
+          }
+        }
         const realHealth = driver.health
         driver.health = async () => ({ ready: false })
         let failed
@@ -115,6 +132,18 @@ test(
         } catch (error) {
           failed = error
         }
+        if (failed?.code !== 'upgradeHostHealth')
+          console.log(
+            JSON.stringify({
+              fixtureHostFailure: failed?.code,
+              phase: failed?.filename
+                ? host.status(failed.filename).phase
+                : 'unrecorded',
+              migration: failed?.filename
+                ? host.status(failed.filename).migration?.phase
+                : null
+            })
+          )
         assert.equal(failed.code, 'upgradeHostHealth')
         const held = host.read(failed.filename)
         targetId = held.target.id
