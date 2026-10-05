@@ -5,8 +5,9 @@ set -euo pipefail
 version="${1:?Pass 0.0.86 or 0.0.87}"
 output="${2:?Pass an output filename}"
 seed_version="${3:-$version}"
+target_image="${4:-}"
 case "$version" in 0.0.86|0.0.87) ;; *) exit 2 ;; esac
-case "$seed_version" in 0.0.86|0.0.87) ;; *) exit 2 ;; esac
+case "$seed_version" in 0.0.86|0.0.87|current) ;; *) exit 2 ;; esac
 root="$(git rev-parse --show-toplevel)"
 suffix="${GITHUB_RUN_ID:-local}-$$"
 container="slipway-baseline-${suffix}"
@@ -17,12 +18,21 @@ cleanup() {
   docker volume rm "$volume" "$apps" >/dev/null 2>&1 || true
 }
 trap cleanup EXIT
-image="ghcr.io/sailscastshq/slipway:${version}"
-docker pull "$image" >/dev/null
-identity="$(docker image inspect --format '{{index .RepoDigests 0}}' "$image")"
-seed_image="ghcr.io/sailscastshq/slipway:${seed_version}"
-docker pull "$seed_image" >/dev/null
-seed_identity="$(docker image inspect --format '{{index .RepoDigests 0}}' "$seed_image")"
+if [ -n "$target_image" ]; then
+  identity="$(docker image inspect --format '{{.Id}}' "$target_image")"
+else
+  image="ghcr.io/sailscastshq/slipway:${version}"
+  docker pull "$image" >/dev/null
+  identity="$(docker image inspect --format '{{index .RepoDigests 0}}' "$image")"
+fi
+if [ "$seed_version" = current ]; then
+  if [ -z "$target_image" ]; then exit 2; fi
+  seed_identity="$identity"
+else
+  seed_image="ghcr.io/sailscastshq/slipway:${seed_version}"
+  docker pull "$seed_image" >/dev/null
+  seed_identity="$(docker image inspect --format '{{index .RepoDigests 0}}' "$seed_image")"
+fi
 docker volume create "$volume" >/dev/null
 docker volume create "$apps" >/dev/null
 # Synthetic fixture settings are not real account credentials. The legacy

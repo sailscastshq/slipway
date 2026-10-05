@@ -322,6 +322,24 @@ jobs:
           path: baseline.json
           if-no-files-found: error
 
+  upgrade-fresh-baseline:
+    name: Native current fresh install baseline
+    timeout-minutes: 20
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Build the exact current image
+        run: docker build -t slipway-upgrade-baseline .
+      - name: Capture a stopped fresh current installation
+        run: bash tests/prelift/capture-release-baseline.sh 0.0.87 baseline.json current slipway-upgrade-baseline
+      - uses: actions/upload-artifact@v4
+        with:
+          name: upgrade-baseline-current-fresh
+          path: baseline.json
+          if-no-files-found: error
+
   migration-prelift:
     name: Migration engine before ORM lift
     timeout-minutes: 5

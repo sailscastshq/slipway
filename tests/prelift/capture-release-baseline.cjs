@@ -9,7 +9,7 @@ const [directory, version, image] = process.argv.slice(2)
 if (
   !directory ||
   !/^0\.0\.(86|87)$/.test(version || '') ||
-  !/^.+@sha256:[a-f0-9]{64}$/.test(image || '')
+  !/^(?:.+@)?sha256:[a-f0-9]{64}$/.test(image || '')
 )
   throw new Error('Baseline capture requires an exact supported release image.')
 const databases = {}
