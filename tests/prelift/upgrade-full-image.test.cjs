@@ -39,6 +39,92 @@ async function healthy(id) {
   }
   throw new Error('Disposable full-image readiness was not confirmed')
 }
+async function runController({
+  input,
+  containers,
+  directory,
+  image,
+  sourceId,
+  original
+}) {
+  const name =
+    'slipway-full-controller-' + containers.length + '-' + process.pid
+  const request = path.join(
+      directory,
+      'request-' + containers.length + '.json'
+    ),
+    output = path.join(directory, 'result-' + containers.length + '.json')
+  fs.writeFileSync(
+    request,
+    JSON.stringify({
+      ...input,
+      directory,
+      image,
+      containerId: sourceId,
+      controller: name,
+      output
+    }),
+    { mode: 0o600 }
+  )
+  const created = await docker('POST', `/containers/create?name=${name}`, {
+    Image: image,
+    Entrypoint: ['node'],
+    Cmd: ['/fixture/controller.cjs', request],
+    WorkingDir: '/app',
+    Tty: true,
+    HostConfig: {
+      NetworkMode: 'none',
+      PidMode: 'host',
+      CapAdd: ['SYS_PTRACE'],
+      RestartPolicy: { Name: 'no' },
+      Mounts: [
+        {
+          Type: 'bind',
+          Source: '/',
+          Target: '/slipway-host',
+          ReadOnly: true,
+          BindOptions: { Propagation: 'rslave' }
+        },
+        { Type: 'bind', Source: directory, Target: directory },
+        {
+          Type: 'bind',
+          Source: original,
+          Target: original,
+          ReadOnly: true
+        },
+        {
+          Type: 'bind',
+          Source: '/var/run/docker.sock',
+          Target: '/var/run/docker.sock'
+        },
+        {
+          Type: 'bind',
+          Source: path.resolve(
+            __dirname,
+            'fixtures/upgrade-full-controller.cjs'
+          ),
+          Target: '/fixture/controller.cjs',
+          ReadOnly: true
+        }
+      ]
+    }
+  })
+  containers.push(created.Id)
+  await docker('POST', `/containers/${created.Id}/start`)
+  const exit = await docker(
+    'POST',
+    `/containers/${created.Id}/wait?condition=not-running`,
+    undefined,
+    240000
+  )
+  assert.equal(
+    exit.StatusCode,
+    0,
+    'Disposable trusted controller must complete its bounded protocol'
+  )
+  return JSON.parse(fs.readFileSync(output, 'utf8'))
+}
+
 test(
   'actual coordinated image preserves founder session/encryption and proves container writer fencing, failed health, resume and worker admission',
   { skip: !enabled, timeout: 720000 },
@@ -105,8 +191,8 @@ test(
       }
       sourceId = await source('development')
       const seeded = cli(
-        ['exec', '-i', sourceId, 'node'],
-        `const s=require('sails');s.lift({environment:'console',port:0,log:{level:'error'},models:{migrate:'safe',dataEncryptionKeys:{default:process.env.DATA_ENCRYPTION_KEY}}},async error=>{try{if(error)throw error;const u=await User.create({fullName:'Fixture Founder',email:'fixture@example.invalid',password:'synthetic-fixture-password',isGenesisUser:true,authVersion:'fixture-auth'}).fetch();const t=await Team.create({name:'Fixture Team',slug:'fixture-team',owner:u.id}).fetch();await User.updateOne(u.id).set({team:t.id});const p=await Project.create({name:'Fixture Project',slug:'fixture-project',team:t.id,createdBy:u.id}).fetch();const e=await Environment.create({name:'Production',slug:'production',project:p.id,isProduction:true}).fetch();await App.create({name:'Fixture',slug:'fixture',environment:e.id,secureEnvVars:{TOKEN:'fixture-only'}});process.stdout.write('FIXTURE_SEEDED');s.lower(()=>process.exit(0))}catch{process.stderr.write('FIXTURE_SEED_FAILED');process.exit(1)}})`
+        ['exec', '-e', 'PORT=13499', '-i', sourceId, 'node'],
+        `const s=require('sails');s.lift({environment:'console',port:13499,log:{level:'error'},models:{migrate:'safe',dataEncryptionKeys:{default:process.env.DATA_ENCRYPTION_KEY}}},async error=>{try{if(error)throw error;const u=await User.create({fullName:'Fixture Founder',email:'fixture@example.invalid',password:'synthetic-fixture-password',isGenesisUser:true,authVersion:'fixture-auth'}).fetch();const t=await Team.create({name:'Fixture Team',slug:'fixture-team',owner:u.id}).fetch();await User.updateOne(u.id).set({team:t.id});const p=await Project.create({name:'Fixture Project',slug:'fixture-project',team:t.id,createdBy:u.id}).fetch();const e=await Environment.create({name:'Production',slug:'production',project:p.id,isProduction:true}).fetch();await App.create({name:'Fixture',slug:'fixture',environment:e.id,secureEnvVars:{TOKEN:'fixture-only'}});process.stdout.write('FIXTURE_SEEDED');s.lower(()=>process.exit(0))}catch{process.stderr.write('FIXTURE_SEED_FAILED');process.exit(1)}})`
       )
       assert.ok(seeded.includes('FIXTURE_SEEDED'))
       await docker('POST', `/containers/${sourceId}/update`, {
@@ -174,88 +260,15 @@ test(
         containerId: sourceId,
         containerName: sourceName
       })
-      async function controller(input) {
-        const name =
-          'slipway-full-controller-' + containers.length + '-' + process.pid
-        const request = path.join(
-            directory,
-            'request-' + containers.length + '.json'
-          ),
-          output = path.join(directory, 'result-' + containers.length + '.json')
-        fs.writeFileSync(
-          request,
-          JSON.stringify({
-            ...input,
-            directory,
-            image,
-            containerId: sourceId,
-            controller: name,
-            output
-          }),
-          { mode: 0o600 }
-        )
-        const created = await docker(
-          'POST',
-          `/containers/create?name=${name}`,
-          {
-            Image: image,
-            Entrypoint: ['node'],
-            Cmd: ['/fixture/controller.cjs', request],
-            WorkingDir: '/app',
-            Tty: true,
-            HostConfig: {
-              NetworkMode: 'none',
-              PidMode: 'host',
-              CapAdd: ['SYS_PTRACE'],
-              RestartPolicy: { Name: 'no' },
-              Mounts: [
-                {
-                  Type: 'bind',
-                  Source: '/',
-                  Target: '/slipway-host',
-                  ReadOnly: true,
-                  BindOptions: { Propagation: 'rslave' }
-                },
-                { Type: 'bind', Source: directory, Target: directory },
-                {
-                  Type: 'bind',
-                  Source: original,
-                  Target: original,
-                  ReadOnly: true
-                },
-                {
-                  Type: 'bind',
-                  Source: '/var/run/docker.sock',
-                  Target: '/var/run/docker.sock'
-                },
-                {
-                  Type: 'bind',
-                  Source: path.resolve(
-                    __dirname,
-                    'fixtures/upgrade-full-controller.cjs'
-                  ),
-                  Target: '/fixture/controller.cjs',
-                  ReadOnly: true
-                }
-              ]
-            }
-          }
-        )
-        containers.push(created.Id)
-        await docker('POST', `/containers/${created.Id}/start`)
-        const exit = await docker(
-          'POST',
-          `/containers/${created.Id}/wait?condition=not-running`,
-          undefined,
-          240000
-        )
-        assert.equal(
-          exit.StatusCode,
-          0,
-          'Disposable trusted controller must complete its bounded protocol'
-        )
-        return JSON.parse(fs.readFileSync(output, 'utf8'))
-      }
+      const controller = (input) =>
+        runController({
+          input,
+          containers,
+          directory,
+          image,
+          sourceId,
+          original
+        })
       const failed = await controller({ reviewed, failHealth: true })
       assert.equal(failed.code, 'upgradeHostHealth')
       const held = host.read(failed.filename)
@@ -297,8 +310,8 @@ test(
         db.close()
       }
       const worker = cli(
-        ['exec', '-i', candidate, 'node'],
-        `const s=require('sails');s.lift({environment:'console',port:0,log:{level:'error'},models:{migrate:'safe',dataEncryptionKeys:{default:process.env.DATA_ENCRYPTION_KEY}}},async error=>{try{if(error)throw error;const app=await App.findOne({slug:'fixture'}).decrypt();if(!s.upgradeAdmission?.verified||app.secureEnvVars.TOKEN!=='fixture-only')throw Error();process.stdout.write('FIXTURE_VERIFIED_WORKER_AND_ENCRYPTION');s.lower(()=>process.exit(0))}catch{process.stderr.write('FIXTURE_WORKER_FAILED');process.exit(1)}})`
+        ['exec', '-e', 'PORT=13499', '-i', candidate, 'node'],
+        `const s=require('sails');s.lift({environment:'console',port:13499,log:{level:'error'},models:{migrate:'safe',dataEncryptionKeys:{default:process.env.DATA_ENCRYPTION_KEY}}},async error=>{try{if(error)throw error;const app=await App.findOne({slug:'fixture'}).decrypt();if(!s.upgradeAdmission?.verified||app.secureEnvVars.TOKEN!=='fixture-only')throw Error();process.stdout.write('FIXTURE_VERIFIED_WORKER_AND_ENCRYPTION');s.lower(()=>process.exit(0))}catch{process.stderr.write('FIXTURE_WORKER_FAILED');process.exit(1)}})`
       )
       assert.ok(worker.includes('FIXTURE_VERIFIED_WORKER_AND_ENCRYPTION'))
       for (const args of [
@@ -348,6 +361,114 @@ test(
           await docker('DELETE', `/containers/${id}?force=1`)
         } catch {}
       }
+      fs.rmSync(root, { recursive: true, force: true })
+    }
+  }
+)
+
+test(
+  'never-started fresh template reaches verified actual-image startup through the native engine',
+  { skip: !enabled, timeout: 360000 },
+  async () => {
+    assert.equal(process.getuid(), 0)
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'slipway-fresh-full-'))
+    const original = path.join(root, 'original'),
+      directory = path.join(root, 'upgrades'),
+      apps = path.join(root, 'apps')
+    for (const item of [original, directory, apps])
+      fs.mkdirSync(item, { mode: 0o700 })
+    const containers = [],
+      image = process.env.SLIPWAY_FULL_IMAGE
+    const name = 'slipway-fresh-full-source-' + process.pid
+    let candidate
+    try {
+      require('../../api/lib/upgrade-fresh-storage')(original)
+      const created = await docker('POST', `/containers/create?name=${name}`, {
+        Image: image,
+        Cmd: ['node', 'app.js'],
+        Labels: { 'io.slipway.install.pending': 'true' },
+        Env: [
+          'NODE_ENV=production',
+          'PORT=1337',
+          'SLIPWAY_URL=http://127.0.0.1',
+          `SESSION_SECRET=${secret}`,
+          'DATA_ENCRYPTION_KEY=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=',
+          'SLIPWAY_SETUP_TOKEN=synthetic-unused-install-claim'
+        ],
+        ExposedPorts: { '1337/tcp': {} },
+        HostConfig: {
+          NetworkMode: 'bridge',
+          RestartPolicy: { Name: 'always' },
+          PortBindings: {
+            '1337/tcp': [{ HostIp: '127.0.0.1', HostPort: '0' }]
+          },
+          Mounts: [
+            { Type: 'bind', Source: original, Target: '/app/db' },
+            { Type: 'bind', Source: apps, Target: '/var/slipway/apps' },
+            {
+              Type: 'bind',
+              Source: '/var/run/docker.sock',
+              Target: '/var/run/docker.sock'
+            }
+          ]
+        },
+        NetworkingConfig: { EndpointsConfig: { bridge: {} } }
+      })
+      containers.push(created.Id)
+      assert.equal((await info(created.Id)).State.Status, 'created')
+      const reviewed = host.plan({
+        sourceDirectory: original,
+        instanceId: 'full-fresh-fixture',
+        image,
+        sourceVersion: 'fresh',
+        containerId: created.Id,
+        containerName: name
+      })
+      const result = await runController({
+        input: { reviewed },
+        containers,
+        directory,
+        image,
+        sourceId: created.Id,
+        original
+      })
+      assert.equal(
+        result.success,
+        true,
+        JSON.stringify({ code: result.code, filename: result.filename })
+      )
+      assert.equal(result.phase, 'ready')
+      const state = host.read(result.filename)
+      candidate = state.target.id
+      const health = await healthy(candidate)
+      assert.equal(health.version, '0.0.88')
+      assert.equal(health.upgrade.verified, true)
+      assert.equal(health.upgrade.manifestHash, reviewed.identity.hash)
+      const response = await fetch((await url(candidate)) + '/setup', {
+        signal: AbortSignal.timeout(5000),
+        redirect: 'manual'
+      })
+      assert.equal(response.status, 200)
+      for (const service of host.services(original, reviewed.instanceId)) {
+        const db = new Database(service.path, { readonly: true })
+        assert.equal(
+          db
+            .prepare(
+              "SELECT count(*) AS n FROM sqlite_schema WHERE type='table'"
+            )
+            .get().n,
+          0
+        )
+        db.close()
+      }
+      assert.equal(
+        (await info(candidate)).HostConfig.RestartPolicy.Name,
+        'always'
+      )
+    } finally {
+      if (candidate) containers.push(candidate)
+      for (const id of new Set(containers))
+        await docker('DELETE', `/containers/${id}?force=1`).catch(() => {})
       fs.rmSync(root, { recursive: true, force: true })
     }
   }
