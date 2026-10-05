@@ -10,9 +10,22 @@ module.exports = {
   },
 
   fn: async function () {
+    let upgrade
+    if (process.env.SLIPWAY_UPGRADE_MARKER) {
+      try {
+        upgrade = require('../../lib/upgrade-startup').fromEnvironment(
+          sails.config.datastores
+        )
+      } catch {
+        return this.res
+          .status(503)
+          .json({ status: 'unavailable', code: 'upgradeNotReady' })
+      }
+    }
     return {
       status: 'ok',
-      version: sails.config.slipway?.version || 'unknown'
+      version: sails.config.slipway?.version || 'unknown',
+      ...(upgrade ? { upgrade } : {})
     }
   }
 }

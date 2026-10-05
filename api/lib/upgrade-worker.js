@@ -1,5 +1,6 @@
 // No Sails lift, environment configuration, ORM or application jobs here.
 const registry = require('./upgrade-registry')
+const codes = require('./upgrade-error-codes')
 const coordinator = require('./upgrade-coordinator')
 const preflight = require('./upgrade-preflight')
 const backups = require('./upgrade-backups')
@@ -50,6 +51,12 @@ process.on('message', async (message) => {
       case 'run':
         value = await coordinator.run(options)
         break
+      case 'stageStorage':
+        value = require('./upgrade-storage-stage').stageStorage(options)
+        break
+      case 'verifySource':
+        value = require('./upgrade-storage-stage').verifySource(options)
+        break
       case 'observeWriters':
         value = await require('./upgrade-writer-observer').observeWriters(
           options
@@ -62,9 +69,10 @@ process.on('message', async (message) => {
         throw new Error('Unsupported worker operation')
     }
     process.send({ type: 'result', value }, () => process.exit(0))
-  } catch {
+  } catch (error) {
     // Exception text may contain SQL, paths or application data. The caller
     // inspects the durable ledger/journal instead of receiving raw messages.
-    process.exit(1)
+    const code = codes.has(error.code) ? error.code : 'upgradeWorkerFailed'
+    process.send({ type: 'failure', code }, () => process.exit(1))
   }
 })

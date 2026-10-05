@@ -13,6 +13,9 @@
  * https://sailsjs.com/config/datastores
  */
 
+// Sails CLI/console loads configuration before ORM hooks initialize.
+require('../api/lib/upgrade-startup').fromEnvironment()
+
 module.exports.datastores = {
   /***************************************************************************
    *                                                                          *

@@ -2,6 +2,7 @@ const path = require('node:path')
 const fs = require('node:fs')
 const { fork } = require('node:child_process')
 
+const codes = require('./upgrade-error-codes')
 const limit = 1024 * 1024
 function failure(code) {
   return Object.assign(
@@ -51,10 +52,12 @@ function createSupervisor(worker) {
       let error
       let outputBytes = 0
       let responded = false
+      let stopping = false
       const requests = new Set()
       const stop = (code) => {
-        if (error) return
-        error = failure(code)
+        if (stopping) return
+        stopping = true
+        error ||= failure(code)
         try {
           if (process.platform === 'win32') child.kill('SIGKILL')
           else process.kill(-child.pid, 'SIGKILL')
@@ -75,6 +78,14 @@ function createSupervisor(worker) {
           if (error) return
           if (Buffer.byteLength(JSON.stringify(message)) > limit)
             return stop('upgradeWorkerOutput')
+          if (
+            message?.type === 'failure' &&
+            codes.has(message.code) &&
+            !responded
+          ) {
+            error = failure(message.code)
+            return
+          }
           if (message?.type === 'result' && !responded) {
             responded = true
             result = message.value

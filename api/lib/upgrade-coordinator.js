@@ -203,10 +203,15 @@ async function run({
   audit = async () => {},
   afterCheckpoint = async () => {},
   expectedInstanceId,
-  expectedManifestHash
+  expectedManifestHash,
+  actor = { id: 0, team: 0 }
 }) {
   if (
     !owner ||
+    !Number.isSafeInteger(actor?.id) ||
+    actor.id < 0 ||
+    !Number.isSafeInteger(actor?.team) ||
+    actor.team < 0 ||
     typeof verifyFence !== 'function' ||
     typeof preparePlan !== 'function' ||
     !Number.isSafeInteger(timeoutMs) ||
@@ -359,6 +364,7 @@ async function run({
         fenceId: state.fenceId,
         remaining,
         audit,
+        actor,
         beforeCommit: async () => {
           await fence()
         }

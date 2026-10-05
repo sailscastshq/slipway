@@ -43,6 +43,8 @@ async function observeWriters({
   controller,
   hostPidNamespace,
   worker,
+  controllerContainer,
+  storageDirectories = [],
   timeoutMs = 10000
 }) {
   if (process.platform !== 'linux' || process.getuid() !== 0) fail()
@@ -81,11 +83,32 @@ async function observeWriters({
     new Set(targets.map((item) => item.filename)).size !== targets.length
   )
     fail()
+  const extraFiles = []
+  function inventoryStorage(directory) {
+    remaining()
+    for (const name of fs.readdirSync(directory)) {
+      remaining()
+      const filename = path.join(directory, name)
+      const stat = fs.lstatSync(filename, { bigint: true })
+      if (stat.isSymbolicLink()) fail()
+      if (stat.isDirectory()) inventoryStorage(filename)
+      else if (stat.isFile()) {
+        if (extraFiles.length >= 100000) fail()
+        extraFiles.push(stat)
+      } else fail()
+    }
+  }
+  if (!Array.isArray(storageDirectories) || storageDirectories.length > 8)
+    fail()
+  for (const directory of storageDirectories)
+    inventoryStorage(fs.realpathSync(directory))
+  const protectedFiles = [
+    ...targets.flatMap((target) => target.files),
+    ...extraFiles
+  ]
   const matches = (stat) =>
-    targets.some((target) =>
-      target.files.some(
-        (file) => file.dev === stat.dev && file.ino === stat.ino
-      )
+    protectedFiles.some(
+      (file) => file.dev === stat.dev && file.ino === stat.ino
     )
   async function docker(...args) {
     try {
@@ -112,12 +135,24 @@ async function observeWriters({
       await docker(
         'inspect',
         '--format',
-        '{"id":{{json .Id}},"running":{{json .State.Running}},"paused":{{json .State.Paused}},"restarting":{{json .State.Restarting}},"restart":{{json .HostConfig.RestartPolicy.Name}},"mounts":{{json .Mounts}}}',
+        '{"id":{{json .Id}},"pid":{{json .State.Pid}},"running":{{json .State.Running}},"paused":{{json .State.Paused}},"restarting":{{json .State.Restarting}},"restart":{{json .HostConfig.RestartPolicy.Name}},"mounts":{{json .Mounts}}}',
         id
       )
     )
     inventory.push(state)
+    if (state.id === controllerContainer) {
+      if (
+        state.pid !== controller.pid ||
+        !state.running ||
+        state.paused ||
+        state.restarting ||
+        state.restart !== 'no'
+      )
+        fail()
+      continue
+    }
     const relevant = state.mounts.some((mount) => {
+      if (mount.RW === false) return false
       let source
       try {
         source = fs.realpathSync(mount.Source)
@@ -164,16 +199,14 @@ async function observeWriters({
           .split(':')
           .map((value) => parseInt(value, 16))
         if (
-          targets.some((target) =>
-            target.files.some((file) => {
-              const parts = deviceParts(file.dev)
-              return (
-                file.ino === BigInt(fields[4]) &&
-                parts[0] === major &&
-                parts[1] === minor
-              )
-            })
-          )
+          protectedFiles.some((file) => {
+            const parts = deviceParts(file.dev)
+            return (
+              file.ino === BigInt(fields[4]) &&
+              parts[0] === major &&
+              parts[1] === minor
+            )
+          })
         )
           fail()
       }
@@ -193,7 +226,7 @@ async function observeWriters({
       await docker(
         'inspect',
         '--format',
-        '{"id":{{json .Id}},"running":{{json .State.Running}},"paused":{{json .State.Paused}},"restarting":{{json .State.Restarting}},"restart":{{json .HostConfig.RestartPolicy.Name}},"mounts":{{json .Mounts}}}',
+        '{"id":{{json .Id}},"pid":{{json .State.Pid}},"running":{{json .State.Running}},"paused":{{json .State.Paused}},"restarting":{{json .State.Restarting}},"restart":{{json .HostConfig.RestartPolicy.Name}},"mounts":{{json .Mounts}}}',
         state.id
       )
     )

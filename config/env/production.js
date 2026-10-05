@@ -1,3 +1,5 @@
+const coordinated = Boolean(process.env.SLIPWAY_UPGRADE_MARKER)
+
 module.exports = {
   hookTimeout: 80000,
 
@@ -76,7 +78,7 @@ module.exports = {
   },
 
   models: {
-    migrate: process.env.SLIPWAY_MIGRATE || 'safe',
+    migrate: coordinated ? 'safe' : process.env.SLIPWAY_MIGRATE || 'safe',
     dataEncryptionKeys: {
       default: process.env.DATA_ENCRYPTION_KEY
     }

@@ -25,6 +25,17 @@
 // > Note: This is not required in order to lift, but it is a convenient default.
 process.chdir(__dirname)
 
+// Verify native release receipts before requiring Sails or starting any jobs.
+try {
+  require('./api/lib/upgrade-startup').fromEnvironment()
+} catch (_) {
+  console.error(
+    'upgradeNotReady: use the host upgrade checkpoint before starting Slipway.'
+  )
+  process.exitCode = 1
+  return
+}
+
 // Attempt to import `sails` dependency, as well as `rc` (for loading `.sailsrc` files).
 var sails
 var rc
