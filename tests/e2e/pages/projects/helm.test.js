@@ -3177,7 +3177,7 @@ test(
         await page.resize(width, 900)
         await expect(page.raw.locator('#helm-command-hint')).toBeVisible()
         await page.screenshot(
-          `/tmp/slipway-final-release.OpFgSS/helm-command-guidance-${width}.png`
+          `.tmp/sounding/artifacts/helm-command-guidance/${width}.png`
         )
       }
       await page.raw
