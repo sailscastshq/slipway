@@ -7,7 +7,8 @@ const path = require('node:path')
 const Database = require('better-sqlite3')
 const createExecutor = require('../../api/lib/migration-executor')
 const plans = require('../../api/lib/migration-plans')
-const getSchema = require('../../api/helpers/dock/get-schema').fn
+const readSchema = require('../../api/lib/sqlite-schema')
+const getSchema = async ({ service }) => readSchema(service)
 const generateDiff = require('../../api/helpers/dock/generate-diff').fn
 const generateSql = require('../../api/helpers/dock/generate-migration-sql').fn
 const applySqliteMigration =
