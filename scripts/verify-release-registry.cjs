@@ -29,7 +29,7 @@ for (const [name,[version,integrity]] of Object.entries(expected)) {
   packageProof[name]={version,integrity,resolved:entry.resolved}
 }
 fs.writeFileSync(path.join(app,'.sailsrc'),JSON.stringify({loadHooks:['moduleloader','userconfig','userhooks','helpers','orm','quest','slipway'],models:{migrate:'safe'},log:{level:'error',noShip:true}}))
-fs.writeFileSync(path.join(app,'scripts','registry-report.js'), `module.exports={inputs:{count:{type:'number',defaultsTo:7},enabled:{type:'boolean',defaultsTo:true},label:{type:'string',allowNull:true}},fn:async function(inputs){console.log('registry fixture log');return inputs}}`)
+fs.writeFileSync(path.join(app,'scripts','registry-report.js'), `module.exports={friendlyName:'Registry report',inputs:{count:{type:'number',defaultsTo:7},enabled:{type:'boolean',defaultsTo:true},label:{type:'string',allowNull:true}},fn:async function(inputs){console.log('registry fixture log');return inputs}}`)
 process.env.SLIPWAY_APP_ID='98187'
 process.env.SLIPWAY_DEPLOYMENT_ID='98187'
 process.chdir(app)
