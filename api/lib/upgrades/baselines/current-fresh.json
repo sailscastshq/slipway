@@ -1,0 +1,32 @@
+{
+  "format": 1,
+  "version": "0.0.87",
+  "image": "sha256:faf0bd72c7af125ce1c1ccea6f7db85ddd1ee6f6fccec2f43d2021dbd28c3cb9",
+  "databases": {
+    "default": {
+      "present": true,
+      "schemaHash": "1aa7c9796f125b2295aed3a81b950b77929f635a8fb86268abfe203c0b4b55e4",
+      "catalog": "0.0.87.json"
+    },
+    "observability": {
+      "present": true,
+      "schemaHash": "7e0644ba7243db7e2fc8673844179af64fb74a666c79210f9c4dbc87a70e7497",
+      "catalog": "0.0.87.json"
+    },
+    "analytics": {
+      "present": true,
+      "schemaHash": "d8b118bcaf2551da80cf19e7d8ec7ff38a8af068724c271a7c8d8aa5db33d7dd",
+      "catalog": "0.0.87.json"
+    },
+    "cache": {
+      "present": true,
+      "schemaHash": "777233e1685a5355a22a62ff7ec3318e5a77a6bc09dbc211473b6e5a0a89e136",
+      "catalog": "0.0.87.json"
+    }
+  },
+  "provenance": {
+    "head": "fcffa58b3a1c39df264bc8ab37aa500a21d11e41",
+    "run": "https://github.com/sailscastshq/slipway/actions/runs/37347270268",
+    "capture": "fresh exact-current Docker image, stopped before native read"
+  }
+}

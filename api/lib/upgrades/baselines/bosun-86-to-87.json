@@ -1,0 +1,1967 @@
+{
+  "format": 1,
+  "parent": "0.0.86",
+  "generator": "shared Bosun native diff/SQL helpers",
+  "databases": {
+    "default": {
+      "schema": {
+        "helm_history_entries": {
+          "name": "helm_history_entries",
+          "sql": "CREATE TABLE `helm_history_entries` (`created_at` INTEGER, `updated_at` INTEGER, `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `source` TEXT, `status` TEXT, `duration_ms` INTEGER, `executed_at` INTEGER, `target` TEXT, `target_context` TEXT, `pinned` TEXT, `user` INTEGER, `team` INTEGER, `project` INTEGER, `environment` INTEGER, `app` INTEGER, `mode` TEXT)",
+          "catalogComplete": true,
+          "columns": [
+            {
+              "position": 0,
+              "name": "created_at",
+              "type": "INTEGER",
+              "maxLength": null,
+              "nullable": true,
+              "defaultValue": null,
+              "primaryKey": false,
+              "autoIncrement": false,
+              "generated": false,
+              "hidden": 0
+            },
+            {
+              "position": 1,
+              "name": "updated_at",
+              "type": "INTEGER",
+              "maxLength": null,
+              "nullable": true,
+              "defaultValue": null,
+              "primaryKey": false,
+              "autoIncrement": false,
+              "generated": false,
+              "hidden": 0
+            },
+            {
+              "position": 2,
+              "name": "id",
+              "type": "INTEGER",
+              "maxLength": null,
+              "nullable": false,
+              "defaultValue": null,
+              "primaryKey": true,
+              "autoIncrement": true,
+              "generated": false,
+              "hidden": 0
+            },
+            {
+              "position": 3,
+              "name": "source",
+              "type": "TEXT",
+              "maxLength": null,
+              "nullable": true,
+              "defaultValue": null,
+              "primaryKey": false,
+              "autoIncrement": false,
+              "generated": false,
+              "hidden": 0
+            },
+            {
+              "position": 4,
+              "name": "status",
+              "type": "TEXT",
+              "maxLength": null,
+              "nullable": true,
+              "defaultValue": null,
+              "primaryKey": false,
+              "autoIncrement": false,
+              "generated": false,
+              "hidden": 0
+            },
+            {
+              "position": 5,
+              "name": "duration_ms",
+              "type": "INTEGER",
+              "maxLength": null,
+              "nullable": true,
+              "defaultValue": null,
+              "primaryKey": false,
+              "autoIncrement": false,
+              "generated": false,
+              "hidden": 0
+            },
+            {
+              "position": 6,
+              "name": "executed_at",
+              "type": "INTEGER",
+              "maxLength": null,
+              "nullable": true,
+              "defaultValue": null,
+              "primaryKey": false,
+              "autoIncrement": false,
+              "generated": false,
+              "hidden": 0
+            },
+            {
+              "position": 7,
+              "name": "target",
+              "type": "TEXT",
+              "maxLength": null,
+              "nullable": true,
+              "defaultValue": null,
+              "primaryKey": false,
+              "autoIncrement": false,
+              "generated": false,
+              "hidden": 0
+            },
+            {
+              "position": 8,
+              "name": "target_context",
+              "type": "TEXT",
+              "maxLength": null,
+              "nullable": true,
+              "defaultValue": null,
+              "primaryKey": false,
+              "autoIncrement": false,
+              "generated": false,
+              "hidden": 0
+            },
+            {
+              "position": 9,
+              "name": "pinned",
+              "type": "TEXT",
+              "maxLength": null,
+              "nullable": true,
+              "defaultValue": null,
+              "primaryKey": false,
+              "autoIncrement": false,
+              "generated": false,
+              "hidden": 0
+            },
+            {
+              "position": 10,
+              "name": "user",
+              "type": "INTEGER",
+              "maxLength": null,
+              "nullable": true,
+              "defaultValue": null,
+              "primaryKey": false,
+              "autoIncrement": false,
+              "generated": false,
+              "hidden": 0
+            },
+            {
+              "position": 11,
+              "name": "team",
+              "type": "INTEGER",
+              "maxLength": null,
+              "nullable": true,
+              "defaultValue": null,
+              "primaryKey": false,
+              "autoIncrement": false,
+              "generated": false,
+              "hidden": 0
+            },
+            {
+              "position": 12,
+              "name": "project",
+              "type": "INTEGER",
+              "maxLength": null,
+              "nullable": true,
+              "defaultValue": null,
+              "primaryKey": false,
+              "autoIncrement": false,
+              "generated": false,
+              "hidden": 0
+            },
+            {
+              "position": 13,
+              "name": "environment",
+              "type": "INTEGER",
+              "maxLength": null,
+              "nullable": true,
+              "defaultValue": null,
+              "primaryKey": false,
+              "autoIncrement": false,
+              "generated": false,
+              "hidden": 0
+            },
+            {
+              "position": 14,
+              "name": "app",
+              "type": "INTEGER",
+              "maxLength": null,
+              "nullable": true,
+              "defaultValue": null,
+              "primaryKey": false,
+              "autoIncrement": false,
+              "generated": false,
+              "hidden": 0
+            },
+            {
+              "position": 15,
+              "name": "mode",
+              "type": "TEXT",
+              "maxLength": null,
+              "nullable": true,
+              "defaultValue": null,
+              "primaryKey": false,
+              "autoIncrement": false,
+              "generated": false,
+              "hidden": 0
+            }
+          ],
+          "indexes": [
+            {
+              "name": "helm_history_retention",
+              "columns": ["pinned", "executed_at", "id"],
+              "unique": false,
+              "origin": "c",
+              "partial": false,
+              "sql": "CREATE INDEX helm_history_retention\n      ON helm_history_entries (pinned, executed_at, id)\n    ",
+              "definition": [
+                {
+                  "position": 0,
+                  "columnId": 9,
+                  "name": "pinned",
+                  "descending": false,
+                  "collation": "BINARY",
+                  "key": true
+                },
+                {
+                  "position": 1,
+                  "columnId": 6,
+                  "name": "executed_at",
+                  "descending": false,
+                  "collation": "BINARY",
+                  "key": true
+                },
+                {
+                  "position": 2,
+                  "columnId": 2,
+                  "name": "id",
+                  "descending": false,
+                  "collation": "BINARY",
+                  "key": true
+                },
+                {
+                  "position": 3,
+                  "columnId": -1,
+                  "name": null,
+                  "descending": false,
+                  "collation": "BINARY",
+                  "key": false
+                }
+              ]
+            },
+            {
+              "name": "helm_history_scope",
+              "columns": [
+                "user",
+                "project",
+                "environment",
+                "pinned",
+                "executed_at"
+              ],
+              "unique": false,
+              "origin": "c",
+              "partial": false,
+              "sql": "CREATE INDEX helm_history_scope\n      ON helm_history_entries (\n        user,\n        project,\n        environment,\n        pinned,\n        executed_at DESC\n      )\n    ",
+              "definition": [
+                {
+                  "position": 0,
+                  "columnId": 10,
+                  "name": "user",
+                  "descending": false,
+                  "collation": "BINARY",
+                  "key": true
+                },
+                {
+                  "position": 1,
+                  "columnId": 12,
+                  "name": "project",
+                  "descending": false,
+                  "collation": "BINARY",
+                  "key": true
+                },
+                {
+                  "position": 2,
+                  "columnId": 13,
+                  "name": "environment",
+                  "descending": false,
+                  "collation": "BINARY",
+                  "key": true
+                },
+                {
+                  "position": 3,
+                  "columnId": 9,
+                  "name": "pinned",
+                  "descending": false,
+                  "collation": "BINARY",
+                  "key": true
+                },
+                {
+                  "position": 4,
+                  "columnId": 6,
+                  "name": "executed_at",
+                  "descending": true,
+                  "collation": "BINARY",
+                  "key": true
+                },
+                {
+                  "position": 5,
+                  "columnId": -1,
+                  "name": null,
+                  "descending": false,
+                  "collation": "BINARY",
+                  "key": false
+                }
+              ]
+            }
+          ],
+          "foreignKeys": [],
+          "triggers": [],
+          "views": []
+        },
+        "restore_tests": {
+          "name": "restore_tests",
+          "sql": "CREATE TABLE `restore_tests` (\n  `created_at` INTEGER,\n  `updated_at` INTEGER,\n  `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,\n  `backup` INTEGER,\n  `service` INTEGER,\n  `team` INTEGER,\n  `requested_by` INTEGER,\n  `status` TEXT,\n  `stage` TEXT,\n  `resource_name` TEXT,\n  `report` TEXT,\n  `error` TEXT,\n  `cleanup_pending` INTEGER,\n  `started_at` INTEGER,\n  `completed_at` INTEGER\n)",
+          "catalogComplete": true,
+          "columns": [
+            {
+              "position": 0,
+              "name": "created_at",
+              "type": "INTEGER",
+              "maxLength": null,
+              "nullable": true,
+              "defaultValue": null,
+              "primaryKey": false,
+              "autoIncrement": false,
+              "generated": false,
+              "hidden": 0
+            },
+            {
+              "position": 1,
+              "name": "updated_at",
+              "type": "INTEGER",
+              "maxLength": null,
+              "nullable": true,
+              "defaultValue": null,
+              "primaryKey": false,
+              "autoIncrement": false,
+              "generated": false,
+              "hidden": 0
+            },
+            {
+              "position": 2,
+              "name": "id",
+              "type": "INTEGER",
+              "maxLength": null,
+              "nullable": false,
+              "defaultValue": null,
+              "primaryKey": true,
+              "autoIncrement": true,
+              "generated": false,
+              "hidden": 0
+            },
+            {
+              "position": 3,
+              "name": "backup",
+              "type": "INTEGER",
+              "maxLength": null,
+              "nullable": true,
+              "defaultValue": null,
+              "primaryKey": false,
+              "autoIncrement": false,
+              "generated": false,
+              "hidden": 0
+            },
+            {
+              "position": 4,
+              "name": "service",
+              "type": "INTEGER",
+              "maxLength": null,
+              "nullable": true,
+              "defaultValue": null,
+              "primaryKey": false,
+              "autoIncrement": false,
+              "generated": false,
+              "hidden": 0
+            },
+            {
+              "position": 5,
+              "name": "team",
+              "type": "INTEGER",
+              "maxLength": null,
+              "nullable": true,
+              "defaultValue": null,
+              "primaryKey": false,
+              "autoIncrement": false,
+              "generated": false,
+              "hidden": 0
+            },
+            {
+              "position": 6,
+              "name": "requested_by",
+              "type": "INTEGER",
+              "maxLength": null,
+              "nullable": true,
+              "defaultValue": null,
+              "primaryKey": false,
+              "autoIncrement": false,
+              "generated": false,
+              "hidden": 0
+            },
+            {
+              "position": 7,
+              "name": "status",
+              "type": "TEXT",
+              "maxLength": null,
+              "nullable": true,
+              "defaultValue": null,
+              "primaryKey": false,
+              "autoIncrement": false,
+              "generated": false,
+              "hidden": 0
+            },
+            {
+              "position": 8,
+              "name": "stage",
+              "type": "TEXT",
+              "maxLength": null,
+              "nullable": true,
+              "defaultValue": null,
+              "primaryKey": false,
+              "autoIncrement": false,
+              "generated": false,
+              "hidden": 0
+            },
+            {
+              "position": 9,
+              "name": "resource_name",
+              "type": "TEXT",
+              "maxLength": null,
+              "nullable": true,
+              "defaultValue": null,
+              "primaryKey": false,
+              "autoIncrement": false,
+              "generated": false,
+              "hidden": 0
+            },
+            {
+              "position": 10,
+              "name": "report",
+              "type": "TEXT",
+              "maxLength": null,
+              "nullable": true,
+              "defaultValue": null,
+              "primaryKey": false,
+              "autoIncrement": false,
+              "generated": false,
+              "hidden": 0
+            },
+            {
+              "position": 11,
+              "name": "error",
+              "type": "TEXT",
+              "maxLength": null,
+              "nullable": true,
+              "defaultValue": null,
+              "primaryKey": false,
+              "autoIncrement": false,
+              "generated": false,
+              "hidden": 0
+            },
+            {
+              "position": 12,
+              "name": "cleanup_pending",
+              "type": "INTEGER",
+              "maxLength": null,
+              "nullable": true,
+              "defaultValue": null,
+              "primaryKey": false,
+              "autoIncrement": false,
+              "generated": false,
+              "hidden": 0
+            },
+            {
+              "position": 13,
+              "name": "started_at",
+              "type": "INTEGER",
+              "maxLength": null,
+              "nullable": true,
+              "defaultValue": null,
+              "primaryKey": false,
+              "autoIncrement": false,
+              "generated": false,
+              "hidden": 0
+            },
+            {
+              "position": 14,
+              "name": "completed_at",
+              "type": "INTEGER",
+              "maxLength": null,
+              "nullable": true,
+              "defaultValue": null,
+              "primaryKey": false,
+              "autoIncrement": false,
+              "generated": false,
+              "hidden": 0
+            }
+          ],
+          "indexes": [],
+          "foreignKeys": [],
+          "triggers": [],
+          "views": []
+        }
+      },
+      "schemaHash": "2d02bf77599c9321b733bb8a0fa9a4cf077a22384ac4b7fb963a6b7742989943"
+    },
+    "observability": {
+      "schema": {
+        "quest_runs": {
+          "name": "quest_runs",
+          "sql": "CREATE TABLE `quest_runs` (\n  `created_at` INTEGER,\n  `updated_at` INTEGER,\n  `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,\n  `run_id` TEXT,\n  `request_key` TEXT,\n  `input_hash` TEXT,\n  `environment` TEXT,\n  `app` TEXT,\n  `deployment_id` TEXT,\n  `runtime_id` TEXT,\n  `job_name` TEXT,\n  `actor` TEXT,\n  `trigger` TEXT,\n  `state` TEXT,\n  `sequence` INTEGER,\n  `requested_at` INTEGER,\n  `started_at` INTEGER,\n  `finished_at` INTEGER,\n  `duration` INTEGER,\n  `exit_code` INTEGER,\n  `signal` TEXT,\n  `inputs` TEXT,\n  `result` TEXT,\n  `result_status` TEXT,\n  `error` TEXT,\n  `stdout` TEXT,\n  `stderr` TEXT,\n  `logs_truncated` INTEGER,\n  `logs_available` INTEGER\n)",
+          "catalogComplete": true,
+          "columns": [
+            {
+              "position": 0,
+              "name": "created_at",
+              "type": "INTEGER",
+              "maxLength": null,
+              "nullable": true,
+              "defaultValue": null,
+              "primaryKey": false,
+              "autoIncrement": false,
+              "generated": false,
+              "hidden": 0
+            },
+            {
+              "position": 1,
+              "name": "updated_at",
+              "type": "INTEGER",
+              "maxLength": null,
+              "nullable": true,
+              "defaultValue": null,
+              "primaryKey": false,
+              "autoIncrement": false,
+              "generated": false,
+              "hidden": 0
+            },
+            {
+              "position": 2,
+              "name": "id",
+              "type": "INTEGER",
+              "maxLength": null,
+              "nullable": false,
+              "defaultValue": null,
+              "primaryKey": true,
+              "autoIncrement": true,
+              "generated": false,
+              "hidden": 0
+            },
+            {
+              "position": 3,
+              "name": "run_id",
+              "type": "TEXT",
+              "maxLength": null,
+              "nullable": true,
+              "defaultValue": null,
+              "primaryKey": false,
+              "autoIncrement": false,
+              "generated": false,
+              "hidden": 0
+            },
+            {
+              "position": 4,
+              "name": "request_key",
+              "type": "TEXT",
+              "maxLength": null,
+              "nullable": true,
+              "defaultValue": null,
+              "primaryKey": false,
+              "autoIncrement": false,
+              "generated": false,
+              "hidden": 0
+            },
+            {
+              "position": 5,
+              "name": "input_hash",
+              "type": "TEXT",
+              "maxLength": null,
+              "nullable": true,
+              "defaultValue": null,
+              "primaryKey": false,
+              "autoIncrement": false,
+              "generated": false,
+              "hidden": 0
+            },
+            {
+              "position": 6,
+              "name": "environment",
+              "type": "TEXT",
+              "maxLength": null,
+              "nullable": true,
+              "defaultValue": null,
+              "primaryKey": false,
+              "autoIncrement": false,
+              "generated": false,
+              "hidden": 0
+            },
+            {
+              "position": 7,
+              "name": "app",
+              "type": "TEXT",
+              "maxLength": null,
+              "nullable": true,
+              "defaultValue": null,
+              "primaryKey": false,
+              "autoIncrement": false,
+              "generated": false,
+              "hidden": 0
+            },
+            {
+              "position": 8,
+              "name": "deployment_id",
+              "type": "TEXT",
+              "maxLength": null,
+              "nullable": true,
+              "defaultValue": null,
+              "primaryKey": false,
+              "autoIncrement": false,
+              "generated": false,
+              "hidden": 0
+            },
+            {
+              "position": 9,
+              "name": "runtime_id",
+              "type": "TEXT",
+              "maxLength": null,
+              "nullable": true,
+              "defaultValue": null,
+              "primaryKey": false,
+              "autoIncrement": false,
+              "generated": false,
+              "hidden": 0
+            },
+            {
+              "position": 10,
+              "name": "job_name",
+              "type": "TEXT",
+              "maxLength": null,
+              "nullable": true,
+              "defaultValue": null,
+              "primaryKey": false,
+              "autoIncrement": false,
+              "generated": false,
+              "hidden": 0
+            },
+            {
+              "position": 11,
+              "name": "actor",
+              "type": "TEXT",
+              "maxLength": null,
+              "nullable": true,
+              "defaultValue": null,
+              "primaryKey": false,
+              "autoIncrement": false,
+              "generated": false,
+              "hidden": 0
+            },
+            {
+              "position": 12,
+              "name": "trigger",
+              "type": "TEXT",
+              "maxLength": null,
+              "nullable": true,
+              "defaultValue": null,
+              "primaryKey": false,
+              "autoIncrement": false,
+              "generated": false,
+              "hidden": 0
+            },
+            {
+              "position": 13,
+              "name": "state",
+              "type": "TEXT",
+              "maxLength": null,
+              "nullable": true,
+              "defaultValue": null,
+              "primaryKey": false,
+              "autoIncrement": false,
+              "generated": false,
+              "hidden": 0
+            },
+            {
+              "position": 14,
+              "name": "sequence",
+              "type": "INTEGER",
+              "maxLength": null,
+              "nullable": true,
+              "defaultValue": null,
+              "primaryKey": false,
+              "autoIncrement": false,
+              "generated": false,
+              "hidden": 0
+            },
+            {
+              "position": 15,
+              "name": "requested_at",
+              "type": "INTEGER",
+              "maxLength": null,
+              "nullable": true,
+              "defaultValue": null,
+              "primaryKey": false,
+              "autoIncrement": false,
+              "generated": false,
+              "hidden": 0
+            },
+            {
+              "position": 16,
+              "name": "started_at",
+              "type": "INTEGER",
+              "maxLength": null,
+              "nullable": true,
+              "defaultValue": null,
+              "primaryKey": false,
+              "autoIncrement": false,
+              "generated": false,
+              "hidden": 0
+            },
+            {
+              "position": 17,
+              "name": "finished_at",
+              "type": "INTEGER",
+              "maxLength": null,
+              "nullable": true,
+              "defaultValue": null,
+              "primaryKey": false,
+              "autoIncrement": false,
+              "generated": false,
+              "hidden": 0
+            },
+            {
+              "position": 18,
+              "name": "duration",
+              "type": "INTEGER",
+              "maxLength": null,
+              "nullable": true,
+              "defaultValue": null,
+              "primaryKey": false,
+              "autoIncrement": false,
+              "generated": false,
+              "hidden": 0
+            },
+            {
+              "position": 19,
+              "name": "exit_code",
+              "type": "INTEGER",
+              "maxLength": null,
+              "nullable": true,
+              "defaultValue": null,
+              "primaryKey": false,
+              "autoIncrement": false,
+              "generated": false,
+              "hidden": 0
+            },
+            {
+              "position": 20,
+              "name": "signal",
+              "type": "TEXT",
+              "maxLength": null,
+              "nullable": true,
+              "defaultValue": null,
+              "primaryKey": false,
+              "autoIncrement": false,
+              "generated": false,
+              "hidden": 0
+            },
+            {
+              "position": 21,
+              "name": "inputs",
+              "type": "TEXT",
+              "maxLength": null,
+              "nullable": true,
+              "defaultValue": null,
+              "primaryKey": false,
+              "autoIncrement": false,
+              "generated": false,
+              "hidden": 0
+            },
+            {
+              "position": 22,
+              "name": "result",
+              "type": "TEXT",
+              "maxLength": null,
+              "nullable": true,
+              "defaultValue": null,
+              "primaryKey": false,
+              "autoIncrement": false,
+              "generated": false,
+              "hidden": 0
+            },
+            {
+              "position": 23,
+              "name": "result_status",
+              "type": "TEXT",
+              "maxLength": null,
+              "nullable": true,
+              "defaultValue": null,
+              "primaryKey": false,
+              "autoIncrement": false,
+              "generated": false,
+              "hidden": 0
+            },
+            {
+              "position": 24,
+              "name": "error",
+              "type": "TEXT",
+              "maxLength": null,
+              "nullable": true,
+              "defaultValue": null,
+              "primaryKey": false,
+              "autoIncrement": false,
+              "generated": false,
+              "hidden": 0
+            },
+            {
+              "position": 25,
+              "name": "stdout",
+              "type": "TEXT",
+              "maxLength": null,
+              "nullable": true,
+              "defaultValue": null,
+              "primaryKey": false,
+              "autoIncrement": false,
+              "generated": false,
+              "hidden": 0
+            },
+            {
+              "position": 26,
+              "name": "stderr",
+              "type": "TEXT",
+              "maxLength": null,
+              "nullable": true,
+              "defaultValue": null,
+              "primaryKey": false,
+              "autoIncrement": false,
+              "generated": false,
+              "hidden": 0
+            },
+            {
+              "position": 27,
+              "name": "logs_truncated",
+              "type": "INTEGER",
+              "maxLength": null,
+              "nullable": true,
+              "defaultValue": null,
+              "primaryKey": false,
+              "autoIncrement": false,
+              "generated": false,
+              "hidden": 0
+            },
+            {
+              "position": 28,
+              "name": "logs_available",
+              "type": "INTEGER",
+              "maxLength": null,
+              "nullable": true,
+              "defaultValue": null,
+              "primaryKey": false,
+              "autoIncrement": false,
+              "generated": false,
+              "hidden": 0
+            }
+          ],
+          "indexes": [],
+          "foreignKeys": [],
+          "triggers": [],
+          "views": []
+        },
+        "resource_alert_deliveries": {
+          "name": "resource_alert_deliveries",
+          "sql": "CREATE TABLE `resource_alert_deliveries` (\n  `created_at` INTEGER,\n  `updated_at` INTEGER,\n  `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,\n  `incident_key` TEXT,\n  `container_name` TEXT,\n  `resource` TEXT,\n  `observed_at` INTEGER,\n  `payload` TEXT,\n  `receipts` TEXT,\n  `status` TEXT,\n  `attempts` INTEGER,\n  `next_attempt_at` INTEGER,\n  `lease_until` INTEGER,\n  `lease_owner` TEXT,\n  `last_outcome` TEXT\n)",
+          "catalogComplete": true,
+          "columns": [
+            {
+              "position": 0,
+              "name": "created_at",
+              "type": "INTEGER",
+              "maxLength": null,
+              "nullable": true,
+              "defaultValue": null,
+              "primaryKey": false,
+              "autoIncrement": false,
+              "generated": false,
+              "hidden": 0
+            },
+            {
+              "position": 1,
+              "name": "updated_at",
+              "type": "INTEGER",
+              "maxLength": null,
+              "nullable": true,
+              "defaultValue": null,
+              "primaryKey": false,
+              "autoIncrement": false,
+              "generated": false,
+              "hidden": 0
+            },
+            {
+              "position": 2,
+              "name": "id",
+              "type": "INTEGER",
+              "maxLength": null,
+              "nullable": false,
+              "defaultValue": null,
+              "primaryKey": true,
+              "autoIncrement": true,
+              "generated": false,
+              "hidden": 0
+            },
+            {
+              "position": 3,
+              "name": "incident_key",
+              "type": "TEXT",
+              "maxLength": null,
+              "nullable": true,
+              "defaultValue": null,
+              "primaryKey": false,
+              "autoIncrement": false,
+              "generated": false,
+              "hidden": 0
+            },
+            {
+              "position": 4,
+              "name": "container_name",
+              "type": "TEXT",
+              "maxLength": null,
+              "nullable": true,
+              "defaultValue": null,
+              "primaryKey": false,
+              "autoIncrement": false,
+              "generated": false,
+              "hidden": 0
+            },
+            {
+              "position": 5,
+              "name": "resource",
+              "type": "TEXT",
+              "maxLength": null,
+              "nullable": true,
+              "defaultValue": null,
+              "primaryKey": false,
+              "autoIncrement": false,
+              "generated": false,
+              "hidden": 0
+            },
+            {
+              "position": 6,
+              "name": "observed_at",
+              "type": "INTEGER",
+              "maxLength": null,
+              "nullable": true,
+              "defaultValue": null,
+              "primaryKey": false,
+              "autoIncrement": false,
+              "generated": false,
+              "hidden": 0
+            },
+            {
+              "position": 7,
+              "name": "payload",
+              "type": "TEXT",
+              "maxLength": null,
+              "nullable": true,
+              "defaultValue": null,
+              "primaryKey": false,
+              "autoIncrement": false,
+              "generated": false,
+              "hidden": 0
+            },
+            {
+              "position": 8,
+              "name": "receipts",
+              "type": "TEXT",
+              "maxLength": null,
+              "nullable": true,
+              "defaultValue": null,
+              "primaryKey": false,
+              "autoIncrement": false,
+              "generated": false,
+              "hidden": 0
+            },
+            {
+              "position": 9,
+              "name": "status",
+              "type": "TEXT",
+              "maxLength": null,
+              "nullable": true,
+              "defaultValue": null,
+              "primaryKey": false,
+              "autoIncrement": false,
+              "generated": false,
+              "hidden": 0
+            },
+            {
+              "position": 10,
+              "name": "attempts",
+              "type": "INTEGER",
+              "maxLength": null,
+              "nullable": true,
+              "defaultValue": null,
+              "primaryKey": false,
+              "autoIncrement": false,
+              "generated": false,
+              "hidden": 0
+            },
+            {
+              "position": 11,
+              "name": "next_attempt_at",
+              "type": "INTEGER",
+              "maxLength": null,
+              "nullable": true,
+              "defaultValue": null,
+              "primaryKey": false,
+              "autoIncrement": false,
+              "generated": false,
+              "hidden": 0
+            },
+            {
+              "position": 12,
+              "name": "lease_until",
+              "type": "INTEGER",
+              "maxLength": null,
+              "nullable": true,
+              "defaultValue": null,
+              "primaryKey": false,
+              "autoIncrement": false,
+              "generated": false,
+              "hidden": 0
+            },
+            {
+              "position": 13,
+              "name": "lease_owner",
+              "type": "TEXT",
+              "maxLength": null,
+              "nullable": true,
+              "defaultValue": null,
+              "primaryKey": false,
+              "autoIncrement": false,
+              "generated": false,
+              "hidden": 0
+            },
+            {
+              "position": 14,
+              "name": "last_outcome",
+              "type": "TEXT",
+              "maxLength": null,
+              "nullable": true,
+              "defaultValue": null,
+              "primaryKey": false,
+              "autoIncrement": false,
+              "generated": false,
+              "hidden": 0
+            }
+          ],
+          "indexes": [],
+          "foreignKeys": [],
+          "triggers": [],
+          "views": []
+        }
+      },
+      "schemaHash": "f515ee81156b9cf4ea335bed5cec914ca7b1dd89440d445571c4398e1999e6bf"
+    }
+  },
+  "models": {
+    "default": {
+      "helmhistoryentry": {
+        "identity": "helmhistoryentry",
+        "tableName": "helm_history_entries",
+        "primaryKey": "id",
+        "attributes": {
+          "createdAt": {
+            "type": "number",
+            "columnType": "_numbertimestamp",
+            "columnName": "created_at",
+            "required": false,
+            "unique": false,
+            "index": false,
+            "autoCreatedAt": true,
+            "autoUpdatedAt": false,
+            "autoIncrement": false
+          },
+          "updatedAt": {
+            "type": "number",
+            "columnType": "_numbertimestamp",
+            "columnName": "updated_at",
+            "required": false,
+            "unique": false,
+            "index": false,
+            "autoCreatedAt": false,
+            "autoUpdatedAt": true,
+            "autoIncrement": false
+          },
+          "id": {
+            "type": "number",
+            "columnType": "_numberkey",
+            "columnName": "id",
+            "required": false,
+            "unique": false,
+            "index": false,
+            "autoCreatedAt": false,
+            "autoUpdatedAt": false,
+            "autoIncrement": true
+          },
+          "mode": {
+            "type": "string",
+            "columnType": "_string",
+            "columnName": "mode",
+            "required": false,
+            "unique": false,
+            "index": false,
+            "defaultsTo": "javascript",
+            "autoCreatedAt": false,
+            "autoUpdatedAt": false,
+            "autoIncrement": false
+          },
+          "source": {
+            "type": "string",
+            "columnType": "text",
+            "columnName": "source",
+            "required": true,
+            "unique": false,
+            "index": false,
+            "autoCreatedAt": false,
+            "autoUpdatedAt": false,
+            "autoIncrement": false
+          },
+          "status": {
+            "type": "string",
+            "columnType": "_string",
+            "columnName": "status",
+            "required": false,
+            "unique": false,
+            "index": false,
+            "defaultsTo": "error",
+            "autoCreatedAt": false,
+            "autoUpdatedAt": false,
+            "autoIncrement": false
+          },
+          "durationMs": {
+            "type": "number",
+            "columnType": "_number",
+            "columnName": "duration_ms",
+            "required": false,
+            "unique": false,
+            "index": false,
+            "defaultsTo": 0,
+            "autoCreatedAt": false,
+            "autoUpdatedAt": false,
+            "autoIncrement": false
+          },
+          "executedAt": {
+            "type": "number",
+            "columnType": "_number",
+            "columnName": "executed_at",
+            "required": true,
+            "unique": false,
+            "index": false,
+            "autoCreatedAt": false,
+            "autoUpdatedAt": false,
+            "autoIncrement": false
+          },
+          "target": {
+            "type": "string",
+            "columnType": "_string",
+            "columnName": "target",
+            "required": true,
+            "unique": false,
+            "index": false,
+            "autoCreatedAt": false,
+            "autoUpdatedAt": false,
+            "autoIncrement": false
+          },
+          "targetContext": {
+            "type": "json",
+            "columnType": "_json",
+            "columnName": "target_context",
+            "required": false,
+            "unique": false,
+            "index": false,
+            "autoCreatedAt": false,
+            "autoUpdatedAt": false,
+            "autoIncrement": false
+          },
+          "pinned": {
+            "type": "boolean",
+            "columnType": "_boolean",
+            "columnName": "pinned",
+            "required": false,
+            "unique": false,
+            "index": false,
+            "defaultsTo": false,
+            "autoCreatedAt": false,
+            "autoUpdatedAt": false,
+            "autoIncrement": false
+          },
+          "user": {
+            "type": "number",
+            "columnName": "user",
+            "required": true,
+            "unique": false,
+            "foreignKey": true,
+            "references": "user"
+          },
+          "team": {
+            "type": "number",
+            "columnName": "team",
+            "required": true,
+            "unique": false,
+            "foreignKey": true,
+            "references": "team"
+          },
+          "project": {
+            "type": "number",
+            "columnName": "project",
+            "required": true,
+            "unique": false,
+            "foreignKey": true,
+            "references": "project"
+          },
+          "environment": {
+            "type": "number",
+            "columnName": "environment",
+            "required": true,
+            "unique": false,
+            "foreignKey": true,
+            "references": "environment"
+          },
+          "app": {
+            "type": "number",
+            "columnName": "app",
+            "required": true,
+            "unique": false,
+            "foreignKey": true,
+            "references": "app"
+          }
+        }
+      },
+      "restoretest": {
+        "identity": "restoretest",
+        "tableName": "restore_tests",
+        "primaryKey": "id",
+        "attributes": {
+          "createdAt": {
+            "type": "number",
+            "columnType": "_numbertimestamp",
+            "columnName": "created_at",
+            "required": false,
+            "unique": false,
+            "index": false,
+            "autoCreatedAt": true,
+            "autoUpdatedAt": false,
+            "autoIncrement": false
+          },
+          "updatedAt": {
+            "type": "number",
+            "columnType": "_numbertimestamp",
+            "columnName": "updated_at",
+            "required": false,
+            "unique": false,
+            "index": false,
+            "autoCreatedAt": false,
+            "autoUpdatedAt": true,
+            "autoIncrement": false
+          },
+          "id": {
+            "type": "number",
+            "columnType": "_numberkey",
+            "columnName": "id",
+            "required": false,
+            "unique": false,
+            "index": false,
+            "autoCreatedAt": false,
+            "autoUpdatedAt": false,
+            "autoIncrement": true
+          },
+          "backup": {
+            "type": "number",
+            "columnName": "backup",
+            "required": true,
+            "unique": false,
+            "foreignKey": true,
+            "references": "backup"
+          },
+          "service": {
+            "type": "number",
+            "columnName": "service",
+            "required": true,
+            "unique": false,
+            "foreignKey": true,
+            "references": "service"
+          },
+          "team": {
+            "type": "number",
+            "columnName": "team",
+            "required": true,
+            "unique": false,
+            "foreignKey": true,
+            "references": "team"
+          },
+          "requestedBy": {
+            "type": "number",
+            "columnName": "requested_by",
+            "required": false,
+            "unique": false,
+            "foreignKey": true,
+            "references": "user"
+          },
+          "status": {
+            "type": "string",
+            "columnType": "_string",
+            "columnName": "status",
+            "required": false,
+            "unique": false,
+            "index": false,
+            "defaultsTo": "queued",
+            "autoCreatedAt": false,
+            "autoUpdatedAt": false,
+            "autoIncrement": false
+          },
+          "stage": {
+            "type": "string",
+            "columnType": "_string",
+            "columnName": "stage",
+            "required": false,
+            "unique": false,
+            "index": false,
+            "defaultsTo": "queued",
+            "autoCreatedAt": false,
+            "autoUpdatedAt": false,
+            "autoIncrement": false
+          },
+          "resourceName": {
+            "type": "string",
+            "columnType": "_string",
+            "columnName": "resource_name",
+            "required": true,
+            "unique": false,
+            "index": false,
+            "autoCreatedAt": false,
+            "autoUpdatedAt": false,
+            "autoIncrement": false
+          },
+          "report": {
+            "type": "json",
+            "columnType": "_json",
+            "columnName": "report",
+            "required": false,
+            "unique": false,
+            "index": false,
+            "defaultsTo": {},
+            "autoCreatedAt": false,
+            "autoUpdatedAt": false,
+            "autoIncrement": false
+          },
+          "error": {
+            "type": "string",
+            "columnType": "_string",
+            "columnName": "error",
+            "required": false,
+            "unique": false,
+            "index": false,
+            "defaultsTo": "",
+            "autoCreatedAt": false,
+            "autoUpdatedAt": false,
+            "autoIncrement": false
+          },
+          "cleanupPending": {
+            "type": "boolean",
+            "columnType": "_boolean",
+            "columnName": "cleanup_pending",
+            "required": false,
+            "unique": false,
+            "index": false,
+            "defaultsTo": false,
+            "autoCreatedAt": false,
+            "autoUpdatedAt": false,
+            "autoIncrement": false
+          },
+          "startedAt": {
+            "type": "number",
+            "columnType": "_number",
+            "columnName": "started_at",
+            "required": false,
+            "unique": false,
+            "index": false,
+            "autoCreatedAt": false,
+            "autoUpdatedAt": false,
+            "autoIncrement": false,
+            "allowNull": true
+          },
+          "completedAt": {
+            "type": "number",
+            "columnType": "_number",
+            "columnName": "completed_at",
+            "required": false,
+            "unique": false,
+            "index": false,
+            "autoCreatedAt": false,
+            "autoUpdatedAt": false,
+            "autoIncrement": false,
+            "allowNull": true
+          }
+        }
+      }
+    },
+    "observability": {
+      "questrun": {
+        "identity": "questrun",
+        "tableName": "quest_runs",
+        "primaryKey": "id",
+        "attributes": {
+          "createdAt": {
+            "type": "number",
+            "columnType": "_numbertimestamp",
+            "columnName": "created_at",
+            "required": false,
+            "unique": false,
+            "index": false,
+            "autoCreatedAt": true,
+            "autoUpdatedAt": false,
+            "autoIncrement": false
+          },
+          "updatedAt": {
+            "type": "number",
+            "columnType": "_numbertimestamp",
+            "columnName": "updated_at",
+            "required": false,
+            "unique": false,
+            "index": false,
+            "autoCreatedAt": false,
+            "autoUpdatedAt": true,
+            "autoIncrement": false
+          },
+          "id": {
+            "type": "number",
+            "columnType": "_numberkey",
+            "columnName": "id",
+            "required": false,
+            "unique": false,
+            "index": false,
+            "autoCreatedAt": false,
+            "autoUpdatedAt": false,
+            "autoIncrement": true
+          },
+          "runId": {
+            "type": "string",
+            "columnType": "_string",
+            "columnName": "run_id",
+            "required": true,
+            "unique": false,
+            "index": false,
+            "autoCreatedAt": false,
+            "autoUpdatedAt": false,
+            "autoIncrement": false
+          },
+          "requestKey": {
+            "type": "string",
+            "columnType": "_string",
+            "columnName": "request_key",
+            "required": false,
+            "unique": false,
+            "index": false,
+            "autoCreatedAt": false,
+            "autoUpdatedAt": false,
+            "autoIncrement": false,
+            "allowNull": true
+          },
+          "inputHash": {
+            "type": "string",
+            "columnType": "_string",
+            "columnName": "input_hash",
+            "required": true,
+            "unique": false,
+            "index": false,
+            "autoCreatedAt": false,
+            "autoUpdatedAt": false,
+            "autoIncrement": false
+          },
+          "environment": {
+            "type": "string",
+            "columnType": "_string",
+            "columnName": "environment",
+            "required": true,
+            "unique": false,
+            "index": false,
+            "autoCreatedAt": false,
+            "autoUpdatedAt": false,
+            "autoIncrement": false
+          },
+          "app": {
+            "type": "string",
+            "columnType": "_string",
+            "columnName": "app",
+            "required": true,
+            "unique": false,
+            "index": false,
+            "autoCreatedAt": false,
+            "autoUpdatedAt": false,
+            "autoIncrement": false
+          },
+          "deploymentId": {
+            "type": "string",
+            "columnType": "_string",
+            "columnName": "deployment_id",
+            "required": false,
+            "unique": false,
+            "index": false,
+            "autoCreatedAt": false,
+            "autoUpdatedAt": false,
+            "autoIncrement": false,
+            "allowNull": true
+          },
+          "runtimeId": {
+            "type": "string",
+            "columnType": "_string",
+            "columnName": "runtime_id",
+            "required": false,
+            "unique": false,
+            "index": false,
+            "autoCreatedAt": false,
+            "autoUpdatedAt": false,
+            "autoIncrement": false,
+            "allowNull": true
+          },
+          "jobName": {
+            "type": "string",
+            "columnType": "_string",
+            "columnName": "job_name",
+            "required": true,
+            "unique": false,
+            "index": false,
+            "autoCreatedAt": false,
+            "autoUpdatedAt": false,
+            "autoIncrement": false
+          },
+          "actor": {
+            "type": "json",
+            "columnType": "_json",
+            "columnName": "actor",
+            "required": false,
+            "unique": false,
+            "index": false,
+            "defaultsTo": null,
+            "autoCreatedAt": false,
+            "autoUpdatedAt": false,
+            "autoIncrement": false
+          },
+          "trigger": {
+            "type": "string",
+            "columnType": "_string",
+            "columnName": "trigger",
+            "required": false,
+            "unique": false,
+            "index": false,
+            "defaultsTo": "manual",
+            "autoCreatedAt": false,
+            "autoUpdatedAt": false,
+            "autoIncrement": false
+          },
+          "state": {
+            "type": "string",
+            "columnType": "_string",
+            "columnName": "state",
+            "required": false,
+            "unique": false,
+            "index": false,
+            "defaultsTo": "requested",
+            "autoCreatedAt": false,
+            "autoUpdatedAt": false,
+            "autoIncrement": false
+          },
+          "sequence": {
+            "type": "number",
+            "columnType": "_number",
+            "columnName": "sequence",
+            "required": false,
+            "unique": false,
+            "index": false,
+            "defaultsTo": 0,
+            "autoCreatedAt": false,
+            "autoUpdatedAt": false,
+            "autoIncrement": false
+          },
+          "requestedAt": {
+            "type": "number",
+            "columnType": "_number",
+            "columnName": "requested_at",
+            "required": true,
+            "unique": false,
+            "index": false,
+            "autoCreatedAt": false,
+            "autoUpdatedAt": false,
+            "autoIncrement": false
+          },
+          "startedAt": {
+            "type": "number",
+            "columnType": "_number",
+            "columnName": "started_at",
+            "required": false,
+            "unique": false,
+            "index": false,
+            "autoCreatedAt": false,
+            "autoUpdatedAt": false,
+            "autoIncrement": false,
+            "allowNull": true
+          },
+          "finishedAt": {
+            "type": "number",
+            "columnType": "_number",
+            "columnName": "finished_at",
+            "required": false,
+            "unique": false,
+            "index": false,
+            "autoCreatedAt": false,
+            "autoUpdatedAt": false,
+            "autoIncrement": false,
+            "allowNull": true
+          },
+          "duration": {
+            "type": "number",
+            "columnType": "_number",
+            "columnName": "duration",
+            "required": false,
+            "unique": false,
+            "index": false,
+            "autoCreatedAt": false,
+            "autoUpdatedAt": false,
+            "autoIncrement": false,
+            "allowNull": true
+          },
+          "exitCode": {
+            "type": "number",
+            "columnType": "_number",
+            "columnName": "exit_code",
+            "required": false,
+            "unique": false,
+            "index": false,
+            "autoCreatedAt": false,
+            "autoUpdatedAt": false,
+            "autoIncrement": false,
+            "allowNull": true
+          },
+          "signal": {
+            "type": "string",
+            "columnType": "_string",
+            "columnName": "signal",
+            "required": false,
+            "unique": false,
+            "index": false,
+            "autoCreatedAt": false,
+            "autoUpdatedAt": false,
+            "autoIncrement": false,
+            "allowNull": true
+          },
+          "inputs": {
+            "type": "json",
+            "columnType": "_json",
+            "columnName": "inputs",
+            "required": false,
+            "unique": false,
+            "index": false,
+            "defaultsTo": {},
+            "autoCreatedAt": false,
+            "autoUpdatedAt": false,
+            "autoIncrement": false
+          },
+          "result": {
+            "type": "json",
+            "columnType": "_json",
+            "columnName": "result",
+            "required": false,
+            "unique": false,
+            "index": false,
+            "defaultsTo": {
+              "status": "unavailable"
+            },
+            "autoCreatedAt": false,
+            "autoUpdatedAt": false,
+            "autoIncrement": false
+          },
+          "resultStatus": {
+            "type": "string",
+            "columnType": "_string",
+            "columnName": "result_status",
+            "required": false,
+            "unique": false,
+            "index": false,
+            "defaultsTo": "unavailable",
+            "autoCreatedAt": false,
+            "autoUpdatedAt": false,
+            "autoIncrement": false
+          },
+          "error": {
+            "type": "string",
+            "columnType": "_string",
+            "columnName": "error",
+            "required": false,
+            "unique": false,
+            "index": false,
+            "autoCreatedAt": false,
+            "autoUpdatedAt": false,
+            "autoIncrement": false,
+            "allowNull": true
+          },
+          "stdout": {
+            "type": "string",
+            "columnType": "_string",
+            "columnName": "stdout",
+            "required": false,
+            "unique": false,
+            "index": false,
+            "defaultsTo": "",
+            "autoCreatedAt": false,
+            "autoUpdatedAt": false,
+            "autoIncrement": false
+          },
+          "stderr": {
+            "type": "string",
+            "columnType": "_string",
+            "columnName": "stderr",
+            "required": false,
+            "unique": false,
+            "index": false,
+            "defaultsTo": "",
+            "autoCreatedAt": false,
+            "autoUpdatedAt": false,
+            "autoIncrement": false
+          },
+          "logsTruncated": {
+            "type": "boolean",
+            "columnType": "_boolean",
+            "columnName": "logs_truncated",
+            "required": false,
+            "unique": false,
+            "index": false,
+            "defaultsTo": false,
+            "autoCreatedAt": false,
+            "autoUpdatedAt": false,
+            "autoIncrement": false
+          },
+          "logsAvailable": {
+            "type": "boolean",
+            "columnType": "_boolean",
+            "columnName": "logs_available",
+            "required": false,
+            "unique": false,
+            "index": false,
+            "defaultsTo": false,
+            "autoCreatedAt": false,
+            "autoUpdatedAt": false,
+            "autoIncrement": false
+          }
+        }
+      },
+      "resourcealertdelivery": {
+        "identity": "resourcealertdelivery",
+        "tableName": "resource_alert_deliveries",
+        "primaryKey": "id",
+        "attributes": {
+          "createdAt": {
+            "type": "number",
+            "columnType": "_numbertimestamp",
+            "columnName": "created_at",
+            "required": false,
+            "unique": false,
+            "index": false,
+            "autoCreatedAt": true,
+            "autoUpdatedAt": false,
+            "autoIncrement": false
+          },
+          "updatedAt": {
+            "type": "number",
+            "columnType": "_numbertimestamp",
+            "columnName": "updated_at",
+            "required": false,
+            "unique": false,
+            "index": false,
+            "autoCreatedAt": false,
+            "autoUpdatedAt": true,
+            "autoIncrement": false
+          },
+          "id": {
+            "type": "number",
+            "columnType": "_numberkey",
+            "columnName": "id",
+            "required": false,
+            "unique": false,
+            "index": false,
+            "autoCreatedAt": false,
+            "autoUpdatedAt": false,
+            "autoIncrement": true
+          },
+          "incidentKey": {
+            "type": "string",
+            "columnType": "_string",
+            "columnName": "incident_key",
+            "required": true,
+            "unique": false,
+            "index": false,
+            "autoCreatedAt": false,
+            "autoUpdatedAt": false,
+            "autoIncrement": false
+          },
+          "containerName": {
+            "type": "string",
+            "columnType": "_string",
+            "columnName": "container_name",
+            "required": true,
+            "unique": false,
+            "index": false,
+            "autoCreatedAt": false,
+            "autoUpdatedAt": false,
+            "autoIncrement": false
+          },
+          "resource": {
+            "type": "string",
+            "columnType": "_string",
+            "columnName": "resource",
+            "required": true,
+            "unique": false,
+            "index": false,
+            "autoCreatedAt": false,
+            "autoUpdatedAt": false,
+            "autoIncrement": false
+          },
+          "observedAt": {
+            "type": "number",
+            "columnType": "_number",
+            "columnName": "observed_at",
+            "required": true,
+            "unique": false,
+            "index": false,
+            "autoCreatedAt": false,
+            "autoUpdatedAt": false,
+            "autoIncrement": false
+          },
+          "payload": {
+            "type": "json",
+            "columnType": "_json",
+            "columnName": "payload",
+            "required": true,
+            "unique": false,
+            "index": false,
+            "autoCreatedAt": false,
+            "autoUpdatedAt": false,
+            "autoIncrement": false
+          },
+          "receipts": {
+            "type": "json",
+            "columnType": "_json",
+            "columnName": "receipts",
+            "required": false,
+            "unique": false,
+            "index": false,
+            "defaultsTo": {},
+            "autoCreatedAt": false,
+            "autoUpdatedAt": false,
+            "autoIncrement": false
+          },
+          "status": {
+            "type": "string",
+            "columnType": "_string",
+            "columnName": "status",
+            "required": false,
+            "unique": false,
+            "index": false,
+            "defaultsTo": "pending",
+            "autoCreatedAt": false,
+            "autoUpdatedAt": false,
+            "autoIncrement": false
+          },
+          "attempts": {
+            "type": "number",
+            "columnType": "_number",
+            "columnName": "attempts",
+            "required": false,
+            "unique": false,
+            "index": false,
+            "defaultsTo": 0,
+            "autoCreatedAt": false,
+            "autoUpdatedAt": false,
+            "autoIncrement": false
+          },
+          "nextAttemptAt": {
+            "type": "number",
+            "columnType": "_number",
+            "columnName": "next_attempt_at",
+            "required": false,
+            "unique": false,
+            "index": false,
+            "defaultsTo": 0,
+            "autoCreatedAt": false,
+            "autoUpdatedAt": false,
+            "autoIncrement": false
+          },
+          "leaseUntil": {
+            "type": "number",
+            "columnType": "_number",
+            "columnName": "lease_until",
+            "required": false,
+            "unique": false,
+            "index": false,
+            "defaultsTo": 0,
+            "autoCreatedAt": false,
+            "autoUpdatedAt": false,
+            "autoIncrement": false
+          },
+          "leaseOwner": {
+            "type": "string",
+            "columnType": "_string",
+            "columnName": "lease_owner",
+            "required": false,
+            "unique": false,
+            "index": false,
+            "defaultsTo": "",
+            "autoCreatedAt": false,
+            "autoUpdatedAt": false,
+            "autoIncrement": false
+          },
+          "lastOutcome": {
+            "type": "string",
+            "columnType": "_string",
+            "columnName": "last_outcome",
+            "required": false,
+            "unique": false,
+            "index": false,
+            "defaultsTo": "queued",
+            "autoCreatedAt": false,
+            "autoUpdatedAt": false,
+            "autoIncrement": false
+          }
+        }
+      }
+    }
+  },
+  "operations": {
+    "default": [
+      {
+        "type": "create_table",
+        "table": "restore_tests",
+        "sql": "CREATE TABLE IF NOT EXISTS `restore_tests` (\n  `created_at` INTEGER,\n  `updated_at` INTEGER,\n  `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,\n  `backup` INTEGER,\n  `service` INTEGER,\n  `team` INTEGER,\n  `requested_by` INTEGER,\n  `status` TEXT,\n  `stage` TEXT,\n  `resource_name` TEXT,\n  `report` TEXT,\n  `error` TEXT,\n  `cleanup_pending` INTEGER,\n  `started_at` INTEGER,\n  `completed_at` INTEGER\n);"
+      },
+      {
+        "type": "add_column",
+        "table": "helm_history_entries",
+        "column": "mode",
+        "sql": "ALTER TABLE `helm_history_entries` ADD COLUMN `mode` TEXT;"
+      }
+    ],
+    "observability": [
+      {
+        "type": "create_table",
+        "table": "quest_runs",
+        "sql": "CREATE TABLE IF NOT EXISTS `quest_runs` (\n  `created_at` INTEGER,\n  `updated_at` INTEGER,\n  `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,\n  `run_id` TEXT,\n  `request_key` TEXT,\n  `input_hash` TEXT,\n  `environment` TEXT,\n  `app` TEXT,\n  `deployment_id` TEXT,\n  `runtime_id` TEXT,\n  `job_name` TEXT,\n  `actor` TEXT,\n  `trigger` TEXT,\n  `state` TEXT,\n  `sequence` INTEGER,\n  `requested_at` INTEGER,\n  `started_at` INTEGER,\n  `finished_at` INTEGER,\n  `duration` INTEGER,\n  `exit_code` INTEGER,\n  `signal` TEXT,\n  `inputs` TEXT,\n  `result` TEXT,\n  `result_status` TEXT,\n  `error` TEXT,\n  `stdout` TEXT,\n  `stderr` TEXT,\n  `logs_truncated` INTEGER,\n  `logs_available` INTEGER\n);"
+      },
+      {
+        "type": "create_table",
+        "table": "resource_alert_deliveries",
+        "sql": "CREATE TABLE IF NOT EXISTS `resource_alert_deliveries` (\n  `created_at` INTEGER,\n  `updated_at` INTEGER,\n  `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,\n  `incident_key` TEXT,\n  `container_name` TEXT,\n  `resource` TEXT,\n  `observed_at` INTEGER,\n  `payload` TEXT,\n  `receipts` TEXT,\n  `status` TEXT,\n  `attempts` INTEGER,\n  `next_attempt_at` INTEGER,\n  `lease_until` INTEGER,\n  `lease_owner` TEXT,\n  `last_outcome` TEXT\n);"
+      }
+    ]
+  }
+}

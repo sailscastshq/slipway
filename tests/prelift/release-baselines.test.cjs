@@ -6,7 +6,7 @@ const path = require('node:path')
 const Database = require('better-sqlite3')
 const ledger = require('../../api/lib/upgrade-ledger')
 for (const version of ['0.0.86', '0.0.87']) {
-  const baseline = require(`../fixtures/upgrades/${version}.json`)
+  const baseline = require(`../../api/lib/upgrades/baselines/${version}.json`)
   test(`genuine ${version} native catalogs replay with the captured physical fingerprint`, () => {
     const directory = fs.mkdtempSync(
       path.join(os.tmpdir(), 'release-baseline-')
