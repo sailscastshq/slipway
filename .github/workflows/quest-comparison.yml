@@ -668,3 +668,29 @@ jobs:
             comparison.md
             comparison.json
           retention-days: 90
+
+  release-registry-proof:
+    name: Published release registry resident proof
+    timeout-minutes: 10
+    runs-on: ubuntu-latest
+    env:
+      RELEASE_SHA: ed1f6eaca5737e91cc9e69fa7a100985d4939033
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - name: Verify unchanged release hook source
+        run: git diff --exit-code "$RELEASE_SHA" HEAD -- packages/hook packages/cli package.json package-lock.json
+      - name: Prove clean published package consumer and actual resident controls
+        run: node scripts/verify-release-registry.cjs
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: release-registry-proof-${{ github.sha }}
+          path: .tmp/release-registry-proof
+          if-no-files-found: error
+          retention-days: 90
