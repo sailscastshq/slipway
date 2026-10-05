@@ -293,7 +293,7 @@ jobs:
           node <<'NODE'
           const assert = require('node:assert/strict')
           const actual = require('./baseline.json')
-          const expected = require('./tests/fixtures/upgrades/${{ matrix.version }}.json')
+          const expected = require('./api/lib/upgrades/baselines/${{ matrix.version }}.json')
           assert.equal(actual.image, expected.image)
           for (const [datastore, database] of Object.entries(expected.databases)) {
             assert.equal(actual.databases[datastore].present, database.present)
@@ -316,6 +316,17 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - name: Capture the actual legacy production schema handoff
         run: bash tests/prelift/capture-release-baseline.sh 0.0.87 baseline.json 0.0.86
+      - name: Verify the legacy native adoption profile remains immutable
+        run: |
+          node <<'NODE'
+          const assert = require('node:assert/strict')
+          const actual = require('./baseline.json')
+          const expected = require('./api/lib/upgrades/baselines/legacy-86-to-87.json')
+          assert.equal(actual.image, expected.image)
+          for (const [datastore, database] of Object.entries(expected.databases)) {
+            assert.equal(actual.databases[datastore].schemaHash, database.schemaHash)
+          }
+          NODE
       - uses: actions/upload-artifact@v4
         with:
           name: upgrade-baseline-legacy-86-to-87
@@ -334,6 +345,16 @@ jobs:
         run: docker build -t slipway-upgrade-baseline .
       - name: Capture a stopped fresh current installation
         run: bash tests/prelift/capture-release-baseline.sh 0.0.87 baseline.json current slipway-upgrade-baseline
+      - name: Verify fresh schema matches the reviewed release catalog
+        run: |
+          node <<'NODE'
+          const assert = require('node:assert/strict')
+          const actual = require('./baseline.json')
+          const expected = require('./api/lib/upgrades/baselines/current-fresh.json')
+          for (const [datastore, database] of Object.entries(expected.databases)) {
+            assert.equal(actual.databases[datastore].schemaHash, database.schemaHash)
+          }
+          NODE
       - uses: actions/upload-artifact@v4
         with:
           name: upgrade-baseline-current-fresh
@@ -353,7 +374,7 @@ jobs:
           node-version: '22'
           cache: npm
       - run: npm ci --no-audit
-      - run: node --test tests/prelift/migration-executor.test.cjs tests/prelift/sqlite-schema.test.cjs tests/prelift/upgrade-ledger.test.cjs tests/prelift/upgrade-backups.test.cjs tests/prelift/upgrade-preflight.test.cjs tests/prelift/release-baselines.test.cjs
+      - run: node --test tests/prelift/migration-executor.test.cjs tests/prelift/sqlite-schema.test.cjs tests/prelift/upgrade-ledger.test.cjs tests/prelift/upgrade-backups.test.cjs tests/prelift/upgrade-preflight.test.cjs tests/prelift/release-baselines.test.cjs tests/prelift/upgrade-coordinator.test.cjs tests/prelift/upgrade-entry-guard.test.cjs tests/prelift/upgrade-registry.test.cjs tests/prelift/schema-retirement.test.cjs
 
   test:
     name: Test (${{ matrix.lane }})

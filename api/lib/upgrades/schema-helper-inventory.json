@@ -1,0 +1,142 @@
+{
+  "format": 1,
+  "release": "0.0.88",
+  "helpers": [
+    {
+      "helper": "auth.ensureSchema",
+      "source": "api/helpers/auth/ensure-schema.js",
+      "datastore": "default",
+      "responsibilities": ["native schema"]
+    },
+    {
+      "helper": "team.ensureSchema",
+      "source": "api/helpers/team/ensure-schema.js",
+      "datastore": "default",
+      "responsibilities": [
+        "native schema",
+        "once-only team membership and CLI targeting data backfill"
+      ]
+    },
+    {
+      "helper": "git.ensureWebhookSchema",
+      "source": "api/helpers/git/ensure-webhook-schema.js",
+      "datastore": "default",
+      "responsibilities": ["native schema"]
+    },
+    {
+      "helper": "source.ensureSchema",
+      "source": "api/helpers/source/ensure-schema.js",
+      "datastore": "default",
+      "responsibilities": ["native schema"]
+    },
+    {
+      "helper": "backup.ensureRestoreSchema",
+      "source": "api/helpers/backup/ensure-restore-schema.js",
+      "datastore": "default",
+      "responsibilities": ["native schema"]
+    },
+    {
+      "helper": "backup.ensureTestSchema",
+      "source": "api/helpers/backup/ensure-test-schema.js",
+      "datastore": "default",
+      "responsibilities": ["native schema"]
+    },
+    {
+      "helper": "cleanup.ensureSchema",
+      "source": "api/helpers/cleanup/ensure-schema.js",
+      "datastore": "default",
+      "responsibilities": [
+        "native schema",
+        "conditional cleanup lease data backfill"
+      ]
+    },
+    {
+      "helper": "bridge.ensureSchema",
+      "source": "api/helpers/bridge/ensure-schema.js",
+      "datastore": "default",
+      "responsibilities": ["native schema"]
+    },
+    {
+      "helper": "bearing.ensureSchema",
+      "source": "api/helpers/bearing/ensure-schema.js",
+      "datastore": "default",
+      "responsibilities": ["native schema"]
+    },
+    {
+      "helper": "wake.ensureAppSchema",
+      "source": "api/helpers/wake/ensure-app-schema.js",
+      "datastore": "default",
+      "responsibilities": ["native schema"]
+    },
+    {
+      "helper": "wake.ensureSchema",
+      "source": "api/helpers/wake/ensure-schema.js",
+      "datastore": "analytics",
+      "responsibilities": [
+        "native schema",
+        "connection pragmas",
+        "storage readiness",
+        "wake-store native schema"
+      ]
+    },
+    {
+      "helper": "configuration.ensureSchema",
+      "source": "api/helpers/configuration/ensure-schema.js",
+      "datastore": "default",
+      "responsibilities": [
+        "native schema",
+        "existing encrypted app variable backfill"
+      ]
+    },
+    {
+      "helper": "backup.ensureStorageSchema",
+      "source": "api/helpers/backup/ensure-storage-schema.js",
+      "datastore": "default",
+      "responsibilities": ["native schema"]
+    },
+    {
+      "helper": "flag.ensureSchema",
+      "source": "api/helpers/flag/ensure-schema.js",
+      "datastore": "default",
+      "responsibilities": ["native schema"]
+    },
+    {
+      "helper": "deploy.ensureQueueSchema",
+      "source": "api/helpers/deploy/ensure-queue-schema.js",
+      "datastore": "default",
+      "responsibilities": ["native schema"]
+    },
+    {
+      "helper": "service.ensureVersionSchema",
+      "source": "api/helpers/service/ensure-version-schema.js",
+      "datastore": "default",
+      "responsibilities": [
+        "native schema",
+        "custom-service interrupted-change status recovery"
+      ]
+    },
+    {
+      "helper": "helm.ensureWorkspaceSchema",
+      "source": "api/helpers/helm/ensure-workspace-schema.js",
+      "datastore": "default",
+      "responsibilities": ["native schema"]
+    },
+    {
+      "helper": "lookout.ensureObservabilitySchema",
+      "source": "api/helpers/lookout/ensure-observability-schema.js",
+      "datastore": "observability",
+      "responsibilities": [
+        "native schema",
+        "telemetry receipt timestamp data repair"
+      ]
+    }
+  ],
+  "preserveBusinessRecovery": [
+    "bootstrap multi-app backfill",
+    "service.migrateLegacyVersions",
+    "source-operations.recover",
+    "restore-operations.recover",
+    "backup.manageRestoreTests(recover)"
+  ],
+  "retirementRule": "Retire DDL only after compatible native checkpoint and startup tests; preserve business backfills, recovery and readiness behavior."
+}
