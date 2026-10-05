@@ -1,0 +1,57 @@
+{
+  "beforeSourceSha": "ed1f6eaca5737e91cc9e69fa7a100985d4939033",
+  "afterSourceSha": "36d82dfba9305ce096c628bfda11dab84b0d0dd2",
+  "method": "Same Mac runner; sequential before-after-after-before; independent normal test-app/browser lifecycle per round; five warmed navigations per viewport each round; identical current-workspace JSON in both revisions.",
+  "scope": "Real browser observations using synthetic five-job/ten-event operational data and controlled SSE. Development assets on the same stack. Descriptive warmed timing, not a production speedup or general no-regression proof. No cold-first-use lane.",
+  "order": ["before-1", "after-1", "after-2", "before-2"],
+  "observations": [
+    {
+      "capture": "desktop-light",
+      "beforeMedianMs": 102.0,
+      "afterMedianMs": 100.0,
+      "beforeSamplesMs": [129, 103, 108, 102, 102, 122, 102, 95, 96, 102],
+      "afterSamplesMs": [125, 96, 94, 101, 101, 123, 99, 95, 99, 101],
+      "beforeElements": 422,
+      "afterElements": 434,
+      "questJsonBytes": 4424,
+      "initialJsonBytes": 5650,
+      "horizontalOverflowPx": [0, 0, 0, 0]
+    },
+    {
+      "capture": "desktop-dark",
+      "beforeMedianMs": 101.0,
+      "afterMedianMs": 98.0,
+      "beforeSamplesMs": [105, 110, 118, 104, 94, 101, 94, 101, 92, 97],
+      "afterSamplesMs": [102, 96, 99, 96, 97, 103, 92, 101, 93, 100],
+      "beforeElements": 422,
+      "afterElements": 434,
+      "questJsonBytes": 4424,
+      "initialJsonBytes": 5650,
+      "horizontalOverflowPx": [0, 0, 0, 0]
+    },
+    {
+      "capture": "mobile-light",
+      "beforeMedianMs": 98.0,
+      "afterMedianMs": 93.0,
+      "beforeSamplesMs": [102, 97, 98, 103, 103, 98, 97, 93, 104, 90],
+      "afterSamplesMs": [91, 93, 92, 103, 93, 96, 98, 92, 106, 89],
+      "beforeElements": 422,
+      "afterElements": 434,
+      "questJsonBytes": 4424,
+      "initialJsonBytes": 5650,
+      "horizontalOverflowPx": [0, 0, 0, 0]
+    },
+    {
+      "capture": "mobile-dark",
+      "beforeMedianMs": 97.5,
+      "afterMedianMs": 92.5,
+      "beforeSamplesMs": [98, 100, 97, 99, 111, 90, 91, 96, 93, 100],
+      "afterSamplesMs": [91, 91, 91, 93, 100, 88, 92, 97, 93, 96],
+      "beforeElements": 422,
+      "afterElements": 434,
+      "questJsonBytes": 4424,
+      "initialJsonBytes": 5650,
+      "horizontalOverflowPx": [0, 0, 0, 0]
+    }
+  ]
+}

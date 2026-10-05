@@ -1,55 +1,135 @@
 {
   "beforeSourceSha": "ed1f6eaca5737e91cc9e69fa7a100985d4939033",
-  "afterSourceSha": "b1afa4b5009304442b9a4c032f8363276f5a89c2",
-  "trial": "Quest running disclosure preserves truthful activity and a quiet responsive workspace",
+  "afterSourceSha": "36d82dfba9305ce096c628bfda11dab84b0d0dd2",
+  "trial": "Quest running disclosure preserves truthful activity and a quiet responsive workspace; Quest filters use established Slipway fields with visible focus and keyboard filtering",
   "transport": "Synthetic operational JSON and EventSource; actual Slipway page, layout, CSS, browser pixels. No production jobs executed.",
-  "capturePhaseEnvironment": "SLIPWAY_QUEST_DESIGN_CAPTURE_PHASE=before or after",
-  "viewports": {
-    "desktop": {
-      "width": 1440,
-      "height": 1000
-    },
-    "mobile": {
-      "width": 390,
-      "height": 844
-    }
-  },
-  "scope": "Design-only branch from released main. Underline filter styling in PR688 and app-context breadcrumbs in PR690 are separate and absent from these captures.",
+  "scope": "Design PR692 stacked on tested input PR688. Native Jobs/Runs dashed-bottom fields included. Decorative workspace and row dividers removed. App-context PR690 remains separate.",
+  "libraryStatus": "Saving unavailable in this execution environment; no Library screenshot was created. Parent can download these exact GitHub files and verify SHA256 before saving.",
   "images": [
     {
       "file": "after-desktop-dark.png",
-      "sha256": "7931ea48cb5f25b6332c660d9111e71ce9e625b4363f1e4f42ec34e7adfa3877"
+      "width": 1440,
+      "height": 1000,
+      "sha256": "ed9c20241207bab379794410d34d8c24ae684300982e9d66a7bf6f3ecec11bde"
     },
     {
       "file": "after-desktop-light.png",
-      "sha256": "1c9a8c39ab084a96731be099e197ecd094c75fa211b372c840d130f1d63e20ab"
+      "width": 1440,
+      "height": 1000,
+      "sha256": "bc1880f26695b8131279e2f13af936093349f715314f635fe4103b04b4c6d543"
+    },
+    {
+      "file": "after-inputs-1440-dark.png",
+      "width": 1440,
+      "height": 900,
+      "sha256": "a5b9a2c5b361163b10bfe958043df41b2713795d141868381fdc88842495b335"
+    },
+    {
+      "file": "after-inputs-1440-light.png",
+      "width": 1440,
+      "height": 900,
+      "sha256": "d96a70cadea89c1fbaff8c57f5b3807c98fc7025183bc8464d141e6c3d499eff"
+    },
+    {
+      "file": "after-inputs-390-dark.png",
+      "width": 390,
+      "height": 900,
+      "sha256": "d83e087407a9fd34780145d82b3e8a3e4bf85eb58a57a0514b47048aa79d40d9"
+    },
+    {
+      "file": "after-inputs-390-light.png",
+      "width": 390,
+      "height": 900,
+      "sha256": "f412b39e0501d589e5bf5d6690066fca739f8200ab52950aca8b35f5d0833dd4"
+    },
+    {
+      "file": "after-job-filters-1440-dark.png",
+      "width": 1440,
+      "height": 900,
+      "sha256": "d5e07a7607fc2450bbd9796ec932ae89d216551f8abb90088f8ca3c487974946"
+    },
+    {
+      "file": "after-job-filters-1440-light.png",
+      "width": 1440,
+      "height": 900,
+      "sha256": "a7e4c1809aea7a85d42c2f12fbedae41309fb2e78dff356eacccf571549d9248"
+    },
+    {
+      "file": "after-job-filters-390-dark.png",
+      "width": 390,
+      "height": 900,
+      "sha256": "fd6313008fade7fee22ef6ac067cd6ec7634de803db06dd5206445e613b2af1b"
+    },
+    {
+      "file": "after-job-filters-390-light.png",
+      "width": 390,
+      "height": 900,
+      "sha256": "d05b504acedc83967212338edb2968c769ffb94ad5be4d20c2558e75570fdcfc"
     },
     {
       "file": "after-mobile-dark.png",
-      "sha256": "28e2aaead2f886541cc927d04c09db47c6aa12d98d629eeafefd230307a5a487"
+      "width": 390,
+      "height": 844,
+      "sha256": "5555da63980d20b1b88a991f9786568b289bf1ad158eead7d7cb702c68374b5e"
     },
     {
       "file": "after-mobile-disconnected.png",
-      "sha256": "d0550f627335677ac88545dd6af87ece2ef0b2e95864ab1a67d5d8c6d5e141c1"
+      "width": 390,
+      "height": 844,
+      "sha256": "c5f861fe4c1ae74a252f76c5c7821fc1846cf5c521d1558dc0465bdc3ca2da01"
     },
     {
       "file": "after-mobile-light.png",
-      "sha256": "6d46cbb1207971f8bcbfd96d89dc4e38857895d026529b71ce96acd75b1a3c94"
+      "width": 390,
+      "height": 844,
+      "sha256": "8922f9854e5fef839a14a02fa0b9fd1480651e761bf0860a254777397357a748"
+    },
+    {
+      "file": "after-runs-1440-dark.png",
+      "width": 1440,
+      "height": 900,
+      "sha256": "553ede9056efc573b5edfb431e64dc2fe39de7abbf3031922cdbc097f59316c3"
+    },
+    {
+      "file": "after-runs-1440-light.png",
+      "width": 1440,
+      "height": 900,
+      "sha256": "8dc64aa932284803a476f18493a152cb22518297be81a6739355f4f911f3a25a"
+    },
+    {
+      "file": "after-runs-390-dark.png",
+      "width": 390,
+      "height": 900,
+      "sha256": "64c9feac8e98705a432d4b50c9fbcab39c7451868702ec33b6e85ccb8cfd24ce"
+    },
+    {
+      "file": "after-runs-390-light.png",
+      "width": 390,
+      "height": 900,
+      "sha256": "1c1b12b4ac6636c0b3689184d911fe26890431d52d37d9c73fc998b6fc114e70"
     },
     {
       "file": "before-desktop-dark.png",
+      "width": 1440,
+      "height": 1000,
       "sha256": "b759cc3412312f4a5807ce1d35ebf17a677424b2ce6efd0dab03040cd2608eee"
     },
     {
       "file": "before-desktop-light.png",
+      "width": 1440,
+      "height": 1000,
       "sha256": "4f27a3581e1706539989ccffc895d5e868b731d48c319a4e26a2611310c8b985"
     },
     {
       "file": "before-mobile-dark.png",
+      "width": 390,
+      "height": 844,
       "sha256": "70f42224ae8a18bae6ab5b3b54405c71feb9e5c54cd525d76f13290b8cded07e"
     },
     {
       "file": "before-mobile-light.png",
+      "width": 390,
+      "height": 844,
       "sha256": "ec92b1f9a6021863240531801217f319abbe12b2f062b5fb8dee51e8804b924a"
     }
   ]
