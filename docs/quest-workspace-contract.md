@@ -1,10 +1,10 @@
-# Quest workspace contract (draft)
+# Quest workspace contract
 
-This work is the Slipway side of [#653](https://github.com/sailscastshq/slipway/issues/653). It depends on the upstream [resident Quest contract](https://github.com/sailscastshq/sails-hook-quest/issues/13). The combined fixture pins upstream source `7411223d586d1b86365296b0a696fda5477f2109` from [Quest PR #14](https://github.com/sailscastshq/sails-hook-quest/pull/14). Verification of the published package pair remains a release gate. The [real npm-packed combined fixture at Slipway `e9ef653a`](https://github.com/sailscastshq/slipway/actions/runs/37239512061/artifacts/11316494927) passes normal Sails execution, process ownership, HTTP/browser invocation, source schedules and resident restart/recovery. A separate real web-app proof passes actual HTTP telemetry, disk-backed dashboard restart, preserved receipts/logs and explicit missing-receipt recovery without starting work again. Best-effort delivery still has no durable replay guarantee. Matched before/after UI comparisons remain separately labeled synthetic transport. Keep this change in draft while the remaining performance, final-head and published-version gates are open.
+This work is the Slipway side of [#653](https://github.com/sailscastshq/slipway/issues/653). It depends on the upstream [resident Quest contract](https://github.com/sailscastshq/sails-hook-quest/issues/13). The combined fixture pins upstream source `7411223d586d1b86365296b0a696fda5477f2109` from [Quest PR #14](https://github.com/sailscastshq/sails-hook-quest/pull/14). Verification of the published package pair remains a release gate. The [real npm-packed combined fixture at Slipway `e9ef653a`](https://github.com/sailscastshq/slipway/actions/runs/37239512061/artifacts/11316494927) passes normal Sails execution, process ownership, HTTP/browser invocation, source schedules and resident restart/recovery. A separate real web-app proof passes actual HTTP telemetry, disk-backed dashboard restart, preserved receipts/logs and explicit missing-receipt recovery without starting work again. Best-effort delivery still has no durable replay guarantee. Matched before/after UI comparisons remain separately labeled synthetic transport. Release preparation retains the recorded performance tradeoffs and requires final-source checks and the registry-installed package-pair proof before stable server publication.
 
 ## Compatibility and activation
 
-The resident contract is published in [`sails-hook-quest` 0.0.6](https://github.com/sailscastshq/sails-hook-quest/releases/tag/v0.0.6). Quest 0.0.5 has no compatible resident metadata/result interface. The compatible Slipway hook release is still pending; existing apps keep bounded legacy history and lazy diagnostics, with live state **Unavailable**. Their Run, Pause and Resume controls are unavailable: a temporary Sails console does not own the resident scheduler.
+The resident contract requires [`sails-hook-quest` 0.0.6](https://github.com/sailscastshq/sails-hook-quest/releases/tag/v0.0.6) or newer and `sails-hook-slipway` 0.0.12 or newer. Older hooks keep bounded legacy history and lazy diagnostics, with live state **Unavailable**. Their Run, Pause and Resume controls are unavailable: a temporary Sails console does not own the resident scheduler. Registry-installed pair verification remains required before stable server publication.
 
 Quest 0.0.6 also requires the ORM hook to be enabled during Sails initialization.
 Apps that deliberately exclude ORM can block on Quest's missing readiness event;
@@ -54,9 +54,9 @@ or date is rewritten from the dashboard.
 ## Owner upgrade sequence and release gate
 
 1. Keep incompatible apps on the read-only legacy path; do not infer support from
-   a package version alone. The pinned CI source identifies as Quest 0.0.5.
-2. After compatible releases exist, upgrade both `sails-hook-quest` and
-   `sails-hook-slipway` in the application, review its source jobs/inputs, and deploy
+   a package version alone.
+2. Install `sails-hook-quest` **0.0.6 or newer** and `sails-hook-slipway`
+   **0.0.12 or newer** in the application, review its source jobs/inputs, and deploy
    the normal app image. Slipway does not alter customer dependency manifests.
 3. Explicitly enable the app-owned Quest bridge setting shown above. Verify the
    actual resident app/deployment, contract capabilities, source schema and schedule
@@ -66,20 +66,19 @@ or date is rewritten from the dashboard.
    job can round-trip typed input, result and logs. Review pause/restart, data-loss
    and rerun limitations before using jobs with external side effects.
 
-The release checklist must record exact published minimum Quest and Slipway-hook
-versions and replace this pending-release instruction before stable shipment.
+The release checklist must verify the exact published Quest and Slipway-hook
+versions and their actual resident capabilities before stable server shipment.
 Pinned source in a disposable integration test is not a published upgrade path.
 
 The published Quest minimum is **0.0.6**, verified through a fresh registry
 installation and actual Sails capability checks. Its release tag points to
-`93c0da8fa53a1154b455ab073a85e59e1447e761`. The proposed first compatible Slipway
-hook remains **0.0.12**, pending publication and the registry-installed pair
-checks. Earlier releases 0.0.5 and 0.0.11 lack the resident contract. Quest must include the
+`93c0da8fa53a1154b455ab073a85e59e1447e761`. The first compatible Slipway
+hook is **0.0.12**. Publication and a fresh registry-installed pair smoke remain
+server release gates. Earlier releases 0.0.5 and 0.0.11 lack the resident contract. Quest must include the
 tested `7411223d586d1b86365296b0a696fda5477f2109` contract, and the Slipway hook
 must include the final verified #673 runtime and telemetry fixes. After the
-coordinated releases, verify the registry tarballs and capabilities, replace the
-unreleased notices and minimum-version placeholders in this guide and the hook
-README, and publish the matching public upgrade instructions before the server
+coordinated package releases, verify the registry tarballs and capabilities,
+record the installed pair's provenance and runtime evidence, and publish the matching public upgrade instructions before the server
 release. Keep legacy capability behavior explicit throughout that sequence.
 
 ## Runs, results and logs

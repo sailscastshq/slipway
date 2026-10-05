@@ -355,20 +355,19 @@ Lookout exception. The Slipway hook removes terminal formatting and redacts
 known secret values before telemetry leaves the application. Older Quest
 payloads remain supported and use their runner stack when one is available.
 
-## Resident Quest workspace (unreleased)
+## Resident Quest workspace (0.0.12)
 
 The new Quest workspace connects to the application's running Sails process to
 inspect source jobs, review typed inputs, run a registered job, and pause or
 resume its scheduler. Results and logs are shown separately. Scripts and
 `config/quest.js` remain the source of truth for inputs and schedules.
 
-This requires `sails-hook-quest` **0.0.6 or newer** and a compatible
-`sails-hook-slipway` release. The planned first compatible Slipway hook is
-**0.0.12**, which is not yet published. Quest 0.0.5 and Slipway hook 0.0.11 do not
+This requires `sails-hook-quest` **0.0.6 or newer** and
+`sails-hook-slipway` **0.0.12 or newer**. Quest 0.0.5 and Slipway hook 0.0.11 do not
 include this contract. Older hooks retain bounded history in the dashboard,
 with live state and resident controls marked unavailable. The
 [Quest upgrade guide](../../docs/quest-workspace-contract.md#owner-upgrade-sequence-and-release-gate)
-tracks the published pair and verification; a version string alone never enables
+tracks the compatible pair and required verification; a version string alone never enables
 unsupported controls.
 
 Quest 0.0.6 currently needs the Sails ORM hook enabled. Database-free apps that
