@@ -834,6 +834,7 @@ test(
     )
 
     const voter = participantClient.withHeaders({
+      'X-Inertia': '',
       accept: 'application/json',
       'x-csrf-token': participantPage.data.props._csrf
     })
@@ -844,6 +845,24 @@ test(
     const unvoted = await voter.post(`${hostPath}/${feedback.publicId}/vote`)
     expect(unvoted.data.voted).toBe(false)
     expect(unvoted.data.voteCount).toBe(0)
+
+    const inertiaVoter = voter.withHeaders({
+      'X-Inertia': 'true',
+      referer: hostPath
+    })
+    for (const expectedVoted of [true, false]) {
+      const vote = await inertiaVoter.post(
+        `${hostPath}/${feedback.publicId}/vote`
+      )
+      expect(vote).toHaveStatus(303)
+      expect(vote).toHaveHeader('location', hostPath)
+      const refreshed = await inertiaVoter.get(hostPath)
+      expect(refreshed.data.props.flash.vote).toEqual({
+        publicId: feedback.publicId,
+        voted: expectedVoted,
+        voteCount: expectedVoted ? 1 : 0
+      })
+    }
 
     const managementPath = bearingPath(project, environment, app)
     const manager = await withCsrfFromPage(

@@ -232,29 +232,28 @@ async function saveCustomDomain() {
   savingDomain.value = true
   domainError.value = ''
   try {
-    const res = await fetch(
+    const page = await inertiaMutation(
+      'patch',
       `/api/v1/projects/${props.project.slug}/environments/${props.environment.slug}`,
-      {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ domain: newDomain.value.trim() })
-      }
+      { domain: newDomain.value.trim() }
     )
-    if (res.ok) {
-      const result = await res.json()
-      domainReadiness.value = result.domainReadiness
-      toast({
-        message: newDomain.value.trim()
-          ? 'Environment domain saved. DNS and HTTPS still need verification.'
-          : 'Custom domain removed',
-        type: 'success'
-      })
-      domainModalOpen.value = false
-      router.reload({ only: ['environment'] })
-    } else {
-      const err = await res.json().catch(() => null)
-      domainError.value = err?.message || 'Failed to save domain'
-    }
+    domainReadiness.value = page.props.environment.domainReadiness
+    const receipt = page.props.flash?.domainRoute
+    if (
+      receipt?.environmentId === String(props.environment.id) &&
+      receipt.domain === (newDomain.value.trim() || null)
+    )
+      domainReadiness.value = {
+        ...domainReadiness.value,
+        route: receipt.verified ? 'verified' : 'unverified'
+      }
+    toast({
+      message: newDomain.value.trim()
+        ? 'Environment domain saved. DNS and HTTPS still need verification.'
+        : 'Custom domain removed',
+      type: 'success'
+    })
+    domainModalOpen.value = false
   } catch (error) {
     domainError.value = mutationFailureMessage(error)
   } finally {
@@ -740,33 +739,11 @@ function flagUrl(flag) {
   return flag ? `${base}/${flag.id}` : base
 }
 
-async function flagRequest(url, options) {
-  const response = await fetch(url, {
-    headers: { 'Content-Type': 'application/json' },
-    ...options
-  })
-  const data = await response.json().catch(() => ({}))
-  if (!response.ok) {
-    const firstProblem = data.problems?.[0]
-    throw new Error(
-      firstProblem
-        ? Object.values(firstProblem)[0]
-        : data.message || 'Release flag could not be saved.'
-    )
-  }
-  return data
-}
-
 async function createReleaseFlag() {
   if (!validNewFlagKey.value || savingFlag.value) return
   savingFlag.value = true
   try {
-    const data = await flagRequest(flagUrl(), {
-      method: 'POST',
-      body: JSON.stringify({ key: newFlagKey.value.trim() })
-    })
-    localReleaseFlags.value.push(data.flag)
-    localReleaseFlags.value.sort((a, b) => a.key.localeCompare(b.key))
+    await inertiaMutation('post', flagUrl(), { key: newFlagKey.value.trim() })
     newFlagKey.value = ''
     toast({ message: 'Release flag created', type: 'success' })
   } catch (error) {
@@ -780,20 +757,13 @@ async function updateReleaseFlag(flag, updates) {
   if (savingFlag.value) return false
   savingFlag.value = true
   try {
-    const data = await flagRequest(flagUrl(flag), {
-      method: 'PATCH',
-      body: JSON.stringify({
-        description: flag.description,
-        enabled: flag.enabled,
-        rolloutPercentage: flag.rolloutPercentage,
-        targets: flag.targets,
-        ...updates
-      })
+    await inertiaMutation('patch', flagUrl(flag), {
+      description: flag.description,
+      enabled: flag.enabled,
+      rolloutPercentage: flag.rolloutPercentage,
+      targets: flag.targets,
+      ...updates
     })
-    const index = localReleaseFlags.value.findIndex(
-      (candidate) => candidate.id === flag.id
-    )
-    if (index >= 0) localReleaseFlags.value[index] = data.flag
     return true
   } catch (error) {
     toast({ message: error.message, type: 'error' })
@@ -815,7 +785,7 @@ async function removeReleaseFlag(flag) {
   if (savingFlag.value) return
   savingFlag.value = true
   try {
-    await flagRequest(flagUrl(flag), { method: 'DELETE' })
+    await inertiaMutation('delete', flagUrl(flag))
     localReleaseFlags.value = localReleaseFlags.value.filter(
       (candidate) => candidate.id !== flag.id
     )
@@ -1558,7 +1528,8 @@ onBeforeUnmount(() => {
                   />
                   <ReleaseFlagMenu
                     :flag="flag"
-                    @update="updateReleaseFlag(flag, $event)"
+                    :save-update="(updates) => updateReleaseFlag(flag, updates)"
+                    :busy="savingFlag"
                     @remove="removeReleaseFlag(flag)"
                   />
                 </div>

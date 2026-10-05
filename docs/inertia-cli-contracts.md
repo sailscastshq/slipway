@@ -71,7 +71,22 @@ run prompts for a target or opens the dashboard.
 
 ## Bounded coverage
 
-This slice moves eight browser mutation flows to Inertia and two print-only CLI
-commands. Interactive `terminal`, broader app lifecycle, profiles/doctor, async
+The initial slice moved eight browser mutation flows to Inertia and two print-only
+CLI commands. The remaining cleanup adds 17 saved-record operations: environment
+domain, Bosun variables, Wake settings and visitor deletion, external PostgreSQL
+registration and connection settings, custom service app links, release-flag CRUD,
+six Helm history/snippet mutations, and public feedback votes. This makes 25
+converted browser mutation flows overall. Built-in service creation and reviewed
+custom service creation retain REST because they start containers and return
+operational receipts. External registration performs no runtime work and uses
+Inertia in the browser while keeping its REST 201 response.
+
+Creation adapters preserve 201 JSON payloads. Visitor deletion returns the surviving
+Wake journeys page. Vote confirmation carries only the public vote receipt;
+optimistic rollback, login redirects, and live announcements remain. Stale selected
+apps remain visible for deselection after failed validation. Confirmed external
+connection saves clear local DSN and CA inputs. Helm reads and commands stay on REST.
+
+Interactive `terminal`, broader app lifecycle, profiles/doctor, async
 operation replay, and Dock/Quest CLI workflows remain separate work. No claim of
 complete dashboard/CLI parity is made.

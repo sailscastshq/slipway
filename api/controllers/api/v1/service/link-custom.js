@@ -6,10 +6,10 @@ module.exports = {
     appIds: { type: 'ref', required: true }
   },
   exits: {
-    success: { statusCode: 200 },
+    success: { responseType: 'mutationSuccess' },
     notFound: { statusCode: 404 },
     forbidden: { statusCode: 403 },
-    badRequest: { responseType: 'badRequest' }
+    badRequest: { responseType: 'mutationBadRequest' }
   },
   fn: async function ({ serviceId, appIds }) {
     const service = await Service.findOne({ id: serviceId })

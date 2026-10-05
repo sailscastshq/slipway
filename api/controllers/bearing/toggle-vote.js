@@ -14,7 +14,7 @@ module.exports = {
   },
 
   exits: {
-    success: { statusCode: 200 },
+    success: { responseType: 'bearingVoteSaved' },
     notFound: { statusCode: 404 },
     forbidden: { statusCode: 403 }
   },

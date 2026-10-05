@@ -8,6 +8,8 @@ module.exports = function mutationBadRequest(data) {
         typeof data === 'string' ? data : data?.message || data?.error
       if (typeof message === 'string')
         errors[data?.field || 'settings'] = [message]
+      else if (data == null)
+        errors.settings = ['Check the supplied values and try again.']
     }
     if (Object.keys(errors).length) {
       this.req.session ||= {}

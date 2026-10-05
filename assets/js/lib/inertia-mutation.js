@@ -6,7 +6,7 @@ function failure(message) {
   return error
 }
 function httpFailure(response) {
-  return failure(
+  const error = failure(
     response.status === 403
       ? 'You no longer have permission to make this change.'
       : response.status === 401 || response.status === 419
@@ -15,6 +15,8 @@ function httpFailure(response) {
         response.data?.message ||
         `The save could not be confirmed (${response.status}). Your edits are still here.`
   )
+  error.status = response.status
+  return error
 }
 
 // Await completion so callers can sequence save/restart and retain local edits.

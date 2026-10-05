@@ -5,7 +5,7 @@ const { test } = require('sounding')
 test(
   'Bosun distinguishes allocated heap from process RSS and handles unavailable measurements',
   { browser: true, world: 'configured-slipway' },
-  async ({ page, login, world, expect }) => {
+  async ({ sails, page, login, world, expect }) => {
     const originalMemoryUsage = process.memoryUsage
     let sample = {
       heapUsed: 170.2 * 1024 ** 2,
@@ -89,19 +89,16 @@ test(
 test(
   'Bosun environment saves keep failed edits and confirm successful writes',
   { browser: true, world: 'configured-slipway' },
-  async ({ page, login, world, expect }) => {
+  async ({ sails, page, login, world, expect }) => {
     await login.withPassword('genesisUser', page, {
       password: world.current.auth.genesisUserPassword
     })
     await page.raw.waitForURL((url) => url.pathname === '/')
     await page.goto('/bosun?tab=environment')
-    let fail = true
     await page.raw.route('**/api/v1/bosun/env', (route) =>
       route.fulfill({
-        status: fail ? 503 : 200,
-        json: fail
-          ? { message: 'Environment storage is unavailable. Retry later.' }
-          : { success: true }
+        status: 503,
+        json: { message: 'Environment storage is unavailable. Retry later.' }
       })
     )
     await page.raw
@@ -122,7 +119,7 @@ test(
       page.raw.getByText('CUSTOMER_MODE', { exact: true })
     ).toHaveCount(0)
     await toast.locator('button').click()
-    fail = false
+    await page.raw.unroute('**/api/v1/bosun/env')
     await page.raw.getByRole('button', { name: 'Add', exact: true }).click()
     await expect(toast).toContainText('Environment variables saved')
     await expect(
@@ -131,6 +128,13 @@ test(
     await expect(page.raw.getByPlaceholder('KEY', { exact: true })).toHaveValue(
       ''
     )
+    await expect(
+      page.raw.getByPlaceholder('value', { exact: false })
+    ).toHaveValue('')
+    expect(
+      JSON.parse(await sails.helpers.setting.get('instanceEnvVars'))
+        .CUSTOMER_MODE
+    ).toBe('production')
     expect(page).toHaveNoJavascriptErrors()
   }
 )

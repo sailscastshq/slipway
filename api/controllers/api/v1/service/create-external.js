@@ -13,10 +13,10 @@ module.exports = {
     configuration: { type: 'ref', required: true }
   },
   exits: {
-    success: { statusCode: 201 },
+    success: { responseType: 'mutationCreated' },
     notFound: { statusCode: 404 },
     forbidden: { statusCode: 403 },
-    badRequest: { responseType: 'badRequest' }
+    badRequest: { responseType: 'mutationBadRequest' }
   },
   fn: async function ({ projectSlug, environmentSlug, name, configuration }) {
     const user = await User.forRequest(this.req)

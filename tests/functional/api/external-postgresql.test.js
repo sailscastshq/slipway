@@ -17,10 +17,12 @@ test(
     const configuration = {
       dsn: `postgresql://backup:${secret}@database.example.com/application`
     }
-    const response = await browser.request.post(root + '/external', {
-      name: 'external-db',
-      configuration
-    })
+    const response = await browser.request
+      .withHeaders({ 'X-Inertia': '' })
+      .post(root + '/external', {
+        name: 'external-db',
+        configuration
+      })
     expect(response).toHaveStatus(201)
     const id = response.data.service.id
     expect(response.data.service.status).toBe('unverified')
@@ -81,20 +83,24 @@ test(
       }
     })
     expect(
-      await browser.request.patch(`/api/v1/services/${id}/external`, {
-        configuration: {
-          dsn: `postgresql://backup:rotated-password@new.example.com/application`
-        }
-      })
+      await browser.request
+        .withHeaders({ 'X-Inertia': '' })
+        .patch(`/api/v1/services/${id}/external`, {
+          configuration: {
+            dsn: `postgresql://backup:rotated-password@new.example.com/application`
+          }
+        })
     ).toHaveStatus(200)
     const rotated = await sails.models.service.findOne({ id }).decrypt()
     expect(rotated.status).toBe('unverified')
     expect(rotated.externalVerification.connectionFingerprint).toBe(undefined)
     expect(rotated.externalConnection.password).toBe('rotated-password')
     expect(
-      await browser.request.patch(`/api/v1/services/${id}/external`, {
-        configuration: { dsn: '', sslMode: 'verify-full', caCertificate: '' }
-      })
+      await browser.request
+        .withHeaders({ 'X-Inertia': '' })
+        .patch(`/api/v1/services/${id}/external`, {
+          configuration: { dsn: '', sslMode: 'verify-full', caCertificate: '' }
+        })
     ).toHaveStatus(200)
     const retained = await sails.models.service.findOne({ id }).decrypt()
     expect(retained.externalConnection.password).toBe('rotated-password')
@@ -105,10 +111,12 @@ test(
     expect(updated.envVars.EXTRA).toBe('kept')
     const logs = await sails.models.auditlog.find({ resourceId: String(id) })
     expect(JSON.stringify(logs).includes('rotated-password')).toBe(false)
-    const disabledTls = await browser.request.post(root + '/external', {
-      name: 'insecure-db',
-      configuration: { ...configuration, sslMode: 'disable' }
-    })
+    const disabledTls = await browser.request
+      .withHeaders({ 'X-Inertia': '' })
+      .post(root + '/external', {
+        name: 'insecure-db',
+        configuration: { ...configuration, sslMode: 'disable' }
+      })
     expect(disabledTls).toHaveStatus(400)
     assert.throws(() =>
       connection.parse({
@@ -129,10 +137,12 @@ test(
       .updateOne({ user: current.id, team: world.current.teams.genesisTeam.id })
       .set({ role: 'member' })
     expect(
-      await browser.request.post(root + '/external', {
-        name: 'denied',
-        configuration
-      })
+      await browser.request
+        .withHeaders({ 'X-Inertia': '' })
+        .post(root + '/external', {
+          name: 'denied',
+          configuration
+        })
     ).toHaveStatus(403)
   }
 )

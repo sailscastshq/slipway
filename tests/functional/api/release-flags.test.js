@@ -32,26 +32,29 @@ test(
     const dashboard = await withCsrfFromPage(request, pagePath, 'genesisUser')
     const flagsPath = `/api/v1/projects/${project.slug}/environments/${environment.slug}/apps/${app.slug}/flags`
 
-    const created = await dashboard.request.post(flagsPath, {
-      key: 'new-checkout'
-    })
+    const created = await dashboard.request
+      .withHeaders({ 'X-Inertia': '' })
+      .post(flagsPath, {
+        key: 'new-checkout'
+      })
     expect(created).toHaveStatus(201)
     expect(created.data.flag.enabled).toBe(false)
     expect(created.data.flag.rolloutPercentage).toBe(0)
-    const duplicate = await dashboard.request.post(flagsPath, {
-      key: 'new-checkout'
-    })
-    expect(duplicate).toHaveStatus(303)
+    const duplicate = await dashboard.request
+      .withHeaders({ 'X-Inertia': '' })
+      .post(flagsPath, {
+        key: 'new-checkout'
+      })
+    expect(duplicate).toHaveStatus(400)
 
-    const updated = await dashboard.request.patch(
-      `${flagsPath}/${created.data.flag.id}`,
-      {
+    const updated = await dashboard.request
+      .withHeaders({ 'X-Inertia': '' })
+      .patch(`${flagsPath}/${created.data.flag.id}`, {
         description: 'Release checkout safely',
         enabled: true,
         rolloutPercentage: 25,
         targets: ['user:42', 'account:acme']
-      }
-    )
+      })
     expect(updated).toHaveStatus(200)
     expect(updated.data.flag.version).toBe(2)
 
@@ -87,15 +90,14 @@ test(
       .get(`/api/v1/flags/apps/${app.id}`)
     expect(wrongToken).toHaveStatus(401)
 
-    const killed = await dashboard.request.patch(
-      `${flagsPath}/${created.data.flag.id}`,
-      {
+    const killed = await dashboard.request
+      .withHeaders({ 'X-Inertia': '' })
+      .patch(`${flagsPath}/${created.data.flag.id}`, {
         description: updated.data.flag.description,
         enabled: false,
         rolloutPercentage: 25,
         targets: updated.data.flag.targets
-      }
-    )
+      })
     expect(killed).toHaveStatus(200)
     expect(killed.data.flag.enabled).toBe(false)
     expect(
@@ -107,9 +109,9 @@ test(
       )
     ).toBe(true)
 
-    const deleted = await dashboard.request.delete(
-      `${flagsPath}/${created.data.flag.id}`
-    )
+    const deleted = await dashboard.request
+      .withHeaders({ 'X-Inertia': '' })
+      .delete(`${flagsPath}/${created.data.flag.id}`)
     expect(deleted).toHaveStatus(200)
     expect(
       (await appClient.get(`/api/v1/flags/apps/${app.id}`)).data.flags

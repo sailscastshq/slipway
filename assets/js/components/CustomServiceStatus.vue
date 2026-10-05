@@ -1,4 +1,5 @@
 <script setup>
+import { inertiaMutation } from '@/lib/inertia-mutation'
 import { ref } from 'vue'
 import { router } from '@inertiajs/vue3'
 import Button from '@/components/ui/button/Button.vue'
@@ -14,7 +15,9 @@ const error = ref(''),
   busy = ref(false),
   editing = ref(false),
   selected = ref(props.service.customState?.appIds || [])
+const editingApps = ref([])
 async function perform(path, method, body) {
+  if (busy.value) return
   busy.value = true
   error.value = ''
   message.value = ''
@@ -39,7 +42,28 @@ async function perform(path, method, body) {
     busy.value = false
   }
 }
+async function saveLinks() {
+  if (busy.value) return
+  busy.value = true
+  error.value = ''
+  message.value = ''
+  try {
+    await inertiaMutation(
+      'patch',
+      `/api/v1/services/${props.service.id}/custom-links`,
+      { appIds: selected.value }
+    )
+    message.value =
+      'Connections saved. Redeploy the affected apps to apply the change.'
+    editing.value = false
+  } catch (e) {
+    error.value = e.message
+  } finally {
+    busy.value = false
+  }
+}
 function edit() {
+  editingApps.value = [...props.apps]
   selected.value = [...(props.service.customState?.appIds || [])]
   editing.value = true
 }
@@ -94,13 +118,13 @@ function edit() {
       {{ service.customState?.linkPrefix }}_PORT. Redeploy apps after changing
       their connections.
     </p>
-    <form
-      v-if="editing"
-      class="space-y-3"
-      @submit.prevent="perform('custom-links', 'PATCH', { appIds: selected })"
-    >
-      <label v-for="app in apps" :key="app.id" class="flex items-center gap-2"
+    <form v-if="editing" class="space-y-3" @submit.prevent="saveLinks">
+      <label
+        v-for="app in editingApps"
+        :key="app.id"
+        class="flex items-center gap-2"
         ><Checkbox
+          :disabled="busy"
           :model-value="selected.includes(String(app.id))"
           @update:model-value="
             (checked) =>

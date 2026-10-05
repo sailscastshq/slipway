@@ -4,33 +4,55 @@ import Textarea from '@/components/ui/textarea/Textarea.vue'
 import Input from '@/components/ui/input/Input.vue'
 import { ref, watch } from 'vue'
 
-const props = defineProps({ flag: { type: Object, required: true } })
-const emit = defineEmits(['update', 'remove'])
+const props = defineProps({
+  flag: { type: Object, required: true },
+  saveUpdate: { type: Function, required: true },
+  busy: Boolean
+})
+const emit = defineEmits(['remove'])
 
 const description = ref('')
 const rolloutPercentage = ref(0)
 const targets = ref('')
+const dirty = ref(false)
+const saving = ref(false)
+function sync(flag) {
+  description.value = flag.description || ''
+  rolloutPercentage.value = Number(flag.rolloutPercentage || 0)
+  targets.value = (flag.targets || []).join('\n')
+}
 
 watch(
   () => props.flag,
-  (flag) => {
-    description.value = flag.description || ''
-    rolloutPercentage.value = Number(flag.rolloutPercentage || 0)
-    targets.value = (flag.targets || []).join('\n')
+  (flag, previous) => {
+    if (dirty.value && flag.id === previous?.id) return
+    dirty.value = false
+    sync(flag)
   },
   { immediate: true, deep: true }
 )
 
-function save(event) {
-  emit('update', {
-    description: description.value.trim() || null,
-    rolloutPercentage: Number(rolloutPercentage.value),
-    targets: targets.value
-      .split(/[\n,]/)
-      .map((target) => target.trim())
-      .filter(Boolean)
-  })
-  event.currentTarget.closest('details').removeAttribute('open')
+async function save(event) {
+  if (saving.value || props.busy) return
+  const details = event.currentTarget.closest('details')
+  saving.value = true
+  try {
+    const confirmed = await props.saveUpdate({
+      description: description.value.trim() || null,
+      rolloutPercentage: Number(rolloutPercentage.value),
+      targets: targets.value
+        .split(/[\n,]/)
+        .map((target) => target.trim())
+        .filter(Boolean)
+    })
+    if (confirmed) {
+      dirty.value = false
+      sync(props.flag)
+      details.removeAttribute('open')
+    }
+  } finally {
+    saving.value = false
+  }
 }
 
 function remove(event) {
@@ -55,6 +77,8 @@ function remove(event) {
         Description
         <Input
           v-model="description"
+          @input="dirty = true"
+          :disabled="saving || busy"
           maxlength="160"
           class="mt-1 w-full border-b border-gray-200 bg-transparent py-1.5 text-sm font-normal text-gray-900 placeholder-gray-400 focus:border-gray-500 focus:outline-none dark:border-gray-700 dark:text-white"
           placeholder="What this release changes"
@@ -67,6 +91,8 @@ function remove(event) {
         <div class="mt-1 flex items-center gap-2">
           <input
             v-model.number="rolloutPercentage"
+            @input="dirty = true"
+            :disabled="saving || busy"
             type="range"
             min="0"
             max="100"
@@ -84,6 +110,8 @@ function remove(event) {
         Allowlist
         <Textarea
           v-model="targets"
+          @input="dirty = true"
+          :disabled="saving || busy"
           rows="3"
           class="mt-1 w-full resize-none border-b border-gray-200 bg-transparent py-1.5 font-mono text-xs font-normal text-gray-900 placeholder-gray-400 focus:border-gray-500 focus:outline-none dark:border-gray-700 dark:text-white"
           placeholder="user:42&#10;account:acme"
@@ -95,6 +123,7 @@ function remove(event) {
       <div class="mt-3 flex items-center justify-between">
         <button
           type="button"
+          :disabled="saving || busy"
           @click="remove"
           class="text-xs font-medium text-red-600 hover:text-red-700 dark:text-red-400"
         >
@@ -102,6 +131,7 @@ function remove(event) {
         </button>
         <button
           type="submit"
+          :disabled="saving || busy"
           class="rounded-md bg-gray-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-gray-800 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
         >
           Save

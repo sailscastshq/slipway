@@ -6,7 +6,11 @@ module.exports = {
     appSlug: { type: 'string', required: true },
     visitor: { type: 'string', required: true }
   },
-  exits: { forbidden: { statusCode: 403 }, unavailable: { statusCode: 503 } },
+  exits: {
+    success: { responseType: 'wakeVisitorDeleted' },
+    forbidden: { statusCode: 403 },
+    unavailable: { statusCode: 503 }
+  },
   fn: async function (inputs) {
     let access
     try {

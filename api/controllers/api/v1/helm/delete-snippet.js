@@ -19,7 +19,7 @@ module.exports = {
   },
 
   exits: {
-    success: { statusCode: 200 },
+    success: { responseType: 'mutationSuccess' },
     notFound: { statusCode: 404 },
     forbidden: { statusCode: 403 }
   },
