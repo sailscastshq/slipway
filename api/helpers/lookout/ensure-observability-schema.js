@@ -9,6 +9,22 @@ module.exports = {
   fn: async function () {
     const datastore = sails.getDatastore('observability')
 
+    await datastore.sendNativeQuery(`CREATE TABLE IF NOT EXISTS quest_runs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, created_at INTEGER, updated_at INTEGER,
+      run_id TEXT NOT NULL UNIQUE, request_key TEXT UNIQUE, input_hash TEXT NOT NULL,
+      environment TEXT NOT NULL, app TEXT NOT NULL, deployment_id TEXT, runtime_id TEXT,
+      job_name TEXT NOT NULL, actor TEXT, trigger TEXT, state TEXT, sequence INTEGER DEFAULT 0,
+      requested_at INTEGER NOT NULL, started_at INTEGER, finished_at INTEGER, duration INTEGER,
+      exit_code INTEGER, signal TEXT, inputs TEXT, result TEXT, result_status TEXT, error TEXT,
+      stdout TEXT, stderr TEXT, logs_truncated INTEGER DEFAULT 0, logs_available INTEGER DEFAULT 0
+    )`)
+    await datastore.sendNativeQuery(
+      'CREATE INDEX IF NOT EXISTS quest_runs_scope_time ON quest_runs (environment, app, requested_at DESC, id DESC)'
+    )
+    await datastore.sendNativeQuery(
+      'CREATE INDEX IF NOT EXISTS quest_runs_retention ON quest_runs (requested_at, id)'
+    )
+
     await datastore.sendNativeQuery(`
       CREATE TABLE IF NOT EXISTS container_metrics (
         id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,

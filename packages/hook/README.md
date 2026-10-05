@@ -355,6 +355,55 @@ Lookout exception. The Slipway hook removes terminal formatting and redacts
 known secret values before telemetry leaves the application. Older Quest
 payloads remain supported and use their runner stack when one is available.
 
+## Resident Quest workspace (unreleased)
+
+The new Quest workspace connects to the application's running Sails process to
+inspect source jobs, review typed inputs, run a registered job, and pause or
+resume its scheduler. Results and logs are shown separately. Scripts and
+`config/quest.js` remain the source of truth for inputs and schedules.
+
+This requires `sails-hook-quest` **0.0.6 or newer** and a compatible
+`sails-hook-slipway` release. The planned first compatible Slipway hook is
+**0.0.12**, which is not yet published. Quest 0.0.5 and Slipway hook 0.0.11 do not
+include this contract. Older hooks retain bounded history in the dashboard,
+with live state and resident controls marked unavailable. The
+[Quest upgrade guide](../../docs/quest-workspace-contract.md#owner-upgrade-sequence-and-release-gate)
+tracks the published pair and verification; a version string alone never enables
+unsupported controls.
+
+Quest 0.0.6 currently needs the Sails ORM hook enabled. Database-free apps that
+exclude ORM can fail to finish startup; this is tracked in
+[Quest issue #16](https://github.com/sailscastshq/sails-hook-quest/issues/16).
+
+After upgrading the two hooks and reviewing the application's registered jobs,
+explicitly enable the integration and deploy through the normal app workflow:
+
+```js
+// config/slipway.js
+module.exports.slipway = {
+  quest: { enabled: true }
+}
+```
+
+The setting defaults to false. Slipway verifies the app/deployment identity and
+the resident's capabilities before enabling controls. On Linux, the connection
+uses an app-scoped private Unix socket; it adds no public HTTP listener or new
+credential. Worker apps are supported. Multiple matching resident processes
+make controls unavailable because Slipway cannot choose a scheduler safely.
+
+Pause prevents new runs in the current process and leaves active work running.
+It resets on app restart; change source configuration for a persistent schedule
+change. Closing or reconnecting the dashboard does not execute a job again.
+Use **Run again** to review and submit a deliberate new invocation. Completed
+means the child process exited successfully; a named Sails exit or business
+result can still describe an application-level failure.
+
+Run history is bounded to seven days. Logs load on demand from retained tails;
+there is no live log replay, cancellation, durable delivery queue, automatic
+retry, or distributed overlap guarantee. Telemetry is best effort. A verified
+resident can reconcile a receipt it still holds after a connection loss, but a
+resident restart or receipt eviction can leave the outcome unconfirmed.
+
 ## Release flags
 
 Slipway injects the private flag endpoint and app identity during deployments

@@ -1,199 +1,131 @@
-const childProcess = require('node:child_process')
-
-// eslint-disable-next-line no-control-regex
-const ANSI_RE = /\x1b\[[0-9;]*[A-Za-z]|\[\d+(?:;\d+)*m/g
-function stripAnsi(s) {
-  return s.replace(ANSI_RE, '')
-}
-
+const workspace = require('../../../../lib/quest-workspace')
+const runtime = require('../../../../lib/quest-runtime-client')
 module.exports = {
   friendlyName: 'Run Quest job',
-
-  description: 'Manually trigger a Quest job to run immediately.',
-
+  description: 'Admit a named job in the verified resident Quest runtime.',
   inputs: {
-    projectSlug: {
-      type: 'string',
-      required: true
-    },
-    environmentSlug: {
-      type: 'string',
-      defaultsTo: 'production'
-    },
-    name: {
-      type: 'string',
-      required: true,
-      description: 'Job name to run'
-    },
-    jobInputs: {
-      type: 'ref',
-      description: 'Optional inputs to pass to the job'
-    }
+    projectSlug: { type: 'string', required: true },
+    environmentSlug: { type: 'string', defaultsTo: 'production' },
+    name: { type: 'string', required: true },
+    jobInputs: { type: 'ref', defaultsTo: {} },
+    metadataVersion: { type: 'string', required: true },
+    runtimeId: { type: 'string', required: true },
+    requestId: { type: 'string', required: true },
+    priorRunId: { type: 'string' },
+    productionConfirmed: { type: 'boolean', defaultsTo: false }
   },
-
   exits: {
-    success: {
-      statusCode: 200
-    },
-    notFound: {
-      statusCode: 404
-    },
-    forbidden: {
-      statusCode: 403
-    },
-    badRequest: {
-      responseType: 'badRequest'
-    }
+    success: { statusCode: 202 },
+    notFound: { statusCode: 404 },
+    forbidden: { statusCode: 403 },
+    conflict: { statusCode: 409 },
+    badRequest: { responseType: 'badRequest' }
   },
-
-  fn: async function ({ projectSlug, environmentSlug, name, jobInputs }) {
-    const user = await User.forRequest(this.req)
-    const project = await Project.findOne({ slug: projectSlug }).populate(
-      'team'
+  fn: async function ({
+    projectSlug,
+    environmentSlug,
+    name,
+    jobInputs,
+    metadataVersion,
+    runtimeId,
+    requestId,
+    priorRunId,
+    productionConfirmed
+  }) {
+    const context = await workspace.resolveContext(
+      this.req,
+      projectSlug,
+      environmentSlug,
+      true
     )
-
-    if (!project) {
-      throw 'notFound'
-    }
-
-    if (project.team.id !== user.team) {
-      throw 'forbidden'
-    }
-
-    const environment = await Environment.findOne({
-      project: project.id,
-      slug: environmentSlug
-    })
-
-    if (!environment) {
-      throw 'notFound'
-    }
-
-    if (!environment.features || !environment.features['sails-quest']) {
-      throw { badRequest: 'sails-hook-quest not detected in this app.' }
-    }
-
-    const app =
-      (await App.findOne({ environment: environment.id, isDefault: true })) ||
-      (await App.findOne({ environment: environment.id }))
-
-    if (!app || app.status !== 'running' || !app.containerName) {
-      throw { badRequest: 'App is not running.' }
-    }
-
-    // Build sails run command with inputs
-    const args = ['exec', '-i', app.containerName, 'npx', 'sails', 'run', name]
-
-    // Add inputs as command line args
-    if (jobInputs && typeof jobInputs === 'object') {
-      for (const [key, value] of Object.entries(jobInputs)) {
-        const serialized =
-          typeof value === 'object' && value !== null
-            ? JSON.stringify(value)
-            : String(value)
-        args.push(`--${key}=${serialized}`)
+    if (
+      (context.environment.isProduction ||
+        context.environment.slug === 'production') &&
+      productionConfirmed !== true
+    )
+      throw {
+        badRequest: {
+          message: 'Review and confirm this production job before running it.'
+        }
       }
-    }
-
-    const startedAt = Date.now()
-    const result = await executeInContainer(args)
-    const duration = Date.now() - startedAt
-
-    sails.log.info(
-      `[quest] Invocation response for "${name}" in ${project.slug}/${environmentSlug}`
+    const current = await workspace.snapshot(context)
+    if (!current.capabilities.invoke || current.target.runtimeId !== runtimeId)
+      throw {
+        conflict: {
+          message:
+            'The resident runtime is unavailable or changed. Refresh and review the job.'
+        }
+      }
+    if (
+      !current.jobs.some(
+        (job) => job.name === name && job.metadataVersion === metadataVersion
+      )
     )
-
-    // Only a reported exit code is a terminal legacy process receipt. A lost
-    // Docker client/transport is not evidence that the in-container job ended.
+      throw {
+        conflict: { message: 'Job inputs changed. Review the current job.' }
+      }
+    if (priorRunId) {
+      const prior = await require('../../../../lib/quest-run-ledger').getRun(
+        { environmentId: context.environment.id, appId: context.app.id },
+        priorRunId
+      )
+      if (!prior || prior.jobName !== name) throw 'notFound'
+    }
+    let accepted
     try {
-      if (result.exitCode !== null) {
-        await TelemetryMetric.create({
-          name: result.success ? 'quest.job.completed' : 'quest.job.failed',
-          value: duration,
-          unit: 'ms',
-          attributes: {
-            jobName: name,
-            trigger: 'manual',
-            triggeredBy: user.fullName,
-            stdout: result.output || '',
-            stderr: result.stderr || '',
-            ...(result.success
-              ? {}
-              : {
-                  error: result.error || 'Unknown error'
-                })
-          },
-          recordedAt: Date.now(),
-          environment: environment.id
-        })
+      accepted = await runtime.request(context.app, 'invoke', {
+        name,
+        jobInputs,
+        metadataVersion,
+        runtimeId,
+        requestId,
+        actor: context.user.fullName
+      })
+    } catch (error) {
+      const conflict = [
+        'QUEST_TARGET_CHANGED',
+        'QUEST_PAUSED',
+        'QUEST_ALREADY_RUNNING',
+        'QUEST_UNCONFIRMED'
+      ].includes(error.code)
+      throw {
+        [conflict ? 'conflict' : 'badRequest']: {
+          message: error.message,
+          code: error.code || 'QUEST_UNCONFIRMED'
+        }
       }
-    } catch (err) {
+    }
+    // If persistence fails after admission, the canonical resident identity is
+    // still returned. A browser retry must keep the same invocation key.
+    try {
+      const detail = await runtime.request(context.app, 'run', {
+        runtimeId,
+        runId: accepted.run.runId
+      })
+      await workspace.synchronizeRun(context, detail.run)
+    } catch (error) {
       sails.log.warn(
-        '[quest] Failed to record telemetry for manual run:',
-        err.message
+        '[quest] Accepted run persistence pending:',
+        error.code || error.name
       )
     }
-
-    return {
-      success: result.success,
-      job: name,
-      output: result.output,
-      error: result.error,
-      stderr: result.stderr,
-      signal: result.signal,
-      exitCode: result.exitCode,
-      triggeredBy: user.fullName,
-      triggeredAt: new Date(startedAt).toISOString()
-    }
+    await sails.helpers.audit.log.with({
+      action: 'quest.run.admitted',
+      resourceType: 'app',
+      resourceId: String(context.app.id),
+      userId: String(context.user.id),
+      teamId: String(context.user.team),
+      ipAddress: this.req.ip,
+      details: {
+        jobName: name,
+        runId: accepted.run.runId,
+        runtimeId,
+        deploymentId: String(context.app.currentDeployment),
+        metadataVersion,
+        priorRunId: priorRunId || null
+      }
+    })
+    workspace.invalidate(context.app)
+    return accepted
   }
-}
-
-function executeInContainer(args) {
-  return new Promise((resolve) => {
-    const dockerPath = sails.config.docker?.binaryPath || 'docker'
-    const proc = childProcess.spawn(dockerPath, args, {
-      timeout: 300000 // 5 minute timeout for job execution
-    })
-
-    let stdout = ''
-    let stderr = ''
-
-    proc.stdout.on('data', (data) => {
-      stdout += data.toString()
-    })
-
-    proc.stderr.on('data', (data) => {
-      stderr += data.toString()
-    })
-
-    proc.on('close', (code, signal) => {
-      const exitCode = Number.isInteger(code) && code >= 0 ? code : null
-      const diagnostic = stripAnsi(stderr.trim())
-      resolve({
-        success: exitCode === 0,
-        output: stripAnsi(stdout.trim()),
-        stderr: diagnostic,
-        error:
-          exitCode === 0
-            ? null
-            : diagnostic ||
-              (exitCode === null
-                ? 'Execution outcome unconfirmed: the Docker client ended without an exit code. The job may still be running.'
-                : `Process exited with code ${exitCode}`),
-        exitCode,
-        signal: signal || null
-      })
-    })
-
-    proc.on('error', (err) => {
-      resolve({
-        success: false,
-        output: stripAnsi(stdout.trim()),
-        stderr: stripAnsi(stderr.trim()),
-        error: err.message,
-        exitCode: null,
-        signal: null
-      })
-    })
-  })
 }

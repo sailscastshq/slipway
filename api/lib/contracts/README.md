@@ -8,3 +8,7 @@ contract without loading source files from the hook package at runtime.
 Keep their observable behavior compatible with the published hook. The
 runtime-contract unit trial exercises both implementations against the same
 fixtures before either side changes its contract behavior.
+
+Quest diagnostic redaction also has independent dashboard and hook copies.
+The Quest diagnostic contract test keeps byte/whitespace/redaction behavior
+in parity, and the Docker smoke test loads the ledger without hook source.

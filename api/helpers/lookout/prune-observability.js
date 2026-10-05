@@ -39,6 +39,12 @@ module.exports = {
     const safeMaxBatches = Math.max(1, Math.floor(maxBatches))
     const tables = [
       {
+        key: 'questRuns',
+        table: 'quest_runs',
+        timestamp: 'requested_at',
+        cutoff: now - Math.min(telemetryRetentionMs, 7 * 86400000)
+      },
+      {
         key: 'resourceAlertDeliveries',
         table: 'resource_alert_deliveries',
         timestamp: 'observed_at',

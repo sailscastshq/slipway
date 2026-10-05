@@ -246,16 +246,30 @@ jobs:
         run: npm run check:consistency
 
       - name: Keep dashboard runtime independent of package source
-        run: '! rg "packages/hook" api --glob "*.js"'
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs')
+          const path = require('node:path')
+          function check(directory) {
+            for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+              const filename = path.join(directory, entry.name)
+              if (entry.isDirectory()) check(filename)
+              else if (entry.name.endsWith('.js') && fs.readFileSync(filename, 'utf8').includes('packages/hook')) {
+                throw new Error(`Dashboard runtime imports excluded hook source: ${filename}`)
+              }
+            }
+          }
+          check('api')
+          NODE
 
       - name: Verify dashboard contracts reach the Docker build context
         run: |
           docker build -f - . <<'DOCKERFILE'
           FROM node:22-alpine
           WORKDIR /app
-          COPY api/lib/helm-completions.js api/lib/
+          COPY api/lib/helm-completions.js api/lib/quest-run-ledger.js api/lib/quest-runtime-client.js api/lib/quest-workspace.js api/lib/
           COPY api/lib/contracts/ api/lib/contracts/
-          RUN node -e "require('./api/lib/helm-completions'); require('./api/lib/contracts/helm-config-fingerprint'); require('./api/lib/contracts/wake-contract'); require('./api/lib/contracts/wake-value-contract')"
+          RUN node -e "require('./api/lib/helm-completions'); require('./api/lib/contracts/helm-config-fingerprint'); require('./api/lib/contracts/wake-contract'); require('./api/lib/contracts/wake-value-contract'); require('./api/lib/quest-run-ledger'); require('./api/lib/quest-runtime-client'); require('./api/lib/quest-workspace')"
           DOCKERFILE
 
   test:

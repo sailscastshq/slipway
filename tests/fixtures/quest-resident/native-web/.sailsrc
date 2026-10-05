@@ -1,0 +1,5 @@
+{
+  "hooks": { "grunt": false, "sockets": false },
+  "models": { "migrate": "safe" },
+  "log": { "level": "error", "noShip": true }
+}
