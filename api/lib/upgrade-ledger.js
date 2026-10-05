@@ -170,7 +170,13 @@ function receiptWriter({ identity, stepId, databaseKey, fenceId, backupId }) {
   if (verified.hash !== identity.hash)
     fail('Upgrade manifest identity changed.')
   const step = identity.manifest.steps.find((item) => item.id === stepId)
-  if (!step || !databaseKey || !fenceId || !backupId)
+  if (
+    !step ||
+    !databaseKey ||
+    !fenceId ||
+    !backupId ||
+    (step.databaseKey && step.databaseKey !== databaseKey)
+  )
     fail('Upgrade receipt requires a reviewed step, target, fence and backup.')
   return ({ entry, service, database, before }) => {
     if (

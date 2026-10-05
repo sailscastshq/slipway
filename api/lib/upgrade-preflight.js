@@ -1,14 +1,8 @@
 const fs = require('node:fs')
 const path = require('node:path')
-const createExecutor = require('./migration-executor')
-const plans = require('./migration-plans')
+const executeUpgradeStep = require('./upgrade-execution')
 const ledger = require('./upgrade-ledger')
 const { verifyBackupSet } = require('./upgrade-backups')
-const readSchema = require('./sqlite-schema')
-const generateDiff = require('../helpers/dock/generate-diff').fn
-const generateSql = require('../helpers/dock/generate-migration-sql').fn
-const applySqliteMigration =
-  require('../helpers/dock/apply-sqlite-migration').fn
 
 // All SQL runs on private verified clones through the existing transaction
 // engine. The trusted release registry supplies models and reviewed entries;
@@ -100,50 +94,16 @@ module.exports = async function runUpgradePreflight({
       } finally {
         clearTimeout(timer)
       }
-      const { entry, models } = prepared
-      if (
-        typeof entry?.release !== 'function' ||
-        entry.payload?.target?.physicalKey !== snapshot.databaseKey ||
-        entry.payload?.sourceHash !== plans.digest(source)
-      )
-        throw new Error(
-          'Preflight plan does not match the pinned source and target.'
-        )
-      const execute = createExecutor({
-        context: {
-          refresh: async () => ({
-            service,
-            target: entry.payload.target,
-            source,
-            models
-          }),
-          refreshVersion: async () => source
-        },
-        audit: async () => {},
-        getSchema: async (target) => readSchema(target),
-        generateDiff: (models, schema, dbType) =>
-          generateDiff({ models, schema, dbType }),
-        generateMigrationSql: (diff, dbType, models, schema) =>
-          generateSql({ diff, dbType, models, schema }),
-        applySqliteMigration,
-        executeSql: async () => {
-          throw new Error('Preflight must use its locked SQLite clone.')
-        },
-        openPostgresSession: () => {
-          throw new Error('Preflight only supports owned SQLite databases.')
-        },
-        beforeCommit: (input) => {
-          remaining()
-          return ledger.receiptWriter({
-            identity,
-            stepId: step.id,
-            databaseKey: snapshot.databaseKey,
-            fenceId: receipt.fenceId,
-            backupId: backupSet.id
-          })(input)
-        }
+      const result = await executeUpgradeStep({
+        prepared,
+        identity,
+        step,
+        service,
+        databaseKey: snapshot.databaseKey,
+        backupId: backupSet.id,
+        fenceId: receipt.fenceId,
+        remaining
       })
-      const result = await execute({ entry, actor: { id: 0, team: 0 } })
       if (!result.success) {
         const error = new Error(
           `Upgrade clone preflight failed: ${result.error}`
