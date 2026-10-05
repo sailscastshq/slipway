@@ -21,7 +21,7 @@ const runStateFilter = defineModel('stateFilter', {
 })
 const emit = defineEmits(['select-run', 'load-more'])
 const filterClass =
-  'min-h-9 rounded-md border border-gray-200 bg-white px-3 py-1.5 text-xs text-gray-600 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-300'
+  'focus:border-brand min-h-10 rounded-none border-0 border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 focus:outline-none focus:ring-0 dark:border-gray-700 dark:text-white dark:focus:border-brand'
 const jobFilterOptions = computed(() => [
   { label: 'All jobs', value: 'all' },
   ...props.jobs.map((job) => ({
@@ -58,9 +58,7 @@ const jobFilterOptions = computed(() => [
       }}{{ live.nextCursor ? ' · Loaded history' : '' }}</span
     >
   </div>
-  <div
-    class="overflow-hidden rounded-lg border border-gray-200 dark:border-gray-800"
-  >
+  <div class="min-w-0">
     <QuestRuns
       :runs="filteredRuns"
       :legacy-events="filteredEvents"

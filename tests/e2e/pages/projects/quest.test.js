@@ -3180,7 +3180,11 @@ test(
   },
   async (context) => {
     const { page, login, world, expect } = context
-    const state = await installQuestFixture(context)
+    const state = await installQuestFixture(
+      context,
+      'after',
+      configureTypedQuestJob
+    )
     try {
       await login.withPassword('genesisUser', page, {
         password: world.current.auth.genesisUserPassword
@@ -3248,6 +3252,96 @@ test(
       )
       await expect(filter).toContainText('Paused')
       await expect(filter).toBeFocused()
+      if (phase === 'after') {
+        await page.raw.getByRole('tab', { name: 'Runs', exact: true }).click()
+        const runJob = page.raw.getByRole('combobox', {
+          name: 'Filter runs by job',
+          exact: true
+        })
+        const runState = page.raw.getByRole('combobox', {
+          name: 'Filter runs by state',
+          exact: true
+        })
+        for (const width of [1440, 390]) {
+          await page.resize(width, 900)
+          for (const scheme of ['light', 'dark']) {
+            await page.raw.emulateMedia({ colorScheme: scheme })
+            for (const field of [runJob, runState]) {
+              await field.focus()
+              await expect(field).toBeFocused()
+              // Select uses the app's 150ms color transition. Assert its
+              // settled focus color before inspecting the full geometry.
+              await expect(field).toHaveCSS(
+                'border-bottom-color',
+                'rgb(2, 132, 199)'
+              )
+              const style = await field.evaluate((element) => {
+                const css = getComputedStyle(element)
+                return {
+                  top: css.borderTopWidth,
+                  left: css.borderLeftWidth,
+                  right: css.borderRightWidth,
+                  bottom: css.borderBottomWidth,
+                  style: css.borderBottomStyle,
+                  color: css.borderBottomColor,
+                  radius: css.borderRadius,
+                  outline: css.outlineStyle
+                }
+              })
+              expect(style).toEqual({
+                top: '0px',
+                left: '0px',
+                right: '0px',
+                bottom: '1px',
+                style: 'dashed',
+                color: 'rgb(2, 132, 199)',
+                radius: '0px',
+                outline: 'none'
+              })
+            }
+            await page.screenshot(
+              `.tmp/sounding/artifacts/quest-design-review/after-runs-${width}-${scheme}.png`
+            )
+          }
+        }
+        await runJob.press('Enter')
+        await expect(page.raw.getByRole('listbox')).toBeVisible()
+        await runJob.press('e')
+        await runJob.press('Enter')
+        await expect(runJob).toContainText('Export account report')
+        await expect(runJob).toBeFocused()
+        await page.goto(`${state.projectPath}?job=export-account-report`)
+        await page.raw
+          .locator(
+            '[data-test="quest-job-detail"] [data-test="quest-open-run"]'
+          )
+          .click()
+        const account = page.raw.locator('#quest-input-0')
+        for (const width of [1440, 390]) {
+          await page.resize(width, 900)
+          for (const scheme of ['light', 'dark']) {
+            await page.raw.emulateMedia({ colorScheme: scheme })
+            await account.focus()
+            await expect(account).toBeFocused()
+            const style = await account.evaluate((element) => {
+              const css = getComputedStyle(element)
+              return {
+                style: css.borderBottomStyle,
+                color: css.borderBottomColor,
+                outline: css.outlineStyle
+              }
+            })
+            expect(style).toEqual({
+              style: 'dashed',
+              color: 'rgb(2, 132, 199)',
+              outline: 'none'
+            })
+            await page.screenshot(
+              `.tmp/sounding/artifacts/quest-design-review/after-inputs-${width}-${scheme}.png`
+            )
+          }
+        }
+      }
       // This synthetic fixture intentionally blocks development HMR sockets.
       expect(page).toHaveNoJavascriptErrors()
       expect(state.unexpectedRequests).toEqual([])

@@ -44,7 +44,7 @@ const validation = computed(() =>
 const usesSourceValue = (input) =>
   questInputHasSourceValue(input, props.review?.job?.scheduledInputs)
 const fieldClass =
-  'focus:border-brand min-h-10 w-full rounded-none border-0 border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none disabled:opacity-50 dark:border-gray-700 dark:text-white dark:placeholder-gray-500'
+  'focus:border-brand min-h-10 w-full rounded-none border-0 border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-0 disabled:opacity-50 dark:border-gray-700 dark:text-white dark:placeholder-gray-500 dark:focus:border-brand'
 
 watch(
   () => props.open,

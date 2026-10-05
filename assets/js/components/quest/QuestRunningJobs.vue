@@ -41,14 +41,14 @@ const label = computed(() =>
   <section
     data-test="quest-running-jobs"
     aria-label="Running jobs"
-    class="mb-5 border-b border-gray-200 pb-4 dark:border-gray-800"
+    class="mb-6"
   >
     <button
       v-if="running.length || incomplete"
       type="button"
       :aria-expanded="expanded"
       aria-controls="quest-running-jobs-list"
-      class="flex w-full items-center gap-2 py-1 text-left text-sm text-gray-700 dark:text-gray-300"
+      class="min-h-11 flex w-full items-center gap-2 py-1 text-left text-sm text-gray-700 dark:text-gray-300"
       @click="expanded = !expanded"
     >
       <span
@@ -78,11 +78,11 @@ const label = computed(() =>
       >
         Some jobs have not reported their running state.
       </p>
-      <ul class="divide-y divide-gray-100 dark:divide-gray-800">
+      <ul class="space-y-1">
         <li v-for="job in running" :key="job.name">
           <button
             type="button"
-            class="flex w-full items-center justify-between gap-3 py-2 text-left text-sm text-gray-900 dark:text-white"
+            class="min-h-11 flex w-full items-center justify-between gap-3 py-2 text-left text-sm text-gray-900 dark:text-white"
             @click="emit('select-job', job)"
           >
             <span class="min-w-0 truncate">{{

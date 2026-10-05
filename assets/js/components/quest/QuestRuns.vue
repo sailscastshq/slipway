@@ -42,10 +42,7 @@ const triggerLabel = (trigger) =>
     : 'Unknown origin'
 </script>
 <template>
-  <div
-    data-test="quest-runs-list"
-    class="divide-y divide-gray-100 dark:divide-gray-800"
-  >
+  <div data-test="quest-runs-list" class="space-y-1">
     <p
       v-if="!entries.length"
       class="px-4 py-10 text-center text-sm text-gray-500 dark:text-gray-400"

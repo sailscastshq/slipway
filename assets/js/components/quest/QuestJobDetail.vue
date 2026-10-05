@@ -96,7 +96,7 @@ const displayValue = (value) =>
 <template>
   <section
     data-test="quest-job-detail"
-    class="min-w-0 lg:border-l lg:border-gray-200 lg:pl-6 dark:lg:border-gray-800"
+    class="min-w-0 lg:pl-6"
     aria-labelledby="quest-job-title"
   >
     <button
@@ -187,10 +187,7 @@ const displayValue = (value) =>
         </p>
       </div>
       <Tabs v-model="jobTab" aria-label="Job details">
-        <div
-          data-slot="tabs-list"
-          class="mt-4 flex gap-5 border-b border-gray-200 dark:border-gray-800"
-        >
+        <div data-slot="tabs-list" class="mt-4 flex gap-5">
           <button data-value="runs" :class="tabClass(jobTab, 'runs')">
             Runs</button
           ><button data-value="inputs" :class="tabClass(jobTab, 'inputs')">
@@ -239,9 +236,7 @@ const displayValue = (value) =>
                 "
                 @select="emit('select-run', $event)"
               />
-              <p
-                class="border-t border-gray-100 px-4 py-2 text-[10px] text-gray-400 dark:border-gray-800"
-              >
+              <p class="px-4 py-2 text-[10px] text-gray-400">
                 {{ live.historyScope
                 }}{{
                   jobEvents.length
@@ -253,7 +248,7 @@ const displayValue = (value) =>
               </p>
               <div
                 v-if="scopedJobHistory.nextCursor || scopedJobHistory.error"
-                class="border-t border-gray-100 px-4 py-3 dark:border-gray-800"
+                class="px-4 py-3"
               >
                 <Button
                   v-if="scopedJobHistory.nextCursor"
@@ -283,11 +278,7 @@ const displayValue = (value) =>
             </template>
           </template>
         </div>
-        <div
-          data-slot="tab-panel"
-          data-value="inputs"
-          class="divide-y divide-gray-100 dark:divide-gray-800"
-        >
+        <div data-slot="tab-panel" data-value="inputs" class="space-y-1">
           <p
             v-if="!inputMetadataAvailable || !selectedJob.inputs?.length"
             class="px-4 py-8 text-sm text-gray-500 dark:text-gray-400"
@@ -475,7 +466,7 @@ const displayValue = (value) =>
             </p>
           </div>
           <div
-            class="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-gray-100 pt-3 dark:border-gray-800"
+            class="mt-5 flex flex-wrap items-center justify-between gap-3 pt-3"
           >
             <p class="text-[11px] text-gray-400">
               Schedule defined in app source.
@@ -488,7 +479,7 @@ const displayValue = (value) =>
                   ? 'Resume new runs in this app process.'
                   : 'Pause new runs in this app process. Active executions continue; pause resets on restart.'
               "
-              class="min-h-8 border border-gray-200 bg-transparent px-2.5 py-1 text-xs text-gray-700 hover:bg-gray-100 dark:border-gray-700 dark:bg-transparent dark:text-gray-300 dark:hover:bg-gray-800"
+              class="min-h-8 bg-gray-50 px-2.5 py-1 text-xs text-gray-700 hover:bg-gray-100 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
               @click="emit('toggle-pause')"
               ><Spinner
                 v-if="changingSchedule === selectedJob.name"
