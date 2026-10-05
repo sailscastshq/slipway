@@ -60,7 +60,9 @@ module.exports = {
       })
     } catch (error) {
       if (error.code === 'HELM_COMMAND_INVALID')
-        throw { badRequest: error.message }
+        return this.res
+          .status(400)
+          .json({ code: error.code, message: error.message })
       throw error
     }
     const classification = helmCommand.classifyCommand(code)

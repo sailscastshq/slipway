@@ -19,7 +19,7 @@ const props = defineProps({
   csrf: { type: String, default: '' },
   ttlSeconds: { type: Number, default: 60 }
 })
-const emit = defineEmits(['busy'])
+const emit = defineEmits(['busy', 'javascript'])
 const source = ref('')
 const displayTarget = ref(props.target)
 const commandInput = ref(null)
@@ -528,7 +528,7 @@ onBeforeUnmount(() => {
           Press Enter to run one executable with arguments. Shell operators and
           interactive input aren’t supported.
         </p>
-        <p id="helm-command-hint">
+        <p>
           Commands are saved; output isn’t. Keep secrets in environment
           variables.
         </p>
@@ -537,12 +537,28 @@ onBeforeUnmount(() => {
           fresh, single-use confirmation.
         </p>
       </Popover>
+      <p
+        id="helm-command-hint"
+        class="flex flex-wrap items-center gap-x-1 text-xs text-gray-500 dark:text-gray-400"
+      >
+        Run an executable and its arguments. For app queries, use
+        <button
+          type="button"
+          aria-label="Switch to JavaScript mode"
+          :disabled="busy || arming"
+          class="rounded-sm underline underline-offset-2 hover:text-gray-900 disabled:opacity-50 dark:hover:text-white"
+          @click="emit('javascript')"
+        >
+          JavaScript mode</button
+        >.
+      </p>
       <form class="flex items-center gap-2 pb-px" @submit.prevent>
         <Input
           id="helm-command-input"
           ref="commandInput"
           v-model="source"
           aria-label="Helm command"
+          placeholder="node --version"
           autocomplete="off"
           autocapitalize="off"
           autocorrect="off"

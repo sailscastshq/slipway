@@ -75,7 +75,9 @@ module.exports = {
           : sails.helpers.helm.classifyMutations(code)
     } catch (error) {
       if (error.code === 'HELM_COMMAND_INVALID')
-        throw { badRequest: error.message }
+        return this.res
+          .status(400)
+          .json({ code: error.code, message: error.message })
       throw error
     }
     if (!classification.mutating) {

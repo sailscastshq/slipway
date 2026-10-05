@@ -843,6 +843,7 @@ watch(
       :csrf="page.props._csrf || ''"
       :ttl-seconds="writeArmTtlSeconds"
       @busy="commandBusy = $event"
+      @javascript="selectMode('javascript')"
     />
     <div v-show="mode === 'javascript'" class="contents">
       <Tabs

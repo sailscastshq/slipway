@@ -2676,9 +2676,8 @@ test(
         right: '0px',
         prompt: '0px'
       })
-      // Keep the field clean: its accessible name and native caret supply
-      // discovery/focus without a decorative prefix, placeholder or input box.
-      expect(await input.getAttribute('placeholder')).toBe(null)
+      // The example clarifies this mode without adding a prefix or input box.
+      expect(await input.getAttribute('placeholder')).toBe('node --version')
       await expect(input).toHaveAccessibleName('Helm command')
       await expect(
         page.raw.locator('label[for="helm-command-input"]')
@@ -2692,8 +2691,14 @@ test(
         })
         await help.focus()
         await expect(help).toBeFocused()
-        // Tab reaches the actual input and retains the existing draft.
+        // The mode guidance is a keyboard-accessible stop before the input.
         await help.press('Tab')
+        const switchMode = page.raw.getByRole('button', {
+          name: 'Switch to JavaScript mode',
+          exact: true
+        })
+        await expect(switchMode).toBeFocused()
+        await switchMode.press('Tab')
         await expect(input).toBeFocused()
         await expect(input).toHaveValue('node --version')
         const nativeCaret = await input.evaluate((element) => {
@@ -3132,5 +3137,70 @@ test(
     await expect(output).not.toContainText('fragment-1099')
     await page.screenshot(`${COMMAND_SCREENSHOTS}/bounded-inert-output.png`)
     expect(page).toHaveNoSmoke()
+  }
+)
+
+test(
+  'project Helm command mode explains JavaScript queries before production arming',
+  { browser: true, world: helmWorld('helm-command-mode-guidance') },
+  async (context) => {
+    const { sails, page, expect } = context
+    const runner = commandFixtureRunner(
+      sails,
+      async () => COMMAND_FIXTURE_RESULT
+    )
+    try {
+      await openCommandFixture(context)
+      await page.resize(1440, 900)
+      await page.inLightMode()
+      const javascript = page.raw
+        .getByRole('button', { name: 'JavaScript mode', exact: true })
+        .first()
+      const scratchpad = 'return { untouched: true }'
+      await page.fill('@helm-editor', scratchpad)
+      await page.raw
+        .getByRole('button', { name: 'Command mode', exact: true })
+        .click()
+      const input = page.raw.getByRole('textbox', {
+        name: 'Helm command',
+        exact: true
+      })
+      await expect(input).toHaveAttribute('placeholder', 'node --version')
+      await input.fill('await User.find()')
+      await input.press('Enter')
+      await expect(
+        page.raw.locator('[data-test="helm-command-error"]')
+      ).toContainText('Use JavaScript mode')
+      await expect(page.raw.getByRole('dialog')).toBeHidden()
+      expect(runner.calls.length).toBe(0)
+      for (const width of [1440, 390]) {
+        await page.resize(width, 900)
+        await expect(page.raw.locator('#helm-command-hint')).toBeVisible()
+        await page.screenshot(
+          `.tmp/sounding/artifacts/helm-command-guidance/${width}.png`
+        )
+      }
+      await page.raw
+        .locator('#helm-command-hint')
+        .getByRole('button', { name: 'Switch to JavaScript mode', exact: true })
+        .focus()
+      await page.key('Enter')
+      await expect(javascript).toHaveAttribute('aria-pressed', 'true')
+      await expect(page.raw.locator('[data-test="helm-editor"]')).toContainText(
+        scratchpad
+      )
+      await page.raw
+        .getByRole('button', { name: 'Command mode', exact: true })
+        .click()
+      await expect(input).toHaveValue('await User.find()')
+      expect(runner.calls.length).toBe(0)
+      // Chromium logs the deliberate HTTP 400; require exactly that expected
+      // resource error and no application exceptions or unrelated errors.
+      expect(page.javascriptErrors.length).toBe(0)
+      expect(page.consoleErrors.length).toBe(1)
+      expect(page.consoleErrors[0].text).toMatch(/400 \(Bad Request\)/)
+    } finally {
+      runner.restore()
+    }
   }
 )
