@@ -3095,7 +3095,7 @@ test(
             expect(style.radius).toBe('0px')
           }
           await page.screenshot(
-            `/tmp/slipway-final-release.OpFgSS/quest-filter-${phase}-${width}-${scheme}.png`
+            `.tmp/sounding/artifacts/quest-filter-review/${phase}-${width}-${scheme}.png`
           )
           const box = await search.boundingBox()
           expect(box.width > 100 && box.x + box.width <= width).toBe(true)
