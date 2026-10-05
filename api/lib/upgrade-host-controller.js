@@ -71,10 +71,15 @@ function plan({
   image,
   sourceVersion,
   containerId,
-  containerName = 'slipway'
+  containerName = 'slipway',
+  previous
 }) {
   if (
-    !['0.0.86', '0.0.87'].includes(sourceVersion) ||
+    (!['0.0.86', '0.0.87', 'fresh'].includes(sourceVersion) &&
+      !(
+        previous?.manifest.version === sourceVersion &&
+        require('semver').lte(sourceVersion, registry.release)
+      )) ||
     !instanceId ||
     !/^[a-f0-9]{64}$/.test(containerId || '') ||
     !/^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$/.test(containerName)
@@ -86,7 +91,9 @@ function plan({
   const identity = registry.createReleasePlan({
     services: services(source, instanceId),
     instanceId,
-    image
+    image,
+    mode: sourceVersion === 'fresh' ? 'fresh' : 'upgrade',
+    previous
   })
   const value = {
     format: 1,
@@ -97,7 +104,8 @@ function plan({
     containerId,
     containerName,
     instanceId,
-    identity
+    identity,
+    ...(previous ? { previous } : {})
   }
   return { ...value, reviewHash: ledger.digest(value) }
 }
@@ -111,7 +119,7 @@ function verifyPlan(reviewed, approval) {
 // Driver functions are trusted host capabilities, never request-supplied code.
 // Its acquisition must exclude all managed writer launches for this instance;
 // physical writer observation alone is deliberately insufficient.
-async function apply({
+function prepare({
   reviewed,
   approval,
   directory,
@@ -144,13 +152,24 @@ async function apply({
     target: null
   }
   save(filename, state, true)
-  return execute({
+  return {
     filename,
-    driver,
-    timeoutMs,
-    expectedReviewHash: reviewed.reviewHash
+    id: state.id,
+    instanceId: reviewed.instanceId,
+    reviewHash: reviewed.reviewHash,
+    phase: state.phase
+  }
+}
+async function apply(options) {
+  const accepted = prepare(options)
+  return execute({
+    filename: accepted.filename,
+    driver: options.driver,
+    timeoutMs: options.timeoutMs,
+    expectedReviewHash: options.approval
   })
 }
+
 async function execute({ filename, driver, timeoutMs, expectedReviewHash }) {
   if (
     !Number.isSafeInteger(timeoutMs) ||
@@ -387,4 +406,12 @@ function status(filename) {
     errorCode: state.errorCode || null
   }
 }
-module.exports = { plan, apply, resume: execute, status, read, services }
+module.exports = {
+  plan,
+  prepare,
+  apply,
+  resume: execute,
+  status,
+  read,
+  services
+}

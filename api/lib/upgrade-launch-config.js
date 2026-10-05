@@ -13,7 +13,9 @@ module.exports = function launchConfig({
   marker,
   instanceId,
   manifestHash,
-  runId
+  runId,
+  stateRoot,
+  hostCheckpoint
 }) {
   if (
     !current?.Config ||
@@ -37,7 +39,22 @@ module.exports = function launchConfig({
   if (data.length !== 1 || !data[0].RW) fail()
   const networkNames = Object.keys(current.NetworkSettings?.Networks || {})
   if (networkNames.length !== 1) fail()
-  const mounts = current.Mounts.map((mount) => {
+  if (
+    stateRoot &&
+    (!path.isAbsolute(stateRoot) ||
+      !stage.directory.startsWith(stateRoot + path.sep) ||
+      !hostCheckpoint?.startsWith(stateRoot + path.sep))
+  )
+    fail()
+  const previousMarker = current.Config.Env?.find((value) =>
+    value.startsWith('SLIPWAY_UPGRADE_MARKER=')
+  )?.slice('SLIPWAY_UPGRADE_MARKER='.length)
+  const mounts = current.Mounts.filter(
+    (mount) =>
+      !stateRoot ||
+      (mount.Destination !== stateRoot &&
+        mount.Destination !== (previousMarker && path.dirname(previousMarker)))
+  ).map((mount) => {
     if (
       !['bind', 'volume'].includes(mount.Type) ||
       !path.isAbsolute(mount.Destination)
@@ -64,13 +81,23 @@ module.exports = function launchConfig({
     Target: stage.directory,
     ReadOnly: true
   })
+  if (stateRoot)
+    mounts.push({
+      Type: 'bind',
+      Source: stateRoot,
+      Target: stateRoot,
+      ReadOnly: false
+    })
   const replaced = new Set([
     'NODE_ENV',
     'SLIPWAY_MIGRATE',
     'SLIPWAY_UPGRADE_MARKER',
     'SLIPWAY_UPGRADE_IMAGE',
     'SLIPWAY_UPGRADE_INSTANCE',
-    'SLIPWAY_UPGRADE_MANIFEST'
+    'SLIPWAY_UPGRADE_MANIFEST',
+    'SLIPWAY_UPGRADE_STATE_ROOT',
+    'SLIPWAY_UPGRADE_CONTAINER',
+    'SLIPWAY_UPGRADE_HOST_CHECKPOINT'
   ])
   const env = (current.Config.Env || []).filter(
     (value) => !replaced.has(String(value).split('=')[0])
@@ -83,6 +110,14 @@ module.exports = function launchConfig({
     `SLIPWAY_UPGRADE_INSTANCE=${instanceId}`,
     `SLIPWAY_UPGRADE_MANIFEST=${manifestHash}`
   )
+  if (stateRoot)
+    env.push(
+      `SLIPWAY_UPGRADE_STATE_ROOT=${stateRoot}`,
+      `SLIPWAY_UPGRADE_CONTAINER=${
+        current.Name?.replace(/^\//, '') || 'slipway'
+      }`,
+      `SLIPWAY_UPGRADE_HOST_CHECKPOINT=${hostCheckpoint}`
+    )
   return {
     Image: image,
     User: current.Config.User || imageConfig.User || '',

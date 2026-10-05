@@ -1,6 +1,6 @@
 # Pre-ORM upgrade coordination checkpoint
 
-The one-time host-side upgrade path for 0.0.86/0.0.87 to 0.0.88 is approved. This implementation checkpoint adds the host controller/driver and startup/readiness admission. It remains a draft: installer routing, future UI/CLI dispatch and final real-application release proofs are unfinished. No schema helper is retired and the package version remains 0.0.87.
+The one-time host-side upgrade path for 0.0.86/0.0.87 to 0.0.88 is approved. This implementation checkpoint adds the host controller/driver and startup/readiness admission. It remains a draft: installer/fresh routing and prior-ledger transition source paths are implemented; future UI/CLI dispatch and final real-application release proofs are unfinished. No schema helper is retired and the package version remains 0.0.87.
 
 The release registry supplies immutable native SQLite catalogs and registered operations. Backup, clone preflight and live execution use the existing Bosun/Dock transaction engine. Every database commits its schema change and release receipt in one transaction. The coordinator reconciles actual receipts after interruption; it never assumes an expired lease proves the previous controller stopped and never restores an old snapshot over committed changes.
 
@@ -44,4 +44,8 @@ Main startup checks admission before requiring Sails. Sails CLI configuration an
 
 The founder handoff is short-lived, signed using the existing session secret, bound to one instance/plan and durably replay-protected. It rechecks native founder authority/authentication version and rejects password rotation, revoked authority, deletion, expiry, wrong plans and replay. Host-only recovery uses the existing root administration authority. No new production credentials are created.
 
-Still required before shipping: installer/fresh-install routing, future authenticated UI/CLI dispatch, prior-release-ledger transitions, actual released-image startup/session/failure proofs, all managed worker entry/stop contracts, and helper retirement proof preserving business backfills/readiness/recovery. The maintenance bridge is not selected. No production upgrade, merge or release has run.
+Fresh installer routing reads the target version without mounting storage. Coordinated images resolve to an official immutable digest; an existing installation receives the exact host-plan command and does not enter legacy validation/rollback. A fresh installer creates a never-started launch template and invokes `initialize`. The root program rejects existing catalogs, sessions, opaque files and symlinks before creating missing empty databases, then uses the same staged backup/preflight/receipt engine.
+
+A coordinated transition requires a completed prior native manifest, matching instance and all four databases. It validates every historical receipt and rejects unknown manifest rows; the new manifest binds its predecessor and preserves those rows. Partial or tampered prior work must resume its checkpoint. The target retains private host state access for future authenticated dispatch; stale marker mounts are replaced while ordinary mounts and secrets remain intact.
+
+Still required before shipping: real installer/controller-container confirmation, future authenticated UI/CLI dispatch, actual released-image startup/session/failure proofs, all managed worker entry/stop contracts, and helper retirement proof preserving business backfills/readiness/recovery. The maintenance bridge is not selected. No production upgrade, merge or release has run.

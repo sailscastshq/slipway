@@ -83,3 +83,46 @@ test('ambiguous data mounts and network topology fail instead of silently changi
   options.current.Mounts.push({ ...options.current.Mounts[0] })
   assert.throws(() => config(options), { code: 'upgradeLaunchConfig' })
 })
+test('coordinated launch preserves private state access and replaces stale marker mounts', () => {
+  const options = fixture()
+  options.stateRoot = '/private'
+  options.hostCheckpoint = '/private/host-1/host.json'
+  options.current.Name = '/my-slipway'
+  options.current.Config.Env.push(
+    'SLIPWAY_UPGRADE_MARKER=/private/old-stage/launch.json'
+  )
+  options.current.Mounts.push(
+    { Type: 'bind', Source: '/private', Destination: '/private', RW: true },
+    {
+      Type: 'bind',
+      Source: '/private/old-stage',
+      Destination: '/private/old-stage',
+      RW: false
+    }
+  )
+  const result = config(options)
+  assert.equal(
+    result.HostConfig.Mounts.filter((mount) => mount.Target === '/private')
+      .length,
+    1
+  )
+  assert.equal(
+    result.HostConfig.Mounts.find((mount) => mount.Target === '/private')
+      .ReadOnly,
+    false
+  )
+  assert.ok(
+    !result.HostConfig.Mounts.some(
+      (mount) => mount.Target === '/private/old-stage'
+    )
+  )
+  assert.ok(result.Env.includes('SLIPWAY_UPGRADE_STATE_ROOT=/private'))
+  assert.ok(result.Env.includes('SLIPWAY_UPGRADE_CONTAINER=my-slipway'))
+  assert.ok(
+    result.Env.includes(
+      'SLIPWAY_UPGRADE_HOST_CHECKPOINT=/private/host-1/host.json'
+    )
+  )
+  options.hostCheckpoint = '/elsewhere/host.json'
+  assert.throws(() => config(options), { code: 'upgradeLaunchConfig' })
+})

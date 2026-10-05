@@ -289,7 +289,9 @@ module.exports = function createHostDriver({
           marker,
           instanceId: state.reviewed.instanceId,
           manifestHash: state.reviewed.identity.hash,
-          runId: state.id
+          runId: state.id,
+          stateRoot: root,
+          hostCheckpoint: token.checkpoint
         })
         const created = await call(
           'POST',

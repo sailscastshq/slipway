@@ -10,6 +10,28 @@ const driverFactory = require('../api/lib/upgrade-host-driver')
 const registry = require('../api/lib/upgrade-registry')
 const handoff = require('../api/lib/upgrade-handoff')
 async function readInput() {
+  if (process.argv[2] === '--request-file') {
+    const filename = process.argv[3]
+    const stat = fs.lstatSync(filename)
+    if (
+      !stat.isFile() ||
+      stat.uid !== 0 ||
+      (stat.mode & 0o777) !== 0o600 ||
+      stat.size > 1024 * 1024
+    )
+      throw new Error('Invalid private request')
+    const input = JSON.parse(fs.readFileSync(filename, 'utf8'))
+    if (
+      !path.isAbsolute(input.directory || '') ||
+      !fs
+        .realpathSync(filename)
+        .startsWith(fs.realpathSync(input.directory) + path.sep)
+    )
+      throw new Error('Unbound request')
+    fs.unlinkSync(filename)
+    return input
+  }
+  if (process.argv.length !== 2) throw new Error('Unsupported input')
   const chunks = []
   let bytes = 0
   for await (const chunk of process.stdin) {
@@ -34,7 +56,9 @@ async function main() {
     return error('upgradeHostEnvironment')
   const input = await readInput()
   if (
-    !['plan', 'apply', 'status', 'resume'].includes(input.operation) ||
+    !['plan', 'apply', 'prepare', 'initialize', 'status', 'resume'].includes(
+      input.operation
+    ) ||
     !/^ghcr\.io\/sailscastshq\/slipway@sha256:[a-f0-9]{64}$/.test(
       input.image || ''
     ) ||
@@ -49,6 +73,13 @@ async function main() {
     (stateRoot.mode & 0o777) !== 0o700
   )
     return error('upgradeHostEnvironment')
+  if (
+    input.filename &&
+    !fs
+      .realpathSync(input.filename)
+      .startsWith(fs.realpathSync(input.directory) + path.sep)
+  )
+    return error('upgradeHostTarget')
   if (input.operation === 'status') {
     const result = host.status(input.filename)
     if (result.instanceId !== input.instanceId || result.image !== input.image)
@@ -84,8 +115,17 @@ async function main() {
   if (mounts.length !== 1 || !mounts[0].RW) return error('upgradeHostTarget')
   const sourceDirectory = fs.realpathSync(mounts[0].Source)
   const stat = fs.statSync(sourceDirectory)
+  const annotations = Object.fromEntries(
+    (current.Config.Env || [])
+      .filter((value) => value.startsWith('SLIPWAY_UPGRADE_'))
+      .map((value) => {
+        const at = value.indexOf('=')
+        return [value.slice(0, at), value.slice(at + 1)]
+      })
+  )
   const instanceId =
     checkpoint?.reviewed.instanceId ||
+    annotations.SLIPWAY_UPGRADE_INSTANCE ||
     `slipway:${crypto
       .createHash('sha256')
       .update(
@@ -94,7 +134,25 @@ async function main() {
       .digest('hex')}`
   let reviewed
   if (checkpoint) reviewed = checkpoint.reviewed
-  else {
+  else if (input.operation === 'initialize') {
+    if (
+      current.State.Status !== 'created' ||
+      current.Image !== image.Id ||
+      current.Config.Labels?.['io.slipway.install.pending'] !== 'true'
+    )
+      return error('upgradeHostTarget')
+    require('../api/lib/upgrade-fresh-storage')(sourceDirectory)
+    reviewed = host.plan({
+      sourceDirectory,
+      instanceId,
+      image: input.image,
+      sourceVersion: 'fresh',
+      containerId: current.Id,
+      containerName: current.Name.replace(/^\//, '')
+    })
+    input.instanceId = instanceId
+    input.approval = reviewed.reviewHash
+  } else {
     const command = await docker('POST', `/containers/${current.Id}/exec`, {
       AttachStdout: true,
       AttachStderr: false,
@@ -112,13 +170,40 @@ async function main() {
     const execution = await docker('GET', `/exec/${command.Id}/json`)
     if (execution.Running || execution.ExitCode !== 0)
       return error('upgradeHostSource')
+    let previous
+    if (annotations.SLIPWAY_UPGRADE_MARKER) {
+      const marker = require('../api/lib/upgrade-startup').readMarker(
+        annotations.SLIPWAY_UPGRADE_MARKER
+      )
+      require('../api/lib/upgrade-startup').verify({
+        markerFile: annotations.SLIPWAY_UPGRADE_MARKER,
+        version: source.version,
+        image: annotations.SLIPWAY_UPGRADE_IMAGE,
+        instanceId,
+        manifestHash: annotations.SLIPWAY_UPGRADE_MANIFEST,
+        datastores: Object.fromEntries(
+          host
+            .services(sourceDirectory, instanceId)
+            .map((service) => [
+              service.datastore,
+              { adapter: 'sails-sqlite', url: service.path }
+            ])
+        )
+      })
+      if (current.Config.Image !== annotations.SLIPWAY_UPGRADE_IMAGE)
+        return error('upgradeHostSource')
+      previous = require('../api/lib/upgrade-coordinator').readJournal(
+        marker.filename
+      ).identity
+    }
     reviewed = host.plan({
       sourceDirectory,
       instanceId,
       image: input.image,
       sourceVersion: source.version,
       containerId: current.Id,
-      containerName: current.Name.replace(/^\//, '')
+      containerName: current.Name.replace(/^\//, ''),
+      previous
     })
   }
   // Reject unsupported launch topology before freezing or copying storage.
@@ -127,13 +212,18 @@ async function main() {
     imageConfig: image.Config,
     image: input.image,
     stage: {
-      directory: input.directory,
-      dataDirectory: path.join(input.directory, 'preview-data')
+      directory: path.join(input.directory, 'preview-stage'),
+      dataDirectory: path.join(input.directory, 'preview-stage', 'data')
     },
-    marker: path.join(input.directory, 'preview-marker'),
+    marker: path.join(input.directory, 'preview-stage', 'launch.json'),
     instanceId,
     manifestHash: reviewed.identity.hash,
-    runId: 'review-only'
+    runId: 'review-only',
+    stateRoot: fs.realpathSync(input.directory),
+    hostCheckpoint: path.join(
+      fs.realpathSync(input.directory),
+      'preview-host.json'
+    )
   })
   if (input.operation === 'plan')
     return process.stdout.write(
@@ -201,6 +291,12 @@ async function main() {
     reserveBytes: 1024 * 1024 * 1024
   }
   try {
+    if (input.operation === 'prepare') {
+      const accepted = host.prepare(options)
+      return process.stdout.write(
+        JSON.stringify({ success: true, ...accepted }) + '\n'
+      )
+    }
     const result = checkpoint
       ? await host.resume({
           filename: input.filename,

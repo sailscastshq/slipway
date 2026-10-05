@@ -12,6 +12,10 @@ container="slipway"
 checkpoint=""
 directory="/var/lib/slipway/upgrades"
 while [ "$#" -gt 0 ]; do
+  if [ "$#" -lt 2 ] || [ -z "$2" ] || [[ "$2" == --* ]]; then
+    printf '%s\n' '{"success":false,"code":"upgradeHostInput"}' >&2
+    exit 2
+  fi
   case "$1" in
     --image) image="${2:?Missing image}" ;;
     --instance) instance="${2:?Missing instance}" ;;
@@ -23,7 +27,7 @@ while [ "$#" -gt 0 ]; do
   esac
   shift 2
 done
-case "$operation" in plan|apply|status|resume) ;; *) printf '%s\n' '{"success":false,"code":"upgradeHostInput"}' >&2; exit 2 ;; esac
+case "$operation" in plan|apply|initialize|status|resume) ;; *) printf '%s\n' '{"success":false,"code":"upgradeHostInput"}' >&2; exit 2 ;; esac
 if [ "$(id -u)" != 0 ] || [ "$(uname -s)" != Linux ] || [[ ! "$image" =~ ^ghcr\.io/sailscastshq/slipway@sha256:[a-f0-9]{64}$ ]]; then
   printf '%s\n' '{"success":false,"code":"upgradeHostEnvironment"}' >&2
   exit 2
@@ -32,7 +36,7 @@ if { [ "$operation" = apply ] || [ "$operation" = resume ]; } && { [ -z "$instan
   printf '%s\n' '{"success":false,"code":"upgradeHostApproval"}' >&2
   exit 2
 fi
-case "$directory" in /*) ;; *) exit 2 ;; esac
+case "$directory" in /*) ;; *) printf '%s\n' '{"success":false,"code":"upgradeHostInput"}' >&2; exit 2 ;; esac
 mkdir -p "$directory"
 chmod 700 "$directory"
 if [ "$operation" = resume ] || [ "$operation" = status ]; then
@@ -53,13 +57,15 @@ fi
 docker pull "$image" >/dev/null
 source_dir="$(docker inspect --format '{{range .Mounts}}{{if eq .Destination "/app/db"}}{{.Source}}{{end}}{{end}}' "$container")"
 case "$source_dir" in /*) ;; *) exit 2 ;; esac
+source_readonly=",readonly"
+if [ "$operation" = initialize ]; then source_readonly=""; fi
 controller="slipway-upgrade-controller-$(cat /proc/sys/kernel/random/uuid)"
 # Pass only target/approval metadata via environment to a fixed JSON encoder.
 # Existing session and encryption secrets remain in Docker's structured config.
 export SLIPWAY_HOST_OPERATION="$operation" SLIPWAY_HOST_IMAGE="$image" SLIPWAY_HOST_INSTANCE="$instance" SLIPWAY_HOST_APPROVAL="$approval" SLIPWAY_HOST_CONTAINER="$container" SLIPWAY_HOST_CHECKPOINT="$checkpoint" SLIPWAY_HOST_DIRECTORY="$directory" SLIPWAY_HOST_CONTROLLER="$controller"
 python3 - <<'PY' | docker run --rm -i --name "$controller" --restart=no --pid=host --cap-add=SYS_PTRACE --entrypoint=node --network=none \
   --mount "type=bind,src=/var/run/docker.sock,dst=/var/run/docker.sock" \
-  --mount "type=bind,src=$source_dir,dst=$source_dir,readonly" \
+  --mount "type=bind,src=$source_dir,dst=$source_dir$source_readonly" \
   --mount "type=bind,src=$directory,dst=$directory" \
   "$image" scripts/upgrade-host.cjs
 import json, os

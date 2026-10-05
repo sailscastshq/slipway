@@ -54,13 +54,17 @@ run_slipway_container() {
     local host_port="${2:-}"
     local port_args=()
     local restart_args=()
+    local action="${3:-run}"
+    local action_args=(-d)
+    local label_args=()
+    if [ "$action" = create ]; then action_args=(); label_args=(--label io.slipway.install.pending=true); fi
 
     if [ -n "$host_port" ]; then
         port_args=(-p "$SLIPWAY_DASHBOARD_HOST:$host_port:1337")
         restart_args=(--restart unless-stopped)
     fi
 
-    docker run -d \
+    docker "$action" "${action_args[@]}" "${label_args[@]}" \
         --name "$container_name" \
         --network "$SLIPWAY_NETWORK" \
         "${restart_args[@]}" \
@@ -76,8 +80,7 @@ run_slipway_container() {
         -e SLIPWAY_APP_PORT_START="$SLIPWAY_APP_PORT_START" \
         -e SLIPWAY_APP_PORT_END="$SLIPWAY_APP_PORT_END" \
         -e SLIPWAY_SETUP_TOKEN="${SLIPWAY_SETUP_TOKEN:-}" \
-    -e SESSION_SECRET="$SESSION_SECRET" \
-        -e DATA_ENCRYPTION_KEY="$DATA_ENCRYPTION_KEY" \
+        --env-file "$SLIPWAY_ENV_FILE" \
         "$SLIPWAY_IMAGE"
 }
 
@@ -462,6 +465,35 @@ else
     docker pull "$SLIPWAY_IMAGE"
 fi
 docker pull alpine
+
+# Coordinated releases never validate against shared live data or use legacy rollback.
+TARGET_COORDINATED=$(docker run --rm --network none --entrypoint node "$SLIPWAY_IMAGE" -e 'const v=require("./package.json").version; console.log(require("semver").gte(v,"0.0.88") ? "yes" : "no")')
+if [ "$TARGET_COORDINATED" = yes ]; then
+    SLIPWAY_IMAGE=$(docker image inspect --format '{{range .RepoDigests}}{{println .}}{{end}}' "$SLIPWAY_IMAGE" | awk -v prefix="$SLIPWAY_IMAGE_REPOSITORY@sha256:" 'index($0,prefix)==1 { print; exit }')
+    if [[ ! "$SLIPWAY_IMAGE" =~ ^ghcr\.io/sailscastshq/slipway@sha256:[a-f0-9]{64}$ ]]; then
+        echo "Coordinated installation requires a pinned official image digest." >&2
+        exit 2
+    fi
+    SLIPWAY_UPGRADE_STATE_DIR="${SLIPWAY_UPGRADE_STATE_DIR:-/var/lib/slipway/upgrades}"
+    install -d -m 700 "$SLIPWAY_UPGRADE_STATE_DIR"
+    docker run --rm --network none --entrypoint cat "$SLIPWAY_IMAGE" scripts/upgrade-host.sh > "$SLIPWAY_UPGRADE_STATE_DIR/upgrade-host.sh"
+    chmod 700 "$SLIPWAY_UPGRADE_STATE_DIR/upgrade-host.sh"
+    if container_exists "$SLIPWAY_CONTAINER"; then
+        echo "Review the native upgrade plan before replacing this installation:"
+        printf 'bash %q plan --image %q --container %q --state-dir %q\n' "$SLIPWAY_UPGRADE_STATE_DIR/upgrade-host.sh" "$SLIPWAY_IMAGE" "$SLIPWAY_CONTAINER" "$SLIPWAY_UPGRADE_STATE_DIR"
+        echo "Then apply using the returned exact --instance and --approve-plan values. Failed upgrades retain a resume checkpoint."
+        exit 2
+    fi
+    # This never-started container supplies the intended launch config. Root
+    # initialization independently rejects any nonempty native catalog/storage.
+    run_slipway_container "$SLIPWAY_CONTAINER" "$SLIPWAY_PORT" create
+    bash "$SLIPWAY_UPGRADE_STATE_DIR/upgrade-host.sh" initialize --image "$SLIPWAY_IMAGE" --container "$SLIPWAY_CONTAINER" --state-dir "$SLIPWAY_UPGRADE_STATE_DIR"
+    configure_bootstrap_dashboard_route
+    configure_host_firewall
+    echo "Slipway installed with verified native receipts. Dashboard: $SLIPWAY_URL"
+    echo "Installation claim token: $SLIPWAY_SETUP_TOKEN"
+    exit 0
+fi
 
 # 7b. Ensure deployed app source survives container replacement
 mkdir -p "$SLIPWAY_APPS_DIR"

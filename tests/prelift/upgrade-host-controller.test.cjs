@@ -6,8 +6,8 @@ const host = require('../../api/lib/upgrade-host-controller')
 const registry = require('../../api/lib/upgrade-registry')
 const { fixture, image } = require('./release-fixtures.cjs')
 const old = require('../../api/lib/upgrades/baselines/0.0.86.json')
-async function runFixture(run) {
-  return fixture(old, async ({ directory }) => {
+async function runFixture(run, profile = old) {
+  return fixture(profile, async ({ directory }) => {
     // The release fixture supplies the same catalogs under logical names;
     // installation storage uses the canonical physical filenames.
     fs.renameSync(
@@ -41,7 +41,7 @@ async function runFixture(run) {
       sourceDirectory: source,
       instanceId: 'fixture-instance',
       image,
-      sourceVersion: '0.0.87',
+      sourceVersion: profile === null ? 'fresh' : '0.0.87',
       containerId: 'a'.repeat(64)
     })
     const events = []
@@ -77,7 +77,7 @@ async function runFixture(run) {
         return {
           ready: true,
           instanceId: state.reviewed.instanceId,
-          image,
+          image: state.reviewed.identity.manifest.image,
           manifestHash: state.reviewed.identity.hash
         }
       },
@@ -195,4 +195,81 @@ test('late writes to original storage block publication after committed staged D
       fs.readFileSync(path.join(source, 'late-write'), 'utf8'),
       'do-not-lose'
     )
+  }))
+
+test('fresh host initialization completes all native receipts before publication without ORM', () =>
+  runFixture(async ({ options, source }) => {
+    const result = await host.apply(options)
+    assert.equal(result.phase, 'ready')
+    assert.equal(result.migration.pending.length, 0)
+    assert.equal(options.reviewed.identity.manifest.mode, 'fresh')
+    for (const service of host.services(source, 'fixture-instance')) {
+      const db = new (require('better-sqlite3'))(service.path, {
+        readonly: true
+      })
+      assert.equal(
+        db
+          .prepare(
+            "SELECT count(*) AS n FROM sqlite_schema WHERE name NOT LIKE 'sqlite_%'"
+          )
+          .get().n,
+        0
+      )
+      db.close()
+    }
+  }, null))
+test('a completed coordinated host can transition to another pinned image preserving prior receipts', () =>
+  runFixture(async ({ options, driver, stateDirectory }) => {
+    const first = await host.apply(options)
+    const prior = host.read(first.filename)
+    const nextImage = `ghcr.io/sailscastshq/slipway@sha256:${'b'.repeat(64)}`
+    const reviewed = host.plan({
+      sourceDirectory: prior.stage.dataDirectory,
+      instanceId: first.instanceId,
+      image: nextImage,
+      sourceVersion: registry.release,
+      containerId: 'b'.repeat(64),
+      previous: prior.reviewed.identity
+    })
+    assert.equal(
+      reviewed.identity.manifest.previous.hash,
+      prior.reviewed.identity.hash
+    )
+    const next = await host.apply({
+      ...options,
+      reviewed,
+      approval: reviewed.reviewHash,
+      directory: stateDirectory,
+      driver
+    })
+    assert.equal(next.phase, 'ready')
+    const state = host.read(next.filename)
+    const ledger = require('../../api/lib/upgrade-ledger')
+    for (const service of host.services(
+      state.stage.dataDirectory,
+      next.instanceId
+    )) {
+      const db = new (require('better-sqlite3'))(service.path, {
+        readonly: true
+      })
+      assert.equal(
+        ledger.readLedger(
+          db,
+          prior.reviewed.identity,
+          service.datastore,
+          service.databaseKey
+        ).length,
+        1
+      )
+      assert.equal(
+        ledger.readLedger(
+          db,
+          reviewed.identity,
+          service.datastore,
+          service.databaseKey
+        ).length,
+        1
+      )
+      db.close()
+    }
   }))

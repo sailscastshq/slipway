@@ -181,7 +181,13 @@ function completeCatalog(schema, db, datastore, mode) {
   }
   return ids
 }
-function createReleasePlan({ services, image, instanceId, mode = 'upgrade' }) {
+function createReleasePlan({
+  services,
+  image,
+  instanceId,
+  mode = 'upgrade',
+  previous
+}) {
   if (
     !['upgrade', 'fresh'].includes(mode) ||
     typeof instanceId !== 'string' ||
@@ -194,6 +200,16 @@ function createReleasePlan({ services, image, instanceId, mode = 'upgrade' }) {
     fail(
       'Release planning requires an exact instance and all four owned datastores.'
     )
+  if (previous) {
+    if (mode !== 'upgrade')
+      fail('Fresh initialization cannot inherit receipts.')
+    previous = require('./upgrade-lineage')({
+      previous,
+      services,
+      instanceId,
+      image
+    })
+  }
   const steps = []
   for (const datastore of datastores) {
     const service = services.find((item) => item.datastore === datastore)
@@ -205,10 +221,11 @@ function createReleasePlan({ services, image, instanceId, mode = 'upgrade' }) {
       fail('Release planning has an invalid database target.')
     const schema = readSchema(service)
     if (schema.error) fail('An owned database is missing or unreadable.')
-    if (schema.tables[ledger.table])
+    if (schema.tables[ledger.table] && !previous)
       fail(
         'Use the recorded upgrade checkpoint to resume an already coordinated database.'
       )
+    if (previous) delete schema.tables[ledger.table]
     if (mode === 'fresh') {
       const inspected = new Database(service.path, {
         readonly: true,
@@ -270,6 +287,7 @@ function createReleasePlan({ services, image, instanceId, mode = 'upgrade' }) {
     image,
     instanceId,
     mode,
+    ...(previous ? { previous } : {}),
     steps
   })
 }
