@@ -528,7 +528,7 @@ const tabClass = (current, value) => [
     : 'border-transparent text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white'
 ]
 const filterClass =
-  'min-h-9 rounded-md border border-gray-200 bg-white px-3 py-1.5 text-xs text-gray-600 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-300'
+  'focus:border-brand min-h-10 rounded-none border-0 border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-0 dark:border-gray-700 dark:text-white dark:placeholder-gray-500 dark:focus:border-brand'
 function clearFilters() {
   search.value = ''
   stateFilter.value = 'all'
