@@ -16,6 +16,15 @@ export function normalizeQuestWorkspace(workspace, fallback = {}) {
     version: 1,
     mode,
     observedAt: source.observedAt ?? null,
+    runtimeState: [
+      'loading',
+      'unknown',
+      'unreachable',
+      'stopped',
+      'live'
+    ].includes(source.runtimeState)
+      ? source.runtimeState
+      : null,
     target: source.target || {},
     capabilities: Object.fromEntries(
       ['invoke', 'pause', 'resume', 'cancel', 'results', 'typedInputs'].map(
@@ -47,6 +56,12 @@ export function hasQuestSchedule(job) {
 }
 
 export function questJobState(job, workspace, fresh = true) {
+  if (workspace.runtimeState === 'loading') return 'loading'
+  if (
+    workspace.runtimeState === 'unknown' ||
+    (!fresh && workspace.runtimeState === 'live')
+  )
+    return 'unknown'
   if (!fresh || workspace.mode !== 'resident') return 'unavailable'
   if (job.isRunning === true) return 'running'
   if (job.paused === true) return 'paused'
