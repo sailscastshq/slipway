@@ -38,6 +38,7 @@ function itemClass(index) {
   return twMerge(
     'flex min-w-0 items-center gap-1.5',
     isCollapsed(index) ? 'hidden' : undefined,
+    collapses.value && index === 0 ? 'hidden sm:flex' : undefined,
     props.currentOnlyOnMobile &&
       !isCollapsed(index) &&
       index !== lastIndex.value
@@ -80,7 +81,7 @@ function separatorClass(index) {
           data-slot="ellipsis"
           :class="
             twMerge(
-              'flex shrink-0 items-center gap-1.5',
+              'hidden shrink-0 items-center gap-1.5 sm:flex',
               props.currentOnlyOnMobile ? 'hidden sm:flex' : undefined
             )
           "

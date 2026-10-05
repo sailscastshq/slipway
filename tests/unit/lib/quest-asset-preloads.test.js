@@ -309,6 +309,12 @@ test('Quest controller hints survive actual Inertia rendering and nested EJS loc
       Environment: { findOne: async () => ({ id: 3, slug: 'production' }) },
       App: { findOne: async () => null },
       require(name) {
+        if (name === '../../lib/app-selection')
+          return async (req, environmentId) => {
+            assert.equal(req.url, '/projects/demo/quest')
+            assert.equal(environmentId, 3)
+            return { app: null, defaultApp: null, explicit: false }
+          }
         if (name === '../../lib/quest-workspace')
           return { initialSnapshot: async () => workspace }
         if (name === '../../lib/quest-asset-preloads')

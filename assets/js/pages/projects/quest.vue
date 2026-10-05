@@ -64,6 +64,8 @@ defineOptions({ layout: AppLayout })
 const props = defineProps({
   project: Object,
   environment: Object,
+  app: Object,
+  appSelectionExplicit: Boolean,
   hasQuestFeature: Boolean,
   questFeature: Object,
   appRunning: Boolean,
@@ -138,11 +140,19 @@ const apiUrl = computed(
   () =>
     `/api/v1/projects/${encodeURIComponent(props.project.slug)}${
       envPath.value
+    }${
+      props.appSelectionExplicit && props.app
+        ? `/apps/${encodeURIComponent(props.app.slug)}`
+        : ''
     }/quest`
 )
 const actionUrl = computed(
   () =>
-    `/projects/${encodeURIComponent(props.project.slug)}${envPath.value}/quest`
+    `/projects/${encodeURIComponent(props.project.slug)}${envPath.value}${
+      props.appSelectionExplicit && props.app
+        ? `/apps/${encodeURIComponent(props.app.slug)}`
+        : ''
+    }/quest`
 )
 const sseUrl = computed(() =>
   props.hasQuestFeature && props.appRunning ? `${apiUrl.value}/stream` : null
@@ -721,6 +731,15 @@ async function loadMore() {
               label: environment.name.toLowerCase(),
               href: `/projects/${project.slug}/environments/${environment.slug}`
             },
+            ...(app
+              ? [
+                  {
+                    label: app.name.toLowerCase(),
+                    title: app.name,
+                    href: `/projects/${project.slug}/environments/${environment.slug}/apps/${app.slug}`
+                  }
+                ]
+              : []),
             { label: 'quest' }
           ]"
         />

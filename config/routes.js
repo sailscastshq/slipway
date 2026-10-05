@@ -403,6 +403,43 @@ module.exports.routes = {
   'POST /projects/:slug/environments/:envSlug/quest/:jobName/resume':
     'project/quest-resume-job',
 
+  // App-scoped Quest shares the same authorized controllers as legacy routes.
+  'POST /api/v1/projects/:projectSlug/apps/:appSlug/quest/jobs/:name/run':
+    'api/v1/quest/run-job',
+  'POST /api/v1/projects/:projectSlug/environments/:environmentSlug/apps/:appSlug/quest/jobs/:name/run':
+    'api/v1/quest/run-job',
+  'GET /api/v1/projects/:projectSlug/apps/:appSlug/quest/stream':
+    'api/v1/quest/stream-jobs',
+  'GET /api/v1/projects/:projectSlug/environments/:environmentSlug/apps/:appSlug/quest/stream':
+    'api/v1/quest/stream-jobs',
+  'GET /api/v1/projects/:projectSlug/apps/:appSlug/quest/runs':
+    'api/v1/quest/list-runs',
+  'GET /api/v1/projects/:projectSlug/environments/:environmentSlug/apps/:appSlug/quest/runs':
+    'api/v1/quest/list-runs',
+  'GET /api/v1/projects/:projectSlug/apps/:appSlug/quest/runs/:runId':
+    'api/v1/quest/get-run',
+  'GET /api/v1/projects/:projectSlug/environments/:environmentSlug/apps/:appSlug/quest/runs/:runId':
+    'api/v1/quest/get-run',
+  'GET /api/v1/projects/:projectSlug/apps/:appSlug/quest/runs/:runId/logs':
+    'api/v1/quest/get-run-logs',
+  'GET /api/v1/projects/:projectSlug/environments/:environmentSlug/apps/:appSlug/quest/runs/:runId/logs':
+    'api/v1/quest/get-run-logs',
+  'GET /api/v1/projects/:projectSlug/apps/:appSlug/quest/events/:eventId':
+    'api/v1/quest/get-event',
+  'GET /api/v1/projects/:projectSlug/environments/:environmentSlug/apps/:appSlug/quest/events/:eventId':
+    'api/v1/quest/get-event',
+  'GET /projects/:slug/apps/:appSlug/quest': 'project/view-quest',
+  'GET /projects/:slug/environments/:envSlug/apps/:appSlug/quest':
+    'project/view-quest',
+  'POST /projects/:slug/apps/:appSlug/quest/:jobName/pause':
+    'project/quest-pause-job',
+  'POST /projects/:slug/environments/:envSlug/apps/:appSlug/quest/:jobName/pause':
+    'project/quest-pause-job',
+  'POST /projects/:slug/apps/:appSlug/quest/:jobName/resume':
+    'project/quest-resume-job',
+  'POST /projects/:slug/environments/:envSlug/apps/:appSlug/quest/:jobName/resume':
+    'project/quest-resume-job',
+
   // Dock Database Management API
   'POST /api/v1/projects/:projectSlug/dock/sql': 'api/v1/dock/execute-sql',
   'POST /api/v1/projects/:projectSlug/environments/:environmentSlug/dock/sql':

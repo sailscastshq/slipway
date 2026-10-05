@@ -1110,13 +1110,11 @@ async function resolveScope(
     slug: environmentSlug
   })
   if (!environment) throw 'notFound'
-  const defaultApp =
-    (await App.findOne({ environment: environment.id, isDefault: true })) ||
-    (await App.find({ environment: environment.id }).sort('id ASC').limit(1))[0]
-  const app =
-    appId == null
-      ? defaultApp
-      : await App.findOne({ id: appId, environment: environment.id })
+  const { app, defaultApp } = await require('./app-selection')(
+    req,
+    environment.id,
+    { appId }
+  )
   if (!app) throw 'notFound'
   return {
     environmentId: environment.id,

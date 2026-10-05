@@ -53,6 +53,7 @@ defineOptions({
 const props = defineProps({
   project: Object,
   environment: Object,
+  contextApp: Object,
   databaseService: Object, // null when in picker mode
   availableServices: Array,
   canManageDatabase: Boolean,
@@ -72,6 +73,15 @@ const breadcrumbs = computed(() => [
     label: props.environment.slug,
     href: `/projects/${props.project.slug}/environments/${props.environment.slug}`
   },
+  ...(props.contextApp
+    ? [
+        {
+          label: props.contextApp.name.toLowerCase(),
+          title: props.contextApp.name,
+          href: `/projects/${props.project.slug}/environments/${props.environment.slug}/apps/${props.contextApp.slug}`
+        }
+      ]
+    : []),
   { label: 'dock' }
 ])
 
@@ -94,8 +104,12 @@ function dockUrl(serviceId) {
     props.environment.slug !== 'production'
       ? `/environments/${props.environment.slug}`
       : ''
+  const params = new URLSearchParams()
+  if (activeTab.value === 'backups') params.set('tab', 'backups')
+  if (props.contextApp) params.set('appSlug', props.contextApp.slug)
+  const query = params.toString()
   return `/projects/${props.project.slug}${envPath}/dock/${serviceId}${
-    activeTab.value === 'backups' ? '?tab=backups' : ''
+    query ? `?${query}` : ''
   }`
 }
 
