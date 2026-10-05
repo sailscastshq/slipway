@@ -1,0 +1,39 @@
+{
+  "issue": 694,
+  "base": "ed1f6eaca5737e91cc9e69fa7a100985d4939033",
+  "scope": "Actual local application; synthetic account; 1440/390px light/dark. Before release, after profile styling only.",
+  "screenshots": [
+    {
+      "path": ".github/screenshots/694/before-390-dark.png",
+      "sha256": "1aa5b375e2d6b58b75d29d417564441c43c762ddc471376d2c3e6cc26347b38c"
+    },
+    {
+      "path": ".github/screenshots/694/before-390-light.png",
+      "sha256": "1aea0f976d5c73eeb81eefd6033970aa5de1f3e7f928316f2c6b1bfd53ef1da1"
+    },
+    {
+      "path": ".github/screenshots/694/before-1440-light.png",
+      "sha256": "56e70f84dc84e437107f4f219ecc987d121ad9d3c29f2f35dc1f3d8e69656b64"
+    },
+    {
+      "path": ".github/screenshots/694/before-1440-dark.png",
+      "sha256": "20cfcb535429c71d0f3c15e67255cface9ad329d1a1216421644a4769790aa62"
+    },
+    {
+      "path": ".github/screenshots/694/after-390-dark.png",
+      "sha256": "80e1db86dda491ea03e12599b01db02d88639f8a077eecdc6398431cbaaced82"
+    },
+    {
+      "path": ".github/screenshots/694/after-390-light.png",
+      "sha256": "cf0de58526d62090400ce451b2fe92bbe7ebe996d507db16fe1f746327795416"
+    },
+    {
+      "path": ".github/screenshots/694/after-1440-light.png",
+      "sha256": "f23f802cb323e7969b3aa7ddde08a6ac45c4788c5bb16f79be7eeb5e29c18ad1"
+    },
+    {
+      "path": ".github/screenshots/694/after-1440-dark.png",
+      "sha256": "b0e74230774ff268ba5eaac12f9a68b22b0ede8253b06cf6ffa3a4eb8bfc7968"
+    }
+  ]
+}
