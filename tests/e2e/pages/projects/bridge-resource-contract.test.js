@@ -1090,6 +1090,10 @@ test(
       )
 
       await page.raw.getByRole('button', { name: 'Bold', exact: true }).click()
+      // Observe the applied editor mark before switching representations.
+      await expect(descriptionEditor.locator('p strong')).toHaveText(
+        'Boring releases are good.'
+      )
       await page.raw
         .getByRole('button', {
           name: 'Edit Course description as Markdown'

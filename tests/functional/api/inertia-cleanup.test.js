@@ -54,6 +54,22 @@ test(
           ).domain,
           `${suffix}.example.test`
         )
+        if (client === page) {
+          const refreshed = await page.get(appPath)
+          assert.deepEqual(refreshed.data.props.flash.domainRoute, {
+            environmentId: String(environments.production.id),
+            domain: `${suffix}.example.test`,
+            verified: true
+          })
+          assert.equal(
+            refreshed.data.props.environment.domainReadiness.dns,
+            'unverified'
+          )
+          assert.equal(
+            refreshed.data.props.environment.domainReadiness.tls,
+            'unverified'
+          )
+        }
         await mutation(client, 'patch', '/api/v1/bosun/env', {
           envVars: { CONTRACT: suffix }
         })

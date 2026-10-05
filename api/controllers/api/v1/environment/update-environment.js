@@ -292,6 +292,12 @@ module.exports = {
       telemetryToken,
       ...publicEnvironment
     } = updatedEnv
+    if (domain !== undefined && this.req.header?.('X-Inertia'))
+      sails.inertia.flash('domainRoute', {
+        environmentId: String(environment.id),
+        domain: domain || null,
+        verified: Boolean(route?.transaction)
+      })
     return {
       environment: publicEnvironment,
       ...(domain !== undefined

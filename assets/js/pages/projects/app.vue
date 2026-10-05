@@ -238,6 +238,15 @@ async function saveCustomDomain() {
       { domain: newDomain.value.trim() }
     )
     domainReadiness.value = page.props.environment.domainReadiness
+    const receipt = page.props.flash?.domainRoute
+    if (
+      receipt?.environmentId === String(props.environment.id) &&
+      receipt.domain === (newDomain.value.trim() || null)
+    )
+      domainReadiness.value = {
+        ...domainReadiness.value,
+        route: receipt.verified ? 'verified' : 'unverified'
+      }
     toast({
       message: newDomain.value.trim()
         ? 'Environment domain saved. DNS and HTTPS still need verification.'
@@ -1519,7 +1528,8 @@ onBeforeUnmount(() => {
                   />
                   <ReleaseFlagMenu
                     :flag="flag"
-                    @update="updateReleaseFlag(flag, $event)"
+                    :save-update="(updates) => updateReleaseFlag(flag, updates)"
+                    :busy="savingFlag"
                     @remove="removeReleaseFlag(flag)"
                   />
                 </div>

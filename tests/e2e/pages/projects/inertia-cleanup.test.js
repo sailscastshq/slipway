@@ -268,3 +268,99 @@ test(
     expect(page).toHaveNoJavascriptErrors()
   }
 )
+
+test(
+  'failed Inertia flag edits preserve all dirty values and domain saves retain only verified route evidence',
+  {
+    browser: true,
+    world: {
+      name: 'configured-slipway',
+      context: { deploymentTarget: { slug: 'inertia-recovery-ui' } }
+    }
+  },
+  async ({ sails, world, login, page, expect }) => {
+    const current = world.current
+    const flag = await sails.models.featureflag
+      .create({
+        key: 'recovery',
+        description: 'Original description',
+        app: current.apps.web.id,
+        environment: current.environments.production.id
+      })
+      .fetch()
+    await login.withPassword('genesisUser', page, {
+      password: current.auth.genesisUserPassword
+    })
+    await page.raw.waitForURL('**/')
+    const appPath =
+      '/projects/inertia-recovery-ui/environments/production/apps/web'
+    await page.goto(appPath + '?flags=1')
+    const row = page.raw.locator('[data-test="release-flag-recovery"]')
+    await row.getByLabel('Release flag settings', { exact: true }).click()
+    const description = row.getByLabel('Description', { exact: true })
+    const rollout = row.getByRole('slider')
+    const allowlist = row.getByLabel('Allowlist', { exact: true })
+    await description.fill('Unsaved description')
+    await rollout.fill('35')
+    await allowlist.fill('invalid-target')
+    await row.getByRole('button', { name: 'Save', exact: true }).click()
+    await expect(
+      page.raw.getByText(/Use typed targets such as user:42/)
+    ).toBeVisible()
+    await expect(description).toHaveValue('Unsaved description')
+    await expect(rollout).toHaveValue('35')
+    await expect(allowlist).toHaveValue('invalid-target')
+    await fs.mkdir(path.resolve('output/inertia-cleanup'), { recursive: true })
+    await page.screenshot(
+      path.resolve('output/inertia-cleanup/flag-dirty-validation.png'),
+      { animations: 'disabled' }
+    )
+    expect(
+      (await sails.models.featureflag.findOne({ id: flag.id })).description
+    ).toBe('Original description')
+    await allowlist.fill('user:42')
+    await row.getByRole('button', { name: 'Save', exact: true }).click()
+    await expect(row.locator('details')).not.toHaveAttribute('open', '')
+    const saved = await sails.models.featureflag.findOne({ id: flag.id })
+    expect(saved.description).toBe('Unsaved description')
+    expect(saved.rolloutPercentage).toBe(35)
+    expect(saved.targets).toEqual(['user:42'])
+    const originalRoute = sails.helpers.caddy.updateRoute
+    const originalFinish = sails.helpers.caddy.finishRouteUpdate
+    sails.helpers.caddy.updateRoute = {
+      with: async () => ({ transaction: { fixture: true } })
+    }
+    sails.helpers.caddy.finishRouteUpdate = { with: async () => {} }
+    try {
+      async function openDomain() {
+        await page.raw.getByRole('button', { name: 'Open app actions' }).click()
+        await page.raw
+          .getByRole('menuitem', { name: 'Custom domain', exact: true })
+          .click()
+      }
+      await openDomain()
+      const dialog = page.raw.getByRole('dialog', {
+        name: 'Environment domain'
+      })
+      await dialog
+        .getByRole('textbox', { name: 'Hostname' })
+        .fill('verified-route.example.test')
+      await dialog.getByRole('button', { name: 'Save', exact: true }).click()
+      await expect(dialog).not.toBeVisible()
+      await openDomain()
+      await expect(dialog).toContainText('Verified at last save')
+      await page.screenshot(
+        path.resolve('output/inertia-cleanup/domain-route-receipt.png'),
+        { animations: 'disabled' }
+      )
+      await expect(dialog).toContainText('Not verified')
+      await expect(
+        dialog.getByText('DNS / TLS:', { exact: true }).locator('..')
+      ).toContainText('Not verified')
+    } finally {
+      sails.helpers.caddy.updateRoute = originalRoute
+      sails.helpers.caddy.finishRouteUpdate = originalFinish
+    }
+    expect(page).toHaveNoJavascriptErrors()
+  }
+)

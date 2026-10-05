@@ -109,3 +109,25 @@ test('visitor deletion redirects to the surviving Wake journeys page', () => {
     '/projects/harbor/environments/production/apps/web/wake?tab=journeys'
   ])
 })
+
+test('Wake deletion preserves only report filters from its own same-origin parent', () => {
+  const response = require('../../../api/responses/wakeVisitorDeleted')
+  const parent = '/projects/harbor/environments/production/apps/web/wake'
+  for (const [referrer, expected] of [
+    [
+      parent +
+        '?tab=settings&visitor=removed&from=2026-10-01&to=2026-10-04&currency=EUR&redirect=evil',
+      parent + '?tab=journeys&from=2026-10-01&to=2026-10-04&currency=EUR'
+    ],
+    [
+      'https://evil.test' + parent + '?from=2026-10-01',
+      parent + '?tab=journeys'
+    ],
+    ['/projects/other/wake?currency=EUR', parent + '?tab=journeys']
+  ]) {
+    const page = context(true, referrer)
+    page.req.params = { slug: 'harbor', envSlug: 'production', appSlug: 'web' }
+    response.call(page, { deleted: true })
+    assert.deepEqual(page.events[1], ['set', 'Location', expected])
+  }
+})
