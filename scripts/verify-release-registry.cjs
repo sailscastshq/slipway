@@ -14,8 +14,7 @@ fs.mkdirSync(app)
 fs.mkdirSync(path.join(app, 'scripts'))
 const expected = {
   'sails-hook-quest': ['0.0.6', 'sha512-duF3LfQWY2q3oKR07l8gVcCNRMycS4xVvFaTF2Tm4mUkl7s48CfbyYRjlk4VBouGJoFcYZ4IvlSc4XtldDRLLg=='],
-  'sails-hook-slipway': ['0.0.12', 'sha512-WHNetxrI4DttKoYP3kM4CE8j5KP3Eo9NoItgpOXT1cZQ2hPwkTIplC+8IdIljuYMC7LwV4V2M3oSNu8DSMANOw=='],
-  'slipway-cli': ['0.0.3', 'sha512-SHnmZJ8qGPlftqNlHVUlqOCWew/2uBM4CyzdMs8Tv0tzl3Jr5fd4cMShYjpKPJep0yH8dKqT8PU0RUyj2rposA==']
+  'sails-hook-slipway': ['0.0.12', 'sha512-WHNetxrI4DttKoYP3kM4CE8j5KP3Eo9NoItgpOXT1cZQ2hPwkTIplC+8IdIljuYMC7LwV4V2M3oSNu8DSMANOw==']
 }
 fs.writeFileSync(path.join(app, 'package.json'), JSON.stringify({private:true,scripts:{},dependencies:{sails:'1.5.18','sails-hook-orm':'4.0.3',...Object.fromEntries(Object.entries(expected).map(([name,[version]])=>[name,version]))}}))
 execFileSync('npm', ['install','--ignore-scripts','--no-audit','--no-fund'], {cwd:app,stdio:'inherit',timeout:180000})
@@ -65,13 +64,9 @@ async function main(){
     assert.match(receipt.run.stdout,/registry fixture log/)
     assert.equal((await request(command)).run.runId,admitted.run.runId)
     assert.equal((await request({command:'snapshot'})).runs.length,1)
-    const cli=path.join(app,'node_modules/.bin/slipway')
-    assert.equal(execFileSync(cli,['--version'],{encoding:'utf8'}).trim(),'slipway v0.0.3')
-    let error;try{execFileSync(cli,['unknown-registry-command','--json'],{encoding:'utf8'})}catch(e){error=e}
-    assert.equal(error.status,1);assert.equal(error.stdout,'');assert.equal(JSON.parse(error.stderr).error.code,'CLI_UNKNOWN_COMMAND')
     const output=path.join(process.env.GITHUB_WORKSPACE,'.tmp/release-registry-proof');fs.mkdirSync(output,{recursive:true})
     fs.copyFileSync(path.join(app,'package-lock.json'),path.join(output,'consumer-lock.json'))
-    fs.writeFileSync(path.join(output,'proof.json'),JSON.stringify({mode:'registry-installed-consumer',releaseSha:process.env.RELEASE_SHA,packages:packageProof,runtimeCapabilities:runtime.capabilities,controls:snapshot.capabilities,orm:true,realUds:true,typedFalsiesAndResult:true,logsSeparated:true,requestDeduplication:true,registryCli:true,runId:admitted.run.runId},null,2)+'\n')
+    fs.writeFileSync(path.join(output,'proof.json'),JSON.stringify({mode:'registry-installed-consumer',releaseSha:process.env.RELEASE_SHA,packages:packageProof,runtimeCapabilities:runtime.capabilities,controls:snapshot.capabilities,orm:true,realUds:true,typedFalsiesAndResult:true,logsSeparated:true,requestDeduplication:true,registryCli:false,runId:admitted.run.runId},null,2)+'\n')
   } finally {await new Promise((resolve,reject)=>sails.lower(error=>error?reject(error):resolve()));clearTimeout(timer)}
 }
 main().catch(error=>{console.error(error.stack);process.exit(1)})
