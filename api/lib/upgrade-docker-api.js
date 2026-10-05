@@ -13,6 +13,7 @@ module.exports = function createDockerClient(
   return function request(method, route, body, timeoutMs = 30000) {
     if (
       !['GET', 'POST', 'DELETE'].includes(method) ||
+      typeof route !== 'string' ||
       !route.startsWith('/') ||
       !Number.isSafeInteger(timeoutMs) ||
       timeoutMs <= 0

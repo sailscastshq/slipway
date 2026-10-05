@@ -3,6 +3,17 @@ const path = require('node:path')
 const { execFile } = require('node:child_process')
 const { promisify } = require('node:util')
 const execute = promisify(execFile)
+const { digest } = require('./upgrade-ledger')
+function containerSnapshotHash(state) {
+  // Docker builds Mounts from a map; ordering is not a change in mounts.
+  // Compare every field and every mount, including duplicates and RW policy.
+  return digest({
+    ...state,
+    mounts: [...state.mounts].sort((first, second) =>
+      digest(first).localeCompare(digest(second))
+    )
+  })
+}
 function fail(reason) {
   throw Object.assign(
     new Error('All database writers could not be observed.'),
@@ -240,7 +251,7 @@ async function observeWriters({
         state.id
       )
     )
-    if (JSON.stringify(current) !== JSON.stringify(state))
+    if (containerSnapshotHash(current) !== containerSnapshotHash(state))
       fail('inventoryChanged')
   }
   return {
@@ -253,4 +264,9 @@ async function observeWriters({
 // This is an observation, not exclusion of future launches. The caller must
 // separately enforce exclusive Docker AND host writer control throughout the
 // backup/DDL window. Never set exclusiveController from this result alone.
-module.exports = { observeWriters, processIdentity, sameProcess }
+module.exports = {
+  observeWriters,
+  processIdentity,
+  sameProcess,
+  containerSnapshotHash
+}
