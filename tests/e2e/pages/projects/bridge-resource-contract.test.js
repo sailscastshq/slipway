@@ -18,6 +18,7 @@ test(
     }
   },
   async ({ sails, world, login, page, expect }) => {
+    let selectionProbe = async () => {}
     const current = world.current
     const app = current.apps.web
     const environment = current.environments.production
@@ -1067,6 +1068,48 @@ test(
         'bridge-course-description-label'
       )
 
+      const selectionTrace = []
+      selectionProbe = async (checkpoint) => {
+        const snapshot = await page.raw.evaluate((checkpoint) => {
+          const element = document.querySelector('[data-slot="rich-text-content"][aria-labelledby="bridge-course-description-label"]')
+          const current = element?.editor
+          const dom = window.getSelection()
+          return {
+            checkpoint, time: performance.now(),
+            domSelection: dom && { text: dom.toString(), anchorOffset: dom.anchorOffset, focusOffset: dom.focusOffset, anchorNode: dom.anchorNode?.nodeName, focusNode: dom.focusNode?.nodeName, collapsed: dom.isCollapsed },
+            editorSelection: current && { from: current.state.selection.from, to: current.state.selection.to, empty: current.state.selection.empty, text: current.state.doc.textBetween(current.state.selection.from, current.state.selection.to), storedMarks: current.state.storedMarks?.map(mark => mark.type.name) },
+            html: current?.getHTML(), markdown: current?.getMarkdown(),
+            bold: current?.isActive('bold'), focused: current?.isFocused,
+            activeElement: document.activeElement?.outerHTML.slice(0, 500),
+            viewport: { width: innerWidth, height: innerHeight, scrollX, scrollY },
+            source: document.querySelector('textarea#bridge-course-description')?.value,
+            events: window.__bridgeReleaseSelectionEvents || []
+          }
+        }, checkpoint)
+        selectionTrace.push(snapshot)
+        const directory = path.resolve('.tmp/bridge-release-selection')
+        fs.mkdirSync(directory, { recursive: true })
+        fs.writeFileSync(path.join(directory, `${process.env.BRIDGE_DIAG_LABEL || 'local'}.json`), JSON.stringify(selectionTrace, null, 2))
+      }
+      await descriptionEditor.evaluate((element) => {
+        const events = window.__bridgeReleaseSelectionEvents = []
+        const current = element.editor
+        const record = (kind, transaction) => {
+          events.push({ time: performance.now(), kind,
+            domText: window.getSelection()?.toString(),
+            from: current.state.selection.from, to: current.state.selection.to,
+            storedMarks: current.state.storedMarks?.map(mark => mark.type.name),
+            html: current.getHTML(), docChanged: transaction?.docChanged,
+            selectionSet: transaction?.selectionSet,
+            active: document.activeElement?.tagName })
+          if (events.length > 300) events.shift()
+        }
+        current.on('transaction', ({ transaction }) => record('transaction', transaction))
+        current.on('focus', () => record('focus'))
+        current.on('blur', () => record('blur'))
+        document.addEventListener('selectionchange', () => record('selectionchange'))
+        document.addEventListener('mousedown', (event) => record(`mousedown:${event.target.closest('button')?.getAttribute('aria-label') || event.target.tagName}`), true)
+      })
       await descriptionEditor.click()
       await page.raw.keyboard.type('## ')
       await page.raw.keyboard.type('Ship with confidence')
@@ -1075,7 +1118,9 @@ test(
       )
       await page.raw.keyboard.press('Enter')
       await page.raw.keyboard.type('Boring releases are good.')
+      await selectionProbe('before-shift-home')
       await page.raw.keyboard.press('Shift+Home')
+      await selectionProbe('after-shift-home')
       expect(
         (await page.script(() => window.getSelection().toString())).includes(
           'Boring releases are good.'
@@ -1084,12 +1129,15 @@ test(
       await expect(
         page.raw.getByRole('toolbar', { name: 'Text formatting' })
       ).toBeVisible()
+      await selectionProbe('before-full-page-screenshot')
       await page.screenshot(
         path.join(screenshotRoot, 'course-richtext-light.png'),
         { fullPage: true }
       )
 
+      await selectionProbe('after-full-page-screenshot-before-bold')
       await page.raw.getByRole('button', { name: 'Bold', exact: true }).click()
+      await selectionProbe('after-bold-click-before-assertion')
       // Observe the applied editor mark before switching representations.
       await expect(descriptionEditor.locator('p strong')).toHaveText(
         'Boring releases are good.'
@@ -1099,6 +1147,7 @@ test(
           name: 'Edit Course description as Markdown'
         })
         .click()
+      await selectionProbe('after-markdown-mode')
       const descriptionSource = page.raw.locator(
         'textarea#bridge-course-description'
       )
@@ -1110,6 +1159,7 @@ test(
           name: 'Edit Course description as Visual'
         })
         .click()
+      await selectionProbe('after-visual-mode')
       // Set up the synthetic paste at the document end in the editor state,
       // not just the DOM selection left behind by the formatting toolbar.
       await descriptionEditor.evaluate((element) => {
@@ -1117,7 +1167,9 @@ test(
         editor.commands.setTextSelection(editor.state.doc.content.size - 1)
         editor.view.focus()
       })
+      await selectionProbe('before-end-enter')
       await page.raw.keyboard.press('Enter')
+      await selectionProbe('after-end-enter-before-second-assertion')
       await expect(descriptionEditor.locator('p strong')).toHaveText(
         'Boring releases are good.'
       )
@@ -1532,6 +1584,7 @@ test(
         { fullPage: true }
       )
     } finally {
+      await selectionProbe('finally').catch(() => {})
       sails.helpers.bridge.introspectModels = originalIntrospectModels
       sails.helpers.bridge.buildSailsWrapper = originalBuildSailsWrapper
       sails.helpers.bridge.executeInContainer = originalExecuteInContainer
