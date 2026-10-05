@@ -1,0 +1,56 @@
+{
+  "beforeSourceSha": "ed1f6eaca5737e91cc9e69fa7a100985d4939033",
+  "afterSourceSha": "b1afa4b5009304442b9a4c032f8363276f5a89c2",
+  "trial": "Quest running disclosure preserves truthful activity and a quiet responsive workspace",
+  "transport": "Synthetic operational JSON and EventSource; actual Slipway page, layout, CSS, browser pixels. No production jobs executed.",
+  "capturePhaseEnvironment": "SLIPWAY_QUEST_DESIGN_CAPTURE_PHASE=before or after",
+  "viewports": {
+    "desktop": {
+      "width": 1440,
+      "height": 1000
+    },
+    "mobile": {
+      "width": 390,
+      "height": 844
+    }
+  },
+  "scope": "Design-only branch from released main. Underline filter styling in PR688 and app-context breadcrumbs in PR690 are separate and absent from these captures.",
+  "images": [
+    {
+      "file": "after-desktop-dark.png",
+      "sha256": "7931ea48cb5f25b6332c660d9111e71ce9e625b4363f1e4f42ec34e7adfa3877"
+    },
+    {
+      "file": "after-desktop-light.png",
+      "sha256": "1c9a8c39ab084a96731be099e197ecd094c75fa211b372c840d130f1d63e20ab"
+    },
+    {
+      "file": "after-mobile-dark.png",
+      "sha256": "28e2aaead2f886541cc927d04c09db47c6aa12d98d629eeafefd230307a5a487"
+    },
+    {
+      "file": "after-mobile-disconnected.png",
+      "sha256": "d0550f627335677ac88545dd6af87ece2ef0b2e95864ab1a67d5d8c6d5e141c1"
+    },
+    {
+      "file": "after-mobile-light.png",
+      "sha256": "6d46cbb1207971f8bcbfd96d89dc4e38857895d026529b71ce96acd75b1a3c94"
+    },
+    {
+      "file": "before-desktop-dark.png",
+      "sha256": "b759cc3412312f4a5807ce1d35ebf17a677424b2ce6efd0dab03040cd2608eee"
+    },
+    {
+      "file": "before-desktop-light.png",
+      "sha256": "4f27a3581e1706539989ccffc895d5e868b731d48c319a4e26a2611310c8b985"
+    },
+    {
+      "file": "before-mobile-dark.png",
+      "sha256": "70f42224ae8a18bae6ab5b3b54405c71feb9e5c54cd525d76f13290b8cded07e"
+    },
+    {
+      "file": "before-mobile-light.png",
+      "sha256": "ec92b1f9a6021863240531801217f319abbe12b2f062b5fb8dee51e8804b924a"
+    }
+  ]
+}
