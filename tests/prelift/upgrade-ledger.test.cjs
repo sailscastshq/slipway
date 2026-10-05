@@ -215,3 +215,43 @@ test('a killed process leaves either the original schema or a complete durable c
     }
   }
 })
+
+test('release capture exports exact native schemas and counts without rows or writes', () => {
+  const { spawnSync } = require('node:child_process')
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'upgrade-capture-'))
+  const appPath = path.join(directory, 'app.db')
+  const app = new Database(appPath)
+  app.exec(
+    "CREATE TABLE protected_rows (value TEXT CHECK(length(value) < 100)); INSERT INTO protected_rows VALUES ('private-fixture-value')"
+  )
+  app.close()
+  const obs = new Database(path.join(directory, 'observability.db'))
+  obs.exec('CREATE TABLE events (id INTEGER PRIMARY KEY, detail TEXT)')
+  obs.close()
+  const bytes = fs.readFileSync(appPath)
+  try {
+    const result = spawnSync(
+      process.execPath,
+      [
+        path.join(__dirname, 'capture-release-baseline.cjs'),
+        directory,
+        '0.0.87',
+        manifest().image
+      ],
+      { encoding: 'utf8' }
+    )
+    assert.equal(result.status, 0, result.stderr)
+    assert.equal(result.stdout.includes('private-fixture-value'), false)
+    const baseline = JSON.parse(result.stdout)
+    assert.equal(baseline.databases.default.rowCounts.protected_rows, 1)
+    assert.equal(
+      baseline.databases.default.schemaHash,
+      ledger.schemaHash({ path: appPath })
+    )
+    assert.deepEqual(baseline.databases.analytics, { present: false })
+    assert.deepEqual(baseline.databases.cache, { present: false })
+    assert.deepEqual(fs.readFileSync(appPath), bytes)
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true })
+  }
+})
