@@ -258,7 +258,9 @@ const canInvoke = (job) =>
   questInputMetadataAvailable(job, live.value)
 const runDisabledReason = (job) =>
   !fresh.value
-    ? 'Live runtime unavailable'
+    ? live.value.runtimeState === 'loading'
+      ? 'Loading current job state'
+      : 'Current job state is unknown'
     : job?.paused === null || job?.isRunning == null
     ? 'Live job state unavailable'
     : job?.paused
@@ -730,7 +732,9 @@ async function loadMore() {
           :text="
             fresh && connected
               ? 'Live runtime updates active'
-              : 'Live runtime state unavailable'
+              : live.runtimeState === 'loading'
+              ? 'Loading current runtime state'
+              : 'Current runtime state is unknown'
           "
           ><span
             data-test="quest-stream-status"
@@ -744,12 +748,16 @@ async function loadMore() {
               fresh && connected
                 ? 'Live'
                 : streamError
-                ? 'Unavailable'
+                ? 'Unknown'
                 : streamStale
                 ? 'Reconnecting'
+                : live.runtimeState === 'loading'
+                ? 'Loading'
                 : live.mode === 'resident' && !snapshotFresh
                 ? 'Stale'
-                : 'Unavailable'
+                : live.runtimeState === 'unreachable'
+                ? 'Unreachable'
+                : 'Unknown'
             }}</span></span
           ></Tooltip
         >
@@ -808,7 +816,11 @@ async function loadMore() {
           <div
             v-if="!appRunning || !fresh || live.reason"
             role="status"
-            data-test="quest-runtime-unavailable"
+            :data-test="
+              live.runtimeState === 'loading' && !streamStale
+                ? 'quest-runtime-loading'
+                : 'quest-runtime-unavailable'
+            "
             class="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-md bg-gray-50 px-3 py-2.5 text-xs text-gray-600 dark:bg-gray-900 dark:text-gray-400"
           >
             <span>{{
@@ -818,8 +830,10 @@ async function loadMore() {
                 ? streamError
                 : streamStale
                 ? 'Reconnecting to the runtime. Controls are unavailable until live state returns.'
+                : live.runtimeState === 'loading'
+                ? 'Loading jobs and current runtime state. Controls will be ready after the first live observation.'
                 : live.mode === 'resident' && !snapshotFresh
-                ? 'Runtime state is stale or unavailable. Refresh to restore current controls.'
+                ? 'Current job state is unknown because the last observation is stale. Refresh to restore current controls.'
                 : live.reason ||
                   (live.mode === 'legacy'
                     ? 'Live controls require a resident Quest runtime. Legacy history is still available.'
@@ -941,9 +955,13 @@ async function loadMore() {
                             >{{ job.friendlyName || job.name }}</span
                           ><QuestStatus
                             v-if="
-                              ['running', 'paused', 'unavailable'].includes(
-                                state(job)
-                              )
+                              [
+                                'running',
+                                'paused',
+                                'unavailable',
+                                'loading',
+                                'unknown'
+                              ].includes(state(job))
                             "
                             :state="state(job)" /></span
                         ><span

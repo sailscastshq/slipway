@@ -87,16 +87,21 @@ function receiptKey(context, run) {
   ])
 }
 
-async function snapshot(context, { fresh = false } = {}) {
-  const { app, environment } = context
+function snapshotIdentity({ app, environment }) {
   const key = `${app?.id}:${environment.id}`
   // Keep one entry per scoped app. Returning to running must not revive a
   // prior running snapshot after a stopped/unavailable observation.
   const authority = JSON.stringify([
     String(app?.currentDeployment || ''),
     app?.containerName || null,
-    app?.status || null
+    app?.status || null,
+    !!environment.features?.['sails-quest']
   ])
+  return { key, authority }
+}
+
+async function snapshot(context, { fresh = false } = {}) {
+  const { key, authority } = snapshotIdentity(context)
   const old = snapshots.get(key)
   if (
     old?.authority === authority &&
@@ -107,7 +112,8 @@ async function snapshot(context, { fresh = false } = {}) {
   const entry = { authority, at: Date.now(), pending: true, promise }
   snapshots.set(key, entry)
   try {
-    return forViewer(await promise, context.user)
+    entry.value = await promise
+    return forViewer(entry.value, context.user)
   } finally {
     entry.pending = false
     if (snapshots.size > 128) snapshots.delete(snapshots.keys().next().value)
@@ -147,6 +153,7 @@ async function buildSnapshot(context, inspect = true) {
     version: 1,
     mode: feature ? 'legacy' : 'unavailable',
     observedAt: null,
+    runtimeState: 'unknown',
     target,
     capabilities: { ...noCapabilities },
     jobs: (feature?.scripts || []).map((script) => ({
@@ -172,6 +179,11 @@ async function buildSnapshot(context, inspect = true) {
     const history = await ledger.listRuns(scope, {})
     Object.assign(base, history)
   }
+  if (!inspect && feature && app?.status === 'running' && app.containerName) {
+    base.runtimeState = 'loading'
+    base.reason = null
+    return base
+  }
   if (!inspect) return base
   const unavailable = async (reason) => {
     if (scope) {
@@ -187,6 +199,7 @@ async function buildSnapshot(context, inspect = true) {
     return base
   }
   if (!feature || !app || app.status !== 'running' || !app.containerName) {
+    base.runtimeState = app?.status === 'stopped' ? 'stopped' : 'unreachable'
     base.reason =
       app?.status === 'stopped'
         ? 'The app is stopped.'
@@ -214,14 +227,19 @@ async function buildSnapshot(context, inspect = true) {
       )
     )
       throw new Error('Unsupported Quest runtime contract.')
-  } catch {
+  } catch (error) {
     // Transport or contract failure proves only that current evidence could
     // not be read. It never proves child exit, cancellation, or app shutdown.
-    base.reason = 'The resident Quest runtime could not be read.'
+    base.runtimeState = live || error.code ? 'unknown' : 'unreachable'
+    base.reason =
+      base.runtimeState === 'unknown'
+        ? 'The runtime response could not establish current job state. Refresh to check again.'
+        : 'The resident Quest runtime could not be reached. Current job state is unknown.'
     return unavailable('resident_unavailable')
   }
   try {
     base.mode = 'resident'
+    base.runtimeState = 'live'
     base.observedAt = live.observedAt
     base.target.runtimeId = live.runtimeId
     base.jobs = live.jobs
@@ -290,6 +308,21 @@ module.exports = {
   synchronizeRun,
   invalidate,
   noCapabilities,
-  initialSnapshot: async (context) =>
-    forViewer(await buildSnapshot(context, false), context.user)
+  initialSnapshot: async (context) => {
+    const { key, authority } = snapshotIdentity(context)
+    const cached = snapshots.get(key)
+    const age = Date.now() - cached?.value?.observedAt
+    // Reuse only completed, recent evidence for this deployment/container/state.
+    // A first visitor or an in-flight probe never waits on container transport.
+    if (
+      cached?.authority === authority &&
+      !cached.pending &&
+      cached.value?.mode === 'resident' &&
+      age >= 0 &&
+      age < CACHE_MS &&
+      Date.now() - cached.at < CACHE_MS
+    )
+      return forViewer(cached.value, context.user)
+    return forViewer(await buildSnapshot(context, false), context.user)
+  }
 }

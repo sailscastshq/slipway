@@ -1,0 +1,95 @@
+{
+  "issue": 696,
+  "base": "ed1f6eaca5737e91cc9e69fa7a100985d4939033",
+  "scope": "Actual local application; synthetic runtime/SSE transport; 1440/390px light/dark. Native monotonic browser timing, descriptive only. No actual Docker/runtime latency measured.",
+  "files": [
+    {
+      "path": ".github/screenshots/696/before-390-light-live.png",
+      "sha256": "4bebc5896901098a6c8fd060c09ae78e52294778e4ca2afe7cd3d12e446f6497"
+    },
+    {
+      "path": ".github/screenshots/696/before-1440-light-live.png",
+      "sha256": "b8f4d39a9473565974a194c7c50447ed0f3a9b1348076a0f3378bcf9e9aaade7"
+    },
+    {
+      "path": ".github/screenshots/696/before-1440-dark-initial.png",
+      "sha256": "17b9f97538b759a97f1818b13fd1cb8f8ec0e963db03101b27a75b4b0c32cfea"
+    },
+    {
+      "path": ".github/screenshots/696/before-measurements.json",
+      "sha256": "103d2740a41179f4c8a9ac4125121e411e42b1be5dece936c620822d96dbc3af"
+    },
+    {
+      "path": ".github/screenshots/696/before-390-dark-initial.png",
+      "sha256": "8d7a115113fac0cf773144e72c38c354ddf05b583f3f1be1aa743a2dd624466d"
+    },
+    {
+      "path": ".github/screenshots/696/before-390-light-initial.png",
+      "sha256": "352c75e348ba3457803bef24a7464b8e73c22ecd4aa8802e79c2e6f3fcc7f4b3"
+    },
+    {
+      "path": ".github/screenshots/696/before-1440-light-initial.png",
+      "sha256": "e82cf41329e54a42d696ef1adf583b5800f72611b498d2d3d61b136e79fb9630"
+    },
+    {
+      "path": ".github/screenshots/696/before-1440-dark-live.png",
+      "sha256": "dc7e01a5cd06805d094505fd16ad6cb83c46107afe26eb8d5a5f6d25506ce1bb"
+    },
+    {
+      "path": ".github/screenshots/696/before-390-dark-live.png",
+      "sha256": "2a048a9d45e37a2d63ebd0b8e259749b58404cd990aeb17a22c141d9bd3ada84"
+    },
+    {
+      "path": ".github/screenshots/696/after-1440-dark-reconnecting.png",
+      "sha256": "f699cfab8a0ba36c726ec2b1753b13a6504b0c67821ac8421470d99af9d8778b"
+    },
+    {
+      "path": ".github/screenshots/696/after-390-light-live.png",
+      "sha256": "4bebc5896901098a6c8fd060c09ae78e52294778e4ca2afe7cd3d12e446f6497"
+    },
+    {
+      "path": ".github/screenshots/696/after-1440-light-live.png",
+      "sha256": "b8f4d39a9473565974a194c7c50447ed0f3a9b1348076a0f3378bcf9e9aaade7"
+    },
+    {
+      "path": ".github/screenshots/696/after-1440-dark-initial.png",
+      "sha256": "682d2e4fed791b1b225ed070ee822244b80ae652abb70ea806f9245e712492b4"
+    },
+    {
+      "path": ".github/screenshots/696/after-measurements.json",
+      "sha256": "7b09519ab6457801b33fd710b60abae5d1c3eb058531c5e253b467a3294178c6"
+    },
+    {
+      "path": ".github/screenshots/696/after-390-dark-initial.png",
+      "sha256": "3357a1801d301ba24a65564b95f3fe5b50b1c546ba2780c116fb4a780e6f74a6"
+    },
+    {
+      "path": ".github/screenshots/696/after-390-light-reconnecting.png",
+      "sha256": "92cf5f502b5174444dca6424b8ebf65c49c74a9e1d83e6775be0e35cb54e803e"
+    },
+    {
+      "path": ".github/screenshots/696/after-390-light-initial.png",
+      "sha256": "d6d328d19da4863627421c1c7c79b0b9a64b70fb614c142af0a7d3cc6c724985"
+    },
+    {
+      "path": ".github/screenshots/696/after-1440-light-initial.png",
+      "sha256": "45fdd4f18cbec271716ecae278173d16a5576567aa5fe820e5f19b1731d79962"
+    },
+    {
+      "path": ".github/screenshots/696/after-1440-dark-live.png",
+      "sha256": "2fa0016d444e7f6750d1da60f8713e1d7b4adab9f8283ca66838f2ae770ccfc8"
+    },
+    {
+      "path": ".github/screenshots/696/after-1440-light-reconnecting.png",
+      "sha256": "9e2e83a1e472f89b96254905d5cc39ee9bdd169d35ea08b2e7d56e4a205f4e45"
+    },
+    {
+      "path": ".github/screenshots/696/after-390-dark-reconnecting.png",
+      "sha256": "9d1b54685f06854eb72a7583e5849b87a17f6167438df4e6e7ec939e57cdb257"
+    },
+    {
+      "path": ".github/screenshots/696/after-390-dark-live.png",
+      "sha256": "f30a510f3e7cd739beb1ec3c75e0b91b7bdd053ad622c890dc7fcc2fddf420bc"
+    }
+  ]
+}

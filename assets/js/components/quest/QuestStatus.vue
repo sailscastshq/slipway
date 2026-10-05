@@ -25,7 +25,9 @@ const label = computed(
       scheduled: 'Scheduled',
       inactive: 'Inactive',
       manual: 'Manual',
-      unavailable: 'Unavailable'
+      unavailable: 'Unavailable',
+      loading: 'Loading',
+      unknown: 'Unknown'
     }[props.state] ||
     props.state ||
     'Unknown')

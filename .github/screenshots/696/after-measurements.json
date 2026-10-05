@@ -1,0 +1,78 @@
+{
+  "phase": "after",
+  "scope": "Actual local app/browser and initial server response; synthetic metadata and stream transport, no Docker or production workload measured.",
+  "samples": [
+    {
+      "width": 1440,
+      "scheme": "light",
+      "coldQuestBrowserRoute": true,
+      "initial": {
+        "measuredAtMs": 138,
+        "responseMs": 20.900000035762787,
+        "documentMs": 26,
+        "domContentLoadedMs": 43
+      },
+      "firstObservationRenderMs": 12.300000011920929,
+      "serverBootstrap": {
+        "fetchMs": 18.56487500000003,
+        "rewriteMs": 0.5225410000002739
+      },
+      "serverInitialRuntimeState": "unknown",
+      "serverInitialReason": "Upgrade and enable the resident Quest runtime to inspect schedules and run jobs."
+    },
+    {
+      "width": 1440,
+      "scheme": "dark",
+      "coldQuestBrowserRoute": false,
+      "initial": {
+        "measuredAtMs": 138.19999998807907,
+        "responseMs": 15.699999988079071,
+        "documentMs": 24,
+        "domContentLoadedMs": 48
+      },
+      "firstObservationRenderMs": 3.699999988079071,
+      "serverBootstrap": {
+        "fetchMs": 11.819707999999991,
+        "rewriteMs": 0.3590830000002825
+      },
+      "serverInitialRuntimeState": "unknown",
+      "serverInitialReason": "Upgrade and enable the resident Quest runtime to inspect schedules and run jobs."
+    },
+    {
+      "width": 390,
+      "scheme": "light",
+      "coldQuestBrowserRoute": false,
+      "initial": {
+        "measuredAtMs": 132.89999997615814,
+        "responseMs": 12,
+        "documentMs": 12.699999988079071,
+        "domContentLoadedMs": 34.59999996423721
+      },
+      "firstObservationRenderMs": 4.400000035762787,
+      "serverBootstrap": {
+        "fetchMs": 10.208957999999257,
+        "rewriteMs": 0.37920800000028976
+      },
+      "serverInitialRuntimeState": "unknown",
+      "serverInitialReason": "Upgrade and enable the resident Quest runtime to inspect schedules and run jobs."
+    },
+    {
+      "width": 390,
+      "scheme": "dark",
+      "coldQuestBrowserRoute": false,
+      "initial": {
+        "measuredAtMs": 130.5,
+        "responseMs": 25.19999998807907,
+        "documentMs": 31.100000023841858,
+        "domContentLoadedMs": 52.5
+      },
+      "firstObservationRenderMs": 3.5,
+      "serverBootstrap": {
+        "fetchMs": 21.063250000001062,
+        "rewriteMs": 0.5072920000002341
+      },
+      "serverInitialRuntimeState": "unknown",
+      "serverInitialReason": "Upgrade and enable the resident Quest runtime to inspect schedules and run jobs."
+    }
+  ]
+}
