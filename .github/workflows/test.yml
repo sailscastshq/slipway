@@ -104,6 +104,8 @@ jobs:
           node-version: '22'
           cache: 'npm'
       - run: npm ci --no-audit
+      - name: Verify installed Quest registry initialization without ORM
+        run: node --test tests/contracts/quest-registry-initialization.cjs
       - name: Verify focused command process and installed Sails CLI contracts
         run: node_modules/.bin/sounding test --file tests/unit/helpers/helm/command-runtime.test.js --file tests/unit/helpers/helm/command-sails.test.js --file tests/unit/helpers/helm/app-context.test.js --test-concurrency=1
       - run: docker pull node:22-bookworm-slim
