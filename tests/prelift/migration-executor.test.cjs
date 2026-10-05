@@ -7,6 +7,7 @@ const path = require('node:path')
 const Database = require('better-sqlite3')
 const createExecutor = require('../../api/lib/migration-executor')
 const plans = require('../../api/lib/migration-plans')
+const ledger = require('../../api/lib/upgrade-ledger')
 const readSchema = require('../../api/lib/sqlite-schema')
 const getSchema = async ({ service }) => readSchema(service)
 const generateDiff = require('../../api/helpers/dock/generate-diff').fn
@@ -22,7 +23,7 @@ async function fixture(run) {
     "CREATE TABLE notes (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, title TEXT); INSERT INTO notes(title) VALUES ('preserved')"
   )
   seed.close()
-  const service = { type: 'sqlite', path: filename, datastore: 'fixture' }
+  const service = { type: 'sqlite', path: filename, datastore: 'observability' }
   const target = {
     kind: 'bosun',
     key: 'bosun:app',
@@ -88,7 +89,14 @@ async function fixture(run) {
     }
   }
   try {
-    await run({ adapters, entry, filename, events, releases: () => releases })
+    await run({
+      adapters,
+      entry,
+      filename,
+      service,
+      events,
+      releases: () => releases
+    })
   } finally {
     fs.rmSync(directory, { recursive: true, force: true })
   }
@@ -231,4 +239,144 @@ test('transactional audit failure rolls back verified changes', () =>
     assert.equal(result.outcome, 'rolledBack')
     assert.deepEqual(inspect(filename).columns, ['id', 'title'])
     assert.equal(releases(), 1)
+  }))
+
+async function upgradeFixture(run) {
+  return fixture(async (state) => {
+    const { service, filename, entry } = state
+    const fromSchemaHash = ledger.schemaHash(service)
+    const preview = new Database(filename)
+    preview.exec('BEGIN IMMEDIATE')
+    for (const statement of entry.selected) preview.exec(statement.sql)
+    const toSchemaHash = ledger.schemaHash({
+      ...service,
+      transaction: { database: preview }
+    })
+    preview.exec('ROLLBACK')
+    preview.close()
+    const identity = ledger.createManifest({
+      format: 1,
+      version: '0.0.88',
+      image: `ghcr.io/sailscastshq/slipway@sha256:${'a'.repeat(64)}`,
+      steps: [
+        {
+          id: 'notes-add-note',
+          datastore: service.datastore,
+          fromSchemaHash,
+          toSchemaHash,
+          operationsHash: ledger.digest(entry.selected.map(plans.contract))
+        }
+      ]
+    })
+    const options = {
+      identity,
+      stepId: 'notes-add-note',
+      databaseKey: entry.payload.target.physicalKey,
+      fenceId: 'stopped-container-fixture',
+      backupId: 'verified-fixture-backup'
+    }
+    state.adapters.beforeCommit = ledger.receiptWriter(options)
+    await run({ ...state, identity, options })
+  })
+}
+function receipts(filename, identity, options) {
+  const db = new Database(filename, { readonly: true })
+  try {
+    return ledger.readLedger(db, identity, 'observability', options.databaseKey)
+  } finally {
+    db.close()
+  }
+}
+test('upgrade receipt and schema commit together on a non-default datastore', () =>
+  upgradeFixture(async ({ adapters, entry, filename, identity, options }) => {
+    const result = await createExecutor(adapters)({
+      entry,
+      actor: { id: 1, team: 1 }
+    })
+    assert.equal(result.success, true, JSON.stringify(result))
+    assert.ok(inspect(filename).columns.includes('note'))
+    assert.equal(
+      receipts(filename, identity, options)[0].stepId,
+      options.stepId
+    )
+    assert.throws(
+      () =>
+        receipts(filename, identity, {
+          ...options,
+          databaseKey: 'another-database'
+        }),
+      /reviewed upgrade/
+    )
+  }))
+test('receipt failure after insert rolls back both schema and ledger creation', () =>
+  upgradeFixture(async ({ adapters, entry, filename, identity, options }) => {
+    const write = adapters.beforeCommit
+    adapters.beforeCommit = (input) => {
+      write(input)
+      throw new Error('crash before commit')
+    }
+    const result = await createExecutor(adapters)({
+      entry,
+      actor: { id: 1, team: 1 }
+    })
+    assert.equal(result.outcome, 'rolledBack')
+    assert.deepEqual(inspect(filename).columns, ['id', 'title'])
+    assert.deepEqual(receipts(filename, identity, options), [])
+  }))
+test('post-commit audit failure retains the durable receipt for reconciliation', () =>
+  upgradeFixture(async ({ adapters, entry, filename, identity, options }) => {
+    adapters.audit = async (_, event) => {
+      if (event === 'migration.applied') throw new Error('process interrupted')
+    }
+    const result = await createExecutor(adapters)({
+      entry,
+      actor: { id: 1, team: 1 }
+    })
+    assert.equal(result.outcome, 'committedAuditIncomplete')
+    assert.equal(receipts(filename, identity, options).length, 1)
+    assert.ok(inspect(filename).columns.includes('note'))
+  }))
+test('an immutable manifest mismatch prevents DDL and receipt from committing', () =>
+  upgradeFixture(async ({ adapters, entry, filename, identity, options }) => {
+    const changed = JSON.parse(JSON.stringify(identity.manifest))
+    changed.steps[0].operationsHash = 'b'.repeat(64)
+    adapters.beforeCommit = ledger.receiptWriter({
+      ...options,
+      identity: ledger.createManifest(changed)
+    })
+    const result = await createExecutor(adapters)({
+      entry,
+      actor: { id: 1, team: 1 }
+    })
+    assert.equal(result.code, 'upgradeLedgerMismatch')
+    assert.equal(result.outcome, 'rolledBack')
+    assert.deepEqual(inspect(filename).columns, ['id', 'title'])
+    assert.deepEqual(receipts(filename, identity, options), [])
+  }))
+test('reserved ledger collisions fail closed without changing existing objects', () =>
+  upgradeFixture(async ({ adapters, entry, filename }) => {
+    const db = new Database(filename)
+    db.exec(
+      `CREATE TABLE ${ledger.table} (unrelated TEXT); INSERT INTO ${ledger.table} VALUES ('preserved')`
+    )
+    db.close()
+    // Refresh the review after introducing a ledger-name collision. Only the
+    // ledger contract, rather than general stale-plan detection, rejects it.
+    const schema = (
+      await adapters.getSchema({ type: 'sqlite', path: filename })
+    ).tables
+    entry.payload.schemaHash = plans.digest(schema)
+    const result = await createExecutor(adapters)({
+      entry,
+      actor: { id: 1, team: 1 }
+    })
+    assert.equal(result.code, 'upgradeLedgerMismatch')
+    assert.equal(result.outcome, 'rolledBack')
+    const check = new Database(filename, { readonly: true })
+    assert.equal(
+      check.prepare(`SELECT unrelated FROM ${ledger.table}`).get().unrelated,
+      'preserved'
+    )
+    check.close()
+    assert.deepEqual(inspect(filename).columns, ['id', 'title'])
   }))

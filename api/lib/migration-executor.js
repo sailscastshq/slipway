@@ -34,6 +34,11 @@ module.exports = function createMigrationExecutor(adapters) {
     typeof context?.refreshVersion !== 'function'
   )
     throw new TypeError('Missing migration context adapters')
+  if (
+    adapters.beforeCommit !== undefined &&
+    typeof adapters.beforeCommit !== 'function'
+  )
+    throw new TypeError('Invalid migration adapter: beforeCommit')
   const plans = { ...planUtilities, audit }
   return async function executeMigration({ entry, actor }) {
     let db,
@@ -199,6 +204,19 @@ module.exports = function createMigrationExecutor(adapters) {
         },
         auditDb
       )
+      // Upgrade receipts must share the schema transaction on every datastore.
+      // A post-commit audit cannot establish whether a retried step applied.
+      if (adapters.beforeCommit)
+        await adapters.beforeCommit({
+          entry,
+          service,
+          database: db,
+          session,
+          before,
+          after,
+          rowCounts: afterCounts,
+          backup
+        })
       commitAttempted = true
       if (db) db.exec('COMMIT')
       else await run(session, 'COMMIT')
