@@ -48,6 +48,20 @@ module.exports = {
     if (!environment) {
       throw { notFound: `/projects/${slug}` }
     }
+    let contextApp = null
+    if (this.req.query?.appSlug !== undefined) {
+      try {
+        const { app } = await require('../../lib/app-selection')(
+          this.req,
+          environment.id
+        )
+        contextApp = { id: app.id, name: app.name, slug: app.slug }
+      } catch (error) {
+        if (error === 'notFound')
+          throw { notFound: `/projects/${slug}/environments/${envSlug}` }
+        throw error
+      }
+    }
 
     // Backup history remains usable when the live database is stopped.
     const backupView = this.req.query?.tab === 'backups'
@@ -64,6 +78,7 @@ module.exports = {
       return {
         page: 'projects/dock',
         props: {
+          contextApp,
           canManageDatabase: ['owner', 'admin'].includes(user.teamRole),
           project: {
             id: project.id,
@@ -103,6 +118,7 @@ module.exports = {
     return {
       page: 'projects/dock',
       props: {
+        contextApp,
         canManageDatabase: ['owner', 'admin'].includes(user.teamRole),
         project: {
           id: project.id,

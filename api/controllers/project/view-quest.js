@@ -56,9 +56,18 @@ module.exports = {
       : null
 
     // Get app status
-    const app =
-      (await App.findOne({ environment: environment.id, isDefault: true })) ||
-      (await App.findOne({ environment: environment.id }))
+    let selection
+    try {
+      selection = await require('../../lib/app-selection')(
+        this.req,
+        environment.id
+      )
+    } catch (error) {
+      if (error === 'notFound')
+        throw { notFound: `/projects/${slug}/environments/${envSlug}` }
+      throw error
+    }
+    const { app, explicit } = selection
     const appRunning = app && app.status === 'running'
 
     const workspace =
@@ -81,6 +90,8 @@ module.exports = {
       page: 'projects/quest',
       locals,
       props: {
+        app: app ? { id: app.id, name: app.name, slug: app.slug } : null,
+        appSelectionExplicit: explicit,
         project: {
           id: project.id,
           name: project.name,

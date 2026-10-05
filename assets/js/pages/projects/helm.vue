@@ -658,9 +658,11 @@ watch(
   >
     <!-- Header -->
     <div
-      class="flex shrink-0 items-center justify-between border-b border-gray-200 px-4 py-3 dark:border-gray-800 sm:px-8 sm:py-4"
+      class="flex shrink-0 flex-wrap items-center justify-between gap-y-2 border-b border-gray-200 px-4 py-3 dark:border-gray-800 sm:flex-nowrap sm:px-8 sm:py-4"
     >
-      <div class="flex min-w-0 flex-1 items-center space-x-3">
+      <div
+        class="flex w-full min-w-0 items-center space-x-3 sm:w-auto sm:flex-1"
+      >
         <!-- Mobile menu toggle -->
         <button
           data-test="helm-mobile-menu"
@@ -683,7 +685,9 @@ watch(
         </button>
         <Breadcrumb :items="breadcrumbs" class="flex-1" />
       </div>
-      <div class="flex shrink-0 items-center space-x-2 sm:space-x-3">
+      <div
+        class="flex w-full shrink-0 items-center justify-end space-x-2 sm:w-auto sm:space-x-3"
+      >
         <!-- Status indicator -->
         <span
           v-if="isRunning"

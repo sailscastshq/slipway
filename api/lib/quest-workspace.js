@@ -42,9 +42,7 @@ async function resolveContext(
     project: project.id
   })
   if (!environment) throw 'notFound'
-  const app =
-    (await App.findOne({ environment: environment.id, isDefault: true })) ||
-    (await App.findOne({ environment: environment.id }))
+  const { app } = await require('./app-selection')(req, environment.id)
   return { user, project, environment, app }
 }
 
