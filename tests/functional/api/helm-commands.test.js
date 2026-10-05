@@ -149,6 +149,22 @@ test(
       return { success: true }
     }
     try {
+      for (const suffix of ['inspect-source', 'arm-writes', 'commands']) {
+        const misplaced = await browser.post(`${base}/${suffix}`, {
+          mode: 'command',
+          code: 'await User.find()',
+          executionId: crypto.randomUUID()
+        })
+        assert.equal(misplaced.status, 400)
+        assert.match(await misplaced.text(), /Use JavaScript mode/)
+      }
+      assert.equal(runner.calls.length, 0)
+      assert.equal(
+        await sails.models.helmwritearm.count({
+          user: current.users.genesisUser.id
+        }),
+        0
+      )
       const inspection = await browser.post(`${base}/inspect-source`, {
         mode: 'command',
         code: SOURCE

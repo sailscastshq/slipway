@@ -69,6 +69,37 @@ test('Helm rejects empty, malformed, multiline, shell, environment and implicit-
   }
 })
 
+test('Helm explains JavaScript entered as a command without inspecting executable arguments', async ({
+  expect
+}) => {
+  for (const source of [
+    'await User.find()',
+    'User.find()',
+    'const count = 1',
+    'return 0'
+  ]) {
+    let error
+    try {
+      classifyCommand(source)
+    } catch (caught) {
+      error = caught
+    }
+    expect(error?.code).toBe('HELM_COMMAND_INVALID')
+    expect(error?.message).toMatch(/Use JavaScript mode/)
+  }
+  expect(parseCommand('node -e "await User.find()"')).toEqual([
+    'node',
+    '-e',
+    'await User.find()'
+  ])
+  expect(parseCommand('sails run report --query="User.find()"')).toEqual([
+    'sails',
+    'run',
+    'report',
+    '--query=User.find()'
+  ])
+})
+
 test('Helm bounds command bytes and argument count independently', async ({
   expect
 }) => {

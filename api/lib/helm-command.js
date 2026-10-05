@@ -12,6 +12,17 @@ function parseCommand(source, { maxBytes = 64 * 1024, maxArgs = 128 } = {}) {
   if (Buffer.byteLength(source) > maxBytes) {
     throw invalid(`Command exceeds the ${maxBytes}-byte limit.`)
   }
+  // Catch the common mode mix-up before an execution is inspected or armed.
+  // Only inspect the leading executable, never JavaScript inside CLI arguments.
+  if (
+    /^\s*(?:await\s+|(?:const|let|var|return)\s+|[A-Z][\w$]*\.[\w$.]+\s*\()/u.test(
+      source
+    )
+  ) {
+    throw invalid(
+      'Use JavaScript mode for queries such as await User.find(). Command mode runs an executable, such as node --version.'
+    )
+  }
   if (/[\0\r\n]/.test(source)) {
     throw invalid(
       'Enter one command on one line; multiline commands are not supported.'
