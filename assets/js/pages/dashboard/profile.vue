@@ -84,7 +84,7 @@ function logout() {
   <div class="flex h-full flex-col">
     <!-- Header -->
     <div
-      class="flex items-center justify-between border-b border-gray-200 py-4 pl-4 pr-4 dark:border-gray-800 sm:pl-4 sm:pr-8"
+      class="flex items-center justify-between py-4 pl-4 pr-4 sm:pl-4 sm:pr-8"
     >
       <div class="flex items-center space-x-3">
         <!-- Mobile menu button -->
@@ -107,7 +107,7 @@ function logout() {
           <SidebarClose v-else class="h-5 w-5" stroke-width="1" />
         </button>
         <nav class="flex items-center text-sm">
-          <span class="font-medium text-gray-900 dark:text-white">profile</span>
+          <span class="font-medium text-gray-900 dark:text-white">Profile</span>
         </nav>
       </div>
       <div class="flex items-center space-x-4">
@@ -126,13 +126,10 @@ function logout() {
 
     <!-- Content -->
     <div class="flex-1 overflow-y-auto px-4 py-6 sm:px-8 sm:py-8">
-      <div class="mx-auto max-w-2xl space-y-6">
+      <div class="mx-auto max-w-2xl space-y-10">
         <!-- Profile Info -->
-        <form
-          @submit.prevent="updateProfile"
-          class="rounded-lg border border-gray-200 dark:border-gray-800"
-        >
-          <div class="px-4 py-3">
+        <form @submit.prevent="updateProfile" class="space-y-2">
+          <div class="py-2">
             <h2 class="text-sm font-medium text-gray-900 dark:text-white">
               Profile Information
             </h2>
@@ -140,11 +137,11 @@ function logout() {
               Update your account's profile information and email address.
             </p>
           </div>
-          <div
-            class="divide-y divide-gray-200 border-t border-gray-200 dark:divide-gray-800 dark:border-gray-800"
-          >
-            <div class="px-4 py-3">
-              <label class="mb-1 block text-sm text-gray-700 dark:text-gray-300"
+          <div class="space-y-3">
+            <div class="py-2">
+              <label
+                for="profile-full-name"
+                class="mb-2 block text-sm text-gray-700 dark:text-gray-300"
                 >Full Name</label
               >
               <Input
@@ -158,7 +155,7 @@ function logout() {
                     ? 'profile-full-name-error'
                     : undefined
                 "
-                class="focus:border-brand w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500 sm:max-w-xs"
+                class="focus-visible:outline-brand w-full rounded-md border-0 bg-gray-50 px-3 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 dark:bg-gray-900 dark:text-white dark:placeholder-gray-500"
                 @blur="validateOnBlur('fullName', $event)"
                 @input="revalidateWhenInvalid('fullName')"
               />
@@ -170,8 +167,10 @@ function logout() {
                 {{ form.errors.fullName }}
               </p>
             </div>
-            <div class="px-4 py-3">
-              <label class="mb-1 block text-sm text-gray-700 dark:text-gray-300"
+            <div class="py-2">
+              <label
+                for="profile-email"
+                class="mb-2 block text-sm text-gray-700 dark:text-gray-300"
                 >Email</label
               >
               <Input
@@ -185,7 +184,7 @@ function logout() {
                     ? 'profile-email-error'
                     : 'profile-email-description'
                 "
-                class="focus:border-brand w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500 sm:max-w-xs"
+                class="focus-visible:outline-brand w-full rounded-md border-0 bg-gray-50 px-3 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 dark:bg-gray-900 dark:text-white dark:placeholder-gray-500"
                 @blur="validateOnBlur('email', $event)"
                 @input="revalidateWhenInvalid('email')"
               />
@@ -205,7 +204,7 @@ function logout() {
                 password below.
               </p>
             </div>
-            <div class="flex items-center justify-end px-4 py-3">
+            <div class="flex items-center justify-end py-2">
               <button
                 type="submit"
                 :disabled="form.processing || !form.isDirty || form.hasErrors"
@@ -218,11 +217,8 @@ function logout() {
         </form>
 
         <!-- Change Password -->
-        <form
-          @submit.prevent="updateProfile"
-          class="rounded-lg border border-gray-200 dark:border-gray-800"
-        >
-          <div class="px-4 py-3">
+        <form @submit.prevent="updateProfile" class="space-y-2">
+          <div class="py-2">
             <h2 class="text-sm font-medium text-gray-900 dark:text-white">
               Change Password
             </h2>
@@ -232,11 +228,11 @@ function logout() {
               tokens.
             </p>
           </div>
-          <div
-            class="divide-y divide-gray-200 border-t border-gray-200 dark:divide-gray-800 dark:border-gray-800"
-          >
-            <div class="px-4 py-3">
-              <label class="mb-1 block text-sm text-gray-700 dark:text-gray-300"
+          <div class="space-y-3">
+            <div class="py-2">
+              <label
+                for="profile-current-password"
+                class="mb-2 block text-sm text-gray-700 dark:text-gray-300"
                 >Current Password</label
               >
               <Input
@@ -252,7 +248,7 @@ function logout() {
                     ? 'profile-current-password-error'
                     : undefined
                 "
-                class="focus:border-brand w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500 sm:max-w-xs"
+                class="focus-visible:outline-brand w-full rounded-md border-0 bg-gray-50 px-3 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 dark:bg-gray-900 dark:text-white dark:placeholder-gray-500"
                 @blur="validateOnBlur('currentPassword', $event)"
                 @input="revalidateWhenInvalid('currentPassword')"
               />
@@ -264,8 +260,10 @@ function logout() {
                 {{ form.errors.currentPassword }}
               </p>
             </div>
-            <div class="px-4 py-3">
-              <label class="mb-1 block text-sm text-gray-700 dark:text-gray-300"
+            <div class="py-2">
+              <label
+                for="profile-new-password"
+                class="mb-2 block text-sm text-gray-700 dark:text-gray-300"
                 >New Password</label
               >
               <Input
@@ -279,7 +277,7 @@ function logout() {
                     ? 'profile-new-password-error'
                     : undefined
                 "
-                class="focus:border-brand w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500 sm:max-w-xs"
+                class="focus-visible:outline-brand w-full rounded-md border-0 bg-gray-50 px-3 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 dark:bg-gray-900 dark:text-white dark:placeholder-gray-500"
                 @blur="validateOnBlur('password', $event)"
                 @input="revalidateWhenInvalid('password')"
               />
@@ -291,8 +289,10 @@ function logout() {
                 {{ form.errors.password }}
               </p>
             </div>
-            <div class="px-4 py-3">
-              <label class="mb-1 block text-sm text-gray-700 dark:text-gray-300"
+            <div class="py-2">
+              <label
+                for="profile-confirm-password"
+                class="mb-2 block text-sm text-gray-700 dark:text-gray-300"
                 >Confirm Password</label
               >
               <Input
@@ -308,7 +308,7 @@ function logout() {
                     ? 'profile-confirm-password-error'
                     : undefined
                 "
-                class="focus:border-brand w-full border-b border-dashed border-gray-200 bg-transparent px-1 py-1.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:text-white dark:placeholder-gray-500 sm:max-w-xs"
+                class="focus-visible:outline-brand w-full rounded-md border-0 bg-gray-50 px-3 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 dark:bg-gray-900 dark:text-white dark:placeholder-gray-500"
                 @blur="validateOnBlur('confirmPassword', $event)"
                 @input="revalidateWhenInvalid('confirmPassword')"
               />
@@ -320,7 +320,7 @@ function logout() {
                 {{ form.errors.confirmPassword }}
               </p>
             </div>
-            <div class="flex items-center justify-end px-4 py-3">
+            <div class="flex items-center justify-end py-2">
               <button
                 type="submit"
                 :disabled="
@@ -339,16 +339,14 @@ function logout() {
         </form>
 
         <!-- Danger Zone -->
-        <div class="rounded-lg border border-red-200 dark:border-red-900/50">
-          <div class="px-4 py-3">
+        <div class="space-y-2">
+          <div class="py-2">
             <h2 class="text-sm font-medium text-red-600 dark:text-red-400">
               Danger Zone
             </h2>
           </div>
-          <div
-            class="divide-y divide-red-100 border-t border-red-200 dark:divide-red-900/30 dark:border-red-900/50"
-          >
-            <div class="flex items-center justify-between px-4 py-3">
+          <div class="space-y-3">
+            <div class="flex items-center justify-between py-2">
               <div>
                 <p class="text-sm font-medium text-gray-900 dark:text-white">
                   Sign out
@@ -365,7 +363,7 @@ function logout() {
                 Sign out
               </button>
             </div>
-            <div class="flex items-center justify-between px-4 py-3">
+            <div class="flex items-center justify-between py-2">
               <div>
                 <p class="text-sm font-medium text-gray-900 dark:text-white">
                   Delete account
