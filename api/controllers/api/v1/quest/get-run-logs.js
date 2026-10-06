@@ -59,6 +59,10 @@ module.exports = {
       first = true
     const refresh = async () => {
       if (stream.closed || busy) return
+      if (this.res.writableLength > 512 * 1024) {
+        stream.close?.()
+        return
+      }
       busy = true
       try {
         const scoped = await workspace.resolveContext(
@@ -80,12 +84,14 @@ module.exports = {
           if (!active.has(snapshot.state)) stream.close?.()
         }
       } catch {
-        if (!stream.closed)
+        if (!stream.closed) {
           stream.send({
             connection: 'unavailable',
             message:
               'Live logs are unconfirmed. Reconnect to reconcile; this does not stop or repeat the job.'
           })
+          stream.close?.()
+        }
       } finally {
         busy = false
       }

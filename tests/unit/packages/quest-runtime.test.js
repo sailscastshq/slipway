@@ -618,7 +618,7 @@ test('Quest pause and overlap checks fail closed and invoke only the named resid
   )
   await rejectsCode(
     f.bridge.dispatch(f.message({ command: 'cancel' })),
-    'QUEST_INPUT_INVALID'
+    'QUEST_RUN_UNAVAILABLE'
   )
 })
 

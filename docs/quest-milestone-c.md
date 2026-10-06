@@ -32,7 +32,9 @@ retain their separate durable receipt; replay memory is lost on resident restart
 
 Live log SSE reads require active team/app authorization, exact owning deployment
 and runtime identity. Shared one-second scoped reads coalesce viewers; server
-streams are capped at 128 and disconnect/tab changes clean up subscriptions.
+streams are capped at 128, slow response buffers are bounded, and disconnect/tab
+changes clean up subscriptions. A failed ownership/auth read closes the stream
+with an unconfirmed connection outcome.
 Reconnecting detaches/reattaches a viewer and never cancels or repeats execution.
 
 ## Durable receipt delivery
@@ -70,7 +72,9 @@ bounded delivery, not a distributed durable queue or an exactly-once guarantee.
 ## Cancellation
 
 The operator reviews an explicit cancellation request. The owning executor
-records its actual child PID/start ticks, UID, session/group and run ID; signals
+records its actual child PID/start ticks, UID, session/group and run ID. Ordinary
+descendants inherit a separate ownership marker without the result FD contract;
+it signals
 only that verified group, then observes termination. Duplicate requests coalesce.
 The UI shows Cancelling after resident admission and Cancelled only from confirmed
 termination. TERM-resistant children may receive a separately ownership-checked
@@ -90,7 +94,8 @@ outcome. Run again is a deliberate new input review against the current schema.
 Focused tests cover private storage/restart, exact acknowledgement, bounds,
 redaction, replay gaps and terminal monotonicity. Exact-head Linux Quest CI proves
 actual Sails child logs, duplicate requests, TERM/KILL confirmation, forged/reused
-PID rejection and escaped descendants. The combined packed-hook fixture proves
+PID rejection, positively observed zombies, unreadable live/unknown membership,
+ordinary TERM-resistant descendants and escaped descendants. The combined packed-hook fixture proves
 resident HTTP controls and persisted cancellation; the disk-backed dashboard
 restart fixture proves actual refused telemetry followed by receipt delivery
 without resident recovery or repeated business work. Browser evidence must cover

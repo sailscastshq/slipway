@@ -597,12 +597,13 @@ function createQuestRuntime({
         : milliseconds(data.finishedAt) ||
           milliseconds(data.timestamp) ||
           now(),
-      duration:
-        kind === 'skipped'
-          ? null
-          : Number.isFinite(data.duration)
-          ? data.duration
-          : null,
+      duration: ['running', 'skipped', 'cancelling', 'unconfirmed'].includes(
+        kind
+      )
+        ? null
+        : Number.isFinite(data.duration)
+        ? data.duration
+        : null,
       exitCode: ['running', 'skipped', 'cancelling', 'unconfirmed'].includes(
         kind
       )

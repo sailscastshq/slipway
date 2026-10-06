@@ -659,8 +659,12 @@ test(
         `${base}/runs/${controlled.run.runId}/cancel`,
         { runtimeId: initial.runtimeId }
       )
-      assert.equal(firstCancel.status, 202)
-      assert.equal(repeatedCancel.status, 202)
+      assert.equal(firstCancel.status, 202, JSON.stringify(firstCancel.data))
+      assert.equal(
+        repeatedCancel.status,
+        202,
+        JSON.stringify(repeatedCancel.data)
+      )
       assert.equal(firstCancel.data.run.runId, controlled.run.runId)
       assert.equal((await waitForRun(controlled.run.runId)).state, 'cancelled')
       await readPersisted(controlled.run.runId, 'cancelled')

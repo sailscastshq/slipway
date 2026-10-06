@@ -188,13 +188,14 @@ function startLogs() {
   if (!props.canLiveLogs || !active.value || tab.value !== 'logs') return
   const id = props.runId
   logConnection.value = 'Connecting'
-  logSource = new EventSource(
+  const source = new EventSource(
     `${props.apiUrl}/runs/${encodeURIComponent(
       id
     )}/logs?stream=true&afterSequence=${logSequence}`
   )
-  logSource.onmessage = (event) => {
-    if (id !== props.runId) return
+  logSource = source
+  source.onmessage = (event) => {
+    if (source !== logSource || id !== props.runId) return
     const snapshot = JSON.parse(event.data)
     if (snapshot.connection === 'unavailable') {
       logConnection.value = 'Unconfirmed'
@@ -212,7 +213,8 @@ function startLogs() {
       load()
     }
   }
-  logSource.onerror = () => {
+  source.onerror = () => {
+    if (source !== logSource || id !== props.runId) return
     stopLogs()
     logConnection.value = 'Disconnected'
     if (++reconnects <= 3) reconnectTimer = setTimeout(startLogs, 2000)
