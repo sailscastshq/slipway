@@ -288,6 +288,7 @@ jobs:
           cache: npm
       - run: npm ci --no-audit
       - name: Verify native migrations and bounded failure fixtures
+        shell: bash
         run: |
           mkdir -p .tmp/bosun-verification
           node --test tests/prelift/migration-executor.test.cjs tests/prelift/sqlite-schema.test.cjs tests/prelift/release-migrations.test.cjs tests/prelift/release-swap.test.cjs tests/prelift/release-verification.test.cjs | tee .tmp/bosun-verification/native-tests.log
