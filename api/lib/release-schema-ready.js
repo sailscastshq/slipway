@@ -10,7 +10,7 @@ module.exports = function releaseSchemaReady(sails) {
     process.env.NODE_ENV !== 'production'
   )
     return false
-  for (const [datastore, filename] of Object.entries(migrations.files)) {
+  for (const datastore of Object.keys(migrations.files)) {
     const configured = sails.config.datastores?.[datastore]
     if (
       configured?.adapter !== 'sails-sqlite' ||

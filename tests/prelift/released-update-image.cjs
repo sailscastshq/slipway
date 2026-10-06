@@ -11,6 +11,13 @@ const { createRequire } = require('node:module')
 const released =
   'ghcr.io/sailscastshq/slipway@sha256:85a4b573bb48c9e2567c3ac3b35b35955f8fcaa639da1a5dcbf219a6b14964c5'
 const candidate = 'ghcr.io/fixture/slipway:candidate'
+const expectedReceipt = {
+  ready: true,
+  version: '0.0.88',
+  checksum: require('../../api/lib/migration-plans').digest(
+    require('../../api/lib/releases/0.0.88.json')
+  )
+}
 const artifact = path.resolve('.tmp/bosun-release-proof')
 const volume = `bosun-proof-${process.pid}`
 const freshVolume = `${volume}-fresh`
@@ -329,6 +336,7 @@ async function main() {
     proof.candidateImage
   )
   proof.health = await health('slipway')
+  assert.deepEqual(proof.health.releaseMigrations, expectedReceipt)
   proof.swapToHealthyMilliseconds = Date.now() - swapStartedAt
   const verified = JSON.parse(
     docker([
@@ -362,6 +370,7 @@ async function main() {
     candidate
   ])
   proof.freshHealth = await health('bosun-proof-fresh')
+  assert.deepEqual(proof.freshHealth.releaseMigrations, expectedReceipt)
   proof.stages.push(
     'Fresh production image boots directly on an empty named volume without a host bundle or development seed.'
   )
