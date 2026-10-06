@@ -1,0 +1,49 @@
+[
+  {
+    "event": "keydown",
+    "key": "Enter",
+    "phase": "before",
+    "at": 1791272846692,
+    "focus": "cm-content cm-lineWrapping",
+    "text": "Creator.fi",
+    "selection": {
+      "from": 10,
+      "to": 10,
+      "flags": 7
+    },
+    "completion": {
+      "timestamp": 1791272846690,
+      "selected": 0,
+      "disabled": false,
+      "labels": ["find", "findOne", "findOrCreate"],
+      "active": [
+        {
+          "state": 3,
+          "from": 8,
+          "to": 10
+        }
+      ]
+    },
+    "tooltip": "findWaterline model methodfindOneWaterline model methodfindOrCreateWaterline model method"
+  },
+  {
+    "event": "keydown",
+    "key": "Enter",
+    "phase": "after",
+    "at": 1791272846696,
+    "focus": "cm-content cm-lineWrapping",
+    "text": "Creator.fi\n",
+    "selection": {
+      "from": 11,
+      "to": 11,
+      "flags": 7
+    },
+    "completion": {
+      "active": [
+        {
+          "state": 0
+        }
+      ]
+    }
+  }
+]
