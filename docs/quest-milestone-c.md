@@ -83,6 +83,12 @@ five-second confirmation deadline remain Unconfirmed. The overlap guard remains
 held for unconfirmed termination. Every control is scoped and audited. Results
 from normal completion races remain Completed.
 
+Child ownership acquisition uses at most one second of positive observation
+across launcher exec transitions. Unreadable same-UID processes outside the
+verified ancestor chain leave termination unconfirmed, because they could be
+escaped descendants. The process proof uses an isolated Linux PID namespace;
+opaque shared hosts can therefore remain Unconfirmed even for an ordinary job.
+
 External side effects may already have happened. Arbitrary daemonized children
 that deliberately shed run identity cannot receive a process-tree guarantee.
 Such jobs should keep this capability disabled and use app-owned reconciliation.
