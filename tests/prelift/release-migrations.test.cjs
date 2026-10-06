@@ -240,6 +240,11 @@ test('receipt checksum and reserved object collisions fail before live changes',
 for (const datastore of ['default', 'observability'])
   test(`SIGKILL during ${datastore} leaves only complete transaction receipts and resumes safely`, () =>
     fixture(async (directory) => {
+      edit(directory, migrations.files[datastore], (db) =>
+        db.exec(
+          "CREATE TABLE restart_marker(value TEXT, payload BLOB); INSERT INTO restart_marker VALUES ('preserved', NULL)"
+        )
+      )
       const child = spawn(
         process.execPath,
         [
@@ -283,21 +288,38 @@ for (const datastore of ['default', 'observability'])
       })
       child.kill('SIGKILL')
       assert.equal((await exited).signal, 'SIGKILL')
-      edit(directory, migrations.files[datastore], (db) =>
-        assert.equal(
-          db
-            .prepare('SELECT name FROM sqlite_schema WHERE name=?')
-            .get(migrations.receiptTable),
-          undefined
-        )
-      )
+      const interrupted = hashes(directory)
+      await assert.rejects(migrations.run({ directory, preflightOnly: true }), {
+        code: 'SQLITE_READONLY_ROLLBACK'
+      })
+      assert.deepEqual(hashes(directory), interrupted)
       if (datastore === 'observability')
         edit(directory, 'app.db', (db) =>
           assert.ok(
             db.prepare(`SELECT * FROM ${migrations.receiptTable}`).get()
           )
         )
-      assert.ok((await migrations.run({ directory })).migratedDatastores >= 1)
+      // Restart directly: no writable observer may pre-recover a hot journal.
+      let checkedReceipt = false
+      const resumed = await migrations.run({
+        directory,
+        beforeCommit({ service, database }) {
+          if (service.datastore !== datastore) return
+          assert.equal(
+            database
+              .prepare('SELECT name FROM sqlite_schema WHERE name=?')
+              .get(migrations.receiptTable),
+            undefined
+          )
+          assert.deepEqual(
+            database.prepare('SELECT * FROM restart_marker').get(),
+            { value: 'preserved', payload: null }
+          )
+          checkedReceipt = true
+        }
+      })
+      assert.ok(checkedReceipt)
+      assert.ok(resumed.migratedDatastores >= 1)
       assert.equal((await migrations.run({ directory })).migratedDatastores, 0)
     }))
 

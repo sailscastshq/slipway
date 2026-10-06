@@ -328,7 +328,29 @@ async function run({
             'Slipway datastores must be distinct regular files; review the ambiguous storage mapping before updating.'
           )
         inodes.add(inode)
-        if (current({ type: 'sqlite', path: livePath, datastore })) continue
+        const service = { type: 'sqlite', path: livePath, datastore }
+        try {
+          if (current(service)) continue
+        } catch (error) {
+          if (error.code !== 'SQLITE_READONLY_ROLLBACK' || preflightOnly)
+            throw error
+          assertBudget()
+          // A killed transaction may have a hot rollback journal. SQLite must
+          // recover its last committed state before readonly receipt/preflight
+          // queries can run. Only normal startup performs this native recovery;
+          // it does not run migration SQL or restore a snapshot over the file.
+          const recovery = new Database(livePath, {
+            fileMustExist: true,
+            timeout: 5000
+          })
+          try {
+            recovery.prepare('SELECT name FROM sqlite_schema LIMIT 1').get()
+          } finally {
+            recovery.close()
+          }
+          assertBudget()
+          if (current(service)) continue
+        }
       }
       if (!exists && preflightOnly)
         fail(
