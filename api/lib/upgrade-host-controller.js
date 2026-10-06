@@ -65,15 +65,18 @@ function read(filename) {
     fail()
   }
 }
-function plan({
-  sourceDirectory,
-  instanceId,
-  image,
-  sourceVersion,
-  containerId,
-  containerName = 'slipway',
-  previous
-}) {
+function plan(
+  {
+    sourceDirectory,
+    instanceId,
+    image,
+    sourceVersion,
+    containerId,
+    containerName = 'slipway',
+    previous
+  },
+  catalogDirectory
+) {
   if (
     (!['0.0.86', '0.0.87', 'fresh'].includes(sourceVersion) &&
       !(
@@ -89,7 +92,7 @@ function plan({
   const stat = fs.statSync(source)
   if (!stat.isDirectory()) fail('upgradeHostTarget')
   const identity = registry.createReleasePlan({
-    services: services(source, instanceId),
+    services: services(catalogDirectory || source, instanceId),
     instanceId,
     image,
     mode: sourceVersion === 'fresh' ? 'fresh' : 'upgrade',
@@ -109,11 +112,14 @@ function plan({
   }
   return { ...value, reviewHash: ledger.digest(value) }
 }
-function verifyPlan(reviewed, approval) {
+function verifyPlan(reviewed, approval, catalogDirectory) {
   const { reviewHash, ...value } = reviewed
   if (approval !== reviewHash || reviewHash !== ledger.digest(value))
     fail('upgradeHostApproval')
-  const current = plan({ ...value, image: value.identity.manifest.image })
+  const current = plan(
+    { ...value, image: value.identity.manifest.image },
+    catalogDirectory
+  )
   if (current.reviewHash !== reviewHash) fail('upgradeHostTarget')
 }
 // Driver functions are trusted host capabilities, never request-supplied code.
@@ -246,16 +252,24 @@ async function execute({ filename, driver, timeoutMs, expectedReviewHash }) {
       services(state.reviewed.sourceDirectory, state.reviewed.instanceId)
     )
     if (!state.stage) {
-      // Revalidate native source after writers stop. Row changes during review
-      // are permitted; schema/image/instance changes require a fresh review.
-      verifyPlan(state.reviewed, expectedReviewHash)
+      // A stopped WAL database may need transient SHM files even for a read.
+      // Inspect the byte-verified private copy, never write on the source mount.
+      // The original directory identity and the full reviewed native catalog
+      // must still match before retaining the stage or admitting migration.
       await checkpoint('staging')
-      state.stage = await bounded('stageStorage', {
+      const staged = await bounded('stageStorage', {
         source: state.reviewed.sourceDirectory,
         directory: path.dirname(filename),
         maxBytes: state.maxBytes,
         reserveBytes: state.reserveBytes
       })
+      try {
+        verifyPlan(state.reviewed, expectedReviewHash, staged.dataDirectory)
+      } catch (error) {
+        fs.rmSync(staged.directory, { recursive: true, force: true })
+        throw error
+      }
+      state.stage = staged
       save(filename, state)
     }
     await bounded('verifySource', {

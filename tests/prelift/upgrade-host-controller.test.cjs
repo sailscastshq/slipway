@@ -2,6 +2,7 @@ const test = require('node:test')
 const assert = require('node:assert/strict')
 const fs = require('node:fs')
 const path = require('node:path')
+const Database = require('better-sqlite3')
 const host = require('../../api/lib/upgrade-host-controller')
 const registry = require('../../api/lib/upgrade-registry')
 const { fixture, image } = require('./release-fixtures.cjs')
@@ -131,6 +132,80 @@ test('host controller migrates staged storage and publishes only after complete 
       ),
       'opaque-existing-session-fixture'
     )
+  }))
+test(
+  'stopped WAL catalogs are verified on a private copy without writing to read-only source storage',
+  { skip: process.getuid?.() === 0 },
+  () =>
+    runFixture(async ({ options, driver, source }) => {
+      for (const service of host.services(source, 'fixture-instance')) {
+        const db = new Database(service.path)
+        db.pragma('journal_mode=WAL')
+        db.close()
+      }
+      const storage = require('../../api/lib/upgrade-storage-stage')
+      let before
+      const freeze = driver.freeze
+      driver.freeze = async () => {
+        await freeze()
+        // Simulate the last source writer closing and removing WAL sidecars.
+        for (const service of host.services(source, 'fixture-instance')) {
+          const db = new Database(service.path)
+          db.pragma('wal_checkpoint(TRUNCATE)')
+          db.close()
+          for (const suffix of ['-wal', '-shm']) {
+            fs.rmSync(service.path + suffix, { force: true })
+          }
+        }
+        before = storage.inspectStorage({
+          directory: source,
+          maxBytes: options.maxBytes,
+          timeoutMs: 10000
+        })
+        fs.chmodSync(source, 0o500)
+        const schema = require('../../api/lib/sqlite-schema')(
+          host.services(source, 'fixture-instance')[0]
+        )
+        assert.match(schema.error, /readonly database/)
+      }
+      try {
+        const result = await host.apply(options)
+        assert.equal(result.phase, 'ready')
+        const after = storage.inspectStorage({
+          directory: source,
+          maxBytes: options.maxBytes,
+          timeoutMs: 10000
+        })
+        assert.equal(after.hash, before.hash)
+        assert.equal(
+          host.read(result.filename).reviewed.identity.hash,
+          options.reviewed.identity.hash
+        )
+      } finally {
+        fs.chmodSync(source, 0o700)
+      }
+    })
+)
+test('catalog drift after freeze rejects the private copy and removes its unapproved stage', () =>
+  runFixture(async ({ options, driver, source, events, stateDirectory }) => {
+    driver.freeze = async () => {
+      events.push('freeze')
+      const db = new Database(path.join(source, 'app.db'))
+      db.exec('CREATE TABLE unexpected_catalog(id INTEGER PRIMARY KEY)')
+      db.close()
+    }
+    let failure
+    try {
+      await host.apply(options)
+    } catch (error) {
+      failure = error
+    }
+    assert.equal(failure.code, 'upgradeUnsupportedSchema')
+    assert.equal(host.read(failure.filename).stage, null)
+    assert.ok(!events.includes('publish'))
+    assert.deepEqual(fs.readdirSync(path.dirname(failure.filename)), [
+      'host.json'
+    ])
   }))
 test('failed target health keeps both storage trees and resumes the committed checkpoint', () =>
   runFixture(async ({ options, driver, events, source }) => {

@@ -76,9 +76,6 @@ async function runController({
       NetworkMode: 'none',
       PidMode: 'host',
       CapAdd: ['SYS_PTRACE'],
-      // Approved experiment only: disposable CI runner and synthetic data.
-      // Production launcher and broker keep their existing AppArmor defaults.
-      SecurityOpt: ['apparmor=unconfined'],
       RestartPolicy: { Name: 'no' },
       Mounts: [
         {
