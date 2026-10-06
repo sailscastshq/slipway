@@ -27,18 +27,22 @@ module.exports = {
   },
 
   fn: async function ({ runArgs, containerName, backupContainerName }) {
+    const checksum = require('../../lib/release-migrations').checksum
     return `
   const { execFileSync } = require("child_process")
   const containerName = ${JSON.stringify(containerName)}
   const backupName = ${JSON.stringify(backupContainerName)}
   const runArgs = ${JSON.stringify(runArgs)}
+  const expectedChecksum = ${JSON.stringify(checksum)}
+  let renamed = false
+  let candidateMayExist = false
 
   function docker(args, options = {}) {
-    return execFileSync("docker", args, { stdio: "inherit", ...options })
+    return execFileSync("docker", args, { stdio: "inherit", timeout: 30000, ...options })
   }
 
   function dockerQuiet(args) {
-    return execFileSync("docker", args, { stdio: "pipe" })
+    return execFileSync("docker", args, { stdio: "pipe", timeout: 10000 })
   }
 
   function tryDocker(args) {
@@ -56,15 +60,24 @@ module.exports = {
   }
 
   function waitForHealth() {
-    for (let attempt = 0; attempt < 30; attempt++) {
+    const deadline = Date.now() + 300000
+    while (Date.now() < deadline) {
       try {
-        dockerQuiet([
+        const body = dockerQuiet([
           "exec",
           containerName,
           "curl",
           "-fsS",
+          "--max-time",
+          "5",
           "http://localhost:1337/health"
         ])
+        const health = JSON.parse(body.toString())
+        if (health.status !== "ok" || health.mode === "preflight" ||
+          health.releaseMigrations?.ready !== true ||
+          health.releaseMigrations?.version !== "0.0.88" ||
+          health.releaseMigrations?.checksum !== expectedChecksum)
+          throw new Error("The candidate has not completed normal startup")
         return
       } catch {
         sleep(2000)
@@ -75,8 +88,9 @@ module.exports = {
   }
 
   function restorePrevious() {
+    if (!renamed) return
     console.log("Restoring previous Slipway container...")
-    tryDocker(["rm", "-f", containerName])
+    if (candidateMayExist) tryDocker(["rm", "-f", containerName])
     docker(["rename", backupName, containerName])
     docker(["start", containerName])
     console.log("Rollback complete; previous Slipway container restored.")
@@ -87,9 +101,11 @@ module.exports = {
       console.log("Preparing rollback target...")
       tryDocker(["rm", "-f", backupName])
       docker(["rename", containerName, backupName])
+      renamed = true
       docker(["stop", backupName])
 
       console.log("Starting new Slipway container...")
+      candidateMayExist = true
       docker(runArgs)
 
       console.log("Health-checking new Slipway container...")

@@ -49,7 +49,7 @@ test('Bridge reuses one production worker for warm operations', async ({
   } finally {
     restore()
     delete process.env.SLIPWAY_FAKE_DOCKER_EXIT_AFTER
-    await fs.rm(fixture.directory, { recursive: true, force: true })
+    await cleanupFakeDocker(fixture)
   }
 })
 
@@ -82,7 +82,7 @@ test('Bridge replaces a timed-out worker before the next operation', async ({
   } finally {
     restore()
     delete process.env.SLIPWAY_FAKE_DOCKER_EXIT_AFTER
-    await fs.rm(fixture.directory, { recursive: true, force: true })
+    await cleanupFakeDocker(fixture)
   }
 })
 
@@ -117,7 +117,7 @@ test('Bridge retires an idle worker and starts another on the next operation', a
   } finally {
     restore()
     delete process.env.SLIPWAY_FAKE_DOCKER_CLOSE_DELAY_MS
-    await fs.rm(fixture.directory, { recursive: true, force: true })
+    await cleanupFakeDocker(fixture)
   }
 })
 
@@ -154,7 +154,7 @@ test('Bridge keeps a worker alive while any operation is pending', async ({
     expect(await readBootCount(fixture.bootCountPath)).toBe(2)
   } finally {
     restore()
-    await fs.rm(fixture.directory, { recursive: true, force: true })
+    await cleanupFakeDocker(fixture)
   }
 })
 
@@ -179,9 +179,11 @@ async function createFakeDockerFixture() {
       'const exitCountPath = process.env.SLIPWAY_FAKE_DOCKER_EXIT_COUNT_PATH',
       "fs.appendFileSync(bootCountPath, 'boot\\n')",
       "process.on('exit', () => fs.appendFileSync(exitCountPath, 'exit\\n'))",
+      "process.once('SIGTERM', () => process.exit(0))",
       'fs.writeFileSync(argumentsPath, JSON.stringify(process.argv.slice(2)))',
       'const input = readline.createInterface({ input: process.stdin })',
       'let handled = 0',
+      "const stopTimer = setInterval(() => { if (fs.existsSync(argumentsPath + '.stop')) process.exit(0) }, 10)",
       "input.on('line', (line) => {",
       '  const job = JSON.parse(line)',
       "  if (job.code.includes('never finishes')) return",
@@ -199,6 +201,7 @@ async function createFakeDockerFixture() {
       "  }, job.code.includes('/* slow */') ? 120 : 0)",
       '})',
       "input.on('close', () => {",
+      '  clearInterval(stopTimer)',
       '  const delay = Number(process.env.SLIPWAY_FAKE_DOCKER_CLOSE_DELAY_MS || 0)',
       '  if (delay > 0) setTimeout(() => {}, delay)',
       '})'
@@ -248,8 +251,13 @@ async function readBootCount(bootCountPath) {
 }
 
 async function readExitCount(exitCountPath) {
-  const exits = await fs.readFile(exitCountPath, 'utf8')
-  return exits.trim().split('\n').length
+  try {
+    const exits = await fs.readFile(exitCountPath, 'utf8')
+    return exits.trim().split('\n').length
+  } catch (error) {
+    if (error.code === 'ENOENT') return 0
+    throw error
+  }
 }
 
 function sleep(milliseconds) {
@@ -270,6 +278,9 @@ for (const withContent of [true, false]) {
         `#!/usr/bin/env node
 process.chdir(${JSON.stringify(fixture.directory)})
 process.env.NODE_ENV = 'production'
+const fs = require('node:fs')
+fs.appendFileSync(process.env.SLIPWAY_FAKE_DOCKER_BOOT_COUNT_PATH, 'boot\\n')
+process.on('exit', () => fs.appendFileSync(process.env.SLIPWAY_FAKE_DOCKER_EXIT_COUNT_PATH, 'exit\\n'))
 eval(process.argv[9])
 `,
         { mode: 0o755 }
@@ -420,7 +431,25 @@ eval(process.argv[9])
       ).toBe(true)
     } finally {
       restore()
-      await fs.rm(fixture.directory, { recursive: true, force: true })
+      await cleanupFakeDocker(fixture)
     }
   })
+}
+
+// The fake worker writes its exit marker synchronously during process exit.
+// Drain all workers owned by this fixture before removing their writable files.
+async function cleanupFakeDocker(fixture) {
+  await fs.writeFile(`${fixture.argumentsPath}.stop`, '')
+  const deadline = Date.now() + 5000
+  while (
+    (await readExitCount(fixture.exitCountPath)) <
+    (await readBootCount(fixture.bootCountPath))
+  ) {
+    if (Date.now() >= deadline)
+      throw new Error(
+        'Fake Docker workers did not exit; their fixture was retained.'
+      )
+    await sleep(10)
+  }
+  await fs.rm(fixture.directory, { recursive: true, force: true })
 }

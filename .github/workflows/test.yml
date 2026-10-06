@@ -274,6 +274,42 @@ jobs:
           RUN node -e "require('./api/lib/helm-completions'); require('./api/lib/contracts/helm-config-fingerprint'); require('./api/lib/contracts/wake-contract'); require('./api/lib/contracts/wake-value-contract'); require('./api/lib/quest-run-ledger'); require('./api/lib/quest-runtime-client'); require('./api/lib/quest-workspace')"
           DOCKERFILE
 
+  migration-prelift:
+    name: Migration engine before ORM lift
+    timeout-minutes: 5
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit
+      - run: node --test tests/prelift/migration-executor.test.cjs tests/prelift/sqlite-schema.test.cjs tests/prelift/release-migrations.test.cjs tests/prelift/release-swap.test.cjs
+
+  bosun-release-update:
+    name: Released 87 Bosun update and fresh production boot
+    timeout-minutes: 25
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - run: docker build -t ghcr.io/fixture/slipway:candidate .
+      - run: node tests/prelift/released-update-image.cjs
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: bosun-released-update-proof
+          path: .tmp/bosun-release-proof
+          if-no-files-found: error
+          retention-days: 30
+
   test:
     name: Test (${{ matrix.lane }})
     timeout-minutes: 15
