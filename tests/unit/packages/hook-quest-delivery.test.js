@@ -52,6 +52,29 @@ test('disk restart replays evidence without rerunning; only exact successful ack
   assert.equal(calls.length, 3)
   assert.deepEqual(calls[0].questEvents[0].run.result.value, false)
 })
+test('restart removes only validated bounded incomplete receipts', (t) => {
+  const f = fixture(t, async () => ({}))
+  f.queue.stop()
+  const event = run(2),
+    id = idFor(event)
+  fs.writeFileSync(
+    path.join(f.directory, id + '.json.tmp'),
+    JSON.stringify({ id, run: event }),
+    { mode: 0o600 }
+  )
+  const restored = createQuestDelivery(f.options)
+  assert.equal(restored.pending, 0)
+  assert.equal(fs.readdirSync(f.directory).length, 0)
+  assert.equal(restored.enqueue(event), true)
+  restored.stop()
+  fs.writeFileSync(
+    path.join(f.directory, id + '.json.tmp'),
+    JSON.stringify({ id, run: { ...event, deploymentId: 'foreign' } }),
+    { mode: 0o600 }
+  )
+  assert.throws(() => createQuestDelivery(f.options), /identity/)
+  assert.equal(fs.existsSync(path.join(f.directory, id + '.json.tmp')), true)
+})
 test('outage, concurrent flushes, count pressure and expiry stay bounded', async (t) => {
   let resolve,
     calls = 0,

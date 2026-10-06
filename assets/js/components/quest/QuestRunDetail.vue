@@ -179,6 +179,10 @@ function stopLogs() {
   logSource = null
   clearTimeout(reconnectTimer)
 }
+function reconnectLogs() {
+  reconnects = 0
+  startLogs()
+}
 function startLogs() {
   stopLogs()
   if (!props.canLiveLogs || !active.value || tab.value !== 'logs') return
@@ -303,7 +307,7 @@ onBeforeUnmount(() => {
       <div class="flex shrink-0 items-center gap-2">
         <Button
           v-if="canCancel && active && run?.state !== 'cancelling'"
-          class="min-h-8 border border-gray-200 bg-transparent px-2.5 py-1 text-xs text-gray-700 dark:border-gray-700 dark:text-gray-300"
+          class="min-h-8 border border-gray-200 bg-transparent px-2.5 py-1 text-xs text-gray-700 dark:border-gray-700 dark:bg-transparent dark:text-gray-300 dark:hover:bg-gray-800 dark:active:bg-gray-800"
           @click="cancelReview = true"
           >Cancel run</Button
         >
@@ -433,6 +437,28 @@ onBeforeUnmount(() => {
           />
         </div>
         <div data-slot="tab-panel" data-value="logs" data-test="quest-run-logs">
+          <div
+            v-if="canLiveLogs && active"
+            class="flex items-center justify-between px-4 py-2 text-xs text-gray-500 dark:text-gray-400"
+            aria-live="polite"
+          >
+            <span>{{ logConnection }}</span>
+            <button
+              v-if="['Disconnected', 'Unconfirmed'].includes(logConnection)"
+              type="button"
+              class="underline"
+              @click="reconnectLogs"
+            >
+              Reconnect logs
+            </button>
+          </div>
+          <p
+            v-if="logs?.gap"
+            class="px-4 pb-2 text-xs text-amber-700 dark:text-amber-400"
+          >
+            Some earlier log snapshots are outside the replay window. The
+            retained tail is shown.
+          </p>
           <div
             v-if="logsLoading && !logs"
             class="flex items-center gap-2 p-4 text-sm text-gray-500"

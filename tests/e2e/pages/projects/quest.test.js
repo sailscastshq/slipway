@@ -3361,3 +3361,159 @@ test(
     }
   }
 )
+
+test(
+  'Quest Milestone C interrupted logs and reviewed cancellation remain truthful in four viewport themes',
+  {
+    browser: true,
+    world: {
+      name: 'configured-slipway',
+      context: {
+        deploymentTarget: {
+          slug: 'quest-milestone-c',
+          name: 'Northstar Commerce'
+        }
+      }
+    }
+  },
+  async (context) => {
+    const { page, login, world, expect } = context
+    const assert = require('node:assert/strict')
+    const fs = require('node:fs'),
+      path = require('node:path')
+    const root = path.resolve('.tmp/sounding/artifacts/quest-milestone-c')
+    fs.mkdirSync(root, { recursive: true })
+    const runId = 'synthetic-owned-control'
+    const state = await installQuestFixture(context, 'after', (state) => {
+      configureTypedQuestJob(state)
+      state.workspace.capabilities.cancel = true
+      state.workspace.capabilities.liveLogs = true
+      const run = syntheticQuestRun(state, runId, {
+        state: 'running',
+        finishedAt: null,
+        duration: null,
+        exitCode: null,
+        resultStatus: 'none'
+      })
+      state.workspace.runs = [run]
+      state.details[runId] = {
+        ...run,
+        inputs: {},
+        result: { status: 'unavailable' },
+        deploymentId: 'synthetic-deployment',
+        runtimeId: 'synthetic-runtime-v1'
+      }
+      state.logs[runId] = {
+        stdout: 'Synthetic receipt before disconnect\n',
+        stderr: '',
+        available: true,
+        truncated: false
+      }
+    })
+    let streamReads = 0,
+      cancelWrites = 0
+    state.api = async (route, endpoint, request) => {
+      if (
+        endpoint === `runs/${runId}/logs` &&
+        new URL(request.url()).searchParams.get('stream') === 'true'
+      ) {
+        streamReads++
+        return route.abort('connectionfailed').then(() => true)
+      }
+      if (endpoint === `runs/${runId}/cancel`) {
+        cancelWrites++
+        state.details[runId].state = 'cancelling'
+        state.workspace.runs[0].state = 'cancelling'
+        await route.fulfill({
+          status: 202,
+          json: { run: state.details[runId] }
+        })
+        return true
+      }
+      return false
+    }
+    try {
+      await login.withPassword('genesisUser', page, {
+        password: world.current.auth.genesisUserPassword
+      })
+      await page.raw.waitForURL('**/')
+      for (const capture of questComparisonFixture.captures) {
+        await page.raw.setViewportSize({
+          width: capture.width,
+          height: capture.height
+        })
+        await page.raw.emulateMedia({ colorScheme: capture.scheme })
+        state.details[runId].state = 'running'
+        state.workspace.runs[0].state = 'running'
+        await page.goto(
+          `${state.projectPath}?job=export-account-report&run=${runId}`
+        )
+        const detail = page.raw.locator('[data-test="quest-run-detail"]')
+        await expect(detail).toContainText('Running')
+        await detail.getByRole('tab', { name: 'Logs', exact: true }).click()
+        await expect(detail).toContainText('Disconnected')
+        const readsBeforeRetry = streamReads
+        await detail
+          .getByRole('button', { name: 'Reconnect logs', exact: true })
+          .click()
+        await expect(detail).toContainText('Disconnected')
+        assert.ok(streamReads > readsBeforeRetry)
+        await expect(detail).toContainText(
+          'Synthetic receipt before disconnect'
+        )
+        await detail
+          .getByRole('button', { name: 'Reconnect logs', exact: true })
+          .scrollIntoViewIfNeeded()
+        await page.screenshot(
+          path.join(root, `${capture.name}-disconnected-logs.png`),
+          { fullPage: true }
+        )
+        await detail
+          .getByRole('button', { name: 'Cancel run', exact: true })
+          .click()
+        await expect(detail).toContainText(
+          'External side effects may already have happened'
+        )
+        await page.screenshot(
+          path.join(root, `${capture.name}-interrupted-review.png`),
+          { fullPage: true }
+        )
+        await detail
+          .getByRole('button', { name: 'Request cancellation', exact: true })
+          .click()
+        await expect(detail).toContainText('Cancelling')
+        await expect(
+          detail.getByRole('button', { name: 'Cancel run', exact: true })
+        ).toHaveCount(0)
+        await expect(detail).not.toContainText('Cancelled')
+        await page.screenshot(
+          path.join(root, `${capture.name}-cancelling.png`),
+          { fullPage: true }
+        )
+      }
+      assert.equal(cancelWrites, 4)
+      assert.ok(streamReads >= 4)
+      assert.equal(
+        state.mutationRequests.filter((r) => !r.path.endsWith('/cancel'))
+          .length,
+        0
+      )
+      fs.writeFileSync(
+        path.join(root, 'evidence.json'),
+        JSON.stringify(
+          {
+            description:
+              'Real rendered app with synthetic transport interruptions and cancellation admission; Linux process confirmation is tested independently.',
+            captures: questComparisonFixture.captures,
+            cancelWrites,
+            streamReads
+          },
+          null,
+          2
+        )
+      )
+    } finally {
+      state.restore()
+    }
+  }
+)

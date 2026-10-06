@@ -1075,6 +1075,7 @@ async function loadMore() {
                   </div>
                 </div>
                 <QuestJobDetail
+                  :csrf="page.props._csrf || ''"
                   v-if="selectedJob && activeTab === 'jobs'"
                   v-model:tab="jobTab"
                   :selected-job="selectedJob"

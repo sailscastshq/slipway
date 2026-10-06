@@ -62,9 +62,29 @@ function createQuestDelivery({
     bytes -= item.bytes
   }
   // Never inspect arbitrary files or remove receipts from another deployment.
-  const files = fs
-    .readdirSync(directory)
-    .filter((name) => /^[a-f0-9]{64}\.json$/.test(name))
+  const names = fs.readdirSync(directory)
+  if (names.length > MAX_EVENTS * 2)
+    throw new Error('Quest delivery directory exceeds its file budget.')
+  // One deployment writer owns this directory. A crash before rename can leave
+  // a bounded temporary receipt; validate its identity before removing it.
+  for (const name of names.filter((name) =>
+    /^[a-f0-9]{64}\.json\.tmp$/.test(name)
+  )) {
+    const file = path.join(directory, name),
+      stat = fs.lstatSync(file)
+    if (
+      !stat.isFile() ||
+      stat.uid !== process.getuid() ||
+      stat.mode & 0o077 ||
+      stat.size > EVENT_BYTES
+    )
+      throw new Error('Quest delivery temporary receipt is unsafe.')
+    const item = JSON.parse(fs.readFileSync(file, 'utf8'))
+    if (!valid(item) || name !== item.id + '.json.tmp')
+      throw new Error('Quest delivery temporary receipt identity is invalid.')
+    fs.unlinkSync(file)
+  }
+  const files = names.filter((name) => /^[a-f0-9]{64}\.json$/.test(name))
   if (files.length > MAX_EVENTS)
     throw new Error('Quest delivery directory exceeds its event budget.')
   for (const name of files) {
@@ -113,7 +133,7 @@ function createQuestDelivery({
       )
       return false
     }
-    const temporary = filename(item.id) + '.' + crypto.randomUUID() + '.tmp'
+    const temporary = filename(item.id) + '.tmp'
     let fd
     try {
       fd = fs.openSync(temporary, 'wx', 0o600)

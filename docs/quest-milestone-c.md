@@ -48,7 +48,9 @@ module.exports.slipway = {
 }
 ```
 
-The app UID must own it with mode 0700. Receipts are sanitized before being
+The app UID must own it with mode 0700. It must have exactly one resident writer;
+replicas require separate directories. Shared concurrent writers are unsupported.
+Validated incomplete temporary receipts are removed on restart and never replayed. Receipts are sanitized before being
 written, mode 0600, atomically renamed after file fsync and directory fsync.
 Credentials are used at request time and never written into the spool. The
 spool holds at most 256 receipts/4 MiB, with a 32 KiB event limit and seven-day

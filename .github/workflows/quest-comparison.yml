@@ -50,7 +50,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       # Corrected child scheduler suppression contract. Never use 788d767.
-      SLIPWAY_QUEST_UPSTREAM_SHA: 8bcc24fae3e9d94bc7d6d10013f226f6164abe6c
+      SLIPWAY_QUEST_UPSTREAM_SHA: db02badda2b160acfedad5350e08f8b182968006
       SLIPWAY_QUEST_UPSTREAM_ROOT: ${{ github.workspace }}/.tmp/quest-upstream
       SLIPWAY_QUEST_PACKED_ROOT: ${{ github.workspace }}/.tmp/quest-packed-consumer
       SLIPWAY_QUEST_CONSUMER_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
@@ -236,6 +236,14 @@ jobs:
         with:
           name: quest-workspace-states-${{ github.event.pull_request.head.sha || github.sha }}
           path: .tmp/screenshots/quest-workspace-states
+          if-no-files-found: error
+          retention-days: 90
+      - name: Preserve Milestone C interrupted control screenshots
+        uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: quest-milestone-c-${{ github.event.pull_request.head.sha || github.sha }}
+          path: .tmp/sounding/artifacts/quest-milestone-c
           if-no-files-found: error
           retention-days: 90
       - name: Preserve diagnostic artifacts on failure
