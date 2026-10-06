@@ -12,6 +12,7 @@ const noCapabilities = Object.freeze({
   pause: false,
   resume: false,
   cancel: false,
+  liveLogs: false,
   results: false,
   typedInputs: false
 })
@@ -20,7 +21,8 @@ async function resolveContext(
   req,
   projectSlug,
   environmentSlug = 'production',
-  mutate = false
+  mutate = false,
+  { appId } = {}
 ) {
   const user = await User.forRequest(req)
   if (!user) throw 'notFound'
@@ -42,7 +44,9 @@ async function resolveContext(
     project: project.id
   })
   if (!environment) throw 'notFound'
-  const { app } = await require('./app-selection')(req, environment.id)
+  const { app } = await require('./app-selection')(req, environment.id, {
+    appId
+  })
   return { user, project, environment, app }
 }
 
@@ -243,8 +247,7 @@ async function buildSnapshot(context, inspect = true) {
     base.jobs = live.jobs
     base.capabilities = {
       ...noCapabilities,
-      ...live.capabilities,
-      cancel: false
+      ...live.capabilities
     }
     base.reason = null
     base.runtimeReconciliation = await ledger.reconcileRuntimeLoss(

@@ -1,5 +1,6 @@
 module.exports.quest = {
   autoStart: true,
+  runtimeControls: true,
   environment: 'staging',
   withoutOverlapping: true,
   jobs: [

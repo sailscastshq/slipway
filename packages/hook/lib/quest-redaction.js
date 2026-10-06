@@ -9,7 +9,7 @@ const MAX_SECRET_BYTES = 64 * 1024
 const MAX_PATTERNS = 256
 const MAX_NODES = 4096
 const MAX_TEXT_BYTES = 1024 * 1024
-const terminal = new Set(['completed', 'failed', 'skipped'])
+const terminal = new Set(['completed', 'failed', 'skipped', 'cancelled'])
 // Neither raw matching values nor this cache are part of a run's public data.
 const stores = new WeakMap()
 const contexts = new WeakMap()
@@ -82,6 +82,7 @@ function createQuestRedactor(
         // Upstream completed diagnostic tails trim their boundary whitespace.
         if (typeof value === 'string') {
           add(value.trim())
+          for (const line of value.split(/\r?\n/)) add(line)
           // JSON logging is a common representation of nested input values.
           add(JSON.stringify(value).slice(1, -1))
         }
@@ -104,6 +105,11 @@ function createQuestRedactor(
     seen.delete(value)
   }
   try {
+    // Environment values need the same streaming boundary protection as
+    // declared inputs, before any live snapshot or receipt is retained.
+    for (const [name, value] of Object.entries(process.env))
+      if (SENSITIVE_KEY.test(name) && typeof value === 'string')
+        collect(value, true)
     const fields = metadata?.inputs || {}
     const sources = metadata?.scheduledInputs?.fields || {}
     const sourceValues = metadata?.scheduledInputs?.values || {}
@@ -177,6 +183,36 @@ function createQuestRedactor(
       )
         return UNAVAILABLE
       let clean = value
+      if (options.live) {
+        // Hold an unfinished line and any suffix matching a declared secret
+        // prefix. Chunk boundaries never make partial secret text public.
+        clean = clean.slice(0, clean.lastIndexOf('\n') + 1)
+        for (const secret of ordered) {
+          const prefix = secret.slice(0, -1)
+          const fallback = new Uint32Array(prefix.length)
+          for (let index = 1, match = 0; index < prefix.length; index++) {
+            while (match && prefix[index] !== prefix[match])
+              match = fallback[match - 1]
+            if (prefix[index] === prefix[match]) match++
+            fallback[index] = match
+          }
+          let match = 0
+          for (
+            let index = Math.max(0, clean.length - prefix.length);
+            index < clean.length;
+            index++
+          ) {
+            const character = clean[index]
+            while (
+              match &&
+              (match === prefix.length || character !== prefix[match])
+            )
+              match = fallback[match - 1]
+            if (character === prefix[match]) match++
+          }
+          if (match) clean = clean.slice(0, -match) + REDACTED
+        }
+      }
       // Redact the fully assembled tail, before either sanitizer or byte trim
       // can split a declared value across an output boundary.
       if (pattern) clean = clean.replace(pattern, () => REDACTED)

@@ -1075,6 +1075,7 @@ async function loadMore() {
                   </div>
                 </div>
                 <QuestJobDetail
+                  :csrf="page.props._csrf || ''"
                   v-if="selectedJob && activeTab === 'jobs'"
                   v-model:tab="jobTab"
                   :selected-job="selectedJob"
@@ -1129,6 +1130,8 @@ async function loadMore() {
                   :job="selectedRunJob"
                   :can-run="canInvoke(selectedRunJob)"
                   :can-cancel="live.capabilities.cancel"
+                  :can-live-logs="live.capabilities.liveLogs"
+                  :csrf="page.props._csrf || ''"
                   @loaded="onRunLoaded"
                   @close="closeRun"
                   @run-again="openRun(selectedRunJob, $event)"
@@ -1161,6 +1164,8 @@ async function loadMore() {
             :job="selectedRunJob"
             :can-run="canInvoke(selectedRunJob)"
             :can-cancel="live.capabilities.cancel"
+            :can-live-logs="live.capabilities.liveLogs"
+            :csrf="page.props._csrf || ''"
             @loaded="onRunLoaded"
             @close="closeRun"
             @run-again="openRun(selectedRunJob, $event)"

@@ -782,3 +782,56 @@ test('real ingest rejects the wire types, event sizes, batch bytes and counts th
     invalid.length
   )
 })
+
+test('durable Quest evidence acknowledges only after ledger persistence, with replay idempotency and terminal truth', async (t) => {
+  const receiver = createReceiver(t)
+  const { idFor } = require('../../../packages/hook/lib/quest-delivery')
+  const run = {
+    runId: crypto.randomUUID(),
+    runtimeId: 'durable-runtime',
+    appId: '7',
+    deploymentId: '42',
+    jobName: 'synthetic',
+    requestedAt: NOW,
+    startedAt: NOW,
+    finishedAt: NOW,
+    sequence: 2,
+    state: 'completed',
+    trigger: 'scheduled',
+    result: { status: 'available', value: 0 },
+    inputs: {},
+    stdout: 'sanitized output',
+    stderr: 'successful warning',
+    exitCode: 0
+  }
+  const item = { id: idFor(run), run }
+  const body = JSON.stringify({ questEvents: [item] })
+  assert.deepEqual((await receiver.receive(body)).questAcknowledged, [item.id])
+  assert.deepEqual((await receiver.receive(body)).questAcknowledged, [item.id])
+  assert.equal(receiver.runs.size, 1)
+  assert.equal(receiver.stored.metrics.length, 0)
+  assert.equal(receiver.runs.get(run.runId).state, 'completed')
+  assert.equal(receiver.runs.get(run.runId).result.value, 0)
+  const delayed = { ...run, sequence: 1, state: 'running' }
+  assert.deepEqual(
+    (
+      await receiver.receive(
+        JSON.stringify({ questEvents: [{ id: idFor(delayed), run: delayed }] })
+      )
+    ).questAcknowledged,
+    [idFor(delayed)]
+  )
+  assert.equal(receiver.runs.get(run.runId).state, 'completed')
+  assert.deepEqual(
+    (
+      await receiver.receive(
+        JSON.stringify({ questEvents: [{ ...item, id: '0'.repeat(64) }] })
+      )
+    ).questAcknowledged,
+    []
+  )
+  t.mock.method(global.QuestRun, 'findOne', async () => {
+    throw new Error('disk unavailable')
+  })
+  assert.deepEqual((await receiver.receive(body)).questAcknowledged, [])
+})

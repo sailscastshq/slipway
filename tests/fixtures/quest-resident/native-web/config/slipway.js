@@ -9,7 +9,15 @@ assert.equal(url.hostname, '127.0.0.1')
 assert.ok(Number(url.port) > 0)
 assert.equal(url.pathname, '/api/v1/telemetry/ingest')
 module.exports.slipway = {
-  quest: { enabled: true },
+  quest: {
+    enabled: true,
+    delivery: {
+      directory: require('node:path').join(
+        context.root,
+        `quest-delivery-${context.appId}-${context.deploymentId}`
+      )
+    }
+  },
   lookout: {
     enabled: true,
     telemetryUrl: context.telemetryUrl,

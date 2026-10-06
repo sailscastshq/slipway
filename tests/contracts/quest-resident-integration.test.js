@@ -16,7 +16,8 @@ const { recoveryTrials } = require('../fixtures/quest-resident/recovery.cjs')
 const { useDockerBinary } = require('../fixtures/quest-resident/dashboard.cjs')
 
 const slug = 'quest-real-resident'
-const terminal = (run) => ['completed', 'failed', 'skipped'].includes(run.state)
+const terminal = (run) =>
+  ['completed', 'failed', 'skipped', 'cancelled'].includes(run.state)
 const startsFor = (events, name) =>
   events.filter((event) => event.kind === 'quest:start' && event.name === name)
 const businessFor = (events, name) =>
@@ -163,7 +164,8 @@ test(
       assert.equal(helperReference.helper, 'buildIndexReport')
       assert.equal(initial.capabilities.invoke, true)
       assert.equal(initial.capabilities.results, true)
-      assert.equal(initial.capabilities.cancel, false)
+      assert.equal(initial.capabilities.cancel, true)
+      assert.equal(initial.capabilities.liveLogs, true)
       assert.ok(
         initial.jobs.every((job) => job.inputMetadataAvailable === true)
       )
@@ -633,6 +635,66 @@ test(
         pausedCount
       )
 
+      const controlled = await invoke('slow-job', {
+        label: 'owned-cancellation',
+        delayMs: 12000
+      })
+      const replay = await fixture.waitFor(
+        () =>
+          call('logs', {
+            runId: controlled.run.runId,
+            runtimeId: initial.runtimeId,
+            afterSequence: 0
+          }),
+        (value) => value.stdout.includes('owned-cancellation'),
+        'real resident live log snapshot'
+      )
+      assert.ok(replay.entries.length > 0)
+      assert.equal(replay.state, 'running')
+      const firstCancel = await client.post(
+        `${base}/runs/${controlled.run.runId}/cancel`,
+        { runtimeId: initial.runtimeId }
+      )
+      const repeatedCancel = await client.post(
+        `${base}/runs/${controlled.run.runId}/cancel`,
+        { runtimeId: initial.runtimeId }
+      )
+      if (firstCancel.status !== 202)
+        console.error(
+          '[Quest cancellation evidence]',
+          JSON.stringify(
+            (await evidence())
+              .filter(
+                (event) =>
+                  event.kind.startsWith('control:') ||
+                  event.kind.startsWith('quest:canc') ||
+                  event.kind === 'quest:unconfirmed'
+              )
+              .map(({ kind, reason, name, runId, sequence }) => ({
+                kind,
+                reason,
+                name,
+                runId,
+                sequence
+              }))
+          )
+        )
+      assert.equal(firstCancel.status, 202, JSON.stringify(firstCancel.data))
+      assert.equal(
+        repeatedCancel.status,
+        202,
+        JSON.stringify(repeatedCancel.data)
+      )
+      assert.equal(firstCancel.data.run.runId, controlled.run.runId)
+      assert.equal((await waitForRun(controlled.run.runId)).state, 'cancelled')
+      await readPersisted(controlled.run.runId, 'cancelled')
+      assert.equal(
+        businessFor(await evidence(), 'slow-job').filter(
+          (event) => event.inputs.label === 'owned-cancellation'
+        ).length,
+        1
+      )
+
       const disconnected = await invoke('slow-job', {
         label: 'disconnected-reader',
         delayMs: 4500
@@ -817,7 +879,15 @@ test(
           (event) => event.kind === 'quest:start'
         ).length,
         transport: 'Real Docker exec/private UDS + real dashboard HTTP/browser',
-        cancellation: 'unsupported'
+        cancellation: {
+          runId: controlled.run.runId,
+          state: 'cancelled',
+          persisted: true,
+          duplicateRequests: 2,
+          businessStarts: businessFor(finalEvents, 'slow-job').filter(
+            (event) => event.inputs.label === 'owned-cancellation'
+          ).length
+        }
       }
       const root = path.resolve('.tmp/screenshots/quest-real-resident')
       await fs.mkdir(root, { recursive: true })

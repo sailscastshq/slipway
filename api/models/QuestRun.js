@@ -32,6 +32,7 @@ module.exports = {
       isIn: [
         'requested',
         'running',
+        'cancelling',
         'completed',
         'failed',
         'skipped',

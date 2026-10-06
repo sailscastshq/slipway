@@ -29,6 +29,11 @@ module.exports = {
     registration: {
       type: 'ref',
       description: 'Runtime registration and heartbeat from sails-hook-slipway'
+    },
+    questEvents: {
+      type: 'ref',
+      description:
+        'Bounded sanitized run receipts awaiting durable acknowledgement'
     }
   },
 
@@ -42,7 +47,13 @@ module.exports = {
     badRequest: { statusCode: 400, description: 'Invalid payload' }
   },
 
-  fn: async function ({ spans, exceptions, metrics, registration }) {
+  fn: async function ({
+    spans,
+    exceptions,
+    metrics,
+    registration,
+    questEvents
+  }) {
     // Authenticate via Bearer token
     const authHeader = this.req.headers.authorization
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -67,8 +78,13 @@ module.exports = {
 
     const environmentId = environment.id
     const now = Date.now()
-    const batches = { spans, exceptions, metrics }
-    const counts = { spans: 500, exceptions: 200, metrics: 1000 }
+    const batches = { spans, exceptions, metrics, questEvents }
+    const counts = {
+      spans: 500,
+      exceptions: 200,
+      metrics: 1000,
+      questEvents: 8
+    }
     const bytes = Buffer.byteLength(
       JSON.stringify({ ...batches, registration })
     )
@@ -93,6 +109,14 @@ module.exports = {
           invalid = true
           continue
         }
+        if (
+          kind === 'questEvents' &&
+          (!/^[a-f0-9]{64}$/.test(item.id || '') ||
+            !item.run ||
+            typeof item.run !== 'object' ||
+            Array.isArray(item.run))
+        )
+          invalid = true
         for (const field of [
           'traceId',
           'spanId',
@@ -277,7 +301,17 @@ module.exports = {
       sails.sse?.publish(`lookout:env:${environmentId}`, { telemetryState })
     }
 
-    return { ...ingested, clockAdjusted }
+    const questAcknowledged = questEvents
+      ? await require('../../../../lib/quest-delivery-ingest')(
+          questEvents,
+          environmentId
+        )
+      : undefined
+    return {
+      ...ingested,
+      clockAdjusted,
+      ...(questEvents ? { questAcknowledged } : {})
+    }
   }
 }
 

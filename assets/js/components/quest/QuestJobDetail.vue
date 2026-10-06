@@ -27,6 +27,7 @@ const props = defineProps({
   selectedRunJob: Object,
   jobs: Array,
   live: Object,
+  csrf: String,
   activeTab: String,
   fresh: Boolean,
   jobState: String,
@@ -213,6 +214,8 @@ const displayValue = (value) =>
               :job="selectedRunJob"
               :can-run="canRunSelected"
               :can-cancel="live.capabilities.cancel"
+              :can-live-logs="live.capabilities.liveLogs"
+              :csrf="csrf || ''"
               @loaded="emit('run-loaded', $event)"
               @close="emit('close-run')"
               @run-again="emit('run-again', $event)"

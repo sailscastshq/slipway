@@ -112,6 +112,7 @@ async function residentFixture({ sails, world }, slug) {
     starts,
     calls,
     bridge,
+    emitter,
     page: `/projects/${slug}/quest`,
     base: `/api/v1/projects/${slug}/quest`,
     body: (extra = {}) => ({
