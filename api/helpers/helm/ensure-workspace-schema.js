@@ -7,6 +7,7 @@ module.exports = {
   inputs: {},
 
   fn: async function () {
+    if (require('../../lib/release-schema-ready')(sails)) return
     const datastore = sails.getDatastore()
 
     await datastore.sendNativeQuery(`

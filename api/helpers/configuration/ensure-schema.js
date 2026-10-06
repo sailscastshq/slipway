@@ -9,18 +9,19 @@ module.exports = {
   fn: async function () {
     const datastore = sails.getDatastore()
 
-    await addColumns(datastore, 'environments', [
-      ['env_var_metadata', "TEXT NOT NULL DEFAULT '{}'"]
-    ])
-    await addColumns(datastore, 'apps', [
-      ['secure_env_vars', 'TEXT'],
-      ['env_var_metadata', "TEXT NOT NULL DEFAULT '{}'"]
-    ])
-    await addColumns(datastore, 'deployments', [
-      ['config_hash', 'TEXT'],
-      ['config_manifest', "TEXT NOT NULL DEFAULT '[]'"]
-    ])
-
+    if (!require('../../lib/release-schema-ready')(sails)) {
+      await addColumns(datastore, 'environments', [
+        ['env_var_metadata', "TEXT NOT NULL DEFAULT '{}'"]
+      ])
+      await addColumns(datastore, 'apps', [
+        ['secure_env_vars', 'TEXT'],
+        ['env_var_metadata', "TEXT NOT NULL DEFAULT '{}'"]
+      ])
+      await addColumns(datastore, 'deployments', [
+        ['config_hash', 'TEXT'],
+        ['config_manifest', "TEXT NOT NULL DEFAULT '[]'"]
+      ])
+    }
     const apps = await App.find().decrypt()
     for (const app of apps) {
       if (app.secureEnvVars !== null && app.secureEnvVars !== undefined) {

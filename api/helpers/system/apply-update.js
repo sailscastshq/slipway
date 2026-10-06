@@ -206,7 +206,28 @@ module.exports = {
         throw 'validationFailed'
       }
 
-      sails.log.info('[slipway] Validation passed — new version is healthy')
+      const { stdout: validationBody } = await execFileAsync(
+        dockerPath,
+        [
+          'exec',
+          'slipway-next',
+          'curl',
+          '-fsS',
+          '--max-time',
+          '5',
+          'http://localhost:1337/health'
+        ],
+        { timeout: 7000, maxBuffer: 64 * 1024 }
+      )
+      const validation = JSON.parse(validationBody)
+      if (validation.mode === 'preflight') {
+        if (validation.normalStartupReady !== false) throw 'validationFailed'
+        sails.log.info(
+          '[slipway] Migration preflight passed on database copies; live changes follow after the previous server stops'
+        )
+      } else if (validation.status !== 'ok') throw 'validationFailed'
+      else
+        sails.log.info('[slipway] Validation passed — new version is healthy')
 
       // 8. Stop the validation container (free the temp port before swap)
       try {
@@ -278,6 +299,9 @@ module.exports = {
       }
     } catch (err) {
       if (tempPortReserved && tempPort) {
+        try {
+          await execFileAsync(dockerPath, ['rm', '-f', 'slipway-next'])
+        } catch {}
         await releaseTempPort(tempPort)
         tempPortReserved = false
       }

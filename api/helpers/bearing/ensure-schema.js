@@ -8,6 +8,15 @@ module.exports = {
 
   fn: async function () {
     const datastore = sails.getDatastore()
+    if (require('../../lib/release-schema-ready')(sails)) {
+      await datastore.sendNativeQuery(
+        "UPDATE bearing_feedback SET status = 'reviewing' WHERE status = 'open'"
+      )
+      await datastore.sendNativeQuery(
+        "UPDATE bearing_updates SET slug = replace(lower(public_id), '_', '-') WHERE slug IS NULL OR slug = ''"
+      )
+      return
+    }
 
     await addColumns(datastore, 'apps', [
       ['bearing_enabled', 'BOOLEAN NOT NULL DEFAULT 0'],
