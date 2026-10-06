@@ -106,8 +106,11 @@ button:disabled,
   cursor: not-allowed;
 }
 
-/* Smooth focus transitions (exclude form inputs which handle their own focus) */
-*:focus-visible:not(input):not(textarea):not(select) {
+/* Form inputs and rich-text writing surfaces handle their own focus.
+   Toolbar buttons retain the visible keyboard-focus outline. */
+*:focus-visible:not(input):not(textarea):not(select):where(
+    :not([data-slot='rich-text-content'])
+  ) {
   outline: 2px solid var(--color-brand);
   outline-offset: 2px;
 }

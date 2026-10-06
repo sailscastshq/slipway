@@ -37,6 +37,7 @@ test(
     await login.withPassword('genesisUser', page, {
       password: world.current.auth.genesisUserPassword
     })
+    await page.raw.waitForURL((url) => url.pathname === '/')
     await page.resize(1440, 900)
     await page.goto('/bosun')
     await page.raw.getByRole('tab', { name: 'Migrate' }).click()

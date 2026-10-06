@@ -443,6 +443,7 @@ function tools() {
   return [...(toolbar.value?.querySelectorAll('button:not(:disabled)') ?? [])]
 }
 function focusToolbar() {
+  flushEditorSelection()
   syncToolbar()
   toolbar.value?.querySelector('button[tabindex="0"]')?.focus()
 }
@@ -476,12 +477,23 @@ function toolbarKeydown(event) {
   )
   buttons[target]?.focus()
 }
+function flushEditorSelection() {
+  const view = editor.value?.view
+  // Native keyboard selection can precede ProseMirror's selectionchange
+  // observer. Read it before a toolbar transaction uses the editor state.
+  if (view?.hasFocus()) {
+    view.domObserver.forceFlush()
+    view.domObserver.flush()
+  }
+}
 function run(command, attributes) {
   if (locked.value || mode.value !== 'visual') return
+  flushEditorSelection()
   editor.value?.chain().focus()[command](attributes).run()
 }
 function rememberSelection() {
   if (!editor.value) return
+  flushEditorSelection()
   selectionBookmark = editor.value.state.selection.getBookmark()
   selectedImage = editor.value.isActive('image')
 }
@@ -737,7 +749,7 @@ defineExpose({
     :style="attrs.style"
     :class="
       twMerge(
-        'focus-within:outline-gray-950/15 data-disabled:opacity-50 relative w-full min-w-0 rounded-xl border border-gray-200 bg-white text-gray-950 shadow-sm focus-within:border-gray-400 focus-within:outline-2 focus-within:outline-offset-2 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-100 dark:focus-within:border-gray-600 dark:focus-within:outline-white/20',
+        'data-disabled:opacity-50 relative w-full min-w-0 rounded-xl border border-gray-200 bg-white text-gray-950 shadow-sm focus-within:border-gray-400 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-100 dark:focus-within:border-gray-600',
         attrs.class
       )
     "
