@@ -91,6 +91,33 @@ test('child environment is an explicit credential-free allowlist with private ho
   assert.equal(env.SLIPWAY_DEPLOYMENT_ID, '9')
 })
 
+test('versioned dashboard generations retain the same initialized receipts and safe stores', () => {
+  const nativeFixture = {
+    datastores: Object.fromEntries(
+      ['default', 'observability', 'analytics', 'cache'].map((name) => [
+        name,
+        { adapter: 'sails-sqlite', url: `/private/initialized/${name}.db` }
+      ])
+    )
+  }
+  const a = dashboardOptions({
+    repo: '/repo',
+    root: '/private/unique',
+    generation: 'A',
+    nativeFixture
+  })
+  const b = dashboardOptions({
+    repo: '/repo',
+    root: '/private/unique',
+    generation: 'B',
+    nativeFixture
+  })
+  assert.equal(a.models.migrate, 'safe')
+  assert.equal(b.models.migrate, 'safe')
+  assert.equal(a.datastores, nativeFixture.datastores)
+  assert.equal(b.datastores, nativeFixture.datastores)
+})
+
 test('dashboard generations preserve all four unique SQLite stores using actual Sounding inherit semantics', () => {
   const { resolveDatastore } = require('sounding/lib/resolve-datastore')
   const a = dashboardOptions({

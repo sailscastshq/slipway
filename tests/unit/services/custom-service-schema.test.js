@@ -1,7 +1,7 @@
 const { test } = require('sounding')
 const assert = require('node:assert/strict')
 test(
-  'custom service schema upgrades an existing database without changing managed services',
+  'legacy 87 custom service helper upgrades an existing database without changing managed services',
   {
     world: {
       name: 'configured-slipway',
@@ -22,8 +22,10 @@ test(
       'ALTER TABLE services DROP COLUMN custom_definition'
     )
     await db.sendNativeQuery('ALTER TABLE services DROP COLUMN custom_state')
-    await sails.helpers.service.ensureVersionSchema()
-    await sails.helpers.service.ensureVersionSchema()
+    await require('../../support/with-legacy-release.cjs')(async () => {
+      await sails.helpers.service.ensureVersionSchema()
+      await sails.helpers.service.ensureVersionSchema()
+    })
     const retained = await sails.models.service.findOne({ id: service.id })
     assert.equal(retained.status, 'running')
     assert.equal(retained.version, '16')

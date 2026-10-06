@@ -19,8 +19,10 @@ test('authentication columns upgrade legacy tables idempotently without losing u
         }
       })
     }
-    await ensureSchema.fn()
-    await ensureSchema.fn()
+    await require('../../../support/with-legacy-release.cjs')(async () => {
+      await ensureSchema.fn()
+      await ensureSchema.fn()
+    })
     expect(db.prepare('SELECT * FROM users').get()).toEqual({
       id: 1,
       auth_version: ''

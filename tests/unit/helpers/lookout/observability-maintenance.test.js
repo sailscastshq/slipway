@@ -143,48 +143,55 @@ test('preparing observability storage leaves legacy metrics out of web startup',
   await sails.models.containermetric.destroy({})
   const source = sails.getDatastore()
 
-  await source.sendNativeQuery('DROP TABLE IF EXISTS container_metrics')
-  await source.sendNativeQuery(`
-    CREATE TABLE container_metrics (
-      id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-      created_at INTEGER,
-      updated_at INTEGER,
-      container_name TEXT,
-      container_type TEXT,
-      cpu_percent INTEGER,
-      memory_usage INTEGER,
-      memory_limit INTEGER,
-      memory_percent INTEGER,
-      net_io TEXT,
-      block_io TEXT,
-      pids INTEGER,
-      recorded_at INTEGER,
-      environment INTEGER,
-      app INTEGER,
-      service INTEGER
+  try {
+    await source.sendNativeQuery('DROP TABLE IF EXISTS container_metrics')
+    await source.sendNativeQuery(`
+      CREATE TABLE container_metrics (
+        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+        created_at INTEGER,
+        updated_at INTEGER,
+        container_name TEXT,
+        container_type TEXT,
+        cpu_percent INTEGER,
+        memory_usage INTEGER,
+        memory_limit INTEGER,
+        memory_percent INTEGER,
+        net_io TEXT,
+        block_io TEXT,
+        pids INTEGER,
+        recorded_at INTEGER,
+        environment INTEGER,
+        app INTEGER,
+        service INTEGER
+      )
+    `)
+    await source.sendNativeQuery(
+      `INSERT INTO container_metrics (
+        created_at, updated_at, container_name, container_type, cpu_percent,
+        memory_usage, memory_limit, memory_percent, pids, recorded_at,
+        environment
+      ) VALUES
+        (1, 1, 'slipway-one', 'app', 1, 10, 100, 10, 1, 1000, 1),
+        (2, 2, 'slipway-two', 'service', 2, 20, 100, 20, 2, 2000, 1),
+        (3, 3, 'slipway-three', 'app', 3, 30, 100, 30, 3, 3000, 1),
+        (4, 4, 'slipway-four', 'service', 4, 40, 100, 40, 4, 4000, 1),
+        (5, 5, 'slipway-five', 'app', 5, 50, 100, 50, 5, 5000, 1)`
     )
-  `)
-  await source.sendNativeQuery(
-    `INSERT INTO container_metrics (
-      created_at, updated_at, container_name, container_type, cpu_percent,
-      memory_usage, memory_limit, memory_percent, pids, recorded_at,
-      environment
-    ) VALUES
-      (1, 1, 'slipway-one', 'app', 1, 10, 100, 10, 1, 1000, 1),
-      (2, 2, 'slipway-two', 'service', 2, 20, 100, 20, 2, 2000, 1),
-      (3, 3, 'slipway-three', 'app', 3, 30, 100, 30, 3, 3000, 1),
-      (4, 4, 'slipway-four', 'service', 4, 40, 100, 40, 4, 4000, 1),
-      (5, 5, 'slipway-five', 'app', 5, 50, 100, 50, 5, 5000, 1)`
-  )
 
-  await sails.helpers.lookout.ensureObservabilitySchema()
-  const sourceBeforeMaintenance = await source.sendNativeQuery(
-    'SELECT COUNT(*) AS total FROM container_metrics'
-  )
-  expect(
-    (sourceBeforeMaintenance.rows || sourceBeforeMaintenance)[0].total
-  ).toBe(5)
-  expect(await sails.models.containermetric.count()).toBe(0)
+    await require('../../../support/with-legacy-release.cjs')(() =>
+      sails.helpers.lookout.ensureObservabilitySchema()
+    )
+    const sourceBeforeMaintenance = await source.sendNativeQuery(
+      'SELECT COUNT(*) AS total FROM container_metrics'
+    )
+    expect(
+      (sourceBeforeMaintenance.rows || sourceBeforeMaintenance)[0].total
+    ).toBe(5)
+    expect(await sails.models.containermetric.count()).toBe(0)
+  } finally {
+    // Restore the native catalog before the next current-version contract.
+    await source.sendNativeQuery('DROP TABLE IF EXISTS container_metrics')
+  }
 })
 
 test('SQLite query plans use the observability time-shape indexes', async ({

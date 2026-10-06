@@ -2,14 +2,14 @@
  * Explicit, disposable SQLite history benchmark (not a default test lane).
  *
  * Run:
- *   npx sounding test --file tests/contracts/quest-history-budget.test.js --test-concurrency=1
+ *   node tests/fixtures/run-sounding-native.cjs test --file tests/contracts/quest-history-budget.test.js --test-concurrency=1
  *
  * Optional report:
  *   SLIPWAY_QUEST_HISTORY_REPORT=.tmp/quest-history-budget.json <command above>
  *
  * This compares only the initial history JSON envelopes, not complete Inertia
  * pages, network compression, DOM rendering, Docker, or resident job execution.
- * Timings are observations from warmed in-memory SQLite, never pass/fail gates.
+ * Timings are observations from warmed disposable SQLite, never pass/fail gates.
  */
 const assert = require('node:assert/strict')
 const fs = require('node:fs')
@@ -43,8 +43,12 @@ test(
     assert.equal(sails.config.datastores.observability.adapter, 'sails-sqlite')
     assert.equal(
       sails.config.datastores.observability.url,
-      ':memory:',
-      'This benchmark must use disposable in-memory SQLite.'
+      process.env.SLIPWAY_TEST_NATIVE_CONFIG
+        ? JSON.parse(
+            fs.readFileSync(process.env.SLIPWAY_TEST_NATIVE_CONFIG, 'utf8')
+          ).datastores.observability.url
+        : ':memory:',
+      'This benchmark must use the disposable admitted fixture storage.'
     )
     const scope = {
       environmentId: world.current.environments.production.id,
@@ -174,7 +178,9 @@ test(
         node: process.version,
         platform: process.platform,
         arch: process.arch,
-        datastore: 'actual sails-sqlite :memory:'
+        datastore: process.env.SLIPWAY_TEST_NATIVE_CONFIG
+          ? 'actual sails-sqlite native private files'
+          : 'actual sails-sqlite :memory:'
       },
       fixture: {
         events: EVENT_COUNT,
@@ -220,7 +226,7 @@ test(
       },
       limitations: [
         'Synthetic log-heavy fixture',
-        'Warmed in-memory SQLite on one executor',
+        'Warmed disposable SQLite on one executor; storage mode recorded above',
         'Not an end-to-end page or resident runtime benchmark',
         'No production timing, compression or general no-regression claim'
       ]

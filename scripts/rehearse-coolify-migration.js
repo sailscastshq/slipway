@@ -130,7 +130,7 @@ try {
       run('docker', ['image', 'inspect', image, '--format', '{{.Id}}'])
     }
   }
-  const sounding = path.join(root, 'node_modules/.bin/sounding')
+  const sounding = path.join(root, 'tests/fixtures/run-sounding-native.cjs')
   if (!fs.existsSync(sounding))
     throw new Error(
       'Install the checkout lockfile dependencies before this rehearsal.'

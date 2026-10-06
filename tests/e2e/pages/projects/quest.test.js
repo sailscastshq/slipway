@@ -984,7 +984,11 @@ test(
       assert.equal(context.sails.config.hooks.shipwright, false)
       assert.equal(
         context.sails.config.datastores.observability.url,
-        ':memory:'
+        process.env.SLIPWAY_TEST_NATIVE_CONFIG
+          ? JSON.parse(
+              fs.readFileSync(process.env.SLIPWAY_TEST_NATIVE_CONFIG, 'utf8')
+            ).datastores.observability.url
+          : ':memory:'
       )
       assert.equal(context.sails.config.session.url, ':memory:')
       productionBuild = JSON.parse(
@@ -1334,7 +1338,14 @@ if (
       assert.equal(sails.config.hooks.shipwright, false)
       assert.equal(sails.config.hooks.quest, false)
       assert.equal(sails.config.hooks.lookout, false)
-      assert.equal(sails.config.datastores.observability.url, ':memory:')
+      assert.equal(
+        sails.config.datastores.observability.url,
+        process.env.SLIPWAY_TEST_NATIVE_CONFIG
+          ? JSON.parse(
+              fs.readFileSync(process.env.SLIPWAY_TEST_NATIVE_CONFIG, 'utf8')
+            ).datastores.observability.url
+          : ':memory:'
+      )
       const runId = 'synthetic-production-profile-run'
       const jobName = 'export-account-report'
       const state = await installQuestFixture(

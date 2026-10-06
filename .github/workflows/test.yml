@@ -15,7 +15,7 @@ concurrency:
 
 jobs:
   dependency-upgrade:
-    name: Dependency local boot and previous release upgrade
+    name: Previous release 86 coordinated native upgrade
     if: github.event_name != 'workflow_call'
     timeout-minutes: 20
     runs-on: ubuntu-latest
