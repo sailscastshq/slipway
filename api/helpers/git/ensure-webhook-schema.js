@@ -2,6 +2,9 @@ module.exports = {
   friendlyName: 'Ensure webhook delivery schema',
   inputs: {},
   fn: async function () {
+    if (require('../../lib/upgrade-business-bootstrap').coordinated()) {
+      return
+    }
     await sails.getDatastore()
       .sendNativeQuery(`CREATE TABLE IF NOT EXISTS webhook_deliveries (
       id INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL UNIQUE,

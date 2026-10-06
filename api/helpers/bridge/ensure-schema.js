@@ -7,6 +7,9 @@ module.exports = {
   inputs: {},
 
   fn: async function () {
+    if (require('../../lib/upgrade-business-bootstrap').coordinated()) {
+      return
+    }
     const datastore = sails.getDatastore()
 
     await datastore.sendNativeQuery(`

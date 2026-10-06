@@ -2,6 +2,9 @@ module.exports = {
   friendlyName: 'Ensure source operation schema',
   inputs: {},
   fn: async function () {
+    if (require('../../lib/upgrade-business-bootstrap').coordinated()) {
+      return
+    }
     await sails.getDatastore()
       .sendNativeQuery(`CREATE TABLE IF NOT EXISTS source_operations (
       id INTEGER PRIMARY KEY AUTOINCREMENT, project_id INTEGER NOT NULL,

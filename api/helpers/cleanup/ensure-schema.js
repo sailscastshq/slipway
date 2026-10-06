@@ -7,6 +7,9 @@ module.exports = {
   inputs: {},
 
   fn: async function () {
+    if (require('../../lib/upgrade-business-bootstrap').coordinated()) {
+      return require('../../lib/upgrade-business-bootstrap').cleanup()
+    }
     const datastore = sails.getDatastore()
 
     await datastore.sendNativeQuery(`
@@ -46,11 +49,7 @@ module.exports = {
       await datastore.sendNativeQuery(
         'ALTER TABLE cleanup_operations ADD COLUMN request_key TEXT'
       )
-      await datastore.sendNativeQuery(`
-        UPDATE cleanup_operations
-        SET request_key = target_key
-        WHERE request_key IS NULL
-      `)
+      await require('../../lib/upgrade-business-bootstrap').cleanup()
     }
 
     await datastore.sendNativeQuery(`

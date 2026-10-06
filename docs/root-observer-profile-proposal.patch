@@ -1,0 +1,31 @@
+--- a/scripts/upgrade-host.sh
++++ b/scripts/upgrade-host.sh
+@@ -63,7 +63,7 @@
+ # Pass only target/approval metadata via environment to a fixed JSON encoder.
+ # Existing session and encryption secrets remain in Docker's structured config.
+ export SLIPWAY_HOST_OPERATION="$operation" SLIPWAY_HOST_IMAGE="$image" SLIPWAY_HOST_INSTANCE="$instance" SLIPWAY_HOST_APPROVAL="$approval" SLIPWAY_HOST_CONTAINER="$container" SLIPWAY_HOST_CHECKPOINT="$checkpoint" SLIPWAY_HOST_DIRECTORY="$directory" SLIPWAY_HOST_CONTROLLER="$controller"
+-python3 - <<'PY' | docker run --rm -i --name "$controller" --restart=no --pid=host --cap-add=SYS_PTRACE --entrypoint=node --network=none \
++python3 - <<'PY' | docker run --rm -i --name "$controller" --restart=no --pid=host --cap-add=SYS_PTRACE --security-opt apparmor=unconfined --entrypoint=node --network=none \
+   --mount "type=bind,src=/,dst=/slipway-host,readonly,bind-propagation=rslave" \
+   --mount "type=bind,src=/var/run/docker.sock,dst=/var/run/docker.sock" \
+   --mount "type=bind,src=$source_dir,dst=$source_dir$source_readonly" \
+--- a/api/lib/upgrade-broker.js
++++ b/api/lib/upgrade-broker.js
+@@ -76,6 +76,7 @@
+             NetworkMode: 'none',
+             PidMode: 'host',
+             CapAdd: ['SYS_PTRACE'],
++            SecurityOpt: ['apparmor=unconfined'],
+             RestartPolicy: { Name: 'no' },
+             Mounts: [
+               {
+--- a/tests/prelift/upgrade-full-image.test.cjs
++++ b/tests/prelift/upgrade-full-image.test.cjs
+@@ -76,6 +76,7 @@
+       NetworkMode: 'none',
+       PidMode: 'host',
+       CapAdd: ['SYS_PTRACE'],
++      SecurityOpt: ['apparmor=unconfined'],
+       RestartPolicy: { Name: 'no' },
+       Mounts: [
+         {

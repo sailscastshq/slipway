@@ -2,6 +2,9 @@ module.exports = {
   friendlyName: 'Ensure restore operation schema',
   inputs: {},
   fn: async function () {
+    if (require('../../lib/upgrade-business-bootstrap').coordinated()) {
+      return
+    }
     await sails.getDatastore()
       .sendNativeQuery(`CREATE TABLE IF NOT EXISTS restore_operations (
       id INTEGER PRIMARY KEY AUTOINCREMENT, backup_id INTEGER NOT NULL, service_id INTEGER NOT NULL,

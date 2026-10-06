@@ -7,6 +7,9 @@ module.exports = {
   inputs: {},
 
   fn: async function () {
+    if (require('../../lib/upgrade-business-bootstrap').coordinated()) {
+      return require('../../lib/upgrade-business-bootstrap').bearing()
+    }
     const datastore = sails.getDatastore()
 
     await addColumns(datastore, 'apps', [
@@ -97,11 +100,7 @@ module.exports = {
       ['images', "TEXT NOT NULL DEFAULT '[]'"]
     ])
 
-    await datastore.sendNativeQuery(`
-      UPDATE bearing_feedback
-      SET status = 'reviewing'
-      WHERE status = 'open'
-    `)
+    await require('../../lib/upgrade-business-bootstrap').bearingFeedback()
 
     await datastore.sendNativeQuery(`
       CREATE INDEX IF NOT EXISTS bearing_feedback_space_rank
@@ -150,11 +149,7 @@ module.exports = {
 
     await addColumns(datastore, 'bearing_updates', [['slug', 'TEXT']])
 
-    await datastore.sendNativeQuery(`
-      UPDATE bearing_updates
-      SET slug = replace(lower(public_id), '_', '-')
-      WHERE slug IS NULL OR slug = ''
-    `)
+    await require('../../lib/upgrade-business-bootstrap').bearingUpdates()
 
     await datastore.sendNativeQuery(`
       CREATE UNIQUE INDEX IF NOT EXISTS bearing_updates_space_slug

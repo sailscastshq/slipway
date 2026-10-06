@@ -107,6 +107,52 @@ async function checkAgain() {
   }
 }
 
+function dispatchUpgrade(expected, url) {
+  upgradeForm.instanceId = expected.instanceId
+  upgradeForm.approval = expected.reviewHash
+  updating.value = true
+  updatePhase.value = 'starting'
+  upgradeForm.post(url, {
+    preserveState: true,
+    onSuccess(page) {
+      upgradeReceipt.value = page.props.upgrade
+      updatePhase.value = 'waiting'
+      waitForHealthy(expected.version, 600, {
+        id: upgradeReceipt.value?.id,
+        image: expected.image,
+        manifestHash: expected.manifestHash
+      })
+        .then(() => {
+          if (pageAbort.signal.aborted) return
+          updatePhase.value = 'success'
+          window.location.reload()
+        })
+        .catch((error) => {
+          updateError.value = error.message
+          updating.value = false
+          updatePhase.value = ''
+        })
+    },
+    onError(errors) {
+      updateError.value =
+        errors.approval ||
+        'Upgrade was not confirmed. Inspect the saved checkpoint before retrying.'
+      updating.value = false
+      updatePhase.value = ''
+    }
+  })
+}
+
+function resumeUpgrade() {
+  const receipt = upgradeReceipt.value
+  if (!receipt?.id || !receipt.reviewHash || !receipt.instanceId) return
+  updateError.value = null
+  dispatchUpgrade(
+    { ...receipt, version: receipt.targetVersion },
+    `/settings/update/${receipt.id}/resume`
+  )
+}
+
 async function applyUpdate() {
   if (props.coordinated) {
     updateError.value = null
@@ -128,38 +174,16 @@ async function applyUpdate() {
       return
     }
     const plan = reviewedPlan.value
-    upgradeForm.instanceId = plan.instanceId
-    upgradeForm.approval = plan.reviewHash
-    updating.value = true
-    updatePhase.value = 'starting'
-    upgradeForm.post('/settings/update', {
-      preserveState: true,
-      onSuccess(page) {
-        upgradeReceipt.value = page.props.upgrade
-        updatePhase.value = 'waiting'
-        waitForHealthy(plan.identity.manifest.version, 600, {
-          id: upgradeReceipt.value?.id,
-          image: plan.identity.manifest.image,
-          manifestHash: plan.identity.hash
-        })
-          .then(() => {
-            updatePhase.value = 'success'
-            window.location.reload()
-          })
-          .catch((error) => {
-            updateError.value = error.message
-            updating.value = false
-            updatePhase.value = ''
-          })
+    dispatchUpgrade(
+      {
+        instanceId: plan.instanceId,
+        reviewHash: plan.reviewHash,
+        version: plan.identity.manifest.version,
+        image: plan.identity.manifest.image,
+        manifestHash: plan.identity.hash
       },
-      onError(errors) {
-        updateError.value =
-          errors.approval ||
-          'Upgrade was not confirmed. Inspect the saved checkpoint before retrying.'
-        updating.value = false
-        updatePhase.value = ''
-      }
-    })
+      '/settings/update'
+    )
     return
   }
   updating.value = true
@@ -208,18 +232,13 @@ async function waitForHealthy(expectedVersion, maxAttempts = 30, expected) {
 
     const health = await res.json().catch(() => ({}))
     if (expected) {
-      if (
-        health.upgrade?.verified !== true ||
-        health.upgrade.image !== expected.image ||
-        health.upgrade.manifestHash !== expected.manifestHash ||
-        !expected.id
-      )
-        continue
+      if (!expected.id) continue
       const response = await fetch(`/api/v1/system/upgrade/${expected.id}`, {
         signal: AbortSignal.any([pageAbort.signal, AbortSignal.timeout(5000)])
       }).catch(() => null)
       if (!response?.ok) continue
       const status = await response.json()
+      upgradeReceipt.value = status
       if (status.recoveryRequired)
         throw new Error(
           'Upgrade requires the saved recovery checkpoint. Resume it before retrying.'
@@ -227,7 +246,12 @@ async function waitForHealthy(expectedVersion, maxAttempts = 30, expected) {
       if (
         status.phase !== 'ready' ||
         !status.migration?.reconciled ||
-        status.migration.pending.length
+        status.migration.pending.length ||
+        status.migration.manifestHash !== expected.manifestHash ||
+        status.image !== expected.image ||
+        health.upgrade?.verified !== true ||
+        health.upgrade.image !== expected.image ||
+        health.upgrade.manifestHash !== expected.manifestHash
       )
         continue
     }
@@ -336,6 +360,31 @@ function formatDate(dateString) {
     <!-- Content -->
     <div class="flex-1 overflow-y-auto px-4 py-6 sm:px-8 sm:py-8">
       <div class="mx-auto max-w-2xl">
+        <div
+          v-if="upgradeReceipt?.recoveryRequired"
+          role="status"
+          class="mb-6 rounded-lg border border-amber-300 p-5 dark:border-amber-700"
+        >
+          <p class="font-medium text-gray-900 dark:text-white">
+            Saved upgrade requires recovery
+          </p>
+          <p class="mt-2 text-sm text-gray-600 dark:text-gray-400">
+            Resume the reviewed checkpoint before applying another upgrade.
+          </p>
+          <button
+            v-if="
+              upgradeReceipt.id &&
+              upgradeReceipt.reviewHash &&
+              upgradeReceipt.instanceId
+            "
+            type="button"
+            @click="resumeUpgrade"
+            :disabled="updating || upgradeForm.processing"
+            class="mt-4 rounded-md border border-gray-300 px-4 py-2 text-sm font-medium disabled:opacity-50 dark:border-gray-600"
+          >
+            Resume reviewed upgrade
+          </button>
+        </div>
         <!-- ═══ Up to Date ═══ -->
         <div
           v-if="!localUpdateInfo.updateAvailable"
@@ -539,14 +588,17 @@ function formatDate(dateString) {
               </Alert>
               <div class="flex items-center space-x-3">
                 <button
+                  v-if="!coordinated || !upgradeReceipt?.recoveryRequired"
                   @click="applyUpdate"
                   class="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
                 >
                   Try Again
                 </button>
-                <span class="text-sm text-gray-500 dark:text-gray-400"
-                  >or update manually (see below)</span
-                >
+                <span class="text-sm text-gray-500 dark:text-gray-400">{{
+                  coordinated
+                    ? 'or inspect upgrade:status and the saved root checkpoint'
+                    : 'or update manually (see below)'
+                }}</span>
               </div>
             </div>
 

@@ -7,6 +7,9 @@ module.exports = {
   inputs: {},
 
   fn: async function () {
+    if (require('../../lib/upgrade-business-bootstrap').coordinated()) {
+      return require('../../lib/upgrade-business-bootstrap').service()
+    }
     const datastore = sails.getDatastore()
     const result = await datastore.sendNativeQuery(
       'PRAGMA table_info(services)'
@@ -41,9 +44,6 @@ module.exports = {
         )
       }
     }
-    await Service.update({
-      type: 'custom',
-      status: { in: ['creating', 'changing'] }
-    }).set({ status: 'failed' })
+    await require('../../lib/upgrade-business-bootstrap').service()
   }
 }

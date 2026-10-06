@@ -82,8 +82,12 @@ async function main() {
     return error('upgradeHostTarget')
   if (input.operation === 'status') {
     const result = host.status(input.filename)
-    if (result.instanceId !== input.instanceId || result.image !== input.image)
+    if (
+      (input.instanceId && result.instanceId !== input.instanceId) ||
+      result.image !== input.image
+    )
       return error('upgradeHostTarget')
+    if (result.recoveryRequired) process.exitCode = 1
     return process.stdout.write(
       JSON.stringify({ success: true, ...result }) + '\n'
     )
@@ -316,6 +320,9 @@ async function main() {
           : 'upgradeHostRecoveryRequired',
         filename: failure.filename || input.filename || null,
         instanceId,
+        reason: require('../api/lib/upgrade-fence-reasons').has(failure.reason)
+          ? failure.reason
+          : undefined,
         recoveryRequired: true
       }) + '\n'
     )

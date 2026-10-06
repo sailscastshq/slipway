@@ -163,6 +163,7 @@ module.exports.routes = {
   'GET /api/v1/system/upgrade/:id': 'system/upgrade-status',
   'POST /api/v1/system/upgrade/:id/resume': 'system/resume-upgrade',
   'POST /settings/update': 'system/apply-upgrade',
+  'POST /settings/update/:id/resume': 'system/resume-upgrade',
   'GET /api/v1/system/stream-update': 'system/stream-update',
 
   // Bosun (self-administration dashboard)

@@ -231,6 +231,33 @@ module.exports = function createBroker({
     }
   }
   return {
+    async start(id) {
+      const value = metadata(id)
+      const state = host.read(value.filename)
+      if (state.phase === 'ready') return
+      const controller = await docker(
+        'GET',
+        `/containers/${value.controllerId}/json`,
+        undefined,
+        timeoutMs
+      )
+      if (
+        controller.Config?.Labels?.['io.slipway.upgrade.instance'] !==
+          instanceId ||
+        controller.Config?.Labels?.['io.slipway.upgrade.controller'] !==
+          controller.Name?.replace(/^\//, '')
+      )
+        fail('upgradeHostTarget')
+      if (controller.State.Running) return
+      if (controller.State.Status !== 'created')
+        fail('upgradeDispatchUnconfirmed')
+      await docker(
+        'POST',
+        `/containers/${value.controllerId}/start`,
+        undefined,
+        timeoutMs
+      )
+    },
     async plan(image) {
       const result = await invoke({ operation: 'plan', image })
       if (result.instanceId !== instanceId) fail('upgradeHostTarget')

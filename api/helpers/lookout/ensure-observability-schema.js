@@ -7,6 +7,9 @@ module.exports = {
   inputs: {},
 
   fn: async function () {
+    if (require('../../lib/upgrade-business-bootstrap').coordinated()) {
+      return require('../../lib/upgrade-business-bootstrap').lookout()
+    }
     const datastore = sails.getDatastore('observability')
 
     await datastore.sendNativeQuery(`CREATE TABLE IF NOT EXISTS quest_runs (
@@ -172,10 +175,6 @@ module.exports = {
       'telemetry_metrics'
     ]) {
       await datastore.sendNativeQuery(
-        `UPDATE ${table} SET created_at=? WHERE created_at IS NULL OR created_at>?`,
-        [Date.now(), Date.now()]
-      )
-      await datastore.sendNativeQuery(
         `CREATE INDEX IF NOT EXISTS ${table}_receipt_retention ON ${table} (created_at, id)`
       )
     }
@@ -232,6 +231,6 @@ module.exports = {
       )
     }
 
-    return { ready: true }
+    return require('../../lib/upgrade-business-bootstrap').lookout()
   }
 }

@@ -87,11 +87,13 @@ async function action(method, context, inputs, dependencies = {}) {
             approval: inputs.approval,
             requestedInstance: inputs.instanceId
           })
-    // No source writer stops before the accepted response is flushed. A lost
-    // response keeps the reviewed checkpoint and discards the unstarted helper.
+    // Inertia must receive its redirected page and durable receipt before the
+    // source stops. The view starts the saved helper after that page is flushed.
+    const inertia = Boolean(req.get('X-Inertia'))
     let finished = false
     res.once('finish', () => {
       finished = true
+      if (inertia) return
       accepted
         .start()
         .catch(() =>
@@ -103,7 +105,7 @@ async function action(method, context, inputs, dependencies = {}) {
     res.once('close', () => {
       if (!finished) accepted.cancel().catch(() => {})
     })
-    if (req.get('X-Inertia'))
+    if (inertia)
       return res
         .status(303)
         .set('Location', `/settings/update?upgradeId=${accepted.result.id}`)

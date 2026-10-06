@@ -1,6 +1,9 @@
 module.exports = {
   friendlyName: 'Ensure backup object storage schema',
   fn: async function () {
+    if (require('../../lib/upgrade-business-bootstrap').coordinated()) {
+      return
+    }
     const datastore = sails.getDatastore()
     const result = await datastore.sendNativeQuery('PRAGMA table_info(backups)')
     const columns = new Set(

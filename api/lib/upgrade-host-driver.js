@@ -137,6 +137,14 @@ module.exports = function createHostDriver({
           fail()
         controllerId = self.Id
       }
+      // Prove basic host process visibility before taking the lock or stopping
+      // the source. The complete writer scan still runs after freeze and again
+      // throughout backup/preflight/DDL; this precheck cannot authorize DDL.
+      await runBounded({
+        operation: 'checkHostVisibility',
+        input: { hostPidNamespace: namespace },
+        timeoutMs: remaining()
+      })
       lock = path.join(
         root,
         `instance-${ledger.digest(input.reviewed.instanceId)}.lock`

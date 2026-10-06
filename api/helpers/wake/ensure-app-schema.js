@@ -2,6 +2,9 @@ module.exports = {
   friendlyName: 'Ensure Wake app schema',
   inputs: {},
   fn: async function () {
+    if (require('../../lib/upgrade-business-bootstrap').coordinated()) {
+      return
+    }
     const db = sails.getDatastore()
     const result = await db.sendNativeQuery('PRAGMA table_info(apps)')
     const names = new Set((result.rows || result).map((column) => column.name))

@@ -220,6 +220,10 @@ async function execute({ filename, driver, timeoutMs, expectedReviewHash }) {
   }
   async function checkpoint(phase) {
     state.phase = phase
+    if (phase === 'ready') {
+      delete state.errorCode
+      delete state.errorReason
+    }
     save(filename, state)
   }
   try {
@@ -364,6 +368,9 @@ async function execute({ filename, driver, timeoutMs, expectedReviewHash }) {
     return status(filename)
   } catch (error) {
     state.phase = 'recoveryRequired'
+    state.errorReason = require('./upgrade-fence-reasons').has(error.reason)
+      ? error.reason
+      : null
     state.errorCode = /^upgrade[A-Za-z]+$/.test(error.code || '')
       ? error.code
       : 'upgradeHostRecoveryRequired'
@@ -372,7 +379,7 @@ async function execute({ filename, driver, timeoutMs, expectedReviewHash }) {
       new Error(
         'Host upgrade is stopped. Resume this checkpoint; previous storage and backups are retained.'
       ),
-      { code: state.errorCode, filename }
+      { code: state.errorCode, reason: state.errorReason, filename }
     )
   } finally {
     if (control) {
@@ -405,7 +412,8 @@ function status(filename) {
     phase: state.phase,
     migration: receipt,
     recoveryRequired: state.phase === 'recoveryRequired',
-    errorCode: state.errorCode || null
+    errorCode: state.errorCode || null,
+    errorReason: state.errorReason || null
   }
 }
 module.exports = {

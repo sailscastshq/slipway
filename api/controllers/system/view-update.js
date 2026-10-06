@@ -17,9 +17,19 @@ module.exports = {
     let upgrade = null
     if (upgradeId) {
       try {
-        upgrade = (
-          await require('../../lib/system-upgrade-action').broker(this.req)
-        ).status(upgradeId)
+        const broker = await require('../../lib/system-upgrade-action').broker(
+          this.req
+        )
+        upgrade = broker.status(upgradeId)
+        this.res.once('finish', () => {
+          broker
+            .start(upgradeId)
+            .catch(() =>
+              sails.log.warn(
+                'Upgrade dispatch outcome is unconfirmed; inspect the saved checkpoint.'
+              )
+            )
+        })
       } catch {
         upgrade = { id: upgradeId, recoveryRequired: true }
       }

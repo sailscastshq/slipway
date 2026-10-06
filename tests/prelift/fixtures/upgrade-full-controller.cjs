@@ -55,7 +55,8 @@ async function main() {
       ['hostData', '/slipway-host' + saved?.reviewed.sourceDirectory]
     ]) {
       try {
-        fs.statSync(filename)
+        if (name === 'nativeInitMaps') fs.readFileSync(filename)
+        else fs.statSync(filename)
         probes[name] = 'readable'
       } catch (nativeError) {
         probes[name] = ['EACCES', 'EPERM', 'ENOENT'].includes(nativeError.code)
@@ -66,6 +67,11 @@ async function main() {
     if (saved && !saved.stage) {
       const observer = require('/app/api/lib/upgrade-writer-observer')
       const self = await docker('GET', `/containers/${input.controller}/json`)
+      probes.profile = ['docker-default', 'unconfined'].includes(
+        self.AppArmorProfile
+      )
+        ? self.AppArmorProfile
+        : 'unconfirmed'
       try {
         await observer.observeWriters({
           databases: host.services(
@@ -99,6 +105,9 @@ async function main() {
     result = {
       success: false,
       code: error.code,
+      reason: require('/app/api/lib/upgrade-fence-reasons').has(error.reason)
+        ? error.reason
+        : undefined,
       filename: error.filename,
       probes,
       storageStaged: Boolean(saved?.stage),

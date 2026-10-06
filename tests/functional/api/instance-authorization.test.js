@@ -42,6 +42,11 @@ const protectedRoutes = [
     'post',
     '/settings/update',
     { instanceId: 'fixture', approval: 'a'.repeat(64) }
+  ],
+  [
+    'post',
+    '/settings/update/11111111-1111-1111-1111-111111111111/resume',
+    { instanceId: 'fixture', approval: 'a'.repeat(64) }
   ]
 ]
 

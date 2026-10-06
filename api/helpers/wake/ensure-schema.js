@@ -2,6 +2,9 @@ module.exports = {
   friendlyName: 'Ensure Wake analytics schema',
   inputs: {},
   fn: async function () {
+    if (require('../../lib/upgrade-business-bootstrap').coordinated()) {
+      return require('../../lib/upgrade-business-bootstrap').wake()
+    }
     sails.wakeStorageReady = false
     if (sails.wakeStorageFallback)
       throw Error('Wake persistent storage is unavailable')

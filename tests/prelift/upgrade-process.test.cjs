@@ -276,3 +276,16 @@ test(
     }
   }
 )
+
+test('bounded host visibility precheck rejects an untrusted namespace and never returns writer authorization', async () => {
+  await assert.rejects(
+    runBounded({
+      operation: 'checkHostVisibility',
+      input: { hostPidNamespace: 'untrusted-namespace' },
+      timeoutMs: 5000
+    }),
+    (error) =>
+      error.code === 'upgradeFenceUnproved' &&
+      error.reason === 'procUnobservable'
+  )
+})

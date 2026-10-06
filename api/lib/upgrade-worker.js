@@ -63,6 +63,11 @@ process.on('message', async (message) => {
           options
         )
         break
+      case 'checkHostVisibility':
+        value = require('./upgrade-writer-observer').checkHostVisibility(
+          options
+        )
+        break
       case 'status':
         value = coordinator.status(options.filename)
         break

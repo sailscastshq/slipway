@@ -2,6 +2,9 @@ module.exports = {
   friendlyName: 'Ensure authentication schema',
   inputs: {},
   fn: async function () {
+    if (require('../../lib/upgrade-business-bootstrap').coordinated()) {
+      return
+    }
     const datastore = sails.getDatastore()
     for (const table of ['users', 'cli_tokens']) {
       const result = await datastore.sendNativeQuery(

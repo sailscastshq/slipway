@@ -52,7 +52,7 @@ for (const inertia of [false, true]) {
       assert.equal(started, 0)
       if (finished) res.emit('finish')
       res.emit('close')
-      assert.equal(started, finished ? 1 : 0)
+      assert.equal(started, finished && !inertia ? 1 : 0)
       assert.equal(canceled, finished ? 0 : 1)
     }
   })
@@ -81,3 +81,40 @@ for (const inertia of [false, true]) {
     } else assert.equal(res.body.code, 'upgradeHostApproval')
   })
 }
+
+test('Inertia redirected receipt page flushes before its owned controller starts', async () => {
+  const module = require('../../api/lib/system-upgrade-action')
+  const previousBroker = module.broker,
+    previousSails = global.sails
+  const res = response()
+  let started = 0
+  const saved = { id: 'fixture-id', phase: 'reviewed' }
+  try {
+    global.sails = {
+      helpers: {
+        system: { checkForUpdates: async () => ({ updateAvailable: true }) }
+      },
+      log: { warn() {} }
+    }
+    module.broker = async () => ({
+      status: () => saved,
+      start: async (id) => {
+        assert.equal(id, saved.id)
+        started++
+      }
+    })
+    const result =
+      await require('../../api/controllers/system/view-update').fn.call(
+        { req: {}, res },
+        { upgradeId: saved.id }
+      )
+    assert.deepEqual(result.props.upgrade, saved)
+    assert.equal(started, 0)
+    res.emit('finish')
+    assert.equal(started, 1)
+  } finally {
+    module.broker = previousBroker
+    if (previousSails === undefined) delete global.sails
+    else global.sails = previousSails
+  }
+})

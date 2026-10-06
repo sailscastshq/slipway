@@ -7,6 +7,9 @@ module.exports = {
   inputs: {},
 
   fn: async function () {
+    if (require('../../lib/upgrade-business-bootstrap').coordinated()) {
+      return require('../../lib/upgrade-business-bootstrap').configuration()
+    }
     const datastore = sails.getDatastore()
 
     await addColumns(datastore, 'environments', [
@@ -21,19 +24,7 @@ module.exports = {
       ['config_manifest', "TEXT NOT NULL DEFAULT '[]'"]
     ])
 
-    const apps = await App.find().decrypt()
-    for (const app of apps) {
-      if (app.secureEnvVars !== null && app.secureEnvVars !== undefined) {
-        continue
-      }
-      const legacyValues = app.envVars || {}
-      if (Object.keys(legacyValues).length === 0) continue
-
-      await App.updateOne({ id: app.id }).set({
-        secureEnvVars: legacyValues,
-        envVars: {}
-      })
-    }
+    await require('../../lib/upgrade-business-bootstrap').configuration()
   }
 }
 

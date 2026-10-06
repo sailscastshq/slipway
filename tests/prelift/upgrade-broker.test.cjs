@@ -39,11 +39,20 @@ function fixture(run) {
         assert.equal(input.grant.claims.reviewHash, reviewed.reviewHash)
       }
       const id = 'fixture-' + containers.size
-      containers.set(id, { input, started: false })
+      containers.set(id, { input, body, started: false })
       return { Id: id }
     }
     const id = route.split('/')[2].split('?')[0]
     const entry = containers.get(id)
+    if (route.endsWith('/json'))
+      return {
+        Name: '/' + entry.input.controllerContainer,
+        Config: { Labels: entry.body.Labels },
+        State: {
+          Running: entry.started,
+          Status: entry.started ? 'running' : 'created'
+        }
+      }
     if (route.endsWith('/start')) {
       entry.started = true
       return null
@@ -103,8 +112,8 @@ test('broker creates a durable accepted checkpoint before starting its independe
     assert.equal(accepted.result.manifestHash, reviewed.identity.hash)
     assert.equal(broker.latest().id, accepted.result.id)
     assert.equal(broker.status(accepted.result.id).phase, 'reviewed')
-    await accepted.start()
-    await accepted.start()
+    await broker.start(accepted.result.id)
+    await broker.start(accepted.result.id)
     assert.equal(execution.started, true)
   }))
 test('broker rejected approvals never prepare or launch migration work', () =>

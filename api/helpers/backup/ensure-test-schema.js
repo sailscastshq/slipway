@@ -1,6 +1,9 @@
 module.exports = {
   friendlyName: 'Ensure restore test schema',
   fn: async function () {
+    if (require('../../lib/upgrade-business-bootstrap').coordinated()) {
+      return
+    }
     await sails.getDatastore()
       .sendNativeQuery(`CREATE TABLE IF NOT EXISTS restore_tests (
       id INTEGER PRIMARY KEY AUTOINCREMENT, backup INTEGER NOT NULL, service INTEGER NOT NULL,

@@ -50,6 +50,33 @@ function deviceParts(number) {
 function overlap(first, second) {
   return first === second || first.startsWith(second + path.sep)
 }
+function checkHostVisibility({ hostPidNamespace }) {
+  if (
+    process.platform !== 'linux' ||
+    process.getuid() !== 0 ||
+    !hostPidNamespace ||
+    fs.readlinkSync('/proc/self/ns/pid') !== hostPidNamespace
+  )
+    fail('procUnobservable')
+  try {
+    const before = processIdentity(1)
+    for (const fd of fs.readdirSync('/proc/1/fd')) {
+      try {
+        fs.statSync(`/proc/1/fd/${fd}`)
+      } catch (error) {
+        if (error.code !== 'ENOENT') throw error
+      }
+    }
+    fs.readFileSync('/proc/1/maps')
+    if (!sameProcess(before, processIdentity(1))) fail('processChanged')
+  } catch (error) {
+    fail(
+      error.code === 'upgradeFenceUnproved' ? error.reason : 'procUnobservable'
+    )
+  }
+  // This is a capability precheck, never a stopped-writer receipt.
+  return { observable: true }
+}
 async function observeWriters({
   databases,
   controller,
@@ -299,6 +326,7 @@ async function observeWriters({
 // separately enforce exclusive Docker AND host writer control throughout the
 // backup/DDL window. Never set exclusiveController from this result alone.
 module.exports = {
+  checkHostVisibility,
   observeWriters,
   processIdentity,
   sameProcess,

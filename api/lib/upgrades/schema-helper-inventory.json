@@ -60,7 +60,10 @@
       "helper": "bearing.ensureSchema",
       "source": "api/helpers/bearing/ensure-schema.js",
       "datastore": "default",
-      "responsibilities": ["native schema"]
+      "responsibilities": [
+        "native schema",
+        "feedback status and public update slug data backfill"
+      ]
     },
     {
       "helper": "wake.ensureAppSchema",

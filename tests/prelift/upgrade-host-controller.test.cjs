@@ -158,6 +158,8 @@ test('failed target health keeps both storage trees and resumes the committed ch
       timeoutMs: 30000
     })
     assert.equal(after.phase, 'ready')
+    assert.equal(after.errorCode, null)
+    assert.equal(after.errorReason, null)
     assert.ok(!events.includes('restore'))
   }))
 test('wrong review approval fails before stopping writers or creating host state', () =>
@@ -272,4 +274,28 @@ test('a completed coordinated host can transition to another pinned image preser
       )
       db.close()
     }
+  }))
+
+test('unobservable host preflight retains a reviewed checkpoint without freezing or staging the source', () =>
+  runFixture(async ({ options, events, driver, source }) => {
+    driver.acquire = async () => {
+      throw Object.assign(new Error('unconfirmed'), {
+        code: 'upgradeFenceUnproved',
+        reason: 'procUnobservable'
+      })
+    }
+    let failure
+    try {
+      await host.apply(options)
+    } catch (error) {
+      failure = error
+    }
+    assert.equal(failure.code, 'upgradeFenceUnproved')
+    assert.equal(failure.reason, 'procUnobservable')
+    assert.deepEqual(events, [])
+    const state = host.read(failure.filename)
+    assert.equal(state.phase, 'recoveryRequired')
+    assert.equal(state.errorReason, 'procUnobservable')
+    assert.equal(state.stage, null)
+    assert.ok(fs.existsSync(source))
   }))

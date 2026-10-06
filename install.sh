@@ -79,7 +79,6 @@ run_slipway_container() {
         -e SLIPWAY_APP_PORT_HOST="$SLIPWAY_APP_PORT_HOST" \
         -e SLIPWAY_APP_PORT_START="$SLIPWAY_APP_PORT_START" \
         -e SLIPWAY_APP_PORT_END="$SLIPWAY_APP_PORT_END" \
-        -e SLIPWAY_SETUP_TOKEN="${SLIPWAY_SETUP_TOKEN:-}" \
         --env-file "$SLIPWAY_ENV_FILE" \
         "$SLIPWAY_IMAGE"
 }
@@ -330,6 +329,53 @@ else
     echo -e "${GREEN}Docker BuildKit installed${NC}"
 fi
 
+# Resolve the target before changing proxy/configuration or creating app storage.
+if [ -z "$SLIPWAY_VERSION" ]; then
+    echo "Resolving latest Slipway release..."
+    RELEASE_JSON=$(curl -fsSL https://api.github.com/repos/sailscastshq/slipway/releases/latest 2>/dev/null || true)
+    SLIPWAY_VERSION=$(printf '%s' "$RELEASE_JSON" | sed -n 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -n 1)
+
+    if [ -z "$SLIPWAY_VERSION" ]; then
+        echo -e "${RED}Could not resolve the latest Slipway release.${NC}"
+        echo "Pass an explicit version, for example: bash install.sh 0.0.49"
+        echo "To intentionally use the moving tag, pass: bash install.sh latest"
+        exit 1
+    fi
+fi
+
+if [ "$SLIPWAY_VERSION" != "latest" ]; then
+    SLIPWAY_VERSION="${SLIPWAY_VERSION#v}"
+fi
+
+SLIPWAY_IMAGE="$SLIPWAY_IMAGE_REPOSITORY:$SLIPWAY_VERSION"
+if [ "$SLIPWAY_SKIP_PULL" = true ]; then
+    echo "Using local Slipway image $SLIPWAY_IMAGE"
+else
+    echo "Pulling Slipway image $SLIPWAY_IMAGE..."
+    docker pull "$SLIPWAY_IMAGE"
+fi
+docker pull alpine
+
+# Coordinated releases never validate against shared live data or use legacy rollback.
+TARGET_COORDINATED=$(docker run --rm --network none --entrypoint node "$SLIPWAY_IMAGE" -e 'const v=require("./package.json").version; console.log(require("semver").gte(v,"0.0.88") ? "yes" : "no")')
+if [ "$TARGET_COORDINATED" = yes ]; then
+    SLIPWAY_IMAGE=$(docker image inspect --format '{{range .RepoDigests}}{{println .}}{{end}}' "$SLIPWAY_IMAGE" | awk -v prefix="$SLIPWAY_IMAGE_REPOSITORY@sha256:" 'index($0,prefix)==1 { print; exit }')
+    if [[ ! "$SLIPWAY_IMAGE" =~ ^ghcr\.io/sailscastshq/slipway@sha256:[a-f0-9]{64}$ ]]; then
+        echo "Coordinated installation requires a pinned official image digest." >&2
+        exit 2
+    fi
+    SLIPWAY_UPGRADE_STATE_DIR="${SLIPWAY_UPGRADE_STATE_DIR:-/var/lib/slipway/upgrades}"
+    install -d -m 700 "$SLIPWAY_UPGRADE_STATE_DIR"
+    docker run --rm --network none --entrypoint cat "$SLIPWAY_IMAGE" scripts/upgrade-host.sh > "$SLIPWAY_UPGRADE_STATE_DIR/upgrade-host.sh"
+    chmod 700 "$SLIPWAY_UPGRADE_STATE_DIR/upgrade-host.sh"
+    if container_exists "$SLIPWAY_CONTAINER"; then
+        echo "Review the native upgrade plan before replacing this installation:"
+        printf 'bash %q plan --image %q --container %q --state-dir %q\n' "$SLIPWAY_UPGRADE_STATE_DIR/upgrade-host.sh" "$SLIPWAY_IMAGE" "$SLIPWAY_CONTAINER" "$SLIPWAY_UPGRADE_STATE_DIR"
+        echo "Then apply using the returned exact --instance and --approve-plan values. Failed upgrades retain a resume checkpoint."
+        exit 2
+    fi
+fi
+
 # 3. Create network for Slipway and apps
 echo "Creating Docker network..."
 docker network create "$SLIPWAY_NETWORK" 2>/dev/null || true
@@ -439,51 +485,8 @@ docker run -d \
     lucaslorentz/caddy-docker-proxy:2.13.1
 echo -e "${GREEN}Caddy proxy running${NC}"
 
-# 7. Resolve and pull the target Slipway image
-if [ -z "$SLIPWAY_VERSION" ]; then
-    echo "Resolving latest Slipway release..."
-    RELEASE_JSON=$(curl -fsSL https://api.github.com/repos/sailscastshq/slipway/releases/latest 2>/dev/null || true)
-    SLIPWAY_VERSION=$(printf '%s' "$RELEASE_JSON" | sed -n 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -n 1)
-
-    if [ -z "$SLIPWAY_VERSION" ]; then
-        echo -e "${RED}Could not resolve the latest Slipway release.${NC}"
-        echo "Pass an explicit version, for example: bash install.sh 0.0.49"
-        echo "To intentionally use the moving tag, pass: bash install.sh latest"
-        exit 1
-    fi
-fi
-
-if [ "$SLIPWAY_VERSION" != "latest" ]; then
-    SLIPWAY_VERSION="${SLIPWAY_VERSION#v}"
-fi
-
-SLIPWAY_IMAGE="$SLIPWAY_IMAGE_REPOSITORY:$SLIPWAY_VERSION"
-if [ "$SLIPWAY_SKIP_PULL" = true ]; then
-    echo "Using local Slipway image $SLIPWAY_IMAGE"
-else
-    echo "Pulling Slipway image $SLIPWAY_IMAGE..."
-    docker pull "$SLIPWAY_IMAGE"
-fi
-docker pull alpine
-
-# Coordinated releases never validate against shared live data or use legacy rollback.
-TARGET_COORDINATED=$(docker run --rm --network none --entrypoint node "$SLIPWAY_IMAGE" -e 'const v=require("./package.json").version; console.log(require("semver").gte(v,"0.0.88") ? "yes" : "no")')
+# Initialize the previously verified coordinated fresh target after configuration.
 if [ "$TARGET_COORDINATED" = yes ]; then
-    SLIPWAY_IMAGE=$(docker image inspect --format '{{range .RepoDigests}}{{println .}}{{end}}' "$SLIPWAY_IMAGE" | awk -v prefix="$SLIPWAY_IMAGE_REPOSITORY@sha256:" 'index($0,prefix)==1 { print; exit }')
-    if [[ ! "$SLIPWAY_IMAGE" =~ ^ghcr\.io/sailscastshq/slipway@sha256:[a-f0-9]{64}$ ]]; then
-        echo "Coordinated installation requires a pinned official image digest." >&2
-        exit 2
-    fi
-    SLIPWAY_UPGRADE_STATE_DIR="${SLIPWAY_UPGRADE_STATE_DIR:-/var/lib/slipway/upgrades}"
-    install -d -m 700 "$SLIPWAY_UPGRADE_STATE_DIR"
-    docker run --rm --network none --entrypoint cat "$SLIPWAY_IMAGE" scripts/upgrade-host.sh > "$SLIPWAY_UPGRADE_STATE_DIR/upgrade-host.sh"
-    chmod 700 "$SLIPWAY_UPGRADE_STATE_DIR/upgrade-host.sh"
-    if container_exists "$SLIPWAY_CONTAINER"; then
-        echo "Review the native upgrade plan before replacing this installation:"
-        printf 'bash %q plan --image %q --container %q --state-dir %q\n' "$SLIPWAY_UPGRADE_STATE_DIR/upgrade-host.sh" "$SLIPWAY_IMAGE" "$SLIPWAY_CONTAINER" "$SLIPWAY_UPGRADE_STATE_DIR"
-        echo "Then apply using the returned exact --instance and --approve-plan values. Failed upgrades retain a resume checkpoint."
-        exit 2
-    fi
     # This never-started container supplies the intended launch config. Root
     # initialization independently rejects any nonempty native catalog/storage.
     run_slipway_container "$SLIPWAY_CONTAINER" "$SLIPWAY_PORT" create
