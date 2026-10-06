@@ -50,7 +50,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       # Corrected child scheduler suppression contract. Never use 788d767.
-      SLIPWAY_QUEST_UPSTREAM_SHA: 99459e2ad931b0e9dcb2815c113a70349add7b1f
+      SLIPWAY_QUEST_UPSTREAM_SHA: 36d182d5fe26f083319bc810e2f1bc21806a3ac9
       SLIPWAY_QUEST_UPSTREAM_ROOT: ${{ github.workspace }}/.tmp/quest-upstream
       SLIPWAY_QUEST_PACKED_ROOT: ${{ github.workspace }}/.tmp/quest-packed-consumer
       SLIPWAY_QUEST_CONSUMER_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
