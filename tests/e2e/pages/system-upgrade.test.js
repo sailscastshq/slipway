@@ -169,7 +169,9 @@ test(
     await page.raw
       .getByText('Upgrade plan could not be confirmed.', { exact: true })
       .waitFor()
-    await review.focus()
+    await page.raw
+      .getByRole('button', { name: 'Try Again', exact: true })
+      .focus()
     await page.raw.keyboard.press('Enter')
     await page.raw
       .getByRole('button', { name: 'Host command ready', exact: true })

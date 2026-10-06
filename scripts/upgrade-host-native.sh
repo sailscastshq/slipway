@@ -2,24 +2,26 @@
 # Transient host root command. No service installation or policy changes.
 set -euo pipefail
 umask 077
+usage() { printf '%s\n' '{"success":false,"code":"upgradeHostInput"}' >&2; exit 2; }
 operation="${1:-}"; if [ "$#" -gt 0 ]; then shift; fi
 bundle=""; checksum=""; image=""; instance=""; approval=""; checkpoint=""
 directory="/var/lib/slipway/upgrades"; container="slipway"; format=""
 while [ "$#" -gt 0 ]; do
   if [ "$1" = --ndjson ]; then format=--ndjson; shift; continue; fi
-  if [ "$#" -lt 2 ] || [ -z "$2" ]; then exit 2; fi
+  if [ "$#" -lt 2 ] || [ -z "$2" ]; then usage; fi
   case "$1" in
     --bundle) bundle="$2" ;; --bundle-sha256) checksum="$2" ;; --image) image="$2" ;;
     --instance) instance="$2" ;; --approve-plan) approval="$2" ;; --checkpoint) checkpoint="$2" ;;
-    --state-dir) directory="$2" ;; --container) container="$2" ;; *) exit 2 ;;
+    --state-dir) directory="$2" ;; --container) container="$2" ;; *) usage ;;
   esac
   shift 2
 done
-case "$operation" in verify|plan|apply|initialize|status|resume) ;; *) exit 2 ;; esac
+case "$operation" in verify|plan|apply|initialize|status|resume) ;; *) usage ;; esac
 if [ "$(id -u)" != 0 ] || [ "$(uname -s)" != Linux ] || [[ ! "$checksum" =~ ^[a-f0-9]{64}$ ]] || { [ "$operation" != verify ] && [[ ! "$image" =~ ^ghcr\.io/sailscastshq/slipway@sha256:[a-f0-9]{64}$ ]]; }; then
   printf '%s\n' '{"success":false,"code":"upgradeHostEnvironment"}' >&2; exit 2
 fi
-if { [ "$operation" = apply ] || [ "$operation" = resume ]; } && { [ -z "$instance" ] || [[ ! "$approval" =~ ^[a-f0-9]{64}$ ]]; }; then exit 2; fi
+if { [ "$operation" = apply ] || [ "$operation" = resume ]; } && { [ -z "$instance" ] || [[ ! "$approval" =~ ^[a-f0-9]{64}$ ]]; }; then usage; fi
+if { [ "$operation" = status ] || [ "$operation" = resume ]; } && [ -z "$checkpoint" ]; then usage; fi
 export SLIPWAY_NATIVE_BUNDLE="$bundle" SLIPWAY_NATIVE_SHA="$checksum" SLIPWAY_NATIVE_STATE="$directory"
 extracted="$(python3 - <<'PY'
 import os,sys,stat,hashlib,tarfile,tempfile,json,subprocess,platform,pathlib,shutil
