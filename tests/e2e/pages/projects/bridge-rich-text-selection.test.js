@@ -121,10 +121,53 @@ for (const browser of ['desktop', 'mobile']) {
         })
         await page.raw.keyboard.press('Enter')
         await expect(editor.locator('p strong')).toHaveText(text)
+        const selection = await editor.evaluate((element) =>
+          element.editor.state.selection.toJSON()
+        )
+        await page.raw.keyboard.press('Alt+F10')
+        const headingTool = page.raw.getByRole('button', {
+          name: 'Heading',
+          exact: true
+        })
+        await expect(headingTool).toBeFocused()
+        expect(
+          await headingTool.evaluate((element) => {
+            const style = getComputedStyle(element)
+            return (
+              element.matches(':focus-visible') &&
+              style.outlineStyle !== 'none' &&
+              parseFloat(style.outlineWidth) > 0
+            )
+          })
+        ).toBe(true)
+        await page.raw.keyboard.press('ArrowRight')
+        await expect(
+          page.raw.getByRole('button', { name: 'Bold', exact: true })
+        ).toBeFocused()
+        await page.raw.keyboard.press('Escape')
+        await expect(editor).toBeFocused()
+        expect(
+          await editor.evaluate((element) =>
+            element.editor.state.selection.toJSON()
+          )
+        ).toEqual(selection)
         const out = path.resolve('.tmp/screenshots/issue-682')
         fs.mkdirSync(out, { recursive: true })
         for (const colorScheme of ['light', 'dark']) {
           await page.raw.emulateMedia({ colorScheme })
+          await expect(editor).toBeFocused()
+          expect(
+            await editor.evaluate((element) => {
+              const surface = getComputedStyle(element)
+              const wrapper = getComputedStyle(
+                element.closest('[data-slot="rich-text"]')
+              )
+              return (
+                surface.outlineStyle === 'none' &&
+                wrapper.outlineStyle === 'none'
+              )
+            })
+          ).toBe(true)
           await page.screenshot(path.join(out, `${browser}-${colorScheme}.png`))
         }
         expect(page).toHaveNoJavascriptErrors()

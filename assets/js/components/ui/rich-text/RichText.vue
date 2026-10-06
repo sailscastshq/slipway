@@ -749,7 +749,7 @@ defineExpose({
     :style="attrs.style"
     :class="
       twMerge(
-        'focus-within:outline-gray-950/15 data-disabled:opacity-50 relative w-full min-w-0 rounded-xl border border-gray-200 bg-white text-gray-950 shadow-sm focus-within:border-gray-400 focus-within:outline-2 focus-within:outline-offset-2 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-100 dark:focus-within:border-gray-600 dark:focus-within:outline-white/20',
+        'data-disabled:opacity-50 relative w-full min-w-0 rounded-xl border border-gray-200 bg-white text-gray-950 shadow-sm focus-within:border-gray-400 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-100 dark:focus-within:border-gray-600',
         attrs.class
       )
     "

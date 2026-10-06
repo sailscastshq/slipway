@@ -34,3 +34,19 @@ main at p strong, while its native-selection precondition passes. The patched
 source was restored byte-for-byte after this baseline comparison.
 Synthetic local metadata/records only; no production commands or data writes.
 Screenshots: `.tmp/screenshots/issue-682/{desktop,mobile}-{light,dark}.png`.
+
+## Approved focus-decoration correction
+
+The delivered focused screenshot showed the global `*:focus-visible` brand
+outline on the rich-text contenteditable surface, overriding `outline-none`.
+The wrapper also applied a focus-within outline. The correction excludes only
+`[data-slot="rich-text-content"]` from the global outline rule and removes only
+the wrapper outline utilities. Toolbar focus, borders, disabled states and
+selected-image outlines remain intact.
+
+Refreshed against main `23cefa7c38c3421f317e94b28e112c6f314a84c5` with its exact
+lockfile installed. The unchanged original journey and desktop/mobile regression
+pass 3/3 (25.45s). Added real Alt+F10, ArrowRight and Escape checks verify visible
+keyboard focus on toolbar controls and return to the same editor selection.
+Light/dark captures assert actual editor focus with no surface/wrapper outline.
+The same four existing Library screenshot identities are replaced, not copied.
