@@ -173,7 +173,7 @@ function prepare(service) {
   }
 }
 
-async function execute(service, prepared, beforeCommit) {
+async function execute(service, prepared, beforeCommit, assertBudget) {
   const source = { release: registry.version, checksum }
   const models = { release: source }
   const target = {
@@ -224,6 +224,7 @@ async function execute(service, prepared, beforeCommit) {
     openPostgresSession: () =>
       fail('Release migrations only operate on Slipway SQLite databases.'),
     requireBackup: true,
+    assertBudget,
     beforeCommit: async (input) => {
       await beforeCommit?.(input)
       input.database.exec(
@@ -252,10 +253,57 @@ async function execute(service, prepared, beforeCommit) {
 // Preflight never executes SQL against live storage. All datastores pass clone
 // execution before the first live transaction. Each live step has its own
 // verified backup and transaction receipt, so a restart resumes safely.
-async function run({ directory, preflightOnly = false, beforeCommit } = {}) {
+async function run({
+  directory,
+  preflightOnly = false,
+  beforeCommit,
+  maxDurationMs = 45000,
+  availableBytes
+} = {}) {
+  const started = performance.now()
+  const assertBudget = () => {
+    if (performance.now() - started >= maxDurationMs)
+      fail(
+        'Release migration exceeded its startup deadline; verified checkpoints and backups are retained. Review storage performance before retrying.'
+      )
+  }
+  const freeBytes =
+    availableBytes ||
+    ((target) => {
+      const stat = fs.statfsSync(target)
+      return Number(stat.bavail) * Number(stat.bsize)
+    })
+  let capacityChecked = false
+  let preflightMs = 0
   const workspace = fs.mkdtempSync(
     path.join(require('node:os').tmpdir(), 'slipway-release-')
   )
+  let peakAdditionalBytes = 0
+  const bytesIn = (directory) =>
+    fs.existsSync(directory)
+      ? fs
+          .readdirSync(directory, { withFileTypes: true })
+          .reduce((total, item) => {
+            const filename = path.join(directory, item.name)
+            return (
+              total +
+              (item.isDirectory()
+                ? bytesIn(filename)
+                : item.isFile()
+                ? fs.statSync(filename).size
+                : 0)
+            )
+          }, 0)
+      : 0
+  const previousBackupBytes = bytesIn(path.join(directory, 'migration-backups'))
+  const measurePeak = () => {
+    peakAdditionalBytes = Math.max(
+      peakAdditionalBytes,
+      bytesIn(workspace) +
+        bytesIn(path.join(directory, 'migration-backups')) -
+        previousBackupBytes
+    )
+  }
   const prepared = []
   try {
     const existing = Object.values(files)
@@ -286,25 +334,54 @@ async function run({ directory, preflightOnly = false, beforeCommit } = {}) {
         fail(
           'An existing Slipway datastore is missing; update validation cannot initialize live storage.'
         )
+      assertBudget()
       fs.mkdirSync(directory, { recursive: true })
+      if (!capacityChecked) {
+        // Clones, their verification backups and live recovery snapshots can
+        // coexist. Keep conservative headroom on each involved filesystem.
+        const sourceBytes = existing.reduce(
+          (total, filename) => total + fs.statSync(filename).size,
+          0
+        )
+        const requiredBytes = sourceBytes * 3 + 32 * 1024 * 1024
+        if (
+          [directory, workspace].some(
+            (target) => freeBytes(target) < requiredBytes
+          )
+        )
+          fail(
+            'Insufficient disk space for release validation and retained recovery backups; no live migration started.'
+          )
+        capacityChecked = true
+      }
       const source = new Database(exists ? livePath : ':memory:', {
         readonly: exists,
         fileMustExist: exists
       })
       const clonePath = path.join(workspace, filename)
       try {
-        await source.backup(clonePath)
+        await source.backup(clonePath, {
+          progress() {
+            assertBudget()
+            return 200
+          }
+        })
+        assertBudget()
       } finally {
         source.close()
       }
       const clone = { type: 'sqlite', path: clonePath, datastore }
       const plan = prepare(clone)
       // Even a no-op plan verifies the complete catalog and native integrity.
-      if (plan.statements.length || !plan.recorded) await execute(clone, plan)
+      if (plan.statements.length || !plan.recorded)
+        await execute(clone, plan, undefined, assertBudget)
       prepared.push({ datastore, livePath, exists, plan })
+      measurePeak()
     }
+    preflightMs = performance.now() - started
     if (preflightOnly)
       return {
+        timings: { preflightMs, peakAdditionalBytes },
         mode: 'preflight',
         normalStartupReady: false,
         version: registry.version
@@ -326,9 +403,19 @@ async function run({ directory, preflightOnly = false, beforeCommit } = {}) {
         path: item.livePath,
         datastore: item.datastore
       }
-      results.push(await execute(service, item.plan, beforeCommit))
+      assertBudget()
+      results.push(
+        await execute(service, item.plan, beforeCommit, assertBudget)
+      )
+      measurePeak()
     }
     return {
+      timings: {
+        preflightMs,
+        peakAdditionalBytes,
+        applyMs: performance.now() - started - preflightMs,
+        totalMs: performance.now() - started
+      },
       mode: 'applied',
       version: registry.version,
       migratedDatastores: results.length
@@ -340,6 +427,7 @@ async function run({ directory, preflightOnly = false, beforeCommit } = {}) {
 
 module.exports = {
   run,
+  current,
   prepare,
   execute,
   files,

@@ -7,6 +7,19 @@ module.exports = {
   inputs: {},
 
   fn: async function () {
+    if (require('../../lib/release-schema-ready')(sails)) {
+      const datastore = sails.getDatastore('observability')
+      for (const table of [
+        'telemetry_spans',
+        'telemetry_exceptions',
+        'telemetry_metrics'
+      ])
+        await datastore.sendNativeQuery(
+          `UPDATE ${table} SET created_at=? WHERE created_at IS NULL OR created_at>?`,
+          [Date.now(), Date.now()]
+        )
+      return { ready: true }
+    }
     const datastore = sails.getDatastore('observability')
 
     await datastore.sendNativeQuery(`CREATE TABLE IF NOT EXISTS quest_runs (

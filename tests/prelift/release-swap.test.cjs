@@ -6,7 +6,8 @@ const helper = require('../../api/helpers/system/build-update-swap-script')
 async function simulate({
   failRename = false,
   failRun = false,
-  preflight = false
+  preflight = false,
+  wrongChecksum = false
 } = {}) {
   const script = await helper.fn({
     runArgs: ['run', '-d', '--name', 'slipway', 'candidate'],
@@ -31,7 +32,16 @@ async function simulate({
               JSON.stringify(
                 preflight
                   ? { mode: 'preflight', normalStartupReady: false }
-                  : { status: 'ok' }
+                  : {
+                      status: 'ok',
+                      releaseMigrations: {
+                        ready: true,
+                        version: '0.0.88',
+                        checksum: wrongChecksum
+                          ? 'wrong'
+                          : require('../../api/lib/release-migrations').checksum
+                      }
+                    }
               )
             )
           return Buffer.from('')
@@ -92,6 +102,12 @@ test('failed startup restores the old container without copying a database over 
 
 test('preflight HTTP success cannot admit a production candidate', async () => {
   const { calls, exitCode } = await simulate({ preflight: true })
+  assert.equal(exitCode, 1)
+  assert.ok(calls.includes('start slipway'))
+})
+
+test('normal HTTP health with a different required migration checksum cannot admit a candidate', async () => {
+  const { calls, exitCode } = await simulate({ wrongChecksum: true })
   assert.equal(exitCode, 1)
   assert.ok(calls.includes('start slipway'))
 })

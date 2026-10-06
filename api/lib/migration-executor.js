@@ -66,6 +66,7 @@ module.exports = function createMigrationExecutor(adapters) {
         throw plans.failure(
           'Automatic migration is unavailable until a whole-plan recovery workflow is verified for this engine.'
         )
+      adapters.assertBudget?.()
       await plans.audit(actor, 'migration.started', event)
       const initial = await getSchema(service)
       if (initial.error)
@@ -79,6 +80,7 @@ module.exports = function createMigrationExecutor(adapters) {
           )
         )
           backup = await verifiedBackup(db, service.path, entry.id)
+        adapters.assertBudget?.()
         db.pragma('foreign_keys = OFF')
         db.exec('BEGIN IMMEDIATE')
         begun = true
@@ -219,6 +221,7 @@ module.exports = function createMigrationExecutor(adapters) {
           rowCounts: afterCounts,
           backup
         })
+      adapters.assertBudget?.()
       commitAttempted = true
       if (db) db.exec('COMMIT')
       else await run(session, 'COMMIT')
@@ -307,7 +310,18 @@ module.exports = function createMigrationExecutor(adapters) {
     const descriptor = fs.openSync(backupPath, 'wx', 0o600)
     fs.closeSync(descriptor)
     try {
-      await db.backup(backupPath)
+      await db.backup(
+        backupPath,
+        adapters.assertBudget
+          ? {
+              progress() {
+                adapters.assertBudget()
+                return 200
+              }
+            }
+          : {}
+      )
+      adapters.assertBudget?.()
       copy = new Database(backupPath, { readonly: true })
       if (copy.pragma('integrity_check', { simple: true }) !== 'ok')
         throw plans.failure(

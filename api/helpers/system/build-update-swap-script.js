@@ -27,11 +27,13 @@ module.exports = {
   },
 
   fn: async function ({ runArgs, containerName, backupContainerName }) {
+    const checksum = require('../../lib/release-migrations').checksum
     return `
   const { execFileSync } = require("child_process")
   const containerName = ${JSON.stringify(containerName)}
   const backupName = ${JSON.stringify(backupContainerName)}
   const runArgs = ${JSON.stringify(runArgs)}
+  const expectedChecksum = ${JSON.stringify(checksum)}
   let renamed = false
   let candidateMayExist = false
 
@@ -71,7 +73,10 @@ module.exports = {
           "http://localhost:1337/health"
         ])
         const health = JSON.parse(body.toString())
-        if (health.status !== "ok" || health.mode === "preflight")
+        if (health.status !== "ok" || health.mode === "preflight" ||
+          health.releaseMigrations?.ready !== true ||
+          health.releaseMigrations?.version !== "0.0.88" ||
+          health.releaseMigrations?.checksum !== expectedChecksum)
           throw new Error("The candidate has not completed normal startup")
         return
       } catch {

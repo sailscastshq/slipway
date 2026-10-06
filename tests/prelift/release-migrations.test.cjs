@@ -393,3 +393,209 @@ test('Docker validation identity uses the existing container name; normal startu
     /Could not identify/
   )
 })
+
+test('production helpers verify receipts without issuing DDL and retain data backfills', () =>
+  fixture(async (directory) => {
+    await migrations.run({ directory })
+    const previous = {
+      sails: global.sails,
+      App: global.App,
+      Setting: global.Setting,
+      Service: global.Service
+    }
+    const connections = new Map()
+    const queries = []
+    const updates = []
+    try {
+      const datastores = Object.fromEntries(
+        Object.entries(migrations.files).map(([name, file]) => [
+          name,
+          { adapter: 'sails-sqlite', url: path.join(directory, file) }
+        ])
+      )
+      for (const [name, config] of Object.entries(datastores))
+        connections.set(name, new Database(config.url))
+      global.sails = {
+        config: { environment: 'production', datastores },
+        getDatastore(name = 'default') {
+          const manager = connections.get(name)
+          return {
+            manager,
+            async sendNativeQuery(sql, values = []) {
+              assert.doesNotMatch(sql, /^\s*(CREATE|ALTER|DROP|REINDEX)\b/i)
+              queries.push(sql)
+              return manager.prepare(sql).run(...values)
+            }
+          }
+        }
+      }
+      global.Setting = {
+        findOne: async () => ({ key: 'teamMembershipMigration' })
+      }
+      global.App = {
+        find: () => ({
+          decrypt: async () => [
+            {
+              id: 1,
+              secureEnvVars: null,
+              envVars: { legacy: 'encrypted-by-model' }
+            }
+          ]
+        }),
+        updateOne: () => ({ set: async (value) => updates.push(value) })
+      }
+      global.Service = {
+        update: () => ({ set: async (value) => updates.push(value) })
+      }
+      for (const helper of [
+        'auth/ensure-schema',
+        'team/ensure-schema',
+        'git/ensure-webhook-schema',
+        'source/ensure-schema',
+        'backup/ensure-restore-schema',
+        'backup/ensure-test-schema',
+        'backup/ensure-storage-schema',
+        'cleanup/ensure-schema',
+        'bridge/ensure-schema',
+        'bearing/ensure-schema',
+        'wake/ensure-app-schema',
+        'wake/ensure-schema',
+        'configuration/ensure-schema',
+        'flag/ensure-schema',
+        'deploy/ensure-queue-schema',
+        'service/ensure-version-schema',
+        'helm/ensure-workspace-schema',
+        'lookout/ensure-observability-schema'
+      ])
+        await require(`../../api/helpers/${helper}`).fn()
+      assert.equal(global.sails.wakeStorageReady, true)
+      assert.ok(queries.some((sql) => /UPDATE bearing_feedback/.test(sql)))
+      assert.ok(queries.some((sql) => /UPDATE telemetry_spans/.test(sql)))
+      assert.deepEqual(updates, [
+        { secureEnvVars: { legacy: 'encrypted-by-model' }, envVars: {} },
+        { status: 'failed' }
+      ])
+      const health = await require('../../api/controllers/health/check').fn()
+      assert.deepEqual(health.releaseMigrations, {
+        ready: true,
+        version: '0.0.88',
+        checksum: migrations.checksum
+      })
+      connections
+        .get('default')
+        .prepare(`UPDATE ${migrations.receiptTable} SET checksum='wrong'`)
+        .run()
+      await assert.rejects(
+        require('../../api/helpers/backup/ensure-test-schema').fn(),
+        /checksum differs/
+      )
+      await assert.rejects(
+        require('../../api/controllers/health/check').fn(),
+        /checksum differs/
+      )
+    } finally {
+      for (const connection of connections.values()) connection.close()
+      for (const [name, value] of Object.entries(previous)) {
+        if (value === undefined) delete global[name]
+        else global[name] = value
+      }
+    }
+  }))
+
+test('insufficient capacity and expired startup deadline leave released database bytes unchanged', () =>
+  fixture(async (directory) => {
+    const before = hashes(directory)
+    await assert.rejects(
+      migrations.run({ directory, availableBytes: () => 0 }),
+      /Insufficient disk space/
+    )
+    assert.deepEqual(hashes(directory), before)
+    await assert.rejects(
+      migrations.run({ directory, maxDurationMs: 0 }),
+      /deadline/
+    )
+    assert.deepEqual(hashes(directory), before)
+  }))
+
+test('fixed small and 64 MiB fixtures report three preflight/apply samples with preserved data', async (context) => {
+  const samples = []
+  for (const payloadBytes of [1024, 64 * 1024 * 1024]) {
+    for (let sample = 0; sample < 3; sample++)
+      await fixture(async (directory) => {
+        edit(directory, 'app.db', (db) => {
+          db.exec('CREATE TABLE performance_payload (value BLOB)')
+          db.prepare(
+            'INSERT INTO performance_payload VALUES (zeroblob(?))'
+          ).run(payloadBytes)
+        })
+        const sourceBytes = Object.values(migrations.files).reduce(
+          (sum, file) => sum + fs.statSync(path.join(directory, file)).size,
+          0
+        )
+        const result = await migrations.run({ directory })
+        edit(directory, 'app.db', (db) =>
+          assert.equal(
+            db
+              .prepare('SELECT length(value) AS bytes FROM performance_payload')
+              .get().bytes,
+            payloadBytes
+          )
+        )
+        const backupDirectory = path.join(directory, 'migration-backups')
+        const backupBytes = fs
+          .readdirSync(backupDirectory)
+          .reduce(
+            (sum, file) =>
+              sum + fs.statSync(path.join(backupDirectory, file)).size,
+            0
+          )
+        samples.push({
+          payloadBytes,
+          sourceBytes,
+          backupBytes,
+          ...result.timings
+        })
+        const repeat = await migrations.run({
+          directory,
+          availableBytes: () => 0
+        })
+        assert.equal(repeat.migratedDatastores, 0)
+      })
+  }
+  context.diagnostic(JSON.stringify({ releasePerformance: samples }))
+})
+
+test('partial and complete manual Bosun adoption retain data and settle to byte-identical restart', async () => {
+  for (const complete of [false, true])
+    await fixture(async (directory) => {
+      edit(directory, 'app.db', (db) =>
+        db.exec(
+          "CREATE TABLE adoption_marker (value TEXT); INSERT INTO adoption_marker VALUES ('keep')"
+        )
+      )
+      for (const [datastore, file] of Object.entries(migrations.files)) {
+        if (!complete && datastore !== 'default') continue
+        const plan = migrations.prepare({
+          type: 'sqlite',
+          datastore,
+          path: path.join(directory, file)
+        })
+        edit(directory, file, (db) => {
+          for (const statement of complete
+            ? plan.statements
+            : plan.statements.slice(0, 2))
+            db.exec(statement.sql)
+        })
+      }
+      await migrations.run({ directory })
+      edit(directory, 'app.db', (db) =>
+        assert.equal(
+          db.prepare('SELECT value FROM adoption_marker').get().value,
+          'keep'
+        )
+      )
+      const before = hashes(directory)
+      assert.equal((await migrations.run({ directory })).migratedDatastores, 0)
+      assert.deepEqual(hashes(directory), before)
+    })
+})

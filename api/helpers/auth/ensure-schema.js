@@ -2,6 +2,7 @@ module.exports = {
   friendlyName: 'Ensure authentication schema',
   inputs: {},
   fn: async function () {
+    if (require('../../lib/release-schema-ready')(sails)) return
     const datastore = sails.getDatastore()
     for (const table of ['users', 'cli_tokens']) {
       const result = await datastore.sendNativeQuery(
