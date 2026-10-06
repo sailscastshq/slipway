@@ -12,6 +12,10 @@ test(
     }
   },
   async ({ page, expect, sails }) => {
+    assert.equal(sails.hooks.dev, undefined)
+    const origin = `http://127.0.0.1:${sails.hooks.http.server.address().port}`
+    assert.equal((await fetch(`${origin}/health`)).status, 200)
+    assert.equal((await fetch(`${origin}/dev`)).status, 404)
     const source = path.resolve('assets/js/pages/auth/login.vue')
     const original = await fs.readFile(source, 'utf8')
     const artifactRoot = path.resolve(
