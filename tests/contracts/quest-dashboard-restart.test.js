@@ -354,13 +354,13 @@ test(
         assert.equal(row.rejected_events, 0)
         assert.equal(row.rejected_requests, 0)
       }
-      // 41 real runs minus two lost offline rows plus the explicitly recovered one.
-      assert.equal(budget.receipts, 40)
+      // Every real run is retained, including both receipts delivered while offline.
+      assert.equal(budget.receipts, LIMITS.expectedStarts)
       proof = {
         upstream: { sha: fixture.source.sha, version: fixture.source.version },
         packedConsumer: fixture.packedProof,
         proof:
-          'CI-native real dashboard process restart + real web app + real HTTP telemetry; direct private-UDS recovery sub-proof',
+          'CI-native real dashboard process restart + real web app + real HTTP telemetry; disk receipt retry without resident recovery',
         dashboardGenerations: [
           { generation: 'A', pid: a.pid, migrate: 'drop', exit: killed },
           { generation: 'B', pid: b.pid, migrate: 'safe' }
@@ -372,10 +372,9 @@ test(
           http: true
         },
         persistedRunId: index.runId,
-        recoveredRunId: missing.runId,
+        deliveredRunId: missing.runId,
         oldReceiptAndLogsUnchanged: true,
-        missingBeforeRecovery: 404,
-        startsAddedByRecovery: 0,
+        startsAddedByDelivery: 0,
         burst: {
           results: burst.length,
           exactStartsAndCompletions: true,

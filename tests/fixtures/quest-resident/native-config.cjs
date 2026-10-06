@@ -1,7 +1,7 @@
 const assert = require('node:assert/strict')
 const path = require('node:path')
 
-const PIN = '57e9d710a83d66b7a5b7c390e6c8891eaf7206bd'
+const PIN = '99459e2ad931b0e9dcb2815c113a70349add7b1f'
 const LIMITS = Object.freeze({
   lifetimeMs: 180000,
   bytes: 2 * 1024 * 1024,
