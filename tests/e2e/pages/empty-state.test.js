@@ -28,6 +28,7 @@ test(
     await login.withPassword('genesisUser', page, {
       password: current.auth.genesisUserPassword
     })
+    await page.raw.waitForURL((url) => url.pathname === '/')
     await page.resize(1440, 900)
     await page.goto('/')
 
