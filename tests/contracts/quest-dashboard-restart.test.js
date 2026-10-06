@@ -346,7 +346,7 @@ test(
         proof:
           'CI-native real dashboard process restart + real web app + real HTTP telemetry; direct private-UDS recovery sub-proof',
         dashboardGenerations: [
-          { generation: 'A', pid: a.pid, migrate: 'drop', exit: killed },
+          { generation: 'A', pid: a.pid, migrate: 'safe', exit: killed },
           { generation: 'B', pid: b.pid, migrate: 'safe' }
         ],
         web: {

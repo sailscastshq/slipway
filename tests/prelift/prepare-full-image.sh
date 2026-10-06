@@ -24,11 +24,11 @@ docker tag slipway-full-upgrade-fixture:88 "$tag"
 docker push "$tag" >/dev/null
 identity=$(docker image inspect --format '{{index .RepoDigests 0}}' "$tag")
 archive="$context/slipway-host.tar.gz"
-(cd "$context" && bash scripts/build-upgrade-host.sh "$archive" "$revision")
+bash scripts/build-upgrade-host.sh "$archive" "$revision"
 checksum="$(sha256sum "$archive" | cut -d' ' -f1)"
 sudo bash scripts/upgrade-host-native.sh verify --bundle "$archive" --bundle-sha256 "$checksum" --state-dir "$context/verification"
 # Preserve the same checksum-verified, ABI-tested payload for the trusted test
 # worker. The production CLI never admits the loopback fixture image policy.
 sudo mkdir -m 700 "$context/host-bundle"
 sudo tar -xzf "$archive" -C "$context/host-bundle"
-sudo env PATH="$PATH" SLIPWAY_NATIVE_HOST_BUNDLE_DIR="$context/host-bundle" SLIPWAY_NATIVE_HOST_BUNDLE_ARCHIVE="$archive" SLIPWAY_NATIVE_HOST_BUNDLE_SHA="$checksum" SLIPWAY_FULL_IMAGE_FIXTURE=1 SLIPWAY_FULL_IMAGE="$identity" SLIPWAY_FULL_IMAGE_DIAGNOSTICS="${RUNNER_TEMP:-$PWD/.tmp}/upgrade-full-image-diagnostics" node --test tests/prelift/upgrade-full-image.test.cjs tests/prelift/upgrade-native-host.test.cjs
+sudo env PATH="$PATH" SLIPWAY_NATIVE_HOST_BUNDLE_DIR="$context/host-bundle" SLIPWAY_NATIVE_HOST_BUNDLE_ARCHIVE="$archive" SLIPWAY_NATIVE_HOST_BUNDLE_SHA="$checksum" SLIPWAY_FULL_IMAGE_SOURCE_VERSION="${SLIPWAY_FULL_IMAGE_SOURCE_VERSION:-0.0.87}" SLIPWAY_FRESH_BASELINE_OUTPUT="${SLIPWAY_FRESH_BASELINE_OUTPUT:-}" SLIPWAY_FULL_IMAGE_FIXTURE=1 SLIPWAY_FULL_IMAGE="$identity" SLIPWAY_FULL_IMAGE_DIAGNOSTICS="${RUNNER_TEMP:-$PWD/.tmp}/upgrade-full-image-diagnostics" node --test ${SLIPWAY_FULL_IMAGE_TEST_FILTER:+--test-name-pattern="$SLIPWAY_FULL_IMAGE_TEST_FILTER"} tests/prelift/upgrade-full-image.test.cjs tests/prelift/upgrade-native-host.test.cjs

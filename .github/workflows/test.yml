@@ -23,13 +23,16 @@ jobs:
       - uses: actions/checkout@v6
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
-      - name: Build and boot the disposable local installation
-        run: npm run local
-      - name: Verify the previous public release database upgrade
-        run: npm run local:upgrade-check -- 0.0.86
-      - name: Remove only the disposable local installation
-        if: always()
-        run: npm run local:destroy
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit
+      - name: Verify genuine 86 storage through coordinated native image startup
+        env:
+          SLIPWAY_FULL_IMAGE_SOURCE_VERSION: '0.0.86'
+          SLIPWAY_FULL_IMAGE_TEST_FILTER: 'actual coordinated image'
+        run: bash tests/prelift/prepare-full-image.sh
 
   coolify-running-apps:
     name: Three running Sails apps migration proof
@@ -55,7 +58,7 @@ jobs:
           docker pull alpine
           docker pull lucaslorentz/caddy-docker-proxy@sha256:f3ebe7e762bccf17ce38b88420f80ce63f69dc548eea0cd6e5f29db2ae2ea062
       - name: Rehearse real app and state migration
-        run: node_modules/.bin/sounding test --file tests/contracts/coolify-running-apps.test.js --test-concurrency=1 --test-timeout=600000
+        run: node tests/fixtures/run-sounding-native.cjs test --file tests/contracts/coolify-running-apps.test.js --test-concurrency=1 --test-timeout=600000
         env:
           SLIPWAY_MIGRATION_DEPS: ${{ runner.temp }}/migration-deps/node_modules
       - name: Preserve scope, exact head and per-app evidence
@@ -82,7 +85,7 @@ jobs:
       - run: npm ci --no-audit
       - run: npx playwright install --with-deps chromium
       - name: Verify Sails dev assets and Vue HMR
-        run: node_modules/.bin/sounding test --file tests/contracts/shipwright-hmr.test.js
+        run: node tests/fixtures/run-sounding-native.cjs test --file tests/contracts/shipwright-hmr.test.js
       - name: Verify production manifest and browser assets
         run: NODE_ENV=production node tests/contracts/shipwright-production.cjs
       - uses: actions/upload-artifact@v6
@@ -107,12 +110,12 @@ jobs:
       - name: Verify installed Quest registry initialization without ORM
         run: node --test tests/contracts/quest-registry-initialization.cjs
       - name: Verify focused command process and installed Sails CLI contracts
-        run: node_modules/.bin/sounding test --file tests/unit/helpers/helm/command-runtime.test.js --file tests/unit/helpers/helm/command-sails.test.js --file tests/unit/helpers/helm/app-context.test.js --test-concurrency=1
+        run: node tests/fixtures/run-sounding-native.cjs test --file tests/unit/helpers/helm/command-runtime.test.js --file tests/unit/helpers/helm/command-sails.test.js --file tests/unit/helpers/helm/app-context.test.js --test-concurrency=1
       - run: docker pull node:22-bookworm-slim
         if: success() || failure()
       - name: Verify disposable command runtime and process cleanup
         if: success() || failure()
-        run: node_modules/.bin/sounding test --file tests/contracts/helm-commands.test.js --test-concurrency=1
+        run: node tests/fixtures/run-sounding-native.cjs test --file tests/contracts/helm-commands.test.js --test-concurrency=1
 
   helm-terminal-prompt-review:
     name: Helm terminal prompt paired evidence
@@ -163,7 +166,7 @@ jobs:
       - run: npm ci --no-audit
       - run: docker pull node:22-alpine
       - run: docker pull lucaslorentz/caddy-docker-proxy@sha256:f3ebe7e762bccf17ce38b88420f80ce63f69dc548eea0cd6e5f29db2ae2ea062
-      - run: node_modules/.bin/sounding test --file tests/contracts/custom-services.test.js --file tests/contracts/custom-service-routes.test.js --file tests/contracts/custom-service-updates.test.js --test-concurrency=1
+      - run: node tests/fixtures/run-sounding-native.cjs test --file tests/contracts/custom-services.test.js --file tests/contracts/custom-service-routes.test.js --file tests/contracts/custom-service-updates.test.js --test-concurrency=1
 
   external-postgresql-contract:
     name: External PostgreSQL contract
@@ -177,7 +180,7 @@ jobs:
           cache: 'npm'
       - run: npm ci --no-audit
       - run: docker pull postgres:17-alpine
-      - run: node_modules/.bin/sounding test --file tests/contracts/external-postgresql.test.js
+      - run: node tests/fixtures/run-sounding-native.cjs test --file tests/contracts/external-postgresql.test.js
 
   storage-contract:
     name: Storage and Bearing upload contracts
@@ -195,7 +198,7 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - run: docker pull postgres:15-alpine
       - name: Exercise storage, backup, restoration, and Bearing image uploads
-        run: node_modules/.bin/sounding test --file tests/contracts/object-storage.test.js --file tests/contracts/bearing-feedback-storage.test.js --file tests/contracts/restore-tests.test.js --test-concurrency=1
+        run: node tests/fixtures/run-sounding-native.cjs test --file tests/contracts/object-storage.test.js --file tests/contracts/bearing-feedback-storage.test.js --file tests/contracts/restore-tests.test.js --test-concurrency=1
         env:
           SLIPWAY_STORAGE_EMULATORS: ${{ runner.temp }}/storage-emulators/node_modules
 
@@ -341,10 +344,16 @@ jobs:
       - uses: actions/checkout@v6
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
-      - name: Build the exact current image
-        run: docker build -t slipway-upgrade-baseline .
-      - name: Capture a stopped fresh current installation
-        run: bash tests/prelift/capture-release-baseline.sh 0.0.87 baseline.json current slipway-upgrade-baseline
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit
+      - name: Initialize native storage, safely boot current image and capture stopped catalog
+        env:
+          SLIPWAY_FULL_IMAGE_TEST_FILTER: 'never-started fresh template'
+          SLIPWAY_FRESH_BASELINE_OUTPUT: '${{ github.workspace }}/baseline.json'
+        run: bash tests/prelift/prepare-full-image.sh
       - name: Verify fresh schema matches the reviewed release catalog
         run: |
           node <<'NODE'
@@ -374,7 +383,7 @@ jobs:
           node-version: '22'
           cache: npm
       - run: npm ci --no-audit
-      - run: node --test tests/prelift/migration-executor.test.cjs tests/prelift/sqlite-schema.test.cjs tests/prelift/upgrade-ledger.test.cjs tests/prelift/upgrade-backups.test.cjs tests/prelift/upgrade-preflight.test.cjs tests/prelift/release-baselines.test.cjs tests/prelift/upgrade-coordinator.test.cjs tests/prelift/upgrade-entry-guard.test.cjs tests/prelift/upgrade-registry.test.cjs tests/prelift/schema-retirement.test.cjs tests/prelift/upgrade-process.test.cjs tests/prelift/upgrade-storage-stage.test.cjs tests/prelift/upgrade-host-controller.test.cjs tests/prelift/upgrade-handoff.test.cjs tests/prelift/upgrade-launch-config.test.cjs tests/prelift/upgrade-startup.test.cjs tests/prelift/upgrade-docker-api.test.cjs tests/prelift/upgrade-writer-snapshot.test.cjs tests/prelift/upgrade-fresh-storage.test.cjs tests/prelift/upgrade-lineage.test.cjs tests/prelift/upgrade-broker.test.cjs tests/prelift/upgrade-cli.test.cjs tests/prelift/upgrade-response.test.cjs tests/prelift/upgrade-business-bootstrap.test.cjs tests/prelift/upgrade-installer.test.cjs
+      - run: node --test tests/prelift/native-fixture-init.test.cjs tests/prelift/migration-executor.test.cjs tests/prelift/sqlite-schema.test.cjs tests/prelift/upgrade-ledger.test.cjs tests/prelift/upgrade-backups.test.cjs tests/prelift/upgrade-preflight.test.cjs tests/prelift/release-baselines.test.cjs tests/prelift/upgrade-coordinator.test.cjs tests/prelift/upgrade-entry-guard.test.cjs tests/prelift/upgrade-registry.test.cjs tests/prelift/schema-retirement.test.cjs tests/prelift/upgrade-process.test.cjs tests/prelift/upgrade-storage-stage.test.cjs tests/prelift/upgrade-host-controller.test.cjs tests/prelift/upgrade-handoff.test.cjs tests/prelift/upgrade-launch-config.test.cjs tests/prelift/upgrade-startup.test.cjs tests/prelift/upgrade-docker-api.test.cjs tests/prelift/upgrade-writer-snapshot.test.cjs tests/prelift/upgrade-fresh-storage.test.cjs tests/prelift/upgrade-lineage.test.cjs tests/prelift/upgrade-broker.test.cjs tests/prelift/upgrade-cli.test.cjs tests/prelift/upgrade-response.test.cjs tests/prelift/upgrade-business-bootstrap.test.cjs tests/prelift/upgrade-installer.test.cjs
 
   upgrade-writer-fence:
     name: Native Linux upgrade writer observation
@@ -394,6 +403,27 @@ jobs:
         run: sudo env PATH="$PATH" SLIPWAY_WRITER_FIXTURE=1 node --test tests/prelift/upgrade-writers-linux.test.cjs
       - name: Verify real Docker host handoff and failed-health recovery
         run: sudo env PATH="$PATH" SLIPWAY_HOST_FIXTURE=1 node --test tests/prelift/upgrade-host-linux.test.cjs
+
+  upgrade-host-reproducibility:
+    name: Independent Linux x64 host bundle builds
+    timeout-minutes: 30
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - name: Independently install, package and ABI-verify frozen inputs twice
+        run: bash tests/prelift/compare-host-builds.sh
+      - name: Preserve actual archive digests and file comparison
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: upgrade-host-reproducibility
+          path: host-reproducibility.json
+          if-no-files-found: error
 
   upgrade-full-image:
     name: Coordinated image startup and recovery
@@ -464,7 +494,7 @@ jobs:
       # Sounding partitions files; each runner retains --test-concurrency=1.
       - name: Verify command-mode journeys before the owning full shard
         if: matrix.shard == 1
-        run: node_modules/.bin/sounding test --file tests/e2e/pages/projects/helm.test.js --test-name-pattern='^project Helm (command|Stop|preparing)' --test-concurrency=1 --test-timeout=600000
+        run: node tests/fixtures/run-sounding-native.cjs test --file tests/e2e/pages/projects/helm.test.js --test-name-pattern='^project Helm (command|Stop|preparing)' --test-concurrency=1 --test-timeout=600000
       - name: Run browser tests
         run: npm run test:e2e -- --shard=${{ matrix.shard }}/3 --profile
       - name: Upload Helm command review screenshots
@@ -525,7 +555,7 @@ jobs:
         run: |
           for attempt in 1 2 3; do
             echo "Bearing isolated verification $attempt/3"
-            node_modules/.bin/sounding test \
+            node tests/fixtures/run-sounding-native.cjs test \
               --file tests/e2e/pages/projects/bearing-drafts.test.js \
               --file tests/e2e/pages/projects/bearing-update-recovery.test.js \
               --test-name-pattern='Bearing drafts reopen|Bearing failed saves' \

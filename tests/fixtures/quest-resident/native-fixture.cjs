@@ -96,7 +96,13 @@ async function createNativeFixture(options = {}) {
   const appRoot = path.join(root, 'web')
   for (const directory of ['home', 'tmp'])
     fs.mkdirSync(path.join(root, directory), { mode: 0o700 })
+  const storage = path.join(root, 'native-storage')
+  fs.mkdirSync(storage, { mode: 0o700 })
+  const nativeConfig = await require('../native-upgrade/initialize.cjs')(
+    storage
+  )
   const context = {
+    nativeConfig,
     root,
     repo,
     generation: 'A',

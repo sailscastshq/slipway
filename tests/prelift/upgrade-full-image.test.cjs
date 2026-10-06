@@ -115,13 +115,17 @@ test(
     const image = process.env.SLIPWAY_FULL_IMAGE
     let sourceId, candidate
     try {
-      cli(['pull', 'ghcr.io/sailscastshq/slipway:0.0.87'])
+      const sourceVersion =
+        process.env.SLIPWAY_FULL_IMAGE_SOURCE_VERSION || '0.0.87'
+      assert.ok(['0.0.86', '0.0.87'].includes(sourceVersion))
+      const sourceTag = 'ghcr.io/sailscastshq/slipway:' + sourceVersion
+      cli(['pull', sourceTag])
       const sourceImage = cli([
         'image',
         'inspect',
         '--format',
         '{{index .RepoDigests 0}}',
-        'ghcr.io/sailscastshq/slipway:0.0.87'
+        sourceTag
       ])
       async function source(environment) {
         const created = await docker(
@@ -442,6 +446,52 @@ test(
         (await info(candidate)).HostConfig.RestartPolicy.Name,
         'always'
       )
+      if (process.env.SLIPWAY_FRESH_BASELINE_OUTPUT) {
+        await docker('POST', `/containers/${candidate}/update`, {
+          RestartPolicy: { Name: 'no' }
+        })
+        await docker('POST', `/containers/${candidate}/stop?t=30`)
+        const stopped = await info(candidate)
+        assert.equal(stopped.State.Running, false)
+        const copy = path.join(root, 'baseline-copy')
+        const storage = stopped.Mounts.find(
+          (mount) => mount.Destination === '/app/db'
+        )
+        fs.cpSync(storage.Source, copy, { recursive: true })
+        const ledger = require('../../api/lib/upgrade-ledger')
+        const databases = {}
+        const expected = require('../../api/lib/upgrades/baselines/current-fresh.json')
+        for (const service of host.services(copy, reviewed.instanceId)) {
+          const db = new Database(service.path, { readonly: true })
+          assert.equal(db.pragma('integrity_check', { simple: true }), 'ok')
+          assert.equal(db.pragma('foreign_key_check').length, 0)
+          const schemaHash = ledger.schemaHash({
+            ...service,
+            transaction: { database: db }
+          })
+          assert.equal(
+            schemaHash,
+            expected.databases[service.datastore].schemaHash
+          )
+          databases[service.datastore] = { present: true, schemaHash }
+          db.close()
+        }
+        fs.writeFileSync(
+          process.env.SLIPWAY_FRESH_BASELINE_OUTPUT,
+          JSON.stringify(
+            {
+              format: 1,
+              version: health.version,
+              image,
+              nativeVerified: health.upgrade.verified,
+              databases
+            },
+            null,
+            2
+          ) + '\n',
+          { mode: 0o644 }
+        )
+      }
     } finally {
       if (candidate) containers.push(candidate)
       for (const id of new Set(containers))

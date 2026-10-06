@@ -44,7 +44,7 @@ function childEnvironment({ root, context, evidence, appId, deploymentId }) {
   return env
 }
 
-function dashboardOptions({ repo, root, generation, port = 0 }) {
+function dashboardOptions({ repo, root, generation, port = 0, nativeFixture }) {
   assert.ok(['A', 'B'].includes(generation))
   assert.ok(Number.isInteger(port) && port >= 0 && port <= 65535)
   assert.ok(path.isAbsolute(root) && path.isAbsolute(repo))
@@ -56,13 +56,17 @@ function dashboardOptions({ repo, root, generation, port = 0 }) {
     port,
     hooks: { lookout: false, quest: false, shipwright: false, sockets: false },
     log: { level: 'error', noShip: true },
-    models: { migrate: generation === 'A' ? 'drop' : 'safe' },
-    datastores: Object.fromEntries(
-      ['default', 'observability', 'analytics', 'cache'].map((name) => [
-        name,
-        { adapter: 'sails-sqlite', url: path.join(root, `${name}.sqlite`) }
-      ])
-    ),
+    models: {
+      migrate: nativeFixture ? 'safe' : generation === 'A' ? 'drop' : 'safe'
+    },
+    datastores:
+      nativeFixture?.datastores ||
+      Object.fromEntries(
+        ['default', 'observability', 'analytics', 'cache'].map((name) => [
+          name,
+          { adapter: 'sails-sqlite', url: path.join(root, `${name}.sqlite`) }
+        ])
+      ),
     session: { adapter: '@sailscastshq/connect-sqlite', url: ':memory:' },
     sounding: { datastore: { mode: 'inherit' }, request: { transport: 'http' } }
   }

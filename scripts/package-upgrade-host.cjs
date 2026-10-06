@@ -4,9 +4,19 @@ const path = require('node:path')
 const crypto = require('node:crypto')
 const output = process.argv[2],
   sourceRevision = process.argv[3],
-  builderImage = process.argv[4]
+  builderImage = process.argv[4],
+  sourceDateEpoch = Number(process.argv[5]),
+  inputs = require('./upgrade-host-build-inputs.json')
 if (
   process.platform !== 'linux' ||
+  process.arch !== 'x64' ||
+  builderImage !== inputs.builderImage ||
+  process.version !== inputs.nodeVersion ||
+  process.versions.modules !== inputs.modules ||
+  process.report.getReport().header.glibcVersionRuntime !==
+    inputs.glibcMinimum ||
+  !Number.isSafeInteger(sourceDateEpoch) ||
+  sourceDateEpoch <= 0 ||
   !/^[a-f0-9]{40}$/.test(sourceRevision || '') ||
   !/^.+@sha256:[a-f0-9]{64}$/.test(builderImage || '') ||
   require('../package.json').version !==
@@ -57,8 +67,11 @@ function walk(relative = '') {
     const item = path.join(relative, name),
       absolute = path.join(output, item),
       stat = fs.lstatSync(absolute)
-    if (stat.isDirectory()) walk(item)
-    else if (stat.isFile() && !(stat.mode & 0o022))
+    if (stat.isDirectory()) {
+      fs.chmodSync(absolute, 0o755)
+      walk(item)
+    } else if (stat.isFile()) {
+      fs.chmodSync(absolute, item === 'bin/node' ? 0o755 : 0o644)
       files.push({
         path: item,
         bytes: stat.size,
@@ -67,7 +80,7 @@ function walk(relative = '') {
           .update(fs.readFileSync(absolute))
           .digest('hex')
       })
-    else throw new Error('Unconfirmed bundle file')
+    } else throw new Error('Unconfirmed bundle file')
   }
 }
 walk()
@@ -78,11 +91,18 @@ fs.writeFileSync(
     version: require('../package.json').version,
     sourceRevision,
     builderImage,
+    sourceDateEpoch,
+    packageLockSha256: crypto
+      .createHash('sha256')
+      .update(fs.readFileSync('package-lock.json'))
+      .digest('hex'),
     platform: process.platform,
     arch: process.arch,
     modules: process.versions.modules,
     nodeVersion: process.version,
     glibcMinimum: process.report.getReport().header.glibcVersionRuntime,
     files
-  })
+  }),
+  { mode: 0o644 }
 )
+fs.chmodSync(output, 0o755)

@@ -12,6 +12,10 @@ requireCI() // Before requiring Sails, reading credentials or opening anything.
 const filename = process.env.QUEST_NATIVE_CONTEXT
 assert.equal(fs.statSync(filename).mode & 0o777, 0o600)
 const context = JSON.parse(fs.readFileSync(filename, 'utf8'))
+const nativeFixture = JSON.parse(fs.readFileSync(context.nativeConfig, 'utf8'))
+Object.assign(process.env, nativeFixture.env, {
+  SLIPWAY_TEST_NATIVE_CONFIG: context.nativeConfig
+})
 const probe = require('./native-web/lib/probe')
 const sails = require('sails')
 let client
@@ -34,17 +38,14 @@ function saveContext() {
 }
 
 async function initialize() {
-  const options = dashboardOptions(context)
+  const options = dashboardOptions({ ...context, nativeFixture })
   await new Promise((resolve, reject) =>
     sails.lift(options, (error) => (error ? reject(error) : resolve()))
   )
   const address = sails.hooks.http.server.address()
   assert.equal(address.address, '127.0.0.1')
   assert.equal(sails.config.sounding.datastore.mode, 'inherit')
-  assert.equal(
-    sails.config.models.migrate,
-    context.generation === 'A' ? 'drop' : 'safe'
-  )
+  assert.equal(sails.config.models.migrate, 'safe')
   for (const [name, config] of Object.entries(options.datastores))
     assert.equal(sails.getDatastore(name).config.url, config.url)
   const {

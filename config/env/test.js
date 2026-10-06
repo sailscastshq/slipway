@@ -3,6 +3,15 @@ const {
   renderErrorPage
 } = require('../../api/lib/error-pages')
 
+const nativeFixture = process.env.SLIPWAY_TEST_NATIVE_CONFIG
+  ? JSON.parse(
+      require('node:fs').readFileSync(
+        process.env.SLIPWAY_TEST_NATIVE_CONFIG,
+        'utf8'
+      )
+    )
+  : null
+
 module.exports = {
   custom: { setupToken: 'sounding-installation-claim-token' },
   // Port zero asks the OS for an unused listener. Sounding reads the actual
@@ -16,13 +25,13 @@ module.exports = {
     level: 'error'
   },
   models: {
-    migrate: 'drop'
+    migrate: nativeFixture ? 'safe' : 'drop'
   },
   session: {
     adapter: '@sailscastshq/connect-sqlite',
     url: ':memory:'
   },
-  datastores: {
+  datastores: nativeFixture?.datastores || {
     default: {
       adapter: 'sails-sqlite',
       url: ':memory:'

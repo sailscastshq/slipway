@@ -30,7 +30,7 @@ for component in "${components[@]}"; do
   git show "$baseline:assets/js/components/$component" > "assets/js/components/$component"
 done
 HELM_PROMPT_VARIANT=baseline HELM_PROMPT_SOURCE_REVISION="$baseline" \
-  node_modules/.bin/sounding test --file tests/contracts/helm-terminal-prompt.test.js \
+  node tests/fixtures/run-sounding-native.cjs test --file tests/contracts/helm-terminal-prompt.test.js \
   --test-concurrency=1 --test-timeout=600000 | tee "$artifact/baseline.log"
 
 for component in "${components[@]}"; do
@@ -38,7 +38,7 @@ for component in "${components[@]}"; do
   cmp "$backup/$component" "assets/js/components/$component"
 done
 HELM_PROMPT_VARIANT=current HELM_PROMPT_SOURCE_REVISION="$current" \
-  node_modules/.bin/sounding test --file tests/contracts/helm-terminal-prompt.test.js \
+  node tests/fixtures/run-sounding-native.cjs test --file tests/contracts/helm-terminal-prompt.test.js \
   --test-concurrency=1 --test-timeout=600000 | tee "$artifact/current.log"
 
 node scripts/summarize-helm-terminal-prompt.js "$artifact"

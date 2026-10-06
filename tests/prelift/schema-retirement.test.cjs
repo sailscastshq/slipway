@@ -51,11 +51,15 @@ for (const [name, profile] of [
         ])
       )
       const queries = []
+      // Explicit legacy-release compatibility proof; current 88 requires admission.
+      const pkg = require('../../package.json'),
+        priorVersion = pkg.version
       const priorSails = global.sails,
         priorApp = global.App,
         priorSetting = global.Setting,
         priorService = global.Service
       try {
+        pkg.version = '0.0.87'
         // This proof executes real old DDL against real native catalogs. It
         // deliberately skips already-completed model data backfills; those are
         // inventoried obligations, not permission to delete mixed helpers.
@@ -96,6 +100,7 @@ for (const [name, profile] of [
           )
         )
       } finally {
+        pkg.version = priorVersion
         for (const db of databases.values()) db.close()
         if (priorSails === undefined) delete global.sails
         else global.sails = priorSails

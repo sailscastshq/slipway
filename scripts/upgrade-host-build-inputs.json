@@ -1,0 +1,8 @@
+{
+  "format": 1,
+  "builderImage": "node@sha256:363e1587494626837fa7f9a23bdb453d13b0ff3c67c705c2805cfc69c2d2fad7",
+  "platform": "linux/amd64",
+  "nodeVersion": "v22.23.3",
+  "modules": "127",
+  "glibcMinimum": "2.36"
+}

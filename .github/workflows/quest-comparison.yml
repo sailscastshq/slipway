@@ -85,7 +85,7 @@ jobs:
         run: |
           test "$(git -C .tmp/quest-upstream rev-parse HEAD)" = "$SLIPWAY_QUEST_UPSTREAM_SHA"
           test -z "$(git -C .tmp/quest-upstream status --porcelain --untracked-files=no)"
-          node_modules/.bin/sounding test --file tests/contracts/quest-resident-integration.test.js --test-concurrency=1 --test-timeout=600000
+          node tests/fixtures/run-sounding-native.cjs test --file tests/contracts/quest-resident-integration.test.js --test-concurrency=1 --test-timeout=600000
       - name: Verify source-only metadata, offline package boundaries, and pure trace parser
         run: node --test tests/fixtures/quest-resident/preflight.test.cjs tests/fixtures/quest-resident/source-metadata.test.cjs tests/fixtures/quest-resident/native-preflight.test.cjs tests/fixtures/quest-resident/packed.test.cjs tests/support/quest-attribution-trace.test.cjs
       - name: Prove actual telemetry delivery and disk-backed dashboard restart
@@ -126,7 +126,7 @@ jobs:
           cache: npm
       - run: npm ci --no-audit
       - name: Verify actual SQLite bounded summaries and lazy detail
-        run: node_modules/.bin/sounding test --file tests/contracts/quest-history-budget.test.js --test-concurrency=1
+        run: node tests/fixtures/run-sounding-native.cjs test --file tests/contracts/quest-history-budget.test.js --test-concurrency=1
       - uses: actions/upload-artifact@v6
         if: always()
         with:
@@ -181,7 +181,7 @@ jobs:
       - run: npm ci --no-audit
       - run: npx playwright install --with-deps chromium
       - name: Capture baseline in four viewport and theme combinations
-        run: node_modules/.bin/sounding test --file tests/e2e/pages/projects/quest.test.js --test-concurrency=1 --test-timeout=600000
+        run: node tests/fixtures/run-sounding-native.cjs test --file tests/e2e/pages/projects/quest.test.js --test-concurrency=1 --test-timeout=600000
       - name: Preserve actual baseline pixels, fixture, and measurements
         uses: actions/upload-artifact@v6
         if: always()
@@ -221,7 +221,7 @@ jobs:
       - name: Verify exact source, browser states, geometry, and render budgets
         run: |
           test "$(git rev-parse HEAD)" = "$SLIPWAY_QUEST_CAPTURE_TRIAL_SHA"
-          node_modules/.bin/sounding test --file tests/e2e/pages/projects/quest.test.js --test-concurrency=1 --test-timeout=600000
+          node tests/fixtures/run-sounding-native.cjs test --file tests/e2e/pages/projects/quest.test.js --test-concurrency=1 --test-timeout=600000
       - name: Preserve actual proposed pixels and measurements
         uses: actions/upload-artifact@v6
         if: always()
@@ -312,7 +312,7 @@ jobs:
             date -u +%FT%TZ > "paired-navigation/$round/started-at.txt"
             (
               cd "$source"
-              SLIPWAY_QUEST_CAPTURE_PHASE="$phase" node_modules/.bin/sounding test --file tests/e2e/pages/projects/quest.test.js --test-concurrency=1 --test-timeout=600000
+              SLIPWAY_QUEST_CAPTURE_PHASE="$phase" node tests/fixtures/run-sounding-native.cjs test --file tests/e2e/pages/projects/quest.test.js --test-concurrency=1 --test-timeout=600000
             )
             cp "$source/.tmp/screenshots/quest-comparison/$phase/fixture.json" "paired-navigation/$round/fixture.json"
             cp "$source/.tmp/screenshots/quest-comparison/$phase/performance.json" "paired-navigation/$round/performance.json"
@@ -488,7 +488,7 @@ jobs:
             date -u +%FT%TZ > "production-navigation/$round/started-at.txt"
             (
               cd "$source"
-              SLIPWAY_QUEST_CAPTURE_PHASE="$phase" node_modules/.bin/sounding test --file tests/e2e/pages/projects/quest.test.js --test-concurrency=1 --test-timeout=600000
+              SLIPWAY_QUEST_CAPTURE_PHASE="$phase" node tests/fixtures/run-sounding-native.cjs test --file tests/e2e/pages/projects/quest.test.js --test-concurrency=1 --test-timeout=600000
             )
             cp "$source/.tmp/screenshots/quest-comparison/$phase/fixture.json" "production-navigation/$round/fixture.json"
             cp "$source/.tmp/screenshots/quest-comparison/$phase/performance.json" "production-navigation/$round/performance.json"
@@ -562,7 +562,7 @@ jobs:
             test "$(git rev-parse HEAD)" = "$SLIPWAY_QUEST_CAPTURE_TRIAL_SHA"
             mkdir -p "preload-control/$round"
             date -u +%FT%TZ > "preload-control/$round/started-at.txt"
-            SLIPWAY_QUEST_PRELOAD_MODE="$mode" SLIPWAY_QUEST_CAPTURE_PHASE=after node_modules/.bin/sounding test --file tests/e2e/pages/projects/quest.test.js --test-concurrency=1 --test-timeout=600000
+            SLIPWAY_QUEST_PRELOAD_MODE="$mode" SLIPWAY_QUEST_CAPTURE_PHASE=after node tests/fixtures/run-sounding-native.cjs test --file tests/e2e/pages/projects/quest.test.js --test-concurrency=1 --test-timeout=600000
             cp .tmp/screenshots/quest-comparison/after/fixture.json "preload-control/$round/fixture.json"
             cp .tmp/screenshots/quest-comparison/after/performance.json "preload-control/$round/performance.json"
             cp .tmp/screenshots/quest-comparison/after/interaction-performance.json "preload-control/$round/interaction-performance.json"
