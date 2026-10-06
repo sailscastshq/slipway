@@ -59,4 +59,18 @@ try {
 } //-•
 
 // Start server
-sails.lift(rc('sails'))
+if (process.env.NODE_ENV === 'production') {
+  require('./api/lib/release-startup')
+    .beforeLift()
+    .then((shouldLift) => {
+      if (shouldLift) sails.lift(rc('sails'))
+    })
+    .catch((error) => {
+      console.error(
+        `Slipway release migration blocked startup: ${error.message}`
+      )
+      process.exitCode = 1
+    })
+} else {
+  sails.lift(rc('sails'))
+}

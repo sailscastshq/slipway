@@ -1,5 +1,6 @@
 const fs = require('node:fs')
 const path = require('node:path')
+const crypto = require('node:crypto')
 const Database = require('better-sqlite3')
 const planUtilities = require('./migration-plans')
 const { quoteIdentifier } = require('./native-migration-contract')
@@ -72,6 +73,7 @@ module.exports = function createMigrationExecutor(adapters) {
       if (service.type === 'sqlite') {
         db = new Database(service.path, { fileMustExist: true, timeout: 5000 })
         if (
+          adapters.requireBackup ||
           entry.selected.some(
             (item) => item.risk === 'high' || item.type === 'rebuild_table'
           )
@@ -311,6 +313,30 @@ module.exports = function createMigrationExecutor(adapters) {
         throw plans.failure(
           'The recovery backup did not pass its integrity check.'
         )
+      const inventory = (connection) =>
+        connection
+          .prepare(
+            "SELECT name, sql FROM sqlite_schema WHERE name NOT LIKE 'sqlite_%' ORDER BY name"
+          )
+          .all()
+      if (plans.digest(inventory(db)) !== plans.digest(inventory(copy)))
+        throw plans.failure(
+          'The recovery backup schema differs from the source.'
+        )
+      for (const { name } of db
+        .prepare(
+          "SELECT name FROM sqlite_schema WHERE type = 'table' AND name NOT LIKE 'sqlite_%'"
+        )
+        .all()) {
+        const sql = `SELECT COUNT(*) AS count FROM ${quoteIdentifier(
+          name,
+          'sqlite'
+        )}`
+        if (db.prepare(sql).get().count !== copy.prepare(sql).get().count)
+          throw plans.failure(
+            'The recovery backup row counts differ from the source.'
+          )
+      }
     } catch (error) {
       copy?.close()
       copy = null
@@ -322,7 +348,14 @@ module.exports = function createMigrationExecutor(adapters) {
     return {
       path: backupPath,
       verified: true,
-      bytes: fs.statSync(backupPath).size
+      bytes: fs.statSync(backupPath).size,
+      sha256: await new Promise((resolve, reject) => {
+        const hash = crypto.createHash('sha256')
+        const stream = fs.createReadStream(backupPath)
+        stream.on('data', (chunk) => hash.update(chunk))
+        stream.on('error', reject)
+        stream.on('end', () => resolve(hash.digest('hex')))
+      })
     }
   }
 }

@@ -313,7 +313,14 @@ check_upgrade_from_previous_release() {
     "$previous_image" >/dev/null
   wait_for_container_health "$current_container"
 
-  echo "Validating the current checkout against that live database..."
+  echo "Validating release migrations on copies while the previous release runs..."
+  docker run --rm \
+    -v "$db_volume:/app/db" \
+    "$IMAGE_NAME" node -e \
+    "require('./api/lib/release-migrations').run({directory:'/app/db',preflightOnly:true}).then(result=>console.log(JSON.stringify(result))).catch(error=>{console.error(error.message);process.exitCode=1})"
+  docker stop "$current_container" >/dev/null
+
+  echo "Starting the current checkout after stopping the previous writer..."
   docker run -d \
     --name "$candidate_container" \
     --network "$NETWORK_NAME" \
